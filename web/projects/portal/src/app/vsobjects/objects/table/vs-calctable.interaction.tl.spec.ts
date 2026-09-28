@@ -24,6 +24,7 @@
  *   Group 2 [Risk 3] - selection paths, title selection, and viewer guards.
  *   Group 3 [Risk 2] - table command loading, annotation dispatch, and scroll state.
  *   Group 4 [Risk 2] - layout helpers, width/scroll calculations, and teardown cleanup.
+ *   Group 5 [Risk 2] - card vs content rect: unmarked no-op, per-edge inset, updateTableHeight.
  *
  * Out of scope:
  *   Template render fidelity and shared BaseTable behaviors already covered by VSTable specs.
@@ -576,6 +577,54 @@ describe("VSCalcTable - Pass 1: Interaction", () => {
          expect(subscriptionsUnsubscribeSpy).toHaveBeenCalled();
          expect(actionUnsubscribeSpy).toHaveBeenCalled();
          expect((comp as any).actionSubscription).toBeNull();
+      });
+   });
+
+   describe("Group 5 [Risk 2] - card vs content rect", () => {
+      const inset = { top: 12, left: 10, bottom: 14, right: 6 };
+
+      it("should leave the content rect on the card for an unmarked calc table", () => {
+         const { comp } = createCalcTableComponent();
+
+         expect(comp.model.padding).toBeUndefined();
+         expect(comp.getObjectWidth()).toBe(comp.getCardWidth());
+         expect(comp.getObjectHeight()).toBe(comp.getCardHeight());
+      });
+
+      it("should inset the content rect on each edge independently when marked", () => {
+         const { comp } = createCalcTableComponent();
+         const cardWidth = comp.getCardWidth();
+         const cardHeight = comp.getCardHeight();
+         comp.model.padding = inset;
+
+         expect(comp.getCardWidth()).toBe(cardWidth);
+         expect(comp.getObjectWidth()).toBe(cardWidth - 10 - 6);
+         expect(comp.getObjectHeight()).toBe(cardHeight - 12 - 14);
+         expect(comp.borderDivHeight).toBe(cardHeight);
+      });
+
+      it("should subtract the vertical inset in updateTableHeight", () => {
+         const { comp } = createCalcTableComponent();
+
+         (comp as any).updateTableHeight();
+         const unmarked = comp.tableHeight;
+         comp.model.padding = inset;
+
+         (comp as any).updateTableHeight();
+
+         expect(comp.tableHeight).toBe(unmarked - 12 - 14);
+      });
+
+      it("should widen the last display column onto the content width, not the card width", () => {
+         // card width=300, inset removes 10+6=16 -> content width=284; sum(80+90+100)=270
+         // last col should absorb 284-270=14 -> 100+14=114, not the card-space 300-270=30 -> 130,
+         // less 1px so its right border lands inside the content rect
+         const { comp } = createCalcTableComponent({
+            model: { colWidths: [80, 90, 100], padding: inset } as any,
+         });
+         comp.updateDisplayColumnWidth();
+
+         expect(comp.displayColWidths[2]).toBe(113);
       });
    });
 });

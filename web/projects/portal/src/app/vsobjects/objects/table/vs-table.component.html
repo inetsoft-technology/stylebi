@@ -16,8 +16,12 @@
 ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 -->
 @if (model) {
-  @let objectWidth = getObjectWidth();
-  @let objectHeight = getObjectHeight();
+  @let cardWidth = getCardWidth();
+  @let cardHeight = getCardHeight();
+  @let contentWidth = getObjectWidth();
+  @let contentHeight = getObjectHeight();
+  @let contentLeft = getContentLeft();
+  @let contentTop = getContentTop();
   @let objectTop = getObjectTop();
   @let wrapperWidth = getWrapperWidth();
   <div #tableContainer
@@ -34,8 +38,8 @@
      objectTop : null"
     [style.left.px]="(viewer || embeddedVS) && !model.maxMode && !isBinding ? model.objectFormat.left : null"
     [style.position]="viewer || embeddedVS ? 'absolute' : 'relative'"
-    [style.width.px]="objectWidth"
-    [style.height.px]="objectHeight"
+    [style.width.px]="cardWidth"
+    [style.height.px]="cardHeight"
     (onMouseleave)="mouseLeave($event)"
     outOfZone (onDragover)="dropOverEmptyTable($event, null)"
     (drop)="dropEmptyTable($event)"
@@ -54,13 +58,18 @@
       [style.border-radius.px]="model.objectFormat.roundCorner"
       [style.z-index]="zIndex">
       <div class="border-div"
-        [style.width.px]="objectWidth"
+        [style.width.px]="cardWidth"
         [style.height.px]="borderDivHeight"
         [style.border-top]="model.objectFormat.border.top"
         [style.border-left]="model.objectFormat.border.left"
         [style.border-bottom]="model.objectFormat.border.bottom"
         [style.border-right]="model.objectFormat.border.right"
       [style.border-radius.px]="model.objectFormat.roundCorner"></div>
+      <div class="table-content"
+        [style.left.px]="contentLeft"
+        [style.top.px]="contentTop"
+        [style.width.px]="contentWidth"
+        [style.height.px]="contentHeight">
       @if (dropIndex != -1) {
         <div class="drop-line drop-line--success top-bottom"
           outOfZone (onDragover)="$event.preventDefault()"
@@ -106,7 +115,7 @@
             [formatPainterMode]="vsInfo?.formatPainterMode"
             [titleSelected]="model.titleSelected"
             [titleVisible]="model.titleVisible"
-            [titleWidth]="objectWidth"
+            [titleWidth]="contentWidth"
             (selectTitle)="selectTitle($event)"
             (changeTitle)="changeTableTitle($event)"
             (titleResizeMove)="titleResizeMove($event)"
@@ -292,7 +301,7 @@
       </div>
       <div [style.width.px]="scrollbarWidth" class="horizontal-scrollbar-wrapper-container">
         <div class="horizontal-scroll-wrapper horizontal-scrollbar-offset"
-          [style.width.px]="objectWidth"
+          [style.width.px]="contentWidth"
           [style.height.px]="scrollbarWidth + 1"
           ngbTooltip="0"
           placement="bottom"
@@ -307,6 +316,7 @@
             [style.width.px]="getColumnWidthSum(0, model.colCount)">
           </div>
         </div>
+      </div>
       </div>
     </div>
     @if (enableAnnotation) {
@@ -383,7 +393,7 @@
     @if (mobileDevice) {
       <div #resizeLine class="col-resize-line"
         [style.height.px]="tableWrapperHeight"
-        [style.top.px]="tableWrapperTop">
+        [style.top.px]="tableWrapperTop + contentTop">
       </div>
     }
     <div #colResize class="col-resize-handle">

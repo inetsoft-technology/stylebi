@@ -18,7 +18,6 @@
 package inetsoft.uql.viewsheet.internal;
 
 import java.awt.Color;
-import java.awt.Insets;
 
 /**
  * Supplies the modern object-chrome default colors (object-frame border + viewsheet page background)
@@ -71,25 +70,6 @@ public final class VSObjectChromeDefaults {
    }
 
    /**
-    * The chart's creation-default inset, which is what the card-inset resolver treats as "no
-    * opinion" and what a dialog stores when its author hands the padding back to the default. A
-    * fresh object every call: Insets is mutable and the constant must not escape by reference.
-    */
-   public static Insets legacyChartPadding() {
-      return new Insets(LEGACY_CHART_PADDING.top, LEGACY_CHART_PADDING.left,
-                        LEGACY_CHART_PADDING.bottom, LEGACY_CHART_PADDING.right);
-   }
-
-   /**
-    * The modern card inset, seeded at creation and re-seeded on a density change. Delegates to
-    * the density matrix rather than holding a constant: the inset is a density-derived size, and
-    * VSDensityDefaults is where those live. A fresh object every call, as the type is mutable.
-    */
-   public static Insets modernChartPadding(VizContext ctx) {
-      return VSDensityDefaults.chartPaddingForMode(ctx.density);
-   }
-
-   /**
     * The dark-mode light text value. Public because the selection-cell and slider seeds write it
     * into a stored DEFAULT tier at creation rather than substituting it at read time.
     */
@@ -122,10 +102,6 @@ public final class VSObjectChromeDefaults {
 
    // modern object-card corner radius, px; = --inet-radius-xl, the DOM scale's top step
    private static final int CARD_CORNER_RADIUS = 6;
-
-   // the chart's creation-default padding (ChartVSAssemblyInfo.setDefaultFormat), which is what the
-   // card inset resolver treats as "no opinion"
-   private static final Insets LEGACY_CHART_PADDING = new Insets(10, 10, 10, 10);
 
    // modern selection teal, mirroring --inet-viz-selected-border-modern/-dark in _viz-tokens.scss
    private static final Color ACTIVE_INDICATOR = new Color(0xBFDDE5);

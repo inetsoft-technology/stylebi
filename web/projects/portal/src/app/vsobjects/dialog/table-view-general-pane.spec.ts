@@ -93,6 +93,12 @@ let createModel: () => TableViewGeneralPaneModel = () => {
          height: 0,
          container: false
       },
+      paddingPaneModel: <PaddingPaneModel> {
+         top: 0,
+         left: 0,
+         bottom: 0,
+         right: 0
+      },
       cellPaddingPaneModel: <PaddingPaneModel> {
          top: 0,
          left: 0,

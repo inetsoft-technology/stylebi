@@ -120,8 +120,7 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
       // asset. isUserPadding is the author's opinion, and setCSSDefaults installs a CSS padding
       // just before this hook runs, so both are left alone
       if(!isUserPadding() && !isCssPaddingDefined()) {
-         setPadding(ctx.modern ? VSObjectChromeDefaults.modernChartPadding(ctx)
-                       : VSObjectChromeDefaults.legacyChartPadding());
+         setPadding(defaultPadding(ctx));
       }
 
       // the title lane's rule and its text colour. No background write on either branch: this
@@ -203,45 +202,9 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
       seedColorPalette(ctx);
    }
 
-   /**
-    * Whether a format.css class set this chart's padding. setCSSDefaults writes it before the seed
-    * runs, and there is no tier to record it in, so the dictionary is asked directly.
-    */
-   private boolean isCssPaddingDefined() {
-      VSCompositeFormat objFormat = getFormat();
-
-      if(objFormat == null) {
-         return false;
-      }
-
-      return CSSDictionary.getDictionary()
-         .isPaddingDefined(objFormat.getCSSFormat().getCSSParam());
-   }
-
-   /**
-    * Reset the card inset to whatever "follow the default" means right now. The padding pane's
-    * checkbox needs only this write - the full seedChromeDefaults hook also re-runs the card
-    * background, the title lane and the colour palette, none of which that checkbox asked for.
-    *
-    * A format.css class still wins: it already installed its own padding through setCSSDefaults,
-    * and this re-reads it live rather than trusting whatever the field currently holds, which is
-    * what keeps the checkbox sane after an author had overridden that CSS padding and is now
-    * asking to give it back. Absent a CSS padding, this writes the same mark-appropriate inset the
-    * hook's own branch would.
-    */
-   public void resetCardInset(VizContext ctx) {
-      VSCompositeFormat objFormat = getFormat();
-
-      if(objFormat != null && CSSDictionary.getDictionary()
-            .isPaddingDefined(objFormat.getCSSFormat().getCSSParam()))
-      {
-         setPadding(CSSDictionary.getDictionary()
-                       .getPadding(objFormat.getCSSFormat().getCSSParam()));
-         return;
-      }
-
-      setPadding(ctx.modern ? VSObjectChromeDefaults.modernChartPadding(ctx)
-                    : VSObjectChromeDefaults.legacyChartPadding());
+   @Override
+   protected Insets defaultPadding(VizContext ctx) {
+      return VSDensityDefaults.chartPadding(ctx);
    }
 
    /**
@@ -1544,7 +1507,6 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
       writer.print(" tipClickValue=\"" + getTipOnClickValue() + "\"");
       writer.print(" summarySortCol=\"" + getSummarySortCol() + "\"");
       writer.print(" summarySortVal=\"" + getSummarySortValValue() + "\"");
-      writer.print(" userPadding=\"" + isUserPadding() + "\"");
       writer.print(" userBarCornerRadius=\"" + isUserBarCornerRadius() + "\"");
       writer.print(" userSmoothLines=\"" + isUserSmoothLines() + "\"");
 
@@ -1580,13 +1542,9 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
       prop = getAttributeStr(element, "summarySortVal", "0");
       setSummarySortValValue(Integer.parseInt(prop));
 
-      // absent in files saved before the flag existed; a missing flag means no opinion, and the
-      // resolver's comparison against the creation default decides
-      String userPaddingProp = Tool.getAttribute(element, "userPadding");
-      setUserPadding("true".equalsIgnoreCase(userPaddingProp));
-
-      // same shape as userPadding, but with no resolver fallback behind the flag: a missing
-      // attribute means no opinion and seedChromeDefaults writes the mark-appropriate value
+      // same shape as userPadding (now parsed on the base class), but with no resolver fallback
+      // behind the flag: a missing attribute means no opinion and seedChromeDefaults writes the
+      // mark-appropriate value
       String userBarCornerRadiusProp = Tool.getAttribute(element, "userBarCornerRadius");
       setUserBarCornerRadius("true".equalsIgnoreCase(userBarCornerRadiusProp));
 
@@ -1986,11 +1944,6 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
 
       if(!Tool.equals(titleInfo, ninfo.titleInfo)) {
          titleInfo = ninfo.titleInfo;
-         result = true;
-      }
-
-      if(userPadding != ninfo.userPadding) {
-         userPadding = ninfo.userPadding;
          result = true;
       }
 
@@ -2950,22 +2903,6 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
    }
 
    /**
-    * Whether the author set the chart's padding. Distinguishes a deliberate inset from the creation
-    * default, so the card-inset resolver can substitute for the latter only. Surfaced in the
-    * property dialog as the padding pane's follow-the-default checkbox.
-    */
-   public boolean isUserPadding() {
-      return userPadding;
-   }
-
-   /**
-    * Set whether the padding was set by the author.
-    */
-   public void setUserPadding(boolean userPadding) {
-      this.userPadding = userPadding;
-   }
-
-   /**
     * Whether the author set the plot's bar corner radius. Distinguishes a deliberate value from
     * the mark-dependent seed, so seedChromeDefaults substitutes for the latter only.
     */
@@ -3228,7 +3165,6 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
    private boolean noData = false;
    private DynamicValue2 summarySortCol;
    private DynamicValue2 summarySortVal;
-   private boolean userPadding = false;
    private boolean userBarCornerRadius = false;
    private boolean userSmoothLines = false;
 
