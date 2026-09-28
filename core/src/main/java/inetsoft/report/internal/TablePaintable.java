@@ -103,6 +103,7 @@ public class TablePaintable extends BasePaintable {
       this.pgregs = copyPGRegs(pgregs);
       this.lastregion = lastregion;
       TableElementDef telem = (TableElementDef) elem;
+      this.cardInset = telem.getCardInset();
       this.binding = telem.getBindingAttr();
       TableLayout layout = telem.getTableLayout();
       this.calc = layout == null ? false : layout.isCalc();
@@ -653,7 +654,7 @@ public class TablePaintable extends BasePaintable {
       cellbounds = new Bounds[headerR + reg.height + summaryR][headerC + reg.width];
 
       // adjust alignment
-      box.x = printBox.x + (float) elem.getIndent() * 72 + 1;
+      box.x = printBox.x + (float) elem.getIndent() * 72 + 1 + getCardLeft();
 
       // @by larryl, optimization, since the spanmap contains the span setting
       // for the entire table, we mark which span is necessary for this
@@ -845,6 +846,10 @@ public class TablePaintable extends BasePaintable {
     */
    public float getHeight() {
       return height;
+   }
+
+   private int getCardLeft() {
+      return cardInset == null ? 0 : cardInset.left;
    }
 
    /**
@@ -4605,6 +4610,8 @@ public class TablePaintable extends BasePaintable {
 
    private Int2ObjectOpenHashMap<Rectangle> groupMap = new Int2ObjectOpenHashMap<>();
    private Insets padding;
+   // print layout's card inset (0, left, bottom, right); the box stays the grid
+   private Insets cardInset;
 
    // cols are normally few so they don't need to be saved partially
    private float[] colWidth;

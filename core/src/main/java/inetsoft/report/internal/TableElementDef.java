@@ -1030,8 +1030,17 @@ public class TableElementDef extends BaseElement
 
       area.x += indw;
       area.width -= indw;
+      insetToGrid(area);
 
       return area;
+   }
+
+   // a print-layout card keeps its columns inside the side insets
+   private void insetToGrid(Rectangle area) {
+      if(cardInset != null) {
+         area.x += cardInset.left;
+         area.width = Math.max(0, area.width - cardInset.left - cardInset.right);
+      }
    }
 
    /**
@@ -1569,6 +1578,7 @@ public class TableElementDef extends BaseElement
          // indent
          nextarea.x += indw;
          nextarea.width -= indw;
+         insetToGrid(nextarea);
 
          // if the top row is no immediately below the header adjust the row
          // height to reflect the different row border (header vs. row on top)
@@ -2661,6 +2671,25 @@ public class TableElementDef extends BaseElement
       return borders;
    }
 
+   /**
+    * Set the inset between a print-layout table's card edge and its grid. Only the left, bottom
+    * and right edges are used; the card's top band lives outside the table element.
+    * @param inset the inset, or null for none.
+    */
+   public void setCardInset(Insets inset) {
+      boolean none = inset == null ||
+         inset.left == 0 && inset.bottom == 0 && inset.right == 0;
+      this.cardInset = none ? null : (Insets) inset.clone();
+   }
+
+   /**
+    * Get the print-layout card inset.
+    * @return a copy of the inset, or null for none.
+    */
+   public Insets getCardInset() {
+      return cardInset == null ? null : (Insets) cardInset.clone();
+   }
+
    public float[] getColWidth() {
       return colWidth;
    }
@@ -2673,6 +2702,8 @@ public class TableElementDef extends BaseElement
    private VSTableLens vsTableLens = null;
    private BorderColors bcolors = null;
    private Insets borders = null;
+   // print layout only: the card inset (0, left, bottom, right) around the grid
+   private Insets cardInset = null;
 
    // @by billh, the priority should keep in sync with the apply-process,
    // we'd better merge logic of the two parts later...
