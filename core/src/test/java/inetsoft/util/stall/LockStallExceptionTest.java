@@ -19,6 +19,9 @@ package inetsoft.util.stall;
 
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+
+import java.io.File;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -36,7 +39,36 @@ public class LockStallExceptionTest {
       assertTrue(ex.getMessage().contains("SummaryFilter.waitForRow"));
       assertTrue(ex.getMessage().contains("worker-1"));
       assertTrue(ex.getMessage().contains("301234 ms"));
-      assertTrue(ex.getMessage().contains("/logs/stall-dump-1.txt"));
+      assertTrue(ex.getMessage().contains("stall-dump-1.txt"));
+      assertFalse(ex.getMessage().contains("/logs/stall-dump-1.txt"));
+   }
+
+   // Bug #77123: the message reaches users through the viewer, composer and portal error
+   // handlers, so it may name the dump file but never its absolute server path.
+   @Test
+   public void messageKeepsTheDumpPathOutOfUserText(@TempDir File tmpDir) {
+      File dump = new File(tmpDir, "stall-dump-1.txt");
+      String path = dump.getAbsolutePath();
+      String parent = dump.getParentFile().getAbsolutePath();
+      LockStallException ex = new LockStallException("SummaryFilter.waitForRow", "worker-1", 301234,
+                                                     path);
+      LockStallException copy = new LockStallException(ex);
+      RuntimeException wrapped = new RuntimeException(ex);
+      RuntimeException wrappedCopy = new RuntimeException(copy);
+
+      assertEquals(path, ex.getDumpPath());
+      assertEquals(path, copy.getDumpPath());
+      assertTrue(ex.getMessage().contains("stall-dump-1.txt"));
+      assertTrue(copy.getMessage().contains("stall-dump-1.txt"));
+
+      for(String text : new String[] {
+         ex.getMessage(), ex.toString(), copy.getMessage(), copy.toString(),
+         wrapped.getMessage(), wrapped.toString(), wrappedCopy.getMessage(), wrappedCopy.toString()
+      })
+      {
+         assertFalse(text.contains(path), text);
+         assertFalse(text.contains(parent), text);
+      }
    }
 
    @Test
