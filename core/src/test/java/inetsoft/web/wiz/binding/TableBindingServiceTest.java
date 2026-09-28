@@ -18,6 +18,7 @@
 package inetsoft.web.wiz.binding;
 
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.TableVSAssemblyInfo;
 import inetsoft.web.binding.controller.VSBindingModelService;
@@ -715,6 +716,9 @@ class TableBindingServiceTest {
       when(lens.getObject(0, 1)).thenReturn("2024");
       when(lens.getObject(1, 0)).thenReturn("Sum(Paid)");
       when(lens.getObject(2, 0)).thenReturn("Sum(Cost)");
+      stubAggregates(assembly, "Sum(Paid)", "Sum(Cost)");
+      when(lens.getTableDataPath(1, 0)).thenReturn(groupHeaderPath("Sum(Paid)"));
+      when(lens.getTableDataPath(2, 0)).thenReturn(groupHeaderPath("Sum(Cost)"));
 
       VSBindingModelService bindings = mock(VSBindingModelService.class);
       List<String> applied = serviceWith(sessionsWithLens(assembly, "CT1", lens),
@@ -723,6 +727,103 @@ class TableBindingServiceTest {
 
       verify(info).setColumnWidthValue2(0, 90.0, lens);
       assertEquals(List.of("Sum(Paid) -> 90px"), applied);
+   }
+
+   /**
+    * Bug #77036: the left arm of the scan also covers the row-dimension value cells ("USA
+    * East"), which matched by text and widened the whole row-header column. Only an aggregate
+    * label cell -- its path's last segment is that aggregate's full name -- may match there.
+    */
+   @Test
+   void setColumnWidthsRefusesARowDimensionValueAsAColumnName() throws Exception {
+      CrosstabBindingModel existing = new CrosstabBindingModel();
+      CrosstabVSAssembly assembly = mock(CrosstabVSAssembly.class);
+      when(assembly.getAbsoluteName()).thenReturn("CT1");
+      inetsoft.uql.viewsheet.internal.TableDataVSAssemblyInfo info =
+         mock(inetsoft.uql.viewsheet.internal.TableDataVSAssemblyInfo.class);
+      when(assembly.getInfo()).thenReturn(info);
+
+      // rows=[Region], side-by-side Sum(Total): header row, then one row per Region value.
+      inetsoft.report.composition.VSTableLens lens =
+         mock(inetsoft.report.composition.VSTableLens.class);
+      when(lens.getHeaderRowCount()).thenReturn(1);
+      when(lens.getHeaderColCount()).thenReturn(1);
+      when(lens.getColCount()).thenReturn(2);
+      when(lens.getRowCount()).thenReturn(3);
+      when(lens.getObject(0, 0)).thenReturn("Region");
+      when(lens.getObject(0, 1)).thenReturn("Sum(Total)");
+      when(lens.getObject(1, 0)).thenReturn("USA East");
+      when(lens.getObject(2, 0)).thenReturn("USA West");
+      when(lens.getTableDataPath(1, 0)).thenReturn(groupHeaderPath("Region"));
+      when(lens.getTableDataPath(2, 0)).thenReturn(groupHeaderPath("Region"));
+      stubAggregates(assembly, "Sum(Total)");
+
+      TableBindingService service = serviceWith(sessionsWithLens(assembly, "CT1", lens),
+                                                existing, mock(VSBindingModelService.class));
+
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> service.setColumnWidths("tok", principal(), "CT1", Map.of("USA East", 600.0)));
+
+      assertTrue(thrown.getMessage().contains("not a visible column"), thrown.getMessage());
+      verify(info, never()).setColumnWidthValue2(anyInt(), anyDouble(), any());
+   }
+
+   /**
+    * The lens builds its paths from the runtime aggregates, whose full names can differ from
+    * the stored ones -- a {@code $(var)} measure renders as {@code Sum(Sales)}, not {@code
+    * Sum($(measure))}. A label known only to the runtime list must still match.
+    */
+   @Test
+   void setColumnWidthsMatchesAnAggregateLabelKnownOnlyToTheRuntimeAggregates() throws Exception {
+      CrosstabBindingModel existing = new CrosstabBindingModel();
+      CrosstabVSAssembly assembly = mock(CrosstabVSAssembly.class);
+      when(assembly.getAbsoluteName()).thenReturn("CT1");
+      inetsoft.uql.viewsheet.internal.TableDataVSAssemblyInfo info =
+         mock(inetsoft.uql.viewsheet.internal.TableDataVSAssemblyInfo.class);
+      when(assembly.getInfo()).thenReturn(info);
+
+      inetsoft.report.composition.VSTableLens lens =
+         mock(inetsoft.report.composition.VSTableLens.class);
+      when(lens.getHeaderRowCount()).thenReturn(1);
+      when(lens.getHeaderColCount()).thenReturn(1);
+      when(lens.getColCount()).thenReturn(2);
+      when(lens.getRowCount()).thenReturn(2);
+      when(lens.getObject(0, 0)).thenReturn("Date");
+      when(lens.getObject(1, 0)).thenReturn("Sum(Sales)");
+      when(lens.getTableDataPath(1, 0)).thenReturn(groupHeaderPath("Sum(Sales)"));
+
+      stubAggregates(assembly, "Sum($(measure))");
+      VSAggregateRef runtime = mock(VSAggregateRef.class);
+      when(runtime.getFullName()).thenReturn("Sum(Sales)");
+      when(assembly.getVSCrosstabInfo().getRuntimeAggregates())
+         .thenReturn(new DataRef[]{ runtime });
+
+      List<String> applied = serviceWith(sessionsWithLens(assembly, "CT1", lens),
+                                         existing, mock(VSBindingModelService.class))
+         .setColumnWidths("tok", principal(), "CT1", Map.of("Sum(Sales)", 90.0));
+
+      verify(info).setColumnWidthValue2(0, 90.0, lens);
+      assertEquals(List.of("Sum(Sales) -> 90px"), applied);
+   }
+
+   private static void stubAggregates(CrosstabVSAssembly assembly, String... fullNames) {
+      DataRef[] aggregates = new DataRef[fullNames.length];
+
+      for(int i = 0; i < fullNames.length; i++) {
+         VSAggregateRef aggregate = mock(VSAggregateRef.class);
+         when(aggregate.getFullName()).thenReturn(fullNames[i]);
+         aggregates[i] = aggregate;
+      }
+
+      VSCrosstabInfo crossInfo = mock(VSCrosstabInfo.class);
+      when(crossInfo.getAggregates()).thenReturn(aggregates);
+      when(assembly.getVSCrosstabInfo()).thenReturn(crossInfo);
+   }
+
+   private static inetsoft.report.TableDataPath groupHeaderPath(String segment) {
+      return new inetsoft.report.TableDataPath(
+         -1, inetsoft.report.TableDataPath.GROUP_HEADER, inetsoft.uql.schema.XSchema.STRING,
+         new String[]{ segment });
    }
 
    @Test
