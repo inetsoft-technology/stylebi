@@ -141,6 +141,69 @@ class IdentityServiceOrganizationIdTest {
       verify(eprovider, atLeastOnce()).getUsers();
    }
 
+   // Bug #77169: the default and self organization ids and names are hard-coded constants, so
+   // setIdentity must refuse to change them on every save path, not only in the EM.
+   @ParameterizedTest
+   @CsvSource(value = { "Host Organization,host-org,renamed-org", "Self Organization,SELF,renamed-self",
+                        "Host Organization,host-org,HOST-ORG", "Host Organization,host-org,NULL",
+                        "Self Organization,SELF,NULL" }, nullValues = "NULL")
+   void setIdentity_changeDefaultOrSelfOrgId_rejectedBeforeAnyChange(String name, String oldId,
+                                                                    String newId)
+   {
+      FSOrganization org = new FSOrganization(new IdentityID(name, oldId));
+
+      MessageException thrown = assertThrows(
+         MessageException.class, () -> service.setIdentity(org, orgModel(name, newId), eprovider, principal));
+
+      assertEquals(Catalog.getCatalog().getString("em.security.writeDefaultOrgId"), thrown.getMessage());
+      assertNothingSaved();
+   }
+
+   @ParameterizedTest
+   @CsvSource({ "Host Organization,host-org", "Self Organization,SELF" })
+   void setIdentity_changeDefaultOrSelfOrgName_rejectedBeforeAnyChange(String name, String id) {
+      FSOrganization org = new FSOrganization(new IdentityID(name, id));
+      when(eprovider.getOrganizationNames()).thenReturn(new String[]{ name });
+      when(eprovider.getOrganization(id)).thenReturn(org);
+      EditOrganizationPaneModel model = EditOrganizationPaneModel.builder()
+         .name("Renamed").oldName(name).id(id).theme(null).build();
+
+      MessageException thrown = assertThrows(
+         MessageException.class, () -> service.setIdentity(org, model, eprovider, principal));
+
+      assertEquals(Catalog.getCatalog().getString("em.security.writeDefaultOrgName"), thrown.getMessage());
+      assertNothingSaved();
+   }
+
+   @ParameterizedTest
+   @CsvSource({ "Host Organization,host-org", "Self Organization,SELF", "Org A,orgB" })
+   void setIdentity_defaultOrgUnchangedOrNormalOrgRenamed_passesTheGate(String name, String newId) {
+      String oldId = "Org A".equals(name) ? "orgA" : "host-org";
+      oldId = "Self Organization".equals(name) ? "SELF" : oldId;
+      FSOrganization org = new FSOrganization(new IdentityID(name, oldId));
+
+      try {
+         // a member, theme or locale edit keeps the id and name
+         service.setIdentity(org, orgModel(name, newId), eprovider, principal);
+      }
+      catch(MessageException e) {
+         fail("the edit must not be refused: " + e.getMessage());
+      }
+      catch(Exception ignore) {
+         // later steps of the save are out of scope, only the gate matters here
+      }
+
+      verify(eprovider, atLeastOnce()).getUsers();
+   }
+
+   private void assertNothingSaved() {
+      verify(eprovider, never()).getUsers();
+      verify(eprovider, never()).setOrganization(any(), any());
+      verify(eprovider, never()).copyOrganization(any(), any(), any(), any(), any(), any(), any(),
+                                                  anyBoolean(), any());
+      verifyNoInteractions(cluster);
+   }
+
    @ParameterizedTest
    @CsvSource({ "backup,orgB", "orgA,backup", "status,orgB", "orgA,HeapDump" })
    void updateTaskSaveFiles_reservedOldOrNewId_doesNotMoveFolder(String oldId, String newId)
