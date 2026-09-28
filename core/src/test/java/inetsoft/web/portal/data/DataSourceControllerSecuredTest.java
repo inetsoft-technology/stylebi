@@ -60,6 +60,7 @@ class DataSourceControllerSecuredTest {
    private DatasourcesService datasourcesService;
    private AnalyticRepository repository;
    private HttpServletRequest request;
+   private Principal user;
    private MockedStatic<SUtil> sUtilMock;
    private DataSourceController proxy;
 
@@ -69,7 +70,7 @@ class DataSourceControllerSecuredTest {
       repository = mock(AnalyticRepository.class);
       request = mock(HttpServletRequest.class);
       HttpSession session = mock(HttpSession.class);
-      Principal user = () -> "alice";
+      user = () -> "alice";
 
       when(request.getSession()).thenReturn(session);
       when(session.getId()).thenReturn("session-1");
@@ -118,7 +119,7 @@ class DataSourceControllerSecuredTest {
       when(repository.checkPermission(any(), eq(ResourceType.PORTAL_TAB), eq("Data"),
                                       eq(ResourceAction.ACCESS))).thenReturn(false);
 
-      assertDenied(() -> proxy.refreshTabularView(new DataSourceDefinition(), request));
+      assertDenied(() -> proxy.refreshTabularView(new DataSourceDefinition(), request, user));
       assertDenied(() -> proxy.getOAuthParameters(mock(DataSourceOAuthParamsRequest.class), request));
       assertDenied(() -> proxy.setOAuthTokens(mock(DataSourceOAuthTokens.class), request));
 
@@ -132,7 +133,7 @@ class DataSourceControllerSecuredTest {
       when(repository.checkPermission(any(), eq(ResourceType.PORTAL_TAB), eq("Data"),
                                       eq(ResourceAction.ACCESS))).thenReturn(true);
 
-      assertNotNull(proxy.refreshTabularView(new DataSourceDefinition(), request));
+      assertNotNull(proxy.refreshTabularView(new DataSourceDefinition(), request, user));
       proxy.getOAuthParameters(mock(DataSourceOAuthParamsRequest.class), request);
       assertNotNull(proxy.setOAuthTokens(mock(DataSourceOAuthTokens.class), request));
 
