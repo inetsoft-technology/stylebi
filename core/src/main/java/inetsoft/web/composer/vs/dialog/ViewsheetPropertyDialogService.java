@@ -478,8 +478,14 @@ public class ViewsheetPropertyDialogService {
       List<ViewsheetLayout> newLayouts = new ArrayList<>();
 
       for(VSDeviceLayoutDialogModel layout : screensPane.getDeviceLayouts()) {
+         // Bug 77045 NEW-1: l.getID() can be null for a layout persisted before every caller that
+         // constructs a VSDeviceLayoutDialogModel assigned it an id (PrintDeviceLayoutPropertyService
+         // .manageDeviceLayout's own create branch was one such caller, now fixed separately, but
+         // this null-safety guard protects against ANY pre-existing on-disk layout missing its id,
+         // not just ones created that way) -- l.getID().equals(...) NPE'd unconditionally on a null
+         // receiver rather than simply comparing unequal.
          ViewsheetLayout vsLayout = oldLayouts.stream()
-            .filter(l -> l.getID().equals(layout.getId()))
+            .filter(l -> Objects.equals(l.getID(), layout.getId()))
             .findFirst()
             .orElse(null);
          String oldName = vsLayout == null ? null : vsLayout.getName();

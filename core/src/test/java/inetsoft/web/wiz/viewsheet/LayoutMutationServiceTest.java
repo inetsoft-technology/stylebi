@@ -20,6 +20,7 @@ package inetsoft.web.wiz.viewsheet;
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.asset.AssetEntry;
+import inetsoft.uql.viewsheet.GroupContainerVSAssembly;
 import inetsoft.uql.viewsheet.TableVSAssembly;
 import inetsoft.uql.viewsheet.TextVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
@@ -29,6 +30,7 @@ import inetsoft.uql.viewsheet.vslayout.PrintInfo;
 import inetsoft.uql.viewsheet.vslayout.PrintLayout;
 import inetsoft.uql.viewsheet.vslayout.VSAssemblyLayout;
 import inetsoft.uql.viewsheet.vslayout.VSEditableAssemblyLayout;
+import inetsoft.uql.viewsheet.vslayout.ViewsheetLayout;
 import inetsoft.web.composer.vs.controller.VSLayoutControllerServiceProxy;
 import inetsoft.web.composer.vs.controller.VSLayoutService;
 import inetsoft.web.viewsheet.DataTipInLayoutCheckResult;
@@ -61,6 +63,7 @@ import static org.mockito.Mockito.*;
 class LayoutMutationServiceTest {
    private static final Principal AGENT = TestPrincipals.user("alice", "host-org");
    private static final String PRINT_LAYOUT = "Print Layout";
+   private static final String DEVICE_LAYOUT = "Phone";
 
    /**
     * The coordinate-space test: moving/resizing "Table1" through {@code edit_layout_objects}
@@ -381,6 +384,116 @@ class LayoutMutationServiceTest {
       assertTrue(thrown.getMessage().contains("Table1"), thrown.getMessage());
    }
 
+   // ── Bug 77045 #5: text/image/pagebreak add refused on a device layout ──────
+
+   @Test
+   void addOfANewLayoutOnlyObjectIsRefusedOnADeviceLayoutForEveryType() throws Exception {
+      Fixture fx = new Fixture();
+      fx.installDeviceLayout();
+
+      for(String type : List.of("text", "image", "pagebreak")) {
+         IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+            () -> fx.service.editObjects("tok1", AGENT, DEVICE_LAYOUT, "add",
+               VSLayoutService.CONTENT,
+               List.of(Map.of("name", "New_" + type, "type", type, "x", 0, "y", 0)), false));
+
+         assertTrue(thrown.getMessage().toLowerCase().contains("device"), thrown.getMessage());
+      }
+
+      assertTrue(fx.deviceLayoutObjects().isEmpty(),
+                 "a refused add must not place anything in the device layout");
+   }
+
+   /**
+    * Placing an EXISTING viewsheet assembly on a device layout needs no "type" and is a
+    * different code path from #5's own refusal (which only guards the NEW-layout-only-object
+    * branch) -- must still succeed.
+    */
+   @Test
+   void addOfAnExistingAssemblyStillSucceedsOnADeviceLayout() throws Exception {
+      Fixture fx = new Fixture();
+      fx.installDeviceLayout();
+
+      fx.service.editObjects("tok1", AGENT, DEVICE_LAYOUT, "add", VSLayoutService.CONTENT,
+         List.of(Map.of("name", "Table1", "x", 0, "y", 0)), false);
+
+      assertEquals(1, fx.deviceLayoutObjects().size());
+      assertEquals("Table1", fx.deviceLayoutObjects().get(0).getName());
+   }
+
+   // ── Bug 77045 #6: set_layout_table_options refused on a device layout ──────
+
+   @Test
+   void setLayoutTableOptionsRefusedOnADeviceLayout() throws Exception {
+      Fixture fx = new Fixture();
+      fx.installDeviceLayout();
+      fx.service.editObjects("tok1", AGENT, DEVICE_LAYOUT, "add", VSLayoutService.CONTENT,
+         List.of(Map.of("name", "Table1", "x", 0, "y", 0)), false);
+
+      IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+         () -> fx.service.setTableLayoutOptions("tok1", AGENT, DEVICE_LAYOUT, "Table1",
+                                                 VSLayoutService.CONTENT, 2));
+
+      assertTrue(thrown.getMessage().toLowerCase().contains("device"), thrown.getMessage());
+   }
+
+   // ── Bug 77045 #7: duplicate edit_layout_objects add ─────────────────────────
+
+   @Test
+   void addRefusesReAddingAnAlreadyPlacedExistingAssembly() throws Exception {
+      Fixture fx = new Fixture();
+      fx.installPrintLayout();
+      int before = fx.printLayoutObjectNames().size();
+
+      IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+         () -> fx.service.editObjects("tok1", AGENT, PRINT_LAYOUT, "add", VSLayoutService.CONTENT,
+            List.of(Map.of("name", "Table1", "x", 0, "y", 0)), false));
+
+      assertTrue(thrown.getMessage().contains("Table1"), thrown.getMessage());
+      assertEquals(before, fx.printLayoutObjectNames().size(),
+                   "a refused re-add must not create a duplicate entry");
+   }
+
+   @Test
+   void addRefusesADuplicateNewLayoutOnlyObjectName() throws Exception {
+      Fixture fx = new Fixture();
+      fx.installPrintLayout();
+      fx.service.editObjects("tok1", AGENT, PRINT_LAYOUT, "add", VSLayoutService.CONTENT,
+         List.of(Map.of("name", "Caption1", "type", "text", "x", 0, "y", 0)), false);
+      int before = fx.printLayoutObjectNames().size();
+
+      IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+         () -> fx.service.editObjects("tok1", AGENT, PRINT_LAYOUT, "add", VSLayoutService.CONTENT,
+            List.of(Map.of("name", "Caption1", "type", "text", "x", 10, "y", 10)), false));
+
+      assertTrue(thrown.getMessage().contains("Caption1"), thrown.getMessage());
+      assertEquals(before, fx.printLayoutObjectNames().size());
+   }
+
+   // ── Bug 77045 #8: container-child add refused ───────────────────────────────
+
+   @Test
+   void addRefusesAChildAlreadyInsideAContainerSuggestingTheContainer() throws Exception {
+      Fixture fx = new Fixture();
+      fx.installPrintLayout();
+      // A NEW assembly, not yet placed in the layout -- "Text1" already IS placed (installPrintLayout),
+      // so re-adding it would trip #7's own duplicate-add refusal first rather than exercising #8.
+      TextVSAssembly child = new TextVSAssembly(fx.masterVs, "ChildText");
+      fx.masterVs.addAssembly(child);
+      GroupContainerVSAssembly container = new GroupContainerVSAssembly(fx.masterVs, "Group1");
+      container.setAssemblies(new String[] { "ChildText" });
+      fx.masterVs.addAssembly(container);
+
+      IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+         () -> fx.service.editObjects("tok1", AGENT, PRINT_LAYOUT, "add", VSLayoutService.CONTENT,
+            List.of(Map.of("name", "ChildText", "x", 0, "y", 0)), false));
+
+      assertTrue(thrown.getMessage().contains("ChildText"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("Group1"), thrown.getMessage());
+      assertFalse(fx.printLayoutObjectNames().contains("ChildText"),
+                  "a refused add must not place the child in the layout");
+   }
+
    // ── fixture ───────────────────────────────────────────────────────────────
 
    /**
@@ -477,6 +590,30 @@ class LayoutMutationServiceTest {
          layout.setVSAssemblyLayouts(objects);
          info.setPrintLayout(layout);
          masterVs.setLayoutInfo(info);
+      }
+
+      /**
+       * A real device (viewsheet) layout named {@link #DEVICE_LAYOUT}, initially with no objects
+       * placed -- mirrors {@link #installPrintLayout} but for the device-layout family bugs
+       * 77045 #5/#6/#7 exercise against.
+       */
+      void installDeviceLayout() {
+         LayoutInfo info = masterVs.getLayoutInfo() != null
+            ? masterVs.getLayoutInfo() : new LayoutInfo();
+         ViewsheetLayout device = new ViewsheetLayout();
+         device.setName(DEVICE_LAYOUT);
+         device.setID("dev-1");
+         device.setVSAssemblyLayouts(new ArrayList<>());
+         info.setViewsheetLayouts(new ArrayList<>(List.of(device)));
+         masterVs.setLayoutInfo(info);
+      }
+
+      List<VSAssemblyLayout> deviceLayoutObjects() {
+         return masterVs.getLayoutInfo().getViewsheetLayouts().stream()
+            .filter(l -> l.getName().equals(DEVICE_LAYOUT))
+            .findFirst()
+            .orElseThrow()
+            .getVSAssemblyLayouts();
       }
 
       List<String> printLayoutObjectNames() {
