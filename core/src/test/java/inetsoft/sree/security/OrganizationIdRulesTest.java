@@ -193,6 +193,31 @@ class OrganizationIdRulesTest {
       assertFalse(OrganizationIdRules.containsSaveLocation("", locations));
    }
 
+   // Bug #77160: the storage guard of the user space path rejects a top-level tenant folder that
+   // the system writes to, but not the default organization id, whose users write under it
+   @ParameterizedTest
+   @ValueSource(strings = { "backup", "Heapdump", "STATUS" })
+   void storageSystemFolder_systemFolders(String segment) {
+      assertTrue(OrganizationIdRules.isStorageSystemFolder(segment));
+   }
+
+   @ParameterizedTest
+   @ValueSource(strings = { "host-org", "self", "orgA", "backup1", "b", "data" })
+   void storageSystemFolder_otherSegments(String segment) {
+      assertFalse(OrganizationIdRules.isStorageSystemFolder(segment));
+      assertFalse(OrganizationIdRules.isStorageSystemFolder(null));
+   }
+
+   @Test
+   void storageSystemFolder_s3BaseFirstSegment() {
+      useS3Base("/Data/sub/");
+      assertTrue(OrganizationIdRules.isStorageSystemFolder("data"));
+      assertTrue(OrganizationIdRules.isStorageSystemFolder("DATA"));
+      assertFalse(OrganizationIdRules.isStorageSystemFolder("dat"));
+      assertFalse(OrganizationIdRules.isStorageSystemFolder("database"));
+      assertFalse(OrganizationIdRules.isStorageSystemFolder("sub"));
+   }
+
    private static MockedStatic<SreeEnv> useSaveLocations(String locations) {
       MockedStatic<SreeEnv> sreeEnvStatic = mockStatic(SreeEnv.class);
       sreeEnvStatic.when(() -> SreeEnv.getProperty(anyString()))

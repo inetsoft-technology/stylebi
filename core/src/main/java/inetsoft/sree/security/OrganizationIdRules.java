@@ -99,6 +99,33 @@ public final class OrganizationIdRules {
    }
 
    /**
+    * Determines if a top-level folder of external storage is used by the system: one of the
+    * system folders, or the first segment of the S3 base path. Unlike {@link #isReserved}, the
+    * default organization id is not a system folder, its users write under it. The comparison
+    * ignores case.
+    */
+   public static boolean isStorageSystemFolder(String segment) {
+      if(segment == null) {
+         return false;
+      }
+
+      String lower = segment.toLowerCase(Locale.ROOT);
+
+      if(SYSTEM_FOLDERS.contains(lower)) {
+         return true;
+      }
+
+      String base = getStorageBasePath();
+
+      if(base == null) {
+         return false;
+      }
+
+      int slash = base.indexOf('/');
+      return lower.equals(slash < 0 ? base : base.substring(0, slash));
+   }
+
+   /**
     * Gets the paths of the configured server save locations, except the FTP locations, as they
     * are used in the keys of the task save files in external storage.
     */

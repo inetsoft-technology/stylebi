@@ -26,6 +26,7 @@ package inetsoft.storage.fs;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.IdentityID;
+import inetsoft.util.MessageException;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -102,6 +103,59 @@ class FilesystemExternalStorageServiceWriteTest {
 
       if(!"\\".equals(base.getFileSystem().getSeparator())) {
          assertEquals(base.resolve("var/reports/orgA/alice/sub/f.pdf"), written.get(0));
+      }
+   }
+
+   // Bug #77160: the key was only required to stay inside the storage folder, so ".." in the path
+   // reached another user's folder, and a user named after a system folder wrote into it
+   @ParameterizedTest
+   @ValueSource(strings = {
+      "../bob/r.pdf", "alice/../bob/r.pdf", "x/../../backup/data-20991231000000.zip" })
+   void parentSegmentInPath_principalWrite_rejected(String path) throws IOException {
+      try(MockedStatic<SUtil> ignored = mockSecurity(true);
+          MockedStatic<SreeEnv> ignored2 = mockStatic(SreeEnv.class))
+      {
+         assertThrows(MessageException.class,
+                      () -> service.write(path, source, user("alice", "orgA")));
+      }
+
+      assertEquals(List.of(), filesUnder(base));
+   }
+
+   @Test
+   void singleTenantUserNamedBackup_principalWrite_rejected() throws IOException {
+      try(MockedStatic<SUtil> ignored = mockSecurity(false);
+          MockedStatic<SreeEnv> ignored2 = mockStatic(SreeEnv.class))
+      {
+         assertThrows(MessageException.class,
+                      () -> service.write("my-assets.zip", source, user("backup", "host-org")));
+      }
+
+      assertEquals(List.of(), filesUnder(base));
+   }
+
+   @Test
+   void systemWriter_nullPrincipal_writesToBackup() throws IOException {
+      service.write("backup/data-20260101000000.zip", source, null);
+
+      assertTrue(Files.exists(base.resolve("backup/data-20260101000000.zip")));
+   }
+
+   private static MockedStatic<SUtil> mockSecurity(boolean multiTenant) {
+      MockedStatic<SUtil> sUtilStatic = mockStatic(SUtil.class, CALLS_REAL_METHODS);
+      sUtilStatic.when(SUtil::isSecurityOn).thenReturn(true);
+      sUtilStatic.when(SUtil::isMultiTenant).thenReturn(multiTenant);
+      sUtilStatic.when(() -> SUtil.isInternalUser(any())).thenReturn(false);
+      return sUtilStatic;
+   }
+
+   private static Principal user(String name, String org) {
+      return () -> new IdentityID(name, org).convertToKey();
+   }
+
+   private static List<Path> filesUnder(Path dir) throws IOException {
+      try(Stream<Path> files = Files.walk(dir)) {
+         return files.filter(Files::isRegularFile).toList();
       }
    }
 
