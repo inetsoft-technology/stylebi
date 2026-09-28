@@ -683,13 +683,25 @@ class PropertyAliasesTest {
    }
 
    /**
-    * {@code refresh} is real for the input assemblies/submit (aliased through the same shared
-    * {@code basicGeneral()} helper) but dead for these four -- their apply methods never read
-    * {@code basicGeneralPaneModel.refresh} back.
+    * {@code refresh} is real only for the seven types that read {@code basicGeneralPaneModel}'s
+    * {@code isRefresh()} back on write (the six {@code VSInputService}-routed input types, plus
+    * submit via {@code SubmitPropertyDialogService}) -- dead for every other type that reaches
+    * the shared {@code basicGeneral()} helper through {@code outputGeneral()}/{@code
+    * dataGeneral()}/the direct {@code groupContainer()} call. Bug #77028: before this fix, only
+    * four of these fourteen dead types were actually refused; the other ten (chart, gauge, image,
+    * selectiontree, timeslider, calendar, tab, calctable, groupcontainer, selectioncontainer)
+    * reported {@code ok:true} and silently changed nothing. Independently confirmed by the native
+    * Composer UI itself: {@code basic-general-pane.component.html}'s Refresh checkbox is gated on
+    * {@code BasicGeneralPaneModel.showRefreshCheckbox}, which none of these fourteen types' own
+    * model classes ever set {@code true}.
     */
    @Test
    void refusesRefreshOnlyOnTheTypesWhereItIsDead() {
-      for(String type : java.util.List.of("table", "crosstab", "text", "selectionlist")) {
+      for(String type : java.util.List.of("table", "crosstab", "text", "selectionlist", "chart",
+                                          "gauge", "image", "selectiontree", "timeslider",
+                                          "calendar", "tab", "calctable", "groupcontainer",
+                                          "selectioncontainer"))
+      {
          assertTrue(PropertyAliases.forType(type).aliases().containsKey("refresh"),
                     type + " should still list 'refresh' as readable");
          assertThrows(IllegalArgumentException.class,
@@ -697,9 +709,38 @@ class PropertyAliasesTest {
                       "refresh has no effect on write for " + type);
       }
 
-      assertEquals("comboboxGeneralPaneModel.generalPropPaneModel.basicGeneralPaneModel.refresh",
-                   PropertyAliases.resolveForWrite("combobox", "refresh"),
-                   "refresh is real for combobox and must stay writable");
+      for(String liveType : java.util.List.of("checkbox", "combobox", "radiobutton", "slider",
+                                              "spinner", "textinput", "submit"))
+      {
+         assertDoesNotThrow(() -> PropertyAliases.resolveForWrite(liveType, "refresh"),
+                            "refresh is real for " + liveType + " and must stay writable");
+      }
+   }
+
+   /**
+    * Bug #77028: {@code enabled} on groupcontainer resolves to
+    * {@code groupContainerGeneralPane.generalPropPane.enabled} (the live
+    * {@code GeneralPropPaneModel.enabled} one level up from {@code basicGeneralPaneModel} --
+    * genuinely applied for most {@code dataGeneral()}/{@code outputGeneral()} types) but
+    * {@code GroupContainerPropertyDialogService.setGroupContainerPropertyDialogModel} never reads
+    * it back, and its own {@code getGroupContainerPropertyDialogModel} explicitly calls
+    * {@code generalPropPaneModel.setShowEnabledGroup(false)}, so the native Composer UI never
+    * even renders the Enabled checkbox for this type. Before this fix, a write reported
+    * {@code ok:true} and silently changed nothing.
+    */
+   @Test
+   void refusesGroupContainerEnabled() {
+      assertTrue(PropertyAliases.forType("groupcontainer").aliases().containsKey("enabled"),
+                 "groupcontainer should still list 'enabled' as readable");
+      assertThrows(IllegalArgumentException.class,
+                   () -> PropertyAliases.resolveForWrite("groupcontainer", "enabled"),
+                   "'enabled' has no effect on write for groupcontainer");
+
+      // Confirm the same field one level up (generalPropPaneModel.enabled) stays writable for a
+      // sibling type reached through the same dataGeneral()/basicGeneral() shape, so this
+      // refusal is scoped to groupcontainer specifically rather than accidentally widened.
+      assertDoesNotThrow(() -> PropertyAliases.resolveForWrite("chart", "enabled"),
+                         "'enabled' must stay writable on chart");
    }
 
    @Test
