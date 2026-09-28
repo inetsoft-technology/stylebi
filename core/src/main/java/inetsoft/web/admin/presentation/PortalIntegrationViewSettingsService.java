@@ -128,50 +128,54 @@ public class PortalIntegrationViewSettingsService {
    public void setModel(PortalIntegrationSettingsModel model, Principal principal, boolean globalSettings)
       throws Exception
    {
-      PortalThemesManager manager = getManager();
-      manager.loadThemes();
-      manager.setButtonVisible(PortalThemesManager.HELP_BUTTON, model.help());
-      manager.setButtonVisible(PortalThemesManager.PREFERENCES_BUTTON,
-                               model.preference());
-      manager.setButtonVisible(PortalThemesManager.LOGOUT_BUTTON, model.logout());
-      manager.setButtonVisible(PortalThemesManager.SEARCH_BUTTON, model.search());
-      manager.setButtonVisible(PortalThemesManager.HOME_BUTTON, model.home());
-
       SreeEnv.setProperty("portal.customLoadingText", model.customLoadingText(), !globalSettings);
       SreeEnv.setProperty("portal.home.link", model.homeLink(), !globalSettings);
       SreeEnv.setProperty("em.home.link", model.emHomeLink(), !globalSettings);
 
-      List<PortalTab> newPortalTabs = new ArrayList<>();
-      List<PortalTab> portalTabs = manager.getPortalTabs();
-      List<PortalTabModel> tabModels = model.tabs();
-      int insertIndex = 0;
+      // the portal buttons and tabs are global, so they may only be changed by a global save
+      if(globalSettings) {
+         PortalThemesManager manager = getManager();
+         manager.loadThemes();
+         manager.setButtonVisible(PortalThemesManager.HELP_BUTTON, model.help());
+         manager.setButtonVisible(PortalThemesManager.PREFERENCES_BUTTON,
+                                  model.preference());
+         manager.setButtonVisible(PortalThemesManager.LOGOUT_BUTTON, model.logout());
+         manager.setButtonVisible(PortalThemesManager.SEARCH_BUTTON, model.search());
+         manager.setButtonVisible(PortalThemesManager.HOME_BUTTON, model.home());
 
-      for(int i = 0; i < tabModels.size(); i++) {
-         PortalTabModel tabModel = tabModels.get(i);
-         PortalTab tab;
+         List<PortalTab> newPortalTabs = new ArrayList<>();
+         List<PortalTab> portalTabs = manager.getPortalTabs();
+         List<PortalTabModel> tabModels = model.tabs();
+         int insertIndex = 0;
 
-         if(tabModel.originalIndex() != null) {
-            tab = portalTabs.get(tabModel.originalIndex());
+         for(int i = 0; i < tabModels.size(); i++) {
+            PortalTabModel tabModel = tabModels.get(i);
+            PortalTab tab;
 
-            if(tab.isEditable()) {
-               tab.setName(tabModel.name());
-               tab.setLabel(tabModel.name());
-               tab.setURI(tabModel.uri());
-               tab.setVisible(tabModel.visible());
+            if(tabModel.originalIndex() != null) {
+               tab = portalTabs.get(tabModel.originalIndex());
+
+               if(tab.isEditable()) {
+                  tab.setName(tabModel.name());
+                  tab.setLabel(tabModel.name());
+                  tab.setURI(tabModel.uri());
+                  tab.setVisible(tabModel.visible());
+               }
+               else {
+                  insertIndex = i + 1;
+               }
             }
             else {
-               insertIndex = i + 1;
+               tab = new PortalTab(tabModel.name(), tabModel.uri(), tabModel.visible());
             }
-         }
-         else {
-            tab = new PortalTab(tabModel.name(), tabModel.uri(), tabModel.visible());
+
+            newPortalTabs.add(tab);
          }
 
-         newPortalTabs.add(tab);
+         manager.setPortalTabs(newPortalTabs);
+         manager.save();
       }
 
-      manager.setPortalTabs(newPortalTabs);
-      manager.save();
       SreeEnv.save();
    }
 
