@@ -71,17 +71,24 @@ public class DashboardRegistryManager {
    }
 
    void renameDashboard(String oname, String name) {
+      List<DashboardRegistry> renamed = new ArrayList<>();
       lock.lock();
 
       try {
          for(DashboardRegistry registry : registries.values()) {
             if(!registry.isGlobal() && registry.getDashboard(oname) != null) {
-               registry.renameDashboard(oname, name);
+               renamed.add(registry);
             }
          }
       }
       finally {
          lock.unlock();
+      }
+
+      // rename after unlocking, a user registry rename locks the dashboard manager, which is
+      // locked before this manager
+      for(DashboardRegistry registry : renamed) {
+         registry.renameDashboard(oname, name);
       }
    }
 
@@ -118,7 +125,8 @@ public class DashboardRegistryManager {
             }
             else {
                registry = new DashboardRegistry.UserDashboardRegistry(userId, orgID, eventPublisher, securityEngine);
-               registry.loadDashboard(getRegistry());
+               // port against the user's own org, not the current org of the calling thread
+               registry.loadDashboard(getGlobalForPort(orgID));
             }
 
             registries.put(key, registry);
@@ -129,6 +137,38 @@ public class DashboardRegistryManager {
       }
 
       return registry;
+   }
+
+   /**
+    * Get the global registry of an organization, used to port an old user registry file. Unlike
+    * getRegistry(String), it does not fall back to the current org, and it does not create a
+    * registry for an organization unknown to the security provider (that registry would be
+    * cached with a portal/null path). It must not be called while holding a registry lock, since
+    * creating the registry locks this manager.
+    *
+    * @return the global registry, or null if the organization is not known.
+    */
+   DashboardRegistry getGlobalForPort(String orgID) {
+      if(orgID == null) {
+         return null;
+      }
+
+      DashboardRegistry registry = registries.get(getRegistryKey(null, orgID));
+
+      if(registry == null && isKnownOrg(orgID)) {
+         registry = getRegistry(null, orgID, true);
+      }
+
+      return registry;
+   }
+
+   /**
+    * Checks if the security provider knows an organization, by id or by name, the same lookup
+    * the DashboardRegistry constructor does.
+    */
+   private static boolean isKnownOrg(String orgID) {
+      SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
+      return provider.getOrgNameFromID(orgID) != null || provider.getOrganization(orgID) != null;
    }
 
    public void copyRegistry(IdentityID identityID, Organization oorg, Organization norg) {
@@ -192,46 +232,50 @@ public class DashboardRegistryManager {
 
       try {
          if(registry != null) {
-            String[] dashboardNames = registry.getDashboardNames();
-            boolean changeId = !Tool.equals(oOID, nOID);
-            String oldPath = registry.getPath();
+            // hold the registry lock from the migration to the save, so a concurrent reload
+            // can't replace the migrated dashboards with the ones in the old file
+            synchronized(registry) {
+               String[] dashboardNames = registry.getDashboardNames();
+               boolean changeId = !Tool.equals(oOID, nOID);
+               String oldPath = registry.getPath();
 
-            if(norg != null) {
-               Arrays.stream(dashboardNames).forEach(name -> {
-                  Dashboard dashboard = registry.getDashboard(name);
+               if(norg != null) {
+                  Arrays.stream(dashboardNames).forEach(name -> {
+                     Dashboard dashboard = registry.getDashboard(name);
 
-                  if(dashboard != null) {
-                     VSDashboard vsDashboard = (VSDashboard) dashboard;
-                     migrateVSDashboard(vsDashboard, oorg, norg);
-                  }
-               });
+                     if(dashboard != null) {
+                        VSDashboard vsDashboard = (VSDashboard) dashboard;
+                        migrateVSDashboard(vsDashboard, oorg, norg);
+                     }
+                  });
 
-               registries.put(nKey, registry);
-            }
-
-            if(changeId) {
-               clear(userName, oOID);
-
-               try {
-                  if(nKey == null) {
-                     dataSpace.delete(null, oldPath);
-                  }
-                  else {
-                     registry.modifyOrgId(nOID);
-                  }
-
-                  registry.save();
+                  registries.put(nKey, registry);
                }
-               catch(Exception ex) {
-                  LOG.error(ex.getMessage(), ex);
+
+               if(changeId) {
+                  clear(userName, oOID);
+
+                  try {
+                     if(nKey == null) {
+                        dataSpace.delete(null, oldPath);
+                     }
+                     else {
+                        registry.modifyOrgId(nOID);
+                     }
+
+                     registry.save();
+                  }
+                  catch(Exception ex) {
+                     LOG.error(ex.getMessage(), ex);
+                  }
                }
-            }
-            else if(identityID != null && (norg == null || !Tool.equals(identityID.getOrgID(), norg.getId()))) {
-               try {
-                  registry.save();
-               }
-               catch(Exception ex) {
-                  LOG.error(ex.getMessage(), ex);
+               else if(identityID != null && (norg == null || !Tool.equals(identityID.getOrgID(), norg.getId()))) {
+                  try {
+                     registry.save();
+                  }
+                  catch(Exception ex) {
+                     LOG.error(ex.getMessage(), ex);
+                  }
                }
             }
          }

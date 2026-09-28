@@ -77,6 +77,17 @@ public class DashboardManager implements AutoCloseable {
    }
 
    /**
+    * Runs an action while holding this manager's lock. A dashboard registry renames or removes
+    * a dashboard through this, so that the change to the stored selections and the change to the
+    * registry are atomic with respect to getDashboards(), which prunes the selected names that are
+    * not in the registries. The lock order is this manager, then DashboardRegistryManager, then
+    * the user registry, then the global registry.
+    */
+   synchronized void runLocked(Runnable action) {
+      action.run();
+   }
+
+   /**
     * Return a dashboard manager.
     */
    public static DashboardManager getManager() {
