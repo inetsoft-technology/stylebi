@@ -408,6 +408,72 @@ class GraalJavaScriptEngineLexicalDeclarationTest {
       assertTrue(ex.getMessage().contains("(line 3)"), ex.getMessage());
    }
 
+   // a syntax error keeps its line:column with the reset prefix
+   @Test void syntaxErrorPositionUnchanged() {
+      Exception ex = assertThrows(Exception.class, () -> run("let rs;\nlet x = ;"));
+      assertTrue(ex.getMessage().contains("<cmd>:3:8"), ex.getMessage());
+   }
+
+   // `let` inside a string, comment, template or regex declares nothing, so the
+   // implicit global the body assigns is not reset and persists as before
+   @ParameterizedTest
+   @CsvSource(delimiter = '|', quoteCharacter = '"', value = {
+      "var s1 = 'let q1;'; (a > 5) && (q1 = 'High'); q1",
+      "// let q2;\\n(a > 5) && (q2 = 'High'); q2",
+      "/* let q3; */ (a > 5) && (q3 = 'High'); q3",
+      "var t4 = `let q4; ${1}`; (a > 5) && (q4 = 'High'); q4",
+      "var re5 = /let q5;/; (a > 5) && (q5 = 'High'); q5",
+   })
+   void letInLiteralOrCommentNotReset(String script) throws Exception {
+      assertEquals(Arrays.asList("High", "High", "High"),
+                   rows(script.replace("\\n", "\n"), 10, 1, 1), script);
+   }
+
+   // `let` as a property name is neither rewritten nor collected
+   @Test void letAsPropertyName() throws Exception {
+      assertEquals(Arrays.asList("1|High", "1|", "1|"),
+                   rows("var o6 = {}; o6.let = 1; let r6; (a > 5) && (r6 = 'High'); " +
+                        "[o6.let, r6].join('|')", 10, 1, 1));
+      assertEquals(Arrays.asList(2.0, null, null),
+                   rows("var o7 = {let: 2}; let r7; (a > 5) && (r7 = o7.let); r7", 10, 1, 1)
+                      .stream().map(v -> v == null ? null : ((Number) v).doubleValue()).toList());
+   }
+
+   // a put() made after the formula was compiled is still never reset
+   @Test void putAfterCompileNotReset() throws Exception {
+      Object compiled = engine.compile("let lateput; lateput");
+      engine.put("lateput", "LP");
+      MapScope scope = new MapScope();
+      assertEquals("LP", engine.exec(compiled, scope, scope));
+      assertEquals("LP", run("lateput"));
+   }
+
+   // pool on: one span holds one context across the rows, as FormulaTableLens
+   // batches them, so the reset must work there too; an env variable is not reset
+   @Test void pooledSpanStartsUndefinedEveryRow() throws Exception {
+      inetsoft.util.script.graal.pool.WorksheetScriptEnv env =
+         inetsoft.util.script.graal.pool.PoolTestSupport.env();
+      env.put("envv", "E");
+      Object r = env.compile("let r; (a > 5) && (r = 'High'); r");
+      Object n = env.compile("let n; n = (n || 0) + 1; n");
+      Object e = env.compile("let envv; envv");
+      List<Object> outR = new ArrayList<>(), outN = new ArrayList<>(), outE = new ArrayList<>();
+      MapScope row = new MapScope();
+
+      try(var span = env.openSpan()) {
+         for(Object v : new Object[] { 10, 1, 1 }) {
+            row.putMember("a", v);
+            outR.add(env.exec(r, row, row, null));
+            outN.add(((Number) env.exec(n, row, row, null)).doubleValue());
+            outE.add(env.exec(e, row, row, null));
+         }
+      }
+
+      assertEquals(highNullNull(), outR);
+      assertEquals(Arrays.asList(1.0, 1.0, 1.0), outN);
+      assertEquals(Arrays.asList("E", "E", "E"), outE);
+   }
+
    // the extractor: which names it takes, and where it declines
    @ParameterizedTest
    @CsvSource(delimiter = '|', quoteCharacter = '"', value = {
