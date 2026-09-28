@@ -17,6 +17,7 @@
  */
 package inetsoft.util.script.graal.pool;
 
+import inetsoft.util.script.ScriptStateLint;
 import inetsoft.util.stall.StallWatchdog;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -195,9 +196,10 @@ public final class PoolMetrics {
       long execs = NODE_EXECS.get();
       return String.format(
          "slots=%d, maxSandboxSlots=%d, creations=%d, evictions=%d, doomedCloses=%d, " +
-         "execs=%d, cleans=%d, cleansPerExec=%.4f", NODE_SLOTS.get(),
+         "execs=%d, cleans=%d, cleansPerExec=%.4f, stateHazards=%d", NODE_SLOTS.get(),
          NODE_MAX_SANDBOX_SLOTS.get(), NODE_CREATIONS.get(), NODE_EVICTIONS.get(),
-         NODE_DOOMED_CLOSES.get(), execs, cleans, ratio(cleans, execs));
+         NODE_DOOMED_CLOSES.get(), execs, cleans, ratio(cleans, execs),
+         ScriptStateLint.nodeStateHazardScripts());
    }
 
    /**

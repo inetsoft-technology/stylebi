@@ -626,6 +626,18 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
    }
 
    @Override
+   public String getLocalNodeId() {
+      return ignite.cluster().localNode().id().toString();
+   }
+
+   @Override
+   public Set<String> getClusterNodeIds() {
+      return ignite.cluster().nodes().stream()
+         .map(n -> n.id().toString())
+         .collect(Collectors.toSet());
+   }
+
+   @Override
    public Set<String> getServerClusterNodes() {
       return ignite.cluster()
          .forPredicate((node) -> !Boolean.TRUE.equals(node.attribute("scheduler")))
@@ -2400,6 +2412,8 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
          ThreadContext.setPrincipal(null);
          ThreadContext.setLocale(null);
          ThreadContext.setProfiling(null);
+         // Bug #77135 (defense in depth): do not leave user messages on the affinity pool thread.
+         Tool.clearUserMessage();
       }
       catch(Exception ex) {
          LOG.warn("Failed to clear thread-local context after affinity call: {}", context, ex);

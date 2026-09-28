@@ -105,6 +105,10 @@ public class AuthenticationService {
    {
       boolean anonymous = ClientInfo.ANONYMOUS.equals(userId.name);
 
+      if(!anonymous) {
+         userId = getStoredUserID(userId);
+      }
+
       if(anonymous && password == null) {
          password = "";
       }
@@ -232,6 +236,73 @@ public class AuthenticationService {
    }
 
    /**
+    * Gets the user id the security provider stores for a requested user id, when the provider
+    * matched the requested id ignoring case (e.g. the database provider with
+    * security.user.caseSensitive=false). Both the name and the organization id are replaced, so
+    * the password is checked for, and the audit records, session id and ticket carry, the same
+    * stored user the session principal is named after (Bug #77081, Bug #77089). The provider's
+    * lookup prefers an exact match and returns no user when several stored users match only
+    * ignoring case, in which case the requested id is kept. Every interactive log in (the Basic
+    * authentication filter and the public API log in) goes through
+    * {@link #authenticate(IdentityID, IdentityID, String, String, String, String, String,
+    * Locale, boolean, boolean, String, String)}.
+    *
+    * @param userId the requested user id.
+    *
+    * @return the stored user id, or <tt>userId</tt> if the provider has no such user, stores it
+    *         exactly as requested, returns a user that differs other than by case, or returns
+    *         the anonymous user.
+    */
+   private IdentityID getStoredUserID(IdentityID userId) {
+      if(userId == null || userId.name == null || userId.orgID == null) {
+         return userId;
+      }
+
+      try {
+         SecurityProvider provider = securityEngine.getSecurityProvider();
+         User user = provider == null ? null : provider.getUser(userId);
+         IdentityID storedID = user == null ? null : user.getIdentityID();
+
+         // a case variant is never turned into the anonymous user, whose log in is not
+         // password checked
+         if(storedID != null && storedID.name != null && storedID.orgID != null &&
+            !ClientInfo.ANONYMOUS.equals(storedID.name) &&
+            !storedID.equals(userId) && storedID.equalsIgnoreCase(userId))
+         {
+            return new IdentityID(storedID.name, storedID.orgID);
+         }
+      }
+      catch(Exception e) {
+         LOG.debug("Failed to get the stored id of user: {}", userId, e);
+      }
+
+      return userId;
+   }
+
+   /**
+    * Gets the organization id stored on a user that a security provider returned for a
+    * requested organization id, if it differs from the requested id only by case.
+    *
+    * @param user  the user returned by the provider, may be <tt>null</tt>.
+    * @param orgID the requested organization id.
+    *
+    * @return the stored organization id, or <tt>null</tt> if the user is <tt>null</tt> or its
+    *         organization id is the requested one or a different organization.
+    */
+   public static String getStoredOrganizationID(User user, String orgID) {
+      IdentityID storedID = user == null ? null : user.getIdentityID();
+      String storedOrgID = storedID == null ? null : storedID.orgID;
+
+      if(orgID != null && storedOrgID != null && !storedOrgID.equals(orgID) &&
+         storedOrgID.equalsIgnoreCase(orgID))
+      {
+         return storedOrgID;
+      }
+
+      return null;
+   }
+
+   /**
     * Authenticates a user.
     *
     * @param userId           the log in name of the user.
@@ -249,6 +320,10 @@ public class AuthenticationService {
       throws Exception
    {
       Principal principal = null;
+
+      if(userId != null && !ClientInfo.ANONYMOUS.equals(userId.name)) {
+         userId = getStoredUserID(userId);
+      }
 
       if(userId != null && password != null) {
          try {

@@ -23,6 +23,7 @@ import org.junit.jupiter.params.provider.CsvSource;
 
 import java.util.Calendar;
 import java.util.Date;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -47,6 +48,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * </ul>
  * </p>
  */
+@Tag("core")
 class CalendarUtilTest {
 
    // ==========================================================================

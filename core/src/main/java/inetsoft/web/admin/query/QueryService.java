@@ -138,7 +138,7 @@ public class QueryService
       DestroyQueriesCompleteMessage message = new DestroyQueriesCompleteMessage();
 
       try {
-         destroy(destroyMessage.getIds());
+         destroy(destroyMessage.getIds(), destroyMessage.getOrgID());
          cluster.sendMessage(address, message);
       }
       catch(Exception e) {
@@ -282,6 +282,16 @@ public class QueryService
     * @param id the unique identifier for the query.
     */
    public void destroy(String id) throws Exception {
+      destroy(id, OrganizationManager.getInstance().getCurrentOrgID());
+   }
+
+   /**
+    * Destroy an executing query if it belongs to the specified organization.
+    *
+    * @param id    the unique identifier for the query.
+    * @param orgID the organization that the query must belong to.
+    */
+   private void destroy(String id, String orgID) throws Exception {
       if(id == null || "".equals(id.trim())) {
          throw new Exception(catalog.getString("queryMonitor.inputQueryId"));
       }
@@ -292,6 +302,12 @@ public class QueryService
       for(QueryInfo info : infos) {
          if(Tool.equals(info.getId(), id)) {
             found = true;
+
+            if(info.getUser() == null || !Tool.equals(info.getUser().getOrgID(), orgID)) {
+               LOG.warn("Query {} does not belong to organization {}, it will not be destroyed",
+                        id, orgID);
+               break;
+            }
 
             if(XNodeTable.queryMap.containsKey(id)) {
                info = XNodeTable.queryMap.get(id);
@@ -326,13 +342,16 @@ public class QueryService
    }
 
    public void destroyClusterQueries(String address, String[] ids) throws Exception {
+      String orgID = OrganizationManager.getInstance().getCurrentOrgID();
+
       if(StringUtils.isEmpty(address)) {
-         destroy(ids);
+         destroy(ids, orgID);
       }
       else {
          try {
             cluster.exchangeMessages(
-               address, new DestroyQueriesMessage(ids), DestroyQueriesCompleteMessage.class);
+               address, new DestroyQueriesMessage(ids, orgID),
+               DestroyQueriesCompleteMessage.class);
          }
          catch(Exception e) {
             LOG.warn("Failed to destroy queries from cluster", e);
@@ -346,12 +365,16 @@ public class QueryService
     * @param ids the unique identifier arrays for the query.
     */
    public void destroy(String[] ids) throws Exception {
+      destroy(ids, OrganizationManager.getInstance().getCurrentOrgID());
+   }
+
+   private void destroy(String[] ids, String orgID) throws Exception {
       if(ids == null || ids.length == 0) {
          throw new Exception(catalog.getString("queryMonitor.inputQueryId"));
       }
 
       for(String id : ids) {
-         destroy(id);
+         destroy(id, orgID);
       }
    }
 

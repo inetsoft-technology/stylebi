@@ -38,6 +38,7 @@ import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.util.Tool;
 import inetsoft.util.script.ArrayObject;
 import inetsoft.util.script.JavaScriptEngine;
+import inetsoft.util.stall.LockStallException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -358,6 +359,8 @@ public class TableDataVSAScriptable extends DataVSAScriptable implements Composi
       if(!recursive.get() || (table != null && table.isDirty())) {
          recursive.set(true);
 
+         boolean dirty = table != null && table.isDirty();
+
          try {
             if(table == null || table.isDirty() || getTableArray().getTable() == null) {
                if(table != null) {
@@ -372,6 +375,18 @@ public class TableDataVSAScriptable extends DataVSAScriptable implements Composi
             }
          }
          catch(Exception ex) {
+            // a lock stall is not a missing table: rethrow it, and keep a cleared table
+            // dirty so the next read fetches it again instead of reading the old one (#77123)
+            LockStallException stall = LockStallException.find(ex);
+
+            if(stall != null) {
+               if(dirty && table != null) {
+                  table.setIsDirty(true);
+               }
+
+               throw stall;
+            }
+
             String msg = "Failed to get table for: " + getVSAssemblyInfo().getAbsoluteName();
 
             if(LOG.isDebugEnabled()) {
@@ -703,6 +718,14 @@ public class TableDataVSAScriptable extends DataVSAScriptable implements Composi
          return vslens ? box.getVSTableLens(assembly, false) : box.getTableData(assembly);
       }
       catch(Exception ex) {
+         // a lock stall is not a missing table, which TableArray reads as an empty one and
+         // getTableArray()/getTableData() would cache (#77123)
+         LockStallException stall = LockStallException.find(ex);
+
+         if(stall != null) {
+            throw stall;
+         }
+
          if(!box.isCancelled(ts)) {
             if(LOG.isDebugEnabled()) {
                LOG.debug("Failed to get table data", ex);

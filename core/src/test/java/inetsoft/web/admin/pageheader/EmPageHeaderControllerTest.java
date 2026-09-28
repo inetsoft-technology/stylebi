@@ -36,6 +36,8 @@ package inetsoft.web.admin.pageheader;
  *     [site admin]                principal properties updated; cluster.sendMessage() called
  *     [storage not initialized]   dataSourceRegistry.init() and mvManager.initMVDefMap() called;
  *                                 indexedStorage.setInitialized() called
+ *     [unknown organization]      site admin, target org does not exist → returns early (Bug #77199)
+ *     [not org administrator]     site admin without ADMIN on the target org → returns early
  */
 
 import inetsoft.mv.MVManager;
@@ -145,6 +147,7 @@ class EmPageHeaderControllerTest {
       when(securityEngine.isSecurityEnabled()).thenReturn(true);
       when(orgManager.isSiteAdmin(xPrincipal)).thenReturn(true);
       when(securityEngine.getSecurityProvider()).thenReturn(securityProvider);
+      stubAdministeredOrganization("org1");
       when(securityProvider.getOrgNameFromID("org1")).thenReturn("Org One");
       when(xPrincipal.getSessionID()).thenReturn("session-123");
       when(indexedStorage.isInitialized("org1")).thenReturn(true);
@@ -164,6 +167,7 @@ class EmPageHeaderControllerTest {
       when(securityEngine.isSecurityEnabled()).thenReturn(true);
       when(orgManager.isSiteAdmin(xPrincipal)).thenReturn(true);
       when(securityEngine.getSecurityProvider()).thenReturn(securityProvider);
+      stubAdministeredOrganization("org1");
       when(securityProvider.getOrgNameFromID("org1")).thenReturn("Org One");
       when(xPrincipal.getSessionID()).thenReturn("session-123");
       when(indexedStorage.isInitialized("org1")).thenReturn(false);
@@ -175,5 +179,47 @@ class EmPageHeaderControllerTest {
       verify(dataSourceRegistry).init();
       verify(mvManager).initMVDefMap();
       verify(indexedStorage).setInitialized("org1");
+   }
+
+   // [unknown organization] a site admin cannot switch to an organization that does not exist
+   @Test
+   void setCurrOrg_unknownOrganization_doesNotSwitch() throws Exception {
+      when(securityEngine.isSecurityEnabled()).thenReturn(true);
+      when(orgManager.isSiteAdmin(xPrincipal)).thenReturn(true);
+      when(securityEngine.getSecurityProvider()).thenReturn(securityProvider);
+      when(securityProvider.getOrganization("no_such_org")).thenReturn(null);
+
+      controller.setCurrOrg(
+         new EmPageHeaderModel(null, null, "no_such_org", "Primary", false), xPrincipal);
+
+      verify(xPrincipal, never()).setProperty(eq("curr_org_id"), any());
+      verify(cluster, never()).sendMessage(any());
+      verify(dataSourceRegistry, never()).init();
+      verify(indexedStorage, never()).setInitialized(any());
+   }
+
+   // [not org administrator] the target must be one of the organizations that getPageHeaderModel
+   // lists, i.e. one that the user has ADMIN permission on
+   @Test
+   void setCurrOrg_noAdminPermissionOnOrganization_doesNotSwitch() throws Exception {
+      when(securityEngine.isSecurityEnabled()).thenReturn(true);
+      when(orgManager.isSiteAdmin(xPrincipal)).thenReturn(true);
+      when(securityEngine.getSecurityProvider()).thenReturn(securityProvider);
+      when(securityProvider.getOrganization("org2")).thenReturn(new Organization("org2"));
+      when(securityProvider.checkPermission(
+         xPrincipal, ResourceType.SECURITY_ORGANIZATION, "org2", ResourceAction.ADMIN))
+         .thenReturn(false);
+
+      controller.setCurrOrg(new EmPageHeaderModel(null, null, "org2", "Primary", false), xPrincipal);
+
+      verify(xPrincipal, never()).setProperty(eq("curr_org_id"), any());
+      verify(cluster, never()).sendMessage(any());
+   }
+
+   private void stubAdministeredOrganization(String orgID) {
+      when(securityProvider.getOrganization(orgID)).thenReturn(new Organization(orgID));
+      when(securityProvider.checkPermission(
+         xPrincipal, ResourceType.SECURITY_ORGANIZATION, orgID, ResourceAction.ADMIN))
+         .thenReturn(true);
    }
 }

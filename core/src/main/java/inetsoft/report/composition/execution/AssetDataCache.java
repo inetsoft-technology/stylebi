@@ -27,6 +27,7 @@ import inetsoft.report.internal.Util;
 import inetsoft.report.internal.XNodeMetaTable;
 import inetsoft.report.internal.table.CancellableTableLens;
 import inetsoft.report.lens.SetTableLens;
+import inetsoft.report.script.formula.AssetQueryScope;
 import inetsoft.sree.SreeEnv;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
@@ -373,7 +374,8 @@ public class AssetDataCache extends DataCache<DataKey, TableLens> {
 
       Principal user = box.getUser();
       WorksheetInfo winfo = box.getWorksheet().getWorksheetInfo();
-      return DataKey.create(table, getVariableTable(box, ignoredVars, extraVars, runtimeVars),
+      return DataKey.create(table,
+                            getVariableTable(box, ignoredVars, extraVars, runtimeVars, mode),
                             user, mode, formatted, winfo.getDesignMaxRows(),
                             winfo.getPreviewMaxRow(), box.isIgnoreFiltering(), timeout);
    }
@@ -399,7 +401,8 @@ public class AssetDataCache extends DataCache<DataKey, TableLens> {
     * Get variable table.
     */
    private static VariableTable getVariableTable(AssetQuerySandbox box, Set ignored,
-                                                 VariableTable extraVars, VariableTable runtimeVars)
+                                                 VariableTable extraVars, VariableTable runtimeVars,
+                                                 int mode)
    {
       VariableTable vtable = box.getVariableTable();
 
@@ -447,8 +450,12 @@ public class AssetDataCache extends DataCache<DataKey, TableLens> {
             if(val instanceof ExpressionValue expressionValue) {
                if(expressionValue.getType().equals(ExpressionValue.JAVASCRIPT)) {
                   ScriptEnv senv = box.getScriptEnv();
+                  // in pool mode the shared scope is never given a query's mode (bug #76960),
+                  // so the script gets a view with the query's mode (bug #77123)
+                  AssetQueryScope scope = box.isScriptPoolMode() ?
+                     box.getScope().queryView(box.getVariableTable(), mode) : box.getScope();
                   Object result = senv.exec(senv.compile(expressionValue.getExpression()),
-                                            box.getScope(), null, null);
+                                            scope, null, null);
                   vtable.put(key, result);
                }
             }
@@ -1101,11 +1108,21 @@ public class AssetDataCache extends DataCache<DataKey, TableLens> {
          }
          finally {
             processorThread.set(false);
-            complete();
-            getCache().lockEntries.remove();
-            exceptions = WorksheetService.ASSET_EXCEPTIONS.get();
-            errors = (List<Object>) AssetRepository.ASSET_ERRORS.get();
-            userMessage = Tool.getUserMessage();
+            // publish the results before signalling the joined caller, which reads them
+            // right after join() returns (bug #77188)
+            try {
+               getCache().lockEntries.remove();
+               exceptions = WorksheetService.ASSET_EXCEPTIONS.get();
+               errors = (List<Object>) AssetRepository.ASSET_ERRORS.get();
+               userMessage = Tool.getUserMessage();
+            }
+            catch(RuntimeException ex) {
+               LOG.warn("Failed to collect the asset query user messages", ex);
+               Tool.clearUserMessage();
+            }
+            finally {
+               complete();
+            }
 
             // release thread local variables to avoid memory leak
             WorksheetService.ASSET_EXCEPTIONS.set(new ArrayList<>());
@@ -1130,7 +1147,7 @@ public class AssetDataCache extends DataCache<DataKey, TableLens> {
          // queries for wizard recommendation algorithm should using
          // the data without applying variables.
          if(id == null || id.indexOf(WizardDataExecutor.CACHE_ID_PREFIX) == -1) {
-            vtable = getVariableTable(box, null, null, null);
+            vtable = getVariableTable(box, null, null, null, mode);
          }
 
          // if this query is cancelled by query manager, to execute the query

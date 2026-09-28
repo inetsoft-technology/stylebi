@@ -18,6 +18,7 @@
 package inetsoft.report.composition.execution;
 
 import inetsoft.report.TableLens;
+import inetsoft.report.filter.*;
 import inetsoft.test.*;
 import inetsoft.util.script.ScriptEnv;
 import inetsoft.util.script.graal.GraalJavaScriptEnv;
@@ -42,7 +43,10 @@ import static org.mockito.Mockito.when;
 /**
  * Gate G6 (bug #76960, spec §10.8, §14.3, §14.8): over 1M rows, sequential moreRows and
  * getObject loops over a formula lens and over a condition filter on it run within 10% of
- * pool off, with at most rows/batchRows + 1 cleans. Run with -Dctxpool.perf=true.
+ * pool off, with at most rows/batchRows + 1 cleans. The let-heavy shape does the same with
+ * top-level let/const, which #76980 rewrites to var so each clean has leftovers to remove. The
+ * calc-field summary aggregates one group per row and cleans once per aggregation. Run with
+ * -Dctxpool.perf=true.
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class, LibManagerTestConfiguration.class, PluginsTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
@@ -83,11 +87,24 @@ public class PooledBatchPerfTest {
                         "cleansPerExec %.6f%n", shape, off, on, (double) on / off, cleans,
                         pooled.getMetrics().cleansPerExec());
       assertTrue(on <= off * 1.10, shape + ": pool on " + on + " ms vs off " + off + " ms");
-      assertTrue(cleans <= PERF_ROWS / pooled.getConfig().batchRows() + 1, "cleans " + cleans);
+
+      if(shape == Shape.SUMMARY_CALCFIELD) {
+         // one clean for the aggregation; a little slack for a grand total or a retry
+         assertTrue(cleans <= 3, "cleans " + cleans);
+      }
+      else {
+         assertTrue(cleans <= PERF_ROWS / pooled.getConfig().batchRows() + 1,
+                    "cleans " + cleans);
+      }
    }
 
    private static long time(Shape shape, ScriptEnv env, boolean pool) {
-      TableLens lens = formula(table(PERF_ROWS), env, "field['value'] + 1");
+      if(shape == Shape.SUMMARY_CALCFIELD) {
+         return timeSummary(env);
+      }
+
+      TableLens lens = formula(table(PERF_ROWS), env, shape == Shape.FTL_LET_GET_OBJECT ?
+         "let v = field['value']; const w = v + 1; w" : "field['value'] + 1");
 
       if(shape == Shape.CF2_MORE_ROWS || shape == Shape.CF2_GET_OBJECT) {
          AssetQuerySandbox box = mock(AssetQuerySandbox.class);
@@ -96,7 +113,8 @@ public class PooledBatchPerfTest {
          lens = PostProcessor.filter(lens, allRows(), box);
       }
 
-      boolean read = shape == Shape.FTL_GET_OBJECT || shape == Shape.CF2_GET_OBJECT;
+      boolean read = shape == Shape.FTL_GET_OBJECT || shape == Shape.CF2_GET_OBJECT ||
+         shape == Shape.FTL_LET_GET_OBJECT;
       long start = System.nanoTime();
 
       for(int r = 1; lens.moreRows(r); r++) {
@@ -108,9 +126,30 @@ public class PooledBatchPerfTest {
       return (System.nanoTime() - start) / 1_000_000;
    }
 
+   /**
+    * A summary grouped on the unique id, so the calc field's script runs once per row, all in
+    * the aggregation's one span (CalcFieldFormula.openSpan).
+    */
+   private static long timeSummary(ScriptEnv env) {
+      CalcFieldFormula calc = new CalcFieldFormula("SUM * 2", new String[] { "SUM" },
+         new Formula[] { new SumFormula() }, new int[] { 1 }, env, new PoolTestSupport.MapScope());
+      SummaryFilter filter = new SummaryFilter(table(SUMMARY_ROWS), new int[] { 2 },
+         new int[] { 1 }, new Formula[] { calc }, null);
+      long start = System.nanoTime();
+
+      for(int r = filter.getHeaderRowCount(); filter.moreRows(r); r++) {
+         filter.getObject(r, 1);
+      }
+
+      return (System.nanoTime() - start) / 1_000_000;
+   }
+
    public enum Shape {
-      FTL_MORE_ROWS, FTL_GET_OBJECT, CF2_MORE_ROWS, CF2_GET_OBJECT
+      FTL_MORE_ROWS, FTL_GET_OBJECT, CF2_MORE_ROWS, CF2_GET_OBJECT, FTL_LET_GET_OBJECT,
+      SUMMARY_CALCFIELD
    }
 
    private static final int PERF_ROWS = 1_000_000;
+   // one group per row: a million groups would be a memory test, not a script one
+   private static final int SUMMARY_ROWS = 200_000;
 }

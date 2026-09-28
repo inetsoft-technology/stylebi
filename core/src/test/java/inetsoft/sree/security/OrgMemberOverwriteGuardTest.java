@@ -156,7 +156,7 @@ class OrgMemberOverwriteGuardTest {
       ReflectionTestUtils.invokeMethod(createIdentityService(), "updateOrganizationMembers",
          renamedOrg,
          new ArrayList<>(List.of(member(hostAdmin, Identity.USER), member(newbie, Identity.USER))),
-         EDITED_ORG_ID, fileProvider);
+         EDITED_ORG_ID, fileProvider, ThreadContext.getContextPrincipal());
 
       User after = fileProvider.getUser(hostAdmin);
       assertNotNull(after, "existing user of another org must not be removed");

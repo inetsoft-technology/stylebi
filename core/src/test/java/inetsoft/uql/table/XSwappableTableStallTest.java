@@ -291,18 +291,24 @@ public class XSwappableTableStallTest {
       table.addRow(new Object[] { "a", "b" });
       long before = WaitRegistry.global().getBeginCount();
       Future<Boolean> reader = pool.submit(() -> table.moreRows(1));
+      AtomicReference<WaitRecord> wait = new AtomicReference<>();
 
-      awaitTrue(() -> WaitRegistry.global().getActive().stream()
-                   .anyMatch(r -> r.isCreditOnly() &&
-                      "XSwappableTable.moreRows".equals(r.getWhat())), 5,
-                "the slow path registers a credit-only wait");
+      awaitTrue(() -> {
+         wait.set(WaitRegistry.global().getActive().stream()
+                     .filter(r -> r.isCreditOnly() &&
+                        "XSwappableTable.moreRows".equals(r.getWhat()))
+                     .findAny().orElse(null));
+         return wait.get() != null;
+      }, 5, "the slow path registers a credit-only wait");
       // well past the limit: the credit-only wait never fails
       Thread.sleep(1500);
       assertFalse(reader.isDone());
       table.complete();
       assertFalse(reader.get(15, TimeUnit.SECONDS));
       assertEquals(before + 1, WaitRegistry.global().getBeginCount());
-      awaitTrue(() -> WaitRegistry.global().getActive().isEmpty(), 5, "closed in finally");
+      // only this test's wait: hung threads of earlier cycle tests may still be registered
+      awaitTrue(() -> !WaitRegistry.global().getActive().contains(wait.get()), 5,
+                "closed in finally");
    }
 
    private static Thread daemon(Runnable runnable) {

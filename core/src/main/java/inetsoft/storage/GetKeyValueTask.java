@@ -42,7 +42,7 @@ public class GetKeyValueTask implements SingletonCallableTask<byte[]> {
 
    @Override
    public byte[] call() throws Exception {
-      KeyValuePair<Object> pair = KeyValueEngine.getInstance().get(id, key);
+      KeyValuePair<Object> pair = KeyValueTask.getServiceBean(KeyValueEngine.class).get(id, key);
       ByteArrayOutputStream buffer = new ByteArrayOutputStream();
 
       try(GZIPOutputStream output = new GZIPOutputStream(buffer)) {

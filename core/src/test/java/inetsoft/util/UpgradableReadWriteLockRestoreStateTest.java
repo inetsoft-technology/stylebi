@@ -37,7 +37,9 @@ import static org.junit.jupiter.api.Assertions.*;
 class UpgradableReadWriteLockRestoreStateTest {
    static final long BOUND = 300;
    static final long HANG = 3000;
-   static final int READ = 0, WRITE = 1, NB_READ = 2, NB_WRITE = 3, SK_READ = 4, SK_WRITE = 5;
+   // LOST_* are the entries a failed bounded restore could not take back (#77153); they were
+   // SKIPPED_* (4, 5) before
+   static final int READ = 0, WRITE = 1, NB_READ = 2, NB_WRITE = 3, LOST_READ = 6, LOST_WRITE = 7;
 
    ExecutorService a;
    final ThreadLocal<Boolean> nb = ThreadLocal.withInitial(() -> false);
@@ -86,7 +88,7 @@ class UpgradableReadWriteLockRestoreStateTest {
          Object r = await(f, at);
          assertInstanceOf(IllegalStateException.class, r);
          State s = state();
-         assertEquals(List.of(READ, SK_WRITE), s.stack);
+         assertEquals(List.of(READ, LOST_WRITE), s.stack);
          assertEquals(1, s.readHolds, "read barged back past the queued writer");
          assertFalse(s.writeHeld);
          assertEquals(1, s.skipped);
@@ -108,7 +110,7 @@ class UpgradableReadWriteLockRestoreStateTest {
       Object r = await(restoreAsync(aDone), at);
       assertInstanceOf(IllegalStateException.class, r);
       State s = state();
-      assertEquals(List.of(SK_READ, SK_WRITE), s.stack);
+      assertEquals(List.of(LOST_READ, LOST_WRITE), s.stack);
       assertEquals(0, s.readHolds);
       assertFalse(s.writeHeld);
       assertEquals(2, s.skipped);
@@ -151,7 +153,7 @@ class UpgradableReadWriteLockRestoreStateTest {
       peerHoldRawWrite(done1);
       assertInstanceOf(IllegalStateException.class, awaitRestore(done1));
       s = state();
-      assertEquals(List.of(SK_READ, SK_READ, SK_WRITE), s.stack);
+      assertEquals(List.of(LOST_READ, LOST_READ, LOST_WRITE), s.stack);
       assertEquals(0, s.readHolds);
       assertEquals(3, s.skipped);
       onA(() -> { lock.unlockWrite(); lock.unlockRead(); lock.unlockRead(); });
@@ -172,7 +174,7 @@ class UpgradableReadWriteLockRestoreStateTest {
          awaitQueuedWriter();
          assertInstanceOf(IllegalStateException.class, await(f, at));
          s = state();
-         assertEquals(List.of(READ, NB_READ, SK_WRITE), s.stack);
+         assertEquals(List.of(READ, NB_READ, LOST_WRITE), s.stack);
          assertEquals(2, s.readHolds);
          onA(() -> { lock.unlockWrite(); lock.unlockRead(); lock.unlockRead(); });
          assertClean();
@@ -206,11 +208,11 @@ class UpgradableReadWriteLockRestoreStateTest {
    }
 
    /**
-    * Writer grabs the lock around the moment the bounded write fails (the SKIPPED_READ
+    * Writer grabs the lock around the moment the bounded write fails (the LOST_READ
     * rewrite window). The race is randomized: a reader releases near the bound while a
     * writer barges with untimed tryLock(). Every outcome must keep stack and physical
     * holds consistent and end with nothing held. Which outcomes occur depends on scheduling,
-    * so they are only reported; the SKIPPED_READ rewrite is covered deterministically by
+    * so they are only reported; the LOST_READ rewrite is covered deterministically by
     * {@link #writerHoldsAtRestoreStart()} and
     * UpgradableReadWriteLockTest.rewoundReadsAreSkippedWhenWriterTakesLockDuringWait().
     */

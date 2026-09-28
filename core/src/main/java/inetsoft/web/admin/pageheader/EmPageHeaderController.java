@@ -113,9 +113,20 @@ public class EmPageHeaderController {
 
       String orgID = model.currOrgID();
       String providerName = model.providerName();
+      SecurityProvider provider = securityEngine.getSecurityProvider();
+
+      // only switch to an existing organization that the user administers, the same
+      // organizations that getPageHeaderModel() lists
+      if(securityEngine.isSecurityEnabled() &&
+         (orgID == null || provider.getOrganization(orgID) == null ||
+          !provider.checkPermission(
+             principal, ResourceType.SECURITY_ORGANIZATION, orgID, ResourceAction.ADMIN)))
+      {
+         return;
+      }
+
       ((XPrincipal) principal).setProperty("curr_org_id", orgID);
       ((XPrincipal) principal).setProperty("curr_provider_name", providerName);
-      SecurityProvider provider = securityEngine.getSecurityProvider();
       String orgName = provider.getOrgNameFromID(orgID);
       cluster.sendMessage(
          new IdentityChangedMessage(new IdentityID(orgName, orgID), ((XPrincipal) principal).getSessionID()));

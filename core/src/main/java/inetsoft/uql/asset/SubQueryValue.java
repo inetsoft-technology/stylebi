@@ -277,6 +277,13 @@ public class SubQueryValue implements AssetObject {
    }
 
    /**
+    * Get the sub table set by {@link #initSubTable(XTable)}, if any.
+    */
+   XTable getSubTable() {
+      return stable;
+   }
+
+   /**
     * Set current row.
     * @param row the specified row index.
     */

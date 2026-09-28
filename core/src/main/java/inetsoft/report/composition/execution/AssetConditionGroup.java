@@ -125,10 +125,9 @@ public class AssetConditionGroup extends ConditionGroup {
                      sconds.add(acond);
                   }
                   catch(Exception ex) {
-                     LOG.warn("Failed to execution condition sub-query", ex);
-
-                     // ignore the condition item
-                     col = -1;
+                     // fail the query: ignoring the item would evaluate it as true and
+                     // silently return (and cache) unfiltered rows
+                     throw subQueryFailed(tassembly, ex);
                   }
                }
                else {
@@ -147,6 +146,23 @@ public class AssetConditionGroup extends ConditionGroup {
 
       sarr = new AssetCondition[sconds.size()];
       sconds.toArray(sarr);
+   }
+
+   /**
+    * Get the exception to throw when the table of a sub-query condition can't be built.
+    * Runtime exceptions are returned unchanged so that callers can still handle
+    * MessageException, CancelledException, ConfirmException, MVExecutionException,
+    * ExpressionFailedException, ScriptException etc. as such.
+    * @param tassembly the sub-query table.
+    * @param ex the failure.
+    * @return the exception to throw.
+    */
+   static RuntimeException subQueryFailed(TableAssembly tassembly, Exception ex) {
+      String msg = "Failed to execute condition sub-query " +
+         (tassembly == null ? null : tassembly.getName());
+      LOG.debug(msg, ex);
+      return ex instanceof RuntimeException ?
+         (RuntimeException) ex : new RuntimeException(msg + ": " + ex.getMessage(), ex);
    }
 
    /**

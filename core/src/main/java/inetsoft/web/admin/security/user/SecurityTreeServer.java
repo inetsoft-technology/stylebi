@@ -78,7 +78,15 @@ public class SecurityTreeServer {
       boolean editable = providerName == null || provider instanceof EditableAuthenticationProvider;
 
       try {
-         if(providerChanged) {
+         // Only a site administrator (or anyone when security is off) may move the session to
+         // another organization/provider here, the same rule as EmPageHeaderController.setCurrOrg.
+         // Otherwise a non-site-admin with no org-level ADMIN in the chosen provider would land
+         // on the host-org fallback (or another org) and run later EM requests there (#77079).
+         // Everyone else keeps their current org and falls through to the normal tree build,
+         // which rejects a provider lacking that org with InvalidOrgException.
+         if(providerChanged && (!securityEngine.isSecurityEnabled() ||
+            OrganizationManager.getInstance().isSiteAdmin(principal)))
+         {
             Comparator<String> comp = XUtil.getOrganizationComparator();
             List<String> orgIDs = Arrays.stream(provider.getOrganizationIDs())
                .filter(o -> securityProvider.checkPermission(

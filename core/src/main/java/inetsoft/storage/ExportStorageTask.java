@@ -55,7 +55,7 @@ public class ExportStorageTask implements SingletonCallableTask<String> {
          exportStore(zip);
       }
 
-      return Cluster.getInstance().addTransferFile(tempFile);
+      return KeyValueTask.getServiceBean(Cluster.class).addTransferFile(tempFile);
    }
 
    private void exportStore(ZipOutputStream zip) throws IOException {
@@ -66,7 +66,7 @@ public class ExportStorageTask implements SingletonCallableTask<String> {
       generator.writeArrayFieldStart("pairs");
 
       Set<String> created = new HashSet<>();
-      KeyValueEngine.getInstance().stream(id)
+      KeyValueTask.getServiceBean(KeyValueEngine.class).stream(id)
          .forEach(pair -> {
             try {
                // Do not back up the plugins, initialization will install/upgrade plugins
@@ -107,7 +107,7 @@ public class ExportStorageTask implements SingletonCallableTask<String> {
                   Path temp = Files.createTempFile("storage-export", ".dat");
 
                   try {
-                     BlobEngine.getInstance().read(id, digest, temp);
+                     KeyValueTask.getServiceBean(BlobEngine.class).read(id, digest, temp);
                   }
                   catch(IOException e) {
                      Files.deleteIfExists(temp);

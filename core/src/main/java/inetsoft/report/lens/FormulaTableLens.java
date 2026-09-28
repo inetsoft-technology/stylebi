@@ -35,8 +35,10 @@ import inetsoft.util.*;
 import inetsoft.util.audit.ExecutionBreakDownRecord;
 import inetsoft.util.profile.ProfileUtils;
 import inetsoft.util.script.*;
+import inetsoft.util.script.graal.GraalJavaScriptEngine;
 import inetsoft.util.script.graal.GraalJavaScriptEnv;
 import inetsoft.util.script.graal.ScriptScope;
+import inetsoft.util.script.graal.pool.WorksheetScriptEnv;
 import inetsoft.util.stall.LockStallException;
 import inetsoft.util.stall.WaitRecord;
 import inetsoft.util.stall.WaitRegistry;
@@ -48,6 +50,7 @@ import java.io.*;
 import java.lang.reflect.Method;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
@@ -335,13 +338,26 @@ public class FormulaTableLens extends AbstractTableLens
       // the last row processed in this pass, see lockForRow()
       final int lastRow = Math.max(r, getProcessedRowCount() + hrows + advance);
       Lock execLock = lockForRow(r, lastRow);
+      // no row remains to compute, and none is computed without the engine lock
+      boolean computed = execLock == COMPUTED;
+      execLock = computed ? null : execLock;
       ScriptSpan span = ScriptSpan.NONE;
+      // set when this batch ends in a lock stall: the rows past the stall are not computed,
+      // so the row table is not complete even if the base has no more rows (bug #77123)
+      boolean stalled = false;
+      // set when this batch ends in any other exception, such as a script error of one row:
+      // the rows past it are not computed yet, so the row table is not complete (bug #77123)
+      boolean failed = false;
 
       try {
          int nrows = getProcessedRowCount();
 
          if(r < nrows) {
             return true;
+         }
+
+         if(computed) {
+            return more;
          }
 
 
@@ -359,6 +375,12 @@ public class FormulaTableLens extends AbstractTableLens
             String contextName = report != null && report.getContextName() != null
                ? "Report: " + report.getContextName() : null;
             boolean builtinDate = false;
+            // the vars the row table below owns: a read-before-write of one of them is a
+            // supported accumulator, not a state hazard for the lint (Testing #77123). Without
+            // a scope the row scope is not in the chain, so it owns nothing (main's behaviour)
+            Set<String> owned = scope == null ? null
+               : GraalJavaScriptEngine.collectOwnedVarNames(Arrays.asList(formulas));
+            boolean pooled = senv instanceof WorksheetScriptEnv;
 
             for(int i = 0; i < scripts.length; i++) {
                String colName = getColName(i + ncols);
@@ -368,6 +390,8 @@ public class FormulaTableLens extends AbstractTableLens
                try {
                   scripts[i] = compile(formulas[i], senv, contextName, colName,
                                        ncols + i, tableName, mergeables == null || mergeables[i]);
+                  ScriptStateLint.checkColumn(formulas[i], scripts[i], this, hrows, colName,
+                                              tableName, contextName, owned, pooled);
                }
                // allow other scripts to proceed if one script failed. (58626)
                catch(ExpressionFailedException ex) {
@@ -417,7 +441,6 @@ public class FormulaTableLens extends AbstractTableLens
 
             int j = 0;
             Object[] row = new Object[formulas.length];
-            boolean stalled = false;
 
             // remove change listener then add change listener, for script might
             // change the table lens(set object), then the process will delegate
@@ -476,9 +499,28 @@ public class FormulaTableLens extends AbstractTableLens
             }
          }
       }
+      catch(LockStallException ex) {
+         // also a stall of the base read in the loop condition, outside the row's catch
+         stalled = true;
+         throw ex;
+      }
+      catch(RuntimeException | Error ex) {
+         failed = true;
+         throw ex;
+      }
       finally {
          // the lock is released even if closing the span throws
          try {
+            // a complete row table runs no formula until it is computed again in a new
+            // row scope: don't keep a context alive by its vars' objects (Testing #77123)
+            // read the field once: invalidate() can null it meanwhile (it takes the monitor,
+            // not the lens lock), and an NPE here would replace the batch's result
+            TableRow2 completedRow = tableRow;
+
+            if(!more && !stalled && !failed && completedRow != null) {
+               completedRow.thisScope.releaseOwnedObjects();
+            }
+
             span.close();
          }
          finally {
@@ -490,7 +532,9 @@ public class FormulaTableLens extends AbstractTableLens
             execLock.unlock();
          }
 
-         if(!more) {
+         // a stalled or failed batch leaves the row table open: a completed one may be swapped
+         // out, and the rows a resumed read appends to it would be lost (bug #77123)
+         if(!more && !stalled && !failed) {
             if(rows != null) {
                rows.complete();
             }
@@ -523,11 +567,18 @@ public class FormulaTableLens extends AbstractTableLens
     * loaded before the engine lock is acquired, so the base (e.g. an async lens whose
     * worker needs the engine) is not waited for while holding it (bug #76935).
     *
+    * <p>If no row remains to compute, i.e. row {@code r} is computed or the base has no row
+    * past the computed rows, only this lens's lock is acquired. Such a read, e.g. the
+    * end-of-table probe that ends every scan, must not wait for the engine lock: a join
+    * worker probing a computed lens would wait for a thread that holds the engine lock and
+    * waits for the joined rows (bug #77215).
+    *
     * @param r the row to compute.
     * @param lastRow the last row computed in this pass.
     *
     * @return the acquired engine lock, which must be released after this lens's lock,
-    *         or {@code null} if none was acquired.
+    *         {@link #COMPUTED} if no row remains to compute, or {@code null} if no engine
+    *         lock was acquired.
     */
    private Lock lockForRow(int r, int lastRow) {
       ScriptEnv env = getScriptEnv();
@@ -542,7 +593,13 @@ public class FormulaTableLens extends AbstractTableLens
       Lock execLock = null;
 
       while(true) {
-         if(execLock == null && r >= getProcessedRowCount()) {
+         // the base is read before this lens's lock is acquired, see above. the formulas are
+         // compiled under the engine lock even for an empty base, which reports their errors
+         int nrows = getProcessedRowCount();
+         boolean computed = tableRow != null &&
+            (r < nrows + hrows || !table.moreRows(nrows + hrows));
+
+         if(execLock == null && !computed) {
             table.moreRows(lastRow);
             execLock = getScriptExecutionLock();
 
@@ -565,12 +622,20 @@ public class FormulaTableLens extends AbstractTableLens
             throw ex;
          }
 
-         // rows may have been reset by invalidate() after the check above, don't
-         // compute them without the engine lock
-         if(execLock != null || r < getProcessedRowCount() ||
-            getScriptExecutionLock() == null)
-         {
+         if(execLock != null) {
             return execLock;
+         }
+
+         // rows may have been computed, or reset by invalidate(), after the check above,
+         // don't compute them without the engine lock. the base was read at nrows above
+         int nrows2 = getProcessedRowCount();
+
+         if(computed && tableRow != null && (r < nrows2 + hrows || nrows2 == nrows)) {
+            return COMPUTED;
+         }
+
+         if(!computed && (r < nrows2 || getScriptExecutionLock() == null)) {
+            return null;
          }
 
          lock.unlock();
@@ -1145,6 +1210,17 @@ public class FormulaTableLens extends AbstractTableLens
       senv = null;
       table.dispose();
 
+      // a disposed table that was read in part keeps no context alive by its vars' objects;
+      // only if no batch runs now (Testing #77123)
+      if(tableRow != null && !lock.isHeldByCurrentThread() && lock.tryLock()) {
+         try {
+            tableRow.thisScope.releaseOwnedObjects();
+         }
+         finally {
+            lock.unlock();
+         }
+      }
+
       if(rows != null) {
          rows.dispose();
          rows = null;
@@ -1172,6 +1248,9 @@ public class FormulaTableLens extends AbstractTableLens
       public TableRow2(XTable table, int row) {
          super(table, row);
          thisScope = new TableRowScope(this, "field");
+         // the formulas' top-level vars live for this row table (Testing #77123)
+         thisScope.setOwnedVars(
+            GraalJavaScriptEngine.collectOwnedVarNames(Arrays.asList(formulas)));
       }
 
       // set the array to hold the results
@@ -1200,12 +1279,16 @@ public class FormulaTableLens extends AbstractTableLens
             return null;
          }
 
+         // restore, not clear: this read may be inside the exec of the same cell, whose
+         // assignment to its own column must still set the result (setObject)
+         Point prev = currExec;
+
          try {
             currExec = new Point(col, row);
             return getResult(col - ncols);
          }
          finally {
-            currExec = null;
+            currExec = prev;
          }
       }
 
@@ -1665,6 +1748,8 @@ public class FormulaTableLens extends AbstractTableLens
    }
 
    private static final Thread[] NO_THREADS = new Thread[0];
+   // returned by lockForRow() if no row remains to compute, never locked
+   private static final Lock COMPUTED = new ReentrantLock();
 
    @Serial
    private void readObject(ObjectInputStream in) throws ClassNotFoundException, IOException {

@@ -38,12 +38,17 @@ class LocalKeyValueStorage<T extends Serializable> implements KeyValueStorage<T>
       this.id = id;
       this.cluster = cluster;
       this.mapName = "inetsoft.storage.kv." + id;
+      this.load = load;
       this.map = cluster.getReplicatedMap(mapName);
       cluster.addReplicatedMapListener(mapName, listenerDelegate);
+      // wait for the initial load to avoid race conditions
+      loaded = load();
+   }
 
+   private boolean load() {
       try {
-         // wait for the initial load to avoid race conditions
          cluster.submit(id, load).get(3L, TimeUnit.MINUTES);
+         return true;
       }
       catch(ExecutionException e) {
          if(e.getCause() instanceof RuntimeException rte) {
@@ -52,9 +57,31 @@ class LocalKeyValueStorage<T extends Serializable> implements KeyValueStorage<T>
 
          LoggerFactory.getLogger(getClass()).warn("Failed to load key-value storage {}", id, e);
       }
+      catch(InterruptedException e) {
+         Thread.currentThread().interrupt();
+         LoggerFactory.getLogger(getClass())
+            .warn("Interrupted loading key-value storage {}", id, e);
+      }
       catch(Exception e) {
          LoggerFactory.getLogger(getClass()).warn("Failed to load key-value storage {}", id, e);
       }
+
+      return false;
+   }
+
+   @Override
+   public boolean isLoaded() {
+      return loaded;
+   }
+
+   @Override
+   public boolean retryLoad() {
+      // an interrupted thread, e.g. a startup being shut down, does not wait again
+      if(!loaded && !Thread.currentThread().isInterrupted()) {
+         loaded = load();
+      }
+
+      return loaded;
    }
 
    public boolean contains(String key) {
@@ -180,11 +207,13 @@ class LocalKeyValueStorage<T extends Serializable> implements KeyValueStorage<T>
    private final String id;
    private final Cluster cluster;
    private final String mapName;
+   private final LoadKeyValueTask<T> load;
    private final Map<String, T> map;
    private final Set<Listener<T>> listeners =
       new ConcurrentSkipListSet<>(Comparator.comparing(Listener::hashCode));
    private final ListenerDelegate listenerDelegate = new ListenerDelegate();
    private volatile boolean isClosed = false;
+   private volatile boolean loaded;
 
    private static final Logger LOG = LoggerFactory.getLogger(LocalKeyValueStorage.class);
 

@@ -94,6 +94,11 @@ class UserTreeServiceTest {
 
       securityProvider = mock(SecurityProvider.class, withSettings().lenient());
       when(securityEngine.getSecurityProvider()).thenReturn(securityProvider);
+      // getOrgGroups() checks SUtil.isMultiTenant() (Bug #77065), which reads the static
+      // SecurityEngine; the mock reports security disabled, so it is not multi-tenant
+      securityEngineStatic = mockStatic(SecurityEngine.class,
+                                        withSettings().strictness(org.mockito.quality.Strictness.LENIENT));
+      securityEngineStatic.when(SecurityEngine::getSecurity).thenReturn(securityEngine);
 
       currentProvider = mock(AuthenticationProvider.class, withSettings().lenient());
       when(authenticationProviderService.getProviderByName("provider1")).thenReturn(currentProvider);
@@ -148,6 +153,7 @@ class UserTreeServiceTest {
 
    @AfterEach
    void tearDown() {
+      securityEngineStatic.close();
       organizationManagerStatic.close();
       sreeEnvStatic.close();
    }
@@ -270,5 +276,6 @@ class UserTreeServiceTest {
    private OrganizationManager orgManager;
 
    private MockedStatic<OrganizationManager> organizationManagerStatic;
+   private MockedStatic<SecurityEngine> securityEngineStatic;
    private MockedStatic<SreeEnv> sreeEnvStatic;
 }

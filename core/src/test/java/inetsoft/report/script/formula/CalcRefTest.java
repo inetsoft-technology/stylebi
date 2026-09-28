@@ -22,6 +22,7 @@ import inetsoft.report.internal.table.*;
 import inetsoft.report.script.viewsheet.CalcTableVSAScriptable;
 import inetsoft.test.*;
 import inetsoft.util.script.FormulaContext;
+import inetsoft.util.stall.LockStallException;
 import org.graalvm.polyglot.proxy.ProxyExecutable;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -34,6 +35,7 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 import java.awt.*;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -371,6 +373,79 @@ public class CalcRefTest {
       when(mockGroup.getPosition()).thenReturn(position);
       when(mockGroup.getValue(mockContext)).thenReturn(value);
    }
+
+   /**
+    * #77123: a stalled table has no value to return (#76967). A $name read that hits a
+    * stall must throw it rather than return null, or the referencing cell (e.g. $A + 1)
+    * completes and caches a wrong value.
+    */
+   @Test
+   void stalledReferenceReadsThrowTheStall() {
+      LockStallException stall = new LockStallException("test.site", "worker", 1234, null);
+      FormulaContext.pushCellLocation(point0);
+
+      try {
+         provideFailingGroup(stall);
+         calcRef = new CalcRef(mockRuntimeCalcTableLens, "cell1");
+
+         assertSame(stall, assertThrows(LockStallException.class, () -> calcRef.getMember(".")));
+         // positional reference: must not be swallowed and retried through getBySpec
+         assertSame(stall, assertThrows(LockStallException.class, () -> calcRef.getMember("1")));
+         assertSame(stall, assertThrows(LockStallException.class, () -> calcRef.getArrayElement(0)));
+
+         ProxyExecutable valueOf = (ProxyExecutable) calcRef.getMember("valueOf");
+         ProxyExecutable toString = (ProxyExecutable) calcRef.getMember("toString");
+         assertSame(stall, assertThrows(LockStallException.class, () -> valueOf.execute()));
+         assertSame(stall, assertThrows(LockStallException.class, () -> toString.execute()));
+      }
+      finally {
+         FormulaContext.popCellLocation();
+      }
+   }
+
+   @Test
+   void wrappedStalledReferenceReadThrowsTheStall() {
+      LockStallException stall = new LockStallException("test.site", "worker", 1234, null);
+      FormulaContext.pushCellLocation(point0);
+
+      try {
+         provideFailingGroup(new IllegalStateException("wrapped", stall));
+         calcRef = new CalcRef(mockRuntimeCalcTableLens, "cell1");
+
+         assertSame(stall, assertThrows(LockStallException.class, () -> calcRef.getMember(".")));
+         assertSame(stall, assertThrows(LockStallException.class, () -> calcRef.getArrayElement(0)));
+      }
+      finally {
+         FormulaContext.popCellLocation();
+      }
+   }
+
+   @Test
+   void failedReferenceReadStillReturnsNull() {
+      // a failure that is not a stall keeps the old behavior: logged, null
+      FormulaContext.pushCellLocation(point0);
+
+      try {
+         provideFailingGroup(new IllegalStateException("broken"));
+         calcRef = new CalcRef(mockRuntimeCalcTableLens, "cell1");
+
+         assertNull(calcRef.getMember("."));
+         assertNull(calcRef.getArrayElement(0));
+         assertNull(((ProxyExecutable) calcRef.getMember("valueOf")).execute());
+         assertNull(((ProxyExecutable) calcRef.getMember("toString")).execute());
+      }
+      finally {
+         FormulaContext.popCellLocation();
+      }
+   }
+
+   private void provideFailingGroup(RuntimeException failure) {
+      when(mockRuntimeCalcTableLens.getCellContext(0, 0)).thenReturn(mockContext);
+      CalcCellContext.Group mockGroup = mock(CalcCellContext.Group.class);
+      when(mockContext.getGroup("cell1")).thenReturn(mockGroup);
+      when(mockGroup.getPosition()).thenReturn(0);
+      when(mockGroup.getValue(mockContext)).thenThrow(failure);
+      when(mockGroup.getValue(org.mockito.ArgumentMatchers.eq(mockContext), anyInt()))
+         .thenThrow(failure);
+   }
 }
-
-

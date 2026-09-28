@@ -26,6 +26,7 @@ import inetsoft.uql.asset.sync.DependencyTool;
 import inetsoft.uql.asset.sync.DependencyTransformer;
 import inetsoft.uql.erm.XLogicalModel;
 import inetsoft.uql.util.AbstractIdentity;
+import inetsoft.uql.util.Identity;
 import inetsoft.uql.viewsheet.VSBookmark;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.xmla.Domain;
@@ -70,6 +71,19 @@ public abstract class MigrateDocumentTask implements MigrateTask {
 
       this.oldOrganization = currOrg;
       this.newOrganization = currOrg;
+   }
+
+   /**
+    * Creates a task that updates the references to a renamed identity.
+    *
+    * @param identityType the type of the renamed identity, {@link Identity#USER} or
+    *                     {@link Identity#GROUP}.
+    */
+   public MigrateDocumentTask(AssetEntry entry, String oname, String nname, Organization currOrg,
+                              int identityType)
+   {
+      this(entry, oname, nname, currOrg);
+      this.identityType = identityType;
    }
 
    @Override
@@ -152,6 +166,19 @@ public abstract class MigrateDocumentTask implements MigrateTask {
       }
 
       processAssemblies(document.getDocumentElement());
+
+      if(identityType == Identity.GROUP) {
+         // a group owns no asset, so the entry keeps its key and owner, only the references to
+         // the group in the document are changed
+         getIndexStorage().putDocument(key, document, getAssetClassName(entry), entry.getOrgID());
+
+         if(entry.isScheduleTask()) {
+            updateScheduleServerTask(entry.getName(), entry.getOrgID());
+         }
+
+         return;
+      }
+
       IdentityID ouser = entry.getUser();
       String ouserName = ouser == null ? "" : ouser.getName();
       String nuser = ouser != null && Tool.equals(ouserName, oname) &&
@@ -239,6 +266,13 @@ public abstract class MigrateDocumentTask implements MigrateTask {
 
    public String getOldName() {
       return oname;
+   }
+
+   /**
+    * @return the type of the renamed identity, {@link Identity#USER} unless a group is renamed.
+    */
+   public int getIdentityType() {
+      return identityType;
    }
 
    protected void updateDrillPaths(Element root) {
@@ -524,6 +558,7 @@ public abstract class MigrateDocumentTask implements MigrateTask {
    private AbstractIdentity newOrganization;
    private String oname;
    private String nname;
+   private int identityType = Identity.USER;
    private Document document;
    protected static final XPath xpath = XPathFactory.newInstance().newXPath();
    private static final Logger LOG = LoggerFactory.getLogger(MigrateDocumentTask.class);

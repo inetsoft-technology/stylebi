@@ -33,6 +33,8 @@ import inetsoft.util.audit.ActionRecord;
 import inetsoft.util.audit.Audit;
 import inetsoft.web.admin.security.AuthenticationProviderService;
 import org.junit.jupiter.api.*;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.MockedStatic;
 import org.mockito.quality.Strictness;
 
@@ -115,6 +117,31 @@ class UserTreeServiceCreateOrganizationTest {
       verify(editProvider, never()).addOrganization(any());
    }
 
+   // Bug #77136: an explicit id naming a system folder of external storage, or containing path
+   // characters, must be rejected before the organization is added or cloned
+   @ParameterizedTest
+   @ValueSource(strings = { "backup", "HEAPDUMP", "status", "..", "a/b", "a b" })
+   void explicitId_reservedOrUnsafe_rejected(String orgId) {
+      MessageException thrown = assertThrows(MessageException.class, () ->
+         service.createOrganization(null, "Primary", "New Org", orgId, principal, null));
+
+      assertEquals(Catalog.getCatalog().getString("em.security.reservedOrganizationID", orgId),
+                   thrown.getMessage());
+      verify(editProvider, never()).addOrganization(any());
+   }
+
+   @Test
+   void explicitId_reserved_cloneRejectedBeforeCopy() {
+      MessageException thrown = assertThrows(MessageException.class, () ->
+         service.createOrganization("org1", "Primary", "New Org", "backup", principal, "Str0ng!Passw0rd"));
+
+      assertEquals(Catalog.getCatalog().getString("em.security.reservedOrganizationID", "backup"),
+                   thrown.getMessage());
+      verify(editProvider, never()).copyOrganization(any(), any(), any(), any(), any(), any(), any(),
+                                                     anyBoolean(), any());
+      verify(editProvider, never()).addOrganization(any());
+   }
+
    @Test
    void explicitId_distinctOrgId_passesIdCheck() {
       // control: a genuinely new id must not trip the id check; use a duplicate name so the
@@ -126,6 +153,50 @@ class UserTreeServiceCreateOrganizationTest {
          service.createOrganization(null, "Primary", "Taken Name", "org2", principal, null));
 
       assertEquals(Catalog.getCatalog().getString("em.duplicateOrganizationName"), thrown.getMessage());
+   }
+
+   // Bug #77082: org names and ids share one case-insensitive namespace, so an explicit-id
+   // create must also reject a name equal to another org's id and an id equal to another
+   // org's name (and a name equal to another org's name ignoring case).
+
+   @Test
+   void explicitId_nameEqualToAnotherOrgIdIgnoringCase_rejectedAsDuplicateName() {
+      stubOrgOne();
+
+      MessageException thrown = assertThrows(MessageException.class, () ->
+         service.createOrganization(null, "Primary", "ORG1", "org2", principal, null));
+
+      assertEquals(Catalog.getCatalog().getString("em.duplicateOrganizationName"), thrown.getMessage());
+      verify(editProvider, never()).addOrganization(any());
+   }
+
+   @Test
+   void explicitId_idEqualToAnotherOrgNameIgnoringCase_rejectedAsDuplicateId() {
+      stubOrgOne();
+
+      MessageException thrown = assertThrows(MessageException.class, () ->
+         service.createOrganization(null, "Primary", "New Org", "ACME", principal, null));
+
+      assertEquals(Catalog.getCatalog().getString("em.duplicateOrganizationID"), thrown.getMessage());
+      verify(editProvider, never()).addOrganization(any());
+   }
+
+   @Test
+   void explicitId_nameEqualToAnotherOrgNameDifferentCase_rejectedAsDuplicateName() {
+      stubOrgOne();
+
+      MessageException thrown = assertThrows(MessageException.class, () ->
+         service.createOrganization(null, "Primary", "ACME", "org2", principal, null));
+
+      assertEquals(Catalog.getCatalog().getString("em.duplicateOrganizationName"), thrown.getMessage());
+      verify(editProvider, never()).addOrganization(any());
+   }
+
+   private void stubOrgOne() {
+      FSOrganization org1 = new FSOrganization("org1");
+      org1.setName("acme");
+      // the name check reads getOrganization(id).getName(), not getOrganizationNames()
+      when(securityProvider.getOrganization("org1")).thenReturn(org1);
    }
 
    private EditableAuthenticationProvider editProvider;

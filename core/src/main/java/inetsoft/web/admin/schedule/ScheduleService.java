@@ -1285,8 +1285,9 @@ public class ScheduleService {
                   int oldFormat = pModel.oldFormat();
                   ServerPathInfo oldInfo = clone.get(oldFormat);
 
+                  // only keep the stored password for the server it was saved for
                   if(Util.PLACEHOLDER_PASSWORD.equals(password) && oldInfo != null
-                     && !clone.isEmpty())
+                     && !clone.isEmpty() && isSameServer(pModel.path(), oldInfo))
                   {
                      password = oldInfo.getPassword();
                   }
@@ -1473,7 +1474,8 @@ public class ScheduleService {
 
          if(oldServerPath != null && newServerPathInfo != null &&
             Tool.equals(newServerPathInfo.getUsername(), oldServerPath.getUsername()) &&
-            Util.PLACEHOLDER_PASSWORD.equals(newServerPathInfo.getPassword()))
+            Util.PLACEHOLDER_PASSWORD.equals(newServerPathInfo.getPassword()) &&
+            isSameServer(newServerPathInfo.getPath(), oldServerPath))
          {
             newServerPathInfo.setPassword(oldServerPath.getPassword());
          }
@@ -1848,7 +1850,14 @@ public class ScheduleService {
       boolean dumpException = true;
       ScheduleTask task = scheduleManager.getScheduleTask(taskName, currentOrgID);
 
-      if(task != null && !ScheduleManager.hasTaskPermission(task.getOwner(), principal, ResourceAction.READ)) {
+      // the task must resolve in the caller's organization, otherwise the raw name would be
+      // passed to the global quartz scheduler and could run another organization's task
+      if(task == null) {
+         throw new MessageException(catalog.getString(
+            "em.scheduler.taskNotFound", SUtil.getTaskNameWithoutOrg(taskName)));
+      }
+
+      if(!ScheduleManager.hasTaskPermission(task.getOwner(), principal, ResourceAction.READ)) {
          throw new SecurityException(String.format(
             "Unauthorized access to resource \"%s\" by %s", taskName, principal));
       }
@@ -1862,7 +1871,7 @@ public class ScheduleService {
          String taskNameForLog = SUtil.getTaskNameForLogging(taskName);
          MDC.put("SCHEDULE_TASK", taskNameForLog);
 
-         if(task != null && !task.isEnabled()) {
+         if(!task.isEnabled()) {
             errorMsg = catalog.getString("em.scheduler.startDisabledTask", taskNameWithoutOrg);
          }
          else {
@@ -1883,7 +1892,7 @@ public class ScheduleService {
       String actionName = ActionRecord.ACTION_NAME_RUN;
       String objectType = ActionRecord.OBJECT_TYPE_TASK;
       ActionRecord actionRecord = SUtil.getActionRecord(principal, actionName, taskName, objectType);
-      actionRecord.setObjectUser(task == null ? null : task.getOwner().name);
+      actionRecord.setObjectUser(task.getOwner().name);
 
       if(errorMsg != null) {
          actionRecord.setActionStatus(ActionRecord.ACTION_STATUS_FAILURE);
@@ -1931,21 +1940,25 @@ public class ScheduleService {
       taskName = Tool.byteDecode(taskName);
       Catalog catalog = Catalog.getCatalog(principal);
       String errorMsg = null;
+      ScheduleTask task = scheduleManager.getScheduleTask(taskName, currentOrgID);
+
+      // the task must resolve in the caller's organization, otherwise the raw name would be
+      // passed to the global quartz scheduler and could stop another organization's task
+      if(task == null) {
+         throw new MessageException(catalog.getString(
+            "em.scheduler.taskNotFound", SUtil.getTaskNameWithoutOrg(taskName)));
+      }
+
+      if(!ScheduleManager.hasTaskPermission(task.getOwner(), principal, ResourceAction.READ)) {
+         throw new SecurityException(String.format(
+            "Unauthorized access to resource \"%s\" by %s", taskName, principal));
+      }
 
       if(!scheduleClient.isReady()) {
          errorMsg = catalog.getString("em.scheduler.notStarted");
       }
       else {
-         // Org-qualified, matching runScheduledTask's lookup -- an unqualified lookup here would
-         // resolve against the calling thread's ambient org rather than principal's own (76687).
-         ScheduleTask task = scheduleManager.getScheduleTask(taskName, currentOrgID);
-
-         if(task != null && !ScheduleManager.hasTaskPermission(task.getOwner(), principal, ResourceAction.READ)) {
-            throw new SecurityException(String.format(
-               "Unauthorized access to resource \"%s\" by %s", taskName, principal));
-         }
-
-         if(task != null && !task.isEnabled()) {
+         if(!task.isEnabled()) {
             errorMsg = catalog.getString("em.scheduler.stopDisabledTask",
                                          task.getTaskId());
          }
@@ -1972,14 +1985,57 @@ public class ScheduleService {
       }
    }
 
-   public void exportScheduledTasks(String[] taskListModel, OutputStream output) {
+   /**
+    * Gets the tasks to export. Every task must resolve in the caller's organization and be
+    * visible to the caller, otherwise the export is rejected.
+    *
+    * @param taskNames the names of the tasks to export.
+    * @param principal the user exporting the tasks.
+    *
+    * @return the tasks to export.
+    */
+   public List<ScheduleTask> getExportTasks(String[] taskNames, Principal principal)
+      throws SecurityException
+   {
+      String currentOrgID = OrganizationManager.getInstance().getCurrentOrgID(principal);
+      Catalog catalog = Catalog.getCatalog(principal);
+      List<ScheduleTask> tasks = new ArrayList<>();
+
+      for(String taskName : taskNames) {
+         ScheduleTask task = scheduleManager.getScheduleTask(taskName, currentOrgID);
+
+         if(task == null) {
+            throw new MessageException(catalog.getString(
+               "em.scheduler.taskNotFound", SUtil.getTaskNameWithoutOrg(taskName)));
+         }
+
+         if(!canExportTask(task, principal)) {
+            throw new SecurityException(String.format(
+               "Unauthorized access to resource \"%s\" by %s", taskName, principal));
+         }
+
+         tasks.add(task);
+      }
+
+      return tasks;
+   }
+
+   /**
+    * Determines if a task may be exported by a user. This is the same check that is used to
+    * determine if the task is shown in the user's task list.
+    */
+   public boolean canExportTask(ScheduleTask task, Principal principal) {
+      RepletEngine engine = SUtil.getRepletEngine(analyticRepository);
+      return engine != null && engine.hasTaskPermission(task, principal);
+   }
+
+   public void exportScheduledTasks(List<ScheduleTask> tasks, OutputStream output) {
       PrintWriter writer = new PrintWriter(new OutputStreamWriter(output, StandardCharsets.UTF_8));
       writer.write("<?xml version=\"1.0\" encoding=\"UTF-8\"?>");
       writer.write("<schedule>");
 
-      for(String task : taskListModel) {
-         ScheduleTask task1 = scheduleManager.getScheduleTask(task);
-         task1.writeXML(writer);
+      for(ScheduleTask task : tasks) {
+         task.writeXML(writer);
       }
 
       writer.write("<timeRanges>");
@@ -2206,6 +2262,19 @@ public class ScheduleService {
       }
 
       return builder.build();
+   }
+
+   /**
+    * Determines if a path points to the same FTP or SFTP server as a stored path.
+    */
+   private static boolean isSameServer(String path, ServerPathInfo oldInfo) {
+      try {
+         return path != null && oldInfo.getPath() != null &&
+            FTPUtil.parseEndpoint(path).isSameServer(FTPUtil.parseEndpoint(oldInfo));
+      }
+      catch(Exception e) {
+         return false;
+      }
    }
 
    private NameLabelTuple createTaskTuple(ScheduleTask task) {

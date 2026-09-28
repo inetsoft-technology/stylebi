@@ -27,6 +27,7 @@ import inetsoft.sree.internal.DataCycleManager;
 import inetsoft.sree.security.*;
 import inetsoft.test.*;
 import inetsoft.uql.XPrincipal;
+import inetsoft.uql.util.Identity;
 import inetsoft.util.Tool;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -44,7 +45,9 @@ import org.w3c.dom.Element;
 import org.xml.sax.InputSource;
 
 import javax.xml.parsers.DocumentBuilderFactory;
+import java.io.PrintWriter;
 import java.io.StringReader;
+import java.io.StringWriter;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.time.LocalDateTime;
@@ -511,6 +514,256 @@ public class ScheduleTaskTest {
       CompletionCondition cc = (CompletionCondition) task.getCondition(0);
       String expected = new IdentityID("admin", targetOrg).convertToKey() + ":parent task";
       assertEquals(expected, cc.getTaskName());
+   }
+
+   // --- Bug #77120, unresolvable execute-as identities ---
+
+   private static final IdentityID EXEC_AS = new IdentityID("g1", "host-org");
+
+   @ParameterizedTest(name = "unresolvable execute-as of type {0} is kept as a placeholder")
+   @ValueSource(ints = { Identity.USER, Identity.GROUP, Identity.ROLE })
+   void parseXML_unresolvableIdentity_keptAsPlaceholderAndWarned(int type) throws Exception {
+      Logger logger = (Logger) LoggerFactory.getLogger(ScheduleTask.class);
+      ListAppender<ILoggingEvent> appender = new ListAppender<>();
+      appender.start();
+      logger.addAppender(appender);
+
+      try {
+         ScheduleTask task = parseWithProvider(executeAsXml(type), mock(SecurityProvider.class), true);
+
+         Identity identity = task.getIdentity();
+         assertNotNull(identity, "a lookup miss must not drop the execute-as identity");
+         assertEquals(type, identity.getType());
+         assertEquals(EXEC_AS, identity.getIdentityID());
+         assertTrue(appender.list.stream().anyMatch(e -> e.getLevel() == Level.WARN &&
+            e.getFormattedMessage().contains(EXEC_AS.toString()) &&
+            e.getFormattedMessage().contains("t1")),
+            "the WARN must name the task and the unresolved identity");
+      }
+      finally {
+         logger.detachAppender(appender);
+      }
+   }
+
+   @ParameterizedTest(name = "unresolvable execute-as of type {0} survives a save")
+   @ValueSource(ints = { Identity.USER, Identity.GROUP, Identity.ROLE })
+   void writeXML_unresolvableIdentity_roundTripsAndResolvesOnceAvailable(int type)
+      throws Exception
+   {
+      ScheduleTask task = parseWithProvider(executeAsXml(type), mock(SecurityProvider.class), true);
+      StringWriter out = new StringWriter();
+      task.writeXML(new PrintWriter(out));
+      String saved = out.toString();
+
+      assertTrue(saved.contains("idname=\"" + Tool.escape(EXEC_AS.convertToKey()) + "\""), saved);
+      assertTrue(saved.contains("idtype=\"" + type + "\""), saved);
+
+      Identity resolved = type == Identity.GROUP ? new Group(EXEC_AS) :
+         type == Identity.ROLE ? new Role(EXEC_AS) : new User(EXEC_AS);
+      ScheduleTask reparsed = parseWithProvider(saved, resolvingProvider(resolved), true);
+
+      assertSame(resolved, reparsed.getIdentity(),
+                 "the saved reference must bind to the identity once the provider knows it again");
+   }
+
+   @Test
+   void parseXML_resolvableIdentity_keepsProviderIdentity() throws Exception {
+      Group group = new Group(EXEC_AS);
+      ScheduleTask task = parseWithProvider(executeAsXml(Identity.GROUP), resolvingProvider(group), true);
+
+      assertSame(group, task.getIdentity());
+   }
+
+   @Test
+   void parseXML_noIdentity_staysNull() throws Exception {
+      ScheduleTask task = parseWithProvider(
+         "<Task name=\"t1\" owner=\"admin~;~host-org\" enabled=\"true\"/>",
+         mock(SecurityProvider.class), true);
+
+      assertNull(task.getIdentity());
+   }
+
+   @Test
+   void parseXML_securityDisabled_unresolvableIdentity_keepsPlaceholderIdentity() throws Exception {
+      // Bug #77168: dropping the placeholder here (identity == null) is what silently and
+      // permanently erased execute-as on the very next writeXML(), since writeXML's guard is
+      // bare "if(identity != null)". The placeholder must now be kept regardless of security
+      // state so it round-trips; the task still effectively runs as its owner, but that must
+      // now come from the principal-builder callers (ScheduleTaskJob/ClusterJobStore/
+      // JobCompletionListener) falling back to the owner while security is disabled, not from
+      // parseXML silently dropping the reference.
+      ScheduleTask task = parseWithProvider(executeAsXml(Identity.GROUP), mock(SecurityProvider.class), false);
+
+      Identity identity = task.getIdentity();
+      assertNotNull(identity,
+                    "with security disabled, an unresolvable execute-as must still be kept as " +
+                    "a placeholder so it is not lost on the next save");
+      assertEquals(Identity.GROUP, identity.getType());
+      assertEquals(EXEC_AS, identity.getIdentityID());
+   }
+
+   @Test
+   void run_securityEnabled_unresolvableIdentity_failsClosed() throws Throwable {
+      ScheduleTask task = new ScheduleTask("t1");
+      ScheduleAction action = mock(ScheduleAction.class);
+      task.addAction(action);
+      task.setIdentity(new Group(EXEC_AS));
+
+      withSecurity(mock(SecurityProvider.class), true, () -> {
+         IllegalStateException ex = assertThrows(IllegalStateException.class, () -> task.run(null));
+         assertTrue(ex.getMessage().contains(EXEC_AS.toString()), ex.getMessage());
+         return null;
+      });
+
+      verify(action, never()).run(any());
+      assertFalse(task.isRunning(), "a refused run must not leave the task marked as running");
+   }
+
+   @Test
+   void run_securityEnabled_resolvableIdentity_runs() throws Throwable {
+      Group group = new Group(EXEC_AS);
+      ScheduleTask task = new ScheduleTask("t1");
+      task.setIdentity(group);
+
+      withSecurity(resolvingProvider(group), true, () -> {
+         assertDoesNotThrow(() -> task.run(null));
+         return null;
+      });
+   }
+
+   @Test
+   void run_securityDisabled_unresolvableIdentity_runs() throws Throwable {
+      ScheduleTask task = new ScheduleTask("t1");
+      task.setIdentity(new Group(EXEC_AS));
+
+      withSecurity(mock(SecurityProvider.class), false, () -> {
+         assertDoesNotThrow(() -> task.run(null));
+         return null;
+      });
+   }
+
+   // --- Bug #77167, a site-admin import moves the execute-as identity to the importing org ---
+
+   private static final IdentityID SOURCE_EXEC_AS = new IdentityID("x", "source-org");
+   private static final IdentityID TARGET_EXEC_AS = new IdentityID("x", "target-org");
+
+   @ParameterizedTest(name = "site-admin import moves execute-as of type {0} to the target org")
+   @ValueSource(ints = { Identity.USER, Identity.GROUP, Identity.ROLE })
+   void parseXML_siteAdminImport_executeAsMovesToTargetOrg(int type) throws Exception {
+      ScheduleTask task = importTask(importXml(SOURCE_EXEC_AS, type),
+                                     knownProvider(SOURCE_EXEC_AS, TARGET_EXEC_AS), true);
+
+      assertEquals(new IdentityID("admin", "target-org"), task.getOwner());
+      assertNotNull(task.getIdentity());
+      assertEquals(type, task.getIdentity().getType());
+      assertEquals(TARGET_EXEC_AS, task.getIdentity().getIdentityID(),
+                   "the execute-as identity must follow the owner into the importing org");
+   }
+
+   @ParameterizedTest(name = "site-admin import keeps a target-org placeholder of type {0}")
+   @ValueSource(ints = { Identity.USER, Identity.GROUP, Identity.ROLE })
+   void parseXML_siteAdminImport_missingInTargetOrg_placeholderInTargetOrg(int type)
+      throws Exception
+   {
+      // only the source org has the identity, it must not bind to it
+      ScheduleTask task = importTask(importXml(SOURCE_EXEC_AS, type),
+                                     knownProvider(SOURCE_EXEC_AS), true);
+
+      assertNotNull(task.getIdentity());
+      assertEquals(type, task.getIdentity().getType());
+      assertEquals(TARGET_EXEC_AS, task.getIdentity().getIdentityID(),
+                   "the unresolved placeholder must be scoped to the importing org");
+   }
+
+   @Test
+   void parseXML_siteAdminImport_globalRoleStaysGlobal() throws Exception {
+      IdentityID global = new IdentityID("x", null);
+      ScheduleTask task = importTask(importXml(global, Identity.ROLE), knownProvider(global), true);
+
+      assertNotNull(task.getIdentity());
+      assertEquals(global, task.getIdentity().getIdentityID());
+   }
+
+   @ParameterizedTest(name = "non-site-admin import keeps execute-as of type {0} unchanged")
+   @ValueSource(ints = { Identity.USER, Identity.GROUP, Identity.ROLE })
+   void parseXML_nonSiteAdminImport_executeAsUnchanged(int type) throws Exception {
+      ScheduleTask task = importTask(importXml(SOURCE_EXEC_AS, type),
+                                     knownProvider(SOURCE_EXEC_AS, TARGET_EXEC_AS), false);
+
+      assertNotNull(task.getIdentity());
+      assertEquals(SOURCE_EXEC_AS, task.getIdentity().getIdentityID());
+   }
+
+   private static String importXml(IdentityID executeAs, int type) {
+      return "<Task name=\"t1\" owner=\"" +
+         Tool.escape(new IdentityID("admin", "source-org").convertToKey()) +
+         "\" enabled=\"true\" idname=\"" + Tool.escape(executeAs.convertToKey()) +
+         "\" idtype=\"" + type + "\"/>";
+   }
+
+   private static SecurityProvider knownProvider(IdentityID... ids) {
+      SecurityProvider provider = mock(SecurityProvider.class);
+
+      for(IdentityID id : ids) {
+         when(provider.getUser(id)).thenReturn(new User(id));
+         when(provider.getGroup(id)).thenReturn(new Group(id));
+         when(provider.getRole(id)).thenReturn(new Role(id));
+      }
+
+      return provider;
+   }
+
+   private ScheduleTask importTask(String xml, SecurityProvider provider, boolean siteAdmin)
+      throws Exception
+   {
+      Element elem = parseTaskXml(xml);
+      ScheduleTask task = new ScheduleTask();
+      withSecurity(provider, true, () -> OrganizationManager.runInOrgScope("target-org", () -> {
+         task.parseXML(elem, siteAdmin);
+         return null;
+      }));
+      return task;
+   }
+
+   private static String executeAsXml(int type) {
+      return "<Task name=\"t1\" owner=\"admin~;~host-org\" enabled=\"true\" idname=\"" +
+         Tool.escape(EXEC_AS.convertToKey()) + "\" idtype=\"" + type + "\"/>";
+   }
+
+   private static SecurityProvider resolvingProvider(Identity identity) {
+      SecurityProvider provider = mock(SecurityProvider.class);
+      when(provider.getUser(EXEC_AS)).thenReturn(identity instanceof User ? (User) identity : null);
+      when(provider.getGroup(EXEC_AS)).thenReturn(identity instanceof Group ? (Group) identity : null);
+      when(provider.getRole(EXEC_AS)).thenReturn(identity instanceof Role ? (Role) identity : null);
+      return provider;
+   }
+
+   private ScheduleTask parseWithProvider(String xml, SecurityProvider provider, boolean enabled)
+      throws Exception
+   {
+      Element elem = parseTaskXml(xml);
+      ScheduleTask task = new ScheduleTask();
+      withSecurity(provider, enabled, () -> {
+         task.parseXML(elem);
+         return null;
+      });
+      return task;
+   }
+
+   private void withSecurity(SecurityProvider provider, boolean enabled,
+                             java.util.concurrent.Callable<Void> body) throws Exception
+   {
+      doReturn(provider).when(securityEngine).getSecurityProvider();
+      doReturn(enabled).when(securityEngine).isSecurityEnabled();
+
+      try {
+         body.call();
+      }
+      finally {
+         // back to a plain spy; restoring with doCallRealMethod() leaves isSecurityEnabled()
+         // stubbed, which breaks a later when(securityEngine.getSecurityProvider())
+         reset(securityEngine);
+      }
    }
 
    private static Element parseTaskXml(String xml) throws Exception {

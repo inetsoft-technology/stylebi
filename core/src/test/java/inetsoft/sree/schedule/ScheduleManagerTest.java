@@ -24,18 +24,26 @@ import inetsoft.sree.security.*;
 import inetsoft.test.*;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetObject;
+import inetsoft.uql.util.DefaultIdentity;
+import inetsoft.uql.util.Identity;
 import inetsoft.uql.viewsheet.VSBookmark;
 import inetsoft.uql.viewsheet.VSBookmarkInfo;
 import inetsoft.util.Tool;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.exceptions.misusing.UnfinishedStubbingException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
+import org.w3c.dom.Document;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
+import javax.xml.parsers.DocumentBuilderFactory;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -44,7 +52,8 @@ import static org.mockito.Mockito.*;
  * Tier: [integration] — real ScheduleManager bean, SecurityEngine, and in-memory task maps.
  *
  * Intent vs implementation suspects: none confirmed at this time.
- * Regression: checkIdentityRenamedWithSystemTaskCondition (Bug #74651).
+ * Regression: checkIdentityRenamedWithSystemTaskCondition (Bug #74651),
+ *             assetRenamed_mvActionWithNullEntry_skipsItAndRenamesOthers (Bug #77214).
  *
  * Intentionally out of scope (RepletEngine-only or unused):
  * repletRemoved, assetRemoved, assetRenamed, archiveRenamed.
@@ -68,9 +77,11 @@ public class ScheduleManagerTest {
    @Autowired
    ScheduleManager scheduleManager;
 
+   @Autowired
+   SecurityEngine securityEngine;
+
    private IdentityID identityID_admin;
    private IdentityID identityID_tuser0;
-   private IdentityID identityID_tgroup0;
    private SRPrincipal admin;
    private SRPrincipal tuser0;
 
@@ -78,7 +89,6 @@ public class ScheduleManagerTest {
    void before() {
       identityID_admin = new IdentityID("admin", "host-org");
       identityID_tuser0 = new IdentityID("tuser0", "host-org");
-      identityID_tgroup0 = new IdentityID("tgroup0", "host-org");
       admin = new SRPrincipal(new IdentityID("admin", Organization.getDefaultOrganizationID()),
                               new IdentityID[] { new IdentityID("Administrator", null)},
                               new String[] {"g0"}, "host-org",
@@ -268,17 +278,18 @@ public class ScheduleManagerTest {
       when(mockCycleInfo.getOrgId()).thenReturn("host-org");
       when(mockCycleInfo.getName()).thenReturn("cycle1");
 
-      ScheduleTask tk1 = new ScheduleTask("tk1");
+      // only data cycle tasks are extension tasks (Bug #77213)
+      ScheduleTask tk1 = new ScheduleTask("tk1", ScheduleTask.Type.CYCLE_TASK);
       tk1.setOwner(identityID_tuser0);
       tk1.setCycleInfo(mockCycleInfo);
 
       // mock ScheduleExt
       ScheduleExt mockScheduleExt = mock(ScheduleExt.class);
-      when(mockScheduleExt.containsTask("tuser0~;~host-org:tk1", "host-org")).thenReturn(true);
+      when(mockScheduleExt.containsTask(tk1.getTaskId(), "host-org")).thenReturn(true);
       when(mockScheduleExt.getTasks()).thenReturn(List.of(tk1));
       when(mockScheduleExt.getTasks("host-org")).thenReturn(List.of(tk1));
-      when(mockScheduleExt.isEnable("tuser0~;~host-org:tk1", "host-org")).thenReturn(false);
-      when(mockScheduleExt.deleteTask("tuser0~;~host-org:tk1")).thenReturn(true);
+      when(mockScheduleExt.isEnable(tk1.getTaskId(), "host-org")).thenReturn(false);
+      when(mockScheduleExt.deleteTask(tk1.getTaskId())).thenReturn(true);
 
       scheduleManager.addScheduleExt(mockScheduleExt);
       scheduleManager.save(List.of(tk1), "host-org");
@@ -405,6 +416,47 @@ public class ScheduleManagerTest {
    }
 
    /**
+    * Bug #77214: an MV action parsed from task XML without an MVDef (e.g. an imported or legacy
+    * task file) has a null entry. assetRenamed must skip it instead of throwing an NPE, and must
+    * still rename and save the other matching actions.
+    */
+   @Test
+   void assetRenamed_mvActionWithNullEntry_skipsItAndRenamesOthers() throws Exception {
+      Document doc = DocumentBuilderFactory.newInstance().newDocumentBuilder()
+         .parse(new ByteArrayInputStream("<Action type=\"MV\"/>".getBytes(StandardCharsets.UTF_8)));
+      MVAction mvAction = new MVAction();
+      mvAction.parseXML(doc.getDocumentElement());
+      assertNull(mvAction.getEntry());
+
+      AssetEntry wsOEntry = AssetEntry.createAssetEntry("1^2^__NULL__^ws1^host-org");
+      AssetEntry wsNEntry = AssetEntry.createAssetEntry("1^2^__NULL__^ws1_1^host-org");
+      BatchAction batchAction = new BatchAction();
+      batchAction.setQueryEntry(wsOEntry);
+
+      // actions are visited from the last index down, so the MV action is reached first
+      ScheduleTask task = createScheduleTask("mvtk1");
+      task.addAction(batchAction);
+      task.addAction(mvAction);
+      String taskId = "admin~;~host-org:mvtk1";
+      scheduleManager.setScheduleTask(taskId, task, admin);
+
+      try {
+         assertDoesNotThrow(() -> scheduleManager.assetRenamed(wsOEntry, wsNEntry, "host-org"));
+
+         scheduleManager.removeTaskCacheOfOrg("host-org");
+         ScheduleTask reloaded = scheduleManager.getScheduleTask(taskId);
+         assertEquals(3, reloaded.getActionCount());
+         assertEquals(wsNEntry, ((BatchAction) reloaded.getAction(1)).getQueryEntry());
+         assertNull(((MVAction) reloaded.getAction(2)).getEntry());
+      }
+      finally {
+         // clearAllTask() was observed not to remove this task; remove it explicitly so its
+         // BatchAction (null task id) does not leak into checkIdentityRenamed
+         scheduleManager.removeScheduleTask(taskId, admin, false);
+      }
+   }
+
+   /**
     * check rename user, task info change rightly
     */
    @Test
@@ -436,6 +488,52 @@ public class ScheduleManagerTest {
    }
 
    /**
+    * Regression test for Bug #77097: a group rename must not rewrite the task chain, the private
+    * viewsheet or the bookmarks of a same-named user, which the task ids and viewsheet paths only
+    * identify by name. Only the "execute as" group is renamed.
+    */
+   @Test
+   void checkGroupRenamedLeavesSameNamedUserTask() throws Exception {
+      IdentityID userSales = new IdentityID("sales", "host-org");
+      String privateVS = "4^128^sales~;~host-org^vs1^host-org";
+
+      ViewsheetAction vsAction = new ViewsheetAction();
+      vsAction.setViewsheet(privateVS);
+      vsAction.setBookmarks(new String[] { "bk1" });
+      vsAction.setBookmarkTypes(new int[] { VSBookmarkInfo.PRIVATE });
+      vsAction.setBookmarkUsers(new IdentityID[] { userSales });
+
+      CompletionCondition condition = new CompletionCondition();
+      condition.setTaskName("sales~;~host-org:group_tk2");
+
+      ScheduleTask task = new ScheduleTask("group_tk1");
+      task.setOwner(userSales);
+      task.addAction(vsAction);
+      task.addCondition(condition);
+      task.setIdentity(new Group(new IdentityID("sales", "host-org")));
+      scheduleManager.setScheduleTask("sales~;~host-org:group_tk1", task, admin);
+
+      Group sales2 = new Group(new IdentityID("sales2", "host-org"));
+      scheduleManager.identityRenamed(new IdentityID("sales", "host-org"), sales2);
+
+      ScheduleTask renamed = scheduleManager.getScheduleTask("sales~;~host-org:group_tk1");
+      assertNotNull(renamed, "the user's task must keep its id");
+      assertEquals(userSales, renamed.getOwner());
+      assertEquals("sales~;~host-org:group_tk2",
+                   ((CompletionCondition) renamed.getCondition(0)).getTaskName());
+
+      Enumeration<String> dependencies = renamed.getDependency();
+
+      while(dependencies.hasMoreElements()) {
+         assertFalse(dependencies.nextElement().startsWith("sales2~;~"));
+      }
+
+      ViewsheetAction action = (ViewsheetAction) renamed.getAction(0);
+      assertEquals(privateVS, action.getViewsheet());
+      assertArrayEquals(new IdentityID[] { userSales }, action.getBookmarkUsers());
+   }
+
+   /**
     * Regression test for Bug #74651: identityRenamed() must not throw
     * StringIndexOutOfBoundsException when a CompletionCondition or dependency
     * references a system/internal task name that has no owner prefix (no colon).
@@ -459,6 +557,194 @@ public class ScheduleManagerTest {
       CompletionCondition cond = (CompletionCondition)
          scheduleManager.getScheduleTask("tuser0_1~;~host-org:user_tk_sys").getCondition(0);
       assertEquals("__balance tasks__", cond.getTaskName());
+   }
+
+   /**
+    * Bug #77111: a group removal removes the name(Group) token and keeps a same-named bare token,
+    * which denotes a user.
+    */
+   @Test
+   void identityRemoved_groupRemovesOnlyGroupNotifications() throws Exception {
+      IdentityID gX = new IdentityID("gX", "host-org");
+
+      withNotificationTasks(() -> {
+         ScheduleTask task = seedNotificationTask("n77111_grp", "gX,gX(Group),e@f.com", "host-org");
+         scheduleManager.identityRemoved(new Group(gX), mockProvider(new Group(gX)));
+         assertEquals("gX,e@f.com", readNotifications(task, "host-org"));
+      });
+   }
+
+   /**
+    * Bug #77111: a user removal removes the bare and the name(User) tokens, and keeps the
+    * same-named group.
+    */
+   @Test
+   void identityRemoved_userRemovesBareAndTypedNotifications() throws Exception {
+      IdentityID u9 = new IdentityID("u9", "host-org");
+
+      withNotificationTasks(() -> {
+         ScheduleTask task =
+            seedNotificationTask("n77111_usr", "u9,u9(User),u9(Group),e@f.com", "host-org");
+         scheduleManager.identityRemoved(new User(u9), mockProvider(new User(u9)));
+         assertEquals("u9(Group),e@f.com", readNotifications(task, "host-org"));
+      });
+   }
+
+   /**
+    * Bug #77111: a group rename renames only the old name(Group) token. The same-named users of
+    * the old and the new name keep their tokens.
+    */
+   @Test
+   void identityRenamed_groupRenamesOnlyGroupNotifications() throws Exception {
+      withNotificationTasks(() -> {
+         ScheduleTask task = seedNotificationTask(
+            "n77111_grpren", "g1,g1(Group),sales,sales(User),e@f.com", "host-org");
+         scheduleManager.identityRenamed(new IdentityID("g1", "host-org"),
+                                         new Group(new IdentityID("sales", "host-org")));
+         assertEquals("g1,sales(Group),sales,sales(User),e@f.com",
+                      readNotifications(task, "host-org"));
+      });
+   }
+
+   /**
+    * Bug #77111: a user rename renames the bare and the name(User) tokens in the same form, and
+    * keeps the same-named group.
+    */
+   @Test
+   void identityRenamed_userRenamesBareAndTypedNotifications() throws Exception {
+      withNotificationTasks(() -> {
+         ScheduleTask task =
+            seedNotificationTask("n77111_usrren", "a,a(User),a(Group),e@f.com", "host-org");
+         scheduleManager.identityRenamed(new IdentityID("a", "host-org"),
+                                         new User(new IdentityID("b", "host-org")));
+         assertEquals("b,b(User),a(Group),e@f.com", readNotifications(task, "host-org"));
+      });
+   }
+
+   /**
+    * Bug #77111: semicolon and comma lists are both matched, and the delimiters and the spacing
+    * of the kept tokens are preserved.
+    */
+   @Test
+   void identityRenamedAndRemoved_keepDelimitersAndSpacing() throws Exception {
+      IdentityID u9 = new IdentityID("u9", "host-org");
+
+      withNotificationTasks(() -> {
+         ScheduleTask removed =
+            seedNotificationTask("n77111_semi", "e@f.com; u9(User) ;gX", "host-org");
+         ScheduleTask renamed =
+            seedNotificationTask("n77111_mixed", "a;x@y.com , a(User)", "host-org");
+
+         scheduleManager.identityRemoved(new User(u9), mockProvider(new User(u9)));
+         assertEquals("e@f.com;gX", readNotifications(removed, "host-org"));
+
+         scheduleManager.identityRenamed(new IdentityID("a", "host-org"),
+                                         new User(new IdentityID("b", "host-org")));
+         assertEquals("b;x@y.com , b(User)", readNotifications(renamed, "host-org"));
+      });
+   }
+
+   /**
+    * Bug #77111: a bare email address is an address, not a user, even if a user has that name.
+    */
+   @Test
+   void identityRemoved_emailTokenIsNotAUser() throws Exception {
+      IdentityID alice = new IdentityID("alice@x.com", "host-org");
+
+      withNotificationTasks(() -> {
+         ScheduleTask task =
+            seedNotificationTask("n77111_email", "alice@x.com,alice@x.com(User)", "host-org");
+         scheduleManager.identityRemoved(new User(alice), mockProvider(new User(alice)));
+         assertEquals("alice@x.com", readNotifications(task, "host-org"));
+      });
+   }
+
+   /**
+    * Bug #77111: a task whose notifications do not denote the identity is left byte-identical and
+    * is not saved.
+    */
+   @Test
+   void identityRemoved_unmatchedNotificationsNotSaved() throws Exception {
+      IdentityID u9 = new IdentityID("u9", "host-org");
+
+      withNotificationTasks(() -> {
+         ScheduleTask matched = seedNotificationTask("n77111_hit", "u9,e@f.com", "host-org");
+         ScheduleTask unmatched =
+            seedNotificationTask("n77111_miss", "a@b.com; c@d.com,u9(Group)", "host-org");
+         ScheduleManager spyManager = spy(scheduleManager);
+         spyManager.identityRemoved(new User(u9), mockProvider(new User(u9)));
+
+         @SuppressWarnings("unchecked")
+         ArgumentCaptor<Collection<ScheduleTask>> saved = ArgumentCaptor.forClass(Collection.class);
+         verify(spyManager).save(saved.capture(), eq("host-org"));
+         Set<String> savedNames = new HashSet<>();
+         saved.getValue().forEach(task -> savedNames.add(task.getName()));
+         assertEquals(Set.of("n77111_hit"), savedNames);
+         assertEquals("e@f.com", readNotifications(matched, "host-org"));
+         assertEquals("a@b.com; c@d.com,u9(Group)", readNotifications(unmatched, "host-org"));
+      });
+   }
+
+   /**
+    * Bug #77111: a removal only changes the notifications in the identity's own org.
+    */
+   @Test
+   void identityRemoved_notificationsScopedToOrg() throws Exception {
+      IdentityID u9 = new IdentityID("u9", "org1");
+
+      withNotificationTasks(() -> {
+         ScheduleTask org1Task = seedNotificationTask("n77111_org1", "u9,e@f.com", "org1");
+         ScheduleTask org2Task = seedNotificationTask("n77111_org2", "u9,e@f.com", "org2");
+         scheduleManager.identityRemoved(new User(u9), mockProvider(new User(u9)));
+         assertEquals("e@f.com", readNotifications(org1Task, "org1"));
+         assertEquals("u9,e@f.com", readNotifications(org2Task, "org2"));
+      });
+   }
+
+   private static EditableAuthenticationProvider mockProvider(User user) {
+      EditableAuthenticationProvider provider = mock(EditableAuthenticationProvider.class);
+      when(provider.getUser(user.getIdentityID())).thenReturn(user);
+      return provider;
+   }
+
+   private static EditableAuthenticationProvider mockProvider(Group group) {
+      EditableAuthenticationProvider provider = mock(EditableAuthenticationProvider.class);
+      when(provider.getGroup(group.getIdentityID())).thenReturn(group);
+      return provider;
+   }
+
+   /**
+    * Runs the body and then removes the n77111_ tasks it seeded.
+    */
+   private void withNotificationTasks(NotificationTestBody body) throws Exception {
+      try {
+         body.run();
+      }
+      finally {
+         for(String org : new String[] { "host-org", "org1", "org2" }) {
+            scheduleManager.getOrgTaskMap(org).values()
+               .removeIf(task -> task != null && task.getName().startsWith("n77111_"));
+         }
+      }
+   }
+
+   private ScheduleTask seedNotificationTask(String name, String notifications, String orgID)
+      throws Exception
+   {
+      ScheduleTask task = createScheduleTask(name);
+      ((AbstractAction) task.getAction(0)).setNotifications(notifications);
+      scheduleManager.save(List.of(task), orgID);
+      return task;
+   }
+
+   private String readNotifications(ScheduleTask task, String orgID) {
+      ScheduleTask loaded = scheduleManager.getScheduleTask(task.getTaskId(), orgID);
+      return ((AbstractAction) loaded.getAction(0)).getNotifications();
+   }
+
+   @FunctionalInterface
+   private interface NotificationTestBody {
+      void run() throws Exception;
    }
 
    /**
@@ -492,68 +778,250 @@ public class ScheduleManagerTest {
    }
 
    /**
-    * Regression test for Bug #76609 AID-003: getIdentityRemovalImpact() must report tasks owned
-    * by a GROUP the same way it reports tasks owned by a user -- ScheduleTask.getOwner() is a
-    * bare IdentityID with no type discriminator, so a group-owned task was previously never
-    * added to ownedTasks() because the guard hardcoded type == Identity.USER.
+    * Bug #77100: removing an org role must clear the "execute as" in the role's own org, and
+    * must not strip same-named bare notification tokens (they denote users) in any org.
     */
    @Test
-   void getIdentityRemovalImpact_reportsGroupOwnedTasksWithoutMutating() throws Exception {
-      ScheduleTask owned = new ScheduleTask("impact_owned_by_group");
-      owned.setOwner(identityID_tgroup0);
+   void identityRemoved_orgRoleScansRoleOrgAndKeepsNotifications() throws Exception {
+      IdentityID roleX1 = new IdentityID("roleX", "org1");
+      IdentityID roleXHost = new IdentityID("roleX", "host-org");
 
-      scheduleManager.setScheduleTask("tgroup0~;~host-org:impact_owned_by_group", owned, admin);
+      withRoleFixture(() -> {
+         ScheduleTask org1Task = seedTask("r77100_org1", new IdentityID("u1", "org1"),
+                                          new Role(roleX1), "roleX,a@b.com", "org1");
+         ScheduleTask hostTask = seedTask("r77100_host", identityID_admin,
+                                          new Role(roleXHost), "roleX,c@d.com", "host-org");
 
-      EditableAuthenticationProvider provider = mock(EditableAuthenticationProvider.class);
+         scheduleManager.identityRemoved(new DefaultIdentity(roleX1, Identity.ROLE),
+                                         mock(EditableAuthenticationProvider.class));
 
-      ScheduleManager.IdentityTaskImpact impact =
-         scheduleManager.getIdentityRemovalImpact(new Group(identityID_tgroup0), provider);
+         ScheduleTask org1After = scheduleManager.getScheduleTask(org1Task.getTaskId(), "org1");
+         assertNull(org1After.getIdentity());
+         assertEquals("roleX,a@b.com", getNotifications(org1After));
 
-      assertTrue(impact.ownedTasks().contains("impact_owned_by_group"));
-
-      // the read-only impact check must not delete the owned task
-      assertNotNull(scheduleManager.getScheduleTask("tgroup0~;~host-org:impact_owned_by_group"));
+         // the same-named role in host-org and the host-org user token are untouched
+         ScheduleTask hostAfter = scheduleManager.getScheduleTask(hostTask.getTaskId(), "host-org");
+         assertNotNull(hostAfter.getIdentity());
+         assertEquals(roleXHost, hostAfter.getIdentity().getIdentityID());
+         assertEquals("roleX,c@d.com", getNotifications(hostAfter));
+      });
    }
 
    /**
-    * Regression test for Bug #76609 AID-003: identityRemoved() must actually delete a task owned
-    * by a GROUP, not just leave it un-advised. Same guard defect as
-    * getIdentityRemovalImpact_reportsGroupOwnedTasksWithoutMutating above, but on the real
-    * delete-time code path.
+    * Bug #77100: removing a global role clears exact (name, null) "execute as" references in every
+    * org, leaves same-named org roles alone, and never creates a task map for a null org.
     */
    @Test
-   void identityRemoved_removesGroupOwnedTask() throws Exception {
-      ScheduleTask owned = new ScheduleTask("removed_owned_by_group");
-      owned.setOwner(identityID_tgroup0);
+   void identityRemoved_globalRoleClearsExecuteAsInEveryOrg() throws Exception {
+      IdentityID roleG = new IdentityID("roleG", null);
+      IdentityID roleG2 = new IdentityID("roleG", "org2");
 
-      scheduleManager.setScheduleTask("tgroup0~;~host-org:removed_owned_by_group", owned, admin);
+      withRoleFixture(() -> {
+         ScheduleTask hostTask = seedTask("r77100_ghost", identityID_admin,
+                                          new Role(roleG), "roleG,c@d.com", "host-org");
+         ScheduleTask org2Task = seedTask("r77100_gorg2", new IdentityID("u2", "org2"),
+                                          new Role(roleG), "roleG,x@y.com", "org2");
+         ScheduleTask org2OrgRoleTask = seedTask("r77100_gorg2r", new IdentityID("u2", "org2"),
+                                                 new Role(roleG2), null, "org2");
 
-      EditableAuthenticationProvider provider = mock(EditableAuthenticationProvider.class);
-      Group group = new Group(identityID_tgroup0);
-      when(provider.getGroup(identityID_tgroup0)).thenReturn(group);
+         scheduleManager.identityRemoved(new DefaultIdentity(roleG, Identity.ROLE),
+                                         mock(EditableAuthenticationProvider.class));
 
-      scheduleManager.identityRemoved(group, provider);
+         ScheduleTask hostAfter = scheduleManager.getScheduleTask(hostTask.getTaskId(), "host-org");
+         assertNull(hostAfter.getIdentity());
+         assertEquals("roleG,c@d.com", getNotifications(hostAfter));
 
-      assertNull(scheduleManager.getScheduleTask("tgroup0~;~host-org:removed_owned_by_group"));
+         ScheduleTask org2After = scheduleManager.getScheduleTask(org2Task.getTaskId(), "org2");
+         assertNull(org2After.getIdentity());
+         assertEquals("roleG,x@y.com", getNotifications(org2After));
+
+         ScheduleTask org2RoleAfter =
+            scheduleManager.getScheduleTask(org2OrgRoleTask.getTaskId(), "org2");
+         assertNotNull(org2RoleAfter.getIdentity());
+         assertEquals(roleG2, org2RoleAfter.getIdentity().getIdentityID());
+
+         assertFalse(getTaskMapKeys().contains(null), "no task map for a null org");
+      });
    }
 
    /**
-    * Regression test for Bug #76609 AID-003: identityRenamed() must update the owner of a task
-    * owned by a GROUP to the new group identity, mirroring checkIdentityRenamed's user-owned
-    * case. Same guard defect (type == Identity.USER hardcoded) on the rename-time code path.
+    * Bug #77100: a host-org role is still cleared in host-org, and not in another org.
     */
    @Test
-   void identityRenamed_updatesGroupOwnedTaskOwner() throws Exception {
-      ScheduleTask groupTask = new ScheduleTask("group_tk1");
-      groupTask.setOwner(identityID_tgroup0);
+   void identityRemoved_hostOrgRoleScansHostOrg() throws Exception {
+      IdentityID roleHHost = new IdentityID("roleH", "host-org");
+      IdentityID roleH1 = new IdentityID("roleH", "org1");
 
-      scheduleManager.setScheduleTask("tgroup0~;~host-org:group_tk1", groupTask, admin);
+      withRoleFixture(() -> {
+         ScheduleTask hostTask = seedTask("r77100_hhost", identityID_admin,
+                                          new Role(roleHHost), null, "host-org");
+         ScheduleTask org1Task = seedTask("r77100_horg1", new IdentityID("u1", "org1"),
+                                          new Role(roleH1), null, "org1");
 
-      Group tgroup0_1 = new Group(new IdentityID("tgroup0_1", "host-org"));
-      scheduleManager.identityRenamed(identityID_tgroup0, tgroup0_1);
+         scheduleManager.identityRemoved(new DefaultIdentity(roleHHost, Identity.ROLE),
+                                         mock(EditableAuthenticationProvider.class));
 
-      assertEquals("tgroup0_1~;~host-org",
-         scheduleManager.getScheduleTask("tgroup0_1~;~host-org:group_tk1").getOwner().convertToKey());
+         assertNull(scheduleManager.getScheduleTask(hostTask.getTaskId(), "host-org").getIdentity());
+         ScheduleTask org1After = scheduleManager.getScheduleTask(org1Task.getTaskId(), "org1");
+         assertNotNull(org1After.getIdentity());
+         assertEquals(roleH1, org1After.getIdentity().getIdentityID());
+      });
+   }
+
+   /**
+    * Bug #77100 guard: user and group removal keep their existing behavior (own org scanned,
+    * owned tasks deleted, "execute as" cleared). The notification cleanup is type aware since
+    * Bug #77111 and is covered by its tests.
+    */
+   @Test
+   void identityRemoved_userAndGroupUnchanged() throws Exception {
+      IdentityID gX = new IdentityID("gX", "org1");
+      IdentityID u9 = new IdentityID("u9", "org1");
+
+      withRoleFixture(() -> {
+         ScheduleTask groupTask = seedTask("r77100_grp", new IdentityID("u1", "org1"),
+                                           new Group(gX), "gX,e@f.com", "org1");
+         ScheduleTask ownedTask = seedTask("r77100_own", u9, null, null, "org1");
+
+         EditableAuthenticationProvider provider = mock(EditableAuthenticationProvider.class);
+         when(provider.getGroup(gX)).thenReturn(new Group(gX));
+         when(provider.getUser(u9)).thenReturn(new User(u9));
+
+         scheduleManager.identityRemoved(new DefaultIdentity(gX, Identity.GROUP), provider);
+         ScheduleTask groupAfter = scheduleManager.getScheduleTask(groupTask.getTaskId(), "org1");
+         assertNull(groupAfter.getIdentity());
+
+         scheduleManager.identityRemoved(new DefaultIdentity(u9, Identity.USER), provider);
+         assertNull(scheduleManager.getScheduleTask(ownedTask.getTaskId(), "org1"));
+      });
+   }
+
+   /**
+    * Bug #77100 guard: the role branch returns early, but schedule extensions must still be
+    * notified of the removed role.
+    */
+   @Test
+   void identityRemoved_roleStillNotifiesExtensions() throws Exception {
+      ScheduleExt ext = mock(ScheduleExt.class);
+      Identity role = new DefaultIdentity(new IdentityID("roleE", "org1"), Identity.ROLE);
+      scheduleManager.addScheduleExt(ext);
+
+      try {
+         scheduleManager.identityRemoved(role, mock(EditableAuthenticationProvider.class));
+         verify(ext).identityRemoved(role);
+      }
+      finally {
+         scheduleManager.getExtensions().remove(ext);
+      }
+   }
+
+   /**
+    * Runs the body with orgs host-org/org1/org2 and a provider that still resolves the roles and
+    * groups, so a stale "execute as" survives a reload instead of re-resolving to null.
+    */
+   private void withRoleFixture(ThrowingRunnable body) throws Exception {
+      String[] orgs = { "host-org", "org1", "org2" };
+      SecurityProvider provider = mock(SecurityProvider.class);
+      when(provider.getOrganizationIDs()).thenReturn(orgs);
+      when(provider.getRole(any())).thenAnswer(inv -> new Role(inv.<IdentityID>getArgument(0)));
+      when(provider.getGroup(any())).thenAnswer(inv -> new Group(inv.<IdentityID>getArgument(0)));
+      stubSecurityEngineSafely(() -> doReturn(orgs).when(securityEngine).getOrganizations());
+      stubSecurityEngineSafely(() -> doReturn(provider).when(securityEngine).getSecurityProvider());
+
+      try {
+         body.run();
+      }
+      finally {
+         stubSecurityEngineSafely(() -> doCallRealMethod().when(securityEngine).getOrganizations());
+         stubSecurityEngineSafely(() -> doCallRealMethod().when(securityEngine).getSecurityProvider());
+
+         for(String org : orgs) {
+            Iterator<ScheduleTask> i = scheduleManager.getOrgTaskMap(org).values().iterator();
+
+            while(i.hasNext()) {
+               ScheduleTask task = i.next();
+
+               if(task != null && task.getName().startsWith("r77100_")) {
+                  i.remove();
+               }
+            }
+         }
+      }
+   }
+
+   /**
+    * Re-stubs the shared, Spring-singleton {@code securityEngine} mock, retrying on
+    * {@link UnfinishedStubbingException}.
+    *
+    * <p>{@code securityEngine} is the same instance returned application-wide by
+    * {@code SecurityEngine.getSecurity()} (it is registered with {@code ConfigurationContext} by
+    * {@code ConfigurationContextInitializer}), so production background threads legitimately call
+    * into it concurrently with this test — most notably a per-store {@code BlobStorageEvent}
+    * listener thread that {@code seedTask()}/{@code identityRemoved()} inside {@code body.run()}
+    * wake up asynchronously by writing to the schedule task store. Mockito's mock invocation
+    * dispatch is not safe against a stubbing registration on one thread (this one, in
+    * {@link #withRoleFixture}) interleaving with an ordinary invocation on another, and the two
+    * can race hard enough to corrupt the mock's stubbing state, surfacing later as an
+    * {@link UnfinishedStubbingException} in a completely unrelated test method (Bug #77168,
+    * fix-round-2: this raced roughly 1 in 5-8 runs in isolation, and was rare enough in the full
+    * ~8500-test module suite to pass most runs but fail CI once). The corruption is transient —
+    * the next stubbing call that does not race succeeds cleanly — so retry a few times with a
+    * short backoff rather than trying to synchronize with a production executor this test has no
+    * handle on.
+    */
+   private static void stubSecurityEngineSafely(Runnable stubbingCall) {
+      final int maxAttempts = 5;
+
+      for(int attempt = 1; ; attempt++) {
+         try {
+            stubbingCall.run();
+            return;
+         }
+         catch(UnfinishedStubbingException e) {
+            if(attempt >= maxAttempts) {
+               throw e;
+            }
+
+            try {
+               Thread.sleep(20L);
+            }
+            catch(InterruptedException ie) {
+               Thread.currentThread().interrupt();
+               throw e;
+            }
+         }
+      }
+   }
+
+   private ScheduleTask seedTask(String name, IdentityID owner, Identity executeAs,
+                                 String notifications, String orgID) throws Exception
+   {
+      ScheduleTask task = createScheduleTask(name);
+      task.setOwner(owner);
+      task.setIdentity(executeAs);
+
+      if(notifications != null) {
+         ((AbstractAction) task.getAction(0)).setNotifications(notifications);
+      }
+
+      scheduleManager.save(List.of(task), orgID);
+      return task;
+   }
+
+   private static String getNotifications(ScheduleTask task) {
+      return ((AbstractAction) task.getAction(0)).getNotifications();
+   }
+
+   @SuppressWarnings("unchecked")
+   private Set<String> getTaskMapKeys() throws Exception {
+      java.lang.reflect.Field field = ScheduleManager.class.getDeclaredField("taskMap");
+      field.setAccessible(true);
+      return new HashSet<>(((Map<String, ?>) field.get(scheduleManager)).keySet());
+   }
+
+   @FunctionalInterface
+   private interface ThrowingRunnable {
+      void run() throws Exception;
    }
 
    private ScheduleTask createScheduleTask(String taskName) {

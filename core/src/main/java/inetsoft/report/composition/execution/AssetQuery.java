@@ -4451,10 +4451,9 @@ public abstract class AssetQuery extends PreAssetQuery {
                         sconds.add(acond);
                      }
                      catch(Exception ex) {
-                        LOG.warn("Failed to execute condition sub-query", ex);
-
-                        // ignore the condition item
-                        col = -1;
+                        // fail the query: ignoring the item would evaluate it as true and
+                        // silently return (and cache) unfiltered rows
+                        throw AssetConditionGroup.subQueryFailed(tassembly, ex);
                      }
                   }
                   else {
@@ -4533,7 +4532,9 @@ public abstract class AssetQuery extends PreAssetQuery {
                            ViewsheetSandbox vbox = box.getViewsheetSandbox();
                            Viewsheet vs = vbox == null ? null : vbox.getViewsheet();
                            val = varName != null && vval == null ? attr :
-                              senv.exec(senv.compile(exp), scope = postConditionScope(box), null, vs);
+                              senv.exec(ScriptStateLint.checkCondition(senv.compile(exp), exp,
+                                 scope = postConditionScope(box), "post-aggregate condition"),
+                                 scope, null, vs);
                         }
                         catch(Exception ex) {
                            String suggestion = senv.getSuggestion(ex, null, scope);

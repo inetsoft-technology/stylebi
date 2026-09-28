@@ -31,6 +31,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -813,6 +814,296 @@ public class StallWatchdogTest {
       boolean running = Thread.getAllStackTraces().keySet().stream()
          .anyMatch(t -> "Lock-Stall-Watchdog".equals(t.getName()) && t.isDaemon());
       assertTrue(running);
+   }
+
+   /**
+    * Bug #77152: an alert-mode wait for a thread that is BLOCKED on a monitor the waiter holds
+    * is a wait-for cycle no timeout releases. It is unreleased only once the waiter is stalled
+    * and the same cycle is found on two scans.
+    */
+   @Test
+   public void alertModeWaitForCycleIsUnreleasedWhenStalledOnTwoScans() throws Exception {
+      policy = new StallPolicy(StallPolicy.Mode.ALERT, 1000, 500, dumpDir);
+      Object monitor = new Object();
+      AtomicReference<Thread> t2 = new AtomicReference<>();
+      CountDownLatch done = new CountDownLatch(1);
+      WaitRecord t1 =
+         waitHolding("cycle-t1", monitor, () -> new Thread[] { t2.get() }, done, done);
+      t2.set(blockedOn("cycle-t2", monitor));
+
+      watchdog.scan();
+      watchdog.scan();
+      assertNull(watchdog.getUnreleasedStall(), "a cycle of a wait not stalled yet is none");
+
+      advance(1500);
+      watchdog.scan();
+      assertNull(watchdog.getUnreleasedStall(), "one sighting is not enough");
+      watchdog.scan();
+      String reason = watchdog.getUnreleasedStall();
+      assertNotNull(reason, "a stalled alert-mode wait-for cycle is unreleased");
+      assertTrue(reason.startsWith("wait-for cycle of threads "), reason);
+      assertTrue(reason.contains("\"cycle-t1\"(" + t1.getThread().threadId() +
+                                    ") in cycle-t1.site"), reason);
+      assertTrue(reason.contains("\"cycle-t2\"(" + t2.get().threadId() + ")"), reason);
+
+      done.countDown();
+      t2.get().join(5000);
+      watchdog.scan();
+      assertNull(watchdog.getUnreleasedStall(), "released once the cycle is broken");
+   }
+
+   /**
+    * Bug #77152: a pure cycle of registered waits, no monitor involved, is found too, and a
+    * report-only fail-mode wait (a loan reclaim), which never gives up, is a member.
+    */
+   @Test
+   public void registeredOnlyCycleOfReportOnlyWaitsIsUnreleased() throws Exception {
+      AtomicReference<Thread> a = new AtomicReference<>();
+      AtomicReference<Thread> b = new AtomicReference<>();
+      WaitRecord recordA =
+         waitHolding("pure-a", new Object(), () -> new Thread[] { b.get() }, release, release);
+      WaitRecord recordB =
+         waitHolding("pure-b", new Object(), () -> new Thread[] { a.get() }, release, release);
+      a.set(recordA.getThread());
+      b.set(recordB.getThread());
+      recordA.setReportOnly("reclaim");
+      recordB.setReportOnly("reclaim");
+      assertEquals(StallPolicy.Mode.FAIL, recordA.getMode());
+
+      advance(1100);
+      watchdog.scan();
+      watchdog.scan();
+      String reason = watchdog.getUnreleasedStall();
+      assertNotNull(reason);
+      assertTrue(reason.contains("wait-for cycle"), reason);
+      assertTrue(reason.contains("\"pure-a\"") && reason.contains("\"pure-b\""), reason);
+   }
+
+   /**
+    * Bug #77152: a fail-mode wait is released by its own timeout, so a cycle through it is
+    * never reported as a wait-for cycle, only as the stall of that wait once the timeout
+    * evidently did not release it (overdue, on two scans).
+    */
+   @Test
+   public void failModeWaitForCycleIsLeftToItsTimeout() throws Exception {
+      Object monitor = new Object();
+      AtomicReference<Thread> t2 = new AtomicReference<>();
+      waitHolding("fail-t1", monitor, () -> new Thread[] { t2.get() }, release, release);
+      t2.set(blockedOn("fail-t2", monitor));
+
+      // stalled, but not overdue yet: its waiter would still fail it
+      advance(1100);
+
+      for(int i = 0; i < 3; i++) {
+         watchdog.scan();
+         assertNull(watchdog.getUnreleasedStall(), "a fail-mode cycle waits for its timeout");
+      }
+
+      advance(500);
+      watchdog.scan();
+      watchdog.scan();
+      String reason = watchdog.getUnreleasedStall();
+      assertNotNull(reason, "the timeout did not release it");
+      assertTrue(reason.contains("stall not released: fail-t1.site"), reason);
+      assertFalse(reason.contains("wait-for cycle"), reason);
+   }
+
+   /**
+    * Bug #77152: a chain is no cycle. T1 waits for T2, which is BLOCKED on a monitor of an
+    * unrelated T3.
+    */
+   @Test
+   public void alertModeChainWithoutACycleIsNotUnreleased() throws Exception {
+      policy = new StallPolicy(StallPolicy.Mode.ALERT, 1000, 500, dumpDir);
+      Object t3Monitor = new Object();
+      AtomicReference<Thread> t2 = new AtomicReference<>();
+      holding("chain-t3", t3Monitor);
+      waitHolding("chain-t1", new Object(), () -> new Thread[] { t2.get() }, release, release);
+      t2.set(blockedOn("chain-t2", t3Monitor));
+      advance(1500);
+
+      for(int i = 0; i < 3; i++) {
+         watchdog.scan();
+         advance(500);
+      }
+
+      assertNull(watchdog.getUnreleasedStall());
+   }
+
+   /**
+    * Bug #77152: a waiter of a lent lock waits for the lender or the borrower, either of which
+    * lets it on. While the borrower is running the waiter gets credit and is no cycle member,
+    * although the lender is BLOCKED on a monitor the waiter holds, the edge of a cycle.
+    */
+   @Test
+   public void lentLockWaiterWithAHealthyBorrowerIsNotUnreleased() throws Exception {
+      policy = new StallPolicy(StallPolicy.Mode.ALERT, 1000, 500, dumpDir);
+      Object monitor = new Object();
+      AtomicReference<Thread> lender = new AtomicReference<>();
+      AtomicReference<Thread> borrower = new AtomicReference<>();
+      AtomicLong samples = new AtomicLong();
+      CountDownLatch opened = new CountDownLatch(1);
+      CountDownLatch borrowerDone = new CountDownLatch(1);
+      AtomicBoolean busy = new AtomicBoolean(true);
+      start("lent-waiter", () -> {
+         synchronized(monitor) {
+            try(WaitRecord record = registry.open(
+               "lent.site", () -> 0, () -> new Thread[] { lender.get(), borrower.get() }))
+            {
+               opened.countDown();
+
+               while(release.getCount() > 0) {
+                  record.checkStall();
+                  samples.incrementAndGet();
+                  Thread.sleep(1);
+               }
+            }
+         }
+      });
+      assertTrue(opened.await(5, TimeUnit.SECONDS));
+      borrower.set(start("lent-borrower", () -> {
+         while(busy.get()) {
+            Thread.onSpinWait();
+         }
+
+         borrowerDone.await(30, TimeUnit.SECONDS);
+      }));
+      lender.set(blockedOn("lent-lender", monitor));
+
+      for(int i = 0; i < 8; i++) {
+         advance(300);
+         awaitSample(samples);
+         watchdog.scan();
+      }
+
+      assertNull(watchdog.getUnreleasedStall(), "the running borrower lets the waiter on");
+
+      // the control: once the borrower is stuck too, the same shape is a cycle
+      busy.set(false);
+      StallTestSupport.awaitTrue(() -> borrower.get().getState() == Thread.State.TIMED_WAITING, 5,
+                                 "the borrower never parked");
+      awaitSample(samples);
+      advance(1500);
+      awaitSample(samples);
+      watchdog.scan();
+      watchdog.scan();
+      String reason = watchdog.getUnreleasedStall();
+      assertNotNull(reason);
+      assertTrue(reason.contains("wait-for cycle") && reason.contains("\"lent-lender\""),
+                 reason);
+      borrowerDone.countDown();
+   }
+
+   /**
+    * Bug #77152: a cycle seen on one scan only, such as a lens worker momentarily BLOCKED on
+    * the monitor its consumer re-enters on a slice, never turns health DOWN, even with the
+    * consumer's wait stalled.
+    */
+   @Test
+   public void cycleSeenOnOneScanOnlyIsNotUnreleased() throws Exception {
+      policy = new StallPolicy(StallPolicy.Mode.ALERT, 1000, 500, dumpDir);
+      Object monitor = new Object();
+      AtomicReference<Thread> t2 = new AtomicReference<>();
+      CountDownLatch leave = new CountDownLatch(1);
+      waitHolding("brief-t1", monitor, () -> new Thread[] { t2.get() }, leave, release);
+      t2.set(blockedOn("brief-t2", monitor));
+      advance(1500);
+      watchdog.scan();
+      assertNull(watchdog.getUnreleasedStall(), "one sighting is not enough");
+
+      // the waiter lets go of the monitor but keeps waiting: the cycle is gone
+      leave.countDown();
+      t2.get().join(5000);
+      assertFalse(t2.get().isAlive());
+
+      for(int i = 0; i < 3; i++) {
+         watchdog.scan();
+         assertNull(watchdog.getUnreleasedStall());
+      }
+   }
+
+   /**
+    * Start a thread that registers a wait for {@code blockers} and holds {@code monitor} until
+    * {@code leave}, then keeps waiting (the record open) until {@code done}. The wait never
+    * checks its stall itself, so it gets no credit.
+    */
+   private WaitRecord waitHolding(String name, Object monitor, Supplier<Thread[]> blockers,
+                                  CountDownLatch leave, CountDownLatch done)
+      throws InterruptedException
+   {
+      AtomicReference<WaitRecord> record = new AtomicReference<>();
+      CountDownLatch opened = new CountDownLatch(1);
+      start(name, () -> {
+         try(WaitRecord wait = registry.open(name + ".site", () -> 0, blockers)) {
+            record.set(wait);
+
+            synchronized(monitor) {
+               opened.countDown();
+               leave.await(30, TimeUnit.SECONDS);
+            }
+
+            done.await(30, TimeUnit.SECONDS);
+         }
+      });
+      assertTrue(opened.await(5, TimeUnit.SECONDS), name + " never opened its wait");
+      return record.get();
+   }
+
+   /**
+    * Start a thread that holds {@code monitor} until the test ends.
+    */
+   private void holding(String name, Object monitor) throws InterruptedException {
+      CountDownLatch held = new CountDownLatch(1);
+      start(name, () -> {
+         synchronized(monitor) {
+            held.countDown();
+            release.await(30, TimeUnit.SECONDS);
+         }
+      });
+      assertTrue(held.await(5, TimeUnit.SECONDS), name + " never took the monitor");
+   }
+
+   /**
+    * Start a thread that enters {@code monitor}, and wait until it is BLOCKED on it.
+    */
+   private static Thread blockedOn(String name, Object monitor) throws InterruptedException {
+      Thread thread = start(name, () -> {
+         synchronized(monitor) {
+            // only enters it
+            Thread.onSpinWait();
+         }
+      });
+      StallTestSupport.awaitTrue(() -> thread.getState() == Thread.State.BLOCKED, 5,
+                                 name + " never blocked on the monitor");
+      return thread;
+   }
+
+   private static Thread start(String name, Interruptible body) {
+      Thread thread = new Thread(() -> {
+         try {
+            body.run();
+         }
+         catch(InterruptedException ex) {
+            Thread.currentThread().interrupt();
+         }
+      }, name);
+      thread.setDaemon(true);
+      thread.start();
+      return thread;
+   }
+
+   /**
+    * Wait until the waiter sampled its wait again, entirely at the current clock.
+    */
+   private static void awaitSample(AtomicLong samples) throws InterruptedException {
+      long before = samples.get();
+      StallTestSupport.awaitTrue(() -> samples.get() > before + 1, 5,
+                                 "the waiter never sampled its wait");
+   }
+
+   @FunctionalInterface
+   private interface Interruptible {
+      void run() throws InterruptedException;
    }
 
    /**

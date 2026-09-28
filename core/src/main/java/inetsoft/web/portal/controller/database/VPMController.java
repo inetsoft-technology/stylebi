@@ -78,7 +78,8 @@ public class VPMController {
                         SecurityEngine securityEngine,
                         DependencyHandler dependencyHandler,
                         RenameTransformHandler renameTransformHandler,
-                        ColumnCache columnCache)
+                        ColumnCache columnCache,
+                        QueryManagerService queryManagerService)
    {
       this.dataRefModelFactoryService = dataRefModelFactoryService;
       this.databaseTreeService = databaseTreeService;
@@ -88,6 +89,7 @@ public class VPMController {
       this.dependencyHandler = dependencyHandler;
       this.renameTransformHandler = renameTransformHandler;
       this.columnCache = columnCache;
+      this.queryManagerService = queryManagerService;
    }
 
    /**
@@ -936,6 +938,10 @@ public class VPMController {
       @RequestBody(required = false) AssetEntry expandedEntry,
       Principal principal) throws Exception
    {
+      // Bug #77163, the expanded entry's children are resolved from the data source in its
+      // prefix, which need not be the one named by the dataSource parameter, so check both.
+      queryManagerService.checkDataSourceReadPermission(dataSource, principal);
+      queryManagerService.checkQueryEntryReadPermission(expandedEntry, principal);
       List<TreeNodeModel> children;
       AssetRepository assetRepository = getAssetRepository();
 
@@ -995,6 +1001,9 @@ public class VPMController {
    @PostMapping("/api/data/vpm/sql-query-dialog/table-columns")
    @ResponseBody
    public AssetEntry[] getTableColumns(@RequestBody AssetEntry tableEntry, Principal principal) throws Exception {
+      // Bug #77163, the children of a physical entry are read from the data source in its
+      // prefix, which the asset engine does not check.
+      queryManagerService.checkQueryEntryReadPermission(tableEntry, principal);
       return getAssetRepository().getEntries(tableEntry, principal, ResourceAction.READ);
    }
 
@@ -1015,6 +1024,8 @@ public class VPMController {
                                      Principal principal)
       throws Exception
    {
+      // Bug #77163, the column values are queried from the named data source.
+      queryManagerService.checkDataSourceReadPermission(dataSource, principal);
       BrowseDataModel dataModel = null;
       DataRef dataRef = dataRefModel.createDataRef();
 
@@ -1613,4 +1624,5 @@ public class VPMController {
    private final DependencyHandler dependencyHandler;
    private final RenameTransformHandler renameTransformHandler;
    private final ColumnCache columnCache;
+   private final QueryManagerService queryManagerService;
 }

@@ -20,6 +20,7 @@ package inetsoft.report.filter;
 import inetsoft.util.Tool;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -31,6 +32,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * int, short. isNull() is true only when no double value has been set
  * (i.e., dv == Double.MIN_VALUE).
  */
+@Tag("core")
 public class DefaultFormulaTest {
 
    private DefaultFormula formula;

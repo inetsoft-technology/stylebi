@@ -516,6 +516,7 @@ public class SummaryFilter extends AbstractGroupedTable
       inited = false;
       hinited = false;
       completed = false;
+      userMsg = null;
       stallFailure = null;
       processedRows = 0;
       sumrows = new XSwappableTable(getColCount(), false);
@@ -640,7 +641,16 @@ public class SummaryFilter extends AbstractGroupedTable
    /**
     * Generate the crosstab.
     */
-   private void process() {
+   private void process(boolean background) {
+      try {
+         process1();
+      }
+      finally {
+         finishProcess(background);
+      }
+   }
+
+   private void process1() {
       // one script span over the whole aggregation, so pooled calc fields pay one context
       // clean instead of one per group (bug #76960, spec §14.3); NONE with the pool off
       try(ScriptSpan ignored = CalcFieldFormula.openSpan(calcs, grand)) {
@@ -909,8 +919,25 @@ public class SummaryFilter extends AbstractGroupedTable
 
          throw ex;
       }
-      finally {
-         synchronized(this) {
+   }
+
+   /**
+    * Signal the completion of process(). A background worker publishes its own user
+    * messages first, a reader woken by the signal would miss them otherwise (bug #77188).
+    */
+   private void finishProcess(boolean background) {
+      synchronized(this) {
+         try {
+            // the synchronous path leaves them to the calling thread
+            if(background) {
+               userMsg = Tool.getUserMessage();
+            }
+         }
+         catch(RuntimeException ex) {
+            LOG.warn("Failed to collect the summary filter user messages", ex);
+            Tool.clearUserMessage();
+         }
+         finally {
             if(sumrows != null) {
                sumrows.complete();
             }
@@ -1963,12 +1990,12 @@ public class SummaryFilter extends AbstractGroupedTable
       }
 
       checkInit();
-
-      if(userMsg != null) {
-         Tool.addUserMessage(userMsg);
-      }
-
       waitForRow(row);
+      UserMessage msg = userMsg;
+
+      if(msg != null) {
+         Tool.addUserMessage(msg);
+      }
 
       return sumrows.moreRows(row);
    }
@@ -2402,11 +2429,10 @@ public class SummaryFilter extends AbstractGroupedTable
                         borrower.begin();
 
                         try {
-                           SummaryFilter.this.process();
+                           SummaryFilter.this.process(true);
                         }
                         finally {
                            borrower.end();
-                           userMsg = Tool.getUserMessage();
                         }
                      }
                   };
@@ -2414,7 +2440,7 @@ public class SummaryFilter extends AbstractGroupedTable
                   ThreadPool.addOnDemand(r);
                }
                else {
-                  process();
+                  process(false);
                }
             }
          }

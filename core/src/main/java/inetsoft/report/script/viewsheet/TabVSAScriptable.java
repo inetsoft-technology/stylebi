@@ -161,6 +161,14 @@ public class TabVSAScriptable extends VSAScriptable {
          TabVSAssemblyInfo.repositionForBottomTabsInScaledSpace(info, vs, bottomTabs);
          info.clearPositionNeedsSync();
       }
+      else if(!box.isRuntime()) {
+         // design-time: positions are never moved here and stay laid out for the design value,
+         // so record whether a reposition is owed (set, or cleared if the script now asserts
+         // the design value again). The flag survives the viewsheet clone into Composer
+         // Preview, where the INITIAL_STATE restore compares equal (the rValue was carried
+         // over) and so would not flag it (Bug #77179).
+         info.updateDesignPositionNeedsSync();
+      }
    }
 
    public boolean getBottomTabs() {

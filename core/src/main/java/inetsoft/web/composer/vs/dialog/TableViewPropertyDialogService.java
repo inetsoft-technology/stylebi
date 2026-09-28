@@ -61,8 +61,9 @@ public class TableViewPropertyDialogService {
       ViewsheetSandbox box = rvs.getViewsheetSandbox().orElseThrow(
          () -> new ExpiredSheetException(runtimeId, principal));
 
+      box.lockRead();
+
       try {
-         box.lockRead();
          vs = rvs.getViewsheet();
          tableAssembly = (TableVSAssembly) vs.getAssembly(objectId);
          tableAssemblyInfo = (TableVSAssemblyInfo) tableAssembly.getVSAssemblyInfo();

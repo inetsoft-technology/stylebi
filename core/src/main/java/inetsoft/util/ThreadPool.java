@@ -618,6 +618,10 @@ public class ThreadPool {
             boolean orgChanged = false;
 
             try {
+               // user messages are a plain ThreadLocal on this long-lived worker; drop anything
+               // a previous task (possibly another user/org) left behind (bug #77175)
+               CoreTool.clearUserMessage();
+
                if(unwrapCmd instanceof PoolRunnable) {
                   npri = ((PoolRunnable) unwrapCmd).getPriority();
 
@@ -727,6 +731,10 @@ public class ThreadPool {
                // a worksheet script claim leaked by this task must not carry into the next
                // task on this long-lived worker (bug #76960, spec N5); never throws
                SlotClaim.releaseLeaked(getName());
+               // the task's own readers (e.g. SummaryFilter, AssetDataCache.Processor) have
+               // already collected inside cmd.run(); nothing reads this worker's messages after
+               // the task, so they must not carry into the next task (bug #77175)
+               CoreTool.clearUserMessage();
 
                if(orgChanged) {
                   OrganizationContextHolder.setCurrentOrgId(originalOrg);

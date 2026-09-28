@@ -64,6 +64,7 @@ import java.sql.Timestamp;
 import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 /**
@@ -3339,55 +3340,64 @@ public class SUtil {
          return path;
       }
 
-      String dir = null;
-      String file = path;
-      int idx = path.lastIndexOf("/");
-
-      if(idx != -1) {
-         dir = path.substring(0, idx);
-         file = path.substring(idx + 1);
-      }
-
       StringBuilder stringBuilder = new  StringBuilder();
+      boolean multiTenant = SUtil.isMultiTenant();
+      String orgID = null;
 
-      if(SUtil.isMultiTenant()) {
-         stringBuilder.append(IdentityID.getIdentityIDFromKey(principal.getName()).getOrgID());
+      if(multiTenant) {
+         orgID = String.valueOf(IdentityID.getIdentityIDFromKey(principal.getName()).getOrgID());
+         stringBuilder.append(orgID);
          stringBuilder.append("/");
       }
 
       boolean internalUser = SUtil.isInternalUser(principal);
+      String userName;
 
       if(internalUser || principal.getName().contains(IdentityID.KEY_DELIMITER)) {
-         stringBuilder.append(IdentityID.getIdentityIDFromKey(principal.getName()).getName());
+         userName = IdentityID.getIdentityIDFromKey(principal.getName()).getName();
       }
       else {
-         stringBuilder.append(principal.getName());
+         userName = principal.getName();
       }
 
+      stringBuilder.append(userName);
       String prefix = stringBuilder.toString();
 
-      if(!StringUtils.isEmpty(SreeEnv.getProperty("server.save.locations"))) {
-         List<ServerLocation> serverLocations = SUtil.getServerLocations();
-         String serverPath = "";
-
-         for(ServerLocation serverLocation : serverLocations) {
-            if(dir != null && dir.startsWith(serverLocation.path())) {
-               serverPath = serverLocation.path();
-               dir = dir.substring(serverLocation.path().length());
-               break;
-            }
-         }
-         if(dir == null) {
-            dir = prefix;
-         }
-         else {
-            dir = serverPath + "/" + prefix + dir;
-         }
-
-         return dir + "/" + file;
+      // the org id and user name come from the security provider unchecked, and the path from
+      // the user, so none of them may step out of the user's folder
+      if(multiTenant && !isUserSpaceSegment(orgID) || !isUserSpaceSegment(userName) ||
+         hasParentSegment(path))
+      {
+         throw rejectUserSpacePath(principal, path, "invalid path segment");
       }
 
-      if(path.startsWith(prefix)) {
+      if(!StringUtils.isEmpty(SreeEnv.getProperty("server.save.locations"))) {
+         // the filesystem storage passes the path relative to the root, so match the location
+         // without the leading slashes, on a segment boundary as the portal does
+         String relativePath = path.replaceAll("^/+", "");
+
+         for(ServerLocation serverLocation : SUtil.getServerLocations()) {
+            String location = serverLocation.path();
+            String relativeLocation = location.replaceAll("^/+", "");
+
+            if(!relativeLocation.isEmpty() && relativePath.startsWith(relativeLocation + "/")) {
+               // keep the leading slash form of the path, so that a relative path never gets an
+               // absolute key, which the filesystem storage would resolve outside of its folder
+               String serverPath = path.startsWith("/") ? location : relativeLocation;
+               return serverPath + "/" + prefix +
+                  relativePath.substring(relativeLocation.length());
+            }
+         }
+      }
+
+      // here the org id, or the user name without multi-tenancy, is the top-level folder of the
+      // key, so it must not be a folder the system writes to
+      if(OrganizationIdRules.isStorageSystemFolder(multiTenant ? orgID : userName)) {
+         throw rejectUserSpacePath(principal, path, "system storage folder");
+      }
+
+      // on a segment boundary, so the user "al" does not write into the folder of "alice"
+      if(path.startsWith(prefix + "/") || path.startsWith(prefix + "\\")) {
          return path;
       }
       else {
@@ -3398,6 +3408,29 @@ public class SUtil {
             return prefix + "/" + path;
          }
       }
+   }
+
+   private static boolean isUserSpaceSegment(String segment) {
+      return segment != null && !segment.isEmpty() && !".".equals(segment) &&
+         !"..".equals(segment) && segment.indexOf('/') < 0 && segment.indexOf('\\') < 0;
+   }
+
+   private static boolean hasParentSegment(String path) {
+      for(String segment : path.split("[/\\\\]")) {
+         if("..".equals(segment)) {
+            return true;
+         }
+      }
+
+      return false;
+   }
+
+   private static MessageException rejectUserSpacePath(Principal principal, String path,
+                                                       String reason)
+   {
+      LOG.warn("Refused to save {} to external storage for {}: {}", path, principal.getName(),
+               reason);
+      return new MessageException(Catalog.getCatalog().getString("schedule.saveToServer.userSpaceRejected"));
    }
 
    public static List<ServerLocation> getServerLocations() {
@@ -3634,12 +3667,22 @@ public class SUtil {
    }
 
    public static String getOrganizationId(String indexedStorageId) {
+      return getOrganizationId(indexedStorageId, SecurityEngine::getSecurity);
+   }
+
+   /**
+    * Gets the organization of an indexed storage, getting the security engine from the given
+    * supplier, which is only called for an indexed storage.
+    */
+   public static String getOrganizationId(String indexedStorageId,
+                                          Supplier<SecurityEngine> securityEngine)
+   {
       if(indexedStorageId == null || !indexedStorageId.endsWith("__indexedStorage")) {
          return null;
       }
 
       String lowcase_orgID = indexedStorageId.substring(0, indexedStorageId.length() - 16);
-      SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
+      SecurityProvider provider = securityEngine.get().getSecurityProvider();
       String[] ids = provider.getOrganizationIDs();
 
       return Arrays.stream(ids)

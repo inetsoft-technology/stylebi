@@ -60,6 +60,7 @@ import inetsoft.sree.RepletRegistryManager;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.DataCycleManager;
 import inetsoft.sree.portal.CustomThemesManager;
+import inetsoft.sree.portal.CustomThemesManagerMocks;
 import inetsoft.sree.portal.PortalThemesManager;
 import inetsoft.sree.security.support.SecurityTestDataBuilder;
 import inetsoft.sree.web.dashboard.DashboardRegistryManager;
@@ -185,6 +186,125 @@ class OrgLifecycleScopedPropertiesIntegrationTest {
                   "the log.level. suffix's case must survive storage under the org-scoped key");
    }
 
+   // -- Bug #77238: copyScopedProperties()/clearScopedProperties() matched the org-property
+   //    prefix "inetsoft.org.<id>" without the trailing ".", so an org id that is a prefix of
+   //    another org id aliased it. Renaming qq7 -> qq7b made clear wipe the just-copied qq7b keys;
+   //    renaming or cloning pa -> zz9 also moved/copied org pa1's keys into a fabricated
+   //    "zz91" namespace. These run against the real SreeEnv/PropertiesEngine. --
+
+   @Test
+   void rename_newIdExtendsOldId_propertiesSurvive() throws Exception {
+      String qq7 = scopedKey("b77238qq7");
+      String qq7b = scopedKey("b77238qq7b");
+
+      try {
+         SreeEnv.setProperty(qq7, "111");
+
+         renameScopedProperties("b77238qq7", "b77238qq7b", true);
+
+         assertEquals("111", SreeEnv.getProperty(qq7b),
+                      "renaming to an id that extends the old id must keep the org's properties");
+         assertNull(SreeEnv.getProperty(qq7), "old org's key must be migrated away");
+      }
+      finally {
+         removeKeys(qq7, qq7b);
+      }
+   }
+
+   @Test
+   void rename_oldIdIsPrefixOfAnotherOrgId_otherOrgUntouched() throws Exception {
+      String pa = scopedKey("b77238pa");
+      String pa1 = scopedKey("b77238pa1");
+      String zz9 = scopedKey("b77238zz9");
+      String zz91 = scopedKey("b77238zz91");
+
+      try {
+         SreeEnv.setProperty(pa, "10");
+         SreeEnv.setProperty(pa1, "4242");
+
+         renameScopedProperties("b77238pa", "b77238zz9", true);
+
+         assertEquals("10", SreeEnv.getProperty(zz9), "renamed org must hold the migrated value");
+         assertNull(SreeEnv.getProperty(pa), "old org's key must be migrated away");
+         assertEquals("4242", SreeEnv.getProperty(pa1),
+                      "an org whose id merely starts with the renamed id must keep its properties");
+         assertNull(SreeEnv.getProperty(zz91),
+                    "the other org's properties must not leak into a fabricated org namespace");
+      }
+      finally {
+         removeKeys(pa, pa1, zz9, zz91);
+      }
+   }
+
+   @Test
+   void clone_oldIdIsPrefixOfAnotherOrgId_noStrayKeys() throws Exception {
+      String pa = scopedKey("b77238cpa");
+      String pa1 = scopedKey("b77238cpa1");
+      String zz9 = scopedKey("b77238czz9");
+      String zz91 = scopedKey("b77238czz91");
+
+      try {
+         SreeEnv.setProperty(pa, "10");
+         SreeEnv.setProperty(pa1, "4242");
+
+         renameScopedProperties("b77238cpa", "b77238czz9", false);
+
+         assertEquals("10", SreeEnv.getProperty(zz9), "clone must copy the source org's value");
+         assertEquals("10", SreeEnv.getProperty(pa), "clone must keep the source org's value");
+         assertEquals("4242", SreeEnv.getProperty(pa1), "clone must not touch the other org");
+         assertNull(SreeEnv.getProperty(zz91),
+                    "clone must not copy another org's properties into a fabricated namespace");
+      }
+      finally {
+         removeKeys(pa, pa1, zz9, zz91);
+      }
+   }
+
+   @Test
+   void rename_unrelatedIds_control() throws Exception {
+      String from = scopedKey("b77238h2s9");
+      String to = scopedKey("b77238qq7x");
+
+      try {
+         SreeEnv.setProperty(from, "55");
+
+         renameScopedProperties("b77238h2s9", "b77238qq7x", true);
+
+         assertEquals("55", SreeEnv.getProperty(to));
+         assertNull(SreeEnv.getProperty(from));
+      }
+      finally {
+         removeKeys(from, to);
+      }
+   }
+
+   private static String scopedKey(String orgId) {
+      return "inetsoft.org." + orgId + ".max.row.count";
+   }
+
+   // Mirrors copyOrganizationInternal(): copyScopedProperties() always, then
+   // clearScopedProperties() on a rename (replace=true).
+   private static void renameScopedProperties(String fromOrgId, String toOrgId, boolean replace)
+      throws Exception
+   {
+      AbstractEditableAuthenticationProviderStaticDepTest.StubProvider provider =
+         new AbstractEditableAuthenticationProviderStaticDepTest.StubProvider();
+      Method m = AbstractEditableAuthenticationProvider.class.getDeclaredMethod(
+         "copyScopedProperties", String.class, String.class, boolean.class);
+      m.setAccessible(true);
+      m.invoke(provider, fromOrgId, toOrgId, replace);
+
+      if(replace) {
+         provider.clearScopedProperties(fromOrgId);
+      }
+   }
+
+   private static void removeKeys(String... keys) {
+      for(String key : keys) {
+         SreeEnv.remove(key);
+      }
+   }
+
    private static void actAs(String orgId) {
       ThreadContext.setContextPrincipal(new SRPrincipal(new IdentityID("tester", orgId),
          new IdentityID[0], new String[0], orgId, 1L));
@@ -290,6 +410,7 @@ class OrgLifecycleScopedPropertiesIntegrationTest {
       setOrganizationInfo.setAccessible(true);
 
       CustomThemesManager themesManager = mock(CustomThemesManager.class);
+      CustomThemesManagerMocks.applyUpdates(themesManager);
       when(themesManager.getCustomThemes()).thenReturn(new HashSet<>());
 
       // Mirror EM UI: operator switches to the org being renamed before editing its id.
@@ -325,6 +446,116 @@ class OrgLifecycleScopedPropertiesIntegrationTest {
       assertEquals("MM/dd/yyyy", SreeEnv.getProperty("format.date", false, true),
                   "after the real setOrganizationInfo() rename entry point, the property must "
                   + "still be readable under the new org id");
+   }
+
+   // Bug #77238 through the real setOrganizationInfo() rename entry point (not a hand-composed
+   // copy+clear): the new id extends the old id (Case 1) while a sibling org whose id also extends
+   // the old id holds its own property (Case 2). Both must survive the full orchestration.
+   @Test
+   void rename_realEntryPoint_orgIdsSharingPrefix_propertiesNotAliased() throws Exception {
+      String fromOrgId = "b77238e2e";
+      String fromOrgName = "B77238E2E";
+      String toOrgId = "b77238e2eb";
+      String toOrgName = "B77238E2EB";
+      String fromKey = "inetsoft.org." + fromOrgId + ".format.date";
+      String toKey = "inetsoft.org." + toOrgId + ".format.date";
+      String siblingKey = "inetsoft.org." + fromOrgId + "1.format.date";
+      String strayKey = "inetsoft.org." + toOrgId + "1.format.date";
+
+      builder = SecurityTestDataBuilder.create()
+         .addOrg(fromOrgName, fromOrgId)
+         .addUser("dave", fromOrgId, "password")
+         .setup();
+
+      try {
+         actAs(fromOrgId);
+         SreeEnv.setProperty("format.date", "MM/dd/yyyy", true);
+         SreeEnv.setProperty(siblingKey, "dd.MM.yyyy");
+
+         AuthenticationProvider authc = SecurityEngine.getSecurity().getSecurityProvider()
+            .getAuthenticationProvider();
+         FileAuthenticationProvider fileProvider =
+            (FileAuthenticationProvider) ((AuthenticationChain) authc).getProviders().get(0);
+         FSOrganization oldOrg = (FSOrganization) fileProvider.getOrganization(fromOrgId);
+
+         RepletRegistryManager repletRegistryManager = mock(RepletRegistryManager.class);
+         when(repletRegistryManager.getRegistry(anyString())).thenReturn(mock(RepletRegistry.class));
+         LibManagerProvider libManagerProvider = mock(LibManagerProvider.class);
+         when(libManagerProvider.getManager(anyString())).thenReturn(mock(LibManager.class));
+
+         IdentityService spyService = spy(new IdentityService(
+            SecurityEngine.getSecurity(), SecurityEngine.getSecurity().getSecurityProvider(),
+            mock(IdentityThemeService.class), null, null, favoritesService, null, null,
+            mock(DataCycleManager.class), null, mock(LogManager.class), null, null, null,
+            Optional.empty(),
+            null, mock(CustomThemesManager.class), null,
+            mock(DashboardRegistryManager.class),
+            libManagerProvider, null, mock(PortalThemesManager.class), null, dataSpace,
+            null, null, null,
+            repletRegistryManager,
+            Optional.empty()));
+         // Same storage-helper stubs as the entry-point test above. updateOrgProperties() and
+         // removeOrgProperties() are already delimited, so stubbing them hides nothing here;
+         // copyScopedProperties()/clearScopedProperties() run for real.
+         doNothing().when(spyService).updateOrgProperties(any(), any());
+         doNothing().when(spyService).updateAutoSaveFiles(any(), any(), any());
+         doNothing().when(spyService).updateTaskSaveFiles(any(), any());
+         doNothing().when(spyService).updateIdentityPermissions(
+            anyInt(), any(), any(), any(), any(), anyBoolean());
+         doNothing().when(spyService).clearDataSourceMetadata();
+         doNothing().when(spyService).copyStorages(any(), any(), anyBoolean());
+         doNothing().when(spyService).copyRepletRegistry(any(), any());
+         doNothing().when(spyService).removeOrgProperties(any());
+         doNothing().when(spyService).updateRepletRegistry(any(), any());
+         doNothing().when(spyService).removeStorages(any());
+         doNothing().when(spyService).addCopiedIdentityPermission(
+            any(), any(), any(), anyInt(), anyBoolean());
+
+         EditOrganizationPaneModel model = EditOrganizationPaneModel.builder()
+            .id(toOrgId)
+            .name(toOrgName)
+            .oldName(fromOrgName)
+            .members(List.of(IdentityModel.builder()
+                                .identityID(new IdentityID("dave", fromOrgId))
+                                .type(Identity.USER)
+                                .build()))
+            .status(true)
+            .build();
+
+         Method setOrganizationInfo = IdentityService.class.getDeclaredMethod(
+            "setOrganizationInfo", FSOrganization.class, EditOrganizationPaneModel.class,
+            EditableAuthenticationProvider.class, Principal.class);
+         setOrganizationInfo.setAccessible(true);
+
+         CustomThemesManager themesManager = mock(CustomThemesManager.class);
+         CustomThemesManagerMocks.applyUpdates(themesManager);
+         when(themesManager.getCustomThemes()).thenReturn(new HashSet<>());
+         OrganizationContextHolder.setCurrentOrgId(fromOrgId);
+
+         try(MockedStatic<CustomThemesManager> ctm = mockStatic(CustomThemesManager.class)) {
+            ctm.when(CustomThemesManager::getManager).thenReturn(themesManager);
+
+            try {
+               setOrganizationInfo.invoke(spyService, oldOrg, model, fileProvider,
+                                          mock(Principal.class));
+            }
+            catch(Exception e) {
+               // Tolerated for the same reason as the entry-point test above: the late
+               // RepletRegistryManager.getInstance() step throws after the property migration.
+            }
+         }
+
+         assertEquals("MM/dd/yyyy", SreeEnv.getProperty(toKey),
+                      "renaming to an id that extends the old id must keep the org's property");
+         assertNull(SreeEnv.getProperty(fromKey), "old org's key must be migrated away");
+         assertEquals("dd.MM.yyyy", SreeEnv.getProperty(siblingKey),
+                      "an org whose id starts with the renamed id must keep its property");
+         assertNull(SreeEnv.getProperty(strayKey),
+                    "the sibling org's property must not move into a fabricated org namespace");
+      }
+      finally {
+         removeKeys(fromKey, toKey, siblingKey, strayKey);
+      }
    }
 
    // ── scenario 13c: UserTreeService.editOrganization() -- the actual entry point Issue #75769's

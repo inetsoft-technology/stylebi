@@ -31,6 +31,8 @@ import org.w3c.dom.*;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.*;
 
 /**
@@ -165,8 +167,11 @@ public class DashboardRegistry {
    /**
     * Method to parse an xml segment.
     * @param tag the specified xml element.
+    * @param map the map that receives the parsed dashboards.
     */
-   private synchronized boolean parseXML(Element tag, DashboardRegistry globalRegistry) throws Exception {
+   private synchronized boolean parseXML(Element tag, DashboardRegistry globalRegistry,
+                                         Map<String, Dashboard> map) throws Exception
+   {
       Element vnode = Tool.getChildNodeByTagName(tag, "Version");
       String version = Tool.getValue(vnode);
       boolean needsPort = !FileVersions.DASHBOARD_REGISTRY.equals(version);
@@ -192,7 +197,7 @@ public class DashboardRegistry {
          dashboard.parseXML(dashboardNode);
 
          if(needsPort && !isGlobal()) {
-            if(globalRegistry.getDashboard(name + "__GLOBAL") != null) {
+            if(globalRegistry != null && globalRegistry.getDashboard(name + "__GLOBAL") != null) {
                name = name + "__GLOBAL";
             }
          }
@@ -204,10 +209,11 @@ public class DashboardRegistry {
             needsPort = true;
          }
 
-         dashboardsMap.put(name, dashboard);
+         map.put(name, dashboard);
       }
 
-      return needsPort;
+      // without the global registry the user file is not ported, don't save it as ported
+      return needsPort && (isGlobal() || globalRegistry != null);
    }
 
    /**
@@ -220,20 +226,33 @@ public class DashboardRegistry {
           OutputStream out = tx.newStream(null, getPath()))
       {
          dmgr.removeChangeListener(space, null, getPath(), changeListener);
-         PrintWriter writer = new PrintWriter(new OutputStreamWriter(out, StandardCharsets.UTF_8));
+         // build the document in memory so that the exact bytes written can be digested for
+         // the change listener's self-write fence (see changeListener)
+         ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+         PrintWriter writer =
+            new PrintWriter(new OutputStreamWriter(buffer, StandardCharsets.UTF_8));
          writeXML(writer);
          writer.flush();
+         byte[] content = buffer.toByteArray();
+         out.write(content);
+         out.flush();
          tx.commit();
+         // recorded under this monitor and before the listener is re-added below, so that the
+         // (asynchronous, usually late) notification for this very write is recognized as ours
+         syncedDigest = digest(content);
       }
       catch(Throwable exc) {
          throw new RuntimeException("Failed to save dashboard registry file", exc);
       }
       finally {
-         dmgr.addChangeListener(space, null, getPath(), changeListener);
+         addChangeListener(space, getPath());
       }
    }
 
-   void modifyOrgId(String orgId) {
+   synchronized void modifyOrgId(String orgId) {
+      // the registry is moved to the new org and used again, so it watches its file again
+      detached = false;
+
       if(Tool.equals(orgId, organizationId)) {
          return;
       }
@@ -242,17 +261,35 @@ public class DashboardRegistry {
       String oldPath = getPath();
       dmgr.removeChangeListener(space, null, getPath(), changeListener);
       organizationId = orgId;
-      dmgr.addChangeListener(space, null, getPath(), changeListener);
+      addChangeListener(space, getPath());
       space.delete(null, oldPath);
    }
 
    /**
     * Clear the listeners. Detaches this registry from the data space file watch, so that it is
     * no longer re-loaded from its backing file when that file changes. Same role as
-    * {@link inetsoft.sree.RepletRegistry#shutdown()}.
+    * {@link inetsoft.sree.RepletRegistry#shutdown()}. A later save() still writes the file, but
+    * does not watch it again.
     */
-   public void clear() {
+   public synchronized void clear() {
+      detached = true;
       dmgr.clear();
+   }
+
+   /**
+    * Watch the file, unless this registry has been detached by clear().
+    */
+   private synchronized void addChangeListener(DataSpace space, String path) {
+      if(!detached) {
+         dmgr.addChangeListener(space, null, path, changeListener);
+      }
+   }
+
+   /**
+    * Get the id of the organization this registry belongs to.
+    */
+   protected String getOrgID() {
+      return organizationId;
    }
 
    /**
@@ -273,42 +310,93 @@ public class DashboardRegistry {
     * Build up the dashboard registry by parse a .xml file.
     */
    void loadDashboard(DashboardRegistry globalRegistry) {
-      loadDashboard(getPath(), globalRegistry);
+      loadDashboard(getPath(), globalRegistry, false);
    }
 
    /**
     * Build up the dashboard registry by parse a .xml file.
+    *
+    * @param path           the registry file path.
+    * @param globalRegistry the global registry, used to port an old user registry. It must be
+    *                       resolved by the caller <b>before</b> this monitor is taken, because
+    *                       resolving it may take the DashboardRegistryManager lock.
+    * @param reload         {@code true} when called from the change listener: the reload is
+    *                       skipped when the file still holds exactly what this instance last
+    *                       saved or loaded, or when this registry has been detached by clear().
     */
-   private void loadDashboard(String path, DashboardRegistry globalRegistry) {
+   private synchronized void loadDashboard(String path, DashboardRegistry globalRegistry,
+                                           boolean reload)
+   {
+      if(reload && detached) {
+         return;
+      }
+
       DataSpace space = DataSpace.getDataSpace();
-      boolean ported = false;
 
-      try(InputStream repository = space.getInputStream(null, path)) {
-         if(repository != null) {
-            dmgr.addChangeListener(space, null, path, changeListener);
-            Document doc = Tool.parseXML(repository);
-            Element node = doc.getDocumentElement();
-            ported = parseXML(node, globalRegistry);
-         }
-         else {
-            try {
-               dmgr.addChangeListener(space, null, path, changeListener);
-            }
-            catch(Exception ex) {
-               String msg = "Merge Dashboard failed!";
-
-               if(LogManager.getInstance().isDebugEnabled(LOG.getName())) {
-                  LOG.error(msg, ex);
-               }
-               else {
-                  LOG.error(msg);
-               }
-            }
-         }
+      // watch the file before reading it, so that a change committed right after the read is
+      // not missed on the first load
+      try {
+         addChangeListener(space, path);
       }
       catch(Exception ex) {
-         LOG.error(ex.getMessage(), ex);
+         String msg = "Merge Dashboard failed!";
+
+         if(LogManager.getInstance().isDebugEnabled(LOG.getName())) {
+            LOG.error(msg, ex);
+         }
+         else {
+            LOG.error(msg);
+         }
       }
+
+      byte[] content;
+
+      try {
+         // Read the whole file and close the stream before doing anything else. The stream
+         // holds the blob read lock until it is closed, and save() takes the blob write lock
+         // while holding this monitor, so a stream must never be open while waiting for this
+         // monitor (Bug #77103 deadlock). Reading here, inside the monitor, is safe because
+         // save() on this registry cannot run concurrently, and it means the bytes that are
+         // digested and parsed are the current file, not a copy that a concurrent save() has
+         // since replaced.
+         content = readFile(space, path);
+      }
+      catch(Exception ex) {
+         LOG.error("Failed to read dashboard registry file " + path, ex);
+         // the file state is unknown: keep the current map and let the next event retry
+         syncedDigest = null;
+         return;
+      }
+
+      String digest = content == null ? ABSENT_DIGEST : digest(content);
+
+      if(reload && digest != null && digest.equals(syncedDigest)) {
+         return;
+      }
+
+      // parse into a new map and swap it in, so that readers never see a partially loaded or
+      // empty registry, and a failed reload keeps the current dashboards
+      Map<String, Dashboard> map = new LinkedHashMap<>();
+      boolean ported = false;
+
+      if(content != null) {
+         try {
+            Document doc = Tool.parseXML(new ByteArrayInputStream(content));
+            Element node = doc.getDocumentElement();
+            ported = parseXML(node, globalRegistry, map);
+         }
+         catch(Exception ex) {
+            LOG.error(ex.getMessage(), ex);
+
+            if(reload) {
+               syncedDigest = null;
+               return;
+            }
+         }
+      }
+
+      dashboardsMap = map;
+      syncedDigest = digest;
 
       if(ported) {
          try {
@@ -321,57 +409,120 @@ public class DashboardRegistry {
    }
 
    /**
-    * Reset variables before reload.
+    * Re-load the dashboards after a change of the file. The path is read under the lock, because
+    * the registry may have been moved to another org (modifyOrgId) while the event waited for it.
     */
-   synchronized void reset() {
-      dashboardsMap.clear();
+   private synchronized void reload(DashboardRegistry globalRegistry) {
+      loadDashboard(getPath(), globalRegistry, true);
    }
 
    /**
-    * Rename the dashboard.
+    * Reads the registry file fully, closing the stream before returning.
+    *
+    * @return the file content, or {@code null} if the file does not exist.
     */
-   public synchronized void renameDashboard(String oname, String name) {
+   private static byte[] readFile(DataSpace space, String path) throws IOException {
+      try(InputStream in = space.getInputStream(null, path)) {
+         return in == null ? null : in.readAllBytes();
+      }
+   }
+
+   private static String digest(byte[] content) {
       try {
-         DashboardManager.getManager().renameDashboard(oname, name);
-         dashboardsMap.put(name, dashboardsMap.get(oname));
-         dashboardsMap.remove(oname);
+         return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(content));
+      }
+      catch(NoSuchAlgorithmException e) {
+         // SHA-256 is always available; a null digest never matches, so the fence is disabled
+         return null;
+      }
+   }
 
-         save();
+   /**
+    * Rename a dashboard in the map and save the file, holding this registry's lock. The old name
+    * may be gone if the registry was re-loaded in the meantime, then nothing is renamed, so that a
+    * null dashboard is never put in the map.
+    *
+    * @return true if the dashboard was renamed.
+    */
+   synchronized boolean renameEntry(String oname, String name) throws Exception {
+      if(!dashboardsMap.containsKey(oname)) {
+         return false;
+      }
 
-         if(isGlobal()) {
-            DashboardRegistryManager.getInstance().renameDashboard(oname, name);
-            SecurityProvider provider = securityEngine.getSecurityProvider();
+      dashboardsMap.put(name, dashboardsMap.get(oname));
+      dashboardsMap.remove(oname);
+      save();
+      return true;
+   }
 
-            if(!provider.isVirtual()) {
-               Permission permission = provider.getPermission(ResourceType.DASHBOARD, oname);
+   /**
+    * Remove a dashboard from the map and save the file, holding this registry's lock.
+    */
+   synchronized void removeEntry(String name) throws Exception {
+      dashboardsMap.remove(name);
+      save();
+   }
 
-               if(permission != null) {
-                  provider.removePermission(ResourceType.DASHBOARD, oname);
-                  provider.setPermission(ResourceType.DASHBOARD, name, permission);
+   /**
+    * Rename the dashboard. The dashboard manager is locked first and this registry only around
+    * the map update, a registry must not call the managers while holding its own lock.
+    */
+   public void renameDashboard(String oname, String name) {
+      DashboardManager manager = DashboardManager.getManager();
+      DashboardRegistryManager registryManager = DashboardRegistryManager.getInstance();
+      String orgID = getOrgID();
+      // find the stored user copies of a global dashboard before locking the dashboard manager,
+      // so the storage scan doesn't block it, and before the rename, so old files are ported
+      Collection<IdentityID> userCopies = isGlobal() && getDashboard(oname) != null ?
+         registryManager.loadUserCopies(orgID, oname) : Collections.emptyList();
+
+      manager.runLocked(() -> {
+         try {
+            manager.renameDashboard(oname, name);
+
+            if(!renameEntry(oname, name)) {
+               return;
+            }
+
+            if(isGlobal()) {
+               // only the user registries of this registry's own org
+               registryManager.renameDashboard(orgID, oname, name, userCopies);
+               SecurityProvider provider = securityEngine.getSecurityProvider();
+
+               if(!provider.isVirtual()) {
+                  Permission permission = provider.getPermission(ResourceType.DASHBOARD, oname);
+
+                  if(permission != null) {
+                     provider.removePermission(ResourceType.DASHBOARD, oname);
+                     provider.setPermission(ResourceType.DASHBOARD, name, permission);
+                  }
                }
             }
-         }
 
-         fireChangeEvent(this, DashboardChangeEvent.Type.RENAMED, oname, name);
-      }
-      catch (Exception ex) {
-         LOG.error(ex.getMessage(), ex);
-      }
+            fireChangeEvent(this, DashboardChangeEvent.Type.RENAMED, oname, name);
+         }
+         catch (Exception ex) {
+            LOG.error(ex.getMessage(), ex);
+         }
+      });
    }
 
    /**
     * Remove a dashboard with the specified name.
     */
-   public synchronized void removeDashboard(String name) {
-      try {
-         DashboardManager.getManager().removeDashboard(name);
-         dashboardsMap.remove(name);
-         save();
-         fireChangeEvent(this, DashboardChangeEvent.Type.REMOVED, name, null);
-      }
-      catch (Exception ex) {
-         LOG.error(ex.getMessage(), ex);
-      }
+   public void removeDashboard(String name) {
+      DashboardManager manager = DashboardManager.getManager();
+
+      manager.runLocked(() -> {
+         try {
+            manager.removeDashboard(name);
+            removeEntry(name);
+            fireChangeEvent(this, DashboardChangeEvent.Type.REMOVED, name, null);
+         }
+         catch (Exception ex) {
+            LOG.error(ex.getMessage(), ex);
+         }
+      });
    }
 
    protected SecurityEngine getSecurityEngine() {
@@ -394,39 +545,49 @@ public class DashboardRegistry {
        * Rename the dashboard.
        */
       @Override
-      public synchronized void renameDashboard(String oname, String name) {
-         try {
-            Identity identity = getIdentity(user);
-            DashboardManager manager = DashboardManager.getManager();
-            String[] dashboards = manager.getDashboards(identity);
-            manager.setDashboards(identity, Tool.replace(dashboards, oname, name));
-            dashboardsMap.put(name, dashboardsMap.get(oname));
-            dashboardsMap.remove(oname);
-            save();
-            fireChangeEvent(this, DashboardChangeEvent.Type.RENAMED, oname, name);
-         }
-         catch (Exception ex) {
-            LOG.error(ex.getMessage(), ex);
-         }
+      public void renameDashboard(String oname, String name) {
+         DashboardManager manager = DashboardManager.getManager();
+
+         manager.runLocked(() -> {
+            try {
+               Identity identity = getIdentity(user);
+               String[] dashboards = manager.getDashboards(identity);
+               manager.setDashboards(identity, Tool.replace(dashboards, oname, name));
+
+               if(renameEntry(oname, name)) {
+                  fireChangeEvent(this, DashboardChangeEvent.Type.RENAMED, oname, name);
+               }
+            }
+            catch (Exception ex) {
+               LOG.error(ex.getMessage(), ex);
+            }
+         });
       }
 
       /**
        * Remove a dashboard with the specified name.
        */
       @Override
-      public synchronized void removeDashboard(String name) {
-         try {
-            Identity identity = getIdentity(user);
-            DashboardManager manager = DashboardManager.getManager();
-            String[] dashboards = manager.getDashboards(identity);
-            manager.setDashboards(identity, Tool.remove(dashboards, name));
-            dashboardsMap.remove(name);
-            save();
-            fireChangeEvent(this, DashboardChangeEvent.Type.REMOVED, name, null);
-         }
-         catch (Exception ex) {
-            LOG.error(ex.getMessage(), ex);
-         }
+      public void removeDashboard(String name) {
+         DashboardManager manager = DashboardManager.getManager();
+
+         manager.runLocked(() -> {
+            try {
+               Identity identity = getIdentity(user);
+               String[] dashboards = manager.getDashboards(identity);
+               manager.setDashboards(identity, Tool.remove(dashboards, name));
+               removeEntry(name);
+               fireChangeEvent(this, DashboardChangeEvent.Type.REMOVED, name, null);
+            }
+            catch (Exception ex) {
+               LOG.error(ex.getMessage(), ex);
+            }
+         });
+      }
+
+      @Override
+      protected String getOrgID() {
+         return organizationId != null ? organizationId : user.orgID;
       }
 
       /**
@@ -456,21 +617,70 @@ public class DashboardRegistry {
       private final IdentityID user;
    }
 
-   protected String organizationId;
+   protected volatile String organizationId;
    protected Map<String, Dashboard> dashboardsMap = new LinkedHashMap<>();
    private final ApplicationEventPublisher eventPublisher;
    private final SecurityEngine securityEngine;
    private final DataChangeListenerManager dmgr = new DataChangeListenerManager();
+   // set by clear(), when the registry is evicted from the manager and must not watch its file
+   private volatile boolean detached;
+   /**
+    * The content digest of the registry file as this instance last saved or loaded it, or
+    * {@link #ABSENT_DIGEST} if the file did not exist, or {@code null} if it is unknown (a read
+    * or parse failure). Guarded by this instance's monitor.
+    */
+   private String syncedDigest;
+
+   /**
+    * Reloads the registry when its file changes (Bug #77103).
+    *
+    * <p>Data space notifications are delivered asynchronously (Ignite map event, thread pool,
+    * then the single BlobStorageEvent thread) and the listener set is read when the event is
+    * fired, so the listener removal in save() does not suppress the notification for that save;
+    * it routinely arrives after save() has re-added the listener. The listener also receives
+    * events for every ancestor directory of the file. The reload is therefore fenced on content:
+    * <ul>
+    *    <li><b>own save events</b>: the file digests to the value save() recorded, so the reload
+    *        is skipped and unsaved in-memory changes made since that save are kept;</li>
+    *    <li><b>directory events</b> (e.g. {@code portal/<org>} being created): the file itself is
+    *        unchanged, so the reload is skipped;</li>
+    *    <li><b>remote/external changes</b> (another cluster node, an import, a direct data space
+    *        write): the bytes differ, so the registry is reloaded. The content digest is used
+    *        rather than the event time, which is stamped by the writing node and so is subject
+    *        to clock skew (same reasoning as Bug #76393);</li>
+    *    <li><b>first load</b>: loadDashboard records the digest of the bytes it parsed, so the
+    *        first event after load does not reload needlessly;</li>
+    *    <li><b>missing file</b>: an absent file is recorded as {@link #ABSENT_DIGEST}, so events
+    *        for a never-saved registry keep its unsaved dashboards, while a file that is deleted
+    *        after it was loaded or saved still reloads to an empty registry. A read failure
+    *        records {@code null}, which never matches.</li>
+    * </ul>
+    * A reload parses into a new map and swaps it in under the monitor, so readers never observe
+    * an empty or partially loaded registry and a concurrent save() cannot persist one.
+    */
    private final DataChangeListener changeListener = e -> {
-      reset();
+      if(detached) {
+         return;
+      }
 
       try {
-         loadDashboard(isGlobal() ? null : DashboardRegistryManager.getInstance().getRegistry());
+         // Get the global registry of this registry's own org (the event thread's org is not
+         // related to it) before locking this one. It may lock the registry manager, which
+         // must never be locked while holding a registry, so it must not be resolved in
+         // reload().
+         DashboardRegistry globalRegistry = isGlobal() ? null :
+            DashboardRegistryManager.getInstance().getGlobalForPort(getOrgID());
+         reload(globalRegistry);
       }
       catch(Exception ex) {
          LOG.error("Failed to reload dashboard registry", ex);
       }
    };
+
+   /**
+    * Digest sentinel for "the registry file does not exist".
+    */
+   private static final String ABSENT_DIGEST = "<absent>";
 
    private static final String FILE_NAME = "dashboard-registry.xml";
    private static final Logger LOG = LoggerFactory.getLogger(DashboardRegistry.class);

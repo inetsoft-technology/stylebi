@@ -68,6 +68,7 @@ import java.rmi.RemoteException;
 import java.security.Principal;
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Service
@@ -194,15 +195,7 @@ public class IdentityService {
                resourceType = ResourceType.SECURITY_ROLE;
             }
 
-            try {
-               if(!securityEngine.checkPermission(principal, resourceType, identityModel.identityID().convertToKey(),
-                                                  ResourceAction.ADMIN))
-               {
-                  failedIdentities.add(identityModel.identityID());
-                  continue;
-               }
-            }
-            catch(Exception ignore) {
+            if(isIdentityDeleteDenied(principal, resourceType, identityId, type)) {
                failedIdentities.add(identityModel.identityID());
                continue;
             }
@@ -231,9 +224,7 @@ public class IdentityService {
                   }
                }
 
-               if(isSelfAndEMUser(principal, identityId, type) ||
-                  isSelfRole(provider.getUser(IdentityID.getIdentityIDFromKey(principal.getName())), identityId, type))
-               {
+               if(isSelfDelete(principal, identityId, type, provider)) {
                   warnings.add(catalog.getString("em.security.delself"));
                   continue;
                }
@@ -458,9 +449,12 @@ public class IdentityService {
       boolean isChild = childrenIDs.contains(childId);
       String currentOrgID = OrganizationManager.getInstance().getCurrentOrgID(principal);
 
-      if(!isChild && parentID.getOrgID() == null && !Tool.equals(currentOrgID, childId.getOrgID()))
-      {
-         isChild = list.contains(oldParentID);
+      if(parentID.getOrgID() == null && !Tool.equals(currentOrgID, childId.getOrgID())) {
+         // a site administrator is shown every organization's members of a global role, so the
+         // submitted members are authoritative; anyone else only carries a rename over
+         if(!isCrossOrgEditAllowed(principal)) {
+            isChild = list.contains(oldParentID);
+         }
       }
 
       boolean changed = isParent != isChild;
@@ -480,6 +474,45 @@ public class IdentityService {
       }
 
       return null;
+   }
+
+   /**
+    * A global role can be held by the users, groups and roles of every organization, which the
+    * provider only cleans up in the removed role's own organization. This is done here rather than
+    * in the provider's removeRole, which also runs on a rename and would drop the members that a
+    * rename carries over. Only the editable FS* identities are updated.
+    */
+   private void removeGlobalRoleFromMembers(EditableAuthenticationProvider eprovider,
+                                            IdentityID roleId)
+   {
+      for(IdentityID userId : eprovider.getUsers()) {
+         User user = eprovider.getUser(userId);
+
+         if(user instanceof FSUser fsUser && Arrays.asList(user.getRoles()).contains(roleId)) {
+            fsUser.setRoles(Tool.remove(user.getRoles(), roleId));
+            eprovider.setUser(userId, user);
+         }
+      }
+
+      for(IdentityID groupId : eprovider.getGroups()) {
+         Group group = eprovider.getGroup(groupId);
+
+         if(group instanceof FSGroup fsGroup && Arrays.asList(group.getRoles()).contains(roleId)) {
+            fsGroup.setRoles(Tool.remove(group.getRoles(), roleId));
+            eprovider.setGroup(groupId, group);
+         }
+      }
+
+      for(IdentityID otherId : eprovider.getRoles()) {
+         Role role = eprovider.getRole(otherId);
+
+         if(role instanceof FSRole fsRole && !otherId.equals(roleId) &&
+            Arrays.asList(role.getRoles()).contains(roleId))
+         {
+            fsRole.setRoles(Tool.remove(role.getRoles(), roleId));
+            eprovider.setRole(otherId, role);
+         }
+      }
    }
 
    /**
@@ -552,6 +585,10 @@ public class IdentityService {
       if(oID == null) {
          dmanager.setDashboards(nid, null);
          smanager.identityRemoved(identity, eprovider);
+
+         if(type == Identity.ROLE && identityId.orgID == null) {
+            removeGlobalRoleFromMembers(eprovider, identityId);
+         }
       }
       else {
          if((type == Identity.USER || type == Identity.GROUP) && !identityId.equals(oID)) {
@@ -572,11 +609,22 @@ public class IdentityService {
             repletRegistryManager.removeUser(identityId);
             //rep.removeUser(identityId);
             dashboardRegistryManager.clear(identityId);
+            // read before the user is removed. A user stored without an organization belongs to
+            // the default organization, so its organization is never null, which would match
+            // every organization's themes
+            User user = eprovider.getUser(identityId);
             eprovider.removeUser(identityId);
             updateIdentityPermissions(type, identityId, null, identityId.orgID, identityId.orgID,true);
             removeUserScopedAssets(identity);
             UserEnv.removeUser(identityId);
             AutoSaveUtils.deleteUserAutoSaveFiles(identityId);
+            if(user != null) {
+               removeIdentityFromThemes(identityId, user.getOrganizationID(), CustomTheme::getUsers);
+            }
+            else {
+               // nothing was deleted, so a same-named user of another organization keeps its theme
+               LOG.debug("User {} not found, skipping the custom theme cleanup", identityId);
+            }
          }
          else {
             if(!identityId.equals(oID)) {
@@ -597,7 +645,14 @@ public class IdentityService {
       else if(identity.getType() == Identity.ORGANIZATION) {
          if(oID == null) {
             Organization oOrg = eprovider.getOrganization(identityId.orgID);
-            dashboardRegistryManager.clear(identityId);
+            String deletedOrgID = identityId.orgID;
+
+            // Evict the org's cached dashboard registries: the global registry and the
+            // registries of all of its users, including users the provider does not list (SSO,
+            // virtual) and entries cached under the lowercased current-org id. The org
+            // identity's key (orgId__orgName) matches none of them.
+            dashboardRegistryManager.clearOrganization(deletedOrgID);
+
             clearDataSourceMetadata();
 
             if(oOrg != null) {
@@ -655,12 +710,15 @@ public class IdentityService {
                eprovider.removeGroup(identityId);
                updateIdentityPermissions(type, identityId, null, orgId, orgId, true);
                updatePrincipalGroup(oID, identityId);
+               removeIdentityFromThemes(identityId, orgId, CustomTheme::getGroups);
             }
             else {
                //delete role identityId inside of permissions
                String orgId = eprovider.getRole(identityId).getOrganizationID();
                eprovider.removeRole(identityId);
                updateIdentityPermissions(type, identityId, null, orgId, orgId, true);
+               // a global role (null organization) is removed from every organization's themes
+               removeIdentityFromThemes(identityId, orgId, CustomTheme::getRoles);
             }
          }
          else {
@@ -698,6 +756,23 @@ public class IdentityService {
                }
             }
          }
+      }
+   }
+
+   /**
+    * Removes a deleted user, group or role from the custom themes, so that a new identity with
+    * the same name does not inherit the theme. This is done last in the delete branch and a
+    * failure is only logged, because the identity has already been removed from the provider
+    * and the rest of its cleanup must not be skipped.
+    */
+   private void removeIdentityFromThemes(IdentityID identityId, String orgID,
+                                         Function<CustomTheme, List<String>> fn)
+   {
+      try {
+         themeService.removeIdentity(identityId.name, orgID, fn);
+      }
+      catch(Exception e) {
+         LOG.warn("Failed to remove the deleted identity {} from the custom themes", identityId, e);
       }
    }
 
@@ -764,9 +839,65 @@ public class IdentityService {
       return false;
    }
 
+   /**
+    * Delete a member that was dropped from an organization with the same cleanup as
+    * deleteIdentities(). The cleanup runs in the scope of the edited organization, because some
+    * of it (the dashboards) is keyed by the current organization, which differs when a site
+    * admin updates another organization through the REST API. If the cleanup fails, the member
+    * is still removed from the provider, so dropping a member always deletes it.
+    *
+    * @return {@code true} if the member was removed from the provider.
+    */
+   private boolean removeDroppedMember(EditableAuthenticationProvider eprovider, IdentityID id,
+                                       int type, String orgID)
+   {
+      try {
+         OrganizationManager.runInOrgScope(orgID, () -> {
+            syncIdentity(eprovider, new DefaultIdentity(id, type), null);
+            return null;
+         });
+      }
+      catch(Exception ex) {
+         LOG.warn("Failed to clean up the removed organization member: {}", id, ex);
+         Tool.addUserMessage(Catalog.getCatalog(ThreadContext.getContextPrincipal())
+                                .getString("em.security.orgMemberCleanupFailed", id.getName()));
+
+         // the cleanup may have failed before the member was removed from the provider
+         try {
+            if(type == Identity.USER && eprovider.getUser(id) != null) {
+               eprovider.removeUser(id);
+            }
+            else if(type == Identity.GROUP && eprovider.getGroup(id) != null) {
+               eprovider.removeGroup(id);
+            }
+            else if(type == Identity.ROLE && eprovider.getRole(id) != null) {
+               eprovider.removeRole(id);
+            }
+         }
+         catch(Exception removeEx) {
+            LOG.warn("Failed to remove the organization member: {}", id, removeEx);
+            return false;
+         }
+      }
+
+      try {
+         if(type == Identity.USER) {
+            logoutSession(id);
+         }
+
+         cluster.sendMessage(new IdentityChangedMessage(type, null, id));
+      }
+      catch(Exception ex) {
+         LOG.warn("Failed to notify the removal of the organization member: {}", id, ex);
+      }
+
+      return true;
+   }
+
    private void updateOrganizationMembers(Organization identity, List<IdentityModel> memberModels,
                                           String oldOrgID,
-                                          EditableAuthenticationProvider eprovider)
+                                          EditableAuthenticationProvider eprovider,
+                                          Principal principal)
    {
       String orgID = identity.getId();
       List<String> members = Arrays.asList(identity.getMembers());
@@ -787,10 +918,29 @@ public class IdentityService {
          .filter(newRole -> Arrays.stream(roles).noneMatch(oldRole -> oldRole.getName().equals(newRole.identityID().getName())))
          .map(IdentityModel::identityID)
          .toArray(IdentityID[]::new);
-      boolean orgIdChange = !OrganizationManager.getInstance().getCurrentOrgID().equals(identity.getId());
-      boolean orgNameChanged = !Tool.equals(orgIdChange, oldOrgID);
+      // compare with the edited organization's old id, not the current organization, which differs
+      // when a site admin updates another organization (REST, shell), otherwise every kept member
+      // is "moved" to its own id, i.e. written and removed
+      boolean orgIdChange = !Tool.equals(oldOrgID, identity.getId());
 
       AuthorizationChain authoc = ((AuthorizationChain) securityProvider.getAuthorizationProvider());
+      List<IdentityID> droppedUsers = new ArrayList<>();
+
+      // delete the dropped groups and roles before any member moves to a new organization id, the
+      // provider only removes a deleted group or role from the identities of its own organization
+      for(IdentityID group : groups) {
+         if(!members.contains(group.getName())) {
+            //group is tied to org, delete if removed as member
+            removeDroppedMember(eprovider, group, Identity.GROUP, oldOrgID);
+         }
+      }
+
+      for(IdentityID role : roles) {
+         if(!members.contains(role.getName())) {
+            //role is tied to org, delete if removed as member
+            removeDroppedMember(eprovider, role, Identity.ROLE, oldOrgID);
+         }
+      }
 
       for(int i = 0; i < users.length; i++) {
          FSUser user = (FSUser) eprovider.getUser(users[i]);
@@ -807,11 +957,9 @@ public class IdentityService {
                }
             }
 
-            if(orgIdChange || orgNameChanged) {
-               //Update replet registry here.
-               repletRegistryManager.changeOrgID(oldID, OrganizationManager.getInstance().getCurrentOrgID(), identity.getId(), false);
-               dashboardRegistryManager.migrateRegistry(oldID, securityProvider.getOrganization(OrganizationManager.getInstance().getCurrentOrgID()), identity);
-            }
+            //Update replet registry here.
+            repletRegistryManager.changeOrgID(oldID, oldOrgID, identity.getId(), false);
+            dashboardRegistryManager.migrateRegistry(oldID, securityProvider.getOrganization(oldOrgID), identity);
 
             // Re-scope the user's own permission grants to the new organization, symmetric with
             // updateRoleForOrg()/updateGroupForOrg(). Without this, permissions granted directly
@@ -819,7 +967,7 @@ public class IdentityService {
             // the org id changes, because the role/group re-scoping relocates the permission keys
             // to the new org without carrying the user grantee over. (Bug #75721)
             updateIdentityPermissions(Identity.USER, oldID, user.getIdentityID(),
-               OrganizationManager.getInstance().getCurrentOrgID(), identity.getId(), true);
+               oldOrgID, identity.getId(), true);
 
             eprovider.setUser(user.getIdentityID(), user);
             eprovider.removeUser(oldID);
@@ -829,9 +977,21 @@ public class IdentityService {
                                            user.getIdentityID().convertToKey());
          }
          else if(!members.contains(user.getName())) {
-            eprovider.removeUser(oldID);
+            // like deleteIdentities(), never delete the requesting user, which would also have to
+            // log out the session of the request that is being processed
+            if(principal != null && isSelfAndEMUser(principal, oldID, Identity.USER)) {
+               Tool.addUserMessage(Catalog.getCatalog().getString("em.security.delself"));
+               continue;
+            }
+
+            if(removeDroppedMember(eprovider, oldID, Identity.USER, oldOrgID)) {
+               droppedUsers.add(oldID);
+            }
          }
       }
+
+      // sweep the favorites once for all dropped users, as deleteIdentities() does
+      removeUserFavorites(droppedUsers);
 
       for(int i = 0; i < newUsers.length; i ++) {
          // never replace an existing user with a blank one
@@ -845,22 +1005,23 @@ public class IdentityService {
       }
 
       for(int i = 0; i < groups.length; i++) {
+         // the dropped groups are already deleted
+         if(!members.contains(groups[i].getName())) {
+            continue;
+         }
+
          FSGroup group = (FSGroup) eprovider.getGroup(groups[i]);
 
-         if(orgID.equals(group.getOrganizationID())) {
-            if(!members.contains(group.getName())) {
-               //group is tied to org, delete if removed as member
-               eprovider.removeGroup(group.getIdentityID());
-            }
-            //else if name change or id change, update permissions
-            else if(orgIdChange) {
+         if(Tool.equals(oldOrgID, group.getOrganizationID())) {
+            //if name change or id change, update permissions
+            if(orgIdChange) {
                //clone new group with correct name
-               updateGroupForOrg(identity, group, orgID, eprovider, authoc);
+               updateGroupForOrg(identity, group, orgID, oldOrgID, eprovider, authoc);
             }
          }
          else if(members.contains(group.getName())) {
             //clone new group with correct name
-            updateGroupForOrg(identity, group, orgID, eprovider, authoc);
+            updateGroupForOrg(identity, group, orgID, oldOrgID, eprovider, authoc);
          }
       }
 
@@ -875,19 +1036,20 @@ public class IdentityService {
       }
 
       for(int i = 0; i < roles.length; i++) {
+         // the dropped roles are already deleted
+         if(!members.contains(roles[i].getName())) {
+            continue;
+         }
+
          FSRole role = (FSRole) eprovider.getRole(roles[i]);
 
-         if(orgID.equals(role.getOrganizationID())) {
-            if(!members.contains(role.getName())) {
-               //role is tied to org, delete if removed as member
-               eprovider.removeRole(role.getIdentityID());
-            }
-            else if(orgIdChange) {
-               updateRoleForOrg(identity, role, orgID, eprovider, authoc);
+         if(Tool.equals(oldOrgID, role.getOrganizationID())) {
+            if(orgIdChange) {
+               updateRoleForOrg(identity, role, orgID, oldOrgID, eprovider, authoc);
             }
          }
          else if(members.contains(role.getName())) {
-            updateRoleForOrg(identity, role, orgID, eprovider, authoc);
+            updateRoleForOrg(identity, role, orgID, oldOrgID, eprovider, authoc);
          }
       }
 
@@ -902,12 +1064,12 @@ public class IdentityService {
       }
    }
 
-   private void updateRoleForOrg(Organization identity, FSRole role, String orgID,
+   private void updateRoleForOrg(Organization identity, FSRole role, String orgID, String oldOrgID,
                                  EditableAuthenticationProvider eprovider, AuthorizationChain authoc)
    {
       boolean authUpdated = false;
 
-      if(!OrganizationManager.getInstance().getCurrentOrgID().equals(identity.getId())) {
+      if(!Tool.equals(oldOrgID, identity.getId())) {
          //clone new role with correct name
          IdentityID newName = new IdentityID(role.getName(), orgID);
          FSRole newRole = new FSRole(newName, role.getRoles());
@@ -920,7 +1082,7 @@ public class IdentityService {
             //update role in permissions
             updateIdentitiesContainingRole(role.getIdentityID(), newName, orgID, eprovider);
             authUpdated = true;
-            updateIdentityPermissions(Identity.ROLE, role.getIdentityID(), newName, OrganizationManager.getInstance().getCurrentOrgID(), identity.getId(), true);
+            updateIdentityPermissions(Identity.ROLE, role.getIdentityID(), newName, oldOrgID, identity.getId(), true);
             eprovider.setRole(newName, newRole);
             eprovider.removeRole(role.getIdentityID());
          }
@@ -929,16 +1091,17 @@ public class IdentityService {
          }
       }
 
-      if(!OrganizationManager.getInstance().getCurrentOrgID().equals(identity.getId()) && !authUpdated) {
-         updateIdentityPermissions(Identity.ROLE, role.getIdentityID(), role.getIdentityID(), OrganizationManager.getInstance().getCurrentOrgID(), identity.getId(), false);
+      if(!Tool.equals(oldOrgID, identity.getId()) && !authUpdated) {
+         updateIdentityPermissions(Identity.ROLE, role.getIdentityID(), role.getIdentityID(), oldOrgID, identity.getId(), false);
       }
    }
 
    private void updateGroupForOrg(Organization identity, Group group, String orgName,
-                                  EditableAuthenticationProvider eprovider, AuthorizationChain authoc) {
+                                  String oldOrgID, EditableAuthenticationProvider eprovider,
+                                  AuthorizationChain authoc) {
       //if name change
       boolean authUpdated = false;
-      if(!OrganizationManager.getInstance().getCurrentOrgID().equals(identity.getId())) {
+      if(!Tool.equals(oldOrgID, identity.getId())) {
          IdentityID newName = new IdentityID(group.getIdentityID().name, orgName);
          FSGroup newGroup = new FSGroup(newName, group.getLocale(),
                                         group.getGroups(), group.getRoles());
@@ -949,7 +1112,7 @@ public class IdentityService {
             authUpdated = true;
             updateIdentityPermissions(
                Identity.GROUP, group.getIdentityID(), newName,
-               OrganizationManager.getInstance().getCurrentOrgID(), identity.getId(), true);
+               oldOrgID, identity.getId(), true);
             eprovider.removeGroup(group.getIdentityID(), false);
          }
          else {
@@ -957,10 +1120,10 @@ public class IdentityService {
          }
       }
 
-      if(!OrganizationManager.getInstance().getCurrentOrgID().equals(identity.getId()) && !authUpdated) {
+      if(!Tool.equals(oldOrgID, identity.getId()) && !authUpdated) {
          updateIdentityPermissions(
             Identity.GROUP, group.getIdentityID(), group.getIdentityID(),
-            OrganizationManager.getInstance().getCurrentOrgID(), identity.getId(), false);
+            oldOrgID, identity.getId(), false);
 
       }
 
@@ -1610,6 +1773,19 @@ public class IdentityService {
       // (which matches on storage-key orgId) can silently skip this entry, same as bug #76866's
       // Defect A.
       authzProvider.setPermission(resourceType, newID, permission, orgId);
+
+      // the grant was re-keyed, so drop the old key rather than leave a stale copy behind
+      if(!Objects.equals(oldID, newID)) {
+         authzProvider.removePermission(resourceType, oldID);
+      }
+
+      // an org's self grant is keyed by its mutable name, and before the first rename the name
+      // is the id, so also drop a stale (org id, org id) grant left by an earlier rename
+      if(resourceType == ResourceType.SECURITY_ORGANIZATION && newID.orgID != null &&
+         !newID.orgID.equals(newID.name))
+      {
+         authzProvider.removePermission(resourceType, new IdentityID(newID.orgID, newID.orgID));
+      }
    }
 
    private ResourceType getResourceType(int type) {
@@ -1635,6 +1811,70 @@ public class IdentityService {
    }
 
    /**
+    * The ids and names of the default and self organizations are hard-coded constants, so they
+    * cannot be changed on any save path. A null new name is no change, but a null new id is
+    * refused because setOrganizationInfo treats it as a rename, as the EM does.
+    */
+   private void checkDefaultOrganizationRename(Organization oldOrg, EditOrganizationPaneModel model) {
+      String oldId = oldOrg.getId();
+      String oldName = oldOrg.getName();
+      boolean reserved =
+         Organization.getDefaultOrganizationID().equalsIgnoreCase(oldId) ||
+         Organization.getSelfOrganizationID().equalsIgnoreCase(oldId) ||
+         Organization.getDefaultOrganizationName().equals(oldName) ||
+         Organization.getSelfOrganizationName().equals(oldName);
+
+      if(!reserved) {
+         return;
+      }
+
+      if(!Tool.equals(oldId, model.id())) {
+         throw new MessageException(Catalog.getCatalog().getString("em.security.writeDefaultOrgId"));
+      }
+
+      if(model.name() != null && !model.name().equals(oldName)) {
+         throw new MessageException(Catalog.getCatalog().getString("em.security.writeDefaultOrgName"));
+      }
+   }
+
+   /**
+    * Rejects assigning a theme to an organization by a caller who is not a site administrator
+    * unless the theme is global or owned by the organization being edited. The edited
+    * organization's original id is used because its own themes are only moved to a new id after
+    * the theme is assigned. The default theme and the theme already stored on the organization
+    * are always allowed. A missing theme and another organization's theme get the same error so
+    * that theme ids cannot be probed.
+    */
+   public void checkOrganizationTheme(Organization oldOrg, EditOrganizationPaneModel model,
+                                      Principal principal)
+   {
+      String themeId = model.theme();
+
+      if(!SUtil.isMultiTenant() || !securityEngine.isSecurityEnabled() ||
+         OrganizationManager.getInstance().isSiteAdmin(principal))
+      {
+         return;
+      }
+
+      if(Tool.isEmptyString(themeId) || CustomTheme.DEFAULT_THEME_ID.equals(themeId) ||
+         Tool.equals(themeId, oldOrg.getTheme()))
+      {
+         return;
+      }
+
+      String orgId = oldOrg.getId();
+      boolean assignable = customThemesManager.getCustomThemes().stream()
+         .anyMatch(t -> themeId.equals(t.getId()) &&
+            (Tool.isEmptyString(t.getOrgID()) || t.getOrgID().equalsIgnoreCase(orgId)));
+
+      if(!assignable) {
+         throw new java.lang.SecurityException(
+            "Unauthorized attempt to assign theme \"" + themeId + "\" to organization \"" + orgId +
+            "\" by user " + principal);
+      }
+   }
+
+   /**
     * Update an identity.
     */
    public void setIdentity(Identity identity,
@@ -1656,6 +1896,14 @@ public class IdentityService {
 
          if(!(provider instanceof EditableAuthenticationProvider)) {
             return;
+         }
+
+         if(type == Identity.ORGANIZATION) {
+            checkDefaultOrganizationRename((Organization) identity, (EditOrganizationPaneModel) model);
+            OrganizationIdRules.checkRename(((Organization) identity).getId(),
+                                            ((EditOrganizationPaneModel) model).id());
+            checkOrganizationTheme((Organization) identity, (EditOrganizationPaneModel) model,
+                                   principal);
          }
 
          SecurityEngine.touch();
@@ -1688,6 +1936,7 @@ public class IdentityService {
             }
          }
 
+         checkSystemAdminGrant(oldIdentity, model, groupV, principal);
          Identity newIdentity = null;
 
          if(type == Identity.USER) {
@@ -1730,6 +1979,173 @@ public class IdentityService {
             licenseManager.userChanged();
          }
       }
+   }
+
+   /**
+    * Rejects an edit by a caller who is not a site administrator when the edit would grant
+    * system administrator privileges: adding a role or group that carries a system administrator
+    * role, setting the sysAdmin flag on a role, or editing an identity that already grants system
+    * administrator (e.g. adding members to the Administrator role). The endpoint permission check
+    * only proves the caller may edit the identity, not that it may grant site-wide privileges.
+    * <p>
+    * {@code groupV} is only consulted for user edits. A group's or role's own parent chain can
+    * only change by editing the would-be parent, which is covered by the "already grants system
+    * administrator" check on that parent.
+    */
+   private void checkSystemAdminGrant(Identity oldIdentity, EntityModel model,
+                                      List<IdentityID> groupV, Principal principal)
+   {
+      if(!securityEngine.isSecurityEnabled() ||
+         OrganizationManager.getInstance().isSiteAdmin(principal))
+      {
+         return;
+      }
+
+      AuthenticationProvider provider = securityProvider.getAuthenticationProvider();
+      int type = oldIdentity.getType();
+      Set<IdentityID> oldRoles = new HashSet<>();
+      boolean granted = false;
+
+      if(oldIdentity instanceof User user) {
+         addRoles(oldRoles, user.getRoles());
+         IdentityID[] oldGroups = toGroupIDs(user.getGroups(), user.getOrganizationID());
+         Set<IdentityID> oldGroupSet = new HashSet<>(Arrays.asList(oldGroups));
+         // setUserInfo() stores membership by group name in the edited user's organization
+         String newOrgID = model instanceof EditUserPaneModel userModel ?
+            userModel.organization() : user.getOrganizationID();
+         IdentityID[] addedGroups = groupV.stream()
+            .map(g -> new IdentityID(g.name, newOrgID))
+            .filter(g -> !oldGroupSet.contains(g))
+            .toArray(IdentityID[]::new);
+         granted = grantsSystemAdmin(provider, oldRoles.toArray(new IdentityID[0]), oldGroups) ||
+            grantsSystemAdmin(provider, new IdentityID[0], addedGroups);
+      }
+      else if(oldIdentity instanceof Group group) {
+         addRoles(oldRoles, group.getRoles());
+         granted = grantsSystemAdmin(
+            provider, group.getRoles(),
+            toGroupIDs(new String[] { group.getName() }, group.getOrganizationID()));
+      }
+      else if(oldIdentity instanceof Role role) {
+         addRoles(oldRoles, role.getRoles());
+         granted = grantsSystemAdmin(provider, new IdentityID[] { role.getIdentityID() }, null) ||
+            model instanceof EditRolePaneModel roleModel && roleModel.isSysAdmin();
+      }
+
+      // Organization edits are intentionally not checked: setOrganizationInfo() does not persist
+      // model.roles() and rejects global roles (such as Administrator) as organization members.
+      // Revisit this if organization roles are ever saved through setIdentity().
+      if(!granted && (type == Identity.USER || type == Identity.GROUP || type == Identity.ROLE)) {
+         IdentityID[] addedRoles = model.roles().stream()
+            .filter(r -> r != null && !oldRoles.contains(r))
+            .toArray(IdentityID[]::new);
+         granted = grantsSystemAdmin(provider, addedRoles, null);
+      }
+
+      if(granted) {
+         throw new java.lang.SecurityException(
+            "Unauthorized attempt to grant system administrator privileges via \"" +
+            oldIdentity.getIdentityID() + "\" by user " + principal);
+      }
+   }
+
+   /**
+    * Rejects creating a user or group under the given parent group by a caller who is not a site
+    * administrator when the parent group, or one of its ancestors, grants system administrator.
+    * Identity creation adds the new identity to the provider directly, bypassing setIdentity().
+    */
+   public void checkSystemAdminParentGroup(String parentGroup, String orgID, Principal principal) {
+      if(parentGroup == null || !securityEngine.isSecurityEnabled() ||
+         OrganizationManager.getInstance().isSiteAdmin(principal))
+      {
+         return;
+      }
+
+      AuthenticationProvider provider = securityProvider.getAuthenticationProvider();
+
+      if(grantsSystemAdmin(provider, new IdentityID[0],
+                           new IdentityID[] { new IdentityID(parentGroup, orgID) }))
+      {
+         throw new java.lang.SecurityException(
+            "Unauthorized attempt to grant system administrator privileges via parent group \"" +
+            parentGroup + "\" by user " + principal);
+      }
+   }
+
+   /**
+    * Determines if a caller that is not a site administrator is trying to act on a user, group
+    * or role that grants system administrator, which only a site administrator may do.
+    */
+   private boolean isSystemAdminTargetDenied(IdentityID identityId, int type, Principal principal) {
+      if(identityId == null || !securityEngine.isSecurityEnabled() ||
+         OrganizationManager.getInstance().isSiteAdmin(principal))
+      {
+         return false;
+      }
+
+      AuthenticationProvider provider = securityProvider.getAuthenticationProvider();
+
+      if(type == Identity.USER) {
+         User user = provider.getUser(identityId);
+         return user != null && grantsSystemAdmin(
+            provider, user.getRoles(), toGroupIDs(user.getGroups(), user.getOrganizationID()));
+      }
+      else if(type == Identity.GROUP) {
+         return grantsSystemAdmin(provider, new IdentityID[0], new IdentityID[] { identityId });
+      }
+      else if(type == Identity.ROLE) {
+         return grantsSystemAdmin(provider, new IdentityID[] { identityId }, null);
+      }
+
+      return false;
+   }
+
+   private static void addRoles(Set<IdentityID> set, IdentityID[] roles) {
+      if(roles != null) {
+         set.addAll(Arrays.asList(roles));
+      }
+   }
+
+   private static IdentityID[] toGroupIDs(String[] names, String orgID) {
+      return names == null ? new IdentityID[0] :
+         Arrays.stream(names).map(n -> new IdentityID(n, orgID)).toArray(IdentityID[]::new);
+   }
+
+   /**
+    * Determines if the given roles, or the roles held by the given groups and their ancestors,
+    * include or inherit a system administrator role. A non-existent role whose name matches the
+    * global system administrator role is treated as a spoofed grant.
+    */
+   private static boolean grantsSystemAdmin(AuthenticationProvider provider, IdentityID[] roles,
+                                            IdentityID[] groups)
+   {
+      List<IdentityID> allRoles =
+         roles == null ? new ArrayList<>() : new ArrayList<>(Arrays.asList(roles));
+
+      if(groups != null) {
+         for(IdentityID groupID : provider.getAllGroups(groups)) {
+            Group group = provider.getGroup(groupID);
+
+            if(group != null && group.getRoles() != null) {
+               allRoles.addAll(Arrays.asList(group.getRoles()));
+            }
+         }
+      }
+
+      for(IdentityID role : provider.getAllRoles(allRoles.toArray(new IdentityID[0]))) {
+         if(role == null) {
+            continue;
+         }
+
+         if(provider.isSystemAdministratorRole(role) ||
+            role.orgID != null && provider.getRole(role) == null &&
+            provider.isSystemAdministratorRole(new IdentityID(role.name, null)))
+         {
+            return true;
+         }
+      }
+
+      return false;
    }
 
    private IdentityInfoRecord getIdentityInfoRecord(EntityModel model,
@@ -1805,7 +2221,7 @@ public class IdentityService {
       user.setActive(model.status());
       user.setOrganization(model.organization());
       user.setGoogleSSOId(ouser.getGoogleSSOId());
-      addOrganizationMember(model.organization(),model.name(),eprovider);
+      renameOrganizationMember(model.organization(), ouser.getName(), model.name(), eprovider);
 
       Properties localeProperties = SUtil.loadLocaleProperties();
       String localeString = null;
@@ -1908,7 +2324,7 @@ public class IdentityService {
       final FSGroup group = new FSGroup(id, locale, memberNames, roles);
 
       group.setOrganization(model.organization());
-      addOrganizationMember(model.organization(),model.name(),eprovider);
+      renameOrganizationMember(model.organization(), oldGroup.getName(), model.name(), eprovider);
 
       IdentityID[] mgroups = new IdentityID[groupV.size()];
       groupV.toArray(mgroups);
@@ -1989,6 +2405,15 @@ public class IdentityService {
       IdentityID newOrgID = new IdentityID(model.name(), model.organization());
       IdentityID oldOrgID = new IdentityID(model.oldName(), model.organization());
 
+      if(model.organization() != null &&
+         !model.organization().equals(OrganizationManager.getInstance().getCurrentOrgID()) &&
+         !isCrossOrgEditAllowed(principal))
+      {
+         throw new java.lang.SecurityException(
+            "Unauthorized attempt to edit role \"" + oldOrgID + "\" of another organization by user " +
+            principal);
+      }
+
       FSRole role = new FSRole(newOrgID, model.description());
       role.setDefaultRole(model.defaultRole());
       role.setSysAdmin(model.isSysAdmin());
@@ -2006,7 +2431,9 @@ public class IdentityService {
       for(IdentityID pgroupID : pgroups) {
          FSGroup pgroup = (FSGroup) eprovider.getGroup(pgroupID);
 
-         if(pgroup == null || !OrganizationManager.getInstance().getCurrentOrgID().equals(pgroup.getOrganizationID())) {
+         if(pgroup == null || (role.getOrganizationID() != null &&
+            !Tool.equals(pgroup.getOrganizationID(), role.getOrganizationID())))
+         {
             continue;
          }
 
@@ -2037,7 +2464,7 @@ public class IdentityService {
 
          FSUser puser = (FSUser) eprovider.getUser(puserName);
 
-         if(puser == null || (model.organization() != null && !OrganizationManager.getInstance().getCurrentOrgID().equals(puser.getOrganizationID()))) {
+         if(puser == null) {
             continue;
          }
 
@@ -2078,6 +2505,15 @@ public class IdentityService {
       return role;
    }
 
+   /**
+    * Determines if the caller may change the role membership of identities outside of its current
+    * organization, which only a site administrator may do.
+    */
+   private boolean isCrossOrgEditAllowed(Principal principal) {
+      return !securityEngine.isSecurityEnabled() ||
+         OrganizationManager.getInstance().isSiteAdmin(principal);
+   }
+
    private Identity setOrganizationInfo(FSOrganization oldOrg, EditOrganizationPaneModel model,
                                         EditableAuthenticationProvider eprovider,
                                         Principal principal)
@@ -2096,10 +2532,11 @@ public class IdentityService {
       String[] oldMembers = oldOrg.getMembers();
 
       if(oldMembers != null) {
+         // members hidden from the editor are never sent back by the client, so keep them
          Arrays.stream(oldMembers)
             .filter(m -> securityProvider.getUser(new IdentityID(m, oldOrg.getId())) != null)
-            .filter(m -> !securityProvider.checkPermission(principal, ResourceType.SECURITY_USER,
-                                                           m, ResourceAction.ADMIN))
+            .filter(m -> isOrgMemberHiddenFrom(new IdentityID(m, oldOrg.getId()), principal))
+            .filter(m -> !memberNames.contains(m))
             .forEach(m -> memberNames.add(m));
       }
 
@@ -2121,10 +2558,16 @@ public class IdentityService {
          }
       }
 
+      // a dropped group or role is deleted, so it must pass the same checks as deleteIdentities().
+      // Called after the validation, so a rejected save leaves no message behind on the thread.
+      keepUndeletableGroupsAndRoles(oldOrg.getId(), memberNames, eprovider, principal);
+
       newOrg.setMembers(memberNames.toArray(new String[0]));
       newOrg.setActive(model.status());
 
-      String oldID = eprovider.getOrgIdFromName(model.oldName());
+      // the old organization is the one being edited, a name lookup can resolve another
+      // organization with the same display name
+      String oldID = oldOrg.getId();
       oldID = oldID != null ? oldID : id;
       Organization fromOrg = eprovider.getOrganization(oldID);
       String fromOrgID = fromOrg != null ? fromOrg.getId() : null;
@@ -2133,7 +2576,7 @@ public class IdentityService {
             !Tool.equals(oldOrg.getMembers(), memberNames) ||
             !Tool.equals(fromOrgID, model.id()))
       {
-         updateOrganizationMembers(newOrg, members, oldID, eprovider);
+         updateOrganizationMembers(newOrg, members, oldID, eprovider, principal);
       }
 
       // gated on the organization id, not on Organization.equals (which also compares the
@@ -2155,6 +2598,8 @@ public class IdentityService {
          }
       }
 
+      String theme = getEligibleOrgTheme(model.theme(), oldOrg.getTheme(), oldOrg.getId());
+
       if(fromOrg != null && Tool.equals(fromOrg.getId(), newOrg.getId()) &&
          fromOrg instanceof FSOrganization)
       {
@@ -2163,21 +2608,37 @@ public class IdentityService {
          // locale/theme/member sync above.
          ((FSOrganization) fromOrg).setName(newOrg.getName());
          ((FSOrganization) fromOrg).setLocale(localeString);
-         updateCustomThemeOrganization(fromOrg.getTheme(), model.theme(), fromOrgID, fromOrgID);
-         ((FSOrganization) fromOrg).setTheme(model.theme());
+         updateCustomThemeOrganization(fromOrg.getTheme(), theme, fromOrgID, fromOrgID);
+         ((FSOrganization) fromOrg).setTheme(theme);
          eprovider.setOrganization(fromOrgID, fromOrg);
 
          return fromOrg;
       }
 
       newOrg.setLocale(localeString);
-      updateCustomThemeOrganization(fromOrg.getTheme(), model.theme(), fromOrgID, newOrg.getId());
-      newOrg.setTheme(model.theme());
+      updateCustomThemeOrganization(fromOrg.getTheme(), theme, fromOrgID, newOrg.getId());
+      newOrg.setTheme(theme);
       String syncOldName = model.oldName();
-      String syncOldOrgID = eprovider.getOrgIdFromName(syncOldName);
-      syncIdentity(eprovider, newOrg, new IdentityID(syncOldName, syncOldOrgID));
+      syncIdentity(eprovider, newOrg, new IdentityID(syncOldName, oldID));
 
       return newOrg;
+   }
+
+   /**
+    * Determines if an organization's user member is hidden from the given principal in the
+    * organization member list. A caller that is not a site administrator can't see users it has
+    * no admin permission on, nor site administrator users, whatever fallback grant it may hold.
+    */
+   public boolean isOrgMemberHiddenFrom(IdentityID userID, Principal principal) {
+      if(!securityProvider.checkPermission(principal, ResourceType.SECURITY_USER,
+                                           userID.convertToKey(), ResourceAction.ADMIN))
+      {
+         return true;
+      }
+
+      return OrganizationManager.getInstance().isSiteAdmin(securityProvider, userID) &&
+         !(principal instanceof XPrincipal &&
+            OrganizationManager.getInstance().isSiteAdmin(principal));
    }
 
    private boolean isExistingIdentityOfOtherOrg(IdentityModel member, String orgID,
@@ -2199,38 +2660,76 @@ public class IdentityService {
       };
    }
 
+   /**
+    * Gets the theme to store as the default of an organization. Only a global theme or a theme
+    * owned by the organization may be used, any other requested theme is ignored and the
+    * organization keeps its current theme. An empty theme clears the organization default.
+    *
+    * @param theme        the requested theme id.
+    * @param currentTheme the current theme id of the organization.
+    * @param orgID        the current id of the organization.
+    *
+    * @return the theme id to store.
+    */
+   private String getEligibleOrgTheme(String theme, String currentTheme, String orgID) {
+      if(Tool.isEmptyString(theme)) {
+         return null;
+      }
+
+      if(Tool.equals(theme, currentTheme)) {
+         return currentTheme;
+      }
+
+      boolean eligible = customThemesManager.getCustomThemes().stream()
+         .anyMatch(t -> Tool.equals(t.getId(), theme) &&
+            (Tool.isEmptyString(t.getOrgID()) || Tool.equals(t.getOrgID(), orgID)));
+
+      if(!eligible) {
+         LOG.warn("Ignoring theme {} for organization {} because it is not a global theme or " +
+                     "a theme of the organization", theme, orgID);
+         return currentTheme;
+      }
+
+      return theme;
+   }
+
    private void updateCustomThemeOrganization(String oldThemeId, String themeID, String oldOrgID, String newOrgID) {
       if(!Tool.equals(oldThemeId, themeID)) {
-         Set<CustomTheme> themes = new HashSet<>(customThemesManager.getCustomThemes());
-         boolean modified = false;
+         customThemesManager.updateCustomThemes(themes -> {
+            boolean modified = false;
 
-         if(oldThemeId != null) {
-            CustomTheme oldTheme = themes.stream()
-               .filter(t -> Tool.equals(t.getId(), oldThemeId))
-               .findFirst().orElse(null);
+            if(oldThemeId != null) {
+               CustomTheme oldTheme = themes.stream()
+                  .filter(t -> Tool.equals(t.getId(), oldThemeId))
+                  .findFirst().orElse(null);
 
-            if(oldTheme != null) {
-               oldTheme.getOrganizations().remove(oldOrgID);
-               modified = true;
+               if(oldTheme != null) {
+                  oldTheme.getOrganizations().remove(oldOrgID);
+                  modified = true;
+               }
             }
-         }
+
+            if(themeID != null) {
+               CustomTheme theme = themes.stream()
+                  .filter(t -> Tool.equals(t.getId(), themeID))
+                  .findFirst().orElse(null);
+
+               if(theme != null) {
+                  List<String> themeOrgs = theme.getOrganizations();
+
+                  if(!themeOrgs.contains(newOrgID)) {
+                     themeOrgs.add(newOrgID);
+                  }
+
+                  theme.setOrganizations(themeOrgs);
+                  modified = true;
+               }
+            }
+
+            return modified ? themes : null;
+         });
 
          if(themeID != null) {
-            CustomTheme theme = themes.stream()
-               .filter(t -> Tool.equals(t.getId(), themeID))
-               .findFirst().orElse(null);
-
-            if(theme != null) {
-               List<String> themeOrgs = theme.getOrganizations();
-
-               if(!themeOrgs.contains(newOrgID)) {
-                  themeOrgs.add(newOrgID);
-               }
-
-               theme.setOrganizations(themeOrgs);
-               modified = true;
-            }
-
             customThemesManager.setOrgSelectedTheme(themeID, newOrgID);
          }
          else {
@@ -2240,10 +2739,6 @@ public class IdentityService {
          // If org ID changed, clean up old org's selection property
          if(!Tool.equals(oldOrgID, newOrgID)) {
             customThemesManager.setOrgSelectedTheme("default", oldOrgID);
-         }
-
-         if(modified) {
-            customThemesManager.setCustomThemes(themes);
          }
       }
    }
@@ -2269,10 +2764,31 @@ public class IdentityService {
       }
    }
 
-   private void addOrganizationMember(String orgID, String memberName, EditableAuthenticationProvider provider) {
+   /**
+    * Replaces a renamed identity's name in the organization's member list. Does nothing when
+    * the name is unchanged.
+    */
+   private void renameOrganizationMember(String orgID, String oldName, String newName,
+                                         EditableAuthenticationProvider provider)
+   {
+      if(Tool.equals(oldName, newName)) {
+         return;
+      }
+
       Organization org = provider.getOrganization(orgID);
+
+      if(org == null) {
+         return;
+      }
+
       List<String> members = org.getMembers() != null ? new ArrayList<>(Arrays.asList(org.getMembers())) : new ArrayList<>();
-      members.add(memberName);
+      members.remove(oldName);
+
+      if(!members.contains(newName)) {
+         members.add(newName);
+      }
+
+      org.setMembers(members.toArray(new String[0]));
       provider.setOrganization(orgID, org);
    }
 
@@ -2311,6 +2827,101 @@ public class IdentityService {
       }
 
       return identityID.equals(IdentityID.getIdentityIDFromKey(principal.getName()));
+   }
+
+   /**
+    * Determines if the principal is refused the deletion of a user, group or role because it has
+    * no admin permission on it, or because it grants system administrator and the principal is
+    * not a site administrator. Shared by deleteIdentities() and the organization member update,
+    * so that dropping a member from an organization is checked the same as deleting it.
+    */
+   private boolean isIdentityDeleteDenied(Principal principal, ResourceType resourceType,
+                                          IdentityID identityId, int type)
+   {
+      try {
+         if(!securityEngine.checkPermission(principal, resourceType, identityId.convertToKey(),
+                                            ResourceAction.ADMIN))
+         {
+            return true;
+         }
+      }
+      catch(Exception ignore) {
+         return true;
+      }
+
+      // only a site admin may delete an identity that grants system administrator
+      return isSystemAdminTargetDenied(identityId, type, principal);
+   }
+
+   /**
+    * Determines if the principal is deleting its own user or a role its user holds.
+    */
+   private boolean isSelfDelete(Principal principal, IdentityID identityId, int type,
+                                AuthenticationProvider provider)
+   {
+      return isSelfAndEMUser(principal, identityId, type) ||
+         isSelfRole(provider.getUser(IdentityID.getIdentityIDFromKey(principal.getName())),
+                    identityId, type);
+   }
+
+   /**
+    * Keeps the groups and roles dropped from an organization's member list that the principal
+    * may not delete, by adding them back to the member names, so that the member update neither
+    * deletes them nor leaves them out of the organization's members. The organization's groups
+    * and roles are read from the provider, the same set the member update deletes from, because
+    * the stored member list of an organization is not kept up to date.
+    */
+   private void keepUndeletableGroupsAndRoles(String orgID, List<String> memberNames,
+                                              EditableAuthenticationProvider eprovider,
+                                              Principal principal)
+   {
+      List<IdentityModel> dropped = new ArrayList<>();
+      Arrays.stream(eprovider.getGroups())
+         .filter(g -> Tool.equals(orgID, g.orgID) && !memberNames.contains(g.name))
+         .forEach(g -> dropped.add(
+            IdentityModel.builder().identityID(g).type(Identity.GROUP).build()));
+      Arrays.stream(eprovider.getRoles())
+         .filter(r -> Tool.equals(orgID, r.orgID) && !memberNames.contains(r.name))
+         .forEach(r -> dropped.add(
+            IdentityModel.builder().identityID(r).type(Identity.ROLE).build()));
+      Catalog catalog = Catalog.getCatalog(principal);
+      List<String> unauthorized = new ArrayList<>();
+
+      for(IdentityModel member : dropped) {
+         IdentityID id = member.identityID();
+         int type = member.type();
+         ResourceType resourceType = type == Identity.GROUP ?
+            ResourceType.SECURITY_GROUP : ResourceType.SECURITY_ROLE;
+
+         if(isIdentityDeleteDenied(principal, resourceType, id, type)) {
+            if(isSystemAdminTargetDenied(id, type, principal)) {
+               Tool.addUserMessage(
+                  catalog.getString("em.security.orgAdmin.identityPermissionDenied"));
+            }
+            else {
+               unauthorized.add(id.getName());
+            }
+         }
+         else if(principal != null && isSelfDelete(principal, id, type, eprovider)) {
+            Tool.addUserMessage(catalog.getString("em.security.delself"));
+         }
+         else {
+            continue;
+         }
+
+         if(!memberNames.contains(id.getName())) {
+            memberNames.add(id.getName());
+         }
+      }
+
+      if(!unauthorized.isEmpty()) {
+         String warning = String.format(
+            "Unauthorized access to resource(s) \"%s\" by user %s.",
+            String.join(", ", unauthorized), principal != null ? principal.getName() : null);
+         LOG.warn(warning);
+         Tool.addUserMessage(catalog.getString("em.common.security.no.permission",
+                                               String.join(", ", unauthorized)));
+      }
    }
 
    /**
@@ -2808,11 +3419,54 @@ public class IdentityService {
          return;
       }
 
-      try {
-         externalStorageService.renameFolder(oorg, norg);
+      // a reserved id names a system folder of external storage (or collides with the base
+      // path), so moving it would move system data along with, or into, the organization files
+      if(OrganizationIdRules.isReserved(oorg) || OrganizationIdRules.isReserved(norg)) {
+         LOG.warn(
+            "Did not move the external storage files of organization {} to {}, the organization " +
+            "ID is reserved. Move the organization files manually.", oorg, norg);
+         return;
       }
-      catch(Exception e) {
-         LOG.warn("Failed to rename folder for organization", oorg, e);
+
+      // the files are in a folder named by the id at the top of external storage, and in each
+      // save location that is not an FTP server (location/orgId/user/...)
+      List<String> locations = OrganizationIdRules.getSaveLocationPaths();
+      List<String[]> folders = new ArrayList<>();
+      folders.add(new String[] { oorg, norg });
+
+      for(String location : locations) {
+         folders.add(new String[] { location + "/" + oorg, location + "/" + norg });
+      }
+
+      boolean failed = false;
+
+      for(String[] folder : folders) {
+         // a folder that is, or holds, a save location has the files of every organization
+         if(OrganizationIdRules.containsSaveLocation(folder[0], locations) ||
+            OrganizationIdRules.containsSaveLocation(folder[1], locations))
+         {
+            LOG.warn(
+               "Did not move the external storage folder {} to {}, the folder is used by a " +
+               "server save location. Move the organization files manually.", folder[0], folder[1]);
+            continue;
+         }
+
+         // keep moving the other folders when one fails
+         try {
+            externalStorageService.renameFolder(folder[0], folder[1]);
+         }
+         catch(Exception e) {
+            LOG.warn("Failed to rename folder {} to {} for organization {}",
+                     folder[0], folder[1], oorg, e);
+            failed = true;
+         }
+      }
+
+      if(failed) {
+         // one localized message for every failure, never the raw exception text, which can
+         // contain server paths
+         Tool.addUserMessage(Catalog.getCatalog(ThreadContext.getContextPrincipal())
+                                .getString("em.organization.renameIssue"));
       }
    }
 

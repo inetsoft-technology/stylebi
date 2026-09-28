@@ -36,6 +36,7 @@ import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.portal.CustomTheme;
 import inetsoft.sree.portal.CustomThemesManager;
+import inetsoft.sree.portal.CustomThemesManagerMocks;
 import inetsoft.sree.security.*;
 import inetsoft.uql.util.Identity;
 import inetsoft.util.Catalog;
@@ -129,6 +130,7 @@ class SecurityServiceTest {
       // instead of just verifying a call was made with the right arguments.
       customThemesManager = mock(CustomThemesManager.class, withSettings().lenient());
       when(customThemesManager.getCustomThemes()).thenReturn(new HashSet<>());
+      CustomThemesManagerMocks.applyUpdates(customThemesManager);
       themeService = new IdentityThemeService(customThemesManager);
 
       userTreeService = mock(UserTreeService.class, withSettings().lenient());
@@ -1184,6 +1186,8 @@ class SecurityServiceTest {
       when(editableProvider.getOrganization("org1")).thenReturn(new FSOrganization("org1"));
       CustomTheme theme = new CustomTheme();
       theme.setId("theme-1");
+      // an org theme: a global theme's bare names only refer to default-org identities
+      theme.setOrgID("org1");
       when(customThemesManager.getCustomThemes()).thenReturn(new HashSet<>(Set.of(theme)));
 
       SecurityUser request = new SecurityUser();
@@ -1203,6 +1207,8 @@ class SecurityServiceTest {
       stubCommonCreateGates();
       CustomTheme theme = new CustomTheme();
       theme.setId("theme-1");
+      // an org theme: a global theme's bare names only refer to default-org identities
+      theme.setOrgID("org1");
       when(customThemesManager.getCustomThemes()).thenReturn(new HashSet<>(Set.of(theme)));
 
       SecurityGroup request = new SecurityGroup();
@@ -1230,6 +1236,8 @@ class SecurityServiceTest {
       stubCommonCreateGates();
       CustomTheme theme = new CustomTheme();
       theme.setId("theme-1");
+      // an org theme: a global theme's bare names only refer to default-org identities
+      theme.setOrgID("org1");
       when(customThemesManager.getCustomThemes()).thenReturn(new HashSet<>(Set.of(theme)));
 
       IdentityID groupId = new IdentityID("newgroup1", "org1");
@@ -1257,6 +1265,8 @@ class SecurityServiceTest {
       stubCommonCreateGates();
       CustomTheme theme = new CustomTheme();
       theme.setId("theme-1");
+      // an org theme: a global theme's bare names only refer to default-org identities
+      theme.setOrgID("org1");
       when(customThemesManager.getCustomThemes()).thenReturn(new HashSet<>(Set.of(theme)));
 
       SecurityRole request = new SecurityRole();
@@ -1283,6 +1293,8 @@ class SecurityServiceTest {
       when(orgManager.isSiteAdmin(principal)).thenReturn(false);
       CustomTheme theme = new CustomTheme();
       theme.setId("theme-1");
+      // an org theme: a global theme's bare names only refer to default-org identities
+      theme.setOrgID("org1");
       when(customThemesManager.getCustomThemes()).thenReturn(new HashSet<>(Set.of(theme)));
 
       SecurityUser request = new SecurityUser();
@@ -1308,6 +1320,8 @@ class SecurityServiceTest {
       when(orgManager.isSiteAdmin(principal)).thenReturn(false);
       CustomTheme theme = new CustomTheme();
       theme.setId("theme-1");
+      // an org theme: a global theme's bare names only refer to default-org identities
+      theme.setOrgID("org1");
       when(customThemesManager.getCustomThemes()).thenReturn(new HashSet<>(Set.of(theme)));
 
       SecurityGroup request = new SecurityGroup();
@@ -1333,6 +1347,8 @@ class SecurityServiceTest {
       when(orgManager.isSiteAdmin(principal)).thenReturn(false);
       CustomTheme theme = new CustomTheme();
       theme.setId("theme-1");
+      // an org theme: a global theme's bare names only refer to default-org identities
+      theme.setOrgID("org1");
       when(customThemesManager.getCustomThemes()).thenReturn(new HashSet<>(Set.of(theme)));
 
       SecurityRole request = new SecurityRole();

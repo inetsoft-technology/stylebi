@@ -480,7 +480,9 @@ public class ScheduleTaskService {
    }
 
    public void setTaskEnabled(String name, boolean enabled, Principal principal) throws Exception {
-      ScheduleTask task = scheduleManager.getScheduleTask(name);
+      // Bug #77213, don't mutate the cached task (for an extension task this is the instance
+      // the extension reload compares against to decide whether to update the scheduler)
+      ScheduleTask task = scheduleManager.getScheduleTask(name).clone();
       task.setEnabled(enabled);
       scheduleService.saveTask(name, task, principal);
    }
@@ -580,6 +582,9 @@ public class ScheduleTaskService {
       sanitizeConditions(task, originalTask, principal);
 
       if(!internalTask) {
+         List<ScheduleAction> originalActions = new ArrayList<>();
+         originalTask.getActionStream().forEach(originalActions::add);
+
          for(int i = 0; i < model.actions().size(); i++) {
             ScheduleAction scheduleAction = originalTask.getActionCount() > i ? originalTask.getAction(i) : null;
             ScheduleAction action =
@@ -589,7 +594,7 @@ public class ScheduleTaskService {
                continue;
             }
 
-            sanitizeAction(action, scheduleAction, principal);
+            sanitizeAction(action, scheduleAction, principal, originalActions);
 
             if(action instanceof IndividualAssetBackupAction) {
                IndividualAssetBackupAction backupAction = (IndividualAssetBackupAction) action;
@@ -715,10 +720,34 @@ public class ScheduleTaskService {
    public void sanitizeAction(ScheduleAction action, ScheduleAction originalAction,
                               Principal principal)
    {
-      if(!(action instanceof ViewsheetAction vsa)) {
-         return;
+      sanitizeAction(action, originalAction, principal,
+         originalAction == null ? List.of() : List.of(originalAction));
+   }
+
+   /**
+    * Restores the fields of an action that the principal is not permitted to change, and rejects
+    * the action if it references a secret id that the principal may not use.
+    *
+    * @param action          the action being saved.
+    * @param originalAction  the stored action that it replaces, or {@code null} if none.
+    * @param principal       the principal saving the action.
+    * @param originalActions all the actions of the stored task. A secret id that one of them
+    *                        already uses may be kept.
+    */
+   public void sanitizeAction(ScheduleAction action, ScheduleAction originalAction,
+                              Principal principal, Collection<ScheduleAction> originalActions)
+   {
+      if(action instanceof ViewsheetAction vsa) {
+         sanitizeScheduleOptions(vsa, originalAction, principal);
       }
 
+      new ScheduleSecretIdChecker(securityEngine)
+         .checkSecretIds(action, originalActions, principal);
+   }
+
+   private void sanitizeScheduleOptions(ViewsheetAction vsa, ScheduleAction originalAction,
+                                        Principal principal)
+   {
       boolean canSetNotificationEmail = scheduleService.checkPermission(
          principal, ResourceType.SCHEDULE_OPTION, "notificationEmail");
       boolean canSaveToDisk = scheduleService.checkPermission(
@@ -942,9 +971,12 @@ public class ScheduleTaskService {
                                              Principal principal)
       throws Exception
    {
+      // Bug #77213, data cycle tasks are scheduled by their data cycle and can't be saved
+      // as schedule tasks. Skip them instead of changing the conditions of the cached tasks.
       List<ScheduleTask> tasks = taskNames.stream()
          .map(scheduleManager::getScheduleTask)
          .filter(Objects::nonNull)
+         .filter(task -> task.getType() != ScheduleTask.Type.CYCLE_TASK)
          .collect(Collectors.toList());
       long count = tasks.stream()
          .flatMap(ScheduleTask::getConditionStream)
@@ -1047,7 +1079,7 @@ public class ScheduleTaskService {
       return false;
    }
 
-   private void setTaskOptions(TaskOptionsPaneModel model, ScheduleTask task, Principal principal) {
+   void setTaskOptions(TaskOptionsPaneModel model, ScheduleTask task, Principal principal) {
       task.setEnabled(model.enabled());
       task.setDeleteIfNoMoreRun(model.deleteIfNotScheduledToRun());
 
@@ -1067,7 +1099,17 @@ public class ScheduleTaskService {
 
       int type = model.idType();
       Identity oldIdentity = task.getIdentity();
-      Identity newIdentity = SUtil.getIdentity(getIdentityId(model.idName(), principal), type);
+      IdentityID newIdentityID = getIdentityId(model.idName(), principal);
+      Identity newIdentity = SUtil.getIdentity(newIdentityID, type);
+
+      // Bug #77120, an unrelated edit must not clear an execute-as identity that can't be
+      // resolved right now, otherwise the task silently falls back to running as its owner
+      if(newIdentity == null && oldIdentity != null && oldIdentity.getType() == type &&
+         Tool.equals(oldIdentity.getIdentityID(), newIdentityID))
+      {
+         newIdentity = oldIdentity;
+      }
+
       task.setIdentity(newIdentity);
 
       if((oldIdentity == null || oldIdentity.getType() == Identity.USER) &&

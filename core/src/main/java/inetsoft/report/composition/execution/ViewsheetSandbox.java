@@ -50,6 +50,7 @@ import inetsoft.util.audit.ExecutionBreakDownRecord;
 import inetsoft.util.log.LogContext;
 import inetsoft.util.profile.ProfileUtils;
 import inetsoft.util.script.*;
+import inetsoft.util.stall.LockStallException;
 import inetsoft.web.viewsheet.service.SharedFilterService;
 import inetsoft.web.vswizard.model.VSWizardConstants;
 import inetsoft.web.vswizard.recommender.WizardRecommenderUtil;
@@ -1542,6 +1543,10 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
          }
          catch(ConfirmException | ScriptException ex) {
             // ignore
+         }
+         catch(LockRestoreException ex) {
+            // the sandbox lock the caller holds was lost, don't go on as if it were held (77153)
+            throw ex;
          }
          catch(Exception ex) {
             if(isCancelled(ts)) {
@@ -5471,6 +5476,15 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
                   cache = false;
                   throw cex2;
                }
+               catch(Exception ex) {
+                  // a table whose query failed with a lock stall must not leave a cached NULL,
+                  // the next read would take it for no table instead of building it again (#77123)
+                  if(LockStallException.find(ex) != null) {
+                     cache = false;
+                  }
+
+                  throw ex;
+               }
                finally {
                   // Inside a script this thread proceeds without a sandbox lock it cannot get
                   // (see lockRead()), so a writer may have been changing the sandbox while the
@@ -5699,7 +5713,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       if(obj == null && initial) {
          boolean cache = true;
          boolean inExec = JavaScriptEngine.getExecScriptable() != null;
-         long skippedLocks = inExec ? getSkippedLockCount() : 0;
+         long skippedLocks = getSkippedLockCount();
 
          // if called from script, the locking should already be in place. lock it again
          // may cause deadlock if the processing is started in a separate thread. (52463)
@@ -5741,10 +5755,20 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
                throw ex;
             }
          }
+         catch(Exception ex) {
+            // a query that failed with a lock stall must not leave a cached NULL, the next
+            // read would take it for no data instead of running the query again (#77123)
+            if(LockStallException.find(ex) != null) {
+               cache = false;
+            }
+
+            throw ex;
+         }
          finally {
-            // a query run without a sandbox lock it asked for (script thread, see lockRead())
-            // may have overlapped a writer, don't cache its result (#76905)
-            if(inExec && isLockSkippedSince(skippedLocks)) {
+            // a query run without a sandbox lock it asked for (script thread, see lockRead(),
+            // or any thread whose restoreLocks() failed) may have overlapped a writer, don't
+            // cache its result (#76905, #77153)
+            if(isLockSkippedSince(skippedLocks)) {
                cache = false;
             }
 
@@ -6222,6 +6246,11 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       }
       catch(ExpiredSheetException ex) {
          LOG.info("Viewsheet has expired: " + ex);
+      }
+      catch(LockRestoreException ex) {
+         // not a meta data error: the sandbox lock this thread's callers hold was lost, so
+         // they must not go on as if it were held, even while refreshing (77153)
+         throw ex;
       }
       catch(Exception ex) {
          // @by stephenwebster, For Bug #1432
@@ -8054,6 +8083,34 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
     */
    private long getSkippedLockCount() {
       return AssetDataCache.isProcessorThread() ? 0 : thisLock.getSkippedCount();
+   }
+
+   /**
+    * Get the number of sandbox lock entries this thread has lost so far, because a
+    * restoreLocks() failed (see UpgradableReadWriteLock.getLostCount()). A caller that takes
+    * the outermost lock reads it before the lock and passes it to
+    * {@link #checkLockNotLostSince(long)} after the unlock.
+    */
+   public long getLockLostCount() {
+      return AssetDataCache.isProcessorThread() ? 0 : thisLock.getLostCount();
+   }
+
+   /**
+    * Throw if this thread lost a sandbox lock entry since {@code lostCount} was read with
+    * {@link #getLockLostCount()}: part of the caller's locked work ran without the lock, so
+    * the caller must fail instead of reporting success, even if every exception on the way
+    * was caught (77153). Call it after the unlock and the cleanup in the caller's finally.
+    *
+    * @throws LockRestoreException if a lock entry was lost.
+    */
+   public void checkLockNotLostSince(long lostCount) {
+      long lost = getLockLostCount();
+
+      if(lost != lostCount) {
+         throw new LockRestoreException(
+            "Lost " + (lost - lostCount) + " viewsheet sandbox lock entries to a failed " +
+            "restore while holding the lock (see bug #77153)");
+      }
    }
 
    /**

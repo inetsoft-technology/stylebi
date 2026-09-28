@@ -474,6 +474,16 @@ public class AssetCondition extends Condition implements AssetObject {
    }
 
    /**
+    * Get the runtime sub table set by {@link #initSubTable(XTable)}, which
+    * {@link #getValues()} reads lazily.
+    * @return the sub table, or {@code null} if this is not an initialized sub-query
+    * condition.
+    */
+   public XTable getSubTable() {
+      return sub == null ? null : sub.getSubTable();
+   }
+
+   /**
     * Get the main attribute.
     * @return the main attribute.
     */

@@ -267,10 +267,10 @@ public class AdminScheduleGateway {
     * {@code null} when neither condition applies (caller should proceed with the actual run/stop
     * call), otherwise the terminal {@link ScheduleActionOutcome} to return as-is.
     *
-    * <p>A task that does not exist is deliberately NOT distinguished here (falls through to the
-    * actual run/stop call, same as {@code ScheduleService#runScheduledTask}/{@code
-    * #stopScheduledTask}'s own null-tolerant lookups) -- neither of those methods gives a distinct
-    * not-found error at their layer either.
+    * <p>A task that does not exist is deliberately NOT distinguished here: it falls through to the
+    * actual run/stop call, where {@code ScheduleService#runScheduledTask}/{@code
+    * #stopScheduledTask} reject it with {@code em.scheduler.taskNotFound} (Bug #77051), which
+    * surfaces as a {@link ScheduleActionOutcome#FAILED} outcome.
     */
    private ScheduleActionOutcome precheckSchedulerAndTask(String taskName, Principal user) {
       if(!scheduleService.isSchedulerReady()) {

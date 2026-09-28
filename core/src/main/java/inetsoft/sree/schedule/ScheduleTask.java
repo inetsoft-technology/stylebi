@@ -509,6 +509,8 @@ public class ScheduleTask implements Serializable, Cloneable, XMLSerializable {
     * @param principal represents an entity.
     */
    public void run(Principal principal) throws Throwable {
+      checkIdentityResolvable();
+
       synchronized(this) {
          if(isRunning()) {
             throw new Exception("Task is still running: " + getTaskId());
@@ -535,6 +537,36 @@ public class ScheduleTask implements Serializable, Cloneable, XMLSerializable {
       finally {
          runtimeTask = null;
          running = false;
+      }
+   }
+
+   /**
+    * Bug #77120, fail closed instead of running the task under a principal that no admin
+    * configured when its execute-as identity can't be resolved. With security disabled the task
+    * keeps running as its owner.
+    */
+   private void checkIdentityResolvable() {
+      if(identity == null || !isSecurityEnabled()) {
+         return;
+      }
+
+      IdentityID id = identity.getIdentityID();
+
+      if(SUtil.getIdentity(id, identity.getType()) == null) {
+         String msg = "Execute-as identity " + id + " (type " + identity.getType() +
+            ") of task " + getTaskId() + " cannot be resolved, the task was not run";
+         LOG.error(msg);
+         throw new IllegalStateException(msg);
+      }
+   }
+
+   private static boolean isSecurityEnabled() {
+      try {
+         return SecurityEngine.getSecurity().isSecurityEnabled();
+      }
+      catch(Exception ex) {
+         LOG.debug("Failed to check whether security is enabled", ex);
+         return false;
       }
    }
 
@@ -603,6 +635,9 @@ public class ScheduleTask implements Serializable, Cloneable, XMLSerializable {
 
             @Override
             public void run() {
+               // pooled threads are reused across tasks/users, drop any residue
+               CoreTool.clearUserMessage();
+
                try {
                   if(principal instanceof XPrincipal) {
                      ((XPrincipal) principal).setProperty("__TASK_NAME__",
@@ -617,12 +652,16 @@ public class ScheduleTask implements Serializable, Cloneable, XMLSerializable {
                   taskId = SUtil.getTaskNameForLogging(taskId);
                   MDC.put("SCHEDULE_TASK", taskId);
                   act.run(principal);
-                  MDC.remove("SCHEDULE_TASK");
                }
                catch(Throwable ex) {
                   exceptions.add(ex);
                }
                finally {
+                  MDC.remove("SCHEDULE_TASK");
+                  CoreTool.clearUserMessage();
+                  CoreTool.clearUserMessageAssemblyName();
+                  ThreadContext.setContextPrincipal(null);
+
                   synchronized(ScheduleTask.this) {
                      counter.decrementAndGet();
                      ScheduleTask.this.notifyAll();
@@ -1001,6 +1040,13 @@ public class ScheduleTask implements Serializable, Cloneable, XMLSerializable {
     */
    public CycleInfo getCycleInfo() {
       return cycleInfo;
+   }
+
+   /**
+    * Get the type of this task.
+    */
+   public Type getType() {
+      return type;
    }
 
    /**
@@ -1437,6 +1483,13 @@ public class ScheduleTask implements Serializable, Cloneable, XMLSerializable {
       timeZone = Tool.getAttribute(elem, "timeZone");
 
       IdentityID idname = IdentityID.getIdentityIDFromKey(Tool.getAttribute(elem, "idname"));
+
+      // Bug #77167, move the execute-as identity to the importing org along with the owner,
+      // global identities (null org) stay global
+      if(isSiteAdminImport && idname != null && idname.getOrgID() != null) {
+         idname = new IdentityID(idname.getName(), OrganizationManager.getInstance().getCurrentOrgID());
+      }
+
       int idtype = 0;
 
       try {
@@ -1449,7 +1502,23 @@ public class ScheduleTask implements Serializable, Cloneable, XMLSerializable {
          identity = SUtil.getIdentity(idname, idtype);
       }
       catch(Exception exp) {
-         LOG.error("Failed to set owner of task " + name + " to " + idname, exp);
+         LOG.error("Failed to set execute-as identity of task " + name + " to " + idname, exp);
+      }
+
+      // Bug #77120, a lookup miss can't tell a deleted identity from one that can't be resolved
+      // right now, so keep the reference instead of dropping it (which ran the task as its owner
+      // and lost the setting on the next save). run() refuses to run it while it's unresolved.
+      // Bug #77168, keep the placeholder regardless of security state -- with security disabled
+      // the virtual security provider can't resolve a real user/group/role either, and gating
+      // this on isSecurityEnabled() meant the identity was still silently dropped here and lost
+      // for good on the very next writeXML(). The principal-builder call sites (ScheduleTaskJob,
+      // ClusterJobStore, JobCompletionListener) fall back to the owner whenever security is
+      // disabled, so keeping the placeholder in that mode is safe.
+      if(identity == null && idname != null) {
+         LOG.warn("Execute-as identity {} (type {}) of task {} could not be resolved, " +
+                  "keeping it unresolved", idname, idtype, name);
+         identity = idtype == Identity.GROUP ? new Group(idname) :
+            idtype == Identity.ROLE ? new Role(idname) : new User(idname);
       }
 
       String taskType = elem.getAttribute("type");

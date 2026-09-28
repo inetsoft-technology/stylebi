@@ -111,6 +111,11 @@ public class SecurityTestDataBuilder {
       return this;
    }
 
+   public SecurityTestDataBuilder addOrgAdminRole(String roleName, String orgId) {
+      roles.add(new RoleSpec(roleName, orgId, false, true));
+      return this;
+   }
+
    /**
     * Creates a role with no organization ({@code IdentityID(name, null)}), matching how the
     * built-in {@code Administrator}/{@code Organization Administrator} roles are constructed.

@@ -710,7 +710,8 @@ public class PermissionMatrixOrgLifecycleTest {
          // memberModels is empty: it only drives creation of brand-new members, and alice is an
          // existing user carried over by the rename, not a newly-added one.
          ReflectionTestUtils.invokeMethod(identityService, "updateOrganizationMembers",
-            renamedOrg, new ArrayList<IdentityModel>(), fromOrgId, fileProvider);
+            renamedOrg, new ArrayList<IdentityModel>(), fromOrgId, fileProvider,
+            ThreadContext.getContextPrincipal());
 
          Permission after = chain.getPermission(ResourceType.VIEWSHEET, RESOURCE, toOrgId);
          assertNotNull(after,

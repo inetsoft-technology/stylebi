@@ -32,6 +32,8 @@ import inetsoft.web.composer.model.TreeNodeModel;
 import inetsoft.web.portal.data.DatasourcesService;
 import inetsoft.web.portal.model.database.*;
 import inetsoft.web.portal.model.database.events.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
@@ -358,8 +360,18 @@ public class LogicalModelController {
       throws Exception
    {
       AssetEntry entry = AssetEntry.createAssetEntry(assetId);
-      Viewsheet vs = (Viewsheet)
-         assetRepository.getSheet(entry, principal, false, AssetContent.NO_DATA);
+      Viewsheet vs;
+
+      // the id is client supplied and its orgID is kept, so check READ (including the
+      // cross-org check) and treat a sheet the caller cannot read like a missing one
+      try {
+         vs = (Viewsheet)
+            assetRepository.getSheet(entry, principal, true, AssetContent.NO_DATA);
+      }
+      catch(MessageException ex) {
+         LOG.debug("Failed to read auto drill target viewsheet: {}", assetId, ex);
+         return new String[0];
+      }
 
       if(vs == null) {
          return new String[0];
@@ -497,4 +509,5 @@ public class LogicalModelController {
    private final DatasourcesService datasourcesService;
    private final LogicalModelTreeService treeService;
    private final AssetDataCache assetDataCache;
+   private static final Logger LOG = LoggerFactory.getLogger(LogicalModelController.class);
 }

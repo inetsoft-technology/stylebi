@@ -20,6 +20,7 @@ package inetsoft.report.filter;
 import inetsoft.util.Tool;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -29,6 +30,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * <p>CubeMeasureFormula is a summing formula that always returns a Double.
  * isNull() always returns false. clone() copies the accumulated sum.
  */
+@Tag("core")
 public class CubeMeasureFormulaTest {
 
    private CubeMeasureFormula formula;

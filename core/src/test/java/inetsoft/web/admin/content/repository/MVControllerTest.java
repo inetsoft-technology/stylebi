@@ -42,13 +42,17 @@ package inetsoft.web.admin.content.repository;
  *   mvAssetExists(String, Principal) — returns false immediately when
  *     AssetEntry.createAssetEntry(path) returns null (null/invalid path).
  *
+ *   setShowAges(MVManagementModel, Principal) — writes mvmanager.dates.ages org-scoped only when
+ *     multi-tenant and the caller is not a site admin (Bug #77066). SreeEnv, SUtil and
+ *     OrganizationManager are intercepted with MockedStatic.
+ *
  * Tool.getDateFormatPattern() / OrganizationManager.getInstance().getCurrentOrgID() are safe to
  * call for real (pure string utilities with graceful null/default fallbacks).
  * Catalog.getCatalog() is intercepted with MockedStatic where the exception path is exercised,
  * to avoid resource-bundle loading in a test environment.
  *
  * checkStatus(), showPlan(), create(), setCycle(analysisId, request), analyze(MVManagementModel),
- * setShowAges(), setDataCycle(), updateMaterializedViews(), isWSMVEnabled() are pure delegation
+ * setDataCycle(), updateMaterializedViews(), isWSMVEnabled() are pure delegation
  * and are covered by E2E tests.
  *
  * Coverage scope:
@@ -60,13 +64,19 @@ package inetsoft.web.admin.content.repository;
  *   [getMVInfo invalid org]               getOrganization returns null → InvalidOrgException
  *   [getMVInfo valid org, null nodes]      org valid; nodes null → getMVInfo(null, principal)
  *   [mvAssetExists null path]             createAssetEntry(null) → null → false
+ *   [setShowAges scope]                   org admin + multi-tenant → org-scoped write;
+ *                                         site admin or single-tenant → global write; save() called
  */
 
+import inetsoft.sree.SreeEnv;
+import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.*;
 import inetsoft.util.*;
 import inetsoft.web.admin.content.repository.model.*;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.Mock;
 import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -215,5 +225,40 @@ class MVControllerTest {
    @Test
    void mvAssetExists_nullPath_returnsFalse() {
       assertFalse(controller.mvAssetExists(null, principal));
+   }
+
+   // -------------------------------------------------------------------------
+   // setShowAges(MVManagementModel, Principal)
+   // -------------------------------------------------------------------------
+
+   // [setShowAges scope] Bug #77066: only an org admin on a multi-tenant server writes to its own
+   // org; a site admin or a single-tenant/security-off server keeps the global write
+   @ParameterizedTest(name = "multiTenant={0}, siteAdmin={1} -> orgScope={2}")
+   @CsvSource({
+      "true,  false, true",
+      "true,  true,  false",
+      "false, false, false",
+      "false, true,  false"
+   })
+   void setShowAges_scopesWriteByRoleAndTenancy(boolean multiTenant, boolean siteAdmin,
+                                                boolean expectedOrgScope) throws Exception
+   {
+      OrganizationManager orgManager = mock(OrganizationManager.class, withSettings().lenient());
+      when(orgManager.isSiteAdmin(principal)).thenReturn(siteAdmin);
+      MVManagementModel model = MVManagementModel.builder().showDateAsAges(true).build();
+
+      try(MockedStatic<SreeEnv> sreeEnv = mockStatic(SreeEnv.class);
+          MockedStatic<SUtil> sutil = mockStatic(SUtil.class);
+          MockedStatic<OrganizationManager> orgStatic = mockStatic(OrganizationManager.class, withSettings().lenient()))
+      {
+         sutil.when(SUtil::isMultiTenant).thenReturn(multiTenant);
+         orgStatic.when(OrganizationManager::getInstance).thenReturn(orgManager);
+
+         controller.setShowAges(model, principal);
+
+         sreeEnv.verify(() -> SreeEnv.setProperty("mvmanager.dates.ages", "true", expectedOrgScope));
+         sreeEnv.verify(() -> SreeEnv.setProperty(anyString(), anyString()), never());
+         sreeEnv.verify(SreeEnv::save);
+      }
    }
 }

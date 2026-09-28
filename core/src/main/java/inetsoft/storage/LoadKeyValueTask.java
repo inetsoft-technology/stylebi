@@ -130,7 +130,7 @@ public class LoadKeyValueTask<T extends Serializable>
          }
       }
 
-      Cluster cluster = Cluster.getInstance();
+      Cluster cluster = getCluster();
       Map<String, Set<String>> refMap =
          cluster.getReplicatedMap("inetsoft.storage.kv." + getId() + "Refs");
       refMap.clear();

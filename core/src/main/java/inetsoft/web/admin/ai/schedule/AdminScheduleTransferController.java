@@ -73,7 +73,7 @@ public class AdminScheduleTransferController {
    {
       requireSiteAdmin(user);
       return transferService.export(req.getTaskIds(),
-         Boolean.TRUE.equals(req.getIncludeDependencies()));
+         Boolean.TRUE.equals(req.getIncludeDependencies()), user);
    }
 
    /**

@@ -20,6 +20,7 @@ package inetsoft.storage;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.internal.cluster.DistributedLong;
+import inetsoft.sree.security.SecurityEngine;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.asset.internal.AssetFolder;
@@ -626,6 +627,30 @@ public abstract class BlobStorage<T extends Serializable> implements AutoCloseab
       return isClosed || storage.isClosed();
    }
 
+   /**
+    * Checks if the initial load of the metadata storage completed. A storage whose initial load
+    * failed is readable, but it is empty rather than known to be empty.
+    *
+    * @return {@code true} if the metadata storage is loaded.
+    *
+    * @see KeyValueStorage#isLoaded()
+    */
+   public boolean isLoaded() {
+      return storage.isLoaded();
+   }
+
+   /**
+    * Submits the initial load of the metadata storage again if it did not complete, and waits
+    * for it.
+    *
+    * @return {@code true} if the metadata storage is loaded.
+    *
+    * @see KeyValueStorage#retryLoad()
+    */
+   public boolean retryLoad() {
+      return storage.retryLoad();
+   }
+
    public static <T extends Serializable> BlobStorage<T> createBlobStorage(String id,
                                                                            boolean preload,
                                                                            BlobCache blobCache,
@@ -800,13 +825,14 @@ public abstract class BlobStorage<T extends Serializable> implements AutoCloseab
 
       @Override
       protected void validate(Map<String, Blob<T>> map) throws Exception {
-         String orgID = SUtil.getOrganizationId(this.getId());
+         String orgID = SUtil.getOrganizationId(
+            this.getId(), () -> getServiceBean(SecurityEngine.class));
 
          if(orgID != null) {
             initIndexedStorage(map, orgID);
          }
 
-         Cluster cluster = Cluster.getInstance();
+         Cluster cluster = getCluster();
          DistributedLong ts = cluster.getLong("inetsoft.storage.blob.ts." + getId());
          ts.set(map.values().stream()
                    .map(Blob::getLastModified)

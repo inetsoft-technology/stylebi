@@ -19,6 +19,8 @@ package inetsoft.util.script.graal.pool;
 
 import inetsoft.util.script.ScriptException;
 import inetsoft.util.script.graal.GraalJavaScriptEnv;
+import org.graalvm.polyglot.proxy.ProxyArray;
+import org.graalvm.polyglot.proxy.ProxyObject;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
@@ -42,7 +44,9 @@ class WsHostBoundaryTest {
    void plainObjectArgumentIsAProxyBackedCopyWithDefaultBoxing() throws Exception {
       WorksheetScriptEnv env = withTaker();
       run(env, "taker.take({a: 1, b: {c: 2}}); 1");
-      assertTrue(taker.last instanceof CopyMap, String.valueOf(taker.last));
+      // a view (bug #77123) that, after its exec, is its host copy: a Map and a ProxyObject
+      assertTrue(taker.last instanceof LiveMap, String.valueOf(taker.last));
+      assertTrue(taker.last instanceof ProxyObject);
       Map<?, ?> map = (Map<?, ?>) taker.last;
       assertEquals(1, map.get("a"));
       assertTrue(map.get("b") instanceof CopyMap);
@@ -60,7 +64,7 @@ class WsHostBoundaryTest {
    void nullPrototypeObjectIsPlain() throws Exception {
       WorksheetScriptEnv env = withTaker();
       run(env, "var o = Object.create(null); o.a = 1; taker.take(o); 1");
-      assertTrue(taker.last instanceof CopyMap, String.valueOf(taker.last));
+      assertTrue(taker.last instanceof LiveMap, String.valueOf(taker.last));
       assertEquals(1, ((Map<?, ?>) taker.last).get("a"));
    }
 
@@ -68,8 +72,11 @@ class WsHostBoundaryTest {
    void arrayArgumentIsAListCopy() throws Exception {
       WorksheetScriptEnv env = withTaker();
       run(env, "taker.takeList([1, [2, 3]]); 1");
-      assertTrue(taker.last instanceof CopyList);
+      // a view (bug #77123) that, after its exec, is its host copy: a List and a ProxyArray
+      assertTrue(taker.last instanceof LiveList, String.valueOf(taker.last));
+      assertTrue(taker.last instanceof ProxyArray);
       assertEquals(2, ((List<?>) taker.last).size());
+      assertEquals(1, ((List<?>) taker.last).get(0));
       assertTrue(((List<?>) taker.last).get(1) instanceof CopyList);
    }
 
@@ -106,12 +113,16 @@ class WsHostBoundaryTest {
       assertEquals(new Date(0), taker.last);
    }
 
+   /**
+    * Bug #77123 (C1): out parameters and Java sorts reach the script again, as with the pool
+    * off (this was outParametersAreNoLongerVisibleToTheScript).
+    */
    @Test
-   void outParametersAreNoLongerVisibleToTheScript() throws Exception {
+   void outParametersAreVisibleToTheScript() throws Exception {
       WorksheetScriptEnv env = withTaker();
-      assertEquals(2.0, run(env, "var l = [1, 2]; taker.mutateList(l); l.length"));
-      assertEquals("undefined", run(env, "var m = {a: 1}; taker.mutateMap(m); typeof m.z"));
-      assertEquals(3.0, run(env,
+      assertEquals(3.0, run(env, "var l = [1, 2]; taker.mutateList(l); l.length"));
+      assertEquals("number", run(env, "var m = {a: 1}; taker.mutateMap(m); typeof m.z"));
+      assertEquals(1.0, run(env,
          "var a = [3, 1, 2]; Java.type('java.util.Collections').sort(a); a[0]"));
    }
 

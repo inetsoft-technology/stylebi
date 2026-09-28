@@ -93,6 +93,8 @@ public class SQLQueryDialogService {
       model.setAdvancedEdit(advancedEdit);
 
       if(advancedEdit && model.getSimpleModel() != null) {
+         // Bug #77163, the named data source is bound into the runtime query.
+         queryManagerService.checkDataSourceReadPermission(model.getDataSource(), principal);
          RuntimeWorksheet rws = StringUtils.isEmpty(runtimeWsId) ?
             null : wsEngine.getWorksheet(runtimeWsId, principal);
          model.setAdvancedModel(
@@ -106,6 +108,9 @@ public class SQLQueryDialogService {
          }
       }
       else if(!advancedEdit && model.getAdvancedModel() != null) {
+         // Bug #77163, the simple model is built from the runtime query's bound source.
+         queryManagerService.checkRuntimeQueryReadPermission(
+            queryManagerService.getRuntimeQuery(runtimeQueryId), principal);
          model.setSimpleModel(
             queryManagerService.convertToSimpleQueryModel(model, runtimeQueryId));
       }
@@ -118,6 +123,8 @@ public class SQLQueryDialogService {
                                      ColumnRefModel dataRefModel, Principal principal)
       throws Exception
    {
+      // Bug #77163, the column values are queried from the named data source.
+      queryManagerService.checkDataSourceReadPermission(dataSource, principal);
       RuntimeWorksheet rws = wsEngine.getWorksheet(runtimeId, principal);
       BrowseDataController browseDataController = new BrowseDataController();
       DataRef dataRef = dataRefModel.createDataRef();
@@ -137,6 +144,16 @@ public class SQLQueryDialogService {
                         Principal principal, CommandDispatcher commandDispatcher)
       throws Exception
    {
+      // Bug #77163, the named data source is bound into the assembly on every apply. In
+      // advanced mode the assembly's query is cloned from the runtime query, so its actually
+      // bound source must be readable as well.
+      queryManagerService.checkDataSourceReadPermission(model.getDataSource(), principal);
+
+      if(model.isAdvancedEdit()) {
+         queryManagerService.checkRuntimeQueryReadPermission(
+            queryManagerService.getRuntimeQuery(model.getRuntimeId()), principal);
+      }
+
       RuntimeWorksheet rws = wsEngine.getWorksheet(runtimeId, principal);
       Worksheet ws = rws.getWorksheet();
       String name = model.getName();
@@ -200,7 +217,8 @@ public class SQLQueryDialogService {
       }
 
       if(model.isCloseDialog()) {
-         queryManagerService.clearRuntimeQuery();
+         // Bug #77190, remove only this dialog's runtime query, not every user's.
+         queryManagerService.destroyRuntimeQuery(model.getRuntimeId(), principal);
       }
 
       WorksheetEventUtil.refreshColumnSelection(rws, name, true);

@@ -18,7 +18,28 @@
 package inetsoft.sree.schedule.cloudrunner;
 
 public interface CloudJobFactory {
+   /**
+    * The name of the cloud runner argument that carries the execution id, passed to the container
+    * as {@code --schedule.execution.id=<id>}. The container echoes it in {@link CloudJobResult}
+    * so that the result is matched to the execution that started it, not to any execution of the
+    * same task.
+    */
+   String EXECUTION_ID_ARG = "schedule.execution.id";
+
    String getType();
 
    CloudJob createCloudJob(String taskName, String cycle, String orgID);
+
+   /**
+    * Creates a cloud job for one execution of a task. Implementations should pass the execution
+    * id to the container in the {@link #EXECUTION_ID_ARG} argument. The default implementation
+    * ignores it, so the container's result is matched by task name only.
+    *
+    * @param executionId the unique id of this execution.
+    */
+   default CloudJob createCloudJob(String taskName, String cycle, String orgID,
+                                   String executionId)
+   {
+      return createCloudJob(taskName, cycle, orgID);
+   }
 }

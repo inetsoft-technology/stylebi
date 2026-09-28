@@ -56,6 +56,14 @@ final class WsEngine extends GraalJavaScriptEngine {
       invalidateGlobalBindings();
    }
 
+   /**
+    * An env variable was set on this context directly; the let/const reset must never
+    * clear it (bug #77181).
+    */
+   void hostGlobal(String name) {
+      markHostGlobal(name);
+   }
+
    @Override
    protected Map<String, String> librarySources() {
       return snapshot.getLibrary();
@@ -107,6 +115,15 @@ final class WsEngine extends GraalJavaScriptEngine {
    @Override
    protected Object enterExecContext() {
       return WsExecContext.enter(slot);
+   }
+
+   /**
+    * The outermost exec of this slot completed normally: its Java-held views take the
+    * script's final state, still under the exec's timeout guard (bug #77123).
+    */
+   @Override
+   protected void execCompleted(Object token) {
+      WsExecContext.complete((Slot) token, slot);
    }
 
    @Override

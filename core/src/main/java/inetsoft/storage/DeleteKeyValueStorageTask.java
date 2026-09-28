@@ -55,7 +55,7 @@ public class DeleteKeyValueStorageTask<T extends Serializable>
             }
          }
 
-         Cluster cluster = Cluster.getInstance();
+         Cluster cluster = getCluster();
          cluster.destroyReplicatedMap("inetsoft.storage.kv." + getId());
 
          getEngine().deleteStorage(getId());
@@ -67,7 +67,7 @@ public class DeleteKeyValueStorageTask<T extends Serializable>
    }
 
    private void removeBlobReferences() {
-      Cluster cluster = Cluster.getInstance();
+      Cluster cluster = getCluster();
       cluster.destroyReplicatedMap("inetsoft.storage.kv." + getId() + "Refs");
    }
 }

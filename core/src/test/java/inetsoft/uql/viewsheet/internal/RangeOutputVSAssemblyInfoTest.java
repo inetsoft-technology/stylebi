@@ -29,6 +29,8 @@ import inetsoft.util.Tool;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.AdditionalAnswers;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
@@ -46,6 +48,8 @@ import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
+import java.util.function.Supplier;
+import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
@@ -528,6 +532,120 @@ class RangeOutputVSAssemblyInfoTest {
       finally {
          real.dispose();
       }
+   }
+
+   static Stream<Supplier<RangeOutputVSAssemblyInfo>> rangeOutputInfos() {
+      return Stream.of(GaugeVSAssemblyInfo::new, ThermometerVSAssemblyInfo::new,
+                       CylinderVSAssemblyInfo::new, SlidingScaleVSAssemblyInfo::new);
+   }
+
+   /**
+    * Regression test for bug #77205: deleting a range-shrinking script in the Composer property
+    * dialog without touching the Advanced tab must restore the design ranges. The dialog
+    * clones the live info, re-applies the (unchanged) design ranges/colors to the clone, resets
+    * only the clone, then merges it back via {@code copyInfo()} -- the live info itself is never
+    * reset. {@code copyViewInfo()} used to compare only the design values for ranges (equal
+    * here), so the live info kept the script's 1-entry runtime ranges while the colors, whose
+    * guard also compares the runtime values, did sync.
+    */
+   @ParameterizedTest
+   @MethodSource("rangeOutputInfos")
+   void copyInfoFromDialogCloneRestoresDesignRangesAfterScriptRemoval(
+      Supplier<RangeOutputVSAssemblyInfo> factory)
+   {
+      RangeOutputVSAssemblyInfo live = createLiveInfoShrunkByScript(factory);
+
+      RangeOutputVSAssemblyInfo clone = createDialogClone(live);
+      // script changed -> editObjectProperty() resets the clone only
+      clone.resetRuntimeValues();
+      live.copyInfo(clone);
+
+      assertArrayEquals(DESIGN_RANGES_RUNTIME, live.getRanges(), 1e-6);
+      assertArrayEquals(DESIGN_COLORS, live.getRangeColors());
+   }
+
+   /**
+    * Bug #77205: same dialog path, but the removed script had grown the ranges past the design
+    * count rather than shrinking them.
+    */
+   @ParameterizedTest
+   @MethodSource("rangeOutputInfos")
+   void copyInfoFromDialogCloneRestoresDesignRangesAfterGrowingScriptRemoval(
+      Supplier<RangeOutputVSAssemblyInfo> factory)
+   {
+      RangeOutputVSAssemblyInfo live = factory.get();
+      live.setRangeValues(DESIGN_RANGES);
+      live.setRangeColorsValue(DESIGN_COLORS);
+      live.setRanges(new Object[] { "10", "20", "30", "40", "50", "60" });
+
+      RangeOutputVSAssemblyInfo clone = createDialogClone(live);
+      clone.resetRuntimeValues();
+      live.copyInfo(clone);
+
+      assertArrayEquals(DESIGN_RANGES_RUNTIME, live.getRanges(), 1e-6);
+   }
+
+   /**
+    * Bug #77205: when the script is unchanged and some other property is edited, the merge
+    * now takes the design ranges (as the colors already did), and re-running the script via
+    * executeView must be able to shrink them again.
+    */
+   @ParameterizedTest
+   @MethodSource("rangeOutputInfos")
+   void copyInfoFromDialogCloneWithUnchangedScriptLetsScriptReapplyRanges(
+      Supplier<RangeOutputVSAssemblyInfo> factory)
+   {
+      RangeOutputVSAssemblyInfo live = createLiveInfoShrunkByScript(factory);
+
+      // script unchanged -> the clone is not reset
+      live.copyInfo(createDialogClone(live));
+      assertArrayEquals(DESIGN_RANGES_RUNTIME, live.getRanges(), 1e-6);
+
+      // executeView re-runs the script
+      live.setRanges(new Object[] { "520" });
+      assertArrayEquals(new double[] { 520.0 }, live.getRanges(), 1e-6);
+   }
+
+   /**
+    * Bug #77205: the extended guard must not clobber script-set ranges on a refresh-style
+    * no-op merge of the live info's own clone.
+    */
+   @ParameterizedTest
+   @MethodSource("rangeOutputInfos")
+   void copyInfoFromOwnCloneKeepsScriptRanges(Supplier<RangeOutputVSAssemblyInfo> factory) {
+      RangeOutputVSAssemblyInfo live = createLiveInfoShrunkByScript(factory);
+
+      int hint = live.copyInfo(live.clone(true));
+
+      assertEquals(0, hint);
+      assertArrayEquals(new double[] { 520.0 }, live.getRanges(), 1e-6);
+   }
+
+   // the property dialog always sends 5 range slots and 6 color slots
+   private static final Object[] DESIGN_RANGES = { "500", "1000", "1500", "", "" };
+   private static final double[] DESIGN_RANGES_RUNTIME =
+      { 500.0, 1000.0, 1500.0, Double.NaN, Double.NaN };
+   private static final Color[] DESIGN_COLORS =
+      { Color.RED, Color.YELLOW, Color.GREEN, null, null, null };
+
+   private static RangeOutputVSAssemblyInfo createLiveInfoShrunkByScript(
+      Supplier<RangeOutputVSAssemblyInfo> factory)
+   {
+      RangeOutputVSAssemblyInfo live = factory.get();
+      live.setRangeValues(DESIGN_RANGES);
+      live.setRangeColorsValue(DESIGN_COLORS);
+      // this.ranges = [520]; this.rangeColors = [blue];
+      live.setRanges(new Object[] { "520" });
+      live.setRangeColors(new Color[] { Color.BLUE });
+      return live;
+   }
+
+   // mirrors GaugePropertyDialogService.setGaugePropertyDialogModel()
+   private static RangeOutputVSAssemblyInfo createDialogClone(RangeOutputVSAssemblyInfo live) {
+      RangeOutputVSAssemblyInfo clone = (RangeOutputVSAssemblyInfo) Tool.clone(live);
+      clone.setRangeColorsValue(DESIGN_COLORS);
+      clone.setRangeValues(DESIGN_RANGES);
+      return clone;
    }
 
    /**

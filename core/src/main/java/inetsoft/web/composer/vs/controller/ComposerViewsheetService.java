@@ -262,6 +262,7 @@ public class ComposerViewsheetService {
             ((XPrincipal) principal).getSessionID();
          AssetEntry entry = rvs.getEntry();
          boolean sharedDashboard = VSUtil.isDefaultVSGloballyViewsheet(entry, principal);
+         String oldOrgId = OrganizationContextHolder.getCurrentOrgId();
 
          try {
             if(sharedDashboard) {
@@ -359,7 +360,13 @@ public class ComposerViewsheetService {
             }
          }
          finally {
-            OrganizationContextHolder.clear();
+            // restore rather than clear, the caller may have set an org context
+            if(oldOrgId == null) {
+               OrganizationContextHolder.clear();
+            }
+            else {
+               OrganizationContextHolder.setCurrentOrgId(oldOrgId);
+            }
          }
 
          return previewRuntimeID;

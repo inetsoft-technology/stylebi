@@ -8,7 +8,9 @@ import inetsoft.test.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.util.DefaultTable;
 import inetsoft.uql.util.XEmbeddedTable;
+import inetsoft.util.script.ScriptException;
 import inetsoft.util.script.ScriptUtil;
+import inetsoft.util.stall.LockStallException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -22,9 +24,15 @@ import java.util.*;
 
 import inetsoft.report.TableLens;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -140,6 +148,44 @@ class TableAssemblyScriptableTest {
       CubeTableAssemblyScriptable cube = new CubeTableAssemblyScriptable(
          "testTable", mockSandbox, AssetQuerySandbox.LIVE_MODE, mock(TableLens.class));
       assertFalse(cube.isBaseTableReference());
+   }
+
+   /**
+    * #77123: a lock stall (FAIL stall mode) while the worksheet table is fetched must reach
+    * the script, not read as a missing table, which TableArray reads as an empty table
+    * ({@code Query1.length == 0}).
+    */
+   @Test
+   void stalledTableFetchThrowsTheStall() throws Exception {
+      LockStallException stall = new LockStallException("test.site", "worker", 1234, null);
+      when(mockSandbox.getTableLens(eq("testTable"), anyInt(), any())).thenThrow(stall);
+
+      assertSame(stall, assertThrows(LockStallException.class,
+         () -> tableAssemblyScriptable.getElementTable()));
+      assertSame(stall, assertThrows(LockStallException.class,
+         () -> tableAssemblyScriptable.getMember("length")));
+   }
+
+   @Test
+   void wrappedStalledTableFetchThrowsTheStall() throws Exception {
+      LockStallException stall = new LockStallException("test.site", "worker", 1234, null);
+      when(mockSandbox.getTableLens(eq("testTable"), anyInt(), any()))
+         .thenThrow(new ScriptException("query failed", stall));
+
+      assertSame(stall, assertThrows(LockStallException.class,
+         () -> tableAssemblyScriptable.getElementTable()));
+   }
+
+   /**
+    * A failure that is not a stall still reads as no table, as before.
+    */
+   @Test
+   void failedTableFetchStillReadsAsNoTable() throws Exception {
+      when(mockSandbox.getTableLens(eq("testTable"), anyInt(), any()))
+         .thenThrow(new RuntimeException("boom"));
+
+      assertNull(tableAssemblyScriptable.getElementTable());
+      assertEquals(0, tableAssemblyScriptable.getMember("length"));
    }
 
    // Custom log appender for testing

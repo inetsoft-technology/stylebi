@@ -139,10 +139,49 @@ public class JavaScriptEngine {
     * Check if {@link #lendScriptLocks} would lend anything to the worker task.
     */
    public static boolean canLendScriptLocks(LendableReentrantLock.Borrower worker) {
-      // never lend from inside script evaluation, the GraalJS context is in use on
-      // this thread and must not be entered by another thread
-      return worker != null && worker.isActive() && !isScriptThread() &&
-         (!getThreadLocals().heldScriptLocks.get().isEmpty() || hasBorrowedScriptLocks());
+      if(worker == null || !worker.isActive()) {
+         return false;
+      }
+
+      Deque<Lock> held = getThreadLocals().heldScriptLocks.get();
+
+      if(isScriptThread()) {
+         for(Lock lock : held) {
+            if(isLendableInScript(lock, held)) {
+               return true;
+            }
+         }
+
+         return false;
+      }
+
+      return !held.isEmpty() || hasBorrowedScriptLocks();
+   }
+
+   /**
+    * Check if a lock recorded by {@link #pushHeldScriptLock(Lock)} may be lent from inside
+    * script evaluation. The lock of an engine whose GraalJS context is in use on this thread
+    * must never be lent, the context must not be entered by another thread. Every use of a
+    * context holds its engine's lock without recording it, so a lock that this thread holds
+    * only through its records is not the lock of such an engine, e.g. a worksheet engine
+    * lock that a condition filter took on a thread running a viewsheet script (bug #77158).
+    * A lock that is also held unrecorded, e.g. by the script evaluation itself, is not lent.
+    */
+   private static boolean isLendableInScript(Lock lock, Deque<Lock> held) {
+      if(!(lock instanceof LendableReentrantLock)) {
+         return false;
+      }
+
+      int records = 0;
+
+      for(Lock heldLock : held) {
+         if(heldLock == lock) {
+            records++;
+         }
+      }
+
+      int holds = ((LendableReentrantLock) lock).getHoldCount();
+      return holds > 0 && holds == records;
    }
 
    /**
@@ -169,9 +208,11 @@ public class JavaScriptEngine {
     * Lend the script engine locks held by the current thread (outside of script
     * evaluation) to a background worker task the current thread is about to wait for,
     * so the worker can run scripts and condition filters while this thread waits (bug
-    * #76938). The returned loan must be closed on this thread when the wait is over,
-    * outside of any monitor the worker may need, and this thread must not use the
-    * script engine before that.
+    * #76938). Inside script evaluation, only the recorded locks of engines whose context
+    * is not in use on this thread are lent (see isLendableInScript, bug #77158). The
+    * returned loan must be closed on this thread when the wait is over, outside of any
+    * monitor the worker may need, and this thread must not use the script engine before
+    * that.
     *
     * @param worker the worker task that is waited for.
     *
@@ -184,15 +225,19 @@ public class JavaScriptEngine {
 
       java.util.List<LendableReentrantLock.Loan> loans = new ArrayList<>();
       Set<Lock> lent = Collections.newSetFromMap(new IdentityHashMap<>());
+      Deque<Lock> held = getThreadLocals().heldScriptLocks.get();
+      // inside script evaluation, only locks of engines not in use on this thread (bug #77158)
+      boolean inScript = isScriptThread();
       // outermost first, loans are reclaimed in this order too, so a worker that takes
       // the locks in the same nesting order can always finish before being cut off
-      Iterator<Lock> iter = getThreadLocals().heldScriptLocks.get().descendingIterator();
+      Iterator<Lock> iter = held.descendingIterator();
 
       while(iter.hasNext()) {
          Lock lock = iter.next();
 
          if(lock instanceof LendableReentrantLock && lent.add(lock) &&
-            ((LendableReentrantLock) lock).isHeldByCurrentThread())
+            ((LendableReentrantLock) lock).isHeldByCurrentThread() &&
+            (!inScript || isLendableInScript(lock, held)))
          {
             loans.add(((LendableReentrantLock) lock).lend(worker));
          }
@@ -200,10 +245,11 @@ public class JavaScriptEngine {
 
       // locks lent to the worker task running on this thread (stacked async lenses):
       // take the lock as the borrower and lend it on as a nested loan. if the loan to
-      // this task was revoked the lock can't be taken, and there is nothing to lend
+      // this task was revoked the lock can't be taken, and there is nothing to lend.
+      // not from inside script evaluation, as before bug #77158
       LendableReentrantLock.Borrower task = LendableReentrantLock.Borrower.current();
 
-      if(task != null) {
+      if(task != null && !inScript) {
          for(LendableReentrantLock lock : task.getLentLocks()) {
             if(lent.add(lock) && lock.tryLock()) {
                LendableReentrantLock.Loan loan = lock.lend(worker);

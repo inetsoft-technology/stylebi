@@ -275,7 +275,7 @@ public class SecurityService {
          members.add(id.name);
          org.setMembers(members.toArray(new String[0]));
          provider.setOrganization(id.orgID, org);
-         themeService.assignTheme(id.name, id.name, request.getTheme(), CustomTheme::getUsers);
+         themeService.assignTheme(id.name, id.name, id.orgID, request.getTheme(), CustomTheme::getUsers);
          setIdentityPermissions(id, ResourceType.SECURITY_USER, securityProvider, principal,
             request.getAdminIdentities());
          record.setActionStatus(ActionRecord.ACTION_STATUS_SUCCESS);
@@ -355,7 +355,8 @@ public class SecurityService {
       IdentityID oldId = new IdentityID(userModel.oldName(), userModel.organization());
       IdentityID newId = new IdentityID(userModel.name(), userModel.organization());
       identityService.setIdentity(oldUser, userModel, provider, principal);
-      themeService.assignTheme(oldUser.getName(), userModel.name(), userModel.theme(), CustomTheme::getUsers);
+      themeService.assignTheme(oldUser.getName(), userModel.name(), userModel.organization(),
+                               userModel.theme(), CustomTheme::getUsers);
       identityService.setIdentityPermissions(
          oldId, newId, ResourceType.SECURITY_USER,
          principal, userModel.permittedIdentities(), "");
@@ -554,7 +555,8 @@ public class SecurityService {
          String state = IdentityInfoRecord.STATE_ACTIVE;
          identityInfoRecord = SUtil.getIdentityInfoRecord(identityID, Identity.GROUP,
             IdentityInfoRecord.ACTION_TYPE_CREATE, null, state);
-         themeService.assignTheme(identityID.name, identityID.name, request.getTheme(), CustomTheme::getGroups);
+         themeService.assignTheme(identityID.name, identityID.name, identityID.orgID, request.getTheme(),
+                                  CustomTheme::getGroups);
          setIdentityPermissions(identityID, ResourceType.SECURITY_GROUP, securityProvider, principal,
                                 request.getAdminIdentities());
          record.setActionStatus(ActionRecord.ACTION_STATUS_SUCCESS);
@@ -648,7 +650,8 @@ public class SecurityService {
       IdentityID newId = new IdentityID(groupModel.name(), groupModel.organization());
 
       identityService.setIdentity(oldGroup, groupModel, provider, principal);
-      themeService.assignTheme(oldGroup.getName(), groupModel.name(), groupModel.theme(), CustomTheme::getGroups);
+      themeService.assignTheme(oldGroup.getName(), groupModel.name(), groupModel.organization(),
+                               groupModel.theme(), CustomTheme::getGroups);
       identityService.setIdentityPermissions(
          oldId, newId, ResourceType.SECURITY_GROUP,
          principal, groupModel.permittedIdentities(), identityID.orgID);
@@ -905,7 +908,7 @@ public class SecurityService {
          String state = IdentityInfoRecord.STATE_ACTIVE;
          identityInfoRecord = SUtil.getIdentityInfoRecord(organization.getIdentityID(), Identity.ORGANIZATION,
                                                           IdentityInfoRecord.ACTION_TYPE_CREATE, null, state);
-         themeService.assignTheme(oid, oid, request.getTheme(), CustomTheme::getOrganizations);
+         themeService.assignTheme(oid, oid, oid, request.getTheme(), CustomTheme::getOrganizations);
 
          if(request.getTheme() != null) {
             customThemesManager.setOrgSelectedTheme(request.getTheme(), oid);
@@ -1346,7 +1349,7 @@ public class SecurityService {
          String state = IdentityInfoRecord.STATE_ACTIVE;
          identityInfoRecord = SUtil.getIdentityInfoRecord(id, Identity.ROLE,
             IdentityInfoRecord.ACTION_TYPE_CREATE, null, state);
-         themeService.assignTheme(id.name, id.name, request.getTheme(), CustomTheme::getRoles);
+         themeService.assignTheme(id.name, id.name, id.orgID, request.getTheme(), CustomTheme::getRoles);
          setIdentityPermissions(id, ResourceType.SECURITY_ROLE, securityProvider, principal,
             request.getAdminIdentities());
          record.setActionStatus(ActionRecord.ACTION_STATUS_SUCCESS);
@@ -1458,7 +1461,8 @@ public class SecurityService {
       IdentityID newId = new IdentityID(roleModel.name(), roleModel.organization());
 
       identityService.setIdentity(oldRole, roleModel, provider, principal);
-      themeService.assignTheme(oldRole.getName(), roleModel.name(), roleModel.theme(), CustomTheme::getRoles);
+      themeService.assignTheme(oldRole.getName(), roleModel.name(), roleModel.organization(),
+                               roleModel.theme(), CustomTheme::getRoles);
       identityService.setIdentityPermissions(
          oldId, newId, ResourceType.SECURITY_ROLE,
          principal, roleModel.permittedIdentities(), permOrgId);

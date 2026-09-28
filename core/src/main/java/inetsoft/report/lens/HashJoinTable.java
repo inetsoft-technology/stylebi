@@ -21,9 +21,12 @@ import inetsoft.mv.data.BitSet;
 import inetsoft.report.TableLens;
 import inetsoft.util.GroupedThread;
 import inetsoft.util.ThreadContext;
+import inetsoft.util.script.JavaScriptEngine;
 import inetsoft.util.stall.LockStallException;
 import it.unimi.dsi.fastutil.objects.*;
 import org.roaringbitmap.IntIterator;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.Map;
 
@@ -49,6 +52,7 @@ class HashJoinTable extends JoinTable {
 
       int leftCnt = leftTable.getRowCount();
       int rightCnt = rightTable.getRowCount();
+      boolean rightFirst = false;
 
       // scan smaller table first to keep larger table in sequence
       if(leftCnt > 0 && (rightCnt < 0 || leftCnt < rightCnt)) {
@@ -59,10 +63,39 @@ class HashJoinTable extends JoinTable {
       else if(rightCnt > 0 && (leftCnt < 0 || rightCnt < leftCnt)) {
          rightThread.setPriority(Math.min(Thread.MAX_PRIORITY,
                                           rightThread.getPriority() + 5));
+         rightFirst = true;
+      }
+
+      // if this is called from JavaScriptEngine.exec() or a condition filter, the script
+      // engine is already locked. scanning the tables in the join threads would deadlock
+      // if they need the engine, e.g. for a formula, while this thread waits for the
+      // joined rows (bug #77215)
+      if(JavaScriptEngine.holdsScriptLock()) {
+         JoinThread first = rightFirst ? rightThread : leftThread;
+         JoinThread second = rightFirst ? leftThread : rightThread;
+         scan(first);
+         scan(second);
+         return;
       }
 
       leftThread.start();
       rightThread.start();
+   }
+
+   /**
+    * Run a join thread's scan on this thread. As on the join thread, a failed scan leaves
+    * the join with the rows so far and a stall is rethrown by the reader, and the other
+    * scan still runs, so the join is always completed.
+    */
+   private static void scan(JoinThread thread) {
+      try {
+         thread.doRun();
+      }
+      catch(RuntimeException ex) {
+         if(LockStallException.find(ex) == null) {
+            LOG.error("Failed to scan the join table", ex);
+         }
+      }
    }
 
    /**
@@ -154,6 +187,7 @@ class HashJoinTable extends JoinTable {
    private JoinThread rightThread;
    private transient Object2IntMap<Object>[] idxmaps;
    private static final int NULL = Integer.MAX_VALUE - 1;
+   private static final Logger LOG = LoggerFactory.getLogger(HashJoinTable.class);
 
    /**
     * Special map implentation for joining. This map is not synchronized since

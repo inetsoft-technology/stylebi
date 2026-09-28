@@ -42,6 +42,7 @@ import inetsoft.uql.asset.internal.AssetFolder;
 import inetsoft.util.IndexedStorage;
 import inetsoft.web.admin.favorites.FavoritesService;
 import org.junit.jupiter.api.*;
+import org.mockito.ArgumentCaptor;
 import org.mockito.MockedStatic;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -220,6 +221,44 @@ class IdentityServiceTest {
       assertTrue(info.getMembers().isEmpty(), "empty info should have no members");
    }
 
+   // Bug #77070: a rename must actually be stored in the organization's member list
+   @Test
+   void renameOrganizationMember_rename_replacesOldNameWithNew() throws Exception {
+      FSOrganization org = new FSOrganization("org1");
+      org.setMembers(new String[] { "alice", "carol" });
+      EditableAuthenticationProvider provider = mock(EditableAuthenticationProvider.class);
+      when(provider.getOrganization("org1")).thenReturn(org);
+
+      invokeRenameOrganizationMember("org1", "alice", "bob", provider);
+
+      ArgumentCaptor<Organization> saved = ArgumentCaptor.forClass(Organization.class);
+      verify(provider).setOrganization(eq("org1"), saved.capture());
+      List<String> members = Arrays.asList(saved.getValue().getMembers());
+      assertTrue(members.contains("bob"), "saved organization must include the new name");
+      assertFalse(members.contains("alice"), "saved organization must drop the old name");
+      assertTrue(members.contains("carol"), "other members must be untouched");
+   }
+
+   @Test
+   void renameOrganizationMember_sameName_doesNotWriteOrganization() throws Exception {
+      EditableAuthenticationProvider provider = mock(EditableAuthenticationProvider.class);
+
+      invokeRenameOrganizationMember("org1", "alice", "alice", provider);
+
+      verify(provider, never()).setOrganization(anyString(), any());
+   }
+
+   private void invokeRenameOrganizationMember(String orgID, String oldName, String newName,
+                                               EditableAuthenticationProvider provider)
+      throws Exception
+   {
+      Method m = IdentityService.class.getDeclaredMethod(
+         "renameOrganizationMember", String.class, String.class, String.class,
+         EditableAuthenticationProvider.class);
+      m.setAccessible(true);
+      m.invoke(service, orgID, oldName, newName, provider);
+   }
+
    private static AssetEntry entryWithFavorites(IdentityID user) {
       AssetEntry entry = new AssetEntry(
          AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.VIEWSHEET, "/" + user.getName(), user);
@@ -328,6 +367,7 @@ class IdentityServiceTest {
       theme.setOrganizations(new ArrayList<>());
       when(customThemesManager.getCustomThemes())
          .thenReturn(new HashSet<>(Set.of(theme)));
+      inetsoft.sree.portal.CustomThemesManagerMocks.applyUpdates(customThemesManager);
       ReflectionTestUtils.setField(service, "customThemesManager", customThemesManager);
 
       invokeUpdateCustomThemeOrganization(null, "theme-1", "org-xyz", "org-xyz");
@@ -433,6 +473,7 @@ class IdentityServiceTest {
 
       themesManager = mock(CustomThemesManager.class, withSettings().lenient());
       when(themesManager.getCustomThemes()).thenReturn(new HashSet<>(Arrays.asList(themes)));
+      inetsoft.sree.portal.CustomThemesManagerMocks.applyUpdates(themesManager);
 
       dashboardRegistryManager = mock(DashboardRegistryManager.class);
       repletRegistryManager = mock(RepletRegistryManager.class);

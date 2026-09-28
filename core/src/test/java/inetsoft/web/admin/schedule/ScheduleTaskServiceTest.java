@@ -18,17 +18,23 @@
 package inetsoft.web.admin.schedule;
 
 import inetsoft.sree.AnalyticRepository;
+import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.schedule.*;
+import inetsoft.sree.security.*;
+import inetsoft.uql.util.Identity;
 import inetsoft.util.MessageException;
 import inetsoft.web.admin.schedule.model.ScheduleTaskList;
+import inetsoft.web.admin.schedule.model.TaskOptionsPaneModel;
 import org.junit.jupiter.api.*;
 import org.mockito.Mock;
+import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.junit.jupiter.api.extension.ExtendWith;
 
 import java.security.Principal;
 import java.time.LocalTime;
 import java.util.List;
+import java.util.Properties;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -96,5 +102,96 @@ class ScheduleTaskServiceTest {
 
       assertNotNull(result);
       verify(scheduleService).saveTask("task1", task, principal);
+   }
+
+   // ── Bug #77213: don't mutate cached (extension) task instances ───────────
+
+   @Test
+   void redistributeTasks_skipsDataCycleTasks() throws Exception {
+      ScheduleTask task = new ScheduleTask("task1");
+      TimeCondition tc = new TimeCondition();
+      tc.setType(TimeCondition.EVERY_DAY);
+      tc.setHour(5);
+      task.addCondition(tc);
+      ScheduleTask cycleTask = new ScheduleTask("DataCycle Task: c1", ScheduleTask.Type.CYCLE_TASK);
+      cycleTask.setOwner(new IdentityID("INETSOFT_SYSTEM", "host-org"));
+      TimeCondition cycleCondition = new TimeCondition();
+      cycleCondition.setType(TimeCondition.EVERY_DAY);
+      cycleCondition.setHour(5);
+      cycleTask.addCondition(cycleCondition);
+      when(scheduleManager.getScheduleTask("task1")).thenReturn(task);
+      when(scheduleManager.getScheduleTask("cycle1")).thenReturn(cycleTask);
+      when(scheduleService.getScheduleTaskList("", "", principal))
+         .thenReturn(mock(ScheduleTaskList.class));
+
+      service.redistributeTasks(
+         LocalTime.of(0, 0), LocalTime.of(23, 0), 4, List.of("cycle1", "task1"), principal);
+
+      verify(scheduleService).saveTask(any(), same(task), eq(principal));
+      verify(scheduleService, never()).saveTask(any(), same(cycleTask), any());
+      assertEquals(5, cycleCondition.getHour(), "the cached data cycle task must not be changed");
+   }
+
+   @Test
+   void setTaskEnabled_savesCopyAndLeavesCachedTaskUnchanged() throws Exception {
+      ScheduleTask cached = new ScheduleTask("DataCycle Task: c1", ScheduleTask.Type.CYCLE_TASK);
+      cached.setEnabled(true);
+      when(scheduleManager.getScheduleTask("cycle1")).thenReturn(cached);
+
+      service.setTaskEnabled("cycle1", false, principal);
+
+      assertTrue(cached.isEnabled(), "the cached task instance must not be mutated");
+      verify(scheduleService).saveTask(eq("cycle1"),
+         argThat((ScheduleTask t) -> t != cached && !t.isEnabled()), eq(principal));
+   }
+
+   // ── setTaskOptions (Bug #77120) ──────────────────────────────────────────
+
+   @Test
+   void setTaskOptions_unchangedUnresolvableIdentity_isKept() {
+      IdentityID id = new IdentityID("g1", "host-org");
+      Group placeholder = new Group(id);
+      ScheduleTask task = new ScheduleTask("task1");
+      task.setIdentity(placeholder);
+
+      Identity result = applyOptions(task, "g1", Identity.GROUP);
+
+      assertSame(placeholder, result,
+                 "an edit that leaves execute-as unchanged must not clear an unresolved identity");
+   }
+
+   @Test
+   void setTaskOptions_changedUnresolvableIdentity_isNotKept() {
+      ScheduleTask task = new ScheduleTask("task1");
+      task.setIdentity(new Group(new IdentityID("g1", "host-org")));
+
+      assertNull(applyOptions(task, "g2", Identity.GROUP));
+      task.setIdentity(new Group(new IdentityID("g1", "host-org")));
+      assertNull(applyOptions(task, "g1", Identity.ROLE));
+   }
+
+   private Identity applyOptions(ScheduleTask task, String idName, int idType) {
+      OrganizationManager orgManager = mock(OrganizationManager.class);
+      when(orgManager.getCurrentOrgID(principal)).thenReturn("host-org");
+      TaskOptionsPaneModel model = TaskOptionsPaneModel.builder()
+         .enabled(true)
+         .deleteIfNotScheduledToRun(false)
+         .securityEnabled(true)
+         .owner("admin")
+         .idName(idName)
+         .idType(idType)
+         .build();
+
+      try(MockedStatic<SUtil> sutil = mockStatic(SUtil.class);
+          MockedStatic<OrganizationManager> orgs = mockStatic(OrganizationManager.class))
+      {
+         orgs.when(OrganizationManager::getInstance).thenReturn(orgManager);
+         sutil.when(() -> SUtil.getIdentity(any(), anyInt())).thenReturn(null);
+         sutil.when(SUtil::loadLocaleProperties).thenReturn(new Properties());
+
+         service.setTaskOptions(model, task, principal);
+      }
+
+      return task.getIdentity();
    }
 }

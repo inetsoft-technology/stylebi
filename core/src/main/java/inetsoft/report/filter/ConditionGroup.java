@@ -639,6 +639,7 @@ public class ConditionGroup extends XConditionGroup implements Cloneable, Serial
             // this recursive execution may cause unpredictable result. create a new scope
             // here to avoid this race condition. (60837)
             scope = box.createAssetQueryScope();
+            ScriptStateLint.checkCondition(script, exp, scope, "condition");
 
             // pool mode drops this unread global: as an env variable every pooled context
             // would replay it (bug #76960, spec §6.6)

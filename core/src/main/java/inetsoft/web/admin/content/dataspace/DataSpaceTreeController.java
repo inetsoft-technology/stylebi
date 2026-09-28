@@ -17,6 +17,7 @@
  */
 package inetsoft.web.admin.content.dataspace;
 
+import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.*;
 import inetsoft.uql.viewsheet.graph.aesthetic.ImageShapes;
 import inetsoft.util.MessageException;
@@ -144,6 +145,12 @@ public class DataSpaceTreeController {
       String orgShapesDir = ImageShapes.getShapesDirectory();
 
       if(path.equals(globalShapesDir) || path.startsWith(globalShapesDir + "/")) {
+         // The global shapes folder is shared by all organizations, only a site admin
+         // may modify it in multi-tenant mode.
+         if(SUtil.isMultiTenant() && !OrganizationManager.getInstance().isSiteAdmin(principal)) {
+            return false;
+         }
+
          return securityEngine.checkPermission(principal, ResourceType.EM_COMPONENT,
             "settings/presentation/settings", ResourceAction.ACCESS);
       }

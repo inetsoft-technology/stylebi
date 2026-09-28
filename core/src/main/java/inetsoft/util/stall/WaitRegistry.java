@@ -75,7 +75,11 @@ public final class WaitRegistry {
     *
     * @param what     the wait site, for the error message and the thread dump.
     * @param progress a counter that changes whenever the wait makes progress.
-    * @param blockers the threads the wait is for, e.g. a lens worker or a lock owner.
+    * @param blockers the threads the wait is for, e.g. a lens worker or a lock owner. The
+    *                 watchdog calls it too, under its own monitor, to look for wait-for
+    *                 cycles (bug #77152): it must never block, and never take a monitor
+    *                 other than a leaf one (such as {@code LendableReentrantLock}'s own), in
+    *                 particular never a lens monitor or an engine lock.
     */
    public static WaitRecord begin(String what, LongSupplier progress,
                                   Supplier<Thread[]> blockers)
@@ -92,8 +96,9 @@ public final class WaitRegistry {
    /**
     * Register an unbounded wait of the current thread with the server's registry, only so that
     * the waits blocked by this thread get credit for its progress. The wait is never failed,
-    * dumped or reported, and never turns health DOWN: {@link WaitRecord#checkStall()} only
-    * samples its progress and never throws. Like {@link #begin}, it must only be called on the
+    * dumped or reported, and never turns health DOWN by itself: {@link WaitRecord#checkStall()}
+    * only samples its progress and never throws. Stalled, it may still be a member of a
+    * wait-for cycle, which does turn health DOWN (bug #77152, see {@link StallWatchdog}). Like {@link #begin}, it must only be called on the
     * slow path of the wait, and closed in a finally block.
     *
     * <p>The credit rules are those of any registered wait: the threads waiting for this one
@@ -103,12 +108,15 @@ public final class WaitRegistry {
     *
     * @param what     the wait site.
     * @param progress a counter that changes whenever the wait makes progress.
-    * @param blockers the threads the wait is for, e.g. the thread loading the rows.
+    * @param blockers the threads the wait is for, e.g. the thread loading the rows, with the
+    *                 same contract as {@link #begin}'s.
     */
    public static WaitRecord beginCreditOnly(String what, LongSupplier progress,
                                             Supplier<Thread[]> blockers)
    {
-      // the watchdog ignores credit-only waits, it need not be started for one
+      // the watchdog only checks a credit-only wait as a member of a wait-for cycle, which it
+      // need not be started for: a cycle of credit-only waits alone is only seen once another
+      // wait started it
       return GLOBAL.openCreditOnly(what, progress, blockers);
    }
 
