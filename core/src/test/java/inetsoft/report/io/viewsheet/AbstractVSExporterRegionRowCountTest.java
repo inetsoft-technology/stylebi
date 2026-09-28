@@ -23,9 +23,14 @@ import inetsoft.report.composition.VSTableLens;
 import inetsoft.report.io.viewsheet.excel.CSVVSExporter;
 import inetsoft.report.lens.DefaultTableLens;
 import inetsoft.test.*;
+import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.viewsheet.CalcTableVSAssembly;
+import inetsoft.uql.viewsheet.CrosstabVSAssembly;
+import inetsoft.uql.viewsheet.TableDataVSAssembly;
+import inetsoft.uql.viewsheet.VSCrosstabInfo;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.CalcTableVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.CrosstabVSAssemblyInfo;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -35,6 +40,7 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.awt.*;
+import java.util.function.IntPredicate;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -108,6 +114,17 @@ import static org.mockito.Mockito.when;
  * works. A fourth, {@link #alwaysBlankGapColumnDoesNotDefeatTheHeightClamp},
  * reproduces the real asset's full 5-column shape (including the undefined
  * gap column at index 3) and is the test that caught round 1's gap.</p>
+ *
+ * <p><b>Bug #77237</b>: rounds 1 and 2 only filtered out specific blank-cell
+ * densities (merge continuations, always-blank columns). Any other blank cell
+ * in a freehand table (a formula column returning {@code ''} on most rows, a
+ * single blank cell, a blank spacer row) still exempted its row, so the clamp
+ * failed again. The bug #53192 exemption is now applied to crosstabs only
+ * (bug #53192 was a date-comparison crosstab); every other table counts every
+ * row toward the design-height budget, because the exporters still write
+ * those rows. The calc-table tests below cover the blank-density axis, and
+ * {@link #genuinelyBlankCrosstabRowIsStillExemptFromTheHeightClamp} guards the
+ * crosstab exemption.</p>
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class },
@@ -177,35 +194,64 @@ class AbstractVSExporterRegionRowCountTest {
    }
 
    /**
-    * Guards bug #53192's original intent, which the fix must not regress: a
-    * row that is blank because it is genuinely hidden/filtered &mdash; not
-    * because a merged/spanning cell from an earlier row covers it &mdash;
-    * must still be exempted from the height budget entirely, so it never
-    * consumes budget that a later, real row needs.
+    * Guards bug #53192's original intent, which must not regress: in a
+    * <em>crosstab</em> (bug #53192 was a date-comparison crosstab), a row
+    * that is blank &mdash; not because a merged/spanning cell from an earlier
+    * row covers it &mdash; is still exempted from the height budget, so it
+    * never consumes budget that a later, real row needs.
     *
-    * <p>1 header row + 6 data rows (index 1 = "V1", index 2 = genuinely
-    * blank with no span anywhere, indices 3-6 = "V2".."V5"), design height
-    * sized so exactly the 5 real data rows fit in the 100px budget (5 x
-    * 20px). If the blank row were wrongly counted toward the budget instead
-    * of exempted, it would consume one row's worth of height and "V5" would
-    * be clamped off, returning 6 instead of 7.</p>
+    * <p>1 header row + 6 data rows (index 1 = "V1", index 2 = blank with no
+    * span anywhere, indices 3-6 = "V2".."V5"), design height sized so exactly
+    * the 5 non-blank data rows fit in the 100px budget (5 x 20px). If the
+    * blank row were counted toward the budget, "V5" would be clamped off and
+    * this would return 6 instead of 7.</p>
+    *
+    * <p>Before bug #77237 this test mocked a {@code CalcTableVSAssembly}; its
+    * premise (a blank row takes no space) is false for freehand tables, whose
+    * exporters write every row, so it now runs against a crosstab, the type
+    * the exemption was written for. The calc-table expectation for the same
+    * shape is in {@link #blankSpacerRowInCalcTableCountsTowardTheHeightClamp}.</p>
     */
    @Test
-   void genuinelyBlankRowIsStillExemptFromTheHeightClamp() {
-      Object[][] rows = {
-         { "Header" },
-         { "V1" },
-         { "" },
-         { "V2" },
-         { "V3" },
-         { "V4" },
-         { "V5" },
-      };
-      DefaultTableLens raw = new DefaultTableLens(rows);
-      raw.setHeaderRowCount(1);
-      // No span set anywhere -- the blank row at index 2 is not a merge
-      // continuation of any cell.
-      TableLens data = new VSTableLens(raw);
+   void genuinelyBlankCrosstabRowIsStillExemptFromTheHeightClamp() {
+      TableLens data = oneColumnTableWithBlankRow();
+
+      CrosstabVSAssemblyInfo info = Mockito.mock(CrosstabVSAssemblyInfo.class);
+      when(info.isTitleVisible()).thenReturn(false);
+
+      VSCrosstabInfo crosstabInfo = Mockito.mock(VSCrosstabInfo.class);
+      // one column header -> hrow = 1
+      when(crosstabInfo.getRuntimeColHeaders()).thenReturn(new DataRef[1]);
+
+      CrosstabVSAssembly table = Mockito.mock(CrosstabVSAssembly.class);
+      when(table.getInfo()).thenReturn(info);
+      when(table.getVSAssemblyInfo()).thenReturn(info);
+      when(table.getVSCrosstabInfo()).thenReturn(crosstabInfo);
+      // headerHeight = 20 (1 header row); budget = 120 - 20 = 100 = exactly
+      // 5 rows worth of the 5 non-blank data rows.
+      when(table.getPixelSize()).thenReturn(new Dimension(PIXEL_WIDTH, 120));
+      when(table.getName()).thenReturn("HiddenRowCrosstab");
+      Viewsheet vs = viewsheet();
+      when(table.getViewsheet()).thenReturn(vs);
+
+      int regionRowCount = new TestExporter(table).regionRowCount(data);
+
+      assertEquals(7, regionRowCount,
+         "the blank, unspanned crosstab row must be exempted from the height "
+         + "budget (bug #53192's original behavior), so all 5 non-blank data rows "
+         + "still fit and are counted");
+   }
+
+   /**
+    * Bug #77237, wholly blank row: the same 1-header + 6-data-row shape as the
+    * crosstab test above, but in a freehand table. A blank calc-table row (a
+    * design spacer row, or a row whose formulas all return {@code ''}) is still
+    * written as a real row by the exporters, so it counts toward the 100px
+    * budget and only 5 data rows fit: 1 header + 5 = 6.
+    */
+   @Test
+   void blankSpacerRowInCalcTableCountsTowardTheHeightClamp() {
+      TableLens data = oneColumnTableWithBlankRow();
 
       CalcTableVSAssemblyInfo info = Mockito.mock(CalcTableVSAssemblyInfo.class);
       when(info.getHeaderRowCount()).thenReturn(1);
@@ -214,23 +260,92 @@ class AbstractVSExporterRegionRowCountTest {
       CalcTableVSAssembly table = Mockito.mock(CalcTableVSAssembly.class);
       when(table.getInfo()).thenReturn(info);
       when(table.getVSAssemblyInfo()).thenReturn(info);
-      // headerHeight = 20 (1 header row); budget = 120 - 20 = 100 = exactly
-      // 5 rows worth of the 5 real data rows.
       when(table.getPixelSize()).thenReturn(new Dimension(PIXEL_WIDTH, 120));
-      when(table.getName()).thenReturn("HiddenRowTable");
-
-      Viewsheet vs = Mockito.mock(Viewsheet.class);
-      when(vs.getDisplayRowHeight(Mockito.eq(true), anyString(), anyInt())).thenReturn(ROW_HEIGHT);
-      when(vs.getDisplayRowHeight(Mockito.eq(false), anyString())).thenReturn(ROW_HEIGHT);
+      when(table.getName()).thenReturn("SpacerRowTable");
+      Viewsheet vs = viewsheet();
       when(table.getViewsheet()).thenReturn(vs);
 
-      int regionRowCount = new TestExporter(table).regionRowCount(data);
+      assertEquals(6, new TestExporter(table).regionRowCount(data),
+         "a blank calc-table row takes real vertical space, so it must count "
+         + "toward the height budget: 1 header + 5 data rows");
+   }
 
-      assertEquals(7, regionRowCount,
-         "the genuinely blank, unspanned row must be exempted from the height "
-         + "budget (bug #53192's original behavior), so all 5 real data rows "
-         + "still fit and are counted -- not 6, which is what would happen if "
-         + "the blank row wrongly consumed height budget");
+   /**
+    * Bug #77237, the reported shape: FreehandTable2 after appending a sixth
+    * column whose formula ({@code ... ? 'X' : ''}) is non-blank on exactly one
+    * data row. Before the fix the column was "significant" (non-blank somewhere),
+    * so the 11 rows where it is blank were all exempted and the method returned
+    * 14, overflowing into the selection lists below
+    * ({@code The range P18:U19 intersects with another merged region N18:P18}).
+    */
+   @Test
+   void sparseFormulaColumnDoesNotDefeatTheHeightClamp() {
+      int onlyValueRow = HEADER_ROWS + ROWS_PER_GROUP; // Foreman / Correctly Done
+      TableLens data = sixColumnFreehandTable(row -> row == onlyValueRow);
+
+      assertEquals(12, exporter().regionRowCount(data),
+         "a column that is blank on 11 of 12 data rows is ordinary calc-table "
+         + "data; every row is still written, so the clamp must trip at "
+         + "2 header + 10 data rows");
+   }
+
+   /**
+    * Bug #77237, the other end of the blank-density axis: the sixth column is
+    * filled on every data row except one. Before the fix that single blank cell
+    * exempted its row and the method returned 13 (one row of overflow).
+    */
+   @Test
+   void singleBlankCellDoesNotDefeatTheHeightClamp() {
+      int blankRow = HEADER_ROWS + 5;
+      TableLens data = sixColumnFreehandTable(row -> row != blankRow);
+
+      assertEquals(12, exporter().regionRowCount(data),
+         "one blank cell in an otherwise full calc-table column must not exempt "
+         + "its row: 2 header + 10 data rows");
+   }
+
+   /**
+    * Bug #77237, blank spacer row in the reported 6-column shape: an extra
+    * wholly blank row (15 rows in all) is still a written row, so the clamp
+    * still trips at 12. Before the fix the spacer row was exempted and the
+    * method returned 13.
+    */
+   @Test
+   void blankSpacerRowDoesNotDefeatTheHeightClampInTheReportedShape() {
+      TableLens full = sixColumnFreehandTable(row -> true);
+      // between the first and second Worker_Type groups
+      int spacerAt = HEADER_ROWS + ROWS_PER_GROUP;
+      Object[][] rows = new Object[full.getRowCount() + 1][];
+
+      for(int r = 0, src = 0; r < rows.length; r++) {
+         if(r == spacerAt) {
+            rows[r] = new Object[]{ "", "", "", "", "", "" };
+            continue;
+         }
+
+         rows[r] = new Object[full.getColCount()];
+
+         for(int c = 0; c < full.getColCount(); c++) {
+            rows[r][c] = full.getObject(src, c);
+         }
+
+         src++;
+      }
+
+      DefaultTableLens raw = new DefaultTableLens(rows);
+      raw.setHeaderRowCount(HEADER_ROWS);
+
+      // keep the Worker_Type merges, shifted past the spacer row
+      for(int g = 0; g < GROUPS; g++) {
+         int origin = HEADER_ROWS + g * ROWS_PER_GROUP + (g > 0 ? 1 : 0);
+         raw.setSpan(origin, 0, new Dimension(1, ROWS_PER_GROUP));
+      }
+
+      TableLens data = new VSTableLens(raw);
+
+      assertEquals(12, exporter().regionRowCount(data),
+         "a wholly blank spacer row in a freehand table is still written, so it "
+         + "must count toward the height budget: 2 header + 10 data rows");
    }
 
    /**
@@ -289,6 +404,66 @@ class AbstractVSExporterRegionRowCountTest {
    }
 
    /**
+    * 1 header row + 6 data rows; data row index 2 is blank and not covered by
+    * any span.
+    */
+   private static TableLens oneColumnTableWithBlankRow() {
+      Object[][] rows = {
+         { "Header" },
+         { "V1" },
+         { "" },
+         { "V2" },
+         { "V3" },
+         { "V4" },
+         { "V5" },
+      };
+      DefaultTableLens raw = new DefaultTableLens(rows);
+      raw.setHeaderRowCount(1);
+      return new VSTableLens(raw);
+   }
+
+   /**
+    * FreehandTable2's shape after bug #77237's appended column: the 5 columns
+    * of {@link #alwaysBlankGapColumnDoesNotDefeatTheHeightClamp} (merged
+    * Worker_Type, status, value, always-blank gap column, value) plus col 5,
+    * which holds "X" on the data rows where {@code hasValue} is true and ""
+    * elsewhere. 14 rows (2 header + 4 groups x 3).
+    */
+   private static TableLens sixColumnFreehandTable(IntPredicate hasValue) {
+      Object[][] rows = new Object[TOTAL_ROWS][6];
+      rows[0] = new Object[]{ "", "", "Location", "", "Year", "Flag" };
+      rows[1] = new Object[]{ "", "Status", "", "", "", "" };
+
+      String[] groupNames = { "Drywall Installers", "Foreman", "General Workers", "Lawyers" };
+      String[] statusNames = { "Correctly Done", "Incorrectly Done", "Requires Replacement" };
+
+      for(int g = 0; g < GROUPS; g++) {
+         for(int r = 0; r < ROWS_PER_GROUP; r++) {
+            int row = HEADER_ROWS + g * ROWS_PER_GROUP + r;
+            String workerType = r == 0 ? groupNames[g] : "";
+            rows[row] = new Object[]{ workerType, statusNames[r], "2", "", "1",
+                                      hasValue.test(row) ? "X" : "" };
+         }
+      }
+
+      DefaultTableLens raw = new DefaultTableLens(rows);
+      raw.setHeaderRowCount(HEADER_ROWS);
+
+      for(int g = 0; g < GROUPS; g++) {
+         raw.setSpan(HEADER_ROWS + g * ROWS_PER_GROUP, 0, new Dimension(1, ROWS_PER_GROUP));
+      }
+
+      return new VSTableLens(raw);
+   }
+
+   private static Viewsheet viewsheet() {
+      Viewsheet vs = Mockito.mock(Viewsheet.class);
+      when(vs.getDisplayRowHeight(Mockito.eq(true), anyString(), anyInt())).thenReturn(ROW_HEIGHT);
+      when(vs.getDisplayRowHeight(Mockito.eq(false), anyString())).thenReturn(ROW_HEIGHT);
+      return vs;
+   }
+
+   /**
     * Builds a 14-row, 2-column table lens matching FreehandTable2's real
     * detail-region cell binding: col 0 = the {@code Worker_Type} group label
     * (merged across each 3-row group when {@code blankOnContinuation}), col 1
@@ -333,10 +508,7 @@ class AbstractVSExporterRegionRowCountTest {
       when(table.getVSAssemblyInfo()).thenReturn(info);
       when(table.getPixelSize()).thenReturn(new Dimension(PIXEL_WIDTH, PIXEL_HEIGHT));
       when(table.getName()).thenReturn("FreehandTable2");
-
-      Viewsheet vs = Mockito.mock(Viewsheet.class);
-      when(vs.getDisplayRowHeight(Mockito.eq(true), anyString(), anyInt())).thenReturn(ROW_HEIGHT);
-      when(vs.getDisplayRowHeight(Mockito.eq(false), anyString())).thenReturn(ROW_HEIGHT);
+      Viewsheet vs = viewsheet();
       when(table.getViewsheet()).thenReturn(vs);
 
       return new TestExporter(table);
@@ -350,9 +522,9 @@ class AbstractVSExporterRegionRowCountTest {
     * {@code core}) &mdash; none of its writeXxx() overrides are exercised.
     */
    private static final class TestExporter extends CSVVSExporter {
-      private final CalcTableVSAssembly table;
+      private final TableDataVSAssembly table;
 
-      TestExporter(CalcTableVSAssembly table) {
+      TestExporter(TableDataVSAssembly table) {
          this.table = table;
          setMatchLayout(true);
       }
