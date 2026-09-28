@@ -46,6 +46,32 @@ class WsCopyMutationWarningTest {
          ((List<Object>) l.get(0)).sort(null);
       }
 
+      // reads only: none of these is a write to the copy
+      @SuppressWarnings("unchecked")
+      public String readAll(List<Object> l, Map<String, Object> m) {
+         StringBuilder sb = new StringBuilder();
+         sb.append(l.size()).append(l.get(0)).append(l.contains(2)).append(l.indexOf(2))
+            .append(l.isEmpty()).append(l.subList(0, 1)).append(new ArrayList<>(l))
+            .append(List.copyOf(l)).append(l.stream().mapToDouble(x -> ((Number) x).doubleValue()).sum())
+            .append(Collections.max(l, Comparator.comparingDouble(x -> ((Number) x).doubleValue())))
+            .append(l.hashCode()).append(l.equals(List.of(3, 1, 2))).append(l);
+
+         for(Iterator<Object> it = l.listIterator(); it.hasNext(); ) {
+            sb.append(it.next());
+         }
+
+         l.forEach(sb::append);
+         sb.append(m.get("a")).append(m.containsKey("b")).append(m.getOrDefault("q", 0))
+            .append(m.keySet()).append(m.values()).append(new TreeMap<>(m)).append(m.size());
+         m.forEach((k, v) -> sb.append(k));
+
+         for(Map.Entry<String, Object> e : m.entrySet()) {
+            sb.append(e.getKey()).append(e.getValue());
+         }
+
+         return sb.toString();
+      }
+
       public String addElsewhere(List<Object> l) throws Exception {
          ExecutorService ex = Executors.newSingleThreadExecutor();
 
@@ -121,6 +147,38 @@ class WsCopyMutationWarningTest {
       kept.put("late", 1);
       run(env, tag + "1");
       kept.put("later", 2);
+      assertEquals(before, PoolMetrics.nodeCopyMutations());
+      assertEquals(0, warnings(), () -> String.valueOf(messages()));
+   }
+
+   /**
+    * The warning is once per script, not per exec or per call: a script run once per row (one
+    * compiled script, many execs) and a script that changes many copies in one exec each
+    * warn once, while every changed copy is counted.
+    */
+   @Test
+   void aScriptRunPerRowOrChangingManyCopiesWarnsOnceAndCountsEachCopy() throws Exception {
+      long before = PoolMetrics.nodeCopyMutations();
+      Object perRow = env.compile(tag + "var a = [3, 1, 2]; java.util.Collections.sort(a); a[0]");
+
+      for(int row = 0; row < 500; row++) {
+         assertEquals(3.0, env.exec(perRow, null, null, null));
+      }
+
+      assertEquals(before + 500, PoolMetrics.nodeCopyMutations());
+      assertEquals(1, warnings(), () -> String.valueOf(messages()));
+
+      assertEquals(3.0, run(env, tag + "var r = 0; for(var i = 0; i < 100; i++) { " +
+         "var a = [3, 1, 2]; java.util.Collections.reverse(a); r = a[0]; } r"));
+      assertEquals(before + 600, PoolMetrics.nodeCopyMutations());
+      assertEquals(2, warnings(), () -> String.valueOf(messages()));
+   }
+
+   @Test
+   void javaReadsOfACopyAreNeverCounted() throws Exception {
+      long before = PoolMetrics.nodeCopyMutations();
+      Object r = run(env, tag + "h.readAll([3, 1, 2], {a: 1, b: [1, 2], c: {d: 1}})");
+      assertTrue(String.valueOf(r).startsWith("33true2false[3][3, 1, 2]"), String.valueOf(r));
       assertEquals(before, PoolMetrics.nodeCopyMutations());
       assertEquals(0, warnings(), () -> String.valueOf(messages()));
    }
