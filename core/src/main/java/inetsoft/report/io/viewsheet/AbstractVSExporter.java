@@ -1649,6 +1649,7 @@ public abstract class AbstractVSExporter implements VSExporter {
    /**
     * Get the graph to write for the chart.
     * @param name the absolute name of the chart assembly.
+    * @param pair the graph pair of the chart.
     */
    protected VGraph getChartGraph(String name, VGraphPair pair) {
       return !isRealSizeChart(name) && supportChartSlices() ?
