@@ -93,11 +93,18 @@ public class RenameColumnController extends WorksheetController {
       }
 
       if(conflictingColumn != null) {
-         MessageCommand command = new MessageCommand();
-         command.setMessage(createColumnConflictErrorMessage(alias, conflictingColumn));
-         command.setType(MessageCommand.Type.ERROR);
-         command.setAssemblyName(table.getName());
-         commandDispatcher.sendCommand(command);
+         // commandDispatcher is null when this is called from a caller with no live UI session
+         // to report to (e.g. the wiz agent bridge, Bug #77005) -- such a caller pre-checks the
+         // identical conflict via findRenameConflict() below and reports it its own way, so there
+         // is nothing left to dispatch a MessageCommand to here.
+         if(commandDispatcher != null) {
+            MessageCommand command = new MessageCommand();
+            command.setMessage(createColumnConflictErrorMessage(alias, conflictingColumn));
+            command.setType(MessageCommand.Type.ERROR);
+            command.setAssemblyName(table.getName());
+            commandDispatcher.sendCommand(command);
+         }
+
          return true;
       }
 
@@ -227,6 +234,53 @@ public class RenameColumnController extends WorksheetController {
    }
 
    /**
+    * Finds the existing column on {@code table} that would collide with renaming {@code ocolumn}
+    * to {@code alias}, mirroring the same conflict check {@link #renameColumn(CommandDispatcher,
+    * TableAssembly, ColumnRef, String)} runs before mutating anything (lines 60-93 there) --
+    * duplicated here, read-only, rather than extracted out of that already-tested method, so a
+    * caller with no {@link CommandDispatcher} (Bug #77005, the wiz agent bridge) can pre-check
+    * the identical conflict and report it its own way (a {@link
+    * inetsoft.web.wiz.pairing.PairingException}, not a {@link MessageCommand}) before calling
+    * {@link #renameColumn(Worksheet, CommandDispatcher, TableAssembly, ColumnRef, String)} with a
+    * {@code null} dispatcher.
+    *
+    * @return the conflicting column, or {@code null} if {@code ocolumn} could not be found, the
+    *         rename is a no-op (unchanged alias), or there is no conflict
+    */
+   public static ColumnRef findRenameConflict(TableAssembly table, ColumnRef ocolumn, String alias) {
+      ColumnSelection columns = table.getColumnSelection(false);
+      int index = columns.indexOfAttribute(ocolumn);
+
+      if(index < 0) {
+         if(columns.getAttribute(ocolumn.getAttribute()) != null) {
+            index = columns.indexOfAttribute(columns.getAttribute(ocolumn.getAttribute()));
+         }
+         else {
+            return null;
+         }
+      }
+
+      ColumnRef column = (ColumnRef) columns.getAttribute(index);
+
+      if(Tool.equals(alias, ocolumn.getAlias())) {
+         return null;
+      }
+
+      String name = column.getAlias();
+      name = name == null || name.length() == 0 ? column.getAttribute() : name;
+
+      if(alias.equals(name)) {
+         return null;
+      }
+
+      if(alias.equalsIgnoreCase(column.getAttribute())) {
+         return AssetUtil.findColumnConflictingWithAlias(columns, column, alias, false);
+      }
+
+      return AssetUtil.findColumnConflictingWithAlias(columns, column, alias, true);
+   }
+
+   /**
     * Rename column.
     */
    public static boolean renameColumn(
@@ -279,11 +333,36 @@ public class RenameColumnController extends WorksheetController {
                if(Tool.equals(table.getName(), tableAssembly)) {
                   final DataRef column = findColumn(ocolumn, composedTable);
 
+                  // Bug #77005 / WBS-094: capture composedTable's OWN pre-rename BARE local
+                  // attribute name (never entity-qualified -- field['Amount'] addresses a
+                  // column by its bare attribute, the same identity getAttribute() returns)
+                  // now, before renameTableColumn0 runs below. renameMirrorConditionList
+                  // (called from within it) can mutate THIS EXACT ColumnRef object in place
+                  // via setDataRef -- when a downstream condition's own attribute happens to
+                  // be this same object, e.g. because addFilter reuses the live column
+                  // reference rather than cloning it -- so reading its name AFTER
+                  // renameTableColumn0 runs would already see the NEW name, not the old one
+                  // this scan needs to search for.
+                  String oldLocalName =
+                     column instanceof ColumnRef ? ((ColumnRef) column).getAttribute() : null;
+
                   if(column instanceof ColumnRef) {
                      renameTableColumn(ws, composedTable, (ColumnRef) column, ncolumn);
                   }
 
                   renameTableColumn0(ws, table, composedTable, ocolumn, ncolumn);
+
+                  // Bug #77005 / WBS-094: composedTable's OWN expression columns may reference
+                  // the renamed column purely by ITS OWN (pre-rename) local identity --
+                  // field['Amount'], with no cross-table qualifier at all -- which
+                  // getExpressionDependeds (below) can never detect, since that mechanism only
+                  // recognizes a script referencing ANOTHER assembly BY NAME, not a same-table
+                  // local field access.
+                  if(oldLocalName != null) {
+                     String newLocalName = ncolumn.getAlias() != null ?
+                        ncolumn.getName() : ncolumn.getAttribute();
+                     renameComposedTableOwnExpressions(composedTable, oldLocalName, newLocalName);
+                  }
                }
             }
 
@@ -371,6 +450,44 @@ public class RenameColumnController extends WorksheetController {
       }
    }
 
+   /**
+    * Bug #77005 / WBS-094: rewrites {@code composedTable}'s OWN expression-column script text
+    * that references {@code oldLocalName} under composedTable's OWN local column identity (e.g.
+    * a mirror's own {@code field['Amount']} expression, addressing its own mirrored "Amount"
+    * column). This is the SAME rewrite {@link Util#renameScriptRefDepended} already applies for
+    * a table renaming ITS OWN expression columns ({@link #renameColumn(CommandDispatcher,
+    * TableAssembly, ColumnRef, String)}, the {@code exprs} loop above) -- applied here to a
+    * DOWNSTREAM table's own expressions instead, unconditional on {@link
+    * AbstractTableAssembly#getExpressionDependeds}, which answers a different question ("does
+    * this script textually reference ANOTHER assembly by name") that a same-table local field
+    * access never triggers, and so would never gate this rewrite into running at all.
+    */
+   private static void renameComposedTableOwnExpressions(
+      TableAssembly composedTable, String oldLocalName, String newLocalName)
+   {
+      if(oldLocalName == null || newLocalName == null || oldLocalName.equals(newLocalName)) {
+         return;
+      }
+
+      ColumnSelection columns = composedTable.getColumnSelection();
+
+      for(int i = 0; i < columns.getAttributeCount(); i++) {
+         DataRef column = columns.getAttribute(i);
+
+         if(!(column instanceof ColumnRef)) {
+            continue;
+         }
+
+         DataRef ref = ((ColumnRef) column).getDataRef();
+
+         if(ref instanceof ExpressionRef) {
+            ExpressionRef exp = (ExpressionRef) ref;
+            exp.setExpression(
+               Util.renameScriptRefDepended(oldLocalName, newLocalName, exp.getExpression()));
+         }
+      }
+   }
+
    private static void renameTableExpressionColumn(TableAssembly namedColtable,
                                             ColumnRef ocolumn,
                                             ColumnRef ncolumn,
@@ -404,6 +521,18 @@ public class RenameColumnController extends WorksheetController {
             token.val.equals(ocolumn.getName()) && (cref == null || !"[".equals(cref.val)))
          {
             sb.append(new ScriptIterator.Token(token.type, ncolumn.getName(), token.length));
+         }
+         // Bug #77005 / WBS-094: the dot-notation check above (Table.Column) never matches a
+         // bracket-string column reference (field['Amount']) -- a quoted string is not an
+         // isRef() token no matter what precedes it -- so a downstream mirror's OWN expression
+         // column, which has no table qualifier to give it a "Table." prefix in the first place,
+         // was never rewritten here even though renameScriptRefDepended (the SAME-table rename
+         // path, above) already handles this exact bracket form for its own table's expressions.
+         else if(token.type == ScriptIterator.Token.TEXT &&
+            token.val.contains("['" + ocolumn.getName() + "']"))
+         {
+            sb.append(new ScriptIterator.Token(token.type,
+               token.val.replace(ocolumn.getName(), ncolumn.getName()), token.length));
          }
          else {
             sb.append(token);

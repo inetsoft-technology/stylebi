@@ -3248,7 +3248,7 @@ public class WorksheetAgentController {
          case "add_column" ->
             editor.addColumn(req.table(), req.name(), req.type());
          case "remove_column" ->
-            editor.removeColumn(req.table(), req.column());
+            editor.removeColumn(req.table(), req.column(), Boolean.TRUE.equals(req.confirmed()));
          case "rename_column" ->
             editor.renameColumn(req.table(), req.column(), req.newName());
          case "add_filter" ->

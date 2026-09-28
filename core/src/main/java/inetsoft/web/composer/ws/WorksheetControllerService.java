@@ -23,6 +23,9 @@ import inetsoft.report.composition.*;
 import inetsoft.report.composition.event.AssetEventUtil;
 import inetsoft.report.composition.execution.AssetQuerySandbox;
 import inetsoft.uql.ColumnSelection;
+import inetsoft.uql.ConditionItem;
+import inetsoft.uql.ConditionList;
+import inetsoft.uql.ConditionListWrapper;
 import inetsoft.uql.XTable;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
@@ -424,6 +427,174 @@ public class WorksheetControllerService {
          }
          finally {
             visited.remove(assemblyName);
+         }
+      }
+   }
+
+   /**
+    * One entry per downstream assembly (transitively) whose own pre-condition, post-condition,
+    * ranking condition, or expression-column script text references a column being removed from
+    * {@code table} (Bug #77005 / WBS-093/094). Unlike {@link AggregateInputLossConflict}, which
+    * is scoped to {@link AggregateInfo}, this covers the consumer kinds that mechanism does not
+    * -- {@code remove_column} has no rewrite target to propagate a removal into the way
+    * {@code rename_column} does, so precheck-and-refuse (the same shape {@code
+    * set_column_visibility}, Bug #77001 / WBS-088, already uses for the aggregate/group-by axis)
+    * is the only safe model for it.
+    */
+   public record ColumnReferenceLossConflict(String dependentAssemblyName, List<String> references) {}
+
+   /**
+    * Finds every downstream assembly (transitively, not just direct dependents) whose own
+    * condition/ranking/expression references {@code ref}. See {@link ColumnReferenceLossConflict}.
+    */
+   public static List<ColumnReferenceLossConflict> findColumnReferenceLossConflicts(
+      Worksheet ws, TableAssembly table, ColumnRef ref)
+   {
+      LinkedHashMap<String, List<String>> refsByDependent = new LinkedHashMap<>();
+      findColumnReferenceLossConflicts(ws, table, ref, new HashSet<>(), refsByDependent);
+
+      List<ColumnReferenceLossConflict> conflicts = new ArrayList<>();
+
+      for(Map.Entry<String, List<String>> entry : refsByDependent.entrySet()) {
+         conflicts.add(new ColumnReferenceLossConflict(entry.getKey(), entry.getValue()));
+      }
+
+      return conflicts;
+   }
+
+   private static void findColumnReferenceLossConflicts(
+      Worksheet ws, TableAssembly assembly, ColumnRef ref, Set<String> visited,
+      LinkedHashMap<String, List<String>> refsByDependent)
+   {
+      AssemblyRef[] arr = ws.getDependings(assembly.getAssemblyEntry());
+
+      for(AssemblyRef assemblyRef : arr) {
+         String assemblyName = assemblyRef.getEntry().getName();
+
+         if(!visited.add(assemblyName)) {
+            continue;
+         }
+
+         try {
+            Assembly tmp = ws.getAssembly(assemblyName);
+
+            if(!(tmp instanceof TableAssembly)) {
+               continue;
+            }
+
+            TableAssembly dependent = (TableAssembly) tmp;
+            DataRef outerRef = AssetUtil.getOuterAttribute(assemblyName, ref);
+            ColumnRef mappedRef =
+               AssetUtil.getColumnRefFromAttribute(dependent.getColumnSelection(), outerRef);
+
+            if(mappedRef == null) {
+               continue;
+            }
+
+            List<String> found = new ArrayList<>();
+            collectConditionReferences(
+               dependent.getPreConditionList(), mappedRef, "pre-condition", found);
+            collectConditionReferences(
+               dependent.getPostConditionList(), mappedRef, "post-condition", found);
+            collectConditionReferences(
+               dependent.getRankingConditionList(), mappedRef, "ranking condition", found);
+            collectExpressionReferences(dependent, mappedRef, found);
+
+            if(!found.isEmpty()) {
+               List<String> existing =
+                  refsByDependent.computeIfAbsent(assemblyName, k -> new ArrayList<>());
+
+               for(String reference : found) {
+                  if(!existing.contains(reference)) {
+                     existing.add(reference);
+                  }
+               }
+            }
+
+            findColumnReferenceLossConflicts(ws, dependent, mappedRef, visited, refsByDependent);
+         }
+         finally {
+            visited.remove(assemblyName);
+         }
+      }
+   }
+
+   /**
+    * Appends {@code kind} to {@code references} if any item in {@code wrapper} references
+    * {@code ref} -- unwrapping an {@link AggregateRef} the same way {@code
+    * RenameColumnController.renameMirrorConditionList} does, since a HAVING/ranking condition on
+    * an aggregate table wraps its column that way.
+    */
+   private static void collectConditionReferences(
+      ConditionListWrapper wrapper, ColumnRef ref, String kind, List<String> references)
+   {
+      if(!(wrapper instanceof ConditionList)) {
+         return;
+      }
+
+      ConditionList list = (ConditionList) wrapper;
+
+      for(int i = 0; i < list.getConditionSize(); i += 2) {
+         ConditionItem item = list.getConditionItem(i);
+
+         if(item == null) {
+            continue;
+         }
+
+         DataRef attr = item.getAttribute();
+
+         if(attr instanceof AggregateRef) {
+            attr = ((AggregateRef) attr).getDataRef();
+         }
+
+         if(attr instanceof ColumnRef && attr.equals(ref)) {
+            references.add(kind);
+         }
+      }
+   }
+
+   /**
+    * Appends one entry per {@code dependent} expression column whose script text references
+    * {@code ref} under {@code dependent}'s own local column identity -- {@code field['<name>']},
+    * with no cross-table qualifier at all, the pattern wiz's own {@code add_expression_column}
+    * generates (Bug #77005 / WBS-094). This is a plain substring scan, not the {@link
+    * AbstractTableAssembly#getExpressionDependeds}/{@code ScriptIterator} machinery
+    * {@code RenameColumnController} uses for a cross-assembly {@code Table.Column} reference --
+    * that machinery answers a different question ("does this script reference ANOTHER assembly
+    * by name") that a same-table local field access never triggers, so it would never flag this
+    * case at all.
+    */
+   private static void collectExpressionReferences(
+      TableAssembly dependent, ColumnRef ref, List<String> references)
+   {
+      // getAttribute(), not getName() -- field['amount'] addresses a column by its BARE
+      // attribute; getName() falls back to an entity-qualified "Table.amount" once no alias
+      // is set (AbstractDataRef#getName0), which never appears literally in that bracket form.
+      String name = ref.getAttribute();
+
+      if(name == null) {
+         return;
+      }
+
+      ColumnSelection columns = dependent.getColumnSelection();
+
+      for(int i = 0; i < columns.getAttributeCount(); i++) {
+         DataRef column = columns.getAttribute(i);
+
+         if(!(column instanceof ColumnRef)) {
+            continue;
+         }
+
+         DataRef inner = ((ColumnRef) column).getDataRef();
+
+         if(!(inner instanceof ExpressionRef)) {
+            continue;
+         }
+
+         String expr = ((ExpressionRef) inner).getExpression();
+
+         if(expr != null && expr.contains("['" + name + "']")) {
+            references.add("expression column '" + ((ColumnRef) column).getName() + "'");
          }
       }
    }
