@@ -1210,6 +1210,7 @@ public abstract class AbstractVSExporter implements VSExporter {
    {
       this.index = index;
       this.box = box;
+      expandedCharts.clear();
       Viewsheet origViewsheet = box.getViewsheet();
       Viewsheet rvsOrigViewsheet = rvs != null ? rvs.getViewsheet() : null;
 
@@ -1505,10 +1506,10 @@ public abstract class AbstractVSExporter implements VSExporter {
                   data = data == null && pair != null ? pair.getData() : data;
 
                   VGraph graph = null;
+                  boolean realSize = isRealSizeChart(name);
 
                   if(data != null && !(data.getRowCount() <= 0 && data.getColCount() <= 0)) {
-                     graph = !isMatchLayout() && supportChartSlices() ?
-                        pair.getExpandedVGraph() : pair.getRealSizeVGraph();
+                     graph = getChartGraph(name, pair);
                   }
 
                   Hyperlink emptyPlotLink = info.getEmptyPlotLinkValue();
@@ -1536,7 +1537,7 @@ public abstract class AbstractVSExporter implements VSExporter {
                         writeChart(chart, graph, data, imgOnly);
                      }
                      else {
-                        writeSliceChart(chart, data, pair, isMatchLayout(), imgOnly);
+                        writeSliceChart(chart, data, pair, realSize, imgOnly);
                      }
                   }
 
@@ -1632,12 +1633,36 @@ public abstract class AbstractVSExporter implements VSExporter {
    }
 
    /**
+    * Check if the real size graph should be written for the chart instead of the
+    * expanded graph.
+    * @param name the absolute name of the chart assembly.
+    */
+   protected boolean isRealSizeChart(String name) {
+      // the chart assembly has been expanded to show the whole chart. the pair is
+      // re-generated at the expanded size and the real size graph is laid out to fill
+      // the expanded assembly. the expanded graph of the new pair may still be larger
+      // than the assembly (e.g. the plot resize ratio is a percent of the current plot
+      // size, or the size is capped) and would be clipped. (77224)
+      return isMatchLayout() || expandedCharts.contains(name);
+   }
+
+   /**
+    * Get the graph to write for the chart.
+    * @param name the absolute name of the chart assembly.
+    * @param pair the graph pair of the chart.
+    */
+   protected VGraph getChartGraph(String name, VGraphPair pair) {
+      return !isRealSizeChart(name) && supportChartSlices() ?
+         pair.getExpandedVGraph() : pair.getRealSizeVGraph();
+   }
+
+   /**
     * Write slice chart.
     */
    protected void writeSliceChart(ChartVSAssembly assembly, DataSet data,
                                   VGraphPair pair, boolean match,
                                   boolean imgOnly) {
-      VGraph graph = pair.getExpandedVGraph();
+      VGraph graph = match ? pair.getRealSizeVGraph() : pair.getExpandedVGraph();
       ChartVSAssembly nassembly = assembly.clone();
       ChartVSAssemblyInfo ninfo = (ChartVSAssemblyInfo) nassembly.getVSAssemblyInfo();
       Viewsheet vs = ninfo.getViewsheet();
@@ -2078,6 +2103,10 @@ public abstract class AbstractVSExporter implements VSExporter {
 
          if(!hchanged) {
             pixelsize2.height = pixelsize.height;
+         }
+
+         if(wchanged || hchanged) {
+            expandedCharts.add(name);
          }
 
          info.setPixelSize(pixelsize2);
@@ -4281,6 +4310,8 @@ public abstract class AbstractVSExporter implements VSExporter {
    protected int index;
    protected int maxRows = 0;
    protected boolean onlyDataComponents;
+   // charts expanded to the full chart size in the current sheet
+   private final Set<String> expandedCharts = new HashSet<>();
    private static int fileType = -1;
 
    private static final Logger LOG =

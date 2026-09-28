@@ -223,7 +223,9 @@ public class PDFVSExporter extends AbstractVSExporter {
    protected void writeSliceChart(ChartVSAssembly assembly, DataSet data,
                                   VGraphPair pair, boolean match, boolean imgOnly)
    {
-      VGraph graph = pair.getExpandedVGraph();
+      // match is true for a chart expanded for export, whose re-generated expanded
+      // graph may be larger than the assembly (77224)
+      VGraph graph = match ? pair.getRealSizeVGraph() : pair.getExpandedVGraph();
       // pdf do not need to slice chart
       writeChart(assembly, graph, data, imgOnly);
    }
