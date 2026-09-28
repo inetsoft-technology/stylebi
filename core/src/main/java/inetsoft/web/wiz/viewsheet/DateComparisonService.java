@@ -236,23 +236,34 @@ public class DateComparisonService {
    /**
     * Applies a comparison. One {@code sessions.mutate}, so one undo checkpoint.
     *
+    * <p>Refused, before anything is persisted, when the resulting {@code DateComparisonInfo}
+    * itself is {@link DateComparisonInfo#invalid()} — an interval coarser than the period level,
+    * a custom period with its start after its end, or an interval with no end anchor (see
+    * {@link #requireValidComparison}). A refused call leaves the assembly's prior comparison, if
+    * any, untouched.
+    *
     * @return a map that, when the comparison forced a bound date dimension's rendering level
     * to change (e.g. a row bound at "month" retargeted to "year" so periods line up), reports
     * the dimension name and the before/after level under {@code retargetedDimension} /
     * {@code retargetedFromLevel} / {@code retargetedToLevel}. Empty when nothing was retargeted.
     * For a chart, also reports {@code chartTypeOverridden}/{@code chartTypeBefore}/
     * {@code chartTypeAfter} when applying the comparison forced the chart's runtime style to
-    * change (see {@link #describeChartTypeOverride}). For a chart where the comparison had no
-    * effect at all — its date field isn't on x/y, or its chart type doesn't support date
-    * comparison to begin with — reports {@code dateComparisonInactive:true} and a {@code reason}
+    * change (see {@link #describeChartTypeOverride}). For a chart or crosstab where the
+    * comparison had no effect at all — its date field isn't bound where the comparison needs it,
+    * or (chart only) its chart type doesn't support date comparison to begin with — reports
+    * {@code dateComparisonInactive:true} and a {@code reason}
     * (see {@link #describeDateComparisonInactive}) instead of silently returning as if it
     * applied. For a chart where the comparison did apply but a requested {@code useFacet:true}
     * has no rendering effect on it (the comparison's period level already matches its interval
     * granularity, with no value-plus rendering to fall back on either), reports
     * {@code useFacetInapplicable:true} and a {@code reason}
     * (see {@link #describeUseFacetInapplicable}). For a standard period where the caller left
-    * {@code toDate} unspecified, reports the {@code toDate} value actually in effect and
-    * {@code toDateDefaulted:true} (see {@link #describeToDateDefaulted}).
+    * {@code toDate}/{@code inclusive}/{@code periodsBack}/{@code level} unspecified, reports each
+    * one's actual in-effect value and a matching {@code xDefaulted:true} flag (see
+    * {@link #describeToDateDefaulted}, {@link #describeInclusiveDefaulted},
+    * {@link #describePeriodsBackDefaulted}, {@link #describeLevelDefaulted}); the same for
+    * {@code onlyShowMostRecentDate} whenever the caller leaves it unspecified, standard period or
+    * not (see {@link #describeOnlyShowMostRecentDateDefaulted}).
     */
    public Map<String, Object> set(String sessionToken, Principal user, String assemblyName,
                                   Comparison comparison, String linkUri) throws Exception
@@ -273,8 +284,12 @@ public class DateComparisonService {
          int beforeChartType = chartRTChartType(rvs, assemblyName);
 
          apply(model, comparison);
-         comparisonService.setDateComparison(runtimeId, assemblyName,
-                                            model.toDateComparisonInfo(),
+         if(setsPeriod(comparison)) {
+            requireValidComparison(model);
+         }
+
+         DateComparisonInfo info = model.toDateComparisonInfo();
+         comparisonService.setDateComparison(runtimeId, assemblyName, info,
                                             comparison.shareAssembly(), linkUri, user,
                                             dispatcher);
          result.putAll(describeRetargetedDimension(rvs, assemblyName));
@@ -283,6 +298,9 @@ public class DateComparisonService {
          result.putAll(describeUseFacetInapplicable(rvs, assemblyName, comparison));
          result.putAll(describeToDateDefaulted(model, comparison));
          result.putAll(describeInclusiveDefaulted(model, comparison));
+         result.putAll(describePeriodsBackDefaulted(model, comparison));
+         result.putAll(describeLevelDefaulted(model, comparison));
+         result.putAll(describeOnlyShowMostRecentDateDefaulted(model, comparison));
       });
 
       return result;
@@ -477,7 +495,17 @@ public class DateComparisonService {
     * neither of which this disclosure wants) — if that shared engine class's allow-list changes,
     * this predicate needs updating to match.
     *
-    * <p>Not a chart, or the comparison actually took effect: returns an empty map.
+    * <p>A crosstab has the same shape of gap, one level simpler — no chart-type restriction, only
+    * {@code DateComparisonUtil.supportDateComparison(VSCrosstabInfo, ...)}'s "a date dimension on
+    * rows/cols alongside at least one real aggregate" requirement. When that requirement isn't
+    * met, {@code CrossBaseVSAssemblyInfo.update()} resets the runtime comparison
+    * ({@code resetRuntimeDateComparisonInfo()}, which coerces {@code VSCrosstabInfo}'s runtime
+    * refs to an empty array), so {@code VSCrosstabInfo.getDateComparisonRef()} — like the chart's
+    * {@code getDateComparisonRef()} above — stays null with nothing reporting it. Previously this
+    * method returned immediately for anything that wasn't a {@code ChartVSAssembly}, so a
+    * crosstab's own rejected comparison was never disclosed at all.
+    *
+    * <p>Not a chart or crosstab, or the comparison actually took effect: returns an empty map.
     */
    private static Map<String, Object> describeDateComparisonInactive(RuntimeViewsheet rvs,
                                                                      String assemblyName)
@@ -485,6 +513,20 @@ public class DateComparisonService {
       Map<String, Object> out = new LinkedHashMap<>();
       Viewsheet vs = rvs.getViewsheet();
       VSAssembly assembly = vs == null ? null : vs.getAssembly(assemblyName);
+
+      if(assembly instanceof CrosstabVSAssembly) {
+         VSCrosstabInfo crosstabInfo = ((CrosstabVSAssembly) assembly).getVSCrosstabInfo();
+
+         if(crosstabInfo == null || crosstabInfo.getDateComparisonRef() != null) {
+            return out;
+         }
+
+         out.put("dateComparisonInactive", true);
+         out.put("reason", "no date-typed field is bound to this crosstab's rows or columns, or " +
+            "no real aggregate is bound alongside it — date comparison only applies when a date " +
+            "dimension is on rows/cols together with at least one aggregate.");
+         return out;
+      }
 
       if(!(assembly instanceof ChartVSAssembly)) {
          return out;
@@ -656,6 +698,93 @@ public class DateComparisonService {
       return out;
    }
 
+   /**
+    * Same shape of gap as {@link #describeToDateDefaulted}/{@link #describeInclusiveDefaulted},
+    * for {@code periodsBack} — {@code StandardPeriodPaneModel}'s {@code preCount} field defaults
+    * to {@code 2} ({@code StandardPeriodPaneModel.java}'s own field initializer, matching
+    * StyleBI's own dialog) when a caller leaves it unspecified on a call that otherwise touches a
+    * standard period.
+    */
+   private static Map<String, Object> describePeriodsBackDefaulted(DateComparisonPaneModel model,
+                                                                     Comparison comparison)
+   {
+      Map<String, Object> out = new LinkedHashMap<>();
+
+      if(comparison.periods() != null || !setsPeriod(comparison)) {
+         return out;
+      }
+
+      PeriodPaneModel periods = model.getPeriodPaneModel();
+
+      if(periods == null || periods.isCustom()) {
+         return out;
+      }
+
+      StandardPeriodPaneModel standard = periods.getStandardPeriodPaneModel();
+
+      if(standard == null) {
+         return out;
+      }
+
+      out.put("periodsBack", value(standard.getPreCount()));
+      out.put("periodsBackDefaulted", true);
+      return out;
+   }
+
+   /**
+    * Same shape of gap as {@link #describePeriodsBackDefaulted} above, for {@code level} —
+    * {@code StandardPeriodPaneModel}'s {@code dateLevel} field defaults to
+    * {@code XConstants.YEAR_DATE_GROUP} ("year") when a caller leaves it unspecified on a call
+    * that otherwise touches a standard period.
+    */
+   private static Map<String, Object> describeLevelDefaulted(DateComparisonPaneModel model,
+                                                               Comparison comparison)
+   {
+      Map<String, Object> out = new LinkedHashMap<>();
+
+      if(comparison.level() != null || !setsPeriod(comparison)) {
+         return out;
+      }
+
+      PeriodPaneModel periods = model.getPeriodPaneModel();
+
+      if(periods == null || periods.isCustom()) {
+         return out;
+      }
+
+      StandardPeriodPaneModel standard = periods.getStandardPeriodPaneModel();
+
+      if(standard == null) {
+         return out;
+      }
+
+      out.put("level", describeCode(standard.getDateLevel(), DateComparisonService::levelWord));
+      out.put("levelDefaulted", true);
+      return out;
+   }
+
+   /**
+    * {@code onlyShowMostRecentDate} defaults to {@code true}
+    * ({@code DateComparisonPaneModel.java}'s own field initializer) whenever a caller leaves it
+    * unspecified — unlike {@code toDate}/{@code inclusive}/{@code periodsBack}/{@code level}
+    * above, this flag sits directly on {@code DateComparisonPaneModel} rather than
+    * {@code StandardPeriodPaneModel}, so it applies to a custom period too and needs no
+    * {@link #setsPeriod} precondition.
+    */
+   private static Map<String, Object> describeOnlyShowMostRecentDateDefaulted(
+      DateComparisonPaneModel model, Comparison comparison)
+   {
+      Map<String, Object> out = new LinkedHashMap<>();
+
+      if(comparison.onlyShowMostRecentDate() != null) {
+         return out;
+      }
+
+      out.put("onlyShowMostRecentDate", model.isOnlyShowMostRecentDate());
+      out.put("onlyShowMostRecentDateDefaulted", true);
+      return out;
+   }
+
    public void clear(String sessionToken, Principal user, String assemblyName, String linkUri)
       throws Exception
    {
@@ -814,6 +943,153 @@ public class DateComparisonService {
             "'customPeriods'. StyleBI's date-comparison engine does not expose an interval " +
             "sub-window (e.g. monthToDate) for a custom period. Drop them, or use " +
             "'periods'/'level' instead of 'customPeriods'.");
+      }
+   }
+
+   /**
+    * {@link DateComparisonInfo#invalid()} is the render engine's own check for a period/interval
+    * combination it cannot reconcile — an interval granularity coarser than the period level
+    * (e.g. a monthly period with a year-to-date interval), a custom period whose start is after
+    * its end (or missing one), or an interval with neither an explicit end date nor "anchor on
+    * today". StyleBI's own dialog never lets a human reach these: the interval dropdown
+    * ({@code date-comparison-interval-pane.component.ts}) is filtered to what the chosen period
+    * level allows, and the end anchor is a checkbox/date-picker pair with no unset state. An
+    * agent-driven call has no such filtering — any {@code level}/{@code interval}/
+    * {@code customPeriods} combination the tool schema allows can be sent — so this is refused
+    * here, before {@code comparisonService.setDateComparison} persists it, rather than accepted
+    * and only described as inactive afterward: a refused call leaves whatever comparison the
+    * assembly already had untouched, instead of risking overwriting a working one with a broken
+    * one and reporting {@code ok:true} either way.
+    *
+    * <p>This deliberately does <b>not</b> call {@code DateComparisonInfo.invalid()} (or any of
+    * the domain accessors — {@code StandardPeriods.getDateLevel()}, {@code
+    * DateComparisonInterval.getLevel()}/{@code getIntervalEndDate()}, {@code
+    * DatePeriod.getStart()}/{@code getEnd()} — it reads to get there) and let that drive the
+    * message. Every one of those goes through {@code DynamicValue}, and {@code
+    * DynamicValue.getRValue()}/{@code getRuntimeValue()} both call {@code VSUtil.isVariableValue}/
+    * {@code isScriptValue}, which touches {@code VSUtil}'s static init — a full Spring context.
+    * That is fine at runtime, but not in this class's own unit tests, which build a real
+    * (non-mocked) {@code DateComparisonPaneModel} with no Spring context available — touching any
+    * of those accessors there throws {@code ExceptionInInitializerError} outright, and — because a
+    * failed static init poisons the class for the rest of the JVM — silently turns every
+    * <i>later</i> test in the same run into a cascading, unrelated-looking
+    * {@code NoClassDefFoundError} too (confirmed live against this test suite; both failure modes
+    * traced to specific accessors before landing here). So every fact this method needs is instead
+    * read straight off the web-tier {@code DynamicValueModel}s ({@code getValue()}, exactly what
+    * {@link #describeCode} already reads on the read side) and, for the two date fields, parsed
+    * with a plain {@code LocalDate.parse} — no {@code DateComparisonInfo}/{@code DynamicValue}
+    * touched at all.
+    *
+    * <p>Every branch gets its own message so the caller learns which field to fix, mirroring
+    * {@link #requireEndAnchor}/{@link #requireNoStandardPeriodFields}'s own per-trigger style
+    * rather than a single catch-all string.
+    *
+    * <p>Only called when {@link #setsPeriod} is true for this call (see the call site in
+    * {@link #set}) — a call that touches nothing period/interval-related (e.g. {@code useFacet}
+    * or {@code comparisonOption} alone) must not be refused over an unrelated, already-broken
+    * period/interval combination it neither created nor was asked to fix.
+    */
+   private static void requireValidComparison(DateComparisonPaneModel model) {
+      PeriodPaneModel periods = model.getPeriodPaneModel();
+      IntervalPaneModel interval = model.getIntervalPaneModel();
+      Integer intervalLevel = parseLevel(interval == null ? null : interval.getLevel());
+
+      if(periods != null && !periods.isCustom()) {
+         StandardPeriodPaneModel standard = periods.getStandardPeriodPaneModel();
+         Integer periodLevel = standard == null ? null : parseLevel(standard.getDateLevel());
+
+         if(periodLevel != null && intervalLevel != null && isCoarser(intervalLevel, periodLevel)) {
+            throw new IllegalArgumentException(
+               "'interval' (" + intervalWord(intervalLevel) + ") is coarser than 'level' (" +
+               levelWord(periodLevel) + ") — an interval can only break a period down into a" +
+               " granularity the period itself already spans at least that finely. Use a finer" +
+               " 'interval', or a coarser (or equal) 'level'.");
+         }
+      }
+      else if(periods != null && periods.getCustomPeriodPaneModel() != null &&
+         periods.getCustomPeriodPaneModel().getDatePeriods() != null)
+      {
+         boolean invalidPeriod = periods.getCustomPeriodPaneModel().getDatePeriods().stream()
+            .anyMatch(period -> {
+               java.time.LocalDate start = parseDate(period.getStart());
+               java.time.LocalDate end = parseDate(period.getEnd());
+               return start == null || end == null || start.isAfter(end);
+            });
+
+         if(invalidPeriod) {
+            throw new IllegalArgumentException(
+               "One of 'customPeriods' has a 'start' after its 'end' (or a missing/unparseable " +
+               "start or end). Each period's 'start' must be on or before its 'end'.");
+         }
+      }
+
+      boolean compareAll = intervalLevel != null && intervalLevel == DateComparisonInfo.ALL;
+
+      if(!compareAll && interval != null && !interval.isEndDayAsToDate() &&
+         parseDate(interval.getIntervalEndDate()) == null)
+      {
+         throw new IllegalArgumentException(
+            "'interval' needs an end anchor — pass 'intervalEndDate' (a date StyleBI can parse)" +
+            " or 'intervalEndToday:true'. A value 'intervalEndDate' could not parse as a date" +
+            " resolves to this same missing-anchor state.");
+      }
+   }
+
+   /**
+    * Parses a {@code DynamicValueModel}'s literal {@code yyyy-MM-dd} value the same way this
+    * class's own agent-facing date fields (e.g. {@code customPeriods}' start/end) are documented
+    * to accept — deliberately not {@code Tool.getDateData}/{@code DynamicValue}'s own date
+    * coercion, which (like every other {@code DynamicValue} accessor) needs a live Spring context
+    * this class's own unit tests don't have (see {@link #requireValidComparison}'s javadoc).
+    * {@code null}, a blank value, or anything that isn't a plain {@code yyyy-MM-dd} string
+    * (a formula/variable included) all resolve to "no usable date here" — the same "missing"
+    * outcome {@link DateComparisonInfo#invalid()} itself treats a null date as.
+    */
+   private static java.time.LocalDate parseDate(DynamicValueModel model) {
+      if(model == null || model.getValue() == null) {
+         return null;
+      }
+
+      try {
+         return java.time.LocalDate.parse(model.getValue().toString().trim());
+      }
+      catch(java.time.format.DateTimeParseException e) {
+         return null;
+      }
+   }
+
+   /** Same bit/rank arithmetic as {@link DateComparisonInfo#invalid()}'s std-period branch. */
+   private static boolean isCoarser(int intervalLevel, int periodLevel) {
+      return
+         (intervalLevel & DateComparisonInfo.YEAR) == DateComparisonInfo.YEAR &&
+            periodLevel < XConstants.YEAR_DATE_GROUP ||
+         (intervalLevel & DateComparisonInfo.QUARTER) == DateComparisonInfo.QUARTER &&
+            periodLevel < XConstants.QUARTER_DATE_GROUP ||
+         (intervalLevel & DateComparisonInfo.MONTH) == DateComparisonInfo.MONTH &&
+            periodLevel < XConstants.MONTH_DATE_GROUP ||
+         (intervalLevel & DateComparisonInfo.WEEK) == DateComparisonInfo.WEEK &&
+            periodLevel < XConstants.WEEK_DATE_GROUP ||
+         (intervalLevel & DateComparisonInfo.DAY) == DateComparisonInfo.DAY &&
+            periodLevel < XConstants.DAY_DATE_GROUP;
+   }
+
+   /**
+    * Reads a level/preCount-shaped {@code DynamicValueModel} the same Spring-free way
+    * {@link #describeCode} does on the read side — {@code getValue()}, not
+    * {@code convertToValue()}/{@code getRuntimeValue()} — returning {@code null} rather than
+    * throwing for an unset or non-numeric (formula/variable) value, since this method's callers
+    * treat "can't tell" as "don't refuse over it", not as a parse error.
+    */
+   private static Integer parseLevel(DynamicValueModel model) {
+      if(model == null || model.getValue() == null) {
+         return null;
+      }
+
+      try {
+         return Integer.parseInt(model.getValue().toString().trim());
+      }
+      catch(NumberFormatException e) {
+         return null;
       }
    }
 
