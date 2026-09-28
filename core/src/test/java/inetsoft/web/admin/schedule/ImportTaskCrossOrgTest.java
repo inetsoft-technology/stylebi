@@ -314,6 +314,45 @@ class ImportTaskCrossOrgTest {
    }
 
    // ---------------------------------------------------------------------------------------
+   // single tenant, security disabled
+   // ---------------------------------------------------------------------------------------
+
+   // positive control, with security disabled every check is granted and the caller is not a
+   // site admin by role, the import (execute-as and time ranges) must still work as before
+   @Test
+   void securityDisabled_singleTenant_importAndTimeRangesAllowed() throws Exception {
+      SecurityEngine securityEngine = mock(SecurityEngine.class);
+      when(securityEngine.isSecurityEnabled()).thenReturn(false);
+      controller = new ImportTaskController(scheduleManager, mock(ScheduleTaskFolderService.class),
+                                            repository, securityEngine);
+      caller = principal("anonymous", HOST_ORG);
+      when(orgManager.getCurrentOrgID()).thenReturn(HOST_ORG);
+      when(orgManager.getCurrentOrgID(any())).thenReturn(HOST_ORG);
+      when(orgManager.isSiteAdmin(any(Principal.class))).thenReturn(false);
+      when(repository.checkPermission(any(), any(ResourceType.class), anyString(),
+                                      any(ResourceAction.class))).thenReturn(true);
+
+      try(MockedStatic<TimeRange> timeRange = mockStatic(TimeRange.class);
+          MockedStatic<SUtil> sutil = mockStatic(SUtil.class, CALLS_REAL_METHODS))
+      {
+         sutil.when(SUtil::isMultiTenant).thenReturn(false);
+         parse(task("Nightly", "admin~;~" + HOST_ORG, null,
+                    "idname=\"Administrator~;~__GLOBAL__\" idtype=\"2\"", NEVER_RUN) +
+               TIME_RANGES);
+         timeRange.verify(() -> TimeRange.setTimeRanges(any()), never());
+
+         ScheduleTask persisted = importAndCapture(false);
+
+         assertNotNull(persisted);
+         assertEquals(new IdentityID("admin", HOST_ORG), persisted.getOwner());
+         assertEquals(Identity.ROLE, persisted.getIdentity().getType());
+         timeRange.verify(() -> TimeRange.setTimeRanges(argThat(
+            (Collection<TimeRange> r) -> r.size() == 1 &&
+               "Injected".equals(r.iterator().next().getName()))));
+      }
+   }
+
+   // ---------------------------------------------------------------------------------------
 
    private void asOrgAdmin() throws Exception {
       caller = principal("admin", ORG_A);
