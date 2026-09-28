@@ -23,6 +23,7 @@ import inetsoft.sree.security.Organization;
 import org.apache.commons.lang3.StringUtils;
 import org.jdbi.v3.core.Handle;
 import org.jdbi.v3.core.Jdbi;
+import org.jdbi.v3.core.mapper.MapMapper;
 import org.jdbi.v3.core.result.RowView;
 import org.jdbi.v3.core.statement.Query;
 import org.jdbi.v3.core.statement.StatementContext;
@@ -53,7 +54,13 @@ class AuthenticationDAO {
                query.bind(0, username.name);
             }
 
-            return query.map(this::mapToCredential).stream().findFirst();
+            List<UserRow<UserCredential>> rows = query
+               .map((rs, ctx) -> {
+                  UserCredential credential = mapToCredential(rs, ctx);
+                  return new UserRow<>(rs.getString(1), credential, credential);
+               })
+               .list();
+            return selectUserRow(username, rows);
          }
       }
    }
@@ -73,9 +80,66 @@ class AuthenticationDAO {
                query.bind(0, userid.name);
             }
 
-            return query.mapToMap().stream().findFirst();
+            MapMapper mapMapper = new MapMapper();
+            List<UserRow<Map<String, Object>>> rows = query
+               .map((rs, ctx) -> new UserRow<>(
+                  rs.getString(1), mapToOptionalCredential(rs), mapMapper.map(rs, ctx)))
+               .list();
+            return selectUserRow(userid, rows);
          }
       }
+   }
+
+   /**
+    * Picks the row of the users query that belongs to the requested user. A single row is
+    * returned unchanged. When the query returns several rows (for example, a case-insensitive
+    * database collation matching both "bob" and "BOB"), only the rows whose first column equals
+    * the bound user name, ignoring trailing spaces, are kept. The kept rows must all carry the
+    * same credential, otherwise the lookup is refused because the right row cannot be told apart.
+    */
+   private <T> Optional<T> selectUserRow(IdentityID user, List<UserRow<T>> rows) {
+      if(rows.isEmpty()) {
+         return Optional.empty();
+      }
+
+      if(rows.size() == 1) {
+         return Optional.ofNullable(rows.get(0).value());
+      }
+
+      String name = user.name == null ? null : user.name.stripTrailing();
+      List<UserRow<T>> matches = rows.stream()
+         .filter(row -> row.name() != null && row.name().stripTrailing().equals(name))
+         .toList();
+
+      if(matches.isEmpty()) {
+         LOG.warn(
+            "The users query returned {} rows for user \"{}\" and none of them has a user name " +
+            "that exactly matches it, the user will not be authenticated. The users query must " +
+            "return a unique row per user name under the database collation.",
+            rows.size(), user.name);
+         return Optional.empty();
+      }
+
+      UserCredential credential = matches.get(0).credential();
+
+      for(UserRow<T> row : matches) {
+         if(!Objects.equals(credential, row.credential())) {
+            LOG.warn(
+               "The users query returned {} rows with different credentials for user \"{}\", " +
+               "the user will not be authenticated. The users query must return a unique row " +
+               "per user name under the database collation.", matches.size(), user.name);
+            return Optional.empty();
+         }
+      }
+
+      return Optional.ofNullable(matches.get(0).value());
+   }
+
+   private UserCredential mapToOptionalCredential(ResultSet rs) throws SQLException {
+      int count = rs.getMetaData().getColumnCount();
+      String password = count > 1 ? rs.getString(2) : null;
+      String salt = count > 2 ? rs.getString(3) : null;
+      return new UserCredential(password, salt);
    }
 
    public QueryResult<IdentityID[]> getUsers() {
@@ -609,6 +673,13 @@ class AuthenticationDAO {
       }
 
       return email;
+   }
+
+   /**
+    * A row of the users query: the user name from the first column, the credential used to
+    * compare duplicate rows, and the mapped value returned to the caller.
+    */
+   private record UserRow<T>(String name, UserCredential credential, T value) {
    }
 
    private final DatabaseAuthenticationProvider provider;

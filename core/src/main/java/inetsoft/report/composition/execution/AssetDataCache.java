@@ -1101,11 +1101,21 @@ public class AssetDataCache extends DataCache<DataKey, TableLens> {
          }
          finally {
             processorThread.set(false);
-            complete();
-            getCache().lockEntries.remove();
-            exceptions = WorksheetService.ASSET_EXCEPTIONS.get();
-            errors = (List<Object>) AssetRepository.ASSET_ERRORS.get();
-            userMessage = Tool.getUserMessage();
+            // publish the results before signalling the joined caller, which reads them
+            // right after join() returns (bug #77188)
+            try {
+               getCache().lockEntries.remove();
+               exceptions = WorksheetService.ASSET_EXCEPTIONS.get();
+               errors = (List<Object>) AssetRepository.ASSET_ERRORS.get();
+               userMessage = Tool.getUserMessage();
+            }
+            catch(RuntimeException ex) {
+               LOG.warn("Failed to collect the asset query user messages", ex);
+               Tool.clearUserMessage();
+            }
+            finally {
+               complete();
+            }
 
             // release thread local variables to avoid memory leak
             WorksheetService.ASSET_EXCEPTIONS.set(new ArrayList<>());

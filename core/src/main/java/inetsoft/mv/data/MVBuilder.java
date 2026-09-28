@@ -71,6 +71,21 @@ public final class MVBuilder {
    public MVBuilder(final XTable lens, final MVDef def,
                     final boolean aggregated, final MV omv)
    {
+      this(lens, def, aggregated, omv, null);
+   }
+
+   /**
+    * Create an instance of MVBuilder.
+    * @param resetColumns the columns whose range has already been reset for the
+    * current mv build. The builders of a parallel mv build share one MVDef, so they
+    * share this set and each shared column is reset only by the first builder that
+    * reaches it, instead of every builder wiping the range the other builders have
+    * already accumulated. Null to always reset the columns of this builder.
+    */
+   public MVBuilder(final XTable lens, final MVDef def,
+                    final boolean aggregated, final MV omv,
+                    final Set<MVColumn> resetColumns)
+   {
       super();
 
       XTable data = lens;
@@ -119,7 +134,28 @@ public final class MVBuilder {
       dcolList.addAll(mcolList);
       MVColumn[] mvcols = new MVColumn[dcolList.size()];
       dcolList.toArray(mvcols);
-      init(data, dims, measures, mvcols, def, aggregated, omv);
+      init(data, dims, measures, mvcols, def, aggregated, omv, resetColumns);
+   }
+
+   /**
+    * Clear the range of a mv column before this builder accumulates into it. When
+    * resetColumns is given (parallel mv build), the column is shared with the other
+    * builders of the same build and is reset only once, by the first builder to reach
+    * it. The check and the reset are one step under the column's monitor (the monitor
+    * that guards the column's range state), so no builder can accumulate into the
+    * column before its single reset has happened (Bug #77154).
+    */
+   private static void resetRange(MVColumn col, Set<MVColumn> resetColumns) {
+      if(resetColumns == null) {
+         col.setRange(null, null);
+         return;
+      }
+
+      synchronized(col) {
+         if(resetColumns.add(col)) {
+            col.setRange(null, null);
+         }
+      }
    }
 
    /**
@@ -451,7 +487,7 @@ public final class MVBuilder {
                      final MVDef def,
                      final boolean aggregated)
    {
-      init(lens, dimensions, measures, mvcols, def, aggregated, null);
+      init(lens, dimensions, measures, mvcols, def, aggregated, null, null);
    }
 
    /**
@@ -460,7 +496,8 @@ public final class MVBuilder {
    private void init(final XTable lens, final int[] dimensions,
                      final int[] measures, final MVColumn[] mvcols,
                      final MVDef def,
-                     final boolean aggregated, final MV omv)
+                     final boolean aggregated, final MV omv,
+                     final Set<MVColumn> resetColumns)
    {
       final int dcnt = dimensions.length;
       final int mcnt = measures.length;
@@ -476,7 +513,7 @@ public final class MVBuilder {
       // Clear the range of mv columns since the values from
       // a previous run may no longer apply here.
       for(MVColumn mvColumn : mvcols) {
-         mvColumn.setRange(null, null);
+         resetRange(mvColumn, resetColumns);
       }
 
       // init MV

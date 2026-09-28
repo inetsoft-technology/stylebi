@@ -2395,6 +2395,8 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
          ThreadContext.setPrincipal(null);
          ThreadContext.setLocale(null);
          ThreadContext.setProfiling(null);
+         // Bug #77135 (defense in depth): do not leave user messages on the affinity pool thread.
+         Tool.clearUserMessage();
       }
       catch(Exception ex) {
          LOG.warn("Failed to clear thread-local context after affinity call: {}", context, ex);

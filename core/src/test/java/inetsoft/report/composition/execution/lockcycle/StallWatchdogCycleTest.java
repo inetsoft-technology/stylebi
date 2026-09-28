@@ -164,6 +164,72 @@ public class StallWatchdogCycleTest {
    }
 
    /**
+    * Bug #77152: the shipped default {@code alert} mode never fails a stalled wait (by design,
+    * see {@link StallPolicy}), so with only the pre-#77152 detection, the exact same #76960 B
+    * (R2) cycle as {@link #monitorFirstLensFailsOneReader} never turns health DOWN: T1 (the
+    * lock waiter) never fails and so never releases the lens monitor, and T2 (the lock holder,
+    * JVM-{@code BLOCKED} on that monitor) never completes either — a genuine, permanent
+    * deadlock that {@code /health/liveness} reported UP for. {@link StallWatchdog} must find
+    * this wait-for cycle and report it unreleased regardless of the per-record alert/fail mode,
+    * the same way a JVM-visible deadlock always does.
+    *
+    * <p>The cycle is reported once T1 is stalled (the 2000 ms limit) and found again on the
+    * next scan. The reason must name this cycle's own threads: other cases of this JVM may
+    * have left other stalls or cycles registered.
+    *
+    * <p>Unlike {@link #monitorFirstLensFailsOneReader}, this test never joins T1/T2's futures:
+    * in {@code alert} mode neither ever completes, so their daemon threads are intentionally
+    * left stuck, and the cycle stays reported by the global watchdog, for the rest of this JVM,
+    * the same as an actual, still-open lock cycle would (see {@code MonitorFirstLensCycleTest}'s
+    * {@code known-deadlock} cases). That is acceptable, as an alert-mode cycle cannot be
+    * released at all: no test of this module asserts that the global watchdog reports nothing
+    * or that no wait is registered, each only checks its own threads' waits and reasons (e.g.
+    * {@code LendableReentrantLockReclaimStallTest}, {@code XSwappableTableStallTest}, and this
+    * class's {@code preexisting}).
+    */
+   @Test
+   public void monitorFirstLensAlertModeTurnsHealthDown() throws Exception {
+      StallPolicy.setOverride(new StallPolicy(StallPolicy.Mode.ALERT, 2000, 500, dumpDir));
+      Gate gate = harness.gate();
+      Sandbox s = harness.sandbox();
+      TableLens lens = harness.track(build(MonitorKind.SORT, s, gate));
+      TableLens outer = harness.track(cf2(lens, s.box));
+      CountDownLatch headerRead = new CountDownLatch(1);
+      CountDownLatch t1Parked = new CountDownLatch(1);
+      Started<List<List<Object>>> t2 = harness.start(() -> {
+         List<List<Object>> rows = new ArrayList<>();
+         assertTrue(outer.moreRows(0));
+         rows.add(row(outer, 0));
+         headerRead.countDown();
+         assertTrue(t1Parked.await(KNOWN_CAP, TimeUnit.SECONDS), "T1 never parked");
+
+         for(int r = 1; outer.moreRows(r); r++) {
+            rows.add(row(outer, r));
+         }
+
+         return rows;
+      });
+      assertTrue(headerRead.await(KNOWN_CAP, TimeUnit.SECONDS), "T2 never read the header");
+      Started<List<List<Object>>> t1 = harness.startGated(gate, () -> drain(lens));
+      assertTrue(gate.awaitEntered(KNOWN_CAP), "T1 never read the lens's base");
+      t1Parked.countDown();
+      awaitBlockedBy(t2, t1, s, KNOWN_CAP);
+      // lets T1 go on to register its wait for the engine lock: the cycle is now complete
+      // and permanent, alert mode never releases either side of it
+      gate.release();
+
+      String t1Name = "\"" + t1.thread.getName() + "\"(" + t1.thread.threadId() + ")";
+      String t2Name = "\"" + t2.thread.getName() + "\"(" + t2.thread.threadId() + ")";
+      StallTestSupport.awaitTrue(() -> {
+         StallWatchdog.global().scan();
+         String reason = StallWatchdog.global().getUnreleasedStall();
+         return reason != null && java.util.Arrays.stream(reason.split("; ")).anyMatch(
+            part -> part.startsWith("wait-for cycle") && part.contains(t1Name) &&
+               part.contains(t2Name));
+      }, KNOWN_CAP, "the wait-for cycle of T1 and T2 never turned health DOWN under alert mode");
+   }
+
+   /**
     * No false positive: a worker lent the engine lock reads a base that costs 1 s a row, for
     * 10 s, longer than the 8 s limit, and the holder completes. The limit is above the up to
     * 5 s a queued SummaryFilter worker may wait for an idle on-demand pool thread in its

@@ -21,9 +21,11 @@ import inetsoft.util.DefaultComparator;
 import org.junit.jupiter.api.Test;
 
 import java.util.*;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+@Tag("core")
 class MixedComparatorTest {
 
    private MixedComparator mixedOf(Comparator<?> delegate) {

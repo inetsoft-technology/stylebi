@@ -25,6 +25,7 @@ import org.w3c.dom.Element;
 import javax.xml.parsers.DocumentBuilderFactory;
 import java.io.File;
 import java.util.*;
+import org.junit.jupiter.api.Tag;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
@@ -43,6 +44,7 @@ import static org.junit.jupiter.api.Assertions.*;
  *       in-memory DOM element, avoiding all I/O</li>
  * </ul>
  */
+@Tag("core")
 class QueryDependenciesFinderTest {
 
    // ---- Helper: build a minimal DOM document ----
