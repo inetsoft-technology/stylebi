@@ -81,13 +81,16 @@ import inetsoft.util.PasswordEncryption;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mindrot.BCrypt;
+import org.mockito.*;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import java.io.IOException;
 import java.lang.reflect.Field;
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -700,6 +703,96 @@ public class FileAuthenticationProviderTest {
       Organization updatedOrg = provider.getOrganization(orgId);
       assertFalse(Arrays.asList(updatedOrg.getMembers()).contains("testUser"),
                   "Organization members should not contain removed user");
+   }
+
+   // Bug #77070: a failed write during an update must not delete the existing record
+   @Test
+   void setUser_putFails_existingUserNotDeleted() throws Exception {
+      IdentityID id = new IdentityID("keepUser", "testOrg");
+      provider.addUser(new FSUser(id));
+
+      withFailingPut("userStorage", () -> provider.setUser(id, new FSUser(id)));
+
+      assertNotNull(provider.getUser(id), "user must survive a failed update write");
+   }
+
+   @Test
+   void setGroup_putFails_existingGroupNotDeleted() throws Exception {
+      IdentityID id = new IdentityID("keepGroup", "testOrg");
+      provider.addGroup(new FSGroup(id));
+
+      withFailingPut("groupStorage", () -> provider.setGroup(id, new FSGroup(id)));
+
+      assertNotNull(provider.getGroup(id), "group must survive a failed update write");
+   }
+
+   @Test
+   void setRole_putFails_existingRoleNotDeleted() throws Exception {
+      IdentityID id = new IdentityID("keepRole", "testOrg");
+      provider.addRole(new FSRole(id));
+
+      withFailingPut("roleStorage", () -> provider.setRole(id, new FSRole(id)));
+
+      assertNotNull(provider.getRole(id), "role must survive a failed update write");
+   }
+
+   @Test
+   void setOrganization_putFails_existingOrganizationNotDeleted() throws Exception {
+      FSOrganization org = new FSOrganization("keepOrg");
+      org.setName("Keep Org");
+      provider.addOrganization(org);
+
+      withFailingPut("organizationStorage", () -> provider.setOrganization("keepOrg", org));
+
+      assertNotNull(provider.getOrganization("keepOrg"),
+                    "organization must survive a failed update write");
+   }
+
+   @Test
+   void setUser_sameIdentity_updatesInPlace() {
+      IdentityID id = new IdentityID("sameUser", "testOrg");
+      provider.addUser(new FSUser(id));
+
+      FSUser updated = new FSUser(id);
+      updated.setAlias("updated");
+      provider.setUser(id, updated);
+
+      assertEquals("updated", provider.getUser(id).getAlias());
+   }
+
+   @Test
+   void setUser_rename_removesOldKey() {
+      IdentityID oldId = new IdentityID("oldName", "testOrg");
+      IdentityID newId = new IdentityID("newName", "testOrg");
+      provider.addUser(new FSUser(oldId));
+
+      provider.setUser(oldId, new FSUser(newId));
+
+      assertNotNull(provider.getUser(newId), "renamed user must exist under the new key");
+      assertNull(provider.getUser(oldId), "old key must be removed after a rename");
+   }
+
+   /**
+    * Runs the action with the named storage replaced by one whose put() always fails and whose
+    * other operations delegate to the real storage.
+    */
+   @SuppressWarnings({ "unchecked", "rawtypes" })
+   private void withFailingPut(String fieldName, Runnable action) throws Exception {
+      KeyValueStorage real = captureStorage(fieldName);
+      KeyValueStorage failing =
+         Mockito.mock(KeyValueStorage.class, AdditionalAnswers.delegatesTo(real));
+      Mockito.doReturn(CompletableFuture.failedFuture(new IOException("simulated write failure")))
+         .when(failing).put(ArgumentMatchers.anyString(), ArgumentMatchers.any());
+      Field f = FileAuthenticationProvider.class.getDeclaredField(fieldName);
+      f.setAccessible(true);
+      f.set(provider, failing);
+
+      try {
+         action.run();
+      }
+      finally {
+         f.set(provider, real);
+      }
    }
 
    // Bug #77164: removing or renaming a role must not drop a group that happens to share its name

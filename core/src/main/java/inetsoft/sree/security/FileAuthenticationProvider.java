@@ -114,14 +114,18 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
 
       try {
          String oldOrgName = getOrganization(oid) != null ? getOrganization(oid).getName() : null;
-         organizationStorage.remove(oid).get(10L, TimeUnit.SECONDS);
+
+         // write the new record first so a failed write can't delete the existing organization
+         organizationStorage.put(org.getId(), (FSOrganization) org).get(10L, TimeUnit.SECONDS);
+
+         if(!oid.equals(org.getId())) {
+            organizationStorage.remove(oid).get(10L, TimeUnit.SECONDS);
+         }
 
          if(!oid.equals(org.getId()) || !org.getName().equals(oldOrgName)) {
             processAuthenticationChange(new IdentityID(oldOrgName, oid), org.getIdentityID(),
                                         oid, org.getId(), Identity.ORGANIZATION, false);
          }
-
-         organizationStorage.put(org.getId(), (FSOrganization) org).get(10L, TimeUnit.SECONDS);
       }
       catch(Exception e) {
          LOG.error("Failed to update organization {}", oid, e);
@@ -537,18 +541,17 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
       lock.lock();
 
       try {
-         userStorage.remove(oldIdentity.convertToKey()).get(10L, TimeUnit.SECONDS);
-         userRoleCache.invalidateAll();
-
          IdentityID newUserIdentity = user.getIdentityID();
 
-         if(!oldIdentity.equals(user.getIdentityID())) {
+         // write the new record first so a failed write can't delete the existing user
+         userStorage.put(newUserIdentity.convertToKey(), (FSUser) user).get(10L, TimeUnit.SECONDS);
+         userRoleCache.invalidateAll();
+
+         if(!oldIdentity.equals(newUserIdentity)) {
+            userStorage.remove(oldIdentity.convertToKey()).get(10L, TimeUnit.SECONDS);
             processAuthenticationChange(oldIdentity, newUserIdentity, null, null, Identity.USER, false);
          }
 
-         IdentityID userIdentity = user.getIdentityID();
-
-         userStorage.put(userIdentity.convertToKey(), (FSUser) user).get(10L, TimeUnit.SECONDS);
          userGroupCache.invalidate(newUserIdentity);
          userRoleCache.invalidateAll();
       }
@@ -608,16 +611,17 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
       lock.lock();
 
       try {
-         groupStorage.remove(oldIdentity.convertToKey()).get(10L, TimeUnit.SECONDS);
-         userGroupCache.invalidateAll();
-         userRoleCache.invalidateAll();
          IdentityID newIdentity = group.getIdentityID();
 
-         if(!(oldIdentity.equals(group.getIdentityID()))) {
+         // write the new record first so a failed write can't delete the existing group
+         groupStorage.put(newIdentity.convertToKey(), (FSGroup) group).get(10L, TimeUnit.SECONDS);
+         userGroupCache.invalidateAll();
+         userRoleCache.invalidateAll();
+
+         if(!oldIdentity.equals(newIdentity)) {
+            groupStorage.remove(oldIdentity.convertToKey()).get(10L, TimeUnit.SECONDS);
             processAuthenticationChange(oldIdentity, newIdentity, null, null, Identity.GROUP, false);
          }
-
-         groupStorage.put(newIdentity.convertToKey(), (FSGroup) group).get(10L, TimeUnit.SECONDS);
       }
       catch(Exception e) {
          LOG.error("Failed to update group {}", group.getName(), e);
@@ -680,15 +684,16 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
       lock.lock();
 
       try {
-         roleStorage.remove(oldIdentity.convertToKey()).get(10L, TimeUnit.SECONDS);
-         userRoleCache.invalidateAll();
          IdentityID newIdentity = role.getIdentityID();
 
-         if(!oldIdentity.equals(role.getIdentityID())) {
+         // write the new record first so a failed write can't delete the existing role
+         roleStorage.put(newIdentity.convertToKey(), (FSRole) role).get(10L, TimeUnit.SECONDS);
+         userRoleCache.invalidateAll();
+
+         if(!oldIdentity.equals(newIdentity)) {
+            roleStorage.remove(oldIdentity.convertToKey()).get(10L, TimeUnit.SECONDS);
             processAuthenticationChange(oldIdentity, newIdentity, null, null, Identity.ROLE, false);
          }
-
-         roleStorage.put(newIdentity.convertToKey(), (FSRole) role).get(10L, TimeUnit.SECONDS);
       }
       catch(Exception e) {
          LOG.error("Failed to update role {}", oldIdentity, e);
