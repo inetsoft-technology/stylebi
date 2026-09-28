@@ -32,6 +32,8 @@ import inetsoft.web.viewsheet.LoadingMask;
 import inetsoft.web.viewsheet.Undoable;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
 import inetsoft.web.viewsheet.service.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.handler.annotation.*;
 import org.springframework.stereotype.Controller;
@@ -106,8 +108,18 @@ public class HyperlinkDialogController {
       throws Exception
    {
       AssetEntry entry = AssetEntry.createAssetEntry(assetId);
-      Viewsheet vs = (Viewsheet)
-         assetRepository.getSheet(entry, principal, false, AssetContent.NO_DATA);
+      Viewsheet vs;
+
+      // the id is client supplied and its orgID is kept, so check READ (including the
+      // cross-org check) and treat a sheet the caller cannot read like a missing one
+      try {
+         vs = (Viewsheet)
+            assetRepository.getSheet(entry, principal, true, AssetContent.NO_DATA);
+      }
+      catch(MessageException ex) {
+         LOG.debug("Failed to read hyperlink target viewsheet: {}", assetId, ex);
+         return new String[0];
+      }
 
       if(vs == null) {
          return new String[0];
@@ -219,4 +231,5 @@ public class HyperlinkDialogController {
    private final HyperlinkDialogServiceProxy hyperlinkDialogServiceProxy;
    private final RepositoryTreeService repositoryTreeService;
    private final AssetRepository assetRepository;
+   private static final Logger LOG = LoggerFactory.getLogger(HyperlinkDialogController.class);
 }

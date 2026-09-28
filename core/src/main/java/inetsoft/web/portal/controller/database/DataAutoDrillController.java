@@ -89,8 +89,9 @@ public class DataAutoDrillController {
       throws Exception
    {
       AssetEntry entry = AssetEntry.createAssetEntry(wsIdentifier);
-      boolean permission = false; // already checked permission when load select worksheet dialog.
-      AbstractSheet sheet = engine.getSheet(entry, principal, permission, AssetContent.ALL);
+      // the id is client supplied and its orgID is kept, so check READ (including the
+      // cross-org check), same as collectParameters
+      AbstractSheet sheet = engine.getSheet(entry, principal, true, AssetContent.ALL);
 
       if(sheet == null) {
          throw new RuntimeException(Catalog.getCatalog().getString(
