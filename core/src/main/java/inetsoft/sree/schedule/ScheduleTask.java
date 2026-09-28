@@ -1494,7 +1494,13 @@ public class ScheduleTask implements Serializable, Cloneable, XMLSerializable {
       // Bug #77120, a lookup miss can't tell a deleted identity from one that can't be resolved
       // right now, so keep the reference instead of dropping it (which ran the task as its owner
       // and lost the setting on the next save). run() refuses to run it while it's unresolved.
-      if(identity == null && idname != null && isSecurityEnabled()) {
+      // Bug #77168, keep the placeholder regardless of security state -- with security disabled
+      // the virtual security provider can't resolve a real user/group/role either, and gating
+      // this on isSecurityEnabled() meant the identity was still silently dropped here and lost
+      // for good on the very next writeXML(). The principal-builder call sites (ScheduleTaskJob,
+      // ClusterJobStore, JobCompletionListener) fall back to the owner whenever security is
+      // disabled, so keeping the placeholder in that mode is safe.
+      if(identity == null && idname != null) {
          LOG.warn("Execute-as identity {} (type {}) of task {} could not be resolved, " +
                   "keeping it unresolved", idname, idtype, name);
          identity = idtype == Identity.GROUP ? new Group(idname) :

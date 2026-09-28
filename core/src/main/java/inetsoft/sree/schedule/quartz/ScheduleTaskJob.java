@@ -23,6 +23,7 @@ import inetsoft.sree.schedule.ScheduleManager;
 import inetsoft.sree.schedule.ScheduleTask;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.sree.security.OrganizationContextHolder;
+import inetsoft.sree.security.SecurityEngine;
 import inetsoft.uql.util.Identity;
 import inetsoft.util.ThreadContext;
 import inetsoft.util.Tool;
@@ -70,7 +71,11 @@ public class ScheduleTaskJob implements InterruptableJob {
 
             // Bug #40798, don't audit logins for internal tasks
             if(!ScheduleManager.isInternalTask(taskName)) {
-               if(identity == null) {
+               // Bug #77168, a non-null identity may be an unresolved placeholder kept by
+               // ScheduleTask.parseXML (Bug #77120/#77168); with security disabled that
+               // placeholder can never be resolved to a real principal, so fall back to the
+               // owner instead of building a principal out of it.
+               if(identity == null || !isSecurityEnabled()) {
                   principal = SUtil.getScheduleTaskOwnerPrincipal(task.getOwner(), addr, true);
                }
                else {
@@ -140,6 +145,21 @@ public class ScheduleTaskJob implements InterruptableJob {
       }
       finally {
          executionLock.unlock();
+      }
+   }
+
+   /**
+    * Bug #77168, inline copy of ScheduleTask's own isSecurityEnabled() check (that method is
+    * private to a different package). Kept minimal/local instead of introducing a new shared
+    * utility.
+    */
+   private static boolean isSecurityEnabled() {
+      try {
+         return SecurityEngine.getSecurity().isSecurityEnabled();
+      }
+      catch(Exception ex) {
+         LOG.debug("Failed to check whether security is enabled", ex);
+         return false;
       }
    }
 

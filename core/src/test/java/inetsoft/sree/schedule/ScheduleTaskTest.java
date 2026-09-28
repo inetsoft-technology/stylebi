@@ -549,11 +549,22 @@ public class ScheduleTaskTest {
    }
 
    @Test
-   void parseXML_securityDisabled_unresolvableIdentityRunsAsOwner() throws Exception {
+   void parseXML_securityDisabled_unresolvableIdentity_keepsPlaceholderIdentity() throws Exception {
+      // Bug #77168: dropping the placeholder here (identity == null) is what silently and
+      // permanently erased execute-as on the very next writeXML(), since writeXML's guard is
+      // bare "if(identity != null)". The placeholder must now be kept regardless of security
+      // state so it round-trips; the task still effectively runs as its owner, but that must
+      // now come from the principal-builder callers (ScheduleTaskJob/ClusterJobStore/
+      // JobCompletionListener) falling back to the owner while security is disabled, not from
+      // parseXML silently dropping the reference.
       ScheduleTask task = parseWithProvider(executeAsXml(Identity.GROUP), mock(SecurityProvider.class), false);
 
-      assertNull(task.getIdentity(),
-                 "with security disabled the task keeps running as its owner (null execute-as)");
+      Identity identity = task.getIdentity();
+      assertNotNull(identity,
+                    "with security disabled, an unresolvable execute-as must still be kept as " +
+                    "a placeholder so it is not lost on the next save");
+      assertEquals(Identity.GROUP, identity.getType());
+      assertEquals(EXEC_AS, identity.getIdentityID());
    }
 
    @Test
