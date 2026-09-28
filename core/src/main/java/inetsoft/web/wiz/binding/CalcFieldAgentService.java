@@ -36,6 +36,7 @@ import org.springframework.stereotype.Service;
 
 import java.security.Principal;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
@@ -75,7 +76,8 @@ public class CalcFieldAgentService {
     *                    that assembly's own aggregate-info refresh, not where the field is stored
     * @param name        the calc field's current name (required) -- the name to create it under
     *                    when {@code create} is {@code true}, or the name to find when editing/
-    *                    removing an existing one
+    *                    removing an existing one (refused if no calc field by that exact name
+    *                    exists on {@code table})
     * @param newName     a new name, when renaming an existing calc field; {@code null} to keep
     *                    {@code name}. Ignored when {@code remove} is {@code true}.
     * @param expression  the formula text. Required unless {@code remove} is {@code true}.
@@ -160,6 +162,21 @@ public class CalcFieldAgentService {
 
       List<String> warnings = sessions.mutate(sessionToken, agent, (rvs, runtimeId, dispatcher) -> {
          String tableName = requireBindableTable(runtimeId, req.table(), agent);
+         boolean editing = !req.create();
+         CalculateRef existing = editing || req.remove()
+            ? rvs.getViewsheet().getCalcField(tableName, req.name()) : null;
+
+         // For a name not on this table, ModifyCalculateFieldService's edit/remove path just
+         // returns without changing anything or signaling failure -- refuse here instead, so a
+         // typo'd name is never reported as a successful removal/edit while the intended field
+         // stays in place. remove() is OR'd in so a request that also sets create:true is still
+         // checked -- the native remove branch ignores create and would no-op just the same.
+         if((editing || req.remove()) && existing == null) {
+            throw new IllegalArgumentException(
+               "No calc field named '" + req.name() + "' exists on '" + tableName +
+               "'. Existing calc fields on it: " +
+               describeCalcFields(rvs.getViewsheet().getCalcFields(tableName)) + ".");
+         }
 
          CalculateRefModel model = null;
 
@@ -167,9 +184,6 @@ public class CalcFieldAgentService {
             // On edit, an omitted sql/baseOnDetail/dataType means "leave it as it already is",
             // not "reset to the create-time default" -- so a plain rename or expression-only
             // tweak doesn't silently flip an existing field's SQL/detail mode.
-            boolean editing = !req.create();
-            CalculateRef existing = editing
-               ? rvs.getViewsheet().getCalcField(tableName, req.name()) : null;
 
             String dataType = req.dataType() != null ? req.dataType()
                : existing != null ? existing.getDataType() : null;
@@ -281,6 +295,16 @@ public class CalcFieldAgentService {
       throw new IllegalArgumentException(
          "'" + table + "' is not a bindable table in this viewsheet. Available: " +
          tables.stream().map(BindableTable::name).collect(Collectors.joining(", ")) + ".");
+   }
+
+   private static String describeCalcFields(CalculateRef[] calcs) {
+      if(calcs == null || calcs.length == 0) {
+         return "(none)";
+      }
+
+      return Arrays.stream(calcs)
+         .map(calc -> "'" + calc.getName() + "'")
+         .collect(Collectors.joining(", "));
    }
 
    private final ViewsheetSessionService sessions;

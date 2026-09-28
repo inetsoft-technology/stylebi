@@ -80,9 +80,21 @@ class CalcFieldAgentServiceTest {
       return securityEngine;
    }
 
-   /** A session service whose mutate() runs the mutation immediately against runtime "rt1". */
+   /**
+    * A session service whose mutate() runs the mutation immediately against runtime "rt1", whose
+    * viewsheet already has one calc field, "NetTotal", on "ORDERS" (so edit/remove of it resolve).
+    */
    private static ViewsheetSessionService sessionsRunningAgainstRt1() throws Exception {
       Viewsheet vs = mock(Viewsheet.class);
+      CalculateRef netTotal = mock(CalculateRef.class);
+      when(netTotal.getName()).thenReturn("NetTotal");
+      when(vs.getCalcField(eq("ORDERS"), eq("NetTotal"))).thenReturn(netTotal);
+      when(vs.getCalcFields(eq("ORDERS"))).thenReturn(new CalculateRef[] { netTotal });
+      return sessionsRunningAgainstRt1(vs);
+   }
+
+   /** A session service whose mutate() runs the mutation immediately against the given viewsheet. */
+   private static ViewsheetSessionService sessionsRunningAgainstRt1(Viewsheet vs) throws Exception {
       RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
       when(rvs.getViewsheet()).thenReturn(vs);
 
@@ -365,6 +377,65 @@ class CalcFieldAgentServiceTest {
       assertTrue(event.remove());
       assertEquals("NetTotal", event.refName());
       assertNull(event.calculateRef());
+   }
+
+   /**
+    * Bug #76952: the native remove path silently returns for a name not on the table, so a typo'd
+    * remove ("Net Sale" for "Net Sales") used to report success while the real field stayed
+    * bound. It must be refused, naming the missing field and listing the table's real ones.
+    */
+   @Test
+   void removeRefusesACalcFieldNameTheTableDoesNotHave() throws Exception {
+      ModifyCalculateFieldServiceProxy proxy = mock(ModifyCalculateFieldServiceProxy.class);
+      CalcFieldAgentService service = new CalcFieldAgentService(
+         sessionsRunningAgainstRt1(), fieldsServiceWithOrdersTable(), proxy, allowingSecurityEngine());
+
+      CalcFieldRequest req = new CalcFieldRequest(
+         "ORDERS", null, "NetTota", null, null, null, null, null, true, false);
+
+      IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+         () -> service.modify("tok", principal(), req, ""));
+      assertTrue(thrown.getMessage().contains("'NetTota'"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("'NetTotal'"), thrown.getMessage());
+      verifyNoInteractions(proxy);
+   }
+
+   @Test
+   void removeOnATableWithNoCalcFieldsSaysSo() throws Exception {
+      ModifyCalculateFieldServiceProxy proxy = mock(ModifyCalculateFieldServiceProxy.class);
+      CalcFieldAgentService service = new CalcFieldAgentService(
+         sessionsRunningAgainstRt1(mock(Viewsheet.class)), fieldsServiceWithOrdersTable(), proxy,
+         allowingSecurityEngine());
+
+      CalcFieldRequest req = new CalcFieldRequest(
+         "ORDERS", null, "NoSuchField", null, null, null, null, null, true, false);
+
+      IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+         () -> service.modify("tok", principal(), req, ""));
+      assertTrue(thrown.getMessage().contains("'NoSuchField'"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("(none)"), thrown.getMessage());
+      verifyNoInteractions(proxy);
+   }
+
+   /**
+    * Bug #76952 (edit path): with create:false the native service silently returns without
+    * editing anything for a name not on the table, so a typo'd edit would be reported as a
+    * success while the intended field kept its old formula.
+    */
+   @Test
+   void editRefusesACalcFieldNameTheTableDoesNotHave() throws Exception {
+      ModifyCalculateFieldServiceProxy proxy = mock(ModifyCalculateFieldServiceProxy.class);
+      CalcFieldAgentService service = new CalcFieldAgentService(
+         sessionsRunningAgainstRt1(), fieldsServiceWithOrdersTable(), proxy, allowingSecurityEngine());
+
+      CalcFieldRequest req = new CalcFieldRequest("ORDERS", null, "NetTota", null,
+         "field['Total']*0.9", null, null, null, false, false);
+
+      IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+         () -> service.modify("tok", principal(), req, ""));
+      assertTrue(thrown.getMessage().contains("'NetTota'"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("'NetTotal'"), thrown.getMessage());
+      verifyNoInteractions(proxy);
    }
 
    /**
