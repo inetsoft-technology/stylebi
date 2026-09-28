@@ -175,14 +175,14 @@ public class SortFilter extends AbstractTableLens
    /**
     * Invalidate the table filter forcely, and the table filter will perform
     * filtering calculation to validate itself.
+    *
+    * <p>The old row map is not disposed here: a reader outside the lock may still hold it
+    * (bug #77242, as bug #76972). Its finalizer frees it once no reader does.
     */
    @Override
    public void invalidate() {
       synchronized(lock) {
-         if(rowmap != null) {
-            rowmap.dispose();
-            rowmap = null;
-         }
+         rowmap = null;
       }
 
       fireChangeEvent();
@@ -385,8 +385,10 @@ public class SortFilter extends AbstractTableLens
       rowmap = mergeSort(rowmap, asc, hrow, rowmap.length - 1 - trow);
       cache = null;
 
-      this.rowmap = new XSwappableIntList(rowmap);
-      this.rowmap.complete();
+      // complete the map before it is published to readers outside the lock (bug #77242)
+      XSwappableIntList map = new XSwappableIntList(rowmap);
+      map.complete();
+      this.rowmap = map;
       completed = true;
    }
 
@@ -1339,7 +1341,8 @@ public class SortFilter extends AbstractTableLens
    private ColumnList[] cache; // cache of the sorting keys
    private final Object lock = new String("lock");
    private transient Comparer[] comparers;
-   private transient XSwappableIntList rowmap;
+   // volatile: getBaseRowIndex and moreRows read it outside the lock (bug #77242)
+   private transient volatile XSwappableIntList rowmap;
    private transient IntArraySort sortObj;
    private boolean completed;       // completed flag
    private volatile boolean cancelled;       // cancelled flag
