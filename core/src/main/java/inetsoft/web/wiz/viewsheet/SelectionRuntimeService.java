@@ -23,6 +23,7 @@ import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.util.Tool;
+import inetsoft.web.viewsheet.controller.VSCalendarService;
 import inetsoft.web.viewsheet.event.ApplySelectionListEvent;
 import inetsoft.web.viewsheet.event.SortSelectionListEvent;
 import inetsoft.web.viewsheet.service.VSSelectionService;
@@ -89,9 +90,12 @@ import java.util.*;
  */
 @Service
 public class SelectionRuntimeService {
-   public SelectionRuntimeService(ViewsheetSessionService sessions, VSSelectionService selections) {
+   public SelectionRuntimeService(ViewsheetSessionService sessions, VSSelectionService selections,
+                                  VSCalendarService calendars)
+   {
       this.sessions = sessions;
       this.selections = selections;
+      this.calendars = calendars;
    }
 
    /** The sort orders a caller can ask for, mapped to StyleBI's constants. */
@@ -180,6 +184,17 @@ public class SelectionRuntimeService {
 
       sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          SelectionVSAssembly assembly = requireSelection(rvs, assemblyName);
+
+         if(assembly instanceof CalendarVSAssembly && (values != null || hasDeselect)) {
+            // doApplySelection's Calendar branch only acts on a null event (its own "can only
+            // un-select" clear), so a values/deselect apply here is a silent no-op that would
+            // still report valuesSelected. A calendar's dates are not value paths -- their shape
+            // depends on the calendar's mode -- so point at the tool that sets them for real.
+            throw new IllegalArgumentException(
+               "'" + assemblyName + "' is a calendar -- set_selection cannot select or deselect " +
+               "its dates. Use set_calendar_dates to select dates, or clear_calendar / " +
+               "clear_selection to clear them.");
+         }
 
          // Only the values/deselect paths ever touch getConditionList()/getSelection() -- a
          // sortOrder-only or singleSelect-only call never reaches them, so it must not be
@@ -411,6 +426,19 @@ public class SelectionRuntimeService {
                event.setSelectStart(0);
                event.setSelectEnd(adjustedEnd(slider.isUpperInclusive(), buckets.length - 1));
                selections.applySelection(runtimeId, assemblyName, event, user, dispatcher, linkUri);
+            }
+         }
+         else if(assembly instanceof CalendarVSAssembly) {
+            // A calendar keeps its selection as dates on its info, not as a SelectionList, so
+            // selectedPaths() below would always see nothing and send nothing. Clear it the way
+            // clear_calendar does (CalendarDisplayService.clear). NOTE the argument order:
+            // clearCalendar takes (..., principal, dispatcher, linkUri).
+            String[] dates = ((CalendarVSAssemblyInfo) assembly.getVSAssemblyInfo()).getDates();
+            int cleared = dates == null ? 0 : dates.length;
+            result.put("clearedCount", cleared);
+
+            if(cleared > 0) {
+               calendars.clearCalendar(runtimeId, assemblyName, user, dispatcher, linkUri);
             }
          }
          else if(assembly instanceof SelectionTreeVSAssembly tree && tree.isIDMode()) {
@@ -1487,4 +1515,5 @@ public class SelectionRuntimeService {
 
    private final ViewsheetSessionService sessions;
    private final VSSelectionService selections;
+   private final VSCalendarService calendars;
 }
