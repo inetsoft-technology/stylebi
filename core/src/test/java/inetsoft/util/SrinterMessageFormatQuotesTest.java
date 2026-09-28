@@ -183,7 +183,8 @@ class SrinterMessageFormatQuotesTest {
       }
 
       assertTrue(failures.isEmpty(), file.getFileName() + ": " + failures.size() +
-         " raw-displayed message(s) contain '' which is shown doubled (write ' instead):\n  " +
+         " raw-displayed message(s) contain '' which is shown doubled (write ' instead, or use " +
+         "typographic quotes if the key is also formatted with args on the server):\n  " +
          String.join("\n  ", failures));
    }
 
@@ -207,6 +208,7 @@ class SrinterMessageFormatQuotesTest {
 
    /**
     * Returns true if the value has a run of apostrophes other than exactly {@code '''}.
+    * Longer runs are flagged too; if a value ever needs one, exempt that key explicitly.
     */
    private static boolean hasDoubledQuote(String value) {
       Matcher matcher = QUOTE_RUN.matcher(value);
