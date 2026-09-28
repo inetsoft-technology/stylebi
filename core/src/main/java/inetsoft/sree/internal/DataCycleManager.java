@@ -241,7 +241,7 @@ public class DataCycleManager
       return tasks;
    }
 
-   public void clearOrgTasks(String orgId) {
+   public synchronized void clearOrgTasks(String orgId) {
       if(pregeneratedTasksMap.containsKey(orgId)) {
          pregeneratedTasksMap.remove(orgId);
          orgPregeneratedTaskLoadedStatus.remove(orgId);

@@ -1365,10 +1365,21 @@ public class ScheduleManager {
       // clear cache
       this.getOrgTaskMap(orgID).clearCache();
       this.taskMap.remove(orgID);
-      removeExtensionTasksOfOrg(orgID);
+      extensionLock.lock();
+
+      try {
+         removeExtensionTasksOfOrg(orgID);
+      }
+      finally {
+         extensionLock.unlock();
+      }
    }
 
-   private synchronized void removeExtensionTasksOfOrg(String orgID) {
+   /**
+    * Callers must hold extensionLock. Must not be synchronized, see the lock ordering note
+    * on extensionLock.
+    */
+   private void removeExtensionTasksOfOrg(String orgID) {
       for(ScheduleExt ext : extensions) {
          if(!(ext instanceof DataCycleManager)) {
             continue;
@@ -1875,6 +1886,11 @@ public class ScheduleManager {
    // stall waiting for the lock's volatile-DS-group transaction, blocking TRANSACTIONAL
    // cache writes (including the runtime-sheet cache) and causing ExpiredSheetException
    // under concurrent load when a topology change coincided with a getScheduleTasks() call.
+   // Lock ordering (Bug #77195): RepletRegistry monitor -> ScheduleManager monitor ->
+   // extensionLock -> DataCycleManager monitor. Holding the ScheduleManager monitor while
+   // acquiring extensionLock is allowed (e.g. save() -> reloadExtensions()), but code holding
+   // extensionLock must never enter a synchronized ScheduleManager method or take the
+   // RepletRegistry monitor.
    private final Lock extensionLock = new ReentrantLock();
 
    private static final Logger LOG = LoggerFactory.getLogger(ScheduleManager.class);
