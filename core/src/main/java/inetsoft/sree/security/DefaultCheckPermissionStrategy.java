@@ -571,10 +571,9 @@ public class DefaultCheckPermissionStrategy implements CheckPermissionStrategy {
    private boolean checkOrgAdminPermission(ResourceType type, String resource, String orgID,
                                            XPrincipal principal, ResourceAction action)
    {
-      AuthenticationProvider currProvider =
-         !(principal instanceof SRPrincipal) || SUtil.isInternalUser(principal) ?
-            getCurrentProvider(principal) : provider;
-      currProvider = currProvider == null ? provider : currProvider;
+      // resolve users/roles/groups against the whole chain, not just the provider that holds the
+      // caller -- the target identity (and its admin roles) may live in a different provider
+      AuthenticationProvider currProvider = provider;
       boolean isSiteAdmin;
       final boolean isOrgAdmin = Arrays
          .stream(principal.getAllRoles(currProvider))
@@ -670,22 +669,6 @@ public class DefaultCheckPermissionStrategy implements CheckPermissionStrategy {
       default:
          return isOrgAdmin && ActionPermissionService.isOrgAdminAction(type, resource);
       }
-   }
-
-   private AuthenticationProvider getCurrentProvider(Principal principal) {
-      if(provider.getAuthenticationProvider() instanceof AuthenticationChain) {
-         AuthenticationChain chain = (AuthenticationChain) provider.getAuthenticationProvider();
-         Optional<AuthenticationProvider> currProvider = chain.getProviders()
-            .stream()
-            .filter(p -> p.getUser(IdentityID.getIdentityIDFromKey(principal.getName())) != null)
-            .findFirst();
-
-         if(currProvider.isPresent()) {
-            return currProvider.get();
-         }
-      }
-
-      return null;
    }
 
    private Permission getPermission(final ResourceType type, final String resource,
