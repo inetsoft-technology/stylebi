@@ -79,6 +79,7 @@ class PrintTableCardGeometryTest {
    void theLocationIsTheCardOrigin() {
       TablePaintable region = new PrintTableFixture().inset(16, 16, 16).regions().get(0);
       Rectangle bounds = region.getBounds();
+      double cellY = region.getPrintBounds(1, 0, false).y;
 
       assertEquals(new Point(57, 46), region.getLocation());
 
@@ -88,6 +89,8 @@ class PrintTableCardGeometryTest {
       region.setLocation(new Point(57, 146));
       assertEquals(new Rectangle(57, 146, 398, 236), region.getBounds());
       assertEquals(74, region.getPrintBounds(1, 0, false).x, 0.01, "the cells moved with it");
+      assertEquals(cellY + 100, region.getPrintBounds(1, 0, false).y, 0.01,
+                   "the cells moved down with it too");
    }
 
    @Test
@@ -125,6 +128,17 @@ class PrintTableCardGeometryTest {
          new PrintTableFixture().background(Color.YELLOW).print().get(0));
 
       assertEquals(Color.WHITE.getRGB(), page.getRGB(200, 274));
+   }
+
+   @Test
+   void theFillReachesTheNonLastSegmentsFullContentHeight() {
+      // two Fit Contents segments stacked on one page; the first segment's content ends at
+      // y = 266 (46 + 220), one point below where the unpatched fill stops
+      BufferedImage page = PrintTableFixture.render(new PrintTableFixture().inset(16, 16, 16)
+         .noCellBorders().layout(ReportSheet.TABLE_FIT_CONTENT).widths(130, 130, 130)
+         .background(Color.YELLOW).print().get(0));
+
+      assertEquals(Color.YELLOW.getRGB(), page.getRGB(200, 265));
    }
 
    @Test

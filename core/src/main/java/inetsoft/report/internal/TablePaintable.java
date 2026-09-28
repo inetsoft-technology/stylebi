@@ -1542,7 +1542,10 @@ public class TablePaintable extends BasePaintable {
 
       Color oc = g.getColor();
       g.setColor(bg);
-      Common.fillRect(g, frame[0], frame[1], frame[2] - frame[0], frame[3] - frame[1]);
+      // a non-last region's frame can stop short of its content by the last row's missing
+      // bottom cell border; fill down to the content height it actually printed
+      float bottom = lastregion ? frame[3] : Math.max(frame[3], box.y + height);
+      Common.fillRect(g, frame[0], frame[1], frame[2] - frame[0], bottom - frame[1]);
       g.setColor(oc);
       return true;
    }
