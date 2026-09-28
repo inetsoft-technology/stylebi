@@ -194,6 +194,8 @@ class UserTreeServiceIdentityNamesOrgScopeTest {
       when(provider.getGroups()).thenReturn(new IdentityID[] { G_A, G_B, G_HOST, G_NULL, newGroup });
       when(provider.getOrganization("neworg")).thenReturn(null);
       when(provider.getOrgIdFromName("New Org")).thenReturn(null);
+      // Bug #77211: only a site admin may create an organization in multi-tenant mode
+      when(orgManager.isSiteAdmin(any(Principal.class))).thenReturn(true);
 
       EditOrganizationPaneModel model =
          service.createOrganization(null, "Primary", "New Org", "neworg", principal, null);

@@ -948,6 +948,12 @@ public class UserTreeService {
       String newOrgId = null;
 
       try {
+         // creating (or cloning) an organization is a site admin operation, an org admin must
+         // not be able to reach it through the users settings component they hold
+         if(SUtil.isMultiTenant() && !OrganizationManager.getInstance().isSiteAdmin(principal)) {
+            throw new java.lang.SecurityException("Unauthorized access to create organization");
+         }
+
          if(!(provider instanceof EditableAuthenticationProvider)) {
             return null;
          }
