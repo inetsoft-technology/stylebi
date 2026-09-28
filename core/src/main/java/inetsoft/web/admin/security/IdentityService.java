@@ -848,9 +848,65 @@ public class IdentityService {
       return false;
    }
 
+   /**
+    * Delete a member that was dropped from an organization with the same cleanup as
+    * deleteIdentities(). The cleanup runs in the scope of the edited organization, because some
+    * of it (the dashboards) is keyed by the current organization, which differs when a site
+    * admin updates another organization through the REST API. If the cleanup fails, the member
+    * is still removed from the provider, so dropping a member always deletes it.
+    *
+    * @return {@code true} if the member was removed from the provider.
+    */
+   private boolean removeDroppedMember(EditableAuthenticationProvider eprovider, IdentityID id,
+                                       int type, String orgID)
+   {
+      try {
+         OrganizationManager.runInOrgScope(orgID, () -> {
+            syncIdentity(eprovider, new DefaultIdentity(id, type), null);
+            return null;
+         });
+      }
+      catch(Exception ex) {
+         LOG.warn("Failed to clean up the removed organization member: {}", id, ex);
+         Tool.addUserMessage("Failed to clean up the data of the removed member " +
+                                id.getName() + ".");
+
+         // the cleanup may have failed before the member was removed from the provider
+         try {
+            if(type == Identity.USER && eprovider.getUser(id) != null) {
+               eprovider.removeUser(id);
+            }
+            else if(type == Identity.GROUP && eprovider.getGroup(id) != null) {
+               eprovider.removeGroup(id);
+            }
+            else if(type == Identity.ROLE && eprovider.getRole(id) != null) {
+               eprovider.removeRole(id);
+            }
+         }
+         catch(Exception removeEx) {
+            LOG.warn("Failed to remove the organization member: {}", id, removeEx);
+            return false;
+         }
+      }
+
+      try {
+         if(type == Identity.USER) {
+            logoutSession(id);
+         }
+
+         cluster.sendMessage(new IdentityChangedMessage(type, null, id));
+      }
+      catch(Exception ex) {
+         LOG.warn("Failed to notify the removal of the organization member: {}", id, ex);
+      }
+
+      return true;
+   }
+
    private void updateOrganizationMembers(Organization identity, List<IdentityModel> memberModels,
                                           String oldOrgID,
-                                          EditableAuthenticationProvider eprovider)
+                                          EditableAuthenticationProvider eprovider,
+                                          Principal principal)
    {
       String orgID = identity.getId();
       List<String> members = Arrays.asList(identity.getMembers());
@@ -875,6 +931,7 @@ public class IdentityService {
       boolean orgNameChanged = !Tool.equals(orgIdChange, oldOrgID);
 
       AuthorizationChain authoc = ((AuthorizationChain) securityProvider.getAuthorizationProvider());
+      List<IdentityID> droppedUsers = new ArrayList<>();
 
       for(int i = 0; i < users.length; i++) {
          FSUser user = (FSUser) eprovider.getUser(users[i]);
@@ -913,9 +970,21 @@ public class IdentityService {
                                            user.getIdentityID().convertToKey());
          }
          else if(!members.contains(user.getName())) {
-            eprovider.removeUser(oldID);
+            // like deleteIdentities(), never delete the requesting user, which would also have to
+            // log out the session of the request that is being processed
+            if(principal != null && isSelfAndEMUser(principal, oldID, Identity.USER)) {
+               Tool.addUserMessage(Catalog.getCatalog().getString("em.security.delself"));
+               continue;
+            }
+
+            if(removeDroppedMember(eprovider, oldID, Identity.USER, oldOrgID)) {
+               droppedUsers.add(oldID);
+            }
          }
       }
+
+      // sweep the favorites once for all dropped users, as deleteIdentities() does
+      removeUserFavorites(droppedUsers);
 
       for(int i = 0; i < newUsers.length; i ++) {
          // never replace an existing user with a blank one
@@ -934,7 +1003,7 @@ public class IdentityService {
          if(orgID.equals(group.getOrganizationID())) {
             if(!members.contains(group.getName())) {
                //group is tied to org, delete if removed as member
-               eprovider.removeGroup(group.getIdentityID());
+               removeDroppedMember(eprovider, group.getIdentityID(), Identity.GROUP, oldOrgID);
             }
             //else if name change or id change, update permissions
             else if(orgIdChange) {
@@ -964,7 +1033,7 @@ public class IdentityService {
          if(orgID.equals(role.getOrganizationID())) {
             if(!members.contains(role.getName())) {
                //role is tied to org, delete if removed as member
-               eprovider.removeRole(role.getIdentityID());
+               removeDroppedMember(eprovider, role.getIdentityID(), Identity.ROLE, oldOrgID);
             }
             else if(orgIdChange) {
                updateRoleForOrg(identity, role, orgID, eprovider, authoc);
@@ -2442,7 +2511,7 @@ public class IdentityService {
             !Tool.equals(oldOrg.getMembers(), memberNames) ||
             !Tool.equals(fromOrgID, model.id()))
       {
-         updateOrganizationMembers(newOrg, members, oldID, eprovider);
+         updateOrganizationMembers(newOrg, members, oldID, eprovider, principal);
       }
 
       if(fromOrg != null && !Tool.equals(fromOrg, newOrg)) {
