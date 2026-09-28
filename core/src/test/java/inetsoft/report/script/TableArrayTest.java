@@ -22,6 +22,7 @@ import inetsoft.report.lens.DefaultTableLens;
 import inetsoft.test.*;
 import inetsoft.uql.XTable;
 import inetsoft.util.script.ScriptUtil;
+import inetsoft.util.stall.LockStallException;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.test.annotation.DirtiesContext;
@@ -157,5 +158,68 @@ class TableArrayTest {
 
       assertInstanceOf(XTable.class, unwrapped);
       assertSame(xtable, unwrapped);
+   }
+
+   /**
+    * A table whose row reads past the header fail with {@code failure}, as a stalled
+    * FormulaTableLens row lock would in FAIL stall mode.
+    */
+   private static XTable failingTable(RuntimeException failure) {
+      return new DefaultTableLens(new Object[][] {
+         { "col1", "col2", "col3" },
+         { "a", 1, 5.0 },
+         { "b", 3, 10.0 }
+      }) {
+         @Override
+         public boolean moreRows(int row) {
+            if(row > 0) {
+               throw failure;
+            }
+
+            return super.moreRows(row);
+         }
+      };
+   }
+
+   @Test
+   void stalledColumnReadThrowsTheStall() {
+      // #77123: a stalled table has no value to return (#76967), so a column read
+      // must not turn the stall into a null script value.
+      LockStallException stall = new LockStallException("test.site", "worker", 1234, null);
+      TableArray arr = new TableArray(failingTable(stall));
+
+      LockStallException thrown =
+         assertThrows(LockStallException.class, () -> arr.getMember("col1"));
+      assertSame(stall, thrown);
+   }
+
+   @Test
+   void wrappedStalledColumnReadThrowsTheStall() {
+      LockStallException stall = new LockStallException("test.site", "worker", 1234, null);
+      TableArray arr = new TableArray(failingTable(new IllegalStateException("wrapped", stall)));
+
+      LockStallException thrown =
+         assertThrows(LockStallException.class, () -> arr.getMember("col1"));
+      assertSame(stall, thrown);
+   }
+
+   @Test
+   void stalledSubtableReadThrowsTheStall() {
+      LockStallException stall = new LockStallException("test.site", "worker", 1234, null);
+      TableArray arr = new TableArray(failingTable(stall));
+
+      assertThrows(LockStallException.class, () -> arr.getMember("*"));
+   }
+
+   @Test
+   void failedColumnReadStillFallsBackToMembers() {
+      // a failure that is not a stall keeps the old behavior: logged, and the
+      // script-set member (or null) is returned
+      TableArray arr = new TableArray(failingTable(new IllegalStateException("broken")));
+
+      assertNull(arr.getMember("col1"));
+
+      arr.putMember("col1", "assigned");
+      assertEquals("assigned", arr.getMember("col1"));
    }
 }
