@@ -22,6 +22,7 @@ import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.test.*;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.TabVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.VSUtil;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -405,6 +406,146 @@ public class TabVSAScriptableTest {
    })
    void testGetSuffix(String propertyName, String expectedValue) {
       assertEquals(expectedValue, tabVSAScriptable.getSuffix(propertyName));
+   }
+
+   // ---- Bug #77179: plain open must not reposition tabs; real restores still must ----
+
+   /**
+    * Simulates the RuntimeViewsheet constructor on a runtime open: write the INITIAL_STATE
+    * bookmark from the live viewsheet, then parse it back in place twice (setEntry's
+    * gotoDefaultBookmark and refresh()'s gotoDefaultBookmark).
+    */
+   private static VSBookmark simulateRuntimeOpen(Viewsheet vs) {
+      VSBookmark ibookmark = new VSBookmark();
+      ibookmark.addBookmark(VSBookmark.INITIAL_STATE, vs, VSBookmarkInfo.PRIVATE, false, true);
+      ibookmark.getBookmark(VSBookmark.INITIAL_STATE, vs);
+      ibookmark.getBookmark(VSBookmark.INITIAL_STATE, vs);
+      return ibookmark;
+   }
+
+   private TextVSAssembly addChild(Viewsheet vs, String name, int y, int height) {
+      TextVSAssembly child = new TextVSAssembly();
+      child.getVSAssemblyInfo().setName(name);
+      child.getVSAssemblyInfo().setPixelOffset(new Point(0, y));
+      child.getVSAssemblyInfo().setPixelSize(new Dimension(180, height));
+      vs.addAssembly(child);
+      return child;
+   }
+
+   @Test
+   void testBug77179PlainOpenDoesNotMoveNonFlushTopTabs() {
+      // top-tabs Tab with a 20px gap between the tab bar (30..60) and its child (80)
+      TextVSAssembly child = addChild(viewsheet, "Text1", 80, 100);
+      tabVSAssemblyInfo.setAssemblies(new String[]{"Text1"});
+      tabVSAssemblyInfo.setPixelOffset(new Point(0, 30));
+      tabVSAssemblyInfo.setPixelSize(new Dimension(180, 30));
+
+      simulateRuntimeOpen(viewsheet);
+
+      // the INITIAL_STATE round-trip restores the value the tab already has -- nothing owed
+      assertFalse(tabVSAssemblyInfo.isPositionNeedsSync());
+
+      TabVSAssemblyInfo.syncPendingBottomTabsPositions(viewsheet);
+
+      assertEquals(30, tabVSAssemblyInfo.getPixelOffset().y);
+      assertEquals(80, child.getVSAssemblyInfo().getPixelOffset().y);
+   }
+
+   @Test
+   void testBug77179PlainOpenDoesNotUndoScriptMovedBottomTabs() {
+      // bottom-tabs Tab whose bar a script (e.g. onLoad) moved away from the flush position
+      // (flush would be 60 + 100 = 160)
+      TextVSAssembly child = addChild(viewsheet, "Text1", 60, 100);
+      tabVSAssemblyInfo.setAssemblies(new String[]{"Text1"});
+      tabVSAssemblyInfo.setBottomTabsValue(true);
+      tabVSAssemblyInfo.setPixelOffset(new Point(0, 200));
+      tabVSAssemblyInfo.setPixelSize(new Dimension(180, 30));
+
+      simulateRuntimeOpen(viewsheet);
+
+      assertTrue(tabVSAssemblyInfo.isBottomTabs());
+      assertFalse(tabVSAssemblyInfo.isPositionNeedsSync());
+
+      TabVSAssemblyInfo.syncPendingBottomTabsPositions(viewsheet);
+
+      assertEquals(200, tabVSAssemblyInfo.getPixelOffset().y);
+      assertEquals(60, child.getVSAssemblyInfo().getPixelOffset().y);
+   }
+
+   @Test
+   void testBug77179BookmarkWithDifferentValueStillRepositions() {
+      TextVSAssembly child = addChild(viewsheet, "Text1", 60, 100);
+      tabVSAssemblyInfo.setAssemblies(new String[]{"Text1"});
+      tabVSAssemblyInfo.setPixelOffset(new Point(0, 30));
+      tabVSAssemblyInfo.setPixelSize(new Dimension(180, 30));
+
+      VSBookmark bookmarks = simulateRuntimeOpen(viewsheet);
+      assertFalse(tabVSAssemblyInfo.isPositionNeedsSync());
+
+      // a named bookmark saved while the tab was in bottom-tabs mode
+      Viewsheet saved = viewsheet.clone();
+      ((TabVSAssemblyInfo) saved.getAssembly("Tab1").getVSAssemblyInfo()).setBottomTabs(true);
+      bookmarks.addBookmark("bm1", saved, VSBookmarkInfo.PRIVATE, false, true);
+
+      bookmarks.getBookmark("bm1", viewsheet);
+      assertTrue(tabVSAssemblyInfo.isBottomTabs());
+      assertTrue(tabVSAssemblyInfo.isPositionNeedsSync());
+
+      // sticky: re-parsing the same (now equal) value must not clear the owed reposition
+      bookmarks.getBookmark("bm1", viewsheet);
+      assertTrue(tabVSAssemblyInfo.isPositionNeedsSync());
+
+      TabVSAssemblyInfo.syncPendingBottomTabsPositions(viewsheet);
+
+      assertEquals(160, tabVSAssemblyInfo.getPixelOffset().y);
+      assertEquals(60, child.getVSAssemblyInfo().getPixelOffset().y);
+      assertFalse(tabVSAssemblyInfo.isPositionNeedsSync());
+   }
+
+   @Test
+   void testBug77179ComposerPreviewOfDesignScriptBottomTabsRepositions() {
+      TextVSAssembly child = addChild(viewsheet, "Text1", 60, 100);
+      tabVSAssemblyInfo.setAssemblies(new String[]{"Text1"});
+      tabVSAssemblyInfo.setPixelOffset(new Point(0, 30));
+      tabVSAssemblyInfo.setPixelSize(new Dimension(180, 30));
+
+      // design-time sandbox (isRuntime() == false): onInit sets bottomTabs = true
+      when(viewsheetSandbox.isRuntime()).thenReturn(false);
+      tabVSAScriptable.setBottomTabs(true);
+
+      // design geometry never moves
+      assertTrue(tabVSAssemblyInfo.isBottomTabs());
+      assertEquals(30, tabVSAssemblyInfo.getPixelOffset().y);
+      assertEquals(60, child.getVSAssemblyInfo().getPixelOffset().y);
+
+      // ViewsheetEngine.openPreviewViewsheet: clone + resetRuntimeValues (bottomTabs rValue
+      // is deliberately kept), then the preview RuntimeViewsheet's INITIAL_STATE round-trip
+      Viewsheet preview = viewsheet.clone();
+      VSUtil.resetRuntimeValues(preview, true);
+      simulateRuntimeOpen(preview);
+
+      TabVSAssemblyInfo previewTab =
+         (TabVSAssemblyInfo) preview.getAssembly("Tab1").getVSAssemblyInfo();
+      assertTrue(previewTab.isBottomTabs());
+      assertTrue(previewTab.isPositionNeedsSync());
+
+      // preview runtime sandbox: onInit re-asserts the same value, then the sweep
+      ViewsheetSandbox previewBox = mock(ViewsheetSandbox.class);
+      when(previewBox.getID()).thenReturn("vs1");
+      when(previewBox.getViewsheet()).thenReturn(preview);
+      when(previewBox.isRuntime()).thenReturn(true);
+      TabVSAScriptable previewScriptable = new TabVSAScriptable(previewBox);
+      previewScriptable.setAssembly("Tab1");
+      previewScriptable.setBottomTabs(true);
+      TabVSAssemblyInfo.syncPendingBottomTabsPositions(preview);
+
+      assertEquals(160, previewTab.getPixelOffset().y);
+      assertEquals(60, preview.getAssembly("Text1").getVSAssemblyInfo()
+         .getPixelOffset().y);
+      assertFalse(previewTab.isPositionNeedsSync());
+
+      // the design viewsheet itself is untouched
+      assertEquals(30, tabVSAssemblyInfo.getPixelOffset().y);
    }
 
    private static Element parseXml(String xml) throws Exception {

@@ -659,9 +659,11 @@ public class TabVSAssemblyInfo extends ContainerVSAssemblyInfo {
     * of the pending-reposition flag, leaving the tab bar at its stale pre-restore pixel
     * position even though the restored flag itself is correct (Bug #76927).</p>
     *
-    * <p>Gated strictly on {@link #isPositionNeedsSync()}, which only {@link #restoreBottomTabs}
-    * ever sets -- never on a value comparison -- so an ordinary refresh can't fight a tab
-    * position the user or a script established.</p>
+    * <p>Gated strictly on {@link #isPositionNeedsSync()}, which is only set when a restore
+    * (or a design-time script, see {@link #markPositionNeedsSync()}) actually changed the
+    * effective value without repositioning -- the sweep itself never compares positions -- so
+    * an ordinary refresh (including the INITIAL_STATE round-trip every runtime open performs)
+    * can't fight a tab position the user or a script established (Bug #77179).</p>
     */
    public static void syncPendingBottomTabsPositions(Viewsheet vs) {
       if(vs == null) {
@@ -774,9 +776,33 @@ public class TabVSAssemblyInfo extends ContainerVSAssemblyInfo {
     * reposition-capable caller that a reposition is still owed even though, from that caller's
     * point of view, the value may appear unchanged (e.g. the tab's own script re-running on
     * every refresh with a value that already matches the just-restored rValue).
+    *
+    * <p>The flag is raised only when the restored value differs from the effective value
+    * before the restore: an equal value means the current pixel positions already belong to
+    * it, so no reposition is owed. This matters because every runtime open writes the
+    * INITIAL_STATE bookmark from the live viewsheet and immediately parses it back; flagging
+    * unconditionally made the open-time sweep re-anchor every tab, moving non-flush layouts
+    * and undoing onInit/onLoad position changes (Bug #77179). The flag is sticky -- an equal
+    * restore never clears one raised earlier (e.g. by a preceding restore in the same open, or
+    * by {@link #markPositionNeedsSync()}).</p>
     */
    public void restoreBottomTabs(boolean bottomTabs) {
+      boolean changed = isBottomTabs() != bottomTabs;
       this.bottomTabs.setRValue(bottomTabs);
+
+      if(changed) {
+         positionNeedsSync = true;
+      }
+   }
+
+   /**
+    * Mark that the bottomTabs rValue was changed without a matching reposition. Used by
+    * {@link inetsoft.report.script.viewsheet.TabVSAScriptable#setBottomTabs} when a script
+    * changes the value in a design-time (non-runtime) sandbox, where positions are never
+    * moved: the flag travels with the viewsheet clone into Composer Preview, whose runtime
+    * script run or open-time sweep then settles the reposition (Bug #77179).
+    */
+   public void markPositionNeedsSync() {
       positionNeedsSync = true;
    }
 
