@@ -475,6 +475,21 @@ public class CalcTableScopeTest {
    }
 
    /**
+    * #77123: an expression column ({@code "=..."}) that reads a stalled column must not
+    * turn into a null cell value, which the summary skipped and summed the wrong values.
+    */
+   @Test
+   void stalledColumnExpressionThrowsTheStall() {
+      LockStallException stall = new LockStallException("test.site", "worker", 1234, null);
+
+      // sanity: the expression reads id1 on every row, 1 + 2 + 3 + 2
+      assertEquals(8.0, calcTableScope.sum(conditionTable(null), "=id1", null));
+
+      assertSame(stall, assertThrows(LockStallException.class,
+         () -> calcTableScope.sum(conditionTable(stall), "=id1", null)));
+   }
+
+   /**
     * A calc table whose data cells (past the header row) fail with {@code failure}, as a
     * stalled lens under a formula cell would in FAIL stall mode.
     */
