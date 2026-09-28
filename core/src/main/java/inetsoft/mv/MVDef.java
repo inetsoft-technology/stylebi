@@ -500,7 +500,7 @@ public final class MVDef implements Comparable, XMLSerializable, Serializable, C
    /**
     * Remove one column from columns, may be caused by vpm.
     */
-   public MVColumn removeColumn(int index) {
+   public synchronized MVColumn removeColumn(int index) {
       List<MVColumn> columns = getColumns();
       MVColumn removed = columns.remove(index);
 
