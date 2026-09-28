@@ -322,6 +322,95 @@ class IdentityThemeServiceTest {
       }
    }
 
+   // Issue #77084: a deleted user must be removed from its organization's themes, so a new
+   // same-named user of that organization does not inherit the theme
+   @Test
+   void removeIdentity_orgUser_removedFromOwnOrgThemeOnly() {
+      CustomTheme aTheme = theme("aTheme", ORG_A);
+      aTheme.getUsers().addAll(List.of("bob", "alice"));
+      CustomTheme bTheme = theme("bTheme", ORG_B);
+      bTheme.getUsers().add("bob");
+      CustomTheme globalTheme = theme("globalTheme", null);
+      globalTheme.getUsers().add("bob");
+      when(manager.getCustomThemes())
+         .thenReturn(new HashSet<>(Set.of(aTheme, bTheme, globalTheme)));
+
+      service.removeIdentity("bob", ORG_A, CustomTheme::getUsers);
+
+      assertEquals(List.of("alice"), aTheme.getUsers());
+      assertEquals(List.of("bob"), bTheme.getUsers(), "org B's bob must keep its theme");
+      assertEquals(List.of("bob"), globalTheme.getUsers(),
+         "a global theme's bob belongs to the default organization, not to org A");
+      verify(manager).setCustomThemes(any());
+   }
+
+   // Issue #77084: a global theme's user entries refer to users of the default organization
+   @Test
+   void removeIdentity_defaultOrgUser_removedFromGlobalTheme() {
+      CustomTheme globalTheme = theme("globalTheme", null);
+      globalTheme.getUsers().add("bob");
+      CustomTheme aTheme = theme("aTheme", ORG_A);
+      aTheme.getUsers().add("bob");
+      when(manager.getCustomThemes()).thenReturn(new HashSet<>(Set.of(globalTheme, aTheme)));
+
+      service.removeIdentity("bob", HOST_ORG, CustomTheme::getUsers);
+
+      assertTrue(globalTheme.getUsers().isEmpty());
+      assertEquals(List.of("bob"), aTheme.getUsers(), "org A's bob must keep its theme");
+   }
+
+   // Issue #77084: a global role is referenced from every organization's themes
+   @Test
+   void removeIdentity_globalRole_removedFromEveryTheme() {
+      CustomTheme aTheme = theme("aTheme", ORG_A);
+      aTheme.getRoles().add("Designer");
+      CustomTheme bTheme = theme("bTheme", ORG_B);
+      bTheme.getRoles().add("Designer");
+      CustomTheme globalTheme = theme("globalTheme", null);
+      globalTheme.getRoles().addAll(List.of("Designer", "Designer", "Viewer"));
+      when(manager.getCustomThemes())
+         .thenReturn(new HashSet<>(Set.of(aTheme, bTheme, globalTheme)));
+
+      service.removeIdentity("Designer", null, CustomTheme::getRoles);
+
+      assertTrue(aTheme.getRoles().isEmpty());
+      assertTrue(bTheme.getRoles().isEmpty());
+      assertEquals(List.of("Viewer"), globalTheme.getRoles(), "duplicates must be removed too");
+   }
+
+   // Issue #77084: a deleted group is removed from the group list only
+   @Test
+   void removeIdentity_group_removedFromGroupListOnly() {
+      CustomTheme aTheme = theme("aTheme", ORG_A);
+      aTheme.getGroups().add("sales");
+      aTheme.getUsers().add("sales");
+      aTheme.getRoles().add("sales");
+      when(manager.getCustomThemes()).thenReturn(new HashSet<>(Set.of(aTheme)));
+
+      service.removeIdentity("sales", ORG_A, CustomTheme::getGroups);
+
+      assertTrue(aTheme.getGroups().isEmpty());
+      assertEquals(List.of("sales"), aTheme.getUsers());
+      assertEquals(List.of("sales"), aTheme.getRoles());
+   }
+
+   // Issue #77084: deleting an identity that no theme refers to must not rewrite the themes
+   @Test
+   void removeIdentity_notReferenced_noWrite() {
+      CustomTheme aTheme = theme("aTheme", ORG_A);
+      aTheme.getUsers().add("alice");
+      CustomTheme bTheme = theme("bTheme", ORG_B);
+      bTheme.getUsers().add("bob");
+      when(manager.getCustomThemes()).thenReturn(new HashSet<>(Set.of(aTheme, bTheme)));
+
+      service.removeIdentity("bob", ORG_A, CustomTheme::getUsers);
+      service.removeIdentity(null, ORG_A, CustomTheme::getUsers);
+
+      verify(manager, never()).setCustomThemes(any());
+      assertEquals(List.of("alice"), aTheme.getUsers());
+      assertEquals(List.of("bob"), bTheme.getUsers());
+   }
+
    private static CustomTheme theme(String id, String orgID) {
       CustomTheme theme = new CustomTheme();
       theme.setId(id);
