@@ -367,6 +367,58 @@ public class LendableReentrantLockTest {
    }
 
    /**
+    * A formula lens computing a row records the lock, runs the formula on the same engine
+    * (unrecorded), and the formula reads a condition filter that records the lock again:
+    * hold 3, record 2. The engine's context is in use on this thread, so nothing is lent.
+    */
+   @Test
+   public void noLendInsideScriptExecutionBetweenRecordedHolds() {
+      LendableReentrantLock lock = new LendableReentrantLock();
+      LendableReentrantLock.Borrower borrower = new LendableReentrantLock.Borrower();
+      // as FormulaTableLens.lockForRow() does
+      lock.lock();
+      JavaScriptEngine.pushHeldScriptLock(lock);
+
+      try {
+         // as GraalJavaScriptEngine.exec() of the same engine does
+         lock.lock();
+         JavaScriptEngine.pushExecScriptable(NOOP_SCOPE);
+
+         try {
+            // as ConditionFilter2.moreRows() does
+            lock.lock();
+            JavaScriptEngine.pushHeldScriptLock(lock);
+
+            try {
+               assertEquals(3, lock.getHoldCount());
+               assertFalse(JavaScriptEngine.canLendScriptLocks(borrower));
+
+               try(LendableReentrantLock.Loan loan = JavaScriptEngine.lendScriptLocks(borrower)) {
+                  assertSame(LendableReentrantLock.NO_LOAN, loan);
+                  assertFalse(lock.isLent());
+               }
+            }
+            finally {
+               JavaScriptEngine.popHeldScriptLock();
+               lock.unlock();
+            }
+         }
+         finally {
+            JavaScriptEngine.popExecScriptable();
+            lock.unlock();
+         }
+      }
+      finally {
+         JavaScriptEngine.popHeldScriptLock();
+         lock.unlock();
+         borrower.end();
+      }
+
+      assertFalse(JavaScriptEngine.holdsScriptLock());
+      assertFalse(lock.isLocked());
+   }
+
+   /**
     * Inside the evaluation of another engine's script (e.g. a viewsheet script reading a
     * worksheet table), a lock this thread holds only through its records is not the lock of
     * an engine in use on this thread, and is lent, while the evaluating engine's own lock is
