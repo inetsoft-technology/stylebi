@@ -539,7 +539,7 @@ export class ComposerToolbarComponent implements OnInit, AfterViewInit, OnDestro
    }
 
    saveAs(): void {
-      if(this.sheet && this.sheet.type === "viewsheet" || this.sheet.type === "wiz") {
+      if(this.sheet && (this.sheet.type === "viewsheet" || this.sheet.type === "wiz")) {
          this.onSaveViewsheetAs.emit(this.sheet);
       }
       else if(this.sheet && this.sheet.type === "worksheet") {
