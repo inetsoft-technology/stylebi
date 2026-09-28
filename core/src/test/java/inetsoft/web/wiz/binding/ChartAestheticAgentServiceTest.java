@@ -420,6 +420,130 @@ class ChartAestheticAgentServiceTest {
       return chart;
    }
 
+   // ── refuses a write-then-revert onto a date-comparison-injected channel (bug #77014 VCA-004)
+   //
+   // clear_aesthetic_field and set_visual_frame both genuinely applied their write against the
+   // live model, but the very refresh their own request triggered discarded it and reinstalled
+   // date comparison's own default color-by-default injection in the same request -- the
+   // response said the write succeeded; the very next read showed it never stuck. A single-style
+   // comparison (value/change/percentChange) never turns isMultiAesthetic() true, so DCG-013's
+   // own guard above never fired for it; this checks the channel's own current ref instead.
+
+   @Test
+   void refusesClearingADateComparisonInjectedColorField() {
+      ChartAestheticAgentService service = serviceWith(
+         sessionsFor(dateComparisonInjectedColorFieldChartAssembly()), new ChartBindingModel(),
+         mock(ChangeChartAestheticService.class));
+
+      Exception thrown = assertThrows(
+         Exception.class,
+         () -> service.clearField("tok", principal(), "Chart1", "color", ""));
+      String message = thrown.getMessage().toLowerCase();
+      assertTrue(message.contains("date comparison"), thrown.getMessage());
+      assertTrue(message.contains("clear_date_comparison"), thrown.getMessage());
+   }
+
+   @Test
+   void refusesSettingAFieldOntoADateComparisonInjectedColorChannel() {
+      ChartAestheticAgentService service = serviceWith(
+         sessionsFor(dateComparisonInjectedColorFieldChartAssembly()), new ChartBindingModel(),
+         mock(ChangeChartAestheticService.class));
+
+      Exception thrown = assertThrows(
+         Exception.class,
+         () -> service.setField("tok", principal(), "Chart1", "color",
+                                new FieldRef("Region", "dimension", null, null, null), null, ""));
+      assertTrue(thrown.getMessage().toLowerCase().contains("clear_date_comparison"),
+                thrown.getMessage());
+   }
+
+   /**
+    * {@code setFrame} had no such guard at all before this fix, regardless of single- or
+    * multi-style -- confirmed by tracing that {@code requireNotMultiAesthetic} is never called
+    * from it.
+    */
+   @Test
+   void refusesSettingAFrameOntoADateComparisonInjectedColorChannel() {
+      ChartAestheticAgentService service = serviceWith(
+         sessionsFor(dateComparisonInjectedColorFieldChartAssembly()), new ChartBindingModel(),
+         mock(ChangeChartAestheticService.class));
+
+      Exception thrown = assertThrows(
+         Exception.class,
+         () -> service.setFrame("tok", principal(), "Chart1", "color",
+                                spec("type", "static", "color", "#4e79a7"), ""));
+      assertTrue(thrown.getMessage().toLowerCase().contains("clear_date_comparison"),
+                thrown.getMessage());
+   }
+
+   /** A per-aggregate injection (a multi-style changeAndValue/percentChangeAndValue comparison). */
+   @Test
+   void refusesSettingAFrameOntoAMultiStyleDateComparisonInjectedColorChannel() {
+      ChartAestheticAgentService service = serviceWith(
+         sessionsFor(dateComparisonMultiStyleInjectedColorFieldChartAssembly()),
+         new ChartBindingModel(), mock(ChangeChartAestheticService.class));
+
+      Exception thrown = assertThrows(
+         Exception.class,
+         () -> service.setFrame("tok", principal(), "Chart1", "color",
+                                spec("type", "static", "color", "#4e79a7"), ""));
+      assertTrue(thrown.getMessage().toLowerCase().contains("clear_date_comparison"),
+                thrown.getMessage());
+   }
+
+   /**
+    * The refusal is scoped to the one channel date comparison actually populated -- an ordinary
+    * explicit binding on a different channel of the same chart must keep working.
+    */
+   @Test
+   void allowsAnOrdinaryChannelWriteWhileADateComparisonInjectsAnotherOne() throws Exception {
+      ChangeChartAestheticService aesthetics = mock(ChangeChartAestheticService.class);
+
+      serviceWith(sessionsFor(dateComparisonInjectedColorFieldChartAssembly()),
+                 new ChartBindingModel(), aesthetics)
+         .setField("tok", principal(), "Chart1", "shape",
+                  new FieldRef("Region", "dimension", null, null, null), null, "");
+
+      assertEquals("Region", captureEvent(aesthetics).getModel().getShapeField().getFullName());
+   }
+
+   /** No active comparison at all -- every existing write path must be unaffected. */
+   @Test
+   void allowsAWriteWhenNoDateComparisonIsApplied() throws Exception {
+      ChangeChartAestheticService aesthetics = mock(ChangeChartAestheticService.class);
+
+      harness(new ChartBindingModel(), aesthetics)
+         .setFrame("tok", principal(), "Chart1", "color",
+                  spec("type", "static", "color", "#4e79a7"), "");
+
+      assertInstanceOf(StaticColorModel.class,
+                       captureEvent(aesthetics).getModel().getColorFrame());
+   }
+
+   private static ChartVSAssembly dateComparisonInjectedColorFieldChartAssembly() {
+      AestheticRef colorField = mock(AestheticRef.class);
+      when(colorField.isRuntime()).thenReturn(true);
+      VSChartInfo info = mock(VSChartInfo.class);
+      when(info.isAppliedDateComparison()).thenReturn(true);
+      when(info.getColorField()).thenReturn(colorField);
+      ChartVSAssembly chart = mock(ChartVSAssembly.class);
+      when(chart.getVSChartInfo()).thenReturn(info);
+      return chart;
+   }
+
+   private static ChartVSAssembly dateComparisonMultiStyleInjectedColorFieldChartAssembly() {
+      AestheticRef colorField = mock(AestheticRef.class);
+      when(colorField.isRuntime()).thenReturn(true);
+      ChartAggregateRef aggregate = mock(ChartAggregateRef.class);
+      when(aggregate.getColorField()).thenReturn(colorField);
+      VSChartInfo info = mock(VSChartInfo.class);
+      when(info.isAppliedDateComparison()).thenReturn(true);
+      when(info.getAggregateRefs()).thenReturn(new VSDataRef[]{ aggregate });
+      ChartVSAssembly chart = mock(ChartVSAssembly.class);
+      when(chart.getVSChartInfo()).thenReturn(info);
+      return chart;
+   }
+
    private static ChartVSAssembly relationChartAssembly() {
       VSChartInfo info = mock(VSChartInfo.class);
       when(info.getChartType()).thenReturn(GraphTypes.CHART_NETWORK);
