@@ -149,6 +149,26 @@ public class FileAuthenticationProviderCacheCoherenceTest {
    }
 
    @Test
+   void removingParentRoleReachesOtherInstance() {
+      IdentityID user = new IdentityID("parentRevokeUser", ORG);
+      IdentityID role = new IdentityID("parentRevokeRole", ORG);
+      IdentityID parent = new IdentityID("parentRevokeParent", ORG);
+      nodeA.addRole(new FSRole(parent));
+      nodeA.addRole(new FSRole(role, new IdentityID[]{ parent }));
+      FSUser fsUser = new FSUser(user);
+      fsUser.setRoles(new IdentityID[]{ role });
+      nodeA.addUser(fsUser);
+
+      assertTrue(hasRole(nodeB, user, parent), "precondition: parent role cached on node B");
+
+      // only the role storage changes here, the user and its groups are untouched
+      nodeA.setRole(role, new FSRole(role, new IdentityID[0]));
+
+      awaitAssert(() -> !hasRole(nodeB, user, parent),
+                  "Parent role removed from the role on node A is still granted on node B");
+   }
+
+   @Test
    void removedUserLosesCachedRoles() {
       IdentityID user = new IdentityID("removedUser", ORG);
       IdentityID role = new IdentityID("removedUserRole", ORG);
