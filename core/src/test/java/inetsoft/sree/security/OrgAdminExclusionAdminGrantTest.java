@@ -63,10 +63,15 @@ class OrgAdminExclusionAdminGrantTest {
    private static final String SETTINGS_GENERAL = "settings/general";
    // real EM_COMPONENT key that is not on orgAdminActionExclusions
    private static final String SETTINGS_USERS = "settings/security/users";
+   private static final IdentityID SYS_ADMIN_ROLE = new IdentityID("Administrator", null);
+   // non-excluded, non-EM resources: a repository folder and a data source
+   private static final String REPO_FOLDER = "gateControlFolder";
+   private static final String DATA_SOURCE = "gateControlDataSource";
 
    private static SecurityTestDataBuilder builder;
    private static SRPrincipal orgAdmin;
    private static SRPrincipal delegate;
+   private static SRPrincipal siteAdmin;
 
    @BeforeAll
    static void setupAll() throws Exception {
@@ -74,6 +79,7 @@ class OrgAdminExclusionAdminGrantTest {
          .addOrg(ORG_NAME, ORG_ID)
          .addUser("orgAdminUser", ORG_ID, "password")
          .addUser("delegateUser", ORG_ID, "password")
+         .addUser("siteAdminUser", ORG_ID, "password")
          .grantPermission(ResourceType.EM_COMPONENT, SETTINGS_USERS, ResourceAction.ADMIN,
                           "delegateUser", Identity.USER, ORG_ID);
 
@@ -85,11 +91,21 @@ class OrgAdminExclusionAdminGrantTest {
                              "delegateUser", Identity.USER, ORG_ID);
       }
 
+      for(String user : new String[]{ "orgAdminUser", "delegateUser" }) {
+         builder
+            .grantPermission(ResourceType.REPORT, REPO_FOLDER, ResourceAction.ADMIN,
+                             user, Identity.USER, ORG_ID)
+            .grantPermission(ResourceType.DATA_SOURCE, DATA_SOURCE, ResourceAction.ADMIN,
+                             user, Identity.USER, ORG_ID);
+      }
+
       builder.setup();
 
       orgAdmin = builder.principalOf("orgAdminUser", ORG_ID);
       orgAdmin.setRoles(new IdentityID[]{ ORG_ADMIN_ROLE });
       delegate = builder.principalOf("delegateUser", ORG_ID);
+      siteAdmin = builder.principalOf("siteAdminUser", ORG_ID);
+      siteAdmin.setRoles(new IdentityID[]{ SYS_ADMIN_ROLE });
    }
 
    @AfterAll
@@ -152,6 +168,37 @@ class OrgAdminExclusionAdminGrantTest {
                .resource(ResourceType.EM_COMPONENT, SETTINGS_USERS)
                   .expectAllow(delegate, ResourceAction.ACCESS, ResourceAction.ADMIN)
                .verify()));
+   }
+
+   // control: a site admin still passes on every excluded resource in multi-tenant mode (it
+   // returns before the direct-grant gate)
+   @ParameterizedTest(name = "{0}:{1}")
+   @MethodSource("orgAdminActionExclusionCases")
+   void siteAdmin_exclusion_allowed_whenMultiTenant(ResourceType type, String resource)
+      throws Exception
+   {
+      withMultiTenant(true, () ->
+         withContextPrincipal(siteAdmin, () ->
+            PermissionMatrixVerifier.of(engine())
+               .resource(type, resource)
+                  .expectAllow(siteAdmin, ResourceAction.ACCESS, ResourceAction.ADMIN)
+               .verify()));
+   }
+
+   // control: direct ADMIN grants on non-excluded, non-EM resources (a repository folder and a
+   // data source) keep applying in multi-tenant mode for an org admin and a plain org user
+   @Test
+   void directAdminGrantOnRepositoryFolderAndDataSource_allowed_whenMultiTenant() throws Exception {
+      for(SRPrincipal user : new SRPrincipal[]{ orgAdmin, delegate }) {
+         withMultiTenant(true, () ->
+            withContextPrincipal(user, () ->
+               PermissionMatrixVerifier.of(engine())
+                  .resource(ResourceType.REPORT, REPO_FOLDER)
+                     .expectAllow(user, ResourceAction.READ, ResourceAction.ADMIN)
+                  .resource(ResourceType.DATA_SOURCE, DATA_SOURCE)
+                     .expectAllow(user, ResourceAction.READ, ResourceAction.ADMIN)
+                  .verify()));
+      }
    }
 
    private interface ThrowingRunnable {
