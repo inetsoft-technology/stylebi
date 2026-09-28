@@ -104,7 +104,11 @@ public class ClusterHealthService {
       // Reachability alone doesn't prove the store finished loading. Peek at the cached
       // storage instance (never triggers a fresh load) and require its initial load to have
       // actually completed; a store that hasn't been requested yet, or whose load timed out,
-      // correctly reports not-loaded here instead of a false-positive "ready".
+      // correctly reports not-loaded here instead of a false-positive "ready". A store whose
+      // load timed out is not stuck reporting not-loaded forever: PropertiesEngine's own
+      // accessor retries the load once the next time the property store is actually read or
+      // written (KeyValueStorage.retryLoad(), Bug #76975), so this check starts reporting ready
+      // again once that ordinary access succeeds, without requiring a restart.
       KeyValueStorage<?> storage = keyValueStorageManager.peekStorage(SREE_PROPERTIES_STORE_ID);
 
       if(storage == null || !storage.isLoaded()) {
