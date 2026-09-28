@@ -21,6 +21,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.awt.geom.Point2D;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -31,6 +32,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * x = 0 is treated specially (log set to 0).  Points with x <= 0 in the
  * output loop are skipped.</p>
  */
+@Tag("core")
 class LogarithmicLineEquationTest {
 
    private LogarithmicLineEquation equation;

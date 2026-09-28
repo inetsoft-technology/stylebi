@@ -100,8 +100,10 @@ public class UserStatusController extends AbstractMonitoringController {
       )
    )
    @PostMapping(value = { "/api/em/monitor/user/logout", "/api/em/monitor/user/logout/**" })
-   public void logout(@RequestBody String[] sessionIds, @RemainingPath() String server) {
-      userService.logoutSession(getServerClusterNode(server), sessionIds);
+   public void logout(@RequestBody String[] sessionIds, @RemainingPath() String server,
+                      Principal principal)
+   {
+      userService.logoutSession(getServerClusterNode(server), sessionIds, principal);
    }
 
    @SubscribeMapping(value = { "/monitoring/user/get-top-five-users-grid/",

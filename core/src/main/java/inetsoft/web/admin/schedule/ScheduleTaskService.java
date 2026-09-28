@@ -1047,7 +1047,7 @@ public class ScheduleTaskService {
       return false;
    }
 
-   private void setTaskOptions(TaskOptionsPaneModel model, ScheduleTask task, Principal principal) {
+   void setTaskOptions(TaskOptionsPaneModel model, ScheduleTask task, Principal principal) {
       task.setEnabled(model.enabled());
       task.setDeleteIfNoMoreRun(model.deleteIfNotScheduledToRun());
 
@@ -1067,7 +1067,17 @@ public class ScheduleTaskService {
 
       int type = model.idType();
       Identity oldIdentity = task.getIdentity();
-      Identity newIdentity = SUtil.getIdentity(getIdentityId(model.idName(), principal), type);
+      IdentityID newIdentityID = getIdentityId(model.idName(), principal);
+      Identity newIdentity = SUtil.getIdentity(newIdentityID, type);
+
+      // Bug #77120, an unrelated edit must not clear an execute-as identity that can't be
+      // resolved right now, otherwise the task silently falls back to running as its owner
+      if(newIdentity == null && oldIdentity != null && oldIdentity.getType() == type &&
+         Tool.equals(oldIdentity.getIdentityID(), newIdentityID))
+      {
+         newIdentity = oldIdentity;
+      }
+
       task.setIdentity(newIdentity);
 
       if((oldIdentity == null || oldIdentity.getType() == Identity.USER) &&

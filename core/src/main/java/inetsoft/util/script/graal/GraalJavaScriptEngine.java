@@ -744,8 +744,10 @@ public class GraalJavaScriptEngine implements AutoCloseable {
       // The completion value only diverges from Rhino when a value-producing
       // statement is followed by another top-level statement whose completion can
       // be empty — a control-flow statement whose body is not entered
-      // (`if(false)`, an unrun loop, an empty block) or a declaration. Only then
-      // does ECMAScript discard the earlier value that Rhino would have kept.
+      // (`if(false)`, an unrun loop, an empty block). Only then does ECMAScript
+      // discard the earlier value that Rhino would have kept. A declaration also
+      // completes empty but keeps the earlier value (UpdateEmpty), so it needs no
+      // boundary (#77076).
       // splitTopLevelStatements breaks the body precisely before such statements
       // (a plain expression statement is never split off, since its value is the
       // completion in both engines). So when it yields more than one piece, at
@@ -843,10 +845,13 @@ public class GraalJavaScriptEngine implements AutoCloseable {
    // only statements before which the completion wrapper needs a boundary. A
    // plain expression statement is never split off (its value is the completion
    // in both engines), so pieces break only immediately before one of these.
+   // Declarations (var/let/const/function/class) are not listed: they complete
+   // empty and keep the earlier value in GraalJS as in Rhino, so they never need
+   // a boundary, and a boundary before one would send the formula down the
+   // per-piece direct-eval path that re-parses on every execution (#77076).
    private static final Set<String> STATEMENT_STARTERS = Set.of(
-      "if", "for", "while", "do", "switch", "try", "var", "let", "const",
-      "function", "class", "return", "throw", "with", "debugger", "break",
-      "continue", "import", "export");
+      "if", "for", "while", "do", "switch", "try", "return", "throw", "with",
+      "debugger", "break", "continue", "import", "export");
 
    // Keywords after which the following token continues the *same* construct or
    // expression rather than beginning a new statement, so no boundary may be
@@ -881,9 +886,10 @@ public class GraalJavaScriptEngine implements AutoCloseable {
     *
     * <p>Consecutive expression statements are deliberately <em>not</em> split
     * from one another — their combined completion value is naturally the last
-    * one, so a boundary is only needed before a statement whose completion can be
-    * empty (control-flow/declaration), which is exactly what
-    * {@code STATEMENT_STARTERS} enumerates. A boundary is suppressed when the
+    * one, so a boundary is only needed before a control-flow statement whose
+    * completion can be empty, which is exactly what {@code STATEMENT_STARTERS}
+    * enumerates. A declaration keeps the earlier value, so it is not a boundary
+    * (#77076). A boundary is suppressed when the
     * preceding significant char is {@code (}…{@code )} (ambiguous with a
     * control-flow header such as {@code if(...)} whose next statement is the
     * body), when the previous token is in {@link #SUPPRESS_BOUNDARY_AFTER}
