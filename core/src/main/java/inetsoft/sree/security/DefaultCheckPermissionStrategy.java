@@ -440,10 +440,10 @@ public class DefaultCheckPermissionStrategy implements CheckPermissionStrategy {
                      return true;
                   }
 
-                  // orgs created before bug #76866 stored the self grant keyed by (org id, org id).
-                  // Check it even when the (name, id) grant exists, since editing the org writes a
-                  // (name, id) grant that doesn't carry over the legacy grantees.
-                  if(!Tool.equals(orgName, organization)) {
+                  // before its first rename an org's name is its id, so its self grant may still
+                  // be keyed by (org id, org id). Only fall back to that key when no (name, id)
+                  // grant exists, otherwise a stale pre-rename grant would override a revoke.
+                  if(orgPerm == null && !Tool.equals(orgName, organization)) {
                      Permission legacyPerm = provider.getPermission(ResourceType.SECURITY_ORGANIZATION,
                         new IdentityID(organization, organization), orgID);
 

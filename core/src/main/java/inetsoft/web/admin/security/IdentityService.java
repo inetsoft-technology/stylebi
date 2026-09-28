@@ -1596,6 +1596,19 @@ public class IdentityService {
       }
 
       authzProvider.setPermission(resourceType, newID, permission);
+
+      // the grant was re-keyed, so drop the old key rather than leave a stale copy behind
+      if(!Objects.equals(oldID, newID)) {
+         authzProvider.removePermission(resourceType, oldID);
+      }
+
+      // an org's self grant is keyed by its mutable name, and before the first rename the name
+      // is the id, so also drop a stale (org id, org id) grant left by an earlier rename
+      if(resourceType == ResourceType.SECURITY_ORGANIZATION && newID.orgID != null &&
+         !newID.orgID.equals(newID.name))
+      {
+         authzProvider.removePermission(resourceType, new IdentityID(newID.orgID, newID.orgID));
+      }
    }
 
    private ResourceType getResourceType(int type) {

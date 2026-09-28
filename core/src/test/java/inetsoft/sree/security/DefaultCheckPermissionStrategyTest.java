@@ -449,10 +449,11 @@ class DefaultCheckPermissionStrategyTest {
       }
    }
 
-   // Editing a legacy org writes a (name, id) grant without the grantees still stored under the
-   // (id, id) key; the legacy grant must still be honored.
+   // Bug #77185: after a rename the (name, id) grant is the live one. An empty (name, id) grant
+   // means the grantees were revoked, so a stale (id, id) grant from before the rename must not
+   // override it.
    @Test
-   void legacyOrgSelfGrantHonoredWhenNewKeyGrantIsEmpty() {
+   void revokedOrgSelfGrantNotOverriddenByStaleIdKeyGrant() {
       String orgName = "Test Org";
       String resource = new IdentityID("someUser", TEST_ORG).convertToKey();
       Permission legacyPermission = roleGrantedPermission(TEST_ROLE, TEST_ORG, ResourceAction.ADMIN, false);
@@ -479,10 +480,10 @@ class DefaultCheckPermissionStrategyTest {
                                          eq(new IdentityID(TEST_ORG, TEST_ORG)), eq(TEST_ORG)))
             .thenReturn(legacyPermission);
 
-         assertTrue(
+         assertFalse(
             mockStrategy.checkPermission(mockUser, ResourceType.SECURITY_USER, resource,
                                          ResourceAction.ADMIN),
-            "legacy (id, id) org self grant must still apply when the (name, id) grant is empty");
+            "stale (id, id) org self grant must not apply when the (name, id) grant exists");
       }
    }
 
@@ -490,7 +491,7 @@ class DefaultCheckPermissionStrategyTest {
       return Stream.of(
          // org created after bug #76866 (or edited), name != id
          Arguments.of("Test Org", new IdentityID("Test Org", TEST_ORG), true),
-         // legacy org created before bug #76866, name != id
+         // name != id, no (name, id) grant, only the pre-rename (id, id) grant
          Arguments.of("Test Org", new IdentityID(TEST_ORG, TEST_ORG), true),
          // name == id: both keys are the same
          Arguments.of(TEST_ORG, new IdentityID(TEST_ORG, TEST_ORG), true),
