@@ -8895,6 +8895,57 @@ class WorksheetEditServiceMutatorsTest {
          "evaluates to null per row at query time");
    }
 
+   // Round-1 review (bug #77005): the bracket-notation rewrite must be scoped to the exact
+   // field['<name>'] substring, never a bare-name String.replace -- otherwise an unrelated
+   // occurrence of the old name elsewhere in the SAME expression token (a string literal, or a
+   // differently-named column whose own identifier merely contains it) is silently corrupted too.
+
+   @Test
+   void renameColumnDoesNotCorruptAStringLiteralThatContainsTheOldColumnNameAsText() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly left = TestWorksheets.tableWithColumns(ws, "L", "id", "amount");
+      ws.addAssembly(left);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addMirror("DEP", "L"));
+      svc.apply("TOK", agent, ed -> ed.addExpressionColumn(
+         "DEP", "labeled", "'the amount was: ' + field['amount']", "string", false));
+
+      svc.apply("TOK", agent, ed -> ed.renameColumn("L", "amount", "revenue"));
+
+      MirrorTableAssembly dep = (MirrorTableAssembly) ws.getAssembly("DEP");
+      ColumnRef labeled = (ColumnRef) dep.getColumnSelection(false).getAttribute("labeled");
+      String expr = ((ExpressionRef) labeled.getDataRef()).getExpression();
+      assertEquals("'the amount was: ' + field['revenue']", expr,
+         "only the bracketed field reference must be rewritten -- the string literal's own text " +
+         "must survive untouched, not be corrupted into 'the revenue was: '");
+   }
+
+   @Test
+   void renameColumnDoesNotCorruptADifferentColumnWhoseNameContainsTheOldNameAsAPrefix()
+      throws Exception
+   {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly left = TestWorksheets.tableWithColumns(ws, "L", "id", "amount");
+      ws.addAssembly(left);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addMirror("DEP", "L"));
+      svc.apply("TOK", agent, ed -> ed.addExpressionColumn(
+         "DEP", "combined", "field['amount'] + field['amountRate']", "double", false));
+
+      svc.apply("TOK", agent, ed -> ed.renameColumn("L", "amount", "revenue"));
+
+      MirrorTableAssembly dep = (MirrorTableAssembly) ws.getAssembly("DEP");
+      ColumnRef combined = (ColumnRef) dep.getColumnSelection(false).getAttribute("combined");
+      String expr = ((ExpressionRef) combined.getDataRef()).getExpression();
+      assertEquals("field['revenue'] + field['amountRate']", expr,
+         "renaming 'amount' must not also rewrite an unrelated column reference whose own name " +
+         "merely contains 'amount' as a prefix, e.g. field['amountRate']");
+   }
+
    @Test
    void renameColumnKeepsASameTableGroupByIntact() throws Exception {
       Worksheet ws = new Worksheet();

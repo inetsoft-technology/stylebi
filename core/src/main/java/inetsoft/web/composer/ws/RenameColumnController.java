@@ -483,9 +483,30 @@ public class RenameColumnController extends WorksheetController {
          if(ref instanceof ExpressionRef) {
             ExpressionRef exp = (ExpressionRef) ref;
             exp.setExpression(
-               Util.renameScriptRefDepended(oldLocalName, newLocalName, exp.getExpression()));
+               replaceLocalBracketReference(exp.getExpression(), oldLocalName, newLocalName));
          }
       }
+   }
+
+   /**
+    * Rewrites {@code expr}'s {@code field['<oldName>']} reference to {@code field['<newName>']},
+    * scoped to the exact bracketed substring only -- never a bare-name substring replace, which
+    * would also corrupt an unrelated occurrence of {@code oldName} elsewhere in the same
+    * expression (a string literal, or a column whose own name merely contains {@code oldName} as
+    * a substring, e.g. {@code field['AmountRate']} when renaming {@code Amount}). Deliberately
+    * NOT {@link Util#renameScriptRefDepended} (the SAME-table rewrite this otherwise mirrors,
+    * used by {@code renameColumn(CommandDispatcher, ...)}'s own {@code exprs} loop above): that
+    * shared method has the identical unscoped-replace shape (round-1 review, Bug #77005) and is
+    * used elsewhere for the SAME-table case, out of this fix's scope to change; this call site
+    * only ever needs to handle one shape (a downstream table's own local bracket reference, no
+    * cross-table dot-notation form applies to it), so it is narrowly reimplemented here instead.
+    */
+   private static String replaceLocalBracketReference(String expr, String oldName, String newName) {
+      if(expr == null || expr.isEmpty()) {
+         return expr;
+      }
+
+      return expr.replace("['" + oldName + "']", "['" + newName + "']");
    }
 
    private static void renameTableExpressionColumn(TableAssembly namedColtable,
@@ -528,11 +549,18 @@ public class RenameColumnController extends WorksheetController {
          // column, which has no table qualifier to give it a "Table." prefix in the first place,
          // was never rewritten here even though renameScriptRefDepended (the SAME-table rename
          // path, above) already handles this exact bracket form for its own table's expressions.
+         //
+         // Round-1 review: replace only the exact bracketed substring ("['Amount']" ->
+         // "['Revenue']"), never the bare name -- a bare token.val.replace(oldName, newName)
+         // would also rewrite any OTHER occurrence of the old name inside this same TEXT token,
+         // e.g. a string literal "'Amount Total: ' + field['Amount']" would corrupt the literal
+         // too, silently producing a plausible-but-wrong expression with no error.
          else if(token.type == ScriptIterator.Token.TEXT &&
             token.val.contains("['" + ocolumn.getName() + "']"))
          {
             sb.append(new ScriptIterator.Token(token.type,
-               token.val.replace(ocolumn.getName(), ncolumn.getName()), token.length));
+               token.val.replace("['" + ocolumn.getName() + "']", "['" + ncolumn.getName() + "']"),
+               token.length));
          }
          else {
             sb.append(token);
