@@ -391,6 +391,13 @@ class DashboardRegistryConcurrencyTest {
                  "a file that could not be ported must not be saved as ported");
    }
 
+   @Test
+   void getGlobalForPort_nullOrg_doesNotFallBackToTheCurrentOrg() {
+      assertNotNull(registryManager.getRegistry(), "precondition: the current org has a global");
+      assertNull(registryManager.getGlobalForPort(null),
+                 "a null org must not resolve to the calling thread's org");
+   }
+
    // ── M4c: a registry evicted by clear() does not watch its file again ──
 
    @Test
