@@ -191,6 +191,53 @@ class ScheduleManagerExtensionTaskTest {
       assertTrue(live.isEnabled(), "the cached extension task must not be mutated");
    }
 
+   @Test
+   void saveOfOrdinaryTaskDoesNotCallIntoExtensions() throws Exception {
+      ScheduleExt ext = mock(ScheduleExt.class);
+      ScheduleManager manager = new ScheduleManager(
+         securityEngine, cluster, mock(ScheduleClient.class), mock(DependencyHandler.class));
+      manager.addScheduleExt(ext);
+      when(ext.getTasks(ORG)).thenReturn(List.of());
+      manager.reloadExtensions(ORG);
+      clearInvocations(ext);
+
+      ScheduleTask task = new ScheduleTask("Task77213");
+      task.setOwner(admin.getIdentityID());
+      task.addCondition(TimeCondition.at(1, 0, 0));
+      String taskId = task.getTaskId();
+
+      try {
+         // internal: skip the schedule permission check, not under test here
+         manager.setScheduleTask(taskId, task, null, true, admin);
+
+         // the extension task lists are not thread safe, ordinary saves must not iterate them
+         verifyNoInteractions(ext);
+      }
+      finally {
+         manager.removeScheduleTask(taskId, admin);
+      }
+   }
+
+   @Test
+   void toggleOfLoadedExtensionTaskUsesLoadedOwnership() throws Exception {
+      ScheduleExt ext = mock(ScheduleExt.class);
+      ScheduleManager manager = new ScheduleManager(
+         securityEngine, cluster, mock(ScheduleClient.class), mock(DependencyHandler.class));
+      manager.addScheduleExt(ext);
+      when(ext.getTasks(ORG)).thenReturn(List.of(createCycleTask(true)));
+      // e.g. the extension is regenerating its tasks, its own list is empty for now
+      when(ext.containsTask(TASK_ID, ORG)).thenReturn(false);
+      when(ext.isEnable(TASK_ID, ORG)).thenReturn(true);
+      manager.reloadExtensions(ORG);
+
+      ScheduleTask task = manager.getScheduleTask(TASK_ID, ORG).clone();
+      task.setEnabled(false);
+      manager.setScheduleTask(TASK_ID, task, null, admin);
+
+      verify(ext).setEnable(TASK_ID, ORG, false);
+      verify(ext, never()).containsTask(anyString(), anyString());
+   }
+
    // Direct storage checks: the DataCycle asset is re-read (parsed) from IndexedStorage and the
    // storage keys are scanned, so neither depends on ScheduleManager/ScheduleTaskMap caches.
 

@@ -272,17 +272,18 @@ public class ScheduleManagerTest {
       when(mockCycleInfo.getOrgId()).thenReturn("host-org");
       when(mockCycleInfo.getName()).thenReturn("cycle1");
 
-      ScheduleTask tk1 = new ScheduleTask("tk1");
+      // only data cycle tasks are extension tasks (Bug #77213)
+      ScheduleTask tk1 = new ScheduleTask("tk1", ScheduleTask.Type.CYCLE_TASK);
       tk1.setOwner(identityID_tuser0);
       tk1.setCycleInfo(mockCycleInfo);
 
       // mock ScheduleExt
       ScheduleExt mockScheduleExt = mock(ScheduleExt.class);
-      when(mockScheduleExt.containsTask("tuser0~;~host-org:tk1", "host-org")).thenReturn(true);
+      when(mockScheduleExt.containsTask(tk1.getTaskId(), "host-org")).thenReturn(true);
       when(mockScheduleExt.getTasks()).thenReturn(List.of(tk1));
       when(mockScheduleExt.getTasks("host-org")).thenReturn(List.of(tk1));
-      when(mockScheduleExt.isEnable("tuser0~;~host-org:tk1", "host-org")).thenReturn(false);
-      when(mockScheduleExt.deleteTask("tuser0~;~host-org:tk1")).thenReturn(true);
+      when(mockScheduleExt.isEnable(tk1.getTaskId(), "host-org")).thenReturn(false);
+      when(mockScheduleExt.deleteTask(tk1.getTaskId())).thenReturn(true);
 
       scheduleManager.addScheduleExt(mockScheduleExt);
       scheduleManager.save(List.of(tk1), "host-org");
