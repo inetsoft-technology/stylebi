@@ -20,8 +20,8 @@ package inetsoft.sree.security.db;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import inetsoft.sree.security.DefaultTicket;
-import inetsoft.sree.security.IdentityID;
+import inetsoft.sree.SreeEnv;
+import inetsoft.sree.security.*;
 import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.SreeHome;
@@ -32,6 +32,8 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.*;
 
 /*
  * Cases deferred - require integration context (Derby DB + SecurityEngine.init()):
@@ -196,5 +198,127 @@ class DatabaseAuthenticationProviderUnitTest {
       assertArrayEquals(provider.getSystemAdministratorRoles(), fresh.getSystemAdministratorRoles());
       assertArrayEquals(provider.getOrgAdministratorRoles(), fresh.getOrgAdministratorRoles());
       fresh.tearDown();
+   }
+   // ---- Bug #77081: getUser / getOrganization return the stored-case id ----
+
+   @Test
+   void getUser_caseInsensitive_returnsStoredCaseIdentity() {
+      DatabaseAuthenticationProvider p = stubbedProvider(false);
+      User user = p.getUser(new IdentityID("alice", "orga"));
+
+      assertNotNull(user);
+      assertEquals("Alice", user.getIdentityID().name);
+      assertEquals("OrgA", user.getIdentityID().orgID);
+      // the attached lookups are keyed by the stored id, not by the caller's case
+      verify(p).getEmails(new IdentityID("Alice", "OrgA"));
+   }
+
+   @Test
+   void getOrganization_caseInsensitive_returnsStoredCaseId() {
+      DatabaseAuthenticationProvider p = stubbedProvider(false);
+      Organization org = p.getOrganization("orga");
+
+      assertNotNull(org);
+      assertEquals("OrgA", org.getOrganizationID());
+      assertEquals("Org A", org.getName());
+   }
+
+   @Test
+   void getUserAndOrganization_caseSensitive_requireExactMatch() {
+      DatabaseAuthenticationProvider p = stubbedProvider(true);
+
+      assertNull(p.getUser(new IdentityID("alice", "orga")));
+      assertNull(p.getOrganization("orga"));
+      assertEquals(new IdentityID("Alice", "OrgA"),
+                   p.getUser(new IdentityID("Alice", "OrgA")).getIdentityID());
+      assertEquals("OrgA", p.getOrganization("OrgA").getOrganizationID());
+   }
+
+   @Test
+   void getUserAndOrganization_unknown_returnNull() {
+      DatabaseAuthenticationProvider p = stubbedProvider(false);
+
+      assertNull(p.getUser(new IdentityID("bob", "orga")));
+      assertNull(p.getUser(new IdentityID("alice", "orgb")));
+      assertNull(p.getOrganization("orgb"));
+   }
+
+   // ---- Bug #77081: an exact match wins over a case-insensitive one ----
+
+   @Test
+   void getUser_caseInsensitive_bothVariantsStored_returnsExactMatch() {
+      DatabaseAuthenticationProvider p = stubbedProvider(false);
+      doReturn(new IdentityID[] { new IdentityID("bob", "OrgA"), new IdentityID("BOB", "OrgA") })
+         .when(p).getUsers();
+
+      assertEquals(new IdentityID("bob", "OrgA"),
+                   p.getUser(new IdentityID("bob", "OrgA")).getIdentityID());
+      assertEquals(new IdentityID("BOB", "OrgA"),
+                   p.getUser(new IdentityID("BOB", "OrgA")).getIdentityID());
+      // no exact match and two case-insensitive ones: ambiguous, not the first one
+      assertNull(p.getUser(new IdentityID("Bob", "OrgA")));
+   }
+
+   @Test
+   void getOrganization_caseInsensitive_bothVariantsStored_returnsExactMatch() {
+      DatabaseAuthenticationProvider p = stubbedProvider(false);
+      doReturn(new String[] { "orga", "OrgA" }).when(p).getOrganizationIDs();
+      doReturn("org a").when(p).getOrganizationName("orga");
+
+      assertEquals("OrgA", p.getOrganization("OrgA").getOrganizationID());
+      assertEquals("orga", p.getOrganization("orga").getOrganizationID());
+      assertEquals("orga", p.getOrganization("ORGA").getOrganizationID());
+   }
+
+   // the password checked is always the one of the name the principal gets: an exact name is
+   // checked as is, and an ambiguous case variant is refused before any password is checked
+   @Test
+   void authenticate_caseInsensitive_bothVariantsStored_checksExactNameOrRefuses()
+      throws Exception
+   {
+      DatabaseAuthenticationProvider p = stubbedProvider(false);
+      doReturn(new IdentityID[] { new IdentityID("bob", "OrgA"), new IdentityID("BOB", "OrgA") })
+         .when(p).getUsers();
+      p.setUserQuery("SELECT NAME, PW FROM U WHERE ORG=? AND NAME=?");
+      AuthenticationDAO dao = mock(AuthenticationDAO.class);
+      when(dao.getUserCredential(any())).thenReturn(java.util.Optional.empty());
+      java.lang.reflect.Field field = DatabaseAuthenticationProvider.class.getDeclaredField("dao");
+      field.setAccessible(true);
+      field.set(p, dao);
+
+      IdentityID ambiguous = new IdentityID("Bob", "OrgA");
+      assertFalse(p.authenticate(ambiguous, new DefaultTicket(ambiguous, "pw")));
+      verify(dao, never()).getUserCredential(any());
+
+      IdentityID exact = new IdentityID("BOB", "OrgA");
+      p.authenticate(exact, new DefaultTicket(exact, "pw"));
+      verify(dao).getUserCredential(exact);
+   }
+
+   private static DatabaseAuthenticationProvider stubbedProvider(boolean caseSensitive) {
+      String old = SreeEnv.getProperty("security.user.caseSensitive");
+      DatabaseAuthenticationProvider p;
+
+      try {
+         SreeEnv.setProperty("security.user.caseSensitive", Boolean.toString(caseSensitive));
+         p = spy(new DatabaseAuthenticationProvider());
+      }
+      finally {
+         if(old == null) {
+            SreeEnv.remove("security.user.caseSensitive");
+         }
+         else {
+            SreeEnv.setProperty("security.user.caseSensitive", old);
+         }
+      }
+
+      doReturn(new IdentityID[] { new IdentityID("Alice", "OrgA") }).when(p).getUsers();
+      doReturn(new String[] { "OrgA" }).when(p).getOrganizationIDs();
+      doReturn(new String[0]).when(p).getEmails(any(IdentityID.class));
+      doReturn(new String[0]).when(p).getUserGroups(any(IdentityID.class), anyBoolean());
+      doReturn(new IdentityID[0]).when(p).getRoles(any(IdentityID.class));
+      doReturn("Org A").when(p).getOrganizationName("OrgA");
+      doReturn(new String[0]).when(p).getOrganizationMembers(anyString());
+      return p;
    }
 }
