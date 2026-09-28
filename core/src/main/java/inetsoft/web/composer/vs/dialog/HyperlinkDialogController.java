@@ -23,6 +23,7 @@ import inetsoft.sree.security.ResourceAction;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.*;
+import inetsoft.util.MessageException;
 import inetsoft.web.composer.model.TreeNodeModel;
 import inetsoft.web.composer.model.vs.*;
 import inetsoft.web.factory.RemainingPath;
@@ -145,9 +146,24 @@ public class HyperlinkDialogController {
    @ResponseBody
    public List<String> getBookmarks(@RemainingPath String id, Principal principal) throws Exception
    {
-      IdentityID pId = IdentityID.getIdentityIDFromKey(principal.getName());
-      VSBookmarkInfo[] bookmarks = VSUtil.getBookmarks(id, pId);
       List<String> bookmarkNames = new ArrayList<>();
+      AssetEntry entry = AssetEntry.createAssetEntry(id);
+
+      if(entry == null) {
+         return bookmarkNames;
+      }
+
+      // the id is client supplied and its orgID is kept, so check READ (including the
+      // cross-org check) and list no bookmarks for a viewsheet the caller cannot read
+      try {
+         assetRepository.checkAssetPermission(principal, entry, ResourceAction.READ);
+      }
+      catch(MessageException ex) {
+         return bookmarkNames;
+      }
+
+      IdentityID pId = IdentityID.getIdentityIDFromKey(principal.getName());
+      VSBookmarkInfo[] bookmarks = VSUtil.getBookmarks(entry, pId);
 
       for(VSBookmarkInfo bookmark: bookmarks) {
          bookmarkNames.add(bookmark.getName() + "(" + VSUtil.getUserAlias(bookmark.getOwner()) + ")");
