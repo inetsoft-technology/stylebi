@@ -100,6 +100,30 @@ public class PooledReadAheadBoundTest {
    }
 
    /**
+    * A random jump followed by a row-by-row read (a viewsheet scrolled to a deep row, then
+    * read on) stays near pool off, bare and under a filter.
+    */
+   @Test
+   public void jumpThenRowByRowReadStaysNearPoolOff() {
+      Consumer<TableLens> read = lens -> {
+         lens.moreRows(5000);
+
+         for(int r = 5001; r <= 5100 && lens.moreRows(r); r++) {
+            lens.getObject(r, 3);
+         }
+      };
+
+      for(boolean filter : new boolean[] { false, true }) {
+         int off = baseRead(false, filter, read);
+         int on = baseRead(true, filter, read);
+         System.out.println("D1 jump 5000 then rows 5001..5100, filter " + filter +
+                               ": pool off " + off + ", pool on " + on);
+         assertTrue(on <= off + 25, "filter " + filter + ": pool on read base row " + on +
+                       ", pool off " + off);
+      }
+   }
+
+   /**
     * The filter's own read-ahead no longer compounds with the formula lens's sequential
     * growth (a row-by-row reader of N rows evaluates at most about 2N).
     */
