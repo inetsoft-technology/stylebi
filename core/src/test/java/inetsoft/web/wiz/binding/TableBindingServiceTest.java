@@ -1603,6 +1603,97 @@ class TableBindingServiceTest {
       assertEquals(Boolean.FALSE, rows.get(1).visible(), "State is hidden");
    }
 
+   /**
+    * Bug #77012: {@code get_table_binding} dropped a two-column aggregate's
+    * {@code secondaryColumn} on every ordinary crosstab read. {@code TableBindingMutator.read()}
+    * (via {@link FieldRefFactory#from}) already threads {@code secondaryColumn} correctly off the
+    * model, but {@code enrichCrosstabLabelsAndVisibility}'s unconditional {@code withVisibility}
+    * call (run whenever the aggregate's header cell resolves against the rendered lens -- the
+    * ordinary, successful-render case) rebuilt the {@link FieldRef} through a stale 13-arg
+    * constructor overload that predates {@code secondaryColumn}, silently zeroing it. Reuses the
+    * same rendered-lens fixture shape as {@link
+    * #setColumnLabelsRenamesACrosstabAggregateHeaderRenderedPastTheHeaderColumnRectangle}, but
+    * goes through {@code read()} (like {@link #readReportsCrosstabColumnVisibilityFromHiddenColumns})
+    * so the corrupting enrichment path is actually exercised, not just the (already-correct)
+    * model-to-FieldRef conversion {@code FieldRefFactoryTest} covers.
+    */
+   @Test
+   void readPreservesACrosstabAggregatesSecondaryColumnAfterVisibilityEnrichment()
+      throws Exception
+   {
+      CrosstabBindingModel existing = new CrosstabBindingModel();
+      TableBindingMutator.setShelf(existing, "rows", List.of(dim("Date")));
+      TableBindingMutator.setShelf(existing, "aggregates",
+         List.of(new FieldRef("Sales", "measure", "Covariance", null, null, null, null, null,
+                              null, null, null, null, null, "Discount")));
+
+      VSDimensionRef liveDate = new VSDimensionRef();
+      liveDate.setGroupColumnValue("Date");
+      // A mock, not a real VSAggregateRef -- see
+      // setColumnLabelsRenamesACrosstabAggregateHeaderRenderedPastTheHeaderColumnRectangle's own
+      // comment for why (AggregateFormula's static initializer needs a context this fixture
+      // doesn't build).
+      inetsoft.uql.viewsheet.VSAggregateRef liveSales =
+         mock(inetsoft.uql.viewsheet.VSAggregateRef.class);
+      when(liveSales.getFullName()).thenReturn("Covariance(Sales)");
+
+      VSCrosstabInfo crossInfo = new VSCrosstabInfo();
+      crossInfo.setDesignRowHeaders(new inetsoft.uql.erm.DataRef[]{ liveDate });
+      crossInfo.setDesignAggregates(new inetsoft.uql.erm.DataRef[]{ liveSales });
+
+      CrosstabVSAssembly assembly = mock(CrosstabVSAssembly.class);
+      when(assembly.getVSCrosstabInfo()).thenReturn(crossInfo);
+      when(assembly.getCrosstabInfo())
+         .thenReturn(new inetsoft.uql.viewsheet.internal.CrosstabVSAssemblyInfo());
+      when(assembly.getAbsoluteName()).thenReturn("CT1");
+      when(assembly.getFormatInfo()).thenReturn(new inetsoft.uql.viewsheet.FormatInfo());
+
+      // Same shape as the sibling label test: headerRowCount=1, headerColCount=1, so the
+      // aggregate's GROUP_HEADER cell at (0,1) resolves -- i.e. cell != null, the branch that
+      // unconditionally calls withVisibility.
+      inetsoft.report.composition.VSTableLens lens =
+         mock(inetsoft.report.composition.VSTableLens.class);
+      when(lens.getHeaderRowCount()).thenReturn(1);
+      when(lens.getHeaderColCount()).thenReturn(1);
+      when(lens.getColCount()).thenReturn(2);
+      when(lens.getRowCount()).thenReturn(3);
+      inetsoft.report.TableDataPath dimPath = new inetsoft.report.TableDataPath(
+         -1, inetsoft.report.TableDataPath.HEADER, inetsoft.uql.schema.XSchema.STRING,
+         new String[]{ "Cell [0,0]" });
+      inetsoft.report.TableDataPath aggPath = new inetsoft.report.TableDataPath(
+         -1, inetsoft.report.TableDataPath.GROUP_HEADER, inetsoft.uql.schema.XSchema.STRING,
+         new String[]{ "Covariance(Sales)" });
+      when(lens.getTableDataPath(0, 0)).thenReturn(dimPath);
+      when(lens.getTableDataPath(0, 1)).thenReturn(aggPath);
+
+      inetsoft.report.composition.execution.ViewsheetSandbox sandbox =
+         mock(inetsoft.report.composition.execution.ViewsheetSandbox.class);
+      when(sandbox.getVSTableLens("CT1", false)).thenReturn(lens);
+
+      Viewsheet vs = mock(Viewsheet.class);
+      when(vs.getAssembly(anyString())).thenReturn(assembly);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      when(rvs.getViewsheetSandbox()).thenReturn(java.util.Optional.of(sandbox));
+
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      when(sessions.resolve(anyString(), any(Principal.class))).thenReturn(rvs);
+
+      Map<String, Object> read =
+         serviceWith(sessions, existing, mock(VSBindingModelService.class))
+            .read("tok", principal(), "CT1");
+
+      @SuppressWarnings("unchecked")
+      Map<String, List<FieldRef>> shelves =
+         (Map<String, List<FieldRef>>) (Map<String, ?>) read.get("shelves");
+      FieldRef aggregate = shelves.get("aggregates").get(0);
+      assertEquals(Boolean.TRUE, aggregate.visible(),
+         "the aggregate's header cell resolved, so withVisibility must have run -- confirms the "
+         + "corrupting code path was actually exercised");
+      assertEquals("Discount", aggregate.secondaryColumn(),
+         "secondaryColumn must survive withLabel/withVisibility's FieldRef rebuild");
+   }
+
    // ── bug #76882: crosstab cols-shelf label/visibility resolution ────────────
 
    /**
