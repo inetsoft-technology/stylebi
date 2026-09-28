@@ -217,6 +217,32 @@ class FieldRefFactoryTest {
       assertEquals(Boolean.FALSE, ref.timeSeries());
    }
 
+   /**
+    * The write-side mirror of {@link #readsADimensionsTimeSeriesFlag}, for the chart path
+    * (bug #77021): {@code toChartRef}'s dimension branch never read {@code field.timeSeries()}
+    * at all, so a brand-new chart dimension always read back {@code false} regardless of what
+    * was requested.
+    */
+   @Test
+   void toChartRefAppliesAnExplicitTimeSeriesFlagToTheDimension() {
+      FieldRef field = new FieldRef("Order Date", "dimension", null, "quarter", null, null, null,
+                                    null, null, null, null, null, true);
+
+      ChartRefModel ref = FieldRefFactory.toChartRef(field);
+
+      assertInstanceOf(ChartDimensionRefModel.class, ref);
+      assertTrue(((ChartDimensionRefModel) ref).isTimeSeries());
+   }
+
+   @Test
+   void toChartRefDefaultsTimeSeriesToFalseWhenAbsent() {
+      FieldRef field = new FieldRef("Order Date", "dimension", null, "quarter", null);
+
+      ChartRefModel ref = FieldRefFactory.toChartRef(field);
+
+      assertFalse(((ChartDimensionRefModel) ref).isTimeSeries());
+   }
+
    @Test
    void readsAMeasureAsItsColumnAndFormula() {
       BAggregateRefModel model = new BAggregateRefModel();

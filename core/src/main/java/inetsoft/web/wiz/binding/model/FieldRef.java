@@ -90,14 +90,18 @@ import java.util.List;
  *                         this shelf/assembly kind (e.g. Crosstab). Read-only here; write it with
  *                         {@code set_table_field_visibility}, not through this ref -- see
  *                         {@code TableBindingService#setFieldVisibility}.
- * @param timeSeries       a crosstab/table dimension's "As Time Series" flag
- *                         ({@code VSDimensionRef#isTimeSeries}), rows/cols/groups shelves only --
+ * @param timeSeries       a dimension's "As Time Series" flag
+ *                         ({@code VSDimensionRef#isTimeSeries}), for a table/crosstab rows/cols/
+ *                         groups shelf or a chart x/y/group shelf (or aesthetic channel) --
  *                         mirrors the Composer binding pane's own checkbox
  *                         ({@code group-option.component.ts}), used for gap-filling sparse date
  *                         data under Date Comparison/Running Total calculators. {@code null}
  *                         leaves it unchanged on write; a matched previous ref's value is
  *                         preserved rather than reset -- see
- *                         {@link inetsoft.web.wiz.binding.TableBindingMutator#copyOf}.
+ *                         {@link inetsoft.web.wiz.binding.TableBindingMutator#copyOf} (table/
+ *                         crosstab) and
+ *                         {@link inetsoft.web.wiz.binding.ChartBindingMutator#preserveDimensionState}
+ *                         (chart).
  * @param secondaryColumn  the second column an aggregate of Covariance, Correlation, or
  *                         WeightedAverage compares {@code column} against, measures only -- a
  *                         plain column name, mirroring

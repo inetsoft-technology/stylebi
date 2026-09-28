@@ -303,11 +303,16 @@ public final class ChartBindingMutator {
     * (Redmine #76574, {@code TableBindingMutator.dimensions()}'s own {@code matches()}/{@code
     * copyOf()}) to the chart x/y/group path, which never had it (bug #76881). {@code
     * FieldRefFactory.toChartRef} already applied {@code dimension}'s own {@code columnValue}/
-    * {@code dateLevel}/{@code namedGroupInfo} (+ forced {@code order = SORT_SPECIFIC} when a
-    * named group is present) before this runs, so this only ever touches the fields {@code
-    * toChartRef} does not set from {@code field} at all: {@code sortByCol}, {@code manualOrder},
-    * {@code rankingOption}/{@code rankingN}/{@code rankingCol}, {@code groupOthers}, {@code
-    * others}, {@code timeSeries}.
+    * {@code dateLevel}/{@code namedGroupInfo}/{@code timeSeries} (+ forced {@code order =
+    * SORT_SPECIFIC} when a named group is present) before this runs, so most of this only ever
+    * touches the fields {@code toChartRef} does not set from {@code field} at all: {@code
+    * sortByCol}, {@code manualOrder}, {@code rankingOption}/{@code rankingN}/{@code rankingCol},
+    * {@code groupOthers}, {@code others}. {@code timeSeries} is the one exception: {@code
+    * FieldRef} does carry a slot for it (unlike the fields above), so it is preserved only when
+    * the incoming field does not itself supply one -- the same {@code field.X() == null} guard
+    * {@link #preserveAggregateState} already applies to {@code calculateInfo}/{@code
+    * secondaryY} (bug #77021; an unconditional copy here previously clobbered an explicit
+    * {@code timeSeries} on every rebind).
     *
     * <p>{@code order} is copied forward too, but only when the incoming field does not itself
     * carry a named group -- an incoming {@code namedGroupValues}/{@code namedGroup} already won
@@ -329,7 +334,10 @@ public final class ChartBindingMutator {
       dimension.setRankingCol(previous.getRankingCol());
       dimension.setGroupOthers(previous.isGroupOthers());
       dimension.setOthers(previous.isOthers());
-      dimension.setTimeSeries(previous.isTimeSeries());
+
+      if(field.timeSeries() == null) {
+         dimension.setTimeSeries(previous.isTimeSeries());
+      }
 
       boolean incomingSuppliesGroup =
          field.namedGroupValues() != null || field.namedGroup() != null;

@@ -124,6 +124,29 @@ class ChartAestheticMutatorTest {
       assertNotNull(model.getColorField());
    }
 
+   /**
+    * Bug #77021, aesthetic-channel axis: {@code setField} calls the same shared
+    * {@code FieldRefFactory.toChartRef} that {@code ChartBindingMutator.setShelf} does, so the
+    * dimension-branch fix that applies {@code field.timeSeries()} covers this path too -- the
+    * native UI's own {@code dimension-editor.component.ts} shows the "As Time Series" checkbox
+    * for an aesthetic-bound dimension that is a CHANGE-calc measure's own {@code columnName}, so
+    * this is a real, not merely theoretical, case for this channel.
+    */
+   @Test
+   void bindsADimensionToTheColourChannelWithTimeSeries() {
+      ChartBindingModel model = new ChartBindingModel();
+      FieldRef field = new FieldRef("Order Date", "dimension", null, "quarter", null, null, null,
+                                    null, null, null, null, null, true);
+
+      ChartAestheticMutator.setField(model, "color", field);
+
+      AestheticInfo info = model.getColorField();
+      assertNotNull(info);
+      ChartDimensionRefModel ref =
+         assertInstanceOf(ChartDimensionRefModel.class, info.getDataInfo());
+      assertTrue(ref.isTimeSeries());
+   }
+
    // ── frame channels ────────────────────────────────────────────────────────
 
    @Test
