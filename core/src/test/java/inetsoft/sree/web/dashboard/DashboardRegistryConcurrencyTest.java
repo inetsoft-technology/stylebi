@@ -38,6 +38,7 @@ import inetsoft.sree.security.*;
 import inetsoft.sree.security.support.SecurityTestDataBuilder;
 import inetsoft.storage.KeyValueStorageManager;
 import inetsoft.test.*;
+import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.asset.DependencyHandler;
@@ -270,9 +271,10 @@ class DashboardRegistryConcurrencyTest {
    void registryManagerRename_whileDashboardManagerGetsARegistry_doesNotDeadlock()
       throws Exception
    {
-      IdentityID user = new IdentityID("dashcc_rename", currentOrg());
+      String org = currentOrg();
+      IdentityID user = new IdentityID("dashcc_rename", org);
       DashboardRegistry userRegistry = registryManager.getRegistry(user);
-      userRegistry.addDashboard("d1__GLOBAL", newVsDashboard(currentOrg(), null));
+      userRegistry.addDashboard("d1__GLOBAL", newVsDashboard(org, null));
 
       CountDownLatch holdingD = new CountDownLatch(1);
       CountDownLatch renameBlocked = new CountDownLatch(1);
@@ -288,7 +290,8 @@ class DashboardRegistryConcurrencyTest {
       await(holdingD);
 
       Thread renamer = start("M.renameDashboard",
-                             () -> registryManager.renameDashboard("d1__GLOBAL", "d2__GLOBAL"));
+                             () -> registryManager.renameDashboard(
+                                org, "d1__GLOBAL", "d2__GLOBAL", List.of()));
       awaitBlockedBy(renamer, lister);
       renameBlocked.countDown();
 
@@ -312,7 +315,8 @@ class DashboardRegistryConcurrencyTest {
       synchronized(dashboardManager) {
          // the snapshot contains the user registry, the rename then waits for D
          renamer = start("M.renameDashboard",
-                         () -> registryManager.renameDashboard("d1__GLOBAL", "d2__GLOBAL"));
+                         () -> registryManager.renameDashboard(
+                                org, "d1__GLOBAL", "d2__GLOBAL", List.of()));
          awaitBlockedBy(renamer, Thread.currentThread());
 
          // the file no longer has the old name, and the registry is re-loaded from it
@@ -522,6 +526,224 @@ class DashboardRegistryConcurrencyTest {
       assertNotNull(dashboard);
       assertEquals(orgTo, AssetEntry.createAssetEntry(dashboard.getViewsheet().getIdentifier())
                       .getOrgID(), "a reload must not replace the migrated dashboards");
+   }
+
+   // ── Bug #77233: a global rename reaches the user copies of the global's own org only ──
+
+   @Test
+   void globalRename_uncachedUserCopies_renamedInTheFileAndTheReloadedRegistry()
+      throws Exception
+   {
+      String org = currentOrg();
+      DashboardRegistry global = registryManager.getRegistry();
+      global.addDashboard("d1__GLOBAL", newVsDashboard(org, null));
+      global.save();
+
+      // a user unknown to the security provider, and the anonymous user (security off)
+      List<IdentityID> users = List.of(new IdentityID("dashcc_uncached", org),
+                                       new IdentityID(XPrincipal.ANONYMOUS, org));
+
+      for(IdentityID user : users) {
+         writeFile(userPath(org, user.name),
+                   registryXml(FileVersions.DASHBOARD_REGISTRY, org, "d1__GLOBAL", "mine"));
+         assertFalse(registryCache().containsKey(org + "__" + user.name),
+                     "precondition: the user registry is not cached");
+      }
+
+      global.renameDashboard("d1__GLOBAL", "d2__GLOBAL");
+
+      for(IdentityID user : users) {
+         assertEquals(Set.of("d2__GLOBAL", "mine"),
+                      new HashSet<>(namesInFile(userPath(org, user.name))),
+                      "the stored copy of " + user.name + " must follow the rename");
+         registryManager.clear(user);
+         assertEquals(Set.of("d2__GLOBAL", "mine"),
+                      Set.of(registryManager.getRegistry(user).getDashboardNames()),
+                      "the reloaded registry of " + user.name + " must have the new name");
+      }
+   }
+
+   @Test
+   void globalRename_cachedUserCopy_renamed() throws Exception {
+      String org = currentOrg();
+      DashboardRegistry global = registryManager.getRegistry();
+      global.addDashboard("d1__GLOBAL", newVsDashboard(org, null));
+      global.save();
+      IdentityID user = new IdentityID("dashcc_cached", org);
+      DashboardRegistry userRegistry = registryManager.getRegistry(user);
+      userRegistry.addDashboard("d1__GLOBAL", newVsDashboard(org, null));
+      userRegistry.save();
+
+      global.renameDashboard("d1__GLOBAL", "d2__GLOBAL");
+
+      assertSame(userRegistry, registryCache().get(org + "__" + user.name));
+      assertArrayEquals(new String[] { "d2__GLOBAL" }, userRegistry.getDashboardNames());
+      assertEquals(List.of("d2__GLOBAL"), namesInFile(userPath(org, user.name)));
+   }
+
+   @Test
+   void globalRename_oldUncachedUserFile_portedToTheNewName() throws Exception {
+      String org = currentOrg();
+      DashboardRegistry global = registryManager.getRegistry();
+      global.addDashboard("d1__GLOBAL", newVsDashboard(org, null));
+      global.save();
+      IdentityID user = new IdentityID("dashcc_old_file", org);
+      // a pre-9.5 file, node d1 is ported to the global copy d1__GLOBAL when it's loaded
+      writeFile(userPath(org, user.name), registryXml("9.0", org, "d1"));
+
+      global.renameDashboard("d1__GLOBAL", "d2__GLOBAL");
+
+      assertEquals(List.of("d2__GLOBAL"), namesInFile(userPath(org, user.name)),
+                   "the old copy must be ported and renamed, not left as a plain dashboard d1");
+   }
+
+   @Test
+   void globalRename_otherOrgUserCopies_untouched() throws Exception {
+      String host = currentOrg();
+      String orgB = "dashcc_iso_b";
+      setupOrgs(orgB);
+      assertEquals(host, currentOrg(), "precondition: the caller is in the host org");
+
+      // org B has its own global d1__GLOBAL, with a cached copy (bob) and a stored one (carol)
+      writeFile(SreeEnv.getPath("$(sree.home)/portal/" + orgB + "/dashboard-registry.xml"),
+                registryXml(FileVersions.DASHBOARD_REGISTRY, orgB, "d1__GLOBAL"));
+      writeFile(userPath(orgB, "bob"),
+                registryXml(FileVersions.DASHBOARD_REGISTRY, orgB, "d1__GLOBAL"));
+      writeFile(userPath(orgB, "carol"),
+                registryXml(FileVersions.DASHBOARD_REGISTRY, orgB, "d1__GLOBAL"));
+      IdentityID bob = new IdentityID("bob", orgB);
+      DashboardRegistry bobRegistry = registryManager.getRegistry(bob);
+      assertNotNull(bobRegistry.getDashboard("d1__GLOBAL"), "precondition: bob has the copy");
+
+      DashboardRegistry global = registryManager.getRegistry();
+      global.addDashboard("d1__GLOBAL", newVsDashboard(host, null));
+      global.save();
+      global.renameDashboard("d1__GLOBAL", "d2__GLOBAL");
+
+      assertArrayEquals(new String[] { "d1__GLOBAL" }, bobRegistry.getDashboardNames(),
+                        "a host org rename must not rename an org B user's copy");
+      assertEquals(List.of("d1__GLOBAL"), namesInFile(userPath(orgB, "bob")));
+      assertEquals(List.of("d1__GLOBAL"), namesInFile(userPath(orgB, "carol")));
+      assertFalse(registryCache().containsKey(orgB + "__carol"),
+                  "an org B user registry must not be loaded by a host org rename");
+      assertEquals(List.of("d1__GLOBAL"), namesInFile(
+         SreeEnv.getPath("$(sree.home)/portal/" + orgB + "/dashboard-registry.xml")));
+   }
+
+   @Test
+   void globalRename_userWithoutACopy_notLoadedOrCreated() throws Exception {
+      String org = currentOrg();
+      DashboardRegistry global = registryManager.getRegistry();
+      global.addDashboard("d1__GLOBAL", newVsDashboard(org, null));
+      global.save();
+      IdentityID user = new IdentityID("dashcc_nocopy", org);
+      writeFile(userPath(org, user.name),
+                registryXml(FileVersions.DASHBOARD_REGISTRY, org, "mine"));
+      IdentityID noFile = new IdentityID("dashcc_nofile", org);
+      long modified = dataSpace.getLastModified(null, userPath(org, user.name));
+
+      global.renameDashboard("d1__GLOBAL", "d2__GLOBAL");
+
+      assertFalse(registryCache().containsKey(org + "__" + user.name),
+                  "a registry without the dashboard must not be loaded");
+      assertFalse(registryCache().containsKey(org + "__" + noFile.name));
+      assertEquals(List.of("mine"), namesInFile(userPath(org, user.name)));
+      assertFalse(dataSpace.exists(null, userPath(org, noFile.name)));
+      assertEquals(modified, dataSpace.getLastModified(null, userPath(org, user.name)),
+                   "a registry without the dashboard must not be saved");
+      assertNotNull(global.getDashboard("d2__GLOBAL"));
+   }
+
+   @Test
+   void globalRename_userCopyEvictedBetweenScanAndRename_stillRenamed() throws Exception {
+      String org = currentOrg();
+      DashboardRegistry global = registryManager.getRegistry();
+      global.addDashboard("d1__GLOBAL", newVsDashboard(org, null));
+      global.save();
+      IdentityID user = new IdentityID("dashcc_evicted", org);
+      writeFile(userPath(org, user.name),
+                registryXml(FileVersions.DASHBOARD_REGISTRY, org, "d1__GLOBAL"));
+      Thread renamer;
+
+      synchronized(dashboardManager) {
+         // the storage scan runs before D, the rename then waits for D
+         renamer = start("R_g.renameDashboard",
+                         () -> global.renameDashboard("d1__GLOBAL", "d2__GLOBAL"));
+         awaitBlockedBy(renamer, Thread.currentThread());
+         assertTrue(registryCache().containsKey(org + "__" + user.name),
+                    "precondition: the scan loaded the user copy");
+
+         // e.g. the user logs out between the scan and the rename
+         registryManager.clear(user);
+      }
+
+      assertCompletes(renamer);
+      assertEquals(List.of("d2__GLOBAL"), namesInFile(userPath(org, user.name)),
+                   "a copy evicted after the scan must still follow the rename");
+      registryManager.clear(user);
+      assertArrayEquals(new String[] { "d2__GLOBAL" },
+                        registryManager.getRegistry(user).getDashboardNames());
+   }
+
+   @Test
+   void globalRename_userCopyCachedAtScanEvictedBeforeRename_stillRenamed() throws Exception {
+      String org = currentOrg();
+      DashboardRegistry global = registryManager.getRegistry();
+      global.addDashboard("d1__GLOBAL", newVsDashboard(org, null));
+      global.save();
+      IdentityID user = new IdentityID("dashcc_cached_evicted", org);
+      DashboardRegistry userRegistry = registryManager.getRegistry(user);
+      userRegistry.addDashboard("d1__GLOBAL", newVsDashboard(org, null));
+      userRegistry.save();
+      Thread renamer;
+
+      synchronized(dashboardManager) {
+         // the scan finds the registry cached, the rename then waits for D
+         renamer = start("R_g.renameDashboard",
+                         () -> global.renameDashboard("d1__GLOBAL", "d2__GLOBAL"));
+         awaitBlockedBy(renamer, Thread.currentThread());
+         assertSame(userRegistry, registryCache().get(org + "__" + user.name),
+                    "precondition: the user registry is still the cached instance");
+
+         // e.g. the user logs out between the scan and the rename
+         registryManager.clear(user);
+         assertFalse(registryCache().containsKey(org + "__" + user.name));
+      }
+
+      assertCompletes(renamer);
+      assertEquals(List.of("d2__GLOBAL"), namesInFile(userPath(org, user.name)),
+                   "a copy cached at the scan and evicted before the rename must follow it");
+      registryManager.clear(user);
+      assertArrayEquals(new String[] { "d2__GLOBAL" },
+                        registryManager.getRegistry(user).getDashboardNames());
+   }
+
+   @Test
+   void globalRename_orgIdWithTheHostOrgAndSeparatorAsPrefix_untouched() throws Exception {
+      String host = currentOrg();
+      // the cache key of org B user bob, "<host>__b__bob", starts with "<host>__"
+      String orgB = host + "__b";
+      setupOrgs(orgB);
+      assertEquals(host, currentOrg(), "precondition: the caller is in the host org");
+
+      writeFile(userPath(orgB, "bob"),
+                registryXml(FileVersions.DASHBOARD_REGISTRY, orgB, "d1__GLOBAL"));
+      writeFile(userPath(orgB, "carol"),
+                registryXml(FileVersions.DASHBOARD_REGISTRY, orgB, "d1__GLOBAL"));
+      DashboardRegistry bobRegistry = registryManager.getRegistry(new IdentityID("bob", orgB));
+      assertNotNull(bobRegistry.getDashboard("d1__GLOBAL"), "precondition: bob has the copy");
+
+      DashboardRegistry global = registryManager.getRegistry();
+      global.addDashboard("d1__GLOBAL", newVsDashboard(host, null));
+      global.save();
+      global.renameDashboard("d1__GLOBAL", "d2__GLOBAL");
+
+      assertArrayEquals(new String[] { "d1__GLOBAL" }, bobRegistry.getDashboardNames(),
+                        "the org filter must compare the org id, not a cache key prefix");
+      assertEquals(List.of("d1__GLOBAL"), namesInFile(userPath(orgB, "bob")));
+      assertEquals(List.of("d1__GLOBAL"), namesInFile(userPath(orgB, "carol")));
+      assertFalse(registryCache().containsKey(orgB + "__carol"),
+                  "an org B user registry must not be loaded by a host org rename");
    }
 
    // ── fixture helpers ──
