@@ -115,6 +115,22 @@ class HierarchyDimensionServiceTest {
                   writtenDimensions(h)[0].getMembers()[1].getOption());
    }
 
+   /** Regression for bug #77041: the write side must accept a *_of_* part level too, not just
+    *  the 8 basic interval names -- HierarchyDimensionService's own date-level map is shared
+    *  read/write by design. */
+   @Test
+   void addAppliesARequestedPartLevelDateLevel() throws Exception {
+      Harness h = harnessChart(paneWith(column("Order Date"), column("State")));
+
+      h.service.add("tok", principal(), "Chart1", List.of("Order Date", "State"),
+                    List.of("quarter_of_year", "day_of_week"), "");
+
+      assertEquals(DateRangeRef.QUARTER_OF_YEAR_PART,
+                  writtenDimensions(h)[0].getMembers()[0].getOption());
+      assertEquals(DateRangeRef.DAY_OF_WEEK_PART,
+                  writtenDimensions(h)[0].getMembers()[1].getOption());
+   }
+
    @Test
    void addRefusesAnUnknownDateLevel() {
       Harness h = harnessChart(paneWith(column("Order Date")));
@@ -305,6 +321,98 @@ class HierarchyDimensionServiceTest {
       assertEquals(List.of("Revenue"), out.get("availableColumns"));
    }
 
+   /** A member with no date grouping at all still reads back as "none". */
+   @Test
+   void listReadsBackAMemberWithNoDateLevelAsNone() throws Exception {
+      Harness h = harnessChart(paneWithDimensions(
+         new OutputColumnRefModel[0],
+         dimensionWithOption(DateRangeRef.NONE_INTERVAL, column("Country"))));
+
+      Map<String, Object> out = h.service.list("tok", principal(), "Chart1");
+
+      assertEquals("none", membersOf(out, 0).get(0).get("dateLevel"));
+   }
+
+   /** A member date-grouped at a basic interval level reads back by name, not just "none". */
+   @Test
+   void listReadsBackABasicIntervalDateLevelByName() throws Exception {
+      Harness h = harnessChart(paneWithDimensions(
+         new OutputColumnRefModel[0],
+         dimensionWithOption(DateRangeRef.QUARTER_INTERVAL, column("Order Date"))));
+
+      Map<String, Object> out = h.service.list("tok", principal(), "Chart1");
+
+      assertEquals("quarter", membersOf(out, 0).get(0).get("dateLevel"));
+   }
+
+   /**
+    * Regression for bug #77041: a member built by the native Composer Hierarchy dialog (or by
+    * this same plugin's own add_hierarchy_dimension, post-fix) at a *_of_* part level must read
+    * back by its own name -- "quarter_of_year" -- not fall through to "none" the way the
+    * pre-fix 8-entry-only lookup did.
+    */
+   @Test
+   void listReadsBackAPartLevelDateLevelByName() throws Exception {
+      Harness h = harnessChart(paneWithDimensions(
+         new OutputColumnRefModel[0],
+         dimensionWithOption(DateRangeRef.QUARTER_OF_YEAR_PART, column("Order Date"))));
+
+      Map<String, Object> out = h.service.list("tok", principal(), "Chart1");
+
+      assertEquals("quarter_of_year", membersOf(out, 0).get(0).get("dateLevel"));
+   }
+
+   /** Every one of the 8 part levels round-trips by name, not just the one spot-checked above. */
+   @Test
+   void listReadsBackEveryPartLevelDateLevelByName() throws Exception {
+      Map<String, Integer> expected = Map.of(
+         "quarter_of_year", DateRangeRef.QUARTER_OF_YEAR_PART,
+         "month_of_year", DateRangeRef.MONTH_OF_YEAR_PART,
+         "week_of_year", DateRangeRef.WEEK_OF_YEAR_PART,
+         "day_of_month", DateRangeRef.DAY_OF_MONTH_PART,
+         "day_of_week", DateRangeRef.DAY_OF_WEEK_PART,
+         "hour_of_day", DateRangeRef.HOUR_OF_DAY_PART,
+         "minute_of_hour", DateRangeRef.MINUTE_OF_HOUR_PART,
+         "second_of_minute", DateRangeRef.SECOND_OF_MINUTE_PART);
+
+      for(Map.Entry<String, Integer> level : expected.entrySet()) {
+         Harness h = harnessChart(paneWithDimensions(
+            new OutputColumnRefModel[0],
+            dimensionWithOption(level.getValue(), column("Order Date"))));
+
+         Map<String, Object> out = h.service.list("tok", principal(), "Chart1");
+
+         assertEquals(level.getKey(), membersOf(out, 0).get(0).get("dateLevel"),
+                     "option " + level.getValue());
+      }
+   }
+
+   /**
+    * `dateLevels` (the vocabulary list_hierarchy_dimensions reports) must include all 16 names
+    * -- the 8 basic plus the 8 part levels -- matching the Composer UI's own hierarchy
+    * date-level menu, and what add_hierarchy_dimension's `dateLevels` argument now accepts.
+    */
+   @Test
+   void describeReportsAllSixteenDateLevelNames() throws Exception {
+      Harness h = harnessChart(paneWith(column("Country")));
+
+      Map<String, Object> out = h.service.list("tok", principal(), "Chart1");
+
+      @SuppressWarnings("unchecked")
+      List<String> dateLevels = (List<String>) out.get("dateLevels");
+      assertEquals(16, dateLevels.size());
+      assertTrue(dateLevels.containsAll(List.of(
+         "year", "quarter", "month", "week", "day", "hour", "minute", "second",
+         "quarter_of_year", "month_of_year", "week_of_year", "day_of_month",
+         "day_of_week", "hour_of_day", "minute_of_hour", "second_of_minute")));
+   }
+
+   @SuppressWarnings("unchecked")
+   private static List<Map<String, Object>> membersOf(Map<String, Object> listOutput, int index) {
+      List<Map<String, Object>> dims = (List<Map<String, Object>>) listOutput.get("dimensions");
+      return (List<Map<String, Object>>) dims.get(index).get("members");
+   }
+
    private static VSDimensionModel[] writtenDimensions(Harness h) throws Exception {
       return writtenChartPane(h).getDimensions();
    }
@@ -367,6 +475,18 @@ class HierarchyDimensionServiceTest {
 
       VSDimensionModel dim = new VSDimensionModel();
       dim.setMembers(members);
+      return dim;
+   }
+
+   /** A single-member dimension whose member carries an explicit date-grouping option, for the
+    *  dateLevel read-back tests -- {@link #dimension} always leaves it at the default (0). */
+   private static VSDimensionModel dimensionWithOption(int option, OutputColumnRefModel column) {
+      VSDimensionMemberModel member = new VSDimensionMemberModel();
+      member.setDataRef(column);
+      member.setOption(option);
+
+      VSDimensionModel dim = new VSDimensionModel();
+      dim.setMembers(new VSDimensionMemberModel[] { member });
       return dim;
    }
 

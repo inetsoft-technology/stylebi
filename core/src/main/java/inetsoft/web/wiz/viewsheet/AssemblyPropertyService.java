@@ -1164,9 +1164,14 @@ public class AssemblyPropertyService {
       }
 
       try {
-         int parsed = (int) Double.parseDouble(text);
+         double raw = Double.parseDouble(text);
+         int parsed = (int) raw;
 
-         if(domain.tokens().containsValue(parsed)) {
+         // parsed == raw refuses a fractional value that happens to truncate onto a valid
+         // domain token (e.g. sortType: 1.9, where 1 is XConstants.SORT_ASC) -- the same guard
+         // ChartRegionPropertyService#canonicalRotation already has and this method was missing
+         // (bug #77041).
+         if(parsed == raw && domain.tokens().containsValue(parsed)) {
             return parsed;
          }
       }
