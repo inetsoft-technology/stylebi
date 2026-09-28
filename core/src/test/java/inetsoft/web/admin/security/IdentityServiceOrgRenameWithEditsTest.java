@@ -321,8 +321,9 @@ class IdentityServiceOrgRenameWithEditsTest {
    // a member the requester may not administer is kept back on a rename, as on any other save
    @Test
    void rename_keepsHiddenMember() throws Exception {
-      when(securityProvider.checkPermission(any(), eq(ResourceType.SECURITY_USER), eq("bob"),
-                                            any(ResourceAction.class))).thenReturn(false);
+      when(securityProvider.checkPermission(any(), eq(ResourceType.SECURITY_USER),
+                                            eq(BOB.convertToKey()), any(ResourceAction.class)))
+         .thenReturn(false);
       save("New");
       Organization stored = orgs.get(ORG_1);
       assertAll(
