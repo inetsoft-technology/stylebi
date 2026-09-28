@@ -381,6 +381,8 @@ public class FormulaTableLens extends AbstractTableLens
                try {
                   scripts[i] = compile(formulas[i], senv, contextName, colName,
                                        ncols + i, tableName, mergeables == null || mergeables[i]);
+                  ScriptStateLint.checkColumn(formulas[i], scripts[i], this, hrows, colName,
+                                              tableName, contextName);
                }
                // allow other scripts to proceed if one script failed. (58626)
                catch(ExpressionFailedException ex) {

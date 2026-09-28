@@ -4073,7 +4073,8 @@ public abstract class AssetQuery extends PreAssetQuery {
                            ViewsheetSandbox vbox = box.getViewsheetSandbox();
                            Viewsheet vs = vbox == null ? null : vbox.getViewsheet();
                            val = varName != null && vval == null ? attr :
-                              senv.exec(senv.compile(exp), scope = postConditionScope(box), null, vs);
+                              senv.exec(ScriptStateLint.checkCondition(senv.compile(exp), exp, box.getScope(),
+                                 "post-aggregate condition"), scope = postConditionScope(box), null, vs);
                         }
                         catch(Exception ex) {
                            String suggestion = senv.getSuggestion(ex, null, scope);

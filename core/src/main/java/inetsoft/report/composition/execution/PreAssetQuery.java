@@ -41,6 +41,7 @@ import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.util.*;
 import inetsoft.util.script.ScriptEnv;
 import inetsoft.util.script.ScriptException;
+import inetsoft.util.script.ScriptStateLint;
 import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
 import inetsoft.util.script.graal.ScriptScope;
 import org.slf4j.Logger;
@@ -3964,7 +3965,8 @@ public abstract class PreAssetQuery implements Serializable, Cloneable {
       try {
          ViewsheetSandbox vbox = box.getViewsheetSandbox();
          Viewsheet vs = vbox == null ? null : vbox.getViewsheet();
-         val = senv.exec(senv.compile(exp), scope = scope0, null, vs);
+         val = senv.exec(ScriptStateLint.checkCondition(senv.compile(exp), exp, scope0, "condition"),
+                         scope = scope0, null, vs);
       }
       catch(Exception ex) {
          String suggestion = senv.getSuggestion(ex, null, scope);
