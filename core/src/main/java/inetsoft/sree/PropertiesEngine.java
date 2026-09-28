@@ -77,11 +77,10 @@ public class PropertiesEngine {
          evt -> QueryCacheSettings.applyTimeout((String) evt.getNewValue()));
       KeyValueStorage<String> storage = getStorage();
 
-      // the security settings and the encryption keys are stored here. Starting with a store
-      // whose load failed would start the node with security off, and a key generated for the
-      // empty store would replace the stored one, so retry the load once and fail if it still
-      // does not complete (Bug #76975)
-      if(!storage.isLoaded() && !storage.retryLoad()) {
+      // getStorage() already retried the load once for this freshly-fetched instance (below);
+      // this is the cold-start path, so fail fast rather than starting the node with security/
+      // SSO settings missing (Bug #76975).
+      if(!storage.isLoaded()) {
          throw new IllegalStateException(
             "Failed to load the property storage " + STORAGE_ID + ", the server cannot start " +
             "without its properties");
@@ -97,12 +96,38 @@ public class PropertiesEngine {
     * silently go empty on enumeration (Bug #77177). Mirrors the established
     * {@link inetsoft.report.LibManager#getStorage()} idiom for a listener-bearing storage holder.
     *
+    * <p>A freshly (re-)fetched instance's initial load can fail to complete (a transient
+    * {@code cluster.submit()} timeout, interruption, or other failure) the same way it can at
+    * cold start (Bug #76975): such an instance is not closed, so this method would otherwise
+    * treat it as fine forever after, even though {@code stream()}/{@code keys()}/{@code get()}
+    * are gated only by {@code isClosed()}, never by {@code isLoaded()} — the same "silently goes
+    * empty" failure mode #76975/#76979 guard against at cold start. The load is retried once,
+    * right here, for the same reason {@link #initEngine()} retries once: a second attempt is
+    * cheap and often succeeds if the first failure was transient. Unlike cold start, a call here
+    * can be reached from the middle of an arbitrary {@code setProperty()}/{@code remove()}/
+    * {@code getProperty()} call, so a retry that still does not complete must not throw — it is
+    * only logged, and the (possibly still-incomplete) instance is returned anyway, exactly as it
+    * would have been before this method existed. The retry runs at most once per freshly-fetched
+    * instance (not on every call while it stays unloaded), so a persistently failing load cannot
+    * turn every future property access into a repeated, blocking multi-minute cluster call; the
+    * instance stays in this degraded state until it is eventually replaced by a fresh one (the
+    * next eviction-triggered close(), or a test double swapped in directly).</p>
+    *
     * @return the live key-value storage instance.
     */
    private synchronized KeyValueStorage<String> getStorage() {
       if(kvStorage == null || kvStorage.isClosed()) {
-         kvStorage = keyValueStorageManager.getStorage(STORAGE_ID);
-         kvStorage.addListener(changeListener);
+         KeyValueStorage<String> storage = keyValueStorageManager.getStorage(STORAGE_ID);
+         storage.addListener(changeListener);
+
+         if(!storage.isLoaded() && !storage.retryLoad()) {
+            LOG.warn(
+               "The property storage {} has not finished loading after a retry; properties " +
+               "read from it may be temporarily incomplete until it is next replaced by a " +
+               "successfully loaded instance", STORAGE_ID);
+         }
+
+         kvStorage = storage;
       }
 
       return kvStorage;
@@ -667,9 +692,20 @@ public class PropertiesEngine {
          // rebuilt for a reload to drop keys that were removed from the storage (Bug #76954)
          EarlyLoadedProperties.reset();
 
-         if(removeListener && kvStorage != null) {
+         if(removeListener) {
             try {
-               kvStorage.removeListener(changeListener);
+               // read under the same monitor getStorage() writes kvStorage under, so this never
+               // observes a half-published reference; removing the listener from a possibly
+               // stale/closed instance is still harmless either way (Bug #77177)
+               KeyValueStorage<String> storage;
+
+               synchronized(this) {
+                  storage = kvStorage;
+               }
+
+               if(storage != null) {
+                  storage.removeListener(changeListener);
+               }
             }
             catch(Exception e) {
                LOG.warn("Failed to close key-value storage", e);
