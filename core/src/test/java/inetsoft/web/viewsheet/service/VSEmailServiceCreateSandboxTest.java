@@ -22,8 +22,10 @@ import inetsoft.test.*;
 import inetsoft.uql.VariableTable;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.schema.XValueNode;
+import inetsoft.uql.viewsheet.TableVSAssembly;
 import inetsoft.uql.viewsheet.TextInputVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.uql.viewsheet.internal.TableDataVSAssemblyInfo;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -31,6 +33,7 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import java.awt.*;
 import java.lang.reflect.Field;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -107,10 +110,116 @@ class VSEmailServiceCreateSandboxTest {
       }
    }
 
+   @Test
+   void createSandbox_liveVariableReachesOnLoad() throws Exception {
+      // Bug #77246: a URL/prompted parameter lives only in the viewer's sandbox variable table.
+      // Bookmark export copies it into the bookmark sandbox before onInit/onLoad; email must too.
+      Viewsheet bookmark = newBookmark(new Worksheet());
+      bookmark.getViewsheetInfo().setScriptEnabled(true);
+      bookmark.getViewsheetInfo().setOnLoad(
+         "parameter.seen77246 = parameter.region77246 ? parameter.region77246 : 'MISSING';");
+      VariableTable liveVars = new VariableTable();
+      liveVars.put("region77246", "East");
+
+      ViewsheetSandbox box = createSandbox(bookmark, liveVars);
+
+      try {
+         VariableTable vars = box.getVariableTable();
+         assertEquals("East", vars.get("region77246"),
+            "the viewer's variables must be copied into the email bookmark sandbox, " +
+            "the same as bookmark export (VSExportService)");
+         assertEquals("East", vars.get("seen77246"),
+            "the bookmark's onLoad must see the viewer's variables");
+      }
+      finally {
+         box.dispose();
+      }
+   }
+
+   @Test
+   void createSandbox_keepsBookmarkRestoredInputValueOverLiveVariable() throws Exception {
+      // Bug #77246 with #74212: the live table also holds the input's key with the viewer's
+      // current value. The input variables must be cleared after the live variables are copied,
+      // otherwise the viewer's value overwrites the value restored from the bookmark.
+      Worksheet ws = new Worksheet();
+      DefaultVariableAssembly varAssembly = new DefaultVariableAssembly(ws, "TextInput1");
+      AssetVariable var = new AssetVariable("TextInput1");
+      var.setValueNode(XValueNode.createValueNode((Object) "wsDefault", "TextInput1"));
+      varAssembly.setVariable(var);
+      ws.addAssembly(varAssembly);
+
+      Viewsheet bookmark = newBookmark(ws);
+      TextInputVSAssembly input = new TextInputVSAssembly(bookmark, "TextInput1");
+      input.setSelectedObject("bookmarked");
+      bookmark.addAssembly(input);
+
+      VariableTable liveVars = new VariableTable();
+      liveVars.put("TextInput1", "liveValue");
+      liveVars.put("region77246", "East");
+
+      ViewsheetSandbox box = createSandbox(bookmark, liveVars);
+
+      try {
+         TextInputVSAssembly restored =
+            (TextInputVSAssembly) box.getViewsheet().getAssembly("TextInput1");
+         assertEquals("bookmarked", restored.getSelectedObject(),
+            "the bookmark-restored input value must win over the viewer's live input value");
+         assertEquals("East", box.getVariableTable().get("region77246"),
+            "the viewer's other variables must still be copied");
+      }
+      finally {
+         box.dispose();
+      }
+   }
+
+   @Test
+   void createSandbox_clearsScaleOnBookmarkCloneOnly() throws Exception {
+      // Bug #77246: the bookmark is a clone of the live, scaled-to-screen viewsheet. Like
+      // bookmark export, email must clear the scaled position/size and runtime column widths
+      // on the clone, and must not touch the live viewsheet.
+      Viewsheet live = newBookmark(new Worksheet());
+      TableVSAssembly table = new TableVSAssembly(live, "Table1");
+      live.addAssembly(table);
+      TableDataVSAssemblyInfo liveInfo = (TableDataVSAssemblyInfo) table.getVSAssemblyInfo();
+      liveInfo.setScaledPosition(new Point(10, 10));
+      liveInfo.setScaledSize(new Dimension(50, 50));
+      liveInfo.setColumnWidth(0, 123);
+
+      Viewsheet bookmark = live.clone();
+      ViewsheetSandbox box = createSandbox(bookmark, new VariableTable());
+
+      try {
+         TableDataVSAssemblyInfo info = (TableDataVSAssemblyInfo)
+            ((TableVSAssembly) box.getViewsheet().getAssembly("Table1")).getVSAssemblyInfo();
+         assertFalse(info.isScaled(), "the scaled position must be cleared on the bookmark");
+         assertNotEquals(new Dimension(50, 50), info.getLayoutSize(),
+            "the scaled size must be cleared on the bookmark");
+         assertTrue(Double.isNaN(info.getColumnWidth(0)),
+            "the runtime column widths must be cleared on the bookmark");
+
+         assertTrue(liveInfo.isScaled(), "the live viewsheet's scale must not be touched");
+         assertEquals(new Dimension(50, 50), liveInfo.getLayoutSize(),
+            "the live viewsheet's scaled size must not be touched");
+         assertEquals(123, liveInfo.getColumnWidth(0), 0.0,
+            "the live viewsheet's runtime column widths must not be touched");
+      }
+      finally {
+         box.dispose();
+      }
+   }
+
    private static ViewsheetSandbox createSandbox(Viewsheet bookmark) throws Exception {
       AssetEntry entry = bookmark.getEntry();
       return new VSEmailService(null)
          .createSandbox(bookmark, AbstractSheet.SHEET_RUNTIME_MODE, null, entry);
+   }
+
+   private static ViewsheetSandbox createSandbox(Viewsheet bookmark, VariableTable liveVars)
+      throws Exception
+   {
+      AssetEntry entry = bookmark.getEntry();
+      return new VSEmailService(null)
+         .createSandbox(bookmark, AbstractSheet.SHEET_RUNTIME_MODE, null, entry, liveVars);
    }
 
    private static Viewsheet newBookmark(Worksheet ws) throws Exception {
