@@ -90,6 +90,7 @@ final class SlotPool {
       try {
          if(!slot.isDoomed() && slot.epoch() >= epoch.get()) {
             keep = slot.clean().reusable(config.cleanThreshold()) &&
+               (!PoolParanoia.enabled() || PoolParanoia.accept(slot)) &&
                !slot.isDoomed() && slot.epoch() >= epoch.get();
          }
       }
