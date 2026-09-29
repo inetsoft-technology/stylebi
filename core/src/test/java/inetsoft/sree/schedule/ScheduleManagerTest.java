@@ -32,8 +32,13 @@ import inetsoft.util.Tool;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
-import org.mockito.exceptions.misusing.UnfinishedStubbingException;
+import org.mockito.stubbing.Answer;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.config.BeanPostProcessor;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.core.Ordered;
+import org.springframework.core.PriorityOrdered;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
@@ -43,6 +48,7 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import javax.xml.parsers.DocumentBuilderFactory;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -68,7 +74,9 @@ import static org.mockito.Mockito.*;
  *             -> needs EditableAuthenticationProvider fixture; NOT yet covered
  */
 @ExtendWith(SpringExtension.class)
-@ContextConfiguration(classes = { BaseTestConfiguration.class, IntegrationTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class, IntegrationTestConfiguration.class,
+                                  ScheduleManagerTest.SecurityEngineDispatchConfig.class },
+                      initializers = ConfigurationContextInitializer.class)
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 @SreeHome
@@ -1156,15 +1164,14 @@ public class ScheduleManagerTest {
       when(provider.getGroup(any())).thenAnswer(inv -> new Group(inv.<IdentityID>getArgument(0)));
       // the task owners exist, so a removed "execute as" is reset to the owner (Bug #77332)
       when(provider.getUser(any())).thenAnswer(inv -> new User(inv.<IdentityID>getArgument(0)));
-      stubSecurityEngineSafely(() -> doReturn(orgs).when(securityEngine).getOrganizations());
-      stubSecurityEngineSafely(() -> doReturn(provider).when(securityEngine).getSecurityProvider());
+      SECURITY_ENGINE_OVERRIDES.put("getOrganizations", orgs);
+      SECURITY_ENGINE_OVERRIDES.put("getSecurityProvider", provider);
 
       try {
          body.run();
       }
       finally {
-         stubSecurityEngineSafely(() -> doCallRealMethod().when(securityEngine).getOrganizations());
-         stubSecurityEngineSafely(() -> doCallRealMethod().when(securityEngine).getSecurityProvider());
+         SECURITY_ENGINE_OVERRIDES.clear();
 
          for(String org : orgs) {
             Iterator<ScheduleTask> i = scheduleManager.getOrgTaskMap(org).values().iterator();
@@ -1181,47 +1188,73 @@ public class ScheduleManagerTest {
    }
 
    /**
-    * Re-stubs the shared, Spring-singleton {@code securityEngine} mock, retrying on
-    * {@link UnfinishedStubbingException}.
+    * Return values that {@link #SECURITY_ENGINE_DISPATCH} hands out instead of calling the real
+    * method, keyed by method name. {@link #withRoleFixture} only sets and clears these.
+    */
+   private static final Map<String, Object> SECURITY_ENGINE_OVERRIDES = new ConcurrentHashMap<>();
+
+   /**
+    * Returns the override for the invoked method, or calls the real method (plain spy behavior)
+    * when none is set. {@code SecurityEngine} has no overloads of the overridden methods, so the
+    * name is a safe key.
+    */
+   private static final Answer<Object> SECURITY_ENGINE_DISPATCH = inv -> {
+      Object override = SECURITY_ENGINE_OVERRIDES.get(inv.getMethod().getName());
+      return override != null ? override : inv.callRealMethod();
+   };
+
+   /**
+    * Installs {@link #SECURITY_ENGINE_DISPATCH} on the {@code securityEngine} spy once, before any
+    * other thread can reach it.
     *
     * <p>{@code securityEngine} is the same instance returned application-wide by
-    * {@code SecurityEngine.getSecurity()} (it is registered with {@code ConfigurationContext} by
-    * {@code ConfigurationContextInitializer}), so production background threads legitimately call
-    * into it concurrently with this test — most notably a per-store {@code BlobStorageEvent}
-    * listener thread that {@code seedTask()}/{@code identityRemoved()} inside {@code body.run()}
-    * wake up asynchronously by writing to the schedule task store. Mockito's mock invocation
-    * dispatch is not safe against a stubbing registration on one thread (this one, in
-    * {@link #withRoleFixture}) interleaving with an ordinary invocation on another, and the two
-    * can race hard enough to corrupt the mock's stubbing state, surfacing later as an
-    * {@link UnfinishedStubbingException} in a completely unrelated test method (Bug #77168,
-    * fix-round-2: this raced roughly 1 in 5-8 runs in isolation, and was rare enough in the full
-    * ~8500-test module suite to pass most runs but fail CI once). The corruption is transient —
-    * the next stubbing call that does not race succeeds cleanly — so retry a few times with a
-    * short backoff rather than trying to synchronize with a production executor this test has no
-    * handle on.
+    * {@code SecurityEngine.getSecurity()}, so production background threads (a per-store
+    * {@code BlobStorageEvent} listener thread woken by the task store writes, cluster message
+    * threads) call into it concurrently with the tests. Mockito's doAnswer-style stubbing is not
+    * thread safe: stubbing the spy while another thread invokes it can throw
+    * {@code UnfinishedStubbingException} (Bug #77168) or {@code AssertionError} (Bug #77336), or
+    * silently bind the stub to the other thread's method. So the spy is stubbed exactly once
+    * here, before its {@code @PostConstruct} registers it as a cluster listener (hence
+    * {@code HIGHEST_PRECEDENCE}, ahead of the annotation post processor) and before any dependent
+    * bean exists, and the tests only flip {@link #SECURITY_ENGINE_OVERRIDES}.
     */
-   private static void stubSecurityEngineSafely(Runnable stubbingCall) {
-      final int maxAttempts = 5;
-
-      for(int attempt = 1; ; attempt++) {
-         try {
-            stubbingCall.run();
-            return;
-         }
-         catch(UnfinishedStubbingException e) {
-            if(attempt >= maxAttempts) {
-               throw e;
-            }
-
-            try {
-               Thread.sleep(20L);
-            }
-            catch(InterruptedException ie) {
-               Thread.currentThread().interrupt();
-               throw e;
-            }
-         }
+   @Configuration
+   static class SecurityEngineDispatchConfig {
+      @Bean
+      public static BeanPostProcessor securityEngineDispatchInstaller() {
+         return new SecurityEngineDispatchInstaller();
       }
+   }
+
+   private static final class SecurityEngineDispatchInstaller
+      implements BeanPostProcessor, PriorityOrdered
+   {
+      @Override
+      public Object postProcessBeforeInitialization(Object bean, String beanName) {
+         if(bean instanceof SecurityEngine engine && mockingDetails(engine).isSpy()) {
+            doAnswer(SECURITY_ENGINE_DISPATCH).when(engine).getOrganizations();
+            doAnswer(SECURITY_ENGINE_DISPATCH).when(engine).getSecurityProvider();
+         }
+
+         return bean;
+      }
+
+      @Override
+      public int getOrder() {
+         return Ordered.HIGHEST_PRECEDENCE;
+      }
+   }
+
+   /**
+    * Fails the class loudly if the dispatcher was not installed on the spy.
+    */
+   @BeforeAll
+   void verifySecurityEngineDispatch() {
+      Set<String> stubbed = new HashSet<>();
+      mockingDetails(securityEngine).getStubbings()
+         .forEach(stubbing -> stubbed.add(stubbing.getInvocation().getMethod().getName()));
+      assertTrue(stubbed.containsAll(Set.of("getOrganizations", "getSecurityProvider")),
+                 "securityEngine dispatcher not installed, stubbed methods: " + stubbed);
    }
 
    private ScheduleTask seedTask(String name, IdentityID owner, Identity executeAs,
