@@ -30,6 +30,7 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 import java.awt.*;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Tests for the "Expand Components" layout pass
@@ -71,6 +72,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 @SreeHome
 @Tag("core")
 class AbstractVSExporterMoveAssembliesTest {
+   private static final int BAND_Y = 100;
+   private static final int BAND_H = 100;
+   private static final int BELOW_Y = 300;
+
    /**
     * Bug #77208, the shared-band topology: several selection lists side by side
     * in one row, so they all insert at the same position. Only the largest
@@ -195,6 +200,77 @@ class AbstractVSExporterMoveAssembliesTest {
    }
 
    /**
+    * The distinct-band topology again, but with <b>non-selection</b> expanders
+    * and no selection assembly anywhere in the viewsheet &mdash; the one shape in
+    * which the old and the new code genuinely disagree, and therefore the one
+    * that pins the trade-off the single-shift rule accepts.
+    *
+    * <p>The old {@code moveAssemblies()} block keyed on
+    * {@code SelectionList}/{@code SelectionTree}, so in an ordinary chart/table
+    * dashboard it never fired and the whole behaviour came from
+    * {@code getMore()}'s unbounded netting: {@code ShortChart}'s round netted
+    * {@code TallChart}'s band out entirely, {@code more} fell to 0 and
+    * <em>nothing moved</em>. {@code Between} stayed where it was, inside
+    * {@code ShortChart}'s expanded box &mdash; #71211's overlap, reached through
+    * a chart instead of a selection list.</p>
+    *
+    * <p>The bounded netting fixes that, and the two assertions below are the two
+    * halves of the same coin:</p>
+    * <ul>
+    *   <li>{@code Between} lies below {@code ShortChart}'s band but above
+    *       {@code TallChart}'s, so {@code TallChart}'s insert never moved it. It
+    *       must take {@code ShortChart}'s full expansion and end up clear of
+    *       {@code ShortChart}'s new bottom. This is the <em>fix</em>.</li>
+    *   <li>{@code Bottom} lies below both bands, so {@code TallChart}'s insert
+    *       already moved it once. It is charged for both bands anyway, because
+    *       one insert applies one uniform shift to everything past its position
+    *       and cannot pay two different assemblies two different amounts. This is
+    *       the <em>cost</em>: deliberate slack below vertically-overlapping
+    *       expanders with different bottoms. Per-assembly netting
+    *       ({@code shift = more - alreadyInsertedBetween(insertPos, top)}) would
+    *       give {@code Bottom} the tighter 700 and was rejected as a much larger
+    *       change; erring towards slack rather than overlap is the safe
+    *       direction.</li>
+    * </ul>
+    */
+   @Test
+   void anAssemblyBetweenTwoDistinctBandsGetsRoomAndEverythingBelowPaysForBothBands() {
+      final int tallY = 100, tallH = 300, tallExpand = 200;    // band at 400
+      final int shortY = 150, shortH = 200, shortExpand = 200; // band at 350
+      final int betweenY = 380; // below the short band (350), above the tall one (400)
+      final int bottomY = 500;  // below both bands
+
+      Viewsheet vs = new Viewsheet();
+      ChartVSAssembly tallChart = chart(vs, "TallChart", 0, tallY, 200, tallH);
+      ChartVSAssembly shortChart = chart(vs, "ShortChart", 300, shortY, 200, shortH);
+      TextVSAssembly between = text(vs, "Between", 300, betweenY);
+      TextVSAssembly bottom = text(vs, "Bottom", 0, bottomY);
+
+      TestExporter exporter = new TestExporter();
+      // processing order is by top, as expandAll()'s bottomComparator produces
+      exporter.expandRows(tallChart, tallExpand);
+      exporter.expandRows(shortChart, shortExpand);
+
+      assertEquals(betweenY + shortExpand, between.getPixelOffset().y,
+                   "an assembly between the two bands was never moved by the taller "
+                   + "expander's insert, so that insert must not be netted out of the "
+                   + "shorter one - the netting bound is not about assembly type (71211)");
+      assertTrue(between.getPixelOffset().y
+                    >= shortChart.getPixelOffset().y + shortChart.getPixelSize().height,
+                 "the assembly between the bands must end up clear of the expanded "
+                 + "ShortChart, not inside it");
+      assertEquals(bottomY + tallExpand + shortExpand, bottom.getPixelOffset().y,
+                   "an assembly below both bands is charged for both: one insert moves "
+                   + "everything past its position by one uniform amount, so the rule "
+                   + "cannot also net the taller band back out here. The extra slack is "
+                   + "the accepted cost of the single-shift rule");
+      assertEquals(tallY, tallChart.getPixelOffset().y,
+                   "an expander is above its own insert position and is not moved by it");
+      assertEquals(shortY, shortChart.getPixelOffset().y,
+                   "ShortChart's top is above TallChart's band, so it was not moved");
+   }
+
+   /**
     * The netting itself, isolated: two expanders that <em>do</em> share a band
     * must not both charge for it. Same-position inserts add up to the largest
     * request, not to their sum.
@@ -224,6 +300,16 @@ class AbstractVSExporterMoveAssembliesTest {
       text.setPixelSize(new Dimension(100, 20));
       vs.addAssembly(text);
       return text;
+   }
+
+   private static ChartVSAssembly chart(Viewsheet vs, String name, int x, int y,
+                                        int width, int height)
+   {
+      ChartVSAssembly chart = new ChartVSAssembly(vs, name);
+      chart.setPixelOffset(new Point(x, y));
+      chart.setPixelSize(new Dimension(width, height));
+      vs.addAssembly(chart);
+      return chart;
    }
 
    private static SelectionListVSAssembly selectionList(Viewsheet vs, String name, int x, int y,
@@ -271,8 +357,4 @@ class AbstractVSExporterMoveAssembliesTest {
          insertRowCol(obj, oldSize, 0, more);
       }
    }
-
-   private static final int BAND_Y = 100;
-   private static final int BAND_H = 100;
-   private static final int BELOW_Y = 300;
 }
