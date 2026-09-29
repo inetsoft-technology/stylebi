@@ -188,6 +188,28 @@ class DashboardClusterConcurrencyTest {
       assertEquals(Set.of("seed", "x1", "y1"), names(node2));
    }
 
+   // ── a rename or a removal on a node with a stale cached copy keeps the other node's create ──
+
+   @Test
+   void renameAndRemove_onStaleNode_keepTheOtherNodesCreate() throws Exception {
+      node1.putDashboard("old", newVsDashboard());
+      fireListener(node2);
+      assertEquals(Set.of("seed", "old"), names(node2), "precondition: node2 loaded old");
+
+      synchronized(node2) {
+         // node2 renames and removes without having loaded node1's create
+         node1.putDashboard("x1", newVsDashboard());
+         node2.renameDashboard("old", "new");
+         node2.removeDashboard("seed");
+      }
+
+      deliverNotifications();
+
+      assertEquals(Set.of("new", "x1"), fileNames(), "the file lost a dashboard");
+      assertEquals(Set.of("new", "x1"), names(node1));
+      assertEquals(Set.of("new", "x1"), names(node2));
+   }
+
    // ── the selections are not pruned against a stale cached registry ──
 
    @Test
@@ -573,6 +595,15 @@ class DashboardClusterConcurrencyTest {
       {
          return new DashboardRegistryManager(eventPublisher, securityEngine, dependencyHandler,
                                              dataSpace);
+      }
+
+      @Bean
+      public DashboardManager dashboardManager(SecurityEngine securityEngine,
+                                               DashboardRegistryManager dashboardRegistryManager,
+                                               KeyValueStorageManager keyValueStorageManager)
+      {
+         return new DashboardManager(securityEngine, dashboardRegistryManager,
+                                     keyValueStorageManager);
       }
    }
 }
