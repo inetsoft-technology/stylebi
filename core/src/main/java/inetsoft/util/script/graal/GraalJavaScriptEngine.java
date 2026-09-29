@@ -29,6 +29,7 @@ import org.slf4j.LoggerFactory;
 import java.time.Duration;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Deque;
 import java.util.LinkedHashSet;
@@ -830,7 +831,13 @@ public class GraalJavaScriptEngine implements AutoCloseable {
       List<String> statements = splitTopLevelStatements(body);
 
       if(statements.size() > 1 && piecesAllParse(statements)) {
-         return buildCompletionPreservingSource(body, statements);
+         // Bug #77249: without `this`, run each piece as its own parsed-once
+         // with(__scope__) Source instead of a per-exec direct eval (which GraalJS
+         // re-parses on every execution). A `this` body keeps the eval wrapper.
+         Object pieces = THIS_REF.matcher(body).find() ? null :
+            buildPieceScript(body, lexicalBody, statements);
+
+         return pieces != null ? pieces : buildCompletionPreservingSource(body, statements);
       }
 
       // Bug #75625: the direct-eval wrapper below re-parses the script body on
@@ -854,8 +861,9 @@ public class GraalJavaScriptEngine implements AutoCloseable {
       // where a native `let r;` would start `undefined`. Reset those names at the
       // start of each run, outside the `with` (so a same-named scope member is
       // never written) and on the first line (so error line numbers keep their
-      // offset). The split and `this` paths below run the body in a wrapper
-      // function whose `var`s are fresh per run, so they need no reset.
+      // offset). The `this` paths (eval wrappers) run the body in a wrapper
+      // function whose `var`s are fresh per run, so they need no reset; the
+      // this-free split path (buildPieceScript, #77249) resets on its first piece.
       if(!THIS_REF.matcher(body).find()) {
          return Source.newBuilder("js",
             buildLexicalReset(collectInitializerlessLexicalNames(lexicalBody)) +
@@ -918,6 +926,134 @@ public class GraalJavaScriptEngine implements AutoCloseable {
       sb.append("return ").append(RESULT_VAR).append(";}}).call(__scope__)");
 
       return Source.newBuilder("js", sb.toString(), "<cmd>").buildLiteral();
+   }
+
+   /**
+    * Bug #77249: compile a this-free body that {@link #splitTopLevelStatements} cut
+    * into more than one piece (#75688) to a {@link PieceScript}: each piece becomes
+    * its own {@code with(__scope__){ piece }} Source, the plain-path shape, which
+    * Truffle parses once per Context and reuses, where the eval wrapper of
+    * {@link #buildCompletionPreservingSource} re-parsed every piece on every exec.
+    *
+    * <p>Each piece is a top-level script, so a top-level {@code var} (and a
+    * rewritten {@code let}/{@code const}, #76980) becomes a declared global of the
+    * Context, visible to the later pieces and to later scripts, as on the plain
+    * path; the #75596 hoist is not needed. On the eval wrapper such a var was a
+    * fresh binding of the wrapper function on every run, so a formula like
+    * {@code var c; if(v > 100) { c = [255,0,0] } c} (a per-cell color or a
+    * viewsheet binding run on one shared Context) started with {@code c}
+    * undefined each time. To keep that, the first piece starts, outside its
+    * {@code with} (so a same-named scope member - including a formula table's
+    * owned var, #5806 - is never written), with the #77181 reset of every name the
+    * body declares with {@code var} outside a function body plus its
+    * initializer-less top-level {@code let}/{@code const} names. As for #77181, a
+    * global the engine itself defines is never reset.
+    *
+    * <p>Each piece is preceded by one line break per line break of the body before
+    * it, so an error reports the same line as the plain path (body line + 1);
+    * there is no column padding, as only the line is reported.
+    *
+    * @return the piece script, or {@code null} if a piece cannot be located in
+    *         {@code body} (defensive; the caller then keeps the eval wrapper).
+    */
+   private Object buildPieceScript(String body, String lexicalBody, List<String> statements) {
+      Set<String> resetNames = collectInitializerlessLexicalNames(lexicalBody);
+      resetNames.addAll(collectOwnedVarNames(List.of(lexicalBody)));
+      resetNames.removeAll(NEVER_RESET);
+      String reset = buildLexicalReset(resetNames);
+      Source[] pieces = new Source[statements.size()];
+      int pos = 0;
+      int scanned = 0;
+      int lines = 0;
+
+      for(int i = 0; i < pieces.length; i++) {
+         String stmt = statements.get(i);
+         int at = body.indexOf(stmt, pos);
+
+         if(at < 0) {
+            return null;
+         }
+
+         // count the line breaks before the piece (CR, LF, CRLF, U+2028, U+2029)
+         for(; scanned < at; scanned++) {
+            char c = body.charAt(scanned);
+
+            if(c == '\n' || c == '\u2028' || c == '\u2029' ||
+               c == '\r' && (scanned + 1 >= body.length() || body.charAt(scanned + 1) != '\n'))
+            {
+               lines++;
+            }
+         }
+
+         StringBuilder sb = new StringBuilder(
+            stmt.length() + lines + 20 + (i == 0 ? reset.length() : 0));
+
+         if(i == 0) {
+            sb.append(reset);
+         }
+
+         sb.append("with(__scope__){\n");
+         sb.append("\n".repeat(lines));
+         sb.append(stmt).append("\n}");
+         pieces[i] = Source.newBuilder("js", sb.toString(), "<cmd>").buildLiteral();
+         pos = at + stmt.length();
+      }
+
+      return new PieceScript(pieces, body);
+   }
+
+   /**
+    * Bug #77249: the compiled form of a this-free multi-piece body (#75688), see
+    * {@link #buildPieceScript}. {@link #exec} runs the pieces in order and keeps the
+    * last result that is not {@code undefined} ({@code null} counts as a value), as
+    * the eval wrapper's {@code V!==undefined}; an exception in a piece skips the
+    * rest. Holds Sources only, so like a Source it is not bound to any Context and
+    * can be shared by the static script caches, across pooled contexts and engines.
+    * Equal by content, like a Source, so the {@code errorCounts} of a recompiled
+    * formula carry over.
+    */
+   static final class PieceScript {
+      PieceScript(Source[] pieces, String text) {
+         this.pieces = pieces;
+         this.text = text;
+      }
+
+      Value eval(Context context) {
+         Value result = null;
+         Value last = null;
+
+         for(Source piece : pieces) {
+            last = context.eval(piece);
+
+            if(!ScriptValueConverter.isUndefined(last)) {
+               result = last;
+            }
+         }
+
+         return result != null ? result : last;
+      }
+
+      Source[] pieces() {
+         return pieces.clone();
+      }
+
+      @Override
+      public boolean equals(Object obj) {
+         return obj instanceof PieceScript other && Arrays.equals(pieces, other.pieces);
+      }
+
+      @Override
+      public int hashCode() {
+         return Arrays.hashCode(pieces);
+      }
+
+      @Override
+      public String toString() {
+         return text;
+      }
+
+      private final Source[] pieces;
+      private final String text;
    }
 
    // Keywords that begin a statement whose completion value can be *empty* — the
@@ -1922,7 +2058,8 @@ public class GraalJavaScriptEngine implements AutoCloseable {
                   return null;
                }
 
-               Value result = context.eval((Source) script);
+               Value result = script instanceof PieceScript pieces ? pieces.eval(context)
+                  : context.eval((Source) script);
                return ScriptValueConverter.toHostResult(result);
             }
          }
