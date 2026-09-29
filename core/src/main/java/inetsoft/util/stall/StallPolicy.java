@@ -33,9 +33,17 @@ import java.util.function.Function;
  * wait can never progress: it is the one victim the watchdog picks in a wait-for cycle, or it
  * waits for a cycle that its victim's failure did not release, or for a JVM deadlock. Until
  * then, and for good if it is only a long wait (e.g. for a lock owner in a slow query), it is
- * reported like an {@code alert}-mode stall and goes on. {@code stall.watchdog.failOnTimeout=true} fails a {@code fail}-mode stall
- * on the timeout alone, as {@code fail} did before Feature #77123. In {@code alert} mode a
- * stall only dumps the threads and logs a warning, and {@code off} registers no waits at all.
+ * reported like an {@code alert}-mode stall and goes on. If the victim cannot reach its own
+ * check within two wait slices, the next member of its cycle becomes the victim, one at a
+ * time. {@code stall.watchdog.failOnTimeout=true} fails a {@code fail}-mode stall on the
+ * timeout alone, as {@code fail} did before Feature #77123. In {@code alert} mode a stall only
+ * dumps the threads and logs a warning, and {@code off} registers no waits at all.
+ *
+ * <p>A thread in a timed park, such as {@code tryLock(timeout)}, is never an edge of a
+ * wait-for cycle, whatever its timeout, as the park ends by itself. So a cycle closed by a
+ * loop like {@code while(!lock.tryLock(t))} is not detected: its waits are only reported and
+ * go on, and health stays UP. That is no regression, as no park was an edge before
+ * Feature #77123.
  *
  * <p>The time threshold alone is no proof of a lock cycle: a wait gets progress credit from a
  * blocker only if that blocker's own registered wait progresses or it is running, so a lock

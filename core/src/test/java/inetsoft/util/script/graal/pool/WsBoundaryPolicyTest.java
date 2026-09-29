@@ -77,7 +77,10 @@ class WsBoundaryPolicyTest {
                                         "#77016", "stall.watchdog.mode=fail",
                                         // Feature #77123, fail is the watchdog default
                                         "defaults to fail", "stall.watchdog.failOnTimeout=true",
-                                        "stall.watchdog.mode=alert", "only logged and goes on" })
+                                        "stall.watchdog.mode=alert", "only logged and goes on",
+                                        "the next query of the cycle",
+                                        "tryLock(timeout), is never part of a cycle",
+                                        "while(!tryLock(t))" })
       {
          assertTrue(note.contains(topic), "release note misses: " + topic);
       }

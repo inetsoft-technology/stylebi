@@ -19,12 +19,15 @@ package inetsoft.util.script;
 
 import inetsoft.util.stall.LockStallException;
 import inetsoft.util.stall.StallPolicy;
+import inetsoft.util.stall.WaitRecord;
 import inetsoft.util.stall.WaitRegistry;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.io.File;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.ReentrantLock;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -395,10 +398,88 @@ public class LendableReentrantLockStallTest {
       assertTrue(locked.await(5, TimeUnit.SECONDS));
       startDaemon(waiter);
 
-      assertEquals("LendableReentrantLock.lock:0", waiter.get(20, TimeUnit.SECONDS),
+      // the global watchdog may have read the default 30 s scan interval between two tests,
+      // when no policy override was set, and sleep that long before its next scan
+      assertEquals("LendableReentrantLock.lock:0", waiter.get(45, TimeUnit.SECONDS),
                    "the confirmed cycle fails the waiter, holding nothing of the lock");
       assertTrue(owner.get(10, TimeUnit.SECONDS), "the owner goes on once the cycle broke");
       assertFalse(lock.isLocked());
+   }
+
+   /**
+    * Feature #77123 (review r2, liveness): the youngest wait of a cycle, the first victim,
+    * cannot reach its check, as it is parked without a timeout inside its registered wait for
+    * a lock the other member holds. Once it was confirmed for two wait slices, the other
+    * member becomes the victim and fails, which breaks the cycle; the first victim is never
+    * failed.
+    */
+   @Test
+   public void victimThatCannotCheckHandsTheRoleOn() throws Exception {
+      StallPolicy.setOverride(new StallPolicy(StallPolicy.Mode.FAIL, 1000, 200, dumpDir, 20,
+                                              false));
+      LendableReentrantLock lock = new LendableReentrantLock();
+      ReentrantLock other = new ReentrantLock();
+      CountDownLatch locked = new CountDownLatch(1);
+      CountDownLatch holding = new CountDownLatch(1);
+      AtomicReference<Thread> peer = new AtomicReference<>();
+      FutureTask<String> parked = new FutureTask<>(() -> {
+         lock.lock();
+
+         try {
+            locked.countDown();
+            assertTrue(holding.await(5, TimeUnit.SECONDS));
+            // the youngest wait of the cycle: opened after the peer's wait for the lock
+            Thread.sleep(300);
+
+            try(WaitRecord wait = WaitRegistry.begin("test.parkedVictim", () -> 0L,
+                                                     () -> new Thread[] { peer.get() }))
+            {
+               wait.checkStall();
+               // never checks again: an untimed park for the peer's lock
+               other.lockInterruptibly();
+               other.unlock();
+               return "acquired";
+            }
+            catch(LockStallException ex) {
+               return "failed";
+            }
+         }
+         finally {
+            lock.unlock();
+         }
+      });
+      FutureTask<String> waiter = new FutureTask<>(() -> {
+         peer.set(Thread.currentThread());
+         other.lock();
+
+         try {
+            holding.countDown();
+            lock.lock();
+            lock.unlock();
+            return "acquired";
+         }
+         catch(LockStallException ex) {
+            return "failed";
+         }
+         finally {
+            other.unlock();
+         }
+      });
+      Thread parkedThread = startDaemon(parked);
+      assertTrue(locked.await(5, TimeUnit.SECONDS));
+      startDaemon(waiter);
+
+      try {
+         // the global watchdog may have read the default 30 s scan interval between two tests,
+         // when no policy override was set, and sleep that long before its next scan
+         assertEquals("failed", waiter.get(45, TimeUnit.SECONDS),
+                      "the next member is the victim once the first cannot check");
+         assertEquals("acquired", parked.get(10, TimeUnit.SECONDS),
+                      "exactly one member fails, the cycle is broken");
+      }
+      finally {
+         parkedThread.interrupt();
+      }
    }
 
    /**

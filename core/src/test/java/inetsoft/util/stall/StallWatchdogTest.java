@@ -1366,6 +1366,104 @@ public class StallWatchdogTest {
    }
 
    /**
+    * Feature #77123 (review r2, liveness): a victim whose thread never reaches its check, such
+    * as one parked without a timeout inside its registered wait, is passed over once it was
+    * confirmed for more than two wait slices. The next member becomes the victim and fails;
+    * the passed-over one, if merely slow, is never failed too; health stays DOWN meanwhile.
+    */
+   @Test
+   public void victimThatCannotCheckHandsTheRoleOn() {
+      policy = confirmedOnly();
+      AtomicReference<Thread> ta = new AtomicReference<>();
+      AtomicReference<Thread> tb = new AtomicReference<>();
+      WaitRecord a = runOnOtherThread(
+         () -> registry.open("pass-a.site", () -> 0, () -> new Thread[] { tb.get() }));
+      ta.set(a.getThread());
+      advance(10);
+      WaitRecord b = runOnOtherThread(
+         () -> registry.open("pass-b.site", () -> 0, () -> new Thread[] { ta.get() }));
+      tb.set(b.getThread());
+
+      advance(1500);
+      watchdog.scan();
+      watchdog.scan();
+      assertTrue(b.isCycleConfirmed(), "the youngest wait is the first victim");
+      assertFalse(a.isCycleConfirmed());
+
+      // the slice is noProgressMillis / 4 = 250 ms: two slices are not over yet
+      advance(400);
+      watchdog.scan();
+      assertTrue(b.isCycleConfirmed(), "the victim keeps its chance for two slices");
+      assertFalse(a.isCycleConfirmed());
+
+      advance(200);
+      watchdog.scan();
+      assertFalse(b.isCycleConfirmed(), "the victim that did not fail is passed over");
+      assertTrue(a.isCycleConfirmed(), "the next member is the victim");
+      String reason = watchdog.getUnreleasedStall();
+      assertNotNull(reason, "the hand-off does not make the cycle released");
+      assertTrue(reason.contains("wait-for cycle"), reason);
+
+      // the passed-over victim was only slow: it checks now and goes on
+      assertDoesNotThrow(b::checkStall);
+      assertFalse(b.isFailed());
+      assertThrows(LockStallException.class, a::checkStall);
+
+      // the failed victim is still registered: it stays the victim, no second failure
+      for(int i = 0; i < 3; i++) {
+         advance(600);
+         watchdog.scan();
+         assertFalse(b.isCycleConfirmed(), "a single failure per cycle");
+         assertDoesNotThrow(b::checkStall);
+      }
+
+      assertFalse(b.isFailed());
+      a.close();
+      b.close();
+   }
+
+   /**
+    * Feature #77123 (review r2, liveness): when no victim ever checks, the role goes round the
+    * cycle in the victim order, and only one member is ever confirmed at a time.
+    */
+   @Test
+   public void victimRoleGoesRoundOneAtATime() {
+      policy = confirmedOnly();
+      List<AtomicReference<Thread>> threads = List.of(
+         new AtomicReference<>(), new AtomicReference<>(), new AtomicReference<>());
+      List<WaitRecord> records = new ArrayList<>();
+
+      for(int i = 0; i < 3; i++) {
+         AtomicReference<Thread> next = threads.get((i + 1) % 3);
+         WaitRecord record = runOnOtherThread(
+            () -> registry.open("round.site", () -> 0, () -> new Thread[] { next.get() }));
+         threads.get(i).set(record.getThread());
+         records.add(record);
+         advance(10);
+      }
+
+      advance(1500);
+      watchdog.scan();
+      watchdog.scan();
+      // the youngest first: opened last
+      List<WaitRecord> expected = List.of(records.get(2), records.get(1), records.get(0),
+                                          records.get(2), records.get(1));
+
+      for(WaitRecord victim : expected) {
+         for(WaitRecord record : records) {
+            assertEquals(record == victim, record.isCycleConfirmed(),
+                         "one confirmed victim at a time, in the victim order");
+         }
+
+         advance(600);
+         watchdog.scan();
+      }
+
+      records.forEach(record -> assertFalse(record.isFailed()));
+      records.forEach(WaitRecord::close);
+   }
+
+   /**
     * Feature #77123 (review P3): a thread in a timed tryLock for a lock the waiter owns ends
     * its wait by itself, so it is no permanent edge and no cycle through it is confirmed.
     */

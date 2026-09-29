@@ -419,12 +419,17 @@ public final class WaitRecord implements AutoCloseable {
     * monitor: the check walks the wait-for graph (see StallWatchdog.isStillStuck).
     */
    private void revalidateCycle() {
-      BooleanSupplier check = stillStuck;
+      BooleanSupplier check;
 
-      if(!cycleConfirmed || failed || failOnTimeout || reportOnly != null ||
-         mode != StallPolicy.Mode.FAIL)
-      {
-         return;
+      // read together with the confirmation, which confirmCycle() sets under this monitor
+      synchronized(this) {
+         if(!cycleConfirmed || failed || failOnTimeout || reportOnly != null ||
+            mode != StallPolicy.Mode.FAIL)
+         {
+            return;
+         }
+
+         check = stillStuck;
       }
 
       boolean stuck;
@@ -438,6 +443,16 @@ public final class WaitRecord implements AutoCloseable {
       }
 
       if(!stuck) {
+         revokeCycle(check);
+      }
+   }
+
+   /**
+    * Revoke the confirmation that {@code check} was found false for, unless a scan confirmed
+    * the wait again since, with a new check.
+    */
+   private synchronized void revokeCycle(BooleanSupplier check) {
+      if(stillStuck == check) {
          revokeCycle();
       }
    }
