@@ -258,7 +258,7 @@ class RelCleanFuzzTest {
       long t0 = System.nanoTime();
 
       try {
-         r1 = String.valueOf(run(env, probe));
+         r1 = probe(env, probe);
       }
       catch(Exception ex) {
          // the probe is read-only and fast: a throw here is judged, not a test error
@@ -268,7 +268,7 @@ class RelCleanFuzzTest {
       }
 
       boolean discarded = env.getMetrics().getCreations() > c0;
-      String r2 = String.valueOf(run(ref, probe));
+      String r2 = probe(ref, probe);
 
       Set<String> leftovers = new HashSet<>(slotLeftovers);
       leftovers.addAll(RelScriptGenerator.leftovers(blocks));
@@ -317,6 +317,26 @@ class RelCleanFuzzTest {
 
       return new Outcome(violation, discarded, expectDiscard, threw, unexpectedThrow,
                          !drift.isEmpty(), leftoverDiffs, observed);
+   }
+
+   /**
+    * Run a probe. The probe runs under the 1 s script timeout the loop blocks need, and a
+    * cold JVM on a loaded machine can take longer (seen once, 1484 ms, on a run's first
+    * seed); it is read-only, so a timed-out probe is simply run again, at most twice.
+    */
+   private static String probe(WorksheetScriptEnv env, String probe) throws Exception {
+      for(int attempt = 0; ; attempt++) {
+         try {
+            return String.valueOf(run(env, probe));
+         }
+         catch(Exception ex) {
+            if(attempt >= 2 || !String.valueOf(ex.getMessage()).contains("interrupted")) {
+               throw ex;
+            }
+
+            PROBE_RETRIES.incrementAndGet();
+         }
+      }
    }
 
    // a leftover the clean left on purpose: declared by this slot's polluters, still declared
@@ -451,7 +471,8 @@ class RelCleanFuzzTest {
             " (unexpected " + unexpectedThrows + ") driftSeen=" + driftSeen +
             " leftoverDiffs=" + leftoverDiffs + " violations=" + violations +
             " paranoiaViolations=" + paranoiaViolations + " (without FZ1 block: " +
-            paranoiaWithoutPrototype + ") refCreations=" + refCreations +
+            paranoiaWithoutPrototype + ") refCreations=" + refCreations + " probeRetries=" +
+            PROBE_RETRIES.get() +
             "\n[rel-fuzz] " + mode + " block kinds: " + kinds);
       }
 
@@ -473,6 +494,8 @@ class RelCleanFuzzTest {
    }
 
    private static final boolean LONG = Boolean.getBoolean("rel.long");
+   private static final java.util.concurrent.atomic.AtomicInteger PROBE_RETRIES =
+      new java.util.concurrent.atomic.AtomicInteger();
    private static String previousTimeout;
    private Boolean forcedBefore;
 }
