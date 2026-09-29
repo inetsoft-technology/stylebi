@@ -59,12 +59,18 @@ class RepletRegistryLocalChangesTest {
       orgId = "test76977_" + info.getTestMethod().orElseThrow().getName().toLowerCase();
       space = DataSpace.getDataSpace();
       space.addChangeListener(null, orgId + "/repository.xml", repositoryWatch);
+      boolean newDirectory = !space.isDirectory(orgId);
       RepletRegistry seed = new RepletRegistry(orgId);
       seed.addFolder(A);
       seed.setFolderAlias(A, "seed");
       seed.save();
       seed.shutdown();
-      // no late setup event may reach the two node registries
+
+      // wait for both setup events, so that no late setup event reaches the two node registries
+      if(newDirectory) {
+         awaitDirectoryEvent();
+      }
+
       awaitRepositoryEvent();
       nodeA = new RepletRegistry(orgId);
       nodeB = new HookedRegistry(orgId);
@@ -318,12 +324,22 @@ class RepletRegistryLocalChangesTest {
 
    /**
     * Waits until the next change event of repository.xml has been dispatched to every listener,
-    * the node registries included.
+    * the node registries included. The permit is released while that event is being dispatched on
+    * the event thread, so the barrier that {@link #awaitEventsDelivered()} writes afterwards is
+    * dispatched after it, although events do not reach that thread in commit order.
     */
    private void awaitRepositoryEvent() throws Exception {
       assertTrue(repositoryEvents.tryAcquire(TIMEOUT, TimeUnit.SECONDS),
                  "repository.xml change event was not delivered");
       awaitEventsDelivered();
+   }
+
+   /**
+    * Waits for the change event of the org directory, which the seed's commit creates first.
+    */
+   private void awaitDirectoryEvent() throws Exception {
+      assertTrue(directoryEvents.tryAcquire(TIMEOUT, TimeUnit.SECONDS),
+                 "org directory change event was not delivered");
    }
 
    /**
@@ -363,7 +379,9 @@ class RepletRegistryLocalChangesTest {
 
    /**
     * Waits until every change event already queued on the event thread has been dispatched to all
-    * listeners, by writing a marker file that is dispatched after them.
+    * listeners, by writing a marker file that is dispatched after them. Events reach that thread
+    * through a pool that does not keep their order, so an event of an earlier commit that is still
+    * on its way is not covered, see {@link #awaitRepositoryEvent()}.
     */
    private void awaitEventsDelivered() throws Exception {
       CountDownLatch delivered = new CountDownLatch(1);
@@ -431,5 +449,14 @@ class RepletRegistryLocalChangesTest {
    private HookedRegistry nodeB;
    private Runnable releaseBlocker;
    private final Semaphore repositoryEvents = new Semaphore(0);
-   private final DataChangeListener repositoryWatch = e -> repositoryEvents.release();
+   private final Semaphore directoryEvents = new Semaphore(0);
+   // a listener also receives the events of its ancestor directories, so count them apart
+   private final DataChangeListener repositoryWatch = e -> {
+      if("repository.xml".equals(e.getFile())) {
+         repositoryEvents.release();
+      }
+      else if(e.getDir() == null && orgId.equals(e.getFile())) {
+         directoryEvents.release();
+      }
+   };
 }

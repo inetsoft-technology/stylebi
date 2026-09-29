@@ -46,8 +46,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * {@link DataSpace} play the two nodes. A save on either one reaches both (and itself) through the
  * DataSpace change listener, on the single BlobStorageEvent thread, as a remote commit would. The
  * tests order that delivery explicitly: {@link #blockEvents()} parks the event thread so that no
- * reload can happen, and {@link #awaitEventsDelivered()} waits until every event queued so far has
- * been dispatched.</p>
+ * reload can happen, and {@link #awaitEventsDelivered()} waits until every event already on that
+ * thread has been dispatched.</p>
  *
  * <p>{@link #addFolder} and {@link #save} are the two steps a node takes for
  * {@code POST /api/portal/tree/add-folder} (RepletEngine.addFolder: registry.addFolder, alias,
@@ -136,14 +136,21 @@ class RepletRegistryConcurrentSaveTest {
    }
 
    /**
-    * Stores {@link #PARENT} the way the reporter's step 1 does, and waits until its change event has
-    * been dispatched, so that no late event from the setup reaches the two node registries.
+    * Stores {@link #PARENT} the way the reporter's step 1 does, and waits until its change events
+    * (the org directory's and repository.xml's) have been dispatched, so that no late event from the
+    * setup reaches the two node registries.
     */
    private void seedParentFolder() throws Exception {
+      boolean newDirectory = !space.isDirectory(orgId);
       RepletRegistry seed = new RepletRegistry(orgId);
       seed.addFolder(PARENT);
       seed.save();
       seed.shutdown();
+
+      if(newDirectory) {
+         awaitDirectoryEvent();
+      }
+
       awaitRepositoryEvent();
    }
 
@@ -182,12 +189,22 @@ class RepletRegistryConcurrentSaveTest {
 
    /**
     * Waits until the next change event of repository.xml has been dispatched to every listener,
-    * the node registries included.
+    * the node registries included. The permit is released while that event is being dispatched on
+    * the event thread, so the barrier that {@link #awaitEventsDelivered()} writes afterwards is
+    * dispatched after it, although events do not reach that thread in commit order.
     */
    private void awaitRepositoryEvent() throws Exception {
       assertTrue(repositoryEvents.tryAcquire(TIMEOUT, TimeUnit.SECONDS),
                  "repository.xml change event was not delivered");
       awaitEventsDelivered();
+   }
+
+   /**
+    * Waits for the change event of the org directory, which the seed's commit creates first.
+    */
+   private void awaitDirectoryEvent() throws Exception {
+      assertTrue(directoryEvents.tryAcquire(TIMEOUT, TimeUnit.SECONDS),
+                 "org directory change event was not delivered");
    }
 
    /**
@@ -228,8 +245,9 @@ class RepletRegistryConcurrentSaveTest {
    /**
     * Waits until every change event already queued on the event thread has been dispatched to all
     * listeners. Events are dispatched in order on one BlobStorageEvent thread, so a marker event
-    * written now is dispatched after them. An event that is still on its way to that thread is not
-    * covered, see {@link #awaitRepositoryEvent()}.
+    * written now is dispatched after them. Events reach that thread through a pool that does not
+    * keep their order, so an event of an earlier commit that is still on its way is not covered,
+    * see {@link #awaitRepositoryEvent()}.
     */
    private void awaitEventsDelivered() throws Exception {
       CountDownLatch delivered = new CountDownLatch(1);
@@ -263,7 +281,16 @@ class RepletRegistryConcurrentSaveTest {
    private RepletRegistry nodeB;
    private Runnable releaseBlocker;
    private final Semaphore repositoryEvents = new Semaphore(0);
-   private final DataChangeListener repositoryWatch = e -> repositoryEvents.release();
+   private final Semaphore directoryEvents = new Semaphore(0);
+   // a listener also receives the events of its ancestor directories, so count them apart
+   private final DataChangeListener repositoryWatch = e -> {
+      if("repository.xml".equals(e.getFile())) {
+         repositoryEvents.release();
+      }
+      else if(e.getDir() == null && orgId.equals(e.getFile())) {
+         directoryEvents.release();
+      }
+   };
    // registries hold their property change listeners weakly, so these are fields
    private final ReloadCounter reloadsOnA = new ReloadCounter();
    private final ReloadCounter reloadsOnB = new ReloadCounter();
