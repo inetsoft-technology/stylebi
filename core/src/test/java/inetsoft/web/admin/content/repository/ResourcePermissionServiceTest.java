@@ -296,4 +296,26 @@ class ResourcePermissionServiceTest {
                                                anyBoolean()), never());
       verify(orgManager, never()).isOrgAdmin(any(Principal.class));
    }
+
+   @Test
+   void setResourcePermissions_nullPrincipalDoesNotReachEnterpriseIsOrgAdmin() throws Exception {
+      // the enterprise OrganizationManager.isOrgAdmin(Principal) reads principal.getName()
+      // before its null check, so the save must not call it with a null principal
+      sutil.when(SUtil::isMultiTenant).thenReturn(true);
+      when(orgManager.isOrgAdmin((Principal) isNull())).thenThrow(new NullPointerException());
+
+      ResourcePermissionModel model = ResourcePermissionModel.builder()
+         .displayActions(EnumSet.of(ResourceAction.READ))
+         .securityEnabled(true)
+         .derivePermissionLabel("Use Parent Permissions")
+         .requiresBoth(true)
+         .grantReadToAllVisible(false)
+         .grantReadToAll(false)
+         .build();
+
+      assertDoesNotThrow(() -> service.setResourcePermissions(
+         "dash1__GLOBAL", ResourceType.DASHBOARD, model, null));
+      sreeEnv.verify(() -> SreeEnv.setProperty(eq("permission.andCondition"), anyString(),
+                                               anyBoolean()), never());
+   }
 }
