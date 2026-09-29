@@ -1759,7 +1759,14 @@ public class IdentityService {
       permission.setUserGrantsForOrg(action, userGrants, orgId);
       permission.setGroupGrantsForOrg(action, groupGrants, orgId);
       permission.setRoleGrantsForOrg(action, roleGrants, orgId);
-      permission.setRoleGrantsForOrg(action, globalRoleGrants, null);
+
+      // only a site admin may change global (org-less) role grants. non site admins do
+      // not see them (see getPermission), so keep the existing ones unchanged and
+      // ignore any global role rows in the request.
+      if(OrganizationManager.getInstance().isSiteAdmin(principal)) {
+         permission.setRoleGrantsForOrg(action, globalRoleGrants, null);
+      }
+
       permission.setOrganizationGrantsForOrg(action, organizationGrants, orgId);
 
       if(permittedIdentities != null && !permittedIdentities.isEmpty()) {
