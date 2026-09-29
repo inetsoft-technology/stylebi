@@ -37,10 +37,12 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.util.*;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -329,6 +331,171 @@ public class GuestReaderCycleTest {
    }
 
    /**
+    * Bug #77273: an unlocked thread builds a hash join over filtered formula inputs larger
+    * than the 10000-row {@code JoinTable} pre-drain, and a guest drains it. The JoinThreads
+    * must compute the formula rows past the pre-drain, which needs E, while the guest holds E
+    * and waits for them in {@code JoinTable.moreRows}. Those rows are slow on the workers, so
+    * the workers are still scanning when the guest arrives.
+    */
+   @Test
+   public void guestReadsFilteredHashJoinPastPreDrain() throws Exception {
+      harness.forceHashJoin();
+      // joined on the unique id column
+      runGuestReadsJoin(s -> hashJoin(cf2(calcField(s, bigTable()), s.box),
+                                      cf2(calcField(s, bigTable()), s.box), 2));
+   }
+
+   /**
+    * Bug #77273, the reporter's frame: as {@link #guestReadsFilteredHashJoinPastPreDrain}
+    * over bare formula lenses, so the JoinThreads wait for E in
+    * {@code FormulaTableLens.lockForRow} rather than in a condition filter.
+    */
+   @Test
+   public void guestReadsFormulaHashJoinPastPreDrain() throws Exception {
+      harness.forceHashJoin();
+      runGuestReadsJoin(s -> hashJoin(calcField(s, bigTable()), calcField(s, bigTable()), 2));
+   }
+
+   /**
+    * Bug #77273 with a merge join: an unlocked thread builds a {@code MergeJoinTable} over
+    * filtered formula inputs within the pre-drain, and a guest drains it. The JoinThread's
+    * sorts read the inputs on the worker.
+    */
+   @Test
+   public void guestReadsFilteredMergeJoin() throws Exception {
+      runGuestReadsJoin(s -> mergeJoin(s.filteredFormula(new SlowTable(MERGE_ROWS, Slow.WORKERS)),
+                                       s.filteredFormula(new SlowTable(MERGE_ROWS, Slow.WORKERS)), 1));
+   }
+
+   /**
+    * Bug #77273 with a merge join past the pre-drain: the JoinThread's sorts populate the
+    * filtered formula inputs past row 10000 on the worker, which needs E.
+    */
+   @Test
+   public void guestReadsFilteredMergeJoinPastPreDrain() throws Exception {
+      runGuestReadsJoin(s -> mergeJoin(cf2(calcField(s, bigTable()), s.box),
+                                       cf2(calcField(s, bigTable()), s.box), 2));
+   }
+
+   /**
+    * A guest reads a hash join over bare formula lenses within the pre-drain, built by an
+    * unlocked thread. The builder's pre-drain computes every formula row, and a worker
+    * reading a computed formula lens takes no engine lock (#77215), so no worker waits for
+    * the guest.
+    */
+   @Test
+   public void guestReadsFormulaHashJoin() throws Exception {
+      harness.forceHashJoin();
+      runGuestReadsJoin(s -> hashJoin(s.formula(new SlowTable(JOIN_ROWS, Slow.WORKERS)),
+                                      s.formula(new SlowTable(JOIN_ROWS, Slow.WORKERS)), 1));
+   }
+
+   /**
+    * A reader that finds its row already mapped in a filtered formula table races an
+    * {@code invalidate()} of the formula lens below: once the row map is reset, populating
+    * it computes formula rows, which must not start without E (#76918). The reader X calls
+    * {@code moreRows} of a mapped row while a guest holds E; the test thread holds the
+    * filter's monitor, so X parks on E, or at the monitor if it skips E for the mapped row.
+    * The test thread then invalidates the formula lens (and with it the filter) and lets X
+    * go; the guest then reads the filter. If X populated the new map holding the filter's
+    * monitor without E, it waits for E there while the guest waits for the monitor.
+    */
+   @Test
+   public void mappedRowReaderRacingInvalidate() throws Exception {
+      Sandbox s = harness.sandbox();
+      FormulaTableLens formula = calcField(s, new SlowTable(INV_ROWS, Slow.NONE));
+      TableLens cf = cf2(formula, s.box);
+      drain(cf);
+      Object expected = cf.getObject(READ_ROW, 1);
+
+      CountDownLatch held = new CountDownLatch(1);
+      CountDownLatch go = new CountDownLatch(1);
+      Future<Object> guest = harness.submit(() -> s.asGuest(() -> {
+         held.countDown();
+         assertTrue(go.await(3 * KNOWN_CAP, TimeUnit.SECONDS), "the guest was never let go");
+         return cf.getObject(READ_ROW, 1);
+      }));
+      assertTrue(held.await(ACTIVE_CAP, TimeUnit.SECONDS), "the guest never took the lock");
+      Started<Boolean> reader;
+
+      try {
+         synchronized(cf) {
+            reader = harness.start(() -> cf.moreRows(READ_ROW));
+            awaitParked(reader, ACTIVE_CAP);
+            assertFalse(reader.future.isDone() && !reader.future.get(),
+                        "the mapped row was not found");
+            formula.invalidate();
+            ((AbstractConditionFilter) cf).invalidate();
+         }
+
+         // X either still waits for E, or populates the new row map and waits for E in the
+         // formula lens, or has returned without populating
+         if(!reader.future.isDone()) {
+            assertTrue(awaitWaitingOnLock(reader.thread, ACTIVE_CAP),
+                       "the reader is not waiting for the engine lock");
+         }
+      }
+      finally {
+         go.countDown();
+      }
+
+      assertEquals(expected, harness.await(guest, ACTIVE_CAP, "the guest reading the filter"));
+      assertTrue(harness.await(reader.future, ACTIVE_CAP, "the mapped-row reader"));
+      assertFalse(s.lock.isLocked());
+   }
+
+   /**
+    * Build a join with {@code build} on a control sandbox for the expected rows, then on an
+    * unlocked harness thread of a locking sandbox, and drain it as a guest of that sandbox.
+    */
+   private void runGuestReadsJoin(Function<Sandbox, TableLens> build) throws Exception {
+      Sandbox control = harness.control();
+      List<String> expected = sorted(harness.await(
+         harness.submit(() -> drain(build.apply(control))), ACTIVE_CAP, "control join"));
+      assertTrue(expected.size() > 2, "the control join is empty");
+
+      Sandbox s = harness.sandbox();
+      TableLens join = harness.await(harness.submit(() -> build.apply(s)), ACTIVE_CAP, "build");
+      Future<List<List<Object>>> guest = harness.submit(() -> s.asGuest(() -> drain(join)));
+
+      // the order of joined rows depends on the join workers' timing
+      assertEquals(expected, sorted(harness.await(guest, ACTIVE_CAP, "guest reading the join")));
+      assertFalse(s.lock.isLocked());
+   }
+
+   private TableLens hashJoin(TableLens left, TableLens right, int col) {
+      return harness.track(new JoinTableLens(left, right, new int[] {col}, new int[] {col},
+                                             JoinTableLens.INNER_JOIN, true));
+   }
+
+   /**
+    * {@code MergeJoinTable} is package-private and {@code JoinTableLens} picks it only under
+    * memory pressure, so build it directly.
+    */
+   private TableLens mergeJoin(TableLens left, TableLens right, int col) {
+      try {
+         Class<?> cls = Class.forName("inetsoft.report.lens.MergeJoinTable");
+         Constructor<?> ctor = cls.getDeclaredConstructor(
+            TableLens.class, TableLens.class, int[].class, int[].class, int.class, boolean.class,
+            int.class);
+         ctor.setAccessible(true);
+         return harness.track((TableLens) ctor.newInstance(
+            left, right, new int[] {col}, new int[] {col}, JoinTableLens.INNER_JOIN, true,
+            Integer.MAX_VALUE));
+      }
+      catch(ReflectiveOperationException ex) {
+         throw new IllegalStateException(ex);
+      }
+   }
+
+   /**
+    * A base past the {@code JoinTable} pre-drain, slow on the workers past it.
+    */
+   private static TableLens bigTable() {
+      return new SlowTable(BIG_ROWS, Slow.WORKERS_PAST_PREDRAIN);
+   }
+
+   /**
     * Bug #76960 B (R2) with a guest: T1 sorts a shared {@code SortFilter} over a filtered
     * formula table, holding the sort monitor and waiting for E; the guest holds E and waits
     * for the sort monitor.
@@ -423,7 +590,7 @@ public class GuestReaderCycleTest {
       assertFalse(s.lock.isLocked());
    }
 
-   private static TableLens calcField(Sandbox s, TableLens base) {
+   private static FormulaTableLens calcField(Sandbox s, TableLens base) {
       return s.formula(base, "f", "field['value'] + 1");
    }
 
@@ -444,6 +611,10 @@ public class GuestReaderCycleTest {
    private static final int ROWS = 100;
    private static final int JOIN_ROWS = 120;
    private static final int INV_ROWS = 300;
+   private static final int BIG_ROWS = 12000;
+   // the merge join's sort reads the join column many times
+   private static final int MERGE_ROWS = 40;
+   private static final int READ_ROW = 5;
    private static final int AQS_THREADS = 4;
    private static final int AQS_OPS = 500;
    private static final int UNION_ROWS = 150;

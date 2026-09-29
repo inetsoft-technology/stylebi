@@ -52,7 +52,8 @@
  * <li>{@code HolderBuiltJoinCycleTest}: #77215, Hash/MergeJoin built by a guest, and a worker
  * probing a computed formula lens while the engine lock is held.</li>
  * <li>{@code GuestReaderCycleTest}: true guest (in-{@code exec}) holders: #76918 shapes, unions,
- * guest variants of #76960 A/B and #76964, and a reader racing {@code invalidate()}.</li>
+ * guest variants of #76960 A/B and #76964, readers racing {@code invalidate()}, and #77273,
+ * hash/merge joins built without the engine lock and read by a guest, past the pre-drain.</li>
  * </ul>
  *
  * <p>Earlier tests of the same family stay where they are and belong to the suite:
