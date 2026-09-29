@@ -92,15 +92,11 @@ public class ComputedChainFirstReaderCycleTest {
 
    /**
     * The lens above D, whose reads of D happen inside its own monitor.
+    *
+    * <p>Not {@code MaxRowsTableLens}: since bug #77311 its moreRows reads the base without its
+    * row lock, so X never waits for R there.
     */
    public enum Kind {
-      /** {@code MaxRowsTableLens.moreRows} under {@code synchronized(rlock)}. */
-      MAX_ROWS {
-         @Override
-         TableLens over(TableLens base) {
-            return new MaxRowsTableLens(base, 100000);
-         }
-      },
       /** {@code SortFilter.checkInit} under {@code synchronized(lock)}. */
       SORT {
          @Override
