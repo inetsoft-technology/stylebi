@@ -253,9 +253,10 @@ public class DefaultCheckPermissionStrategy implements CheckPermissionStrategy {
          //on an identity or organization of another org never applies in the current org.
          //Bug #77251, in multi-tenant mode a resource excluded from org admins is reserved for
          //site admins (see the isOrgAdminAction() check below), so a direct ADMIN grant on it
-         //never applies either
+         //never applies either. isOrgAdminAction() is evaluated first because
+         //isMultiTenant() reads storage uncached (Bug #76920), as in the check below
          boolean hasResourcePermission = !targetOutOfOrg &&
-            !(SUtil.isMultiTenant() && !ActionPermissionService.isOrgAdminAction(type, resource)) &&
+            !(!ActionPermissionService.isOrgAdminAction(type, resource) && SUtil.isMultiTenant()) &&
             provider.getPermission(type, resource, orgID) != null &&
             provider.getPermission(type, resource, orgID)
                .getOrgScopedUserGrants(ResourceAction.ADMIN, OrganizationManager.getInstance().getCurrentOrgID())

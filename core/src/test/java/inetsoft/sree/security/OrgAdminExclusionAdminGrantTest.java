@@ -201,6 +201,18 @@ class OrgAdminExclusionAdminGrantTest {
       }
    }
 
+   // the gate evaluates the cheap isOrgAdminAction() first, so a direct ADMIN grant on a
+   // non-excluded resource is honored without the uncached SUtil.isMultiTenant() storage read
+   @Test
+   void directAdminGrantOnNonExcludedResource_doesNotReadMultiTenant() throws Exception {
+      try(MockedStatic<SUtil> mocked = Mockito.mockStatic(SUtil.class, Mockito.CALLS_REAL_METHODS)) {
+         mocked.when(SUtil::isMultiTenant).thenReturn(true);
+         withContextPrincipal(delegate, () -> Assertions.assertTrue(engine().checkPermission(
+            delegate, ResourceType.EM_COMPONENT, SETTINGS_USERS, ResourceAction.ACCESS)));
+         mocked.verify(SUtil::isMultiTenant, Mockito.never());
+      }
+   }
+
    private interface ThrowingRunnable {
       void run() throws Exception;
    }

@@ -320,6 +320,34 @@ class ActionPermissionControllerTest {
       verifyNoWrite();
    }
 
+   // [Bug #77251] a model without displayActions (not producible by the immutable builder, but
+   // possible from a hand-crafted body) is refused rather than written
+   @Test
+   void setPermissions_nullDisplayActions_refused() {
+      ResourcePermissionModel body = mock(ResourcePermissionModel.class);
+      when(body.displayActions()).thenReturn(null);
+
+      assertThrows(java.lang.SecurityException.class,
+         () -> controller.setPermissions(
+            ResourceType.EM_COMPONENT.name(), SETTINGS_USERS, true, body, principal));
+
+      verifyNoWrite();
+   }
+
+   // [Bug #77251] the path is matched exactly: a trailing-slash variant of a visible node is not
+   // a node of the tree
+   @Test
+   void setPermissions_trailingSlashPath_refused() {
+      ResourcePermissionModel body = model(EnumSet.of(ResourceAction.ACCESS),
+         row("alice", EnumSet.of(ResourceAction.ACCESS)));
+
+      assertThrows(java.lang.SecurityException.class,
+         () -> controller.setPermissions(
+            ResourceType.EM_COMPONENT.name(), SETTINGS_USERS + "/", true, body, principal));
+
+      verifyNoWrite();
+   }
+
    // [Bug #77251] positive control: a site admin, whose tree contains settings/general, still
    // edits it
    @Test
