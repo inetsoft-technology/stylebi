@@ -23,7 +23,10 @@ package inetsoft.uql.asset;
  * AbstractAssetEngine.setSheet meant to copy such a dashboard's bookmarks as its anonymous owner
  * compared a String to an IdentityID and never fired, so overwriteBookmarks ran as the saving
  * virtual admin: a re-save threw "Invalid entry found" and a Save As to GLOBAL threw an NPE, and
- * in both cases the sheet was not written. Uses the real asset repository with security off.
+ * in both cases the sheet was not written. The owner's bookmarks are read as the owner and written
+ * back as the owner only to the owner's own private asset; any other target gets them under the
+ * saver, since a null-org owner key on a global asset is unreadable and never cleaned up. Uses the
+ * real asset repository with security off.
  */
 
 import inetsoft.sree.security.*;
@@ -39,6 +42,9 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 @ExtendWith(SpringExtension.class)
@@ -49,38 +55,25 @@ import static org.junit.jupiter.api.Assertions.*;
 @Tag("core")
 class ComposedDashboardBookmarkSaveTest {
    private static final String OWNER_BOOKMARK = "Bug77345OwnerBookmark";
+   private static final String FOLDER = "Bug77345";
    private AssetRepository repository;
-   private AssetEntry dashboardEntry;
+   private String orgId;
    private SRPrincipal admin;
    private IdentityID owner;
+   private AssetEntry dashboardEntry;
+   private final List<AssetEntry> cleanup = new ArrayList<>();
+   private AssetEntry createdFolder;
 
    @BeforeEach
    void setUp() throws Exception {
       assertFalse(SecurityEngine.getSecurity().isSecurityEnabled(), "test requires security off");
       repository = AssetUtil.getAssetRepository(false);
-      String orgId = Organization.getDefaultOrganizationID();
+      orgId = Organization.getDefaultOrganizationID();
       // the owner DashboardController.getIdentity() builds with security off (null org)
       owner = new DefaultIdentity(XPrincipal.ANONYMOUS, Identity.USER).getIdentityID();
       assertNull(owner.getOrgID());
-      admin = new SRPrincipal(new IdentityID("admin", orgId),
-                              new IdentityID[] { new IdentityID("Administrator", null) },
-                              new String[0], orgId, 1L);
-
-      String name = "Bug77345Dashboard" + System.nanoTime();
-      AssetEntry created = new AssetEntry(AssetRepository.USER_SCOPE, AssetEntry.Type.VIEWSHEET,
-                                          name, owner, orgId);
-      Viewsheet vs = new Viewsheet();
-      vs.getViewsheetInfo().setComposedDashboard(true);
-      repository.setSheet(created, vs, admin, true);
-
-      // reopen from the stored identifier, as the composer does
-      dashboardEntry = AssetEntry.createAssetEntry(created.toIdentifier());
-
-      // the only principal a USER_SCOPE viewsheet's bookmarks can be keyed by is its owner
-      VSBookmark bookmark = new VSBookmark();
-      bookmark.setUser(owner);
-      bookmark.addBookmark(OWNER_BOOKMARK, vs, VSBookmarkInfo.ALLSHARE, false, false);
-      repository.setVSBookmark(dashboardEntry, bookmark, new XPrincipal(owner));
+      admin = principal(new IdentityID("admin", orgId));
+      dashboardEntry = createDashboard(owner, true);
    }
 
    @Test
@@ -89,50 +82,39 @@ class ComposedDashboardBookmarkSaveTest {
 
       assertDoesNotThrow(() -> repository.setSheet(dashboardEntry, vs, admin, true));
 
-      Viewsheet saved = (Viewsheet) repository.getSheet(dashboardEntry, admin, false,
-                                                        AssetContent.ALL);
-      assertNotNull(saved.getAssembly("Bug77345Text"), "re-save must be persisted");
-      assertTrue(repository.getVSBookmark(dashboardEntry, new XPrincipal(owner))
+      assertPersisted(dashboardEntry);
+      assertTrue(repository.getVSBookmark(dashboardEntry, new XPrincipal(owner), true)
                     .containsBookmark(OWNER_BOOKMARK), "owner's bookmark must be kept");
    }
 
    @Test
    void virtualAdminSavesAnonymousOwnedComposedDashboardAsGlobal() throws Exception {
       Viewsheet vs = openAndEdit(dashboardEntry);
-      String orgId = dashboardEntry.getOrgID();
-      AssetEntry folder = new AssetEntry(AssetRepository.GLOBAL_SCOPE,
-                                         AssetEntry.Type.REPOSITORY_FOLDER, "Bug77345", null, orgId);
-
-      if(!repository.containsEntry(folder)) {
-         repository.addFolder(folder, null);
-      }
-
       AssetEntry target = new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.VIEWSHEET,
-                                         "Bug77345/" + dashboardEntry.getName(), null, orgId);
+                                         globalFolder().getPath() + "/" + dashboardEntry.getName(),
+                                         null, orgId);
+      cleanup.add(target);
 
-      try {
-         // the test principal is not a logged-in session, so the global folder WRITE check would
-         // deny it; the permission check is not under test here, the bookmark copy is
-         AssetRepository.IGNORE_PERM.set(true);
+      // the test principal is not a logged-in session, so the global folder WRITE check would
+      // deny it; the permission check is not under test here, the bookmark copy is
+      assertDoesNotThrow(() -> saveIgnoringPermission(target, vs, admin));
 
-         try {
-            assertDoesNotThrow(() -> repository.setSheet(target, vs, admin, true));
-         }
-         finally {
-            AssetRepository.IGNORE_PERM.remove();
-         }
+      assertPersisted(target);
+      // a global asset's bookmarks are looked up per viewer, so the copy must be under the saver
+      assertTrue(repository.getVSBookmark(target, admin, true).containsBookmark(OWNER_BOOKMARK),
+                 "owner's bookmark must be copied to the saver on the global asset");
+      assertFalse(repository.getVSBookmark(target, new XPrincipal(owner), true)
+                     .containsBookmark(OWNER_BOOKMARK),
+                  "nothing may be written under the unreadable null-org owner key");
 
-         Viewsheet saved = (Viewsheet) repository.getSheet(target, admin, false,
-                                                           AssetContent.ALL);
-         assertNotNull(saved.getAssembly("Bug77345Text"), "save as must be persisted");
-         assertTrue(repository.getVSBookmark(target, new XPrincipal(owner))
-                       .containsBookmark(OWNER_BOOKMARK), "owner's bookmark must be copied");
-      }
-      finally {
-         if(repository.containsEntry(target)) {
-            repository.removeSheet(target, null, true);
-         }
-      }
+      repository.removeSheet(target, null, true);
+      cleanup.remove(target);
+
+      assertFalse(repository.getVSBookmark(target, admin, true).containsBookmark(OWNER_BOOKMARK),
+                  "removing the global asset must remove the copied bookmark");
+      assertFalse(repository.getVSBookmark(target, new XPrincipal(owner), true)
+                     .containsBookmark(OWNER_BOOKMARK),
+                  "no orphaned owner-keyed bookmark may remain after removal");
    }
 
    @Test
@@ -140,33 +122,114 @@ class ComposedDashboardBookmarkSaveTest {
       Viewsheet vs = openAndEdit(dashboardEntry);
       AssetEntry target = new AssetEntry(AssetRepository.USER_SCOPE, AssetEntry.Type.VIEWSHEET,
                                          dashboardEntry.getName() + "Mine", admin.getIdentityID(),
-                                         dashboardEntry.getOrgID());
+                                         orgId);
+      cleanup.add(target);
+
+      assertDoesNotThrow(() -> saveIgnoringPermission(target, vs, admin));
+
+      assertPersisted(target);
+      assertTrue(repository.getVSBookmark(target, admin, true).containsBookmark(OWNER_BOOKMARK),
+                 "owner's bookmark must be copied to admin's own private asset");
+   }
+
+   @Test
+   void virtualAdminResavesPreBug74247AnonymousOwnedComposedDashboard() throws Exception {
+      // before Bug #74247 the security-off owner was the real anonymous user, anonymous@host-org
+      AssetEntry entry = createDashboard(new IdentityID(XPrincipal.ANONYMOUS, orgId), true);
+      Viewsheet vs = openAndEdit(entry);
+
+      assertDoesNotThrow(() -> repository.setSheet(entry, vs, admin, true));
+
+      assertPersisted(entry);
+      assertTrue(repository.getVSBookmark(entry, new XPrincipal(entry.getUser()), true)
+                    .containsBookmark(OWNER_BOOKMARK), "owner's bookmark must be kept");
+   }
+
+   @Test
+   void anonymousOwnerResavesOwnComposedDashboard() throws Exception {
+      // saver == owner is excluded from the branch and keeps the ordinary owner path
+      IdentityID hostAnonymous = new IdentityID(XPrincipal.ANONYMOUS, orgId);
+      AssetEntry entry = createDashboard(hostAnonymous, true);
+      SRPrincipal anonymous = principal(hostAnonymous);
+      Viewsheet vs = openAndEdit(entry, anonymous);
+
+      assertDoesNotThrow(() -> repository.setSheet(entry, vs, anonymous, true));
+
+      assertPersisted(entry);
+      assertTrue(repository.getVSBookmark(entry, anonymous, true).containsBookmark(OWNER_BOOKMARK),
+                 "owner's bookmark must be kept");
+   }
+
+   @Test
+   void nonComposedViewsheetIsNotAffected() throws Exception {
+      // the fix is scoped to composed dashboards; an ordinary viewsheet owned by another user
+      // keeps the pre-existing overwriteBookmarks behavior (a separate follow-up)
+      AssetEntry entry = createDashboard(owner, false);
+      Viewsheet vs = openAndEdit(entry);
+
+      RuntimeException ex = assertThrows(RuntimeException.class,
+                                         () -> repository.setSheet(entry, vs, admin, true));
+      assertTrue(ex.getMessage().startsWith("Invalid entry found"), ex.getMessage());
+   }
+
+   private AssetEntry createDashboard(IdentityID dashboardOwner, boolean composed)
+      throws Exception
+   {
+      String name = "Bug77345Dashboard" + System.nanoTime();
+      AssetEntry created = new AssetEntry(AssetRepository.USER_SCOPE, AssetEntry.Type.VIEWSHEET,
+                                          name, dashboardOwner, orgId);
+      Viewsheet vs = new Viewsheet();
+      vs.getViewsheetInfo().setComposedDashboard(composed);
+      repository.setSheet(created, vs, admin, true);
+
+      // reopen from the stored identifier, as the composer does
+      AssetEntry entry = AssetEntry.createAssetEntry(created.toIdentifier());
+      cleanup.add(entry);
+
+      // the only principal a USER_SCOPE viewsheet's bookmarks can be keyed by is its owner
+      VSBookmark bookmark = new VSBookmark();
+      bookmark.setUser(dashboardOwner);
+      bookmark.addBookmark(OWNER_BOOKMARK, vs, VSBookmarkInfo.ALLSHARE, false, false);
+      repository.setVSBookmark(entry, bookmark, new XPrincipal(dashboardOwner));
+      return entry;
+   }
+
+   private AssetEntry globalFolder() throws Exception {
+      AssetEntry folder = new AssetEntry(AssetRepository.GLOBAL_SCOPE,
+                                         AssetEntry.Type.REPOSITORY_FOLDER, FOLDER, null, orgId);
+
+      if(!repository.containsEntry(folder)) {
+         repository.addFolder(folder, null);
+         createdFolder = folder;
+      }
+
+      return folder;
+   }
+
+   private void saveIgnoringPermission(AssetEntry target, Viewsheet vs, SRPrincipal user)
+      throws Exception
+   {
+      AssetRepository.IGNORE_PERM.set(true);
 
       try {
-         AssetRepository.IGNORE_PERM.set(true);
-
-         try {
-            // the anonymous owner's bookmarks cannot be keyed on admin's private asset, and admin
-            // cannot read them, so there is nothing to copy; the save itself must go through
-            assertDoesNotThrow(() -> repository.setSheet(target, vs, admin, true));
-         }
-         finally {
-            AssetRepository.IGNORE_PERM.remove();
-         }
-
-         Viewsheet saved = (Viewsheet) repository.getSheet(target, admin, false,
-                                                           AssetContent.ALL);
-         assertNotNull(saved.getAssembly("Bug77345Text"), "save as must be persisted");
+         repository.setSheet(target, vs, user, true);
       }
       finally {
-         if(repository.containsEntry(target)) {
-            repository.removeSheet(target, null, true);
-         }
+         AssetRepository.IGNORE_PERM.remove();
       }
    }
 
+   private void assertPersisted(AssetEntry entry) throws Exception {
+      Viewsheet saved = (Viewsheet) repository.getSheet(entry, admin, false, AssetContent.ALL);
+      assertNotNull(saved.getAssembly("Bug77345Text"), "save must be persisted");
+   }
+
    private Viewsheet openAndEdit(AssetEntry entry) throws Exception {
-      Viewsheet vs = (Viewsheet) repository.getSheet(entry, admin, false, AssetContent.ALL);
+      return openAndEdit(entry, admin);
+   }
+
+   private Viewsheet openAndEdit(AssetEntry entry, SRPrincipal user) throws Exception {
+      Viewsheet vs = (Viewsheet) repository.getSheet(entry, user, false, AssetContent.ALL);
       // RuntimeViewsheet.setEntry does this for an opened viewsheet
       vs.setRuntimeEntry(entry);
       TextVSAssembly text = new TextVSAssembly(vs, "Bug77345Text");
@@ -174,10 +237,25 @@ class ComposedDashboardBookmarkSaveTest {
       return vs;
    }
 
+   private static SRPrincipal principal(IdentityID id) {
+      return new SRPrincipal(id, new IdentityID[] { new IdentityID("Administrator", null) },
+                             new String[0], id.getOrgID(), 1L);
+   }
+
    @AfterEach
    void tearDown() throws Exception {
-      if(dashboardEntry != null && repository.containsEntry(dashboardEntry)) {
-         repository.removeSheet(dashboardEntry, admin, true);
+      for(AssetEntry entry : cleanup) {
+         if(repository.containsEntry(entry)) {
+            repository.removeSheet(entry, null, true);
+         }
       }
+
+      cleanup.clear();
+
+      if(createdFolder != null && repository.containsEntry(createdFolder)) {
+         repository.removeFolder(createdFolder, null, true);
+      }
+
+      createdFolder = null;
    }
 }
