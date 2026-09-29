@@ -482,7 +482,7 @@ final class SlotPool {
          slot.engine().setSQL(source.isSQL());
          return true;
       }
-      catch(RuntimeException ex) {
+      catch(RuntimeException | Error ex) {
          discard(slot);
          throw ex;
       }
@@ -547,7 +547,7 @@ final class SlotPool {
             try {
                PoolMetrics.logNodeSummary();
             }
-            catch(RuntimeException ex) {
+            catch(RuntimeException | Error ex) {
                LOG.debug("Failed to log the worksheet script pool metrics", ex);
             }
          }, minutes, minutes, TimeUnit.MINUTES);
@@ -566,7 +566,7 @@ final class SlotPool {
          try {
             pool.evictIdle(System.currentTimeMillis());
          }
-         catch(RuntimeException ex) {
+         catch(RuntimeException | Error ex) {
             LOG.warn("Failed to evict idle worksheet script contexts", ex);
          }
       }, period, period, TimeUnit.MILLISECONDS);
