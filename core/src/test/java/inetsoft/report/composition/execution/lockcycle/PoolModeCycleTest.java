@@ -53,6 +53,8 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 import java.lang.reflect.Field;
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.IntSupplier;
 
 import static inetsoft.report.composition.execution.lockcycle.LockCycleHarness.*;
 import static org.junit.jupiter.api.Assertions.*;
@@ -276,6 +278,7 @@ public class PoolModeCycleTest {
          int tables = ((Map<?, ?>) field.get(scope)).size();
          CountDownLatch go = new CountDownLatch(1);
          List<Future<Void>> threads = new ArrayList<>();
+         AtomicInteger execs = new AtomicInteger();
 
          for(int t = 0; t < 4; t++) {
             int id = t;
@@ -286,6 +289,7 @@ public class PoolModeCycleTest {
                   Object script = env.compile("typeof id_" + id + "_" + i + "; m_" + id + "_" +
                                               i + " = " + i + ";");
                   env.exec(script, scope, null, null);
+                  execs.incrementAndGet();
                }
 
                return null;
@@ -295,7 +299,7 @@ public class PoolModeCycleTest {
          go.countDown();
 
          for(Future<Void> thread : threads) {
-            harness.await(thread, ACTIVE_CAP, "script thread");
+            awaitProgressing(thread, execs::get, "script thread");
          }
 
          assertEquals(tables + 2 * 4 * 500, ((Map<?, ?>) field.get(scope)).size(),
@@ -326,10 +330,12 @@ public class PoolModeCycleTest {
          AssetQuerySandbox box1 = pooledBox(env1);
          AssetQuerySandbox box2 = shape.crossBox ? pooledBox(env2) : box1;
 
+         CountingTable controlBase = new CountingTable(SUMMARY_ROWS);
          TableLens controlSummary = harness.track(summaryOver(cf2(formula(
-            new SlowTable(SUMMARY_ROWS, Slow.EVERYWHERE), controlEnv), null)));
-         List<List<Object>> expected = harness.await(
-            submit(() -> drain(cf2(controlSummary, null))), ACTIVE_CAP, "control filter");
+            controlBase, controlEnv), null)));
+         List<List<Object>> expected = awaitProgressing(
+            submit(() -> drain(cf2(controlSummary, null))), controlBase.reads::get,
+            "control filter");
          assertTrue(expected.size() > 2, "control pipeline is empty");
 
          HookTable base = new HookTable(SUMMARY_ROWS);
@@ -346,8 +352,10 @@ public class PoolModeCycleTest {
          awaitParked(t3, KNOWN_CAP);
          base.release.countDown();
 
-         assertEquals(expected, harness.await(t3.future, ACTIVE_CAP, "the second filter holder"));
-         assertEquals(expected, harness.await(h.future, ACTIVE_CAP, "the first filter holder"));
+         assertEquals(expected, awaitProgressing(t3.future, base.reads::get,
+                                                 "the second filter holder"));
+         assertEquals(expected, awaitProgressing(h.future, base.reads::get,
+                                                 "the first filter holder"));
          // processed once: a later reader gets the same rows without another pass over the base
          int passes = base.passes.get();
          assertEquals(expected, drain(cf2(summary, box2)), "a later reader sees other rows");
@@ -366,6 +374,42 @@ public class PoolModeCycleTest {
     */
    private <T> Future<T> submit(Callable<T> task) {
       return harness.submit(noClaimLeft(task));
+   }
+
+   /**
+    * {@code harness.await} for a case whose work is slow by construction (1 ms per injected
+    * base read, or hundreds of script compiles): on a loaded host that work alone can outlast
+    * {@link LockCycleHarness#ACTIVE_CAP}, so the cap applies to progress instead. Fails (with
+    * the harness's thread dump) once {@code progress} did not move for a whole
+    * {@code ACTIVE_CAP}, as a hang or lock cycle would, or after {@link #PROGRESS_TOTAL_CAP}.
+    */
+   private <T> T awaitProgressing(Future<T> future, IntSupplier progress, String what)
+      throws Exception
+   {
+      long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(PROGRESS_TOTAL_CAP);
+      int last = progress.getAsInt();
+
+      while(!future.isDone()) {
+         try {
+            future.get(ACTIVE_CAP, TimeUnit.SECONDS);
+         }
+         catch(TimeoutException ex) {
+            int now = progress.getAsInt();
+
+            if(now == last || System.nanoTime() > deadline) {
+               // fails at once with the thread dump
+               return harness.await(future, 0, what + " (no progress for " + ACTIVE_CAP +
+                                    " s, or over " + PROGRESS_TOTAL_CAP + " s)");
+            }
+
+            last = now;
+         }
+         catch(ExecutionException ex) {
+            break;
+         }
+      }
+
+      return harness.await(future, 0, what);
    }
 
    private static <T> Callable<T> noClaimLeft(Callable<T> task) {
@@ -391,13 +435,34 @@ public class PoolModeCycleTest {
    }
 
    /**
+    * A slow table (1 ms per value read on every thread) that counts its data reads, the
+    * progress of a pipeline over it.
+    */
+   private static class CountingTable extends SlowTable {
+      CountingTable(int rows) {
+         super(rows, Slow.EVERYWHERE);
+      }
+
+      @Override
+      public Object getObject(int r, int c) {
+         if(r > 0) {
+            reads.incrementAndGet();
+         }
+
+         return super.getObject(r, c);
+      }
+
+      final AtomicInteger reads = new AtomicInteger();
+   }
+
+   /**
     * A slow table that, at its first data read (on whatever thread processes the summary),
     * signals {@link #entered} and waits for {@link #release}, and counts reads of its first
     * data row's value cell.
     */
-   private static final class HookTable extends SlowTable {
+   private static final class HookTable extends CountingTable {
       HookTable(int rows) {
-         super(rows, Slow.EVERYWHERE);
+         super(rows);
       }
 
       @Override
@@ -460,5 +525,7 @@ public class PoolModeCycleTest {
 
    private static final int ROWS = 2000;
    private static final int SUMMARY_ROWS = 300;
+   // bound of a case that keeps progressing, see awaitProgressing
+   private static final long PROGRESS_TOTAL_CAP = 10 * ACTIVE_CAP;
    private LockCycleHarness harness;
 }
