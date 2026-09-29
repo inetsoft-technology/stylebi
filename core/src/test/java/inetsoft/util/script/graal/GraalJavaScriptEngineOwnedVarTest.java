@@ -67,6 +67,20 @@ class GraalJavaScriptEngineOwnedVarTest {
    }
 
    /**
+    * Bug #77305: a control head's own condition can contain nested parens (not just braces in
+    * the body) -- the bracket/control-head-tracking stack must track the true nesting depth so
+    * that `afterHead` fires only after the head's real, outer closing `)`, not after an inner
+    * one. Deliberately has no real `var`/`let`/`const` declaration of `z` anywhere so that, if
+    * the depth tracking mis-fired (either too early, swallowing part of the head as if it were
+    * the regex, or never at all, misreading the regex as division), the only way `z` could show
+    * up in `owned` is by leaking out of the regex literal's own pattern text.
+    */
+   @Test
+   void controlHeadWithNestedParensInConditionIsNotOwned() {
+      assertEquals(Set.of(), owned("for(i=(1+1); i<3; i++) /var z=1/.test('z')"));
+   }
+
+   /**
     * Bug #77305, cross-column false negative (the centerpiece shape): a control-head-adjacent
     * regex in one column also contains a stray unterminated-string-starting quote that swallows
     * the rest of that formula's text, including a real `let`/`const` of a name a different

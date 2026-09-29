@@ -153,6 +153,17 @@ class ScriptStateLintTest {
          "if(true) /z = z + 1/.test('z')",
          "while(false) /z = z + 1/.test('z')",
          "for(;;) /z = z + 1/.test('z')",
+         // Bug #77305: 'with' was covered in GraalJavaScriptEngineOwnedVarTest but not here --
+         // ScriptStateLint has its own, separate lexer with the identical gap
+         "with(field) /z = z + 1/.test('z')",
+         // Bug #77305: a control head nested inside another must not confuse the bracket/
+         // control-head-tracking stack (the inner if's own regex-adjacent ')' must still be
+         // recognized via 'afterHead', independent of the outer if's bracket depth)
+         "if(true) { if(true) /z = z + 1/.test('z'); }",
+         // Bug #77305: parens nested *inside* a control head's own condition (not just braces
+         // in the body) must not be mistaken for the head's closing ')' -- the bracket stack
+         // must track the true nesting depth so 'afterHead' fires only after the real close
+         "for(i=(1+1); i<3; i++) /z = z + 1/.test('z')",
          // destructuring, labels, switch, do-while, loops, try/catch, ASI, ??=
          "var {a, b} = field['o']; a + b",
          "var [p, q] = [1, 2]; p + q",
