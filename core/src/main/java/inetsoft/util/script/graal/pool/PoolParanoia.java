@@ -34,7 +34,9 @@ import java.util.function.Consumer;
  * {@value #PROPERTY} is true, every clean that would keep its context is followed by a
  * read-only pass that compares the global with the clean helper's baseline, and a context
  * that still differs is closed instead of reused. Off by default; when off, a release pays
- * one cached boolean read. The JVM system property of the same name also turns it on, since
+ * three volatile reads and one {@code System.currentTimeMillis()}, plus, at most every 10 s,
+ * one re-read of the property (a {@code Boolean.getBoolean} and a {@code SreeEnv} lookup).
+ * The JVM system property of the same name also turns it on, since
  * SreeEnv does not see {@code -D} properties (e.g. a whole test suite run with
  * {@code -Dscript.ws.contextPool.paranoid=true}).
  */
