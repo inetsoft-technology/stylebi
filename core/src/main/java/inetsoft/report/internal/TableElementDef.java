@@ -2709,8 +2709,9 @@ public class TableElementDef extends BaseElement
    }
 
    /**
-    * Set whether a row that fits on a page moves to the next page whole instead of being split
-    * across the page break. Only a row taller than a page is split then.
+    * Set whether a row moves to the next page whole instead of being split across the page break.
+    * A row no taller than the space the table lays out in (less its header, at least 100pt) is
+    * kept whole; a taller row is still split.
     */
    public void setKeepRowsWhole(boolean keepRowsWhole) {
       this.keepRowsWhole = keepRowsWhole;

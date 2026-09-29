@@ -31,7 +31,7 @@ This slice closes the gap in two PRs:
 | Which tables | **Every table with a non-zero `getPadding()`**, marked or not. Slice B's Padding group is ungated, so an author can type an inset on an unmarked table, and the chart's exporters honour `getPadding()` for every chart. | slice B ruling, 2026-09-24 |
 | A `format.css` padding | **Accepted, not gated.** A stylesheet padding wins for marked and unmarked assemblies alike, so a table with `padding` on its CSS rule gains an exported inset it never had. The chart has always behaved this way. | user, 2026-09-24 |
 | Shrink-to-fit | **The card grows to content plus inset**; the content does not shrink. Browser parity: `getCardWidth()` = min(Σcolumns + L + R, design width). | follows from slice B |
-| Legacy output | A table with padding `0,0,0,0` exports **byte-identically** to today. Every new path is inert at a zero inset. | parent spec |
+| Legacy output | A table with padding `0,0,0,0` exports **byte-identically** to today, except for row keeping (§8.5). The card inset's paths are inert at a zero inset. Row keeping (§8.5) is separate: it applies to a table that is marked or has a padded row, whatever its card inset. A table that is neither prints as today. | parent spec, amended 2026-09-29 |
 | Verification | **Helper-level unit tests plus manual checks** (§9). An end-to-end render harness is reconsidered once C1 runs locally. | user, 2026-09-25 |
 | How the inset reaches each site | **Approach B:** an explicit inset at each classified site, not a content-rect copy of the assembly. | user, 2026-09-25 |
 | Where the inset is resolved | **On the exporter**, as a capability, so the sites that run before any helper get the same value. This is also how Excel and CSV stay out (§7). | user, 2026-09-25 |
@@ -40,7 +40,7 @@ This slice closes the gap in two PRs:
 | Print layout: a hidden title | **The card-top box carries the top border**, so a padded table has its full card border either way. An unpadded table keeps today's missing top. | user, 2026-09-28 |
 | Print layout: the painter's geometry | **Its box stays the grid, and its public geometry speaks for the card** (§8.6). This was preferred over moving every cell read by L, and over a separate card paintable. | user, 2026-09-28 |
 | Print layout: F5 | **Parked.** It sits upstream of every C2 site (§10). | user, 2026-09-28 |
-| Print layout: a modern row at a page break | **It moves to the next page whole**, and is split only when no page could hold it (F6, §10). Marked tables only; legacy tables and classic reports keep today's row splitting. | user, 2026-09-29 |
+| Print layout: a modern row at a page break | **It moves to the next page whole**, and is split only when it is taller than the space the table lays out in (F6, §10). This applies to a table that is marked, or has any padded row (a cell padding or a CSS row padding). A table that is neither, and every classic report, keeps today's row splitting. | user, 2026-09-29 (ruling a) |
 
 Approach A (hand the grid a content-rect copy) was rejected for two reasons:
 - It would have to copy the whole assembly, because `CoordinateHelper.getAssemblySize(assembly, …)`
@@ -332,14 +332,14 @@ named last. C1 changed none of `VsToReportConverter`, `TableElementDef`, `TableP
   lookup returns the table's padding.
 - **No scaling.** The inset is not scaled by the print layout's `scalefont`. That matches the chart's
   padding (`VsToReportConverter:1507-1510`) and the cell padding (`:1232-1236`).
-- **At zero,** every path in §8.3–§8.6 is skipped, so the output is today's.
+- **At zero,** every card-inset path in §8.3–§8.6 is skipped, so the inset adds nothing to the output. Row keeping (§8.5) is not one of those paths: it applies to a table that is marked or has a padded row, whatever its card inset. A table that is neither prints as today.
 
 ### 8.3 The card-top box and the title
 
 W and H are the card's width and height. titleH is the title lane's height, and 0 when the title is
 hidden. bt and bl are the widths of the object's top and left borders, `ceil(Common.getLineWidth())`,
 so 1 for a thin line and 0 for none. The top and left insets start inside those borders, as the
-chart's padding does (`VsToReportConverter:1619-1620`), so a table title starts where `Chart1`'s
+chart's padding does (`VsToReportConverter:1627-1628`), so a table title starts where `Chart1`'s
 does. With a non-zero inset:
 
 - **The card-top box** is a blank `TextBoxElementDef` at (x, y, W, bt + T + titleH). It carries:
@@ -352,6 +352,10 @@ does. With a non-zero inset:
   same call (`:1495`).
 - **The title box** sits at (x + bl + L, y + bt + T, W − bl − L − R, titleH). Its right edge is the
   grid's, W − R.
+  - With a left border wider than 1pt, the title starts 1-2pt right of the first column: the cells
+    start at x + 1 + L, and the title at x + bl + L, matching the chart's title.
+  - Fit Page Width columns end 1pt short of the grid's right edge, so the title runs 1pt past the
+    last column.
   - It is added after the card-top box, so the stable z-index sort (`Arrays.sort`, `:3059`) paints
     it on top.
   - It keeps its TITLE-path format, and only its TITLE-path borders; the object's are not merged in.
@@ -373,7 +377,7 @@ does. With a non-zero inset:
     widths (`report/composition/RegionTableLens:30`, `:51-53`).
 - **The fit-page decision** (`VsToReportConverter:1144-1149`) compares the column total against
   W − L − R, in both branches.
-- **`computePrintLayoutTableHeight`** (`:1036`, compared at `:1004`) adds bt + T + B, so a shrunk table
+- **`computePrintLayoutTableHeight`** (`:1051`, compared at `:1019`) adds bt + T + B, so a shrunk table
   in bottom tabs still ends flush with the tab strip.
 
 ### 8.5 `TableElementDef`
@@ -395,10 +399,15 @@ does. With a non-zero inset:
     last row that fits without B, but not with it, moves to the next page with its band.
   - `fitNext` (`:854`) adds B for the last region, the one `TablePaintable` flags `lastregion`.
 - **Rows kept whole.** `keepRowsWhole` is a plain field, false by default and not in
-  `TableElementInfo`. The converter sets it for a marked table (`info.getVizMark() != null`), inset or
-  not. With it set, the row-height pass never splits a row that fits on a whole page,
-  `rowh <= maxCellWholePage`; such a row moves to the next page instead (F6). A row taller than a page
-  still splits.
+  `TableElementInfo`. The converter sets it for a table that is marked (`info.getVizMark() != null`) or has
+  a padded row (`VSTableLens.getRowPadding` above zero for the header rows, which data rows share),
+  inset or not. A table that is neither keeps today's splitting.
+  - With it set, the row-height pass never splits a row no taller than `maxCellWholePage`, the space
+    the table lays out in (the print box height, less the header, at least 100pt); such a row moves
+    to the next page instead (F6).
+  - A taller row still splits. In a section band the space is what is left below the element on its
+    first page, so a row between about 100pt and a full page can still split when the table starts
+    low on a page.
 - **Fit Contents segments.** The cut falls at the grid width, W − L − R. The segments stack with no
   inset between them, the same as a continuation page. So a table wrapped into segments reads as one
   card: the left and right borders run down every segment, and B and the bottom border come once,
@@ -442,7 +451,7 @@ does. With a non-zero inset:
 - **Page breaks.** A continuation region gets no top inset and no top border. The inset is
   (0, L, B, R) on every region.
 
-A zero or null inset leaves every path as it is. Classic reports share this code but never set the
+A zero or null inset leaves every card-inset path as it is. Row keeping (§8.5) is separate and does not depend on the inset. Classic reports share this code but never set the
 inset, which is why C2 is its own PR.
 
 ## 9. Testing
@@ -492,8 +501,12 @@ inset, which is why C2 is its own PR.
        box keeping only its TITLE-path borders;
      - the title box starts inside the object border, at (x + bl + L, y + bt + T);
      - a hidden title gives a card-top box bt + T tall that carries the top border;
+     - the converter keeps rows whole for a marked table or a padded row, and not for an unpadded
+       legacy table (`PrintLayoutRowSplitTest`);
      - `PDFVSExporter` hands the converter its resolver.
    - **`TableElementDef`:**
+     - `keepRowsWhole` moves a padded row that does not fit whole to the next page, splits it when
+       it is off, and still splits a row taller than the space (`PrintTableRowSplitTest`);
      - under Fit Page Width, the columns are scaled to the grid width;
      - under Fit Contents, the column cut falls at the grid width, and only the last segment is the
        last region;
@@ -618,7 +631,7 @@ inset, which is why C2 is its own PR.
   - **Partly explained, 2026-09-29:** modern's "blank one" is F6's split row, not the condition.
 
 - **F6, traced 2026-09-29: a padded row split at a page break prints blank.** It predates C2, and C2
-  fixes it for marked tables.
+  fixes it for marked tables and for tables with a padded row.
   - **The mechanism.** `TableElementDef.layout`'s large-cell split (~1446-1485) splits a row that does
     not fit a running page-space estimate into `n = ceil(contentH / min(3 × fontH, spaceLeft))` sub-rows
     (`SpanTableLens.split`). It skips the split only when a piece would be shorter than
@@ -630,12 +643,12 @@ inset, which is why C2 is its own PR.
     its insets, so the row prints blank on both pages. A legacy row, about 18, never splits.
   - **Classic reports** compute their row heights and round split pieces up to whole lines, so a split
     rarely loses text there. It does with cell insets large for the font. That case is left as is,
-    because the fix is gated on the mark.
+    because the fix is gated on the mark or a padded row.
   - **Evidence.** The baselines' known issue 4 and the after-C1 export show it on `TableShrink`. C2's
     first export shows it on `Crosstab1` and `Calc1`, because the taller cards move the breaks. The
     probes are in the baselines folder: `SplitRowProbeTest.java.txt`, and
     `SplitRowMatrixProbeTest.java.txt` with its results in `split-probe-matrix.csv`.
-  - **The fix.** Marked tables keep their rows whole (§8.5), covered by `PrintTableRowSplitTest` and
+  - **The fix.** Marked tables, and unmarked tables with any padded row, keep their rows whole (§8.5), covered by `PrintTableRowSplitTest` and
     `PrintLayoutRowSplitTest`.
 
 ## 11. Branching and PRs
