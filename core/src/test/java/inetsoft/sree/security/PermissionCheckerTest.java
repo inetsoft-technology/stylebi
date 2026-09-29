@@ -33,6 +33,8 @@ package inetsoft.sree.security;
  *  [AND]          AND mode: both/one/neither half satisfied                         → true/false/true/true
  *  [PerOrg]       permission.andCondition resolved per identity org, not one shared
  *                 cache (Bug #77253): two orgs back to back get their own AND/OR mode
+ *  [NullOrg]      identity with no org (global role) resolves andCondition from the
+ *                 thread's current org (host-org / tenant org), then the global key
  */
 
 import inetsoft.sree.SreeEnv;
@@ -445,6 +447,71 @@ class PermissionCheckerTest {
                                          ResourceAction.READ, true));
       assertFalse(checker.checkPermission(userWithRole("orga"), andProbe("orga"),
                                           ResourceAction.READ, true));
+   }
+
+   // ─── [NullOrg] identity without an organization (Bug #77253 review I-1) ───
+   //
+   // A global role under a virtual role principal (MV generation, scheduled tasks) has a null
+   // organization. andCondition is then resolved from the thread's current org, where the EM
+   // permission save writes it (host-org on single-tenant), before the global key.
+   //
+   // Probe: global role granted, global user side set but not matched → AND=false, OR=true.
+
+   @ParameterizedTest(name = "current org {0}")
+   @MethodSource("currentOrgs")
+   void checkPermission_nullOrgIdentity_usesCurrentOrgAndCondition(String currentOrg) {
+      sreeEnv.when(() -> SreeEnv.getProperty(
+         "inetsoft.org." + currentOrg + "." + AND_COND, false, false)).thenReturn("true");
+
+      try(MockedStatic<OrganizationManager> omMock = mockCurrentOrg(currentOrg)) {
+         assertFalse(checker.checkPermission(new Role(new IdentityID("r", null)),
+                                             globalRoleProbe(), ResourceAction.READ, true));
+      }
+   }
+
+   @ParameterizedTest(name = "current org {0}")
+   @MethodSource("currentOrgs")
+   void checkPermission_nullOrgIdentity_noAndConditionSet_usesOr(String currentOrg) {
+      // control: the same probe passes in OR mode, so the assertion above really tests AND
+      try(MockedStatic<OrganizationManager> omMock = mockCurrentOrg(currentOrg)) {
+         assertTrue(checker.checkPermission(new Role(new IdentityID("r", null)),
+                                            globalRoleProbe(), ResourceAction.READ, true));
+      }
+   }
+
+   private static Stream<String> currentOrgs() {
+      // single-tenant (host-org) and a multi-tenant org
+      return Stream.of(Organization.getDefaultOrganizationID(), "orga");
+   }
+
+   @Test
+   void checkPermission_orgScopedIdentity_ignoresCurrentOrgAndCondition() {
+      // thread org is orga (AND), identity is in orgb (no key → OR): identity org wins
+      sreeEnv.when(() -> SreeEnv.getProperty("inetsoft.org.orga." + AND_COND, false, false))
+         .thenReturn("true");
+
+      try(MockedStatic<OrganizationManager> omMock = mockCurrentOrg("orga")) {
+         assertTrue(checker.checkPermission(userWithRole("orgb"), andProbe("orgb"),
+                                            ResourceAction.READ, true));
+      }
+   }
+
+   private static MockedStatic<OrganizationManager> mockCurrentOrg(String orgID) {
+      MockedStatic<OrganizationManager> omMock =
+         mockStatic(OrganizationManager.class, CALLS_REAL_METHODS);
+      OrganizationManager mockOM = mock(OrganizationManager.class);
+      omMock.when(OrganizationManager::getInstance).thenReturn(mockOM);
+      lenient().when(mockOM.getCurrentOrgID()).thenReturn(orgID);
+      return omMock;
+   }
+
+   private static Permission globalRoleProbe() {
+      Permission perm = new Permission();
+      perm.setGrants(ResourceAction.READ, Identity.ROLE,
+                     Set.of(new Permission.PermissionIdentity("r", null)));
+      perm.setGrants(ResourceAction.READ, Identity.USER,
+                     Set.of(new Permission.PermissionIdentity("someone", "__GLOBAL__")));
+      return perm;
    }
 
    private User userWithRole(String org) {

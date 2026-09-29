@@ -330,9 +330,7 @@ public class ResourcePermissionService {
 
       // security.*.everyone are global properties shared by all organizations, an org admin
       // on a multi-tenant server must not change them from a per-org permission save
-      boolean grantReadToAllAllowed = canSetGrantReadToAll(principal);
-
-      if(tableModel.grantReadToAllVisible() && grantReadToAllAllowed) {
+      if(tableModel.grantReadToAllVisible() && canSetGrantReadToAll(principal)) {
          switch(resourceType) {
          case DATA_SOURCE_FOLDER:
             if("/".equals(path)) {

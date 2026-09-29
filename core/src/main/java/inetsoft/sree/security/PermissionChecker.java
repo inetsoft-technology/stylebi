@@ -51,7 +51,13 @@ public class PermissionChecker {
 
       String orgID = identity != null ? identity.getOrganizationID() :
          OrganizationManager.getInstance().getCurrentOrgID();
-      boolean useAnd = isAndCondition(orgID);
+      // An identity without an organization (e.g. a global role under a virtual role
+      // principal in MV generation or a scheduled task) resolves andCondition from the
+      // thread's current organization, which is where the EM permission save writes it
+      // (host-org on single-tenant). Org-scoped identities keep using their own org.
+      String andOrgID = orgID != null ? orgID :
+         OrganizationManager.getInstance().getCurrentOrgID();
+      boolean useAnd = isAndCondition(andOrgID);
       boolean userGroupPermission = checkUserGroupPermission(identity,
          permission, action, recursive, new HashSet<>());
       boolean organizationPermission = checkUserGroupOrganizationPermission(identity, permission, action);
