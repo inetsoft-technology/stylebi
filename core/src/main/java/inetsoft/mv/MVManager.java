@@ -458,10 +458,10 @@ public final class MVManager implements MessageListener {
                          XPrincipal user, ViewsheetSandbox vbox)
       throws Exception
    {
-      Identity id = (user == null || XPrincipal.ANONYMOUS.equals(user.getName()) ||
-                     "admin".equals(user.getName()) &&
-                     SecurityEngine.getSecurity().getSecurityProvider().isVirtual())
-         ? null : new DefaultIdentity(IdentityID.getIdentityIDFromKey(user.getName()), Identity.USER);
+      // guests are scoped to their own identity too, so the MV is built with the guest's
+      // VPM instead of being shared org-wide without VPM
+      Identity id = user == null ? null :
+         new DefaultIdentity(IdentityID.getIdentityIDFromKey(user.getName()), Identity.USER);
       VSMVAnalyzer analyzer = new VSMVAnalyzer(entry.toIdentifier(), vs, id, vbox, false,
                                                null);
       String key = entry + ":" + user;
