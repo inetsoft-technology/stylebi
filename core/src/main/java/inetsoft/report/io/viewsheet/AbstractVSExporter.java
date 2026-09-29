@@ -1054,11 +1054,13 @@ public abstract class AbstractVSExporter implements VSExporter {
          }
 
          int displayRowCount = 0;
-         // fix bug#77237 The bug#53192 blank-row exemption below applies to crosstabs only
-         // (bug#53192 was a date-comparison crosstab). In freehand (calc), plain and embedded
-         // tables a blank cell is ordinary data (a formula returning '', a sparse column, a
-         // spacer row) and the row is still written, so every row counts toward the design
-         // height budget; exempting it lets the export overflow into the assemblies below.
+         // fix bug#77237 The bug#53192 blank-row exemption below is decided by
+         // isBlankRowHeightExempt(): crosstabs only by default (bug#53192 was a
+         // date-comparison crosstab), and off for exporters whose writers do not clip at the
+         // design pixel height (bug#77287). In freehand (calc), plain and embedded tables a
+         // blank cell is ordinary data (a formula returning '', a sparse column, a spacer
+         // row) and the row is still written, so every row counts toward the design height
+         // budget; exempting it lets the export overflow into the assemblies below.
          boolean exemptBlankRows = isBlankRowHeightExempt(table);
          boolean[] significantColumns =
             exemptBlankRows ? findSignificantColumns(data, hLineCount) : null;
