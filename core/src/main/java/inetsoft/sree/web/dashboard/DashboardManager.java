@@ -18,6 +18,7 @@
 package inetsoft.sree.web.dashboard;
 
 import inetsoft.sree.ClientInfo;
+import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.security.*;
 import inetsoft.storage.*;
 import inetsoft.uql.util.DefaultIdentity;
@@ -82,9 +83,35 @@ public class DashboardManager implements AutoCloseable {
     * registry are atomic with respect to getDashboards(), which prunes the selected names that are
     * not in the registries. The lock order is this manager, then DashboardRegistryManager, then
     * the user registry, then the global registry.
+    *
+    * <p>Also holds a cluster-wide lock keyed on this org's dashboards store (Bug #77299), on top
+    * of this manager's own monitor, for the whole action, since the action typically reads the
+    * current selection with one call and writes a computed replacement with another (e.g.
+    * {@code DashboardRegistry.UserDashboardRegistry.renameDashboard}), and the two calls must not
+    * be split by a concurrent write from another cluster node in between.
     */
    synchronized void runLocked(Runnable action) {
-      action.run();
+      String lockName = getDashboardsLockName();
+      Cluster.getInstance().lockKey(lockName);
+
+      try {
+         action.run();
+      }
+      finally {
+         Cluster.getInstance().unlockKey(lockName);
+      }
+   }
+
+   /**
+    * The cluster-wide lock name for this org's dashboards KeyValueStorage (Bug #77299). The
+    * underlying store is replicated/cluster-wide (see the class-level setters comment below), so
+    * a plain per-JVM {@code synchronized} does not exclude a concurrent read-modify-write from
+    * another cluster node against the same store; the lock name matches the store id computed by
+    * {@link #getDashboardStorage(String)} so that it is scoped per organization, not globally.
+    */
+   private String getDashboardsLockName() {
+      String orgID = OrganizationManager.getInstance().getCurrentOrgID();
+      return "inetsoft.sree.web.dashboard.DashboardManager.dashboards." + orgID.toLowerCase();
    }
 
    /**
@@ -149,26 +176,23 @@ public class DashboardManager implements AutoCloseable {
          uregistry = dashboardRegistryManager.getRegistry(identity.getIdentityID());
       }
 
-      boolean changed = false;
-
+      // Filter out names this identity's cached registries don't currently recognize, but do not
+      // persist the filtered (shortened) list (Bug #77299): a registry's local cache is only
+      // eventually consistent with a remote rename/delete (async reload), so a read landing here
+      // mid-reload must not permanently discard a name that is still valid, just not yet visible
+      // to this node's cache. A genuine, confirmed removal is already persisted by the mutation
+      // path that knows it is deleting (DashboardRegistry.removeDashboard()/renameDashboard(),
+      // which call this manager's removeDashboard()/renameDashboard() under runLocked() for every
+      // identity), so there is no need to duplicate that persistence here.
       for(String dashboard : values) {
          if((uregistry != null && uregistry.getDashboard(dashboard) != null) ||
             identity.getType() != Identity.USER || gregistry.getDashboard(dashboard) != null)
          {
             list.add(dashboard);
          }
-         else {
-            changed = true;
-         }
       }
 
-      String[] dashboards = list.toArray(new String[0]);
-
-      if(changed) {
-         setDashboards(identity, dashboards);
-      }
-
-      return dashboards;
+      return list.toArray(new String[0]);
    }
 
    /**
@@ -189,13 +213,15 @@ public class DashboardManager implements AutoCloseable {
       DashboardRegistry registry = dashboardRegistryManager.getRegistry();
       boolean changed = false;
 
+      // Filter out names the registry's local cache doesn't currently recognize, but (Bug #77299,
+      // same reasoning as getDashboards(Identity, boolean)) do not treat that as a confirmed,
+      // permanent removal to persist: the cache may simply be mid-reload of a concurrent remote
+      // rename/delete. A genuine removal is already persisted by the mutation path that knows it
+      // is deleting.
       if(values != null) {
          for(String dashboard : values) {
             if(registry.getDashboard(dashboard) != null) {
                list.add(dashboard);
-            }
-            else {
-               changed = true;
             }
          }
       }
@@ -259,16 +285,24 @@ public class DashboardManager implements AutoCloseable {
    public synchronized void renameDashboard(String oname, String name) {
       init();
 
-      SortedMap<String, DashboardData> changes = new TreeMap<>();
-      KeyValueStorage<DashboardData> dashboardStorage = getDashboardStorage();
-      dashboardStorage.stream()
-            .forEach(p -> renameDashboard(oname, name, p, changes));
+      String lockName = getDashboardsLockName();
+      Cluster.getInstance().lockKey(lockName);
 
       try {
-         dashboardStorage.putAll(changes).get(60L, TimeUnit.SECONDS);
+         SortedMap<String, DashboardData> changes = new TreeMap<>();
+         KeyValueStorage<DashboardData> dashboardStorage = getDashboardStorage();
+         dashboardStorage.stream()
+               .forEach(p -> renameDashboard(oname, name, p, changes));
+
+         try {
+            dashboardStorage.putAll(changes).get(60L, TimeUnit.SECONDS);
+         }
+         catch(InterruptedException | TimeoutException | ExecutionException e) {
+            throw new RuntimeException(e);
+         }
       }
-      catch(InterruptedException | TimeoutException | ExecutionException e) {
-         throw new RuntimeException(e);
+      finally {
+         Cluster.getInstance().unlockKey(lockName);
       }
    }
 
@@ -322,16 +356,24 @@ public class DashboardManager implements AutoCloseable {
    public synchronized void removeDashboard(String name) {
       init();
 
-      SortedMap<String, DashboardData> changes = new TreeMap<>();
-      KeyValueStorage<DashboardData> dashboardStorage = getDashboardStorage();
-      dashboardStorage.stream()
-         .forEach(p -> removeDashboard(name, p, changes));
+      String lockName = getDashboardsLockName();
+      Cluster.getInstance().lockKey(lockName);
 
       try {
-         dashboardStorage.putAll(changes).get(60L, TimeUnit.SECONDS);
+         SortedMap<String, DashboardData> changes = new TreeMap<>();
+         KeyValueStorage<DashboardData> dashboardStorage = getDashboardStorage();
+         dashboardStorage.stream()
+            .forEach(p -> removeDashboard(name, p, changes));
+
+         try {
+            dashboardStorage.putAll(changes).get(60L, TimeUnit.SECONDS);
+         }
+         catch(InterruptedException | TimeoutException | ExecutionException e) {
+            throw new RuntimeException(e);
+         }
       }
-      catch(InterruptedException | TimeoutException | ExecutionException e) {
-         throw new RuntimeException(e);
+      finally {
+         Cluster.getInstance().unlockKey(lockName);
       }
    }
 
@@ -550,11 +592,17 @@ public class DashboardManager implements AutoCloseable {
    }
 
    // The setters below read the whole DashboardData record, change one field and put it back, so
-   // they hold this manager's monitor for the whole read-modify-write (77232). Lock order is this
-   // manager, then DashboardRegistryManager.lock, then the user registry, then the global registry.
-   // The setters take only this manager's monitor and no registry locks, so they must not be
-   // called while holding DashboardRegistryManager.lock or a registry monitor; a registry calls
-   // them only inside runLocked(), before it locks itself.
+   // they hold this manager's monitor for the whole read-modify-write (77232), AND the cluster-wide
+   // lock returned by getDashboardsLockName() (77299), since the underlying KeyValueStorage is
+   // replicated/cluster-wide and the manager's monitor only excludes other threads in this JVM, not
+   // another cluster node's independent DashboardManager instance racing the same store. Lock order
+   // is this manager, then the cluster lock, then DashboardRegistryManager.lock, then the user
+   // registry, then the global registry. The setters take only this manager's monitor and the
+   // cluster lock, no registry locks, so they must not be called while holding
+   // DashboardRegistryManager.lock or a registry monitor; a registry calls them only inside
+   // runLocked(), before it locks itself. The cluster lock is reentrant (Cluster.lockKey()), so a
+   // caller that already holds it (e.g. runLocked() or addDashboard()) can call into one of these
+   // setters without deadlocking itself.
    /**
     * Set dashboards to specified identity.
     * @param identity the specified identity.
@@ -576,14 +624,40 @@ public class DashboardManager implements AutoCloseable {
                                           Boolean userChanged)
    {
       init();
-      KeyValueStorage<DashboardData> dashboardStorage = getDashboardStorage();
+      String lockName = getDashboardsLockName();
+      Cluster.getInstance().lockKey(lockName);
 
-      if(dashboards == null) {
-         String key = getIdentityKey(identity);
-         DashboardData data = dashboardStorage.get(key);
+      try {
+         KeyValueStorage<DashboardData> dashboardStorage = getDashboardStorage();
 
-         if(data != null) {
-            data.setDashboards(new ArrayList<>());
+         if(dashboards == null) {
+            String key = getIdentityKey(identity);
+            DashboardData data = dashboardStorage.get(key);
+
+            if(data != null) {
+               data.setDashboards(new ArrayList<>());
+
+               try {
+                  dashboardStorage.put(key, data).get(10L, TimeUnit.SECONDS);
+               }
+               catch(InterruptedException | ExecutionException | TimeoutException e) {
+                  throw new RuntimeException("Failed to save dashboard", e);
+               }
+            }
+         }
+         else if(identity != null && identity.getName() != null) {
+            String key = getIdentityKey(identity);
+            DashboardData data = dashboardStorage.get(key);
+
+            if(data == null) {
+               data = new DashboardData();
+            }
+
+            data.setDashboards(new ArrayList<>(Arrays.asList(dashboards)));
+
+            if(userChanged != null) {
+               data.setUserChanged(userChanged);
+            }
 
             try {
                dashboardStorage.put(key, data).get(10L, TimeUnit.SECONDS);
@@ -593,26 +667,8 @@ public class DashboardManager implements AutoCloseable {
             }
          }
       }
-      else if(identity != null && identity.getName() != null) {
-         String key = getIdentityKey(identity);
-         DashboardData data = dashboardStorage.get(key);
-
-         if(data == null) {
-            data = new DashboardData();
-         }
-
-         data.setDashboards(new ArrayList<>(Arrays.asList(dashboards)));
-
-         if(userChanged != null) {
-            data.setUserChanged(userChanged);
-         }
-
-         try {
-            dashboardStorage.put(key, data).get(10L, TimeUnit.SECONDS);
-         }
-         catch(InterruptedException | ExecutionException | TimeoutException e) {
-            throw new RuntimeException("Failed to save dashboard", e);
-         }
+      finally {
+         Cluster.getInstance().unlockKey(lockName);
       }
    }
 
@@ -646,14 +702,36 @@ public class DashboardManager implements AutoCloseable {
     */
    public synchronized void setDeselectedDashboards(Identity identity, String[] dashboards) {
       init();
-      KeyValueStorage<DashboardData> dashboardStorage = getDashboardStorage();
+      String lockName = getDashboardsLockName();
+      Cluster.getInstance().lockKey(lockName);
 
-      if(dashboards == null) {
-         String key = getIdentityKey(identity);
-         DashboardData data = dashboardStorage.get(key);
+      try {
+         KeyValueStorage<DashboardData> dashboardStorage = getDashboardStorage();
 
-         if(data != null) {
-            data.setDeselected(new ArrayList<>());
+         if(dashboards == null) {
+            String key = getIdentityKey(identity);
+            DashboardData data = dashboardStorage.get(key);
+
+            if(data != null) {
+               data.setDeselected(new ArrayList<>());
+
+               try {
+                  dashboardStorage.put(key, data).get(10L, TimeUnit.SECONDS);
+               }
+               catch(InterruptedException | ExecutionException | TimeoutException e) {
+                  throw new RuntimeException("Failed to deselected dashboard", e);
+               }
+            }
+         }
+         else if(identity.getName() != null) {
+            String key = getIdentityKey(identity);
+            DashboardData data = dashboardStorage.get(key);
+
+            if(data == null) {
+               data = new DashboardData();
+            }
+
+            data.setDeselected(new ArrayList<>(Arrays.asList(dashboards)));
 
             try {
                dashboardStorage.put(key, data).get(10L, TimeUnit.SECONDS);
@@ -663,22 +741,8 @@ public class DashboardManager implements AutoCloseable {
             }
          }
       }
-      else if(identity.getName() != null) {
-         String key = getIdentityKey(identity);
-         DashboardData data = dashboardStorage.get(key);
-
-         if(data == null) {
-            data = new DashboardData();
-         }
-
-         data.setDeselected(new ArrayList<>(Arrays.asList(dashboards)));
-
-         try {
-            dashboardStorage.put(key, data).get(10L, TimeUnit.SECONDS);
-         }
-         catch(InterruptedException | ExecutionException | TimeoutException e) {
-            throw new RuntimeException("Failed to deselected dashboard", e);
-         }
+      finally {
+         Cluster.getInstance().unlockKey(lockName);
       }
    }
 
@@ -688,20 +752,32 @@ public class DashboardManager implements AutoCloseable {
    public synchronized void addDashboard(Identity identity, String dashboard) {
       init();
 
-      String[] dashboards = getDashboards(identity);
-      dashboards = dashboards == null ? new String[0] : dashboards;
+      // hold the cluster lock across the read and the write below (not just setDashboards()'s
+      // own internal get+put), since narr is computed from this read and would silently discard
+      // a concurrent write to the same identity's record landing in between (Bug #77299); the
+      // lock is reentrant so setDashboards() re-acquiring it is harmless.
+      String lockName = getDashboardsLockName();
+      Cluster.getInstance().lockKey(lockName);
 
-      for(String dashboardName : dashboards) {
-         if(dashboardName.equals(dashboard)) {
-            return;
+      try {
+         String[] dashboards = getDashboards(identity);
+         dashboards = dashboards == null ? new String[0] : dashboards;
+
+         for(String dashboardName : dashboards) {
+            if(dashboardName.equals(dashboard)) {
+               return;
+            }
          }
+
+         String[] narr = new String[dashboards.length + 1];
+         System.arraycopy(dashboards, 0, narr, 0, dashboards.length);
+         narr[narr.length - 1] = dashboard;
+
+         setDashboards(identity, narr);
       }
-
-      String[] narr = new String[dashboards.length + 1];
-      System.arraycopy(dashboards, 0, narr, 0, dashboards.length);
-      narr[narr.length - 1] = dashboard;
-
-      setDashboards(identity, narr);
+      finally {
+         Cluster.getInstance().unlockKey(lockName);
+      }
    }
 
    public void removeDashboardStorage(String orgID) throws Exception {

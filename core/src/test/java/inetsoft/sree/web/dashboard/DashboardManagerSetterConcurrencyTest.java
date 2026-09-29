@@ -35,8 +35,24 @@ package inetsoft.sree.web.dashboard;
  * after its get() or before its put(), and a thread is only let go once the other thread is seen
  * either past its step or blocked on the parked thread (ThreadMXBean), so no step depends on
  * timing. The stored records are read back from the raw store, because getDeselectedDashboards()
- * prunes names that are not in the global registry. GROUP identities are used so the USER-only
- * registry prune and sync don't take part.
+ * still filters out names that are not in the global registry. GROUP identities are used so the
+ * USER-only registry prune and sync don't take part.
+ *
+ * Bug #77299 extends the above to cluster scope: the KeyValueStorage is actually replicated
+ * cluster-wide (confirmed by tracing LocalKeyValueStorage -> the singleton PutKeyValueTask
+ * executor), so P1/P2/P2' above, which the #77232 fix solved with a plain per-JVM `synchronized`,
+ * still lose an update when the two racing calls are made on two *different* DashboardManager
+ * instances (simulating two cluster nodes), since they share no JVM monitor at all. See
+ * renameDashboard_racingSetDashboardsFromAnotherManagerInstance_keepsBothChanges() below, which
+ * repeats P1's shape across two manager instances sharing one real KeyValueStorage, to prove the
+ * new cluster-wide lock (getDashboardsLockName()/Cluster.lockKey()) closes that gap.
+ *
+ * Bug #77299 also identified a second, independent mechanism: getDashboards()/
+ * getDeselectedDashboards() used to persist the filtered (shortened) list whenever a name was not
+ * recognized by the local registry cache, but that cache is only *eventually* consistent with a
+ * remote rename/delete, so a read landing mid-reload could permanently discard a still-valid name.
+ * The fix stops persisting that filtered result; see
+ * getDeselectedDashboards_staleRegistryMiss_doesNotPersistThePrune() below.
  */
 
 import inetsoft.sree.security.OrganizationContextHolder;
@@ -211,6 +227,116 @@ class DashboardManagerSetterConcurrencyTest {
       assertEquals(List.of("B", "X"), data.getDashboards(),
                    "setDeselectedDashboards must not restore the selection it read before");
       assertEquals(List.of("Z"), data.getDeselected());
+   }
+
+   // ── Bug #77299: cluster-wide atomicity across two DashboardManager instances ──
+
+   /*
+    * Same shape as P1 above, but "arrange" and "renamer" now run on two SEPARATE DashboardManager
+    * instances sharing one real KeyValueStorage, simulating two cluster nodes. The two instances
+    * have no JVM monitor in common (different `synchronized` locks), so this exercises only the
+    * cluster-wide lock added for #77299 (getDashboardsLockName()/Cluster.lockKey()), not the
+    * #77232 per-JVM synchronized fix that P1 already covers.
+    */
+   @Test
+   void renameDashboard_racingSetDashboardsFromAnotherManagerInstance_keepsBothChanges()
+      throws Exception
+   {
+      seed(List.of("A", "X"), List.of());
+      DashboardManager manager2 = newManagerSharingStorage();
+
+      park = new Park("node2-set", Step.BEFORE_PUT);
+      Thread node2 = start("node2-set",
+                           () -> manager2.setDashboards(group, new String[] { "X", "A", "Y" }));
+      park.awaitParked();
+
+      CountDownLatch renameRead = new CountDownLatch(1);
+      CountDownLatch renameGo = new CountDownLatch(1);
+      Thread node1 = start("node1-rename", () -> manager.runLocked(() -> {
+         String[] dashboards = manager.getDashboards(group);
+         renameRead.countDown();
+         await(renameGo);
+         manager.setDashboards(group, Tool.replace(dashboards, "A", "B"));
+      }));
+
+      // node1's runLocked() must be excluded by the same cluster-wide lock node2 is holding:
+      // without it, these are two independent DashboardManager instances with no JVM monitor in
+      // common, so node1's read could freely interleave with node2's still-pending write.
+      assertFalse(renameRead.await(300, TimeUnit.MILLISECONDS),
+                  "node1 must be blocked by the cluster-wide lock while node2 holds it");
+      assertTrue(node1.isAlive(), "node1 ended unexpectedly instead of blocking");
+
+      park.release();
+      assertCompletes(node2);
+      await(renameRead);
+      renameGo.countDown();
+      assertCompletes(node1);
+
+      DashboardManager.DashboardData data = rawStorage.get(key(group));
+      assertEquals(List.of("X", "B", "Y"), data.getDashboards(),
+                   "cluster-wide lock: a rename on one manager instance must observe and " +
+                   "preserve a concurrent write already committed by another instance, " +
+                   "simulating another cluster node");
+   }
+
+   // ── Bug #77299: a stale registry miss on read must not be persisted as a removal ──
+
+   @Test
+   void getDeselectedDashboards_staleRegistryMiss_doesNotPersistThePrune() throws Exception {
+      DashboardManager.DashboardData data = new DashboardManager.DashboardData();
+      data.setDashboards(new ArrayList<>());
+      data.setDeselected(new ArrayList<>(List.of("Z")));
+      rawStorage.put(key(group), data).get(10L, TimeUnit.SECONDS);
+
+      DashboardRegistryManager registryManager = mock(DashboardRegistryManager.class);
+      DashboardRegistry registry = mock(DashboardRegistry.class);
+      // "Z" is not (yet) recognized by this node's registry cache, e.g. mid-reload of a remote
+      // rename/delete (the registry's reload is deliberately asynchronous), even though it was
+      // validly deselected and no mutation ever confirmed it deleted.
+      when(registry.getDashboard("Z")).thenReturn(null);
+      when(registryManager.getRegistry()).thenReturn(registry);
+
+      DashboardManager manager3 = newManager(registryManager);
+
+      String[] deselected = manager3.getDeselectedDashboards(group);
+
+      assertEquals(0, deselected.length,
+                   "an unrecognized name is still filtered out of what this call returns");
+
+      DashboardManager.DashboardData stored = rawStorage.get(key(group));
+      assertEquals(List.of("Z"), stored.getDeselected(),
+                   "a registry cache that does not yet recognize a name must not have its " +
+                   "absence persisted as a removal: the cache may simply be mid-reload of a " +
+                   "concurrent remote rename/delete, not a confirmed deletion");
+   }
+
+   /**
+    * A second DashboardManager instance sharing the same underlying KeyValueStorage as
+    * {@link #manager}, and using its own unstubbed DashboardRegistryManager mock, simulating
+    * another cluster node.
+    */
+   private DashboardManager newManagerSharingStorage() {
+      return newManager(mock(DashboardRegistryManager.class));
+   }
+
+   /**
+    * A DashboardManager instance sharing the same underlying KeyValueStorage as {@link #manager},
+    * using the given DashboardRegistryManager.
+    */
+   private DashboardManager newManager(DashboardRegistryManager registryManager) {
+      KeyValueStorageManager storages = mock(KeyValueStorageManager.class);
+      when(storages.getStorage(anyString(), any(LoadKeyValueTask.class))).thenAnswer(inv -> {
+         KeyValueStorage<DashboardManager.DashboardData> real =
+            keyValueStorageManager.getStorage(inv.getArgument(0), inv.getArgument(1));
+         rawStorage = real;
+         return copyOnRead(real);
+      });
+
+      DashboardManager m = new DashboardManager(mock(SecurityEngine.class), registryManager, storages);
+      // first use switches the manager to the current org, outside the interleavings, as setUp()
+      // already does for `manager`
+      m.getDashboards(group);
+      return m;
    }
 
    // ── fixture ──
