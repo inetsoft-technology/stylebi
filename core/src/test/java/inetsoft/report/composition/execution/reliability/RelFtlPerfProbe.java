@@ -30,6 +30,7 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import java.lang.management.GarbageCollectorMXBean;
 import java.lang.management.ManagementFactory;
 import java.lang.management.ThreadMXBean;
 import java.util.*;
@@ -57,7 +58,9 @@ public class RelFtlPerfProbe {
       logger.setLevel(Level.ERROR);
       String script = System.getProperty("rel.perf.script", "field['value'] / 3");
       int reps = Integer.getInteger("rel.perf.reps", 3);
-      Shape[] shapes = { Shape.FTL, Shape.FTL_UNDER_CF2, Shape.CONDITION };
+      Shape[] shapes = Arrays.stream(System.getProperty(
+         "rel.perf.shapes", "FTL,FTL_UNDER_CF2,CONDITION").split(",")).map(Shape::valueOf)
+         .toArray(Shape[]::new);
       List<ReadPattern> reads = List.of(ReadPattern.SEQUENTIAL, ReadPattern.PAGED_100,
                                         ReadPattern.random(77123));
       StringBuilder out = new StringBuilder("RelFtlPerfProbe script=" + script + " reps=" +
@@ -75,19 +78,21 @@ public class RelFtlPerfProbe {
          }
 
          out.append("shape|pool|read|min ms|median ms|cleans|execs|base.moreRows|" +
-                    "min cpu ms|median cpu ms\n");
+                    "min cpu ms|median cpu ms|gc ms (all reps)|threads\n");
 
          for(Shape shape : shapes) {
             for(boolean pool : new boolean[] { true, false }) {
                for(ReadPattern read : reads) {
                   long[] ms = new long[reps];
                   long[] cpu = new long[reps];
+                  long gc = 0;
                   long[] last = null;
 
                   for(int i = 0; i < reps; i++) {
                      long[] m = run(script, shape, pool, read);
                      ms[i] = m[0];
                      cpu[i] = m[4];
+                     gc += m[5];
                      last = m;
                   }
 
@@ -97,7 +102,8 @@ public class RelFtlPerfProbe {
                      .append(read).append('|').append(ms[0]).append('|').append(ms[reps / 2])
                      .append('|').append(last[1]).append('|').append(last[2]).append('|')
                      .append(last[3]).append('|').append(cpu[0]).append('|')
-                     .append(cpu[reps / 2]).append('\n');
+                     .append(cpu[reps / 2]).append('|').append(gc).append('|')
+                     .append(Thread.activeCount()).append('\n');
                }
             }
          }
@@ -109,6 +115,11 @@ public class RelFtlPerfProbe {
       }
 
       System.out.println(out);
+   }
+
+   private static long gcMillis() {
+      return ManagementFactory.getGarbageCollectorMXBeans().stream()
+         .mapToLong(GarbageCollectorMXBean::getCollectionTime).sum();
    }
 
    /**
@@ -126,6 +137,7 @@ public class RelFtlPerfProbe {
          long cleans = metrics == null ? 0 : metrics.getCleans();
          long execs = metrics == null ? 0 : metrics.getExecs();
          ThreadMXBean threads = ManagementFactory.getThreadMXBean();
+         long gc = gcMillis();
          long cpu = threads.getCurrentThreadCpuTime();
          long start = System.nanoTime();
          List<String> cells = RelPipeline.run(script, shape, box, read);
@@ -140,7 +152,8 @@ public class RelFtlPerfProbe {
             metrics == null ? 0 : metrics.getCleans() - cleans,
             metrics == null ? 0 : metrics.getExecs() - execs,
             base == null ? -1 : base.moreRows.get(),
-            cpu
+            cpu,
+            gcMillis() - gc
          };
       }
       finally {
