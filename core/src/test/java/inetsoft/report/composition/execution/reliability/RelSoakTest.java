@@ -394,6 +394,21 @@ public class RelSoakTest {
          return;
       }
 
+      // a clock script's oracle holds only while the clock is where it was: a value derived from
+      // now() (e.g. a day count against a timestamp with hours) moves as the soak runs, so its
+      // oracle is computed again now and the comparison repeated against it
+      if(RelMetamorphicTest.clock(script)) {
+         List<String> fresh = run(script, w.shape(), RelConfig.off(), ReadPattern.SEQUENTIAL);
+
+         if(RelMetamorphicTest.comparable(fresh, script).equals(actual)) {
+            ORACLES.put(key(script, w.shape()), fresh);
+            inc("clockOracleRefreshed");
+            return;
+         }
+
+         expected = RelMetamorphicTest.comparable(fresh, script);
+      }
+
       String diff = RelMetamorphicTest.diff(expected, actual);
       RelMetamorphicTest.Drift drift = RelMetamorphicTest.drift(expected, actual, script);
       String what = w.c().label() + " " + w.shape() + " " + w.read() + " " + where + " " + cfg +
