@@ -402,8 +402,9 @@ public final class RelPipeline {
    }
 
    /**
-    * The content of a value: numbers as plain decimals, containers and GraalJS values by
-    * their elements or members.
+    * The content of a value: each element with its type class (N: number as a plain decimal,
+    * so 1 and 1.0 are equal but "1" is not; S: string; B: boolean; D: date), containers and
+    * GraalJS values by their elements or members.
     */
    private static String content(Object value) {
       try {
@@ -412,16 +413,16 @@ public final class RelPipeline {
                return "null";
             }
             else if(v.isString()) {
-               return v.asString();
+               return "S:" + v.asString();
             }
             else if(v.isBoolean()) {
-               return String.valueOf(v.asBoolean());
+               return "B:" + v.asBoolean();
             }
             else if(v.isNumber()) {
                return content(v.asDouble());
             }
             else if(v.isDate() && v.isTime()) {
-               return String.valueOf(v.asInstant().toEpochMilli());
+               return "D:" + v.asInstant().toEpochMilli();
             }
             else if(v.hasArrayElements()) {
                StringJoiner join = new StringJoiner(",", "[", "]");
@@ -442,7 +443,7 @@ public final class RelPipeline {
                return join.toString();
             }
 
-            return v.toString();
+            return "V:" + v;
          }
       }
       catch(RuntimeException ex) {
@@ -451,12 +452,16 @@ public final class RelPipeline {
 
       if(value instanceof Number number) {
          double d = number.doubleValue();
-         return Double.isFinite(d)
-            ? new BigDecimal(d).stripTrailingZeros().toPlainString() : String.valueOf(d);
+         return "N:" + (Double.isFinite(d)
+            ? new BigDecimal(d).stripTrailingZeros().toPlainString() : String.valueOf(d));
       }
 
       if(value instanceof Date date) {
-         return String.valueOf(date.getTime());
+         return "D:" + date.getTime();
+      }
+
+      if(value instanceof String || value instanceof Boolean) {
+         return (value instanceof String ? "S:" : "B:") + value;
       }
 
       if(value instanceof Object[] array) {
@@ -475,7 +480,7 @@ public final class RelPipeline {
          return join.toString();
       }
 
-      return String.valueOf(value);
+      return value == null ? "null" : value.getClass().getSimpleName() + ":" + value;
    }
 
    /** separates the exact string of a container cell from its content */

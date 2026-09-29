@@ -28,5 +28,15 @@ public enum Shape {
    /** the JavaScript value of a condition */
    CONDITION,
    /** a calc field over aggregates of 50-row groups */
-   CALC_FIELD
+   CALC_FIELD;
+
+   /**
+    * @return whether the shape runs its script per row of a formula lens, the only place
+    * that reads batchRows / maxBatchRows and whose script runs depend on the read order. A
+    * condition runs its script once per ConditionGroup when it is built, a calc field once per
+    * group in the aggregation's own order.
+    */
+   public boolean rowScripted() {
+      return this == FTL || this == FTL_UNDER_CF2;
+   }
 }

@@ -212,6 +212,9 @@ public class RelConcurrencyMetamorphicTest {
                                                             c.script());
       actual = RelMetamorphicTest.comparable(actual, c.script());
       STATS.computeIfAbsent(variant + ".comparisons", k -> new AtomicLong()).incrementAndGet();
+      STATS.computeIfAbsent(variant + ".kind." +
+         RelMetamorphicTest.kind(shape, ORACLES.get(key(c, shape))), k -> new AtomicLong())
+         .incrementAndGet();
 
       if(expected.equals(actual)) {
          return null;

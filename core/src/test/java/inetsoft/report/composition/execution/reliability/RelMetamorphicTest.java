@@ -19,8 +19,10 @@ package inetsoft.report.composition.execution.reliability;
 
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
+import inetsoft.report.composition.execution.AssetQuerySandbox;
 import inetsoft.test.*;
 import inetsoft.util.script.graal.pool.PoolConfig;
+import inetsoft.util.script.graal.pool.WorksheetScriptEnv;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -43,16 +45,23 @@ import static org.junit.jupiter.api.Assertions.*;
  * (Testing #77123). Every script of the corpus sample and of a synthetic set runs through the
  * real sandbox pipeline in each shape; the oracle is the pool off with a sequential read.
  * <ul>
- * <li>MR1 batch: the pool on with every batchRows x maxBatchRows gives the oracle.</li>
- * <li>MR2 read: the pool on with every read pattern gives the oracle.</li>
- * <li>MR3 on/off: the pool off with every read pattern gives the oracle (a pre-existing
- * product issue if not).</li>
+ * <li>MR1 batch: the pool on with every batchRows x maxBatchRows gives the oracle (only a
+ * formula lens batches; a condition and a calc field compare once, pool on with the
+ * defaults).</li>
+ * <li>MR2 read: the pool on with every non-sequential read pattern gives the oracle (formula
+ * lens shapes only: a condition runs its script once when it is built, a calc field in the
+ * aggregation's order).</li>
+ * <li>MR3 on/off: the pool off with every non-sequential read pattern gives the oracle (a
+ * pre-existing product issue if not).</li>
  * <li>MR5 fresh context: the pool on with cleanThreshold=-1 (a new context for every claim)
  * gives what the pool on with defaults gives.</li>
  * </ul>
  * A difference is allowed only when it is a documented drift (B1 object-valued var, implicit
- * global per claim, C6 host-copy display) and the pool is on in the compared run; those are
- * counted and listed.
+ * global per claim, C6 host-copy display) of the differing cells, the rest of the run equal,
+ * and the pool is on in the compared run; those are counted and listed. Each comparison is
+ * also counted by the kind of its oracle (error only, a condition without a value, a
+ * row-independent constant, or computing). A random script is compared by the structure of
+ * its cells, a clock script exactly with dates by day.
  *
  * <p>A run of a 1200-row formula lens costs about 0.3-0.45 s, so the default run checks one
  * comparison of each relation per case, rotating over the matrix, for the synthetic set and
@@ -76,6 +85,7 @@ public class RelMetamorphicTest {
 
    @AfterAll
    public static void summary() {
+      EXECUTOR.shutdownNow();
       ((Logger) LoggerFactory.getLogger("inetsoft")).setLevel(savedLevel);
       StringBuilder str = new StringBuilder("RelMetamorphicTest summary (long=" + LONG + ")\n");
       STATS.forEach((k, v) -> str.append("  ").append(k).append(" = ").append(v).append('\n'));
@@ -126,12 +136,100 @@ public class RelMetamorphicTest {
       assertEquals(Drift.NONE, drift("var acc = (acc || 0) + 1; acc"));
    }
 
+   /**
+    * A documented drift excuses only differing values of the drift's shape; the rest of the
+    * run must be equal.
+    */
+   @Test
+   public void driftRules() {
+      String implicit = "n = (n || 0) + 1; n";
+      assertEquals(Drift.IMPLICIT_GLOBAL, drift(List.of("Double:1.0", "Double:2.0"),
+         List.of("Double:1.0", "Double:5.0"), implicit));
+      assertEquals(Drift.IMPLICIT_GLOBAL, drift(List.of("7|Double:2.0", "v:Double:3.0", "true"),
+         List.of("7|Double:1.0", "v:Double:1.0", "false"), implicit));
+      // an error moved, a row id changed, a row missing or a type changed: not the drift
+      assertEquals(Drift.NONE, drift(List.of("Double:1.0", "Double:2.0"),
+         List.of("Double:1.0", "E:RuntimeException"), implicit));
+      assertEquals(Drift.NONE, drift(List.of("7|Double:2.0"), List.of("8|Double:2.0"), implicit));
+      assertEquals(Drift.NONE, drift(List.of("Double:1.0", "Double:2.0"),
+         List.of("Double:1.0"), implicit));
+      assertEquals(Drift.NONE, drift(List.of("Double:2.0"), List.of("S:2"), implicit));
+      assertEquals(Drift.NONE, drift(List.of("Double:2.0"), List.of("null"), implicit));
+      assertEquals(Drift.NONE, drift(List.of("RUN-E:X"), List.of("Double:1.0"), implicit));
+      // C6: a GraalJS value against a host copy of the same typed content only
+      String value = "Value:{a: 1}" + RelPipeline.CONTENT + "{a=N:1}";
+      String copy = "M{a=Double:1.0}" + RelPipeline.CONTENT + "{a=N:1}";
+      assertEquals(Drift.C6_HOST_COPY, drift(List.of(value), List.of(copy), "({ a: 1 })"));
+      assertEquals(Drift.NONE, drift(List.of(value),
+         List.of("M{a=S:1}" + RelPipeline.CONTENT + "{a=S:1}"), "({ a: 1 })"));
+      assertEquals(Drift.NONE, drift(List.of("M{a=Integer:1}" + RelPipeline.CONTENT + "{a=N:1}"),
+         List.of(copy), "({ a: 1 })"));
+      // the content keeps each element's type class, only 1 and 1.0 are the same
+      Map<String, Object> map = new LinkedHashMap<>();
+      map.put("a", 1.0);
+      map.put("b", "1");
+      map.put("c", true);
+      assertEquals("M{a=Double:1.0,b=S:1,c=Boolean:true}" + RelPipeline.CONTENT +
+                   "{a=N:1,b=S:1,c=B:true}", RelPipeline.str(map));
+   }
+
+   /**
+    * Positive control of MR1/MR2: a single-threaded pooled formula lens read sequentially
+    * really runs its 1200 rows in several batches, each on a claimed and then cleaned context,
+    * and the batch size decides how many.
+    */
+   @Test
+   public void pooledRunsCrossBatches() throws Exception {
+      String script = SYNTHETIC[0][1];
+      long one = cleans(script, 1, 1);
+      long seven = cleans(script, 7, 7);
+      long grown = cleans(script, 7, 8192);
+      long defaults = cleans(script, 256, 8192);
+      System.out.println("cleans per 1200-row pooled run: batchRows=1/max=1 " + one +
+                         ", 7/7 " + seven + ", 7/8192 " + grown + ", 256/8192 " + defaults);
+      assertTrue(grown > 1, "batchRows=7 ran in one batch: " + grown);
+      assertTrue(defaults > 1, "the defaults ran in one batch: " + defaults);
+      // a batch is at least the pool-off look-ahead of 10 rows, so 1/1 and 7/7 are alike;
+      // a larger maxBatchRows lets the batches grow
+      assertTrue(one >= seven && seven > grown, one + " / " + seven + " / " + grown);
+      assertTrue(seven >= RelPipeline.ROWS / 17, "7/7 batches: " + seven);
+   }
+
+   /**
+    * @return the context cleans (one per released claim) of one sequential read of a pooled
+    * formula lens.
+    */
+   private static long cleans(String script, int batch, int max) throws Exception {
+      RelConfig cfg = RelConfig.on().with(PoolConfig.BATCH_ROWS, String.valueOf(batch))
+         .with(PoolConfig.MAX_BATCH_ROWS, String.valueOf(max));
+      AssetQuerySandbox box = RelPipeline.sandbox(cfg);
+
+      try {
+         WorksheetScriptEnv env = (WorksheetScriptEnv) box.getScriptEnv();
+         long before = env.getMetrics().getCleans();
+         List<String> cells = RelPipeline.run(script, Shape.FTL, box, ReadPattern.SEQUENTIAL);
+         assertEquals(RelPipeline.ROWS, cells.size());
+         return env.getMetrics().getCleans() - before;
+      }
+      finally {
+         box.dispose();
+      }
+   }
+
    @ParameterizedTest(name = "{0}")
    @MethodSource("cases")
    public void mr1Batch(Case c) throws Exception {
       List<Cmp> list = new ArrayList<>();
 
       for(Shape shape : Shape.values()) {
+         // only a formula lens reads the batch sizes: the other shapes compare once, pool on
+         // with the defaults against the oracle
+         if(!shape.rowScripted()) {
+            list.add(new Cmp(shape, ORACLE, ReadPattern.SEQUENTIAL, RelConfig.on(),
+                             ReadPattern.SEQUENTIAL));
+            continue;
+         }
+
          for(int batch : new int[] { 0, 1, 7, 256 }) {
             for(int max : new int[] { 1, 256, 8192 }) {
                if(max < batch) {
@@ -155,8 +253,10 @@ public class RelMetamorphicTest {
    public void mr2Read(Case c) throws Exception {
       List<Cmp> list = new ArrayList<>();
 
+      // a sequential read with the defaults (256 / 8192) is MR1's, and only a formula lens
+      // runs its script in the read order
       for(Shape shape : Shape.values()) {
-         for(ReadPattern read : reads(shape, c)) {
+         for(ReadPattern read : otherReads(shape, c)) {
             list.add(new Cmp(shape, ORACLE, ReadPattern.SEQUENTIAL, RelConfig.on(), read));
          }
       }
@@ -170,10 +270,8 @@ public class RelMetamorphicTest {
       List<Cmp> list = new ArrayList<>();
 
       for(Shape shape : Shape.values()) {
-         for(ReadPattern read : reads(shape, c)) {
-            if(read != ReadPattern.SEQUENTIAL) {
-               list.add(new Cmp(shape, ORACLE, ReadPattern.SEQUENTIAL, RelConfig.off(), read));
-            }
+         for(ReadPattern read : otherReads(shape, c)) {
+            list.add(new Cmp(shape, ORACLE, ReadPattern.SEQUENTIAL, RelConfig.off(), read));
          }
       }
 
@@ -188,7 +286,10 @@ public class RelMetamorphicTest {
       List<Cmp> list = new ArrayList<>();
 
       for(Shape shape : Shape.values()) {
-         for(ReadPattern read : reads(shape, c).subList(0, shape == Shape.CALC_FIELD ? 1 : 2)) {
+         List<ReadPattern> reads = shape.rowScripted()
+            ? ReadPattern.all(c.seed()).subList(0, 2) : List.of(ReadPattern.SEQUENTIAL);
+
+         for(ReadPattern read : reads) {
             list.add(new Cmp(shape, RelConfig.on(), read, fresh, read));
          }
       }
@@ -197,12 +298,13 @@ public class RelMetamorphicTest {
    }
 
    /**
-    * The read patterns of a shape: an aggregation visits its groups in its own order, so a
-    * calc field has no read pattern.
+    * The non-sequential read patterns that change how a shape runs its script: a formula
+    * lens runs it in the read order; a condition runs it once when it is built, a calc field
+    * in the aggregation's order, so they have none.
     */
-   static List<ReadPattern> reads(Shape shape, Case c) {
-      return shape == Shape.CALC_FIELD ? List.of(ReadPattern.SEQUENTIAL)
-         : ReadPattern.all(c.seed());
+   static List<ReadPattern> otherReads(Shape shape, Case c) {
+      return shape.rowScripted()
+         ? ReadPattern.all(c.seed()).subList(1, ReadPattern.all(c.seed()).size()) : List.of();
    }
 
    /**
@@ -256,9 +358,13 @@ public class RelMetamorphicTest {
    {
       count(relation + ".comparisons");
       count("comparisons." + shape);
+      count(relation + ".kind." + kind(shape, oracle(c, shape)));
 
-      if(nondeterministic(c.script())) {
-         count(relation + ".nondeterministic");
+      if(random(c.script())) {
+         count(relation + ".random");
+      }
+      else if(clock(c.script())) {
+         count(relation + ".clock");
       }
 
       expected = comparable(expected, c.script());
@@ -294,19 +400,86 @@ public class RelMetamorphicTest {
    }
 
    /**
-    * @return whether a script computes a random or clock value.
+    * @return whether a script computes a random value.
     */
-   static boolean nondeterministic(String script) {
-      return NONDETERMINISTIC.matcher(RelCorpus.stripStrings(script)).find();
+   static boolean random(String script) {
+      return RANDOM.matcher(RelCorpus.stripStrings(script)).find();
    }
 
    /**
-    * @return the cells of a run as compared: a script of random or clock values has no
-    * oracle value, so only the structure of its cells is compared.
+    * @return whether a script reads the clock (and computes no random value).
+    */
+   static boolean clock(String script) {
+      return !random(script) && CLOCK.matcher(RelCorpus.stripStrings(script)).find();
+   }
+
+   /**
+    * @return the cells of a run as compared: a random script has no oracle value, so only the
+    * structure of its cells is compared; a clock script is compared exactly except that a
+    * date cell is compared by its day (two runs are seconds apart; the corpus clock scripts
+    * compute days, months or years, or add a fixed interval to now()).
     */
    static List<String> comparable(List<String> cells, String script) {
-      return nondeterministic(script)
-         ? cells.stream().map(RelMetamorphicTest::cellShape).toList() : cells;
+      if(random(script)) {
+         return cells.stream().map(RelMetamorphicTest::cellShape).toList();
+      }
+
+      if(clock(script)) {
+         return cells.stream().map(RelMetamorphicTest::dayOf).toList();
+      }
+
+      return cells;
+   }
+
+   /**
+    * @return a cell with each date value (Type:epoch-ms) replaced by its day.
+    */
+   static String dayOf(String cell) {
+      return DATE_CELL.matcher(cell).replaceAll(
+         m -> m.group(1) + ":day" + Math.floorDiv(Long.parseLong(m.group(2)), 86_400_000L));
+   }
+
+   /**
+    * The kind of result an oracle is, to tell comparisons of computed values from
+    * comparisons of errors: ERROR when every cell failed; NO_VALUE for a condition whose
+    * script gave no value (each group's value is null or failed, so its evaluations only
+    * compare with null); CONSTANT when every non-error cell of a row shape is the same value
+    * (the script does not depend on the row); else COMPUTING.
+    */
+   static OracleKind kind(Shape shape, List<String> oracle) {
+      List<String> values = oracle.stream().map(RelMetamorphicTest::unprefixed)
+         .filter(v -> !isError(v)).toList();
+
+      if(values.isEmpty()) {
+         return OracleKind.ERROR;
+      }
+
+      if(shape == Shape.CONDITION) {
+         return values.stream().filter(v -> v.startsWith("v:"))
+            .allMatch(v -> v.equals("v:null")) ? OracleKind.NO_VALUE : OracleKind.COMPUTING;
+      }
+
+      return values.stream().distinct().count() == 1 ? OracleKind.CONSTANT
+         : OracleKind.COMPUTING;
+   }
+
+   public enum OracleKind { ERROR, NO_VALUE, CONSTANT, COMPUTING }
+
+   /**
+    * @return a cell without the row id a condition-filtered cell starts with.
+    */
+   static String unprefixed(String cell) {
+      int bar = cell.indexOf('|');
+      return bar > 0 && cell.substring(0, bar).chars().allMatch(Character::isDigit)
+         ? cell.substring(bar + 1) : cell;
+   }
+
+   /**
+    * @return whether a cell (without its row id) is a failure: a failed row or group, or a
+    * failed run.
+    */
+   static boolean isError(String cell) {
+      return cell.startsWith("E:") || cell.startsWith("RUN-");
    }
 
    /**
@@ -329,8 +502,7 @@ public class RelMetamorphicTest {
       if(oracle == null) {
          oracle = run(c.script(), shape, RelConfig.off(), ReadPattern.SEQUENTIAL);
          ORACLES.put(key, oracle);
-         count("oracle." + shape + (oracle.stream().allMatch(v -> v.startsWith("E:") || v.contains("|E:") ||
-            v.startsWith("RUN-E:")) ? ".errorOnly" : ".computing"));
+         count("oracle." + shape + "." + kind(shape, oracle));
       }
 
       return oracle;
@@ -376,24 +548,81 @@ public class RelMetamorphicTest {
    }
 
    /**
-    * The documented drift a difference may be: C6 if every differing cell is a container whose
-    * content is equal (a host copy displayed differently), else the drift of the script.
+    * The documented drift a difference may be, decided cell by cell. Both runs must have the
+    * same number of cells, the same failed cells and the same row ids. Then it is C6 if every
+    * differing cell is a GraalJS value on one side and a host container of equal typed
+    * content on the other (a host copy displayed differently); else the script's drift (B1 /
+    * implicit global) if every differing cell is a value of the same type on both sides (only
+    * the variable's value differs); else none.
     */
    static Drift drift(List<String> expected, List<String> actual, String script) {
-      boolean hostCopy = expected.size() == actual.size();
+      if(expected.size() != actual.size()) {
+         return Drift.NONE;
+      }
 
-      for(int i = 0; hostCopy && i < expected.size(); i++) {
+      boolean hostCopy = true;
+      boolean sameTypes = true;
+
+      for(int i = 0; i < expected.size(); i++) {
          String a = expected.get(i);
          String b = actual.get(i);
 
-         if(!a.equals(b)) {
-            int ia = a.indexOf(RelPipeline.CONTENT);
-            int ib = b.indexOf(RelPipeline.CONTENT);
-            hostCopy = ia >= 0 && ib >= 0 && a.substring(ia).equals(b.substring(ib));
+         if(a.equals(b)) {
+            continue;
          }
+
+         String ua = unprefixed(a);
+         String ub = unprefixed(b);
+         String ida = a.substring(0, a.length() - ua.length());
+         String idb = b.substring(0, b.length() - ub.length());
+
+         // a row id, a failed cell or an extra row differs: never a documented drift
+         if(!ida.equals(idb) || isError(ua) || isError(ub) || ua.startsWith("extra row") ||
+            ub.startsWith("extra row"))
+         {
+            return Drift.NONE;
+         }
+
+         hostCopy = hostCopy && hostCopy(ua, ub);
+         sameTypes = sameTypes && type(ua).equals(type(ub));
       }
 
-      return hostCopy ? Drift.C6_HOST_COPY : drift(script);
+      if(hostCopy) {
+         return Drift.C6_HOST_COPY;
+      }
+
+      return sameTypes ? drift(script) : Drift.NONE;
+   }
+
+   /**
+    * @return whether two cells hold the same typed content, one as a GraalJS value (what the
+    * pool off can return) and the other as a host container (the pool's copy).
+    */
+   static boolean hostCopy(String a, String b) {
+      int ia = a.indexOf(RelPipeline.CONTENT);
+      int ib = b.indexOf(RelPipeline.CONTENT);
+
+      if(ia < 0 || ib < 0 || !a.substring(ia).equals(b.substring(ib))) {
+         return false;
+      }
+
+      boolean va = a.startsWith("Value:");
+      boolean vb = b.startsWith("Value:");
+      return va != vb && HOST.matcher(va ? b : a).lookingAt();
+   }
+
+   /**
+    * @return the type of a value cell: its prefix (Double, S, Timestamp, ...), "v:" and that
+    * of the value for a condition's value, the literal for a boolean or null.
+    */
+   static String type(String cell) {
+      if(cell.startsWith("v:")) {
+         return "v:" + type(cell.substring(2));
+      }
+
+      int colon = cell.indexOf(':');
+      return colon > 0 ? cell.substring(0, colon)
+         : cell.equals("true") || cell.equals("false") ? "boolean" : cell;
    }
 
    /**
@@ -446,10 +675,15 @@ public class RelMetamorphicTest {
       }
    }
 
-   private static final Pattern NONDETERMINISTIC = Pattern.compile(
-      "Math\\s*\\.\\s*random|\\bnow\\s*\\(|\\bnew\\s+Date\\s*\\(\\s*\\)|\\bnew\\s+Date\\b(?!\\s*\\()|" +
-      "CALC\\s*\\.\\s*(?:today|now|rand\\w*)|Date\\s*\\.\\s*now|" +
-      "\\b(?:today|rand|randbetween)\\s*\\(");
+   private static final Pattern RANDOM = Pattern.compile(
+      "Math\\s*\\.\\s*random|CALC\\s*\\.\\s*rand\\w*|\\b(?:rand|randbetween)\\s*\\(");
+   private static final Pattern CLOCK = Pattern.compile(
+      "\\bnow\\s*\\(|\\bnew\\s+Date\\s*\\(\\s*\\)|\\bnew\\s+Date\\b(?!\\s*\\()|" +
+      "CALC\\s*\\.\\s*(?:today|now)|Date\\s*\\.\\s*now|\\btoday\\s*\\(");
+   /** a date value in a cell string: its class and epoch ms */
+   private static final Pattern DATE_CELL = Pattern.compile("\\b(Timestamp|Date|Time):(-?\\d+)");
+   /** a host container cell: an array, list or map */
+   private static final Pattern HOST = Pattern.compile("A\\[|L\\[|M\\{");
    // a self-referencing var whose value is an object: var x = x || [] / {} / new ... / function
    private static final Pattern OBJECT_VAR = Pattern.compile(
       "\\bvar\\s+([A-Za-z_$][\\w$]*)\\s*=\\s*\\(?\\s*\\1\\s*\\|\\|\\s*(?:\\[|\\{|new\\b|function\\b)");
