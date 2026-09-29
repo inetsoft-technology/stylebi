@@ -145,6 +145,51 @@ class PropertyAliasesTest {
    }
 
    /**
+    * Redmine #77077: a raw dotted path into the data source subtree reached the viewsheet's LIVE
+    * base AssetEntry (getViewsheetInfo hands it to the model by reference) and mutated it in
+    * place -- path changed while the cached identifier/properties did not, and setViewsheetInfo's
+    * equals-guarded rebind never ran, all reported as ok. Refused for every spelling that
+    * PropertyPath would resolve into the subtree: it accepts a capitalized first letter on any
+    * segment, so a case-sensitive prefix match would have been bypassable.
+    */
+   @Test
+   void refusesEveryRawWriteIntoTheDataSourceSubtreeInAnyCase() {
+      for(String key : java.util.List.of(
+         "vsOptionsPane.selectDataSourceDialogModel",
+         "vsOptionsPane.selectDataSourceDialogModel.dataSource",
+         "vsOptionsPane.selectDataSourceDialogModel.dataSource.path",
+         "vsOptionsPane.selectDataSourceDialogModel.dataSource.alias",
+         "vsOptionsPane.selectDataSourceDialogModel.dataSource.Path",
+         "vsOptionsPane.selectDataSourceDialogModel.dataSource.createdDate.time",
+         "vsOptionsPane.selectDataSourceDialogModel.dataSource.user.name",
+         "vsOptionsPane.SelectDataSourceDialogModel.DataSource.path",
+         "vsOptionsPane.SelectDataSourceDialogModel",
+         "vsOptionsPane.selectDataSourceDialogModel.DataSource",
+         "vsOptionsPane.selectDataSourceDialogModel.title",
+         "VsOptionsPane.selectDataSourceDialogModel.dataSource.path"))
+      {
+         Exception thrown = assertThrows(
+            IllegalArgumentException.class,
+            () -> PropertyAliases.resolveForWrite(PropertyAliases.SHEET, key), key);
+
+         assertTrue(thrown.getMessage().contains("set_viewsheet_data_source"),
+                    key + ": " + thrown.getMessage());
+         assertTrue(thrown.getMessage().contains("selectDataSourceDialogModel"),
+                    key + ": " + thrown.getMessage());
+      }
+   }
+
+   /** The refusal is a prefix on whole segments, not a substring: siblings stay writable. */
+   @Test
+   void dataSourceRefusalLeavesSiblingOptionsWritable() {
+      assertEquals("vsOptionsPane.selectionAssociation",
+                   PropertyAliases.resolveForWrite(PropertyAliases.SHEET,
+                                                   "vsOptionsPane.selectionAssociation"));
+      assertEquals("vsOptionsPane.alias",
+                   PropertyAliases.resolveForWrite(PropertyAliases.SHEET, "vsOptionsPane.alias"));
+   }
+
+   /**
     * {@code vsScriptPane} carries onInit/onLoad script. Writing it through a properties patch
     * would be a second, ungoverned path to authoring viewsheet script that routes around the
     * (unbuilt) script-kind taxonomy. The refusal names the field and points at the tool that

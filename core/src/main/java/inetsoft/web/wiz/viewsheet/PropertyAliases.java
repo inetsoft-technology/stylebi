@@ -532,6 +532,20 @@ public final class PropertyAliases {
             "scalar write.";
       }
 
+      // Lowercased as a whole: PropertyPath accepts a capitalized first letter on any segment
+      // (getX + capitalize), so a case-sensitive prefix here would be bypassed by
+      // "SelectDataSourceDialogModel.DataSource.path" and still reach the live entry.
+      if(isOrUnder(pathOrKey.toLowerCase(Locale.ROOT), DATA_SOURCE_DIALOG.toLowerCase(Locale.ROOT))) {
+         return "'" + DATA_SOURCE_DIALOG + "' is not settable through " +
+            "set_viewsheet_properties. Its dataSource is the viewsheet's live base AssetEntry, " +
+            "shared by reference with the dialog model: a leaf write edits that entry in place " +
+            "(path no longer matching its identifier) without ever rebinding the viewsheet, and " +
+            "the stale entry is then saved with the sheet. Use set_viewsheet_data_source to " +
+            "rebind or clear the base (it resolves a real, permission-checked entry), or " +
+            "attach_base_worksheet for a viewsheet with no base yet. Reading it is fine -- call " +
+            "get_viewsheet_properties with raw=true.";
+      }
+
       if(isOrUnder(pathOrKey, "screensPane")) {
          return "'screensPane' is not settable through set_viewsheet_properties. Device " +
             "layouts, print layout and screen sizing are their own capability, not a corner of " +
@@ -540,6 +554,9 @@ public final class PropertyAliases {
 
       return null;
    }
+
+   /** The Options dialog's Data Source sub-model; see {@link #viewsheetWriteRefusal}. */
+   private static final String DATA_SOURCE_DIALOG = "vsOptionsPane.selectDataSourceDialogModel";
 
    private static boolean isOrUnder(String path, String prefix) {
       return path.equals(prefix) || path.startsWith(prefix + ".");
