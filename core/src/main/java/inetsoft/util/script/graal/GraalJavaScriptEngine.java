@@ -2715,7 +2715,11 @@ public class GraalJavaScriptEngine implements AutoCloseable {
     * {@code //} comment). Regex-vs-division is disambiguated by the preceding
     * significant token; when genuinely ambiguous the text is left as code, which
     * at worst over-collects a declaration name (harmless — the emitted copy is
-    * typeof-guarded) rather than dropping one.
+    * typeof-guarded) rather than dropping one. As in {@link #scanTopLevel} and
+    * {@link #skipInitializer}, a {@code )} that closes an {@code if}/{@code while}/
+    * {@code for}/{@code with} head's condition is followed by a statement, so a
+    * {@code /} there starts a regex even though {@link #regexAllowed} alone would
+    * read it as division (bug #77305).
     */
    private static String stripStringsAndComments(String s) {
       int n = s.length();
@@ -2725,6 +2729,12 @@ public class GraalJavaScriptEngine implements AutoCloseable {
       java.util.Deque<Integer> templateStack = new java.util.ArrayDeque<>();
       int braceDepth = 0;
       char prevSig = 0;   // previous significant code char (regex/division hint)
+      String prevWord = null;   // previous identifier/keyword token, else null
+      // as in scanTopLevel/skipInitializer: per open bracket, whether it is the
+      // `(` of an if/while/for/with head, whose `)` is followed by a statement,
+      // so a `/` there starts a regex
+      java.util.Deque<Boolean> brackets = new java.util.ArrayDeque<>();
+      boolean afterHead = false;   // the previous token closed a control-flow head
       int i = 0;
 
       while(i < n) {
@@ -2768,7 +2778,7 @@ public class GraalJavaScriptEngine implements AutoCloseable {
          }
 
          // regular-expression literal (only where '/' cannot be division)
-         if(c == '/' && regexAllowed(s, i, prevSig)) {
+         if(c == '/' && (afterHead || regexAllowed(s, i, prevSig))) {
             int end = scanRegexEnd(s, i);
 
             if(end > 0) {
@@ -2778,6 +2788,8 @@ public class GraalJavaScriptEngine implements AutoCloseable {
 
                i = end;
                prevSig = ')';   // a regex literal ends an expression (division next)
+               prevWord = null;
+               afterHead = false;
                continue;
             }
          }
@@ -2808,6 +2820,8 @@ public class GraalJavaScriptEngine implements AutoCloseable {
             }
 
             prevSig = ')';   // a string ends an expression
+            prevWord = null;
+            afterHead = false;
             continue;
          }
 
@@ -2816,6 +2830,8 @@ public class GraalJavaScriptEngine implements AutoCloseable {
             sb.append(' ');
             i = scanTemplateBody(s, i + 1, sb, braceDepth, templateStack);
             prevSig = ')';
+            prevWord = null;
+            afterHead = false;
             continue;
          }
 
@@ -2825,22 +2841,61 @@ public class GraalJavaScriptEngine implements AutoCloseable {
             sb.append(' ');
             i = scanTemplateBody(s, i + 1, sb, braceDepth, templateStack);
             prevSig = ')';
+            prevWord = null;
+            afterHead = false;
             continue;
          }
 
-         if(c == '{') {
-            braceDepth++;
+         // whitespace and comments between a control head's `)` and the next
+         // token must not reset afterHead (only a real token does) — handled
+         // above for // and /* comments (which `continue` without touching
+         // afterHead) and here for plain whitespace.
+         if(Character.isWhitespace(c)) {
+            sb.append(c);
+            i++;
+            continue;
          }
-         else if(c == '}' && braceDepth > 0) {
-            braceDepth--;
+
+         // identifier / keyword, tracked so a following `(` can be recognized as
+         // an if/while/for/with control-flow head, mirroring scanTopLevel/
+         // skipInitializer.
+         if(isIdentStart(c)) {
+            int start = i;
+
+            while(i < n && isIdentPart(s.charAt(i))) {
+               sb.append(s.charAt(i));
+               i++;
+            }
+
+            prevWord = prevSig == '.' ? null : s.substring(start, i);
+            prevSig = s.charAt(i - 1);
+            afterHead = false;
+            continue;
+         }
+
+         boolean closedHead = false;
+
+         if(c == '(' || c == '[' || c == '{') {
+            brackets.push(c == '(' && prevWord != null && CONTROL_HEAD_KEYWORDS.contains(prevWord));
+
+            if(c == '{') {
+               braceDepth++;
+            }
+         }
+         else if(c == ')' || c == ']' || c == '}') {
+            if(c == '}' && braceDepth > 0) {
+               braceDepth--;
+            }
+
+            if(!brackets.isEmpty()) {
+               closedHead = brackets.pop() && c == ')';
+            }
          }
 
          sb.append(c);
-
-         if(!Character.isWhitespace(c)) {
-            prevSig = c;
-         }
-
+         prevSig = c;
+         prevWord = null;
+         afterHead = closedHead;
          i++;
       }
 

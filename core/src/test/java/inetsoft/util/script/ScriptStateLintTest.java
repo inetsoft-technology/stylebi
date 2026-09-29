@@ -22,6 +22,7 @@ import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 import inetsoft.report.lens.DefaultTableLens;
+import inetsoft.util.script.graal.GraalJavaScriptEngine;
 import inetsoft.util.script.graal.ScriptScope;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -147,6 +148,22 @@ class ScriptStateLintTest {
          "/[/]x/.test(field['a'])",
          "field['a'].replace(/'/g, '')",
          "var a = (field['a'])\n/ 2",
+         // Bug #77305: a regex literal placed directly after an if/while/for/with head's
+         // closing `)` must not be misread as division
+         "if(true) /z = z + 1/.test('z')",
+         "while(false) /z = z + 1/.test('z')",
+         "for(;;) /z = z + 1/.test('z')",
+         // Bug #77305: 'with' was covered in GraalJavaScriptEngineOwnedVarTest but not here --
+         // ScriptStateLint has its own, separate lexer with the identical gap
+         "with(field) /z = z + 1/.test('z')",
+         // Bug #77305: a control head nested inside another must not confuse the bracket/
+         // control-head-tracking stack (the inner if's own regex-adjacent ')' must still be
+         // recognized via 'afterHead', independent of the outer if's bracket depth)
+         "if(true) { if(true) /z = z + 1/.test('z'); }",
+         // Bug #77305: parens nested *inside* a control head's own condition (not just braces
+         // in the body) must not be mistaken for the head's closing ')' -- the bracket stack
+         // must track the true nesting depth so 'afterHead' fires only after the real close
+         "for(i=(1+1); i<3; i++) /z = z + 1/.test('z')",
          // destructuring, labels, switch, do-while, loops, try/catch, ASI, ??=
          "var {a, b} = field['o']; a + b",
          "var [p, q] = [1, 2]; p + q",
@@ -493,6 +510,51 @@ class ScriptStateLintTest {
       assertEquals(3, warnings().size());
       msg = warnings().get(2).getFormattedMessage();
       assertTrue(msg.contains("rule R2"), msg);
+   }
+
+   /**
+    * Bug #77305, cross-column false negative (the centerpiece shape), exercised through the real
+    * {@code collectOwnedVarNames} -> {@code checkColumn} pipeline (see also
+    * {@code GraalJavaScriptEngineOwnedVarTest.crossColumnLetSwallowNoLongerHidesLexicalDeclaration}
+    * for the {@code owned}-set-level assertion): a control-head-adjacent regex in one column also
+    * contains a stray unterminated-string-starting quote that swallows the rest of that formula's
+    * text, including a real {@code let} of a name a different column's clean accumulator needs to
+    * not-own. Before the fix, the swallow hid the {@code let}, so {@code owned} wrongly kept "k",
+    * and {@code checkColumn} stayed silent; after the fix, {@code owned} correctly excludes "k",
+    * so the clean accumulator column now gets its {@code REPORT_NOT_OWNED} warning.
+    */
+   @Test
+   void crossColumnLetSwallowNoLongerSuppressesNotOwnedWarning() {
+      DefaultTableLens tbl = new DefaultTableLens(new Object[][] { { "x" }, { 1 } });
+      String acc = "var k = (k||0) + field['x']; k";
+      String poisonedLetDecl = "if(true) /'/.test(s); let k = 5;";
+      Set<String> owned = GraalJavaScriptEngine.collectOwnedVarNames(List.of(acc, poisonedLetDecl));
+      assertEquals(Set.of(), owned);
+
+      ScriptStateLint.checkColumn(acc, new Object(), tbl, 1, "C", "T", null, owned, false);
+      assertEquals(1, warnings().size(), () -> "warnings: " + appender.list);
+      String msg = warnings().get(0).getFormattedMessage();
+      assertTrue(msg.contains("with let or const"), msg);
+   }
+
+   /**
+    * Bug #77305, cross-column false positive (the third, recheck-round shape): a column with no
+    * {@code var} of its own relies entirely on a sibling column's real {@code var} declaration,
+    * and that sibling's declaration is swallowed by a control-head-adjacent poisoned regex.
+    * Before the fix, {@code collectOwnedVarNames} never saw the swallowed {@code var}. Note: the
+    * reading column's own finding is classified R2 (no declaration of "v" in that script), and
+    * {@code checkColumn}'s R2 disposition does not consult {@code owned} (only R1 does, see the
+    * class-level doc comment and {@code checkColumn}'s "R2 stays as is" branch) — so the
+    * observable, fixed effect of this shape is on the {@code owned} set itself, asserted directly
+    * here and in
+    * {@code GraalJavaScriptEngineOwnedVarTest.crossColumnVarSwallowNoLongerHidesOwnership}.
+    */
+   @Test
+   void crossColumnVarSwallowNoLongerHidesOwnership() {
+      String reliesOnOtherColumn = "v = (v || 0) + field['x']; v";
+      String poisonedVarDecl = "if(true) /\"/.test(x); var v = 1;";
+      assertEquals(Set.of("v"), GraalJavaScriptEngine.collectOwnedVarNames(
+         List.of(reliesOnOtherColumn, poisonedVarDecl)));
    }
 
    private List<ILoggingEvent> warnings() {
