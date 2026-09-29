@@ -165,6 +165,17 @@ public class PhysicalGraphModelController {
                                  @RequestParam("newRuntimeId") String newRuntimeId,
                                  @RequestParam(value="save", required = false) boolean save)
    {
+      if(save) {
+         XPartition partition = this.runtimePartitionService.getPartition(newRuntimeId);
+
+         // the pane keeps the auto-alias of a deleted join so that re-creating it keeps the
+         // same alias, remove the ones that are not joined anymore
+         if(partition != null) {
+            physicalModelManager.removeOrphanAutoAliases(partition);
+            runtimePartitionService.updatePartition(newRuntimeId, partition);
+         }
+      }
+
       this.runtimePartitionService.closeRuntimePartition(originRuntimeId, newRuntimeId, save);
    }
 
@@ -271,7 +282,8 @@ public class PhysicalGraphModelController {
    ))
    @PostMapping("/api/data/physicalmodel/join/delete")
    public void deleteJoin(@RequestBody TableDetailJoinInfo joinInfo) {
-      deleteJoins(joinInfo);
+      // called by the join edit pane, keep the auto-alias until the pane is closed
+      deleteJoins(joinInfo, false);
    }
 
    @Secured(@RequiredPermission(
@@ -282,6 +294,10 @@ public class PhysicalGraphModelController {
    @PostMapping("/api/data/physicalmodel/joins/delete")
    public void deleteJoins(@RequestBody TableJoinInfo joinInfo)
    {
+      deleteJoins(joinInfo, true);
+   }
+
+   private void deleteJoins(TableJoinInfo joinInfo, boolean removeAutoAlias) {
       XPartition partition = this.runtimePartitionService.getPartition(joinInfo.getRuntimeId());
 
       // fix source and target table as design mode table.
@@ -293,7 +309,7 @@ public class PhysicalGraphModelController {
 
       List<XRelationship> joins = this.findJoin(partition, joinInfo);
 
-      joins.forEach(join -> physicalModelManager.deleteJoin(partition, join));
+      joins.forEach(join -> physicalModelManager.deleteJoin(partition, join, removeAutoAlias));
       runtimePartitionService.updatePartition(joinInfo.getRuntimeId(), partition);
    }
 
