@@ -454,11 +454,11 @@ public class ResourcePermissionService {
             permission.setRoleGrantsForOrg(action, Collections.emptySet(), orgID);
          }
 
-         if(!globalRoleGrants.isEmpty()) {
+         // only a site admin may change global (org-less) role grants. non site admins do
+         // not see them (see getIdentityActions), so keep the existing ones unchanged and
+         // ignore any global role rows in the request.
+         if(siteAdmin) {
             permission.setRoleGrantsForOrg(action, globalRoleGrants, null);
-         }
-         else if(siteAdmin) {
-            permission.setRoleGrantsForOrg(action, Collections.emptySet(), null);
          }
 
          if(!organizationGrants.isEmpty()) {
