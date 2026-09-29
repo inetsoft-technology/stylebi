@@ -36,6 +36,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * exec never lands on the next exec of the same pooled env. The next exec runs at once on the
  * cleaned context, is not interrupted, and does not see the looping script's global; a new
  * context is created only when an interrupt could not stop its exec (which dooms the slot).
+ *
+ * <p>Each round waits out a 1 s timeout: 10 rounds by default, 50 under {@code -Drel.long=true}.
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class },
@@ -64,7 +66,7 @@ class WsLoopInterruptTest {
       long creations = env.getMetrics().getCreations();
       long timeouts = PoolMetrics.nodeInterruptTimeouts();
 
-      for(int i = 0; i < 50; i++) {
+      for(int i = 0; i < ROUNDS; i++) {
          long start = System.nanoTime();
          assertThrows(Exception.class, () -> run(env, "zq = 1; while(true) {}"));
          long looped = (System.nanoTime() - start) / 1_000_000L;
@@ -86,5 +88,6 @@ class WsLoopInterruptTest {
       ((SreeEnv.Value) field.get(null)).updateValue();
    }
 
+   private static final int ROUNDS = Boolean.getBoolean("rel.long") ? 50 : 10;
    private String previous;
 }

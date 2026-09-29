@@ -47,8 +47,9 @@ import static org.junit.jupiter.api.Assertions.*;
  * reproduced on fresh envs and shrunk block by block before it is reported.
  *
  * <p>Seeds: {@code -Drel.fuzz.seed} (base, default 77123), {@code -Drel.fuzz.seeds},
- * {@code -Drel.fuzz.freshSeeds}. The defaults keep the class near 2 min; {@code -Drel.long=true}
- * runs 200k chained, 20k paranoid, 20k prototype and 5k fresh seeds.
+ * {@code -Drel.fuzz.freshSeeds}. The defaults (180 chained, 80 paranoid, 80 prototype, 30 fresh)
+ * keep the class near 1 min and still hit every category; {@code -Drel.long=true} runs 200k
+ * chained, 20k paranoid, 20k prototype and 5k fresh seeds.
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class },
@@ -81,14 +82,14 @@ class RelCleanFuzzTest {
 
    @Test
    void chainedCleanFuzz() throws Exception {
-      Stats stats = fuzz(seeds(350, 200_000), true);
+      Stats stats = fuzz(seeds(180, 200_000), true);
       stats.print("chained");
       stats.assertClean();
    }
 
    @Test
    void freshEnvCleanFuzz() throws Exception {
-      Stats stats = fuzz(Long.getLong("rel.fuzz.freshSeeds", LONG ? 5_000 : 60), false);
+      Stats stats = fuzz(Long.getLong("rel.fuzz.freshSeeds", LONG ? 5_000 : 30), false);
       stats.print("fresh");
       stats.assertClean();
    }
@@ -99,7 +100,7 @@ class RelCleanFuzzTest {
    @Test
    void chainedCleanFuzzWithParanoia() throws Exception {
       PoolParanoia.forced = true;
-      Stats stats = fuzz(seeds(200, 20_000), true);
+      Stats stats = fuzz(seeds(80, 20_000), true);
       stats.print("chained+paranoid");
       stats.assertClean();
       assertEquals(0, stats.paranoiaViolations, stats.paranoiaKinds::toString);
@@ -154,7 +155,7 @@ class RelCleanFuzzTest {
     */
    @Test
    void chainedCleanFuzzWithGlobalPrototypeBlocks() throws Exception {
-      Stats stats = fuzz(seeds(200, 20_000), true, 500_000L);
+      Stats stats = fuzz(seeds(80, 20_000), true, 500_000L);
       stats.print("chained+FZ1");
       stats.assertClean();
    }
@@ -550,6 +551,9 @@ class RelCleanFuzzTest {
 
       void assertClean() {
          assertEquals(1, refCreations, "the reference env's slot was never replaced");
+         // the short default runs must still exercise every category
+         assertEquals(EnumSet.allOf(Category.class), byCategory.keySet(),
+                      "categories seen " + byCategory);
          assertEquals(0, violations, () -> String.join("\n", reports));
          // a slow probe is rare; many would mean the retry hides something
          assertTrue(probeRetries * 100L <= probes, probeRetries + " of " + probes +
