@@ -160,6 +160,23 @@ class LegacyStringCompatTest {
                    eval("if(true) /a.length()/.test('a.length()')"));
    }
 
+   // Bug #77184 (tester-added, independent verification): the call-expression
+   // rewrite `X.__jlen('length')` copies the receiver's source text verbatim
+   // exactly once into the output (see rewriteJavaLengthCalls's emission,
+   // `out.append(cmd, copied, i)`); confirm at runtime, not just by reading the
+   // code, that a receiver expression with an observable side effect
+   // (`make()` incrementing a counter) is evaluated exactly once by a rewritten
+   // `.length()` call site — not skipped, and not duplicated.
+   @Test
+   void lengthCallEvaluatesSideEffectingReceiverExactlyOnce() throws Exception {
+      Object result = eval(
+         "var calls = 0;\n" +
+         "function make(){ calls++; return {items:[1,2,3], length:function(){return this.items.length;}}; }\n" +
+         "var v = make().length();\n" +
+         "'' + v + '|' + calls");
+      assertEquals("3|1", result);
+   }
+
    @Test
    void javaStringMethodsAbsentFromJsAreRestored() throws Exception {
       assertEquals(Boolean.TRUE, eval("selected[0].equals('m2020-7')"));
