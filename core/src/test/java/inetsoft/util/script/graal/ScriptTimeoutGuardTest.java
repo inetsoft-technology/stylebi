@@ -86,13 +86,18 @@ class ScriptTimeoutGuardTest {
    }
 
    /**
-    * Bug #77004 (pool off too): a closed guard's cancelled watchdog must leave the scheduler
-    * queue at once, not stay live until its deadline (script.execution.timeout seconds away).
+    * Bug #77004 (pool off too): a closed guard must stop being reachable at once, not stay
+    * live until its deadline (script.execution.timeout seconds away).
     */
    @Test void closedGuardsDoNotStayQueued() {
       try(Context ctx = Context.newBuilder("js").build()) {
          ScriptTimeoutGuard guard = new ScriptTimeoutGuard();
-         int before = ScriptTimeoutGuard.queuedTasks();
+         int before = ScriptTimeoutGuard.liveFrames();
+
+         // the hook counts an open guard, so the count below is not vacuous
+         try(var open = guard.guard(ctx, Duration.ofHours(1))) {
+            assertEquals(before + 1, ScriptTimeoutGuard.liveFrames());
+         }
 
          for(int i = 0; i < 10_000; i++) {
             try(var ignored = guard.guard(ctx, Duration.ofHours(1))) {
@@ -100,8 +105,8 @@ class ScriptTimeoutGuardTest {
             }
          }
 
-         int after = ScriptTimeoutGuard.queuedTasks();
-         assertTrue(after - before < 10, "queued watchdogs grew by " + (after - before));
+         int after = ScriptTimeoutGuard.liveFrames();
+         assertTrue(after - before < 10, "live guards grew by " + (after - before));
       }
    }
 
