@@ -158,8 +158,8 @@ class PoolParanoiaTest {
    }
 
    /**
-    * The clean restores key descriptors but not the global's prototype, so this release
-    * keeps the slot unless the paranoid check closes it.
+    * A key planted after the clean, right before the release's check (as if the clean had
+    * missed it), closes the slot when the check is on.
     */
    @Test
    void releaseClosesASlotTheCleanLeftOffItsBaselineWhenOn() throws Exception {
@@ -167,11 +167,37 @@ class PoolParanoiaTest {
       PoolTestSupport.run(env, "1");
       PoolParanoia.forced = true;
       long violations = PoolParanoia.violations();
+      PoolParanoia.beforeVerifyHook = s -> {
+         PoolParanoia.beforeVerifyHook = null;
+         s.engine().context().eval("js", "globalThis.zqp = 1");
+      };
 
-      PoolTestSupport.run(env, "Object.setPrototypeOf(globalThis, {zqp: 1}); 1");
+      try {
+         PoolTestSupport.run(env, "1");
+      }
+      finally {
+         PoolParanoia.beforeVerifyHook = null;
+      }
+
       assertEquals(violations + 1, PoolParanoia.violations());
       assertEquals("undefined", PoolTestSupport.run(env, "typeof zqp"));
       assertEquals(2, env.getMetrics().getCreations(), "the slot was closed and replaced");
+   }
+
+   /**
+    * FZ1: the clean itself puts a replaced prototype back, so the check agrees and keeps the
+    * slot.
+    */
+   @Test
+   void cleanAndCheckAgreeOnARestoredPrototype() throws Exception {
+      WorksheetScriptEnv env = env();
+      PoolTestSupport.run(env, "1");
+      PoolParanoia.forced = true;
+      long violations = PoolParanoia.violations();
+      PoolTestSupport.run(env, "Object.setPrototypeOf(globalThis, {zqp: 1}); 1");
+      assertEquals(violations, PoolParanoia.violations());
+      assertEquals("undefined", PoolTestSupport.run(env, "typeof zqp"));
+      assertEquals(1, env.getMetrics().getCreations());
    }
 
    private List<String> verify() {

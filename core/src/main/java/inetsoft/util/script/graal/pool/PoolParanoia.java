@@ -25,6 +25,7 @@ import org.slf4j.LoggerFactory;
 
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Consumer;
 
 /**
  * The opt-in paranoid check of the worksheet context pool (bug #77123): when
@@ -94,6 +95,12 @@ public final class PoolParanoia {
     * @return whether the slot may be kept.
     */
    static boolean accept(Slot slot) {
+      Consumer<Slot> hook = beforeVerifyHook;
+
+      if(hook != null) {
+         hook.accept(slot);
+      }
+
       List<String> keys = verify(slot.engine().context(), slot.cleaner());
 
       if(keys.isEmpty()) {
@@ -135,6 +142,11 @@ public final class PoolParanoia {
     * Null in production.
     */
    static volatile Boolean forced;
+   /**
+    * Test hook run on a cleaned slot right before the release's check, to plant a defect the
+    * clean did not see; null in production.
+    */
+   static volatile Consumer<Slot> beforeVerifyHook;
    // test hook: the number of verify passes run
    static final AtomicLong VERIFIES = new AtomicLong();
 

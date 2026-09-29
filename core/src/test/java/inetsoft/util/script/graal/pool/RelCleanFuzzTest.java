@@ -46,8 +46,9 @@ import static org.junit.jupiter.api.Assertions.*;
  * production; a B7/B8 seed retires it); fresh runs build a new env per seed. A violation is
  * reproduced on fresh envs and shrunk block by block before it is reported.
  *
- * <p>Seeds: {@code -Drel.fuzz.seed} (base, default 77123), {@code -Drel.fuzz.seeds}; 200k
- * chained seeds under {@code -Drel.long=true}.
+ * <p>Seeds: {@code -Drel.fuzz.seed} (base, default 77123), {@code -Drel.fuzz.seeds},
+ * {@code -Drel.fuzz.freshSeeds}. The defaults keep the class near 2 min; {@code -Drel.long=true}
+ * runs 200k chained, 20k paranoid, 20k prototype and 5k fresh seeds.
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class },
@@ -81,15 +82,15 @@ class RelCleanFuzzTest {
 
    @Test
    void chainedCleanFuzz() throws Exception {
-      Stats stats = fuzz(seeds(600), true, Set.of(RelScriptGenerator.F_PROTO));
+      Stats stats = fuzz(seeds(350, 200_000), true, Set.of());
       stats.print("chained");
       stats.assertClean();
    }
 
    @Test
    void freshEnvCleanFuzz() throws Exception {
-      Stats stats = fuzz(Long.getLong("rel.fuzz.freshSeeds", LONG ? 5_000 : 100), false,
-                         Set.of(RelScriptGenerator.F_PROTO));
+      Stats stats = fuzz(Long.getLong("rel.fuzz.freshSeeds", LONG ? 5_000 : 60), false,
+                         Set.of());
       stats.print("fresh");
       stats.assertClean();
    }
@@ -100,7 +101,7 @@ class RelCleanFuzzTest {
    @Test
    void chainedCleanFuzzWithParanoia() throws Exception {
       PoolParanoia.forced = true;
-      Stats stats = fuzz(seeds(300), true, Set.of(RelScriptGenerator.F_PROTO));
+      Stats stats = fuzz(seeds(200, 20_000), true, Set.of());
       stats.print("chained+paranoid");
       stats.assertClean();
       assertEquals(0, stats.paranoiaViolations, stats.paranoiaKinds::toString);
@@ -108,11 +109,9 @@ class RelCleanFuzzTest {
 
 
    /**
-    * Finding FZ1, minimal: the clean compares own-key descriptors only and never restores the
-    * global's [[Prototype]], so a re-parented global is kept and the next claim sees it.
+    * FZ1, minimal: a re-parented global gets its baseline prototype back at the clean, so the
+    * next claim does not see the names the foreign prototype provided.
     */
-   @Disabled("finding FZ1: the clean never restores the global's [[Prototype]]; " +
-             "Object.setPrototypeOf(globalThis, {zql: 1}) is seen by the next claim")
    @Test
    void globalPrototypeIsRestoredOrTheSlotClosed() throws Exception {
       WorksheetScriptEnv env = newEnv();
@@ -120,39 +119,44 @@ class RelCleanFuzzTest {
       assertEquals("undefined", run(env, "typeof zql"));
       run(env, "Object.setPrototypeOf(globalThis, null); 1");
       assertEquals("function", run(env, "typeof hasOwnProperty"));
+      assertEquals(1, env.getMetrics().getCreations(), "a restored prototype keeps the slot");
    }
 
    /**
-    * Finding FZ1 in the fuzz: the same fuzz with the prototype blocks included.
+    * FZ1: a global that was re-parented and then frozen cannot get its prototype back, so the
+    * slot is closed and the next claim runs on a new one.
     */
-   @Disabled("finding FZ1: the clean never restores the global's [[Prototype]]")
+   @Test
+   void frozenGlobalWithAChangedPrototypeClosesTheSlot() throws Exception {
+      WorksheetScriptEnv env = newEnv();
+      long created = env.getMetrics().getCreations();
+      run(env, "Object.setPrototypeOf(globalThis, {zql: 1}); Object.freeze(globalThis); 1");
+      assertEquals("undefined", run(env, "typeof zql"));
+      assertEquals(true, run(env, "Object.getPrototypeOf(globalThis) === Object.prototype"));
+      assertEquals(created + 1, env.getMetrics().getCreations());
+   }
+
+   /**
+    * FZ1 in the fuzz: other seeds (base + 500000), with the prototype blocks included as in
+    * every fuzz here.
+    */
    @Test
    void chainedCleanFuzzWithGlobalPrototypeBlocks() throws Exception {
-      Stats stats = fuzz(seeds(300), true, Set.of());
+      Stats stats = fuzz(seeds(200, 20_000), true, Set.of(), 500_000L);
       stats.print("chained+FZ1");
       stats.assertClean();
    }
 
-   /**
-    * The paranoid check closes the slots FZ1 leaves re-parented: with it on, the fuzz that
-    * includes the prototype blocks passes, and every such slot is counted as a violation.
-    */
-   @Test
-   void paranoiaClosesReparentedGlobals() throws Exception {
-      PoolParanoia.forced = true;
-      Stats stats = fuzz(seeds(300), true, Set.of());
-      stats.print("chained+FZ1+paranoid");
-      stats.assertClean();
-      assertTrue(stats.paranoiaViolations > 0, "the prototype blocks were generated and caught");
-      assertEquals(0, stats.paranoiaWithoutPrototype, stats.paranoiaKinds::toString);
-   }
-
-   private static long seeds(long def) {
-      return Long.getLong("rel.fuzz.seeds", LONG ? 200_000 : def);
+   private static long seeds(long def, long longDef) {
+      return Long.getLong("rel.fuzz.seeds", LONG ? longDef : def);
    }
 
    Stats fuzz(long count, boolean chained, Set<String> excluded) throws Exception {
-      long base = Long.getLong("rel.fuzz.seed", 77123L);
+      return fuzz(count, chained, excluded, 0L);
+   }
+
+   Stats fuzz(long count, boolean chained, Set<String> excluded, long offset) throws Exception {
+      long base = Long.getLong("rel.fuzz.seed", 77123L) + offset;
       Stats stats = new Stats();
       WorksheetScriptEnv ref = newEnv();
       WorksheetScriptEnv env = chained ? newEnv() : null;
@@ -250,7 +254,19 @@ class RelCleanFuzzTest {
             !"loop".equals(lastBlock.kind());
       }
 
-      String r1 = String.valueOf(run(env, probe));
+      String r1;
+      long t0 = System.nanoTime();
+
+      try {
+         r1 = String.valueOf(run(env, probe));
+      }
+      catch(Exception ex) {
+         // the probe is read-only and fast: a throw here is judged, not a test error
+         return new Outcome("probe threw after " + (System.nanoTime() - t0) / 1_000_000L +
+                            " ms: " + ex.getMessage(), env.getMetrics().getCreations() > c0,
+                            false, threw, unexpectedThrow, false, 0, Set.of());
+      }
+
       boolean discarded = env.getMetrics().getCreations() > c0;
       String r2 = String.valueOf(run(ref, probe));
 
