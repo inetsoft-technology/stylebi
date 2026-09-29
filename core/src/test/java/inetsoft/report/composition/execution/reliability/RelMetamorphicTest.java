@@ -206,6 +206,22 @@ public class RelMetamorphicTest {
    }
 
    /**
+    * Meta review N2: C6 excuses a host copy against the pool off only; with the pool on on
+    * both sides (MR5) the same difference is unknown.
+    */
+   @Test
+   public void c6IsExcusedAgainstThePoolOffOnly() {
+      String value = "Value:{a: 1}" + RelPipeline.CONTENT + "{a=N:1}";
+      String copy = "M{a=Double:1.0}" + RelPipeline.CONTENT + "{a=N:1}";
+      Case c = new Case("c6-rule", "({ a: 1 })", RelCorpus.Kind.values()[0], 1L, 0);
+      Shape shape = Shape.values()[0];
+      assertNull(compare("C6-rule", c, shape, List.of(value), List.of(copy), RelConfig.off(),
+                         RelConfig.on(), ReadPattern.SEQUENTIAL, true));
+      assertNotNull(compare("C6-rule", c, shape, List.of(value), List.of(copy), RelConfig.on(),
+                            RelConfig.on(), ReadPattern.SEQUENTIAL, true));
+   }
+
+   /**
     * @return the context cleans (one per released claim) of one sequential read of a pooled
     * formula lens.
     */
@@ -365,8 +381,8 @@ public class RelMetamorphicTest {
          List<String> expected = cmp.isOracle() ? oracle(c, cmp.shape())
             : runs.get(cmp.baseKey()).get();
          List<String> actual = runs.get(cmp.key()).get();
-         String failure = compare(relation, c, cmp.shape(), expected, actual, cmp.cfg(),
-                                  cmp.read(), poolCompared);
+         String failure = compare(relation, c, cmp.shape(), expected, actual, cmp.baseCfg(),
+                                  cmp.cfg(), cmp.read(), poolCompared);
 
          if(failure != null) {
             failures.add(failure);
@@ -383,8 +399,8 @@ public class RelMetamorphicTest {
     * @return {@code null} if allowed, else the failure.
     */
    private static String compare(String relation, Case c, Shape shape, List<String> expected,
-                                 List<String> actual, RelConfig cfg, ReadPattern read,
-                                 boolean poolCompared)
+                                 List<String> actual, RelConfig baseCfg, RelConfig cfg,
+                                 ReadPattern read, boolean poolCompared)
    {
       count(relation + ".comparisons");
       count("comparisons." + shape);
@@ -407,7 +423,11 @@ public class RelMetamorphicTest {
       String diff = diff(expected, actual);
       Drift drift = drift(expected, actual, c.script());
 
-      if(poolCompared && cfg.pool() && drift != Drift.NONE) {
+      // C6 is a host copy against a GraalJS value: with the pool on on both sides (MR5) that
+      // is itself a pool inconsistency, not the documented drift
+      if(poolCompared && cfg.pool() && drift != Drift.NONE &&
+         !(drift == Drift.C6_HOST_COPY && baseCfg.pool()))
+      {
          count(relation + ".drift." + drift);
          DRIFTS.add(relation + " " + drift + " " + c.label() + " " + shape + " " + cfg + " " +
                     read + ": " + diff);
