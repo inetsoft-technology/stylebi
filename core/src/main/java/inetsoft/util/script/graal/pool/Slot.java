@@ -128,6 +128,27 @@ final class Slot {
    }
 
    /**
+    * Bring this slot, which a query build claim holds, up to the env's current variables
+    * before one of the build's scripts (G10 piece Q, amendment 2): the claim took it at the
+    * build's first script, so without this the build would not see a variable another thread
+    * set after that, which a checkout per script and the pool off both do. Owner only; never
+    * waits. A context the replay fails on is doomed, so its claim's release closes it.
+    */
+   void resync(EnvState.Snapshot state, boolean sql) {
+      if(state.version() > version) {
+         try {
+            replay(state.after(version), state.version());
+         }
+         catch(RuntimeException ex) {
+            doom();
+            throw ex;
+         }
+      }
+
+      engine.setSQL(sql);
+   }
+
+   /**
     * Set a variable on this context now, and expect it (spec N2, §14.2). Owner only.
     */
    void applyOwn(String name, Object value) {
@@ -189,6 +210,20 @@ final class Slot {
 
    boolean isDoomed() {
       return doomed;
+   }
+
+   /**
+    * An interrupt could not stop an exec on this context, so a claimed interrupt may still
+    * land on it: doom it, and let a query build claim leave it at its next script (G10 piece
+    * Q, amendment 1).
+    */
+   void interruptLost() {
+      interruptLost = true;
+      doom();
+   }
+
+   boolean isInterruptLost() {
+      return interruptLost;
    }
 
    boolean isClosed() {
@@ -337,6 +372,7 @@ final class Slot {
    private Cleaner.Cleanable nodeCount; // set at creation, before the slot is shared
    private long version; // owner only
    private volatile boolean doomed;
+   private volatile boolean interruptLost;
    private volatile boolean closed;
    private volatile long idleSince = System.currentTimeMillis();
 

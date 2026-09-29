@@ -29,6 +29,10 @@ import java.util.*;
  * on its own thread. A nested acquire reuses the claim and its slot; only the outermost
  * release (1 to 0) cleans and returns the slot. A lazy claim takes a slot only when a script
  * first needs one, so a span around scriptless work costs no context.
+ *
+ * <p>While a query build is open on the thread ({@link #openBuild()}, G10 piece Q), a claim
+ * first opened in it is also held by the build until the build ends, so the scripts of one
+ * query build share one context and one clean.
  */
 public final class SlotClaim implements ScriptSpan {
    private SlotClaim(SlotPool pool) {
@@ -58,6 +62,14 @@ public final class SlotClaim implements ScriptSpan {
       if(claim == null) {
          claim = new SlotClaim(pool);
          claims.put(pool, claim);
+         Build build = BUILD.get();
+
+         if(build != null) {
+            // the query build open on this thread holds the claim until it ends (G10 piece Q)
+            claim.depth++;
+            claim.build = true;
+            build.claims.add(claim);
+         }
       }
 
       claim.depth++;
@@ -89,9 +101,133 @@ public final class SlotClaim implements ScriptSpan {
    Slot slot() {
       if(slot == null) {
          slot = pool.checkout();
+         slot.metrics().checkedOut();
       }
 
       return slot;
+   }
+
+   /**
+    * @param state the env's variables.
+    * @param sql   the env's SQL mode.
+    *
+    * @return the slot for one script call (an exec, a function check, a key listing) at this
+    * claim's current depth, checked out now if this claim has none yet (never waits). A query
+    * build claim (G10 piece Q) that already holds a slot first:
+    * <ul>
+    *    <li>leaves it for a fresh one if an interrupt could not stop an earlier script on it
+    *    and no span of the build is open, i.e. the call is at the build's top level
+    *    (amendment 1). Inside a span (a formula table batch, a condition filter), the span's
+    *    scripts go on on it, as they do on a batch claim, and the build's release closes it;
+    *    </li>
+    *    <li>brings it up to the env's variables, which another thread may have set after the
+    *    build's first script (amendment 2).</li>
+    * </ul>
+    * A retire of the env during the build dooms the slot but does not swap it: the build ends
+    * on the context it started on, as a batch claim does, and its release closes it
+    * (amendment 4).
+    */
+   Slot scriptSlot(EnvState state, boolean sql) {
+      Slot held = slot;
+
+      if(held == null || !build) {
+         return slot();
+      }
+
+      // depth 2: the build's own hold and this call's
+      if(held.isInterruptLost() && depth == 2) {
+         slot = null;
+         held.metrics().swapped();
+         pool.release(held);
+         return slot();
+      }
+
+      held.resync(state.snapshot(), sql);
+      return held;
+   }
+
+   /**
+    * Open a query build on the calling thread, or re-enter the one open (G10 piece Q): every
+    * pooled worksheet script claim first opened on this thread until the outermost build
+    * ends is held until then, so all the scripts of the build (its formula columns, condition
+    * values, compiles, calc fields) run on one context, which is cleaned once, at the end.
+    * Nothing is claimed here: a claim still takes its context only when its first script
+    * needs one, so a build that runs no script costs no context. Never waits. Close it on the
+    * same thread in a try-with-resources.
+    */
+   public static Build openBuild() {
+      Build build = BUILD.get();
+
+      if(build == null) {
+         if(!everClaimed) {
+            everClaimed = true;
+         }
+
+         build = new Build();
+         BUILD.set(build);
+      }
+
+      build.depth++;
+      return build;
+   }
+
+   /**
+    * A query build open on one thread (G10 piece Q); see {@link #openBuild()}.
+    */
+   public static final class Build implements AutoCloseable {
+      private Build() {
+         this.owner = Thread.currentThread();
+      }
+
+      /**
+       * End this level of the build; the outermost close releases the claims the build held,
+       * each cleaning and returning its context. Never throws on the thread that opened it.
+       */
+      @Override
+      public void close() {
+         if(Thread.currentThread() != owner) {
+            throw new IllegalStateException(
+               "A worksheet query build must be closed by the thread that opened it");
+         }
+
+         if(depth <= 0 || BUILD.get() != this) {
+            LOG.warn("Unbalanced end of a worksheet query build");
+            return;
+         }
+
+         if(--depth > 0) {
+            return;
+         }
+
+         BUILD.remove();
+
+         for(SlotClaim claim : claims) {
+            claim.endBuild();
+         }
+
+         claims.clear();
+      }
+
+      private final Thread owner;
+      private final List<SlotClaim> claims = new ArrayList<>();
+      private int depth;
+   }
+
+   // the build's hold on this claim ends
+   private void endBuild() {
+      if(!build) {
+         return;
+      }
+
+      build = false;
+
+      try {
+         close();
+      }
+      catch(RuntimeException ex) {
+         // runs in the build's close: never mask the build's own throw or skip other claims
+         LOG.warn("Failed to release the worksheet script claim of a query build", ex);
+      }
    }
 
    /**
@@ -214,6 +350,15 @@ public final class SlotClaim implements ScriptSpan {
 
       Map<SlotPool, SlotClaim> claims = CLAIMS.get();
 
+      Build build = BUILD.get();
+
+      if(build != null) {
+         LOG.warn("A worksheet query build was left open at the end of {}; ending it", where);
+         BUILD.remove();
+         build.depth = 0;
+         build.claims.clear();
+      }
+
       if(claims == null) {
          return;
       }
@@ -225,6 +370,7 @@ public final class SlotClaim implements ScriptSpan {
                   "releasing it", where, claim.depth);
          PoolMetrics.leakedClaim();
          claim.depth = 0;
+         claim.build = false;
          Slot held = claim.slot;
          claim.slot = null;
 
@@ -242,6 +388,7 @@ public final class SlotClaim implements ScriptSpan {
 
    private static final ThreadLocal<Map<SlotPool, SlotClaim>> CLAIMS = new ThreadLocal<>();
    private static final ThreadLocal<Object> HOME_HINT = new ThreadLocal<>();
+   private static final ThreadLocal<Build> BUILD = new ThreadLocal<>();
    // set on the first claim in this JVM, by the claiming thread before its CLAIMS entry
    private static volatile boolean everClaimed;
 
@@ -249,6 +396,8 @@ public final class SlotClaim implements ScriptSpan {
    private final Thread owner;
    private int depth;
    private Slot slot;
+   // set while a query build holds this claim (G10 piece Q), which then counts one depth
+   private boolean build;
 
    private static final Logger LOG = LoggerFactory.getLogger(SlotClaim.class);
 }

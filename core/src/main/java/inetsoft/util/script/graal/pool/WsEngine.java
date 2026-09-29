@@ -91,7 +91,7 @@ final class WsEngine extends GraalJavaScriptEngine {
       Slot owner = slot;
 
       if(owner != null) {
-         owner.doom();
+         owner.interruptLost();
       }
    }
 

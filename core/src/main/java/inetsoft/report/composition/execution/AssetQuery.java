@@ -47,6 +47,7 @@ import inetsoft.util.audit.ExecutionBreakDownRecord;
 import inetsoft.util.log.LogLevel;
 import inetsoft.util.profile.ProfileUtils;
 import inetsoft.util.script.*;
+import inetsoft.util.script.graal.pool.SlotClaim;
 import org.apache.commons.lang3.ArrayUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -653,8 +654,15 @@ public abstract class AssetQuery extends PreAssetQuery {
     * @return the table of the query.
     */
    public TableLens getTableLens(VariableTable vars) throws Exception {
-      return GroupedThread.runWithRecordContext(this::getLogRecord,
-                                                () -> this.doGetTableLens(vars));
+      // pool mode: all the scripts of this build (its formula columns, condition values,
+      // compiles; nested sub-queries join it) share one lazily claimed context and one clean
+      // at its end, instead of one claim and clean per script or batch (G10 piece Q)
+      try(SlotClaim.Build ignored = box != null && box.isScriptPoolMode() ?
+         SlotClaim.openBuild() : null)
+      {
+         return GroupedThread.runWithRecordContext(this::getLogRecord,
+                                                   () -> this.doGetTableLens(vars));
+      }
    }
 
    private TableLens doGetTableLens(VariableTable vars) throws Exception {

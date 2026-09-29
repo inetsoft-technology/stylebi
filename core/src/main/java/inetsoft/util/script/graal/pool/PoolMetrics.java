@@ -75,6 +75,31 @@ public final class PoolMetrics {
       NODE_EXECS.incrementAndGet();
    }
 
+   // one per claim that took a context (G10 piece Q: one per query build)
+   void checkedOut() {
+      checkouts.incrementAndGet();
+   }
+
+   void swapped() {
+      swaps.incrementAndGet();
+   }
+
+   /**
+    * @return the contexts taken by claims, one per claim that ran a script: with a query build
+    * claim (G10 piece Q) one per build, however many formulas and conditions it runs.
+    */
+   public long getCheckouts() {
+      return checkouts.get();
+   }
+
+   /**
+    * @return the contexts a query build left for a fresh one because an interrupt could not
+    * stop one of its scripts (G10 piece Q, amendment 1).
+    */
+   public long getSwaps() {
+      return swaps.get();
+   }
+
    // lens-owned objects across contexts (Testing #77123, B1 residual part 2)
    void handedOff(long nanos) {
       handOffs.incrementAndGet();
@@ -335,6 +360,8 @@ public final class PoolMetrics {
    private final AtomicLong doomedCloses = new AtomicLong();
    private final AtomicLong cleans = new AtomicLong();
    private final AtomicLong execs = new AtomicLong();
+   private final AtomicLong checkouts = new AtomicLong();
+   private final AtomicLong swaps = new AtomicLong();
    private final AtomicLong handOffs = new AtomicLong();
    private final AtomicLong handOffNanos = new AtomicLong();
    private final AtomicLong rebuilds = new AtomicLong();
