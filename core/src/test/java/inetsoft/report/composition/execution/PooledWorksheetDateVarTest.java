@@ -64,8 +64,12 @@ import static org.mockito.Mockito.when;
  * its formula table in one batch as the table opens, so there it only matches the pool off);
  * two vars holding one Date still hold one object; a Date that loops in every method, or a
  * Proxy of one, does not hang the batch end; a batch ended by the script timeout keeps its
- * Date. A second column that keeps an array in a var (read as undefined on another context)
- * shows that each read really ran batches on another context.
+ * Date. A second column that keeps a counter closure in a var (a function is not kept across
+ * a hand-off, so it restarts on another context) shows that each read really ran batches on
+ * another context. The closure makes the table keep its objects on a home (B1 residual part
+ * 2); the pool has no exclusive home here, so the other thread's claim takes that home over
+ * after a hand-off (the Dates are saved in the same tree) and the table's next batch runs on
+ * another context.
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class, LibManagerTestConfiguration.class, PluginsTestConfiguration.class, PooledWorksheetDateVarTest.TestConfig.class }, initializers = ConfigurationContextInitializer.class)
@@ -91,8 +95,9 @@ class PooledWorksheetDateVarTest {
    static final String ALIAS =
       "var a = a || new Date(0); var b = b || a; b.setTime(b.getTime() + 1000); " +
       "(a === b ? 1 : -1) * a.getTime() / 1000";
-   // reads as undefined on another context, so it restarts there: proof that a read crossed
-   static final String WITNESS = "var w = w || []; w.push(1); w.length";
+   // not kept across a hand-off, so it restarts there: proof that a read crossed
+   static final String WITNESS =
+      "var w = w || (function() { var n = 0; return function() { return ++n; }; })(); w()";
 
    @BeforeEach
    void capture() {
@@ -106,6 +111,7 @@ class PooledWorksheetDateVarTest {
    void tearDown() {
       logger.detachAppender(appender);
       SreeEnv.remove(PoolConfig.ENABLED);
+      SreeEnv.remove(MAX_HOMES);
 
       for(AssetQuerySandbox box : boxes) {
          if(box.peekScriptEnv() instanceof WorksheetScriptEnv env) {
@@ -259,12 +265,15 @@ class PooledWorksheetDateVarTest {
    }
 
    /**
-    * An array, object or function in a var still reads as undefined on another context, with
-    * one warning naming what it holds; with the pool off it is kept, with no warning.
+    * An array or object in a var is kept on another context, as with the pool off, with no
+    * warning (B1 residual part 2); a function reads as undefined there, with one warning, and
+    * the idiom creates it again, so the count is kept.
     */
    @ParameterizedTest(name = "{0}")
    @ValueSource(strings = { "array", "object", "function" })
-   void anArrayObjectOrFunctionVarIsStillPerBatchWithOneWarning(String kind) throws Exception {
+   void anArrayOrObjectVarIsKeptAndAFunctionIsPerBatchWithOneWarning(String kind)
+      throws Exception
+   {
       String f = switch(kind) {
       case "array" -> "var q = q || []; q.push(1); q.length";
       case "object" -> "var q = q || { n: 0 }; q.n++; q.n";
@@ -283,18 +292,17 @@ class PooledWorksheetDateVarTest {
       assertTrue(on.crossed(), "no batch ran on another context");
       List<String> mine = warnings().stream().map(ILoggingEvent::getFormattedMessage)
          .filter(m -> m.contains("\"q\"")).toList();
-      assertEquals(1, mine.size(), () -> "one warning for q: " + mine);
-      assertTrue(mine.get(0).contains("\"q\" holds " + (kind.equals("array") ? "an array" :
-         kind.equals("object") ? "an object" : "a function")), mine.get(0));
+
+      for(int id = 1; id <= ROWS; id++) {
+         assertEquals(id, on.out[id], kind + ", id " + id);
+      }
 
       if(kind.equals("function")) {
-         // the idiom creates it again: the count is kept (k is a number)
-         for(int id = 1; id <= ROWS; id++) {
-            assertEquals(id, on.out[id], "function, id " + id);
-         }
+         assertEquals(1, mine.size(), () -> "one warning for q: " + mine);
+         assertTrue(mine.get(0).contains("\"q\" holds a function"), mine.get(0));
       }
       else {
-         assertNotEquals(ROWS, on.out[ROWS], kind + " restarted on another context");
+         assertEquals(0, mine.size(), () -> "no warning for q: " + mine);
       }
    }
 
@@ -396,6 +404,13 @@ class PooledWorksheetDateVarTest {
       }
       case "openHeld" -> {
          held(env, open);
+
+         // the table stays on the context it opened on, its home: hand it off, so the reads
+         // below run on another context
+         if(env != null) {
+            PoolTestSupport.handOffIdleHomes(env);
+         }
+
          read(t[0], res, 1, ROWS);
       }
       case "sort" -> {
@@ -447,6 +462,8 @@ class PooledWorksheetDateVarTest {
 
    private AssetQuerySandbox box(Worksheet ws, boolean pool) {
       SreeEnv.setProperty(PoolConfig.ENABLED, Boolean.toString(pool));
+      // no exclusive home (see the class comment)
+      SreeEnv.setProperty(MAX_HOMES, "0");
       // the data keys are content based: without this a run could read another's rows
       AssetDataCache.getCache().clearCache();
       AssetQuerySandbox box = new AssetQuerySandbox(ws);
@@ -511,6 +528,7 @@ class PooledWorksheetDateVarTest {
    // more rows than a worksheet query computes up front (about 1800 with the pool on), so
    // later reads run further batches
    private static final int ROWS = 3000;
+   private static final String MAX_HOMES = "script.ws.contextPool.maxHomes";
    private static final double HOUR = 3600_000;
    private static final int RUNTIME = AssetQuerySandbox.RUNTIME_MODE;
    private final List<AssetQuerySandbox> boxes = new ArrayList<>();

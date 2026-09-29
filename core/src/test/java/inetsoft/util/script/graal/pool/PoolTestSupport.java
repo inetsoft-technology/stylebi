@@ -131,6 +131,94 @@ public final class PoolTestSupport {
       field.set(null, fault);
    }
 
+   /**
+    * A counter of the env's pool metrics by name ({@code "HandOffs"} reads getHandOffs()), or
+    * -1 if this build has no such counter (Testing #77123, B1 residual part 2: read by
+    * reflection so the tests also run, and fail, on a build without it).
+    */
+   public static long metric(WorksheetScriptEnv env, String name) {
+      try {
+         return ((Number) PoolMetrics.class.getMethod("get" + name).invoke(env.getMetrics()))
+            .longValue();
+      }
+      catch(ReflectiveOperationException ex) {
+         return -1;
+      }
+   }
+
+   /**
+    * Hand off every idle home of the env's pool now, as a take-over or expiry would.
+    *
+    * @return the homes handed off, or -1 if this build has no homes.
+    */
+   public static int handOffIdleHomes(WorksheetScriptEnv env) {
+      return (int) poolCall(env, "handOffIdleHomes", -1);
+   }
+
+   /**
+    * @return the homes of the env's pool (slots formula tables' objects live on), or -1.
+    */
+   public static int homes(WorksheetScriptEnv env) {
+      return (int) poolCall(env, "homes", -1);
+   }
+
+   /**
+    * @return the exclusive homes of the env's pool, or -1.
+    */
+   public static int exclusiveHomes(WorksheetScriptEnv env) {
+      return (int) poolCall(env, "exclusiveHomes", -1);
+   }
+
+   /**
+    * Run the env's evictor as if the clock read {@code now}.
+    */
+   public static void evictIdle(WorksheetScriptEnv env, long now) {
+      env.pool().evictIdle(now);
+   }
+
+   /**
+    * @return the exclusive homes of this node, or -1.
+    */
+   public static int nodeHomes() {
+      try {
+         return ((Number) PoolMetrics.class.getMethod("nodeHomes").invoke(null)).intValue();
+      }
+      catch(ReflectiveOperationException ex) {
+         return -1;
+      }
+   }
+
+   private static Object poolCall(WorksheetScriptEnv env, String method, Object missing) {
+      try {
+         java.lang.reflect.Method m = SlotPool.class.getDeclaredMethod(method);
+         m.setAccessible(true);
+         return m.invoke(env.pool());
+      }
+      catch(NoSuchMethodException ex) {
+         return missing;
+      }
+      catch(ReflectiveOperationException ex) {
+         throw new IllegalStateException(ex);
+      }
+   }
+
+   /**
+    * A host object a formula calls from getters, traps and setters that must never run: it
+    * counts the calls.
+    */
+   public static final class Probe {
+      public void hit() {
+         hits.incrementAndGet();
+      }
+
+      public int hits() {
+         return hits.get();
+      }
+
+      private final java.util.concurrent.atomic.AtomicInteger hits =
+         new java.util.concurrent.atomic.AtomicInteger();
+   }
+
    @FunctionalInterface
    public interface ThrowingRunnable {
       void run() throws Exception;

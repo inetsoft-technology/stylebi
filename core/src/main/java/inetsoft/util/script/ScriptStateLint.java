@@ -38,7 +38,8 @@ import java.util.function.Predicate;
  * pooled batch with the pool on (Feature #77123, context-pool brief §5 P2). Detection only; it
  * never changes how a script runs. The exception is a top-level var of an expression column's
  * formula, which its table owns (Testing #77123): it is not reported, except, with the pool
- * on, when it is assigned an array, object or function, which is kept only within one batch
+ * on, when it is assigned a function or an object made with {@code new} (a class instance, a
+ * Map, an Intl formatter), which is kept only while the table stays on one script context
  * ({@link #checkColumn(String, Object, XTable, int, String, String, String, Set, boolean)}).
  *
  * <p>The detector is a token-level lexer (comments, strings, templates, regex vs division) with
@@ -91,7 +92,8 @@ public final class ScriptStateLint {
     * its formulas (Testing #77123): an owned var keeps its value from row to row for the
     * whole table, so reading it before writing it is a supported accumulator and not a
     * finding. The exception is the pool: with the script context pool on, a script object in
-    * an owned var (array, object, function; a Date is kept) is kept only within one batch of
+    * an owned var that is a function or made with {@code new} (arrays, plain objects and Dates
+    * are kept, B1 residual part 2) is kept only while the table stays on one context of
     * rows, so a read-before-write of an owned var that is assigned such a value is still
     * reported.
     * R2 (an undeclared global) is not affected.
@@ -159,7 +161,7 @@ public final class ScriptStateLint {
       REPORT,
       /** An expression column's var that its table does not own (a let/const of the name). */
       REPORT_NOT_OWNED,
-      /** A var its table owns that holds an array, object or function, with the pool on. */
+      /** A var its table owns that holds a function or a class instance, with the pool on. */
       REPORT_POOLED_OBJECT
    }
 
@@ -314,7 +316,7 @@ public final class ScriptStateLint {
             .append(line(script, f.offset())).append(")");
 
          if(kinds.get(i) == Disposition.REPORT_POOLED_OBJECT) {
-            buf.append(" and assigns it an array, object or function");
+            buf.append(" and assigns it a function or an object made with new");
          }
          else if(kinds.get(i) == Disposition.REPORT_NOT_OWNED) {
             buf.append(", which a formula of this table also declares with let or const, " +
@@ -345,10 +347,11 @@ public final class ScriptStateLint {
       if(pooledObject) {
          buf.append(" A top-level var of an expression column's formula keeps its value " +
                     "from row to row for its whole table, but with the worksheet script " +
-                    "context pool on an array, object or function in it is kept only " +
-                    "within one batch of rows: a batch that runs on another pooled context " +
-                    "reads it as undefined. A number, string, boolean or Date is always kept " +
-                    "(a Date by its time value).");
+                    "context pool on a function or an object made with new (a class " +
+                    "instance, a Map, an Intl formatter) in it is kept only while the table " +
+                    "stays on one script context: a batch that runs on another pooled " +
+                    "context reads it as undefined. A number, string, boolean, Date, array " +
+                    "or plain object is always kept.");
       }
 
       if(column != null) {
@@ -432,9 +435,10 @@ public final class ScriptStateLint {
    /**
     * A read of {@code name} at {@code offset} (a char offset) before it is written.
     * {@code objectValue} is true when a top-level write of the name assigns a value that
-    * looks like a script object that the pool keeps only within one batch: an object or array
-    * literal, {@code new} (except {@code new Date}), a function or an arrow function (a lexical
-    * check; a call that returns an object is not seen).
+    * looks like a script object that the pool does not keep across contexts: {@code new}
+    * (except {@code new Date}), a function, an arrow function or a class (a lexical check; a
+    * call that returns one is not seen). Arrays, plain objects and Dates are kept (Testing
+    * #77123, B1 residual part 2).
     */
    public record Finding(String rule, String name, int offset, boolean objectValue) {
       public Finding(String rule, String name, int offset) {
@@ -1075,22 +1079,21 @@ public final class ScriptStateLint {
 
    /**
     * Whether the expression in tokens {@code [from, to)} can evaluate to a script object the
-    * pool keeps only within one batch: it contains an object literal, an array literal (not a
-    * subscript), {@code new} (but not {@code new Date}: a Date is kept across batches,
-    * Testing #77123 B1 residual), {@code function} or {@code =>}.
+    * pool does not keep across contexts: it contains {@code new} (but not {@code new Date}),
+    * {@code function}, {@code class} or {@code =>}. Arrays, plain objects and Dates are kept
+    * across pooled batches (Testing #77123, B1 residual).
     */
    private static boolean objectValue(List<Tok> t, int from, int to) {
       for(int i = Math.max(0, from); i < to && i < t.size(); i++) {
          Tok k = t.get(i);
 
          if(k.type == T.P) {
-            if(k.text.equals("{") || k.text.equals("=>") ||
-               k.text.equals("[") && (i == from || !endsValue(t.get(i - 1))))
-            {
+            if(k.text.equals("=>")) {
                return true;
             }
          }
-         else if(k.type == T.ID && (k.text.equals("new") || k.text.equals("function")) &&
+         else if(k.type == T.ID && (k.text.equals("new") || k.text.equals("function") ||
+                                    k.text.equals("class")) &&
                  !isMember(t, i) && !newDate(t, i, to))
          {
             return true;

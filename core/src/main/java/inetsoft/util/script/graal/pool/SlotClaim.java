@@ -105,6 +105,48 @@ public final class SlotClaim implements ScriptSpan {
       return depth;
    }
 
+   SlotPool pool() {
+      return pool;
+   }
+
+   /**
+    * Make this thread's next checkouts prefer a home of {@code tenant} (Testing #77123, B1
+    * residual part 2): set by a formula table around its batch, so a lazy claim that takes its
+    * slot in that batch takes the context the table's objects live on.
+    *
+    * @return the previous preference, which {@link #restoreHomeHint} restores.
+    */
+   static Object setHomeHint(SlotTenant tenant) {
+      Object previous = HOME_HINT.get();
+
+      if(tenant != previous) {
+         if(tenant == null) {
+            HOME_HINT.remove();
+         }
+         else {
+            HOME_HINT.set(tenant);
+         }
+      }
+
+      return previous;
+   }
+
+   static void restoreHomeHint(Object previous) {
+      if(previous instanceof SlotTenant tenant) {
+         HOME_HINT.set(tenant);
+      }
+      else {
+         HOME_HINT.remove();
+      }
+   }
+
+   /**
+    * @return the tenant whose home this thread's checkout prefers, or {@code null}.
+    */
+   static SlotTenant homeHint() {
+      return HOME_HINT.get() instanceof SlotTenant tenant ? tenant : null;
+   }
+
    @Override
    public int batchRows() {
       return pool.config().batchRows();
@@ -199,6 +241,7 @@ public final class SlotClaim implements ScriptSpan {
    }
 
    private static final ThreadLocal<Map<SlotPool, SlotClaim>> CLAIMS = new ThreadLocal<>();
+   private static final ThreadLocal<Object> HOME_HINT = new ThreadLocal<>();
    // set on the first claim in this JVM, by the claiming thread before its CLAIMS entry
    private static volatile boolean everClaimed;
 
