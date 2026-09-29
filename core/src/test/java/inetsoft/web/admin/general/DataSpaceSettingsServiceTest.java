@@ -239,6 +239,58 @@ class DataSpaceSettingsServiceTest {
       verify(externalStorageService, atLeastOnce()).delete(anyString());
    }
 
+   // a successful regular backup converges on exactly the configured count: the prune before
+   // the write clears only genuine surplus, and the prune after the write trims the new file
+   @Test
+   void doBackupPrunesAgainAfterASuccessfulWrite() throws Exception {
+      DataSpaceSettingsService spyService = spy(service);
+      doNothing().when(spyService).deleteRedundantBackupFiles();
+
+      spyService.doBackup(BackupDataModel.builder().dataspace("data").build());
+
+      verify(spyService, times(2)).deleteRedundantBackupFiles();
+   }
+
+   // a failed write must not trigger the second prune
+   @Test
+   void doBackupDoesNotPruneAgainAfterAFailedWrite() throws Exception {
+      DataSpaceSettingsService spyService = spy(service);
+      doNothing().when(spyService).deleteRedundantBackupFiles();
+      doThrow(new IOException("simulated write failure"))
+         .when(externalStorageService).write(any(), any(), any());
+
+      BackupResult result = spyService.doBackup(BackupDataModel.builder().dataspace("data").build());
+
+      assertTrue(result.status().contains("Failed"));
+      verify(spyService, times(1)).deleteRedundantBackupFiles();
+   }
+
+   // a post-write prune failure must not discard a backup that was already written
+   @Test
+   void doBackupPostWritePruneFailure_doesNotDiscardTheWrittenPath() throws Exception {
+      DataSpaceSettingsService spyService = spy(service);
+      doNothing().doThrow(new RuntimeException("transient storage error"))
+         .when(spyService).deleteRedundantBackupFiles();
+
+      BackupResult result = spyService.doBackup(BackupDataModel.builder().dataspace("data").build());
+
+      assertNotNull(result.path());
+      assertTrue(result.path().startsWith("backup/"));
+      assertFalse(result.status().contains("Failed"));
+      verify(spyService, times(2)).deleteRedundantBackupFiles();
+      verify(externalStorageService).write(eq(result.path()), any(Path.class), isNull());
+   }
+
+   // an AI snapshot never runs the regular backup prune, before or after the write
+   @Test
+   void aiSnapshotNeverCallsTheRegularPrune() throws Exception {
+      DataSpaceSettingsService spyService = spy(service);
+
+      spyService.doBackup(BackupDataModel.builder().dataspace("admin-chg-14").aiSnapshot(true).build());
+
+      verify(spyService, never()).deleteRedundantBackupFiles();
+   }
+
    // [G6] over the limit: prunes down to exactly ai.snapshot.count, oldest first
    @Test
    void aiSnapshotPruning_deletesDownToTheConfiguredCount() throws Exception {
