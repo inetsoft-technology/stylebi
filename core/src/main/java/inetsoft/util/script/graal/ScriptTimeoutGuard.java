@@ -92,6 +92,12 @@ public class ScriptTimeoutGuard {
    /** Test hook run by the watchdog at the start of every tick; null in production. */
    static volatile Runnable watchdogTickHook;
 
+   /**
+    * Test hook run by the watchdog right before it submits an interrupt task, so a test can
+    * make the submit fail; null in production.
+    */
+   static volatile Runnable submitHook;
+
    // Separate cached pool for the blocking ctx.interrupt() calls so that
    // concurrent timeouts never queue behind each other on the watchdog thread.
    private static final ExecutorService INTERRUPT_POOL =
@@ -102,15 +108,18 @@ public class ScriptTimeoutGuard {
       });
 
    /**
-    * Test hook: the number of guard frames still reachable from the per-thread stacks, open
-    * or not. A closed guard that stayed reachable would be the bug #77004 leak.
+    * Test hook: the number of guard frames still reachable from the given thread's stack,
+    * open or not. A closed guard that stayed reachable would be the bug #77004 leak. It is
+    * per thread so that other threads' guards cannot change the count.
     */
-   static int liveFrames() {
+   static int liveFrames(Thread thread) {
       int n = 0;
 
       for(ThreadWatch w : WATCHES) {
-         for(TokenGuard g = w.top; g != null; g = g.parent) {
-            n++;
+         if(w.thread.get() == thread) {
+            for(TokenGuard g = w.top; g != null; g = g.parent) {
+               n++;
+            }
          }
       }
 
@@ -143,6 +152,12 @@ public class ScriptTimeoutGuard {
    static boolean watchdogAlive() {
       Watchdog dog = watchdog;
       return dog != null && dog.thread.isAlive();
+   }
+
+   /** Test hook: the current watchdog thread, or null before the first guard. */
+   static Thread watchdogThread() {
+      Watchdog dog = watchdog;
+      return dog == null ? null : dog.thread;
    }
 
    /** Returns a Guard that cancels the watchdog when the eval finishes. */
@@ -212,8 +227,13 @@ public class ScriptTimeoutGuard {
       watchdog = next;
    }
 
-   /** One scan of every thread's guard stack; runs on the watchdog thread only. */
-   private static void tick() {
+   /**
+    * One scan of every thread's guard stack; runs on the watchdog thread only.
+    *
+    * @return the last failure to submit an interrupt task in this scan, or null. It is
+    * returned rather than thrown, so that the scan of the other threads goes on.
+    */
+   private static Throwable tick() {
       Runnable hook = watchdogTickHook;
 
       if(hook != null) {
@@ -221,7 +241,7 @@ public class ScriptTimeoutGuard {
       }
 
       long now = System.nanoTime();
-      RuntimeException failure = null;
+      Throwable failure = null;
 
       for(Iterator<ThreadWatch> it = WATCHES.iterator(); it.hasNext(); ) {
          ThreadWatch w = it.next();
@@ -237,6 +257,12 @@ public class ScriptTimeoutGuard {
          for(TokenGuard g = w.top; g != null; g = g.parent) {
             if(now - g.deadline >= 0 && !g.isInert() && g.claimFire()) {
                try {
+                  Runnable preSubmit = submitHook;
+
+                  if(preSubmit != null) {
+                     preSubmit.run();
+                  }
+
                   TokenGuard fire = g;
                   INTERRUPT_POOL.submit(() -> {
                      Runnable taskHook = interruptTaskHook;
@@ -248,9 +274,10 @@ public class ScriptTimeoutGuard {
                      fire.interrupt();
                   });
                }
-               catch(RuntimeException ex) {
-                  // e.g. no thread could be created: let the next tick try again, and still
-                  // scan the other threads in this one
+               catch(Throwable ex) {
+                  // e.g. no thread could be created, which is an OutOfMemoryError rather than
+                  // a RuntimeException: release the claim so the next tick tries again, and
+                  // still scan the other threads in this one
                   g.unclaimFire();
                   failure = ex;
                }
@@ -258,9 +285,7 @@ public class ScriptTimeoutGuard {
          }
       }
 
-      if(failure != null) {
-         throw failure;
-      }
+      return failure;
    }
 
    private static final class Watchdog implements Runnable {
@@ -273,23 +298,43 @@ public class ScriptTimeoutGuard {
       public void run() {
          while(!stop) {
             LockSupport.parkNanos(TICK_NANOS);
+            // parkNanos returns at once while the interrupt flag is set, so a stray
+            // interrupt would turn the loop into a busy spin; nothing stops this thread by
+            // interrupting it (stop is the flag above), so just clear it
+            Thread.interrupted();
 
             if(stop) {
                break;
             }
 
+            Throwable failure;
+
             try {
-               tick();
+               failure = tick();
             }
             catch(Throwable ex) {
                // a failed tick must never end the thread: every timeout on the node needs it
-               long now = System.nanoTime();
+               failure = ex;
+            }
 
-               if(!failureLogged || now - lastFailureLog >= FAILURE_LOG_NANOS) {
-                  failureLogged = true;
-                  lastFailureLog = now;
-                  LOG.warn("Script timeout watchdog tick failed", ex);
-               }
+            if(failure != null) {
+               logFailure(failure);
+            }
+         }
+      }
+
+      private void logFailure(Throwable ex) {
+         long now = System.nanoTime();
+
+         if(!failureLogged || now - lastFailureLog >= FAILURE_LOG_NANOS) {
+            failureLogged = true;
+            lastFailureLog = now;
+
+            try {
+               LOG.warn("Script timeout watchdog tick failed", ex);
+            }
+            catch(Throwable ignore) {
+               // logging can fail too, e.g. out of memory; the watchdog must keep running
             }
          }
       }

@@ -92,11 +92,11 @@ class ScriptTimeoutGuardTest {
    @Test void closedGuardsDoNotStayQueued() {
       try(Context ctx = Context.newBuilder("js").build()) {
          ScriptTimeoutGuard guard = new ScriptTimeoutGuard();
-         int before = ScriptTimeoutGuard.liveFrames();
+         int before = ScriptTimeoutGuard.liveFrames(Thread.currentThread());
 
          // the hook counts an open guard, so the count below is not vacuous
          try(var open = guard.guard(ctx, Duration.ofHours(1))) {
-            assertEquals(before + 1, ScriptTimeoutGuard.liveFrames());
+            assertEquals(before + 1, ScriptTimeoutGuard.liveFrames(Thread.currentThread()));
          }
 
          for(int i = 0; i < 10_000; i++) {
@@ -105,7 +105,7 @@ class ScriptTimeoutGuardTest {
             }
          }
 
-         int after = ScriptTimeoutGuard.liveFrames();
+         int after = ScriptTimeoutGuard.liveFrames(Thread.currentThread());
          assertTrue(after - before < 10, "live guards grew by " + (after - before));
       }
    }

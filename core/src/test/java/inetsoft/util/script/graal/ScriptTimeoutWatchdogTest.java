@@ -42,6 +42,7 @@ class ScriptTimeoutWatchdogTest {
       ScriptTimeoutGuard.watchdogTickHook = null;
       ScriptTimeoutGuard.interruptTaskHook = null;
       ScriptTimeoutGuard.beforeInterruptHook = null;
+      ScriptTimeoutGuard.submitHook = null;
    }
 
    /** Refute amendment 1: a tick that throws, even an Error, must not end the watchdog. */
@@ -78,6 +79,63 @@ class ScriptTimeoutWatchdogTest {
          assertInterrupted(ctx, Duration.ofMillis(200));
          assertTrue(ScriptTimeoutGuard.watchdogAlive());
       }
+   }
+
+   /**
+    * Round 2, tester: an interrupt of the watchdog thread must not make it busy-spin
+    * (parkNanos returns at once while the flag is set), and timeouts must still fire on the
+    * same watchdog thread.
+    */
+   @Test void interruptedWatchdogDoesNotSpin() throws Exception {
+      try(Context ctx = Context.newBuilder("js").build()) {
+         // make sure a watchdog runs
+         try(var ignored = new ScriptTimeoutGuard().guard(ctx, Duration.ofSeconds(5))) {
+            assertTrue(ScriptTimeoutGuard.watchdogAlive());
+         }
+
+         Thread dog = ScriptTimeoutGuard.watchdogThread();
+         AtomicInteger ticks = new AtomicInteger();
+         ScriptTimeoutGuard.watchdogTickHook = ticks::incrementAndGet;
+         dog.interrupt();
+         sleep(50);
+         ticks.set(0);
+         sleep(1000);
+         int perSecond = ticks.get();
+
+         // about 1000 / TICK_MS = 50 per second; the spin was about 2 million per second
+         assertTrue(perSecond < 10 * 1000 / ScriptTimeoutGuard.TICK_MS,
+                    "watchdog ticks per second after an interrupt: " + perSecond);
+         assertSame(dog, ScriptTimeoutGuard.watchdogThread());
+         assertTrue(dog.isAlive());
+         assertInterrupted(ctx, Duration.ofMillis(200));
+         assertSame(dog, ScriptTimeoutGuard.watchdogThread(), "the watchdog was replaced");
+      }
+   }
+
+   /**
+    * Round 2, reviewer M1: a failed submit of the interrupt task must release the claim so the
+    * next tick retries. The realistic failure ("unable to create native thread") is an
+    * OutOfMemoryError, not a RuntimeException.
+    */
+   @Test void failedSubmitIsRetriedEvenForAnError() {
+      AtomicInteger submits = new AtomicInteger();
+      ScriptTimeoutGuard.submitHook = () -> {
+         int n = submits.incrementAndGet();
+
+         if(n == 1) {
+            throw new OutOfMemoryError("unable to create native thread (test)");
+         }
+         else if(n == 2) {
+            throw new IllegalStateException("submit failure (test)");
+         }
+      };
+
+      try(Context ctx = Context.newBuilder("js").build()) {
+         assertInterrupted(ctx, Duration.ofMillis(200));
+      }
+
+      assertTrue(submits.get() >= 3, "submit attempts: " + submits.get());
+      assertTrue(ScriptTimeoutGuard.watchdogAlive());
    }
 
    /**
@@ -135,13 +193,13 @@ class ScriptTimeoutWatchdogTest {
       {
          ScriptTimeoutGuard guard = new ScriptTimeoutGuard();
          ScriptTimeoutGuard.Guard foreign = guard.guard(other, Duration.ofMillis(100));
-         int frames = ScriptTimeoutGuard.liveFrames();
+         int frames = ScriptTimeoutGuard.liveFrames(Thread.currentThread());
          Thread closer = new Thread(foreign::close);
          closer.start();
          closer.join(5000);
 
          // the frame stays on its owner's stack (only skipped) until the owner trims it
-         assertEquals(frames, ScriptTimeoutGuard.liveFrames());
+         assertEquals(frames, ScriptTimeoutGuard.liveFrames(Thread.currentThread()));
          // it ended its own timeout: the Context it guarded is never interrupted
          assertEquals(1, other.eval("js", "var t = Date.now(); while(Date.now() - t < 500) {} 1")
             .asInt());
@@ -156,7 +214,6 @@ class ScriptTimeoutWatchdogTest {
     */
    @Test void deadThreadWithAnUnclosedGuardIsDropped() throws Exception {
       try(Context ctx = Context.newBuilder("js").build()) {
-         int before = ScriptTimeoutGuard.liveFrames();
          CountDownLatch opened = new CountDownLatch(1);
          CountDownLatch exit = new CountDownLatch(1);
          Thread leaker = new Thread(() -> {
@@ -174,7 +231,7 @@ class ScriptTimeoutWatchdogTest {
          assertTrue(opened.await(5, TimeUnit.SECONDS));
          // while the thread lives, its unclosed frame is tracked (so the check below is real)
          assertTrue(ScriptTimeoutGuard.tracks(leaker));
-         assertEquals(before + 1, ScriptTimeoutGuard.liveFrames());
+         assertEquals(1, ScriptTimeoutGuard.liveFrames(leaker));
          exit.countDown();
          leaker.join(5000);
          long end = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
@@ -184,7 +241,7 @@ class ScriptTimeoutWatchdogTest {
          }
 
          assertFalse(ScriptTimeoutGuard.tracks(leaker), "a dead thread is still tracked");
-         assertEquals(before, ScriptTimeoutGuard.liveFrames());
+         assertEquals(0, ScriptTimeoutGuard.liveFrames(leaker));
       }
    }
 
