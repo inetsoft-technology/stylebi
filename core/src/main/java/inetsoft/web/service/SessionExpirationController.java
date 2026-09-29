@@ -21,6 +21,9 @@ package inetsoft.web.service;
 import inetsoft.sree.RepletRepository;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.internal.cluster.*;
+import inetsoft.sree.security.IdentityID;
+import inetsoft.sree.security.SecurityEngine;
+import inetsoft.uql.XPrincipal;
 import inetsoft.web.session.*;
 import jakarta.annotation.PostConstruct;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -91,7 +94,9 @@ public class SessionExpirationController {
       if(subscribed) {
          Principal principal = event.getPrincipalCookie();
 
-         if(principal != null) {
+         // a guest is not asked to stay logged in, the page is reloaded with a new guest
+         // session when the session expires (see SessionConnectionService)
+         if(principal != null && !(isGuest(principal) && !event.isNodeProtection())) {
             SessionExpirationModel model = SessionExpirationModel.builder()
                .remainingTime(event.getRemainingTime())
                .expiringSoon(event.isExpiringSoon())
@@ -103,6 +108,12 @@ public class SessionExpirationController {
       }
    }
 
+
+   private boolean isGuest(Principal principal) {
+      IdentityID identity = IdentityID.getIdentityIDFromKey(principal.getName());
+      return identity != null && XPrincipal.ANONYMOUS.equals(identity.getName()) &&
+         SecurityEngine.getSecurity().isSecurityEnabled();
+   }
 
    @MessageMapping("/session/refresh")
    public void sessionRefresh(StompHeaderAccessor stompHeaderAccessor) {

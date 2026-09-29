@@ -137,7 +137,8 @@ public class SessionConnectionService {
             // don't redirect to login if security is not enabled - allow to reconnect
             boolean securityEnabled = SecurityEngine.getSecurity().isSecurityEnabled();
 
-            // redirect to login page if not anonymous, otherwise, allow to reconnect
+            // redirect to login page if not anonymous, reload the page with a new guest session if
+            // anonymous, otherwise, allow to reconnect
             CloseStatus status;
 
             if(!fromLogout && principal != null && !anonymous && securityEnabled) {

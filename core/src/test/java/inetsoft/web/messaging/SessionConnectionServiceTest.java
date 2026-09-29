@@ -88,6 +88,14 @@ class SessionConnectionServiceTest {
    }
 
    @Test
+   void guestInOtherOrgIdleTimeoutClosesWithGuestSessionExpired() throws Exception {
+      CloseStatus status = closeStatusFor(expired(principal(XPrincipal.ANONYMOUS, "org1"), false));
+      assertEquals(4003, status.getCode());
+      status = closeStatusFor(expired(principal(XPrincipal.ANONYMOUS, null), false));
+      assertEquals(4003, status.getCode());
+   }
+
+   @Test
    void userIdleTimeoutClosesWithSessionTimeout() throws Exception {
       CloseStatus status = closeStatusFor(expired(principal("admin"), false));
       assertEquals(4002, status.getCode());
@@ -134,7 +142,11 @@ class SessionConnectionServiceTest {
    }
 
    private static Principal principal(String name) {
-      String key = new IdentityID(name, "host-org").convertToKey();
+      return principal(name, "host-org");
+   }
+
+   private static Principal principal(String name, String orgID) {
+      String key = new IdentityID(name, orgID).convertToKey();
       return () -> key;
    }
 
