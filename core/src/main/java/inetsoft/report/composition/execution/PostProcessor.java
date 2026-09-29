@@ -368,10 +368,16 @@ public class PostProcessor {
       /**
        * The last step of {@code getBaseRowIndex}, which maps the row and reads it under the
        * monitor in one step, takes the same locks as a population in {@link #moreRows}: the
-       * engine lock before the monitor (#76918), or pool mode's span (bug #77273).
+       * engine lock before the monitor (#76918), or pool mode's span (bug #77273). A row past
+       * the end of a completed map is answered without either, as {@link #moreRows} answers
+       * it, so a lock-free reader of a missing row fails fast instead of waiting for the lock.
        */
       @Override
       protected int mapBaseRowIndex(int row) {
+         if(isPastCompletedMap(row)) {
+            return -1;
+         }
+
          ScriptEnv senv = needsScriptLock && this.senv != null ? this.senv.get() : null;
          return populating(senv, () -> super.mapBaseRowIndex(row));
       }

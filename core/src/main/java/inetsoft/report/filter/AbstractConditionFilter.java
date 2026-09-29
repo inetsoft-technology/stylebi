@@ -169,8 +169,10 @@ public abstract class AbstractConditionFilter extends AbstractTableLens
          return base;
       }
 
+      map = rowmap;
       throw new IndexOutOfBoundsException(
-         "Row " + row + " is not mapped in the condition filter's row map");
+         "Row " + row + " is not mapped in the condition filter's row map (size " +
+         (map == null ? 0 : map.size()) + ")");
    }
 
    /**

@@ -72,6 +72,8 @@ public class AbstractConditionFilterGetBaseRowIndexTest {
          assertThrows(IndexOutOfBoundsException.class, () -> filter.getBaseRowIndex(30));
       assertTrue(ex.getMessage().contains("30"),
          "exception should mention the unmapped row: " + ex.getMessage());
+      assertTrue(ex.getMessage().contains("size 5"),
+         "exception should mention the row map's actual size: " + ex.getMessage());
       assertEquals(4, filter.moreRowsCalls,
          "the locked fallback must not call moreRows()");
    }
