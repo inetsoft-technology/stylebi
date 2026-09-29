@@ -240,10 +240,11 @@ public class UserEnv {
    /**
     * Check if a user was supported to use userEnv to
     * save it's user data.
-    * A null principal is only supported when the property
-    * anonymous.userdata.save was set to true. The guest (anonymous) user is
-    * supported, but see {@link #isSessionOnlyGuest(Principal)} for when its
-    * properties are kept in memory only.
+    * A null principal, or one whose name is literally "anonymous", is only
+    * supported when the property anonymous.userdata.save was set to true. The
+    * guest (anonymous) user of an organization is supported, but when security is
+    * enabled and anonymous.userdata.save is off, its properties are kept for its
+    * own session only.
     */
    public static boolean supportedUser(Principal user) {
       if(user == null ||
@@ -325,8 +326,8 @@ public class UserEnv {
             return new Hashtable<>();
          }
 
-         synchronized(propmap) {
-            return propmap.computeIfAbsent(key, k -> new Hashtable<>());
+         synchronized(guestPropmap) {
+            return guestPropmap.computeIfAbsent(key, k -> new Hashtable<>());
          }
       }
 
@@ -446,8 +447,8 @@ public class UserEnv {
 
       if(isSessionOnlyGuest(user)) {
          if(key0 instanceof ClientInfo) {
-            synchronized(propmap) {
-               propmap.put(key0, prop);
+            synchronized(guestPropmap) {
+               guestPropmap.put(key0, prop);
             }
          }
 
@@ -539,6 +540,10 @@ public class UserEnv {
 
          synchronized(propmap) {
             propmap.keySet().removeIf(k -> userIdentity.equals(getName(k)));
+         }
+
+         synchronized(guestPropmap) {
+            guestPropmap.keySet().removeIf(k -> userIdentity.equals(getName(k)));
          }
       }
       catch(Exception e) {
@@ -651,6 +656,12 @@ public class UserEnv {
          return super.remove(key);
       }
    };
+
+   // session-only properties of security-on guests, keyed by the session's ClientInfo. This is
+   // their only copy, so it is kept out of the propmap size cap and has no user file or change
+   // listener. A write proxied from another node is keyed by a deserialized ClientInfo that may
+   // be reclaimed at the next GC, so it is best-effort there.
+   private static final WeakHashMap<Object, Map<String, Object>> guestPropmap = new WeakHashMap<>();
 
    /**
     * Catalog getter.

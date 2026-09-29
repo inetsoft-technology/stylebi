@@ -26,6 +26,8 @@ import org.mockito.MockedStatic;
 
 import java.io.ByteArrayOutputStream;
 import java.security.Principal;
+import java.util.ArrayList;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -164,6 +166,74 @@ class UserEnvTest {
          assertNull(UserEnv.getProperty(guest, "annotation"));
          verify(space, never()).getInputStream(anyString(), anyString());
          verify(space, never()).beginTransaction();
+      }
+   }
+
+   @Test
+   void securityOnGuest_keepsValueWhenUserCacheIsCleared() throws Exception {
+      SRPrincipal guest = principal(ClientInfo.ANONYMOUS, "guestOrg5", "sessE");
+      List<SRPrincipal> others = new ArrayList<>();
+      DataSpace space = mock(DataSpace.class);
+
+      try(MockedStatic<DataSpace> ds = mockStatic(DataSpace.class);
+          MockedStatic<SUtil> sutil = mockStatic(SUtil.class);
+          MockedStatic<SreeEnv> ignored = mockStatic(SreeEnv.class))
+      {
+         ds.when(DataSpace::getDataSpace).thenReturn(space);
+         sutil.when(SUtil::isSecurityOn).thenReturn(true);
+
+         UserEnv.setProperty(guest, "annotation", "false");
+
+         // fill the user cache past its size cap so the next lookup clears it
+         for(int i = 0; i < 60; i++) {
+            SRPrincipal user = principal("user" + i, "cacheOrg5", "sess" + i);
+            others.add(user);
+            UserEnv.getProperty(user, "annotation");
+         }
+
+         assertEquals("false", UserEnv.getProperty(guest, "annotation"));
+      }
+   }
+
+   @Test
+   void securityOnNullPrincipal_dropsValueWithoutUserFile() throws Exception {
+      DataSpace space = mock(DataSpace.class);
+
+      try(MockedStatic<DataSpace> ds = mockStatic(DataSpace.class);
+          MockedStatic<SUtil> sutil = mockStatic(SUtil.class);
+          MockedStatic<SreeEnv> ignored = mockStatic(SreeEnv.class))
+      {
+         ds.when(DataSpace::getDataSpace).thenReturn(space);
+         sutil.when(SUtil::isSecurityOn).thenReturn(true);
+
+         UserEnv.setProperty(null, "annotation", "false");
+
+         assertFalse(UserEnv.supportedUser(null));
+         assertNull(UserEnv.getProperty(null, "annotation"));
+         verify(space, never()).getInputStream(anyString(), anyString());
+         verify(space, never()).beginTransaction();
+      }
+   }
+
+   @Test
+   void securityOnGuest_equalClientInfoSharesSessionValue() throws Exception {
+      // e.g. the STOMP principal and the RuntimeViewsheet's copy of the same session
+      SRPrincipal guest = principal(ClientInfo.ANONYMOUS, "guestOrg6", "sessF");
+      SRPrincipal sameSession = principal(ClientInfo.ANONYMOUS, "guestOrg6", "sessF");
+      assertNotSame(guest.getUser(), sameSession.getUser());
+      DataSpace space = mock(DataSpace.class);
+
+      try(MockedStatic<DataSpace> ds = mockStatic(DataSpace.class);
+          MockedStatic<SUtil> sutil = mockStatic(SUtil.class);
+          MockedStatic<SreeEnv> ignored = mockStatic(SreeEnv.class))
+      {
+         ds.when(DataSpace::getDataSpace).thenReturn(space);
+         sutil.when(SUtil::isSecurityOn).thenReturn(true);
+
+         UserEnv.setProperty(guest, "annotation", "false");
+
+         assertEquals("false", UserEnv.getProperty(sameSession, "annotation"));
+         verify(space, never()).getInputStream(anyString(), anyString());
       }
    }
 

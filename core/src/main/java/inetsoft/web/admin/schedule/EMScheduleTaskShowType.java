@@ -71,8 +71,9 @@ public class EMScheduleTaskShowType {
    /**
     * Saves the list/folder view preference of the given user. When security is enabled
     * and anonymous.userdata.save is off, a guest's preference is kept only for the
-    * guest's session and is not saved to storage; a null principal's write is discarded.
-    * With security disabled, the anonymous user's preference is saved like any user's.
+    * guest's session and is not saved to storage. With security disabled, the anonymous
+    * user's preference is saved like any user's. Whenever anonymous.userdata.save is off,
+    * a null principal's write is discarded.
     */
    private void setShowTasksAsList(Principal principal, String showTasksAsList) {
       // normalize so that only "true"/"false" is stored, and so that an empty value is
