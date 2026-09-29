@@ -147,8 +147,37 @@ public final class RelPipeline {
          data[r] = row;
       }
 
+      if(COUNT_BASE.get()) {
+         CountingTable table = new CountingTable(data);
+         LAST_BASE.set(table);
+         return table;
+      }
+
       return new DefaultTableLens(data);
    }
+
+   /**
+    * A base table that counts its moreRows() calls, for a performance probe only (see
+    * {@link #COUNT_BASE}).
+    */
+   static final class CountingTable extends DefaultTableLens {
+      CountingTable(Object[][] data) {
+         super(data);
+      }
+
+      @Override
+      public boolean moreRows(int row) {
+         moreRows.incrementAndGet();
+         return super.moreRows(row);
+      }
+
+      final AtomicLong moreRows = new AtomicLong();
+   }
+
+   /** when true on a thread, its base tables count moreRows() calls; off by default */
+   static final ThreadLocal<Boolean> COUNT_BASE = ThreadLocal.withInitial(() -> false);
+   /** the last counting base table this thread built */
+   static final ThreadLocal<CountingTable> LAST_BASE = new ThreadLocal<>();
 
    private static List<String> ftl(String formula, AssetQuerySandbox box, ReadPattern read,
                                    boolean cf2) throws Exception
