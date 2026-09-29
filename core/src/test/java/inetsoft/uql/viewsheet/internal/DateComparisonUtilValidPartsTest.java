@@ -198,15 +198,12 @@ class DateComparisonUtilValidPartsTest {
     * is the concrete scenario the round-1 review built to prove the original condition was too
     * strong.
     *
-    * <p>The revised fix requires the caller to prove -- via the {@code
-    * olderPeriodsIndependentlyComplete} parameter on the 5-argument {@code
-    * computeValidParts()} overload -- that every period other than the most recent one is
-    * guaranteed to carry its own real, unclipped data (i.e. {@code
-    * StandardPeriods.isToDate()==false}) before a differing leading family is ever trusted.
-    * This test calls the plain 4-argument overload (equivalent to passing {@code false}), the
-    * same one {@link #futureBucketsBeyondRecentPeriodsReachStayOrphaned} and the rest of this
-    * suite use, so family 8 must stay excluded exactly as it would for a plain-Integer part --
-    * "the leading family differs" is not, by itself, proof of anything.</p>
+    * <p>Older periods are only known to be complete when {@code
+    * StandardPeriods.isToDate()==false}, and since Bug #77236 {@code applyDateRange()} skips
+    * {@code computeValidParts()} entirely in that case. So {@code computeValidParts()} itself
+    * only ever runs for to-date comparisons, and family 8 must stay excluded exactly as it
+    * would for a plain-Integer part -- "the leading family differs" is not, by itself, proof
+    * of anything.</p>
     */
    @Test
    void differentFamilyWithoutProvenPeriodCompletenessStaysOrphaned() {

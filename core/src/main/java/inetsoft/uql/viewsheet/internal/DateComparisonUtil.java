@@ -670,17 +670,27 @@ public class DateComparisonUtil {
          // historical data for the prior periods and must still render. Applying the
          // heuristic there silently dropped whole weeks/months of valid comparison-year
          // data. (Bug #76389)
+         //
+         // Also skip this when toDate is off (StandardPeriods.isToDate()==false). Only a
+         // to-date comparison clips each older period to the current period's relative cutoff;
+         // without it, DateComparisonInfo.getStandardPeriodsCondition() queries one whole
+         // BETWEEN range, so every older period comes back in full. A part an older period has
+         // past the newest period's reach (e.g. October's weeks 2-5 while November has only
+         // reached week 1, or 2020's May-December while 2021 has only reached April) is then
+         // real history -- and its Change against the period before it is meaningful -- not a
+         // future bucket. Hiding it dropped that data only in the "In Separate Sub-Graphs"
+         // layout, so the sub-graph and non-sub-graph layouts showed different data. This
+         // replaces the MergePartCell-only rescue Bug #76945 added inside computeValidParts(),
+         // which left bare parts (e.g. WeekOfMonth, MonthOfYear) clipped. (Bug #77236)
+         // `periods` is already known to be a StandardPeriods here (checked by the enclosing
+         // `if` above).
          final boolean partIsFacetDim =
             info.isFacet() && isFacetedField(egraph.getCoordinate(), partCol);
-         // Bug #76945: computeValidParts()'s cross-period leading-family rescue is only sound
-         // when every period other than the most recent one is guaranteed to carry its own
-         // real, unclipped data -- i.e. StandardPeriods.isToDate()==false (see the parameter
-         // javadoc on the 5-argument computeValidParts() overload). `periods` is already known
-         // to be a StandardPeriods here (checked by the enclosing `if` above).
-         final boolean olderPeriodsIndependentlyComplete = !((StandardPeriods) periods).isToDate();
-         final Set<Object> validParts = partIsFacetDim || dcInfo.isCompareAll() ?
+         final boolean olderPeriodsComplete = !((StandardPeriods) periods).isToDate();
+         final Set<Object> validParts =
+            partIsFacetDim || dcInfo.isCompareAll() || olderPeriodsComplete ?
             Collections.emptySet() :
-            computeValidParts(data, periodCol, partCol, startDate, olderPeriodsIndependentlyComplete);
+            computeValidParts(data, periodCol, partCol, startDate);
 
          for(Scale scale : egraph.getCoordinate().getScales()) {
             String[] fields = scale.getFields();
@@ -788,39 +798,12 @@ public class DateComparisonUtil {
     * no match for it -- that is ordinary data sparsity, not an unreached future bucket, and
     * older periods' real data for it must still render (Bug #76391).
     *
-    * <p>Equivalent to {@code computeValidParts(data, periodCol, partCol, startDate, false)} --
-    * i.e. the cross-period leading-family rescue (Bug #76945, see the 5-argument overload) is
-    * disabled unless a caller explicitly proves it is safe. Kept for callers (and the existing
-    * {@code DateComparisonUtilValidPartsTest} suite) that only ever exercise the
-    * same-family/plain-value behavior and have no {@link DateComparisonPeriods} to consult.</p>
-    */
-   static Set<Object> computeValidParts(DataSet data, String periodCol,
-                                        String partCol, Date startDate)
-   {
-      return computeValidParts(data, periodCol, partCol, startDate, false);
-   }
-
-   /**
-    * @param olderPeriodsIndependentlyComplete whether every period other than the most recent
-    *        one is guaranteed, by construction, to carry its own real, unclipped data all the
-    *        way through its own natural leading-family range -- i.e. it was never relatively
-    *        truncated to the same cutoff as the current, still-in-progress period. This is
-    *        true if and only if the caller's {@link DateComparisonPeriods} is a
-    *        {@link StandardPeriods} with {@link StandardPeriods#isToDate()} {@code false}: with
-    *        {@code isToDate()==true}, {@code DateComparisonInfo.getStandardPeriodsCondition()}
-    *        re-aligns every older period's own query window to the exact same relative cutoff
-    *        the current period's own {@code toDate} reaches, so older periods can never
-    *        legitimately have real data past that point either (see Bug #76945's diagnosis,
-    *        "Revision (round 1)"). Only when this flag is {@code true} is a MergePartCell part
-    *        whose leading family differs from {@code maxPart}'s ever treated as safe: "the
-    *        family differs" alone is not sufficient proof the value is a legitimately older,
-    *        already-elapsed value rather than a genuinely not-yet-reached one -- it merely
-    *        indicates the value belongs to a different period-instance cycle, and only the
-    *        caller (which alone knows how the data was fetched) can prove that cycle already
-    *        finished.
+    * <p>Only applied to to-date comparisons: {@code applyDateRange()} skips it entirely when
+    * {@code StandardPeriods.isToDate()} is false, since older periods are then complete and
+    * nothing past the newest period's reach is a future bucket (Bug #77236).</p>
     */
    static Set<Object> computeValidParts(DataSet data, String periodCol, String partCol,
-                                        Date startDate, boolean olderPeriodsIndependentlyComplete)
+                                        Date startDate)
    {
       if(periodCol == null || partCol == null) {
          return Collections.emptySet();
@@ -909,55 +892,7 @@ public class DateComparisonUtil {
             boolean sharesMaxPartsLeadingFamily =
                maxPartPrefix != null && maxPartPrefix.equals(partPrefix);
 
-            // A MergePartCell's leading component(s) (everything mergePartCellPrefix()
-            // returns) reset at the start of every period instance -- that is precisely why
-            // DateComparisonInfo.getTempDateGroupRef() had to manufacture them as a
-            // disambiguating leading value in the first place: the granularity value alone
-            // (e.g. WeekOfMonth) repeats within one period instance and needs a
-            // period-relative tiebreaker to stay unambiguous. Such a component therefore
-            // carries no meaning *across* different period instances: an older period's
-            // leading value sorting after the most recent period's own maxPart does not mean
-            // that older period is "further in the future" -- it belongs to a different
-            // cycle instance entirely, most commonly an older, already fully-elapsed period
-            // whose own data legitimately spans its whole leading-component range (e.g. an
-            // older quarter's real month-2/month-3 data, compared against the current,
-            // still-in-progress quarter's own month-1 reach).
-            //
-            // "The leading family differs" is only a *necessary* signal that a part might
-            // belong to such a legitimately older, already-elapsed cycle -- it is not, by
-            // itself, *sufficient* proof of it (Bug #76945 review round 1, Finding 1): nothing
-            // about the family value's own magnitude says whether it is safely in the past or
-            // is itself a not-yet-reached "future bucket" that just happens to sit in a
-            // different family (the exact failure mode Bug #75152/#76389 exist to suppress).
-            // Two further, independent facts are required before a differing family can be
-            // trusted:
-            //
-            //  1. The row genuinely belongs to a period *other than* the most recent one --
-            //     i.e. its own periodCol value sorts strictly before maxYearDate ("date").
-            //     (A row belonging to the most recent period itself is already unconditionally
-            //     valid via the second pass above and via the plain Tool.compare check below;
-            //     this guards against ever crediting the rescue to a same-period row.)
-            //  2. The caller has proven -- via olderPeriodsIndependentlyComplete -- that every
-            //     period other than the most recent one is guaranteed to carry its own real,
-            //     unclipped data through its own natural leading-family range, i.e. it was
-            //     never relatively truncated to the current period's own in-progress cutoff.
-            //     Only then does "this row's period is chronologically prior to the most
-            //     recent one" actually imply "this period, having already fully elapsed,
-            //     legitimately reached this family" -- see the parameter javadoc above for why
-            //     this is exactly StandardPeriods.isToDate()==false.
-            //
-            // Both conditions together generalize to any period/context-level combination
-            // whose disambiguating leading component resets per period instance (Bug #76945),
-            // not only the QUARTER-period/MONTH-context shape that surfaced it -- e.g. the
-            // YEAR-period/MONTH-of-quarter-or-finer family from Bug #76391 is equally covered
-            // -- while still refusing to rescue a differing family whose own period-instance
-            // completeness the caller cannot vouch for.
-            boolean differentLeadingFamily = olderPeriodsIndependentlyComplete &&
-               partPrefix != null && !sharesMaxPartsLeadingFamily && date.before(max);
-
-            if(Tool.compare(part, maxPart) <= 0 || sharesMaxPartsLeadingFamily ||
-               differentLeadingFamily)
-            {
+            if(Tool.compare(part, maxPart) <= 0 || sharesMaxPartsLeadingFamily) {
                validParts.add(part);
             }
          }

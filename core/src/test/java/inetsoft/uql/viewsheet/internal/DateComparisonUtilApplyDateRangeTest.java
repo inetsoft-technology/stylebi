@@ -29,6 +29,7 @@ import inetsoft.graph.scale.CategoricalScale;
 import inetsoft.graph.scale.LinearScale;
 import inetsoft.graph.scale.Scale;
 import inetsoft.test.*;
+import inetsoft.uql.XConstants;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.viewsheet.CalculateRef;
 import inetsoft.uql.viewsheet.VSDimensionRef;
@@ -115,11 +116,17 @@ class DateComparisonUtilApplyDateRangeTest {
     * Regression guard for the legitimate use case computeValidParts() exists for
     * (Bug #75152/#76391): outside Compare-All/facet mode, a part the most recent period hasn't
     * chronologically reached yet must still be excluded.
+    *
+    * <p>The fixture sets {@code toDate=true} explicitly: it used to rely on
+    * {@code StandardPeriods.toDate}'s field default (false), but with {@code toDate=false} every
+    * older period is complete and its later parts are real history that must render
+    * (Bug #77236). "The in-progress current period hasn't reached this part yet" is a to-date
+    * rule, and SAME_WEEK can't produce this 1/51/52 shape from real data anyway.</p>
     */
    @Test
    void nonCompareAllNonFacetModeStillOrphansUnreachedParts() {
       DataSet data = buildRows();
-      DateComparisonInfo dcInfo = dcInfo(false);
+      DateComparisonInfo dcInfo = dcInfo(false, true);
 
       Scale partScale = applyAndGetPartScale(dcInfo, data, CoordShape.NO_FACET);
 
@@ -161,11 +168,14 @@ class DateComparisonUtilApplyDateRangeTest {
     * {@link #facetModeDoesNotOrphanFacetsTheMostRecentPeriodLacks()} (where part genuinely is the
     * faceted dimension), the most-recent period's own chronological reach is still meaningful
     * here, so parts 51/52 (December) must still be orphaned.
+    *
+    * <p>{@code toDate=true} is set explicitly for the same reason as in
+    * {@link #nonCompareAllNonFacetModeStillOrphansUnreachedParts()} (Bug #77236).</p>
     */
    @Test
    void facetCausedByUnrelatedDimensionStillOrphansUnreachedChronologicalPart() {
       DataSet data = buildRows();
-      DateComparisonInfo dcInfo = dcInfo(false);
+      DateComparisonInfo dcInfo = dcInfo(false, true);
 
       // the part scale sits in the FacetCoord's *inner* coordinate here -- the facet levels are
       // the unrelated dimension's, so the orphan heuristic must still run.
@@ -174,6 +184,96 @@ class DateComparisonUtilApplyDateRangeTest {
       assertPartRowAccepted(partScale, data, false, "2019-01-01", 51);
       assertPartRowAccepted(partScale, data, false, "2019-01-01", 52);
       assertPartRowAccepted(partScale, data, false, "2020-01-01", 51);
+   }
+
+   /**
+    * Bug #77236: Month / Week to Date / Week (context WEEK), toDate=false, Change, "In Separate
+    * Sub-Graphs" -- the period is the faceted dimension and the part (WeekOfMonth) is a bare
+    * Integer, since getMergePartTableLens() doesn't wrap it in a MergePartCell for a MONTH
+    * parent. November (the most recent month) only reaches week 1, but September/October are
+    * complete older months, so their weeks 2-5 are real history and must render.
+    */
+   @Test
+   void toDateFalseKeepsOlderPeriodsBarePartsPastTheCurrentPeriodsReach() {
+      DataSet data = buildWeekOfMonthRows();
+      DateComparisonInfo dcInfo = monthWeekToDateDcInfo(false);
+
+      Scale partScale = applyAndGetPartScale(dcInfo, data, CoordShape.PERIOD_IS_FACET);
+
+      assertPartRowAccepted(partScale, data, true, "2021-09-01", 2);
+      assertPartRowAccepted(partScale, data, true, "2021-09-01", 4);
+      assertPartRowAccepted(partScale, data, true, "2021-10-01", 2);
+      assertPartRowAccepted(partScale, data, true, "2021-10-01", 5);
+      assertPartRowAccepted(partScale, data, true, "2021-11-01", 1);
+   }
+
+   /**
+    * Bug #77236 control: same shape and rows as
+    * {@link #toDateFalseKeepsOlderPeriodsBarePartsPastTheCurrentPeriodsReach()}, but with
+    * toDate=true. The skip only applies when toDate is off -- a to-date comparison still trims
+    * older periods to the parts the in-progress current period has reached.
+    */
+   @Test
+   void toDateTrueStillOrphansOlderPeriodsBarePartsPastTheCurrentPeriodsReach() {
+      DataSet data = buildWeekOfMonthRows();
+      DateComparisonInfo dcInfo = monthWeekToDateDcInfo(true);
+
+      Scale partScale = applyAndGetPartScale(dcInfo, data, CoordShape.PERIOD_IS_FACET);
+
+      assertPartRowAccepted(partScale, data, false, "2021-09-01", 2);
+      assertPartRowAccepted(partScale, data, false, "2021-09-01", 4);
+      assertPartRowAccepted(partScale, data, false, "2021-10-01", 2);
+      assertPartRowAccepted(partScale, data, false, "2021-10-01", 5);
+      assertPartRowAccepted(partScale, data, true, "2021-09-01", 1);
+      assertPartRowAccepted(partScale, data, true, "2021-11-01", 1);
+   }
+
+   /**
+    * Bug #77236: Year / Month to Date / Month, previous 2 years, toDate=false, period faceted,
+    * bare month-of-year part. 2019 and 2020 have months 1-12 while 2021 (the most recent year)
+    * has only reached April -- 2019's and 2020's May-December are complete history and must
+    * render.
+    */
+   @Test
+   void toDateFalseKeepsOlderYearsMonthsPastTheCurrentYearsReach() {
+      Object[][] rows = new Object[1 + 12 + 12 + 4][];
+      rows[0] = new Object[] { PERIOD_COL, PART_COL, VALUE_COL };
+      int r = 1;
+
+      for(String year : new String[] { "2019-01-01", "2020-01-01" }) {
+         for(int month = 1; month <= 12; month++) {
+            rows[r++] = new Object[] { date(year), month, 100.0 + month };
+         }
+      }
+
+      for(int month = 1; month <= 4; month++) {
+         rows[r++] = new Object[] { date("2021-01-01"), month, 200.0 + month };
+      }
+
+      DataSet data = new DefaultDataSet(rows);
+      DateComparisonInfo dcInfo = new DateComparisonInfo();
+      StandardPeriods periods = new StandardPeriods();
+      periods.setDateLevel(XConstants.YEAR_DATE_GROUP);
+      periods.setPreCount(2);
+      periods.setToDayAsEndDay(false);
+      periods.setEndDateValue("2021-04-26");
+      periods.setToDate(false);
+      dcInfo.setDateComparisonPeriods(periods);
+
+      DateComparisonInterval interval = new DateComparisonInterval();
+      interval.setGranularity(DateComparisonInfo.MONTH);
+      interval.setLevel(DateComparisonInfo.MONTH_TO_DATE);
+      interval.setContextLevel(XConstants.MONTH_DATE_GROUP);
+      dcInfo.setDateComparisonInterval(interval);
+      dcInfo.setComparisonOption(DateComparisonInfo.CHANGE_VALUE);
+
+      Scale partScale = applyAndGetPartScale(dcInfo, data, CoordShape.PERIOD_IS_FACET);
+
+      assertPartRowAccepted(partScale, data, true, "2019-01-01", 5);
+      assertPartRowAccepted(partScale, data, true, "2019-01-01", 12);
+      assertPartRowAccepted(partScale, data, true, "2020-01-01", 5);
+      assertPartRowAccepted(partScale, data, true, "2020-01-01", 12);
+      assertPartRowAccepted(partScale, data, true, "2021-01-01", 4);
    }
 
    // -- fixture plumbing --------------------------------------------------------------------
@@ -206,10 +306,58 @@ class DateComparisonUtilApplyDateRangeTest {
    }
 
    /**
+    * Bug #77236's WeekOfMonth rows: September has weeks 1-4, October weeks 1-5, and November
+    * (the most recent month) only week 1.
+    */
+   private static DataSet buildWeekOfMonthRows() {
+      return new DefaultDataSet(new Object[][] {
+         { PERIOD_COL, PART_COL, VALUE_COL },
+         { date("2021-09-01"), 1, 60.0 },
+         { date("2021-09-01"), 2, 73.0 },
+         { date("2021-09-01"), 3, 64.0 },
+         { date("2021-09-01"), 4, 71.0 },
+         { date("2021-10-01"), 1, 85.0 },
+         { date("2021-10-01"), 2, 36.0 },
+         { date("2021-10-01"), 3, 74.0 },
+         { date("2021-10-01"), 4, 59.0 },
+         { date("2021-10-01"), 5, 81.0 },
+         { date("2021-11-01"), 1, 50.0 },   // November (most recent) only reaches week 1
+      });
+   }
+
+   /**
+    * Standard Periods (previous 2 months, ending 2021-11-10), Week to Date interval with WEEK
+    * granularity/context, Change &amp; Value -- Bug #77236's reported configuration.
+    */
+   private static DateComparisonInfo monthWeekToDateDcInfo(boolean toDate) {
+      DateComparisonInfo dcInfo = new DateComparisonInfo();
+      StandardPeriods periods = new StandardPeriods();
+      periods.setDateLevel(XConstants.MONTH_DATE_GROUP);
+      periods.setPreCount(2);
+      periods.setToDayAsEndDay(false);
+      periods.setEndDateValue("2021-11-10");
+      periods.setToDate(toDate);
+      dcInfo.setDateComparisonPeriods(periods);
+
+      DateComparisonInterval interval = new DateComparisonInterval();
+      interval.setGranularity(DateComparisonInfo.WEEK);
+      interval.setLevel(DateComparisonInfo.WEEK_TO_DATE);
+      interval.setContextLevel(XConstants.WEEK_DATE_GROUP);
+      dcInfo.setDateComparisonInterval(interval);
+      dcInfo.setComparisonOption(DateComparisonInfo.CHANGE_VALUE);
+
+      return dcInfo;
+   }
+
+   /**
     * Standard Periods (previous 2 years), interval level ALL (Compare-All) or SAME_WEEK
     * (an ordinary, non-Compare-All interval type) per {@code compareAll}.
     */
    private static DateComparisonInfo dcInfo(boolean compareAll) {
+      return dcInfo(compareAll, false);
+   }
+
+   private static DateComparisonInfo dcInfo(boolean compareAll, boolean toDate) {
       DateComparisonInfo dcInfo = new DateComparisonInfo();
       StandardPeriods periods = new StandardPeriods();
       periods.setDateLevel(DateComparisonInfo.YEAR);
@@ -220,6 +368,7 @@ class DateComparisonUtilApplyDateRangeTest {
       // orphaned-cell heuristic under test.
       periods.setToDayAsEndDay(false);
       periods.setEndDateValue("2021-04-26");
+      periods.setToDate(toDate);
       dcInfo.setDateComparisonPeriods(periods);
 
       DateComparisonInterval interval = new DateComparisonInterval();
@@ -246,7 +395,9 @@ class DateComparisonUtilApplyDateRangeTest {
       /** Bug #76388: the DC part column is the faceted dimension (part scale in the outer coord). */
       PART_IS_FACET,
       /** Bug #76518: an unrelated dimension is faceted; part stays a plain inner axis. */
-      UNRELATED_FACET
+      UNRELATED_FACET,
+      /** Bug #77236: "In Separate Sub-Graphs" -- the period is faceted on Y, part is the inner X. */
+      PERIOD_IS_FACET
    }
 
    private static final String OTHER_DIM_COL = "region";
@@ -303,6 +454,15 @@ class DateComparisonUtilApplyDateRangeTest {
          Scale otherScale = new CategoricalScale();
          otherScale.setFields(OTHER_DIM_COL);
          RectCoord outer = new RectCoord(otherScale, GTool.createFakeScale(null));
+
+         return new FacetCoord(outer, new RectCoord(partScale, valueScale));
+      }
+      case PERIOD_IS_FACET: {
+         // Y = [period, value]: ChartDcProcessor's useFacet branch puts the period on the axis
+         // opposite the part, so the period is the facet level and part the inner X axis.
+         Scale periodScale = new CategoricalScale();
+         periodScale.setFields(PERIOD_COL);
+         RectCoord outer = new RectCoord(GTool.createFakeScale(null), periodScale);
 
          return new FacetCoord(outer, new RectCoord(partScale, valueScale));
       }
