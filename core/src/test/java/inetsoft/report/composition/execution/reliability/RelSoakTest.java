@@ -222,23 +222,49 @@ public class RelSoakTest {
 
    /**
     * Compute the pool-off oracle of every (script, shape) before the soak, so the oracle cache
-    * does not grow during the measured part.
+    * does not grow during the measured part. Each oracle is computed twice in parallel runs;
+    * when the two differ (the pool off itself is not repeatable, meta's O1), a third run on
+    * this thread alone decides, and the instability is counted and listed apart.
     */
    private static void warmOracles(List<RelMetamorphicTest.Case> cases,
                                    ExecutorService workers) throws Exception
    {
+      Map<String, List<String>> second = new ConcurrentHashMap<>();
+      Map<String, RelMetamorphicTest.Case> byKey = new LinkedHashMap<>();
       List<Future<?>> futures = new ArrayList<>();
 
-      for(RelMetamorphicTest.Case c : cases) {
-         for(Shape shape : Shape.values()) {
-            futures.add(workers.submit(() -> ORACLES.put(key(c.script(), shape),
-               run(c.script(), shape, RelConfig.off(), ReadPattern.SEQUENTIAL))));
+      for(Map<String, List<String>> into : List.of(ORACLES, second)) {
+         for(RelMetamorphicTest.Case c : cases) {
+            for(Shape shape : Shape.values()) {
+               byKey.putIfAbsent(key(c.script(), shape), c);
+               futures.add(workers.submit(() -> into.put(key(c.script(), shape),
+                  run(c.script(), shape, RelConfig.off(), ReadPattern.SEQUENTIAL))));
+            }
          }
       }
 
       for(Future<?> future : futures) {
          future.get();
       }
+
+      byKey.forEach((key, c) -> {
+         Shape shape = Shape.valueOf(key.substring(0, key.indexOf('\u0000')));
+         List<String> a = RelMetamorphicTest.comparable(ORACLES.get(key), c.script());
+         List<String> b = RelMetamorphicTest.comparable(second.get(key), c.script());
+
+         if(!a.equals(b)) {
+            List<String> alone = run(c.script(), shape, RelConfig.off(), ReadPattern.SEQUENTIAL);
+            List<String> third = RelMetamorphicTest.comparable(alone, c.script());
+            ORACLES.put(key, alone);
+            inc("oracleUnstable");
+            String what = "pool-off oracle unstable " + c.label() + " " + shape + ": run 1 vs 2 " +
+               RelMetamorphicTest.diff(a, b) + "; run alone equals run " +
+               (third.equals(a) ? "1" : third.equals(b) ? "2" : "neither") + "; script: " +
+               c.script();
+            example(UNSTABLE, what);
+            System.out.println("SOAK " + what);
+         }
+      });
    }
 
    /**
@@ -381,7 +407,24 @@ public class RelSoakTest {
       }
 
       inc("mismatches");
-      example(FAILURES, "mismatch " + what + "\nscript: " + script);
+      // the same run again alone, on new sandboxes with the pool off and on, tells a pool
+      // difference from a run that is not repeatable
+      boolean off = RelMetamorphicTest.comparable(
+         run(script, w.shape(), RelConfig.off(), w.read()), script).equals(expected);
+      boolean on = RelMetamorphicTest.comparable(
+         run(script, w.shape(), RelConfig.on(), w.read()), script).equals(expected);
+      String rerun = "rerun alone: off " + (off ? "==" : "!=") + " oracle, on " +
+         (on ? "==" : "!=") + " oracle";
+      example(FAILURES, "mismatch " + what + " (" + rerun + ")\nscript: " + script);
+      // a long run's findings are in its log as they happen
+      System.out.println("SOAK MISMATCH " + what + "\n" + rerun + "\nscript: " + script +
+                         "\nexpected: " + abbreviate(expected) + "\nactual: " +
+                         abbreviate(actual));
+   }
+
+   private static String abbreviate(List<String> cells) {
+      String str = String.valueOf(cells);
+      return str.length() > 3000 ? str.substring(0, 3000) + "..." : str;
    }
 
    private void enter() {
@@ -456,6 +499,7 @@ public class RelSoakTest {
          max(samples, from, MEAN_MS), min(samples, from, CPU), max(samples, from, CPU)));
       str.append("  pool log WARN+ messages: ").append(appender.messages).append('\n');
       DRIFTS.forEach(d -> str.append("  drift: ").append(d).append('\n'));
+      UNSTABLE.forEach(d -> str.append("  ").append(d).append('\n'));
       FAILURES.forEach(d -> str.append("  FAILURE: ").append(d).append('\n'));
       return str.toString();
    }
@@ -710,6 +754,7 @@ public class RelSoakTest {
    private static final Map<String, AtomicLong> STATS = new ConcurrentSkipListMap<>();
    private static final List<String> DRIFTS = new ArrayList<>();
    private static final List<String> FAILURES = new ArrayList<>();
+   private static final List<String> UNSTABLE = new ArrayList<>();
    private final AtomicInteger active = new AtomicInteger();
    private volatile boolean paused;
 }
