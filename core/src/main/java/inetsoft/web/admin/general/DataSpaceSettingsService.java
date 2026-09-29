@@ -127,14 +127,25 @@ public class DataSpaceSettingsService extends BackupSupport {
             // changeset apply. A pruning failure must never discard a snapshot that exists.
             // This mirrors the per-file handling inside deleteRedundantAiSnapshotFiles, and
             // catches Exception rather than IOException because ExternalStorageService.listFiles
-            // declares no checked exception. deleteRedundantBackupFiles is deliberately NOT
-            // guarded this way: it runs BEFORE the write, where a failure legitimately fails the
-            // whole operation.
+            // declares no checked exception.
             try {
                deleteRedundantAiSnapshotFiles();
             }
             catch(Exception e) {
                LOG.error("Failed to prune old AI snapshots; the new snapshot at {} is unaffected",
+                         path, e);
+            }
+         }
+         else {
+            // Trims the file just added back down to asset.backup.count (#75898). Unlike main,
+            // this post-write call is guarded like the AI branch: AdminFileBackupService turns a
+            // null path into an IOException, so a prune failure must not discard a backup that
+            // was already written. The pre-write call stays unguarded, where failing is right.
+            try {
+               deleteRedundantBackupFiles();
+            }
+            catch(Exception e) {
+               LOG.error("Failed to prune old backups; the new backup at {} is unaffected",
                          path, e);
             }
          }
