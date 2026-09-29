@@ -179,12 +179,14 @@ public class ImportTaskController {
          if(selectedTasks.contains(taskId) && (!taskExists || overwriting)) {
             updateTaskInfo(task, linkURI);
             scheduleManager.setScheduleTask(taskId, task, principal);
-         }
 
-         if(path != null &&
-            scheduleTaskFolderService.checkFolderExists(path))
-         {
-            moveTask(task, path, principal);
+            // Bug #77350, only a task imported here is moved from the root folder, where
+            // setScheduleTask put it, to its folder in the xml
+            if(path != null &&
+               scheduleTaskFolderService.checkFolderExists(path))
+            {
+               moveTask(task, path, principal);
+            }
          }
       }
 
@@ -281,15 +283,20 @@ public class ImportTaskController {
    }
 
    private void moveTask(ScheduleTask task, String path, Principal principal) throws Exception {
+      String taskId = task.getTaskId();
+      // Bug #77350, internal tasks are never moved into a folder, and the removable flag of
+      // the xml isn't trusted for them
+      boolean internal = task.getType() == ScheduleTask.Type.INTERNAL_TASK ||
+         ScheduleManager.isInternalTask(taskId);
       ScheduleTaskModel model = ScheduleTaskModel.builder()
-         .name(task.getTaskId())
+         .name(taskId)
          .owner(task.getOwner())
          .ownerAlias(SUtil.getUserAlias(task.getOwner()))
          .path("/")
          .label("")
          .description("")
          .editable(true)
-         .removable(true)
+         .removable(task.isRemovable() && !internal)
          .enabled(true)
          .schedule("")
          .build();
