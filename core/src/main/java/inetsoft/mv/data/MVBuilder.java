@@ -89,51 +89,62 @@ public final class MVBuilder {
       super();
 
       XTable data = lens;
-      // expand data by appending dynamic mv column
-      data = MVCreatorUtil.expand(def, data);
+      int[] dims;
+      int[] measures;
+      MVColumn[] mvcols;
 
-      if(def != null && def.getBreakColumn() != null) {
-         breakcol = checkBlockBounds(data, def.getBreakColumn());
-      }
+      // the builders of a parallel mv build share one MVDef, so the pruning of the
+      // columns missing from the data (in expand and below) and the collection of this
+      // builder's columns are done as one step under the def's monitor. Block building
+      // in init() stays outside the lock (Bug #77247).
+      synchronized(def) {
+         // expand data by appending dynamic mv column
+         data = MVCreatorUtil.expand(def, data);
 
-      XIntList dlist = new XIntList(); // dimension
-      XIntList mlist = new XIntList(); // measure
-      List<MVColumn> cols = def.getColumns();
-      List<MVColumn> dcolList = new ArrayList<>();
-      List<MVColumn> mcolList = new ArrayList<>();
+         if(def != null && def.getBreakColumn() != null) {
+            breakcol = checkBlockBounds(data, def.getBreakColumn());
+         }
 
-      for(int i = 0; i < cols.size(); i++) {
-         MVColumn col = cols.get(i);
-         ColumnRef vcol = col.getColumn();
-         int index = getColIndex(data, vcol);
+         XIntList dlist = new XIntList(); // dimension
+         XIntList mlist = new XIntList(); // measure
+         List<MVColumn> cols = def.getColumns();
+         List<MVColumn> dcolList = new ArrayList<>();
+         List<MVColumn> mcolList = new ArrayList<>();
 
-         if(index < 0) {
-            // calculated column will be processed at runtime and is not needed in mv,
-            // so don't warn it.
-            if(!(vcol instanceof CalculateRef)) {
-               LOG.warn("Materialized view column not found: " + col);
+         for(int i = 0; i < cols.size(); i++) {
+            MVColumn col = cols.get(i);
+            ColumnRef vcol = col.getColumn();
+            int index = getColIndex(data, vcol);
+
+            if(index < 0) {
+               // calculated column will be processed at runtime and is not needed in mv,
+               // so don't warn it.
+               if(!(vcol instanceof CalculateRef)) {
+                  LOG.warn("Materialized view column not found: " + col);
+               }
+
+               def.removeColumn(i);
+               i--;
+               continue;
             }
 
-            def.removeColumn(i);
-            i--;
-            continue;
+            if(col.isDimension()) {
+               dlist.add(index);
+               dcolList.add(col);
+            }
+            else {
+               mlist.add(index);
+               mcolList.add(col);
+            }
          }
 
-         if(col.isDimension()) {
-            dlist.add(index);
-            dcolList.add(col);
-         }
-         else {
-            mlist.add(index);
-            mcolList.add(col);
-         }
+         dims = dlist.toArray();
+         measures = mlist.toArray();
+         dcolList.addAll(mcolList);
+         mvcols = new MVColumn[dcolList.size()];
+         dcolList.toArray(mvcols);
       }
 
-      int[] dims = dlist.toArray();
-      int[] measures = mlist.toArray();
-      dcolList.addAll(mcolList);
-      MVColumn[] mvcols = new MVColumn[dcolList.size()];
-      dcolList.toArray(mvcols);
       init(data, dims, measures, mvcols, def, aggregated, omv, resetColumns);
    }
 

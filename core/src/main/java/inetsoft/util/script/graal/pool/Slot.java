@@ -133,6 +133,7 @@ final class Slot {
    void applyOwn(String name, Object value) {
       engine.context().getBindings("js").putMember(
          name, WsValueCopier.markForeign(ScriptValueConverter.toGuest(value), engine.context()));
+      engine.hostGlobal(name);
       cleaner.expect(name);
    }
 

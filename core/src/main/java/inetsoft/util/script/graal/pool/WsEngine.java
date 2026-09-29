@@ -56,6 +56,14 @@ final class WsEngine extends GraalJavaScriptEngine {
       invalidateGlobalBindings();
    }
 
+   /**
+    * An env variable was set on this context directly; the let/const reset must never
+    * clear it (bug #77181).
+    */
+   void hostGlobal(String name) {
+      markHostGlobal(name);
+   }
+
    @Override
    protected Map<String, String> librarySources() {
       return snapshot.getLibrary();
@@ -105,8 +113,8 @@ final class WsEngine extends GraalJavaScriptEngine {
     * per-context host state; restored on exit so nesting is correct.
     */
    @Override
-   protected Object enterExecContext() {
-      return WsExecContext.enter(slot);
+   protected Object enterExecContext(Object script) {
+      return WsExecContext.enter(slot, script);
    }
 
    @Override

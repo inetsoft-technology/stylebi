@@ -43,6 +43,9 @@ class WsBoundaryPolicyTest {
 
       for(String topic : new String[] { "var", "Collections", "identity", "{a=1}",
                                         "function", "callback", "Date.equals", "out",
+                                        "typed Object, Map or List", "cleaned globals",
+                                        "quietly undefined", "Known limitation",
+                                        "logged at WARN once per script", "copyMutations",
                                         "viewsheet object", "Map, Set, RegExp, Promise",
                                         "Object[]", "map copy", "parameter.",
                                         "variable table", "lock", ".maxBatchRows (8192)",
@@ -53,7 +56,16 @@ class WsBoundaryPolicyTest {
                                         "crosstab aggregation", "AssetEventUtil",
                                         "-Dscript.ws.contextpool=true", "lowercase",
                                         "insertion order", "IndexOutOfBoundsException",
-                                        "3 s longer", "logged at INFO" })
+                                        "3 s longer", "logged at INFO",
+                                        // Testing #77123, the table-owned formula var
+                                        "belongs to its table", "var r; if(c)",
+                                        "try/catch", "Use let", "logs one warning",
+                                        "kept only within one batch",
+                                        "count the row twice",
+                                        // context-pool regression D1, the pool-off first batch
+                                        "evaluates what pool off would", "2N + 10",
+                                        "undeclared", "object-valued var",
+                                        "turns script batching off" })
       {
          assertTrue(note.contains(topic), "release note misses: " + topic);
       }

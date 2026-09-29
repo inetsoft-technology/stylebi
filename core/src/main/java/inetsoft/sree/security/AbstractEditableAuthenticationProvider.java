@@ -630,7 +630,7 @@ public abstract class AbstractEditableAuthenticationProvider
    protected void clearScopedProperties(String oldOrgId) {
       //loop through properties, delete any containing .thisOrg.
       Properties properties = SreeEnv.getProperties();
-      String oldOrgIdentifier = "inetsoft.org." + oldOrgId.toLowerCase(Locale.ROOT);
+      String oldOrgIdentifier = "inetsoft.org." + oldOrgId.toLowerCase(Locale.ROOT) + ".";
 
       for(Enumeration<?> e = properties.propertyNames(); e.hasMoreElements();) {
          String pName = (String) e.nextElement();
@@ -735,8 +735,8 @@ public abstract class AbstractEditableAuthenticationProvider
 
    private void copyScopedProperties(String fromOrgId, String newOrgId, boolean replace) {
       Properties properties = SreeEnv.getProperties();
-      String oldOrgIdentifier = "inetsoft.org." + fromOrgId.toLowerCase(Locale.ROOT);
-      String newOrgPrefix = "inetsoft.org." + newOrgId.toLowerCase(Locale.ROOT);
+      String oldOrgIdentifier = "inetsoft.org." + fromOrgId.toLowerCase(Locale.ROOT) + ".";
+      String newOrgPrefix = "inetsoft.org." + newOrgId.toLowerCase(Locale.ROOT) + ".";
       Enumeration<?> enumeration = properties.propertyNames();
 
       while(enumeration.hasMoreElements()) {

@@ -44,6 +44,7 @@ import inetsoft.web.admin.general.DatabaseSettingsService;
 import inetsoft.web.admin.general.model.DatabaseSettingsModel;
 import inetsoft.web.admin.security.*;
 import inetsoft.web.portal.data.DeleteDatasourceInfo;
+import inetsoft.web.portal.data.SecretIdAuthorizer;
 import inetsoft.web.portal.service.datasource.DataSourceStatusService;
 import inetsoft.web.session.IgniteSessionRepository;
 import inetsoft.web.viewsheet.*;
@@ -58,6 +59,7 @@ import java.rmi.RemoteException;
 import java.security.Principal;
 import java.sql.Timestamp;
 import java.util.*;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 @Service
@@ -82,6 +84,7 @@ public class DatabaseDatasourcesService {
       this.sessionRepository = sessionRepository;
       this.dataSourceRegistry = dataSourceRegistry;
       this.renameTransformHandler = renameTransformHandler;
+      this.secretIdAuthorizer = new SecretIdAuthorizer(securityEngine, dataSourceRegistry);
    }
 
    public DriverAvailability getDriverAvailability() {
@@ -95,7 +98,10 @@ public class DatabaseDatasourcesService {
    public ConnectionStatus testDataSourceConnection(String path, DatabaseDefinition model,
                                                     Principal principal, boolean isAdditionalSource)
    {
-      JDBCDataSource jdbcDataSource = getDatabase(path, model, false, isAdditionalSource);
+      // the path is supplied by the client, so only the secret ids the caller may use elsewhere
+      // are resolved
+      JDBCDataSource jdbcDataSource = getDatabase(path, model, false, isAdditionalSource,
+         secretIdAuthorizer.createCheck(null, principal), principal);
       DatabaseSettingsModel databaseSettingsModel = DatabaseSettingsModel.builder()
          .driver(jdbcDataSource.getDriver())
          .databaseURL(jdbcDataSource.getURL())
@@ -371,6 +377,8 @@ public class DatabaseDatasourcesService {
 
       XDataSource dataSource = repository.getDataSource(fullName);
       boolean newDataSource = false;
+      Predicate<String> secretIdCheck = secretIdAuthorizer.createCheck(dataSource, principal);
+      checkSecretIds(database, getAdditionals.get(), secretIdCheck);
 
       if(checkDuplicate(actionName, oname, name)) {
          return new ConnectionStatus("Duplicate");
@@ -443,7 +451,8 @@ public class DatabaseDatasourcesService {
       }
 
       Permission oldPermission = securityEngine.getPermission(ResourceType.DATA_SOURCE, fullName);
-      JDBCDataSource newSrc = getDatabase(newSrcName, database);
+      JDBCDataSource newSrc =
+         getDatabase(newSrcName, database, false, false, secretIdCheck, principal);
       boolean newSourcePermission = false;
       boolean folderPermission = false;
       int index = fullName.lastIndexOf('/');
@@ -578,7 +587,7 @@ public class DatabaseDatasourcesService {
                   }
                }
 
-               addAdditionalConnection(jdbcDataSource, ads);
+               addAdditionalConnection(jdbcDataSource, ads, secretIdCheck, principal);
 
                if(!additionalChange) {
                   additionalChange = true;
@@ -693,9 +702,12 @@ public class DatabaseDatasourcesService {
     * Create a additional connection to base source.
     * @param base base database.
     * @param database additional connection define.
+    * @param secretIdCheck checks the secret ids the caller may use.
+    * @param principal the user saving the connection.
     * @throws FileExistsException
     */
-   private void addAdditionalConnection(JDBCDataSource base, DatabaseDefinition database)
+   private void addAdditionalConnection(JDBCDataSource base, DatabaseDefinition database,
+                                        Predicate<String> secretIdCheck, Principal principal)
       throws FileExistsException
    {
       if(base == null || database == null) {
@@ -712,7 +724,8 @@ public class DatabaseDatasourcesService {
          }
       }
 
-      JDBCDataSource additionalConnection = getDatabase(base.getFullName(), database, false, true);
+      JDBCDataSource additionalConnection =
+         getDatabase(base.getFullName(), database, false, true, secretIdCheck, principal);
       additionalConnection.setBaseDatasource(base);
       base.addDatasource(additionalConnection);
 
@@ -1075,7 +1088,7 @@ public class DatabaseDatasourcesService {
    }
 
    public String buildDatabaseCustomUrl(String path, DatabaseDefinition model) {
-      JDBCDataSource jdbcDataSource = getDatabase(path, model, true, false);
+      JDBCDataSource jdbcDataSource = getDatabase(path, model, true, false, null, null);
       DatabaseDefinition databaseDefinition = JDBCUtil.buildDatabaseDefinition(jdbcDataSource);
 
       return JDBCUtil.formatUrl(databaseDefinition);
@@ -1098,25 +1111,51 @@ public class DatabaseDatasourcesService {
    }
 
    /**
-    * Create a new database connection.
-    *
-    * @param definition new database definition.
-    *
-    * @return jdbc data source object for the new connection
+    * Checks the secret ids that a database definition and its additional connections reference
+    * before anything is saved.
     */
-   private JDBCDataSource getDatabase(String path, DatabaseDefinition definition) {
-      return getDatabase(path, definition, false, false);
+   private static void checkSecretIds(DatabaseDefinition database, DatabaseDefinition[] additionals,
+                                      Predicate<String> secretIdCheck)
+   {
+      SecretIdAuthorizer.checkSecretId(getCloudSecretId(database), secretIdCheck);
+
+      if(additionals != null) {
+         for(DatabaseDefinition additional : additionals) {
+            SecretIdAuthorizer.checkSecretId(getCloudSecretId(additional), secretIdCheck);
+         }
+      }
+   }
+
+   /**
+    * Gets the secret id that {@link #getDatabase} resolves for a database definition.
+    */
+   private static String getCloudSecretId(DatabaseDefinition definition) {
+      AuthenticationDetails authentication = definition == null ? null :
+         definition.getAuthentication();
+
+      if(authentication != null && authentication.isRequired() && Tool.isCloudSecrets() &&
+         authentication.isUseCredentialId())
+      {
+         return authentication.getCredentialId();
+      }
+
+      return null;
    }
 
    /**
     * Create a new database connection.
     *
     * @param definition new database definition.
+    * @param secretIdCheck checks the secret ids the caller may use. It may be {@code null} when
+    *                      only building the URL, in which case the secret id is not resolved.
+    * @param principal the user the password is resolved for. It may be {@code null} when only
+    *                  building the URL, in which case a stored password is not looked up.
     *
     * @return jdbc data source object for the new connection
     */
    private JDBCDataSource getDatabase(String path, DatabaseDefinition definition,
-                                      boolean buildCustomUrl, boolean isAdditionalSource)
+                                      boolean buildCustomUrl, boolean isAdditionalSource,
+                                      Predicate<String> secretIdCheck, Principal principal)
    {
       String name = path.substring(0, path.lastIndexOf('/') + 1) + definition.getName();
       String type = definition.getType();
@@ -1156,18 +1195,10 @@ public class DatabaseDatasourcesService {
             String oldName = definition.getOldName();
             String password = definition.getAuthentication().getPassword();
 
-            if(!Tool.isEmptyString(oldName) && Tool.equals(password, Util.PLACEHOLDER_PASSWORD)) {
-               try {
-                  path = Tool.isEmptyString(path) ? oldName : path;
-                  XDataSource dataSource = repository.getDataSource(!isAdditionalSource ? path :
-                     path + "/" + oldName);
-
-                  if(dataSource instanceof JDBCDataSource) {
-                     password = ((JDBCDataSource) dataSource).getPassword();
-                  }
-               }
-               catch(Exception ignore){
-               }
+            if(!Tool.isEmptyString(oldName) && Tool.equals(password, Util.PLACEHOLDER_PASSWORD) &&
+               principal != null)
+            {
+               password = getStoredPassword(path, oldName, isAdditionalSource, principal);
             }
 
             if(!Tool.equals(password, Util.PLACEHOLDER_PASSWORD)) {
@@ -1177,12 +1208,16 @@ public class DatabaseDatasourcesService {
          else {
             String credentialId = definition.getAuthentication().getCredentialId();
             String dbType = SQLHelper.getProductName(xds);
-            Credential credential =
-               Tool.decryptPasswordToCredential(credentialId, xds.getCredential().getClass(), dbType);
 
-            if(credential instanceof PasswordCredential && !credential.isEmpty()) {
-               xds.setUser(((PasswordCredential) credential).getUser());
-               xds.setPassword(((PasswordCredential) credential).getPassword());
+            if(secretIdCheck != null) {
+               SecretIdAuthorizer.checkSecretId(credentialId, secretIdCheck);
+               Credential credential = Tool.decryptPasswordToCredential(
+                  credentialId, xds.getCredential().getClass(), dbType);
+
+               if(credential instanceof PasswordCredential && !credential.isEmpty()) {
+                  xds.setUser(((PasswordCredential) credential).getUser());
+                  xds.setPassword(((PasswordCredential) credential).getPassword());
+               }
             }
 
             xds.setCredentialId(credentialId);
@@ -1193,6 +1228,73 @@ public class DatabaseDatasourcesService {
       xds.setUnasgn(definition.isUnasgn());
 
       return xds;
+   }
+
+   /**
+    * Gets the stored password that the placeholder password in the editor stands for. It is only
+    * returned to a user who can edit the data source it is read from, because the caller chooses
+    * the URL that it is sent to.
+    *
+    * @param path the path of the data source, or of the parent of an additional connection.
+    * @param oldName the name of the data source or additional connection.
+    *
+    * @return the stored password, or the placeholder password if there is none.
+    *
+    * @throws java.lang.SecurityException if the user can't edit the data source.
+    */
+   private String getStoredPassword(String path, String oldName, boolean isAdditionalSource,
+                                    Principal principal)
+   {
+      path = Tool.isEmptyString(path) ? oldName : path;
+      JDBCDataSource parent = null;
+      JDBCDataSource stored = null;
+
+      try {
+         XDataSource dataSource = repository.getDataSource(path);
+
+         if(dataSource instanceof JDBCDataSource jdbcDataSource) {
+            if(!isAdditionalSource) {
+               stored = jdbcDataSource;
+            }
+            // an additional connection is read from its parent, so that path can't name a folder
+            // that holds a data source called oldName
+            else if(jdbcDataSource.getBaseDatasource() == null) {
+               parent = jdbcDataSource;
+               stored = parent.getDataSource(oldName);
+            }
+         }
+      }
+      catch(Exception ignore) {
+      }
+
+      if(isAdditionalSource && parent == null) {
+         throw new java.lang.SecurityException(
+            "User=" + principal.getName() + ", Path=/api/data/databases/*, Password=" + path);
+      }
+
+      String password = stored == null ? null : stored.getPassword();
+
+      if(Tool.isEmptyString(password)) {
+         return Util.PLACEHOLDER_PASSWORD;
+      }
+
+      boolean writable;
+
+      try {
+         writable = securityEngine.checkPermission(principal, ResourceType.DATA_SOURCE,
+            resourcePermissionService.getDataSourceResourceName(path, dataSourceRegistry),
+            ResourceAction.WRITE);
+      }
+      catch(SecurityException e) {
+         writable = false;
+      }
+
+      if(!writable) {
+         throw new java.lang.SecurityException(
+            "User=" + principal.getName() + ", Path=/api/data/databases/*, Password=" + path);
+      }
+
+      return password;
    }
 
    /**
@@ -1321,4 +1423,5 @@ public class DatabaseDatasourcesService {
    private final DataSourceStatusService dataSourceStatusService;
    private final IgniteSessionRepository sessionRepository;
    private final DataSourceRegistry dataSourceRegistry;
+   private final SecretIdAuthorizer secretIdAuthorizer;
 }

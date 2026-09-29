@@ -193,7 +193,9 @@ public class TabPropertyDialogService {
          TabVSAssemblyInfo.repositionForBottomTabsInScaledSpace(tabAssemblyInfo, vs,
                                                    tabGeneralPaneModel.getBottomTabs());
          // this clone becomes the live info below (setVSAssemblyInfo) -- clear any
-         // reposition still owed from an earlier bookmark restore, since it's now satisfied
+         // reposition still owed from an earlier bookmark restore or design-time script, since
+         // it's now satisfied: setBottomTabsValue above changed the dValue, which drops any
+         // script rValue, so isBottomTabs() is the value just repositioned for (Bug #77179)
          tabAssemblyInfo.clearPositionNeedsSync();
 
          // sync position model only when the user didn't explicitly change the position;

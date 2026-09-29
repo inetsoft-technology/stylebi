@@ -28,7 +28,10 @@ import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Service;
+import org.w3c.dom.Element;
+import org.w3c.dom.NodeList;
 
+import java.io.InputStream;
 import java.security.Principal;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -70,13 +73,38 @@ public class DashboardRegistryManager {
       }
    }
 
-   void renameDashboard(String oname, String name) {
-      List<DashboardRegistry> renamed = new ArrayList<>();
+   /**
+    * Propagates the rename of a global dashboard to the copies of it in the user registries of
+    * the global registry's organization, and of no other organization.
+    *
+    * @param orgID  the organization of the renamed global dashboard.
+    * @param oname  the old name.
+    * @param name   the new name.
+    * @param stored the users found by {@link #loadUserCopies(String, String)}, whose registries
+    *               may not be cached.
+    */
+   void renameDashboard(String orgID, String oname, String name,
+                        Collection<IdentityID> stored)
+   {
+      if(orgID == null) {
+         return;
+      }
+
+      Set<DashboardRegistry> renamed = new LinkedHashSet<>();
       lock.lock();
 
       try {
          for(DashboardRegistry registry : registries.values()) {
-            if(!registry.isGlobal() && registry.getDashboard(oname) != null) {
+            if(isUserCopy(registry, orgID, oname)) {
+               renamed.add(registry);
+            }
+         }
+
+         // a registry found in storage may have been evicted since, e.g. by a logout
+         for(IdentityID user : stored) {
+            DashboardRegistry registry = getRegistry(user, orgID, true);
+
+            if(isUserCopy(registry, orgID, oname)) {
                renamed.add(registry);
             }
          }
@@ -85,11 +113,129 @@ public class DashboardRegistryManager {
          lock.unlock();
       }
 
-      // rename after unlocking, a user registry rename locks the dashboard manager, which is
-      // locked before this manager
-      for(DashboardRegistry registry : renamed) {
-         registry.renameDashboard(oname, name);
+      // rename after unlocking, the dashboard manager is locked before this manager. The
+      // selections of the whole organization are already renamed by the global rename, so only
+      // the registry entry is renamed here.
+      DashboardManager.getManager().runLocked(() -> {
+         for(DashboardRegistry registry : renamed) {
+            try {
+               if(registry.renameEntry(oname, name)) {
+                  registry.fireChangeEvent(registry, DashboardChangeEvent.Type.RENAMED,
+                                           oname, name);
+               }
+            }
+            catch(Exception ex) {
+               LOG.error(ex.getMessage(), ex);
+            }
+         }
+      });
+   }
+
+   /**
+    * Finds the stored user registries of an organization that have a copy of a global
+    * dashboard, and loads the ones that are not cached, so that a global rename also reaches
+    * the users who are not logged in. The files are listed from the data space, not from the
+    * security provider, so users unknown to the provider and the anonymous user are included.
+    * A registry without the dashboard is neither loaded nor cached.
+    * <p>
+    * It must be called before the global dashboard is renamed, so that an old user file is
+    * ported against the old name. It must be called without holding the dashboard manager or
+    * a registry lock, so that the scan doesn't block the dashboard manager.
+    *
+    * @param orgID the organization of the global dashboard.
+    * @param oname the name of the global dashboard.
+    *
+    * @return the users whose registry has the dashboard, including the users whose registry is
+    *         already cached, so that the rename re-loads a registry evicted in the meantime.
+    */
+   Collection<IdentityID> loadUserCopies(String orgID, String oname) {
+      if(orgID == null || oname == null) {
+         return Collections.emptyList();
       }
+
+      List<IdentityID> users = new ArrayList<>();
+      String prefix = "portal/" + orgID + "/";
+      String suffix = "/" + USER_REGISTRY_FILE;
+
+      for(String path : dataSpace.getOrgScopedPaths(new Organization(orgID))) {
+         if(!path.startsWith(prefix) || !path.endsWith(suffix) ||
+            path.length() <= prefix.length() + suffix.length())
+         {
+            continue;
+         }
+
+         String userName = path.substring(prefix.length(), path.length() - suffix.length());
+
+         if(userName.indexOf('/') >= 0) {
+            // not a user registry
+            continue;
+         }
+
+         IdentityID user = new IdentityID(userName, orgID);
+         DashboardRegistry cached = registries.get(getRegistryKey(userName, orgID));
+
+         if(cached != null) {
+            // not loaded again, but still returned, the registry may be evicted, e.g. by a
+            // logout, before the rename
+            if(isUserCopy(cached, orgID, oname)) {
+               users.add(user);
+            }
+         }
+         else if(fileHasCopy(path, oname)) {
+            getRegistry(user, orgID, true);
+            users.add(user);
+         }
+      }
+
+      return users;
+   }
+
+   /**
+    * Checks if a registry is a user registry of an organization with a dashboard.
+    */
+   private static boolean isUserCopy(DashboardRegistry registry, String orgID, String oname) {
+      return registry != null && !registry.isGlobal() &&
+         Tool.equals(registry.getOrgID(), orgID) && registry.getDashboard(oname) != null;
+   }
+
+   /**
+    * Checks if a stored user registry file has a dashboard, read only. A node of an old file
+    * that is ported to the global dashboard name when the file is loaded counts too.
+    */
+   private boolean fileHasCopy(String path, String oname) {
+      try(InputStream in = dataSpace.getInputStream(null, path)) {
+         if(in == null) {
+            return false;
+         }
+
+         Element root = Tool.parseXML(in).getDocumentElement();
+         String version = Tool.getValue(Tool.getChildNodeByTagName(root, "Version"));
+         boolean needsPort = !FileVersions.DASHBOARD_REGISTRY.equals(version);
+         NodeList nodes = Tool.getChildNodesByTagName(root, "node");
+
+         for(int i = 0; i < nodes.getLength(); i++) {
+            Element node = (Element) nodes.item(i);
+            Element dashboard = Tool.getChildNodeByTagName(node, "dashboard");
+
+            // ignored when the file is loaded
+            if(dashboard != null && "inetsoft.sree.web.dashboard.PortletDashboard".equals(
+               Tool.getAttribute(dashboard, "class")))
+            {
+               continue;
+            }
+
+            String name = Tool.getValue(Tool.getChildNodeByTagName(node, "name"));
+
+            if(oname.equals(name) || needsPort && oname.equals(name + "__GLOBAL")) {
+               return true;
+            }
+         }
+      }
+      catch(Exception ex) {
+         LOG.warn("Failed to read dashboard registry {}", path, ex);
+      }
+
+      return false;
    }
 
    /**
@@ -257,13 +403,13 @@ public class DashboardRegistryManager {
 
                   try {
                      if(nKey == null) {
+                        // no new org, the registry is removed, don't write its file back
                         dataSpace.delete(null, oldPath);
                      }
                      else {
                         registry.modifyOrgId(nOID);
+                        registry.save();
                      }
-
-                     registry.save();
                   }
                   catch(Exception ex) {
                      LOG.error(ex.getMessage(), ex);
@@ -433,6 +579,45 @@ public class DashboardRegistryManager {
       }
    }
 
+   /**
+    * Clear every cached dashboard registry of an organization: its global registry and the
+    * registries of all of its users, including users the editable provider does not list (SSO,
+    * virtual or anonymous users, or users of other providers).
+    *
+    * <p>The org is matched on the registry's own org id, ignoring case, since the current-org
+    * path lowercases the id. It is not parsed from the key: the key is org__user and both parts
+    * may contain "__". A global registry whose org id did not resolve (null) is matched on its
+    * key, orgId__ADMIN__, ignoring case.
+    */
+   public void clearOrganization(String orgId) {
+      if(orgId == null) {
+         return;
+      }
+
+      String globalKey = getRegistryKey(null, orgId);
+      lock.lock();
+
+      try {
+         Iterator<Map.Entry<String, DashboardRegistry>> it = registries.entrySet().iterator();
+
+         while(it.hasNext()) {
+            Map.Entry<String, DashboardRegistry> entry = it.next();
+            DashboardRegistry registry = entry.getValue();
+            String registryOrgId = registry.getOrgID();
+            boolean match = registryOrgId != null ? orgId.equalsIgnoreCase(registryOrgId) :
+               globalKey.equalsIgnoreCase(entry.getKey());
+
+            if(match) {
+               it.remove();
+               registry.clear();
+            }
+         }
+      }
+      finally {
+         lock.unlock();
+      }
+   }
+
    private void fireChangeEvent(DashboardChangeEvent.Type type, String oldName,
                                 String newName, IdentityID user)
    {
@@ -454,6 +639,8 @@ public class DashboardRegistryManager {
    private final DataSpace dataSpace;
    private final Lock lock = new ReentrantLock();
    private final Map<String, DashboardRegistry> registries = new ConcurrentHashMap<>();
+
+   private static final String USER_REGISTRY_FILE = "dashboard-registry.xml";
 
    private static final Logger LOG = LoggerFactory.getLogger(DashboardRegistryManager.class);
 }

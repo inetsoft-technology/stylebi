@@ -171,24 +171,27 @@ public class OrganizationController {
                                 @DecodePathVariable("provider") String provider,
                                 @AuditUser Principal principal) throws Exception
    {
+      // the user messages are thread-local, drop anything left by an earlier request on this
+      // pooled thread so that only the messages of this save are returned
+      Tool.clearUserMessage();
       String currOrgID = OrganizationManager.getInstance().getCurrentOrgID();
 
       if(securityEngine.getSecurityProvider().getOrganization(currOrgID) == null) {
          throw new InvalidOrgException(Catalog.getCatalog().getString("em.security.invalidOrganizationPassed"));
       }
 
-      userTreeService.editOrganization(model, provider, principal);
-      OrganizationManager.getInstance().reset();
-      UserMessage message = Tool.getUserMessage();
+      UserMessage message;
 
-      if(message != null) {
-         String msg = message.getMessage();
-         Tool.clearUserMessage();
-
-         return msg;
+      try {
+         userTreeService.editOrganization(model, provider, principal);
+         OrganizationManager.getInstance().reset();
+      }
+      finally {
+         // consume the messages even if the save failed, so they don't leak to the next request
+         message = Tool.getUserMessage();
       }
 
-      return "";
+      return message != null && message.getMessage() != null ? message.getMessage() : "";
    }
 
    private final UserTreeService userTreeService;

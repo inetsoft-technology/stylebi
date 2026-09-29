@@ -549,8 +549,12 @@ public class DashboardManager implements AutoCloseable {
       }
    }
 
-   // don't synchronized since setDashboards() is called in parseXML() which has the stream
-   // locked in dataspace and may cause deadlock. (49246)
+   // The setters below read the whole DashboardData record, change one field and put it back, so
+   // they hold this manager's monitor for the whole read-modify-write (77232). Lock order is this
+   // manager, then DashboardRegistryManager.lock, then the user registry, then the global registry.
+   // The setters take only this manager's monitor and no registry locks, so they must not be
+   // called while holding DashboardRegistryManager.lock or a registry monitor; a registry calls
+   // them only inside runLocked(), before it locks itself.
    /**
     * Set dashboards to specified identity.
     * @param identity the specified identity.
@@ -568,7 +572,9 @@ public class DashboardManager implements AutoCloseable {
     * @param userChanged a flag that indicates if the dashboards were selected by the user. If
     *                    {@code null}, the existing value will be retained.
     */
-   public void setDashboards(Identity identity, String[] dashboards, Boolean userChanged) {
+   public synchronized void setDashboards(Identity identity, String[] dashboards,
+                                          Boolean userChanged)
+   {
       init();
       KeyValueStorage<DashboardData> dashboardStorage = getDashboardStorage();
 
@@ -610,7 +616,7 @@ public class DashboardManager implements AutoCloseable {
       }
    }
 
-   public void removeDashboards(Identity identity) {
+   public synchronized void removeDashboards(Identity identity) {
       init();
       KeyValueStorage<DashboardData> dashboardStorage = getDashboardStorage();
 
@@ -638,7 +644,7 @@ public class DashboardManager implements AutoCloseable {
     * @param identity   the identity of the user.
     * @param dashboards the names of the deselected dashboards.
     */
-   public void setDeselectedDashboards(Identity identity, String[] dashboards) {
+   public synchronized void setDeselectedDashboards(Identity identity, String[] dashboards) {
       init();
       KeyValueStorage<DashboardData> dashboardStorage = getDashboardStorage();
 

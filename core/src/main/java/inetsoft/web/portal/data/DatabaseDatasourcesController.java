@@ -112,6 +112,19 @@ public class DatabaseDatasourcesController {
    }
 
    @PostMapping("/api/portal/data/databases/additional/test")
+   @Secured(
+      value = {
+         @RequiredPermission(
+            resourceType = ResourceType.PORTAL_TAB, resource = "Data",
+            actions = ResourceAction.ACCESS
+         ),
+         @RequiredPermission(
+            resourceType = ResourceType.EM_COMPONENT, resource = "settings/content/repository",
+            actions = ResourceAction.ACCESS
+         )
+      },
+      operator = "OR"
+   )
    public ConnectionStatus testDataSourceConnection(@RequestParam("path") String path,
                                                     @RequestParam("isAdditionalSource")
                                                     boolean isAdditionalSource,

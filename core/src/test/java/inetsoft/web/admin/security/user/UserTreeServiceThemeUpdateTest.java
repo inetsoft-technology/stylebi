@@ -64,6 +64,7 @@ class UserTreeServiceThemeUpdateTest {
 
       SecurityProvider securityProvider = mock(SecurityProvider.class, withSettings().lenient());
       when(securityProvider.getOrganization(ORG)).thenReturn(new FSOrganization(ORG));
+      when(securityProvider.getOrganizationIDs()).thenReturn(new String[] { ORG });
       securityEngine = mock(SecurityEngine.class, withSettings().lenient());
       when(securityEngine.getSecurityProvider()).thenReturn(securityProvider);
 

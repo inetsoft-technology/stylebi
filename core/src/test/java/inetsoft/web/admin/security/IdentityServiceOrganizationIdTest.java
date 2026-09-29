@@ -28,13 +28,16 @@ import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.security.*;
 import inetsoft.storage.ExternalStorageService;
-import inetsoft.util.Catalog;
-import inetsoft.util.MessageException;
+import inetsoft.storage.fs.FilesystemExternalStorageService;
+import inetsoft.util.*;
 import inetsoft.util.audit.ActionRecord;
 import inetsoft.util.audit.Audit;
 import inetsoft.util.config.InetsoftConfig;
+import inetsoft.web.admin.schedule.model.ServerLocation;
+import inetsoft.web.admin.schedule.model.ServerPathInfoModel;
 import inetsoft.web.admin.security.user.EditOrganizationPaneModel;
 import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.MockedStatic;
@@ -42,7 +45,10 @@ import org.mockito.quality.Strictness;
 import org.slf4j.LoggerFactory;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.io.File;
+import java.nio.file.*;
 import java.security.Principal;
+import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -109,6 +115,14 @@ class IdentityServiceOrganizationIdTest {
       FSOrganization org = new FSOrganization(new IdentityID("Backup Org", "backup"));
       when(eprovider.getOrganizationNames()).thenReturn(new String[]{ "Backup Org" });
       when(eprovider.getOrganization("backup")).thenReturn(org);
+      // a rename takes the full save path, which also updates the (empty) member list
+      when(eprovider.getUsers()).thenReturn(new IdentityID[0]);
+      when(eprovider.getGroups()).thenReturn(new IdentityID[0]);
+      when(eprovider.getRoles()).thenReturn(new IdentityID[0]);
+      SecurityProvider securityProvider = mock(SecurityProvider.class);
+      when(securityProvider.getAuthorizationProvider()).thenReturn(mock(AuthorizationChain.class));
+      ReflectionTestUtils.setField(service, "securityProvider", securityProvider);
+      sUtilStatic.when(SUtil::loadLocaleProperties).thenReturn(new Properties());
 
       service.setIdentity(org, orgModel("Backup Renamed", "backup"), eprovider, principal);
 
@@ -135,6 +149,69 @@ class IdentityServiceOrganizationIdTest {
       verify(eprovider, atLeastOnce()).getUsers();
    }
 
+   // Bug #77169: the default and self organization ids and names are hard-coded constants, so
+   // setIdentity must refuse to change them on every save path, not only in the EM.
+   @ParameterizedTest
+   @CsvSource(value = { "Host Organization,host-org,renamed-org", "Self Organization,SELF,renamed-self",
+                        "Host Organization,host-org,HOST-ORG", "Host Organization,host-org,NULL",
+                        "Self Organization,SELF,NULL" }, nullValues = "NULL")
+   void setIdentity_changeDefaultOrSelfOrgId_rejectedBeforeAnyChange(String name, String oldId,
+                                                                    String newId)
+   {
+      FSOrganization org = new FSOrganization(new IdentityID(name, oldId));
+
+      MessageException thrown = assertThrows(
+         MessageException.class, () -> service.setIdentity(org, orgModel(name, newId), eprovider, principal));
+
+      assertEquals(Catalog.getCatalog().getString("em.security.writeDefaultOrgId"), thrown.getMessage());
+      assertNothingSaved();
+   }
+
+   @ParameterizedTest
+   @CsvSource({ "Host Organization,host-org", "Self Organization,SELF" })
+   void setIdentity_changeDefaultOrSelfOrgName_rejectedBeforeAnyChange(String name, String id) {
+      FSOrganization org = new FSOrganization(new IdentityID(name, id));
+      when(eprovider.getOrganizationNames()).thenReturn(new String[]{ name });
+      when(eprovider.getOrganization(id)).thenReturn(org);
+      EditOrganizationPaneModel model = EditOrganizationPaneModel.builder()
+         .name("Renamed").oldName(name).id(id).theme(null).build();
+
+      MessageException thrown = assertThrows(
+         MessageException.class, () -> service.setIdentity(org, model, eprovider, principal));
+
+      assertEquals(Catalog.getCatalog().getString("em.security.writeDefaultOrgName"), thrown.getMessage());
+      assertNothingSaved();
+   }
+
+   @ParameterizedTest
+   @CsvSource({ "Host Organization,host-org", "Self Organization,SELF", "Org A,orgB" })
+   void setIdentity_defaultOrgUnchangedOrNormalOrgRenamed_passesTheGate(String name, String newId) {
+      String oldId = "Org A".equals(name) ? "orgA" : "host-org";
+      oldId = "Self Organization".equals(name) ? "SELF" : oldId;
+      FSOrganization org = new FSOrganization(new IdentityID(name, oldId));
+
+      try {
+         // a member, theme or locale edit keeps the id and name
+         service.setIdentity(org, orgModel(name, newId), eprovider, principal);
+      }
+      catch(MessageException e) {
+         fail("the edit must not be refused: " + e.getMessage());
+      }
+      catch(Exception ignore) {
+         // later steps of the save are out of scope, only the gate matters here
+      }
+
+      verify(eprovider, atLeastOnce()).getUsers();
+   }
+
+   private void assertNothingSaved() {
+      verify(eprovider, never()).getUsers();
+      verify(eprovider, never()).setOrganization(any(), any());
+      verify(eprovider, never()).copyOrganization(any(), any(), any(), any(), any(), any(), any(),
+                                                  anyBoolean(), any());
+      verifyNoInteractions(cluster);
+   }
+
    @ParameterizedTest
    @CsvSource({ "backup,orgB", "orgA,backup", "status,orgB", "orgA,HeapDump" })
    void updateTaskSaveFiles_reservedOldOrNewId_doesNotMoveFolder(String oldId, String newId)
@@ -152,6 +229,172 @@ class IdentityServiceOrganizationIdTest {
       verify(externalStorageService).renameFolder("orgA", "orgB");
    }
 
+   // Bug #77137: with server.save.locations, the task save files of an organization are also in
+   // location/orgId/user/..., which the rename left under the old id
+
+   @Test
+   void updateTaskSaveFiles_saveLocations_movesEachLocationFolder() throws Exception {
+      useSaveLocations("reports", "archive/x/", "/var/reports", "reports", "ftp://host/dir|ftp");
+
+      service.updateTaskSaveFiles(new FSOrganization("orgA"), new FSOrganization("orgB"));
+
+      verify(externalStorageService).renameFolder("orgA", "orgB");
+      verify(externalStorageService).renameFolder("reports/orgA", "reports/orgB");
+      verify(externalStorageService).renameFolder("archive/x/orgA", "archive/x/orgB");
+      verify(externalStorageService).renameFolder("/var/reports/orgA", "/var/reports/orgB");
+      verifyNoMoreInteractions(externalStorageService);
+   }
+
+   @ParameterizedTest
+   @CsvSource({
+      // old or new id names the location folder, only the top folder is skipped
+      "reports, orgB, reports, orgB, reports/reports, reports/orgB",
+      "orgA, reports, orgA, reports, reports/orgA, reports/reports",
+      "Reports, orgB, Reports, orgB, reports/Reports, reports/orgB",
+      "var, orgB, var, orgB, /var/reports/var, /var/reports/orgB",
+   })
+   void updateTaskSaveFiles_idIsLocationFolder_skipsOnlyThatFolder(
+      String oldId, String newId, String skippedFrom, String skippedTo, String movedFrom, String movedTo)
+      throws Exception
+   {
+      useSaveLocations(oldId.equals("var") ? "/var/reports" : "reports");
+
+      service.updateTaskSaveFiles(new FSOrganization(oldId), new FSOrganization(newId));
+
+      verify(externalStorageService, never()).renameFolder(skippedFrom, skippedTo);
+      verify(externalStorageService).renameFolder(movedFrom, movedTo);
+      verifyNoMoreInteractions(externalStorageService);
+   }
+
+   @Test
+   void updateTaskSaveFiles_nestedLocations_doesNotMoveTheInnerLocation() throws Exception {
+      useSaveLocations("reports", "reports/archive");
+
+      service.updateTaskSaveFiles(new FSOrganization("archive"), new FSOrganization("orgB"));
+
+      verify(externalStorageService).renameFolder("archive", "orgB");
+      verify(externalStorageService, never()).renameFolder("reports/archive", "reports/orgB");
+      verify(externalStorageService).renameFolder("reports/archive/archive", "reports/archive/orgB");
+      verifyNoMoreInteractions(externalStorageService);
+   }
+
+   @Test
+   void updateTaskSaveFiles_oneFolderFails_movesTheOthersAndShowsOneMessage() throws Exception {
+      useSaveLocations("reports", "archive");
+      doThrow(new java.io.IOException("C:\\server\\storage\\orgA locked"))
+         .when(externalStorageService).renameFolder("orgA", "orgB");
+      doThrow(new java.io.IOException("locked"))
+         .when(externalStorageService).renameFolder("reports/orgA", "reports/orgB");
+      Tool.clearUserMessage();
+
+      try {
+         service.updateTaskSaveFiles(new FSOrganization("orgA"), new FSOrganization("orgB"));
+
+         verify(externalStorageService).renameFolder("archive/orgA", "archive/orgB");
+         UserMessage message = Tool.getUserMessage();
+         assertNotNull(message);
+         assertEquals(Catalog.getCatalog().getString("em.organization.renameIssue"),
+                      message.getMessage());
+      }
+      finally {
+         Tool.clearUserMessage();
+      }
+   }
+
+   // the filesystem storage throws a failed rename instead of adding the raw exception text,
+   // which contains server paths, as a user message
+   @Test
+   void updateTaskSaveFiles_filesystemRenameFails_showsOnlyTheLocalizedMessage() throws Exception {
+      useSaveLocations("reports");
+      Path base = Files.createDirectories(tempDir.resolve("base"));
+      Files.createDirectories(base.resolve("orgA/alice"));
+      Files.createDirectories(base.resolve("reports/orgA/alice"));
+      ReflectionTestUtils.setField(service, "externalStorageService",
+                                   new FilesystemExternalStorageService(base));
+      Tool.clearUserMessage();
+
+      try(MockedStatic<FileSystemService> fsStatic = mockStatic(FileSystemService.class)) {
+         FileSystemService fs = mock(FileSystemService.class);
+         when(fs.getFile(anyString())).thenAnswer(i -> new File((String) i.getArgument(0)));
+         when(fs.rename(any(), any())).thenAnswer(i -> {
+            File from = i.getArgument(0);
+
+            if(from.toPath().equals(base.resolve("orgA"))) {
+               throw new RuntimeException("Failed to rename file \"" + from + "\".");
+            }
+
+            return from.renameTo(i.getArgument(1));
+         });
+         fsStatic.when(FileSystemService::getInstance).thenReturn(fs);
+
+         service.updateTaskSaveFiles(new FSOrganization("orgA"), new FSOrganization("orgB"));
+
+         assertTrue(Files.exists(base.resolve("reports/orgB/alice")));
+         UserMessage message = Tool.getUserMessage();
+         assertNotNull(message);
+         assertEquals(Catalog.getCatalog().getString("em.organization.renameIssue"),
+                      message.getMessage());
+      }
+      finally {
+         Tool.clearUserMessage();
+      }
+   }
+
+   @Test
+   void updateTaskSaveFiles_filesystem_movesOnlyTheOrganizationFiles() throws Exception {
+      useSaveLocations("reports");
+      Path base = Files.createDirectories(tempDir.resolve("base"));
+      String[] files = {
+         "orgA/alice/a.pdf", "reports/orgA/alice/b.pdf", "reports/orgC/carol/c.pdf"
+      };
+
+      for(String file : files) {
+         Path path = base.resolve(file);
+         Files.createDirectories(path.getParent());
+         Files.writeString(path, file);
+      }
+
+      ReflectionTestUtils.setField(service, "externalStorageService",
+                                   new FilesystemExternalStorageService(base));
+
+      try(MockedStatic<FileSystemService> fsStatic = mockStatic(FileSystemService.class)) {
+         FileSystemService fs = mock(FileSystemService.class);
+         when(fs.getFile(anyString())).thenAnswer(i -> new File((String) i.getArgument(0)));
+         when(fs.rename(any(), any()))
+            .thenAnswer(i -> ((File) i.getArgument(0)).renameTo(i.getArgument(1)));
+         fsStatic.when(FileSystemService::getInstance).thenReturn(fs);
+
+         service.updateTaskSaveFiles(new FSOrganization("orgA"), new FSOrganization("orgB"));
+
+         assertTrue(Files.exists(base.resolve("orgB/alice/a.pdf")));
+         assertTrue(Files.exists(base.resolve("reports/orgB/alice/b.pdf")));
+         assertTrue(Files.exists(base.resolve("reports/orgC/carol/c.pdf")));
+         assertFalse(Files.exists(base.resolve("orgA")));
+         assertFalse(Files.exists(base.resolve("reports/orgA")));
+
+         // a rename to the location folder must not delete or move the other organizations
+         service.updateTaskSaveFiles(new FSOrganization("orgB"), new FSOrganization("reports"));
+
+         assertTrue(Files.exists(base.resolve("reports/orgC/carol/c.pdf")));
+         assertTrue(Files.exists(base.resolve("reports/reports/alice/b.pdf")));
+         verify(fs, never()).deleteFile(any(File.class));
+      }
+   }
+
+   private void useSaveLocations(String... paths) {
+      List<ServerLocation> locations = new ArrayList<>();
+
+      for(String path : paths) {
+         boolean ftp = path.endsWith("|ftp");
+         String lpath = ftp ? path.substring(0, path.length() - 4) : path;
+         locations.add(ServerLocation.builder().path(lpath).label(lpath)
+                          .pathInfoModel(ServerPathInfoModel.builder().path(lpath).ftp(ftp).build())
+                          .build());
+      }
+
+      sUtilStatic.when(SUtil::getServerLocations).thenReturn(locations);
+   }
+
    private static EditOrganizationPaneModel orgModel(String name, String id) {
       return EditOrganizationPaneModel.builder()
          .name(name)
@@ -161,6 +404,8 @@ class IdentityServiceOrganizationIdTest {
          .build();
    }
 
+   @TempDir
+   Path tempDir;
    private IdentityService service;
    private EditableAuthenticationProvider eprovider;
    private ExternalStorageService externalStorageService;

@@ -22,6 +22,7 @@ import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.schedule.*;
 import inetsoft.sree.security.ResourceAction;
 import inetsoft.sree.security.ResourceType;
+import inetsoft.sree.security.SecurityEngine;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.util.Tool;
@@ -44,10 +45,12 @@ import java.util.*;
 public class ImportTaskController {
    public ImportTaskController(ScheduleManager scheduleManager,
                                ScheduleTaskFolderService scheduleTaskFolderService,
-                               AnalyticRepository analyticRepository) {
+                               AnalyticRepository analyticRepository,
+                               SecurityEngine securityEngine) {
       this.scheduleManager = scheduleManager;
       this.scheduleTaskFolderService = scheduleTaskFolderService;
       this.analyticRepository = analyticRepository;
+      this.secretIdChecker = new ScheduleSecretIdChecker(securityEngine);
    }
 
    @Secured(
@@ -145,6 +148,13 @@ public class ImportTaskController {
             continue;
          }
 
+         if(selectedTasks.contains(taskId) && (!taskExists || overwriting) &&
+            !secretIdChecker.isAllowed(task, oldTask, principal))
+         {
+            failedList.add(taskId);
+            continue;
+         }
+
          if(selectedTasks.contains(taskId) && (!taskExists || overwriting)) {
             updateTaskInfo(task, linkURI);
             scheduleManager.setScheduleTask(taskId, task, principal);
@@ -208,5 +218,6 @@ public class ImportTaskController {
    private final ScheduleManager scheduleManager;
    private final ScheduleTaskFolderService scheduleTaskFolderService;
    private final AnalyticRepository analyticRepository;
+   private final ScheduleSecretIdChecker secretIdChecker;
    static final String INFO_ATTR = "__private_scheduleXmlInfo";
 }

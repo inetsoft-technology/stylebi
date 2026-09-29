@@ -43,6 +43,7 @@ import inetsoft.sree.schedule.*;
 import static inetsoft.web.admin.schedule.ImportTaskController.INFO_ATTR;
 import inetsoft.sree.security.ResourceAction;
 import inetsoft.sree.security.ResourceType;
+import inetsoft.sree.security.SecurityEngine;
 import inetsoft.web.admin.schedule.model.ImportTaskResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
@@ -66,6 +67,7 @@ class ImportTaskControllerTest {
    @Mock private ScheduleManager scheduleManager;
    @Mock private ScheduleTaskFolderService scheduleTaskFolderService;
    @Mock private AnalyticRepository analyticRepository;
+   @Mock private SecurityEngine securityEngine;
    @Mock private ScheduleTask incomingTask;
    @Mock private ScheduleTask existingTask;
    @Mock private HttpServletRequest request;
@@ -76,7 +78,8 @@ class ImportTaskControllerTest {
 
    @BeforeEach
    void setUp() {
-      controller = new ImportTaskController(scheduleManager, scheduleTaskFolderService, analyticRepository);
+      controller = new ImportTaskController(scheduleManager, scheduleTaskFolderService, analyticRepository,
+                                            securityEngine);
       when(request.getSession(true)).thenReturn(session);
       lenient().when(incomingTask.getTaskId()).thenReturn("myTask");
       lenient().when(incomingTask.getPath()).thenReturn(null); // skip moveTask()

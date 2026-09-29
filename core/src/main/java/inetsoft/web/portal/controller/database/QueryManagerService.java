@@ -76,6 +76,8 @@ public class QueryManagerService {
                            String datasource, Principal principal)
       throws Exception
    {
+      // Bug #77163, the named data source is bound into the runtime query below.
+      checkDataSourceReadPermission(datasource, principal);
       RuntimeQueryService.RuntimeXQuery runtimeQuery =
          runtimeQueryService.getRuntimeQuery(runtimeId);
 
@@ -136,7 +138,8 @@ public class QueryManagerService {
       RuntimeQueryService.RuntimeXQuery runtimeQuery = getRuntimeQuery(runtimeId);
 
       if(runtimeQuery == null) {
-         return;
+         throw new MessageException(
+            Catalog.getCatalog().getString("common.sqlquery.sessionExpired"));
       }
 
       JDBCQuery query = runtimeQuery.getQuery();
@@ -404,14 +407,17 @@ public class QueryManagerService {
                                          boolean advancedEdit, Principal principal)
       throws Exception
    {
+      // Bug #77163, the named data source is bound into a new runtime query below.
+      checkDataSourceReadPermission(dataSource, principal);
       SQLQueryDialogModel model = new SQLQueryDialogModel();
-      model.setRuntimeId(runtimeId);
       model.setName(tableName);
       model.setDataSource(dataSource);
       model.setAdvancedEdit(advancedEdit);
 
+      // Bug #77190, a blank id gets a new id, and another session's id is refused.
       RuntimeQueryService.RuntimeXQuery runtimeQuery =
-         createNewRuntimeQuery(runtimeId, tableName, dataSource);
+         createNewRuntimeQuery(runtimeId, tableName, dataSource, principal);
+      model.setRuntimeId(runtimeQuery.getId());
 
       if(advancedEdit) {
          AdvancedSQLQueryModel advancedModel = getAdvancedQueryModel(runtimeQuery, principal);
@@ -769,6 +775,22 @@ public class QueryManagerService {
       if(assembly != null) {
          SQLBoundTableAssemblyInfo info = (SQLBoundTableAssemblyInfo) assembly.getTableInfo();
          query = info.getQuery();
+      }
+
+      // Bug #77163, check the source the dialog is opened on before it is bound into a
+      // runtime query: the existing assembly's bound source (failing closed when it is
+      // missing), otherwise the requested source for a new query.
+      if(query != null) {
+         XDataSource bound = query.getDataSource();
+         String boundName = bound == null ? null : bound.getFullName();
+         checkDataSourceReadPermission(boundName, principal);
+
+         if(!StringUtils.isBlank(dataSource) && !dataSource.equals(boundName)) {
+            checkDataSourceReadPermission(dataSource, principal);
+         }
+      }
+      else {
+         checkDataSourceReadPermission(dataSource, principal);
       }
 
       query = query == null ? createNewQuery(null, dataSource) : query;
@@ -1180,8 +1202,8 @@ public class QueryManagerService {
       runtimeQueryService.destroy(runtimeId);
    }
 
-   public void clearRuntimeQuery() {
-      runtimeQueryService.clear();
+   public void destroyRuntimeQuery(String runtimeId, Principal principal) {
+      runtimeQueryService.destroy(runtimeId, principal);
    }
 
    private JDBCQuery createNewQuery(String name, String database) {
@@ -1279,6 +1301,77 @@ public class QueryManagerService {
 
    public void saveRuntimeQuery(RuntimeQueryService.RuntimeXQuery runtimeQuery) {
       runtimeQueryService.saveRuntimeQuery(runtimeQuery);
+   }
+
+   /**
+    * Fails closed unless the principal has READ on the named data source. This is the same
+    * decision (raw full name, DATA_SOURCE, READ) as the data source list filter in
+    * {@link #getSqlQueryDialogModel} and {@link #clearQuery}, so a source that is not offered
+    * in the SQL query dialog cannot be used by name either (Bug #77163).
+    *
+    * @param dataSource the full name of the data source.
+    * @param principal  the current user.
+    *
+    * @throws java.lang.SecurityException if the name is null or blank, if READ is not
+    *                                     granted, or if the check itself fails.
+    */
+   public void checkDataSourceReadPermission(String dataSource, Principal principal) {
+      if(dataSource == null || dataSource.isBlank()) {
+         throw new java.lang.SecurityException("Missing data source name");
+      }
+
+      boolean allowed;
+
+      try {
+         allowed = securityEngine != null && securityEngine.checkPermission(
+            principal, ResourceType.DATA_SOURCE, dataSource, ResourceAction.READ);
+      }
+      catch(Exception e) {
+         LOG.debug("Failed to check data source permission: {}", dataSource, e);
+         allowed = false;
+      }
+
+      if(!allowed) {
+         throw new java.lang.SecurityException(
+            "Unauthorized access to data source \"" + dataSource + "\" by user " +
+            (principal == null ? null : principal.getName()));
+      }
+   }
+
+   /**
+    * Checks READ on the data source that a runtime query is actually bound to, failing closed
+    * when the bound source is missing. A runtime query that no longer exists is left to the
+    * caller, which reports the expired session (Bug #77163).
+    */
+   public void checkRuntimeQueryReadPermission(RuntimeQueryService.RuntimeXQuery runtimeQuery,
+                                               Principal principal)
+   {
+      if(runtimeQuery == null) {
+         return;
+      }
+
+      JDBCQuery query = runtimeQuery.getQuery();
+      XDataSource bound = query == null ? null : query.getDataSource();
+      checkDataSourceReadPermission(bound == null ? null : bound.getFullName(), principal);
+   }
+
+   /**
+    * Checks READ on the data source named by the {@code prefix} property of a client-supplied
+    * query-scope entry (data source, physical folder/table, logical model, entity, ...). The
+    * asset engine resolves the children of such an entry from the data source in its prefix
+    * without checking it, so the prefix is required and must be readable. Only the root and
+    * data source folders are exempt, because the engine lists their data sources READ-filtered
+    * (Bug #77163).
+    *
+    * @throws java.lang.SecurityException if the prefix is missing, if READ is not granted, or
+    *                                     if the check itself fails.
+    */
+   public void checkQueryEntryReadPermission(AssetEntry entry, Principal principal) {
+      if(entry != null && entry.getScope() == AssetRepository.QUERY_SCOPE &&
+         !entry.isRoot() && !entry.isDataSourceFolder())
+      {
+         checkDataSourceReadPermission(entry.getProperty("prefix"), principal);
+      }
    }
 
    private AutoDrillInfo getAutoDrillInfo(XMetaInfo metaInfo) {
@@ -2480,21 +2573,12 @@ public class QueryManagerService {
    }
 
    private RuntimeQueryService.RuntimeXQuery createNewRuntimeQuery(String runtimeId, String tableName,
-                                                                   String dataSource)
+                                                                   String dataSource,
+                                                                   Principal principal)
       throws Exception
    {
       JDBCQuery newQuery = createNewQuery(tableName, dataSource);
-      RuntimeQueryService.RuntimeXQuery runtimeQuery =
-         runtimeQueryService.createRuntimeQuery(null, newQuery, dataSource, null);
-
-      if(runtimeId != null) {
-         String newId = runtimeQuery.getId();
-         destroyRuntimeQuery(newId);
-         runtimeQuery.setId(runtimeId);
-         runtimeQueryService.saveRuntimeQuery(runtimeQuery);
-      }
-
-      return runtimeQuery;
+      return runtimeQueryService.resetRuntimeQuery(runtimeId, newQuery, dataSource, principal);
    }
 
    private DataRef getOldAttributeRef(String oldAlias, String fullname, ColumnSelection oldColumns,
@@ -2514,6 +2598,10 @@ public class QueryManagerService {
                                               Principal principal)
       throws Exception
    {
+      // Bug #77163, the expanded entry's children are resolved from the data source in its
+      // prefix, which need not be the one named by the dataSource parameter, so check both.
+      checkDataSourceReadPermission(dataSource, principal);
+      checkQueryEntryReadPermission(expandedEntry, principal);
       AssetRepository assetRepository = AssetUtil.getAssetRepository(false);
       List<TreeNodeModel> children = null;
 

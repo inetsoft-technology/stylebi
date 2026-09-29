@@ -19,7 +19,7 @@ package inetsoft.util;
 
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ValueSource;
+import org.junit.jupiter.params.provider.MethodSource;
 
 import java.io.InputStream;
 import java.nio.file.Files;
@@ -28,6 +28,7 @@ import java.text.MessageFormat;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -39,6 +40,10 @@ import static org.junit.jupiter.api.Assertions.*;
  * <p>
  * This test formats every srinter value that contains a {@code {n}} placeholder with dummy
  * arguments and checks that every placeholder is filled and no apostrophe is lost.
+ * <p>
+ * Bug #77187: the opposite case. A value that is displayed raw (no MessageFormat) must use a
+ * single {@code '}, because {@code ''} is shown doubled. See
+ * {@link #rawMessagesUseSingleApostrophes(String)}.
  */
 @Tag("core")
 class SrinterMessageFormatQuotesTest {
@@ -76,27 +81,28 @@ class SrinterMessageFormatQuotesTest {
       "viewer.wrongDateFmt.note4"
    );
 
+   /**
+    * Keys that are read raw by the web client and are also formatted by the server with
+    * {@link Catalog#getString(String, Object...)} and arguments. No ASCII-apostrophe spelling
+    * is correct on both paths ({@code '} is dropped by MessageFormat, {@code ''} is shown
+    * doubled on the web), so these values use typographic quotes (&rsquo; and
+    * &lsquo;{0}&rsquo;) and must not contain an ASCII {@code '} at all.
+    */
+   private static final Set<String> DUAL_USE_KEYS = Set.of(
+      "em.common.graph.incompatibleTypes",
+      "em.repository.missingResource",
+      "getting.started.new.asset.unauthorized"
+   );
+
    private static final Pattern PLACEHOLDER = Pattern.compile("\\{\\d");
    private static final Pattern ARG = Pattern.compile("\\{(\\d+)(?:\\s*,\\s*(\\w+))?");
+   private static final Pattern QUOTE_RUN = Pattern.compile("'{2,}");
 
    @ParameterizedTest
-   @ValueSource(strings = {
-      "src/main/resources/inetsoft/util/srinter.properties",
-      "../community-examples/localize/srinter_en_US.properties",
-      "../community-examples/localize/srinter_fr_FR.properties",
-      "../community-examples/localize/srinter_ja_JP.properties",
-      "../community-examples/localize/srinter_zh_CN.properties"
-   })
+   @MethodSource("bundlePaths")
    void placeholderMessagesKeepApostrophesAndFillArgs(String relativePath) throws Exception {
       Path file = resolve(relativePath);
-      assertTrue(Files.isRegularFile(file), "Catalog bundle not found: " + file);
-
-      PropertyResourceBundle bundle;
-
-      try(InputStream in = Files.newInputStream(file)) {
-         bundle = new PropertyResourceBundle(in);
-      }
-
+      PropertyResourceBundle bundle = load(file);
       List<String> failures = new ArrayList<>();
       int checked = 0;
 
@@ -131,6 +137,89 @@ class SrinterMessageFormatQuotesTest {
          " MessageFormat-formatted message(s) use a single ' (write '' instead, or add the key " +
          "to WEB_ONLY_KEYS if it is only formatted by the web client):\n  " +
          String.join("\n  ", failures));
+   }
+
+   /**
+    * Bug #77187: values that are displayed raw must not escape apostrophes.
+    * <ol>
+    *    <li>A value without a {@code {n}} placeholder must not contain {@code ''}. The only
+    *    exception is a {@code '''} run, which is a quoted apostrophe character (for example
+    *    the last item of {@code viewer.worksheet.Grouping.SpecialChar}).</li>
+    *    <li>A {@link #WEB_ONLY_KEYS} value must not contain {@code ''}.</li>
+    *    <li>A {@link #DUAL_USE_KEYS} value must not contain an ASCII {@code '}.</li>
+    * </ol>
+    * Rule 1 relies on a <b>bundle convention</b>, not on a {@link Catalog} guarantee: a value
+    * without {@code {n}} is only read with no arguments (the web {@code LocalizationService}
+    * path, or a server {@code Catalog.getString(key)} call), and {@code Catalog.getString}
+    * skips MessageFormat when no arguments are passed. {@code Catalog.getString(key, args)} on
+    * such a value would still run MessageFormat, and {@code Catalog.getIDString} always does.
+    * So a server call that passes arguments must use a key whose value has a {@code {n}}
+    * placeholder, or the value must not contain {@code ''}.
+    */
+   @ParameterizedTest
+   @MethodSource("bundlePaths")
+   void rawMessagesUseSingleApostrophes(String relativePath) throws Exception {
+      Path file = resolve(relativePath);
+      PropertyResourceBundle bundle = load(file);
+      List<String> failures = new ArrayList<>();
+
+      for(String key : new TreeSet<>(bundle.keySet())) {
+         String value = bundle.getString(key);
+
+         if(DUAL_USE_KEYS.contains(key)) {
+            if(value.indexOf('\'') >= 0) {
+               failures.add(key + ": dual-use key contains an ASCII ' (use typographic " +
+                  "quotes) -> " + value);
+            }
+         }
+         else if(WEB_ONLY_KEYS.contains(key)) {
+            if(value.contains("''")) {
+               failures.add(key + ": web-only key contains '' -> " + value);
+            }
+         }
+         else if(!PLACEHOLDER.matcher(value).find() && hasDoubledQuote(value)) {
+            failures.add(key + ": raw value without {n} contains '' -> " + value);
+         }
+      }
+
+      assertTrue(failures.isEmpty(), file.getFileName() + ": " + failures.size() +
+         " raw-displayed message(s) contain '' which is shown doubled (write ' instead, or use " +
+         "typographic quotes if the key is also formatted with args on the server):\n  " +
+         String.join("\n  ", failures));
+   }
+
+   static Stream<String> bundlePaths() {
+      return Stream.of(
+         "src/main/resources/inetsoft/util/srinter.properties",
+         "../community-examples/localize/srinter_en_US.properties",
+         "../community-examples/localize/srinter_fr_FR.properties",
+         "../community-examples/localize/srinter_ja_JP.properties",
+         "../community-examples/localize/srinter_zh_CN.properties"
+      );
+   }
+
+   private static PropertyResourceBundle load(Path file) throws Exception {
+      assertTrue(Files.isRegularFile(file), "Catalog bundle not found: " + file);
+
+      try(InputStream in = Files.newInputStream(file)) {
+         return new PropertyResourceBundle(in);
+      }
+   }
+
+   /**
+    * Returns true if the value has a run of apostrophes other than exactly {@code '''}.
+    * Longer runs are flagged too; if a value ever needs one, exempt that key explicitly.
+    */
+   private static boolean hasDoubledQuote(String value) {
+      Matcher matcher = QUOTE_RUN.matcher(value);
+
+      while(matcher.find()) {
+         if(matcher.end() - matcher.start() != 3) {
+            return true;
+         }
+      }
+
+      return false;
    }
 
    private static Path resolve(String relativePath) {

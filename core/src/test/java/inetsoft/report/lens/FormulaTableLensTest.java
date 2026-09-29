@@ -69,6 +69,31 @@ class FormulaTableLensTest {
       XTableUtil.assertEquals(joined, expected);
    }
 
+   // Bug #77181: an initializer-less top-level let in a formula column starts
+   // undefined on every row (a native var keeps its #75596 persistence)
+   @Test
+   void initializerlessLetStartsUndefinedEveryRow() {
+      DefaultTableLens tbl = new DefaultTableLens(new Object[][] {
+         {"x"}, {10}, {1}, {1}, {7}, {2}
+      });
+      FormulaTableLens lens = new FormulaTableLens(tbl, new String[] { "f1", "f2", "f3" },
+         new String[] {
+            "let r; field['x'] > 5 && (r = 'High'); r",
+            "let n; n = (n || 0) + 1; n",
+            "var v; field['x'] > 5 && (v = 'High'); v"
+         }, new GraalJavaScriptEnv(), null);
+      Object[][] expected = {
+         {"x", "f1", "f2", "f3"},
+         {10, "High", 1.0, "High"},
+         {1, null, 1.0, "High"},
+         {1, null, 1.0, "High"},
+         {7, "High", 1.0, "High"},
+         {2, null, 1.0, "High"},
+      };
+
+      XTableUtil.assertEquals(lens, expected);
+   }
+
    @Test
    public void testSerialize() throws Exception {
       String[] headers = { "f1" };

@@ -18,7 +18,12 @@
 package inetsoft.util.script.graal.pool;
 
 import org.graalvm.polyglot.Context;
+import org.graalvm.polyglot.Source;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
 
 /**
@@ -29,23 +34,92 @@ public final class WsExecContext {
    private WsExecContext() {
    }
 
-   static Slot enter(Slot slot) {
+   /**
+    * @param script the script the exec runs, named by the copy-mutation warning (bug #77123).
+    */
+   static Slot enter(Slot slot, Object script) {
       if(!everEntered) {
          everEntered = true;
       }
 
       Slot previous = CURRENT.get();
+
+      // the outermost exec of this slot on this thread opens the origin its argument copies
+      // record; set before the mark, so a failed allocation leaves neither (bug #77123)
+      if(previous != slot) {
+         ORIGIN.set(new Origin(script, ORIGIN.get()));
+      }
+
       CURRENT.set(slot);
       return previous;
    }
 
    static void exit(Slot previous) {
-      if(previous == null) {
-         CURRENT.remove();
+      try {
+         // the exec that opened an origin closes it (enter opened one iff previous != slot)
+         if(CURRENT.get() != previous) {
+            Origin origin = ORIGIN.get();
+
+            if(origin != null) {
+               Origin outer = origin.close();
+
+               if(outer == null) {
+                  ORIGIN.remove();
+               }
+               else {
+                  ORIGIN.set(outer);
+               }
+            }
+         }
       }
-      else {
-         CURRENT.set(previous);
+      finally {
+         if(previous == null) {
+            CURRENT.remove();
+         }
+         else {
+            CURRENT.set(previous);
+         }
       }
+   }
+
+   /**
+    * @return the origin of the outermost exec of the pooled context executing on this thread,
+    *         recorded by the host copies of its Java arguments, or {@code null}.
+    */
+   static Origin currentOrigin() {
+      return everEntered && CURRENT.get() != null ? ORIGIN.get() : null;
+   }
+
+   /**
+    * Java changed a host copy of a script value passed to it (bug #77123, C1): if it did so on
+    * the script's thread while the exec that passed it runs, the script would have seen the
+    * change with the pool off but does not see it here, so count it and warn once per script.
+    *
+    * @return whether the copy need not report again: it was counted, or its exec ended.
+    */
+   static boolean copyMutated(Origin origin) {
+      if(!origin.open) {
+         return true;
+      }
+
+      if(origin.thread != Thread.currentThread()) {
+         return false;
+      }
+
+      PoolMetrics.copyMutated();
+      Object script = origin.script;
+      String text = script instanceof Source source ? String.valueOf(source.getCharacters())
+         : String.valueOf(script);
+
+      // once per script text; past the cap only the counter records further scripts
+      if(WARNED.size() < MAX_WARNED && WARNED.add(text.hashCode())) {
+         if(LOG.isWarnEnabled()) {
+            LOG.warn(COPY_MUTATION_MESSAGE + " Script: {}",
+                     text.length() > 200 ? text.substring(0, 200) + "..." : text);
+         }
+      }
+
+      return true;
    }
 
    /**
@@ -82,7 +156,7 @@ public final class WsExecContext {
    /**
     * @return the Context of the pooled context executing on this thread, or {@code null}.
     */
-   static Context currentContext() {
+   public static Context currentContext() {
       if(!everEntered) {
          return null;
       }
@@ -106,7 +180,45 @@ public final class WsExecContext {
       return slot == null ? null : slot.attachment(key, factory);
    }
 
+   /**
+    * The outermost exec of one slot on one thread, as the host copies of its Java arguments
+    * record it (bug #77123). It holds nothing once closed, so a copy Java keeps pins no
+    * script, thread or outer exec.
+    */
+   static final class Origin {
+      Origin(Object script, Origin outer) {
+         this.script = script;
+         this.outer = outer;
+      }
+
+      private Origin close() {
+         Origin o = outer;
+         open = false;
+         outer = null;
+         script = null;
+         thread = null;
+         return o;
+      }
+
+      private volatile boolean open = true;
+      private volatile Thread thread = Thread.currentThread();
+      private volatile Object script;
+      private Origin outer;
+   }
+
+   static final String COPY_MUTATION_MESSAGE =
+      "A Java method changed a worksheet script array or object passed to it (for example " +
+      "java.util.Collections.sort or an out parameter) while the script ran. With " +
+      "script.ws.contextPool=true, Java gets a copy, so the script does not see the change. " +
+      "Return the changed value from the Java method and assign it in the script instead. " +
+      "This is logged once per script.";
+
    private static final ThreadLocal<Slot> CURRENT = new ThreadLocal<>();
+   private static final ThreadLocal<Origin> ORIGIN = new ThreadLocal<>();
+   private static final Logger LOG = LoggerFactory.getLogger(WsExecContext.class);
+   // hashes of the scripts warned about, bounded
+   private static final Set<Integer> WARNED = ConcurrentHashMap.newKeySet();
+   static final int MAX_WARNED = 512;
    // set on the first pooled exec in this JVM, by its thread before its CURRENT entry
    private static volatile boolean everEntered;
 }

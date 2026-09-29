@@ -40,6 +40,8 @@ import inetsoft.web.admin.favorites.FavoritesService;
 import inetsoft.web.admin.general.LocalizationSettingsService;
 import inetsoft.web.admin.general.model.LocalizationModel;
 import inetsoft.web.admin.security.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.messaging.simp.annotation.SubscribeMapping;
@@ -50,6 +52,7 @@ import java.security.Principal;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 @Service
 public class UserTreeService {
@@ -508,7 +511,7 @@ public class UserTreeService {
          return EditGroupPaneModel.builder()
             .name(identity.getName())
             .organization(currOrgID)
-            .identityNames(Arrays.stream(provider.getGroups()).toList())
+            .identityNames(getOrgGroups(provider, currOrgID))
             .members(new ArrayList<>())
             .roles(new ArrayList<>())
             .permittedIdentities(new ArrayList<>())
@@ -709,10 +712,35 @@ public class UserTreeService {
       themeService.updateTheme(group.name, model.name(), group.orgID, CustomTheme::getGroups);
       identityService.setIdentityPermissions(oldID, newID, ResourceType.SECURITY_GROUP,
                                              principal, permittedIdentities, groupOrgID);
+
+      if(!oldID.equals(newID)) {
+         migrateGroupRename(oldID, newID);
+      }
+   }
+
+   /**
+    * Updates the stored data that references a renamed group: the schedule tasks that run as the
+    * group or email it, and the data cycle notifications. The data of a same-named user is left
+    * untouched.
+    *
+    * @param oldID the old group ID, which also gives the organization to update.
+    * @param newID the new group ID.
+    */
+   public void migrateGroupRename(IdentityID oldID, IdentityID newID) throws Exception {
+      if(newID.equals(oldID)) {
+         return;
+      }
+
       IndexedStorage storage = indexedStorage;
       DataCycleManager cycleManager = dataCycleManager;
-      storage.migrateStorageData(oldID.getName(), newID.getName());
-      cycleManager.updateCycleInfoNotify(oldID.getName(), newID.getName(), false);
+
+      // the data cycle migration resolves the current org, which is not the group's org when a
+      // site admin edits a group of another org
+      OrganizationManager.runInOrgScope(oldID.getOrgID(), () -> {
+         storage.migrateStorageData(oldID, newID, Identity.GROUP);
+         cycleManager.updateCycleInfoNotify(oldID.getName(), newID.getName(), false);
+         return null;
+      });
    }
 
    /**
@@ -771,7 +799,6 @@ public class UserTreeService {
             }
          }
 
-         IdentityID[] identityIds = provider.getGroups();
          String state = IdentityInfoRecord.STATE_ACTIVE;
          actionRecord.setObjectName(identity.getName());
          identityInfoRecord = SUtil.getIdentityInfoRecord(identity.getIdentityID(),
@@ -790,7 +817,7 @@ public class UserTreeService {
             .alias("")
             .email("")
             .organization(currOrgID)
-            .identityNames(Arrays.stream(identityIds).toList())
+            .identityNames(getOrgGroups(provider, currOrgID))
             .members(new ArrayList<>())
             .roles(new ArrayList<>())
             .permittedIdentities(new ArrayList<>())
@@ -889,7 +916,7 @@ public class UserTreeService {
          .alias(user.getAlias())
          .email(emails != null ? String.join(",", emails) : "")
          .locale(locale == null ? "" : locale)
-         .identityNames(Arrays.stream(currentProvider.getGroups()).toList())
+         .identityNames(getOrgGroups(currentProvider, org))
          .members(info.getMembers())
          .roles(Arrays.asList(info.getRoles()))
          .permittedIdentities(filterOtherOrgs(grantedUsers))
@@ -921,6 +948,12 @@ public class UserTreeService {
       String newOrgId = null;
 
       try {
+         // creating (or cloning) an organization is a site admin operation, an org admin must
+         // not be able to reach it through the users settings component they hold
+         if(SUtil.isMultiTenant() && !OrganizationManager.getInstance().isSiteAdmin(principal)) {
+            throw new java.lang.SecurityException("Unauthorized access to create organization");
+         }
+
          if(!(provider instanceof EditableAuthenticationProvider)) {
             return null;
          }
@@ -1000,7 +1033,6 @@ public class UserTreeService {
          }
 
          List<IdentityModel> defMembers = new ArrayList<IdentityModel>();
-         IdentityID[] identityNames = provider.getGroups();
          String state = IdentityInfoRecord.STATE_NONE;
          actionRecord.setObjectName(identity.getId());
          String creatorOrgId = pId.getOrgID();
@@ -1021,7 +1053,7 @@ public class UserTreeService {
          return EditOrganizationPaneModel.builder()
             .name(identity.getName())
             .id(identity.getId())
-            .identityNames(Arrays.stream(identityNames).toList())
+            .identityNames(getOrgGroups(provider, newOrgKey.orgID))
             .members(defMembers)
             .roles(new ArrayList<>())
             .permittedIdentities(new ArrayList<>())
@@ -1142,7 +1174,7 @@ public class UserTreeService {
          .id(orgID.orgID)
          .status(organization.isActive())
          .locale(locale == null ? "" : locale)
-         .identityNames(Arrays.stream(currentProvider.getGroups()).toList())
+         .identityNames(getOrgGroups(currentProvider, orgID.orgID))
          .members(members)
          .roles(new ArrayList<>())
          .permittedIdentities(filterOtherOrgs(grantedOrganizations))
@@ -1182,6 +1214,28 @@ public class UserTreeService {
          .build();
    }
 
+   /**
+    * Gets the groups of the given organization. {@link AuthenticationProvider#getGroups()}
+    * returns the groups of every organization, so in multi-tenant mode it must be scoped
+    * before being sent to the client. Groups without an organization are kept, as in
+    * {@link #filterOtherOrgs(List)}.
+    */
+   static List<IdentityID> getOrgGroups(AuthenticationProvider provider, String orgID) {
+      IdentityID[] groups = provider.getGroups();
+
+      if(groups == null) {
+         return new ArrayList<>();
+      }
+
+      if(!SUtil.isMultiTenant()) {
+         return Arrays.stream(groups).toList();
+      }
+
+      return Arrays.stream(groups)
+         .filter(g -> g != null && (g.orgID == null || Tool.equals(g.orgID, orgID)))
+         .toList();
+   }
+
    public List<IdentityModel> filterOtherOrgs(List<IdentityModel> pList) {
       String thisOrg = OrganizationManager.getInstance().getCurrentOrgID();
       return pList.stream()
@@ -1206,7 +1260,8 @@ public class UserTreeService {
             getSecurityProvider().checkPermission(principal, ResourceType.SECURITY_USER, rootID.convertToKey(), ResourceAction.ADMIN))
          {
             identityService.setIdentityPermissions(
-              rootID, rootID, ResourceType.SECURITY_USER, principal, model.permittedIdentities(), "");
+              rootID, rootID, ResourceType.SECURITY_USER, principal, model.permittedIdentities(),
+              model.organization());
          }
 
          return;
@@ -1251,8 +1306,9 @@ public class UserTreeService {
       List<IdentityModel> permittedIdentities = getRenamedPermittedIdentities(
          model.permittedIdentities(), Identity.USER, oldID, newID);
       identityService.setIdentityPermissions(
-         oldID, newID, ResourceType.SECURITY_USER, principal, permittedIdentities, "");
-      renameUserAsset(newID, oldID);
+         oldID, newID, ResourceType.SECURITY_USER, principal, permittedIdentities,
+         model.organization());
+      migrateUserRename(oldID, newID);
    }
 
 
@@ -1314,8 +1370,9 @@ public class UserTreeService {
          checkDuplicateOrgIDs(model, oldOrg);
       }
 
-      // before any org property is saved, so a rejected rename leaves nothing behind
+      // before any org property is saved, so a rejected rename or theme leaves nothing behind
       OrganizationIdRules.checkRename(oldOrg.getId(), model.id());
+      identityService.checkOrganizationTheme(oldOrg, model, principal);
 
       OrganizationManager.runInOrgScope(oldOrg.getId(), () -> {
          boolean saveProperties = false;
@@ -1739,7 +1796,7 @@ public class UserTreeService {
       identityService.setIdentity(oldRole, model, provider, principal);
       themeService.updateTheme(model.oldName(), model.name(), model.organization(),
                                CustomTheme::getRoles);
-      renameVPMRole(model.oldName(), model.name());
+      migrateRoleRename(oldID, new IdentityID(model.name(), model.organization()));
    }
 
    private List<IdentityID> getDefaultRoles(AuthenticationProvider provider, String org) {
@@ -1845,9 +1902,80 @@ public class UserTreeService {
       return false;
    }
 
-   private void renameVPMRole(String oldName, String newName) throws RemoteException {
-      String orgID = OrganizationManager.getInstance().getCurrentOrgID();
+   /**
+    * Updates the VPM hidden columns that reference a renamed role. The VPMs of the role's
+    * organization are updated, or the VPMs of every organization for a global role. A VPM stores
+    * bare role names, so in each organization the new name is only added if no other role visible
+    * there has that name, and the old name is only removed if no role visible there still has it.
+    * A failure in one organization does not stop the other organizations from being updated; the
+    * first failure is rethrown after all of them were attempted.
+    *
+    * @param oldRoleID the old role ID, which also gives the organization to update. A global role
+    *                  has a null organization or the global organization key.
+    * @param newRoleID the new role ID.
+    */
+   public void migrateRoleRename(IdentityID oldRoleID, IdentityID newRoleID) throws Exception {
+      // the key round trip maps the global organization key to the null organization of a global
+      // role
+      IdentityID oldID = IdentityID.getIdentityIDFromKey(oldRoleID.convertToKey());
+      IdentityID newID = IdentityID.getIdentityIDFromKey(newRoleID.convertToKey());
+
+      if(newID.equals(oldID)) {
+         return;
+      }
+
+      String[] orgIDs = oldID.getOrgID() != null ?
+         new String[] { oldID.getOrgID() } : getSecurityProvider().getOrganizationIDs();
+      Exception failure = null;
+
+      for(String orgID : orgIDs) {
+         try {
+            boolean addNew = !isOtherRoleVisible(newID.getName(), orgID, oldID, newID);
+            boolean removeOld = !isOtherRoleVisible(oldID.getName(), orgID, oldID, newID);
+
+            // the data source registry resolves the current org, which is not the role's org when
+            // a site admin edits a role of another org or a global role
+            OrganizationManager.runInOrgScope(orgID, () -> {
+               renameVPMRole(orgID, oldID.getName(), newID.getName(), addNew, removeOld);
+               return null;
+            });
+         }
+         catch(Exception ex) {
+            LOG.warn("Failed to update the VPMs of organization {} for the role renamed from {} " +
+                     "to {}", orgID, oldID.getName(), newID.getName(), ex);
+
+            if(failure == null) {
+               failure = ex;
+            }
+            else {
+               failure.addSuppressed(ex);
+            }
+         }
+      }
+
+      if(failure != null) {
+         throw failure;
+      }
+   }
+
+   /**
+    * Checks if a role other than the renamed role has the specified name in an organization.
+    */
+   private boolean isOtherRoleVisible(String name, String orgID, IdentityID oldID,
+                                      IdentityID newID)
+   {
+      SecurityProvider provider = getSecurityProvider();
+
+      return Stream.of(new IdentityID(name, orgID), new IdentityID(name, null))
+         .filter(id -> !id.equals(oldID) && !id.equals(newID))
+         .anyMatch(id -> provider.getRole(id) != null);
+   }
+
+   private void renameVPMRole(String orgID, String oldName, String newName, boolean addNew,
+                              boolean removeOld) throws RemoteException
+   {
       String[] dataSources = xRepository.getDataSourceFullNames(new IdentityID(orgID, orgID));
+      boolean skipped = false;
 
       for(String dataSource : dataSources) {
          XDataModel dataModel = xRepository.getDataModel(dataSource);
@@ -1860,30 +1988,54 @@ public class UserTreeService {
 
          for(String vpm : vpms) {
             VirtualPrivateModel vm = dataModel.getVirtualPrivateModel(vpm);
-            HiddenColumns hiddenColumns = vm.getHiddenColumns();
+            HiddenColumns hiddenColumns = vm == null ? null : vm.getHiddenColumns();
+            List<String> roles = hiddenColumns == null ?
+               List.of() : Collections.list(hiddenColumns.getRoles());
 
-            if(hiddenColumns == null) {
+            if(!roles.contains(oldName)) {
                continue;
             }
 
-            Enumeration<?> roles = hiddenColumns.getRoles();
+            boolean changed = false;
 
-            while(roles.hasMoreElements()) {
-               Object role = roles.nextElement();
-
-               if(Tool.equals(oldName, role)) {
-                  hiddenColumns.removeRole(oldName);
-                  hiddenColumns.addRole(newName);
-                  break;
-               }
+            if(removeOld) {
+               hiddenColumns.removeRole(oldName);
+               changed = true;
             }
 
-            dataModel.addVirtualPrivateModel(vm, true);
+            if(addNew) {
+               if(!roles.contains(newName)) {
+                  hiddenColumns.addRole(newName);
+                  changed = true;
+               }
+            }
+            else if(!roles.contains(newName)) {
+               skipped = true;
+            }
+
+            if(changed) {
+               dataModel.addVirtualPrivateModel(vm, true);
+            }
          }
+      }
+
+      if(skipped) {
+         LOG.warn(
+            "The hidden columns of the VPMs in organization {} were not granted to the renamed " +
+            "role {}, because another role in the organization is named {}", orgID, newName,
+            newName);
       }
    }
 
-   private void renameUserAsset(IdentityID newID, IdentityID oldID) throws Exception {
+   /**
+    * Updates the stored data that references a renamed user: the user's private assets, schedule
+    * tasks, materialized views, dependencies, recycle bin entries, favorites and data cycle
+    * notifications. The data of a same-named group is left untouched.
+    *
+    * @param oldID the old user ID, which also gives the organization to update.
+    * @param newID the new user ID.
+    */
+   public void migrateUserRename(IdentityID oldID, IdentityID newID) throws Exception {
       if(newID.equals(oldID)) {
          return;
       }
@@ -1892,17 +2044,22 @@ public class UserTreeService {
       MVManager mvManager = this.mvManager;
       DataCycleManager cycleManager = this.dataCycleManager;
 
-      if(oldID != null && newID != null) {
-         // Move em favorites to the renamed user
-         favoritesService.moveFavorites(oldID.convertToKey(), newID.convertToKey());
-      }
+      // the storage, MV and data cycle migrations resolve the current org, which is not the
+      // user's org when a site admin edits a user of another org
+      OrganizationManager.runInOrgScope(oldID.getOrgID(), () -> {
+         if(oldID != null && newID != null) {
+            // Move em favorites to the renamed user
+            favoritesService.moveFavorites(oldID.convertToKey(), newID.convertToKey());
+         }
 
-      storage.migrateStorageData(oldID.getName(), newID.getName());
-      mvManager.migrateUserAssetsMV(oldID, newID);
-      mvManager.updateMVUser(oldID, newID);
-      cycleManager.updateCycleInfoNotify(oldID.getName(), newID.getName(), true);
-      this.dependencyStorageService.migrateStorageData(oldID, newID);
-      recycleBin.renameUser(oldID, newID);
+         storage.migrateStorageData(oldID, newID, Identity.USER);
+         mvManager.migrateUserAssetsMV(oldID, newID);
+         mvManager.updateMVUser(oldID, newID);
+         cycleManager.updateCycleInfoNotify(oldID.getName(), newID.getName(), true);
+         this.dependencyStorageService.migrateStorageData(oldID, newID);
+         recycleBin.renameUser(oldID, newID);
+         return null;
+      });
    }
 
    private SecurityProvider getSecurityProvider() {
@@ -2017,4 +2174,5 @@ public class UserTreeService {
    private final DependencyStorageService dependencyStorageService;
    private final RecycleBin recycleBin;
    private final Set<String> propertyNames = Set.of("max.row.count", "max.col.count", "max.cell.size", "max.user.count");
+   private static final Logger LOG = LoggerFactory.getLogger(UserTreeService.class);
 }

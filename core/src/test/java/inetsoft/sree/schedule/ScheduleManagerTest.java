@@ -31,13 +31,19 @@ import inetsoft.uql.viewsheet.VSBookmarkInfo;
 import inetsoft.util.Tool;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.exceptions.misusing.UnfinishedStubbingException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
+import org.w3c.dom.Document;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
+import javax.xml.parsers.DocumentBuilderFactory;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -46,7 +52,8 @@ import static org.mockito.Mockito.*;
  * Tier: [integration] — real ScheduleManager bean, SecurityEngine, and in-memory task maps.
  *
  * Intent vs implementation suspects: none confirmed at this time.
- * Regression: checkIdentityRenamedWithSystemTaskCondition (Bug #74651).
+ * Regression: checkIdentityRenamedWithSystemTaskCondition (Bug #74651),
+ *             assetRenamed_mvActionWithNullEntry_skipsItAndRenamesOthers (Bug #77214).
  *
  * Intentionally out of scope (RepletEngine-only or unused):
  * repletRemoved, assetRemoved, assetRenamed, archiveRenamed.
@@ -271,17 +278,18 @@ public class ScheduleManagerTest {
       when(mockCycleInfo.getOrgId()).thenReturn("host-org");
       when(mockCycleInfo.getName()).thenReturn("cycle1");
 
-      ScheduleTask tk1 = new ScheduleTask("tk1");
+      // only data cycle tasks are extension tasks (Bug #77213)
+      ScheduleTask tk1 = new ScheduleTask("tk1", ScheduleTask.Type.CYCLE_TASK);
       tk1.setOwner(identityID_tuser0);
       tk1.setCycleInfo(mockCycleInfo);
 
       // mock ScheduleExt
       ScheduleExt mockScheduleExt = mock(ScheduleExt.class);
-      when(mockScheduleExt.containsTask("tuser0~;~host-org:tk1", "host-org")).thenReturn(true);
+      when(mockScheduleExt.containsTask(tk1.getTaskId(), "host-org")).thenReturn(true);
       when(mockScheduleExt.getTasks()).thenReturn(List.of(tk1));
       when(mockScheduleExt.getTasks("host-org")).thenReturn(List.of(tk1));
-      when(mockScheduleExt.isEnable("tuser0~;~host-org:tk1", "host-org")).thenReturn(false);
-      when(mockScheduleExt.deleteTask("tuser0~;~host-org:tk1")).thenReturn(true);
+      when(mockScheduleExt.isEnable(tk1.getTaskId(), "host-org")).thenReturn(false);
+      when(mockScheduleExt.deleteTask(tk1.getTaskId())).thenReturn(true);
 
       scheduleManager.addScheduleExt(mockScheduleExt);
       scheduleManager.save(List.of(tk1), "host-org");
@@ -408,6 +416,47 @@ public class ScheduleManagerTest {
    }
 
    /**
+    * Bug #77214: an MV action parsed from task XML without an MVDef (e.g. an imported or legacy
+    * task file) has a null entry. assetRenamed must skip it instead of throwing an NPE, and must
+    * still rename and save the other matching actions.
+    */
+   @Test
+   void assetRenamed_mvActionWithNullEntry_skipsItAndRenamesOthers() throws Exception {
+      Document doc = DocumentBuilderFactory.newInstance().newDocumentBuilder()
+         .parse(new ByteArrayInputStream("<Action type=\"MV\"/>".getBytes(StandardCharsets.UTF_8)));
+      MVAction mvAction = new MVAction();
+      mvAction.parseXML(doc.getDocumentElement());
+      assertNull(mvAction.getEntry());
+
+      AssetEntry wsOEntry = AssetEntry.createAssetEntry("1^2^__NULL__^ws1^host-org");
+      AssetEntry wsNEntry = AssetEntry.createAssetEntry("1^2^__NULL__^ws1_1^host-org");
+      BatchAction batchAction = new BatchAction();
+      batchAction.setQueryEntry(wsOEntry);
+
+      // actions are visited from the last index down, so the MV action is reached first
+      ScheduleTask task = createScheduleTask("mvtk1");
+      task.addAction(batchAction);
+      task.addAction(mvAction);
+      String taskId = "admin~;~host-org:mvtk1";
+      scheduleManager.setScheduleTask(taskId, task, admin);
+
+      try {
+         assertDoesNotThrow(() -> scheduleManager.assetRenamed(wsOEntry, wsNEntry, "host-org"));
+
+         scheduleManager.removeTaskCacheOfOrg("host-org");
+         ScheduleTask reloaded = scheduleManager.getScheduleTask(taskId);
+         assertEquals(3, reloaded.getActionCount());
+         assertEquals(wsNEntry, ((BatchAction) reloaded.getAction(1)).getQueryEntry());
+         assertNull(((MVAction) reloaded.getAction(2)).getEntry());
+      }
+      finally {
+         // clearAllTask() was observed not to remove this task; remove it explicitly so its
+         // BatchAction (null task id) does not leak into checkIdentityRenamed
+         scheduleManager.removeScheduleTask(taskId, admin, false);
+      }
+   }
+
+   /**
     * check rename user, task info change rightly
     */
    @Test
@@ -439,6 +488,52 @@ public class ScheduleManagerTest {
    }
 
    /**
+    * Regression test for Bug #77097: a group rename must not rewrite the task chain, the private
+    * viewsheet or the bookmarks of a same-named user, which the task ids and viewsheet paths only
+    * identify by name. Only the "execute as" group is renamed.
+    */
+   @Test
+   void checkGroupRenamedLeavesSameNamedUserTask() throws Exception {
+      IdentityID userSales = new IdentityID("sales", "host-org");
+      String privateVS = "4^128^sales~;~host-org^vs1^host-org";
+
+      ViewsheetAction vsAction = new ViewsheetAction();
+      vsAction.setViewsheet(privateVS);
+      vsAction.setBookmarks(new String[] { "bk1" });
+      vsAction.setBookmarkTypes(new int[] { VSBookmarkInfo.PRIVATE });
+      vsAction.setBookmarkUsers(new IdentityID[] { userSales });
+
+      CompletionCondition condition = new CompletionCondition();
+      condition.setTaskName("sales~;~host-org:group_tk2");
+
+      ScheduleTask task = new ScheduleTask("group_tk1");
+      task.setOwner(userSales);
+      task.addAction(vsAction);
+      task.addCondition(condition);
+      task.setIdentity(new Group(new IdentityID("sales", "host-org")));
+      scheduleManager.setScheduleTask("sales~;~host-org:group_tk1", task, admin);
+
+      Group sales2 = new Group(new IdentityID("sales2", "host-org"));
+      scheduleManager.identityRenamed(new IdentityID("sales", "host-org"), sales2);
+
+      ScheduleTask renamed = scheduleManager.getScheduleTask("sales~;~host-org:group_tk1");
+      assertNotNull(renamed, "the user's task must keep its id");
+      assertEquals(userSales, renamed.getOwner());
+      assertEquals("sales~;~host-org:group_tk2",
+                   ((CompletionCondition) renamed.getCondition(0)).getTaskName());
+
+      Enumeration<String> dependencies = renamed.getDependency();
+
+      while(dependencies.hasMoreElements()) {
+         assertFalse(dependencies.nextElement().startsWith("sales2~;~"));
+      }
+
+      ViewsheetAction action = (ViewsheetAction) renamed.getAction(0);
+      assertEquals(privateVS, action.getViewsheet());
+      assertArrayEquals(new IdentityID[] { userSales }, action.getBookmarkUsers());
+   }
+
+   /**
     * Regression test for Bug #74651: identityRenamed() must not throw
     * StringIndexOutOfBoundsException when a CompletionCondition or dependency
     * references a system/internal task name that has no owner prefix (no colon).
@@ -462,6 +557,194 @@ public class ScheduleManagerTest {
       CompletionCondition cond = (CompletionCondition)
          scheduleManager.getScheduleTask("tuser0_1~;~host-org:user_tk_sys").getCondition(0);
       assertEquals("__balance tasks__", cond.getTaskName());
+   }
+
+   /**
+    * Bug #77111: a group removal removes the name(Group) token and keeps a same-named bare token,
+    * which denotes a user.
+    */
+   @Test
+   void identityRemoved_groupRemovesOnlyGroupNotifications() throws Exception {
+      IdentityID gX = new IdentityID("gX", "host-org");
+
+      withNotificationTasks(() -> {
+         ScheduleTask task = seedNotificationTask("n77111_grp", "gX,gX(Group),e@f.com", "host-org");
+         scheduleManager.identityRemoved(new Group(gX), mockProvider(new Group(gX)));
+         assertEquals("gX,e@f.com", readNotifications(task, "host-org"));
+      });
+   }
+
+   /**
+    * Bug #77111: a user removal removes the bare and the name(User) tokens, and keeps the
+    * same-named group.
+    */
+   @Test
+   void identityRemoved_userRemovesBareAndTypedNotifications() throws Exception {
+      IdentityID u9 = new IdentityID("u9", "host-org");
+
+      withNotificationTasks(() -> {
+         ScheduleTask task =
+            seedNotificationTask("n77111_usr", "u9,u9(User),u9(Group),e@f.com", "host-org");
+         scheduleManager.identityRemoved(new User(u9), mockProvider(new User(u9)));
+         assertEquals("u9(Group),e@f.com", readNotifications(task, "host-org"));
+      });
+   }
+
+   /**
+    * Bug #77111: a group rename renames only the old name(Group) token. The same-named users of
+    * the old and the new name keep their tokens.
+    */
+   @Test
+   void identityRenamed_groupRenamesOnlyGroupNotifications() throws Exception {
+      withNotificationTasks(() -> {
+         ScheduleTask task = seedNotificationTask(
+            "n77111_grpren", "g1,g1(Group),sales,sales(User),e@f.com", "host-org");
+         scheduleManager.identityRenamed(new IdentityID("g1", "host-org"),
+                                         new Group(new IdentityID("sales", "host-org")));
+         assertEquals("g1,sales(Group),sales,sales(User),e@f.com",
+                      readNotifications(task, "host-org"));
+      });
+   }
+
+   /**
+    * Bug #77111: a user rename renames the bare and the name(User) tokens in the same form, and
+    * keeps the same-named group.
+    */
+   @Test
+   void identityRenamed_userRenamesBareAndTypedNotifications() throws Exception {
+      withNotificationTasks(() -> {
+         ScheduleTask task =
+            seedNotificationTask("n77111_usrren", "a,a(User),a(Group),e@f.com", "host-org");
+         scheduleManager.identityRenamed(new IdentityID("a", "host-org"),
+                                         new User(new IdentityID("b", "host-org")));
+         assertEquals("b,b(User),a(Group),e@f.com", readNotifications(task, "host-org"));
+      });
+   }
+
+   /**
+    * Bug #77111: semicolon and comma lists are both matched, and the delimiters and the spacing
+    * of the kept tokens are preserved.
+    */
+   @Test
+   void identityRenamedAndRemoved_keepDelimitersAndSpacing() throws Exception {
+      IdentityID u9 = new IdentityID("u9", "host-org");
+
+      withNotificationTasks(() -> {
+         ScheduleTask removed =
+            seedNotificationTask("n77111_semi", "e@f.com; u9(User) ;gX", "host-org");
+         ScheduleTask renamed =
+            seedNotificationTask("n77111_mixed", "a;x@y.com , a(User)", "host-org");
+
+         scheduleManager.identityRemoved(new User(u9), mockProvider(new User(u9)));
+         assertEquals("e@f.com;gX", readNotifications(removed, "host-org"));
+
+         scheduleManager.identityRenamed(new IdentityID("a", "host-org"),
+                                         new User(new IdentityID("b", "host-org")));
+         assertEquals("b;x@y.com , b(User)", readNotifications(renamed, "host-org"));
+      });
+   }
+
+   /**
+    * Bug #77111: a bare email address is an address, not a user, even if a user has that name.
+    */
+   @Test
+   void identityRemoved_emailTokenIsNotAUser() throws Exception {
+      IdentityID alice = new IdentityID("alice@x.com", "host-org");
+
+      withNotificationTasks(() -> {
+         ScheduleTask task =
+            seedNotificationTask("n77111_email", "alice@x.com,alice@x.com(User)", "host-org");
+         scheduleManager.identityRemoved(new User(alice), mockProvider(new User(alice)));
+         assertEquals("alice@x.com", readNotifications(task, "host-org"));
+      });
+   }
+
+   /**
+    * Bug #77111: a task whose notifications do not denote the identity is left byte-identical and
+    * is not saved.
+    */
+   @Test
+   void identityRemoved_unmatchedNotificationsNotSaved() throws Exception {
+      IdentityID u9 = new IdentityID("u9", "host-org");
+
+      withNotificationTasks(() -> {
+         ScheduleTask matched = seedNotificationTask("n77111_hit", "u9,e@f.com", "host-org");
+         ScheduleTask unmatched =
+            seedNotificationTask("n77111_miss", "a@b.com; c@d.com,u9(Group)", "host-org");
+         ScheduleManager spyManager = spy(scheduleManager);
+         spyManager.identityRemoved(new User(u9), mockProvider(new User(u9)));
+
+         @SuppressWarnings("unchecked")
+         ArgumentCaptor<Collection<ScheduleTask>> saved = ArgumentCaptor.forClass(Collection.class);
+         verify(spyManager).save(saved.capture(), eq("host-org"));
+         Set<String> savedNames = new HashSet<>();
+         saved.getValue().forEach(task -> savedNames.add(task.getName()));
+         assertEquals(Set.of("n77111_hit"), savedNames);
+         assertEquals("e@f.com", readNotifications(matched, "host-org"));
+         assertEquals("a@b.com; c@d.com,u9(Group)", readNotifications(unmatched, "host-org"));
+      });
+   }
+
+   /**
+    * Bug #77111: a removal only changes the notifications in the identity's own org.
+    */
+   @Test
+   void identityRemoved_notificationsScopedToOrg() throws Exception {
+      IdentityID u9 = new IdentityID("u9", "org1");
+
+      withNotificationTasks(() -> {
+         ScheduleTask org1Task = seedNotificationTask("n77111_org1", "u9,e@f.com", "org1");
+         ScheduleTask org2Task = seedNotificationTask("n77111_org2", "u9,e@f.com", "org2");
+         scheduleManager.identityRemoved(new User(u9), mockProvider(new User(u9)));
+         assertEquals("e@f.com", readNotifications(org1Task, "org1"));
+         assertEquals("u9,e@f.com", readNotifications(org2Task, "org2"));
+      });
+   }
+
+   private static EditableAuthenticationProvider mockProvider(User user) {
+      EditableAuthenticationProvider provider = mock(EditableAuthenticationProvider.class);
+      when(provider.getUser(user.getIdentityID())).thenReturn(user);
+      return provider;
+   }
+
+   private static EditableAuthenticationProvider mockProvider(Group group) {
+      EditableAuthenticationProvider provider = mock(EditableAuthenticationProvider.class);
+      when(provider.getGroup(group.getIdentityID())).thenReturn(group);
+      return provider;
+   }
+
+   /**
+    * Runs the body and then removes the n77111_ tasks it seeded.
+    */
+   private void withNotificationTasks(NotificationTestBody body) throws Exception {
+      try {
+         body.run();
+      }
+      finally {
+         for(String org : new String[] { "host-org", "org1", "org2" }) {
+            scheduleManager.getOrgTaskMap(org).values()
+               .removeIf(task -> task != null && task.getName().startsWith("n77111_"));
+         }
+      }
+   }
+
+   private ScheduleTask seedNotificationTask(String name, String notifications, String orgID)
+      throws Exception
+   {
+      ScheduleTask task = createScheduleTask(name);
+      ((AbstractAction) task.getAction(0)).setNotifications(notifications);
+      scheduleManager.save(List.of(task), orgID);
+      return task;
+   }
+
+   private String readNotifications(ScheduleTask task, String orgID) {
+      ScheduleTask loaded = scheduleManager.getScheduleTask(task.getTaskId(), orgID);
+      return ((AbstractAction) loaded.getAction(0)).getNotifications();
+   }
+
+   @FunctionalInterface
+   private interface NotificationTestBody {
+      void run() throws Exception;
    }
 
    /**
@@ -642,15 +925,15 @@ public class ScheduleManagerTest {
       when(provider.getOrganizationIDs()).thenReturn(orgs);
       when(provider.getRole(any())).thenAnswer(inv -> new Role(inv.<IdentityID>getArgument(0)));
       when(provider.getGroup(any())).thenAnswer(inv -> new Group(inv.<IdentityID>getArgument(0)));
-      doReturn(orgs).when(securityEngine).getOrganizations();
-      doReturn(provider).when(securityEngine).getSecurityProvider();
+      stubSecurityEngineSafely(() -> doReturn(orgs).when(securityEngine).getOrganizations());
+      stubSecurityEngineSafely(() -> doReturn(provider).when(securityEngine).getSecurityProvider());
 
       try {
          body.run();
       }
       finally {
-         doCallRealMethod().when(securityEngine).getOrganizations();
-         doCallRealMethod().when(securityEngine).getSecurityProvider();
+         stubSecurityEngineSafely(() -> doCallRealMethod().when(securityEngine).getOrganizations());
+         stubSecurityEngineSafely(() -> doCallRealMethod().when(securityEngine).getSecurityProvider());
 
          for(String org : orgs) {
             Iterator<ScheduleTask> i = scheduleManager.getOrgTaskMap(org).values().iterator();
@@ -661,6 +944,50 @@ public class ScheduleManagerTest {
                if(task != null && task.getName().startsWith("r77100_")) {
                   i.remove();
                }
+            }
+         }
+      }
+   }
+
+   /**
+    * Re-stubs the shared, Spring-singleton {@code securityEngine} mock, retrying on
+    * {@link UnfinishedStubbingException}.
+    *
+    * <p>{@code securityEngine} is the same instance returned application-wide by
+    * {@code SecurityEngine.getSecurity()} (it is registered with {@code ConfigurationContext} by
+    * {@code ConfigurationContextInitializer}), so production background threads legitimately call
+    * into it concurrently with this test — most notably a per-store {@code BlobStorageEvent}
+    * listener thread that {@code seedTask()}/{@code identityRemoved()} inside {@code body.run()}
+    * wake up asynchronously by writing to the schedule task store. Mockito's mock invocation
+    * dispatch is not safe against a stubbing registration on one thread (this one, in
+    * {@link #withRoleFixture}) interleaving with an ordinary invocation on another, and the two
+    * can race hard enough to corrupt the mock's stubbing state, surfacing later as an
+    * {@link UnfinishedStubbingException} in a completely unrelated test method (Bug #77168,
+    * fix-round-2: this raced roughly 1 in 5-8 runs in isolation, and was rare enough in the full
+    * ~8500-test module suite to pass most runs but fail CI once). The corruption is transient —
+    * the next stubbing call that does not race succeeds cleanly — so retry a few times with a
+    * short backoff rather than trying to synchronize with a production executor this test has no
+    * handle on.
+    */
+   private static void stubSecurityEngineSafely(Runnable stubbingCall) {
+      final int maxAttempts = 5;
+
+      for(int attempt = 1; ; attempt++) {
+         try {
+            stubbingCall.run();
+            return;
+         }
+         catch(UnfinishedStubbingException e) {
+            if(attempt >= maxAttempts) {
+               throw e;
+            }
+
+            try {
+               Thread.sleep(20L);
+            }
+            catch(InterruptedException ie) {
+               Thread.currentThread().interrupt();
+               throw e;
             }
          }
       }

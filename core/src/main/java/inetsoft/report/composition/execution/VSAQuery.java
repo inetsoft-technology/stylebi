@@ -42,6 +42,7 @@ import inetsoft.util.*;
 import inetsoft.util.log.LogLevel;
 import inetsoft.util.script.ScriptEnv;
 import inetsoft.util.script.ScriptException;
+import inetsoft.util.script.ScriptStateLint;
 import inetsoft.util.script.graal.ScriptScope;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -1073,7 +1074,7 @@ public abstract class VSAQuery {
 
       // execute script here instead of waiting for MVQueryBuilder. Otherwise
       // the VS objects are not accessible in the script.
-      executeExpressions(table, box);
+      executeExpressions(table, box, mode);
       Set ignored = markVariables(table, wbox, mode, limited,
                                   box.getTouchTimestamp(), qmgr);
 
@@ -1323,9 +1324,9 @@ public abstract class VSAQuery {
     * Execute the condition expressions and replace with value.
     */
    private static void executeExpressions(TableAssembly table,
-                                          ViewsheetSandbox box)
+                                          ViewsheetSandbox box, int mode)
    {
-      executeExpressions(table.getPreRuntimeConditionList(), box);
+      executeExpressions(table.getPreRuntimeConditionList(), box, mode);
 
       if(table instanceof ComposedTableAssembly) {
          TableAssembly[] tbls =
@@ -1333,7 +1334,7 @@ public abstract class VSAQuery {
 
          if(tbls != null) {
             for(TableAssembly tbl : tbls) {
-               executeExpressions(tbl, box);
+               executeExpressions(tbl, box, mode);
             }
          }
       }
@@ -1343,7 +1344,7 @@ public abstract class VSAQuery {
     * Execute the condition expressions and replace with value.
     */
    private static void executeExpressions(ConditionListWrapper wrapper,
-                                          ViewsheetSandbox box)
+                                          ViewsheetSandbox box, int mode)
    {
       if(wrapper == null || box == null) {
          return;
@@ -1364,7 +1365,7 @@ public abstract class VSAQuery {
                   String type = ((ExpressionValue) val).getType();
 
                   try {
-                     val = executeScript(cond, (ExpressionValue) val, box);
+                     val = executeScript(cond, (ExpressionValue) val, box, mode);
                      cond.setValue(k, val);
                   }
                   catch(Exception e) {
@@ -1384,9 +1385,10 @@ public abstract class VSAQuery {
 
    /**
     * Execute the mv condition.
+    * @param mode the mode of the worksheet query the condition belongs to.
     */
    private static Object executeScript(Condition cond, ExpressionValue eval,
-                                       ViewsheetSandbox vbox)
+                                       ViewsheetSandbox vbox, int mode)
    {
       Object val = null;
       String exp = eval.getExpression();
@@ -1396,7 +1398,12 @@ public abstract class VSAQuery {
       ScriptScope scope = null;
 
       try {
-         val = senv.exec(senv.compile(exp), scope = box.getScope(), null, vs);
+         // in pool mode the shared scope is never given a query's mode (bug #76960), so
+         // the script gets a view with this query's own mode (bug #77123)
+         scope = box.isScriptPoolMode() ?
+            box.getScope().queryView(box.getVariableTable(), mode) : box.getScope();
+         val = senv.exec(ScriptStateLint.checkCondition(senv.compile(exp), exp, scope, "viewsheet condition"),
+                         scope, null, vs);
       }
       catch(Exception ex) {
          String suggestion = senv.getSuggestion(ex, null, scope);

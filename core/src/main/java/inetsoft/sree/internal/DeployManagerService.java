@@ -23,6 +23,8 @@ import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.report.io.viewsheet.snapshot.ViewsheetAsset2;
 import inetsoft.report.io.viewsheet.snapshot.WorksheetAsset2;
 import inetsoft.sree.*;
+import inetsoft.sree.schedule.ScheduleManager;
+import inetsoft.sree.schedule.ScheduleTask;
 import inetsoft.sree.security.*;
 import inetsoft.sree.web.dashboard.*;
 import inetsoft.uql.*;
@@ -44,6 +46,8 @@ import inetsoft.util.audit.ActionRecord;
 import inetsoft.util.audit.Audit;
 import inetsoft.util.dep.*;
 import inetsoft.web.admin.deploy.*;
+import inetsoft.web.admin.schedule.ScheduleSecretIdChecker;
+import inetsoft.web.portal.data.SecretIdAuthorizer;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
@@ -60,6 +64,7 @@ import java.security.Principal;
 import java.sql.Timestamp;
 import java.util.*;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.jar.JarEntry;
 import java.util.jar.JarInputStream;
@@ -1752,6 +1757,26 @@ public class DeployManagerService {
                }
             }
 
+            if(asset instanceof XDataSourceAsset dataSourceAsset && principal != null &&
+               !isImportedSecretIdsAllowed(dataSourceAsset, file, principal))
+            {
+               String msg = catalog.getString("em.import.file.failed.secretIdNotAllowed",
+                  asset.getType() + " " + path);
+               failedList.add(msg);
+               LOG.warn(msg);
+               return false;
+            }
+
+            if(asset instanceof ScheduleTaskAsset && principal != null &&
+               !isImportedScheduleSecretIdsAllowed(file, principal))
+            {
+               String msg = catalog.getString("em.import.file.failed.secretIdNotAllowed",
+                  asset.getType() + " " + path);
+               failedList.add(msg);
+               LOG.warn(msg);
+               return false;
+            }
+
             if(ViewsheetAsset.VIEWSHEET.equals(type) && path.contains("/")) {
                String folder = path.substring(0, path.lastIndexOf("/"));
                setFolderProperty(folder, asset.getUser(), jarInfo);
@@ -1942,6 +1967,64 @@ public class DeployManagerService {
       }
 
       return true;
+   }
+
+   /**
+    * Determines if the importer may use the cloud secret ids that an imported data source
+    * references. The ids are read from the imported XML before it is parsed, so that a rejected
+    * id is never resolved.
+    */
+   boolean isImportedSecretIdsAllowed(XDataSourceAsset asset, File file, Principal principal)
+      throws Exception
+   {
+      Set<String> secretIds;
+
+      try(InputStream input = new FileInputStream(file)) {
+         Document doc = input.available() > 0 ? Tool.parseXML(input) : null;
+
+         if(doc == null) {
+            return true;
+         }
+
+         secretIds = SecretIdAuthorizer.getCloudSecretIds(doc.getDocumentElement());
+      }
+
+      if(secretIds.isEmpty()) {
+         return true;
+      }
+
+      XDataSource stored = dataSourceRegistry.getDataSource(asset.getDatasource());
+      Predicate<String> check = new SecretIdAuthorizer(securityEngine, dataSourceRegistry)
+         .createCheck(stored, principal);
+      return secretIds.stream().allMatch(check);
+   }
+
+   /**
+    * Determines if the importer may use the cloud secret ids that an imported schedule task
+    * references. Parsing a task does not resolve its secret ids.
+    */
+   boolean isImportedScheduleSecretIdsAllowed(File file, Principal principal) throws Exception {
+      if(!Tool.isCloudSecrets()) {
+         return true;
+      }
+
+      ScheduleTask task;
+
+      try(InputStream input = new FileInputStream(file)) {
+         Document doc = input.available() > 0 ? Tool.parseXML(input) : null;
+         Element taskElem = doc == null ? null :
+            Tool.getChildNodeByTagName(doc.getDocumentElement(), "Task");
+
+         if(taskElem == null) {
+            return true;
+         }
+
+         task = new ScheduleTask();
+         task.parseXML(taskElem);
+      }
+
+      ScheduleTask existing = ScheduleManager.getScheduleManager().getScheduleTask(task.getTaskId());
+      return new ScheduleSecretIdChecker(securityEngine).isAllowed(task, existing, principal);
    }
 
    private static String getIdleSrtFileNameInSpace(String folder, String fname) {

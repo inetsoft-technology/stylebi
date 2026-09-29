@@ -19,6 +19,7 @@ package inetsoft.web.admin.content.repository;
 
 import inetsoft.mv.trans.UserInfo;
 import inetsoft.sree.SreeEnv;
+import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
@@ -271,9 +272,15 @@ public class MVController {
       )
    })
    @PostMapping("/api/em/content/materialized-view/date-as-ages")
-   public void setShowAges(@RequestBody MVManagementModel model) throws Exception {
+   public void setShowAges(@RequestBody MVManagementModel model, Principal principal)
+      throws Exception
+   {
       String showDateAsAges = model.showDateAsAges() ? "true" : "false";
-      SreeEnv.setProperty("mvmanager.dates.ages", showDateAsAges);
+      // org admins write to their own organization; site admins and single-tenant installs
+      // keep writing the global value
+      boolean orgScope = SUtil.isMultiTenant() &&
+         !OrganizationManager.getInstance().isSiteAdmin(principal);
+      SreeEnv.setProperty("mvmanager.dates.ages", showDateAsAges, orgScope);
       SreeEnv.save();
    }
 

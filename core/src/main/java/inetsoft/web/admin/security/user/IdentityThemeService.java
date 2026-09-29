@@ -25,6 +25,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
+import java.security.Principal;
 import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -36,11 +37,29 @@ public class IdentityThemeService {
    }
 
    public IdentityThemeList getThemes() {
-      String orgID = OrganizationManager.getInstance().getCurrentOrgID();
+      return getThemes(null, null);
+   }
+
+   /**
+    * Gets the themes that can be selected for an organization, i.e. the global themes and the
+    * themes of the organization.
+    *
+    * @param orgID     the ID of the edited organization, or <tt>null</tt> for the current
+    *                  organization. Another organization is only listed for a site
+    *                  administrator, otherwise the current organization is listed.
+    * @param principal the user that requests the themes.
+    */
+   public IdentityThemeList getThemes(String orgID, Principal principal) {
+      OrganizationManager orgManager = OrganizationManager.getInstance();
+      String currentOrgID = orgManager.getCurrentOrgID();
+      String listOrgID = Tool.isEmptyString(orgID) ||
+         !orgID.equals(currentOrgID) && !orgManager.isSiteAdmin(principal) ? currentOrgID : orgID;
       Set<CustomTheme> themes = customThemesManager
          .getCustomThemes()
          .stream()
-         .filter(theme -> theme.getOrgID() == null || theme.getOrgID().equals(orgID))
+         // same rule as IdentityService.getEligibleOrgTheme(), which checks the saved theme
+         .filter(theme -> Tool.isEmptyString(theme.getOrgID()) ||
+            Tool.equals(theme.getOrgID(), listOrgID))
          .collect(Collectors.toSet());
       return IdentityThemeList.builder()
          .from(themes)
@@ -116,6 +135,34 @@ public class IdentityThemeService {
                identities.removeIf(identity -> identity.equals(oldName) || identity.equals(name));
                identities.add(name);
                changed = true;
+            }
+         }
+
+         return changed ? themes : null;
+      });
+   }
+
+   /**
+    * Removes a deleted user, group or role from the themes that can refer to it, so that a new
+    * identity with the same name does not inherit the theme. Only the themes of the identity's
+    * organization are changed, see {@link CustomTheme#isIdentityOrganization(String)}.
+    *
+    * @param name  the name of the deleted identity.
+    * @param orgID the organization of the identity, or <tt>null</tt> for a global identity
+    *              (e.g. a global role), which is removed from the themes of every organization.
+    * @param fn    the function that gets the identity list of a theme.
+    */
+   public void removeIdentity(String name, String orgID, Function<CustomTheme, List<String>> fn) {
+      if(name == null) {
+         return;
+      }
+
+      customThemesManager.updateCustomThemes(themes -> {
+         boolean changed = false;
+
+         for(CustomTheme theme : themes) {
+            if(theme.isIdentityOrganization(orgID)) {
+               changed |= fn.apply(theme).removeIf(name::equals);
             }
          }
 

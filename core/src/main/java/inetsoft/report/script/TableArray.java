@@ -30,6 +30,7 @@ import inetsoft.util.Tool;
 import inetsoft.util.script.ArrayObject;
 import inetsoft.util.script.graal.ScriptArrayScope;
 import inetsoft.util.script.graal.pool.WsExecContext;
+import inetsoft.util.stall.LockStallException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -250,6 +251,13 @@ public class TableArray implements ArrayObject, ScriptArrayScope {
          }
       }
       catch(Exception ex) {
+         // a stalled table has no value to return, the stall is not a script value (#77123)
+         LockStallException stall = LockStallException.find(ex);
+
+         if(stall != null) {
+            throw stall;
+         }
+
          LOG.warn("Failed to get table property: " + id, ex);
       }
 

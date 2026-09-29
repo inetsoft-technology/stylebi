@@ -424,19 +424,25 @@ public class MVSupportService {
     */
    public void dispose(List<String> mvs) {
       String orgID = OrganizationManager.getInstance().getCurrentOrgID();
+      // names whose definition belongs to the caller's org, the analysis status map is shared
+      // by all orgs, so only these names may be used to remove analysis entries
+      List<String> removed = new ArrayList<>();
 
       for(String mv : mvs) {
+         // must run before mvManager.remove(), it reads the XFile block list that remove deletes.
+         // it only touches the current org's storage, so a foreign name is a no-op here
          ClusterUtil.deleteClusterMV(mv);
          MVDef def = mvManager.get(mv, orgID);
 
          if(def != null) {
             mvManager.remove(def, false, orgID);
+            removed.add(mv);
          }
       }
 
       ClusterUtil.clearRemovedMVFiles();
       mvManager.fireEvent("mvmanager_", MVManager.MV_CHANGE_EVENT, null, null);
-      removeAnalysisStatusEntries(mvs);
+      removeAnalysisStatusEntries(removed);
    }
 
    private void removeAnalysisStatusEntries(List<String> mvNames) {

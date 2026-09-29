@@ -104,6 +104,47 @@ class ScheduleTaskServiceTest {
       verify(scheduleService).saveTask("task1", task, principal);
    }
 
+   // ── Bug #77213: don't mutate cached (extension) task instances ───────────
+
+   @Test
+   void redistributeTasks_skipsDataCycleTasks() throws Exception {
+      ScheduleTask task = new ScheduleTask("task1");
+      TimeCondition tc = new TimeCondition();
+      tc.setType(TimeCondition.EVERY_DAY);
+      tc.setHour(5);
+      task.addCondition(tc);
+      ScheduleTask cycleTask = new ScheduleTask("DataCycle Task: c1", ScheduleTask.Type.CYCLE_TASK);
+      cycleTask.setOwner(new IdentityID("INETSOFT_SYSTEM", "host-org"));
+      TimeCondition cycleCondition = new TimeCondition();
+      cycleCondition.setType(TimeCondition.EVERY_DAY);
+      cycleCondition.setHour(5);
+      cycleTask.addCondition(cycleCondition);
+      when(scheduleManager.getScheduleTask("task1")).thenReturn(task);
+      when(scheduleManager.getScheduleTask("cycle1")).thenReturn(cycleTask);
+      when(scheduleService.getScheduleTaskList("", "", principal))
+         .thenReturn(mock(ScheduleTaskList.class));
+
+      service.redistributeTasks(
+         LocalTime.of(0, 0), LocalTime.of(23, 0), 4, List.of("cycle1", "task1"), principal);
+
+      verify(scheduleService).saveTask(any(), same(task), eq(principal));
+      verify(scheduleService, never()).saveTask(any(), same(cycleTask), any());
+      assertEquals(5, cycleCondition.getHour(), "the cached data cycle task must not be changed");
+   }
+
+   @Test
+   void setTaskEnabled_savesCopyAndLeavesCachedTaskUnchanged() throws Exception {
+      ScheduleTask cached = new ScheduleTask("DataCycle Task: c1", ScheduleTask.Type.CYCLE_TASK);
+      cached.setEnabled(true);
+      when(scheduleManager.getScheduleTask("cycle1")).thenReturn(cached);
+
+      service.setTaskEnabled("cycle1", false, principal);
+
+      assertTrue(cached.isEnabled(), "the cached task instance must not be mutated");
+      verify(scheduleService).saveTask(eq("cycle1"),
+         argThat((ScheduleTask t) -> t != cached && !t.isEnabled()), eq(principal));
+   }
+
    // ── setTaskOptions (Bug #77120) ──────────────────────────────────────────
 
    @Test

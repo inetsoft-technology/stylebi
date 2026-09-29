@@ -22,6 +22,7 @@ import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.schedule.Scheduler;
 import inetsoft.sree.schedule.*;
 import inetsoft.sree.security.IdentityID;
+import inetsoft.sree.security.SecurityEngine;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.util.Identity;
 import inetsoft.util.*;
@@ -146,7 +147,12 @@ public class JobCompletionListener extends JobListenerSupport {
          if(!ScheduleManager.isInternalTask(Objects.requireNonNull(taskValue).getTaskId()) ||
             contextPrincipal == null)
          {
-            if(identity == null) {
+            // Bug #77168, a non-null identity may be an unresolved placeholder kept by
+            // ScheduleTask.parseXML (Bug #77120/#77168); with security disabled that
+            // placeholder can never be resolved to a real principal, so fall back to the
+            // owner instead of building a principal (used for both the audit record below and,
+            // via removeTask(), the permission context for deleteIfNoMoreRun cleanup).
+            if(identity == null || !isSecurityEnabled()) {
                principal = SUtil.getScheduleTaskOwnerPrincipal(owner, addr, true);
             }
             else {
@@ -390,6 +396,21 @@ public class JobCompletionListener extends JobListenerSupport {
 
       private final String taskName;
       private final Principal principal;
+   }
+
+   /**
+    * Bug #77168, inline copy of ScheduleTask's own isSecurityEnabled() check (that method is
+    * private to a different package). Kept minimal/local instead of introducing a new shared
+    * utility.
+    */
+   private static boolean isSecurityEnabled() {
+      try {
+         return SecurityEngine.getSecurity().isSecurityEnabled();
+      }
+      catch(Exception ex) {
+         LOG.debug("Failed to check whether security is enabled", ex);
+         return false;
+      }
    }
 
    private final String name;

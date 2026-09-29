@@ -18,8 +18,10 @@
 package inetsoft.web.viewsheet.service;
 
 import inetsoft.analytic.composition.VSPortalHelper;
+import inetsoft.analytic.composition.event.VSEventUtil;
 import inetsoft.report.composition.ChangedAssemblyList;
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.report.composition.execution.AssetQuerySandbox;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.report.io.csv.CSVConfig;
 import inetsoft.report.io.viewsheet.*;
@@ -212,7 +214,7 @@ public class VSEmailService {
 
                      ViewsheetSandbox sandbox = createSandbox(
                         rvs.getOriginalBookmark(bookmarks[i]), vmode, principal,
-                        rvs.getEntry());
+                        rvs.getEntry(), box.get().getVariableTable());
                      exporter.export(sandbox, bookmarks[i], (i + 1), helper);
                      sandbox.dispose();
                   }
@@ -459,7 +461,7 @@ public class VSEmailService {
       for(int i = 0; bookmarks != null && i < bookmarks.length; i++) {
          ViewsheetSandbox sandbox = createSandbox(
                  rvs.getOriginalBookmark(bookmarks[i]), vmode, principal,
-                 rvs.getEntry());
+                 rvs.getEntry(), box.get().getVariableTable());
          exporter.export(sandbox, bookmarks[i], (i + 1), helper); //!!! maybe the pictures aren't being written out become of overwriting?
          sandbox.dispose();
       }
@@ -476,10 +478,40 @@ public class VSEmailService {
                                              Principal principal, AssetEntry entry)
       throws Exception
    {
+      return createSandbox(bookmark, mode, principal, entry, null);
+   }
+
+   /**
+    * Create the sandbox used to export a bookmark. Keep the step order in sync with the bookmark
+    * loop in VSExportService (clearScale, construct, refreshVariableTable, clear input variables,
+    * onInit, reset with onLoad) so an emailed bookmark matches an exported one. (77246)
+    *
+    * @param liveVars the variable table of the viewer's live sandbox, or null if none.
+    */
+   protected ViewsheetSandbox createSandbox(Viewsheet bookmark, int mode,
+                                             Principal principal, AssetEntry entry,
+                                             VariableTable liveVars)
+      throws Exception
+   {
+      // The bookmark is a clone of the live (possibly scaled-to-screen) viewsheet, so clear the
+      // scaled positions/sizes and runtime column widths like export does. (77246)
+      if(bookmark != null) {
+         VSEventUtil.clearScale(bookmark);
+      }
+
       // Run onInit/onLoad in this thread like bookmark export does (VSExportService), instead
       // of the constructor's reset without onLoad. Otherwise a wrapper's onLoad never runs when
       // the bookmark is exported through a print layout, which skips prepareForExport(). (77180)
       ViewsheetSandbox sandbox = new ViewsheetSandbox(bookmark, mode, principal, false, entry);
+
+      // Copy the viewer's variables (URL/prompted parameters) before onInit/onLoad and the
+      // queries run. This must happen before the input variable clearing below, otherwise the
+      // viewer's current input values would overwrite the bookmark's. (77246)
+      AssetQuerySandbox abox = sandbox.getAssetQuerySandbox();
+
+      if(abox != null && liveVars != null) {
+         abox.refreshVariableTable(liveVars);
+      }
 
       // Clear input assembly variables from the sandbox variable table before reset.
       // During reset, applyParameterToInput() reads from this table and would otherwise

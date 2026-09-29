@@ -17,10 +17,12 @@
  */
 package inetsoft.sree.security;
 
+import inetsoft.sree.internal.SUtil;
 import inetsoft.util.Catalog;
 import inetsoft.util.MessageException;
 import inetsoft.util.Tool;
 import inetsoft.util.config.*;
+import inetsoft.web.admin.schedule.model.ServerLocation;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -96,11 +98,122 @@ public final class OrganizationIdRules {
       return lower.startsWith(base) || lower.equals(first);
    }
 
+   /**
+    * Determines if a top-level folder of external storage is used by the system: one of the
+    * system folders, or the first segment of the S3 base path. Unlike {@link #isReserved}, the
+    * default organization id is not a system folder, its users write under it. The comparison
+    * ignores case.
+    */
+   public static boolean isStorageSystemFolder(String segment) {
+      if(segment == null) {
+         return false;
+      }
+
+      String lower = segment.toLowerCase(Locale.ROOT);
+
+      if(SYSTEM_FOLDERS.contains(lower)) {
+         return true;
+      }
+
+      String base = getStorageBasePath();
+
+      if(base == null) {
+         return false;
+      }
+
+      int slash = base.indexOf('/');
+      return lower.equals(slash < 0 ? base : base.substring(0, slash));
+   }
+
+   /**
+    * Gets the paths of the configured server save locations, except the FTP locations, as they
+    * are used in the keys of the task save files in external storage.
+    */
+   public static List<String> getSaveLocationPaths() {
+      List<String> paths = new ArrayList<>();
+
+      try {
+         List<ServerLocation> locations = SUtil.getServerLocations();
+
+         if(locations == null) {
+            return paths;
+         }
+
+         for(ServerLocation location : locations) {
+            // without trailing slashes, as addUserSpacePathPrefix uses it
+            String path = location.path() == null ? null :
+               location.path().replaceAll("[/\\\\]+$", "");
+            boolean ftp = location.pathInfoModel() != null && location.pathInfoModel().ftp();
+
+            if(!ftp && path != null && !trimSlashes(path).isEmpty() && !paths.contains(path)) {
+               paths.add(path);
+            }
+         }
+      }
+      catch(Exception e) {
+         LOG.debug("Failed to get the server save locations", e);
+      }
+
+      return paths;
+   }
+
+   /**
+    * Determines if a folder of external storage is, or is a parent of, one of the server save
+    * locations. Renaming such a folder would move the files of every organization in the
+    * location. The comparison ignores case and leading and trailing slashes.
+    */
+   public static boolean containsSaveLocation(String folder, List<String> locations) {
+      String path = trimSlashes(folder).toLowerCase(Locale.ROOT);
+
+      if(path.isEmpty()) {
+         return false;
+      }
+
+      for(String location : locations) {
+         String lpath = trimSlashes(location).toLowerCase(Locale.ROOT);
+
+         if(lpath.equals(path) || lpath.startsWith(path + "/")) {
+            return true;
+         }
+      }
+
+      return false;
+   }
+
    private static void check(String id) throws MessageException {
       if(!VALID_ID.matcher(id).matches() || isReserved(id)) {
          throw new MessageException(
             Catalog.getCatalog().getString("em.security.reservedOrganizationID", id));
       }
+
+      // not a reserved id, updateTaskSaveFiles still moves the files in the save locations of an
+      // existing organization with this id, and skips only the folders of the locations
+      if(isSaveLocationFolder(id)) {
+         throw new MessageException(
+            Catalog.getCatalog().getString("em.security.saveLocationOrganizationID", id));
+      }
+   }
+
+   /**
+    * Determines if an id names a folder of a server save location path. The task save files
+    * of an organization are in a folder named by the id at the top of external storage and in
+    * each save location, so such an id would share its folder with the location.
+    */
+   private static boolean isSaveLocationFolder(String id) {
+      for(String location : getSaveLocationPaths()) {
+         for(String folder : trimSlashes(location).split("/")) {
+            if(folder.equalsIgnoreCase(id)) {
+               return true;
+            }
+         }
+      }
+
+      return false;
+   }
+
+   private static String trimSlashes(String path) {
+      return path == null ? "" :
+         path.replace('\\', '/').replaceAll("^/+", "").replaceAll("/+$", "");
    }
 
    /**

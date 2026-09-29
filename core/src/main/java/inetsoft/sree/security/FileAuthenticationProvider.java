@@ -63,14 +63,12 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
             "defaultSecurityOrganizations",
             new LoadOrganizationsTask("defaultSecurityOrganizations"));
 
-         // the caches are local to this instance, keep them in sync with the replicated storage
-         // so changes made on other cluster nodes are seen here. Changes made while a closed
-         // storage was held are not replayed, so drop anything cached from before.
+         // the caches are node-local, so they must also be invalidated when another cluster node
+         // changes a user, group or role (Bug #76973). The listeners are added again whenever a
+         // storage is re-opened; re-adding the same listener to an open storage is a no-op.
+         roleStorage.addListener(roleCacheListener);
          userStorage.addListener(userCacheListener);
          groupStorage.addListener(groupCacheListener);
-         roleStorage.addListener(roleCacheListener);
-         userGroupCache.invalidateAll();
-         userRoleCache.invalidateAll();
       }
    }
 
@@ -116,14 +114,18 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
 
       try {
          String oldOrgName = getOrganization(oid) != null ? getOrganization(oid).getName() : null;
-         organizationStorage.remove(oid).get(10L, TimeUnit.SECONDS);
+
+         // write the new record first so a failed write can't delete the existing organization
+         organizationStorage.put(org.getId(), (FSOrganization) org).get(10L, TimeUnit.SECONDS);
+
+         if(!oid.equals(org.getId())) {
+            organizationStorage.remove(oid).get(10L, TimeUnit.SECONDS);
+         }
 
          if(!oid.equals(org.getId()) || !org.getName().equals(oldOrgName)) {
             processAuthenticationChange(new IdentityID(oldOrgName, oid), org.getIdentityID(),
                                         oid, org.getId(), Identity.ORGANIZATION, false);
          }
-
-         organizationStorage.put(org.getId(), (FSOrganization) org).get(10L, TimeUnit.SECONDS);
       }
       catch(Exception e) {
          LOG.error("Failed to update organization {}", oid, e);
@@ -361,8 +363,18 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
             algorithm = "MD5";
          }
 
-         return Tool.checkHashedPassword(
+         boolean authenticated = Tool.checkHashedPassword(
             savedPasswd, passwd, algorithm, uobj.getPasswordSalt(), uobj.isAppendPasswordSalt());
+
+         if(authenticated) {
+            // on every successful password check, so that a login principal built from getRoles()
+            // and getUserGroups() is loaded from storage instead of an entry that a change on
+            // another node may not have invalidated yet (Bug #76973)
+            userGroupCache.invalidate(userIdentity);
+            userRoleCache.invalidate(userIdentity);
+         }
+
+         return authenticated;
       }
    }
 
@@ -389,7 +401,6 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
          synchronized(this) {
             if(userStorage != null) {
                try {
-                  userStorage.removeListener(userCacheListener);
                   userStorage.close();
                }
                catch(Exception e) {
@@ -401,7 +412,6 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
 
             if(groupStorage != null) {
                try {
-                  groupStorage.removeListener(groupCacheListener);
                   groupStorage.close();
                }
                catch(Exception e) {
@@ -413,7 +423,6 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
 
             if(roleStorage != null) {
                try {
-                  roleStorage.removeListener(roleCacheListener);
                   roleStorage.close();
                }
                catch(Exception e) {
@@ -436,6 +445,14 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
          }
       }
 
+      clearCache();
+   }
+
+   /**
+    * {@inheritDoc}
+    */
+   @Override
+   public void clearCache() {
       userGroupCache.invalidateAll();
       userRoleCache.invalidateAll();
    }
@@ -524,18 +541,17 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
       lock.lock();
 
       try {
-         userStorage.remove(oldIdentity.convertToKey()).get(10L, TimeUnit.SECONDS);
-         userRoleCache.invalidateAll();
-
          IdentityID newUserIdentity = user.getIdentityID();
 
-         if(!oldIdentity.equals(user.getIdentityID())) {
+         // write the new record first so a failed write can't delete the existing user
+         userStorage.put(newUserIdentity.convertToKey(), (FSUser) user).get(10L, TimeUnit.SECONDS);
+         userRoleCache.invalidateAll();
+
+         if(!oldIdentity.equals(newUserIdentity)) {
+            userStorage.remove(oldIdentity.convertToKey()).get(10L, TimeUnit.SECONDS);
             processAuthenticationChange(oldIdentity, newUserIdentity, null, null, Identity.USER, false);
          }
 
-         IdentityID userIdentity = user.getIdentityID();
-
-         userStorage.put(userIdentity.convertToKey(), (FSUser) user).get(10L, TimeUnit.SECONDS);
          userGroupCache.invalidate(newUserIdentity);
          userRoleCache.invalidateAll();
       }
@@ -557,7 +573,7 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
 
       try {
          userStorage.remove(userIdentity.convertToKey()).get(10L, TimeUnit.SECONDS);
-         userGroupCache.invalidateAll();
+         userGroupCache.invalidate(userIdentity);
          userRoleCache.invalidateAll();
          processAuthenticationChange(userIdentity, null, null, null, Identity.USER, true);
       }
@@ -595,16 +611,17 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
       lock.lock();
 
       try {
-         groupStorage.remove(oldIdentity.convertToKey()).get(10L, TimeUnit.SECONDS);
-         userGroupCache.invalidateAll();
-         userRoleCache.invalidateAll();
          IdentityID newIdentity = group.getIdentityID();
 
-         if(!(oldIdentity.equals(group.getIdentityID()))) {
+         // write the new record first so a failed write can't delete the existing group
+         groupStorage.put(newIdentity.convertToKey(), (FSGroup) group).get(10L, TimeUnit.SECONDS);
+         userGroupCache.invalidateAll();
+         userRoleCache.invalidateAll();
+
+         if(!oldIdentity.equals(newIdentity)) {
+            groupStorage.remove(oldIdentity.convertToKey()).get(10L, TimeUnit.SECONDS);
             processAuthenticationChange(oldIdentity, newIdentity, null, null, Identity.GROUP, false);
          }
-
-         groupStorage.put(newIdentity.convertToKey(), (FSGroup) group).get(10L, TimeUnit.SECONDS);
       }
       catch(Exception e) {
          LOG.error("Failed to update group {}", group.getName(), e);
@@ -667,15 +684,16 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
       lock.lock();
 
       try {
-         roleStorage.remove(oldIdentity.convertToKey()).get(10L, TimeUnit.SECONDS);
-         userRoleCache.invalidateAll();
          IdentityID newIdentity = role.getIdentityID();
 
-         if(!oldIdentity.equals(role.getIdentityID())) {
+         // write the new record first so a failed write can't delete the existing role
+         roleStorage.put(newIdentity.convertToKey(), (FSRole) role).get(10L, TimeUnit.SECONDS);
+         userRoleCache.invalidateAll();
+
+         if(!oldIdentity.equals(newIdentity)) {
+            roleStorage.remove(oldIdentity.convertToKey()).get(10L, TimeUnit.SECONDS);
             processAuthenticationChange(oldIdentity, newIdentity, null, null, Identity.ROLE, false);
          }
-
-         roleStorage.put(newIdentity.convertToKey(), (FSRole) role).get(10L, TimeUnit.SECONDS);
       }
       catch(Exception e) {
          LOG.error("Failed to update role {}", oldIdentity, e);
@@ -984,12 +1002,14 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
    private KeyValueStorage<FSGroup> groupStorage;
    private KeyValueStorage<FSRole> roleStorage;
    private KeyValueStorage<FSOrganization> organizationStorage;
+   // expire after write, not after access, so that an entry which missed an invalidation (e.g. a
+   // load racing a change on another node) is not kept alive by a busy session (Bug #76973)
    private final LoadingCache<IdentityID, String[]> userGroupCache = Caffeine.newBuilder()
-      .expireAfterAccess(1L, TimeUnit.HOURS)
+      .expireAfterWrite(5L, TimeUnit.MINUTES)
       .maximumSize(500L)
       .build(this::doGetUserGroups);
    private final LoadingCache<IdentityID, IdentityID[]> userRoleCache = Caffeine.newBuilder()
-      .expireAfterAccess(1L, TimeUnit.HOURS)
+      .expireAfterWrite(5L, TimeUnit.MINUTES)
       .maximumSize(500L)
       .build(this::doGetRoles);
    private final KeyValueStorage.Listener<FSUser> userCacheListener = new CacheListener<>();
@@ -1000,29 +1020,24 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
    private static final Logger LOG = LoggerFactory.getLogger(FileAuthenticationProvider.class);
 
    /**
-    * Clears the user group and role caches when the user, group or role storage changes. It is
-    * called on storage event threads, so it must only invalidate the caches and never call back
-    * into this provider or the security engine.
+    * Invalidates the user role and group caches when a user, group or role is changed on any
+    * cluster node. The events may be delivered out of order, so the caches are only invalidated
+    * and never updated from the event values.
     */
    private final class CacheListener<T> implements KeyValueStorage.Listener<T> {
       @Override
       public void entryAdded(KeyValueStorage.Event<T> event) {
-         invalidateCaches();
+         clearCache();
       }
 
       @Override
       public void entryUpdated(KeyValueStorage.Event<T> event) {
-         invalidateCaches();
+         clearCache();
       }
 
       @Override
       public void entryRemoved(KeyValueStorage.Event<T> event) {
-         invalidateCaches();
-      }
-
-      private void invalidateCaches() {
-         userGroupCache.invalidateAll();
-         userRoleCache.invalidateAll();
+         clearCache();
       }
    }
 

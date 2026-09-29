@@ -16,11 +16,13 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-import { HttpClientTestingModule } from "@angular/common/http/testing";
-import { NO_ERRORS_SCHEMA } from "@angular/core";
+import { HttpClientTestingModule, HttpTestingController } from "@angular/common/http/testing";
+import { NO_ERRORS_SCHEMA, SimpleChange } from "@angular/core";
 import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
 import { FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { MatDialogModule } from "@angular/material/dialog";
+import { IdentityType } from "../../../../../../../shared/data/identity-type";
+import { EditIdentityPaneModel, EditOrganizationPaneModel } from "../edit-identity-pane/edit-identity-pane.model";
 import { EditIdentityViewComponent } from "./edit-identity-view.component";
 import { Subject } from "rxjs";
 
@@ -54,4 +56,51 @@ describe("EditIdentityViewComponent", () => {
    it("should create", () => {
       expect(component).toBeTruthy();
    });
+
+   // Issue #77116: the organization pane lists the themes of the edited organization
+   it("should request the edited organization's themes", () => {
+      const httpTestingController = TestBed.inject(HttpTestingController);
+      const model = <EditOrganizationPaneModel> {
+         ...createModel(),
+         id: "orgy",
+         properties: [],
+         localesList: [],
+         currentUserName: "admin"
+      };
+
+      setModel(IdentityType.ORGANIZATION, model);
+
+      const req = httpTestingController.expectOne(r => r.url === "../api/em/security/themes");
+      expect(req.request.params.get("orgId")).toBe("orgy");
+      req.flush({themes: [{id: "ty", name: "ty"}]});
+      expect(component.themes).toEqual([{id: "ty", name: "ty"}]);
+   });
+
+   it("should not pass an organization when requesting a user's themes", () => {
+      const httpTestingController = TestBed.inject(HttpTestingController);
+
+      setModel(IdentityType.USER, createModel());
+
+      const req = httpTestingController.expectOne(r => r.url === "../api/em/security/themes");
+      expect(req.request.params.has("orgId")).toBe(false);
+   });
+
+   function setModel(type: IdentityType, model: EditIdentityPaneModel): void {
+      component.type = type;
+      component.model = model;
+      component.ngOnChanges({model: new SimpleChange(null, model, true)});
+   }
+
+   function createModel(): EditIdentityPaneModel {
+      return <EditIdentityPaneModel> {
+         name: "orgy",
+         organization: "orgy",
+         members: [],
+         roles: [],
+         permittedIdentities: [],
+         identityNames: [],
+         editable: true,
+         theme: "ty"
+      };
+   }
 });

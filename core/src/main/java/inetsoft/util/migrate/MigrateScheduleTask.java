@@ -45,6 +45,12 @@ public class MigrateScheduleTask extends MigrateDocumentTask {
       super(entry, oname, nname, currOrg);
    }
 
+   public MigrateScheduleTask(AssetEntry entry, String oname, String nname, Organization currOrg,
+                              int identityType)
+   {
+      super(entry, oname, nname, currOrg, identityType);
+   }
+
    @Override
    void processAssemblies(Element elem) {
       NodeList list = getChildNodes(elem, "//Task");
@@ -56,6 +62,11 @@ public class MigrateScheduleTask extends MigrateDocumentTask {
       Element task = (Element) list.item(0);
 
       if(task == null) {
+         return;
+      }
+
+      if(getIdentityType() == Identity.GROUP) {
+         processGroupRename(task);
          return;
       }
 
@@ -71,7 +82,11 @@ public class MigrateScheduleTask extends MigrateDocumentTask {
 
       syncIdentityAttribute(task, "owner");
       syncIdentityAttribute(task, "user");
-      syncIdentityAttribute(task, "idname");
+
+      if(isRenamedIdentityType(task)) {
+         syncIdentityAttribute(task, "idname");
+      }
+
       list = getChildNodes(task, "./Condition");
 
       if(list != null) {
@@ -181,6 +196,46 @@ public class MigrateScheduleTask extends MigrateDocumentTask {
             }
          }
       }
+   }
+
+   /**
+    * A group owns no task, so a group rename only changes the "execute as" group and the
+    * <tt>(Group)</tt> email recipients. The other references to the old name belong to a
+    * same-named user.
+    */
+   private void processGroupRename(Element task) {
+      if(isRenamedIdentityType(task)) {
+         syncIdentityAttribute(task, "idname");
+      }
+
+      NodeList list = getChildNodes(task, "./Action");
+
+      for(int i = 0; list != null && i < list.getLength(); i++) {
+         Element item = (Element) list.item(i);
+         updateEmailAttribute(item, "MailTo");
+         updateEmailAttribute(item, "Notify");
+      }
+   }
+
+   /**
+    * Checks if the "execute as" identity of the task has the type of the renamed identity. The
+    * type defaults to a user, as in ScheduleTask. An organization migration moves the identity
+    * whatever its type.
+    */
+   private boolean isRenamedIdentityType(Element task) {
+      if(getOldName() == null) {
+         return true;
+      }
+
+      int idtype = Identity.USER;
+
+      try {
+         idtype = Integer.parseInt(Tool.getAttribute(task, "idtype"));
+      }
+      catch(NumberFormatException ignore) {
+      }
+
+      return idtype == getIdentityType();
    }
 
    private void processLinkUrl(Element actionNode, String oldOrg, String newOrg) {
@@ -368,8 +423,11 @@ public class MigrateScheduleTask extends MigrateDocumentTask {
             }
 
             String userName = email.substring(0, email.lastIndexOf(suffix));
+            String renamedSuffix = getIdentityType() == Identity.GROUP ?
+               Identity.GROUP_SUFFIX : Identity.USER_SUFFIX;
 
-            if(!Tool.equals(getOldName(), userName)) {
+            // a same-named identity of the other type keeps its recipient
+            if(!Tool.equals(getOldName(), userName) || !suffix.equals(renamedSuffix)) {
                emailList.add(email);
                continue;
             }
