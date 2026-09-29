@@ -63,8 +63,22 @@ package inetsoft.sree.web.dashboard;
  * node. See getDashboards_syncRacingSetDashboardsFromAnotherManagerInstance_doesNotBlockOrLoseIt()
  * below, which proves the ordinary getDashboards(identity, true) call path is now excluded by the
  * same cluster-wide lock while another manager instance holds it mid-write.
+ *
+ * Round 3 (review r2): getDeselectedDashboards(Identity) has a second, admin-only block (after the
+ * round-1-fixed registry-recognition filter loop) that adds any global dashboard an org/site admin
+ * has neither selected nor deselected yet, and persists via setDeselectedDashboards(...) whenever it
+ * finds one. That persisted list was the *cumulative* `list` variable -- which, by that point, had
+ * already silently dropped any name the first loop's registry-cache filter removed -- so an admin
+ * whose deselected list contains a name this node's registry cache doesn't yet recognize (round 1's
+ * exact stale-cache scenario) would have that name permanently deleted from storage the moment the
+ * admin block also finds any new global dashboard to add, which is the common case. The fix mirrors
+ * round 1's: persist only the delta the admin block is actually adding, merged into the *original*
+ * unfiltered stored list, never the cumulative filtered-then-augmented `list`. See
+ * getDeselectedDashboards_orgAdminStaleRegistryMissWithNewGlobalDashboard_doesNotPersistThePrune()
+ * below.
  */
 
+import inetsoft.sree.security.IdentityID;
 import inetsoft.sree.security.OrganizationContextHolder;
 import inetsoft.sree.security.SecurityEngine;
 import inetsoft.sree.security.SecurityProvider;
@@ -77,6 +91,7 @@ import inetsoft.uql.util.Identity;
 import inetsoft.util.Tool;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.MockedStatic;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
@@ -95,6 +110,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(SpringExtension.class)
@@ -321,6 +337,72 @@ class DashboardManagerSetterConcurrencyTest {
                    "a registry cache that does not yet recognize a name must not have its " +
                    "absence persisted as a removal: the cache may simply be mid-reload of a " +
                    "concurrent remote rename/delete, not a confirmed deletion");
+   }
+
+   // ── Bug #77299 round 3: an org admin's stale registry miss must not be dropped by the
+   // admin-add block finding an unrelated new global dashboard on the same call ──
+
+   /*
+    * Same stale-cache setup as getDeselectedDashboards_staleRegistryMiss_doesNotPersistThePrune
+    * above ("Z" is deselected but not (yet) recognized by this node's registry cache), but the
+    * identity is an org admin and the registry also has a second, distinct global dashboard
+    * ("NewGlobal") the admin has neither selected nor deselected. Before the round-3 fix, the
+    * admin-add block persisted the *cumulative* filtered list ("NewGlobal" only, since "Z" was
+    * already dropped by the first loop), permanently losing "Z" from storage every time this
+    * ordinary read ran. isOrgAdmin()/isSiteAdmin() resolve through the static
+    * SecurityEngine.getSecurity(), not a constructor-injected field, hence the static mock.
+    */
+   @Test
+   void getDeselectedDashboards_orgAdminStaleRegistryMissWithNewGlobalDashboard_doesNotPersistThePrune()
+      throws Exception
+   {
+      DashboardRegistryManager registryManager = mock(DashboardRegistryManager.class);
+      DashboardRegistry registry = mock(DashboardRegistry.class);
+      // "Z" is mid-reload of a concurrent remote rename/delete: not (yet) individually recognized,
+      // and also not (yet) present in the cache's own name listing.
+      when(registry.getDashboard("Z")).thenReturn(null);
+      // A second, distinct global dashboard IS visible to this node's cache, so the admin-add block
+      // finds something to add on this same call -- the common case that triggers the persist.
+      when(registry.getDashboardNames()).thenReturn(new String[] { "NewGlobal" });
+      when(registryManager.getRegistry()).thenReturn(registry);
+
+      // newManager()'s first getDashboards(group) call switches the manager to the current org,
+      // which triggers a bulk syncUserDashboards() over whatever is already in the store -- so the
+      // user's record is seeded only after this instance exists, the same ordering
+      // getDashboards_syncRacingSetDashboardsFromAnotherManagerInstance_doesNotClobberTheWrite
+      // above already relies on.
+      DashboardManager manager3 = newManager(registryManager);
+      seed(user, List.of(), List.of("Z"));
+
+      IdentityID userId = user.getIdentityID();
+      SecurityProvider provider = mock(SecurityProvider.class);
+      IdentityID adminRole = new IdentityID("Organization Administrator", user.getOrganizationID());
+      when(provider.getRoles(userId)).thenReturn(new IdentityID[] { adminRole });
+      when(provider.getAllRoles(any(IdentityID[].class)))
+         .thenReturn(new IdentityID[] { adminRole });
+      when(provider.isOrgAdministratorRole(adminRole)).thenReturn(true);
+
+      SecurityEngine orgManagerSecurityEngine = mock(SecurityEngine.class);
+      when(orgManagerSecurityEngine.getSecurityProvider()).thenReturn(provider);
+
+      String[] deselected;
+
+      try(MockedStatic<SecurityEngine> securityEngineMock = mockStatic(SecurityEngine.class)) {
+         securityEngineMock.when(SecurityEngine::getSecurity).thenReturn(orgManagerSecurityEngine);
+         deselected = manager3.getDeselectedDashboards(user);
+      }
+
+      assertEquals(List.of("NewGlobal"), Arrays.asList(deselected),
+                   "the returned value is unaffected by the fix: still filters out the " +
+                   "stale-cache-unrecognized name and still adds the newly-visible global " +
+                   "dashboard");
+
+      DashboardManager.DashboardData stored = rawStorage.get(key(user));
+      assertEquals(List.of("Z", "NewGlobal"), stored.getDeselected(),
+                   "the admin-add block must persist only the delta it is actually adding, " +
+                   "merged into the original stored list, not the cumulative filtered list -- " +
+                   "otherwise \"Z\", only transiently unrecognized by the first loop's stale " +
+                   "registry-cache check, is silently and permanently dropped from storage");
    }
 
    // ── Bug #77299 round 2: syncUserDashboards (via getDashboards(identity, true)) is also

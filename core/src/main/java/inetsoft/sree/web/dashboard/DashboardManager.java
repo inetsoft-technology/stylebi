@@ -210,8 +210,11 @@ public class DashboardManager implements AutoCloseable {
       List<String> values = data == null ? null : data.getDeselected();
 
       List<String> list = new ArrayList<>();
+      // Bug #77299 round 3: names loop 2 (below) actually adds, tracked separately from `list` so
+      // that persisting them never compounds loop 1's registry-cache-driven filtering into a
+      // permanent deletion (see the persist block at the end of this method).
+      List<String> added = new ArrayList<>();
       DashboardRegistry registry = dashboardRegistryManager.getRegistry();
-      boolean changed = false;
 
       // Filter out names the registry's local cache doesn't currently recognize, but (Bug #77299,
       // same reasoning as getDashboards(Identity, boolean)) do not treat that as a confirmed,
@@ -238,7 +241,7 @@ public class DashboardManager implements AutoCloseable {
             for(String dashboard : registry.getDashboardNames()) {
                if(!selectedDashboards.contains(dashboard) && !list.contains(dashboard)) {
                   list.add(dashboard);
-                  changed = true;
+                  added.add(dashboard);
                }
             }
          }
@@ -246,8 +249,22 @@ public class DashboardManager implements AutoCloseable {
 
       String[] dashboards = list.toArray(new String[0]);
 
-      if(changed) {
-         setDeselectedDashboards(identity, dashboards);
+      // Bug #77299 round 3: persist only the delta this call is actually adding -- a legitimate
+      // write -- never the cumulative `list`, which may have silently absorbed loop 1's
+      // registry-cache-driven filter of a name that is only transiently unrecognized (not
+      // confirmed deleted). Merge the newly-added names into the *original*, unfiltered stored
+      // list, so a stale-cache-miss name loop 1 dropped from `list` is preserved in storage; the
+      // value this call returns is unaffected, only what gets written back changes.
+      if(!added.isEmpty()) {
+         List<String> persisted = values == null ? new ArrayList<>() : new ArrayList<>(values);
+
+         for(String dashboard : added) {
+            if(!persisted.contains(dashboard)) {
+               persisted.add(dashboard);
+            }
+         }
+
+         setDeselectedDashboards(identity, persisted.toArray(new String[0]));
       }
 
       return dashboards;
