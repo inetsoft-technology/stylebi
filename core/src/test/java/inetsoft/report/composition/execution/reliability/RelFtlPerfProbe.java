@@ -30,6 +30,8 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import java.lang.management.ManagementFactory;
+import java.lang.management.ThreadMXBean;
 import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -72,25 +74,30 @@ public class RelFtlPerfProbe {
             }
          }
 
-         out.append("shape|pool|read|min ms|median ms|cleans|execs|base.moreRows\n");
+         out.append("shape|pool|read|min ms|median ms|cleans|execs|base.moreRows|" +
+                    "min cpu ms|median cpu ms\n");
 
          for(Shape shape : shapes) {
             for(boolean pool : new boolean[] { true, false }) {
                for(ReadPattern read : reads) {
                   long[] ms = new long[reps];
+                  long[] cpu = new long[reps];
                   long[] last = null;
 
                   for(int i = 0; i < reps; i++) {
                      long[] m = run(script, shape, pool, read);
                      ms[i] = m[0];
+                     cpu[i] = m[4];
                      last = m;
                   }
 
                   Arrays.sort(ms);
+                  Arrays.sort(cpu);
                   out.append(shape).append('|').append(pool ? "on" : "off").append('|')
                      .append(read).append('|').append(ms[0]).append('|').append(ms[reps / 2])
                      .append('|').append(last[1]).append('|').append(last[2]).append('|')
-                     .append(last[3]).append('\n');
+                     .append(last[3]).append('|').append(cpu[0]).append('|')
+                     .append(cpu[reps / 2]).append('\n');
                }
             }
          }
@@ -105,7 +112,8 @@ public class RelFtlPerfProbe {
    }
 
    /**
-    * @return wall ms, cleans, execs, base moreRows calls of one run on a fresh sandbox.
+    * @return wall ms, cleans, execs, base moreRows calls and this thread's CPU ms (less
+    * sensitive to other load than wall time) of one run on a fresh sandbox.
     */
    private static long[] run(String script, Shape shape, boolean pool, ReadPattern read)
       throws Exception
@@ -117,9 +125,12 @@ public class RelFtlPerfProbe {
             ? env.getMetrics() : null;
          long cleans = metrics == null ? 0 : metrics.getCleans();
          long execs = metrics == null ? 0 : metrics.getExecs();
+         ThreadMXBean threads = ManagementFactory.getThreadMXBean();
+         long cpu = threads.getCurrentThreadCpuTime();
          long start = System.nanoTime();
          List<String> cells = RelPipeline.run(script, shape, box, read);
          long ms = (System.nanoTime() - start) / 1_000_000;
+         cpu = (threads.getCurrentThreadCpuTime() - cpu) / 1_000_000;
          assertEquals(shape == Shape.CONDITION ? RelPipeline.CONDITIONS * (RelPipeline.ROWS + 1)
                          : shape == Shape.FTL ? RelPipeline.ROWS : RelPipeline.ROWS - 1,
                       cells.size(), shape + " cells");
@@ -128,7 +139,8 @@ public class RelFtlPerfProbe {
             ms,
             metrics == null ? 0 : metrics.getCleans() - cleans,
             metrics == null ? 0 : metrics.getExecs() - execs,
-            base == null ? -1 : base.moreRows.get()
+            base == null ? -1 : base.moreRows.get(),
+            cpu
          };
       }
       finally {
