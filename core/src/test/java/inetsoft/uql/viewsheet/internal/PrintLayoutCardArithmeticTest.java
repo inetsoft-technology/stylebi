@@ -18,6 +18,7 @@
 package inetsoft.uql.viewsheet.internal;
 
 import inetsoft.report.ReportSheet;
+import inetsoft.report.StyleConstants;
 import inetsoft.report.internal.TableElementDef;
 import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
@@ -28,6 +29,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
+
+import java.awt.Insets;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -78,6 +81,18 @@ class PrintLayoutCardArithmeticTest {
 
       // the THIN top border's 1px sits above the top inset
       assertEquals(plain + 1 + 16 + 12, inset);
+   }
+
+   @Test
+   void aThickTopBorderAddsItsExtraWidthToThePredictedHeight() throws Exception {
+      PrintLayoutConverterFixture thin = new PrintLayoutConverterFixture().inset(16, 16, 16, 16);
+      PrintLayoutConverterFixture thick = new PrintLayoutConverterFixture().inset(16, 16, 16, 16);
+      thick.info.getFormat().getUserDefinedFormat().setBorders(
+         new Insets(StyleConstants.THICK_LINE, StyleConstants.THICK_LINE,
+                    StyleConstants.THICK_LINE, StyleConstants.THICK_LINE));
+
+      // the top border is 3 wide when THICK and 1 when THIN
+      assertEquals(thin.printHeight() + 2, thick.printHeight());
    }
 
    @Test

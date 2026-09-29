@@ -48,9 +48,14 @@ class PrintTableRowSplitTest {
       String text = IntStream.rangeClosed(1, 240).mapToObj(i -> "w" + i)
          .collect(Collectors.joining(" "));
       List<Integer> heights = heights(padded().keepRowsWhole().wrappedRow(3, text).regions());
+      List<Integer> unkept = heights(padded().wrappedRow(3, text).regions());
 
       assertTrue(heights.stream().mapToInt(Integer::intValue).sum() > 25,
                  "the tall row's pieces add rows: " + heights);
+      // only the tall row is cut; each 38pt row that would straddle a break moves whole instead
+      assertTrue(heights.stream().mapToInt(Integer::intValue).sum()
+                 < unkept.stream().mapToInt(Integer::intValue).sum(),
+                 "the short rows stay whole: " + heights + " vs " + unkept);
    }
 
    private static PrintTableFixture padded() {

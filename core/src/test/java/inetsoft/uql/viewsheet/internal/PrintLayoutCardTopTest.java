@@ -157,6 +157,22 @@ class PrintLayoutCardTopTest {
       assertNull(table.getCardInset());
    }
 
+   @Test
+   void aThickObjectBorderMovesTheCardTopTitleAndTableByItsWidth() throws Exception {
+      PrintLayoutConverterFixture fixture = new PrintLayoutConverterFixture().inset(16, 16, 16, 16);
+      fixture.info.getFormat().getUserDefinedFormat()
+         .setBorders(new Insets(THICK, THICK, THICK, THICK));
+      List<ReportElement> elements = fixture.addTable();
+      int titleH = fixture.info.getTitleHeight();
+
+      // bt = bl = 3, so the lane starts at 3 + 16 and the title at x + 3 + 16, W - 19 - 16 wide
+      assertEquals(new Rectangle(20, 10, 400, 3 + 16 + titleH), fixture.bounds(elements.get(0)));
+      assertEquals(new Rectangle(39, 29, 365, titleH), fixture.bounds(elements.get(1)));
+      assertEquals(new Rectangle(20, 10 + 3 + 16 + titleH - 1, 400, 250 - 3 - 16 - titleH),
+                   fixture.bounds(elements.get(2)));
+   }
+
+   private static final int THICK = StyleConstants.THICK_LINE;
    private static final int THIN = StyleConstants.THIN_LINE;
    private static final int NONE = StyleConstants.NO_BORDER;
 }

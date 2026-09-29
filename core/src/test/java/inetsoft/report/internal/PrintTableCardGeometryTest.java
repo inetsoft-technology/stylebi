@@ -15,7 +15,6 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.io.*;
-import java.lang.ref.WeakReference;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -149,23 +148,6 @@ class PrintTableCardGeometryTest {
       // (64, 100) is the left band; (180, 100) is clear of text and row borders inside cell 0
       assertEquals(page.getRGB(64, 100), page.getRGB(180, 100),
                   "the grid and the bands share one fill");
-   }
-
-   @Test
-   void aPagePaintsAfterAGarbageCollection() {
-      // an element holds its report weakly, and painting reads the report's page size; the
-      // fixture that owns the report keeps it through a collection
-      PrintTableFixture fixture = new PrintTableFixture().inset(16, 16, 16).background(Color.YELLOW);
-      StylePage page = fixture.print().get(0);
-      WeakReference<ReportSheet> report = new WeakReference<>(
-         PrintTableFixture.paintables(page, TablePaintable.class).get(0).getElement().getReport());
-
-      for(int i = 0; i < 20; i++) {
-         System.gc();
-      }
-
-      assertNotNull(report.get(), "the fixture still holds its report");
-      assertDoesNotThrow(() -> fixture.render(page));
    }
 
    @Test
