@@ -35,7 +35,6 @@ import inetsoft.util.script.graal.GraalJavaScriptEnv;
 import inetsoft.util.script.graal.ScriptScope;
 import inetsoft.util.script.graal.pool.PoolConfig;
 import org.junit.jupiter.api.*;
-import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -48,6 +47,7 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.lang.reflect.Field;
 import java.util.Arrays;
+import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -73,8 +73,10 @@ import static org.mockito.Mockito.when;
  * computing X holds the engine lock and waits for the filter's monitor.
  *
  * <p>The sub table is larger than the rows {@code AssetQuery.validateDataTypes} computes
- * while A is built, so the distinct worker started then is still reading it. The case parks
- * that worker before it takes the engine lock until the other two threads are in place.
+ * while A is built. If building A leaves a distinct worker reading it, the case parks that
+ * worker before it takes the engine lock until the other threads are in place. Since bug
+ * #77223 a sub table whose base needs the engine lock starts no worker while it is built, and
+ * the first reader computes it, so the cases assert only that every reader finishes.
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class, LibManagerTestConfiguration.class, PluginsTestConfiguration.class, SubQueryConditionWorksheetCycleTest.TestConfig.class }, initializers = ConfigurationContextInitializer.class)
@@ -150,10 +152,9 @@ public class SubQueryConditionWorksheetCycleTest {
       lock = box.getScriptEnv().getExecutionLock();
 
       // A is built and populated on a thread holding no lock, as a viewsheet or data
-      // request would; building A starts the sub table's distinct worker
+      // request would; building A may start the sub table's distinct worker
       Started<Integer> populator = harness.start(() -> {
          TableLens table = box.getTableLens("A", AssetQuerySandbox.RUNTIME_MODE);
-         assertTrue(worker.awaitParked(KNOWN_CAP), "the distinct worker did not reach row " + PARK_ROW);
          return drain(table).size();
       });
       awaitIn(populator, KNOWN_CAP, "DistinctTableLens.moreRows");
@@ -295,7 +296,6 @@ public class SubQueryConditionWorksheetCycleTest {
       lock = box.getScriptEnv().getExecutionLock();
       TableLens table = harness.await(harness.submit(
          () -> box.getTableLens("A", AssetQuerySandbox.RUNTIME_MODE)), KNOWN_CAP, "building A");
-      assertTrue(worker.awaitParked(KNOWN_CAP), "the distinct worker did not reach row " + PARK_ROW);
 
       Started<Integer> script = harness.start(() -> asForeignScript(() -> drain(table).size()));
       awaitIn(script, KNOWN_CAP, "DistinctTableLens.moreRows");
@@ -312,14 +312,11 @@ public class SubQueryConditionWorksheetCycleTest {
     * worker holding it; lending it is correctly refused (the context is in use on this
     * thread), and the worker needs it in the formula lens.
     *
-    * <p>Pre-existing, and NOT fixed by #77158: it deadlocks on main and with the fix. Fixing
-    * it needs a waiter that does the work instead of waiting, or a sub table that does not
-    * start an unlocked worker while it is built (#76938 family).
+    * <p>Not fixed by #77158. Bug #77223: building the sub table no longer starts a worker
+    * that needs the engine lock; X's formula computes it.
     */
    @ParameterizedTest
    @ValueSource(booleans = { false, true })
-   @Tag("known-deadlock")
-   @EnabledIfSystemProperty(named = "lockcycle.known", matches = "true")
    public void formulaReadsFilteredTableFirst(boolean correlated) throws Exception {
       worker = new WorkerGate(PARK_ROW);
       Worksheet ws = new Worksheet();
@@ -333,14 +330,14 @@ public class SubQueryConditionWorksheetCycleTest {
       lock = box.getScriptEnv().getExecutionLock();
       harness.await(harness.submit(
          () -> box.getTableLens("A", AssetQuerySandbox.RUNTIME_MODE)), KNOWN_CAP, "building A");
-      assertTrue(worker.awaitParked(KNOWN_CAP), "the distinct worker did not reach row " + PARK_ROW);
 
-      Started<Integer> script = harness.start(
-         () -> drain(box.getTableLens("X", AssetQuerySandbox.RUNTIME_MODE)).size());
+      Started<List<List<Object>>> script = harness.start(
+         () -> drain(box.getTableLens("X", AssetQuerySandbox.RUNTIME_MODE)));
       awaitIn(script, KNOWN_CAP, "DistinctTableLens.moreRows");
       worker.release();
 
-      assertEquals(2, harness.await(script.future, KNOWN_CAP, "X's formula reading A first"));
+      // every row of A has its id among B's, and its grp among them when correlated
+      assertFormulaRead(21, harness.await(script.future, KNOWN_CAP, "X's formula reading A first"));
    }
 
    /**
@@ -371,7 +368,6 @@ public class SubQueryConditionWorksheetCycleTest {
       lock = box.getScriptEnv().getExecutionLock();
       TableLens mirror = harness.await(harness.submit(
          () -> box.getTableLens("M", AssetQuerySandbox.RUNTIME_MODE)), KNOWN_CAP, "building M");
-      assertTrue(worker.awaitParked(KNOWN_CAP), "the distinct worker did not reach row " + PARK_ROW);
 
       Started<Integer> script = harness.start(() -> asForeignScript(() -> drain(mirror).size()));
       awaitIn(script, KNOWN_CAP, "DistinctTableLens.moreRows");
@@ -379,6 +375,197 @@ public class SubQueryConditionWorksheetCycleTest {
 
       assertEquals(SUB_ROWS + 1,
                    (int) harness.await(script.future, KNOWN_CAP, "script of another engine reading M"));
+   }
+
+   /**
+    * Bug #77223: {@link #formulaReadsFilteredTableFirst} without a sub-query. A distinct table
+    * D with a script expression column is built on a thread holding no lock, and X's formula
+    * {@code D.length} is then the first to read it, inside {@code exec} on the same engine.
+    */
+   @Test
+   public void distinctTableReadFirstByFormula() throws Exception {
+      worker = new WorkerGate(PARK_ROW);
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly d = embedded(ws, "D", SUB_ROWS, worker);
+      expression(d, "dx", "field['id'] * 1");
+      d.setDistinct(true);
+      EmbeddedTableAssembly x = embedded(ws, "X", 1, null);
+      expression(x, "dlen", "D.length");
+
+      // D.length counts the header row
+      readFirstByFormula(ws, "D", SUB_ROWS + 1, "DistinctTableLens.moreRows");
+   }
+
+   /**
+    * Bug #77223: the same with a grouped table G, whose summary worker reads the formula lens
+    * through a sort; X's formula {@code G.length} waits for the summary's rows.
+    */
+   @Test
+   public void groupedTableReadFirstByFormula() throws Exception {
+      // 50 groups and the header row
+      groupedTableReadFirst("G.length", 51);
+   }
+
+   /**
+    * Bug #77223: {@link #groupedTableReadFirstByFormula} with a formula reading a cell of G
+    * before anything asks G for more rows. The element read asks G's size first, so it waits
+    * in the same place.
+    */
+   @Test
+   public void groupedTableCellReadFirstByFormula() throws Exception {
+      // G's columns are count(id), gx; the count of group gx = 0
+      groupedTableReadFirst("G[1][0]", SUB_ROWS / 50);
+   }
+
+   /**
+    * Bug #77223: a distinct mirror M of a table S sorted on its script expression column, so
+    * the distinct worker reads the formula lens through S's sort filter.
+    */
+   @Test
+   public void distinctMirrorOfSortedTableReadFirstByFormula() throws Exception {
+      worker = new WorkerGate(PARK_ROW);
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly s = embedded(ws, "S", SUB_ROWS, worker);
+      expression(s, "sx", "field['id'] * 1");
+      SortInfo sort = new SortInfo();
+      sort.addSort(new SortRef(s.getColumnSelection(false).getAttribute("sx")));
+      s.setSortInfo(sort);
+      MirrorTableAssembly m = new MirrorTableAssembly(ws, "M", s);
+      ws.addAssembly(m);
+      m.update();
+      m.setDistinct(true);
+      EmbeddedTableAssembly x = embedded(ws, "X", 1, null);
+      expression(x, "mlen", "M.length");
+
+      readFirstByFormula(ws, "M", SUB_ROWS + 1, "DistinctTableLens.moreRows",
+                         "SortFilter.checkInit", "SortFilter.moreRows");
+   }
+
+   /**
+    * Bug #77223: a union U of a table P with a script expression column is not affected, since
+    * the set lens reads every base row on the thread building it.
+    */
+   @Test
+   public void unionTableReadFirstByFormula() throws Exception {
+      worker = new WorkerGate(PARK_ROW);
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly p = embedded(ws, "P", SUB_ROWS, worker);
+      expression(p, "px", "field['id'] * 1");
+      EmbeddedTableAssembly q = embedded(ws, "Q", 10, null);
+      expression(q, "qx", "field['id'] * 1");
+      TableAssemblyOperator union = new TableAssemblyOperator();
+      TableAssemblyOperator.Operator op = new TableAssemblyOperator.Operator();
+      op.setOperation(TableAssemblyOperator.UNION);
+      op.setLeftTable("P");
+      op.setRightTable("Q");
+      union.addOperator(op);
+      ws.addAssembly(new ConcatenatedTableAssembly(
+         ws, "U", new TableAssembly[] { p, q }, new TableAssemblyOperator[] { union }));
+      EmbeddedTableAssembly x = embedded(ws, "X", 1, null);
+      expression(x, "ulen", "U.length");
+
+      // Q's rows are rows of P
+      readFirstByFormula(ws, "U", SUB_ROWS + 1, "SetTableLens.moreRows");
+      assertFalse(worker.hasParked(), "a lens worker read P's rows");
+   }
+
+   /**
+    * Bug #77223 review round 1, F1 (O6's intended shape): an embedded table A, sorted and
+    * distinct, small enough that building it computes every formula row, is built on a thread
+    * holding no lock while X's formula reads {@code A.length}. The builder holds A's monitor
+    * ({@code AssetQuerySandbox.getTableLens}) for the rest of the build, and X holds the
+    * engine lock while it waits for that monitor, so nothing the build does after computing
+    * the formula rows may wait for the engine lock. The builder parks inside the monitor after
+    * the formula rows are computed, until X waits for the monitor.
+    */
+   @Test
+   public void sortedDistinctEmbeddedTableBuiltWhileFormulaReadsIt() throws Exception {
+      BuilderGate builder = new BuilderGate(20);
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly a = embedded(ws, "A", 20, builder);
+      expression(a, "ax", "field['id'] * 1");
+      SortInfo sort = new SortInfo();
+      sort.addSort(new SortRef(a.getColumnSelection(false).getAttribute("ax")));
+      a.setSortInfo(sort);
+      a.setDistinct(true);
+      EmbeddedTableAssembly x = embedded(ws, "X", 1, null);
+      expression(x, "alen", "A.length");
+      box = sandbox(ws);
+      lock = box.getScriptEnv().getExecutionLock();
+
+      Started<Integer> building = harness.start(() -> {
+         builder.own();
+         return drain(box.getTableLens("A", AssetQuerySandbox.RUNTIME_MODE)).size();
+      });
+      assertTrue(builder.awaitEntered(KNOWN_CAP), "the builder of A never read A's last row");
+      Started<List<List<Object>>> script = harness.start(
+         () -> drain(box.getTableLens("X", AssetQuerySandbox.RUNTIME_MODE)));
+      releaseAfter(builder, script);
+
+      assertEquals(21, (int) harness.await(building.future, KNOWN_CAP, "the builder of A"));
+      assertFormulaRead(21, harness.await(script.future, KNOWN_CAP, "X's formula reading A"));
+   }
+
+   /**
+    * Let {@code builder}'s owner go on once {@code next} is parked (blocked or waiting) or
+    * finished.
+    */
+   private static void releaseAfter(BuilderGate builder, Started<?> next)
+      throws InterruptedException
+   {
+      LockCycleHarness.awaitParked(next, KNOWN_CAP);
+      builder.release();
+   }
+
+   private void groupedTableReadFirst(String formula, int expected) throws Exception {
+      worker = new WorkerGate(PARK_ROW);
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly g = embedded(ws, "G", SUB_ROWS, worker);
+      expression(g, "gx", "field['id'] % 50");
+      ColumnSelection columns = g.getColumnSelection(false);
+      AggregateInfo aggregate = new AggregateInfo();
+      aggregate.addGroup(new GroupRef(columns.getAttribute("gx")));
+      aggregate.addAggregate(new AggregateRef(columns.getAttribute("id"), AggregateFormula.COUNT_ALL));
+      g.setAggregateInfo(aggregate);
+      EmbeddedTableAssembly x = embedded(ws, "X", 1, null);
+      expression(x, "gval", formula);
+
+      readFirstByFormula(ws, "G", expected, "SummaryFilter.waitForRow",
+                         "SummaryFilter.moreRows", "SummaryFilter.getObject");
+   }
+
+   /**
+    * Build {@code table} on a thread holding no lock, as a viewsheet or data request would,
+    * then compute X, whose formula reads {@code table} by name inside {@code exec}. If building
+    * the table left a worker running, the worker cannot finish before X waits in one of
+    * {@code frames}; if it did not, X computes the table itself. Either way X must finish,
+    * and its formula must have read {@code expected}.
+    */
+   private void readFirstByFormula(Worksheet ws, String table, int expected, String... frames)
+      throws Exception
+   {
+      box = sandbox(ws);
+      lock = box.getScriptEnv().getExecutionLock();
+      harness.await(harness.submit(
+         () -> box.getTableLens(table, AssetQuerySandbox.RUNTIME_MODE)), KNOWN_CAP,
+                    "building " + table);
+
+      Started<List<List<Object>>> script = harness.start(
+         () -> drain(box.getTableLens("X", AssetQuerySandbox.RUNTIME_MODE)));
+      awaitIn(script, KNOWN_CAP, frames);
+      worker.release();
+
+      assertFormulaRead(expected, harness.await(script.future, KNOWN_CAP,
+                                                "X's formula reading " + table + " first"));
+   }
+
+   /**
+    * Check that X has its one row, and that its formula column (after id and grp) is
+    * {@code expected}.
+    */
+   private static void assertFormulaRead(int expected, List<List<Object>> rows) {
+      assertEquals(2, rows.size());
+      assertEquals(expected, ((Number) rows.get(1).get(2)).intValue(), "the value X's formula read");
    }
 
    /**
@@ -576,8 +763,8 @@ public class SubQueryConditionWorksheetCycleTest {
          }
       }
 
-      boolean awaitParked(long capSeconds) throws InterruptedException {
-         return parked.await(capSeconds, TimeUnit.SECONDS);
+      boolean hasParked() {
+         return parked.getCount() == 0;
       }
 
       void release() {
@@ -586,6 +773,55 @@ public class SubQueryConditionWorksheetCycleTest {
 
       private final int row;
       private final CountDownLatch parked = new CountDownLatch(1);
+      private final CountDownLatch released = new CountDownLatch(1);
+   }
+
+   /**
+    * Parks its owner at its first read of the cell values of row {@code row} while it holds no
+    * script lock, i.e. after the formula rows are computed (a formula batch reads the row
+    * holding the engine lock).
+    */
+   private static final class BuilderGate implements Hook {
+      BuilderGate(int row) {
+         this.row = row;
+      }
+
+      void own() {
+         owner = Thread.currentThread();
+      }
+
+      @Override
+      public void onMoreRows(int r) {
+      }
+
+      @Override
+      public void onGetObject(int r) {
+         if(r == row && Thread.currentThread() == owner && !JavaScriptEngine.holdsScriptLock() &&
+            entered.getCount() > 0)
+         {
+            entered.countDown();
+
+            try {
+               // bounded, so a case that never releases cannot park the owner forever
+               released.await(3 * KNOWN_CAP, TimeUnit.SECONDS);
+            }
+            catch(InterruptedException ex) {
+               Thread.currentThread().interrupt();
+            }
+         }
+      }
+
+      boolean awaitEntered(long capSeconds) throws InterruptedException {
+         return entered.await(capSeconds, TimeUnit.SECONDS);
+      }
+
+      void release() {
+         released.countDown();
+      }
+
+      private final int row;
+      private volatile Thread owner;
+      private final CountDownLatch entered = new CountDownLatch(1);
       private final CountDownLatch released = new CountDownLatch(1);
    }
 

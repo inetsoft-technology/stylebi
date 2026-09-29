@@ -66,7 +66,8 @@ import java.util.concurrent.locks.ReentrantLock;
  * @author InetSoft Technology Corp
  */
 public class FormulaTableLens extends AbstractTableLens
-   implements TableFilter, CachedTableLens, DFWrapper, CancellableTableLens
+   implements TableFilter, CachedTableLens, DFWrapper, CancellableTableLens,
+   ChainScriptLock.Source
 {
    /**
     * Construct a formula table.
@@ -682,6 +683,27 @@ public class FormulaTableLens extends AbstractTableLens
       }
 
       return execLock;
+   }
+
+   /**
+    * Get the engine lock that computing this lens's rows takes while a row remains to
+    * compute, see lockForRow() (bug #77223). A computed lens is read without the engine lock
+    * (bug #77215), so a lens over it keeps a worker that never needs the lock. The check
+    * neither blocks nor reads the base: rows that are computed but not yet known to be the
+    * last count as remaining. An env without an engine has no script running on it, so no
+    * engine is created for the check.
+    */
+   @Override
+   public Lock getScriptLock() {
+      XSwappableTable rows = this.rows;
+
+      // the row table is completed only when the base has no row past the computed rows
+      if(tableRow != null && rows != null && rows.getRowCount() >= 0) {
+         return null;
+      }
+
+      ScriptEnv env = getScriptEnv();
+      return env == null || !env.usesExecutionLock() ? null : env.getExecutionLock();
    }
 
    /**

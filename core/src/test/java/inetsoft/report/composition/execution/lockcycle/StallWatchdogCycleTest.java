@@ -238,6 +238,10 @@ public class StallWatchdogCycleTest {
     * 10 s, longer than the 8 s limit, and the holder completes. The limit is above the up to
     * 5 s a queued SummaryFilter worker may wait for an idle on-demand pool thread in its
     * clean-up hold (ThreadPool.cleanUp) plus one row, so no pool state makes this a stall.
+    *
+    * <p>The summary's base needs no engine lock, so building it starts the worker (bug
+    * #77223: over a base that needs the lock, the first reader would process the rows itself
+    * and nothing would be lent).
     */
    @Test
    public void slowProgressingSummaryUnderLockCompletes() throws Exception {
@@ -253,13 +257,15 @@ public class StallWatchdogCycleTest {
       // start the worker unlocked (query build time), then drain under the lock
       harness.await(harness.submit(() -> summary.getRowCount()), ACTIVE_CAP, "getRowCount");
       Future<List<List<Object>>> holder = harness.submit(() -> drain(outer));
+      StallTestSupport.awaitTrue(s.lock::isLent, ACTIVE_CAP,
+                                 "the holder never lent the engine lock to the worker");
 
       assertEquals(expected, harness.await(holder, ACTIVE_CAP, "slow holder"));
       assertLocksFree(s);
    }
 
    private SummaryFilter summary(Sandbox s, TableLens base) {
-      return harness.track(new SummaryFilter(s.filteredFormula(base), new int[] { 0 },
+      return harness.track(new SummaryFilter(cf2(base, s.box), new int[] { 0 },
                                              new int[] { 1 }, new SumFormula(), null));
    }
 

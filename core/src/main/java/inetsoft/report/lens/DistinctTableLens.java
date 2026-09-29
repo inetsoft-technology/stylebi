@@ -252,12 +252,16 @@ public class DistinctTableLens extends AbstractTableLens
 
       validated = true;
 
-      boolean inExec = JavaScriptEngine.holdsScriptLock();
-
       // if this is called from JavaScriptEngine.exec() or a condition filter
       // (bug #76938), the script engine is already locked. running process() in a
       // separate thread would create a deadlock waiting forever for the
-      // JavaScriptEngine lock to be released.
+      // JavaScriptEngine lock to be released. if the base needs an engine lock, only
+      // holding that lock counts: a reader takes it before this lens's monitor (see
+      // moreRows), so the worker is not started by a reader that can't lend it the lock
+      // later, e.g. inside a script on that engine (bug #77223)
+      LendableReentrantLock chainLock = ChainScriptLock.find(table);
+      boolean inExec = chainLock != null ? chainLock.isHeldByCurrentThread()
+         : JavaScriptEngine.holdsScriptLock();
 
       if(inExec) {
          validate0();
@@ -531,6 +535,38 @@ public class DistinctTableLens extends AbstractTableLens
     */
    @Override
    public boolean moreRows(int row) {
+      // the first read of rows takes the engine lock the base needs before this lens's
+      // monitor, like a condition filter (bug #76918), and finds the distinct rows on this
+      // thread. a worker needing the lock could wait forever for a reader inside a script
+      // on that engine, which can't lend it the lock (bug #77223)
+      LendableReentrantLock execLock = validated || row < getHeaderRowCount()
+         ? null : getUnheldChainScriptLock();
+
+      if(execLock == null) {
+         return moreRows0(row);
+      }
+
+      execLock.lock();
+      JavaScriptEngine.pushHeldScriptLock(execLock);
+
+      try {
+         return moreRows0(row);
+      }
+      finally {
+         JavaScriptEngine.popHeldScriptLock();
+         execLock.unlock();
+      }
+   }
+
+   /**
+    * Get the engine lock reading the base may take if the current thread does not hold it.
+    */
+   private LendableReentrantLock getUnheldChainScriptLock() {
+      LendableReentrantLock execLock = ChainScriptLock.find(table);
+      return execLock != null && !execLock.isHeldByCurrentThread() ? execLock : null;
+   }
+
+   private boolean moreRows0(int row) {
       WaitRecord record = null;
 
       try {
@@ -655,7 +691,20 @@ public class DistinctTableLens extends AbstractTableLens
     * @return number of rows in table.
     */
    @Override
-   public synchronized int getRowCount() {
+   public int getRowCount() {
+      // found outside of this lens's monitor, as in moreRows
+      return getRowCount0(validated ? null : getUnheldChainScriptLock());
+   }
+
+   private synchronized int getRowCount0(LendableReentrantLock execLock) {
+      // a row count probe (e.g. AssetQuery.validateDataTypes) starts nothing if the base
+      // needs an engine lock this thread doesn't hold: it must not take the lock, it may be
+      // building a table inside that table's monitor, and a worker must not be left for a
+      // reader that can't lend it the lock. the first read of rows finds them (bug #77223)
+      if(execLock != null && !validated) {
+         return -rows.size() - 1;
+      }
+
       try {
          validate();
 
@@ -1212,7 +1261,8 @@ public class DistinctTableLens extends AbstractTableLens
    private volatile boolean cancelled;       // cancelled flag
    private final Lock cancelLock = new ReentrantLock();
    private boolean stable;          // true to not reorder rows
-   private boolean validated;       // check if validated
+   // check if validated, read outside of the monitor (bug #77223)
+   private volatile boolean validated;
    // the background task finding distinct rows, if any
    private transient volatile LendableReentrantLock.Borrower worker;
    // the base row the worker has reached, and the stall it failed with (bug #76967)
