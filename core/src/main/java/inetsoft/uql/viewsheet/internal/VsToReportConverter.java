@@ -1162,6 +1162,9 @@ public class VsToReportConverter {
       TableElementDef tableelem =
          new TableElementDef(report, new CellInsetTableLens(lens, info));
       tableelem.setKeepRowHeightOnPrint(info.isKeepRowHeightOnPrint());
+      // a modern row is mostly cell padding, so a piece of it split at a page break can't hold
+      // its text; move it whole instead
+      tableelem.setKeepRowsWhole(info.getVizMark() != null);
       // use Manual Column Widths to keep the column width.
       tableelem.setEmbedWidth(true);
       VSAssemblyLayout layout = getVSAssemblyLayout(assembly, playout);

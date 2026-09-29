@@ -21,6 +21,29 @@ final class PrintTableFixture {
       return this;
    }
 
+   PrintTableFixture rowHeight(int rowHeight) {
+      this.rowHeight = rowHeight;
+      return this;
+   }
+
+   /** Give every cell these insets, the channel print layout's cell padding reaches cells by. */
+   PrintTableFixture cellInsets(Insets cellInsets) {
+      this.cellInsets = cellInsets;
+      return this;
+   }
+
+   PrintTableFixture keepRowsWhole() {
+      this.keepRowsWhole = true;
+      return this;
+   }
+
+   /** Put wrapped text in the row's first cell and let its height follow the text. */
+   PrintTableFixture wrappedRow(int row, String text) {
+      this.wrappedRow = row;
+      this.wrappedText = text;
+      return this;
+   }
+
    PrintTableFixture widths(int... widths) {
       this.widths = widths;
       return this;
@@ -137,9 +160,25 @@ final class PrintTableFixture {
          }
       }
 
+      if(wrappedText != null) {
+         data[wrappedRow][0] = wrappedText;
+      }
+
       DefaultTableLens lens = new DefaultTableLens(data);
       lens.setHeaderRowCount(1);
       lens.setHeaderColCount(headerCols);
+
+      for(int r = 0; r <= rows; r++) {
+         for(int c = 0; c < widths.length; c++) {
+            if(cellInsets != null) {
+               lens.setInsets(r, c, cellInsets);
+            }
+         }
+      }
+
+      if(wrappedText != null) {
+         lens.setLineWrap(wrappedRow, 0, true);
+      }
 
       if(!cellBorders) {
          lens.setRowBorder(StyleConstants.NO_BORDER);
@@ -151,8 +190,14 @@ final class PrintTableFixture {
       element.setLayout(layout);
       element.setFixedWidths(widths);
       int[] heights = new int[rows + 1];
-      Arrays.fill(heights, ROW_H);
+      Arrays.fill(heights, rowHeight);
+
+      if(wrappedText != null) {
+         heights[wrappedRow] = -1;
+      }
+
       element.setFixedHeights(heights);
+      element.setKeepRowsWhole(keepRowsWhole);
       element.setBorders(new Insets(StyleConstants.THIN_LINE, StyleConstants.THIN_LINE,
                                     StyleConstants.THIN_LINE, StyleConstants.THIN_LINE));
       element.setBorderColors(new BorderColors(Color.RED, Color.RED, Color.RED, Color.RED));
@@ -174,6 +219,11 @@ final class PrintTableFixture {
 
    static final int ROW_H = 20;
    private int rows = 10;
+   private int rowHeight = ROW_H;
+   private Insets cellInsets;
+   private boolean keepRowsWhole;
+   private int wrappedRow;
+   private String wrappedText;
    private int headerCols = 0;
    private int[] widths = { 100, 100, 100 };
    private int layout = ReportSheet.TABLE_FIT_PAGE;

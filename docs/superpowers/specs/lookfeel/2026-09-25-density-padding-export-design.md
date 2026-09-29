@@ -40,6 +40,7 @@ This slice closes the gap in two PRs:
 | Print layout: a hidden title | **The card-top box carries the top border**, so a padded table has its full card border either way. An unpadded table keeps today's missing top. | user, 2026-09-28 |
 | Print layout: the painter's geometry | **Its box stays the grid, and its public geometry speaks for the card** (§8.6). This was preferred over moving every cell read by L, and over a separate card paintable. | user, 2026-09-28 |
 | Print layout: F5 | **Parked.** It sits upstream of every C2 site (§10). | user, 2026-09-28 |
+| Print layout: a modern row at a page break | **It moves to the next page whole**, and is split only when no page could hold it (F6, §10). Marked tables only; legacy tables and classic reports keep today's row splitting. | user, 2026-09-29 |
 
 Approach A (hand the grid a content-rect copy) was rejected for two reasons:
 - It would have to copy the whole assembly, because `CoordinateHelper.getAssemblySize(assembly, …)`
@@ -393,6 +394,11 @@ does. With a non-zero inset:
   - Both row-fit loops (`:1640`, `:1656`) add B before comparing, once they reach the last row. So a
     last row that fits without B, but not with it, moves to the next page with its band.
   - `fitNext` (`:854`) adds B for the last region, the one `TablePaintable` flags `lastregion`.
+- **Rows kept whole.** `keepRowsWhole` is a plain field, false by default and not in
+  `TableElementInfo`. The converter sets it for a marked table (`info.getVizMark() != null`), inset or
+  not. With it set, the row-height pass never splits a row that fits on a whole page,
+  `rowh <= maxCellWholePage`; such a row moves to the next page instead (F6). A row taller than a page
+  still splits.
 - **Fit Contents segments.** The cut falls at the grid width, W − L − R. The segments stack with no
   inset between them, the same as a continuation page. So a table wrapped into segments reads as one
   card: the left and right borders run down every segment, and B and the bottom border come once,
@@ -609,6 +615,28 @@ inset, which is why C2 is its own PR.
     table before its rows are complete.
   - **For slice C:** C2's print checks use tables without conditions (§9.4). The probe exports are in
     the baselines folder, under `f5-probe/`.
+  - **Partly explained, 2026-09-29:** modern's "blank one" is F6's split row, not the condition.
+
+- **F6, traced 2026-09-29: a padded row split at a page break prints blank.** It predates C2, and C2
+  fixes it for marked tables.
+  - **The mechanism.** `TableElementDef.layout`'s large-cell split (~1446-1485) splits a row that does
+    not fit a running page-space estimate into `n = ceil(contentH / min(3 × fontH, spaceLeft))` sub-rows
+    (`SpanTableLens.split`). It skips the split only when a piece would be shorter than
+    `getBasicRowHeight`, the bare font height.
+  - **Why density rows.** Print layout gives rows fixed heights, and `adjustFixedHeights` halves a
+    split row's height evenly. A density row is its text plus the seeded cell insets
+    (`VsToReportConverter`'s `CellInsetTableLens`, from `481e2f5bb`): 14 + 7 + 7 = 28. So with 14 to 28
+    left, it splits into two 14pt pieces. Each clears the font height, but neither holds the text and
+    its insets, so the row prints blank on both pages. A legacy row, about 18, never splits.
+  - **Classic reports** compute their row heights and round split pieces up to whole lines, so a split
+    rarely loses text there. It does with cell insets large for the font. That case is left as is,
+    because the fix is gated on the mark.
+  - **Evidence.** The baselines' known issue 4 and the after-C1 export show it on `TableShrink`. C2's
+    first export shows it on `Crosstab1` and `Calc1`, because the taller cards move the breaks. The
+    probes are in the baselines folder: `SplitRowProbeTest.java.txt`, and
+    `SplitRowMatrixProbeTest.java.txt` with its results in `split-probe-matrix.csv`.
+  - **The fix.** Marked tables keep their rows whole (§8.5), covered by `PrintTableRowSplitTest` and
+    `PrintLayoutRowSplitTest`.
 
 ## 11. Branching and PRs
 

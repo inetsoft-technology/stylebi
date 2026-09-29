@@ -1454,8 +1454,11 @@ public class TableElementDef extends BaseElement
                dynamicMaxCell = maxCellWholePage;
             }
 
+            // a row kept whole moves to the next page unless no page could hold it
+            boolean keepWhole = keepRowsWhole && rowh <= maxCellWholePage;
+
              if(rowh != StyleConstants.REMAINDER && splittedRows == 0 &&
-               rowh > dynamicMaxCell && !false)
+               rowh > dynamicMaxCell && !keepWhole)
             {
                // split cells if necessary to allow large cell to span across
                // pages
@@ -2705,6 +2708,18 @@ public class TableElementDef extends BaseElement
       return cardInset == null ? null : (Insets) cardInset.clone();
    }
 
+   /**
+    * Set whether a row that fits on a page moves to the next page whole instead of being split
+    * across the page break. Only a row taller than a page is split then.
+    */
+   public void setKeepRowsWhole(boolean keepRowsWhole) {
+      this.keepRowsWhole = keepRowsWhole;
+   }
+
+   public boolean isKeepRowsWhole() {
+      return keepRowsWhole;
+   }
+
    public float[] getColWidth() {
       return colWidth;
    }
@@ -2719,6 +2734,8 @@ public class TableElementDef extends BaseElement
    private Insets borders = null;
    // print layout only: the card inset (0, left, bottom, right) around the grid
    private Insets cardInset = null;
+   // print layout only: never split a row that fits on a page
+   private boolean keepRowsWhole = false;
 
    // @by billh, the priority should keep in sync with the apply-process,
    // we'd better merge logic of the two parts later...
