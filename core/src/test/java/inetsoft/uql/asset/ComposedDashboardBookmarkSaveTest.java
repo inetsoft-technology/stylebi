@@ -161,10 +161,25 @@ class ComposedDashboardBookmarkSaveTest {
    }
 
    @Test
-   void nonComposedViewsheetIsNotAffected() throws Exception {
-      // the fix is scoped to composed dashboards; an ordinary viewsheet owned by another user
-      // keeps the pre-existing overwriteBookmarks behavior (a separate follow-up)
+   void virtualAdminResavesAnonymousOwnedNonComposedViewsheet() throws Exception {
+      // the setSheet branch is scoped to composed dashboards, but with security off every
+      // anonymous-owned viewsheet's bookmarks are readable and writable by the caller under the
+      // owner key (Bug #77357), so the ordinary overwriteBookmarks path keeps them too
       AssetEntry entry = createDashboard(owner, false);
+      Viewsheet vs = openAndEdit(entry);
+
+      assertDoesNotThrow(() -> repository.setSheet(entry, vs, admin, true));
+
+      assertPersisted(entry);
+      assertTrue(repository.getVSBookmark(entry, new XPrincipal(owner), true)
+                    .containsBookmark(OWNER_BOOKMARK), "owner's bookmark must be kept");
+   }
+
+   @Test
+   void nonAnonymousOwnedNonComposedViewsheetIsNotAffected() throws Exception {
+      // an ordinary viewsheet owned by another (non-anonymous) user keeps the pre-existing
+      // overwriteBookmarks behavior (a separate follow-up)
+      AssetEntry entry = createDashboard(new IdentityID("Bug77345User", orgId), false);
       Viewsheet vs = openAndEdit(entry);
 
       RuntimeException ex = assertThrows(RuntimeException.class,

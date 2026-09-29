@@ -632,7 +632,10 @@ public class DashboardController {
             principal.getRoles(), null, null);
       }
       else if(!securityEnabled) {
-         identity = new DefaultIdentity(XPrincipal.ANONYMOUS, Identity.USER);
+         // the security-off user is anonymous in the default org, which also owns the composed
+         // dashboards created here (Bug #77357)
+         identity = new DefaultIdentity(XPrincipal.ANONYMOUS,
+            Organization.getDefaultOrganizationID(), Identity.USER);
       }
       else {
          identity = user != null ? new DefaultIdentity(user, Identity.USER) :
