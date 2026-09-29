@@ -257,12 +257,12 @@ public class RelMetamorphicTest {
       count(relation + ".comparisons");
       count("comparisons." + shape);
 
-      // a script of random or clock values has no oracle value: compare the cell types
       if(nondeterministic(c.script())) {
          count(relation + ".nondeterministic");
-         expected = expected.stream().map(RelMetamorphicTest::cellType).toList();
-         actual = actual.stream().map(RelMetamorphicTest::cellType).toList();
       }
+
+      expected = comparable(expected, c.script());
+      actual = comparable(actual, c.script());
 
       if(expected.equals(actual)) {
          return null;
@@ -301,16 +301,22 @@ public class RelMetamorphicTest {
    }
 
    /**
-    * @return the type of a cell: its string up to the value, or the whole string of an error
-    * or a CF2 cell's id and type.
+    * @return the cells of a run as compared: a script of random or clock values has no
+    * oracle value, so only the structure of its cells is compared.
     */
-   static String cellType(String cell) {
+   static List<String> comparable(List<String> cells, String script) {
+      return nondeterministic(script)
+         ? cells.stream().map(RelMetamorphicTest::cellShape).toList() : cells;
+   }
+
+   /**
+    * @return the structure of a cell of a random or clock script, whose value and even error
+    * (e.g. an error only for some random values) have no oracle: a whole-run error, a CF2
+    * cell's row id, else just that a cell is there.
+    */
+   static String cellShape(String cell) {
       int bar = cell.indexOf('|');
-      String prefix = bar >= 0 ? cell.substring(0, bar + 1) : "";
-      String value = bar >= 0 ? cell.substring(bar + 1) : cell;
-      int colon = value.indexOf(':');
-      return prefix + (value.startsWith("E:") || value.startsWith("RUN-") || colon < 0
-         ? value : value.substring(0, colon));
+      return cell.startsWith("RUN-") ? cell : bar >= 0 ? cell.substring(0, bar + 1) : "cell";
    }
 
    /**
@@ -323,7 +329,7 @@ public class RelMetamorphicTest {
       if(oracle == null) {
          oracle = run(c.script(), shape, RelConfig.off(), ReadPattern.SEQUENTIAL);
          ORACLES.put(key, oracle);
-         count("oracle." + shape + (oracle.stream().allMatch(v -> v.startsWith("E:") ||
+         count("oracle." + shape + (oracle.stream().allMatch(v -> v.startsWith("E:") || v.contains("|E:") ||
             v.startsWith("RUN-E:")) ? ".errorOnly" : ".computing"));
       }
 
@@ -442,7 +448,8 @@ public class RelMetamorphicTest {
 
    private static final Pattern NONDETERMINISTIC = Pattern.compile(
       "Math\\s*\\.\\s*random|\\bnow\\s*\\(|\\bnew\\s+Date\\s*\\(\\s*\\)|\\bnew\\s+Date\\b(?!\\s*\\()|" +
-      "CALC\\s*\\.\\s*(?:today|now)|Date\\s*\\.\\s*now|\\btoday\\s*\\(");
+      "CALC\\s*\\.\\s*(?:today|now|rand\\w*)|Date\\s*\\.\\s*now|" +
+      "\\b(?:today|rand|randbetween)\\s*\\(");
    // a self-referencing var whose value is an object: var x = x || [] / {} / new ... / function
    private static final Pattern OBJECT_VAR = Pattern.compile(
       "\\bvar\\s+([A-Za-z_$][\\w$]*)\\s*=\\s*\\(?\\s*\\1\\s*\\|\\|\\s*(?:\\[|\\{|new\\b|function\\b)");

@@ -262,7 +262,7 @@ public final class RelCorpus {
       // library functions of the worksheet script env
       "isNull isDate isNumber isArray dateAdd dateDiff datePart parseDate formatDate " +
       "formatNumber now today year month day hour minute second weekday quarter toList " +
-      "rowList mapList sum average avg count max min trim log pmt").split(" "));
+      "rowList mapList sum average avg count max min trim log pmt rand randbetween").split(" "));
 
    private static volatile List<Entry> corpus;
 }
