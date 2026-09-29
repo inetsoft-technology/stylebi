@@ -17,8 +17,12 @@
  */
 package inetsoft.util.script.graal.pool;
 
+import inetsoft.util.script.graal.ScriptTimeoutGuard;
+import org.graalvm.polyglot.Context;
+import org.graalvm.polyglot.PolyglotException;
 import org.junit.jupiter.api.*;
 
+import java.time.Duration;
 import java.util.*;
 
 import static inetsoft.util.script.graal.pool.PoolTestSupport.*;
@@ -198,6 +202,71 @@ class PoolParanoiaTest {
       assertEquals(violations, PoolParanoia.violations());
       assertEquals("undefined", PoolTestSupport.run(env, "typeof zqp"));
       assertEquals(1, env.getMetrics().getCreations());
+   }
+
+   /**
+    * Finding S1 (soak): a check stopped by its own time bound says nothing about the global,
+    * so it is counted as inconclusive, not as a violation, and the slot is still closed.
+    */
+   @Test
+   void verifyStoppedByItsTimeoutIsInconclusiveAndClosesTheSlot() throws Exception {
+      WorksheetScriptEnv env = env();
+      PoolTestSupport.run(env, "1");
+      PoolParanoia.forced = true;
+      long violations = PoolParanoia.violations();
+      long inconclusive = PoolParanoia.inconclusive();
+      int[] calls = {0};
+      // a run is two claims (compile, exec): only the first release's check gets the 1 ms bound
+      PoolParanoia.beforeVerifyHook = s -> {
+         if(calls[0]++ == 0) {
+            // enough extra keys that the check takes far longer than its 1 ms bound
+            s.engine().context().eval("js",
+               "for(let i = 0; i < 50000; i++) globalThis['zqi' + i] = i;");
+            PoolParanoia.verifyTimeout = Duration.ofMillis(1);
+         }
+         else {
+            PoolParanoia.verifyTimeout = CleanHelper.TIMEOUT;
+         }
+      };
+
+      try {
+         PoolTestSupport.run(env, "1");
+      }
+      finally {
+         PoolParanoia.beforeVerifyHook = null;
+         PoolParanoia.verifyTimeout = CleanHelper.TIMEOUT;
+      }
+
+      assertEquals(2, calls[0]);
+      assertEquals(violations, PoolParanoia.violations(), "not a violation");
+      assertEquals(inconclusive + 1, PoolParanoia.inconclusive());
+      assertEquals("undefined", PoolTestSupport.run(env, "typeof zqi0"));
+      assertEquals(2, env.getMetrics().getCreations(), "the slot was closed and replaced");
+   }
+
+   /**
+    * S1: only an interrupt or cancel of the check is inconclusive; a guest error is not.
+    */
+   @Test
+   void onlyAStoppedCheckIsInconclusive() {
+      try(Context context = Context.create("js")) {
+         PolyglotException interrupted;
+
+         try(ScriptTimeoutGuard.Guard guard =
+                new ScriptTimeoutGuard().guard(context, Duration.ofMillis(50)))
+         {
+            interrupted = assertThrows(PolyglotException.class,
+                                       () -> context.eval("js", "while(true) {}"));
+         }
+
+         assertTrue(interrupted.isInterrupted(), String.valueOf(interrupted));
+         assertTrue(PoolParanoia.inconclusive(interrupted));
+
+         PolyglotException thrown = assertThrows(PolyglotException.class,
+                                                 () -> context.eval("js", "throw new Error('x')"));
+         assertFalse(PoolParanoia.inconclusive(thrown));
+         assertFalse(PoolParanoia.inconclusive(new IllegalStateException("x")));
+      }
    }
 
    private List<String> verify() {
