@@ -140,6 +140,38 @@ class RefreshVSAssemblyLockLostTest {
       assertDoesNotThrow(() -> AnnotationVSUtil.refreshAllAnnotations(rvs, chart, null, null));
    }
 
+   /**
+    * The annotation data lookups used by the export write phase and the annotation events
+    * rethrow a lost lock but still treat any other failure as "no data / no target".
+    */
+   @Test
+   void annotationDataLookupsRethrowLockRestoreException() throws Exception {
+      ViewsheetSandbox sandbox = mock(ViewsheetSandbox.class);
+      TableVSAssembly table = mock(TableVSAssembly.class);
+      when(table.getAbsoluteName()).thenReturn("Table1");
+      ChartVSAssembly chart = mock(ChartVSAssembly.class);
+      when(chart.getAbsoluteName()).thenReturn("Chart1");
+      AnnotationCellValue value = mock(AnnotationCellValue.class);
+      when(value.getValues()).thenReturn(new String[] { "0", "0" });
+      AnnotationVSAssemblyInfo ainfo = mock(AnnotationVSAssemblyInfo.class);
+      when(ainfo.getValue()).thenReturn(value);
+      when(ainfo.getType()).thenReturn(AnnotationVSAssemblyInfo.DATA);
+
+      when(sandbox.getTableData("Table1")).thenThrow(new LockRestoreException("lost"));
+      when(sandbox.getVGraphPair("Chart1")).thenThrow(new LockRestoreException("lost"));
+      assertThrows(LockRestoreException.class,
+                   () -> AnnotationVSUtil.getAnnotationDataValue(sandbox, table, 0, 0, null));
+      assertThrows(LockRestoreException.class,
+                   () -> AnnotationVSUtil.getRuntimeIndex(sandbox, table, null, ainfo));
+      assertThrows(LockRestoreException.class,
+                   () -> AnnotationVSUtil.getAnnotationDataValue(sandbox, chart, 0, 0, null));
+
+      reset(sandbox);
+      when(sandbox.getTableData("Table1")).thenThrow(new IllegalStateException("no data"));
+      assertNull(AnnotationVSUtil.getAnnotationDataValue(sandbox, table, 0, 0, null));
+      assertNull(AnnotationVSUtil.getRuntimeIndex(sandbox, table, null, ainfo));
+   }
+
    private Throwable refreshVSAssembly(RuntimeException nestedFailure) throws Exception {
       CoreLifecycleService service = lifecycleService();
       RuntimeViewsheet rvs = runtimeViewsheet(false, box);

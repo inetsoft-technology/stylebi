@@ -95,6 +95,10 @@ public final class AnnotationVSUtil {
          try {
             lens = box.getTableData(base.getAbsoluteName());
          }
+         catch(LockRestoreException ex) {
+            // the sandbox lock was lost, not a missing annotation target (77227)
+            throw ex;
+         }
          catch(Exception ex) {
             return null;
          }
@@ -354,6 +358,10 @@ public final class AnnotationVSUtil {
             return pair.getData();
          }
       }
+      catch(LockRestoreException e) {
+         // the sandbox lock was lost, not a chart without data (77227)
+         throw e;
+      }
       catch(Exception e) {
          LOG.warn("Failed to get data set: " + base, e);
       }
@@ -388,6 +396,9 @@ public final class AnnotationVSUtil {
                box.getScope().resetChartScriptable(ass);
             }
          }
+      }
+      catch(LockRestoreException e) {
+         throw e;
       }
       catch(Exception e) {
          LOG.warn("Failed to get data set: " + base, e);
@@ -592,6 +603,10 @@ public final class AnnotationVSUtil {
          try {
             lens = lens == null ?
                box.getTableData(base.getAbsoluteName()) : lens;
+         }
+         catch(LockRestoreException ex) {
+            // the sandbox lock was lost, not a missing annotation target (77227)
+            throw ex;
          }
          catch(Exception ex) {
             return null;
