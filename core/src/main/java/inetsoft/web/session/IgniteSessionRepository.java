@@ -42,6 +42,7 @@ import java.security.Principal;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -234,10 +235,9 @@ public class IgniteSessionRepository
       // dedicated single-thread executor separate from this call's thread, so it is not
       // guaranteed to run after (or become a no-op because of) this call -- it is only that in
       // the overwhelming majority of executions, since the async dispatch takes many more hops
-      // than this method's own next few synchronous lines. In the rare case both race and both
-      // pass logout()'s isActiveUser() gate, the only consequence is a harmless duplicate audit
-      // SessionRecord for one logical removal -- never an incorrect deregistration or a
-      // reintroduction of the original force-logout-an-active-session bug.
+      // than this method's own next few synchronous lines. The two calls do race in practice;
+      // logout()'s per-session claim keeps them from both passing its isActiveUser() gate and
+      // writing a duplicate audit SessionRecord for one logical removal (bug #77300).
       logout(igniteSession, SessionRecord.LOGOFF_SESSION_TIMEOUT);
    }
 
@@ -371,9 +371,27 @@ public class IgniteSessionRepository
       Principal principal = session.getAttribute(RepletRepository.PRINCIPAL_COOKIE);
 
       if(principal instanceof SRPrincipal srp) {
-         if(securityEngine.isActiveUser(principal)) {
-            String remoteHost = srp.getUser().getIPAddress();
-            authenticationService.logout(principal, remoteHost, logoffReason);
+         String sessionId = session.getId();
+
+         // deleteById() and this node's own entryRemoved()/entryExpired() reaction to the same
+         // removal run on different threads and both call this method; isActiveUser() is a
+         // check-then-act gate, so without this claim both could pass it and write two LOGOFF
+         // audit records from one node (bug #77300). A concurrent second caller skips; a later
+         // one is stopped by isActiveUser(), since authenticationService.logout() deregisters the
+         // principal synchronously before the claim is released. No lock is held while calling
+         // authenticationService.logout().
+         if(!loggingOutSessions.add(sessionId)) {
+            return;
+         }
+
+         try {
+            if(securityEngine.isActiveUser(principal)) {
+               String remoteHost = srp.getUser().getIPAddress();
+               authenticationService.logout(principal, remoteHost, logoffReason);
+            }
+         }
+         finally {
+            loggingOutSessions.remove(sessionId);
          }
       }
    }
@@ -614,6 +632,7 @@ public class IgniteSessionRepository
    private final SecurityEngine securityEngine;
    private final AuthenticationService authenticationService;
    private final NodeProtectionService nodeProtectionService;
+   private final Set<String> loggingOutSessions = ConcurrentHashMap.newKeySet();
 
    public static final String DEFAULT_SESSION_MAP_NAME = "spring.session.sessions";
    private static final Logger LOG = LoggerFactory.getLogger(IgniteSessionRepository.class);
