@@ -96,7 +96,10 @@ class ScheduleTaskServiceOwnershipTest {
       sutilStatic.when(() -> SUtil.getIdentity(any(), anyInt())).thenAnswer(inv -> {
          IdentityID id = inv.getArgument(0);
          int type = inv.getArgument(1);
-         return id == null ? null : type == Identity.GROUP ? new Group(id) : new User(id);
+         // like the real SUtil.getIdentity, null for an identity that doesn't exist
+         return id == null ? null :
+            type == Identity.GROUP ? securityProvider.getGroup(id) :
+            type == Identity.ROLE ? securityProvider.getRole(id) : securityProvider.getUser(id);
       });
 
       when(principal.getName()).thenReturn(CALLER.convertToKey());
@@ -362,6 +365,208 @@ class ScheduleTaskServiceOwnershipTest {
       runSaveIgnoringDownstreamFailures(model(null, options));
 
       verify(scheduleService).updateTaskName(any(), any(), eq(CALLER), eq(principal));
+   }
+
+   // ── Bug #77281 (reopen): making a task run as its owner ─────────────────
+
+   private static final IdentityID MISSING_OWNER = new IdentityID("admin", CALLER_ORG);
+   private static final IdentityID UA = new IdentityID("ua", CALLER_ORG);
+   private static final IdentityID BOB = new IdentityID("bob", CALLER_ORG);
+
+   // a site admin created the task in the org with its own name as the owner (Bug #73978); it
+   // runs as an existing user of the org
+   private ScheduleTask storedTask(IdentityID owner, Identity identity) {
+      ScheduleTask existing = new ScheduleTask("Task1");
+      existing.setOwner(owner);
+      existing.setIdentity(identity);
+      when(scheduleManager.getScheduleTask(anyString())).thenAnswer(inv -> existing.clone());
+      when(securityProvider.getUser(UA)).thenReturn(new User(UA));
+      when(securityProvider.getUser(BOB)).thenReturn(new User(BOB));
+      return existing;
+   }
+
+   private void assertRefusedBeforeAnyWrite(ScheduleTaskEditorModel model, boolean em)
+      throws Exception
+   {
+      assertThrows(SecurityException.class, () -> service.saveTask(model, "", principal, em));
+      verify(scheduleService, never()).updateTaskName(any(), any(), any(), any());
+      verify(scheduleService, never()).saveTask(any(), any(), any());
+   }
+
+   private Identity savedIdentity(ScheduleTaskEditorModel model) throws Exception {
+      // the renamed task lookup returns the stored task, so the save reaches scheduleService
+      runSaveIgnoringDownstreamFailures(model);
+      ArgumentCaptor<ScheduleTask> saved = ArgumentCaptor.forClass(ScheduleTask.class);
+      verify(scheduleService).saveTask(any(), saved.capture(), eq(principal));
+      return saved.getValue().getIdentity();
+   }
+
+   @ParameterizedTest
+   @NullAndEmptySource
+   void saveTask_orgAdminClearsExecuteAsOfMissingOwnerTask_isRejected(String idName)
+      throws Exception
+   {
+      storedTask(MISSING_OWNER, new User(UA));
+      asOrgAdminWithAdminOnEveryUser();
+
+      assertRefusedBeforeAnyWrite(model(null, options("admin", idName)), true);
+   }
+
+   @Test
+   void saveTask_orgAdminOmitsOwnerAndExecuteAsOfMissingOwnerTask_isRejected() throws Exception {
+      storedTask(MISSING_OWNER, new User(UA));
+      asOrgAdminWithAdminOnEveryUser();
+
+      assertRefusedBeforeAnyWrite(model(null, options(null, null)), true);
+   }
+
+   @Test
+   void saveTask_orgAdminSetsExecuteAsToMissingOwner_isRejected() throws Exception {
+      storedTask(MISSING_OWNER, new User(UA));
+      asOrgAdminWithAdminOnEveryUser();
+
+      assertRefusedBeforeAnyWrite(model(null, options("admin", "admin")), true);
+   }
+
+   @Test
+   void saveTask_orgAdminSetsExecuteAsToNameThatDoesNotResolve_isRejected() throws Exception {
+      storedTask(MISSING_OWNER, new User(UA));
+      asOrgAdminWithAdminOnEveryUser();
+
+      assertRefusedBeforeAnyWrite(model(null, options("admin", "ghost")), true);
+   }
+
+   @Test
+   void saveTask_orgAdminClearsExecuteAsOnRename_isRejectedBeforeRename() throws Exception {
+      storedTask(MISSING_OWNER, new User(UA));
+      asOrgAdminWithAdminOnEveryUser();
+      ScheduleTaskEditorModel model = ScheduleTaskEditorModel.builder()
+         .from(model(null, options("admin", "")))
+         .taskName("Renamed")
+         .build();
+
+      assertRefusedBeforeAnyWrite(model, true);
+   }
+
+   @Test
+   void saveTask_portalClearsExecuteAsOfMissingOwnerTask_isRejected() throws Exception {
+      storedTask(MISSING_OWNER, new User(UA));
+      asOrgAdminWithAdminOnEveryUser();
+
+      assertRefusedBeforeAnyWrite(model(null, options("admin", "")), false);
+   }
+
+   @Test
+   void saveTask_orgAdminClearsPlaceholderNamingMissingOwner_isRejected() throws Exception {
+      // an unresolved User(owner) placeholder (Bug #77120) doesn't run, clearing it would make
+      // the task run with the site admin's roles
+      storedTask(MISSING_OWNER, new User(MISSING_OWNER));
+      asOrgAdminWithAdminOnEveryUser();
+
+      assertRefusedBeforeAnyWrite(model(null, options("admin", "")), true);
+   }
+
+   @Test
+   void saveTask_orgAdminKeepsPlaceholderNamingMissingOwner_isAllowed() throws Exception {
+      storedTask(MISSING_OWNER, new User(MISSING_OWNER));
+      asOrgAdminWithAdminOnEveryUser();
+
+      Identity identity = savedIdentity(model(null, options("admin", "admin")));
+
+      assertEquals(MISSING_OWNER, identity.getIdentityID());
+   }
+
+   @Test
+   void saveTask_orgAdminDescriptionOnlyEditOfMissingOwnerTask_keepsExecuteAs()
+      throws Exception
+   {
+      storedTask(MISSING_OWNER, new User(UA));
+      asOrgAdminWithAdminOnEveryUser();
+
+      Identity identity = savedIdentity(model(null, options("admin", "ua")));
+
+      assertEquals(UA, identity.getIdentityID());
+   }
+
+   @ParameterizedTest
+   @NullAndEmptySource
+   void saveTask_orgAdminMissingOwnerTaskAlreadyWithoutExecuteAs_isAllowed(String idName)
+      throws Exception
+   {
+      storedTask(MISSING_OWNER, null);
+      asOrgAdminWithAdminOnEveryUser();
+
+      assertNull(savedIdentity(model(null, options("admin", idName))));
+   }
+
+   @Test
+   void saveTask_orgAdminSetsExecuteAsToSelfOnMissingOwnerTask_isAllowed() throws Exception {
+      storedTask(MISSING_OWNER, new User(UA));
+      asOrgAdminWithAdminOnEveryUser();
+      when(securityProvider.getUser(CALLER)).thenReturn(new User(CALLER));
+
+      assertEquals(CALLER, savedIdentity(model(null, options("admin", "alice"))).getIdentityID());
+   }
+
+   @Test
+   void saveTask_orgAdminTakesOwnershipAndClearsExecuteAs_isAllowed() throws Exception {
+      storedTask(MISSING_OWNER, new User(UA));
+      asOrgAdminWithAdminOnEveryUser();
+
+      runSaveIgnoringDownstreamFailures(model(null, options("alice", "")));
+
+      verify(scheduleService).updateTaskName(any(), any(), eq(CALLER), eq(principal));
+   }
+
+   @Test
+   void saveTask_orgAdminClearsOrSetsExecuteAsToExistingOwner_isAllowed() throws Exception {
+      storedTask(BOB, new User(UA));
+      asOrgAdminWithAdminOnEveryUser();
+
+      assertNull(savedIdentity(model(null, options("bob", ""))));
+   }
+
+   @Test
+   void saveTask_orgAdminSetsExecuteAsToExistingOwner_isAllowed() throws Exception {
+      storedTask(BOB, new User(UA));
+      asOrgAdminWithAdminOnEveryUser();
+
+      assertEquals(BOB, savedIdentity(model(null, options("bob", "bob"))).getIdentityID());
+   }
+
+   @Test
+   void saveTask_siteAdminClearsExecuteAsOfMissingOwnerTask_isAllowed() throws Exception {
+      storedTask(MISSING_OWNER, new User(UA));
+      asOrgAdminWithAdminOnEveryUser();
+      when(organizationManager.isSiteAdmin(principal)).thenReturn(true);
+
+      assertNull(savedIdentity(model(null, options("admin", ""))));
+   }
+
+   @Test
+   void saveTask_editorNotAdministeringExistingOwnerClearsExecuteAs_isRejected()
+      throws Exception
+   {
+      // a user allowed to edit bob's task (not delete-only-by-owner) doesn't administer bob
+      storedTask(BOB, new User(UA));
+      when(organizationManager.isOrgAdmin(principal)).thenReturn(true);
+      denyAdmin();
+
+      assertRefusedBeforeAnyWrite(model(null, options("bob", "")), false);
+   }
+
+   @Test
+   void saveTask_editorNotAdministeringOwnerKeepsTaskWithoutExecuteAs_isAllowed()
+      throws Exception
+   {
+      // the editor sends the owner as execute-as for a task without one
+      storedTask(BOB, null);
+      when(organizationManager.isOrgAdmin(principal)).thenReturn(true);
+      denyAdmin();
+
+      runSaveIgnoringDownstreamFailures(model(null, options("bob", "bob")));
+
+      verify(scheduleService).updateTaskName(any(), any(), eq(BOB), eq(principal));
    }
 
    private void asOrgAdminWithAdminOnEveryUser() {

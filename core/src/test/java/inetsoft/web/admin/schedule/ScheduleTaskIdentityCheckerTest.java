@@ -84,6 +84,60 @@ class ScheduleTaskIdentityCheckerTest {
       orgStatic.close();
    }
 
+   // ── run as the owner ─────────────────────────────────────────────────────
+
+   private static final IdentityID MISSING = new IdentityID("admin", ORG_A);
+   private static final IdentityID UA = new IdentityID("ua", ORG_A);
+
+   @Test
+   void runAsOwner_missingOwnerClearedOrSetToOwner_isRefused() {
+      assertFalse(checker.isRunAsOwnerAllowed(MISSING, new User(UA), MISSING, null, principal));
+      assertFalse(checker.isRunAsOwnerAllowed(MISSING, new User(UA), MISSING,
+                                              new User(MISSING), principal));
+   }
+
+   @Test
+   void runAsOwner_placeholderNamingMissingOwnerCleared_isRefused() {
+      // an unresolved User(owner) placeholder can't run, no identity runs with the site admin's
+      // roles, so the two are not the same
+      assertFalse(checker.isRunAsOwnerAllowed(MISSING, new User(MISSING), MISSING, null,
+                                              principal));
+   }
+
+   @Test
+   void runAsOwner_placeholderUnchanged_isAllowed() {
+      assertTrue(checker.isRunAsOwnerAllowed(MISSING, new User(MISSING), MISSING,
+                                             new User(MISSING), principal));
+   }
+
+   @Test
+   void runAsOwner_storedTaskAlreadyWithoutIdentity_isAllowed() {
+      assertTrue(checker.isRunAsOwnerAllowed(MISSING, null, MISSING, null, principal));
+      assertTrue(checker.isRunAsOwnerAllowed(MISSING, null, MISSING, new User(MISSING),
+                                             principal));
+   }
+
+   @Test
+   void runAsOwner_existingAdministeredOwnerOrCaller_isAllowed() {
+      assertTrue(checker.isRunAsOwnerAllowed(BOB, new User(UA), BOB, null, principal));
+      assertTrue(checker.isRunAsOwnerAllowed(BOB, new User(UA), BOB, new User(BOB), principal));
+      assertTrue(checker.isRunAsOwnerAllowed(MISSING, new User(UA), CALLER, null, principal));
+   }
+
+   @Test
+   void runAsOwner_otherIdentity_isNotCheckedHere() {
+      assertTrue(checker.isRunAsOwnerAllowed(MISSING, new User(UA), MISSING, new User(CALLER),
+                                             principal));
+      assertTrue(checker.isRunAsOwnerAllowed(MISSING, new User(UA), MISSING, new Group(MISSING),
+                                             principal));
+   }
+
+   @Test
+   void runAsOwner_siteAdmin_isAllowed() {
+      when(orgManager.isSiteAdmin(principal)).thenReturn(true);
+      assertTrue(checker.isRunAsOwnerAllowed(MISSING, new User(UA), MISSING, null, principal));
+   }
+
    @Test
    void owner_missingUserNamedLikeSiteAdmin_isRefused() {
       assertFalse(checker.isOwnerAllowed(new IdentityID("admin", ORG_A), principal));

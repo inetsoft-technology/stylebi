@@ -49,7 +49,8 @@ import java.util.function.Supplier;
  *    never allowed.</li>
  * </ul>
  * A path that updates a stored task keeps allowing an identity that is unchanged, that is done
- * by the caller of this class.
+ * by the caller of this class. Making a task run as its owner is checked by
+ * {@link #isRunAsOwnerAllowed}, since {@link #isExecuteAsAllowed} allows the owner.
  */
 public class ScheduleTaskIdentityChecker {
    public ScheduleTaskIdentityChecker(SecurityEngine securityEngine) {
@@ -147,6 +148,62 @@ public class ScheduleTaskIdentityChecker {
       }
 
       return false;
+   }
+
+   /**
+    * Determines if a task runs as its owner with an execute-as identity. A task with no
+    * execute-as identity runs as its owner (SUtil.getScheduleTaskOwnerPrincipal), with the roles
+    * of a site admin of the same name when the owner doesn't exist (Bug #73978).
+    *
+    * @param identity the execute-as identity, may be null.
+    * @param owner    the owner of the task.
+    */
+   public static boolean runsAsOwner(Identity identity, IdentityID owner) {
+      return identity == null ||
+         identity.getType() == Identity.USER && Objects.equals(identity.getIdentityID(), owner);
+   }
+
+   /**
+    * Bug #77281, determines if the caller may save a task with the owner and execute-as
+    * identity that the save stores, checked on the identity that is actually stored (after it
+    * is resolved, so an empty name, the owner's name and a name that doesn't resolve are all the
+    * same) rather than on the name the client sent. A task that is made to run as its owner is
+    * only allowed when the caller may make that user the owner ({@link #isOwnerAllowed}),
+    * otherwise an org admin could make a task owned by a missing user run with the roles of a
+    * site admin of the same name. A save that leaves the owner unchanged is still allowed when
+    * the stored task already had no execute-as identity, or when the execute-as identity is
+    * unchanged. A stored execute-as placeholder naming the owner (a User that can't be resolved,
+    * Bug #77120) is not the same as no identity: it can't run, while no identity runs as the
+    * owner, so replacing it with no identity is checked.
+    *
+    * @param oldOwner    the owner of the stored task.
+    * @param oldIdentity the execute-as identity of the stored task.
+    * @param newOwner    the owner that is stored.
+    * @param newIdentity the execute-as identity that is stored.
+    * @param principal   the caller.
+    */
+   public boolean isRunAsOwnerAllowed(IdentityID oldOwner, Identity oldIdentity,
+                                      IdentityID newOwner, Identity newIdentity,
+                                      Principal principal)
+   {
+      if(!runsAsOwner(newIdentity, newOwner)) {
+         return true;
+      }
+
+      if(Objects.equals(oldOwner, newOwner) &&
+         (oldIdentity == null || isSameIdentity(oldIdentity, newIdentity)))
+      {
+         return true;
+      }
+
+      // isOwnerAllowed allows any owner for a site admin or when security is disabled
+      return isOwnerAllowed(newOwner, principal);
+   }
+
+   private static boolean isSameIdentity(Identity identity1, Identity identity2) {
+      return identity1 != null && identity2 != null &&
+         identity1.getType() == identity2.getType() &&
+         Objects.equals(identity1.getIdentityID(), identity2.getIdentityID());
    }
 
    /**
