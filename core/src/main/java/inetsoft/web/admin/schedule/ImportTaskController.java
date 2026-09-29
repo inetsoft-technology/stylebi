@@ -49,11 +49,13 @@ public class ImportTaskController {
    public ImportTaskController(ScheduleManager scheduleManager,
                                ScheduleTaskFolderService scheduleTaskFolderService,
                                AnalyticRepository analyticRepository,
-                               SecurityEngine securityEngine) {
+                               SecurityEngine securityEngine,
+                               ScheduleTaskService scheduleTaskService) {
       this.scheduleManager = scheduleManager;
       this.scheduleTaskFolderService = scheduleTaskFolderService;
       this.analyticRepository = analyticRepository;
       this.securityEngine = securityEngine;
+      this.scheduleTaskService = scheduleTaskService;
       this.secretIdChecker = new ScheduleSecretIdChecker(securityEngine);
    }
 
@@ -200,7 +202,9 @@ public class ImportTaskController {
       ScheduleTask task = new ScheduleTask();
       Principal oldPrincipal = ThreadContext.getContextPrincipal();
 
-      // parseXML(elem, true) takes the organization from the context principal
+      // parseXML(elem, true) takes the organization from the context principal, through the
+      // no-arg OrganizationManager.getCurrentOrgID() which lower-cases it, the same as a deploy
+      // import and the task permission grant in ScheduleManager.setScheduleTask
       if(principal != null) {
          ThreadContext.setContextPrincipal(principal);
       }
@@ -230,23 +234,6 @@ public class ImportTaskController {
          return false;
       }
 
-      Identity identity = task.getIdentity();
-
-      if(identity != null && !isSiteAdmin(principal)) {
-         IdentityID identityID = identity.getIdentityID();
-         String orgID = OrganizationManager.getInstance().getCurrentOrgID(principal);
-
-         // the task editor only lets the caller run a task as a user or group of the current
-         // organization, a global identity (such as a system administrator role) is refused
-         if(identity.getType() == Identity.ROLE || identityID == null ||
-            identityID.getOrgID() == null || !identityID.getOrgID().equalsIgnoreCase(orgID))
-         {
-            LOG.warn("Task {} is not imported, the execute-as identity {} is not allowed",
-                     taskId, identityID);
-            return false;
-         }
-      }
-
       boolean internalType = task.getType() == ScheduleTask.Type.INTERNAL_TASK;
 
       if(internalType || ScheduleManager.isInternalTask(taskId)) {
@@ -262,6 +249,10 @@ public class ImportTaskController {
          return true;
       }
 
+      if(!isSiteAdmin(principal) && !isOwnerAndIdentityAllowed(task, taskId, principal)) {
+         return false;
+      }
+
       for(String internalTask : getInternalTaskContents(task)) {
          if(!canWriteInternalTask(internalTask, principal)) {
             LOG.warn("Task {} is not imported, it contains the actions or conditions of " +
@@ -274,7 +265,64 @@ public class ImportTaskController {
    }
 
    /**
-    * Gets the names of the internal tasks whose actions or conditions are in the task.
+    * Bug #77259, a caller that is not a site admin may only import a task owned by and run as an
+    * identity the task editor lets the caller pick. The owner must be the caller or an existing
+    * user of the current organization the caller administers (the editor's owner list), it's
+    * refused rather than replaced so the task id shown in the import dialog stays the same. An
+    * owner that doesn't exist would make the task run with the roles of a site admin of the same
+    * name in another organization (SUtil.getScheduleTaskOwnerPrincipal), and the legacy "null"
+    * owner is the host organization system user.
+    */
+   private boolean isOwnerAndIdentityAllowed(ScheduleTask task, String taskId,
+                                             Principal principal)
+   {
+      IdentityID owner = task.getOwner();
+      IdentityID caller = IdentityID.getIdentityIDFromKey(principal.getName());
+      // the owner org was remapped by parseXML(elem, true) to the lower-cased current org
+      String orgID = OrganizationManager.getInstance().getCurrentOrgID(principal);
+      boolean ownerAllowed = owner != null && owner.getOrgID() != null &&
+         owner.getOrgID().equalsIgnoreCase(orgID) &&
+         !XPrincipal.SYSTEM.equals(owner.getName()) &&
+         !XPrincipal.ANONYMOUS.equals(owner.getName()) &&
+         (owner.equals(caller) ||
+            securityEngine.getSecurityProvider().getUser(owner) != null &&
+            scheduleTaskService.checkUserPermission(owner.convertToKey(), principal));
+
+      if(!ownerAllowed) {
+         LOG.warn("Task {} is not imported, the owner {} is not allowed", taskId, owner);
+         return false;
+      }
+
+      Identity identity = task.getIdentity();
+
+      if(identity == null) {
+         return true;
+      }
+
+      IdentityID identityID = identity.getIdentityID();
+
+      // the task editor only lets the caller run a task as a user or group of the current
+      // organization that the caller administers, a global identity (such as a system
+      // administrator role) is refused
+      boolean identityAllowed = identityID != null && identityID.getOrgID() != null &&
+         identityID.getOrgID().equalsIgnoreCase(orgID) &&
+         (identity.getType() == Identity.USER && (identityID.equals(caller) ||
+            scheduleTaskService.getExecuteAsUsers(owner, principal).contains(identityID)) ||
+          identity.getType() == Identity.GROUP &&
+            scheduleTaskService.getExecuteAsGroups(owner.convertToKey(), principal)
+               .contains(identityID));
+
+      if(!identityAllowed) {
+         LOG.warn("Task {} is not imported, the execute-as identity {} is not allowed",
+                  taskId, identityID);
+      }
+
+      return identityAllowed;
+   }
+
+   /**
+    * Gets the names of the internal tasks whose actions or conditions are in the task, or that
+    * a completion condition of the task depends on.
     */
    private Set<String> getInternalTaskContents(ScheduleTask task) {
       Set<String> names = new HashSet<>();
@@ -294,8 +342,15 @@ public class ImportTaskController {
       }
 
       for(int i = 0; i < task.getConditionCount(); i++) {
-         if(task.getCondition(i) instanceof TaskBalancerCondition) {
+         ScheduleCondition condition = task.getCondition(i);
+
+         if(condition instanceof TaskBalancerCondition) {
             names.add(InternalScheduledTaskService.BALANCE_TASKS);
+         }
+         else if(condition instanceof CompletionCondition completion &&
+            ScheduleManager.isInternalTask(completion.getTaskName()))
+         {
+            names.add(completion.getTaskName());
          }
       }
 
@@ -326,9 +381,9 @@ public class ImportTaskController {
 
       boolean allowed = analyticRepository.checkPermission(
          principal, ResourceType.EM_COMPONENT, "settings/schedule/settings", ResourceAction.ACCESS) &&
-         (!SUtil.isMultiTenant() || isSiteAdmin(principal) &&
+         (!SUtil.isMultiTenant() || (isSiteAdmin(principal) &&
             Tool.equals(OrganizationManager.getInstance().getCurrentOrgID(principal),
-                        Organization.getDefaultOrganizationID()));
+                        Organization.getDefaultOrganizationID())));
 
       if(!allowed) {
          LOG.debug("Time ranges in the imported file are ignored, the user can't edit them");
@@ -385,6 +440,7 @@ public class ImportTaskController {
    private final ScheduleTaskFolderService scheduleTaskFolderService;
    private final AnalyticRepository analyticRepository;
    private final SecurityEngine securityEngine;
+   private final ScheduleTaskService scheduleTaskService;
    private final ScheduleSecretIdChecker secretIdChecker;
    static final String INFO_ATTR = "__private_scheduleXmlInfo";
    static final String TIME_RANGES_ATTR = "__private_scheduleXmlTimeRanges";

@@ -80,7 +80,7 @@ class ImportTaskControllerTest {
    @BeforeEach
    void setUp() {
       controller = new ImportTaskController(scheduleManager, scheduleTaskFolderService, analyticRepository,
-                                            securityEngine);
+                                            securityEngine, mock(ScheduleTaskService.class));
       when(request.getSession(true)).thenReturn(session);
       lenient().when(incomingTask.getTaskId()).thenReturn("myTask");
       lenient().when(incomingTask.getPath()).thenReturn(null); // skip moveTask()

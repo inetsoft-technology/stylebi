@@ -24,6 +24,7 @@ import inetsoft.sree.schedule.*;
 import inetsoft.sree.security.*;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.util.Identity;
+import inetsoft.util.ThreadContext;
 import inetsoft.web.admin.model.FileData;
 import inetsoft.web.admin.schedule.model.ImportTaskResponse;
 import jakarta.servlet.http.HttpServletRequest;
@@ -61,15 +62,36 @@ class ImportTaskCrossOrgTest {
    private HttpServletRequest request;
    private final Map<String, Object> sessionAttrs = new HashMap<>();
    private XPrincipal caller;
+   private String currentOrg;
+   private SecurityProvider provider;
+   private ScheduleTaskService scheduleTaskService;
+   // the users that exist, and the security user/group keys the caller administers
+   private final Set<IdentityID> users = new HashSet<>();
+   private final Set<String> adminOf = new HashSet<>();
 
    @BeforeEach
    void setUp() throws Exception {
       scheduleManager = mock(ScheduleManager.class);
       repository = mock(AnalyticRepository.class);
+      provider = mock(SecurityProvider.class);
+      users.addAll(List.of(new IdentityID("admin", ORG_A), new IdentityID("alice", ORG_A),
+                           new IdentityID("bob", ORG_A), new IdentityID("carol", ORG_A),
+                           new IdentityID("admin", HOST_ORG)));
+      when(provider.getUser(any(IdentityID.class)))
+         .thenAnswer(inv -> users.contains(inv.<IdentityID>getArgument(0)) ? mock(User.class) : null);
+      when(provider.getUsers()).thenAnswer(inv -> users.toArray(new IdentityID[0]));
+      when(provider.getGroups()).thenReturn(new IdentityID[] { new IdentityID("staff", ORG_A) });
+      when(provider.checkPermission(any(), any(ResourceType.class), anyString(),
+                                    eq(ResourceAction.ADMIN)))
+         .thenAnswer(inv -> adminOf.contains(inv.<String>getArgument(2)));
       SecurityEngine securityEngine = mock(SecurityEngine.class);
       when(securityEngine.isSecurityEnabled()).thenReturn(true);
+      when(securityEngine.getSecurityProvider()).thenReturn(provider);
+      // the real task editor checks, over the mocked security provider
+      scheduleTaskService = new ScheduleTaskService(repository, scheduleManager, null, null,
+                                                    provider, null, securityEngine);
       controller = new ImportTaskController(scheduleManager, mock(ScheduleTaskFolderService.class),
-                                            repository, securityEngine);
+                                            repository, securityEngine, scheduleTaskService);
 
       HttpSession session = mock(HttpSession.class);
       doAnswer(inv -> sessionAttrs.put(inv.getArgument(0), inv.getArgument(1)))
@@ -248,6 +270,129 @@ class ImportTaskCrossOrgTest {
       assertEquals(Identity.USER, persisted.getIdentity().getType());
    }
 
+   // B1, an owner name that doesn't exist in the importing org would run the task with the roles
+   // of the site admin of the same name (SUtil.getScheduleTaskOwnerPrincipal)
+   @Test
+   void ownerNamingSiteAdmin_notInImportingOrg_isRefused() throws Exception {
+      users.remove(new IdentityID("admin", ORG_A));
+      caller = principal("carol", ORG_A);
+      adminOf.add(new IdentityID("admin", ORG_A).convertToKey());
+      parse(task("Escalate", "admin~;~" + HOST_ORG, "NORMAL_TASK", null, NEVER_RUN));
+
+      ImportTaskResponse response = importAll(false);
+
+      assertEquals(List.of("admin~;~orga:Escalate"), response.failedTasks());
+      verify(scheduleManager, never()).setScheduleTask(anyString(), any(ScheduleTask.class),
+                                                       any(Principal.class));
+   }
+
+   // B1, the legacy "null" owner is the host org system user
+   @Test
+   void nullOwner_isRefused() throws Exception {
+      parse(task("Legacy", "null", null, null, NEVER_RUN));
+
+      ImportTaskResponse response = importAll(false);
+
+      assertEquals(1, response.failedTasks().size(), response.failedTasks().toString());
+      verify(scheduleManager, never()).setScheduleTask(anyString(), any(ScheduleTask.class),
+                                                       any(Principal.class));
+   }
+
+   // B1, an existing user of the org the caller doesn't administer
+   @Test
+   void ownerNotAdministeredByCaller_isRefused() throws Exception {
+      caller = principal("carol", ORG_A);
+      adminOf.clear();
+      parse(task("Nightly", "alice~;~orga", null, null, NEVER_RUN));
+
+      ImportTaskResponse response = importAll(false);
+
+      assertEquals(List.of("alice~;~orga:Nightly"), response.failedTasks());
+   }
+
+   // B1 positive control, a caller may always import a task owned by themselves
+   @Test
+   void ownTask_withoutUserAdmin_isImported() throws Exception {
+      caller = principal("carol", ORG_A);
+      adminOf.clear();
+      parse(task("Nightly", "carol~;~orgb", null, null, NEVER_RUN));
+
+      ScheduleTask persisted = importAndCapture(false);
+
+      assertNotNull(persisted);
+      assertEquals(new IdentityID("carol", ORG_A), persisted.getOwner());
+   }
+
+   // I1, a same-org user or group the caller doesn't administer can't be the execute-as identity
+   @Test
+   void executeAsIdentityNotAdministeredByCaller_isRefused() throws Exception {
+      caller = principal("carol", ORG_A);
+      adminOf.clear();
+      parse(task("AsAdmin", "carol~;~orga", null, "idname=\"admin~;~orga\" idtype=\"0\"",
+                 NEVER_RUN) +
+            task("AsStaff", "carol~;~orga", null, "idname=\"staff~;~orga\" idtype=\"1\"",
+                 NEVER_RUN));
+
+      ImportTaskResponse response = importAll(false);
+
+      assertEquals(Set.of("carol~;~orga:AsAdmin", "carol~;~orga:AsStaff"),
+                   new HashSet<>(response.failedTasks()));
+      verify(scheduleManager, never()).setScheduleTask(anyString(), any(ScheduleTask.class),
+                                                       any(Principal.class));
+   }
+
+   // I1 positive control, the same identities once the caller administers them
+   @Test
+   void executeAsIdentityAdministeredByCaller_isImported() throws Exception {
+      caller = principal("carol", ORG_A);
+      adminOf.clear();
+      adminOf.add(new IdentityID("admin", ORG_A).convertToKey());
+      adminOf.add(new IdentityID("staff", ORG_A).convertToKey());
+      parse(task("AsAdmin", "carol~;~orga", null, "idname=\"admin~;~orga\" idtype=\"0\"",
+                 NEVER_RUN) +
+            task("AsStaff", "carol~;~orga", null, "idname=\"staff~;~orga\" idtype=\"1\"",
+                 NEVER_RUN));
+
+      ImportTaskResponse response = importAll(false);
+
+      assertTrue(response.failedTasks().isEmpty(), response.failedTasks().toString());
+      verify(scheduleManager, times(2)).setScheduleTask(anyString(), any(ScheduleTask.class),
+                                                        eq(caller));
+   }
+
+   // M2, a completion condition must not chain a normal task onto an internal task
+   @Test
+   void completionOfInternalTask_isRefused() throws Exception {
+      parse(task("AfterBackup", "admin~;~orga", null, null,
+                 "<Condition type=\"Completion\" task=\"" +
+                    InternalScheduledTaskService.ASSET_FILE_BACKUP + "\"/>"));
+
+      ImportTaskResponse response = importAll(false);
+
+      assertEquals(List.of("admin~;~orga:AfterBackup"), response.failedTasks());
+   }
+
+   // M1, the owner is remapped under the caller as the context principal, and the previous
+   // context principal is restored
+   @Test
+   void parse_usesCallerAsContextPrincipal_andRestoresIt() throws Exception {
+      Principal previous = principal("someone", "orgc");
+      ThreadContext.setContextPrincipal(previous);
+
+      try {
+         parse(task("Nightly", "bob~;~orgb", null, null, NEVER_RUN));
+         assertSame(previous, ThreadContext.getContextPrincipal());
+      }
+      finally {
+         ThreadContext.setContextPrincipal(null);
+      }
+
+      ScheduleTask persisted = importAndCapture(false);
+
+      assertNotNull(persisted);
+      assertEquals(new IdentityID("bob", ORG_A), persisted.getOwner());
+   }
+
    // ---------------------------------------------------------------------------------------
    // site admin
    // ---------------------------------------------------------------------------------------
@@ -324,7 +469,7 @@ class ImportTaskCrossOrgTest {
       SecurityEngine securityEngine = mock(SecurityEngine.class);
       when(securityEngine.isSecurityEnabled()).thenReturn(false);
       controller = new ImportTaskController(scheduleManager, mock(ScheduleTaskFolderService.class),
-                                            repository, securityEngine);
+                                            repository, securityEngine, scheduleTaskService);
       caller = principal("anonymous", HOST_ORG);
       when(orgManager.getCurrentOrgID()).thenReturn(HOST_ORG);
       when(orgManager.getCurrentOrgID(any())).thenReturn(HOST_ORG);
@@ -356,8 +501,11 @@ class ImportTaskCrossOrgTest {
 
    private void asOrgAdmin() throws Exception {
       caller = principal("admin", ORG_A);
-      when(orgManager.getCurrentOrgID()).thenReturn(ORG_A);
-      when(orgManager.getCurrentOrgID(any())).thenReturn(ORG_A);
+      stubCurrentOrg(ORG_A);
+      adminOf.clear();
+      users.stream().filter(u -> ORG_A.equals(u.getOrgID()))
+         .forEach(u -> adminOf.add(u.convertToKey()));
+      adminOf.add(new IdentityID("staff", ORG_A).convertToKey());
       when(orgManager.isSiteAdmin(any(Principal.class))).thenReturn(false);
       // org admins are refused internal tasks and the scheduler settings
       when(repository.checkPermission(any(), eq(ResourceType.SCHEDULE_TASK), anyString(),
@@ -369,14 +517,22 @@ class ImportTaskCrossOrgTest {
 
    private void asSiteAdmin(String currentOrg) throws Exception {
       caller = principal("admin", HOST_ORG);
-      when(orgManager.getCurrentOrgID()).thenReturn(currentOrg);
-      when(orgManager.getCurrentOrgID(any())).thenReturn(currentOrg);
+      stubCurrentOrg(currentOrg);
       when(orgManager.isSiteAdmin(any(Principal.class))).thenReturn(true);
       when(repository.checkPermission(any(), eq(ResourceType.SCHEDULE_TASK), anyString(),
                                       eq(ResourceAction.WRITE))).thenReturn(true);
       when(repository.checkPermission(any(), eq(ResourceType.EM_COMPONENT),
                                       eq("settings/schedule/settings"),
                                       eq(ResourceAction.ACCESS))).thenReturn(true);
+   }
+
+   // the no-arg getCurrentOrgID() used by parseXML(elem, true) only answers the caller's org
+   // when the controller made the caller the context principal
+   private void stubCurrentOrg(String org) {
+      currentOrg = org;
+      when(orgManager.getCurrentOrgID()).thenAnswer(
+         inv -> ThreadContext.getContextPrincipal() == caller ? currentOrg : "no-context-org");
+      when(orgManager.getCurrentOrgID(any())).thenReturn(org);
    }
 
    private static XPrincipal principal(String name, String org) {
