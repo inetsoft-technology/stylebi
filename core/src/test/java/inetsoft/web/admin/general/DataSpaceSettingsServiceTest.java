@@ -231,8 +231,8 @@ class DataSpaceSettingsServiceTest {
    @Test
    void aRealBackupStillPrunes() throws Exception {
       sreeEnvStatic.when(() -> SreeEnv.getProperty("asset.backup.count")).thenReturn("2");
-      when(externalStorageService.listFiles("backup"))
-         .thenReturn(List.of("data-20260101.zip", "data-20260102.zip", "data-20260103.zip"));
+      when(externalStorageService.listFiles("backup")).thenReturn(List.of(
+         "data-20260101000000.zip", "data-20260102000000.zip", "data-20260103000000.zip"));
 
       service.doBackup(BackupDataModel.builder().dataspace("data").build());
 
@@ -265,6 +265,59 @@ class DataSpaceSettingsServiceTest {
       verify(externalStorageService, never()).delete(anyString());
    }
 
+   // [G1] at exactly the retention limit, no file may be deleted
+   @Test
+   void retainsAllFilesWhenAtTheLimit() throws Exception {
+      stubBackupCount(3);
+      stubZips("data-20260101000000.zip", "data-20260102000000.zip", "data-20260103000000.zip");
+
+      service.deleteRedundantBackupFiles();
+
+      verify(externalStorageService, never()).delete(anyString());
+   }
+
+   // [G2] over the limit, only the surplus is deleted, and it is the oldest files
+   @Test
+   void deletesOnlyTheOldestSurplusFiles() throws Exception {
+      stubBackupCount(2);
+      stubZips("data-20260103000000.zip", "data-20260101000000.zip", "data-20260102000000.zip");
+
+      service.deleteRedundantBackupFiles();
+
+      verify(externalStorageService, times(1)).delete("backup/data-20260101000000.zip");
+      verify(externalStorageService, never())
+         .delete("backup/data-20260102000000.zip");
+      verify(externalStorageService, never())
+         .delete("backup/data-20260103000000.zip");
+   }
+
+   // [G3] a pair of timestamps whose long difference overflows int must not invert the sort
+   @Test
+   void deletesTheOldestEvenWhenTimestampsAreYearsApart() throws Exception {
+      stubBackupCount(1);
+      // difference between these two timestamps overflows int and flips sign under the
+      // narrowing (int) cast, which used to sort the newer file first
+      stubZips("data-20260101000000.zip", "data-20230101000000.zip");
+
+      service.deleteRedundantBackupFiles();
+
+      verify(externalStorageService, times(1))
+         .delete("backup/data-20230101000000.zip");
+      verify(externalStorageService, never())
+         .delete("backup/data-20260101000000.zip");
+   }
+
+   // [G4] pruning is disabled unless asset.backup.count is a positive integer
+   @Test
+   void doesNotDeleteWhenBackupCountIsNotConfigured() throws Exception {
+      sreeEnvStatic.when(() -> SreeEnv.getProperty("asset.backup.count")).thenReturn(null);
+
+      service.deleteRedundantBackupFiles();
+
+      verify(externalStorageService, never()).listFiles(anyString());
+      verify(externalStorageService, never()).delete(anyString());
+   }
+
    // [G7] delete keys are joined with "/" regardless of the host File.separator
    @Test
    void deleteKeysUseForwardSlashRegardlessOfHostSeparator() throws Exception {
@@ -273,8 +326,8 @@ class DataSpaceSettingsServiceTest {
 
       service.deleteRedundantBackupFiles();
 
-      verify(externalStorageService, times(1)).delete(anyString());
-      verify(externalStorageService, never()).delete(anyString());
+      verify(externalStorageService, times(1)).delete("backup/data-20260101000000.zip");
+      verify(externalStorageService, never()).delete(contains("\\"));
    }
 
    // [G6] a value below 1 disables pruning, matching deleteRedundantBackupFiles's convention
