@@ -25,12 +25,16 @@ import inetsoft.sree.security.*;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.util.Identity;
 import inetsoft.web.admin.model.FileData;
+import inetsoft.web.admin.schedule.model.ImportTaskDialogModel;
 import inetsoft.web.admin.schedule.model.ImportTaskResponse;
+import inetsoft.web.admin.schedule.model.TaskDependencyModel;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
 import org.junit.jupiter.api.*;
 import org.mockito.*;
 
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.nio.charset.StandardCharsets;
 import java.security.Principal;
 import java.util.*;
@@ -353,6 +357,99 @@ class ImportTaskCrossOrgTest {
    }
 
    // ---------------------------------------------------------------------------------------
+   // Bug #77283, the selection is built from the rows returned by setTaskFile, as the EM
+   // import dialog does, instead of from the parsed task ids
+   // ---------------------------------------------------------------------------------------
+
+   @Test
+   void normalTask_exportedByWriteXML_selectedFromRows_isImported() throws Exception {
+      ScheduleTask exported = new ScheduleTask("Backdoor");
+      exported.setOwner(new IdentityID("admin", ORG_A));
+      exported.addCondition(new NeverRunCondition());
+      StringWriter xml = new StringWriter();
+      exported.writeXML(new PrintWriter(xml));
+
+      List<TaskDependencyModel> rows = parse(xml.toString()).tasks();
+
+      assertEquals(1, rows.size());
+      assertEquals("Backdoor", rows.get(0).task(), "the display name stays the bare name");
+      assertEquals("admin~;~" + ORG_A + ":Backdoor", rows.get(0).taskId());
+
+      ImportTaskResponse response = importRows(rows, false);
+
+      assertTrue(response.failedTasks().isEmpty(), response.failedTasks().toString());
+      verify(scheduleManager, times(1)).setScheduleTask(eq("admin~;~" + ORG_A + ":Backdoor"),
+                                                        any(ScheduleTask.class), eq(caller));
+   }
+
+   @Test
+   void internalTask_selectedFromRows_isImported() throws Exception {
+      asSiteAdmin(HOST_ORG);
+      List<TaskDependencyModel> rows = parse(
+         task(InternalScheduledTaskService.ASSET_FILE_BACKUP, "INETSOFT_SYSTEM~;~" + HOST_ORG,
+              "INTERNAL_TASK", "removable=\"false\" editable=\"false\"",
+              NEVER_RUN + "<Action type=\"AssetFileBackup\"/>")).tasks();
+
+      assertEquals(InternalScheduledTaskService.ASSET_FILE_BACKUP, rows.get(0).taskId());
+
+      ImportTaskResponse response = importRows(rows, false);
+
+      assertTrue(response.failedTasks().isEmpty(), response.failedTasks().toString());
+      verify(scheduleManager, times(1)).setScheduleTask(
+         eq(InternalScheduledTaskService.ASSET_FILE_BACKUP), any(ScheduleTask.class), eq(caller));
+   }
+
+   // the owner is remapped to the importing org, the row carries the remapped id
+   @Test
+   void remappedOwner_selectedFromRows_isImported() throws Exception {
+      List<TaskDependencyModel> rows = parse(task("X", "bob~;~orgb", null, null, NEVER_RUN))
+         .tasks();
+
+      assertEquals("X", rows.get(0).task());
+      assertEquals("bob~;~" + ORG_A + ":X", rows.get(0).taskId());
+
+      importRows(rows, false);
+
+      verify(scheduleManager, times(1)).setScheduleTask(eq("bob~;~" + ORG_A + ":X"),
+                                                        any(ScheduleTask.class), eq(caller));
+   }
+
+   // the same name under two owners must stay distinguishable, selecting one row imports only it
+   @Test
+   void sameNameDifferentOwners_onlySelectedRowIsImported() throws Exception {
+      List<TaskDependencyModel> rows = parse(
+         task("Nightly", "alice~;~orga", null, null, NEVER_RUN) +
+         task("Nightly", "bob~;~orga", null, null, NEVER_RUN)).tasks();
+
+      assertEquals(List.of("Nightly", "Nightly"),
+                   rows.stream().map(TaskDependencyModel::task).toList());
+
+      importRows(List.of(rows.get(1)), false);
+
+      verify(scheduleManager, times(1)).setScheduleTask(eq("bob~;~" + ORG_A + ":Nightly"),
+                                                        any(ScheduleTask.class), eq(caller));
+      verify(scheduleManager, never()).setScheduleTask(eq("alice~;~" + ORG_A + ":Nightly"),
+                                                       any(ScheduleTask.class),
+                                                       any(Principal.class));
+   }
+
+   // the Bug #77259 checks now apply to the rows the stock dialog sends
+   @Test
+   void internalContent_selectedFromRows_isStillRefused() throws Exception {
+      List<TaskDependencyModel> rows = parse(
+         task("Backup", "admin~;~orga", "NORMAL_TASK", null,
+              NEVER_RUN + "<Action type=\"AssetFileBackup\"/>") +
+         task("Nightly", "admin~;~orga", "INTERNAL_TASK", null, NEVER_RUN)).tasks();
+
+      ImportTaskResponse response = importRows(rows, false);
+
+      assertEquals(Set.of("admin~;~orga:Backup", "Nightly"),
+                   new HashSet<>(response.failedTasks()));
+      verify(scheduleManager, never()).setScheduleTask(anyString(), any(ScheduleTask.class),
+                                                       any(Principal.class));
+   }
+
+   // ---------------------------------------------------------------------------------------
 
    private void asOrgAdmin() throws Exception {
       caller = principal("admin", ORG_A);
@@ -388,9 +485,21 @@ class ImportTaskCrossOrgTest {
    private ImportTaskResponse importAll(boolean overwriting) throws Exception {
       @SuppressWarnings("unchecked")
       List<ScheduleTask> parsed = (List<ScheduleTask>) sessionAttrs.get(INFO_ATTR);
-      // the task ids are sent directly, the stock EM dialog sends the bare names
+      // the task ids are sent directly, importRows() sends what the EM dialog sends
       List<String> ids = parsed.stream().map(ScheduleTask::getTaskId).toList();
       return controller.importScheduleTask(ids, request, overwriting, "http://host", caller);
+   }
+
+   /**
+    * Sends the selection the EM import dialog builds from the setTaskFile rows.
+    */
+   private ImportTaskResponse importRows(List<TaskDependencyModel> rows, boolean overwriting)
+      throws Exception
+   {
+      List<String> selected = rows.stream()
+         .map(row -> row.taskId() != null ? row.taskId() : row.task())
+         .toList();
+      return controller.importScheduleTask(selected, request, overwriting, "http://host", caller);
    }
 
    private ScheduleTask importAndCapture(boolean overwriting) throws Exception {
@@ -402,13 +511,13 @@ class ImportTaskCrossOrgTest {
       return captor.getAllValues().isEmpty() ? null : captor.getValue();
    }
 
-   private void parse(String content) throws Exception {
+   private ImportTaskDialogModel parse(String content) throws Exception {
       String xml = "<schedule>" + content + "</schedule>";
       FileData file = FileData.builder()
          .name("tasks.xml")
          .content(Base64.getEncoder().encodeToString(xml.getBytes(StandardCharsets.UTF_8)))
          .build();
-      controller.setTaskFile(file, request, caller);
+      return controller.setTaskFile(file, request, caller);
    }
 
    private static String task(String name, String owner, String type, String extra,
