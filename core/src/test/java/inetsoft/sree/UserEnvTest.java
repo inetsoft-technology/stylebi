@@ -17,10 +17,14 @@
  */
 package inetsoft.sree;
 
+import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.IdentityID;
+import inetsoft.sree.security.SRPrincipal;
 import inetsoft.util.DataSpace;
 import org.junit.jupiter.api.*;
 import org.mockito.MockedStatic;
+
+import java.io.ByteArrayOutputStream;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -75,5 +79,83 @@ class UserEnvTest {
          ds.when(DataSpace::getDataSpace).thenReturn(space);
          assertDoesNotThrow(() -> UserEnv.removeUser(alice));
       }
+   }
+
+   @Test
+   void securityOnGuest_keepsValueForSessionWithoutUserFile() throws Exception {
+      SRPrincipal guestA = principal(ClientInfo.ANONYMOUS, "guestOrg1", "sessA");
+      SRPrincipal guestB = principal(ClientInfo.ANONYMOUS, "guestOrg1", "sessB");
+      DataSpace space = mock(DataSpace.class);
+
+      try(MockedStatic<DataSpace> ds = mockStatic(DataSpace.class);
+          MockedStatic<SUtil> sutil = mockStatic(SUtil.class);
+          MockedStatic<SreeEnv> ignored = mockStatic(SreeEnv.class))
+      {
+         ds.when(DataSpace::getDataSpace).thenReturn(space);
+         sutil.when(SUtil::isSecurityOn).thenReturn(true);
+
+         UserEnv.setProperty(guestA, "annotation", "false");
+
+         assertEquals("false", UserEnv.getProperty(guestA, "annotation"));
+         assertNull(UserEnv.getProperty(guestB, "annotation"));
+         verify(space, never()).getInputStream(anyString(), anyString());
+         verify(space, never()).beginTransaction();
+      }
+   }
+
+   @Test
+   void securityOffAnonymous_savesUserFile() throws Exception {
+      SRPrincipal anonymous = principal(ClientInfo.ANONYMOUS, "anonOrg2", "sessC");
+      DataSpace space = mockSpace();
+
+      try(MockedStatic<DataSpace> ds = mockStatic(DataSpace.class);
+          MockedStatic<SUtil> sutil = mockStatic(SUtil.class);
+          MockedStatic<SreeEnv> ignored = mockStatic(SreeEnv.class))
+      {
+         ds.when(DataSpace::getDataSpace).thenReturn(space);
+         sutil.when(SUtil::isSecurityOn).thenReturn(false);
+
+         UserEnv.setProperty(anonymous, "annotation", "false");
+
+         assertEquals("false", UserEnv.getProperty(anonymous, "annotation"));
+         verify(space).getInputStream(USER_DIR, "anonymous_anonOrg2.xml");
+         verify(space.beginTransaction()).newStream(USER_DIR, "anonymous_anonOrg2.xml");
+      }
+   }
+
+   @Test
+   void securityOnNamedUser_savesUserFile() throws Exception {
+      SRPrincipal alice = principal("alice", "namedOrg3", "sessD");
+      DataSpace space = mockSpace();
+
+      try(MockedStatic<DataSpace> ds = mockStatic(DataSpace.class);
+          MockedStatic<SUtil> sutil = mockStatic(SUtil.class);
+          MockedStatic<SreeEnv> ignored = mockStatic(SreeEnv.class))
+      {
+         ds.when(DataSpace::getDataSpace).thenReturn(space);
+         sutil.when(SUtil::isSecurityOn).thenReturn(true);
+
+         UserEnv.setProperty(alice, "annotation", "false");
+
+         assertEquals("false", UserEnv.getProperty(alice, "annotation"));
+         verify(space).getInputStream(USER_DIR, "alice_namedOrg3.xml");
+         verify(space.beginTransaction()).newStream(USER_DIR, "alice_namedOrg3.xml");
+      }
+   }
+
+   private static SRPrincipal principal(String name, String orgID, String session) {
+      IdentityID identity = new IdentityID(name, orgID);
+      SRPrincipal principal = mock(SRPrincipal.class);
+      when(principal.getName()).thenReturn(identity.convertToKey());
+      when(principal.getUser()).thenReturn(new ClientInfo(identity, "127.0.0.1", session));
+      return principal;
+   }
+
+   private static DataSpace mockSpace() throws Exception {
+      DataSpace space = mock(DataSpace.class);
+      DataSpace.Transaction tx = mock(DataSpace.Transaction.class);
+      when(space.beginTransaction()).thenReturn(tx);
+      when(tx.newStream(anyString(), anyString())).thenReturn(new ByteArrayOutputStream());
+      return space;
    }
 }

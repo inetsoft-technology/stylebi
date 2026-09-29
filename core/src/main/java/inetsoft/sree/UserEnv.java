@@ -240,8 +240,10 @@ public class UserEnv {
    /**
     * Check if a user was supported to use userEnv to
     * save it's user data.
-    * Anonymous is only supported when the property
-    * anonymous.userdata.save was set to true.
+    * A null principal is only supported when the property
+    * anonymous.userdata.save was set to true. The guest (anonymous) user is
+    * supported, but see {@link #isSessionOnlyGuest(Principal)} for when its
+    * properties are kept in memory only.
     */
    public static boolean supportedUser(Principal user) {
       if(user == null ||
@@ -251,6 +253,23 @@ public class UserEnv {
       }
 
       return true;
+   }
+
+   /**
+    * Check if the user is the guest (anonymous) user of a secured installation whose
+    * properties must not be shared through the per-org anonymous user file. Such a
+    * guest keeps its properties for its own session only, unless the property
+    * anonymous.userdata.save was set to true. With security disabled, every request
+    * is anonymous, so the anonymous user file is kept as the only user data.
+    */
+   private static boolean isSessionOnlyGuest(Principal user) {
+      if(user == null || user.getName() == null) {
+         return false;
+      }
+
+      IdentityID identity = IdentityID.getIdentityIDFromKey(user.getName());
+      return identity != null && ClientInfo.ANONYMOUS.equals(identity.getName()) &&
+         !enableAnonymous.get() && SUtil.isSecurityOn();
    }
 
    /**
@@ -299,6 +318,18 @@ public class UserEnv {
       }
 
       Object key = getKey(user);
+
+      if(isSessionOnlyGuest(user)) {
+         // only a ClientInfo key is per session, a name key is shared by all guests
+         if(!(key instanceof ClientInfo)) {
+            return new Hashtable<>();
+         }
+
+         synchronized(propmap) {
+            return propmap.computeIfAbsent(key, k -> new Hashtable<>());
+         }
+      }
+
       Map<String, Object> prop = propmap.get(key);
       DataSpace space = DataSpace.getDataSpace();
       boolean changed = false;
@@ -412,6 +443,16 @@ public class UserEnv {
       }
 
       Object key0 = getKey(user);
+
+      if(isSessionOnlyGuest(user)) {
+         if(key0 instanceof ClientInfo) {
+            synchronized(propmap) {
+               propmap.put(key0, prop);
+            }
+         }
+
+         return;
+      }
 
       synchronized(propmap) {
          propmap.put(key0, prop);
