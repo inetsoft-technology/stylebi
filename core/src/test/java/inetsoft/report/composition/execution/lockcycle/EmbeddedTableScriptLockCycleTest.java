@@ -21,8 +21,13 @@ import inetsoft.report.composition.execution.*;
 import inetsoft.sree.SreeEnv;
 import inetsoft.test.*;
 import inetsoft.uql.ColumnSelection;
+import inetsoft.uql.ConditionItem;
+import inetsoft.uql.ConditionList;
+import inetsoft.uql.XCondition;
+import inetsoft.uql.asset.AssetCondition;
 import inetsoft.uql.asset.ColumnRef;
 import inetsoft.uql.asset.EmbeddedTableAssembly;
+import inetsoft.uql.asset.SubQueryValue;
 import inetsoft.uql.asset.Worksheet;
 import inetsoft.uql.erm.ExpressionRef;
 import inetsoft.uql.schema.XSchema;
@@ -168,6 +173,83 @@ public class EmbeddedTableScriptLockCycleTest {
 
       assertEquals(2, harness.await(script.future, KNOWN_CAP, "X's formula reading A by name"));
       assertEquals(6, harness.await(populator.future, KNOWN_CAP, "populator of A"));
+   }
+
+   /**
+    * Review round 1 finding on this bug: {@code table} needs no expression column of its own
+    * for the cycle to form. A has none; its pre-condition is {@code id one of (subquery on
+    * B.bx)}, and B (the sub-query's sub table) has the expression column instead. {@code
+    * AssetQuery.getRuntimeTableLens} chains the pre-condition onto A's base lens before its
+    * row-forcing second {@code validateDataTypes} call, still inside this class's
+    * {@code synchronized(table)} for A -- so building A can still reach the script engine for
+    * B's sake, exactly as it can for a column of its own. No {@code Distinct} or async worker
+    * is involved: this is a strictly simpler reproduction than {@code
+    * SubQueryConditionWorksheetCycleTest.formulaReadsFilteredTableFirst}, whose own, different
+    * (worker-lending) cycle only starts after A's build has already finished -- this one never
+    * lets A's build finish at all.
+    *
+    * <p>Before round 2 of this fix, {@code hasOwnScriptColumn(A)} was {@code false} (A has no
+    * own column), so A's builder took no lock before its monitor here, exactly as the
+    * plain-column case did before round 1's fix -- deadlocking against X's builder the same
+    * way. A's builder is gated inside its own base data's first read (the same point
+    * {@link #formulaReadsPlainEmbeddedTableByName} uses), which happens before A's
+    * pre-condition is ever processed, so it parks holding only what a same-order build would
+    * already hold at that point.
+    */
+   @Test
+   public void formulaReadsTableWithSubQuerySubTableScriptColumn() throws Exception {
+      Gate gate = harness.gate();
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly a = embedded(ws, "A", 5, gate);
+      // same ids as A, so "id one of (subquery on B.bx)" keeps every row of A -- the
+      // sub-query's presence is what this test exercises, not its filtering.
+      EmbeddedTableAssembly b = embedded(ws, "B", 5, null);
+      expression(b, "bx", "field['id'] * 1");
+      subQueryCondition(ws, a, b);
+      EmbeddedTableAssembly x = embedded(ws, "X", 1, null);
+      expression(x, "alen", "A.length");
+      box = sandbox(ws);
+      lock = box.getScriptEnv().getExecutionLock();
+
+      // A is built on a thread holding no lock, as an ordinary request would; it parks inside
+      // its own base data's first read, before its pre-condition's sub-query on B is ever
+      // touched.
+      Started<Integer> populator = harness.startGated(gate,
+         () -> drain(box.getTableLens("A", AssetQuerySandbox.RUNTIME_MODE)).size());
+      assertTrue(gate.awaitEntered(KNOWN_CAP), "A's builder did not reach its base data");
+
+      // X is also an ordinary request, not a script thread of anything, until its own formula
+      // (A.length) starts running inside exec(); building X's own container takes the same
+      // engine lock first (the fix), so it queues behind A's builder rather than reaching A's
+      // monitor while holding the lock.
+      Started<Integer> script = harness.start(
+         () -> drain(box.getTableLens("X", AssetQuerySandbox.RUNTIME_MODE)).size());
+      awaitIn(script, KNOWN_CAP, "LendableReentrantLock.lock");
+      gate.release();
+
+      assertEquals(2, harness.await(script.future, KNOWN_CAP, "X's formula reading A by name"));
+      assertEquals(6, harness.await(populator.future, KNOWN_CAP, "populator of A"));
+   }
+
+   /**
+    * Add the pre-condition {@code a.id one of (subquery on b.bx)} -- the shape
+    * {@code SubQueryConditionWorksheetCycleTest.subQueryCondition} uses (uncorrelated), minus
+    * the {@code grp} column that test's correlated variant needs and this one does not.
+    */
+   private static void subQueryCondition(Worksheet ws, EmbeddedTableAssembly a,
+                                         EmbeddedTableAssembly b)
+   {
+      SubQueryValue sub = new SubQueryValue();
+      sub.setQuery(b.getName());
+      sub.setAttribute(b.getColumnSelection(false).getAttribute("bx"));
+      sub.update(ws);
+      AssetCondition condition = new AssetCondition();
+      condition.setOperation(XCondition.ONE_OF);
+      condition.setType(XSchema.INTEGER);
+      condition.addValue(sub);
+      ConditionList list = new ConditionList();
+      list.append(new ConditionItem(a.getColumnSelection(false).getAttribute("id"), condition, 0));
+      a.setPreConditionList(list);
    }
 
    /**
