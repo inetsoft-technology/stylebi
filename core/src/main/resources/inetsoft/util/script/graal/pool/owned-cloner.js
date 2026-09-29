@@ -48,6 +48,7 @@
    const R = Reflect, gOPD = R.getOwnPropertyDescriptor, ownKeys = R.ownKeys,
       getProto = R.getPrototypeOf, setProto = R.setPrototypeOf, isExt = R.isExtensible,
       defProp = R.defineProperty, preventExt = R.preventExtensions, isArray = Array.isArray,
+      isView = ArrayBuffer.isView,
       hasOwn = Object.hasOwn, create = Object.create, freeze = Object.freeze,
       seal = Object.seal,
       OP = Object.prototype, AP = Array.prototype, DP = Date.prototype, Dt = Date,
@@ -55,6 +56,8 @@
       jparse = JSON.parse, getTime = call.bind(DP.getTime), M = Map,
       mget = call.bind(M.prototype.get), mset = call.bind(M.prototype.set),
       mdel = call.bind(M.prototype.delete), Big = BigInt, strFn = String,
+      MP = M.prototype, SP = Set.prototype, mapEach = call.bind(MP.forEach),
+      setEach = call.bind(SP.forEach),
       charCode = call.bind(String.prototype.charCodeAt), join = call.bind(AP.join),
       SYM = 'symbol', STOP = freeze(create(null));
    const PROTO_KEY = '__proto__';
@@ -150,27 +153,39 @@
    // created again), each with its own kind. The other roots are kept, with aliases and cycles
    // among them. Past the time bound every root is lost: sharing can no longer be checked.
    //
-   // It runs passes until one loses no new root; a pass after a loss first marks the object
-   // graph of every lost root (own data properties only, so no getter runs; a Proxy or foreign
-   // object is marked but not entered, as the host tells them apart without a trap; a host
-   // object, kept by reference, is not marked).
-   // An alias only through a Map or Set, a closure or an accessor is not seen.
+   // It runs passes until one loses no new root; each lost root's object graph is marked
+   // once, for every later pass (own data properties only, of objects and functions, so no
+   // getter runs; a Proxy (a callable one too), a host object or a foreign object is marked
+   // but not entered, as the host tells them apart without a trap: a lost var's init creates
+   // a new host object, so a kept alias to the old one would split; a typed array or DataView
+   // is marked but not entered, its elements are primitives; the entries of a Map or Set are
+   // marked, with the intrinsic forEach). Marking counts against the entry cap and the time
+   // bound: past either every root is lost, as sharing can no longer be checked.
+   // An alias only through a closure, a getter, a WeakMap or WeakSet, a Map or Set of a
+   // subclass or a typed array's named property is not seen.
    function snap(roots, maxEntries, maxMillis) {
       const put = putter(protoClean());
       const deadline = now() + maxMillis;
       const TIME = 'a value that took longer than ' + maxMillis + ' ms to save';
+      const MARKS = 'a value that could not be checked for an object shared with a ' +
+         'variable whose value is not kept, which has more than ' + maxEntries + ' entries';
       const rl = roots.length;
       // why each root is lost, or undefined while it is kept (no hole: never read through
       // the prototype)
       const lost = [];
-      let nlost = 0, late = false, changed = false;
+      // whether each lost root's graph is marked (once for all passes)
+      const marked = [];
+      // the objects of the lost roots' graphs (all passes) -> the lost root
+      const tainted = new M();
+      let nlost = 0, late = false, changed = false, marks = 0;
 
       for(let i = 0; i < rl; i++) {
          put(lost, i, undefined);
+         put(marked, i, false);
       }
 
       // the state of one pass
-      let ids, tainted, parts, pending, enc, own;
+      let ids, parts, pending, enc, own;
       let pl = 0, pn = 0, done = 0, entries = 0, steps = 0, why = '', hard = false, root = 0;
 
       function lose(i, k) {
@@ -458,10 +473,30 @@
          }
       }
 
+      // an object or a function (whose own data properties are marked too)
+      function isObj(x) {
+         return x !== null && (typeof x === 'object' || typeof x === 'function');
+      }
+
+      // n more entries walked to mark the lost roots, against the entry cap of the hand-off
+      function markTick(n) {
+         marks += n;
+         steps += n;
+
+         if(marks > maxEntries) {
+            stopHard(MARKS);
+         }
+
+         if(steps >= 2048) {
+            steps = 0;
+            checkTime();
+         }
+      }
+
       // mark the object graph of the lost root j: a kept root of this pass that holds one of
       // its objects is lost too, and a later root that reaches one is lost in ref()
       function mark(v, j) {
-         if(typeof v !== 'object' || v === null) {
+         if(!isObj(v)) {
             return;
          }
 
@@ -477,8 +512,7 @@
                const o = front[k];
                const h = charCode(kinds, k) - 48;
 
-               // a host object is kept by reference, never copied: sharing it splits nothing
-               if(h === 2 || mget(tainted, o) !== undefined) {
+               if(mget(tainted, o) !== undefined) {
                   continue;
                }
 
@@ -489,9 +523,19 @@
                   lose(own[id], SHARED);
                }
 
-               // a Proxy, a value of another engine: marked, not entered
-               if(h === 1 || h === 4) {
+               // a Proxy, a host object, a value of another engine: marked, not entered; a
+               // typed array or DataView holds only primitives: never list its elements
+               if(h === 1 || h === 2 || h === 4 || isView(o)) {
                   continue;
+               }
+
+               // an array too long for the cap is refused before its keys are listed
+               if(isArray(o)) {
+                  const len = gOPD(o, 'length').value;
+
+                  if(marks + len > maxEntries) {
+                     stopHard(MARKS);
+                  }
                }
 
                const keys = ownKeys(o);
@@ -502,15 +546,30 @@
                   if(d !== undefined && hasOwn(d, 'value')) {
                      const x = d.value;
 
-                     if(typeof x === 'object' && x !== null && mget(tainted, x) === undefined) {
+                     if(isObj(x) && mget(tainted, x) === undefined) {
                         put(next, nl++, x);
                      }
                   }
 
-                  if(++steps >= 2048) {
-                     steps = 0;
-                     checkTime();
-                  }
+                  markTick(1);
+               }
+
+               // a Map's keys and values, a Set's values (the intrinsic forEach of a Map or Set
+               // runs no user code; one of a subclass is not entered)
+               const p = getProto(o);
+
+               if(p === MP || p === SP) {
+                  (p === MP ? mapEach : setEach)(o, function(x, y) {
+                     if(isObj(x) && mget(tainted, x) === undefined) {
+                        put(next, nl++, x);
+                     }
+
+                     if(p === MP && isObj(y) && mget(tainted, y) === undefined) {
+                        put(next, nl++, y);
+                     }
+
+                     markTick(1);
+                  });
                }
             }
 
@@ -519,20 +578,25 @@
          }
       }
 
-      // mark the lost root j while another root is kept. Anything but a time-out that stops
-      // it loses every root, as sharing cannot be checked
+      // mark the lost root j once, while another root is kept. Anything that stops it loses
+      // every root, as sharing cannot be checked (a time-out: at the end, as TIME)
       function markLost(j) {
-         if(nlost >= rl) {
+         if(nlost >= rl || marked[j]) {
             return;
          }
+
+         put(marked, j, true);
 
          try {
             mark(roots[j], j);
          }
          catch(e) {
+            const k = e === STOP ? why : UNREAD;
+            hard = false;
+
             if(!late) {
                for(let r = 0; r < rl; r++) {
-                  lose(r, UNREAD);
+                  lose(r, k);
                }
             }
          }
@@ -575,7 +639,6 @@
 
       function pass() {
          ids = new M();
-         tainted = new M();
          parts = [];
          pending = [];
          enc = [];

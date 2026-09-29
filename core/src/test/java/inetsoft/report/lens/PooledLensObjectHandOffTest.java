@@ -93,6 +93,8 @@ class PooledLensObjectHandOffTest {
    void retire() {
       logger.detachAppender(appender);
       SreeEnv.remove(MAX_HOMES);
+      SreeEnv.remove(HAND_OFF_MILLIS);
+      SreeEnv.remove(HAND_OFF_ENTRIES);
 
       for(WorksheetScriptEnv env : envs) {
          env.retire();
@@ -186,7 +188,8 @@ class PooledLensObjectHandOffTest {
     * T1 fuzz: three vars of random nested objects and arrays, with Dates, host objects and at
     * most one value that is not kept per var (a Proxy, a function, a Map, a getter) at random
     * positions. At a hand-off each var is either exact (its counter, its Date and its shape)
-    * or lost with one warning naming what it held; no user code runs.
+    * or lost with one warning naming what it held (or, round 3, that it shares the probe, a
+    * host object, with a lost var); no user code runs.
     */
    @ParameterizedTest(name = "seed {0}")
    @MethodSource("seeds")
@@ -240,10 +243,23 @@ class PooledLensObjectHandOffTest {
          v[0] = crossSlot("takeover", formula);
       });
       assertEquals(0, probe.hits(), () -> "no user code ran: " + formula);
+      // A3 (round 3, R1): a var that holds the probe, a host object, which a lost var holds
+      // too is lost as well, as the lost var's init could create that object again
+      // (a var lost for its own value that reaches the probe first may be reported as either)
+      String shared = "an object that it shares with a variable whose value is not kept";
+      String[] kinds = new String[vars];
+      boolean[] either = new boolean[vars];
       int lostBits = 0;
 
       for(int i = 0; i < vars; i++) {
-         if(shapes.get(i).lostKind != null) {
+         Shape s = shapes.get(i);
+         int me = i;
+         boolean hostOfLost = s.host && IntStream.range(0, vars).anyMatch(
+            j -> j != me && shapes.get(j).lostKind != null && shapes.get(j).host);
+         kinds[i] = s.lostKind != null ? s.lostKind : hostOfLost ? shared : null;
+         either[i] = s.lostKind != null && hostOfLost;
+
+         if(kinds[i] != null) {
             lostBits |= 1 << i;
          }
       }
@@ -260,14 +276,15 @@ class PooledLensObjectHandOffTest {
       for(int i = 0; i < vars; i++) {
          String var = "\"v" + i + "\"";
          List<String> mine = warns.stream().filter(w -> w.contains(var)).toList();
-         Shape s = shapes.get(i);
+         String kind = kinds[i];
 
-         if(s.lostKind == null) {
+         if(kind == null) {
             assertTrue(mine.isEmpty(), () -> var + " is kept: " + mine + " " + formula);
          }
          else {
             assertEquals(1, mine.size(), () -> var + ": " + mine + " " + formula);
-            assertTrue(mine.get(0).contains(var + " holds " + s.lostKind),
+            assertTrue(mine.get(0).contains(var + " holds " + kind) ||
+                       either[i] && mine.get(0).contains(var + " holds " + shared),
                        () -> mine.get(0) + " " + formula);
          }
       }
@@ -318,13 +335,31 @@ class PooledLensObjectHandOffTest {
     * two never split into a stale alias; a plain var next to them is kept.
     */
    @ParameterizedTest(name = "{0}")
-   @ValueSource(strings = { "intoLost", "lostInto", "rootAlias" })
+   @ValueSource(strings = { "intoLost", "hostIntoLost", "hostMadeIntoLost", "mapIntoLost",
+                            "fnPropIntoLost", "lostInto", "rootAlias" })
    void anAliasIntoALostVarIsLostToo(String what) throws Exception {
       // each: (x === y ? 1 : -1) * (t.n * 10000 + count), where x and y must stay one object
       String f = "var t = t || {n: 0}; t.n++; " + switch(what) {
          // a points into b, which holds a function
          case "intoLost" -> "var b = b || {y: {n: 0}, f: function(x) { return x; }}; " +
             "var a = a || {x: b.y}; b.y.n++; (a.x === b.y ? 1 : -1) * (t.n * 10000 + a.x.n)";
+         // the same with a host object, which b's init creates again (round 3, R1)
+         case "hostIntoLost" -> "var b = b || {y: new java.util.HashMap(), " +
+            "f: function(x) { return x; }}; var a = a || {x: b.y}; " +
+            "b.y.put('n', (b.y.containsKey('n') ? b.y.get('n') : 0) + 1); " +
+            "(a.x === b.y ? 1 : -1) * (t.n * 10000 + a.x.get('n'))";
+         // a host list made by a factory (round 3, tester's T2-H probe)
+         case "hostMadeIntoLost" -> "var b = b || {h: factory.list(), " +
+            "f: function(x) { return x; }}; var a = a || {h: b.h}; b.h.add(1); " +
+            "(a.h === b.h ? 1 : -1) * (t.n * 10000 + a.h.size())";
+         // an object in a lost function's own property (round 3, tester's fnProps probe)
+         case "fnPropIntoLost" -> "var g = g || (function() { var h = function() {}; " +
+            "h.s = {n: 0}; return h; })(); var q = q || g.s; g.s.n++; " +
+            "(g.s === q ? 1 : -1) * (t.n * 10000 + q.n)";
+         // the same through a Map's value (round 3, tester finding)
+         case "mapIntoLost" -> "var b = b || {f: function(x) { return x; }, " +
+            "m: new Map([['k', {n: 0}]])}; var a = a || {x: b.m.get('k')}; " +
+            "b.m.get('k').n++; (a.x === b.m.get('k') ? 1 : -1) * (t.n * 10000 + a.x.n)";
          // b, which holds a function, points into a
          case "lostInto" -> "var a = a || {y: {n: 0}}; " +
             "var b = b || {y: a.y, f: function(x) { return x; }}; a.y.n++; " +
@@ -355,13 +390,180 @@ class PooledLensObjectHandOffTest {
       assertTrue(restart > 200, what + ": the values were lost at the hand-off: " + restart);
       List<String> warns = warningTexts();
       assertEquals(2, warns.size(), () -> "one warning per lost var: " + warns);
-      String owner = what.equals("rootAlias") ? "p" : "b";
-      String alias = what.equals("rootAlias") ? "q" : "a";
+      String owner = what.equals("rootAlias") ? "p" : what.equals("fnPropIntoLost") ? "g" : "b";
+      String alias = what.equals("rootAlias") || what.equals("fnPropIntoLost") ? "q" : "a";
       assertTrue(warns.stream().anyMatch(w -> w.contains("\"" + owner + "\" holds a function")),
                  () -> "" + warns);
       assertTrue(warns.stream().anyMatch(w -> w.contains("\"" + alias + "\" holds an object " +
          "that it shares with a variable whose value is not kept")), () -> "" + warns);
       assertTrue(warns.stream().noneMatch(w -> w.contains("\"t\"")), () -> "" + warns);
+   }
+
+   /**
+    * Round 3, R5: a chain (c shares only with b, which shares with the lost l, in an order
+    * that needs a pass per link) and a cycle through the lost var are lost whole, each var
+    * with its own warning, and re-created as one graph; t next to them is kept.
+    */
+   @ParameterizedTest(name = "{0}")
+   @ValueSource(strings = { "chain", "cycle" })
+   void aChainOrACycleThroughALostVarIsLostWhole(String what) throws Exception {
+      String f = "var t = t || {n: 0}; t.n++; " + switch(what) {
+         case "chain" -> "var c = c || {w: {n: 0}}; var b = b || {w: c.w, z: {}}; " +
+            "var l = l || {y: b.z, f: function(x) { return x; }}; c.w.n++; " +
+            "(c.w === b.w && b.z === l.y ? 1 : -1) * (t.n * 10000 + c.w.n)";
+         default -> "var l = l || {y: {n: 0}, f: function(x) { return x; }}; " +
+            "var a = a || {x: l.y}; if(!l.y.a) l.y.a = a; l.y.n++; " +
+            "(a.x === l.y && l.y.a === a ? 1 : -1) * (t.n * 10000 + a.x.n)";
+      };
+      double[] v = crossSlot("handoff", f);
+      int restart = 0;
+      double prev = 0;
+
+      for(int r = 1; r <= ROWS; r++) {
+         assertTrue(v[r] > 0, what + ": the vars split at row " + r + ": " + v[r]);
+         assertEquals(r, Math.floor(v[r] / 10000), what + ": t is kept, row " + r);
+         double n = v[r] % 10000;
+
+         if(n != prev + 1) {
+            assertEquals(1, n, what + ": the shared object starts over at row " + r);
+            restart = restart == 0 ? r : restart;
+         }
+
+         prev = n;
+      }
+
+      assertTrue(restart > 200, what + ": the values were lost at the hand-off: " + restart);
+      List<String> warns = warningTexts();
+      String[] shared = what.equals("chain") ? new String[] { "b", "c" } : new String[] { "a" };
+      assertEquals(shared.length + 1, warns.size(), () -> "one warning per lost var: " + warns);
+      assertTrue(warns.stream().anyMatch(w -> w.contains("\"l\" holds a function")),
+                 () -> "" + warns);
+
+      for(String s : shared) {
+         assertTrue(warns.stream().anyMatch(w -> w.contains("\"" + s + "\" holds an object " +
+            "that it shares with a variable whose value is not kept")), () -> s + ": " + warns);
+      }
+
+      assertTrue(warns.stream().noneMatch(w -> w.contains("\"t\"")), () -> "" + warns);
+   }
+
+   /**
+    * Round 3: marking a lost var enters its functions' own data properties, but never a
+    * callable Proxy (the host tells it apart without a trap): no trap runs, and a var that
+    * shares nothing with it is kept exactly.
+    */
+   @Test
+   void markingALostVarRunsNoTrapOfACallableProxy() throws Exception {
+      String f = "var b = b || {f: function(x) { return x; }, " +
+         "p: {g: new Proxy(function() {}, " + TRAPS + ")}}; b.f.s = b.f.s || {m: b.p}; " +
+         "var a = a || {n: 0}; a.n++; a.n";
+      double[] v = crossSlot("handoff", f);
+      assertAll(v, "a is kept");
+      assertEquals(0, probe.hits(), "no trap ran");
+      List<String> warns = warningTexts();
+      assertEquals(1, warns.size(), () -> "one warning: " + warns);
+      assertTrue(warns.get(0).contains("\"b\" holds a function"), warns.get(0));
+   }
+
+   /**
+    * Round 3, R5: past the time bound every object var of the table is lost, each with its
+    * own warning, not only the one that was being saved; a number var is kept.
+    */
+   @Test
+   void pastTheTimeBoundEveryObjectVarIsLost() throws Exception {
+      SreeEnv.setProperty(HAND_OFF_MILLIS, "1");
+      AssetQuerySandbox box = box();
+      WorksheetScriptEnv w = (WorksheetScriptEnv) box.getScriptEnv();
+      TableLens t = make(box, base(ROWS), "var c = c || (function() { var o = {}; " +
+         "for(var i = 0; i < 50000; i++) o['k' + i] = {n: i}; return o; })(); " +
+         "var d = d || {n: 0}; d.n++; var k = (k || 0) + 1; k", "T");
+      double[] v = new double[ROWS + 1];
+      read(t, v, 1, 20);
+      PoolTestSupport.handOffIdleHomes(w);
+      read(t, v, 21, 40);
+
+      for(int r = 1; r <= 40; r++) {
+         assertEquals(r, v[r], "k is a number, kept: row " + r);
+      }
+
+      List<String> warns = warningTexts();
+      assertEquals(2, warns.size(), () -> "one warning per object var: " + warns);
+
+      for(String var : new String[] { "c", "d" }) {
+         assertTrue(warns.stream().anyMatch(x -> x.contains("\"" + var +
+            "\" holds a value that took longer than")), () -> var + ": " + warns);
+      }
+   }
+
+   /**
+    * Round 3, R2: a large typed array is lost by its class without its elements being listed
+    * (a 10M-element buffer), fast, and an object var next to it is kept exactly.
+    */
+   @Test
+   void aLargeTypedArrayIsLostFastAndItsNeighbourIsKept() {
+      assertTimeoutPreemptively(Duration.ofSeconds(120), () -> {
+         AssetQuerySandbox box = box();
+         WorksheetScriptEnv w = (WorksheetScriptEnv) box.getScriptEnv();
+         TableLens t = make(box, base(ROWS), "var big = big || new Float64Array(10000000); " +
+            "big[0]++; var c = c || {n: 0}; c.n++; c.n", "T");
+         double[] v = new double[ROWS + 1];
+         read(t, v, 1, 20);
+         long t0 = System.nanoTime();
+         PoolTestSupport.handOffIdleHomes(w);
+         long ms = (System.nanoTime() - t0) / 1_000_000;
+         read(t, v, 21, 40);
+         System.out.println("B1OBJ typed array hand-off " + ms + " ms");
+         assertTrue(ms < 1500, "hand-off " + ms + " ms");
+
+         for(int r = 1; r <= 40; r++) {
+            assertEquals(r, v[r], "c is kept: row " + r);
+         }
+
+         List<String> warns = warningTexts();
+         assertEquals(1, warns.size(), () -> "one warning: " + warns);
+         assertTrue(warns.get(0).contains("\"big\" holds a typed array"), warns.get(0));
+      });
+   }
+
+   /**
+    * Round 3, R2: marking a lost var's objects counts against the entry cap. Past it, sharing
+    * cannot be checked, so every object var is lost, each with its own warning, and never
+    * read stale.
+    */
+   @Test
+   void markingPastTheEntryCapLosesEveryObjectVar() throws Exception {
+      SreeEnv.setProperty(HAND_OFF_ENTRIES, "100");
+      AssetQuerySandbox box = box();
+      WorksheetScriptEnv w = (WorksheetScriptEnv) box.getScriptEnv();
+      TableLens t = make(box, base(ROWS), "var b = b || {f: function(x) { return x; }, " +
+         "a: (function() { var x = []; for(var i = 0; i < 150; i++) x[i] = i; return x; })()}; " +
+         "var c = c || {n: 0}; c.n++; var k = (k || 0) + 1; k * 10000 + c.n", "T");
+      double[] v = new double[ROWS + 1];
+      read(t, v, 1, 20);
+      PoolTestSupport.handOffIdleHomes(w);
+      read(t, v, 21, ROWS);
+      // rows past 20 may have run before the hand-off: c goes on, then starts over once
+      int restart = 0;
+
+      for(int r = 1; r <= ROWS; r++) {
+         assertEquals(r, Math.floor(v[r] / 10000), "k is kept: row " + r);
+         double n = v[r] % 10000;
+
+         if(r > 1 && n != v[r - 1] % 10000 + 1) {
+            assertEquals(1, n, "c starts over: row " + r);
+            assertEquals(0, restart, "c starts over once: row " + r);
+            restart = r;
+         }
+      }
+
+      assertTrue(restart > 20, "c was lost at the hand-off: " + restart);
+
+      List<String> warns = warningTexts();
+      assertEquals(2, warns.size(), () -> "one warning per object var: " + warns);
+      assertTrue(warns.stream().anyMatch(x -> x.contains("\"b\" holds a function")),
+                 () -> "" + warns);
+      assertTrue(warns.stream().anyMatch(x -> x.contains("\"c\" holds a value that could " +
+         "not be checked")), () -> "" + warns);
    }
 
    /**
@@ -515,7 +717,8 @@ class PooledLensObjectHandOffTest {
    // --- random shapes ---
 
    /** A var's literal, the paths to its counter object and its Date, what it cannot keep. */
-   record Shape(String js, String counter, String clock, String lostKind) {
+   // host: whether a probe (a host object shared by every var that holds it) is in it
+   record Shape(String js, String counter, String clock, String lostKind, boolean host) {
    }
 
    private static final class Node {
@@ -545,6 +748,7 @@ class PooledLensObjectHandOffTest {
       Node root = new Node(rnd.nextBoolean());
       List<Node> all = new ArrayList<>(List.of(root));
       int containers = rnd.nextInt(4);
+      boolean host = false;
 
       for(int i = 0; i < containers; i++) {
          Node n = new Node(rnd.nextBoolean());
@@ -554,7 +758,9 @@ class PooledLensObjectHandOffTest {
 
       for(Node n : all) {
          for(int k = rnd.nextInt(4); k > 0; k--) {
-            insert(n, FILLERS[rnd.nextInt(FILLERS.length)], rnd);
+            String filler = FILLERS[rnd.nextInt(FILLERS.length)];
+            host |= filler.equals("probe");
+            insert(n, filler, rnd);
          }
       }
 
@@ -570,7 +776,7 @@ class PooledLensObjectHandOffTest {
 
       String[] paths = new String[2];
       String js = render(root, "", paths);
-      return new Shape(js, paths[0], paths[1], kind);
+      return new Shape(js, paths[0], paths[1], kind, host);
    }
 
    private static void insert(Node n, Object item, Random rnd) {
@@ -606,6 +812,13 @@ class PooledLensObjectHandOffTest {
 
    // --- helpers ---
 
+   /** Makes a host list, as a script's own Java helper would. */
+   public static final class Factory {
+      public List<Integer> list() {
+         return new ArrayList<>();
+      }
+   }
+
    /** Blocks the formula of one row once, on the first thread that computes it. */
    public static final class Gate {
       Gate(int row) {
@@ -637,6 +850,7 @@ class PooledLensObjectHandOffTest {
       AssetQuerySandbox box = box();
       WorksheetScriptEnv w = (WorksheetScriptEnv) box.getScriptEnv();
       w.put("probe", probe);
+      w.put("factory", new Factory());
       TableLens t = make(box, base(ROWS), formula, "T");
       double[] v = new double[ROWS + 1];
       read(t, v, 1, 200);
@@ -690,6 +904,8 @@ class PooledLensObjectHandOffTest {
    }
 
    private static final String MAX_HOMES = "script.ws.contextPool.maxHomes";
+   private static final String HAND_OFF_MILLIS = "script.ws.contextPool.handOffMillis";
+   private static final String HAND_OFF_ENTRIES = "script.ws.contextPool.handOffEntries";
    private static final int ROWS = 1200;
    private final List<WorksheetScriptEnv> envs = new ArrayList<>();
    private final PoolTestSupport.Probe probe = new PoolTestSupport.Probe();

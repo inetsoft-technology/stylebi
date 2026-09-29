@@ -398,7 +398,8 @@ public final class OwnedValueCodec {
     *         holds that is not kept (a function, a class instance, a Proxy, an accessor...);
     *         a refusal loses the root it was found in and every root that shares an object
     *         with that root, each with its own kind (A3), and no other root. Past the time
-    *         bound every root is lost.
+    *         bound every root is lost, and so it is past the entry cap while the lost roots
+    *         are checked for shared objects.
     */
    public Object[] snapshotTree(List<Value> roots) {
       Object[] nodes = new Object[roots.size()];
