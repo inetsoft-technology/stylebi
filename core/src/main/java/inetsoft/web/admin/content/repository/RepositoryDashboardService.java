@@ -210,8 +210,7 @@ public class RepositoryDashboardService {
          dashboard.setLastModified(System.currentTimeMillis());
          dashboard.setLastModifiedBy(identityID.getName());
 
-         registry.addDashboard(name, dashboard);
-         registry.save();
+         registry.putDashboard(name, dashboard);
          dependencyHandler.updateDashboardDependencies(owner, name, true);
 
          //security permission part
@@ -343,8 +342,7 @@ public class RepositoryDashboardService {
          dashboard.setCreatedBy(identityID.getName());
          dashboard.setLastModified(System.currentTimeMillis());
          dashboard.setLastModifiedBy(identityID.getName());
-         registry.addDashboard(dashboardName, dashboard);
-         registry.save();
+         registry.putDashboard(dashboardName, dashboard);
          Identity identity = securityEngine.isSecurityEnabled() ?
             contentRepositoryTreeService.getIdentity((XPrincipal) principal) :
             new DefaultIdentity(XPrincipal.ANONYMOUS, Identity.USER);
@@ -401,7 +399,6 @@ public class RepositoryDashboardService {
       dependencyHandler.updateDashboardDependencies(owner, path, false);
       Dashboard dashboard = registry.getDashboard(path);
       registry.removeDashboard(path);
-      registry.save();
 
       if(dashboard instanceof VSDashboard) {
          removeDashboardViewsheet((VSDashboard) dashboard);
