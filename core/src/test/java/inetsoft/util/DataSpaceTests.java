@@ -20,6 +20,7 @@ package inetsoft.util;
 import inetsoft.test.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -27,9 +28,12 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.util.HexFormat;
 import java.util.stream.Stream;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.*;
 
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
@@ -100,5 +104,46 @@ class DataSpaceTests {
          // placeholder immediately followed by the file name (no separator slash)
          Arguments.of(null, "$(sree.home)fs.xml", "fs.xml")
       );
+   }
+
+   /**
+    * Bug #77339: the registry save staleness token is the digest DataSpace reports. It must be the
+    * lower-case hex MD5 of the content, null for a missing file or a directory, and independent of
+    * the commit time.
+    */
+   @Test
+   void getDigestIdentifiesContentNotCommitTime() throws Exception {
+      DataSpace space = DataSpace.getDataSpace();
+      String dir = "test77339-digest";
+      String file = "content.txt";
+      byte[] first = "first".getBytes(StandardCharsets.UTF_8);
+      byte[] second = "second".getBytes(StandardCharsets.UTF_8);
+
+      try {
+         assertNull(space.getDigest(dir, file), "missing file");
+         space.withOutputStream(dir, file, out -> out.write(first));
+         String digest = space.getDigest(dir, file);
+         assertEquals(md5(first), digest);
+         assertTrue(space.isDirectory(dir), "the parent must be a stored directory");
+         assertNull(space.getDigest(null, dir), "directory");
+
+         long lastModified = space.getLastModified(dir, file);
+         space.withOutputStream(dir, file, lastModified, out -> out.write(second));
+         assertEquals(lastModified, space.getLastModified(dir, file));
+         assertEquals(md5(second), space.getDigest(dir, file),
+                      "a commit of other content in the same millisecond must change the digest");
+
+         space.withOutputStream(dir, file, lastModified + 1000, out -> out.write(first));
+         assertEquals(digest, space.getDigest(dir, file),
+                      "the same content committed at another time must keep the digest");
+      }
+      finally {
+         space.delete(dir, file);
+         space.delete(null, dir);
+      }
+   }
+
+   private static String md5(byte[] content) throws Exception {
+      return HexFormat.of().formatHex(MessageDigest.getInstance("MD5").digest(content));
    }
 }
