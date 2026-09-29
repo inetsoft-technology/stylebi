@@ -101,10 +101,9 @@ public class SubQueryConditionWorksheetCycleTest {
       harness = new LockCycleHarness();
 
       // the sandboxes of this class are real, so -Dlockcycle.pool reaches them through the
-      // property their env is chosen by
-      if(POOL) {
-         SreeEnv.setProperty(PoolConfig.ENABLED, "true");
-      }
+      // property their env is chosen by; set it either way, since the pool is on by default
+      // (Feature #77123) and this suite runs pool off unless -Dlockcycle.pool=true
+      SreeEnv.setProperty(PoolConfig.ENABLED, Boolean.toString(POOL));
    }
 
    @AfterEach
@@ -129,9 +128,7 @@ public class SubQueryConditionWorksheetCycleTest {
          }
       }
 
-      if(POOL) {
-         SreeEnv.remove(PoolConfig.ENABLED);
-      }
+      SreeEnv.remove(PoolConfig.ENABLED);
    }
 
    /**

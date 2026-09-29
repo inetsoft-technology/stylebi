@@ -53,6 +53,35 @@ public class ScriptPoolModeSandboxTest {
       SreeEnv.remove(PoolConfig.ENABLED);
    }
 
+   /**
+    * Feature #77123: the pool is on unless script.ws.contextPool is set to something other
+    * than true; false (any case) still turns it off.
+    */
+   @Test
+   public void poolIsOnByDefaultAndFalseTurnsItOff() throws Exception {
+      SreeEnv.remove(PoolConfig.ENABLED);
+      assertTrue(PoolConfig.DEFAULT_ENABLED);
+      assertTrue(PoolConfig.isEnabled());
+      AssetQuerySandbox unset = new AssetQuerySandbox(null);
+      assertTrue(unset.isScriptPoolMode());
+      assertTrue(unset.getScriptEnv() instanceof WorksheetScriptEnv);
+
+      SreeEnv.setProperty(PoolConfig.ENABLED, "false");
+      assertFalse(PoolConfig.isEnabled());
+      AssetQuerySandbox off = new AssetQuerySandbox(null);
+      assertFalse(off.isScriptPoolMode());
+      off.getScriptEnv().compile("1");
+      assertFalse(off.getScriptEnv() instanceof WorksheetScriptEnv);
+      assertNotNull(off.getScriptEnv().getExecutionLock());
+
+      SreeEnv.setProperty(PoolConfig.ENABLED, "FALSE");
+      assertFalse(PoolConfig.isEnabled());
+      SreeEnv.setProperty(PoolConfig.ENABLED, "TRUE");
+      assertTrue(PoolConfig.isEnabled());
+      SreeEnv.setProperty(PoolConfig.ENABLED, " ");
+      assertTrue(PoolConfig.isEnabled());
+   }
+
    @Test
    public void poolModeIsReadOncePerSandbox() throws Exception {
       SreeEnv.setProperty(PoolConfig.ENABLED, "false");

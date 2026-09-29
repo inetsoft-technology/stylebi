@@ -22,6 +22,7 @@ import inetsoft.sree.SreeEnv;
 /**
  * Configuration of the worksheet script context pool (bug #76960). Whether the pool is on is
  * read once per sandbox ({@link #isEnabled()}); the tuning values once per env ({@link #read()}).
+ * The pool is on by default (Feature #77123); {@code script.ws.contextPool=false} turns it off.
  *
  * @param idleMillis          an idle pooled context is closed after this long.
  * @param cleanThreshold      a context whose non-configurable leftover globals exceed this is
@@ -57,14 +58,27 @@ public record PoolConfig(long idleMillis, int cleanThreshold, int warnSlotsPerSa
    }
 
    /**
-    * @return whether a sandbox built now runs its worksheet scripts on pooled contexts.
+    * The pool mode when {@link #ENABLED} is not set: on (Feature #77123).
+    */
+   public static final boolean DEFAULT_ENABLED = true;
+
+   /**
+    * @return whether a sandbox built now runs its worksheet scripts on pooled contexts: true
+    *         unless {@link #ENABLED} is set to something other than true (any case), for
+    *         example {@code script.ws.contextPool=false}.
     */
    public static boolean isEnabled() {
       try {
-         return "true".equalsIgnoreCase(SreeEnv.getProperty(ENABLED, "false"));
+         String value = SreeEnv.getProperty(ENABLED);
+
+         if(value == null || value.isBlank()) {
+            return DEFAULT_ENABLED;
+         }
+
+         return "true".equalsIgnoreCase(value.trim());
       }
       catch(Exception ex) {
-         return false;
+         return DEFAULT_ENABLED;
       }
    }
 
