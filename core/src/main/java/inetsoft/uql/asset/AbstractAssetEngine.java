@@ -2766,22 +2766,45 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
                sheet.setLastModifiedBy(entry.getModifiedUsername());
             }
 
-            Principal bookmarkUser = user;
+            Principal readBookmarkUser = user;
+            Principal writeBookmarkUser = user;
+            boolean copyBookmarks = true;
 
             if(sheet instanceof Viewsheet) {
                Viewsheet vs = (Viewsheet) sheet;
                ViewsheetInfo vsInfo = vs.getViewsheetInfo();
+               AssetEntry runtimeEntry = vs.getRuntimeEntry();
+               AssetEntry source = runtimeEntry != null ? runtimeEntry : entry;
+               IdentityID owner = source.getScope() == USER_SCOPE ? source.getUser() : null;
 
-               // no security, logged in as admin and saving a composed dashboard
+               // no security, logged in as admin and saving a composed dashboard owned by
+               // anonymous (with a null org since Bug #74247). The source's bookmarks can only be
+               // read as its owner. Write them as the owner only back to the owner's own private
+               // asset; any other target gets them under the saver, who can read them there (a
+               // null-org owner key on a global asset is unreadable and never cleaned up). Skip the
+               // copy when the target is a third user's private asset (Bug #77345)
                if(vsInfo.isComposedDashboard() && !SecurityEngine.getSecurity().isSecurityEnabled()
-                       && user != null && Tool.equals(XPrincipal.ANONYMOUS, entry.getUser()))
+                  && user != null && owner != null && XPrincipal.ANONYMOUS.equals(owner.getName()))
                {
-                  bookmarkUser = new XPrincipal(new IdentityID(XPrincipal.ANONYMOUS, Organization.getDefaultOrganizationID()));
+                  IdentityID saver = IdentityID.getIdentityIDFromKey(user.getName());
+
+                  if(!owner.equals(saver)) {
+                     readBookmarkUser = new XPrincipal(owner);
+
+                     if(entry.getScope() == USER_SCOPE && owner.equals(entry.getUser())) {
+                        writeBookmarkUser = readBookmarkUser;
+                     }
+                     else if(entry.getScope() == USER_SCOPE && !saver.equals(entry.getUser())) {
+                        copyBookmarks = false;
+                     }
+                  }
                }
             }
 
             // fixed bug1219747176468
-            overwriteBookmarks(sheet, entry, bookmarkUser);
+            if(copyBookmarks) {
+               overwriteBookmarks(sheet, entry, readBookmarkUser, writeBookmarkUser);
+            }
             // for feature #9005, update dependencies of the binding sources.
 
             if(updateDependency) {
@@ -4603,10 +4626,11 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
    }
 
    /**
-    * For view sheet, overwrite bookmarks as well.
+    * For view sheet, overwrite bookmarks as well, reading the source bookmarks as
+    * <tt>readUser</tt> and writing them to the target as <tt>user</tt>.
     */
    private void overwriteBookmarks(AbstractSheet sheet, AssetEntry entry2,
-                                   Principal user)
+                                   Principal readUser, Principal user)
       throws Exception
    {
       if(!(sheet instanceof Viewsheet)) {
@@ -4636,7 +4660,7 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
       cluster.lockKey(lockKey);
 
       try {
-         VSBookmark book1 = getVSBookmark(entry1, user, true);
+         VSBookmark book1 = getVSBookmark(entry1, readUser, true);
          setVSBookmark(entry2, book1, user);
       }
       finally {
