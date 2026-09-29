@@ -1649,6 +1649,38 @@ public class IdentityService {
                                       List<IdentityModel> permittedIdentities,
                                       String newOrgId)
    {
+      setIdentityPermissions(
+         oldID, newID, resourceType, principal, permittedIdentities, newOrgId, null);
+   }
+
+   /**
+    * Writes the grant of who may administer (or assign) an identity, keeping the existing
+    * grantees the principal cannot administer, since they are not in the requested list.
+    *
+    * @param oldID               the key the existing grant is stored under.
+    * @param newID               the key to store the grant under. The grant at {@code oldID} is
+    *                            removed when it differs.
+    * @param permittedIdentities the requested grantees. {@code null} is the same as an empty
+    *                            list, except that the edited grant-all flag is not set.
+    * @param newOrgId            the grantee scope: the org the requested grantees are written
+    *                            for. When null or empty, the bucket org if one is given,
+    *                            otherwise the ambient current org.
+    * @param bucketOrgId         the org whose permission storage holds the grant, where it is
+    *                            read, written and removed, and whose existing grantees are kept.
+    *                            {@code null} uses the ambient current org, for callers that run
+    *                            in the identity's org. Callers that do not (Bug #77271) pass the
+    *                            org explicitly.
+    */
+   public void setIdentityPermissions(IdentityID oldID, IdentityID newID,
+                                      ResourceType resourceType, Principal principal,
+                                      List<IdentityModel> permittedIdentities,
+                                      String newOrgId, String bucketOrgId)
+   {
+      // with an explicit bucket, never fall back to the ambient org for the grantee scope
+      if(bucketOrgId != null && (newOrgId == null || newOrgId.isEmpty())) {
+         newOrgId = bucketOrgId;
+      }
+
       String currOrgId = newOrgId;
 
       if(newOrgId == null || newOrgId.isEmpty()) {
@@ -1668,7 +1700,9 @@ public class IdentityService {
       }
 
       AuthorizationProvider authzProvider = securityProvider.getAuthorizationProvider();
-      Permission permission = authzProvider.getPermission(resourceType, oldID);
+      Permission permission = bucketOrgId == null ?
+         authzProvider.getPermission(resourceType, oldID) :
+         authzProvider.getPermission(resourceType, oldID, bucketOrgId);
       Set<String> userGrants = new HashSet<>();
       Set<String> groupGrants = new HashSet<>();
       Set<String> roleGrants = new HashSet<>();
@@ -1703,9 +1737,20 @@ public class IdentityService {
          EnumSet<ResourceAction> adminAction = EnumSet.of(ResourceAction.ADMIN);
 
          // If the principal does not have admin permission on some identities
-         // they will not show up in the permittedIdentities parameter, so we need to re-add them
+         // they will not show up in the permittedIdentities parameter, so we need to re-add them.
+         // They are read from the bucket org, so grants scoped to another org are left as they
+         // are rather than re-scoped to orgId.
+         Set<Permission.PermissionIdentity> userGrantIds = bucketOrgId == null ?
+            permission.getUserGrants(action) : permission.getUserGrants(action, bucketOrgId);
+         Set<Permission.PermissionIdentity> groupGrantIds = bucketOrgId == null ?
+            permission.getGroupGrants(action) : permission.getGroupGrants(action, bucketOrgId);
+         Set<Permission.PermissionIdentity> roleGrantIds = bucketOrgId == null ?
+            permission.getRoleGrants(action) : permission.getRoleGrants(action, bucketOrgId);
+         Set<Permission.PermissionIdentity> orgGrantIds = bucketOrgId == null ?
+            permission.getOrganizationGrants(action) :
+            permission.getOrganizationGrants(action, bucketOrgId);
 
-         for(Permission.PermissionIdentity userGrant : permission.getUserGrants(action)) {
+         for(Permission.PermissionIdentity userGrant : userGrantIds) {
             if(!securityProvider.checkAnyPermission(
                principal, getResourceType(Identity.USER),
                new IdentityID(userGrant.getName(), userGrant.getOrganizationID()).convertToKey(),
@@ -1715,7 +1760,7 @@ public class IdentityService {
             }
          }
 
-         for(Permission.PermissionIdentity groupGrant : permission.getGroupGrants(action)) {
+         for(Permission.PermissionIdentity groupGrant : groupGrantIds) {
             if(!securityProvider.checkAnyPermission(
                principal, getResourceType(Identity.GROUP),
                new IdentityID(groupGrant.getName(), groupGrant.getOrganizationID()).convertToKey(),
@@ -1725,7 +1770,7 @@ public class IdentityService {
             }
          }
 
-         for(Permission.PermissionIdentity roleGrant : permission.getRoleGrants(action)) {
+         for(Permission.PermissionIdentity roleGrant : roleGrantIds) {
             if(!securityProvider.checkAnyPermission(
                principal, getResourceType(Identity.ROLE), new IdentityID(roleGrant.getName(), roleGrant.getOrganizationID()).convertToKey(),
                adminAction))
@@ -1739,7 +1784,7 @@ public class IdentityService {
             }
          }
 
-         for(Permission.PermissionIdentity orgGrant : permission.getOrganizationGrants(action)) {
+         for(Permission.PermissionIdentity orgGrant : orgGrantIds) {
             if(!securityProvider.checkAnyPermission(
                principal, getResourceType(Identity.ORGANIZATION),
                new IdentityID(orgGrant.getName(), orgGrant.getOrganizationID()).convertToKey(),
@@ -1773,11 +1818,16 @@ public class IdentityService {
          permission.updateGrantAllByOrg(orgId, true);
       }
 
-      authzProvider.setPermission(resourceType, newID, permission);
+      if(bucketOrgId == null) {
+         authzProvider.setPermission(resourceType, newID, permission);
+      }
+      else {
+         authzProvider.setPermission(resourceType, newID, permission, bucketOrgId);
+      }
 
       // the grant was re-keyed, so drop the old key rather than leave a stale copy behind
       if(!Objects.equals(oldID, newID)) {
-         authzProvider.removePermission(resourceType, oldID);
+         removePermission(authzProvider, resourceType, oldID, bucketOrgId);
       }
 
       // an org's self grant is keyed by its mutable name, and before the first rename the name
@@ -1785,7 +1835,23 @@ public class IdentityService {
       if(resourceType == ResourceType.SECURITY_ORGANIZATION && newID.orgID != null &&
          !newID.orgID.equals(newID.name))
       {
-         authzProvider.removePermission(resourceType, new IdentityID(newID.orgID, newID.orgID));
+         removePermission(
+            authzProvider, resourceType, new IdentityID(newID.orgID, newID.orgID), bucketOrgId);
+      }
+   }
+
+   /**
+    * Removes a grant from the given bucket org, or from the ambient current org when it is null.
+    */
+   private static void removePermission(AuthorizationProvider authzProvider,
+                                        ResourceType resourceType, IdentityID identityID,
+                                        String bucketOrgId)
+   {
+      if(bucketOrgId == null) {
+         authzProvider.removePermission(resourceType, identityID);
+      }
+      else {
+         authzProvider.removePermission(resourceType, identityID, bucketOrgId);
       }
    }
 
