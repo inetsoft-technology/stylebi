@@ -1,0 +1,1 @@
+select * from t where d >= {d '2024-01-01'} and field['k'] = $(var1)

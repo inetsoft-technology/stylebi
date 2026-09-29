@@ -1,0 +1,2 @@
+MessageFormat
+Total: {0}

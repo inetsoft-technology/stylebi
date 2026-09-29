@@ -1,0 +1,1 @@
+select state, count(*), sum(total) from orders group by state having sum(total) > 1000
