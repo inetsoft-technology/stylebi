@@ -29,6 +29,8 @@ import inetsoft.test.*;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.util.Identity;
 import inetsoft.util.Tool;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -73,13 +75,30 @@ import static org.mockito.Mockito.*;
  *                requires reset(scheduleStatusDao) to avoid polluting testCheckRetryTime; NOT yet covered
  */
 @ExtendWith(SpringExtension.class)
-@ContextConfiguration(classes = { BaseTestConfiguration.class, ScheduleTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class, ScheduleTestConfiguration.class,
+                                  SecurityEngineDispatchConfiguration.class },
+                      initializers = ConfigurationContextInitializer.class)
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @SreeHome
 @Tag("core")
 public class ScheduleTaskTest {
    private ScheduleTask scheduleTask;
-   @Autowired SecurityEngine securityEngine;
+   // the SecurityEngine is the shared Spring spy that background threads also use, so it is never
+   // stubbed or reset here; return values are set through the dispatcher instead (Bug #77346)
+   @Autowired SecurityEngineOverrides securityEngineOverrides;
+
+   /**
+    * Fails the class loudly if the dispatcher was not installed on the spy.
+    */
+   @BeforeAll
+   static void verifySecurityEngineDispatch(@Autowired SecurityEngine securityEngine) {
+      SecurityEngineOverrides.assertInstalled(securityEngine);
+   }
+
+   @AfterEach
+   void clearSecurityEngineOverrides() {
+      securityEngineOverrides.clear();
+   }
 
    @Test
    void getTaskTimeoutReturnsConfiguredValue() {
@@ -246,7 +265,7 @@ public class ScheduleTaskTest {
       SecurityProvider securityProvider = mock(SecurityProvider.class);
       when(securityProvider.getUser(eq(testUser))).thenReturn(testFSUser);
       when(securityProvider.getOrganizationIDs()).thenReturn(new String[] { "host-org", "testOrg" });
-      when(securityEngine.getSecurityProvider()).thenReturn(securityProvider);
+      securityEngineOverrides.setSecurityProvider(securityProvider);
 
       scheduleTask = createBasicScheduleTask("task1");
 
@@ -718,16 +737,15 @@ public class ScheduleTaskTest {
    private void withSecurity(SecurityProvider provider, boolean enabled,
                              java.util.concurrent.Callable<Void> body) throws Exception
    {
-      doReturn(provider).when(securityEngine).getSecurityProvider();
-      doReturn(enabled).when(securityEngine).isSecurityEnabled();
+      securityEngineOverrides.setSecurityProvider(provider);
+      securityEngineOverrides.setSecurityEnabled(enabled);
 
       try {
          body.call();
       }
       finally {
-         // back to a plain spy; restoring with doCallRealMethod() leaves isSecurityEnabled()
-         // stubbed, which breaks a later when(securityEngine.getSecurityProvider())
-         reset(securityEngine);
+         // back to the real methods
+         securityEngineOverrides.clear();
       }
    }
 
