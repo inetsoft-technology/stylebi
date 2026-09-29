@@ -1847,9 +1847,13 @@ public class ScheduleService {
             "em.scheduler.taskNotFound", SUtil.getTaskNameWithoutOrg(taskName)));
       }
 
+      // use the resolved task id from here on, the raw name may have been matched by the legacy
+      // fallback in getScheduleTask() and name a different quartz job (another org's task)
+      String taskId = task.getTaskId();
+
       if(!ScheduleManager.hasTaskPermission(task.getOwner(), principal, ResourceAction.READ)) {
          throw new SecurityException(String.format(
-            "Unauthorized access to resource \"%s\" by %s", taskName, principal));
+            "Unauthorized access to resource \"%s\" by %s", taskId, principal));
       }
 
       if(!scheduleClient.isReady()) {
@@ -1857,8 +1861,8 @@ public class ScheduleService {
          dumpException = false;
       }
       else {
-         String taskNameWithoutOrg = SUtil.getTaskNameWithoutOrg(taskName);
-         String taskNameForLog = SUtil.getTaskNameForLogging(taskName);
+         String taskNameWithoutOrg = SUtil.getTaskNameWithoutOrg(taskId);
+         String taskNameForLog = SUtil.getTaskNameForLogging(taskId);
          MDC.put("SCHEDULE_TASK", taskNameForLog);
 
          if(!task.isEnabled()) {
@@ -1866,7 +1870,7 @@ public class ScheduleService {
          }
          else {
             try {
-               scheduleClient.runNow(taskName);
+               scheduleClient.runNow(taskId);
             }
             catch(Throwable ex) {
                LOG.debug("Failed to run task {}: {}", taskNameForLog, ex.getMessage(), ex);
@@ -1881,7 +1885,7 @@ public class ScheduleService {
       // log run task action
       String actionName = ActionRecord.ACTION_NAME_RUN;
       String objectType = ActionRecord.OBJECT_TYPE_TASK;
-      ActionRecord actionRecord = SUtil.getActionRecord(principal, actionName, taskName, objectType);
+      ActionRecord actionRecord = SUtil.getActionRecord(principal, actionName, taskId, objectType);
       actionRecord.setObjectUser(task.getOwner().name);
 
       if(errorMsg != null) {
@@ -1939,9 +1943,13 @@ public class ScheduleService {
             "em.scheduler.taskNotFound", SUtil.getTaskNameWithoutOrg(taskName)));
       }
 
+      // use the resolved task id from here on, the raw name may have been matched by the legacy
+      // fallback in getScheduleTask() and name a different quartz job (another org's task)
+      String taskId = task.getTaskId();
+
       if(!ScheduleManager.hasTaskPermission(task.getOwner(), principal, ResourceAction.READ)) {
          throw new SecurityException(String.format(
-            "Unauthorized access to resource \"%s\" by %s", taskName, principal));
+            "Unauthorized access to resource \"%s\" by %s", taskId, principal));
       }
 
       if(!scheduleClient.isReady()) {
@@ -1949,16 +1957,15 @@ public class ScheduleService {
       }
       else {
          if(!task.isEnabled()) {
-            errorMsg = catalog.getString("em.scheduler.stopDisabledTask",
-                                         task.getTaskId());
+            errorMsg = catalog.getString("em.scheduler.stopDisabledTask", taskId);
          }
          else {
             try {
-               scheduleClient.stopNow(taskName);
+               scheduleClient.stopNow(taskId);
             }
             catch(Throwable ex) {
-               LOG.debug("Failed to stop task {}: {}", taskName, ex.getMessage(), ex);
-               errorMsg = catalog.getString("em.scheduler.stopFailed", taskName);
+               LOG.debug("Failed to stop task {}: {}", taskId, ex.getMessage(), ex);
+               errorMsg = catalog.getString("em.scheduler.stopFailed", taskId);
             }
          }
       }
