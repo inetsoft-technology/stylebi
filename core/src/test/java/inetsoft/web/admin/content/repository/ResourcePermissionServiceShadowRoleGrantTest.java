@@ -211,6 +211,42 @@ class ResourcePermissionServiceShadowRoleGrantTest {
       assertEquals(Set.of("Analyst@orga"), roleGrants(permission));
    }
 
+   // single tenant: roles live in host-org except the built-in org-less Administrator and
+   // Organization Administrator. A non-site-admin org admin's save must not copy grants on
+   // those into host-org either, and must keep them in the null-org set
+   @Test
+   void singleTenantOrgAdminSaveDoesNotShadowBuiltInGlobalRoleGrants() throws Exception {
+      String host = Organization.getDefaultOrganizationID();
+      sutil.when(SUtil::isMultiTenant).thenReturn(false);
+      orgManagerStatic.when(OrganizationManager::getCurrentOrgName).thenReturn(host);
+      when(orgManager.getCurrentOrgID()).thenReturn(host);
+      when(orgManager.getCurrentOrgID(any())).thenReturn(host);
+      when(provider.getOrganizationIDs()).thenReturn(new String[]{ host });
+      Organization organization = mock(Organization.class);
+      when(organization.getOrganizationID()).thenReturn(host);
+      when(organization.getId()).thenReturn(host);
+      when(organization.getRoles()).thenReturn(new IdentityID[0]);
+      when(provider.getOrganization(anyString())).thenReturn(organization);
+      when(provider.getOrgNameFromID(anyString())).thenReturn(host);
+      IdentityID admin = new IdentityID("Administrator", null);
+      when(provider.isSystemAdministratorRole(any()))
+         .thenAnswer(inv -> admin.equals(inv.getArgument(0)));
+      addRole(admin);
+      addRole(new IdentityID("Analyst", host));
+      principal = new SRPrincipal(new IdentityID("oadmin", host),
+                                  new IdentityID[]{ ORG_ADMIN_ROLE }, new String[0], host,
+                                  Tool.getSecureRandom().nextLong());
+      Permission permission =
+         stored("Administrator@null", "Organization Administrator@null", "Analyst@" + host);
+      siteAdmin(false);
+
+      save(role("Analyst", host));
+      save(role("Analyst", host));
+
+      assertEquals(Set.of("Administrator@null", "Organization Administrator@null",
+                          "Analyst@" + host), roleGrants(permission));
+   }
+
    private void addRole(IdentityID id) {
       roles.put(id, new Role(id));
    }
