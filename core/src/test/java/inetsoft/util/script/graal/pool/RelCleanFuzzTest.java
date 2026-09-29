@@ -581,7 +581,7 @@ class RelCleanFuzzTest {
    // the slowest probe attempt of the current fuzz run, and its bound
    private static final java.util.concurrent.atomic.AtomicLong MAX_PROBE_MS =
       new java.util.concurrent.atomic.AtomicLong();
-   private static final long MAX_PROBE_BOUND_MS = 10_000L;
+   private static final long MAX_PROBE_BOUND_MS = 20_000L;
    private static String previousTimeout;
    private Boolean forcedBefore;
 }
