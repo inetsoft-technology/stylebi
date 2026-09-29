@@ -26,6 +26,9 @@ import { StompClientConnection } from "./stomp-client-connection";
 
 const SockJS = require("sockjs-client");
 declare const window: any;
+const GUEST_RELOAD_KEY = "inetsoftGuestSessionReload";
+const GUEST_RELOAD_INTERVAL = 60000;
+let guestReloading = false;
 
 /**
  * Reactive wrapper for the StompJS client.
@@ -165,12 +168,40 @@ export class StompClient {
                // session timeout with security enabled
                this.logoutService.sessionExpired();
             }
+            else if(event?.code === 4003) {
+               // guest session expired, reload so that a new guest session is created
+               this.reloadForGuestSession();
+            }
          }
 
          if(onclose) {
             onclose.apply(this.client.ws, event);
          }
       };
+   }
+
+   private reloadForGuestSession(): void {
+      // reload at most once per page load, and not again if the previous page load was itself
+      // a recent guest reload, to prevent a reload loop. Otherwise fall back to reconnecting.
+      if(guestReloading) {
+         return;
+      }
+
+      const now = Date.now();
+      let last = 0;
+
+      try {
+         last = Number(window.sessionStorage?.getItem(GUEST_RELOAD_KEY)) || 0;
+         window.sessionStorage?.setItem(GUEST_RELOAD_KEY, `${now}`);
+      }
+      catch(e) {
+         // ignore, storage may not be available
+      }
+
+      if(now - last > GUEST_RELOAD_INTERVAL) {
+         guestReloading = true;
+         window.location.reload();
+      }
    }
 
    private reconnect(): void {

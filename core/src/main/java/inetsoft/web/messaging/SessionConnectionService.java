@@ -127,9 +127,11 @@ public class SessionConnectionService {
 
          if(wsSessionIds != null) {
             Principal principal = event.getPrincipalCookie();
-            // only redirect if authenticated
-            boolean authenticated =
-               principal != null && !XPrincipal.ANONYMOUS.equals(principal.getName());
+            // the principal name is the identity key (name~;~org), compare the identity name
+            IdentityID identity = principal == null ?
+               null : IdentityID.getIdentityIDFromKey(principal.getName());
+            boolean anonymous =
+               identity != null && XPrincipal.ANONYMOUS.equals(identity.getName());
             // don't redirect if already coming from the logout filter
             boolean fromLogout = Boolean.TRUE.equals(event.getLoggedOutAttribute());
             // don't redirect to login if security is not enabled - allow to reconnect
@@ -138,16 +140,21 @@ public class SessionConnectionService {
             // redirect to login page if not anonymous, otherwise, allow to reconnect
             CloseStatus status;
 
-            if(!fromLogout && authenticated && securityEnabled) {
+            if(!fromLogout && principal != null && !anonymous && securityEnabled) {
                // redirect to the login page with session timeout message
                status = new CloseStatus(4002, "Session timeout");
             }
-            else if(fromLogout && authenticated) {
+            else if(fromLogout && principal != null) {
                // redirect to the login page without the session timeout message
                status = new CloseStatus(4001, "Logged out");
             }
+            else if(anonymous && securityEnabled) {
+               // reload the page so that a new guest session is created, the websocket
+               // endpoint does not create a guest session (Bug #70298)
+               status = GUEST_SESSION_EXPIRED;
+            }
             else {
-               // allow to reconnect if anonymous or if security is not enabled
+               // allow to reconnect if security is not enabled
                status = CloseStatus.NORMAL;
             }
 
@@ -269,6 +276,7 @@ public class SessionConnectionService {
    private final Map<String, Set<String>> httpSessions = new HashMap<>();
    private final AuthenticationChangeListener authenticationChangeListener = this::authenticationChanged;
    private static final Logger LOG = LoggerFactory.getLogger(SessionConnectionService.class);
+   static final CloseStatus GUEST_SESSION_EXPIRED = new CloseStatus(4003, "Guest session expired");
 
    private static final class WebSocketSessionRef {
       public WebSocketSessionRef(String httpSessionId, String wsSessionId, WebSocketSession session)
