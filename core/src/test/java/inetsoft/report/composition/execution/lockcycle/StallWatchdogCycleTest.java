@@ -115,9 +115,13 @@ public class StallWatchdogCycleTest {
     * <p>The gate parks T1 between the lens and its filtered base: inside the lens monitor but
     * before the inner condition filter takes the engine lock. T2 then takes the lock and
     * blocks on the monitor before T1 goes on, so the cycle forms on every run.
+    *
+    * <p>Not MAX_ROWS: since bug #77311 {@code MaxRowsTableLens} reads its base without its
+    * monitor, so there is no cycle to stall (see
+    * {@code MonitorFirstLensCycleTest.maxRowsOverFilteredFormula}).
     */
    @ParameterizedTest
-   @EnumSource(MonitorKind.class)
+   @EnumSource(value = MonitorKind.class, names = "MAX_ROWS", mode = EnumSource.Mode.EXCLUDE)
    public void monitorFirstLensFailsOneReader(MonitorKind kind) throws Exception {
       Gate gate = harness.gate();
       Sandbox control = harness.control();
