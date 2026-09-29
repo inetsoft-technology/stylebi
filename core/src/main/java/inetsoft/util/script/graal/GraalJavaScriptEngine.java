@@ -601,14 +601,23 @@ public class GraalJavaScriptEngine implements AutoCloseable {
     * <p>It cannot be fixed on {@code String.prototype}: the own {@code length}
     * property shadows the prototype, and {@code s.length} must keep returning the
     * number. So rewrite the call site instead —
-    * <pre>X.length()  -&gt;  X.length.__jlen()</pre>
-    * which needs no knowledge of what {@code X} is, and stays correct for every
-    * receiver a script can hold: for a guest string or an array {@code X.length}
-    * is a number and {@link LegacyJavaShim#LENGTH_HELPER} on
-    * {@code Number.prototype} returns it; for a host {@code CharSequence} such as
-    * {@code StringBuilder} — where {@code X.length()} already works today and must
-    * keep working — {@code X.length} is the bound Java method and the helper on
-    * {@code Function.prototype} invokes it.
+    * <pre>X.length()  -&gt;  X.{@value LegacyJavaShim#LENGTH_HELPER}('length')</pre>
+    * a <em>call-expression</em> shape: {@code X} is never relocated or
+    * re-evaluated, it stays exactly where it already was as the receiver of a
+    * method call, so the helper's {@code this} is always {@code X} itself.
+    * (Bug #77184: the original shape, {@code X.length.__jlen()}, evaluated
+    * {@code X.length} first as a bare property read — which detaches the
+    * property value from {@code X} — and then invoked the detached value; for a
+    * user JS object whose {@code length} is a function that reads {@code this},
+    * that function ran with the wrong receiver, either throwing or silently
+    * returning data read off the JS global object instead of {@code X}.) The
+    * helper, installed once on {@code Object.prototype} (see
+    * {@link LegacyJavaShim#installStringCompat}), re-derives {@code X.length}
+    * itself and invokes it {@code .call(this)} only when it is a function,
+    * otherwise returns it as-is — so a guest string/array's numeric
+    * {@code length}, a host {@code CharSequence} such as {@code StringBuilder}'s
+    * bound Java method, and a plain JS object's own {@code length} method are
+    * all handled correctly, with no knowledge of what {@code X} is.
     *
     * <p>Only the exact token sequence {@code .length} + {@code (} + {@code )} is
     * rewritten, and only outside string/template/regex literals and comments, so
@@ -617,6 +626,14 @@ public class GraalJavaScriptEngine implements AutoCloseable {
     * the preceding {@code .} and a non-identifier character after {@code length}.
     * Optional chaining ({@code ?.length()}) is not rewritten; it did not exist in
     * the Rhino-era scripts this restores.
+    *
+    * <p>Bug #77184: the regex-vs-division decision below also tracks
+    * {@code afterHead} the same way {@link #scanTopLevel} and
+    * {@link #skipInitializer} do (#76980) — a {@code /} immediately after an
+    * {@code if}/{@code while}/{@code for}/{@code with} head's closing {@code )}
+    * starts a regex literal, not a division, so its source text (which may
+    * itself contain a {@code .length()}-shaped substring) is skipped as an
+    * opaque unit instead of being scanned into and corrupted.
     *
     * @return the rewritten source, or {@code cmd} unchanged when the legacy gate
     * is off or there is nothing to rewrite.
@@ -630,6 +647,12 @@ public class GraalJavaScriptEngine implements AutoCloseable {
       int n = cmd.length();
       int copied = 0;
       char prevSig = 0;
+      String prevWord = null;   // previous identifier/keyword token, else null
+      // one entry per open bracket: whether it is the `(` of an if/while/for/with
+      // head, whose `)` is followed by a statement (so a `/` there is a regex) —
+      // mirrors scanTopLevel/skipInitializer (#76980)
+      Deque<Boolean> brackets = new ArrayDeque<>();
+      boolean afterHead = false;   // the previous token closed a control-flow head
       int i = 0;
 
       while(i < n) {
@@ -656,12 +679,16 @@ public class GraalJavaScriptEngine implements AutoCloseable {
             continue;
          }
 
-         if(c == '/' && regexAllowed(cmd, i, prevSig == LITERAL_END ? ')' : prevSig)) {
+         if(c == '/' &&
+            (afterHead || regexAllowed(cmd, i, prevSig == LITERAL_END ? ')' : prevSig)))
+         {
             int end = scanRegexEnd(cmd, i);
 
             if(end > 0) {
                i = end;
                prevSig = LITERAL_END;
+               prevWord = null;
+               afterHead = false;
                continue;
             }
          }
@@ -669,12 +696,16 @@ public class GraalJavaScriptEngine implements AutoCloseable {
          if(c == '"' || c == '\'') {
             i = skipStringLiteral(cmd, i + 1, c);
             prevSig = LITERAL_END;
+            prevWord = null;
+            afterHead = false;
             continue;
          }
 
          if(c == '`') {
             i = skipTemplateLiteral(cmd, i + 1);
             prevSig = LITERAL_END;
+            prevWord = null;
+            afterHead = false;
             continue;
          }
 
@@ -685,18 +716,49 @@ public class GraalJavaScriptEngine implements AutoCloseable {
                out = new StringBuilder(n + 32);
             }
 
-            out.append(cmd, copied, i).append(".length.")
-               .append(LegacyJavaShim.LENGTH_HELPER).append("()");
+            out.append(cmd, copied, i).append('.')
+               .append(LegacyJavaShim.LENGTH_HELPER).append("('length')");
             copied = end;
             i = end;
             prevSig = ')';
+            prevWord = null;
+            afterHead = false;
             continue;
          }
 
-         if(!Character.isWhitespace(c)) {
-            prevSig = c;
+         if(isIdentStart(c)) {
+            int start = i;
+            i++;
+
+            while(i < n && isIdentPart(cmd.charAt(i))) {
+               i++;
+            }
+
+            prevWord = prevSig == '.' ? null : cmd.substring(start, i);
+            prevSig = cmd.charAt(i - 1);
+            afterHead = false;
+            continue;
          }
 
+         if(Character.isWhitespace(c)) {
+            i++;
+            continue;
+         }
+
+         boolean closedHead = false;
+
+         if(c == '(' || c == '[' || c == '{') {
+            brackets.push(c == '(' && prevWord != null && CONTROL_HEAD_KEYWORDS.contains(prevWord));
+         }
+         else if(c == ')' || c == ']' || c == '}') {
+            if(!brackets.isEmpty()) {
+               closedHead = brackets.pop() && c == ')';
+            }
+         }
+
+         prevSig = c;
+         prevWord = null;
+         afterHead = closedHead;
          i++;
       }
 
@@ -707,7 +769,7 @@ public class GraalJavaScriptEngine implements AutoCloseable {
       out.append(cmd, copied, n);
       String rewritten = out.toString();
 
-      LOG.debug("Rewrote Rhino-style .length() call(s) to .length.{}() for GraalJS; " +
+      LOG.debug("Rewrote Rhino-style .length() call(s) to .{}('length') for GraalJS; " +
                    "disable with {}=false",
                 LegacyJavaShim.LENGTH_HELPER, LegacyJavaShim.GATE_PROPERTY);
 
