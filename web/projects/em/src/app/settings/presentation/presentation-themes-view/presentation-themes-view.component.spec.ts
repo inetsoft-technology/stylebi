@@ -17,7 +17,7 @@
  */
 
 import { HttpClientTestingModule, HttpTestingController } from "@angular/common/http/testing";
-import { NO_ERRORS_SCHEMA } from "@angular/core";
+import { ChangeDetectorRef, NO_ERRORS_SCHEMA } from "@angular/core";
 import { ComponentFixture, TestBed } from "@angular/core/testing";
 import { MatDialog } from "@angular/material/dialog";
 import { NoopAnimationsModule } from "@angular/platform-browser/animations";
@@ -227,6 +227,62 @@ describe("PresentationThemesViewComponent", () => {
          component.isSiteAdmin = false;
 
          expect(savedPayload().defaultThemeGlobal).toBe(true);
+      });
+   });
+
+   // Bug #77315: a rejected save must also re-enable apply, which the editor panel disables
+   // when it is clicked, or the page looks saved.
+   describe("when the save is rejected (bug #77315)", () => {
+      const reasons = [
+         "A theme that is not visible to all organizations can't be the default for all " +
+            "organizations: theme1",
+         "A theme of another organization can't be the default for this organization: theme1"
+      ];
+
+      let original: CustomThemeModel;
+
+      beforeEach(() => {
+         original = {
+            id: "theme1", name: "theme1", global: false, defaultThemeGlobal: false,
+            defaultThemeOrg: false
+         } as CustomThemeModel;
+         component.themes = [original];
+         component.selectedTheme = { ...original, defaultThemeGlobal: true };
+         fixture.debugElement.injector.get(ChangeDetectorRef).markForCheck();
+         fixture.detectChanges();
+      });
+
+      function getApplyPanel() {
+         const panel = component.themeEditor.editorPanel;
+         expect(panel).toBeTruthy();
+         // the panel disables apply when it is clicked
+         panel.changeApplyDisabledState(true);
+         return panel;
+      }
+
+      function rejectSave(body: any) {
+         dialog.open.mockClear();
+         component.saveTheme(component.selectedTheme);
+         http.expectOne("../api/em/settings/presentation/themes/theme1")
+            .flush(body, { status: 400, statusText: "Bad Request" });
+      }
+
+      it.each(reasons)("should re-enable apply after the rejection: %s", (reason) => {
+         const panel = getApplyPanel();
+
+         rejectSave({ type: "about:blank", title: "Bad Request", status: 400, detail: reason });
+
+         expect(dialog.open).toHaveBeenCalledTimes(1);
+         expect(dialog.open.mock.calls[0][1].data.content).toBe(reason);
+         expect(dialog.open.mock.calls[0][1].data.type).toBe(MessageDialogType.ERROR);
+
+         // the saved list is unchanged and the edit is kept
+         expect(component.themes).toEqual([original]);
+         expect(component.selectedTheme.defaultThemeGlobal).toBe(true);
+         expect(component.themeModified).toBe(true);
+
+         // apply is enabled again so the user can retry
+         expect(panel.applyDisabled).toBe(false);
       });
    });
 });
