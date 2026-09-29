@@ -94,7 +94,8 @@ public class SecurityOrganization {
     *
     * @return the theme used by the organization.
     */
-   @Schema(description = "The theme used by the organization.", example = "")
+   @Schema(description = "The ID of the theme used by the organization. When an organization " +
+      "is created, a theme name is also accepted.", example = "")
    public String getTheme() {
       return theme;
    }
