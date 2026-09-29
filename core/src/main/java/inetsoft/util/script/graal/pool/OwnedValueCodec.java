@@ -19,6 +19,7 @@ package inetsoft.util.script.graal.pool;
 
 import inetsoft.util.script.ScriptSpan;
 import org.graalvm.polyglot.Context;
+import org.graalvm.polyglot.PolyglotException;
 import org.graalvm.polyglot.Value;
 
 import java.util.*;
@@ -33,9 +34,12 @@ import java.util.function.Supplier;
  *
  * <p><b>No script code runs in a snapshot</b>, so it may run after the batch's timeout guard
  * fired. The rule the code below keeps: a value is first tested with {@code isDate() &&
- * isInstant()} (the Date internal-slot test, false for every Proxy, so no trap can run), and
- * only a Date is then read with {@code getMemberKeys()}, which on a Proxy runs its
- * {@code ownKeys} trap. Every other value is only classified by interop messages that never
+ * isInstant()} (the Date internal-slot test, false for every Proxy, so no trap can run), or,
+ * for a value whose meta object is the intrinsic Date (an Invalid Date, or an object that only
+ * inherits {@code Date.prototype}), with the intrinsic {@code Date.prototype.getTime} captured
+ * when the context was created (a builtin that reads the internal slot and throws a TypeError
+ * for any other value); only a Date is then read with {@code getMemberKeys()}, which on a
+ * Proxy runs its {@code ownKeys} trap. Every other value is only classified by interop messages that never
  * dispatch to script code ({@code getMetaObject}, {@code getMetaSimpleName},
  * {@code canExecute}, {@code hasArrayElements}, {@code equals}/{@code hashCode} identity).
  * A future member or element read of another kind must first rule out a Proxy
@@ -48,6 +52,7 @@ public final class OwnedValueCodec {
    private OwnedValueCodec(Slot slot) {
       this.context = slot.engine().context();
       this.dateConstructor = slot.engine().dateConstructor();
+      this.getTime = slot.engine().dateGetTime();
    }
 
    /**
@@ -70,8 +75,19 @@ public final class OwnedValueCodec {
    }
 
    private static OwnedValueCodec of(Slot slot) {
-      return slot != null && !slot.isClosed() && slot.engine().dateConstructor() != null
-         ? new OwnedValueCodec(slot) : null;
+      return slot != null && !slot.isClosed() && slot.engine().dateConstructor() != null &&
+         slot.engine().dateGetTime() != null ? new OwnedValueCodec(slot) : null;
+   }
+
+   /**
+    * @return the context of the slot {@code span} claimed, or {@code null} if the span is not
+    *         a pooled claim or no slot was checked out under it. Values of this context that
+    *         {@link #forSpan} cannot save (a closed slot) are to be lost, never left with an
+    *         older snapshot.
+    */
+   public static Context claimedContext(ScriptSpan span) {
+      Slot slot = span instanceof SlotClaim claim ? claim.peekSlot() : null;
+      return slot == null ? null : slot.engine().context();
    }
 
    public Context context() {
@@ -108,31 +124,16 @@ public final class OwnedValueCodec {
 
          // the ordering rule (class comment): isDate() && isInstant() before any member read
          if(v.isDate() && v.isInstant()) {
-            double time = v.asInstant().toEpochMilli();
-            Value meta = v.getMetaObject();
-            String dropped = null;
-
-            if(meta == null || !meta.equals(dateConstructor)) {
-               String cls = meta == null ? null : meta.getMetaSimpleName();
-               dropped = cls == null || cls.isEmpty() ? "a subclass of Date" : "the class " + cls;
-            }
-
-            // a Date, so no Proxy: own enumerable string keys, no getter runs
-            Set<String> keys = v.getMemberKeys();
-
-            if(!keys.isEmpty()) {
-               String props = "the properties " + String.join(", ", keys);
-               dropped = dropped == null ? props : dropped + " and " + props;
-            }
-
-            node = new DateNode(time, dropped);
-         }
-         // an Invalid Date is no interop date, but its constructor is the intrinsic Date
-         else if(dateConstructor.equals(v.getMetaObject())) {
-            node = new DateNode(Double.NaN, null);
+            node = dateNode(v, v.asInstant().toEpochMilli());
          }
          else {
-            node = new Lost(kind(v));
+            // an Invalid Date is no interop date. Its meta object is the intrinsic Date, but
+            // so is that of any object that only inherits Date.prototype
+            // (Object.create(Date.prototype), an ES5 "subclass"): only the Date internal
+            // slot, read by the intrinsic getTime, tells them apart
+            boolean dateMeta = dateConstructor.equals(v.getMetaObject());
+            Double time = dateMeta ? timeValue(v) : null;
+            node = time != null ? dateNode(v, time) : dateMeta ? NOT_A_DATE : new Lost(kind(v));
          }
 
          ids.put(v, node);
@@ -166,6 +167,59 @@ public final class OwnedValueCodec {
       return v;
    }
 
+   /**
+    * The node of {@code v}, a value with the Date internal slot (so no Proxy: reading its
+    * member keys runs no trap, and own enumerable string keys run no getter).
+    */
+   private DateNode dateNode(Value v, double time) {
+      Value meta = v.getMetaObject();
+      String dropped = null;
+
+      if(meta == null || !meta.equals(dateConstructor)) {
+         String cls = meta == null ? null : meta.getMetaSimpleName();
+         dropped = cls == null || cls.isEmpty() ? "of a subclass" : "of a subclass (" + cls + ")";
+      }
+
+      Set<String> keys = v.getMemberKeys();
+
+      if(!keys.isEmpty()) {
+         String props = "with the properties " + list(keys);
+         dropped = dropped == null ? props : dropped + " and " + props;
+      }
+
+      return new DateNode(time, dropped);
+   }
+
+   /**
+    * @return the time value of {@code v} (NaN for an Invalid Date) if it has the Date
+    *         internal slot, else {@code null}. The intrinsic getTime reads only that slot and
+    *         runs no script code. An interrupt or cancel propagates (the value is unreadable).
+    */
+   private Double timeValue(Value v) {
+      try {
+         return getTime.execute(v).asDouble();
+      }
+      catch(PolyglotException ex) {
+         if(ex.isGuestException() && !ex.isCancelled() && !ex.isInterrupted() &&
+            !ex.isResourceExhausted())
+         {
+            return null; // the TypeError of a value that is not a Date
+         }
+
+         throw ex;
+      }
+   }
+
+   // at most MAX_KEYS names, "a, b, c and 17 more"
+   private static String list(Set<String> keys) {
+      if(keys.size() <= MAX_KEYS) {
+         return String.join(", ", keys);
+      }
+
+      List<String> first = new ArrayList<>(keys).subList(0, MAX_KEYS);
+      return String.join(", ", first) + " and " + (keys.size() - MAX_KEYS) + " more";
+   }
+
    // what a value that is not kept is, for the warning: "holds <kind> created on another..."
    private static String kind(Value v) {
       try {
@@ -188,7 +242,7 @@ public final class OwnedValueCodec {
             return "an object";
          }
 
-         return ("AEIOU".indexOf(name.charAt(0)) >= 0 ? "an " : "a ") + name + " object";
+         return ("AEIOaeio".indexOf(name.charAt(0)) >= 0 ? "an " : "a ") + name + " object";
       }
       catch(RuntimeException ex) {
          return "a script object";
@@ -203,8 +257,8 @@ public final class OwnedValueCodec {
       }
 
       /**
-       * @return what a rebuild drops ("the properties a, b", "a subclass of Date"), or
-       *         {@code null}.
+       * @return what a rebuild drops ("with the properties a, b", "of a subclass (Foo)"),
+       *         or {@code null}.
        */
       public String dropped() {
          return dropped;
@@ -228,6 +282,10 @@ public final class OwnedValueCodec {
       private final String kind;
    }
 
+   /** The node of an object that inherits Date.prototype without being a Date. */
+   public static final Lost NOT_A_DATE =
+      new Lost("an object that inherits Date.prototype but is no Date");
+
    /** The node of a value whose snapshot failed: it is lost, never kept from an older batch. */
    public static final Lost UNREADABLE = new Lost("a value that could not be read");
 
@@ -236,4 +294,6 @@ public final class OwnedValueCodec {
 
    private final Context context;
    private final Value dateConstructor;
+   private final Value getTime;
+   private static final int MAX_KEYS = 8;
 }

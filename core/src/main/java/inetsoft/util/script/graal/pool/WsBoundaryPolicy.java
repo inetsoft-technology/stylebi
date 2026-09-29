@@ -81,7 +81,7 @@ final class WsBoundaryPolicy {
       "  or subclass (with one warning if it had any).",
       "  A first formula batch is only about 10 rows and later ones double, so an accumulator",
       "  kept in an undeclared global (acc = ...) restarts at each batch, the first time after",
-      "  about 10 rows; one kept in an array-, object- or function-valued var restarts at each",
+      "  about 10 rows; one kept in an array-, function- or object-valued var restarts at each",
       "  batch that runs on another pooled context. Keep accumulators in a top-level var",
       "  holding a number, string, boolean or Date.",
       "- Scripts can run for rows nobody asked for. A first or random read of a table (a",

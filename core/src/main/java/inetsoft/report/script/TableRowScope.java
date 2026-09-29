@@ -103,6 +103,9 @@ public class TableRowScope implements DynamicScope, ScriptArrayScope, OwnedVarSc
          OwnedValueCodec codec = OwnedValueCodec.forSpan(span);
 
          if(codec == null) {
+            // pool off, or no slot claimed (no formula ran): the snapshots are current. A
+            // claimed slot that cannot be saved (closed): its objects are lost
+            loseObjectsOf(OwnedValueCodec.claimedContext(span));
             return;
          }
 
@@ -147,6 +150,34 @@ public class TableRowScope implements DynamicScope, ScriptArrayScope, OwnedVarSc
             if(e.getValue() instanceof Value && owned.contains(name) &&
                (saved == null || !saved.contains(name)))
             {
+               snapshots.put(name, OwnedValueCodec.UNREADABLE);
+            }
+         }
+      }
+   }
+
+   // mark every owned var holding an object of context (or one whose context cannot be
+   // read) lost: never left with an older snapshot
+   private void loseObjectsOf(Context context) {
+      if(context == null) {
+         return;
+      }
+
+      for(Object o : valmap.entrySet()) {
+         Map.Entry<?, ?> e = (Map.Entry<?, ?>) o;
+         String name = String.valueOf(e.getKey());
+
+         if(e.getValue() instanceof Value v && owned.contains(name)) {
+            boolean of;
+
+            try {
+               of = context.equals(v.getContext());
+            }
+            catch(RuntimeException ex) {
+               of = true;
+            }
+
+            if(of) {
                snapshots.put(name, OwnedValueCodec.UNREADABLE);
             }
          }
@@ -296,7 +327,18 @@ public class TableRowScope implements DynamicScope, ScriptArrayScope, OwnedVarSc
          }
 
          Object node = snapshots.get(name);
-         Value nv = codec.rebuild(node, built);
+         Value nv;
+
+         try {
+            nv = codec.rebuild(node, built);
+         }
+         catch(RuntimeException ex) {
+            // e.g. the batch was interrupted: the var is lost (undefined + warning on its
+            // read), never a half-rebuilt alias
+            LOG.debug("Failed to rebuild the Date of the formula variable {}", name, ex);
+            snapshots.put(name, OwnedValueCodec.UNREADABLE);
+            continue;
+         }
 
          if(nv == null) {
             continue;
@@ -307,9 +349,9 @@ public class TableRowScope implements DynamicScope, ScriptArrayScope, OwnedVarSc
          if(node instanceof OwnedValueCodec.DateNode d && d.dropped() != null &&
             warned.add(name))
          {
-            LOG.warn("The formula variable \"{}\" holds a Date with {}; a batch of rows on " +
+            LOG.warn("The formula variable \"{}\" holds a Date {}; a batch of rows on " +
                      "another script context of the worksheet context pool rebuilds it as a " +
-                     "plain Date from its time value, without them.", name, d.dropped());
+                     "plain Date from its time value only.", name, d.dropped());
          }
       }
    }

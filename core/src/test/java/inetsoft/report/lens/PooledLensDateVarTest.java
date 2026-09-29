@@ -80,6 +80,12 @@ class PooledLensDateVarTest {
    static final String SUBCLASS =
       "var d = d || new (class extends Date {})(0); d.setTime(d.getTime() + 1000); " +
       "d.getTime() / 1000";
+   // an Invalid Date with an own property: rebuilt without it, with the warning
+   static final String INVALIDPROP =
+      "var d = d || (function() { var x = new Date(NaN); x.tag = 1; return x; })(); " +
+      "var k = (k || 0) + 1; isNaN(d.valueOf()) && d instanceof Date ? k : -1";
+   // saving a Date uses the intrinsic getTime, never the script's (it loops forever)
+   static final String LOOPING_GETTIME = "Date.prototype.getTime = function() { while(true) {} }; ";
    // saving it must not call any of these: they loop forever
    static final String HOSTILE =
       "var d = d || (function() { var x = new Date(0); var loop = function() { while(true) {} }; " +
@@ -148,17 +154,74 @@ class PooledLensDateVarTest {
     * plain Date from its time value, with one warning naming the var and what it drops.
     */
    @ParameterizedTest(name = "{0}")
-   @ValueSource(strings = { "ownprop", "subclass" })
+   @ValueSource(strings = { "ownprop", "subclass", "invalidprop" })
    void aDateWithOwnPropertiesOrASubclassIsRebuiltFromItsTime(String what) throws Exception {
-      double[] v = crossSlot("held", what.equals("ownprop") ? OWNPROP : SUBCLASS);
+      double[] v = crossSlot("held", switch(what) {
+         case "ownprop" -> OWNPROP;
+         case "subclass" -> SUBCLASS;
+         default -> INVALIDPROP;
+      });
       assertAll(v, what);
       List<ILoggingEvent> warns = warnings();
       assertEquals(1, warns.size(), () -> "one warning: " + warns);
       String msg = warns.get(0).getFormattedMessage();
-      assertTrue(msg.contains("\"d\""), msg);
-      assertTrue(msg.contains(what.equals("ownprop") ? "the properties tag" : "a subclass of Date"),
-                 msg);
+      assertTrue(msg.contains("\"d\" holds a Date " +
+         (what.equals("subclass") ? "of a subclass" : "with the properties tag")), msg);
       assertTrue(msg.contains("rebuilds it as a plain Date from its time value"), msg);
+   }
+
+   /**
+    * An object that only inherits Date.prototype (its meta object is the intrinsic Date, but
+    * it has no Date internal slot) is no Date: on another context it reads as undefined with
+    * one warning, as any other object, and is never rebuilt as an Invalid Date (review I1).
+    */
+   @ParameterizedTest(name = "{0}")
+   @ValueSource(strings = { "create", "setPrototypeOf", "es5" })
+   void anObjectInheritingDatePrototypeIsNoDate(String what) {
+      String make = switch(what) {
+         case "create" -> "Object.create(Date.prototype)";
+         case "setPrototypeOf" -> "Object.setPrototypeOf({}, Date.prototype)";
+         default -> "(function() { function Stamp() {} " +
+            "Stamp.prototype = Object.create(Date.prototype); return new Stamp(); })()";
+      };
+      // made counts the objects the formula created; -1 if the var holds a real Date
+      String f = "var made = made || 0; var o = o || (made++, " + make + "); " +
+         "Object.prototype.toString.call(o) == '[object Object]' && " +
+         "Object.getPrototypeOf(o) !== null ? made : -1";
+      double[][] v = new double[1][];
+      assertTimeoutPreemptively(Duration.ofSeconds(60), () -> {
+         v[0] = crossSlot("held", f);
+      });
+
+      for(int r = 1; r <= ROWS; r++) {
+         assertTrue(v[0][r] >= 1.0, "row " + r + " holds a real Date: " + v[0][r]);
+      }
+
+      assertEquals(1.0, v[0][200]);
+      assertTrue(v[0][ROWS] > 1.0 && v[0][ROWS] < 100, "made " + v[0][ROWS]);
+      List<ILoggingEvent> warns = warnings();
+      assertEquals(1, warns.size(), () -> "one warning: " + warns);
+      String msg = warns.get(0).getFormattedMessage();
+      assertTrue(msg.contains("\"o\" holds an object that inherits Date.prototype but is no " +
+                              "Date created on another"), msg);
+   }
+
+   /**
+    * A Date and an Invalid Date are saved with the intrinsic getTime, not the one a script
+    * put on Date.prototype (it loops forever): both are kept, and nothing hangs.
+    */
+   @ParameterizedTest(name = "{0}")
+   @ValueSource(strings = { "date", "invalid" })
+   void aReplacedGetTimeIsNotCalled(String what) {
+      String f = LOOPING_GETTIME + (what.equals("date")
+         ? "var d = d || new Date(0); d.setTime(d.valueOf() + 1000); d.valueOf() / 1000"
+         : "var made = made || 0; var d = d || (made++, new Date(NaN)); var k = (k || 0) + 1; " +
+           "made == 1 && isNaN(d.valueOf()) && d instanceof Date ? k : -1");
+      assertTimeoutPreemptively(Duration.ofSeconds(60), () -> {
+         double[] v = crossSlot("held", f);
+         assertAll(v, what);
+      });
+      assertTrue(warnings().isEmpty(), () -> "no warning: " + warnings());
    }
 
    /**
