@@ -200,6 +200,12 @@ class CalendarPropertyDialogServiceTest {
          new inetsoft.web.composer.model.vs.DynamicValueModel("2024-01-01"));
       model.getCalendarAdvancedPaneModel().setMax(
          new inetsoft.web.composer.model.vs.DynamicValueModel("2024-01-10"));
+      model.setVsAssemblyScriptPaneModel(
+         inetsoft.web.composer.model.vs.VSAssemblyScriptPaneModel.builder()
+            .scriptEnabled(false).expression("").build());
+      // a real round-trip from getCalendarPropertyModel always carries the assembly name
+      model.getCalendarGeneralPaneModel().getGeneralPropPaneModel().getBasicGeneralPaneModel()
+         .setName("Calendar1");
 
       service.setCalendarPropertyModel(
          "Viewsheet1", "Calendar1", model, "", null, commandDispatcher);

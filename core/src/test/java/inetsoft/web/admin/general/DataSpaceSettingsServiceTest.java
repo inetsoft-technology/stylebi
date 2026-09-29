@@ -220,7 +220,8 @@ class DataSpaceSettingsServiceTest {
       // even though data is available to prune, nothing gets deleted.
       sreeEnvStatic.when(() -> SreeEnv.getProperty("asset.backup.count")).thenReturn("2");
       lenient().when(externalStorageService.listFiles("backup"))
-         .thenReturn(List.of("data-20260101.zip", "data-20260102.zip", "data-20260103.zip"));
+         .thenReturn(List.of("data-20260101000000.zip", "data-20260102000000.zip",
+                         "data-20260103000000.zip"));
 
       service.doBackup(BackupDataModel.builder().dataspace("admin-chg-1").aiSnapshot(true).build());
 
@@ -232,7 +233,8 @@ class DataSpaceSettingsServiceTest {
    void aRealBackupStillPrunes() throws Exception {
       sreeEnvStatic.when(() -> SreeEnv.getProperty("asset.backup.count")).thenReturn("2");
       when(externalStorageService.listFiles("backup"))
-         .thenReturn(List.of("data-20260101.zip", "data-20260102.zip", "data-20260103.zip"));
+         .thenReturn(List.of("data-20260101000000.zip", "data-20260102000000.zip",
+                         "data-20260103000000.zip"));
 
       service.doBackup(BackupDataModel.builder().dataspace("data").build());
 
@@ -273,8 +275,8 @@ class DataSpaceSettingsServiceTest {
 
       service.deleteRedundantBackupFiles();
 
-      verify(externalStorageService, times(1)).delete(anyString());
-      verify(externalStorageService, never()).delete(anyString());
+      verify(externalStorageService, times(1)).delete("backup/data-20260101000000.zip");
+      verify(externalStorageService, never()).delete(contains("\\"));
    }
 
    // [G6] a value below 1 disables pruning, matching deleteRedundantBackupFiles's convention
