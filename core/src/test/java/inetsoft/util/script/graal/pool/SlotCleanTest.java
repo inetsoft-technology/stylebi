@@ -175,6 +175,61 @@ class SlotCleanTest {
       assertEquals("function", run("typeof formatDate"));
    }
 
+   /**
+    * Bug #77123 (FZ1): a script that re-parents the global loses the foreign prototype at the
+    * clean, so the next claim does not see the names it provided.
+    */
+   @Test
+   void replacedGlobalPrototypeIsRestored() throws Exception {
+      slot = newSlot(Map.of());
+      assertEquals("number", run("Object.setPrototypeOf(globalThis, {zqf: 1}); typeof zqf"));
+      assertReusable(slot.clean());
+      assertEquals("undefined", run("typeof zqf"));
+      assertEquals(true, run("Object.getPrototypeOf(globalThis) === Object.prototype"));
+   }
+
+   /**
+    * Bug #77123 (FZ1): a global whose prototype was set to null gets Object.prototype back,
+    * so the next claim can use its members as globals again.
+    */
+   @Test
+   void nullGlobalPrototypeIsRestored() throws Exception {
+      slot = newSlot(Map.of());
+      assertEquals("undefined", run("Object.setPrototypeOf(globalThis, null); typeof toString"));
+      assertReusable(slot.clean());
+      assertEquals("function", run("typeof toString"));
+      assertEquals("function", run("typeof hasOwnProperty"));
+   }
+
+   /**
+    * Guard for the FZ1 restore (bug #77123): a global that was re-parented and then made
+    * non-extensible (its own keys still writable) cannot get its prototype back, so the clean
+    * fails and the slot is closed rather than kept with the foreign prototype. The clean's
+    * extensibility check failed it before the restore existed too.
+    */
+   @Test
+   void nonExtensibleGlobalWithAChangedPrototypeClosesTheSlot() throws Exception {
+      slot = newSlot(Map.of());
+      run("Object.setPrototypeOf(globalThis, {zqf: 1}); Object.preventExtensions(globalThis); 1");
+      CleanHelper.Result result = slot.clean();
+      assertTrue(result.failed(), String.valueOf(result));
+      assertFalse(result.reusable(256));
+   }
+
+   /**
+    * Guard for the FZ1 restore (bug #77123): a frozen global with a changed prototype still
+    * fails the clean. Freeze failed the clean before the restore existed too, so this only
+    * keeps the restore from ever turning a frozen global into a kept slot.
+    */
+   @Test
+   void frozenGlobalWithAChangedPrototypeStillFailsTheClean() throws Exception {
+      slot = newSlot(Map.of());
+      run("Object.setPrototypeOf(globalThis, {zqf: 1}); Object.freeze(globalThis); 1");
+      CleanHelper.Result result = slot.clean();
+      assertTrue(result.failed(), String.valueOf(result));
+      assertFalse(result.reusable(256));
+   }
+
    @Test
    void symbolKeysAreRemoved() throws Exception {
       slot = newSlot(Map.of());
