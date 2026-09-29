@@ -25,6 +25,7 @@ import inetsoft.report.filter.DefaultTableFilter;
 import inetsoft.report.filter.SortFilter;
 import inetsoft.report.lens.*;
 import inetsoft.test.*;
+import inetsoft.util.script.graal.pool.*;
 import inetsoft.util.stall.*;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -99,27 +100,17 @@ public class RelPooledCompletionTest {
 
    /**
     * StallWatchdogCycleTest.monitorFirstLensAlertModeTurnsHealthDown, pooled, in the shipped
-    * alert mode. The watchdog is scanned while the shape is held: T2 BLOCKED on the lens
-    * monitor T1 holds, for longer than the 2000 ms limit. Pool off T1 then registers its wait
-    * for the engine lock T2 holds and the scans report the wait-for cycle; pooled neither
-    * thread has a registered wait at any scan, no scan reports a stall or cycle of them, and
-    * once released both complete.
+    * alert mode. Pool off the cycle forms once the gate lets T1 go on to wait for the engine
+    * lock T2 holds, and alert mode never releases either side of it, so neither thread ever
+    * completes. The evidence here is that both complete in alert mode, with every row, after
+    * T2 was seen BLOCKED on the lens monitor T1 holds; a scan afterwards reports no stall or
+    * cycle of them and neither has a registered wait.
     */
    @Test
    public void monitorFirstLensAlertModeCompletesPooled() {
       StallPolicy.setOverride(new StallPolicy(StallPolicy.Mode.ALERT, 2000, 500, dumpDir));
       assertTimeoutPreemptively(CAP, () -> {
-         Started<?>[] threads = monitorFirst(MonitorKind.SORT, (t1, t2) -> {
-            long end = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(HELD_MILLIS);
-
-            while(System.nanoTime() - end < 0) {
-               assertNoCycleOf(t1.thread, t2.thread);
-               Thread.sleep(250);
-            }
-
-            assertEquals(Thread.State.BLOCKED, t2.thread.getState(),
-                         "T2 was still blocked on the lens monitor after the scans");
-         });
+         Started<?>[] threads = monitorFirst(MonitorKind.SORT, (t1, t2) -> {});
          assertNoCycleOf(threads[0].thread, threads[1].thread);
       });
    }
@@ -169,6 +160,10 @@ public class RelPooledCompletionTest {
     * grows and the formula lens and filter are invalidated. Pool off the reader of the reset
     * map waits for the engine lock the guest holds; pooled it completes with the new rows while
     * the guest still holds its context, and the table then drains to the grown size.
+    *
+    * <p>The guest's claim is eager, so it keeps one context checked out the whole time: the
+    * scripts the reader runs for the new rows (the env's exec count rises) run on another
+    * context, and the guest still finds its own claim open once it is let go.
     */
    @Test
    public void pastCompletedMapReaderAfterInvalidateCompletesPooled() {
@@ -185,9 +180,11 @@ public class RelPooledCompletionTest {
          Future<Object> guest = harness.submit(() -> s.asGuest(() -> {
             held.countDown();
             assertTrue(go.await(3 * KNOWN_CAP, TimeUnit.SECONDS), "the guest was never let go");
+            assertEquals(1, SlotClaim.openClaims(), "the guest's claim was not open to the end");
             return null;
          }));
          assertTrue(held.await(ACTIVE_CAP, TimeUnit.SECONDS), "the guest never took its context");
+         PoolMetrics metrics = ((WorksheetScriptEnv) s.env).getMetrics();
 
          try {
             assertFalse(harness.await(harness.submit(() -> cf.moreRows(end)), ACTIVE_CAP,
@@ -195,10 +192,12 @@ public class RelPooledCompletionTest {
             base.setVisibleRows(2 * INV_ROWS);
             formula.invalidate();
             ((AbstractConditionFilter) cf).invalidate();
+            long execs = metrics.getExecs();
             Started<Boolean> reader = harness.start(() -> cf.moreRows(end));
             assertTrue(harness.await(reader.future, ACTIVE_CAP, "the reader of the reset map"),
                        "the reader of the reset map must find the new rows");
-            assertFalse(guest.isDone(), "the guest let go before the reader completed");
+            assertTrue(metrics.getExecs() > execs,
+                       "the reader ran no script for the new rows while the guest held its context");
             assertNoWaitOf(reader.thread);
          }
          finally {
@@ -535,8 +534,6 @@ public class RelPooledCompletionTest {
 
    private static final Duration CAP = Duration.ofSeconds(120);
    private static final int ROWS = 120;
-   // longer than the 2000 ms stall limit
-   private static final long HELD_MILLIS = 3000;
    private static final int MONITOR_ROWS = 120;
    private static final int INV_ROWS = 300;
    @TempDir

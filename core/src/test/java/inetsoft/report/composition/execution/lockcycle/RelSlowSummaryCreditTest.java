@@ -70,6 +70,13 @@ import static org.junit.jupiter.api.Assertions.*;
  * {@code slowProgressingSummaryUnderLockCompletes}: since bug #77223 a summary over a base that
  * needs the lock starts no worker pool off (its first reader computes it inline under the
  * lock), so there would be no worker to credit or to stall.
+ *
+ * <p>The original F2 shape, a summary over a filtered formula lens, is characterised on its
+ * own: pooled it still starts a worker, whose formula lens pre-loads the rest of its base in
+ * one read, so it false-stalls with the pool on only
+ * ({@code knownPoolOnW2FormulaBaseReadStalls}); pool off it computes inline and completes
+ * ({@code f2FormulaBaseComputesInlinePoolOff}). Those two run in the mode they name, whatever
+ * {@code -Dlockcycle.pool} says.
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class, LibManagerTestConfiguration.class, PluginsTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
@@ -92,8 +99,9 @@ public class RelSlowSummaryCreditTest {
    /**
     * Characterises the known limitation W2 of the merge brief (a slow producer behind an
     * unregistered wait), it is not a behaviour to keep: a fix of W2 should turn this into a
-    * completion test. The worker's first base read sleeps 9 s, outside any registered wait,
-    * over the 8 s limit: failed as a stall with the pool on or off, because the watchdog cannot
+    * completion test. The worker's first base read sleeps 18 s, outside any registered wait,
+    * far over the 8 s limit, so the stall always fires first (the holder fails at about 8 s and
+    * does not wait for the worker): failed as a stall with the pool on or off, because the watchdog cannot
     * tell this worker from a hung one. The holder starts once the worker is inside the base: a
     * holder that finds no worker running computes the summary itself, asleep in no wait at
     * all, and completes.
@@ -103,7 +111,7 @@ public class RelSlowSummaryCreditTest {
       policy(8000);
       Sandbox s = harness.sandbox();
       AtomicInteger paid = new AtomicInteger();
-      PerRowTable base = new PerRowTable(ROWS, () -> sleep(paid.getAndIncrement() == 0 ? 9000 : 0));
+      PerRowTable base = new PerRowTable(ROWS, () -> sleep(paid.getAndIncrement() == 0 ? W2_READ_MILLIS : 0));
       SummaryFilter summary = summary(s, base);
       TableLens outer = harness.track(cf2(summary, s.box));
       harness.await(harness.submit(() -> summary.getRowCount()), ACTIVE_CAP, "getRowCount");
@@ -135,6 +143,66 @@ public class RelSlowSummaryCreditTest {
 
       assertEquals(expected, harness.await(harness.submit(() -> drain(outer)), 2 * ACTIVE_CAP,
                                            "sleeping holder"));
+   }
+
+   /**
+    * The original F2 shape on current main, pooled: a summary over a filtered formula lens
+    * over a base that sleeps {@link #F2_ROW_MILLIS} a row in no registered wait. Pooled a
+    * SummaryFilter over a formula lens still starts a worker (ChainScriptLock has no lock in
+    * pool mode), and the formula lens pre-loads its base in one read before it computes a
+    * batch, so the worker's progress does not move for all of those rows and the holder
+    * fails as a stall in FAIL mode. Characterises a pool-specific case of the known W2
+    * limitation (FAIL mode is opt-in; the default ALERT mode only alerts): pool off the same
+    * shape starts no worker since #77223 and completes, see
+    * {@link #f2FormulaBaseComputesInlinePoolOff}. A W2 fix should turn this into a completion
+    * test.
+    */
+   @Test
+   public void knownPoolOnW2FormulaBaseReadStalls() throws Exception {
+      harness.close();
+      harness = new LockCycleHarness(true);
+      policy(8000);
+      Sandbox s = harness.sandbox();
+      PerRowTable base = new PerRowTable(ROWS, () -> sleep(F2_ROW_MILLIS));
+      SummaryFilter summary = f2Summary(s, base);
+      TableLens outer = harness.track(cf2(summary, s.box));
+      harness.await(harness.submit(() -> summary.getRowCount()), ACTIVE_CAP, "getRowCount");
+      assertTrue(base.paying.await(ACTIVE_CAP, TimeUnit.SECONDS), "the worker never read the base");
+      assertTrue(base.firstByWorker, "the base was read by a harness thread, not the worker");
+
+      Throwable failure =
+         StallTestSupport.failureOf(harness.submit(() -> drain(outer)), 2 * ACTIVE_CAP);
+      StallTestSupport.stallIn(failure);
+      // the worker's read goes on after the holder failed
+      StallTestSupport.awaitTrue(() -> base.paidRows() == ROWS, 2 * ACTIVE_CAP,
+                                 "the worker never read the whole base");
+      assertTrue(base.maxRowsPerCall() * F2_ROW_MILLIS > 8000,
+                 "no base read cost more than the limit, rows paid per read: " + base.calls);
+   }
+
+   /**
+    * The pool-off twin of {@link #knownPoolOnW2FormulaBaseReadStalls}: since #77223 a summary
+    * over a base that needs the engine lock starts no worker, so the holder computes it
+    * inline, asleep in no wait, and completes with every row.
+    */
+   @Test
+   public void f2FormulaBaseComputesInlinePoolOff() throws Exception {
+      harness.close();
+      harness = new LockCycleHarness(false);
+      policy(8000);
+      Sandbox control = harness.control();
+      List<List<Object>> expected = harness.await(harness.submit(
+         () -> drain(cf2(f2Summary(control, new DefaultTableLens(StallTestSupport.data(ROWS))),
+                         null))), ACTIVE_CAP, "control pipeline");
+      Sandbox s = harness.sandbox();
+      PerRowTable base = new PerRowTable(ROWS, () -> sleep(F2_ROW_MILLIS));
+      SummaryFilter summary = f2Summary(s, base);
+      TableLens outer = harness.track(cf2(summary, s.box));
+      harness.await(harness.submit(() -> summary.getRowCount()), ACTIVE_CAP, "getRowCount");
+
+      assertEquals(expected, harness.await(harness.submit(() -> drain(outer)), 2 * ACTIVE_CAP,
+                                           "holder computing inline"));
+      assertFalse(base.firstByWorker, "a lens worker read the base: a worker was started");
    }
 
    /**
@@ -206,6 +274,14 @@ public class RelSlowSummaryCreditTest {
                                               dumpDir));
    }
 
+   /**
+    * The summary of the original F2 shape: over a filtered formula lens over {@code base}.
+    */
+   private SummaryFilter f2Summary(Sandbox s, TableLens base) {
+      return harness.track(new SummaryFilter(s.filteredFormula(base), new int[] { 0 },
+                                             new int[] { 1 }, new SumFormula(), null));
+   }
+
    private SummaryFilter summary(Sandbox s, TableLens base) {
       return harness.track(new SummaryFilter(cf2(base, s.box), new int[] { 0 },
                                              new int[] { 1 }, new SumFormula(), null));
@@ -242,6 +318,7 @@ public class RelSlowSummaryCreditTest {
       @Override
       public boolean moreRows(int row) {
          int last = Math.min(row, rows);
+         int paid = 0;
 
          while(true) {
             int next;
@@ -261,7 +338,12 @@ public class RelSlowSummaryCreditTest {
                }
 
                cost.run();
+               paid++;
             }
+         }
+
+         if(paid > 0) {
+            calls.add(paid);
          }
 
          return super.moreRows(row);
@@ -274,9 +356,23 @@ public class RelSlowSummaryCreditTest {
       final CountDownLatch paying = new CountDownLatch(1);
       /** Whether a lens worker, not a test thread, paid the first row's cost. */
       volatile boolean firstByWorker;
+      /** The rows each moreRows call that paid any paid for, in call order. */
+      final List<Integer> calls = new java.util.concurrent.CopyOnWriteArrayList<>();
+
+      int paidRows() {
+         return calls.stream().mapToInt(Integer::intValue).sum();
+      }
+
+      int maxRowsPerCall() {
+         return calls.stream().mapToInt(Integer::intValue).max().orElse(0);
+      }
    }
 
    private static final int ROWS = 10;
+   // the W2 case's one read, far over the 8 s limit
+   private static final long W2_READ_MILLIS = 18000;
+   // the F2 shape's per-row cost
+   private static final long F2_ROW_MILLIS = 1500;
    @TempDir
    File dumpDir;
    private LockCycleHarness harness;
