@@ -65,10 +65,9 @@ import static inetsoft.test.XTableUtil.date;
  * instance's cycle entirely.
  *
  * <p>Bug #76945 originally fixed this with a MergePartCell-only rescue inside
- * {@code DateComparisonUtil.computeValidParts()}. Bug #77236 replaced that with a broader
- * rule: {@code applyDateRange()} skips the heuristic entirely when
- * {@link StandardPeriods#isToDate()} is false, since every older period is then complete
- * whatever the part's shape. These tests still guard the same outcome. They don't
+ * {@code DateComparisonUtil.computeValidParts()}. Bug #77236 removed that heuristic from
+ * {@code applyDateRange()} altogether, since the query layer already bounds every period and
+ * the heuristic only ever dropped real rows. These tests still guard the same outcome. They don't
  * special-case any one period/context-level combination: both the reported
  * QUARTER-period/MONTH-context shape and the previously untested YEAR-period/MONTH-context
  * shape from the #76391 family are exercised here, using

@@ -2255,9 +2255,8 @@ public class DateComparisonInfo implements Cloneable, XMLSerializable {
          // contextLevel/granularity itself -- meaning no coarser period wraps around and
          // resets the granularity value. When the period level is coarser (e.g. a QUARTER
          // period with WEEK granularity/context, "week of quarter"), the granularity value
-         // genuinely resets within each period instance and a temp ref is required so
-         // downstream computeValidParts() can distinguish same-period-instance values from
-         // different-instance ones (Bug #77010).
+         // genuinely resets within each period instance and a temp ref is required to keep
+         // same-period-instance values apart from different-instance ones (Bug #77010).
          if((intervalLevel & granularity) == granularity &&
             contextLevel == DateComparisonUtil.dcIntervalLevelToDateGroupLevel(granularity) &&
             getGranularityParentLevel() == contextLevel)
