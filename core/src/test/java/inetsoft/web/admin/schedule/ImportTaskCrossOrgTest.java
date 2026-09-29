@@ -433,6 +433,61 @@ class ImportTaskCrossOrgTest {
                                                        any(Principal.class));
    }
 
+   // an older export stores userName:taskName, the row carries the rewritten id
+   @Test
+   void legacyUserTaskName_selectedFromRows_isImported() throws Exception {
+      List<TaskDependencyModel> rows = parse(task("admin:Old", "admin~;~orga", null, null,
+                                                  NEVER_RUN)).tasks();
+
+      assertEquals("admin:Old", rows.get(0).task());
+      assertEquals("admin~;~" + ORG_A + ":Old", rows.get(0).taskId());
+
+      ImportTaskResponse response = importRows(rows, false);
+
+      assertTrue(response.failedTasks().isEmpty(), response.failedTasks().toString());
+      verify(scheduleManager, times(1)).setScheduleTask(eq("admin~;~" + ORG_A + ":Old"),
+                                                        any(ScheduleTask.class), eq(caller));
+   }
+
+   // an older export stores owner="null", which is the system user of the host org
+   @Test
+   void nullOwner_siteAdmin_selectedFromRows_isImported() throws Exception {
+      asSiteAdmin(HOST_ORG);
+      List<TaskDependencyModel> rows = parse(task("Legacy", "null", null, null, NEVER_RUN))
+         .tasks();
+      String id = XPrincipal.SYSTEM + "~;~" + HOST_ORG + ":Legacy";
+
+      assertEquals(id, rows.get(0).taskId());
+
+      ImportTaskResponse response = importRows(rows, false);
+
+      assertTrue(response.failedTasks().isEmpty(), response.failedTasks().toString());
+      verify(scheduleManager, times(1)).setScheduleTask(eq(id), any(ScheduleTask.class),
+                                                        eq(caller));
+   }
+
+   // an existing task is replaced only when overwriting, the selection matches in both cases
+   @Test
+   void existingNormalTask_selectedFromRows_honorsOverwrite() throws Exception {
+      String id = "admin~;~" + ORG_A + ":Backdoor";
+      ScheduleTask existing = new ScheduleTask("Backdoor");
+      existing.setOwner(new IdentityID("admin", ORG_A));
+      when(scheduleManager.getScheduleTask(id)).thenReturn(existing);
+      String xml = task("Backdoor", "admin~;~orga", null, null, NEVER_RUN);
+
+      ImportTaskResponse kept = importRows(parse(xml).tasks(), false);
+
+      assertTrue(kept.failedTasks().isEmpty(), kept.failedTasks().toString());
+      verify(scheduleManager, never()).setScheduleTask(anyString(), any(ScheduleTask.class),
+                                                       any(Principal.class));
+
+      ImportTaskResponse replaced = importRows(parse(xml).tasks(), true);
+
+      assertTrue(replaced.failedTasks().isEmpty(), replaced.failedTasks().toString());
+      verify(scheduleManager, times(1)).setScheduleTask(eq(id), any(ScheduleTask.class),
+                                                        eq(caller));
+   }
+
    // the Bug #77259 checks now apply to the rows the stock dialog sends
    @Test
    void internalContent_selectedFromRows_isStillRefused() throws Exception {
