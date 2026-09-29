@@ -42,6 +42,7 @@ import java.security.Principal;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -585,8 +586,15 @@ public class IgniteSessionRepository
    }
 
    public static DistributedMap<String, Object> getSessionAttributeMap(String sessionId) {
-      if(SESSION_ATTRIBUTE_MAPS.containsKey(sessionId)) {
-         return SESSION_ATTRIBUTE_MAPS.get(sessionId);
+      // Single atomic get (not containsKey() + get()) -- the previous two-call sequence was a
+      // TOCTOU: a concurrent destroySessionAttributeMap() could remove the entry between the
+      // containsKey() check and the get(), spuriously falling through as if never cached
+      // (Bug #77306). DistributedMap values are never stored as null, so a non-null get() result
+      // is equivalent to "was present" without a second call.
+      DistributedMap<String, Object> cached = SESSION_ATTRIBUTE_MAPS.get(sessionId);
+
+      if(cached != null) {
+         return cached;
       }
 
       Cluster cluster = Cluster.getInstance();
@@ -596,7 +604,14 @@ public class IgniteSessionRepository
             .getReplicatedMap(getSessionAttributeMapName(sessionId));
 
          if(cluster.getCache(DEFAULT_SESSION_MAP_NAME).containsKey(sessionId)) {
-            SESSION_ATTRIBUTE_MAPS.put(sessionId, map);
+            // computeIfAbsent() makes the "not yet cached -> cache it" transition atomic per key,
+            // closing the same-key TOCTOU between this cold path and a concurrent
+            // destroySessionAttributeMap()/another getSessionAttributeMap() caching the map first
+            // (Bug #77306). Only reached when the session is still known to exist -- preserve the
+            // pre-existing behavior of NOT caching (and just returning) the freshly-fetched map
+            // when the underlying session cache no longer contains this id.
+            DistributedMap<String, Object> fetched = map;
+            return SESSION_ATTRIBUTE_MAPS.computeIfAbsent(sessionId, id -> fetched);
          }
 
          return map;
@@ -624,7 +639,17 @@ public class IgniteSessionRepository
    private static final int PROTECTION_EXPIRATION_WARNING_INTERVAL = 120000; // 2 minutes, how often to warn about protection expiring
    private static final String EXPIRING_SOON_ATTR = IgniteSessionRepository.class.getName() + ".expiringSoon";
    private static final String LAST_PROTECTION_WARNING_TIME_ATTR = IgniteSessionRepository.class.getName() + ".lastProtectionWarningTime";
-   private static final Map<String, DistributedMap<String, Object>> SESSION_ATTRIBUTE_MAPS = new HashMap<>();
+   // ConcurrentHashMap, not HashMap -- this map is shared by every HTTP session on the node and
+   // mutated concurrently from at least three independent thread contexts (request threads via
+   // createSessionAttributeMap()/getSessionAttributeMap()'s cold-path put, the single-threaded
+   // Ignite cache-event listener executor via destroySessionAttributeMap(), and the
+   // @Scheduled(fixedRate = 20000) checkSessions() thread's cold-path put for every session
+   // cluster-wide). Concurrent put/remove on a plain HashMap can corrupt its internal structure
+   // badly enough to spuriously null out (or lose) an entirely unrelated key, with the damage
+   // persisting for the life of the map -- this was the root cause of Bug #77306 (a sibling
+   // session's own PRINCIPAL_COOKIE attribute intermittently reading back null, producing a
+   // spurious HTTP 403 on an unrelated, still-active session).
+   private static final Map<String, DistributedMap<String, Object>> SESSION_ATTRIBUTE_MAPS = new ConcurrentHashMap<>();
    private static final String SESSION_ATTRIBUTE_MAP = IgniteSessionRepository.class.getName() + ".sessionAttributeMap.";
 
    public final class IgniteSession implements Session {
@@ -678,7 +703,14 @@ public class IgniteSessionRepository
 
       @Override
       public <T> T getAttribute(String attributeName) {
-         return (T) getSessionAttributeMap(originalId).get(getAttributeKey(attributeName));
+         DistributedMap<String, Object> map = getSessionAttributeMap(originalId);
+
+         // could be out of sync due to session expiration, need to check for null (Bug #77306)
+         if(map == null) {
+            return null;
+         }
+
+         return (T) map.get(getAttributeKey(attributeName));
       }
 
       @Override
@@ -698,17 +730,29 @@ public class IgniteSessionRepository
             ((DestinationUserNameProviderPrincipal) attributeValue).setHttpSessionId(originalId);
          }
 
+         DistributedMap<String, Object> map = getSessionAttributeMap(originalId);
+
+         // could be out of sync due to session expiration, need to check for null (Bug #77306)
+         if(map == null) {
+            return;
+         }
+
          if(attributeValue == null) {
-            getSessionAttributeMap(originalId).remove(getAttributeKey(attributeName));
+            map.remove(getAttributeKey(attributeName));
          }
          else {
-            getSessionAttributeMap(originalId).put(getAttributeKey(attributeName), attributeValue);
+            map.put(getAttributeKey(attributeName), attributeValue);
          }
       }
 
       @Override
       public void removeAttribute(String attributeName) {
-         getSessionAttributeMap(originalId).remove(getAttributeKey(attributeName));
+         DistributedMap<String, Object> map = getSessionAttributeMap(originalId);
+
+         // could be out of sync due to session expiration, need to check for null (Bug #77306)
+         if(map != null) {
+            map.remove(getAttributeKey(attributeName));
+         }
       }
 
       @Override

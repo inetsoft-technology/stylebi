@@ -114,6 +114,13 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import javax.cache.Cache;
+import java.lang.reflect.Field;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -415,6 +422,112 @@ class IgniteSessionRepositoryTest {
       assertSame(principal, expiredEvent.getPrincipalCookie(),
                  "the published event must resolve the real principal, not null from the raw " +
                  "MapSession (bug #77178)");
+   }
+
+   /**
+    * Regression test for Bug #77306: {@code SESSION_ATTRIBUTE_MAPS} was a single static,
+    * unsynchronized {@code HashMap} shared by every session on the node, mutated concurrently by
+    * request threads ({@code createSessionAttributeMap()}/{@code getSessionAttributeMap()}'s
+    * cold-path put) and the Ignite cache-event listener path ({@code destroySessionAttributeMap()}
+    * from {@code entryExpired()}/{@code entryRemoved()}). The refuter demonstrated experimentally
+    * that two threads concurrently {@code put}/{@code remove}-ing on a plain {@code HashMap} --
+    * regardless of resize, bucket collision, or total map size -- reliably corrupts it badly
+    * enough to spuriously null out an entirely unrelated key, with the corruption persisting for
+    * the life of the map.
+    *
+    * <p>This exercises the exact static field via reflection (rather than routing through full
+    * session/EntryEvent/Mockito plumbing, which is too slow to reach the operation volume needed
+    * to reliably surface the corruption within a reasonable test time -- confirmed by hand before
+    * writing this version, see the fix write-up), with several writer threads doing real
+    * concurrent {@code put}/{@code remove} churn on disjoint keys (mirroring
+    * {@code createSessionAttributeMap()}/{@code destroySessionAttributeMap()}'s access pattern)
+    * while a reader thread continuously reads one untouched "victim" key, asserting it is never
+    * spuriously lost or corrupted. Manually reverting {@code SESSION_ATTRIBUTE_MAPS} to a plain
+    * {@code HashMap} makes this test fail reliably; it passes reliably with the fixed
+    * {@code ConcurrentHashMap}.
+    */
+   @Test
+   void concurrentSessionAttributeMapAccess_neverCorruptsUnrelatedKey() throws Exception {
+      Field field = IgniteSessionRepository.class.getDeclaredField("SESSION_ATTRIBUTE_MAPS");
+      field.setAccessible(true);
+      @SuppressWarnings("unchecked")
+      Map<String, Object> map = (Map<String, Object>) field.get(null);
+
+      String victimKey = "bug-77306-victim-" + UUID.randomUUID();
+      Object victimValue = new Object();
+      map.put(victimKey, victimValue);
+
+      try {
+         int writerThreads = 4;
+         int iterations = 200_000;
+         ExecutorService pool = Executors.newFixedThreadPool(writerThreads + 1);
+         CountDownLatch start = new CountDownLatch(1);
+         AtomicBoolean failed = new AtomicBoolean(false);
+         AtomicReference<String> failureDetail = new AtomicReference<>();
+         List<Future<?>> futures = new ArrayList<>();
+
+         // Writer threads: repeatedly put(), then remove(), a brand-new, thread-local key --
+         // mirrors createSessionAttributeMap()'s put() racing destroySessionAttributeMap()'s
+         // remove() for unrelated sessions. Multiple such writer threads overlapping is exactly
+         // what the refuter's experiments showed is sufficient (and necessary) to corrupt a plain
+         // HashMap, regardless of resize or bucket collision.
+         for(int t = 0; t < writerThreads; t++) {
+            String prefix = "bug-77306-churn-" + t + "-";
+
+            futures.add(pool.submit(() -> {
+               try {
+                  start.await();
+
+                  for(int i = 0; i < iterations && !failed.get(); i++) {
+                     String key = prefix + i;
+                     map.put(key, new Object());
+                     map.remove(key);
+                  }
+               }
+               catch(Exception e) {
+                  failed.set(true);
+                  failureDetail.set("writer thread failed: " + e);
+               }
+            }));
+         }
+
+         // Reader thread: continuously reads the victim key -- this must never come back
+         // null/wrong, regardless of how much unrelated put()/remove() churn is happening
+         // concurrently on the shared static map.
+         futures.add(pool.submit(() -> {
+            try {
+               start.await();
+
+               for(int i = 0; i < writerThreads * iterations && !failed.get(); i++) {
+                  Object read = map.get(victimKey);
+
+                  if(read != victimValue) {
+                     failed.set(true);
+                     failureDetail.set(
+                        "victim key was lost/corrupted at iteration " + i + ": got " + read);
+                     break;
+                  }
+               }
+            }
+            catch(Exception e) {
+               failed.set(true);
+               failureDetail.set("reader thread failed: " + e);
+            }
+         }));
+
+         start.countDown();
+
+         for(Future<?> future : futures) {
+            future.get(120, TimeUnit.SECONDS);
+         }
+
+         pool.shutdown();
+
+         assertFalse(failed.get(), failureDetail.get());
+      }
+      finally {
+         map.remove(victimKey);
+      }
    }
 
    private static SRPrincipal mockPrincipal(String name, String ip) {
