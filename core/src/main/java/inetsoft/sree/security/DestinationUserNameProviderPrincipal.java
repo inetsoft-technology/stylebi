@@ -25,7 +25,7 @@ import inetsoft.web.session.IgniteSessionRepository;
 import org.springframework.messaging.simp.user.DestinationUserNameProvider;
 
 import java.io.*;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Collectors;
 
 public class DestinationUserNameProviderPrincipal
@@ -91,6 +91,72 @@ public class DestinationUserNameProviderPrincipal
       else {
          this.httpSessionId = httpSessionId;
       }
+   }
+
+   /**
+    * Binds this principal to an HTTP session like {@link #setHttpSessionId(String)}, so that the
+    * binding can be undone with {@link #unbindHttpSession(Map)} if the session is not created.
+    *
+    * @param httpSessionId the HTTP session ID.
+    *
+    * @return the principal entries of the session attribute map before this call copied the
+    *         local values into it, or {@code null} if this principal was already bound and
+    *         nothing was copied.
+    */
+   public Map<String, Object> bindHttpSession(String httpSessionId) {
+      if(this.httpSessionId != null) {
+         setHttpSessionId(httpSessionId);
+         return null;
+      }
+
+      Map<String, Object> snapshot = new HashMap<>();
+      DistributedMap<String, Object> map = httpSessionId == null ?
+         null : IgniteSessionRepository.getSessionAttributeMap(httpSessionId);
+
+      if(map != null) {
+         map.forEach((key, value) -> {
+            if(isPrincipalKey(key)) {
+               snapshot.put(key, value);
+            }
+         });
+      }
+
+      setHttpSessionId(httpSessionId);
+      return snapshot;
+   }
+
+   /**
+    * Undoes {@link #bindHttpSession(String)}. The session attribute map may be shared with
+    * another principal of the same HTTP session, so the principal entries are restored to the
+    * snapshot instead of being removed.
+    *
+    * @param snapshot the value returned by {@link #bindHttpSession(String)}.
+    */
+   public void unbindHttpSession(Map<String, Object> snapshot) {
+      DistributedMap<String, Object> map = getSessionAttributeMap();
+
+      if(map != null) {
+         Set<String> added = map.keySet().stream()
+            .filter(key -> isPrincipalKey(key) && !snapshot.containsKey(key))
+            .collect(Collectors.toSet());
+
+         if(!added.isEmpty()) {
+            map.removeAll(added);
+         }
+
+         snapshot.forEach((key, value) -> {
+            if(!Objects.equals(map.get(key), value)) {
+               map.put(key, value);
+            }
+         });
+      }
+
+      httpSessionId = null;
+   }
+
+   private static boolean isPrincipalKey(String key) {
+      return key != null && (key.startsWith(PROP_PREFIX) || key.startsWith(PARAM_PREFIX) ||
+         key.startsWith(PARAM_TS_PREFIX) || key.startsWith(FIELD_PREFIX));
    }
 
    @Override

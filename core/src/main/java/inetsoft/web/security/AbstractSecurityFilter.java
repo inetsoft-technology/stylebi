@@ -304,6 +304,8 @@ public abstract class AbstractSecurityFilter
       HttpSession session = httpRequest.getSession(true);
       SessionLicenseManager sessionLicenseManager =
          sessionLicenseServiceProvider.getSessionLicenseManager();
+      Map<String, Object> attributesBeforeBind = null;
+      boolean created = false;
 
       try {
          if(sessionLicenseManager != null) {
@@ -343,8 +345,11 @@ public abstract class AbstractSecurityFilter
          // carries the session id reads the distributed lastAccess kept current by
          // RequestPrincipalFilter. An unbound copy stays frozen at the login time and the sweep
          // above logs out active users (Bug #77029). setAttribute() below repeats this as a no-op.
+         // Binding copies the principal's properties into the session attribute map, so it is
+         // undone below if the session is not created, e.g. the license rejects the user. A
+         // later login in the same HTTP session would read them otherwise (Bug #77219).
          if(principal instanceof DestinationUserNameProviderPrincipal dunpp) {
-            dunpp.setHttpSessionId(session.getId());
+            attributesBeforeBind = dunpp.bindHttpSession(session.getId());
          }
 
          if(sessionIdToReplace != null) {
@@ -355,6 +360,7 @@ public abstract class AbstractSecurityFilter
          }
 
          session.setAttribute(RepletRepository.PRINCIPAL_COOKIE, principal);
+         created = true;
 
          // Mark anonymous sessions as fresh so they can be invalidated on error responses
          if(isAnonymousPrincipal(principal)) {
@@ -383,6 +389,12 @@ public abstract class AbstractSecurityFilter
          throw new AuthenticationFailureException(
             AuthenticationFailureReason.GENERIC_ERROR,
             Catalog.getCatalog(principal).getString("login.error.sessions.failed"), thrown);
+      }
+      finally {
+         if(!created && attributesBeforeBind != null) {
+            ((DestinationUserNameProviderPrincipal) principal)
+               .unbindHttpSession(attributesBeforeBind);
+         }
       }
 
       if(isNonlocalClient(principal)) {
