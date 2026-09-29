@@ -1028,6 +1028,12 @@
             <groupId>com.zaxxer</groupId>
             <artifactId>*</artifactId>
           </exclusion>
+          <!-- c3p0 is only used by Quartz's JDBC job store data sources, which are not used
+               (CVE-2026-27830, CVE-2026-27727, CVE-2026-55153) -->
+          <exclusion>
+            <groupId>com.mchange</groupId>
+            <artifactId>*</artifactId>
+          </exclusion>
         </exclusions>
       </dependency>
 
