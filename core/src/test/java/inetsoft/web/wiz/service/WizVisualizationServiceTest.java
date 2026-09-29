@@ -30,6 +30,7 @@ import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.asset.SourceInfo;
 import inetsoft.uql.erm.ExpressionRef;
+import inetsoft.uql.viewsheet.AbstractSelectionVSAssembly;
 import inetsoft.uql.viewsheet.CalculateRef;
 import inetsoft.uql.viewsheet.CalendarVSAssembly;
 import inetsoft.uql.viewsheet.ChartVSAssembly;
@@ -497,6 +498,35 @@ class WizVisualizationServiceTest {
                  "a sibling chart's control on another table must not be carried into the saved viz");
       assertNotNull(newVs.getAssembly("SelB"), "the saved chart's own control is still carried");
       assertEquals(2, newVs.getAssemblies().length);
+   }
+
+   /** The table filter applies to range sliders and calendars too, not only selection lists. */
+   @Test
+   void savingAChartFiltersSiblingRangeSlidersAndCalendarsByTable() throws Exception {
+      Viewsheet sourceVs = new Viewsheet();
+      sourceVs.addAssembly(chartOn(sourceVs, "ChartA", "T_A"));
+      sourceVs.addAssembly(chartOn(sourceVs, "ChartB", "T_B"));
+      sourceVs.addAssembly(controlOn(new TimeSliderVSAssembly(sourceVs, "SliderA"), 0, "T_A"));
+      sourceVs.addAssembly(controlOn(new CalendarVSAssembly(sourceVs, "CalendarA"), 100, "T_A"));
+      sourceVs.addAssembly(controlOn(new TimeSliderVSAssembly(sourceVs, "SliderB"), 200, "T_B"));
+      sourceVs.addAssembly(controlOn(new CalendarVSAssembly(sourceVs, "CalendarB"), 300, "T_B"));
+
+      Viewsheet newVs = saveAndCapture(sourceVs, "ChartB");
+
+      assertNull(newVs.getAssembly("SliderA"), "a sibling's range slider on another table is dropped");
+      assertNull(newVs.getAssembly("CalendarA"), "a sibling's calendar on another table is dropped");
+      assertNotNull(newVs.getAssembly("SliderB"));
+      assertNotNull(newVs.getAssembly("CalendarB"));
+      assertEquals(3, newVs.getAssemblies().length);
+   }
+
+   private static AbstractSelectionVSAssembly controlOn(AbstractSelectionVSAssembly control, int x,
+                                                        String table)
+   {
+      control.setPixelOffset(new Point(x, 250));
+      control.setPixelSize(new Dimension(100, 120));
+      control.setTableNames(List.of(table));
+      return control;
    }
 
    /** A sibling chart's control on the same table already filters the saved chart, so it is kept. */
