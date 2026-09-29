@@ -122,6 +122,35 @@ class GraalJavaScriptEngineOwnedVarTest {
          List.of(reliesOnOtherColumn2, poisonedVarDecl2)));
    }
 
+   // Bug #77249: after a call that ends a line without `;`, a brace opens a block statement
+   // (ASI), not a function body, so its var is still owned
+   @Test
+   void aBlockAfterACallIsNotAFunctionBody() {
+      assertEquals(Set.of("asi1"), owned("foo(1)\n{ var asi1 = 1 }"));
+      assertEquals(Set.of("asi2"), owned("if (a) foo(b)\n{ var asi2 }"));
+      assertEquals(Set.of("asi3"), owned("new Foo(a)\n{ var asi3 }"));
+      assertEquals(Set.of("asi4"), owned("let lq = f(a)\n{ var asi4 }"));
+      assertEquals(Set.of("asi5"), owned("if(x) { foo(1)\n{ var asi5 } }"));
+      assertEquals(Set.of("asi6"), owned("x = { k: 1 }; foo(x)\n{ var asi6 }"));
+   }
+
+   // the vars of methods, accessors, class bodies and default-parameter functions are
+   // still not owned (#77249 M1)
+   @Test
+   void varsOfMethodBodiesAreNotOwned() {
+      assertEquals(Set.of(), owned(
+         "let o = { m(a) { var u1 }, get g() { var u2 }, async n() { var u3 }, *q() { var u4 } }"));
+      assertEquals(Set.of(), owned("foo({ m() { var u5 } })"));
+      assertEquals(Set.of(), owned("let o2 = { a: { m() { var u6 } }, b: [{ n() { var u7 } }] }"));
+      assertEquals(Set.of(), owned("let C = class { m(a) { var u8 } static s(a = {}) { var u9 } }"));
+      assertEquals(Set.of(), owned("class D extends B { constructor() { var v1 } get x() { var v2 } }"));
+      assertEquals(Set.of(), owned("function d(a = { k: 1 }) { var v3 }"));
+      assertEquals(Set.of(), owned("let f = function(a = {}, { b } = {}) { var v4 }"));
+      assertEquals(Set.of(), owned("let g = (a = { k: 1 }) => { var v5 }"));
+      assertEquals(Set.of(), owned("function e(a = function() { var v6 }) { var v7 }"));
+      assertEquals(Set.of("w"), owned("function h(a = {}) { var v8 } var w"));
+   }
+
    @Test
    void aNameDeclaredWithLetOrConstInAnyFormulaIsNotOwned() {
       assertEquals(Set.of(), GraalJavaScriptEngine.collectOwnedVarNames(

@@ -159,6 +159,25 @@ class FormulaTableLensVarTest {
       }
    }
 
+   // Bug #77249 (F1): a function declared in a block of a split formula exists only on the
+   // rows that enter the block, as on the eval wrapper; as a piece it outlived its row
+   @ParameterizedTest(name = "pool={0}")
+   @ValueSource(booleans = { false, true })
+   void aFunctionOfABlockExistsOnlyOnItsRows(boolean pool) throws Exception {
+      AssetQuerySandbox box = box(pool);
+      TableLens t = PostProcessor.formula(
+         base(ROWS), new String[] { "out" },
+         new String[] { "if(field['id'] % 2 == 1) { function bf(){ return 'b' + field['id'] } } " +
+                        "if(typeof bf == 'function') { bf() }" },
+         box.getScriptEnv(), box.getScope(), null, "BF", null, List.of(String.class),
+         new boolean[] { false });
+
+      for(int r = 1; r <= ROWS; r++) {
+         assertTrue(t.moreRows(r));
+         assertEquals(r % 2 == 1 ? "b" + r : null, t.getObject(r, 2), "row " + r);
+      }
+   }
+
    @ParameterizedTest(name = "pool={0}")
    @ValueSource(booleans = { false, true })
    void twoColumnsShareAVar(boolean pool) throws Exception {

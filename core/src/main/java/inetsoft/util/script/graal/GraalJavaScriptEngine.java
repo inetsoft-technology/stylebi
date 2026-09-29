@@ -32,6 +32,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Deque;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -875,8 +876,10 @@ public class GraalJavaScriptEngine implements AutoCloseable {
          // Bug #77249: without `this`, run each piece as its own parsed-once
          // with(__scope__) Source instead of a per-exec direct eval (which GraalJS
          // re-parses on every execution). A `this` body keeps the eval wrapper.
-         Object pieces = THIS_REF.matcher(body).find() ? null :
-            buildPieceScript(body, lexicalBody, statements);
+         // A function declared in a nested block keeps the eval wrapper too: as a
+         // piece it would keep its function across runs (hasBlockFunctionDeclaration).
+         Object pieces = THIS_REF.matcher(body).find() || hasBlockFunctionDeclaration(body) ?
+            null : buildPieceScript(body, lexicalBody, statements);
 
          return pieces != null ? pieces : buildCompletionPreservingSource(body, statements);
       }
@@ -2076,27 +2079,7 @@ public class GraalJavaScriptEngine implements AutoCloseable {
     * (no split).
     */
    private boolean piecesAllParse(List<String> pieces) {
-      lock.lock();
-
-      try {
-         if(context == null) {
-            return false;
-         }
-
-         for(String piece : pieces) {
-            try {
-               context.parse("js", piece);
-            }
-            catch(Exception ex) {
-               return false;
-            }
-         }
-
-         return true;
-      }
-      finally {
-         lock.unlock();
-      }
+      return allParse(pieces, piece -> context.parse("js", piece));
    }
 
    /**
@@ -2105,6 +2088,11 @@ public class GraalJavaScriptEngine implements AutoCloseable {
     * (the caller keeps the eval wrapper) if the context is not yet built.
     */
    private boolean sourcesAllParse(Source[] sources) {
+      return allParse(Arrays.asList(sources), source -> context.parse(source));
+   }
+
+   // parse each item under the engine lock; false if the context is not built or one fails
+   private <T> boolean allParse(List<T> items, java.util.function.Consumer<T> parse) {
       lock.lock();
 
       try {
@@ -2112,9 +2100,9 @@ public class GraalJavaScriptEngine implements AutoCloseable {
             return false;
          }
 
-         for(Source source : sources) {
+         for(T item : items) {
             try {
-               context.parse(source);
+               parse.accept(item);
             }
             catch(Exception ex) {
                return false;
@@ -2573,9 +2561,9 @@ public class GraalJavaScriptEngine implements AutoCloseable {
     *
     * <p>A lexical scan on the shared tokenizing of {@link #stripStringsAndComments}, like
     * the other declaration scanners. A function body is recognized by the {@code function}
-    * keyword, by {@code => {}}, and by a {@code name(...) {} } head whose name is not a
-    * control keyword (a method shorthand, a class method or accessor, #77249). A missed
-    * name keeps the per-script behavior.
+    * keyword, by {@code => {}}, by a class body, and by a {@code name(...) {} } head in an
+    * object literal (a method shorthand or accessor, #77249); in a block such a head is a
+    * call followed by a block statement. A missed name keeps the per-script behavior.
     *
     * @param scripts the scripts, null elements are skipped.
     */
@@ -2598,16 +2586,53 @@ public class GraalJavaScriptEngine implements AutoCloseable {
     * Add the names {@code script} declares with {@code var} outside any function body.
     */
    private static void collectOwnedVarNames(String script, Set<String> names) {
+      scanOwnedVarsAndBlockFunctions(script, names);
+   }
+
+   /**
+    * Bug #77249: whether {@code script} declares a function in a nested block (or as
+    * the statement of an {@code if}/{@code else}/loop) outside any function body,
+    * e.g. {@code if(v > 0) { function f(){} }}. Run as a piece of a
+    * {@link PieceScript}, such a function is hoisted (Annex B) to a global of the
+    * Context, which keeps the previous run's function when the block is not entered;
+    * in the eval wrapper it is a fresh binding of the wrapper function on every run.
+    * A lexical scan: a false positive only keeps the (correct, slower) eval wrapper.
+    */
+   static boolean hasBlockFunctionDeclaration(String script) {
+      return scanOwnedVarsAndBlockFunctions(script, new HashSet<>());
+   }
+
+   // brace kinds of scanOwnedVarsAndBlockFunctions
+   private static final int BLOCK_BRACE = 0;
+   private static final int OBJECT_BRACE = 1;
+   private static final int FUNCTION_BRACE = 2;
+
+   /**
+    * Add the names {@code script} declares with {@code var} outside any function body,
+    * and return whether it declares a function in a nested block outside any function
+    * body ({@link #hasBlockFunctionDeclaration}).
+    *
+    * <p>A brace opens a function body after the {@code function} keyword (at the paren
+    * depth of the keyword, so a brace in a default parameter does not count), after
+    * {@code =>}, after a {@code class} head (a class body holds no top-level var), and
+    * after a {@code name(...)} head directly in an object literal (a method shorthand,
+    * getter or setter). An object literal is a brace in expression position. In a block,
+    * {@code name(...)} followed by a brace is a call and a block statement (ASI), not a
+    * function (#77249).
+    */
+   private static boolean scanOwnedVarsAndBlockFunctions(String script, Set<String> names) {
       String src = stripStringsAndComments(script);
-      // per open brace, whether it opens a function body
-      Deque<Boolean> braces = new ArrayDeque<>();
-      // per open paren, whether it follows a name that is not a control keyword, so
-      // `name(...) {` is a function body: a method shorthand, a class method, a
-      // getter/setter, or a function whose default parameter holds a brace (#77249)
+      // per open brace: its kind and the paren depth at which it opened
+      Deque<int[]> braces = new ArrayDeque<>();
+      // per open paren: whether it is the parameter list of an object literal method
       Deque<Boolean> parens = new ArrayDeque<>();
+      // per pending function: the paren depth of its body brace
+      Deque<Integer> pendingFns = new ArrayDeque<>();
       int fdepth = 0;
-      boolean pendingFn = false;
-      boolean fnHead = false;
+      boolean pendingClass = false;
+      boolean methodHead = false;
+      boolean blockFn = false;
+      // the previous token if it is a word, kept across whitespace
       String word = null;
       int n = src.length();
       int i = 0;
@@ -2615,6 +2640,7 @@ public class GraalJavaScriptEngine implements AutoCloseable {
 
       while(i < n) {
          char c = src.charAt(i);
+         int enclosing = braces.isEmpty() ? BLOCK_BRACE : braces.peek()[0];
 
          if(isIdentStart(c)) {
             int start = i;
@@ -2624,8 +2650,9 @@ public class GraalJavaScriptEngine implements AutoCloseable {
                i++;
             }
 
+            String before = word;
             word = src.substring(start, i);
-            fnHead = false;
+            methodHead = false;
 
             // ignore keywords used as member names (obj.var / obj.function)
             if(prev != '.') {
@@ -2634,7 +2661,23 @@ public class GraalJavaScriptEngine implements AutoCloseable {
                   word = null;
                }
                else if(word.equals("function")) {
-                  pendingFn = true;
+                  // a declaration (statement position) nested in a block or a statement;
+                  // an async function or a generator is not hoisted out of its block,
+                  // but over-matching only keeps the eval wrapper
+                  boolean statement = before != null ?
+                     before.equals("else") || before.equals("do") :
+                     prev == 0 || prev == '{' || prev == '}' || prev == ';' || prev == ')' ||
+                        prev == ':' && enclosing == BLOCK_BRACE;
+                  boolean nested = !braces.isEmpty() || before != null || prev == ')';
+
+                  if(fdepth == 0 && statement && nested) {
+                     blockFn = true;
+                  }
+
+                  pendingFns.push(parens.size());
+               }
+               else if(word.equals("class")) {
+                  pendingClass = true;
                }
             }
 
@@ -2647,38 +2690,59 @@ public class GraalJavaScriptEngine implements AutoCloseable {
             int j = skipWhitespace(src, i + 2);
 
             if(j < n && src.charAt(j) == '{') {
-               pendingFn = true;
+               pendingFns.push(parens.size());
             }
          }
          else if(c == '(') {
-            parens.push(word != null && !NON_FUNCTION_HEADS.contains(word));
+            parens.push(word != null && !NON_FUNCTION_HEADS.contains(word) &&
+               enclosing == OBJECT_BRACE && parens.size() == braces.peek()[1]);
          }
          else if(c == ')' && !parens.isEmpty()) {
-            boolean head = parens.pop();
+            methodHead = parens.pop();
             word = null;
-            fnHead = head;
             prev = c;
             i++;
             continue;
          }
          else if(c == '{') {
-            boolean fn = pendingFn || fnHead;
-            braces.push(fn);
-            fdepth += fn ? 1 : 0;
-            pendingFn = false;
+            int kind;
+
+            if(!pendingFns.isEmpty() && pendingFns.peek() == parens.size()) {
+               pendingFns.pop();
+               kind = FUNCTION_BRACE;
+            }
+            else if(methodHead || pendingClass) {
+               kind = FUNCTION_BRACE;
+            }
+            else if(word != null) {
+               kind = OBJECT_AFTER_WORDS.contains(word) ? OBJECT_BRACE : BLOCK_BRACE;
+            }
+            else if(prev == ':') {
+               kind = enclosing == OBJECT_BRACE ? OBJECT_BRACE : BLOCK_BRACE;
+            }
+            else {
+               kind = prev != 0 && "=(,[?!&|+-*/%<>~^".indexOf(prev) >= 0 ?
+                  OBJECT_BRACE : BLOCK_BRACE;
+            }
+
+            pendingClass = false;
+            braces.push(new int[] { kind, parens.size() });
+            fdepth += kind == FUNCTION_BRACE ? 1 : 0;
          }
          else if(c == '}' && !braces.isEmpty()) {
-            fdepth -= braces.pop() ? 1 : 0;
+            fdepth -= braces.pop()[0] == FUNCTION_BRACE ? 1 : 0;
          }
 
          if(!Character.isWhitespace(c)) {
             prev = c;
             word = null;
-            fnHead = false;
+            methodHead = false;
          }
 
          i++;
       }
+
+      return blockFn;
    }
 
    // names whose parenthesized head is not a function's parameter list, so a brace
@@ -2687,6 +2751,11 @@ public class GraalJavaScriptEngine implements AutoCloseable {
       "if", "for", "while", "switch", "catch", "with", "return", "typeof", "void",
       "delete", "new", "in", "of", "instanceof", "throw", "case", "do", "else", "await",
       "yield");
+
+   // words after which a brace opens an object literal (expression position)
+   private static final Set<String> OBJECT_AFTER_WORDS = Set.of(
+      "return", "typeof", "void", "delete", "new", "in", "of", "instanceof", "throw",
+      "case", "yield", "await", "extends");
 
    /**
     * Add the names of the top-level {@code let}/{@code const} declarations of

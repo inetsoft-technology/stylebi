@@ -17,8 +17,13 @@
  */
 package inetsoft.util.script.graal;
 
+import inetsoft.util.script.graal.pool.PoolTestSupport;
+import inetsoft.util.script.graal.pool.SlotClaim;
+import inetsoft.util.script.graal.pool.WorksheetScriptEnv;
 import org.graalvm.polyglot.Source;
 import org.junit.jupiter.api.*;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -256,9 +261,90 @@ class GraalJavaScriptEnginePieceScriptTest {
       assertNull(run("if(false) { var z77249 = 1 } if(true) { z77249 }"));
    }
 
+   // Bug #77249 (F2): a call ending a line without `;` followed by a bare block is a call
+   // and a block statement (ASI), not a method head: the block's var is still reset
+   @Test void aVarInABlockAfterACallIsReset() throws Exception {
+      run("var asi77249 = 8; var bsi77249 = 9; function noop77249(){}");
+      assertNull(run("noop77249(1)\n{ if(false) { var asi77249 = 1 } }\nif(true) { asi77249 }"));
+      assertNull(run("if(true) noop77249(2)\n{ var bsi77249 }\nif(true) { bsi77249 }"));
+   }
+
+   // Bug #77249 (F1): a function declared in a block (Annex B) that the next run does not
+   // enter is gone on that run, as on the eval wrapper, pool off and on; as a piece its
+   // global kept the previous run's function
+   @ParameterizedTest(name = "pool={0}")
+   @ValueSource(booleans = { false, true })
+   void aFunctionOfABlockDoesNotOutliveItsRun(boolean pool) throws Exception {
+      WorksheetScriptEnv env = pool ? PoolTestSupport.env() : null;
+
+      try {
+         assertBlockFunctionValues(env,
+            "if(value > 0) { function bf77249(){ return 'b' + value } } " +
+            "if(typeof bf77249 == 'function') { bf77249() }", "b5", "b7", null);
+         assertBlockFunctionValues(env,
+            "switch(value > 0) { case true: function sf77249(){ return 's' + value } } " +
+            "if(typeof sf77249 == 'function') { sf77249() }", "s5", "s7", null);
+         assertBlockFunctionValues(env,
+            "var n77249 = 1; if(value > 0) function nf77249(){ return 'n' + value }\n" +
+            "if(typeof nf77249 == 'function') { nf77249() }", "n5", "n7", null);
+      }
+      finally {
+         if(env != null) {
+            env.retire();
+         }
+      }
+   }
+
+   // what counts as a function declared in a block: a false positive only keeps the eval
+   // wrapper, a miss keeps a piece
+   @Test void blockFunctionDeclarationsAreFound() throws Exception {
+      for(String f : new String[] {
+         "if(a) { function f(){} }", "if(a) function f(){}", "if(a) {} else function f(){}",
+         "switch(a) { case 1: function f(){} }", "for(;;) { function f(){} }",
+         "{ function f(){} }", "try { function f(){} } catch(e) {}", "foo(1)\n{ function f(){} }" })
+      {
+         assertTrue(GraalJavaScriptEngine.hasBlockFunctionDeclaration(f), f);
+      }
+
+      for(String f : new String[] {
+         "function f(){} if(a) { f() }", "if(a) { var g = function(){} }",
+         "if(a) { [1].map(function(x){ return x }) }", "if(a) { o = { k: function(){} } }",
+         "function o(){ if(a) { function i(){} } }", "if(a) { x = b ? function(){} : null }",
+         "let o = { m() { if(a) { function i(){} } } }", "if(a) { (function(){})() }",
+         "if(a) { return function(){} }", "if(a) { async function f(){} }",
+         "var s = 'if(a) { function f(){} }'; if(a) { s }" })
+      {
+         assertFalse(GraalJavaScriptEngine.hasBlockFunctionDeclaration(f), f);
+      }
+
+      // a top-level function still splits
+      assertInstanceOf(GraalJavaScriptEngine.PieceScript.class,
+         engine.compile("function tf77249(){ return 1 } if(value > 0) { tf77249() }"));
+   }
+
+   private void assertBlockFunctionValues(WorksheetScriptEnv env, String f, Object... expected)
+      throws Exception
+   {
+      Object script = env != null ? env.compile(f) : engine.compile(f);
+      int[] values = { 5, 7, -1 };
+
+      // pooled, the runs share one claimed context, as the rows of a formula table batch
+      try(SlotClaim claim = env != null ? env.claimSlot() : null) {
+         for(int i = 0; i < values.length; i++) {
+            MapScope scope = new MapScope();
+            scope.putMember("value", values[i]);
+            Object v = env != null ? env.exec(script, scope, scope, null) :
+               engine.exec(script, scope, scope);
+            assertEquals(expected[i], v, f + " value " + values[i]);
+         }
+      }
+
+      assertInstanceOf(Source.class, script, f);
+   }
+
    // the pieces count a line break as the plain path does
    @Test void errorLinesOfOtherLineBreaksMatchThePlainPath() {
-      for(String br : new String[] { "\r", " ", " ", "\r\n", "\n" }) {
+      for(String br : new String[] { "\r", "\u2028", "\u2029", "\r\n", "\n" }) {
          String pieces = line(assertThrows(Exception.class, () ->
             run("var a = 1;" + br + "if(a) {" + br + "  undefinedFnS77249() }")).getMessage());
          String plain = line(assertThrows(Exception.class, () ->
