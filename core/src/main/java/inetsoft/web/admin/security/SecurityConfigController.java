@@ -209,7 +209,7 @@ public class SecurityConfigController {
       SecurityProvider provider = securityEngine.getSecurityProvider();
 
       return CurrentUserModel.builder()
-         .anonymous(principal == null || principal.getName().equals(XPrincipal.ANONYMOUS))
+         .anonymous(principal == null || XPrincipal.isAnonymous(principal))
          .name(principal == null ? new IdentityID(XPrincipal.ANONYMOUS, OrganizationManager.getInstance().getCurrentOrgID()) : pId)
          .org(pId == null ? OrganizationManager.getCurrentOrgName() : provider.getOrgNameFromID(pId.getOrgID()))
          .isSysAdmin(principal == null ? false : OrganizationManager.getInstance().isSiteAdmin(principal))

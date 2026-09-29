@@ -165,7 +165,7 @@ public class AuthenticationService {
 
          if(principal != null &&
             (principal.getName().equals("") ||
-            (!anonymous && principal.getName().equals(ClientInfo.ANONYMOUS))) &&
+            (!anonymous && XPrincipal.isAnonymous(principal))) &&
             SreeEnv.getProperty("security.provider") != null &&
             !SreeEnv.getProperty("security.provider").isEmpty() &&
             (!anonymousAllowed || userMustExist))
@@ -348,8 +348,9 @@ public class AuthenticationService {
 
       if(principal != null &&
          (principal.getName().equals("") ||
-            principal.getName().equals(ClientInfo.ANONYMOUS)) &&
+            XPrincipal.isAnonymous(principal)) &&
          SreeEnv.getProperty("security.provider") != null &&
+         !SreeEnv.getProperty("security.provider").isEmpty() &&
          !anonymousAllowed)
       {
          principal = null;
