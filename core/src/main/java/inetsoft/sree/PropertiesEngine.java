@@ -791,8 +791,9 @@ public class PropertiesEngine {
       initLogging(properties);
 
       if(fromChange) {
-         // initLogging() only applies the log properties that are present, so the running log
-         // levels of the properties removed by the reload must be reset (Bug #77006)
+         // initLogging() only applies the log properties that are present in some property
+         // layer, so the running log levels of the properties removed by the reload must be
+         // reset (Bug #77006)
          resetRemovedLogProperties(oldProperties, properties);
       }
 
@@ -1131,11 +1132,72 @@ public class PropertiesEngine {
 
       reloadLoggingFramework();
 
-      for(Enumeration<?> e = props.propertyNames(); e.hasMoreElements();) {
-         applyLogProperty((String) e.nextElement());
+      // the levels are all applied first and the logging framework is then reloaded once,
+      // rather than once per log property
+      Set<String> names = getLogPropertyNames(props);
+
+      for(String name : names) {
+         applyLogProperty(name, getProperty(name));
+      }
+
+      if(!names.isEmpty()) {
+         reloadLogging();
       }
 
       System.out.println("Using built-in log configuration");
+   }
+
+   /**
+    * Gets the names of the log level properties set in any layer of the properties: the stored
+    * properties, the JVM system properties and defaults.properties. {@link
+    * DefaultProperties#propertyNames()} only enumerates the main (stored) layer, so the defaults,
+    * e.g. {@code log.detail.level=INFO}, and the {@code -D} system properties would otherwise
+    * never be applied (Bug #77302). The value of each property is read with {@link
+    * #getProperty(String)}, so the stored value still takes precedence over the system property
+    * and the system property over the default.
+    *
+    * <p>{@code log.detail.level} and {@code log.level.inetsoft} both set the level of the
+    * {@code inetsoft} logger; {@link #applyInetsoftLevel()} resolves them together, so the order
+    * of the names does not matter. It is kept deterministic, {@code log.detail.level} first.</p>
+    *
+    * @param props the properties.
+    *
+    * @return the log property names, {@code log.detail.level} first.
+    */
+   private static Set<String> getLogPropertyNames(Properties props) {
+      Set<String> names = new HashSet<>();
+      collectPropertyNames(props, names);
+      Set<String> result = new LinkedHashSet<>();
+
+      if(names.contains("log.detail.level")) {
+         result.add("log.detail.level");
+      }
+
+      names.stream()
+         .filter(PropertiesEngine::isLogProperty)
+         .sorted()
+         .forEach(result::add);
+      return result;
+   }
+
+   private static void collectPropertyNames(Properties props, Set<String> names) {
+      if(props == null) {
+         return;
+      }
+
+      for(Enumeration<?> e = props.propertyNames(); e.hasMoreElements();) {
+         Object name = e.nextElement();
+
+         if(name instanceof String) {
+            names.add((String) name);
+         }
+      }
+
+      if(props instanceof DefaultProperties) {
+         DefaultProperties layered = (DefaultProperties) props;
+         collectPropertyNames(layered.getMainProperties(), names);
+         collectPropertyNames(layered.getDefaultProperties(), names);
+      }
    }
 
    /**
@@ -1184,19 +1246,15 @@ public class PropertiesEngine {
          return;
       }
 
-      // enumerate the same properties that initLogging() applies
-      Set<String> names = new HashSet<>();
-
-      for(Enumeration<?> e = props.propertyNames(); e.hasMoreElements();) {
-         names.add((String) e.nextElement());
-      }
-
+      // enumerate the same properties that initLogging() applies, in every property layer. A
+      // removed stored property that is still set by a system property or a default was already
+      // re-applied with that value by initLogging(), so only the log properties that are no
+      // longer set in any layer are reset here
+      Set<String> names = getLogPropertyNames(props);
       boolean reset = false;
 
-      for(Enumeration<?> e = oldProperties.propertyNames(); e.hasMoreElements();) {
-         String prop = (String) e.nextElement();
-
-         if(isLogProperty(prop) && !names.contains(prop) && resetLogLevel(prop)) {
+      for(String prop : getLogPropertyNames(oldProperties)) {
+         if(!names.contains(prop) && resetLogLevel(prop)) {
             reset = true;
          }
       }
@@ -1219,13 +1277,16 @@ public class PropertiesEngine {
          return false;
       }
 
+      if(isInetsoftLevelProperty(prop)) {
+         // the other of the two properties that set the inetsoft logger, if any, still applies
+         applyInetsoftLevel();
+         return true;
+      }
+
       String val = getProperty(prop);
 
       if(val != null) {
          applyLogProperty(prop, val);
-      }
-      else if("log.detail.level".equals(prop)) {
-         logManagerProvider.ifAvailable(lm -> lm.setLevel((LogLevel) null));
       }
       else if(prop.startsWith("log.level.")) {
          String name = prop.substring(10);
@@ -1261,8 +1322,8 @@ public class PropertiesEngine {
    }
 
    private void applyLogProperty(String prop, String val) {
-      if("log.detail.level".equals(prop)) {
-         logManagerProvider.ifAvailable(lm -> lm.setLevel(LogManager.parseLevel(val)));
+      if(isInetsoftLevelProperty(prop)) {
+         applyInetsoftLevel();
       }
       else if(prop.startsWith("log.level.")) {
          try {
@@ -1294,6 +1355,31 @@ public class PropertiesEngine {
                getProperty(prop));
          }
       }
+   }
+
+   /**
+    * Determines if a property sets the level of the {@code inetsoft} logger, which both
+    * {@code log.detail.level} and the more specific {@code log.level.inetsoft} do.
+    */
+   private static boolean isInetsoftLevelProperty(String prop) {
+      return "log.detail.level".equals(prop) || INETSOFT_LEVEL_PROPERTY.equals(prop);
+   }
+
+   /**
+    * Applies the effective level of the {@code inetsoft} logger: {@code log.level.inetsoft} if
+    * it is set in any property layer, else {@code log.detail.level} (INFO in
+    * defaults.properties), else no level. Both properties are resolved together, so applying or
+    * removing one of them never clobbers or drops the other (Bug #77302).
+    */
+   private void applyInetsoftLevel() {
+      String val = getProperty(INETSOFT_LEVEL_PROPERTY);
+
+      if(val == null) {
+         val = getProperty("log.detail.level");
+      }
+
+      LogLevel level = val == null ? null : LogManager.parseLevel(val);
+      logManagerProvider.ifAvailable(lm -> lm.setLevel(level));
    }
 
    private boolean isScheduler() {
@@ -1716,6 +1802,7 @@ public class PropertiesEngine {
       "inetsoft.storage.aws.com.amazonaws", LogLevel.WARN,
       "inetsoft.storage.aws.org.apache", LogLevel.WARN,
       "org.apache.ignite", LogLevel.WARN);
+   private static final String INETSOFT_LEVEL_PROPERTY = "log.level.inetsoft";
    private static final String STORAGE_ID = "sreeProperties";
    private static final Logger LOG = LoggerFactory.getLogger(PropertiesEngine.class);
 }
