@@ -135,6 +135,20 @@ class RelCleanFuzzTest {
    }
 
    /**
+    * FZ1 guard: the same with a non-extensible (not frozen) global: the slot is closed, and the
+    * next claim, on a new slot, sees neither zql nor the foreign prototype.
+    */
+   @Test
+   void nonExtensibleGlobalWithAChangedPrototypeClosesTheSlot() throws Exception {
+      WorksheetScriptEnv env = newEnv();
+      long created = env.getMetrics().getCreations();
+      run(env, "Object.setPrototypeOf(globalThis, {zql: 1}); Object.preventExtensions(globalThis); 1");
+      assertEquals("undefined", run(env, "typeof zql"));
+      assertEquals(true, run(env, "Object.getPrototypeOf(globalThis) === Object.prototype"));
+      assertEquals(created + 1, env.getMetrics().getCreations());
+   }
+
+   /**
     * FZ1 in the fuzz: other seeds (base + 500000), with the prototype blocks included as in
     * every fuzz here.
     */
