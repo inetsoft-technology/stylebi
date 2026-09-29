@@ -25,6 +25,7 @@ import org.junit.jupiter.api.*;
 import org.mockito.MockedStatic;
 
 import java.io.ByteArrayOutputStream;
+import java.security.Principal;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -140,6 +141,29 @@ class UserEnvTest {
          assertEquals("false", UserEnv.getProperty(alice, "annotation"));
          verify(space).getInputStream(USER_DIR, "alice_namedOrg3.xml");
          verify(space.beginTransaction()).newStream(USER_DIR, "alice_namedOrg3.xml");
+      }
+   }
+
+   @Test
+   void securityOnGuestWithoutClientInfo_dropsValueWithoutUserFile() throws Exception {
+      // a guest principal without a ClientInfo is keyed by name, which all guests share
+      Principal guest = mock(Principal.class);
+      when(guest.getName()).thenReturn(new IdentityID(ClientInfo.ANONYMOUS, "guestOrg4").convertToKey());
+      DataSpace space = mock(DataSpace.class);
+
+      try(MockedStatic<DataSpace> ds = mockStatic(DataSpace.class);
+          MockedStatic<SUtil> sutil = mockStatic(SUtil.class);
+          MockedStatic<SreeEnv> ignored = mockStatic(SreeEnv.class))
+      {
+         ds.when(DataSpace::getDataSpace).thenReturn(space);
+         sutil.when(SUtil::isSecurityOn).thenReturn(true);
+
+         UserEnv.setProperty(guest, "annotation", "false");
+
+         assertTrue(UserEnv.supportedUser(guest));
+         assertNull(UserEnv.getProperty(guest, "annotation"));
+         verify(space, never()).getInputStream(anyString(), anyString());
+         verify(space, never()).beginTransaction();
       }
    }
 
