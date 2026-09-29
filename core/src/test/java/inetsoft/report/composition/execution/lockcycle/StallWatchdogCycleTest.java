@@ -82,19 +82,23 @@ public class StallWatchdogCycleTest {
    }
 
    /**
-    * #76960 A2: the holder waits in the join's XSwappableTable holding the engine lock, the
-    * JoinThreads wait for the lock in their input condition filters.
+    * #76960 A2 with a script join key: the holder, the joined table's condition filter over
+    * its expression column, waits in the join's XSwappableTable holding the engine lock; the
+    * JoinThreads wait for the lock in {@code exec}, which computes the key of every row they
+    * read. Since #77273 a join computes formula inputs before its workers start, so the cycle
+    * over filtered formula inputs this case used to stall on is gone; a script run per read
+    * cannot be computed ahead.
     */
    @Test
-   public void hashJoinFilteredInputsFailsInsteadOfHanging() throws Exception {
+   public void hashJoinExecKeyFailsInsteadOfHanging() throws Exception {
       harness.forceHashJoin();
       Sandbox s = harness.sandbox();
       Future<TableLens> built = harness.submit(() -> {
-         TableLens left = s.filteredFormula(new SlowTable(ROWS, Slow.WORKERS));
-         TableLens right = s.filteredFormula(new SlowTable(ROWS, Slow.WORKERS));
+         TableLens left = s.execTable(ROWS, Slow.WORKERS);
+         TableLens right = s.execTable(ROWS, Slow.WORKERS);
          JoinTableLens join = new JoinTableLens(left, right, new int[] { 1 }, new int[] { 1 },
                                                 JoinTableLens.INNER_JOIN, true);
-         return harness.track(cf2(harness.track(join), s.box));
+         return harness.track(cf2(s.formula(harness.track(join)), s.box));
       });
       TableLens outer = harness.await(built, ACTIVE_CAP, "build");
       Future<List<List<Object>>> holder = harness.submit(() -> drain(outer));
