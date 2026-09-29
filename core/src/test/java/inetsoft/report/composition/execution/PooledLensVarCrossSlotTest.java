@@ -113,7 +113,7 @@ class PooledLensVarCrossSlotTest {
 
       List<ILoggingEvent> warns = warnings();
       assertEquals(1, warns.size(), "one warning: " + warns);
-      assertTrue(warns.get(0).getFormattedMessage().contains("\"a\""),
+      assertTrue(warns.get(0).getFormattedMessage().contains("\"a\" holds an array"),
                  warns.get(0).getFormattedMessage());
    }
 

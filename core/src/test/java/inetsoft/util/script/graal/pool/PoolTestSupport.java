@@ -105,6 +105,32 @@ public final class PoolTestSupport {
       field.set(box, value);
    }
 
+   /**
+    * Make every read of a lens-owned var's script object at a batch end throw what
+    * {@code fault} supplies, or read normally again for {@code null} (Testing #77123, B1
+    * residual). Set by reflection: the seam is package-private and not part of the API.
+    */
+   public static void failOwnedValueReads(java.util.function.Supplier<? extends Throwable> fault)
+      throws Exception
+   {
+      Class<?> codec;
+
+      try {
+         codec = Class.forName("inetsoft.util.script.graal.pool.OwnedValueCodec");
+      }
+      catch(ClassNotFoundException ex) {
+         if(fault == null) {
+            return;
+         }
+
+         throw ex;
+      }
+
+      Field field = codec.getDeclaredField("readFault");
+      field.setAccessible(true);
+      field.set(null, fault);
+   }
+
    @FunctionalInterface
    public interface ThrowingRunnable {
       void run() throws Exception;

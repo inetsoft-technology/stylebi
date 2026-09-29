@@ -62,6 +62,9 @@ class WsBoundaryPolicyTest {
                                         "try/catch", "Use let", "logs one warning",
                                         "kept only within one batch",
                                         "count the row twice",
+                                        // Testing #77123 B1 residual, a Date var is kept
+                                        "string, boolean or Date", "rebuilt from its time value",
+                                        "array-, function- or object-valued var",
                                         // context-pool regression D1, the pool-off first batch
                                         "evaluates what pool off would", "2N + 10",
                                         "undeclared", "object-valued var",
