@@ -3713,7 +3713,7 @@ public class SUtil {
 
       return securityEnabled &&
          "true".equals(SreeEnv.getProperty("enable.changePassword")) &&
-         !"anonymous".equals(principal.getName()) &&
+         !XPrincipal.isAnonymous(principal) &&
          userExistsInEditableSecurityProvider(principal) && SUtil.isInternalUser(principal);
    }
 

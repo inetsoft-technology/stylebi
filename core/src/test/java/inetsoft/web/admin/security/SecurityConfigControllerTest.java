@@ -61,6 +61,7 @@ import inetsoft.sree.security.*;
 import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.util.Catalog;
 import inetsoft.util.config.InetsoftConfig;
+import inetsoft.web.portal.model.CurrentUserModel;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.*;
@@ -284,5 +285,29 @@ class SecurityConfigControllerTest {
       sUtilStatic.verify(() -> SUtil.setMultiTenant(anyBoolean()), never());
       assertNotNull(result.warning());
       assertFalse(result.warning().isEmpty());
+   }
+
+   // -------------------------------------------------------------------------
+   // getCurrentUser()
+   // -------------------------------------------------------------------------
+
+   // Bug #77341: the principal name is the identity key anonymous~;~orgID; the guest (for
+   // example every user with security disabled) must be reported as anonymous.
+   @Test
+   void getCurrentUser_anonymousKeyPrincipal_isAnonymous() {
+      when(principal.getName()).thenReturn(new IdentityID("anonymous", "host-org").convertToKey());
+
+      CurrentUserModel result = controller.getCurrentUser(principal);
+
+      assertTrue(result.anonymous());
+   }
+
+   @Test
+   void getCurrentUser_namedUserPrincipal_isNotAnonymous() {
+      when(principal.getName()).thenReturn(new IdentityID("anonymousbob", "host-org").convertToKey());
+
+      CurrentUserModel result = controller.getCurrentUser(principal);
+
+      assertFalse(result.anonymous());
    }
 }
