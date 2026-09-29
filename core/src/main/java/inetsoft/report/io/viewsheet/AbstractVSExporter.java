@@ -1059,7 +1059,7 @@ public abstract class AbstractVSExporter implements VSExporter {
          // tables a blank cell is ordinary data (a formula returning '', a sparse column, a
          // spacer row) and the row is still written, so every row counts toward the design
          // height budget; exempting it lets the export overflow into the assemblies below.
-         boolean exemptBlankRows = table instanceof CrosstabVSAssembly;
+         boolean exemptBlankRows = isBlankRowHeightExempt(table);
          boolean[] significantColumns =
             exemptBlankRows ? findSignificantColumns(data, hLineCount) : null;
 
@@ -1112,6 +1112,21 @@ public abstract class AbstractVSExporter implements VSExporter {
          data.moreRows(Integer.MAX_VALUE);
          return data.getRowCount();
       }
+   }
+
+   /**
+    * Determine whether getRegionRowCount() applies the bug#53192 blank-row exemption to
+    * the specified table, i.e. whether a data row with a blank cell is left out of the
+    * design-height budget (but still included in the returned row count).
+    * <p>
+    * fix bug#77287 The exemption only inflates the region row count, which is harmless for
+    * exporters whose writers clip each table at its design pixel height (PDF, SVG, PNG).
+    * Exporters whose writers do not clip at the design pixel height (Excel, PowerPoint)
+    * write every row of the region lens, so they must override this to return false,
+    * otherwise the table overflows its design height into the assemblies below.
+    */
+   protected boolean isBlankRowHeightExempt(TableDataVSAssembly table) {
+      return table instanceof CrosstabVSAssembly;
    }
 
    private boolean checkDisplayRow(TableLens tableLens, int row, boolean[] significantColumns) {
