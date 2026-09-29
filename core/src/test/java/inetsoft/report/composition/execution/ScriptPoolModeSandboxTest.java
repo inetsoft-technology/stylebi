@@ -17,6 +17,10 @@
  */
 package inetsoft.report.composition.execution;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import inetsoft.report.TableLens;
 import inetsoft.report.lens.DefaultTableLens;
 import inetsoft.report.lens.FormulaTableLens;
@@ -30,6 +34,7 @@ import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.slf4j.LoggerFactory;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
@@ -80,6 +85,65 @@ public class ScriptPoolModeSandboxTest {
       assertTrue(PoolConfig.isEnabled());
       SreeEnv.setProperty(PoolConfig.ENABLED, " ");
       assertTrue(PoolConfig.isEnabled());
+   }
+
+   /**
+    * Feature #77123 review m1: a value that is neither true nor false turns the pool off, and
+    * says so in one WARN per distinct value; true, false and blank log nothing.
+    */
+   @Test
+   public void unrecognizedValueTurnsPoolOffWithOneWarnPerValue() {
+      Logger logger = (Logger) LoggerFactory.getLogger(PoolConfig.class);
+      Level oldLevel = logger.getLevel();
+      ListAppender<ILoggingEvent> appender = new ListAppender<>();
+      appender.start();
+      logger.addAppender(appender);
+      logger.setLevel(Level.WARN);
+
+      try {
+         // unique values: the once-per-value memory is JVM-wide
+         String typo = "ture" + System.nanoTime();
+         String other = "yes" + System.nanoTime();
+
+         SreeEnv.setProperty(PoolConfig.ENABLED, " " + typo + " ");
+         assertFalse(PoolConfig.isEnabled());
+         assertFalse(PoolConfig.isEnabled());
+         assertEquals(1, warns(appender, typo));
+
+         SreeEnv.setProperty(PoolConfig.ENABLED, other);
+         assertFalse(PoolConfig.isEnabled());
+         assertEquals(1, warns(appender, other));
+
+         SreeEnv.setProperty(PoolConfig.ENABLED, typo);
+         assertFalse(PoolConfig.isEnabled());
+         assertEquals(1, warns(appender, typo));
+
+         int before = appender.list.size();
+
+         for(String ok : new String[] { "false", "FALSE", "true", " True ", " " }) {
+            SreeEnv.setProperty(PoolConfig.ENABLED, ok);
+            PoolConfig.isEnabled();
+         }
+
+         SreeEnv.remove(PoolConfig.ENABLED);
+         assertTrue(PoolConfig.isEnabled());
+         assertEquals(before, appender.list.size());
+
+         ILoggingEvent event = appender.list.get(0);
+         assertEquals(Level.WARN, event.getLevel());
+         assertTrue(event.getFormattedMessage().contains(PoolConfig.ENABLED));
+         assertTrue(event.getFormattedMessage().contains("OFF"));
+      }
+      finally {
+         logger.detachAppender(appender);
+         logger.setLevel(oldLevel);
+      }
+   }
+
+   private static long warns(ListAppender<ILoggingEvent> appender, String value) {
+      return appender.list.stream()
+         .filter(e -> e.getLevel() == Level.WARN && e.getFormattedMessage().contains("'" + value + "'"))
+         .count();
    }
 
    @Test

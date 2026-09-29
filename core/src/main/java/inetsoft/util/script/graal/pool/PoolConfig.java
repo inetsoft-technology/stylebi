@@ -18,6 +18,11 @@
 package inetsoft.util.script.graal.pool;
 
 import inetsoft.sree.SreeEnv;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Configuration of the worksheet script context pool (bug #76960). Whether the pool is on is
@@ -65,7 +70,8 @@ public record PoolConfig(long idleMillis, int cleanThreshold, int warnSlotsPerSa
    /**
     * @return whether a sandbox built now runs its worksheet scripts on pooled contexts: true
     *         unless {@link #ENABLED} is set to something other than true (any case), for
-    *         example {@code script.ws.contextPool=false}.
+    *         example {@code script.ws.contextPool=false}. A value that is neither true nor
+    *         false (for example a typo) also turns the pool off, and is logged once as a WARN.
     */
    public static boolean isEnabled() {
       try {
@@ -75,10 +81,33 @@ public record PoolConfig(long idleMillis, int cleanThreshold, int warnSlotsPerSa
             return DEFAULT_ENABLED;
          }
 
-         return "true".equalsIgnoreCase(value.trim());
+         String trimmed = value.trim();
+
+         if("true".equalsIgnoreCase(trimmed)) {
+            return true;
+         }
+
+         if(!"false".equalsIgnoreCase(trimmed)) {
+            warnUnrecognized(trimmed);
+         }
+
+         return false;
       }
       catch(Exception ex) {
          return DEFAULT_ENABLED;
+      }
+   }
+
+   /**
+    * Logs one WARN per distinct unrecognized {@link #ENABLED} value, at most
+    * {@link #MAX_WARNED_VALUES} values per JVM.
+    */
+   private static void warnUnrecognized(String value) {
+      if(WARNED_VALUES.size() < MAX_WARNED_VALUES && WARNED_VALUES.add(value)) {
+         String shown = value.length() > 64 ? value.substring(0, 64) + "..." : value;
+         LOG.warn("{}='{}' is neither true nor false; the worksheet script context pool is " +
+                     "turned OFF. Set it to true (or remove it) to keep the pool on.",
+                  ENABLED, shown);
       }
    }
 
@@ -103,4 +132,8 @@ public record PoolConfig(long idleMillis, int cleanThreshold, int warnSlotsPerSa
          return def;
       }
    }
+
+   static final int MAX_WARNED_VALUES = 16;
+   private static final Set<String> WARNED_VALUES = ConcurrentHashMap.newKeySet();
+   private static final Logger LOG = LoggerFactory.getLogger(PoolConfig.class);
 }
