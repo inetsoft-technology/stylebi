@@ -66,7 +66,8 @@ import java.util.concurrent.locks.ReentrantLock;
  * @author InetSoft Technology Corp
  */
 public class FormulaTableLens extends AbstractTableLens
-   implements TableFilter, CachedTableLens, DFWrapper, CancellableTableLens
+   implements TableFilter, CachedTableLens, DFWrapper, CancellableTableLens,
+   ChainScriptLock.Source
 {
    /**
     * Construct a formula table.
@@ -666,6 +667,15 @@ public class FormulaTableLens extends AbstractTableLens
       }
 
       return execLock;
+   }
+
+   /**
+    * Get the engine lock that computing this lens's rows takes, see lockForRow() (bug #77223).
+    */
+   @Override
+   public Lock getScriptLock() {
+      ScriptEnv env = getScriptEnv();
+      return env == null || !env.usesExecutionLock() ? null : getScriptExecutionLock();
    }
 
    /**

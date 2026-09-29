@@ -255,7 +255,9 @@ public class PostProcessor {
       return changed ? htable : base;
    }
 
-   private static final class ConditionFilter2 extends ConditionFilter {
+   private static final class ConditionFilter2 extends ConditionFilter
+      implements ChainScriptLock.Source
+   {
       ConditionFilter2(TableLens table, ConditionGroup conditions, AssetQuerySandbox box) {
          super(table, conditions);
          ScriptEnv senv = box == null ? null : box.peekScriptEnv();
@@ -343,6 +345,18 @@ public class PostProcessor {
             JavaScriptEngine.popHeldScriptLock();
             execLock.unlock();
          }
+      }
+
+      /**
+       * Get the engine lock that moreRows() takes, so an async lens over this filter takes it
+       * first instead of starting a worker that would wait for it (bug #77223). A filter that
+       * takes no lock itself, e.g. over a plain base, is not counted.
+       */
+      @Override
+      public Lock getScriptLock() {
+         ScriptEnv senv = needsScriptLock && !poolMode && this.senv != null
+            ? this.senv.get() : null;
+         return senv == null ? null : senv.getExecutionLock();
       }
 
       /**
