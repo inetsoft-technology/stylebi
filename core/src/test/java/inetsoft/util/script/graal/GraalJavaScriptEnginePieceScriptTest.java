@@ -150,10 +150,10 @@ class GraalJavaScriptEnginePieceScriptTest {
       Source[] pieces = ((GraalJavaScriptEngine.PieceScript)
          engine.compile("x77249 = 1;   if(x77249) { 2 }\n  if(false) { 3 }")).pieces();
       assertEquals(3, pieces.length);
-      assertEquals("with(__scope__){\nx77249 = 1;   \n}", pieces[0].getCharacters().toString());
-      assertEquals("with(__scope__){\nif(x77249) { 2 }\n  \n}",
+      assertEquals("with(__scope__){x77249 = 1;   \n}", pieces[0].getCharacters().toString());
+      assertEquals("with(__scope__){if(x77249) { 2 }\n  \n}",
                    pieces[1].getCharacters().toString());
-      assertEquals("with(__scope__){\n\nif(false) { 3 }\n}", pieces[2].getCharacters().toString());
+      assertEquals("with(__scope__){\nif(false) { 3 }\n}", pieces[2].getCharacters().toString());
 
       Source[] reset = ((GraalJavaScriptEngine.PieceScript)
          engine.compile("var y77249 = 1; if(y77249) { 2 }")).pieces();
@@ -195,18 +195,18 @@ class GraalJavaScriptEnginePieceScriptTest {
       assertEquals(1.0, run("side77249"));
    }
 
-   // error lines count as on the plain path: a body line n reports line n + 1
+   // error lines count as on the plain path: a body line n reports line n (#77322)
    @Test void errorLinesMatchThePlainPath() {
       String piecesMsg = assertThrows(Exception.class,
          () -> run("var a = 1;\nif(a) {\n  undefinedFnP77249() }")).getMessage();
       String plainMsg = assertThrows(Exception.class,
          () -> run("var a = 1;\n{\n  undefinedFnQ77249() }")).getMessage();
-      assertTrue(piecesMsg.contains("(line 4)"), piecesMsg);
-      assertTrue(plainMsg.contains("(line 4)"), plainMsg);
+      assertTrue(piecesMsg.contains("(line 3)"), piecesMsg);
+      assertTrue(plainMsg.contains("(line 3)"), plainMsg);
 
       String crlf = assertThrows(Exception.class,
          () -> run("var a = 1;\r\nif(a) { 1 }\r\n\r\nif(a) { undefinedFnR77249() }")).getMessage();
-      assertTrue(crlf.contains("(line 5)"), crlf);
+      assertTrue(crlf.contains("(line 4)"), crlf);
    }
 
    // the compiled form holds no Value of the Context that compiled it

@@ -547,11 +547,12 @@ public class GraalJavaScriptEngine implements AutoCloseable {
          // silently dropped. Bug #76980: rewrite top-level const/let to var
          // as compile() does, so a library constant is visible to other
          // scripts (Rhino put it on the scope) instead of being confined to
-         // the with-block.
+         // the with-block. Bug #77322: no line break after the opening brace, so
+         // an error reports the function source's own line number.
          String wrapped = rewriteTopLevelLexicalDeclarations(
             stripStrictDirectives(rewriteJavaLengthCalls(source)));
          context.eval(Source.newBuilder(
-            "js", "with(__scope__){\n" + wrapped + "\n}", "<lib:" + name + ">")
+            "js", "with(__scope__){" + wrapped + "\n}", "<lib:" + name + ">")
                          .buildLiteral());
       }
       catch(PolyglotException ex) {
@@ -926,10 +927,15 @@ public class GraalJavaScriptEngine implements AutoCloseable {
       // offset). The `this` paths (eval wrappers) run the body in a wrapper
       // function whose `var`s are fresh per run, so they need no reset; the
       // this-free split path (buildPieceScript, #77249) resets on its first piece.
+      //
+      // Bug #77322: the body starts on the wrapper's first line (no line break
+      // after the brace), so a runtime error on body line N reports line N. The
+      // closing brace stays on its own line so a trailing // comment cannot
+      // swallow it.
       if(!THIS_REF.matcher(body).find()) {
          return Source.newBuilder("js",
             buildLexicalReset(collectInitializerlessLexicalNames(lexicalBody)) +
-               "with(__scope__){\n" + body + "\n}", "<cmd>")
+               "with(__scope__){" + body + "\n}", "<cmd>")
             .buildLiteral();
       }
 
@@ -978,8 +984,22 @@ public class GraalJavaScriptEngine implements AutoCloseable {
       sb.append("(function(){with(__scope__){var ").append(RESULT_VAR).append(",")
          .append(VALUE_VAR).append(";");
 
+      int pos = 0;
+
       for(String stmt : statements) {
-         sb.append(VALUE_VAR).append("=eval(").append(toJsStringLiteral(stmt))
+         // Bug #77322: pad the piece with the line breaks of the body before it,
+         // counted from its offset in the body (a blank piece is dropped by the
+         // split, so a running total over the pieces would miss its lines), so an
+         // error in its <eval> reports the script's absolute line.
+         int at = body.indexOf(stmt, pos);
+         String padded = stmt;
+
+         if(at >= 0) {
+            padded = "\n".repeat(countLineBreaks(body, 0, at)) + stmt;
+            pos = at + stmt.length();
+         }
+
+         sb.append(VALUE_VAR).append("=eval(").append(toJsStringLiteral(padded))
             .append(");if(").append(VALUE_VAR).append("!==undefined){")
             .append(RESULT_VAR).append("=").append(VALUE_VAR).append(";}");
       }
@@ -1012,8 +1032,8 @@ public class GraalJavaScriptEngine implements AutoCloseable {
     * global the engine itself defines is never reset.
     *
     * <p>Each piece is preceded by one line break per line break of the body before
-    * it, so an error reports the same line as the plain path (body line + 1);
-    * there is no column padding, as only the line is reported.
+    * it, so an error reports the same line as the plain path (the body line,
+    * Bug #77322); there is no column padding, as only the line is reported.
     *
     * @return the piece script, or {@code null} if a piece cannot be located in
     *         {@code body} (defensive; the caller then keeps the eval wrapper).
@@ -1036,16 +1056,9 @@ public class GraalJavaScriptEngine implements AutoCloseable {
             return null;
          }
 
-         // count the line breaks before the piece (CR, LF, CRLF, U+2028, U+2029)
-         for(; scanned < at; scanned++) {
-            char c = body.charAt(scanned);
-
-            if(c == '\n' || c == '\u2028' || c == '\u2029' ||
-               c == '\r' && (scanned + 1 >= body.length() || body.charAt(scanned + 1) != '\n'))
-            {
-               lines++;
-            }
-         }
+         // count the line breaks before the piece
+         lines += countLineBreaks(body, scanned, at);
+         scanned = at;
 
          StringBuilder sb = new StringBuilder(
             stmt.length() + lines + 20 + (i == 0 ? reset.length() : 0));
@@ -1054,7 +1067,7 @@ public class GraalJavaScriptEngine implements AutoCloseable {
             sb.append(reset);
          }
 
-         sb.append("with(__scope__){\n");
+         sb.append("with(__scope__){");
          sb.append("\n".repeat(lines));
          sb.append(stmt).append("\n}");
          pieces[i] = Source.newBuilder("js", sb.toString(), "<cmd>").buildLiteral();
@@ -1062,6 +1075,26 @@ public class GraalJavaScriptEngine implements AutoCloseable {
       }
 
       return new PieceScript(pieces, body);
+   }
+
+   /**
+    * The number of line breaks (CR, LF, CRLF, U+2028, U+2029; CRLF counts once) in
+    * {@code s} from {@code from} (inclusive) to {@code to} (exclusive).
+    */
+   private static int countLineBreaks(String s, int from, int to) {
+      int lines = 0;
+
+      for(int i = from; i < to; i++) {
+         char c = s.charAt(i);
+
+         if(c == '\n' || c == '\u2028' || c == '\u2029' ||
+            c == '\r' && (i + 1 >= s.length() || s.charAt(i + 1) != '\n'))
+         {
+            lines++;
+         }
+      }
+
+      return lines;
    }
 
    /**
@@ -2274,11 +2307,30 @@ public class GraalJavaScriptEngine implements AutoCloseable {
          }
 
          // drop everything up to and including the directive (any skipped
-         // leading comments are inert, so discarding them is harmless).
-         s = s.substring(end);
+         // leading comments are inert, so discarding them is harmless), but keep
+         // its line terminators so later lines keep their numbers (Bug #77322).
+         s = lineTerminatorsOf(s, end) + s.substring(end);
       }
 
       return s;
+   }
+
+   /**
+    * The line terminator characters ({@code \n}, {@code \r}, U+2028, U+2029) of
+    * {@code s} before {@code end}, in order, so a CRLF stays one line break.
+    */
+   private static String lineTerminatorsOf(String s, int end) {
+      StringBuilder sb = new StringBuilder();
+
+      for(int i = 0; i < end; i++) {
+         char c = s.charAt(i);
+
+         if(c == '\n' || c == '\r' || c == '\u2028' || c == '\u2029') {
+            sb.append(c);
+         }
+      }
+
+      return sb.toString();
    }
 
    /**

@@ -405,13 +405,13 @@ class GraalJavaScriptEngineLexicalDeclarationTest {
    @Test void errorLineUnchanged() {
       Exception ex = assertThrows(Exception.class,
                                   () -> run("let rl;\nundefinedFn77181()"));
-      assertTrue(ex.getMessage().contains("(line 3)"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("(line 2)"), ex.getMessage());
    }
 
    // a syntax error keeps its line:column with the reset prefix
    @Test void syntaxErrorPositionUnchanged() {
       Exception ex = assertThrows(Exception.class, () -> run("let rs;\nlet x = ;"));
-      assertTrue(ex.getMessage().contains("<cmd>:3:8"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("<cmd>:2:8"), ex.getMessage());
    }
 
    // `let` inside a string, comment, template or regex declares nothing, so the
