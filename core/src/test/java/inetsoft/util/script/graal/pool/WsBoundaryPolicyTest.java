@@ -69,7 +69,9 @@ class WsBoundaryPolicyTest {
                                         // Feature #77123, the pool is on by default
                                         "on by default", "Turning it off",
                                         "script.ws.contextPool=false in sree.properties",
-                                        "unset or blank value keeps", "can occur" })
+                                        "unset or blank value keeps", "can occur",
+                                        // Bug #77016, pool-off hangs + stall FAIL pairing
+                                        "#77016", "stall.watchdog.mode=fail" })
       {
          assertTrue(note.contains(topic), "release note misses: " + topic);
       }
