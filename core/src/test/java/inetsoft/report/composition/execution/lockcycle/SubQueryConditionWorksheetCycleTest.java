@@ -35,7 +35,6 @@ import inetsoft.util.script.graal.GraalJavaScriptEnv;
 import inetsoft.util.script.graal.ScriptScope;
 import inetsoft.util.script.graal.pool.PoolConfig;
 import org.junit.jupiter.api.*;
-import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -72,8 +71,10 @@ import static org.mockito.Mockito.when;
  * computing X holds the engine lock and waits for the filter's monitor.
  *
  * <p>The sub table is larger than the rows {@code AssetQuery.validateDataTypes} computes
- * while A is built, so the distinct worker started then is still reading it. The case parks
- * that worker before it takes the engine lock until the other two threads are in place.
+ * while A is built. If building A leaves a distinct worker reading it, the case parks that
+ * worker before it takes the engine lock until the other threads are in place. Since bug
+ * #77223 a sub table whose base needs the engine lock starts no worker while it is built, and
+ * the first reader computes it, so the cases assert only that every reader finishes.
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class, LibManagerTestConfiguration.class, PluginsTestConfiguration.class, SubQueryConditionWorksheetCycleTest.TestConfig.class }, initializers = ConfigurationContextInitializer.class)
@@ -152,10 +153,9 @@ public class SubQueryConditionWorksheetCycleTest {
       lock = box.getScriptEnv().getExecutionLock();
 
       // A is built and populated on a thread holding no lock, as a viewsheet or data
-      // request would; building A starts the sub table's distinct worker
+      // request would; building A may start the sub table's distinct worker
       Started<Integer> populator = harness.start(() -> {
          TableLens table = box.getTableLens("A", AssetQuerySandbox.RUNTIME_MODE);
-         assertTrue(worker.awaitParked(KNOWN_CAP), "the distinct worker did not reach row " + PARK_ROW);
          return drain(table).size();
       });
       awaitIn(populator, KNOWN_CAP, "DistinctTableLens.moreRows");
@@ -297,7 +297,6 @@ public class SubQueryConditionWorksheetCycleTest {
       lock = box.getScriptEnv().getExecutionLock();
       TableLens table = harness.await(harness.submit(
          () -> box.getTableLens("A", AssetQuerySandbox.RUNTIME_MODE)), KNOWN_CAP, "building A");
-      assertTrue(worker.awaitParked(KNOWN_CAP), "the distinct worker did not reach row " + PARK_ROW);
 
       Started<Integer> script = harness.start(() -> asForeignScript(() -> drain(table).size()));
       awaitIn(script, KNOWN_CAP, "DistinctTableLens.moreRows");
@@ -314,14 +313,11 @@ public class SubQueryConditionWorksheetCycleTest {
     * worker holding it; lending it is correctly refused (the context is in use on this
     * thread), and the worker needs it in the formula lens.
     *
-    * <p>Pre-existing, and NOT fixed by #77158: it deadlocks on main and with the fix. Fixing
-    * it needs a waiter that does the work instead of waiting, or a sub table that does not
-    * start an unlocked worker while it is built (#76938 family).
+    * <p>Not fixed by #77158. Bug #77223: building the sub table no longer starts a worker
+    * that needs the engine lock; X's formula computes it.
     */
    @ParameterizedTest
    @ValueSource(booleans = { false, true })
-   @Tag("known-deadlock")
-   @EnabledIfSystemProperty(named = "lockcycle.known", matches = "true")
    public void formulaReadsFilteredTableFirst(boolean correlated) throws Exception {
       worker = new WorkerGate(PARK_ROW);
       Worksheet ws = new Worksheet();
@@ -335,7 +331,6 @@ public class SubQueryConditionWorksheetCycleTest {
       lock = box.getScriptEnv().getExecutionLock();
       harness.await(harness.submit(
          () -> box.getTableLens("A", AssetQuerySandbox.RUNTIME_MODE)), KNOWN_CAP, "building A");
-      assertTrue(worker.awaitParked(KNOWN_CAP), "the distinct worker did not reach row " + PARK_ROW);
 
       Started<Integer> script = harness.start(
          () -> drain(box.getTableLens("X", AssetQuerySandbox.RUNTIME_MODE)).size());
@@ -373,7 +368,6 @@ public class SubQueryConditionWorksheetCycleTest {
       lock = box.getScriptEnv().getExecutionLock();
       TableLens mirror = harness.await(harness.submit(
          () -> box.getTableLens("M", AssetQuerySandbox.RUNTIME_MODE)), KNOWN_CAP, "building M");
-      assertTrue(worker.awaitParked(KNOWN_CAP), "the distinct worker did not reach row " + PARK_ROW);
 
       Started<Integer> script = harness.start(() -> asForeignScript(() -> drain(mirror).size()));
       awaitIn(script, KNOWN_CAP, "DistinctTableLens.moreRows");
@@ -389,8 +383,6 @@ public class SubQueryConditionWorksheetCycleTest {
     * {@code D.length} is then the first to read it, inside {@code exec} on the same engine.
     */
    @Test
-   @Tag("known-deadlock")
-   @EnabledIfSystemProperty(named = "lockcycle.known", matches = "true")
    public void distinctTableReadFirstByFormula() throws Exception {
       worker = new WorkerGate(PARK_ROW);
       Worksheet ws = new Worksheet();
@@ -408,19 +400,16 @@ public class SubQueryConditionWorksheetCycleTest {
     * through a sort; X's formula {@code G.length} waits for the summary's rows.
     */
    @Test
-   @Tag("known-deadlock")
-   @EnabledIfSystemProperty(named = "lockcycle.known", matches = "true")
    public void groupedTableReadFirstByFormula() throws Exception {
       groupedTableReadFirst("G.length");
    }
 
    /**
     * Bug #77223: {@link #groupedTableReadFirstByFormula} with a formula reading a cell of G
-    * before anything asks G for more rows, which waits for the summary elsewhere.
+    * before anything asks G for more rows. The element read asks G's size first, so it waits
+    * in the same place.
     */
    @Test
-   @Tag("known-deadlock")
-   @EnabledIfSystemProperty(named = "lockcycle.known", matches = "true")
    public void groupedTableCellReadFirstByFormula() throws Exception {
       groupedTableReadFirst("G[1][1]");
    }
@@ -430,8 +419,6 @@ public class SubQueryConditionWorksheetCycleTest {
     * the distinct worker reads the formula lens through S's sort filter.
     */
    @Test
-   @Tag("known-deadlock")
-   @EnabledIfSystemProperty(named = "lockcycle.known", matches = "true")
    public void distinctMirrorOfSortedTableReadFirstByFormula() throws Exception {
       worker = new WorkerGate(PARK_ROW);
       Worksheet ws = new Worksheet();
@@ -712,10 +699,6 @@ public class SubQueryConditionWorksheetCycleTest {
                Thread.currentThread().interrupt();
             }
          }
-      }
-
-      boolean awaitParked(long capSeconds) throws InterruptedException {
-         return parked.await(capSeconds, TimeUnit.SECONDS);
       }
 
       boolean hasParked() {
