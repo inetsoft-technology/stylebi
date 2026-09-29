@@ -29,7 +29,9 @@ package inetsoft.web.admin.content.repository;
  * real checkAssetPermission()/checkAssetPermission0(); only the ACL leaves are stubbed.
  */
 
+import inetsoft.mv.MVDef;
 import inetsoft.mv.MVManager;
+import inetsoft.mv.MVMetaData;
 import inetsoft.report.LibManagerProvider;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.internal.cluster.Cluster;
@@ -98,6 +100,7 @@ class MVSupportServiceSheetAccessTest {
 
    private MockedStatic<SUtil> sutil;
    private MockedStatic<AssetUtil> assetUtil;
+   private MVManager mvManager;
    private MVSupportService service;
 
    @BeforeAll
@@ -155,7 +158,8 @@ class MVSupportServiceSheetAccessTest {
       SecurityEngine securityEngine = mock(SecurityEngine.class);
       when(securityEngine.checkPermission(any(), any(ResourceType.class), anyString(),
                                           any(ResourceAction.class))).thenReturn(true);
-      service = new MVSupportService(mock(MVManager.class), securityEngine,
+      mvManager = mock(MVManager.class);
+      service = new MVSupportService(mvManager, securityEngine,
                                      mock(ScheduleManager.class), cluster);
    }
 
@@ -229,6 +233,34 @@ class MVSupportServiceSheetAccessTest {
    void siteAdmin_allowedAcrossOrgs() throws Exception {
       assertEquals(SECRET_DESC, description(getSheet(ORG_B_VS, siteAdmin)));
       assertInstanceOf(Worksheet.class, getSheet(ORG_B_WS, siteAdmin));
+   }
+
+   @Test
+   void reanalyzeRegisteredSheets_ownOrgAllowed_otherOrgRefused() throws Exception {
+      // a plain MATERIALIZATION user re-analyzing an own-org MV whose sheet it registered
+      registerMV("OwnMV77280", ORG_A_VS);
+      assertNotNull(service.analyze(new String[] { "OwnMV77280" }, orgAUser));
+
+      // an own-org MV def pointing at a foreign sheet (registered before the fix)
+      registerMV("TaintedMV77280", ORG_B_VS);
+      MessageException ex = assertThrows(MessageException.class,
+         () -> service.analyze(new String[] { "TaintedMV77280" }, orgAUser));
+      assertEquals(message("SecretVS77280"), ex.getMessage());
+   }
+
+   @Test
+   void analyzeOwnOrgViewsheet_accepted() throws Exception {
+      assertNotNull(service.analyze(List.of(ORG_A_VS), false, false, false, orgAUser, false,
+                                    false));
+   }
+
+   private void registerMV(String name, String sheetId) {
+      MVMetaData metaData = mock(MVMetaData.class);
+      when(metaData.getRegisteredSheets()).thenReturn(new String[] { sheetId });
+      MVDef def = mock(MVDef.class);
+      when(def.getMetaData()).thenReturn(metaData);
+      when(def.isWSMV()).thenReturn(false);
+      when(mvManager.get(name, ORG_A)).thenReturn(def);
    }
 
    private void assertRefused(String identifier, Principal user) {
