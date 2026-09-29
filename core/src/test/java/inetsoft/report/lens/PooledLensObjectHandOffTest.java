@@ -1,0 +1,699 @@
+/*
+ * This file is part of StyleBI.
+ * Copyright (C) 2026  InetSoft Technology
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+package inetsoft.report.lens;
+
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
+import inetsoft.report.TableLens;
+import inetsoft.report.composition.execution.AssetQuerySandbox;
+import inetsoft.report.script.TableRowScope;
+import inetsoft.sree.SreeEnv;
+import inetsoft.test.*;
+import inetsoft.util.script.ScriptSpan;
+import inetsoft.util.script.graal.pool.PoolTestSupport;
+import inetsoft.util.script.graal.pool.WorksheetScriptEnv;
+import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.*;
+import org.slf4j.LoggerFactory;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
+
+import java.time.Duration;
+import java.util.*;
+import java.util.concurrent.*;
+import java.util.stream.IntStream;
+import java.util.stream.Stream;
+
+import static inetsoft.report.lens.FormulaTableLensVarTest.*;
+import static org.junit.jupiter.api.Assertions.*;
+
+/**
+ * Hand-offs of lens-owned arrays and objects across pooled contexts, review round 2 of
+ * Testing #77123 (B1 residual part 2):
+ * <ul>
+ *    <li>the cloner classifies each object of a batch by its own host digit, so a Date, a
+ *    Proxy or a host object that is not first in its layer is saved (or lost) as what it is,
+ *    and no trap runs;</li>
+ *    <li>amendment A3 as written: a var holding an object that a lost var's graph also holds
+ *    is lost too, each with its own warning, never kept as a stale alias;</li>
+ *    <li>the two concurrent reads that lose values (a home held by another thread's batch)
+ *    are loud and never stale;</li>
+ *    <li>four resident tables of a sandbox each keep their own home (maxHomes 4), and an
+ *    evictor pass hands off at most four homes.</li>
+ * </ul>
+ */
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class, LibManagerTestConfiguration.class, PluginsTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
+@SreeHome
+@Tag("core")
+class PooledLensObjectHandOffTest {
+   // every trap counts a guest call: the cloner must never dispatch to one
+   static final String TRAPS = "{get: function() { probe.hit(); }, " +
+      "set: function() { probe.hit(); return true; }, " +
+      "has: function() { probe.hit(); return false; }, " +
+      "ownKeys: function() { probe.hit(); return []; }, " +
+      "getOwnPropertyDescriptor: function() { probe.hit(); }, " +
+      "getPrototypeOf: function() { probe.hit(); return null; }, " +
+      "isExtensible: function() { probe.hit(); return true; }, " +
+      "defineProperty: function() { probe.hit(); return true; }}";
+   static final String ARRAY = "var a = a || []; a.push(field['id']); a.length";
+   static final String OBJECT =
+      "var c = c || {n: 0}; c['k' + field['id']] = 1; c.n++; c.n";
+
+   @BeforeEach
+   void capture() {
+      logger = (Logger) LoggerFactory.getLogger(TableRowScope.class);
+      appender = new ListAppender<>();
+      appender.start();
+      logger.addAppender(appender);
+   }
+
+   @AfterEach
+   void retire() {
+      logger.detachAppender(appender);
+      SreeEnv.remove(MAX_HOMES);
+
+      for(WorksheetScriptEnv env : envs) {
+         env.retire();
+      }
+
+      envs.clear();
+   }
+
+   static Stream<Arguments> classifier() {
+      // name, shape of o, a step of o that is true while o is intact ("" for a lost shape)
+      String[][] shapes = {
+         { "dateThenObject", "{d: new Date(0), m: {k: 0}}",
+           "(o.d.setTime(o.d.getTime() + 1000), o.m.k++, o.d.getTime() == o.m.k * 1000)" },
+         { "dateThenArray", "[new Date(0), [0]]",
+           "(o[0].setTime(o[0].getTime() + 1000), o[1][0]++, o[0].getTime() == o[1][0] * 1000)" },
+         // a Date first in a deeper layer, an object after it
+         { "nestedDateFirst", "{list: [new Date(0), {k: 0}], m: {}, d: new Date(0)}",
+           "(o.list[0].setTime(o.list[0].getTime() + 1000), o.list[1].k++, " +
+           "o.m['k' + o.list[1].k] = 1, o.d.setTime(o.d.getTime() + 1000), " +
+           "o.list[0].getTime() == o.list[1].k * 1000 && o.d.getTime() == o.list[1].k * 1000 " +
+           "&& Object.keys(o.m).length == o.list[1].k)" },
+         { "objectThenDates", "{a: {x: 0}, d: new Date(0), b: [new Date(0), {y: 0}]}",
+           "(o.a.x++, o.b[1].y++, o.d.setTime(o.d.getTime() + 1000), " +
+           "o.b[0].setTime(o.b[0].getTime() + 1000), " +
+           "o.d.getTime() == o.a.x * 1000 && o.b[0].getTime() == o.b[1].y * 1000)" },
+         { "hostThenDate", "{h: probe, d: new Date(0), m: {k: 0}}",
+           "(o.m.k++, o.d.setTime(o.d.getTime() + 1000), " +
+           "o.h != null && o.d.getTime() == o.m.k * 1000)" },
+         { "objectThenProxy", "{a: {}, p: new Proxy({}, " + TRAPS + ")}", "" },
+         { "arrayThenProxy", "[{}, new Proxy([], " + TRAPS + ")]", "" },
+         { "dateThenProxy", "{d: new Date(0), p: new Proxy({}, " + TRAPS + ")}", "" },
+         { "hostThenProxy", "{h: probe, p: new Proxy({}, " + TRAPS + ")}", "" },
+         { "proxyLastOfMany", "[{}, [], new Date(0), {q: 1}, new Proxy({}, " + TRAPS + ")]", "" },
+      };
+      List<Arguments> args = new ArrayList<>();
+
+      for(String how : new String[] { "handoff", "takeover" }) {
+         for(String[] s : shapes) {
+            args.add(Arguments.of(how, s[0], s[1], s[2]));
+         }
+      }
+
+      return args.stream();
+   }
+
+   /**
+    * T1: a Date, a Proxy or a host object that is not the first object of its layer is
+    * classified as itself: a Date after an object and an object after a Date are kept exactly;
+    * a Proxy after a plain object, a Date or a host object is lost with one warning naming a
+    * Proxy, runs no trap, and the plain accumulator t next to it is kept.
+    */
+   @ParameterizedTest(name = "{0} {1}")
+   @MethodSource("classifier")
+   void eachObjectOfABatchIsClassifiedAsItself(String how, String name, String shape,
+                                               String step)
+   {
+      boolean kept = !step.isEmpty();
+      // t counts every row; made counts how often o was created
+      String f = "var t = t || {n: 0}; t.n++; var made = made || 0; " +
+         "var o = o || (made++, " + shape + "); " +
+         "(" + (kept ? step : "true") + " ? 1 : -1) * (t.n + 10000 * (made - 1))";
+      double[][] v = new double[1][];
+      assertTimeoutPreemptively(Duration.ofSeconds(90), () -> {
+         v[0] = crossSlot(how, f);
+      });
+      assertEquals(0, probe.hits(), "no trap ran");
+      assertTrue(PoolTestSupport.metric(lastEnv, "HandOffs") >= 1, "a hand-off ran");
+      List<String> warns = warningTexts();
+
+      for(int r = 1; r <= ROWS; r++) {
+         assertTrue(v[0][r] > 0, name + " row " + r + ": " + v[0][r]);
+         assertEquals(r, v[0][r] % 10000, name + ": t is kept, row " + r);
+      }
+
+      if(kept) {
+         assertEquals(ROWS, v[0][ROWS], name + ": o is kept (made once)");
+         assertTrue(warns.isEmpty(), () -> "no warning: " + warns);
+      }
+      else {
+         assertTrue(v[0][ROWS] > 10000, name + ": o was lost at the hand-off, made again");
+         assertEquals(1, warns.size(), () -> "one warning: " + warns);
+         assertTrue(warns.get(0).contains("\"o\" holds a Proxy object"), warns.get(0));
+      }
+   }
+
+   static IntStream seeds() {
+      return IntStream.rangeClosed(1, 16);
+   }
+
+   /**
+    * T1 fuzz: three vars of random nested objects and arrays, with Dates, host objects and at
+    * most one value that is not kept per var (a Proxy, a function, a Map, a getter) at random
+    * positions. At a hand-off each var is either exact (its counter, its Date and its shape)
+    * or lost with one warning naming what it held; no user code runs.
+    */
+   @ParameterizedTest(name = "seed {0}")
+   @MethodSource("seeds")
+   void randomPositionsAreEachExactOrLostWithTheRightWarning(int seed) {
+      Random rnd = new Random(seed);
+      int vars = 3;
+      List<Shape> shapes = new ArrayList<>();
+      StringBuilder f = new StringBuilder();
+
+      for(int i = 0; i < vars; i++) {
+         Shape s = shape(rnd, rnd.nextBoolean());
+         shapes.add(s);
+         f.append("var v").append(i).append(" = v").append(i).append(" || ").append(s.js)
+            .append("; ");
+      }
+
+      StringBuilder mismatch = new StringBuilder("0");
+      StringBuilder clocks = new StringBuilder("true");
+      StringBuilder sigs = new StringBuilder("''");
+
+      for(int i = 0; i < vars; i++) {
+         Shape s = shapes.get(i);
+         String c = "v" + i + s.counter;
+         String d = "v" + i + s.clock;
+         f.append(c).append(".c++; ").append(d).append(".setTime(").append(d)
+            .append(".getTime() + 1000); ");
+         mismatch.append(" + (").append(c).append(".c == field['id'] ? 0 : ").append(1 << i)
+            .append(")");
+         clocks.append(" && ").append(d).append(".getTime() == ").append(c).append(".c * 1000");
+
+         // the shape of a var that holds nothing it cannot keep (reading one would run a
+         // getter or a trap)
+         if(s.lostKind == null) {
+            sigs.append(" + '|' + sigOf(v").append(i).append(")");
+         }
+      }
+
+      String sigOf = "(function() { var sigOf = function(x) { " +
+         "if(x instanceof Date) return 'D'; " +
+         "if(x !== null && typeof x === 'object' && typeof x.hits === 'function') return 'H'; " +
+         "if(Array.isArray(x)) return 'A[' + x.map(sigOf).join(',') + ']'; " +
+         "if(x !== null && typeof x === 'object') return 'O{' + Object.keys(x).map(" +
+         "function(k) { return k + ':' + sigOf(x[k]); }).join(',') + '}'; " +
+         "return typeof x; }; return " + sigs + "; })()";
+      f.append("var s0 = s0 || ").append(sigOf).append("; ");
+      f.append("(").append(mismatch).append(") + ((").append(clocks).append(") ? 0 : 8) + (")
+         .append(sigOf).append(" === s0 ? 0 : 16)");
+      String formula = f.toString();
+      double[][] v = new double[1][];
+      assertTimeoutPreemptively(Duration.ofSeconds(90), () -> {
+         v[0] = crossSlot("takeover", formula);
+      });
+      assertEquals(0, probe.hits(), () -> "no user code ran: " + formula);
+      int lostBits = 0;
+
+      for(int i = 0; i < vars; i++) {
+         if(shapes.get(i).lostKind != null) {
+            lostBits |= 1 << i;
+         }
+      }
+
+      for(int r = 1; r <= ROWS; r++) {
+         int bits = (int) v[0][r];
+         int row = r;
+         assertEquals(0, bits & ~lostBits, () -> "row " + row + " (" + bits + "): " + formula);
+      }
+
+      assertEquals(lostBits, (int) v[0][ROWS], () -> "the lost vars restarted: " + formula);
+      List<String> warns = warningTexts();
+
+      for(int i = 0; i < vars; i++) {
+         String var = "\"v" + i + "\"";
+         List<String> mine = warns.stream().filter(w -> w.contains(var)).toList();
+         Shape s = shapes.get(i);
+
+         if(s.lostKind == null) {
+            assertTrue(mine.isEmpty(), () -> var + " is kept: " + mine + " " + formula);
+         }
+         else {
+            assertEquals(1, mine.size(), () -> var + ": " + mine + " " + formula);
+            assertTrue(mine.get(0).contains(var + " holds " + s.lostKind),
+                       () -> mine.get(0) + " " + formula);
+         }
+      }
+
+      assertEquals(Integer.bitCount(lostBits), warns.size(), () -> warns + " " + formula);
+   }
+
+   /**
+    * T1 at batch boundaries: thousands of objects in each layer of one var (Dates, objects and
+    * arrays interleaved, each layer's objects saved in one host batch), and a second var of
+    * 3000 objects whose last one is a Proxy: the first is kept exactly, the second lost with
+    * one warning, and no trap runs.
+    */
+   @Test
+   void manyObjectsPerBatchAreEachClassifiedAsThemselves() {
+      String f = "var big = big || (function() { var a = []; for(var i = 0; i < 3000; i++) { " +
+         "a.push(i % 3 == 0 ? new Date(i) : i % 3 == 1 ? {x: i, d: new Date(i)} : " +
+         "[i, {y: i}]); } return a; })(); " +
+         "var made = made || 0; var pr = pr || (function() { made++; var a = []; " +
+         "for(var i = 0; i < 2999; i++) a.push(i % 2 ? {} : new Date(i)); " +
+         "a.push(new Proxy({}, " + TRAPS + ")); return a; })(); " +
+         "var k = (k || 0) + 1; " +
+         "var ok = field['id'] % 50 != 0 || (function() { for(var i = 0; i < 3000; i++) { " +
+         "var e = big[i]; if(i % 3 == 0 ? !(e instanceof Date && e.getTime() == i) : " +
+         "i % 3 == 1 ? !(e.x == i && e.d instanceof Date && e.d.getTime() == i) : " +
+         "!(Array.isArray(e) && e[0] == i && e[1].y == i)) return false; } return true; })(); " +
+         "(ok ? 1 : -1) * (k + 10000 * (made - 1))";
+      double[][] v = new double[1][];
+      assertTimeoutPreemptively(Duration.ofSeconds(120), () -> {
+         v[0] = crossSlot("handoff", f);
+      });
+      assertEquals(0, probe.hits(), "no trap ran");
+
+      for(int r = 1; r <= ROWS; r++) {
+         assertTrue(v[0][r] > 0, "big is intact, row " + r + ": " + v[0][r]);
+         assertEquals(r, v[0][r] % 10000, "k, row " + r);
+      }
+
+      assertTrue(v[0][ROWS] > 10000, "pr was lost at the hand-off, made again");
+      List<String> warns = warningTexts();
+      assertEquals(1, warns.size(), () -> "one warning: " + warns);
+      assertTrue(warns.get(0).contains("\"pr\" holds a Proxy object"), warns.get(0));
+   }
+
+   /**
+    * T2 (amendment A3 as written): a var that holds an object which a lost var's graph also
+    * holds is lost too, with its own warning, whichever of the two owns the object, so the
+    * two never split into a stale alias; a plain var next to them is kept.
+    */
+   @ParameterizedTest(name = "{0}")
+   @ValueSource(strings = { "intoLost", "lostInto", "rootAlias" })
+   void anAliasIntoALostVarIsLostToo(String what) throws Exception {
+      // each: (x === y ? 1 : -1) * (t.n * 10000 + count), where x and y must stay one object
+      String f = "var t = t || {n: 0}; t.n++; " + switch(what) {
+         // a points into b, which holds a function
+         case "intoLost" -> "var b = b || {y: {n: 0}, f: function(x) { return x; }}; " +
+            "var a = a || {x: b.y}; b.y.n++; (a.x === b.y ? 1 : -1) * (t.n * 10000 + a.x.n)";
+         // b, which holds a function, points into a
+         case "lostInto" -> "var a = a || {y: {n: 0}}; " +
+            "var b = b || {y: a.y, f: function(x) { return x; }}; a.y.n++; " +
+            "(a.y === b.y ? 1 : -1) * (t.n * 10000 + a.y.n)";
+         // q is an object of p, which holds a function (review L4)
+         default -> "var p = p || {s: {n: 0}, f: function(x) { return x; }}; " +
+            "var q = q || p.s; q.n++; (p.s === q ? 1 : -1) * (t.n * 10000 + q.n)";
+      };
+      double[] v = crossSlot("handoff", f);
+      // the count of the shared object: it goes on, or starts over at 1 (at each of the two
+      // hand-offs), never from an older value
+      int restart = 0;
+      double prev = 0;
+
+      for(int r = 1; r <= ROWS; r++) {
+         assertTrue(v[r] > 0, what + ": the two vars split at row " + r + ": " + v[r]);
+         assertEquals(r, Math.floor(v[r] / 10000), what + ": t is kept, row " + r);
+         double n = v[r] % 10000;
+
+         if(n != prev + 1) {
+            assertEquals(1, n, what + ": the shared object starts over at row " + r);
+            restart = restart == 0 ? r : restart;
+         }
+
+         prev = n;
+      }
+
+      assertTrue(restart > 200, what + ": the values were lost at the hand-off: " + restart);
+      List<String> warns = warningTexts();
+      assertEquals(2, warns.size(), () -> "one warning per lost var: " + warns);
+      String owner = what.equals("rootAlias") ? "p" : "b";
+      String alias = what.equals("rootAlias") ? "q" : "a";
+      assertTrue(warns.stream().anyMatch(w -> w.contains("\"" + owner + "\" holds a function")),
+                 () -> "" + warns);
+      assertTrue(warns.stream().anyMatch(w -> w.contains("\"" + alias + "\" holds an object " +
+         "that it shares with a variable whose value is not kept")), () -> "" + warns);
+      assertTrue(warns.stream().noneMatch(w -> w.contains("\"t\"")), () -> "" + warns);
+   }
+
+   /**
+    * M2 / T3: two tables whose batches ran nested in one claim share one home. While one
+    * table's batch holds that home on another thread, a read of the other table cannot take
+    * its objects without waiting: each of its vars is lost with one warning of its own, starts
+    * over, and never reads a stale value; the first table is exact.
+    */
+   @Test
+   void aReadOfAHomeSharedWithABusyTableIsLostWithOneWarningPerVar() throws Exception {
+      AssetQuerySandbox box = box();
+      WorksheetScriptEnv w = (WorksheetScriptEnv) box.getScriptEnv();
+      // past what the first span computes ahead (batches of 10, 20, 40, 80 rows)
+      Gate gate = new Gate(400);
+      w.put("gate", gate);
+      TableLens t1 = make(box, base(ROWS), "gate.pass(field['id']); " + ARRAY, "T1");
+      TableLens t2 = make(box, base(ROWS), "var q = q || [0]; q[0]++; " + OBJECT +
+         " * 10000 + q[0]", "T2");
+      double[] v1 = new double[ROWS + 1];
+      double[] v2 = new double[ROWS + 1];
+
+      try(ScriptSpan span = w.openSpan()) {
+         read(t1, v1, 1, 100);
+         read(t2, v2, 1, 100);
+      }
+
+      assertEquals(1, PoolTestSupport.homes(w), "one home for both tables");
+      ExecutorService ex = Executors.newSingleThreadExecutor();
+
+      try {
+         Future<?> other = ex.submit(() -> {
+            read(t1, v1, 101, 600);
+            return null;
+         });
+         assertTrue(gate.entered.await(30, TimeUnit.SECONDS), "t1's batch holds the home");
+
+         try {
+            read(t2, v2, 101, 300);
+         }
+         finally {
+            gate.release.countDown();
+         }
+
+         other.get(60, TimeUnit.SECONDS);
+      }
+      finally {
+         ex.shutdownNow();
+      }
+
+      read(t1, v1, 601, ROWS);
+      read(t2, v2, 301, ROWS);
+
+      for(int r = 1; r <= ROWS; r++) {
+         assertEquals(r, v1[r], "t1 row " + r);
+      }
+
+      // c.n and q[0] start over together at the first row computed while the home was busy
+      int restart = 0;
+
+      for(int r = 1; r <= ROWS; r++) {
+         double c = Math.floor(v2[r] / 10000);
+         double q = v2[r] % 10000;
+         assertEquals(c, q, "t2's vars agree, row " + r);
+
+         if(restart == 0 && c != r) {
+            restart = r;
+         }
+
+         if(restart != 0) {
+            assertEquals(r - restart + 1, c, "t2 starts over, never stale, row " + r);
+         }
+      }
+
+      assertTrue(restart > 100 && restart <= 300, "t2 lost its values: " + restart);
+      List<String> warns = warningTexts();
+      assertEquals(2, warns.size(), () -> "one warning per var of t2: " + warns);
+
+      for(String var : new String[] { "c", "q" }) {
+         assertTrue(warns.stream().anyMatch(m -> m.contains("\"" + var + "\" holds an array " +
+            "or object that stays on a script context")), () -> var + ": " + warns);
+      }
+   }
+
+   /**
+    * M2: four resident tables of one sandbox read in turn each keep their own exclusive home
+    * (maxHomes defaults to 4): no hand-off, one context per table, every row exact.
+    */
+   @Test
+   void fourResidentTablesOfASandboxKeepTheirOwnHomes() throws Exception {
+      AssetQuerySandbox box = box();
+      WorksheetScriptEnv w = (WorksheetScriptEnv) box.getScriptEnv();
+      List<TableLens> lenses = new ArrayList<>();
+      List<double[]> values = new ArrayList<>();
+
+      for(int i = 0; i < 4; i++) {
+         lenses.add(make(box, base(ROWS), i % 2 == 0 ? OBJECT : ARRAY, "T" + i));
+         values.add(new double[ROWS + 1]);
+      }
+
+      for(int s = 1; s <= ROWS; s += 100) {
+         for(int i = 0; i < 4; i++) {
+            read(lenses.get(i), values.get(i), s, s + 99);
+         }
+      }
+
+      for(int i = 0; i < 4; i++) {
+         assertAll(values.get(i), "T" + i);
+      }
+
+      assertEquals(0, PoolTestSupport.metric(w, "HandOffs"), "no hand-off");
+      assertEquals(4, PoolTestSupport.exclusiveHomes(w), "four exclusive homes");
+      assertTrue(w.getMetrics().getHighWater() <= 4,
+                 "one context per table: " + w.getMetrics().getHighWater());
+   }
+
+   /**
+    * Review L3: one evictor pass hands off at most four idle homes of a pool (the evictor
+    * thread is shared by the node); the next pass hands off the rest, and every table
+    * continues exactly.
+    */
+   @Test
+   void anEvictorPassHandsOffAtMostFourHomes() throws Exception {
+      SreeEnv.setProperty(MAX_HOMES, "8");
+      AssetQuerySandbox box = box();
+      WorksheetScriptEnv w = (WorksheetScriptEnv) box.getScriptEnv();
+      List<TableLens> lenses = new ArrayList<>();
+      List<double[]> values = new ArrayList<>();
+
+      for(int i = 0; i < 6; i++) {
+         lenses.add(make(box, base(ROWS), i % 2 == 0 ? OBJECT : ARRAY, "T" + i));
+         values.add(new double[ROWS + 1]);
+         read(lenses.get(i), values.get(i), 1, 100);
+      }
+
+      assertEquals(6, PoolTestSupport.homes(w), "one home per table");
+      PoolTestSupport.evictIdle(w, Long.MAX_VALUE);
+      assertEquals(4, PoolTestSupport.metric(w, "HandOffs"), "four hand-offs in one pass");
+      assertEquals(2, PoolTestSupport.homes(w), "two homes left for the next pass");
+      PoolTestSupport.evictIdle(w, Long.MAX_VALUE);
+      assertEquals(6, PoolTestSupport.metric(w, "HandOffs"), "the rest in the next pass");
+      assertEquals(0, PoolTestSupport.homes(w));
+
+      for(int i = 0; i < 6; i++) {
+         read(lenses.get(i), values.get(i), 101, ROWS);
+         assertAll(values.get(i), "T" + i);
+      }
+
+      assertTrue(warnings().isEmpty(), () -> "no warning: " + warnings());
+   }
+
+   // --- random shapes ---
+
+   /** A var's literal, the paths to its counter object and its Date, what it cannot keep. */
+   record Shape(String js, String counter, String clock, String lostKind) {
+   }
+
+   private static final class Node {
+      Node(boolean array) {
+         this.array = array;
+      }
+
+      final boolean array;
+      final List<Object> items = new ArrayList<>(); // Node or a literal
+   }
+
+   private static final String COUNTER = "\u0001counter";
+   private static final String CLOCK = "\u0001clock";
+   private static final String[] FILLERS = {
+      "{x: 1}", "[1, 2]", "new Date(5)", "7", "'s'", "{}", "[]", "null", "{y: {z: [1]}}",
+      "probe", "[new Date(9), {w: 2}]" };
+   private static final String[][] REFUSALS = {
+      { "new Proxy({}, " + TRAPS + ")", "a Proxy object" },
+      { "new Proxy([], " + TRAPS + ")", "a Proxy object" },
+      { "function() { return 1; }", "a function" },
+      { "new Map([[1, 2]])", "a Map" },
+      { "{get g() { probe.hit(); return 1; }}", "an object with a getter or setter" } };
+
+   // a container with nested containers, fillers, the counter, the Date and at most one
+   // value that is not kept, each at a random position
+   private static Shape shape(Random rnd, boolean refuse) {
+      Node root = new Node(rnd.nextBoolean());
+      List<Node> all = new ArrayList<>(List.of(root));
+      int containers = rnd.nextInt(4);
+
+      for(int i = 0; i < containers; i++) {
+         Node n = new Node(rnd.nextBoolean());
+         insert(all.get(rnd.nextInt(all.size())), n, rnd);
+         all.add(n);
+      }
+
+      for(Node n : all) {
+         for(int k = rnd.nextInt(4); k > 0; k--) {
+            insert(n, FILLERS[rnd.nextInt(FILLERS.length)], rnd);
+         }
+      }
+
+      insert(all.get(rnd.nextInt(all.size())), COUNTER, rnd);
+      insert(all.get(rnd.nextInt(all.size())), CLOCK, rnd);
+      String kind = null;
+
+      if(refuse) {
+         String[] r = REFUSALS[rnd.nextInt(REFUSALS.length)];
+         insert(all.get(rnd.nextInt(all.size())), r[0], rnd);
+         kind = r[1];
+      }
+
+      String[] paths = new String[2];
+      String js = render(root, "", paths);
+      return new Shape(js, paths[0], paths[1], kind);
+   }
+
+   private static void insert(Node n, Object item, Random rnd) {
+      n.items.add(rnd.nextInt(n.items.size() + 1), item);
+   }
+
+   private static String render(Node n, String path, String[] paths) {
+      StringBuilder buf = new StringBuilder(n.array ? "[" : "{");
+
+      for(int i = 0; i < n.items.size(); i++) {
+         Object item = n.items.get(i);
+         String key = n.array ? "[" + i + "]" : "['k" + i + "']";
+         buf.append(i > 0 ? ", " : "").append(n.array ? "" : "k" + i + ": ");
+
+         if(item instanceof Node child) {
+            buf.append(render(child, path + key, paths));
+         }
+         else if(item == COUNTER) {
+            buf.append("{c: 0}");
+            paths[0] = path + key;
+         }
+         else if(item == CLOCK) {
+            buf.append("new Date(0)");
+            paths[1] = path + key;
+         }
+         else {
+            buf.append(item);
+         }
+      }
+
+      return buf.append(n.array ? "]" : "}").toString();
+   }
+
+   // --- helpers ---
+
+   /** Blocks the formula of one row once, on the first thread that computes it. */
+   public static final class Gate {
+      Gate(int row) {
+         this.row = row;
+      }
+
+      public void pass(Object id) throws InterruptedException {
+         if(id instanceof Number n && n.intValue() == row && entered.getCount() > 0) {
+            entered.countDown();
+            release.await(30, TimeUnit.SECONDS);
+         }
+      }
+
+      final CountDownLatch entered = new CountDownLatch(1);
+      final CountDownLatch release = new CountDownLatch(1);
+      private final int row;
+   }
+
+   /**
+    * Rows 1..200, then 201..600 under {@code how}, then 601.. back: handoff (the pool hands
+    * off the idle homes between the reads), takeover (no exclusive home: another thread's
+    * claim takes the home over after a hand-off).
+    */
+   private double[] crossSlot(String how, String formula) throws Exception {
+      if(how.equals("takeover")) {
+         SreeEnv.setProperty(MAX_HOMES, "0");
+      }
+
+      AssetQuerySandbox box = box();
+      WorksheetScriptEnv w = (WorksheetScriptEnv) box.getScriptEnv();
+      w.put("probe", probe);
+      TableLens t = make(box, base(ROWS), formula, "T");
+      double[] v = new double[ROWS + 1];
+      read(t, v, 1, 200);
+
+      if(how.equals("takeover")) {
+         PoolTestSupport.whileHeldElsewhere(w, () -> read(t, v, 201, 600));
+      }
+      else {
+         PoolTestSupport.handOffIdleHomes(w);
+         read(t, v, 201, 600);
+         PoolTestSupport.handOffIdleHomes(w);
+      }
+
+      read(t, v, 601, ROWS);
+      return v;
+   }
+
+   private static void read(TableLens t, double[] v, int from, int to) {
+      for(int r = from; r <= to; r++) {
+         assertTrue(t.moreRows(r), "row " + r);
+         v[r] = num(t.getObject(r, 2));
+      }
+   }
+
+   private static void assertAll(double[] v, String what) {
+      List<String> bad = new ArrayList<>();
+
+      for(int r = 1; r < v.length; r++) {
+         if(v[r] != r) {
+            bad.add(r + "=" + v[r]);
+         }
+      }
+
+      assertTrue(bad.isEmpty(), () -> what + ": " + bad.size() + " wrong rows, first " +
+         bad.subList(0, Math.min(5, bad.size())));
+   }
+
+   private AssetQuerySandbox box() throws Exception {
+      AssetQuerySandbox box = PoolTestSupport.poolBox(true);
+      lastEnv = (WorksheetScriptEnv) box.getScriptEnv();
+      envs.add(lastEnv);
+      return box;
+   }
+
+   private List<ILoggingEvent> warnings() {
+      return appender.list.stream().filter(e -> e.getLevel() == Level.WARN).toList();
+   }
+
+   private List<String> warningTexts() {
+      return warnings().stream().map(ILoggingEvent::getFormattedMessage).toList();
+   }
+
+   private static final String MAX_HOMES = "script.ws.contextPool.maxHomes";
+   private static final int ROWS = 1200;
+   private final List<WorksheetScriptEnv> envs = new ArrayList<>();
+   private final PoolTestSupport.Probe probe = new PoolTestSupport.Probe();
+   private WorksheetScriptEnv lastEnv;
+   private Logger logger;
+   private ListAppender<ILoggingEvent> appender;
+}

@@ -64,12 +64,13 @@ import static org.mockito.Mockito.when;
  * its formula table in one batch as the table opens, so there it only matches the pool off);
  * two vars holding one Date still hold one object; a Date that loops in every method, or a
  * Proxy of one, does not hang the batch end; a batch ended by the script timeout keeps its
- * Date. A second column that keeps a counter closure in a var (a function is not kept across
- * a hand-off, so it restarts on another context) shows that each read really ran batches on
- * another context. The closure makes the table keep its objects on a home (B1 residual part
- * 2); the pool has no exclusive home here, so the other thread's claim takes that home over
- * after a hand-off (the Dates are saved in the same tree) and the table's next batch runs on
- * another context.
+ * Date. The table is Date-only, so it takes the batch-end Date path (no home); the pool's
+ * count of owned-var reads made on another context (CrossReads) shows that each read really
+ * ran batches on another context. The tree modes add a second column that keeps a counter
+ * closure in a var (a function is not kept across a hand-off, so it restarts there): the
+ * table then keeps its objects on a home (B1 residual part 2), with no exclusive home, so the
+ * other thread's claim takes that home over after a hand-off (the Dates are saved in the same
+ * tree) and the table's next batch runs on another context.
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class, LibManagerTestConfiguration.class, PluginsTestConfiguration.class, PooledWorksheetDateVarTest.TestConfig.class }, initializers = ConfigurationContextInitializer.class)
@@ -127,7 +128,8 @@ class PooledWorksheetDateVarTest {
     * another context, exactly what the pool off gives, however the table is read.
     */
    @ParameterizedTest(name = "{0}")
-   @ValueSource(strings = { "seq", "pages", "jump", "eot", "openHeld", "cf2", "sort" })
+   @ValueSource(strings = { "seq", "pages", "jump", "eot", "openHeld", "cf2", "sort",
+                            "tree pages", "tree openHeld" })
    void aDateVarGivesWhatThePoolOffGives(String mode) throws Exception {
       for(String f : new String[] { START, ALIAS }) {
          Result off = run(false, mode, f);
@@ -157,9 +159,13 @@ class PooledWorksheetDateVarTest {
             bad.size() + " rows differ from pool off, first " +
             bad.subList(0, Math.min(5, bad.size())));
          // a sort reads its formula table in one batch when the table opens: nothing to cross
-         if(!mode.equals("sort")) {
+         if(mode.startsWith("tree")) {
             assertFalse(Arrays.equals(on.wit, off.wit),
                         mode + ": no batch ran on another context");
+         }
+         else if(!mode.equals("sort")) {
+            assertTrue(on.crossed(), mode + ": no batch ran on another context");
+            assertEquals(0, on.homes, mode + ": a Date-only table has no home");
          }
       }
    }
@@ -190,7 +196,8 @@ class PooledWorksheetDateVarTest {
       };
 
       assertTimeoutPreemptively(Duration.ofSeconds(120), () -> {
-         Result on = run(true, "pages", f);
+         // a Proxy is no Date: that table keeps it on a home, taken over by the other thread
+         Result on = run(true, what.equals("proxy") ? "tree pages" : "pages", f, false);
          assertTrue(on.crossed(), "no batch ran on another context");
 
          if(what.equals("proxy")) {
@@ -221,7 +228,7 @@ class PooledWorksheetDateVarTest {
          assertTimeoutPreemptively(Duration.ofSeconds(120), () -> {
             String f = "var hit = hit || 0; var d = d || new Date(0); " +
                "if(field['id'] == 2300 && !hit) { hit = 1; while(true) {} } " + STEP;
-            AssetQuerySandbox box = box(ws(f), true);
+            AssetQuerySandbox box = box(ws(f, false), true, false);
             WorksheetScriptEnv env = (WorksheetScriptEnv) box.getScriptEnv();
             TableLens t = box.getTableLens("A", RUNTIME);
             Result res = new Result(t);
@@ -288,7 +295,8 @@ class PooledWorksheetDateVarTest {
 
       assertEquals(0, warnings().size(), () -> "pool off: " + warnings());
 
-      Result on = run(true, "pages", f);
+      // the other thread's claim takes the table's home over (tree), with no witness column
+      Result on = run(true, "tree pages", f, false);
       assertTrue(on.crossed(), "no batch ran on another context");
       List<String> mine = warnings().stream().map(ILoggingEvent::getFormattedMessage)
          .filter(m -> m.contains("\"q\"")).toList();
@@ -325,22 +333,19 @@ class PooledWorksheetDateVarTest {
       void bind(TableLens t) {
          cid = col(t, "id");
          cout = col(t, "out");
-         cwit = col(t, "wit");
+         cwit = has(t, "wit") ? col(t, "wit") : -1;
       }
 
+      // a read of an owned var's object on another context was counted
       boolean crossed() {
-         for(int id = 1; id <= ROWS; id++) {
-            if(wit[id] != id) {
-               return true;
-            }
-         }
-
-         return false;
+         return crossReads > 0;
       }
 
       final double[] out = new double[ROWS + 1];
       final double[] wit = new double[ROWS + 1];
-      int cid, cout, cwit;
+      int cid, cout, cwit = -1;
+      long crossReads;
+      int homes;
    }
 
    /**
@@ -348,7 +353,17 @@ class PooledWorksheetDateVarTest {
     * the usual context, so those batches run on another one.
     */
    private Result run(boolean pool, String mode, String f) throws Exception {
-      Worksheet ws = ws(f);
+      return run(pool, mode, f, true);
+   }
+
+   /**
+    * {@code mode} "tree X" reads as X with no exclusive home, and with the witness column if
+    * {@code witness}.
+    */
+   private Result run(boolean pool, String mode, String f, boolean witness) throws Exception {
+      boolean tree = mode.startsWith("tree ");
+      mode = tree ? mode.substring(5) : mode;
+      Worksheet ws = ws(f, tree && witness);
       EmbeddedTableAssembly a = (EmbeddedTableAssembly) ws.getAssembly("A");
 
       if(mode.equals("cf2")) {
@@ -369,7 +384,7 @@ class PooledWorksheetDateVarTest {
          a.setSortInfo(sort);
       }
 
-      AssetQuerySandbox box = box(ws, pool);
+      AssetQuerySandbox box = box(ws, pool, tree);
       WorksheetScriptEnv env = pool ? (WorksheetScriptEnv) box.getScriptEnv() : null;
       Result res = new Result();
       TableLens[] t = new TableLens[1];
@@ -405,9 +420,9 @@ class PooledWorksheetDateVarTest {
       case "openHeld" -> {
          held(env, open);
 
-         // the table stays on the context it opened on, its home: hand it off, so the reads
-         // below run on another context
-         if(env != null) {
+         // a tree table stays on the context it opened on, its home: hand it off, so the
+         // reads below run on another context
+         if(env != null && tree) {
             PoolTestSupport.handOffIdleHomes(env);
          }
 
@@ -420,6 +435,11 @@ class PooledWorksheetDateVarTest {
          pages(t[0], res, 1, ROWS);
       }
       default -> fail(mode);
+      }
+
+      if(env != null) {
+         res.crossReads = PoolTestSupport.metric(env, "CrossReads");
+         res.homes = PoolTestSupport.homes(env);
       }
 
       return res;
@@ -457,13 +477,20 @@ class PooledWorksheetDateVarTest {
    private static void store(TableLens t, Result res, int r) {
       int id = (int) num(t.getObject(r, res.cid));
       res.out[id] = num(t.getObject(r, res.cout));
-      res.wit[id] = num(t.getObject(r, res.cwit));
+      res.wit[id] = res.cwit < 0 ? id : num(t.getObject(r, res.cwit));
    }
 
-   private AssetQuerySandbox box(Worksheet ws, boolean pool) {
+   private AssetQuerySandbox box(Worksheet ws, boolean pool, boolean tree) {
       SreeEnv.setProperty(PoolConfig.ENABLED, Boolean.toString(pool));
-      // no exclusive home (see the class comment)
-      SreeEnv.setProperty(MAX_HOMES, "0");
+
+      // a tree table: no exclusive home (see the class comment)
+      if(tree) {
+         SreeEnv.setProperty(MAX_HOMES, "0");
+      }
+      else {
+         SreeEnv.remove(MAX_HOMES);
+      }
+
       // the data keys are content based: without this a run could read another's rows
       AssetDataCache.getCache().clearCache();
       AssetQuerySandbox box = new AssetQuerySandbox(ws);
@@ -472,7 +499,7 @@ class PooledWorksheetDateVarTest {
       return box;
    }
 
-   private static Worksheet ws(String formula) {
+   private static Worksheet ws(String formula, boolean witness) {
       Worksheet ws = new Worksheet();
       EmbeddedTableAssembly table = new EmbeddedTableAssembly(ws, "A");
       Object[][] data = new Object[ROWS + 1][];
@@ -487,7 +514,10 @@ class PooledWorksheetDateVarTest {
       ws.addAssembly(table);
       ColumnSelection columns = table.getColumnSelection(false);
 
-      for(String[] c : new String[][] { { "out", formula }, { "wit", WITNESS } }) {
+      String[][] cols = witness ? new String[][] { { "out", formula }, { "wit", WITNESS } }
+         : new String[][] { { "out", formula } };
+
+      for(String[] c : cols) {
          ExpressionRef exp = new ExpressionRef(null, c[0]);
          exp.setExpression(c[1]);
          ColumnRef column = new ColumnRef(exp);
@@ -497,6 +527,18 @@ class PooledWorksheetDateVarTest {
 
       table.setColumnSelection(columns, false);
       return ws;
+   }
+
+   private static boolean has(TableLens t, String name) {
+      t.moreRows(0);
+
+      for(int c = 0; c < t.getColCount(); c++) {
+         if(name.equals(String.valueOf(t.getObject(0, c)))) {
+            return true;
+         }
+      }
+
+      return false;
    }
 
    private static int col(TableLens t, String name) {

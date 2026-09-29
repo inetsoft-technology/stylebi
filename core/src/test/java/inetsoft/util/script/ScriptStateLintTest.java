@@ -446,6 +446,10 @@ class ScriptStateLintTest {
          // arrays and plain objects are kept across pooled contexts (B1 residual part 2)
          Arguments.of("var a = a || []; a.push(1); a.length", false),
          Arguments.of("var o = o || {}; o.n = 1; o", false),
+         // the same made with new (review round 2 L5)
+         Arguments.of("var na = na || new Array(); na.push(1); na.length", false),
+         Arguments.of("var no = no || new Object(); no.n = 1; no", false),
+         Arguments.of("var nx = nx || new Array.Foo(); nx", true),
          // a Date is kept across pooled batches (Testing #77123, B1 residual)
          Arguments.of("var d; if(!d) { d = new Date(); } d", false),
          Arguments.of("var d2 = d2 || new Date(0); d2.setTime(d2.getTime() + 1); d2", false),

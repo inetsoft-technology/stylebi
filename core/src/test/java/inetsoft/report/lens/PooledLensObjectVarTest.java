@@ -56,7 +56,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * pool expires, closes or takes over the home) they are saved as one tree by a cloner that
  * runs no user code and rebuilt on the other context: aliases, cycles, nested Dates and
  * property attributes are kept. What it cannot keep (a function, a class instance, a Proxy,
- * an accessor) loses only its own var, with one warning naming what it held.
+ * an accessor) loses its own var, and any var sharing an object with it (A3), each with one
+ * warning naming what it held.
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class, LibManagerTestConfiguration.class, PluginsTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
@@ -243,10 +244,16 @@ class PooledLensObjectVarTest {
 
    /**
     * A4: six tables with an object var in one sandbox, read in turn: at most maxHomes + 1
-    * contexts (other homes are taken over after a hand-off), and every row is exact.
+    * contexts (other homes are taken over after a hand-off), and every row is exact; with
+    * maxHomes 1 and with the default (4).
     */
-   @Test
-   void manyResidentLensesUseAtMostTheCapPlusOneContexts() throws Exception {
+   @ParameterizedTest(name = "maxHomes {0}")
+   @ValueSource(ints = { 1, 4 })
+   void manyResidentLensesUseAtMostTheCapPlusOneContexts(int cap) throws Exception {
+      if(cap != 4) {
+         SreeEnv.setProperty(MAX_HOMES, String.valueOf(cap));
+      }
+
       AssetQuerySandbox box = box();
       WorksheetScriptEnv w = (WorksheetScriptEnv) box.getScriptEnv();
       List<TableLens> lenses = new ArrayList<>();
@@ -267,9 +274,9 @@ class PooledLensObjectVarTest {
          assertAll(values.get(i), "T" + i);
       }
 
-      assertTrue(w.getMetrics().getHighWater() <= 2,
+      assertTrue(w.getMetrics().getHighWater() <= cap + 1,
                  "contexts: " + w.getMetrics().getHighWater());
-      assertTrue(PoolTestSupport.exclusiveHomes(w) <= 1);
+      assertTrue(PoolTestSupport.exclusiveHomes(w) <= cap);
    }
 
    /**

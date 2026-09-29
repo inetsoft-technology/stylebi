@@ -68,7 +68,11 @@ class WsBoundaryPolicyTest {
                                         "Date, array or plain object",
                                         "function- or class-valued var", "hand-off",
                                         "an Intl formatter", ".handOffMillis (5000)",
-                                        ".handOffEntries (200000)", ".maxHomes (1)",
+                                        ".handOffEntries (200000)", ".maxHomes (4)",
+                                        // round 2: the two concurrent losses, A3 aliases
+                                        "never waits for another thread's",
+                                        "a context the two", "reads an older value",
+                                        "var holding an object it shares with such a value",
                                         ".maxHomesPerNode (128)",
                                         // context-pool regression D1, the pool-off first batch
                                         "evaluates what pool off would", "2N + 10",

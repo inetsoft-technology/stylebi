@@ -34,6 +34,15 @@
 // meta object is Date (an Invalid Date, or an object that inherits Date.prototype). keep(o) stores a host
 // object and returns its index; kept(i) returns it. fail(i, kind) reports a root that is lost;
 // dropped(i, what) a Date in root i that is kept as a plain Date from its time value only.
+//
+// The snapshot format: {"n": [node...], "r": [value per root]}. A node is
+// [0, ext, key, value...] a plain object; [4, ext, key, value...] one with a null prototype;
+// [1, ext, length, lengthWritable, key, value...] an array; [3, ext, time, key, value...] a
+// Date ([6, ...] with a null prototype; time "NaN" for an Invalid Date); [5, i] a host object
+// kept by reference (kept(i)). ext is 1 for a non-extensible object. A value is a JSON number,
+// string, boolean or null, [n] node n, [-1] undefined, [-2] NaN, [-3] Infinity, [-4] -Infinity,
+// [-5] -0, [-7, "digits"] a bigint, or [-8, attrs, value] a property whose attributes are not
+// all set (1 writable, 2 enumerable, 4 configurable).
 (function(host, keep, kept, fail, dropped) {
    'use strict';
    const R = Reflect, gOPD = R.getOwnPropertyDescriptor, ownKeys = R.ownKeys,
@@ -131,17 +140,46 @@
          };
    }
 
+   // what a root that shares an object with a lost root is lost for (amendment A3)
+   const SHARED = 'an object that it shares with a variable whose value is not kept';
+   const UNREAD = 'a value that could not be read';
+
    // roots (a host array of values) -> one JSON-like string. A root that cannot be kept is
-   // reported with fail(i, kind) and encoded as undefined; the other roots are kept, with
-   // aliases and cycles among them.
+   // reported with fail(i, kind) and encoded as undefined, and so is every root that shares an
+   // object with it (A3: a kept alias into a lost value would be stale once the lost var is
+   // created again), each with its own kind. The other roots are kept, with aliases and cycles
+   // among them. Past the time bound every root is lost: sharing can no longer be checked.
+   //
+   // It runs passes until one loses no new root; a pass after a loss first marks the object
+   // graph of every lost root (own data properties only, so no getter runs; a Proxy or foreign
+   // object is marked but not entered, as the host tells them apart without a trap; a host
+   // object, kept by reference, is not marked).
+   // An alias only through a Map or Set, a closure or an accessor is not seen.
    function snap(roots, maxEntries, maxMillis) {
       const put = putter(protoClean());
       const deadline = now() + maxMillis;
-      const ids = new M();
-      const parts = [];
-      const pending = [];
-      const enc = [];
+      const TIME = 'a value that took longer than ' + maxMillis + ' ms to save';
+      const rl = roots.length;
+      // why each root is lost, or undefined while it is kept (no hole: never read through
+      // the prototype)
+      const lost = [];
+      let nlost = 0, late = false, changed = false;
+
+      for(let i = 0; i < rl; i++) {
+         put(lost, i, undefined);
+      }
+
+      // the state of one pass
+      let ids, tainted, parts, pending, enc, own;
       let pl = 0, pn = 0, done = 0, entries = 0, steps = 0, why = '', hard = false, root = 0;
+
+      function lose(i, k) {
+         if(lost[i] === undefined) {
+            put(lost, i, k);
+            nlost++;
+            changed = true;
+         }
+      }
 
       function stop(k) {
          why = k;
@@ -154,6 +192,13 @@
          stop(k);
       }
 
+      function checkTime() {
+         if(now() > deadline) {
+            late = true;
+            stopHard(TIME);
+         }
+      }
+
       function tick(n) {
          entries += n;
          steps += n;
@@ -164,10 +209,7 @@
 
          if(steps >= 2048) {
             steps = 0;
-
-            if(now() > deadline) {
-               stopHard('a value that took longer than ' + maxMillis + ' ms to save');
-            }
+            checkTime();
          }
       }
 
@@ -183,9 +225,14 @@
             return id;
          }
 
+         if(mget(tainted, o) !== undefined) {
+            stop(SHARED);
+         }
+
          const nid = pn;
          mset(ids, o, nid);
          put(pending, nid, o);
+         put(own, nid, root);
          pn = nid + 1;
          return nid;
       }
@@ -286,7 +333,8 @@
                props(o, keys, false);
             }
             catch(e) {
-               if(e !== STOP || hard) {
+               // an object shared with a lost root loses the whole root, not the property
+               if(e !== STOP || hard || why === SHARED) {
                   throw e;
                }
 
@@ -378,16 +426,18 @@
       function drain() {
          while(done < pn) {
             const end = pn;
+            // the first object of this batch: done moves on in the loop below
+            const base = done;
             const batch = [];
 
-            for(let i = done; i < end; i++) {
-               put(batch, i - done, pending[i]);
+            for(let i = base; i < end; i++) {
+               put(batch, i - base, pending[i]);
             }
 
             const kinds = host(batch);
 
-            for(let i = done; i < end; i++) {
-               const h = charCode(kinds, i - done) - 48;
+            for(let i = base; i < end; i++) {
+               const h = charCode(kinds, i - base) - 48;
                out(i ? ',' : '');
 
                if(h === 1) {
@@ -408,10 +458,87 @@
          }
       }
 
-      out('{"n":[');
-      const rl = roots.length;
+      // mark the object graph of the lost root j: a kept root of this pass that holds one of
+      // its objects is lost too, and a later root that reaches one is lost in ref()
+      function mark(v, j) {
+         if(typeof v !== 'object' || v === null) {
+            return;
+         }
 
-      for(let i = 0; i < rl; i++) {
+         let front = [v];
+         let fl = 1;
+
+         while(fl > 0) {
+            const kinds = host(front);
+            const next = [];
+            let nl = 0;
+
+            for(let k = 0; k < fl; k++) {
+               const o = front[k];
+               const h = charCode(kinds, k) - 48;
+
+               // a host object is kept by reference, never copied: sharing it splits nothing
+               if(h === 2 || mget(tainted, o) !== undefined) {
+                  continue;
+               }
+
+               mset(tainted, o, j);
+               const id = mget(ids, o);
+
+               if(id !== undefined) {
+                  lose(own[id], SHARED);
+               }
+
+               // a Proxy, a value of another engine: marked, not entered
+               if(h === 1 || h === 4) {
+                  continue;
+               }
+
+               const keys = ownKeys(o);
+
+               for(let q = 0; q < keys.length; q++) {
+                  const d = gOPD(o, keys[q]);
+
+                  if(d !== undefined && hasOwn(d, 'value')) {
+                     const x = d.value;
+
+                     if(typeof x === 'object' && x !== null && mget(tainted, x) === undefined) {
+                        put(next, nl++, x);
+                     }
+                  }
+
+                  if(++steps >= 2048) {
+                     steps = 0;
+                     checkTime();
+                  }
+               }
+            }
+
+            front = next;
+            fl = nl;
+         }
+      }
+
+      // mark the lost root j while another root is kept. Anything but a time-out that stops
+      // it loses every root, as sharing cannot be checked
+      function markLost(j) {
+         if(nlost >= rl) {
+            return;
+         }
+
+         try {
+            mark(roots[j], j);
+         }
+         catch(e) {
+            if(!late) {
+               for(let r = 0; r < rl; r++) {
+                  lose(r, UNREAD);
+               }
+            }
+         }
+      }
+
+      function encode(i) {
          const pn0 = pn, pl0 = pl, entries0 = entries;
          root = i;
 
@@ -420,13 +547,12 @@
             drain();
          }
          catch(e) {
-            if(e !== STOP) {
-               throw e;
-            }
+            // anything but a refusal (e.g. a value that could not be read) loses this root only
+            const k = e === STOP ? why : UNREAD;
 
             // roll this root back: its new objects, its output
-            for(let k = pn0; k < pn; k++) {
-               mdel(ids, pending[k]);
+            for(let q = pn0; q < pn; q++) {
+               mdel(ids, pending[q]);
             }
 
             pn = pn0;
@@ -435,17 +561,70 @@
             entries = entries0;
             hard = false;
             put(enc, i, '[-1]');
-            fail(i, why);
+            lose(i, k);
 
-            // out of time: the roots after it are lost too
             if(now() > deadline) {
-               for(let j = i + 1; j < rl; j++) {
-                  put(enc, j, '[-1]');
-                  fail(j, why);
-               }
-
-               break;
+               late = true;
             }
+
+            if(!late) {
+               markLost(i);
+            }
+         }
+      }
+
+      function pass() {
+         ids = new M();
+         tainted = new M();
+         parts = [];
+         pending = [];
+         enc = [];
+         own = [];
+         pl = 0;
+         pn = 0;
+         done = 0;
+         entries = 0;
+         steps = 0;
+         hard = false;
+         changed = false;
+
+         for(let j = 0; j < rl && !late; j++) {
+            if(lost[j] !== undefined) {
+               markLost(j);
+            }
+         }
+
+         out('{"n":[');
+
+         for(let i = 0; i < rl && !late; i++) {
+            if(lost[i] === undefined) {
+               encode(i);
+            }
+            else {
+               put(enc, i, '[-1]');
+            }
+         }
+      }
+
+      do {
+         pass();
+      }
+      while(changed && !late && nlost < rl);
+
+      if(late || nlost >= rl) {
+         // nothing is kept: no node
+         pl = 0;
+         out('{"n":[');
+
+         for(let i = 0; i < rl; i++) {
+            lose(i, TIME);
+            put(enc, i, '[-1]');
+         }
+      }
+
+      for(let i = 0; i < rl; i++) {
+         if(lost[i] !== undefined) {
+            fail(i, lost[i]);
          }
       }
 
