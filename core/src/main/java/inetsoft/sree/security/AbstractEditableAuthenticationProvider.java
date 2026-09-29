@@ -320,6 +320,7 @@ public abstract class AbstractEditableAuthenticationProvider
          newOrg.setMembers(editedNewOrganization.getMembers());
          newOrg.setLocale(editedNewOrganization.getLocale());
          newOrg.setTheme(editedNewOrganization.getTheme());
+         newOrg.setActive(editedNewOrganization.isActive());
       }
       else {
          newOrg.setMembers(addedMembers.stream().map(id -> id.name).toArray(String[]::new));
