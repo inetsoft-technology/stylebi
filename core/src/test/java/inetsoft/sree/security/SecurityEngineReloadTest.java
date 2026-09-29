@@ -61,19 +61,24 @@ class SecurityEngineReloadTest {
    }
 
    @BeforeEach
-   void startWithSecurityDisabled() {
+   void startWithSecurityDisabled() throws Exception {
       DataSpace space = DataSpace.getDataSpace();
       authcChainExisted = space.exists(null, AUTHC_CHAIN);
       authzChainExisted = space.exists(null, AUTHZ_CHAIN);
 
+      // the provider chain is kept in the data space, not in the property store. Building it
+      // stores security.enabled=true, so build it first and then remove that property
+      engine.newChain();
       keyValueEngine.remove(STORE, "security.enabled");
       keyValueEngine.remove(STORE, UNRELATED);
+      // the engine removes from the persistent store only, while the properties are loaded from
+      // the storage's replicated map, which still holds security.enabled=true in the context that
+      // built the chain. Load the map from the store like an external change does
+      cluster.submit(STORE, new LoadKeyValueTask<String>(STORE, true)).get(10L, TimeUnit.SECONDS);
       // the early-loaded properties outlive a context in the test JVM, so load the store into
       // fresh ones
       PropertiesEngine.getInstance().clear();
       PropertiesEngine.getInstance().init();
-      // the provider chain is kept in the data space, not in the property store
-      engine.newChain();
       engine.init();
       assertTrue(isVirtual(), "security is not disabled at the start");
    }
