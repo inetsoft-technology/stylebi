@@ -25,6 +25,7 @@ import inetsoft.report.script.TableArray;
 import inetsoft.test.*;
 import inetsoft.util.stall.*;
 import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.condition.DisabledIfSystemProperty;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.test.annotation.DirtiesContext;
@@ -196,6 +197,10 @@ public class FormulaLensLockStallTest {
     * half-computed row is not kept, so a read after the holder let go sees every value.
     */
    @Test
+   @DisabledIfSystemProperty(named = "lockcycle.pool", matches = "true",
+      disabledReason = "pool-off only: the holder holds the engine lock of the primary " +
+         "context; a pooled formula lens claims another context and never waits for it " +
+         "(RelPooledCompletionTest.formulaLensReaderCompletesWhileAScriptHolds)")
    public void formulaScriptStallReachesTheReader() throws Exception {
       Sandbox s = harness.control();
       List<List<Object>> expected = harness.await(
