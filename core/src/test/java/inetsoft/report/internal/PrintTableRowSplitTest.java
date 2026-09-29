@@ -1,3 +1,20 @@
+/*
+ * This file is part of StyleBI.
+ * Copyright (C) 2026  InetSoft Technology
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
 package inetsoft.report.internal;
 
 import inetsoft.test.BaseTestConfiguration;
@@ -45,12 +62,19 @@ class PrintTableRowSplitTest {
 
    @Test
    void aRowTallerThanAWholePageIsStillSplit() {
-      String text = IntStream.rangeClosed(1, 240).mapToObj(i -> "w" + i)
-         .collect(Collectors.joining(" "));
-      List<Integer> heights = heights(padded().keepRowsWhole().wrappedRow(3, text).regions());
-      List<Integer> unkept = heights(padded().wrappedRow(3, text).regions());
+      // one word a line, so the row's height follows the font's line height, not its glyph widths
+      String text = IntStream.rangeClosed(1, TALL_LINES).mapToObj(i -> "w" + i)
+         .collect(Collectors.joining("\n"));
+      PrintTableFixture kept = tall(text).keepRowsWhole();
+      float lineH = lineHeight(kept.element(), 3);
 
-      assertTrue(heights.stream().mapToInt(Integer::intValue).sum() > 25,
+      assertTrue(TALL_LINES * lineH > PAGE_H,
+                 "the tall row outgrows a " + PAGE_H + "pt page at " + lineH + "pt a line");
+
+      List<Integer> heights = heights(kept.regions());
+      List<Integer> unkept = heights(tall(text).regions());
+
+      assertTrue(heights.stream().mapToInt(Integer::intValue).sum() > TALL_ROWS,
                  "the tall row's pieces add rows: " + heights);
       // only the tall row is cut; each 38pt row that would straddle a break moves whole instead
       assertTrue(heights.stream().mapToInt(Integer::intValue).sum()
@@ -62,7 +86,23 @@ class PrintTableRowSplitTest {
       return new PrintTableFixture().rows(25).rowHeight(38).cellInsets(new Insets(12, 4, 12, 4));
    }
 
+   // enough short rows after the tall one for two page breaks, wherever its last piece ends
+   private static PrintTableFixture tall(String text) {
+      return padded().rows(TALL_ROWS).wrappedRow(3, text);
+   }
+
    private static List<Integer> heights(List<TablePaintable> regions) {
       return regions.stream().map(r -> r.getTableRegion().height).toList();
    }
+
+   /** The height of one line in the font the engine measures the row's first cell in. */
+   private static float lineHeight(TableElementDef element, int row) {
+      Font font = element.getBaseTable().getFont(row, 0);
+      return Common.getHeight(font == null ? element.getFont() : font);
+   }
+
+   private static final int TALL_LINES = 120;
+   private static final int TALL_ROWS = 45;
+   // US Letter's printable height inside 0.5in margins
+   private static final int PAGE_H = 720;
 }
