@@ -327,6 +327,74 @@ class PropertiesEngineLogLevelResetTest {
       }
    }
 
+   /**
+    * log.level.inetsoft and log.detail.level both set the inetsoft logger. The more specific
+    * log.level.inetsoft wins over the (default) detail level (Bug #77302 review).
+    */
+   @Test
+   void storedInetsoftLoggerLevelWinsOverDetailLevel() {
+      storage.remotePut("log.level.inetsoft", "debug", false);
+      initEngine();
+      assertEquals(LogLevel.DEBUG, logManager.getLevel());
+
+      engine.init(true);
+      assertEquals(LogLevel.DEBUG, logManager.getLevel());
+
+      // a detail level change does not clobber the more specific logger level
+      engine.setProperty("log.detail.level", "warn");
+      assertEquals(LogLevel.DEBUG, logManager.getLevel());
+      engine.init(true);
+      assertEquals(LogLevel.DEBUG, logManager.getLevel());
+   }
+
+   @Test
+   void remoteRemoveOfInetsoftLoggerLevelFallsBackToDetailLevel() {
+      storage.remotePut("log.level.inetsoft", "debug", false);
+      initEngine();
+      assertEquals(LogLevel.DEBUG, logManager.getLevel());
+
+      storage.remoteRemove("log.level.inetsoft", false);
+      engine.init(true);
+      assertEquals(LogLevel.INFO, logManager.getLevel(),
+                   "removing log.level.inetsoft dropped the default detail level");
+      assertTrue(logManager.isLevelEnabled("inetsoft.util.stall.StallDumper", LogLevel.WARN));
+   }
+
+   @Test
+   void localRemoveOfInetsoftLoggerLevelFallsBackToDetailLevel() {
+      initEngine();
+      engine.setProperty("log.level.inetsoft", "debug");
+      assertEquals(LogLevel.DEBUG, logManager.getLevel());
+
+      engine.remove("log.level.inetsoft");
+      assertEquals(LogLevel.INFO, logManager.getLevel(),
+                   "removing log.level.inetsoft dropped the default detail level");
+
+      // with a stored detail level, that is the fallback
+      engine.setProperty("log.detail.level", "warn");
+      engine.setProperty("log.level.inetsoft", "debug");
+      engine.remove("log.level.inetsoft");
+      assertEquals(LogLevel.WARN, logManager.getLevel());
+   }
+
+   @Test
+   void removedDetailLevelKeepsInetsoftLoggerLevel() {
+      storage.remotePut("log.level.inetsoft", "debug", false);
+      storage.remotePut("log.detail.level", "warn", false);
+      initEngine();
+      assertEquals(LogLevel.DEBUG, logManager.getLevel());
+
+      engine.remove("log.detail.level");
+      assertEquals(LogLevel.DEBUG, logManager.getLevel(),
+                   "removing log.detail.level clobbered log.level.inetsoft");
+
+      storage.remotePut("log.detail.level", "warn", false);
+      engine.init(true);
+      storage.remoteRemove("log.detail.level", false);
+      engine.init(true);
+      assertEquals(LogLevel.DEBUG, logManager.getLevel());
+   }
+
    @Test
    void removedBuiltInLoggerLevelFallsBackToBuiltInLevel() {
       String key = "log.level.org.apache.ignite";

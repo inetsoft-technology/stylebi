@@ -1124,9 +1124,9 @@ public class PropertiesEngine {
     * #getProperty(String)}, so the stored value still takes precedence over the system property
     * and the system property over the default.
     *
-    * <p>{@code log.detail.level} comes first, because it and {@code log.level.inetsoft} both set
-    * the level of the {@code inetsoft} logger, and now that the default detail level is always
-    * present, the more specific {@code log.level.inetsoft} must be applied after it.</p>
+    * <p>{@code log.detail.level} and {@code log.level.inetsoft} both set the level of the
+    * {@code inetsoft} logger; {@link #applyInetsoftLevel()} resolves them together, so the order
+    * of the names does not matter. It is kept deterministic, {@code log.detail.level} first.</p>
     *
     * @param props the properties.
     *
@@ -1245,13 +1245,16 @@ public class PropertiesEngine {
          return false;
       }
 
+      if(isInetsoftLevelProperty(prop)) {
+         // the other of the two properties that set the inetsoft logger, if any, still applies
+         applyInetsoftLevel();
+         return true;
+      }
+
       String val = getProperty(prop);
 
       if(val != null) {
          applyLogProperty(prop, val);
-      }
-      else if("log.detail.level".equals(prop)) {
-         logManagerProvider.ifAvailable(lm -> lm.setLevel((LogLevel) null));
       }
       else if(prop.startsWith("log.level.")) {
          String name = prop.substring(10);
@@ -1287,8 +1290,8 @@ public class PropertiesEngine {
    }
 
    private void applyLogProperty(String prop, String val) {
-      if("log.detail.level".equals(prop)) {
-         logManagerProvider.ifAvailable(lm -> lm.setLevel(LogManager.parseLevel(val)));
+      if(isInetsoftLevelProperty(prop)) {
+         applyInetsoftLevel();
       }
       else if(prop.startsWith("log.level.")) {
          try {
@@ -1320,6 +1323,31 @@ public class PropertiesEngine {
                getProperty(prop));
          }
       }
+   }
+
+   /**
+    * Determines if a property sets the level of the {@code inetsoft} logger, which both
+    * {@code log.detail.level} and the more specific {@code log.level.inetsoft} do.
+    */
+   private static boolean isInetsoftLevelProperty(String prop) {
+      return "log.detail.level".equals(prop) || INETSOFT_LEVEL_PROPERTY.equals(prop);
+   }
+
+   /**
+    * Applies the effective level of the {@code inetsoft} logger: {@code log.level.inetsoft} if
+    * it is set in any property layer, else {@code log.detail.level} (INFO in
+    * defaults.properties), else no level. Both properties are resolved together, so applying or
+    * removing one of them never clobbers or drops the other (Bug #77302).
+    */
+   private void applyInetsoftLevel() {
+      String val = getProperty(INETSOFT_LEVEL_PROPERTY);
+
+      if(val == null) {
+         val = getProperty("log.detail.level");
+      }
+
+      LogLevel level = val == null ? null : LogManager.parseLevel(val);
+      logManagerProvider.ifAvailable(lm -> lm.setLevel(level));
    }
 
    private boolean isScheduler() {
@@ -1742,6 +1770,7 @@ public class PropertiesEngine {
       "inetsoft.storage.aws.com.amazonaws", LogLevel.WARN,
       "inetsoft.storage.aws.org.apache", LogLevel.WARN,
       "org.apache.ignite", LogLevel.WARN);
+   private static final String INETSOFT_LEVEL_PROPERTY = "log.level.inetsoft";
    private static final String STORAGE_ID = "sreeProperties";
    private static final Logger LOG = LoggerFactory.getLogger(PropertiesEngine.class);
 }

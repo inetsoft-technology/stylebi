@@ -149,8 +149,9 @@ public class LogbackInitializer implements LogInitializer {
     * operator configured a log pipeline that is receiving nothing.
     *
     * {@code initialize} re-runs on every {@code SreeEnv.reloadLoggingFramework()}, which
-    * {@code PropertiesEngine.initLogging} triggers once per {@code log.*} property at startup, so
-    * the report is emitted only when the state changes rather than once per reload.
+    * {@code PropertiesEngine.initLogging} triggers twice on every startup and reload (before and
+    * after the log levels are applied) and every log property change triggers again, so the
+    * report is emitted only when the state changes rather than once per reload.
     */
    private void reportFluentdFallback(boolean unavailable, Exception failure, Path logFilePath) {
       if(!unavailable && failure == null) {
