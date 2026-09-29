@@ -106,8 +106,9 @@ class RelStressTest {
          }
       };
 
-      long[] opStart = new long[threads];
-      Op[] opNow = new Op[threads];
+      // written by the workers, read by the watchdog
+      AtomicLongArray opStart = new AtomicLongArray(threads);
+      AtomicReferenceArray<Op> opNow = new AtomicReferenceArray<>(threads);
       Thread[] workers = new Thread[threads];
       int[] claimsAtEnd = new int[threads];
       AtomicBoolean stop = new AtomicBoolean();
@@ -140,8 +141,8 @@ class RelStressTest {
 
                while(!stop.get() && System.nanoTime() < deadline) {
                   Op op = worker.pick();
-                  opNow[id] = op;
-                  opStart[id] = System.nanoTime();
+                  opNow.set(id, op);
+                  opStart.set(id, System.nanoTime());
 
                   try {
                      worker.run(op);
@@ -150,7 +151,7 @@ class RelStressTest {
                      result.violation(id, op, worker.opIndex, "unexpected " + describe(ex));
                   }
                   finally {
-                     opStart[id] = 0;
+                     opStart.set(id, 0);
                      worker.opIndex++;
                   }
 
@@ -196,7 +197,7 @@ class RelStressTest {
          long now = System.nanoTime();
 
          for(int t = 0; t < threads; t++) {
-            long start = opStart[t];
+            long start = opStart.get(t);
             Thread.State state = workers[t].getState();
 
             if(start == 0 || state == Thread.State.RUNNABLE) {
@@ -207,14 +208,14 @@ class RelStressTest {
             }
 
             if(blockedSince[t] != 0 && now - blockedSince[t] > MILLIS.toNanos(STALL_MS)) {
-               result.violation(t, opNow[t], 0, "thread blocked for over " + STALL_MS +
+               result.violation(t, opNow.get(t), 0, "thread blocked for over " + STALL_MS +
                                 " ms in one op\n" + dump(workers));
                stop.set(true);
                break;
             }
 
             if(start != 0 && now - start > MILLIS.toNanos(OP_CAP_MS)) {
-               result.violation(t, opNow[t], 0, "op running for over " + OP_CAP_MS +
+               result.violation(t, opNow.get(t), 0, "op running for over " + OP_CAP_MS +
                                 " ms\n" + dump(workers));
                stop.set(true);
                break;
@@ -507,7 +508,21 @@ class RelStressTest {
             result.violation(id, Op.TIMEOUT, opIndex, "a loop returned " + got);
          }
          catch(ScriptException ex) {
-            result.timeouts.incrementAndGet();
+            long ms = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start);
+            String message = String.valueOf(ex.getMessage()).toLowerCase();
+
+            // only the 1 s timeout's interrupt: not an early error of another kind (a
+            // multi-threaded access, an IllegalStateException) wrapped in a ScriptException
+            if(ms < 900 || !(message.contains("interrupt") || message.contains("timeout") ||
+               message.contains("timed out")) || message.contains("multi threaded"))
+            {
+               result.violation(id, Op.TIMEOUT, opIndex, "not a timeout after " + ms + " ms: " +
+                                describe(ex));
+            }
+            else {
+               result.timeouts.incrementAndGet();
+               result.timeoutMessages.add(firstLine(ex.getMessage()));
+            }
          }
 
          result.timeoutMillis.addAndGet(
@@ -586,6 +601,7 @@ class RelStressTest {
             " sizeAtEnd=" + sizeAtEnd + " creations=" + creations + " doomedCloses=" +
             doomedCloses + " evictions=" + evictions + " cleans=" + cleans + " execs=" + execs +
             " timeouts=" + timeouts + " timeoutMillis=" + timeoutMillis +
+            " timeoutMessages=" + timeoutMessages +
             " interruptTimeouts=" + interruptTimeouts + " maxOpMillis(sampled)=" + maxOpMillis +
             " nodeSlots=" + nodeBefore + "->" + nodeAfter;
       }
@@ -597,6 +613,7 @@ class RelStressTest {
       final Queue<String> violations = new ConcurrentLinkedQueue<>();
       final AtomicLong timeouts = new AtomicLong();
       final AtomicLong timeoutMillis = new AtomicLong();
+      final Set<String> timeoutMessages = ConcurrentHashMap.newKeySet();
       volatile int maxSize;
       volatile long maxOpMillis;
       volatile long samples;
@@ -610,6 +627,15 @@ class RelStressTest {
       long interruptTimeouts;
       int nodeBefore;
       int nodeAfter;
+   }
+
+   static String firstLine(String text) {
+      if(text == null) {
+         return "null";
+      }
+
+      int nl = text.indexOf('\n');
+      return nl < 0 ? text : text.substring(0, nl);
    }
 
    static String describe(Throwable ex) {

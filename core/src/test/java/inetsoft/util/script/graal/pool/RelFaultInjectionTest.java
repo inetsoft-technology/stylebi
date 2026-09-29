@@ -256,7 +256,8 @@ class RelFaultInjectionTest {
    // ---- interrupts ----
 
    /**
-    * Interrupt the exec thread at a random point 0-20 ms into a 5-30 ms exec, 200 times. The
+    * Interrupt the exec thread at a random point 0-20 ms into an exec of about 40 ms (measured
+    * and printed as execMillis), 200 times. The
     * interrupt can land in the checkout, the eval, the clean or after; each exec returns its
     * correct result or fails loudly, and the next exec on that thread and on another thread
     * gets a clean context.
@@ -295,8 +296,13 @@ class RelFaultInjectionTest {
                outcomes.merge("ok", 1, Integer::sum);
             }
             catch(ExecutionException ex) {
-               outcomes.merge(ex.getCause().getClass().getSimpleName() + ": " +
-                              firstLine(ex.getCause().getMessage()), 1, Integer::sum);
+               // the only loud outcome accepted: the script stopped by the interrupt
+               Throwable cause = ex.getCause();
+               assertTrue(cause instanceof ScriptException && cause.getMessage() != null &&
+                          cause.getMessage().toLowerCase().contains("interrupt"),
+                          "round " + i + ": " + describe(cause));
+               outcomes.merge(cause.getClass().getSimpleName() + ": " +
+                              firstLine(cause.getMessage()), 1, Integer::sum);
             }
 
             // the worker thread keeps no claim and gets a clean context; so does another
@@ -335,6 +341,8 @@ class RelFaultInjectionTest {
          while(!stop.get()) {
             env.pool().evictIdle(System.currentTimeMillis());
             passes.incrementAndGet();
+            // keep racing without spinning a core
+            Thread.yield();
          }
 
          return null;
@@ -411,7 +419,8 @@ class RelFaultInjectionTest {
       assertTrue(inside.await(10, TimeUnit.SECONDS));
       long start = System.nanoTime();
       env.retire();
-      assertTrue(System.nanoTime() - start < TimeUnit.SECONDS.toNanos(1), "retire waited");
+      // generous for a loaded machine; a waiting retire would sit out the owner's 10 s latch
+      assertTrue(System.nanoTime() - start < TimeUnit.SECONDS.toNanos(5), "retire waited");
       assertTrue(held.get().isDoomed());
       retired.countDown();
       // the claim's globals stay within it (the documented per-claim drift)
@@ -463,6 +472,8 @@ class RelFaultInjectionTest {
       System.err.println("REL-FAULT retire-random rounds=200 doomedCloses=" +
                          (env.getMetrics().getDoomedCloses() - doomedBefore) + " creations=" +
                          env.getMetrics().getCreations());
+      assertTrue(env.getMetrics().getDoomedCloses() > doomedBefore,
+                 "no retire ever landed inside a claim; the case did not exercise the race");
       assertEnvConsistent(env);
    }
 
@@ -529,16 +540,12 @@ class RelFaultInjectionTest {
       Map<String, Integer> outcomes = new TreeMap<>();
 
       for(int i = 0; i < 20; i++) {
-         Throwable thrown = null;
-
-         try {
-            Object got = run(env, "__dirty = 1; bomb." + kind + "(); 'not reached'");
-            fail("no throw, got " + got);
-         }
-         catch(Throwable ex) {
-            thrown = ex;
-         }
-
+         // only a ScriptException carrying the host error's message is contained; anything
+         // else, including a return, propagates or fails here
+         ScriptException thrown = assertThrows(ScriptException.class,
+            () -> run(env, "__dirty = 1; bomb." + kind + "(); 'not reached'"), kind);
+         assertTrue(thrown.getMessage() != null && thrown.getMessage().contains("injected host"),
+                    kind + ": " + thrown.getMessage());
          outcomes.merge(thrown.getClass().getSimpleName() + ": " + firstLine(thrown.getMessage()),
                         1, Integer::sum);
          assertEquals(0, SlotClaim.openClaims());

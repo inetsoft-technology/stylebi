@@ -23,13 +23,17 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 
 /**
- * Records the lock order of a whole test run (bug #77123, reliability plan task 5). Loaded by
- * JUnit's extension auto-detection only, and active only with {@code -Dlockorder.record=<label>}:
+ * Records the lock order of a whole test run (bug #77123, reliability plan task 5). core/pom.xml
+ * turns JUnit's extension auto-detection on for every core run and lists this class in
+ * {@code junit.jupiter.extensions.autodetection.include} (with SreeHomeExtension), so it is
+ * always loaded; it does nothing unless {@code -Dlockorder.record=<label>} is set:
  * <pre>
- * ./mvnw -o test -pl core -Dtest='...' -Djunit.jupiter.extensions.autodetection.enabled=true -Dlockorder.record=pool-off
+ * ./mvnw -o test -pl core -Dtest='...' -Dlockorder.record=pool-off
  * </pre>
- * The recorder is installed before the first test class and runs until the end of the run; the
- * report is written to {@code target/lockorder/<label>.txt} and its summary line printed.
+ * The recorder is installed before the first test class and runs until the end of the run; then
+ * the report is written to {@code target/lockorder/<label>.txt}, its summary line printed, and
+ * the instrumentation removed. A run whose recorder swallowed an error fails, as its graph may
+ * be missing edges.
  */
 public final class LockOrderExtension implements BeforeAllCallback, BeforeEachCallback {
    @Override
@@ -60,11 +64,23 @@ public final class LockOrderExtension implements BeforeAllCallback, BeforeEachCa
 
       return () -> {
          recorder.stop();
-         String report = recorder.report(label);
-         Path file = Paths.get("target", "lockorder", label + ".txt");
-         Files.createDirectories(file.getParent());
-         Files.writeString(file, report, StandardCharsets.UTF_8);
-         System.err.println(recorder.summary(label) + " report=" + file.toAbsolutePath());
+         long errors = recorder.errors();
+
+         try {
+            String report = recorder.report(label);
+            Path file = Paths.get("target", "lockorder", label + ".txt");
+            Files.createDirectories(file.getParent());
+            Files.writeString(file, report, StandardCharsets.UTF_8);
+            System.err.println(recorder.summary(label) + " report=" + file.toAbsolutePath());
+         }
+         finally {
+            LockOrderRecorder.uninstall();
+         }
+
+         if(errors != 0) {
+            throw new IllegalStateException("the lock-order recorder swallowed " + errors +
+                                            " error(s); the graph of " + label + " may miss edges");
+         }
       };
    }
 

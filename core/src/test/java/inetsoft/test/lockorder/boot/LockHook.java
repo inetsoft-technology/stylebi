@@ -17,6 +17,7 @@
  */
 package inetsoft.test.lockorder.boot;
 
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
 
 /**
@@ -37,8 +38,10 @@ public final class LockHook {
          try {
             target.accept(lock, kind);
          }
-         catch(Throwable ignore) {
-            // the recorder must never change the behavior of the lock it observes
+         catch(Throwable ex) {
+            // the recorder must never change the behavior of the lock it observes, but a
+            // swallowed error is a gap in the graph: count it
+            errors.incrementAndGet();
          }
       }
    }
@@ -53,4 +56,5 @@ public final class LockHook {
    public static final int TIMED_ENTER = 7;
 
    public static volatile BiConsumer<Object, Integer> sink;
+   public static final AtomicLong errors = new AtomicLong();
 }

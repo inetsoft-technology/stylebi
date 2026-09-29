@@ -88,8 +88,8 @@ public final class LockOrderRecorder {
    public enum Kind { BLOCKING, TIMED, TRY, PRIVATE }
 
    /**
-    * Install the instrumentation once per JVM and return the recorder; recording is off until
-    * {@link #start()}.
+    * Install the instrumentation and return the recorder; recording is off until
+    * {@link #start()}. Balance it with {@link #uninstall()}, as the JVM is shared by later tests.
     */
    public static synchronized LockOrderRecorder install() {
       if(instance == null) {
@@ -102,6 +102,66 @@ public final class LockOrderRecorder {
    }
 
    private LockOrderRecorder() {
+   }
+
+   /**
+    * Remove the instrumentation: stop recording and the sampler, detach the hook, restore the
+    * original bytecode of the lock classes and drop every recorded lock. The bootstrap copy of
+    * the hook stays loaded (a class cannot be unloaded) and does nothing without a sink. A later
+    * {@link #install()} instruments again.
+    */
+   public static synchronized void uninstall() {
+      LockOrderRecorder recorder = instance;
+
+      if(recorder == null) {
+         return;
+      }
+
+      instance = null;
+      recorder.recording = false;
+
+      try {
+         HOOK.getField("sink").set(null, null);
+      }
+      catch(ReflectiveOperationException ex) {
+         throw new IllegalStateException(ex);
+      }
+
+      Thread thread = recorder.sampler;
+
+      if(thread != null) {
+         thread.interrupt();
+
+         try {
+            thread.join(10000);
+         }
+         catch(InterruptedException ex) {
+            Thread.currentThread().interrupt();
+         }
+
+         if(thread.isAlive()) {
+            throw new IllegalStateException("the lock-order sampler did not stop");
+         }
+
+         recorder.sampler = null;
+      }
+
+      if(recorder.transformer != null &&
+         !recorder.transformer.reset(recorder.inst, AgentBuilder.RedefinitionStrategy.RETRANSFORMATION))
+      {
+         throw new IllegalStateException("the lock instrumentation could not be reset");
+      }
+
+      recorder.names.clear();
+      HOLDERS.clear();
+      PLAIN_MONITORS.clear();
+   }
+
+   /**
+    * @return whether the instrumentation is installed now.
+    */
+   public static synchronized boolean isInstalled() {
+      return instance != null;
    }
 
    public void start() {
@@ -131,6 +191,25 @@ public final class LockOrderRecorder {
       ignoredEvents.set(0);
       samples.set(0);
       unread.set(0);
+      errors.set(0);
+      hookErrors().set(0);
+   }
+
+   /**
+    * @return the errors the hook and the sampler swallowed (never let reach a lock's caller);
+    *         any is a gap in the recorded graph.
+    */
+   public long errors() {
+      return errors.get() + hookErrors().get();
+   }
+
+   private static AtomicLong hookErrors() {
+      try {
+         return (AtomicLong) HOOK.getField("errors").get(null);
+      }
+      catch(ReflectiveOperationException ex) {
+         throw new IllegalStateException(ex);
+      }
    }
 
    /**
@@ -235,7 +314,7 @@ public final class LockOrderRecorder {
       return "LOCKORDER label=" + label + " edges=" + edges.size() + " blockingEdges=" +
          blocking + " cycles=" + cycles.size() + " scriptLockCycles=" + script + " events=" +
          events.get() + " ignoredEvents=" + ignoredEvents.get() + " unreadAcquisitions=" + unread.get() +
-         " samples=" + samples.get();
+         " samples=" + samples.get() + " errors=" + errors();
    }
 
    // ---- instrumentation ----
@@ -244,14 +323,19 @@ public final class LockOrderRecorder {
       try {
          // loaded first, so it is retransformed with ReentrantLock and checked below
          Class.forName("inetsoft.util.script.LendableReentrantLock");
-         Instrumentation inst = ByteBuddyAgent.install();
-         Class<?> hook = injectHook(inst);
+         inst = ByteBuddyAgent.install();
+
+         if(HOOK == null) {
+            HOOK = injectHook(inst);
+         }
+
+         Class<?> hook = HOOK;
          @SuppressWarnings("unchecked")
          BiConsumer<Object, Integer> sink = this::onEvent;
          hook.getField("sink").set(null, sink);
          List<String> errors = new CopyOnWriteArrayList<>();
 
-         new AgentBuilder.Default()
+         transformer = new AgentBuilder.Default()
             .disableClassFormatChanges()
             .with(AgentBuilder.RedefinitionStrategy.RETRANSFORMATION)
             .with(AgentBuilder.InitializationStrategy.NoOp.INSTANCE)
@@ -497,7 +581,7 @@ public final class LockOrderRecorder {
          unread.incrementAndGet();
 
          for(Held h : held) {
-            addEdge(h.node, node, kind, h.node.equals(node), NO_STACK, "held lock");
+            addEdge(h.node, node, kind, NO_STACK, "held lock");
          }
 
          return null;
@@ -515,17 +599,17 @@ public final class LockOrderRecorder {
       }
 
       for(Held h : held) {
-         addEdge(h.node, node, kind, h.node.equals(node), stack, "held lock");
+         addEdge(h.node, node, kind, stack, "held lock");
 
          for(Mon mon : mons) {
             if(!h.heldAtAcquire(mon.hash)) {
-               addEdge(h.node, mon.node, Kind.BLOCKING, false, stack, "monitor taken after");
+               addEdge(h.node, mon.node, Kind.BLOCKING, stack, "monitor taken after");
             }
          }
       }
 
       for(Mon mon : mons) {
-         addEdge(mon.node, node, kind, false, stack, "held monitor");
+         addEdge(mon.node, node, kind, stack, "held monitor");
       }
 
       return hashes;
@@ -544,7 +628,8 @@ public final class LockOrderRecorder {
             return;
          }
          catch(Throwable ex) {
-            // keep sampling
+            // keep sampling, but count it: a failing sample drops edges
+            errors.incrementAndGet();
          }
       }
    }
@@ -595,13 +680,13 @@ public final class LockOrderRecorder {
          for(Held h : held) {
             for(Mon mon : mons) {
                if(!h.heldAtAcquire(mon.hash)) {
-                  addEdge(h.node, mon.node, Kind.BLOCKING, false, info.getStackTrace(),
+                  addEdge(h.node, mon.node, Kind.BLOCKING, info.getStackTrace(),
                           "sampled: monitor taken after");
                }
             }
 
             if(blockedOn != null) {
-               addEdge(h.node, blockedOn.node, Kind.BLOCKING, false, info.getStackTrace(),
+               addEdge(h.node, blockedOn.node, Kind.BLOCKING, info.getStackTrace(),
                        "sampled: BLOCKED on monitor");
             }
          }
@@ -618,16 +703,19 @@ public final class LockOrderRecorder {
       return null;
    }
 
-   private void addEdge(String from, String to, Kind kind, boolean sameClass,
-                        StackTraceElement[] stack, String how)
+   private void addEdge(String from, String to, Kind kind, StackTraceElement[] stack,
+                        String how)
    {
       EdgeKey key = new EdgeKey(from, to, kind);
       Edge edge = edges.get(key);
 
       if(edge == null) {
+         // the first occurrence of an edge always keeps a sample stack, also when this
+         // acquisition was not read
+         StackTraceElement[] sample = stack.length > 0 ? stack : new Throwable().getStackTrace();
          edge = edges.computeIfAbsent(key, k -> new Edge(from, to, kind, how, currentTest,
                                                          Thread.currentThread().getName(),
-                                                         format(stack)));
+                                                         format(sample)));
       }
 
       edge.count.incrementAndGet();
@@ -1018,6 +1106,8 @@ public final class LockOrderRecorder {
    // may inherit an older name; rare, and it can only merge two nodes)
    private static final Map<Integer, String> PLAIN_MONITORS = new ConcurrentHashMap<>();
    private static LockOrderRecorder instance;
+   // the bootstrap LockHook, injected once per JVM
+   private static Class<?> HOOK;
    private static volatile String currentTest = "?";
 
    private final Map<IdentityKey, Site> names = new ConcurrentHashMap<>();
@@ -1029,4 +1119,7 @@ public final class LockOrderRecorder {
    private final AtomicLong unread = new AtomicLong();
    private volatile boolean recording;
    private Thread sampler;
+   private Instrumentation inst;
+   private net.bytebuddy.agent.builder.ResettableClassFileTransformer transformer;
+   private final AtomicLong errors = new AtomicLong();
 }

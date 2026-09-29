@@ -22,6 +22,7 @@ import org.junit.jupiter.api.*;
 
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.*;
 import java.util.concurrent.locks.ReentrantLock;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -50,6 +51,106 @@ class LockOrderRecorderTest {
    void stop() {
       recorder.stop();
       executor.shutdownNow();
+      assertEquals(0, recorder.errors(), "the recorder swallowed errors");
+   }
+
+   @AfterAll
+   static void uninstall() {
+      // runs even when install() was skipped: never remove the recorder of a recorded run
+      if(recorder == null) {
+         return;
+      }
+
+      // the surefire JVM is shared by every later test class
+      LockOrderRecorder.uninstall();
+      recorder = null;
+      // and nothing is left for the later test classes: no sampler, no hook calls
+      assertEquals(0, samplerThreads(), "a sampler thread is left");
+      AtomicLong reached = new AtomicLong();
+      inetsoft.test.lockorder.boot.LockHook.sink = (lock, kind) -> reached.incrementAndGet();
+
+      try {
+         ReentrantLock plain = new ReentrantLock();
+         plain.lock();
+         plain.unlock();
+      }
+      finally {
+         inetsoft.test.lockorder.boot.LockHook.sink = null;
+      }
+
+      assertEquals(0, reached.get(), "ReentrantLock still calls the hook after the class");
+      System.err.println("LOCKORDER uninstalled: samplerThreads=0 hookCalls=0");
+      assertFalse(LockOrderRecorder.isInstalled());
+   }
+
+   /**
+    * uninstall() restores the lock classes and stops the sampler: a lock op no longer reaches
+    * the hook, and no sampler thread is left. The recorder is installed again afterwards for the
+    * other tests of this class.
+    */
+   @Test
+   void uninstallRemovesTheInstrumentationAndTheSampler() throws Exception {
+      assertTrue(samplerThreads() > 0, "the sampler runs while installed");
+      LockOrderRecorder.uninstall();
+
+      try {
+         assertNull(inetsoft.test.lockorder.boot.LockHook.sink);
+         assertEquals(0, samplerThreads(), "the sampler thread is gone");
+         AtomicLong reached = new AtomicLong();
+         inetsoft.test.lockorder.boot.LockHook.sink = (lock, kind) -> reached.incrementAndGet();
+
+         try {
+            ReentrantLock plain = new ReentrantLock();
+            plain.lock();
+            assertTrue(plain.tryLock());
+            assertTrue(plain.tryLock(1, TimeUnit.SECONDS));
+            plain.unlock();
+            plain.unlock();
+            plain.unlock();
+            LendableReentrantLock lendable = new LendableReentrantLock();
+            lendable.lock();
+            lendable.unlock();
+         }
+         finally {
+            inetsoft.test.lockorder.boot.LockHook.sink = null;
+         }
+
+         assertEquals(0, reached.get(), "an uninstalled lock class still calls the hook");
+      }
+      finally {
+         recorder = LockOrderRecorder.install();
+         recorder.reset();
+         recorder.start();
+      }
+   }
+
+   private static long samplerThreads() {
+      return Thread.getAllStackTraces().keySet().stream()
+         .filter(t -> t.getName().equals("lockorder-sampler") && t.isAlive()).count();
+   }
+
+   /**
+    * Wait (bounded, 30 s) until {@code thread} is BLOCKED, then until the sampler has read the
+    * holders at least twice more, so a sampled edge is recorded however slow the machine is.
+    */
+   private static void awaitBlockedAndSampled(AtomicReference<Thread> thread) throws Exception {
+      long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(30);
+
+      while(thread.get() == null || thread.get().getState() != Thread.State.BLOCKED) {
+         assertTrue(System.nanoTime() < deadline, "the thread never blocked");
+         Thread.sleep(1);
+      }
+
+      awaitSamples(deadline);
+   }
+
+   private static void awaitSamples(long deadline) throws Exception {
+      long start = recorder.samples();
+
+      while(recorder.samples() < start + 2) {
+         assertTrue(System.nanoTime() < deadline, "the sampler did not run");
+         Thread.sleep(1);
+      }
    }
 
    @Test
@@ -92,7 +193,7 @@ class LockOrderRecorderTest {
 
          try {
             synchronized(lens) {
-               Thread.sleep(200);
+               awaitSamples(System.nanoTime() + TimeUnit.SECONDS.toNanos(30));
             }
          }
          finally {
@@ -124,7 +225,9 @@ class LockOrderRecorderTest {
          return null;
       });
       assertTrue(owned.await(10, TimeUnit.SECONDS));
+      AtomicReference<Thread> blockedThread = new AtomicReference<>();
       Future<?> blocked = executor.submit(() -> {
+         blockedThread.set(Thread.currentThread());
          a.lock();
 
          try {
@@ -136,7 +239,7 @@ class LockOrderRecorderTest {
             a.unlock();
          }
       });
-      Thread.sleep(100);
+      awaitBlockedAndSampled(blockedThread);
       release.countDown();
       owner.get(10, TimeUnit.SECONDS);
       blocked.get(10, TimeUnit.SECONDS);
@@ -182,7 +285,9 @@ class LockOrderRecorderTest {
       Object base = new LensMonitor();
       CountDownLatch owned = new CountDownLatch(1);
       CountDownLatch monitorHeld = new CountDownLatch(1);
+      AtomicReference<Thread> ownerThread = new AtomicReference<>();
       Future<?> owner = executor.submit(() -> {
+         ownerThread.set(Thread.currentThread());
          lens.lock();
 
          try {
@@ -201,8 +306,8 @@ class LockOrderRecorderTest {
       Future<Boolean> reader = executor.submit(() -> {
          synchronized(base) {
             monitorHeld.countDown();
-            // the owner is now BLOCKED on base; the sampler sees it
-            Thread.sleep(100);
+            // the owner blocks on base; wait until the sampler has seen it
+            awaitBlockedAndSampled(ownerThread);
             return lens.tryLock(200, TimeUnit.MILLISECONDS);
          }
       });
@@ -256,7 +361,7 @@ class LockOrderRecorderTest {
 
          try {
             synchronized(lens) {
-               Thread.sleep(200);
+               awaitSamples(System.nanoTime() + TimeUnit.SECONDS.toNanos(30));
             }
          }
          finally {
