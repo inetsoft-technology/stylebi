@@ -58,10 +58,9 @@ import static org.junit.jupiter.api.Assertions.*;
 @Tag("core")
 class RelCleanFuzzTest {
    @BeforeAll
-   static void shortTimeout() throws Exception {
+   static void timeouts() throws Exception {
       previousTimeout = SreeEnv.getProperty("script.execution.timeout");
-      SreeEnv.setProperty("script.execution.timeout", "1");
-      refreshTimeout();
+      setTimeout(TIMEOUT_SECONDS);
    }
 
    @AfterAll
@@ -243,7 +242,14 @@ class RelCleanFuzzTest {
       long c0 = env.getMetrics().getCreations();
       boolean threw = false, unexpectedThrow = false;
 
+      boolean loops = "loop".equals(blocks.get(blocks.size() - 1).kind());
+
       try {
+         // only a polluter that loops runs under the short timeout, so no probe ever does
+         if(loops) {
+            setTimeout(LOOP_TIMEOUT_SECONDS);
+         }
+
          run(env, p.source());
       }
       catch(Exception ex) {
@@ -256,12 +262,17 @@ class RelCleanFuzzTest {
          unexpectedThrow = !String.valueOf(ex.getMessage()).contains("zq partial") &&
             !"loop".equals(lastBlock.kind());
       }
+      finally {
+         if(loops) {
+            setTimeout(TIMEOUT_SECONDS);
+         }
+      }
 
       String r1;
       long t0 = System.nanoTime();
 
       try {
-         r1 = probe(env, probe, "loop".equals(blocks.get(blocks.size() - 1).kind()));
+         r1 = probe(env, probe, loops);
       }
       catch(Exception ex) {
          // the probe is read-only and fast: a throw here is judged, not a test error
@@ -323,10 +334,9 @@ class RelCleanFuzzTest {
    }
 
    /**
-    * Run a probe. The probe runs under the 1 s script timeout the loop blocks need, and a
-    * cold JVM on a loaded machine can take longer (seen once, 1484 ms, on a run's first
-    * seed); it is read-only, so a probe that really ran out its timeout is run again, at most
-    * twice. An interrupt that stops a probe early, or any interrupt of the probe right after
+    * Run a probe. Probes run under the long timeout (a probe once needed 1484 ms, and up to
+    * 5 s on a loaded machine, under the 1 s loop timeout); it is read-only, so a probe that
+    * really ran out its timeout is run again, at most twice. An interrupt that stops a probe early, or any interrupt of the probe right after
     * a loop block, could be the loop's interrupt leaking onto the next exec, so it is never
     * retried: it becomes a violation.
     */
@@ -343,7 +353,7 @@ class RelCleanFuzzTest {
          catch(Exception ex) {
             long ms = (System.nanoTime() - start) / 1_000_000L;
 
-            if(afterLoop || attempt >= 2 || ms < 900 ||
+            if(afterLoop || attempt >= 2 || ms < Long.parseLong(TIMEOUT_SECONDS) * 900L ||
                !String.valueOf(ex.getMessage()).contains("interrupted"))
             {
                throw ex;
@@ -417,6 +427,11 @@ class RelCleanFuzzTest {
       env.put("zhost", "hv");
       run(env, "1");
       return env;
+   }
+
+   private static void setTimeout(String seconds) throws Exception {
+      SreeEnv.setProperty("script.execution.timeout", seconds);
+      refreshTimeout();
    }
 
    private static void refreshTimeout() throws Exception {
@@ -513,6 +528,9 @@ class RelCleanFuzzTest {
    }
 
    private static final boolean LONG = Boolean.getBoolean("rel.long");
+   // the script timeout of a loop block, and of everything else
+   private static final String LOOP_TIMEOUT_SECONDS = "1";
+   private static final String TIMEOUT_SECONDS = "30";
    private static final java.util.concurrent.atomic.AtomicInteger PROBE_RETRIES =
       new java.util.concurrent.atomic.AtomicInteger();
    private static final java.util.concurrent.atomic.AtomicInteger PROBES =
