@@ -659,7 +659,10 @@ public class IgniteSessionRepository
          this.originalId = cached.getId();
          DistributedMap<String, Object> map = getSessionAttributeMap(originalId);
 
-         if(this.isNew || (IgniteSessionRepository.this.saveMode == SaveMode.ALWAYS)) {
+         // could be out of sync due to session expiration, need to check for null (Bug #77306)
+         if(map != null &&
+            (this.isNew || (IgniteSessionRepository.this.saveMode == SaveMode.ALWAYS)))
+         {
             this.delegate.getAttributeNames()
                .forEach(n -> map.put(getAttributeKey(n), cached.getAttribute(n)));
          }
@@ -678,10 +681,13 @@ public class IgniteSessionRepository
          this.sessionIdChanged = true;
 
          DistributedMap<String, Object> newMap = getSessionAttributeMap(newSessionId);
-         Set<Map.Entry<String, Object>> oldEntries = getSessionAttributeMap(oldSessionId).entrySet();
+         DistributedMap<String, Object> oldMap = getSessionAttributeMap(oldSessionId);
 
-         for(Map.Entry<String, Object> entry : oldEntries) {
-            newMap.put(entry.getKey(), entry.getValue());
+         // could be out of sync due to session expiration, need to check for null (Bug #77306)
+         if(oldMap != null) {
+            for(Map.Entry<String, Object> entry : oldMap.entrySet()) {
+               newMap.put(entry.getKey(), entry.getValue());
+            }
          }
 
          Principal principal = getAttribute(RepletRepository.PRINCIPAL_COOKIE);
@@ -715,7 +721,14 @@ public class IgniteSessionRepository
 
       @Override
       public Set<String> getAttributeNames() {
-         return getSessionAttributeMap(originalId).keySet().stream()
+         DistributedMap<String, Object> map = getSessionAttributeMap(originalId);
+
+         // could be out of sync due to session expiration, need to check for null (Bug #77306)
+         if(map == null) {
+            return Collections.emptySet();
+         }
+
+         return map.keySet().stream()
             .filter(key -> key != null && key.startsWith(ATTR_PREFIX))
             .map(key -> key.substring(ATTR_PREFIX.length()))
             .collect(Collectors.toSet());
