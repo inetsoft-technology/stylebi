@@ -99,4 +99,16 @@ describe("EmbedChartComponent connection error", () => {
       expect(fixture.componentInstance.timeoutError).toBe(false);
       expect(timeoutShown()).toBe(false);
    });
+
+   it("clears the timeout message on recovery after the view was refreshed during the outage", async () => {
+      connectionError.next("timeout");
+      // stands in for an unrelated refresh during the outage (e.g. the user hovering the chart)
+      fixture.detectChanges();
+      expect(timeoutShown()).toBe(true);
+
+      connectionError.next(null);
+      await fixture.whenStable();
+      expect(fixture.componentInstance.timeoutError).toBe(false);
+      expect(timeoutShown()).toBe(false);
+   });
 });
