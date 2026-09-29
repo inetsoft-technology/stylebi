@@ -161,6 +161,15 @@ public class ConfigurationContext implements AutoCloseable {
       return oldValue;
    }
 
+   /**
+    * Removes all stored values. The values are kept for the life of the JVM, so this is used by
+    * the tests, which run many application contexts in one JVM, to keep the values stored under
+    * one context from being seen under the next one. No change events are fired.
+    */
+   public void clearValues() {
+      data.clear();
+   }
+
    public void addPropertyChangeListener(PropertyChangeListener listener) {
       support.addPropertyChangeListener(listener);
    }

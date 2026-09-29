@@ -18,12 +18,21 @@
 package inetsoft.test;
 
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.test.annotation.DirtiesContext;
 
 import java.lang.annotation.*;
 
+/**
+ * Sets up the sree home for a test class and resets the shared state after it. The class's Spring
+ * context is closed after the class, rather than cached for a later class with the same
+ * configuration, because its beans (the key-value store, PropertiesEngine, SecurityEngine) hold
+ * the state the class changed. A {@code @DirtiesContext} on the test class itself takes
+ * precedence, e.g. to close the context after each test method.
+ */
 @Target(ElementType.TYPE)
 @Retention(RetentionPolicy.RUNTIME)
 @ExtendWith(SreeHomeExtension.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 public @interface SreeHome {
    String value() default "";
    String[] importUrls() default {};
