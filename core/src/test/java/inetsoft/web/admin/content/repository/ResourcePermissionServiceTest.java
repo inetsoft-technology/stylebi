@@ -26,9 +26,17 @@ package inetsoft.web.admin.content.repository;
  *
  *   [write guard]   setResourcePermissions() on the four grant-read-to-all roots writes the
  *                   global property and refreshes the SecurityEngine cache only when
- *                   !multiTenant || siteAdmin. permission.andCondition is always written
- *                   org-scoped.
+ *                   !multiTenant || siteAdmin.
  *   [visibility]    getTableModel() sets grantReadToAllVisible only when !multiTenant || siteAdmin.
+ *
+ * ResourcePermissionService andCondition scope (Bug #77351)
+ *
+ * permission.andCondition decides how every permission check in the organization is evaluated.
+ *
+ *   [write guard]   setResourcePermissions() writes it (org-scoped) only when the caller is a site
+ *                   admin or an org admin; a user who is only an admin of the saved resource keeps
+ *                   the org's current value. SreeEnv.save() runs either way because it also
+ *                   persists the security.*.everyone writes.
  *
  * SreeEnv, SUtil, OrganizationManager, SecurityEngine and Catalog are intercepted with
  * MockedStatic; the authorization provider returns no permission so the rest of the save is a
@@ -170,8 +178,11 @@ class ResourcePermissionServiceTest {
          fail("unexpected type " + type);
       }
 
-      // andCondition stays org-scoped for every caller
-      sreeEnv.verify(() -> SreeEnv.setProperty("permission.andCondition", "true", true));
+      // andCondition is org-scoped and only written for a site or org admin (isOrgAdmin is not
+      // stubbed here, so only the site admin rows write it)
+      sreeEnv.verify(() -> SreeEnv.setProperty("permission.andCondition", "true", true),
+                     siteAdmin ? times(1) : never());
+      // save() also persists the security.*.everyone write for the single-tenant non-site-admin row
       sreeEnv.verify(SreeEnv::save);
    }
 
@@ -225,5 +236,64 @@ class ResourcePermissionServiceTest {
 
       sreeEnv.verify(() -> SreeEnv.setProperty(anyString(), anyString()), never());
       securityEngineStatic.verify(SecurityEngine::updateSecurityDatasourceEveryoneValue, never());
+   }
+
+   private static Stream<Arguments> andConditionMatrix() {
+      return Stream.of(
+         // multiTenant, siteAdmin, orgAdmin, allowed
+         Arguments.of(true, false, false, false),  // resource admin on a multi-tenant server
+         Arguments.of(true, false, true, true),    // org admin on a multi-tenant server
+         Arguments.of(true, true, false, true),    // site admin on a multi-tenant server
+         Arguments.of(false, false, false, false), // resource admin on a single-tenant server
+         Arguments.of(false, false, true, true),
+         Arguments.of(false, true, false, true)
+      );
+   }
+
+   @ParameterizedTest(name = "multiTenant={0} siteAdmin={1} orgAdmin={2} -> write={3}")
+   @MethodSource("andConditionMatrix")
+   void setResourcePermissions_andConditionWriteGuardedBySiteOrOrgAdmin(
+      boolean multiTenant, boolean siteAdmin, boolean orgAdmin, boolean allowed) throws Exception
+   {
+      sutil.when(SUtil::isMultiTenant).thenReturn(multiTenant);
+      when(orgManager.isSiteAdmin(principal)).thenReturn(siteAdmin);
+      when(orgManager.isOrgAdmin(principal)).thenReturn(orgAdmin);
+
+      ResourcePermissionModel model = ResourcePermissionModel.builder()
+         .displayActions(EnumSet.of(ResourceAction.READ))
+         .securityEnabled(true)
+         .derivePermissionLabel("Use Parent Permissions")
+         .requiresBoth(true)
+         .grantReadToAllVisible(false)
+         .grantReadToAll(false)
+         .build();
+
+      service.setResourcePermissions("dash1__GLOBAL", ResourceType.DASHBOARD, model, principal);
+
+      sreeEnv.verify(() -> SreeEnv.setProperty("permission.andCondition", "true", true),
+                     allowed ? times(1) : never());
+      sreeEnv.verify(() -> SreeEnv.setProperty(eq("permission.andCondition"), anyString()),
+                     never());
+      sreeEnv.verify(SreeEnv::save);
+   }
+
+   @Test
+   void setResourcePermissions_nullPrincipalNeverWritesAndCondition() throws Exception {
+      sutil.when(SUtil::isMultiTenant).thenReturn(true);
+
+      ResourcePermissionModel model = ResourcePermissionModel.builder()
+         .displayActions(EnumSet.of(ResourceAction.READ))
+         .securityEnabled(true)
+         .derivePermissionLabel("Use Parent Permissions")
+         .requiresBoth(true)
+         .grantReadToAllVisible(false)
+         .grantReadToAll(false)
+         .build();
+
+      service.setResourcePermissions("dash1__GLOBAL", ResourceType.DASHBOARD, model, null);
+
+      sreeEnv.verify(() -> SreeEnv.setProperty(eq("permission.andCondition"), anyString(),
+                                               anyBoolean()), never());
+      verify(orgManager, never()).isOrgAdmin(any(Principal.class));
    }
 }
