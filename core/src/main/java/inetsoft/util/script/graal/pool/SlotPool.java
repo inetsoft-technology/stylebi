@@ -511,8 +511,14 @@ final class SlotPool {
 
       pooled.remove(slot);
       primary.compareAndSet(slot, null);
-      slot.close();
-      slot.unlock();
+
+      try {
+         slot.close();
+      }
+      finally {
+         // Slot.close catches Exception only: an Error there must not leak the lock
+         slot.unlock();
+      }
    }
 
    private void checkAlarms() {

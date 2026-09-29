@@ -72,6 +72,48 @@ class SlotPoolErrorTest {
       }
    }
 
+   /**
+    * Final review M9: an Error from the context's close while a slot is discarded (here in the
+    * prepare-Error path) must still unlock the slot.
+    */
+   @Test
+   void errorInCloseStillUnlocksTheDiscardedSlot() throws Exception {
+      Slot warm;
+
+      try(SlotClaim claim = SlotClaim.acquire(pool, false)) {
+         warm = claim.slot();
+      }
+
+      Field field = Slot.class.getDeclaredField("engine");
+      field.setAccessible(true);
+      WsEngine real = (WsEngine) field.get(warm);
+      WsEngine engine = spy(real);
+      doThrow(new AssertionError("injected close")).when(engine).close();
+      field.set(warm, engine);
+
+      try {
+         failSql.set(1);
+         assertThrows(AssertionError.class, () -> SlotClaim.acquire(pool, false));
+
+         assertTrue(warm.isClosed(), "the slot whose prepare failed is closed");
+         assertFalse(warm.isHeldByCurrentThread(), "and unlocked although its close threw");
+         assertNull(pool.primary());
+         assertEquals(0, SlotClaim.openClaims());
+
+         try(SlotClaim claim = SlotClaim.acquire(pool, false)) {
+            assertNotSame(warm, claim.slot());
+            assertEquals(2.0, ((Number) SlotPoolTest.run(claim.slot(), "1 + 1")).doubleValue());
+         }
+      }
+      finally {
+         while(warm.isHeldByCurrentThread()) {
+            warm.unlock();
+         }
+
+         real.close();
+      }
+   }
+
    @Test
    void errorInTheEvictorDoesNotStopLaterEvictions() throws Exception {
       // a pool creating a context starts its periodic eviction (period 1s at idleMillis 2s)
