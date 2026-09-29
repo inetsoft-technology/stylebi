@@ -41,6 +41,7 @@ import java.lang.ref.WeakReference;
 import java.util.List;
 import java.util.*;
 import java.util.concurrent.locks.Lock;
+import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.IntStream;
@@ -361,11 +362,47 @@ public class PostProcessor {
             return false;
          }
 
+         return populating(senv, () -> super.moreRows(row));
+      }
+
+      /**
+       * The last step of {@code getBaseRowIndex}, which maps the row and reads it under the
+       * monitor in one step, takes the same locks as a population in {@link #moreRows}: the
+       * engine lock before the monitor (#76918), or pool mode's span (bug #77273).
+       */
+      @Override
+      protected int mapBaseRowIndex(int row) {
+         ScriptEnv senv = needsScriptLock && this.senv != null ? this.senv.get() : null;
+         return populating(senv, () -> super.mapBaseRowIndex(row));
+      }
+
+      /**
+       * Run a population of this filter with the locks {@link #moreRows} takes before the
+       * monitor: in pool mode one claimed span, otherwise the engine lock, recorded on this
+       * thread (bug #76938); nothing without an env.
+       */
+      private <T> T populating(ScriptEnv senv, Supplier<T> population) {
+         if(senv == null) {
+            return population.get();
+         }
+
+         if(poolMode) {
+            try(ScriptSpan span = senv.openSpan()) {
+               return population.get();
+            }
+         }
+
+         Lock execLock = senv.getExecutionLock();
+
+         if(execLock == null) {
+            return population.get();
+         }
+
          execLock.lock();
          JavaScriptEngine.pushHeldScriptLock(execLock);
 
          try {
-            return super.moreRows(row);
+            return population.get();
          }
          finally {
             JavaScriptEngine.popHeldScriptLock();
@@ -399,15 +436,10 @@ public class PostProcessor {
             return true;
          }
 
-         if(senv == null) {
-            // no env to batch for: this filter cannot reach a script (needsScriptLock is
-            // false), no env existed when it was built, or the env was collected
-            return super.moreRows(row);
-         }
-
-         try(ScriptSpan span = senv.openSpan()) {
-            return super.moreRows(row);
-         }
+         // no env to batch for without one: this filter cannot reach a script
+         // (needsScriptLock is false), no env existed when it was built, or the env was
+         // collected
+         return populating(senv, () -> super.moreRows(row));
       }
 
       /**

@@ -33,6 +33,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * hand back a guessed value once its bounded retries are exhausted with the row still
  * unmapped. It must either return the row it actually maps to or fail with a clear exception --
  * never silently read past the row map's count and come back with 0, the header row.
+ * Since bug #77273 its last fallback maps the row itself under the filter's monitor.
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
@@ -43,30 +44,42 @@ public class AbstractConditionFilterGetBaseRowIndexTest {
    /**
     * moreRows() never grows or completes the row map here, so every one of
     * getBaseRowIndex()'s retries is exhausted while the row stays unmapped -- deterministically
-    * simulating what a losing race against invalidate() leaves behind. This must fail loudly
-    * instead of reading past the map's count and silently coming back as 0, the header row --
-    * and the fallback that decides this must do it without calling moreRows() again, so it
-    * cannot invert ConditionFilter2's env-lock-then-monitor order.
+    * simulating what a losing race against invalidate() leaves behind. The fallback must not
+    * read past the map's count and silently come back as 0, the header row: it maps the row
+    * itself under the monitor and returns the row it actually maps to (bug #77273), and it
+    * does that without calling moreRows() again, so it cannot invert ConditionFilter2's
+    * env-lock-then-monitor order.
     */
    @Test
-   public void exhaustedRetriesFailLoudlyInsteadOfGuessing() {
+   public void exhaustedRetriesMapTheRowInsteadOfGuessing() {
+      NeverProgressesFilter filter = new NeverProgressesFilter(XTableUtil.getDefaultTableLens());
+
+      assertEquals(3, filter.getBaseRowIndex(3));
+      // 1 initial call plus the 3 bounded retries; the fallback must not add a 5th.
+      assertEquals(4, filter.moreRowsCalls,
+         "the locked fallback must not call moreRows()");
+   }
+
+   /**
+    * A row the fallback cannot map either does not exist: getBaseRowIndex() fails loudly
+    * instead of reading past the map's count and coming back as 0, the header row.
+    */
+   @Test
+   public void missingRowFailsLoudlyInsteadOfGuessing() {
       NeverProgressesFilter filter = new NeverProgressesFilter(XTableUtil.getDefaultTableLens());
 
       IndexOutOfBoundsException ex =
-         assertThrows(IndexOutOfBoundsException.class, () -> filter.getBaseRowIndex(3));
-      assertTrue(ex.getMessage().contains("3"),
+         assertThrows(IndexOutOfBoundsException.class, () -> filter.getBaseRowIndex(30));
+      assertTrue(ex.getMessage().contains("30"),
          "exception should mention the unmapped row: " + ex.getMessage());
-      assertTrue(ex.getMessage().contains("1"),
-         "exception should mention the row map's actual size: " + ex.getMessage());
-      // 1 initial call plus the 3 bounded retries; the fallback snapshot must not add a 5th.
       assertEquals(4, filter.moreRowsCalls,
          "the locked fallback must not call moreRows()");
    }
 
    /**
     * A condition filter whose {@code moreRows} never delegates to the real population logic,
-    * so the row map is stuck at header-only size forever: every retry, and the final fallback
-    * snapshot, sees the same under-sized map.
+    * so the row map is stuck at header-only size for every retry; only the fallback's own
+    * population under the monitor maps rows.
     */
    private static final class NeverProgressesFilter extends AbstractConditionFilter {
       NeverProgressesFilter(TableLens table) {
