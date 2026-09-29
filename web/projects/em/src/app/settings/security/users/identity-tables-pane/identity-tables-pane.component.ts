@@ -75,8 +75,10 @@ export class IdentityTablesPaneComponent {
    readonly copyPasteContextRoles = COPY_PASTE_CONTEXT_IDENTITY_ROLES;
    readonly copyPasteContextPermissions = COPY_PASTE_CONTEXT_IDENTITY_PERMISSIONS;
 
-   // dataSource is intentionally not passed as pasteExcludeIdentities: paste replaces the full list,
-   // so the badge count equals the number of entries the list will contain after pasting.
+   // dataSource is intentionally not passed as pasteExcludeIdentities: paste replaces the list, so the
+   // badge counts the clipboard entries that will be pasted. For a global role's members table the
+   // list also keeps other organizations' members (see pasteMembers), so the badge is not the size of
+   // the list after pasting there.
    private _selfIdentity: IdentityModel[] = [];
    private _selfIdentityName: string;
    private _selfIdentityType: number;
@@ -399,7 +401,21 @@ export class IdentityTablesPaneComponent {
          list => this.members = list,
          ids => this.addMembersCore(ids),
          () => this.members,
-         list => this.membersChanged.emit(list));
+         list => this.membersChanged.emit(list),
+         this.globalRole ? this.getMembersKeptByGlobalRolePaste(identities) : []);
+   }
+
+   /**
+    * A site admin's members list for a global role holds every organization's members, and the
+    * server treats it as authoritative (removing a row removes the role from that identity). A paste
+    * therefore only replaces the members of the organizations the pasted identities belong to; other
+    * organizations' members and organization-type rows (which paste can never re-add) are kept.
+    */
+   private getMembersKeptByGlobalRolePaste(identities: IdentityModel[]): IdentityModel[] {
+      const pastedOrgs = new Set<string>(identities.map(identity => identity.identityID?.orgID));
+
+      return this.members.filter(member => member.type === IdentityType.ORGANIZATION ||
+         !pastedOrgs.has(member.identityID?.orgID));
    }
 
    pasteRoles(identities: IdentityModel[]): void {
@@ -424,15 +440,17 @@ export class IdentityTablesPaneComponent {
                          setList: (list: IdentityModel[]) => void,
                          addFn: (ids: IdentityModel[]) => void,
                          getList: () => IdentityModel[],
-                         emitChanged: (list: IdentityModel[]) => void): void
+                         emitChanged: (list: IdentityModel[]) => void,
+                         kept: IdentityModel[] = []): void
    {
       // No try/catch: addFn (addMembersCore etc.) only does array push + slice on pre-validated data.
-      setList([]);
+      setList(kept.slice(0));
       addFn(identities);
       const result = getList();
 
       // Intentionally checks identities (not previous): show "no match" even when previous was empty.
-      if(result.length === 0 && identities.length > 0) {
+      // addFn only appends, so no pasted identity survived when the list holds just the kept rows.
+      if(result.length === kept.length && identities.length > 0) {
          setList(previous);
          emitChanged(previous);
          this.snackBar.open("_#(js:em.security.clipboard.noMatchingIdentities)", null, { duration: Tool.SNACKBAR_DURATION });
