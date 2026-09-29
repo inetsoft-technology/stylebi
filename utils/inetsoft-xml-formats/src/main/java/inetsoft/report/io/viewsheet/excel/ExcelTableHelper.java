@@ -143,12 +143,14 @@ public class ExcelTableHelper extends VSTableHelper {
       titleBounds.height = PoiExcelVSUtil.getTableTitleHeight(titleBounds.height);
       titleBounds.width = width;
       startY = PoiExcelVSUtil.ceilY(startY);
+      // titleBounds sizes the merge, not the data rows' spans; that is what getExcelTitleHeight
+      // anchors the body below, and what ExcelCrosstabHelper already does
       PoiExcelVSUtil.writeTableCell(startX, startY, bounds, irow, icol, format,
                                     dispText, dispObj, sheet, book,
                                     (PoiExcelVSExporter) getExporter(),
                                     parentformat, rec, false, null, null,
-                                    shrink ? columnPixelW : null, titleBounds, excelRows,
-                                    dataRowCount, hyperlink, true);
+                                    shrink ? columnPixelW : null, titleBounds,
+                                    hyperlink, true);
    }
 
    /**
