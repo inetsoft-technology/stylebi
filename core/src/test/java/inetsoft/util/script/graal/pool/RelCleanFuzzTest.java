@@ -198,6 +198,7 @@ class RelCleanFuzzTest {
    Stats fuzz(long count, boolean chained, long offset) throws Exception {
       long base = Long.getLong("rel.fuzz.seed", 77123L) + offset;
       Stats stats = new Stats();
+      MAX_PROBE_MS.set(0);
       WorksheetScriptEnv ref = newEnv();
       WorksheetScriptEnv env = chained ? newEnv() : null;
       Set<String> slotLeftovers = new HashSet<>();
@@ -264,6 +265,7 @@ class RelCleanFuzzTest {
       stats.millis = (System.nanoTime() - start) / 1_000_000L;
       stats.probes = PROBES.get() - probes0;
       stats.probeRetries = PROBE_RETRIES.get() - retries0;
+      stats.maxProbeMs = MAX_PROBE_MS.get();
       stats.seeds = count;
       stats.refCreations = ref.getMetrics().getCreations();
       return stats;
@@ -385,10 +387,13 @@ class RelCleanFuzzTest {
          long start = System.nanoTime();
 
          try {
-            return String.valueOf(run(env, probe));
+            String result = String.valueOf(run(env, probe));
+            MAX_PROBE_MS.accumulateAndGet((System.nanoTime() - start) / 1_000_000L, Math::max);
+            return result;
          }
          catch(Exception ex) {
             long ms = (System.nanoTime() - start) / 1_000_000L;
+            MAX_PROBE_MS.accumulateAndGet(ms, Math::max);
 
             if(afterLoop || attempt >= 2 || ms < Long.parseLong(TIMEOUT_SECONDS) * 900L ||
                !String.valueOf(ex.getMessage()).contains("interrupted"))
@@ -539,7 +544,7 @@ class RelCleanFuzzTest {
             " leftoverDiffs=" + leftoverDiffs + " violations=" + violations +
             " paranoiaViolations=" + paranoiaViolations + " refCreations=" + refCreations +
             " probes=" + probes +
-            " probeRetries=" + probeRetries +
+            " probeRetries=" + probeRetries + " maxProbeMs=" + maxProbeMs +
             "\n[rel-fuzz] " + mode + " block kinds: " + kinds);
       }
 
@@ -549,6 +554,8 @@ class RelCleanFuzzTest {
          // a slow probe is rare; many would mean the retry hides something
          assertTrue(probeRetries * 100L <= probes, probeRetries + " of " + probes +
             " probes were retried");
+         // a probe takes ~10 ms; seconds would mean a clean or the engine slows it down
+         assertTrue(maxProbeMs <= MAX_PROBE_BOUND_MS, "slowest probe " + maxProbeMs + " ms");
       }
 
       final Map<Category, Integer> byCategory = new EnumMap<>(Category.class);
@@ -556,7 +563,7 @@ class RelCleanFuzzTest {
       final Map<String, Integer> unexpectedDiscardKinds = new TreeMap<>();
       final Map<String, Integer> paranoiaKinds = new TreeMap<>();
       final List<String> reports = new ArrayList<>();
-      long seeds, millis, refCreations;
+      long seeds, millis, refCreations, maxProbeMs;
       int probes, probeRetries;
       int discards, expectedDiscards, unexpectedDiscards, threw, unexpectedThrows, driftSeen,
          leftoverDiffs, violations;
@@ -571,6 +578,10 @@ class RelCleanFuzzTest {
       new java.util.concurrent.atomic.AtomicInteger();
    private static final java.util.concurrent.atomic.AtomicInteger PROBES =
       new java.util.concurrent.atomic.AtomicInteger();
+   // the slowest probe attempt of the current fuzz run, and its bound
+   private static final java.util.concurrent.atomic.AtomicLong MAX_PROBE_MS =
+      new java.util.concurrent.atomic.AtomicLong();
+   private static final long MAX_PROBE_BOUND_MS = 10_000L;
    private static String previousTimeout;
    private Boolean forcedBefore;
 }
