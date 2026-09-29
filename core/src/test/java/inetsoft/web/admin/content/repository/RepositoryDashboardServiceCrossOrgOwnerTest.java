@@ -17,22 +17,30 @@
  */
 package inetsoft.web.admin.content.repository;
 
+import inetsoft.report.LibManagerProvider;
 import inetsoft.report.internal.Util;
+import inetsoft.sree.RepletRegistryManager;
+import inetsoft.sree.RepositoryEntry;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.*;
 import inetsoft.sree.web.dashboard.*;
 import inetsoft.uql.XPrincipal;
+import inetsoft.uql.XRepository;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.asset.DependencyHandler;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.asset.sync.RenameTransformHandler;
+import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.util.Identity;
 import inetsoft.util.MessageException;
 import inetsoft.util.audit.ActionRecord;
 import inetsoft.util.audit.Audit;
+import inetsoft.web.RecycleBin;
+import inetsoft.web.admin.content.database.model.DataModelFolderManagerService;
 import inetsoft.web.admin.content.repository.model.NewRepositoryFolderRequest;
 import inetsoft.web.admin.content.repository.model.RepositoryDashboardSettingsModel;
+import inetsoft.web.admin.content.repository.model.TreeNodeInfo;
 import org.junit.jupiter.api.*;
 import org.mockito.MockedStatic;
 
@@ -201,6 +209,32 @@ class RepositoryDashboardServiceCrossOrgOwnerTest {
 
       service.delete(DASH, BOB, bob);
       verify(bobRegistry).removeDashboard(DASH);
+   }
+
+   @Test
+   void deleteNodes_crossOrgDashboardOwner_isRefused() {
+      // the EM content-tree delete endpoint: RepositoryObjectService.checkPermission only checks
+      // the caller's own registry or ADMIN on the name in the caller's org, so the refusal has to
+      // come from RepositoryDashboardService.delete, which deleteNodes reaches with node.owner()
+      ResourcePermissionService permissionService = mock(ResourcePermissionService.class);
+      when(permissionService.getRepositoryResourceType(RepositoryEntry.DASHBOARD, DASH))
+         .thenReturn(new Resource(ResourceType.DASHBOARD, DASH));
+      RepositoryObjectService objectService = new RepositoryObjectService(
+         mock(RepletRegistryService.class), mock(ContentRepositoryTreeService.class),
+         securityProvider, permissionService, mock(XRepository.class), service,
+         mock(DataModelFolderManagerService.class), mock(DataSourceRegistry.class),
+         mock(LibManagerProvider.class), mock(RecycleBin.class), mock(DependencyHandler.class),
+         mock(RenameTransformHandler.class), mock(RepletRegistryManager.class), registryManager);
+      TreeNodeInfo node = TreeNodeInfo.builder()
+         .label(DASH)
+         .path(DASH)
+         .owner(BOB)
+         .type(RepositoryEntry.DASHBOARD)
+         .build();
+
+      assertThrows(MessageException.class,
+                   () -> objectService.deleteNodes(new TreeNodeInfo[]{ node }, adminA, false, false));
+      assertBobRegistryUntouched();
    }
 
    private void assertBobRegistryUntouched() {
