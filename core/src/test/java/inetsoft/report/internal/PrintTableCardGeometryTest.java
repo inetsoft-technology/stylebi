@@ -15,9 +15,10 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.io.*;
+import java.lang.ref.WeakReference;
 import java.util.List;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * A print-layout table region reports and paints its card: the grid box grown by the side
@@ -113,8 +114,8 @@ class PrintTableCardGeometryTest {
 
    @Test
    void theBackgroundCoversTheInsetBands() {
-      BufferedImage page = PrintTableFixture.render(
-         new PrintTableFixture().inset(16, 16, 16).background(Color.YELLOW).print().get(0));
+      BufferedImage page =
+         new PrintTableFixture().inset(16, 16, 16).background(Color.YELLOW).renderFirstPage();
 
       // the card spans 56..456 across and 46..282 down; the grid runs 73..439 and 46..266
       assertEquals(Color.YELLOW.getRGB(), page.getRGB(64, 100), "left band");
@@ -124,8 +125,7 @@ class PrintTableCardGeometryTest {
 
    @Test
    void withoutAnInsetNothingIsPaintedBelowTheRows() {
-      BufferedImage page = PrintTableFixture.render(
-         new PrintTableFixture().background(Color.YELLOW).print().get(0));
+      BufferedImage page = new PrintTableFixture().background(Color.YELLOW).renderFirstPage();
 
       assertEquals(Color.WHITE.getRGB(), page.getRGB(200, 274));
    }
@@ -134,21 +134,38 @@ class PrintTableCardGeometryTest {
    void theFillReachesTheNonLastSegmentsFullContentHeight() {
       // two Fit Contents segments stacked on one page; the first segment's content ends at
       // y = 266 (46 + 220), one point below where the unpatched fill stops
-      BufferedImage page = PrintTableFixture.render(new PrintTableFixture().inset(16, 16, 16)
+      BufferedImage page = new PrintTableFixture().inset(16, 16, 16)
          .noCellBorders().layout(ReportSheet.TABLE_FIT_CONTENT).widths(130, 130, 130)
-         .background(Color.YELLOW).print().get(0));
+         .background(Color.YELLOW).renderFirstPage();
 
       assertEquals(Color.YELLOW.getRGB(), page.getRGB(200, 265));
    }
 
    @Test
    void aTranslucentBackgroundFillsTheGridAndBandsOnce() {
-      BufferedImage page = PrintTableFixture.render(new PrintTableFixture().inset(16, 16, 16)
-         .background(new Color(255, 255, 0, 128)).print().get(0));
+      BufferedImage page = new PrintTableFixture().inset(16, 16, 16)
+         .background(new Color(255, 255, 0, 128)).renderFirstPage();
 
       // (64, 100) is the left band; (180, 100) is clear of text and row borders inside cell 0
       assertEquals(page.getRGB(64, 100), page.getRGB(180, 100),
                   "the grid and the bands share one fill");
+   }
+
+   @Test
+   void aPagePaintsAfterAGarbageCollection() {
+      // an element holds its report weakly, and painting reads the report's page size; the
+      // fixture that owns the report keeps it through a collection
+      PrintTableFixture fixture = new PrintTableFixture().inset(16, 16, 16).background(Color.YELLOW);
+      StylePage page = fixture.print().get(0);
+      WeakReference<ReportSheet> report = new WeakReference<>(
+         PrintTableFixture.paintables(page, TablePaintable.class).get(0).getElement().getReport());
+
+      for(int i = 0; i < 20; i++) {
+         System.gc();
+      }
+
+      assertNotNull(report.get(), "the fixture still holds its report");
+      assertDoesNotThrow(() -> fixture.render(page));
    }
 
    @Test

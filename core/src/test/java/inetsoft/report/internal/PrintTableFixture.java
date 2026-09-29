@@ -7,6 +7,7 @@ import inetsoft.uql.viewsheet.BorderColors;
 
 import java.awt.*;
 import java.awt.image.BufferedImage;
+import java.lang.ref.Reference;
 import java.util.List;
 import java.util.*;
 
@@ -125,16 +126,31 @@ final class PrintTableFixture {
       return found;
    }
 
-   /** The page painted on white at one pixel per point. */
-   static BufferedImage render(StylePage page) {
-      Dimension size = page.getPageDimension();
-      BufferedImage image = new BufferedImage(size.width, size.height, BufferedImage.TYPE_INT_RGB);
-      Graphics2D g = image.createGraphics();
-      g.setColor(Color.WHITE);
-      g.fillRect(0, 0, size.width, size.height);
-      page.print(g);
-      g.dispose();
-      return image;
+   /**
+    * One of this fixture's pages painted on white at one pixel per point. An element holds its
+    * report weakly and painting reads it, so the fixture keeps its report alive until the paint
+    * ends.
+    */
+   BufferedImage render(StylePage page) {
+      try {
+         Dimension size = page.getPageDimension();
+         BufferedImage image =
+            new BufferedImage(size.width, size.height, BufferedImage.TYPE_INT_RGB);
+         Graphics2D g = image.createGraphics();
+         g.setColor(Color.WHITE);
+         g.fillRect(0, 0, size.width, size.height);
+         page.print(g);
+         g.dispose();
+         return image;
+      }
+      finally {
+         Reference.reachabilityFence(this);
+      }
+   }
+
+   /** The first page, printed and painted. */
+   BufferedImage renderFirstPage() {
+      return render(print().get(0));
    }
 
    private void build() {
