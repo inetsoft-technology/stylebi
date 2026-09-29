@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-import { NO_ERRORS_SCHEMA } from "@angular/core";
+import { ApplicationRef, NO_ERRORS_SCHEMA } from "@angular/core";
 import { ComponentFixture, TestBed } from "@angular/core/testing";
 import { MatButton } from "@angular/material/button";
 import {
@@ -43,6 +43,10 @@ describe("AppComponent notifications", () => {
    let fixture: ComponentFixture<AppComponent>;
    let component: AppComponent;
    let dialog: MatDialog;
+
+   // AppComponent is the bootstrapped root and the dialog view lives in the overlay, so refresh
+   // the whole application like a zone-triggered tick does in production
+   const render = (): void => TestBed.inject(ApplicationRef).tick();
 
    const dialogTexts = (): string[] =>
       Array.from(document.querySelectorAll("mat-dialog-container"))
@@ -74,6 +78,7 @@ describe("AppComponent notifications", () => {
 
       fixture = TestBed.createComponent(AppComponent);
       component = fixture.componentInstance;
+      TestBed.inject(ApplicationRef).attachView(fixture.componentRef.hostView);
       dialog = TestBed.inject(MatDialog);
    });
 
@@ -87,7 +92,7 @@ describe("AppComponent notifications", () => {
       component.notify({ message: "S23 test notification #1" });
       component.notify({ message: "S23 test notification #2" });
       component.notify({ message: "S23 test notification #3" });
-      fixture.detectChanges();
+      render();
 
       expect(dialog.openDialogs.length).toBe(1);
       const texts = dialogTexts();
@@ -97,14 +102,44 @@ describe("AppComponent notifications", () => {
       expect(texts[0]).toContain("S23 test notification #3");
    });
 
+   it("should update the rendered dialog when a message arrives after it was shown", () => {
+      component.notify({ message: "S23 test notification #1" });
+      render();
+      expect(dialogTexts()[0]).toContain("S23 test notification #1");
+
+      component.notify({ message: "S23 test notification #2" });
+      render();
+
+      expect(dialog.openDialogs.length).toBe(1);
+      expect(dialogTexts()[0]).toContain("S23 test notification #1");
+      expect(dialogTexts()[0]).toContain("S23 test notification #2");
+   });
+
+   it("should open a new dialog when a message arrives while the dialog is closing", async () => {
+      component.notify({ message: "first" });
+      render();
+      dialog.openDialogs[0].close();
+
+      // arrives before afterClosed() has emitted
+      component.notify({ message: "second" });
+      render();
+      await fixture.whenStable();
+      render();
+
+      expect(dialog.openDialogs.length).toBe(1);
+      const text = dialogTexts().pop();
+      expect(text).toContain("second");
+      expect(text).not.toContain("first");
+   });
+
    it("should start a fresh message after the dialog is closed", async () => {
       component.notify({ message: "first" });
-      fixture.detectChanges();
+      render();
       dialog.openDialogs[0].close();
       await fixture.whenStable();
 
       component.notify({ message: "second" });
-      fixture.detectChanges();
+      render();
 
       expect(dialog.openDialogs.length).toBe(1);
       const text = dialogTexts().pop();
@@ -115,7 +150,7 @@ describe("AppComponent notifications", () => {
    it("should auto-close a dialog whose messages all have a duration", () => {
       vi.useFakeTimers();
       component.notify({ message: "timed" }, "600px", 5000);
-      fixture.detectChanges();
+      render();
       const ref = dialog.openDialogs[0];
       const closeSpy = vi.spyOn(ref, "close");
 
@@ -128,7 +163,7 @@ describe("AppComponent notifications", () => {
       vi.useFakeTimers();
       component.notify({ message: "timed" }, "600px", 5000);
       component.notify({ message: "broadcast" });
-      fixture.detectChanges();
+      render();
       const ref = dialog.openDialogs[0];
       const closeSpy = vi.spyOn(ref, "close");
 
