@@ -25,7 +25,9 @@ import inetsoft.web.session.IgniteSessionRepository;
 import org.springframework.messaging.simp.user.DestinationUserNameProvider;
 
 import java.io.*;
-import java.util.*;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 public class DestinationUserNameProviderPrincipal
@@ -94,69 +96,79 @@ public class DestinationUserNameProviderPrincipal
    }
 
    /**
-    * Binds this principal to an HTTP session like {@link #setHttpSessionId(String)}, so that the
-    * binding can be undone with {@link #unbindHttpSession(Map)} if the session is not created.
+    * Binds this principal to an HTTP session like {@link #setHttpSessionId(String)}, and
+    * records what it writes to the session attribute map until the binding is committed with
+    * {@link #commitHttpSession()} or undone with {@link #unbindHttpSession()}.
     *
     * @param httpSessionId the HTTP session ID.
     *
-    * @return the principal entries of the session attribute map before this call copied the
-    *         local values into it, or {@code null} if this principal was already bound and
-    *         nothing was copied.
+    * @return {@code true} if this call bound the principal, or {@code false} if it was already
+    *         bound and nothing is recorded.
     */
-   public Map<String, Object> bindHttpSession(String httpSessionId) {
+   public boolean bindHttpSession(String httpSessionId) {
       if(this.httpSessionId != null) {
          setHttpSessionId(httpSessionId);
-         return null;
+         return false;
       }
 
-      Map<String, Object> snapshot = new HashMap<>();
-      DistributedMap<String, Object> map = httpSessionId == null ?
-         null : IgniteSessionRepository.getSessionAttributeMap(httpSessionId);
-
-      if(map != null) {
-         map.forEach((key, value) -> {
-            if(isPrincipalKey(key)) {
-               snapshot.put(key, value);
-            }
-         });
-      }
-
+      bindWrites = new HashMap<>();
       setHttpSessionId(httpSessionId);
-      return snapshot;
+      return true;
    }
 
    /**
-    * Undoes {@link #bindHttpSession(String)}. The session attribute map may be shared with
-    * another principal of the same HTTP session, so the principal entries are restored to the
-    * snapshot instead of being removed.
-    *
-    * @param snapshot the value returned by {@link #bindHttpSession(String)}.
+    * Keeps the binding made by {@link #bindHttpSession(String)} and stops recording.
     */
-   public void unbindHttpSession(Map<String, Object> snapshot) {
-      DistributedMap<String, Object> map = getSessionAttributeMap();
-
-      if(map != null) {
-         Set<String> added = map.keySet().stream()
-            .filter(key -> isPrincipalKey(key) && !snapshot.containsKey(key))
-            .collect(Collectors.toSet());
-
-         if(!added.isEmpty()) {
-            map.removeAll(added);
-         }
-
-         snapshot.forEach((key, value) -> {
-            if(!Objects.equals(map.get(key), value)) {
-               map.put(key, value);
-            }
-         });
-      }
-
-      httpSessionId = null;
+   public void commitHttpSession() {
+      bindWrites = null;
    }
 
-   private static boolean isPrincipalKey(String key) {
-      return key != null && (key.startsWith(PROP_PREFIX) || key.startsWith(PARAM_PREFIX) ||
-         key.startsWith(PARAM_TS_PREFIX) || key.startsWith(FIELD_PREFIX));
+   /**
+    * Undoes {@link #bindHttpSession(String)}. The session attribute map is shared with any other
+    * principal of the same HTTP session, including another login in progress, so each entry is
+    * only put back to its previous value if it still holds the value this principal wrote.
+    */
+   public void unbindHttpSession() {
+      Map<String, BindWrite> writes = bindWrites;
+      DistributedMap<String, Object> map = getSessionAttributeMap();
+      bindWrites = null;
+      httpSessionId = null;
+
+      if(map == null || writes == null) {
+         return;
+      }
+
+      writes.forEach((key, write) -> {
+         if(write.written() == null) {
+            if(write.old() != null) {
+               map.putIfAbsent(key, write.old());
+            }
+         }
+         else if(write.old() == null) {
+            map.remove(key, write.written());
+         }
+         else {
+            map.replace(key, write.written(), write.old());
+         }
+      });
+   }
+
+   private void putSessionAttribute(DistributedMap<String, Object> map, String key, Object value) {
+      recordBindWrite(map, key, value);
+      map.put(key, value);
+   }
+
+   private void removeSessionAttribute(DistributedMap<String, Object> map, String key) {
+      recordBindWrite(map, key, null);
+      map.remove(key);
+   }
+
+   private void recordBindWrite(DistributedMap<String, Object> map, String key, Object value) {
+      if(bindWrites != null) {
+         BindWrite write = bindWrites.get(key);
+         Object old = write != null ? write.old() : map.get(key);
+         bindWrites.put(key, new BindWrite(old, value));
+      }
    }
 
    @Override
@@ -175,10 +187,10 @@ public class DestinationUserNameProviderPrincipal
       }
 
       if(val == null || val.isEmpty()) {
-         map.remove(PROP_PREFIX + name);
+         removeSessionAttribute(map, PROP_PREFIX + name);
       }
       else {
-         map.put(PROP_PREFIX + name, val);
+         putSessionAttribute(map, PROP_PREFIX + name, val);
       }
    }
 
@@ -225,11 +237,11 @@ public class DestinationUserNameProviderPrincipal
       }
 
       if(value == null) {
-         map.remove(PARAM_PREFIX + name);
+         removeSessionAttribute(map, PARAM_PREFIX + name);
       }
       else {
-         map.put(PARAM_PREFIX + name, JavaScriptEngine.unwrap(value));
-         map.put(PARAM_TS_PREFIX + name, ts);
+         putSessionAttribute(map, PARAM_PREFIX + name, JavaScriptEngine.unwrap(value));
+         putSessionAttribute(map, PARAM_TS_PREFIX + name, ts);
       }
    }
 
@@ -319,7 +331,7 @@ public class DestinationUserNameProviderPrincipal
       DistributedMap<String, Object> map = getSessionAttributeMap();
 
       if(map != null) {
-         map.put(FIELD_PREFIX + name, value);
+         putSessionAttribute(map, FIELD_PREFIX + name, value);
       }
    }
 
@@ -348,8 +360,15 @@ public class DestinationUserNameProviderPrincipal
    }
 
    private String httpSessionId;
+   // what the first bind wrote to the session attribute map until it is committed or undone
+   private Map<String, BindWrite> bindWrites;
    private static final String PROP_PREFIX = "DestinationUserNameProviderPrincipal.PROP.";
    private static final String PARAM_PREFIX = "DestinationUserNameProviderPrincipal.PARAM.";
    private static final String PARAM_TS_PREFIX = "DestinationUserNameProviderPrincipal.PARAM_TS.";
    private static final String FIELD_PREFIX = "DestinationUserNameProviderPrincipal.FIELD.";
+
+   // the value an entry had before the first bind wrote it, and the value last written, where
+   // null means the entry was absent or removed
+   private record BindWrite(Object old, Object written) {
+   }
 }

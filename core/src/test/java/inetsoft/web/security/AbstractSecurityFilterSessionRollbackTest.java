@@ -30,7 +30,9 @@ package inetsoft.web.security;
  *
  * The HTTP session and the per-session attribute map are modelled like in
  * AbstractSecurityFilterSessionSweepTest; every login here uses the same session id, i.e. the same
- * browser.
+ * browser. Overlapping logins are modelled either by a login started from inside the license
+ * check of another one (same thread, so not serialized, like two requests on different cluster
+ * nodes), or by two threads (same node).
  */
 
 import inetsoft.report.internal.LicenseException;
@@ -54,6 +56,7 @@ import org.mockito.Mockito;
 import java.io.IOException;
 import java.security.Principal;
 import java.util.*;
+import java.util.concurrent.*;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -69,10 +72,24 @@ class AbstractSecurityFilterSessionRollbackTest {
    private MockedStatic<SUtil> sUtilMock;
    private MockedStatic<XSessionService> xSessionServiceMock;
 
+   private MockCluster cluster;
+   private XSessionService sessionService;
    private AuthenticationService authenticationService;
    private TestSecurityFilter filter;
    private DistributedMap<String, Object> attributes;
-   private Throwable rejection;
+   private volatile Throwable rejection;
+   // license checks of specific users, by user name
+   private final Map<String, LicenseCheck> licenseChecks = new ConcurrentHashMap<>();
+
+   @FunctionalInterface
+   private interface LicenseCheck {
+      void check(SRPrincipal principal) throws Throwable;
+   }
+
+   @FunctionalInterface
+   private interface Body {
+      void run() throws Exception;
+   }
 
    private static final class TestSecurityFilter extends AbstractSecurityFilter {
       TestSecurityFilter(SessionLicenseServiceProvider provider, AuthenticationService service) {
@@ -89,7 +106,7 @@ class AbstractSecurityFilterSessionRollbackTest {
 
    @BeforeEach
    void setUp() throws Exception {
-      MockCluster cluster = new MockCluster();
+      cluster = new MockCluster();
       clusterMock = mockStatic(Cluster.class);
       clusterMock.when(Cluster::getInstance).thenReturn(cluster);
       // IgniteSession's constructor creates the per-session attribute map for a new session
@@ -100,7 +117,7 @@ class AbstractSecurityFilterSessionRollbackTest {
       sUtilMock.when(SUtil::getUserSessionTimeout).thenReturn(0);
       sUtilMock.when(SUtil::isMultiTenant).thenReturn(false);
 
-      XSessionService sessionService = mock(XSessionService.class);
+      sessionService = mock(XSessionService.class);
       lenient().when(sessionService.createSessionID(anyString(), any()))
          .thenAnswer(inv -> inv.getArgument(0, String.class) + "-session");
       xSessionServiceMock = mockStatic(XSessionService.class);
@@ -115,8 +132,12 @@ class AbstractSecurityFilterSessionRollbackTest {
          SRPrincipal p = inv.getArgument(0);
          // the license manager sees the bound principal (Bug #77029), and may write to it
          p.setProperty("__internal__", "false");
+         LicenseCheck check = licenseChecks.get(p.getIdentityID().getName());
 
-         if(rejection != null) {
+         if(check != null) {
+            check.check(p);
+         }
+         else if(rejection != null) {
             throw rejection;
          }
 
@@ -143,7 +164,12 @@ class AbstractSecurityFilterSessionRollbackTest {
       a.setProperty("a.only", "A-value");
       a.setParameter("a.param", "A-param");
 
-      assertThrows(Throwable.class, () -> login(a));
+      if(rejection instanceof Error) {
+         assertThrows(AssertionError.class, () -> login(a));
+      }
+      else {
+         assertThrows(AuthenticationFailureException.class, () -> login(a));
+      }
 
       assertEquals(Map.of(), new HashMap<>(attributes),
          "a rejected login must not leave entries in the session attribute map");
@@ -187,6 +213,111 @@ class AbstractSecurityFilterSessionRollbackTest {
    }
 
    @Test
+   void rejectedLoginKeepsWritesOfOtherPrincipalDuringLicenseCheck() throws Exception {
+      DestinationUserNameProviderPrincipal em = principal("em");
+      em.setProperty("shared", "em-value");
+      em.setProperty(SUtil.EM_USER, "true");
+      em.setLastAccess(1000L);
+      em.setHttpSessionId(SID);
+
+      DestinationUserNameProviderPrincipal a = principal("userA");
+      a.setProperty("shared", "A-value");
+      a.setProperty("a.only", "A-value");
+      a.setLastAccess(2000L);
+      licenseChecks.put("userA", p -> {
+         // a request of the EM principal while the login is in its license check
+         em.setLastAccess(5000L);
+         em.setProperty("em.new", "em-new-value");
+         throw new UnlicensedUserNameException("not a named user");
+      });
+
+      assertThrows(AuthenticationFailureException.class, () -> login(a));
+
+      assertEquals(5000L, em.getLastAccess());
+      assertEquals("em-new-value", em.getProperty("em.new"));
+      assertEquals("em-value", em.getProperty("shared"));
+      assertNull(em.getProperty("a.only"));
+   }
+
+   @Test
+   void rejectedLoginOverlappingSuccessfulLoginKeepsItsEntries() throws Exception {
+      DestinationUserNameProviderPrincipal b = principal("userB");
+      b.setProperty("shared", "B-value");
+      b.setProperty("b.only", "B-value");
+      b.setLastAccess(3000L);
+
+      DestinationUserNameProviderPrincipal a = principal("userA");
+      a.setProperty("shared", "A-value");
+      a.setProperty("a.only", "A-value");
+      a.setProperty(OLAP_PASSWORD, "A-secret");
+      a.setLastAccess(2000L);
+      licenseChecks.put("userA", p -> {
+         // B logs in and succeeds while A is in its license check
+         login(b);
+         throw new UnlicensedUserNameException("not a named user");
+      });
+
+      assertThrows(AuthenticationFailureException.class, () -> login(a));
+
+      assertEquals("B-value", b.getProperty("shared"));
+      assertEquals("B-value", b.getProperty("b.only"));
+      assertEquals(3000L, b.getLastAccess());
+      assertNull(b.getProperty("a.only"));
+      assertNull(b.getProperty(OLAP_PASSWORD));
+   }
+
+   @Test
+   void overlappingRejectedLoginsLeaveNoEntries() throws Exception {
+      CountDownLatch a1InLicenseCheck = new CountDownLatch(1);
+      CountDownLatch a2InLicenseCheck = new CountDownLatch(1);
+      CountDownLatch a1Done = new CountDownLatch(1);
+      licenseChecks.put("userA1", p -> {
+         a1InLicenseCheck.countDown();
+         // let the second login run into its own license check if it is not held back
+         a2InLicenseCheck.await(1, TimeUnit.SECONDS);
+         throw new UnlicensedUserNameException("not a named user");
+      });
+      licenseChecks.put("userA2", p -> {
+         a2InLicenseCheck.countDown();
+         // and be rejected after the first one
+         a1Done.await(5, TimeUnit.SECONDS);
+         throw new UnlicensedUserNameException("not a named user");
+      });
+
+      DestinationUserNameProviderPrincipal a1 = principal("userA1");
+      a1.setProperty(OLAP_USER, "userA1");
+      a1.setProperty(OLAP_PASSWORD, "A1-secret");
+      DestinationUserNameProviderPrincipal a2 = principal("userA2");
+      a2.setProperty(OLAP_USER, "userA2");
+      a2.setProperty(OLAP_PASSWORD, "A2-secret");
+
+      ExecutorService executor = Executors.newFixedThreadPool(2);
+
+      try {
+         Future<?> first = executor.submit(inThread(() -> {
+            try {
+               assertThrows(AuthenticationFailureException.class, () -> login(a1));
+            }
+            finally {
+               a1Done.countDown();
+            }
+         }));
+         assertTrue(a1InLicenseCheck.await(5, TimeUnit.SECONDS));
+         Future<?> second = executor.submit(inThread(
+            () -> assertThrows(AuthenticationFailureException.class, () -> login(a2))));
+
+         first.get(10, TimeUnit.SECONDS);
+         second.get(10, TimeUnit.SECONDS);
+      }
+      finally {
+         executor.shutdownNow();
+      }
+
+      assertEquals(Map.of(), new HashMap<>(attributes),
+         "overlapping rejected logins must not leave entries in the session attribute map");
+   }
+
+   @Test
    void rejectedLoginOfAlreadyBoundPrincipalTouchesNothing() throws Exception {
       DestinationUserNameProviderPrincipal a = principal("userA");
       a.setProperty("a.only", "A-value");
@@ -224,6 +355,25 @@ class AbstractSecurityFilterSessionRollbackTest {
          case "runtime" -> new IllegalStateException("failed");
          case "error" -> new AssertionError("failed");
          default -> throw new IllegalArgumentException(kind);
+      };
+   }
+
+   /** Runs a login on another thread, which needs its own static mocks. */
+   private Callable<Void> inThread(Body body) {
+      return () -> {
+         try(MockedStatic<Cluster> threadCluster = mockStatic(Cluster.class);
+             MockedStatic<SUtil> threadSUtil = mockStatic(SUtil.class, Mockito.CALLS_REAL_METHODS);
+             MockedStatic<XSessionService> threadSessionService =
+                mockStatic(XSessionService.class))
+         {
+            threadCluster.when(Cluster::getInstance).thenReturn(cluster);
+            threadSUtil.when(SUtil::getUserSessionTimeout).thenReturn(0);
+            threadSUtil.when(SUtil::isMultiTenant).thenReturn(false);
+            threadSessionService.when(XSessionService::getService).thenReturn(sessionService);
+            body.run();
+         }
+
+         return null;
       };
    }
 
