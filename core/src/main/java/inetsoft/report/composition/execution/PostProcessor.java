@@ -255,6 +255,16 @@ public class PostProcessor {
       return changed ? htable : base;
    }
 
+   /**
+    * @return {@code true} if reading {@code table}'s rows can reach the script engine, as
+    * {@code ConditionFilter2} decides whether it takes the engine lock (bug #77273): a
+    * {@code FormulaTableLens}, a condition filter that takes the lock, or an async-worker lens
+    * anywhere in the table's filter chain.
+    */
+   public static boolean canReachScript(TableLens table) {
+      return ConditionFilter2.needsScriptExecutionLock(table);
+   }
+
    private static final class ConditionFilter2 extends ConditionFilter {
       ConditionFilter2(TableLens table, ConditionGroup conditions, AssetQuerySandbox box) {
          super(table, conditions);
@@ -318,6 +328,14 @@ public class PostProcessor {
        * that would otherwise hand its processing to a background worker and wait
        * for it runs it on this thread instead, or lends the lock to that worker
        * while waiting for it (bug #76938).
+       *
+       * <p>A row already mapped, or a row past the end of a completed row map, is answered
+       * from the published state without the engine lock, as in pool mode (bug #77273): no
+       * script runs for it, and a join worker reading an input the join's builder already
+       * computed must not wait for the lock a script thread reading the join holds. The
+       * answer returns without entering the population, so a population, even of a map an
+       * {@code invalidate()} reset after the check, still takes the lock before the monitor
+       * (#76918).
        */
       @Override
       public boolean moreRows(int row) {
@@ -331,6 +349,14 @@ public class PostProcessor {
 
          if(execLock == null) {
             return super.moreRows(row);
+         }
+
+         if(isRowMapped(row)) {
+            return true;
+         }
+
+         if(isPastCompletedMap(row)) {
+            return false;
          }
 
          execLock.lock();
