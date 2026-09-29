@@ -19,6 +19,7 @@ package inetsoft.util.script.graal.pool;
 
 import inetsoft.sree.SreeEnv;
 import inetsoft.test.*;
+import inetsoft.util.script.ScriptException;
 import inetsoft.util.script.graal.GraalJavaScriptEngine;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -27,6 +28,7 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.lang.reflect.Field;
+import java.util.regex.Pattern;
 
 import static inetsoft.util.script.graal.pool.PoolTestSupport.*;
 import static org.junit.jupiter.api.Assertions.*;
@@ -68,9 +70,13 @@ class WsLoopInterruptTest {
 
       for(int i = 0; i < ROUNDS; i++) {
          long start = System.nanoTime();
-         assertThrows(Exception.class, () -> run(env, "zq = 1; while(true) {}"));
+         ScriptException ex =
+            assertThrows(ScriptException.class, () -> run(env, "zq = 1; while(true) {}"));
          long looped = (System.nanoTime() - start) / 1_000_000L;
          assertTrue(looped >= 900, "the loop ran its timeout, " + looped + " ms");
+         // only the timeout's interrupt (Graal words it either way), not another failure
+         assertTrue(INTERRUPTED.matcher(String.valueOf(ex.getMessage())).matches(),
+                    "not the timeout interrupt: " + ex.getMessage());
 
          // right after: never interrupted, on a context without the loop's global
          assertEquals(1.0, run(env, "typeof zq === 'undefined' ? 1 : 0"), "round " + i);
@@ -88,6 +94,8 @@ class WsLoopInterruptTest {
       ((SreeEnv.Value) field.get(null)).updateValue();
    }
 
+   private static final Pattern INTERRUPTED =
+      Pattern.compile("(Thread was interrupted|Execution got interrupted)\\. \\(line 1\\)");
    private static final int ROUNDS = Boolean.getBoolean("rel.long") ? 50 : 10;
    private String previous;
 }
