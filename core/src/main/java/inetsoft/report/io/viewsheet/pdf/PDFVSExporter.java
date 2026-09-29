@@ -1093,6 +1093,8 @@ public class PDFVSExporter extends AbstractVSExporter {
       super.prepareSheet(vsheet, sheet, box);
       Dimension size = adjustSizeForInputLabels(
          viewsheet, viewsheet.getPreferredSize(false, true));
+      // grow the page before it is created/filled so a shape shadow at the edge fits
+      size = adjustSizeForShapeShadows(viewsheet, size, true);
 
       if(isAllHidden(viewsheet, box)) {
          helper.getPrinter().
