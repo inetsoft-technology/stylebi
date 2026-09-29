@@ -33,6 +33,7 @@ import inetsoft.uql.erm.ExpressionRef;
 import inetsoft.uql.viewsheet.CalculateRef;
 import inetsoft.uql.viewsheet.CalendarVSAssembly;
 import inetsoft.uql.viewsheet.ChartVSAssembly;
+import inetsoft.uql.viewsheet.ComboBoxVSAssembly;
 import inetsoft.uql.viewsheet.GaugeVSAssembly;
 import inetsoft.uql.viewsheet.OutputVSAssembly;
 import inetsoft.uql.viewsheet.ScalarBindingInfo;
@@ -558,6 +559,43 @@ class WizVisualizationServiceTest {
       selectionList.setPixelSize(new Dimension(100, 120));
       selectionList.setTableNames(tables);
       return selectionList;
+   }
+
+   // ── F3: calc fields of an Input/Selection assembly's table are carried (#77143 follow-up) ────
+
+   @Test
+   void savingAComboBoxCarriesOverTheCalcFieldsOfItsTable() throws Exception {
+      Viewsheet sourceVs = new Viewsheet();
+      ComboBoxVSAssembly comboBox = new ComboBoxVSAssembly(sourceVs, "ComboBox1");
+      comboBox.setTableName("Query1");
+      sourceVs.addAssembly(comboBox);
+      sourceVs.addCalcField("Query1", calc("Margin", "field['PRICE'] - field['COST']"));
+      sourceVs.addCalcField("Query2", calc("Other", "field['PRICE']"));
+
+      Viewsheet newVs = saveAndCapture(sourceVs, "ComboBox1");
+
+      CalculateRef[] calcs = newVs.getCalcFields("Query1");
+      assertNotNull(calcs, "the ComboBox's table calc fields must be carried into the saved viewsheet");
+      assertEquals("Margin", calcs[0].getName());
+      assertNull(newVs.getCalcFields("Query2"));
+   }
+
+   @Test
+   void savingASelectionListCarriesOverTheCalcFieldsOfItsTable() throws Exception {
+      Viewsheet sourceVs = new Viewsheet();
+      SelectionListVSAssembly selectionList = new SelectionListVSAssembly(sourceVs, "SelectionList1");
+      selectionList.setTableNames(List.of("Query1"));
+      sourceVs.addAssembly(selectionList);
+      sourceVs.addCalcField("Query1", calc("Margin", "field['PRICE'] - field['COST']"));
+      sourceVs.addCalcField("Query2", calc("Other", "field['PRICE']"));
+
+      Viewsheet newVs = saveAndCapture(sourceVs, "SelectionList1");
+
+      CalculateRef[] calcs = newVs.getCalcFields("Query1");
+      assertNotNull(calcs,
+                    "the SelectionList's table calc fields must be carried into the saved viewsheet");
+      assertEquals("Margin", calcs[0].getName());
+      assertNull(newVs.getCalcFields("Query2"));
    }
 
    // ── createVisualizationFolder ─────────────────────────────────────────────────
