@@ -345,6 +345,8 @@ public class FormulaTableLens extends AbstractTableLens
       boolean computed = execLock == COMPUTED;
       execLock = computed ? null : execLock;
       ScriptSpan span = ScriptSpan.NONE;
+      // the home of this table's objects, which this batch's checkout prefers (Testing #77123)
+      Object homeHint = TableRowScope.NO_HINT;
       // set when this batch ends in a lock stall: the rows past the stall are not computed,
       // so the row table is not complete even if the base has no more rows (bug #77123)
       boolean stalled = false;
@@ -375,6 +377,7 @@ public class FormulaTableLens extends AbstractTableLens
          // batch and the context is cleaned once at its end (bug #76960, spec §5.3); nested
          // batches share the claim. The batch's base rows were loaded before the lens lock
          // (finding F1), so a pooled formula base computed them under its own claim
+         homeHint = tableRow == null ? TableRowScope.NO_HINT : tableRow.thisScope.preferHome();
          span = senv == null ? ScriptSpan.NONE : senv.openSpan();
 
          if(tableRow == null) {
@@ -536,7 +539,12 @@ public class FormulaTableLens extends AbstractTableLens
                }
             }
             finally {
-               span.close();
+               try {
+                  span.close();
+               }
+               finally {
+                  TableRowScope.restoreHome(homeHint);
+               }
             }
          }
          finally {
@@ -1291,6 +1299,8 @@ public class FormulaTableLens extends AbstractTableLens
       public TableRow2(XTable table, int row) {
          super(table, row);
          thisScope = new TableRowScope(this, "field");
+         // the pool takes it without waiting to hand off the vars' objects (Testing #77123)
+         thisScope.setLensLock(lock);
          // the formulas' top-level vars live for this row table (Testing #77123)
          thisScope.setOwnedVars(
             GraalJavaScriptEngine.collectOwnedVarNames(Arrays.asList(formulas)));

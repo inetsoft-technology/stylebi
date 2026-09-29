@@ -18,10 +18,13 @@
 package inetsoft.util.script.graal.pool;
 
 import inetsoft.util.script.ScriptSpan;
+import inetsoft.util.script.graal.ScriptTimeoutGuard;
 import org.graalvm.polyglot.Context;
 import org.graalvm.polyglot.PolyglotException;
 import org.graalvm.polyglot.Value;
+import org.graalvm.polyglot.proxy.ProxyArray;
 
+import java.time.Duration;
 import java.util.*;
 import java.util.function.Supplier;
 
@@ -50,6 +53,7 @@ import java.util.function.Supplier;
  */
 public final class OwnedValueCodec {
    private OwnedValueCodec(Slot slot) {
+      this.slot = slot;
       this.context = slot.engine().context();
       this.dateConstructor = slot.engine().dateConstructor();
       this.getTime = slot.engine().dateGetTime();
@@ -74,7 +78,7 @@ public final class OwnedValueCodec {
       return of(WsExecContext.currentSlot());
    }
 
-   private static OwnedValueCodec of(Slot slot) {
+   static OwnedValueCodec of(Slot slot) {
       return slot != null && !slot.isClosed() && slot.engine().dateConstructor() != null &&
          slot.engine().dateGetTime() != null ? new OwnedValueCodec(slot) : null;
    }
@@ -156,6 +160,33 @@ public final class OwnedValueCodec {
 
       if(seen != null) {
          return seen;
+      }
+
+      if(node instanceof TreeRef ref) {
+         Value roots;
+
+         if(built.containsKey(ref.tree)) {
+            roots = built.get(ref.tree);
+
+            if(roots == null) {
+               throw new IllegalStateException("The tree of a formula variable failed to build");
+            }
+         }
+         else {
+            try {
+               roots = buildTree(ref.tree);
+            }
+            catch(RuntimeException ex) {
+               built.put(ref.tree, null); // its other roots fail at once
+               throw ex;
+            }
+
+            built.put(ref.tree, roots);
+         }
+
+         Value v = roots.getArrayElement(ref.index);
+         built.put(node, v);
+         return v;
       }
 
       if(!(node instanceof DateNode d)) {
@@ -249,6 +280,260 @@ public final class OwnedValueCodec {
       }
    }
 
+   // ---- residency (Testing #77123, B1 residual part 2) -------------------------------------
+   //
+   // A lens whose owned vars hold arrays or objects (anything but Dates only) keeps them as
+   // live values on one pooled context, its home, which is reserved for it while the lens is
+   // idle. A structured snapshot (owned-cloner.js, evaluated when the context was created) is
+   // taken only at a hand-off: another context's batch pulls the values from the idle home,
+   // or the pool closes, expires or takes over the home.
+
+   /** The pooled context a lens's object vars live on, and its pool. */
+   public static final class Home {
+      Home(SlotPool pool, Slot slot) {
+         this.pool = pool;
+         this.slot = slot;
+      }
+
+      /** @return whether the context of this home was closed. */
+      public boolean isClosed() {
+         return slot.isClosed();
+      }
+
+      /** @return the Context of this home. */
+      public Context context() {
+         return slot.engine().context();
+      }
+
+      final SlotPool pool;
+      final Slot slot;
+   }
+
+   /**
+    * @return the home of the slot {@code span} claimed, or {@code null} if the span is not a
+    *         pooled claim, no slot was checked out under it, or the slot is closed.
+    */
+   public static Home homeOf(ScriptSpan span) {
+      if(span instanceof SlotClaim claim) {
+         Slot slot = claim.peekSlot();
+
+         if(slot != null && !slot.isClosed()) {
+            return new Home(claim.pool(), slot);
+         }
+      }
+
+      return null;
+   }
+
+   /**
+    * Record {@code tenant} as living on {@code home}, whose slot the calling thread holds (a
+    * batch end, at any claim depth, amendment A1): once the slot is idle, other claims skip it
+    * while it is an exclusive home of the pool, or take it over after a hand-off (A4).
+    */
+   public static void enroll(Home home, SlotTenant tenant) {
+      home.pool.enroll(home.slot, tenant);
+   }
+
+   /** Stop reserving {@code home} for {@code tenant}. Never waits. */
+   public static void leave(Home home, SlotTenant tenant) {
+      home.pool.leave(home.slot, tenant);
+   }
+
+   /**
+    * Make this thread's next checkout prefer a home of {@code tenant}; {@code null} for none.
+    *
+    * @return the previous preference, for {@link #restoreHomeHint}.
+    */
+   public static Object preferHomeOf(SlotTenant tenant) {
+      return SlotClaim.setHomeHint(tenant);
+   }
+
+   public static void restoreHomeHint(Object previous) {
+      SlotClaim.restoreHomeHint(previous);
+   }
+
+   /**
+    * Pull the values of {@code tenant} from its idle {@code home}: take the slot without
+    * waiting, run {@code save} with its codec (a tree snapshot), stop reserving it for the
+    * tenant, and give it back.
+    *
+    * @return {@code false} if the slot is held or closed: nothing was saved.
+    */
+   public static boolean pull(Home home, SlotTenant tenant,
+                              java.util.function.Consumer<OwnedValueCodec> save)
+   {
+      Slot slot = home.slot;
+
+      if(!slot.tryAcquire()) {
+         return false;
+      }
+
+      try {
+         OwnedValueCodec codec = of(slot);
+
+         if(codec == null) {
+            return false;
+         }
+
+         slot.metrics().pulled();
+         save.accept(codec);
+         return true;
+      }
+      finally {
+         try {
+            home.pool.leave(slot, tenant);
+         }
+         finally {
+            home.pool.returnPulled(slot);
+         }
+      }
+   }
+
+   /**
+    * Snapshot {@code roots}, values of {@link #context()}, into one context-free tree with the
+    * context's pristine cloner, so aliases and cycles among them are kept. Runs no script code.
+    * Bounded by the pool's hand-off budget (an entry cap and a time bound, not the script
+    * timeout, amendment A6), and by an interrupt past it. Never throws a RuntimeException.
+    *
+    * @return one node per root: a {@link TreeRef}, or a {@link Lost} naming what that root
+    *         holds that is not kept (a function, a class instance, a Proxy, an accessor...);
+    *         a refusal loses only the root it was found in (A3).
+    */
+   public Object[] snapshotTree(List<Value> roots) {
+      Object[] nodes = new Object[roots.size()];
+
+      if(nodes.length == 0) {
+         return nodes;
+      }
+
+      PoolConfig config = slot.config();
+      Value snap = slot.engine().clonerSnap();
+      List<Object> kept = new ArrayList<>();
+      Map<Integer, String> failed = new HashMap<>();
+      Map<Integer, String> drops = new HashMap<>();
+      long start = System.nanoTime();
+
+      try {
+         Supplier<? extends Throwable> fault = readFault;
+
+         if(fault != null) {
+            Throwable ex = fault.get();
+
+            if(ex instanceof Error error) {
+               throw error;
+            }
+
+            throw (RuntimeException) ex;
+         }
+
+         if(snap == null) {
+            Arrays.fill(nodes, UNREADABLE);
+            return nodes;
+         }
+
+         String text;
+         KEEP_OUT.set(kept);
+         FAILS.set(failed);
+         DROPS.set(drops);
+
+         // a backstop past the cloner's own time checks
+         try(ScriptTimeoutGuard.Guard guard =
+                slot.engine().guard(Duration.ofMillis(config.handOffMillis() + 1000)))
+         {
+            text = snap.execute(ProxyArray.fromList(new ArrayList<Object>(roots)),
+                                config.handOffEntries(), config.handOffMillis()).asString();
+         }
+
+         Tree tree = new Tree(text, kept);
+
+         for(int i = 0; i < nodes.length; i++) {
+            String kind = failed.get(i);
+            nodes[i] = kind != null ? new Lost(kind) : new TreeRef(tree, i, drops.get(i));
+         }
+      }
+      catch(PolyglotException ex) {
+         Arrays.fill(nodes, ex.isInterrupted() || ex.isCancelled()
+            ? new Lost("a value that took longer than " + config.handOffMillis() +
+                       " ms to save") : UNREADABLE);
+      }
+      catch(RuntimeException ex) {
+         Arrays.fill(nodes, UNREADABLE);
+      }
+      finally {
+         KEEP_OUT.remove();
+         FAILS.remove();
+         DROPS.remove();
+         slot.metrics().handedOff(System.nanoTime() - start);
+      }
+
+      return nodes;
+   }
+
+   // the roots of a tree, built once in this (executing) context; bounded by the cloner's time
+   // checks and by the snapshot's entry cap
+   private Value buildTree(Tree tree) {
+      Value build = slot.engine().clonerBuild();
+
+      if(build == null) {
+         throw new IllegalStateException("No cloner on this worksheet script context");
+      }
+
+      KEEP_IN.set(tree.kept);
+
+      try {
+         return build.execute(tree.text, slot.config().handOffMillis());
+      }
+      finally {
+         KEEP_IN.remove();
+         slot.metrics().rebuilt();
+      }
+   }
+
+   /** Count a read of an owned var's object that was made on another context. */
+   public void crossRead() {
+      slot.metrics().crossRead();
+   }
+
+   /** A tree snapshot: the cloner's text and the host objects it keeps by reference. */
+   public static final class Tree {
+      Tree(String text, List<Object> kept) {
+         this.text = text;
+         this.kept = kept;
+      }
+
+      private final String text;
+      private final List<Object> kept;
+   }
+
+   /** One root of a tree snapshot. */
+   public static final class TreeRef {
+      TreeRef(Tree tree, int index, String dropped) {
+         this.tree = tree;
+         this.index = index;
+         this.dropped = dropped;
+      }
+
+      /**
+       * @return what the rebuild of a Date in this root drops ("with the properties a, b",
+       *         "of a subclass"): it is rebuilt as a plain Date from its time value; or
+       *         {@code null}.
+       */
+      public String dropped() {
+         return dropped;
+      }
+
+      private final String dropped;
+
+      private final Tree tree;
+      private final int index;
+   }
+
+   // the cloner's host callbacks, set around one snap / build on this thread
+   static final ThreadLocal<List<Object>> KEEP_OUT = new ThreadLocal<>();
+   static final ThreadLocal<List<Object>> KEEP_IN = new ThreadLocal<>();
+   static final ThreadLocal<Map<Integer, String>> FAILS = new ThreadLocal<>();
+   static final ThreadLocal<Map<Integer, String>> DROPS = new ThreadLocal<>();
+
    /** A Date: its time value (NaN for an Invalid Date) and what a rebuild drops, if any. */
    public static final class DateNode {
       DateNode(double time, String dropped) {
@@ -286,12 +571,17 @@ public final class OwnedValueCodec {
    public static final Lost NOT_A_DATE =
       new Lost("an object that inherits Date.prototype but is no Date");
 
+   /** The objects of a home another thread holds: lost for the batch that pulled them. */
+   public static final Lost HOME_BUSY =
+      new Lost("an object on a script context in use by another thread");
+
    /** The node of a value whose snapshot failed: it is lost, never kept from an older batch. */
    public static final Lost UNREADABLE = new Lost("a value that could not be read");
 
    // tests only (PoolTestSupport.failOwnedValueReads): every snapshot read throws this
    static volatile Supplier<? extends Throwable> readFault;
 
+   private final Slot slot;
    private final Context context;
    private final Value dateConstructor;
    private final Value getTime;

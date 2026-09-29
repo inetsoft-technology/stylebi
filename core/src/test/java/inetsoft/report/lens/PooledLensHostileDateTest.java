@@ -24,6 +24,7 @@ import ch.qos.logback.core.read.ListAppender;
 import inetsoft.report.TableLens;
 import inetsoft.report.composition.execution.AssetQuerySandbox;
 import inetsoft.report.script.TableRowScope;
+import inetsoft.sree.SreeEnv;
 import inetsoft.test.*;
 import inetsoft.util.script.graal.pool.*;
 import org.graalvm.polyglot.Context;
@@ -66,8 +67,10 @@ class PooledLensHostileDateTest {
       "Date.prototype.toJSON = L; Object.prototype.toString = L; " +
       "Function.prototype.call = L; Function.prototype.bind = L; Function.prototype.apply = L; " +
       "})(); ";
-   // witness: an array restarts on another context, with one warning ("holds an array")
-   static final String WITNESS = "var w = w || []; w.push(1); ";
+   // witness: a function is not kept across a hand-off, with one warning ("holds a
+   // function"), so it shows the batches crossed contexts; arrays and objects are kept now
+   // (Testing #77123, B1 residual part 2)
+   static final String WITNESS = "var w = w || function() {}; ";
 
    static String formula(String what) {
       return switch(what) {
@@ -113,6 +116,7 @@ class PooledLensHostileDateTest {
    @AfterEach
    void retire() {
       logger.detachAppender(appender);
+      SreeEnv.remove(MAX_HOMES);
 
       for(WorksheetScriptEnv env : envs) {
          env.retire();
@@ -151,8 +155,9 @@ class PooledLensHostileDateTest {
       assertEquals(1, warns.size(), () -> "one warning: " + warns);
 
       if(what.startsWith("loopEverything")) {
-         // the batches crossed (the array witness restarted), and the Date itself is silent
-         assertTrue(warns.get(0).contains("\"w\" holds an array"), warns.get(0));
+         // the batches crossed (the function witness was lost at the hand-off), and the Date
+         // itself, saved in the same tree, is silent
+         assertTrue(warns.get(0).contains("\"w\" holds a function"), warns.get(0));
       }
       else {
          // the Date was rebuilt on the other context as a plain Date, with the one warning
@@ -187,8 +192,12 @@ class PooledLensHostileDateTest {
                  warns.get(0));
    }
 
-   // rows 1..200 on this thread's context, 201..600 while it is held elsewhere, 601.. back
+   // rows 1..200 on this thread's context, 201..600 while it is held elsewhere, 601.. back.
+   // No exclusive home: a table holding a script object other than a Date keeps it on its
+   // home, which the other thread's claim would otherwise skip; so the claim takes the home
+   // over after a hand-off and the table's next batch really runs on another context
    private double[] crossSlot(String formula) throws Exception {
+      SreeEnv.setProperty(MAX_HOMES, "0");
       AssetQuerySandbox box = PoolTestSupport.poolBox(true);
       WorksheetScriptEnv w = (WorksheetScriptEnv) box.getScriptEnv();
       envs.add(w);
@@ -213,6 +222,7 @@ class PooledLensHostileDateTest {
          .map(ILoggingEvent::getFormattedMessage).toList();
    }
 
+   private static final String MAX_HOMES = "script.ws.contextPool.maxHomes";
    private static final int ROWS = 1200;
    private final Realm realm = new Realm();
    private final List<WorksheetScriptEnv> envs = new ArrayList<>();

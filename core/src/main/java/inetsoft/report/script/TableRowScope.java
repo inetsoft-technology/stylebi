@@ -24,6 +24,7 @@ import inetsoft.util.script.graal.ScriptArrayScope;
 import inetsoft.util.script.graal.ScriptScope;
 import inetsoft.util.script.graal.ScriptValueConverter;
 import inetsoft.util.script.graal.pool.OwnedValueCodec;
+import inetsoft.util.script.graal.pool.SlotTenant;
 import inetsoft.util.script.graal.pool.WsExecContext;
 import org.graalvm.polyglot.Context;
 import org.graalvm.polyglot.Value;
@@ -31,6 +32,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.*;
+import java.util.concurrent.locks.Lock;
 
 /**
  * This is used to execute script in a TableRow scope. It makes the builtin
@@ -38,7 +40,9 @@ import java.util.*;
  * (e.g. new Date()) it would work and the column would be accessible using
  * regular TableRow like field['Date'].
  */
-public class TableRowScope implements DynamicScope, ScriptArrayScope, OwnedVarScope {
+public class TableRowScope implements DynamicScope, ScriptArrayScope, OwnedVarScope,
+   SlotTenant
+{
    public TableRowScope(TableRow base, String basename) {
       this.base = base;
       this.basename = basename;
@@ -83,20 +87,52 @@ public class TableRowScope implements DynamicScope, ScriptArrayScope, OwnedVarSc
    }
 
    /**
-    * At the end of a pooled batch, on the slot {@code span} claimed, save the context-free
-    * form of the script object each owned var of that slot holds (Testing #77123, B1
-    * residual): a later batch that runs on another slot rebuilds a Date from it. Runs at
-    * every batch end, however the batch ended, as it runs no script code
-    * ({@link OwnedValueCodec}). A var holding an object of another slot keeps its snapshot:
-    * that object was not used in this batch. A value that cannot be read is lost (read as
-    * undefined, with a warning, on another slot), never left with an older snapshot. Nothing
-    * with the pool off. Never throws a RuntimeException: it runs in the batch's finally.
+    * The lock of the formula table this scope belongs to, which confines the owned vars. The
+    * pool takes it without waiting before it hands off the objects of the vars (Testing
+    * #77123, B1 residual part 2); without it, arrays and objects are not kept across contexts.
+    */
+   public void setLensLock(Lock lock) {
+      this.lensLock = lock;
+   }
+
+   /**
+    * At the end of a pooled batch, on the slot {@code span} claimed (Testing #77123, B1
+    * residual). Never throws a RuntimeException: it runs in the batch's finally. Nothing with
+    * the pool off.
+    * <ul>
+    *    <li>While the owned vars hold only Dates, save the context-free form of each Date of
+    *    that slot: a later batch that runs on another slot rebuilds it from its time value.
+    *    It runs at every batch end, however the batch ended, as it runs no script code
+    *    ({@link OwnedValueCodec}). A value that cannot be read is lost (read as undefined,
+    *    with a warning, on another slot), never left with an older snapshot.</li>
+    *    <li>Once a var holds another script object (an array, an object), this table is
+    *    <i>resident</i> (part 2): nothing is copied here, whatever the claim depth (amendment
+    *    A1). The slot becomes the home of the objects of its context: once idle, it is kept
+    *    for this table, and this table's next batch prefers it. The objects are saved as one
+    *    tree, Dates included (A8), only at a hand-off: a batch on another context pulls them
+    *    from the idle home, or the pool closes, expires or takes over the home.</li>
+    * </ul>
     */
    public void snapshotOwnedObjects(ScriptSpan span) {
       if(!hasObjects) {
          return;
       }
 
+      if(!resident) {
+         snapshotDates(span);
+      }
+
+      if(resident) {
+         try {
+            enrollHome(span);
+         }
+         catch(RuntimeException ex) {
+            LOG.debug("Failed to keep the script objects of formula variables", ex);
+         }
+      }
+   }
+
+   private void snapshotDates(ScriptSpan span) {
       Set<String> saved = null;
 
       try {
@@ -112,6 +148,7 @@ public class TableRowScope implements DynamicScope, ScriptArrayScope, OwnedVarSc
          saved = new HashSet<>();
          Context context = codec.context();
          Map<Value, Object> ids = new HashMap<>();
+         boolean object = false;
 
          for(Object o : valmap.entrySet()) {
             Map.Entry<?, ?> e = (Map.Entry<?, ?>) o;
@@ -134,11 +171,14 @@ public class TableRowScope implements DynamicScope, ScriptArrayScope, OwnedVarSc
                node = OwnedValueCodec.UNREADABLE;
             }
 
+            // a script object that is not a Date: the table keeps them all on a home
+            object |= node instanceof OwnedValueCodec.Lost && node != OwnedValueCodec.UNREADABLE;
             snapshots.put(name, node);
             saved.add(name);
          }
 
          snapshots.keySet().removeIf(k -> !(valmap.get(k) instanceof Value));
+         resident = object && lensLock != null;
       }
       catch(RuntimeException ex) {
          LOG.debug("Failed to save the script objects of formula variables", ex);
@@ -153,6 +193,119 @@ public class TableRowScope implements DynamicScope, ScriptArrayScope, OwnedVarSc
                snapshots.put(name, OwnedValueCodec.UNREADABLE);
             }
          }
+      }
+   }
+
+   // a resident table's batch end: the claimed slot is the home of the objects of its context
+   private void enrollHome(ScriptSpan span) {
+      OwnedValueCodec.Home home = OwnedValueCodec.homeOf(span);
+      Context context = home != null ? home.context() : OwnedValueCodec.claimedContext(span);
+
+      if(context == null) {
+         return; // no slot claimed: no formula ran in this batch
+      }
+
+      boolean any = false;
+
+      for(Object o : valmap.entrySet()) {
+         @SuppressWarnings("unchecked")
+         Map.Entry<Object, Object> e = (Map.Entry<Object, Object>) o;
+         String name = String.valueOf(e.getKey());
+
+         if(e.getValue() instanceof Value v && owned.contains(name) && isOf(v, context)) {
+            // the live object is current: an older Date snapshot must never be read
+            snapshots.remove(name);
+
+            if(home == null) {
+               // a closed slot: its objects cannot be saved, they are lost
+               e.setValue(OwnedValueCodec.UNREADABLE);
+            }
+
+            any = true;
+         }
+      }
+
+      if(any && home != null) {
+         homes.put(context, home);
+         OwnedValueCodec.enroll(home, this);
+      }
+   }
+
+   /**
+    * Make this thread's next checkout prefer the home of this table's objects, around one
+    * batch; call {@link #restoreHome} with the result in the batch's finally. Costs nothing
+    * for a table that is not resident.
+    */
+   /** What {@link #preferHome} returns when it changed nothing. */
+   public static final Object NO_HINT = new Object();
+
+   public Object preferHome() {
+      return resident && !homes.isEmpty() ? OwnedValueCodec.preferHomeOf(this) : NO_HINT;
+   }
+
+   public static void restoreHome(Object previous) {
+      if(previous != NO_HINT) {
+         OwnedValueCodec.restoreHomeHint(previous);
+      }
+   }
+
+   /**
+    * Hand off (the pool, holding the idle slot of {@code codec}): save the objects that live
+    * there as one tree, under this table's lock taken without waiting.
+    */
+   @Override
+   public boolean handOff(OwnedValueCodec codec) {
+      Lock lock = lensLock;
+
+      if(lock == null || !lock.tryLock()) {
+         return false;
+      }
+
+      try {
+         // re-entered by this table's own thread while it moves its objects
+         if(busy) {
+            return false;
+         }
+
+         busy = true;
+
+         try {
+            park(codec);
+            homes.remove(codec.context());
+         }
+         finally {
+            busy = false;
+         }
+
+         return true;
+      }
+      finally {
+         lock.unlock();
+      }
+   }
+
+   // save the objects of codec's context as one tree: each var then holds its tree root, or
+   // the Lost of what it held that is not kept (A3: only that var)
+   private void park(OwnedValueCodec codec) {
+      Context context = codec.context();
+      List<String> names = new ArrayList<>();
+      List<Value> values = new ArrayList<>();
+
+      for(Object o : valmap.entrySet()) {
+         Map.Entry<?, ?> e = (Map.Entry<?, ?>) o;
+         String name = String.valueOf(e.getKey());
+
+         if(e.getValue() instanceof Value v && owned.contains(name) && isOf(v, context)) {
+            names.add(name);
+            values.add(v);
+         }
+      }
+
+      Object[] nodes = codec.snapshotTree(values);
+
+      for(int i = 0; i < nodes.length; i++) {
+         valmap.put(names.get(i), nodes[i]);
+         snapshots.remove(names.get(i));
       }
    }
 
@@ -187,25 +340,54 @@ public class TableRowScope implements DynamicScope, ScriptArrayScope, OwnedVarSc
    /**
     * Drop the script objects the owned vars hold, once the table has computed all its rows
     * and runs no formula until it is computed again, in a new scope, or is disposed: a script
-    * object keeps its whole context alive, which in a pool may be a retired one. Primitives
-    * are kept. A table that is read only in part (a first page) and then kept in a cache keeps
-    * its objects until it is completed, invalidated (the scope is replaced and becomes
-    * garbage) or disposed; with the pool off this pins nothing, as the table's script
+    * object keeps its whole context alive, which in a pool may be a retired one, and a home
+    * is no longer kept for the table. Primitives are kept. A table that is read only in part
+    * (a first page) and then kept in a cache keeps its objects until it is completed,
+    * invalidated (the scope is replaced and becomes garbage, and the pool drops a home of a
+    * collected scope) or disposed; with the pool off this pins nothing, as the table's script
     * environment keeps its context anyway.
     */
    public void releaseOwnedObjects() {
       ((HashMap<?, ?>) valmap).entrySet().removeIf(
-         e -> e.getValue() instanceof Value && owned.contains(e.getKey()));
+         e -> owned.contains(e.getKey()) && isObjectSlot(e.getValue()));
       // no formula reads them again in this scope
       snapshots.clear();
       hasObjects = false;
+      resident = false;
+
+      for(OwnedValueCodec.Home home : homes.values()) {
+         try {
+            OwnedValueCodec.leave(home, this);
+         }
+         catch(RuntimeException ex) {
+            LOG.debug("Failed to release the home of formula variables", ex);
+         }
+      }
+
+      homes.clear();
+   }
+
+   private static boolean isObjectSlot(Object value) {
+      return value instanceof Value || value instanceof OwnedValueCodec.TreeRef ||
+         value instanceof OwnedValueCodec.Lost;
    }
 
    @Override
    public Object getMember(String id) {
       if(valmap.containsKey(id)) {
          Object v = valmap.get(id);
-         return v instanceof Value gv && owned.contains(id) ? ownedObject(id, gv) : v;
+
+         if(owned.contains(id)) {
+            if(v instanceof Value gv) {
+               return ownedObject(id, gv);
+            }
+
+            if(v instanceof OwnedValueCodec.TreeRef || v instanceof OwnedValueCodec.Lost) {
+               return foreign(id, WsExecContext.currentContext());
+            }
+         }
+
+         return v;
       }
       else if(owned.contains(id) && !base.hasMember(id)) {
          // declared and not assigned yet: undefined (not null), not a same-named name up
@@ -273,9 +455,10 @@ public class TableRowScope implements DynamicScope, ScriptArrayScope, OwnedVarSc
     * The script object an owned var holds, if it belongs to the context executing now. With
     * the context pool, a batch of rows can run on another context than the batch that created
     * it, where it cannot be used (a live reference fails or reads another thread's context).
-    * A Date is rebuilt there from its batch-end snapshot (Testing #77123, B1 residual); any
-    * other object reads as undefined, as the pool's per-batch reset gave, with one warning
-    * per var naming what it holds.
+    * There it is rebuilt: a Date from its batch-end snapshot, the arrays and objects of a
+    * resident table from a tree taken at a hand-off (Testing #77123, B1 residual); a value that
+    * is not kept (a function, a class instance) reads as undefined, with one warning per var
+    * naming what it holds.
     */
    private Object ownedObject(String id, Value v) {
       Context current = WsExecContext.currentContext();
@@ -284,9 +467,14 @@ public class TableRowScope implements DynamicScope, ScriptArrayScope, OwnedVarSc
          return v;
       }
 
-      OwnedValueCodec codec = snapshots.isEmpty() ? null : OwnedValueCodec.current();
+      return foreign(id, current);
+   }
+
+   private Object foreign(String id, Context current) {
+      OwnedValueCodec codec = current == null ? null : OwnedValueCodec.current();
 
       if(codec != null) {
+         codec.crossRead();
          rebuildForeign(codec, current);
 
          if(valmap.get(id) instanceof Value nv && isOf(nv, current)) {
@@ -294,64 +482,152 @@ public class TableRowScope implements DynamicScope, ScriptArrayScope, OwnedVarSc
          }
       }
 
-      valmap.remove(id);
+      Object held = valmap.remove(id);
 
       if(warned.add(id)) {
-         String kind = snapshots.get(id) instanceof OwnedValueCodec.Lost lost
-            ? lost.kind() : "a script object";
-         LOG.warn("The formula variable \"{}\" holds {} created on another " +
-                  "script context of the worksheet context pool; it cannot be used there and " +
-                  "reads as undefined. Keep a number, string, boolean or Date in a variable " +
-                  "that must last for the whole table.", id, kind);
+         if(held == HOME_BUSY) {
+            LOG.warn("The formula variable \"{}\" holds an array or object that stays on a " +
+                     "script context of the worksheet context pool that another thread is " +
+                     "using; a batch of rows on another context reads it as undefined.", id);
+         }
+         else {
+            String kind = held instanceof OwnedValueCodec.Lost lost ? lost.kind()
+               : snapshots.get(id) instanceof OwnedValueCodec.Lost lost ? lost.kind()
+               : "a script object";
+            LOG.warn("The formula variable \"{}\" holds {} created on another " +
+                     "script context of the worksheet context pool; it cannot be used there " +
+                     "and reads as undefined. Keep a number, string, boolean, Date, or an " +
+                     "array or plain object of them, in a variable that must last for the " +
+                     "whole table.", id, kind);
+         }
       }
 
       return UNDEFINED;
    }
 
    /**
-    * Rebuild in {@code current} every owned var that holds a Date of another context, from
-    * its snapshot, all at once so two vars holding one Date still hold one Date. A Date with
-    * own properties or of a subclass is rebuilt as a plain Date from its time value, with one
-    * warning per var. A var that holds anything else is left for its read.
+    * Rebuild in {@code current} every owned var that holds an object of another context, all
+    * at once, so two vars holding one object still hold one object. A resident table first
+    * pulls the objects of each other home (a tree snapshot there, taken without waiting). A
+    * Date with own properties or of a subclass kept by its batch-end snapshot is rebuilt as a
+    * plain Date from its time value, with one warning per var. A var whose object is not kept
+    * is left for its read.
     */
    private void rebuildForeign(OwnedValueCodec codec, Context current) {
-      IdentityHashMap<Object, Value> built = new IdentityHashMap<>();
+      busy = true;
 
-      for(Object o : valmap.entrySet()) {
-         @SuppressWarnings("unchecked")
-         Map.Entry<Object, Object> e = (Map.Entry<Object, Object>) o;
-         String name = String.valueOf(e.getKey());
+      try {
+         if(resident) {
+            pullHomes(current);
+         }
 
-         if(!(e.getValue() instanceof Value v) || !owned.contains(name) || isOf(v, current)) {
+         IdentityHashMap<Object, Value> built = new IdentityHashMap<>();
+
+         for(Object o : valmap.entrySet()) {
+            @SuppressWarnings("unchecked")
+            Map.Entry<Object, Object> e = (Map.Entry<Object, Object>) o;
+            String name = String.valueOf(e.getKey());
+
+            if(!owned.contains(name)) {
+               continue;
+            }
+
+            Object node;
+
+            if(e.getValue() instanceof Value v) {
+               if(isOf(v, current)) {
+                  continue;
+               }
+
+               node = snapshots.get(name);
+            }
+            else if(e.getValue() instanceof OwnedValueCodec.TreeRef) {
+               node = e.getValue();
+            }
+            else {
+               continue;
+            }
+
+            Value nv;
+
+            try {
+               nv = codec.rebuild(node, built);
+            }
+            catch(RuntimeException ex) {
+               // e.g. the batch was interrupted: the var is lost (undefined + warning on its
+               // read), never a half-rebuilt alias
+               LOG.debug("Failed to rebuild the object of the formula variable {}", name, ex);
+
+               if(node instanceof OwnedValueCodec.TreeRef) {
+                  e.setValue(OwnedValueCodec.UNREADABLE);
+               }
+               else {
+                  snapshots.put(name, OwnedValueCodec.UNREADABLE);
+               }
+
+               continue;
+            }
+
+            if(nv == null) {
+               continue;
+            }
+
+            e.setValue(nv);
+
+            String dropped = node instanceof OwnedValueCodec.DateNode d ? d.dropped()
+               : node instanceof OwnedValueCodec.TreeRef ref ? ref.dropped() : null;
+
+            if(dropped != null && warned.add(name)) {
+               LOG.warn("The formula variable \"{}\" holds a Date {}; a batch of rows on " +
+                        "another script context of the worksheet context pool rebuilds it as " +
+                        "a plain Date from its time value only.", name, dropped);
+            }
+         }
+      }
+      finally {
+         busy = false;
+      }
+   }
+
+   // pull the objects of every home but current into trees; a home that is in use by another
+   // thread (e.g. its claim is still held, amendment A1) or closed loses them, with a warning
+   private void pullHomes(Context current) {
+      for(Iterator<Map.Entry<Context, OwnedValueCodec.Home>> it = homes.entrySet().iterator();
+          it.hasNext(); )
+      {
+         Map.Entry<Context, OwnedValueCodec.Home> e = it.next();
+
+         if(e.getKey().equals(current)) {
             continue;
          }
 
-         Object node = snapshots.get(name);
-         Value nv;
+         OwnedValueCodec.Home home = e.getValue();
+         it.remove();
+         boolean pulled;
 
          try {
-            nv = codec.rebuild(node, built);
+            pulled = OwnedValueCodec.pull(home, this, this::park);
          }
          catch(RuntimeException ex) {
-            // e.g. the batch was interrupted: the var is lost (undefined + warning on its
-            // read), never a half-rebuilt alias
-            LOG.debug("Failed to rebuild the Date of the formula variable {}", name, ex);
-            snapshots.put(name, OwnedValueCodec.UNREADABLE);
-            continue;
+            LOG.debug("Failed to pull the objects of formula variables", ex);
+            pulled = false;
          }
 
-         if(nv == null) {
-            continue;
-         }
+         if(!pulled) {
+            OwnedValueCodec.leave(home, this);
+            Object lost = home.isClosed() ? OwnedValueCodec.UNREADABLE : HOME_BUSY;
 
-         e.setValue(nv);
+            for(Object o : valmap.entrySet()) {
+               @SuppressWarnings("unchecked")
+               Map.Entry<Object, Object> v = (Map.Entry<Object, Object>) o;
 
-         if(node instanceof OwnedValueCodec.DateNode d && d.dropped() != null &&
-            warned.add(name))
-         {
-            LOG.warn("The formula variable \"{}\" holds a Date {}; a batch of rows on " +
-                     "another script context of the worksheet context pool rebuilds it as a " +
-                     "plain Date from its time value only.", name, d.dropped());
+               if(v.getValue() instanceof Value gv && owned.contains(v.getKey()) &&
+                  isOf(gv, e.getKey()))
+               {
+                  v.setValue(lost);
+                  snapshots.remove(v.getKey());
+               }
+            }
          }
       }
    }
@@ -370,15 +646,25 @@ public class TableRowScope implements DynamicScope, ScriptArrayScope, OwnedVarSc
    private ScriptScope parent;
    private boolean builtinDate = true;
    // from put(), and the values of the owned vars; written and read only by the formulas of
-   // the one table this scope belongs to, under that table's lock
+   // the one table this scope belongs to, under that table's lock. An owned var holding an
+   // object whose home handed off holds its tree root (OwnedValueCodec.TreeRef) or a Lost
    private HashMap valmap = new HashMap();
    private Set<String> owned = Set.of();
    private final Set<String> warned = new HashSet<>();
-   // the batch-end snapshots (OwnedValueCodec nodes) of the owned vars that hold script
-   // objects, by var name; confined like valmap (written in the batch's finally, before the
-   // lens lock is released)
+   // the batch-end snapshots (OwnedValueCodec nodes) of the owned vars that hold Dates, by
+   // var name; confined like valmap (written in the batch's finally, before the lens lock is
+   // released)
    private final HashMap<String, Object> snapshots = new HashMap<>();
    // set once an owned var held a script object: a table of primitives takes no snapshot
    private boolean hasObjects;
+   // set once an owned var held a script object that is not a Date (B1 residual part 2):
+   // its objects live on homes, one per context they are on; confined like valmap
+   private boolean resident;
+   private final HashMap<Context, OwnedValueCodec.Home> homes = new HashMap<>();
+   // set while this scope moves its own objects, so a hand-off re-entered on its thread waits
+   private boolean busy;
+   private volatile Lock lensLock;
+   // the objects of a home another thread holds, as a pull found them: lost for this batch
+   private static final OwnedValueCodec.Lost HOME_BUSY = OwnedValueCodec.HOME_BUSY;
    private static final Logger LOG = LoggerFactory.getLogger(TableRowScope.class);
 }

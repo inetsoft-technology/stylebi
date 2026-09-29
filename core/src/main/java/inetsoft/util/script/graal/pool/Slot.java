@@ -215,6 +215,63 @@ final class Slot {
       return engine;
    }
 
+   PoolMetrics metrics() {
+      return metrics;
+   }
+
+   /**
+    * @return the configuration of the pool this slot belongs to.
+    */
+   PoolConfig config() {
+      return config;
+   }
+
+   void setConfig(PoolConfig config) {
+      this.config = config;
+   }
+
+   /**
+    * @return whether {@code tenant} lives on this slot (Testing #77123, B1 residual part 2).
+    */
+   boolean hasTenant(SlotTenant tenant) {
+      synchronized(tenants) {
+         return tenants.containsKey(tenant);
+      }
+   }
+
+   /**
+    * @return the tenants living on this slot, a copy.
+    */
+   List<SlotTenant> tenants() {
+      synchronized(tenants) {
+         return new ArrayList<>(tenants.keySet());
+      }
+   }
+
+   boolean hasTenants() {
+      synchronized(tenants) {
+         return !tenants.isEmpty();
+      }
+   }
+
+   void addTenant(SlotTenant tenant) {
+      synchronized(tenants) {
+         tenants.put(tenant, Boolean.TRUE);
+      }
+   }
+
+   void removeTenant(SlotTenant tenant) {
+      synchronized(tenants) {
+         tenants.remove(tenant);
+      }
+   }
+
+   void clearTenants() {
+      synchronized(tenants) {
+         tenants.clear();
+      }
+   }
+
    /**
     * Per-slot state of host objects (e.g. a table's row window), only ever used by the owner.
     */
@@ -269,6 +326,12 @@ final class Slot {
    private final CleanHelper cleaner;
    private final PoolMetrics metrics;
    private final Map<Object, Object> attachments = new WeakHashMap<>();
+   // the formula tables whose owned objects live on this context (B1 residual part 2), weakly
+   private final Map<SlotTenant, Boolean> tenants = new WeakHashMap<>();
+   // set while this is an exclusive home, which other claims skip while it is idle; it counts
+   // toward the node's homes until revoked or collected. Guarded by the pool's homes lock
+   Cleaner.Cleanable exclusiveHome;
+   private volatile PoolConfig config = PoolConfig.defaults();
    // the clean's timeout; only tests shorten it
    Duration cleanTimeout = CleanHelper.TIMEOUT;
    private Cleaner.Cleanable nodeCount; // set at creation, before the slot is shared

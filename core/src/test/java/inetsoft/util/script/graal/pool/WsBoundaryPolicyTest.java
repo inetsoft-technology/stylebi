@@ -60,14 +60,19 @@ class WsBoundaryPolicyTest {
                                         // Testing #77123, the table-owned formula var
                                         "belongs to its table", "var r; if(c)",
                                         "try/catch", "Use let", "logs one warning",
-                                        "kept only within one batch",
                                         "count the row twice",
                                         // Testing #77123 B1 residual, a Date var is kept
-                                        "string, boolean or Date", "rebuilt from its time value",
-                                        "array-, function- or object-valued var",
+                                        "rebuilt from its time value",
+                                        // B1 residual part 2, arrays and objects are kept,
+                                        // functions and Intl are not
+                                        "Date, array or plain object",
+                                        "function- or class-valued var", "hand-off",
+                                        "an Intl formatter", ".handOffMillis (5000)",
+                                        ".handOffEntries (200000)", ".maxHomes (1)",
+                                        ".maxHomesPerNode (128)",
                                         // context-pool regression D1, the pool-off first batch
                                         "evaluates what pool off would", "2N + 10",
-                                        "undeclared", "object-valued var",
+                                        "undeclared", "class-valued var",
                                         "turns script batching off",
                                         // Feature #77123, the pool is on by default
                                         "on by default", "Turning it off",

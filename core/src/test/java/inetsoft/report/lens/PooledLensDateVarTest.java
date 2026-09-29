@@ -53,8 +53,11 @@ import static org.junit.jupiter.api.Assertions.*;
  * (Testing #77123, B1 residual): as with the pool off, the var keeps one Date for the whole
  * table - in-place changes, aliases, an Invalid Date - whichever context a batch runs on. At
  * the end of each batch the Date's time value is saved without running script code; a batch
- * on another context rebuilds it there from that time value. An array, object or function
- * still reads as undefined there, with one warning naming what it holds.
+ * on another context rebuilds it there from that time value. A table holding an array or
+ * object keeps it on its home context (B1 residual part 2); these tests run with no exclusive
+ * home, so another thread's claim takes the home over after a hand-off and the table's next
+ * batch really runs on another context: an array or object is kept there, a function reads as
+ * undefined, with one warning naming what it holds.
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class, LibManagerTestConfiguration.class, PluginsTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
@@ -112,6 +115,7 @@ class PooledLensDateVarTest {
    void retire() throws Exception {
       logger.detachAppender(appender);
       PoolTestSupport.failOwnedValueReads(null);
+      SreeEnv.remove(MAX_HOMES);
 
       for(WorksheetScriptEnv env : envs) {
          env.retire();
@@ -448,24 +452,34 @@ class PooledLensDateVarTest {
    }
 
    /**
-    * An array, object or function is still not kept on another context: it reads as
-    * undefined there, with one warning naming what it holds.
+    * An array or object is kept on another context (B1 residual part 2), with no warning; a
+    * function is not: it reads as undefined there, with one warning naming it, and the idiom
+    * creates it again, so the count is kept.
     */
    @ParameterizedTest(name = "{0}")
    @ValueSource(strings = { "an array", "an object", "a function" })
-   void anArrayObjectOrFunctionReadsAsUndefinedWithOneWarning(String kind) throws Exception {
+   void anArrayOrObjectIsKeptAndAFunctionReadsAsUndefinedWithOneWarning(String kind)
+      throws Exception
+   {
       String f = switch(kind) {
       case "an array" -> "var a = a || []; a.push(1); a.length";
       case "an object" -> "var a = a || {n: 0}; a.n++; a.n";
       default -> "var a = a || function(x) { return x + 1; }; var k = a(k || 0); k";
       };
       double[] v = crossSlot("held", f);
-      assertEquals(200.0, v[200]);
+      assertAll(v, kind);
       List<ILoggingEvent> warns = warnings();
-      assertEquals(1, warns.size(), () -> "one warning: " + warns);
-      String msg = warns.get(0).getFormattedMessage();
-      assertTrue(msg.contains("\"a\" holds " + kind + " created on another"), msg);
-      assertTrue(msg.contains("Keep a number, string, boolean or Date"), msg);
+
+      if(kind.equals("a function")) {
+         assertEquals(1, warns.size(), () -> "one warning: " + warns);
+         String msg = warns.get(0).getFormattedMessage();
+         assertTrue(msg.contains("\"a\" holds " + kind + " created on another"), msg);
+         assertTrue(msg.contains("Keep a number, string, boolean, Date, or an array or " +
+                                 "plain object"), msg);
+      }
+      else {
+         assertTrue(warns.isEmpty(), () -> "no warning: " + warns);
+      }
    }
 
    /** A completed table keeps no script object and no snapshot. */
@@ -553,7 +567,9 @@ class PooledLensDateVarTest {
          bad.subList(0, Math.min(5, bad.size())));
    }
 
+   // no exclusive home (see the class comment); a Date-only table never has a home
    private AssetQuerySandbox box() throws Exception {
+      SreeEnv.setProperty(MAX_HOMES, "0");
       AssetQuerySandbox box = PoolTestSupport.poolBox(true);
       envs.add((WorksheetScriptEnv) box.getScriptEnv());
       return box;
@@ -569,6 +585,7 @@ class PooledLensDateVarTest {
       ((SreeEnv.Value) field.get(null)).updateValue();
    }
 
+   private static final String MAX_HOMES = "script.ws.contextPool.maxHomes";
    private static final int ROWS = 1200;
    private final List<WorksheetScriptEnv> envs = new ArrayList<>();
    private Logger logger;

@@ -75,6 +75,73 @@ public final class PoolMetrics {
       NODE_EXECS.incrementAndGet();
    }
 
+   // lens-owned objects across contexts (Testing #77123, B1 residual part 2)
+   void handedOff(long nanos) {
+      handOffs.incrementAndGet();
+      handOffNanos.addAndGet(nanos);
+      NODE_HAND_OFFS.incrementAndGet();
+   }
+
+   void rebuilt() {
+      rebuilds.incrementAndGet();
+   }
+
+   void pulled() {
+      pulls.incrementAndGet();
+   }
+
+   void crossRead() {
+      crossReads.incrementAndGet();
+   }
+
+   void tookOver() {
+      takeOvers.incrementAndGet();
+   }
+
+   /** @return the tree snapshots of lens-owned objects taken at a hand-off. */
+   public long getHandOffs() {
+      return handOffs.get();
+   }
+
+   /** @return the time spent in those snapshots, in nanoseconds. */
+   public long getHandOffNanos() {
+      return handOffNanos.get();
+   }
+
+   /** @return the tree snapshots rebuilt on another context. */
+   public long getRebuilds() {
+      return rebuilds.get();
+   }
+
+   /** @return the hand-offs pulled from an idle home by a batch on another context. */
+   public long getPulls() {
+      return pulls.get();
+   }
+
+   /** @return the reads of a lens-owned object made on another context. */
+   public long getCrossReads() {
+      return crossReads.get();
+   }
+
+   /** @return the idle homes another claim took over after a hand-off. */
+   public long getTakeOvers() {
+      return takeOvers.get();
+   }
+
+   /** @return the exclusive homes of this node. */
+   public static int nodeHomes() {
+      return NODE_HOMES.get();
+   }
+
+   /**
+    * Count an exclusive home of this node until the handle is cleaned or the slot collected.
+    */
+   static Cleaner.Cleanable homeGranted(Object slot) {
+      NODE_HOMES.incrementAndGet();
+      // the action must not reference the slot
+      return CLEANER.register(slot, NODE_HOMES::decrementAndGet);
+   }
+
    public int getSize() {
       return size.get();
    }
@@ -212,10 +279,12 @@ public final class PoolMetrics {
       long execs = NODE_EXECS.get();
       return String.format(
          "slots=%d, maxSandboxSlots=%d, creations=%d, evictions=%d, doomedCloses=%d, " +
-         "execs=%d, cleans=%d, cleansPerExec=%.4f, stateHazards=%d, copyMutations=%d",
+         "execs=%d, cleans=%d, cleansPerExec=%.4f, stateHazards=%d, copyMutations=%d, " +
+         "homes=%d, handOffs=%d",
          NODE_SLOTS.get(), NODE_MAX_SANDBOX_SLOTS.get(), NODE_CREATIONS.get(),
          NODE_EVICTIONS.get(), NODE_DOOMED_CLOSES.get(), execs, cleans, ratio(cleans, execs),
-         ScriptStateLint.nodeStateHazardScripts(), NODE_COPY_MUTATIONS.get());
+         ScriptStateLint.nodeStateHazardScripts(), NODE_COPY_MUTATIONS.get(), NODE_HOMES.get(),
+         NODE_HAND_OFFS.get());
    }
 
    /**
@@ -255,6 +324,8 @@ public final class PoolMetrics {
    private static final AtomicLong NODE_INTERRUPT_TIMEOUTS = new AtomicLong();
    private static final AtomicLong NODE_LEAKED_CLAIMS = new AtomicLong();
    private static final AtomicLong NODE_COPY_MUTATIONS = new AtomicLong();
+   private static final AtomicInteger NODE_HOMES = new AtomicInteger();
+   private static final AtomicLong NODE_HAND_OFFS = new AtomicLong();
    // read by the lock-stall probe, which must not read properties (bug #76967)
    private static volatile int nodeSlotWarnThreshold = Integer.MAX_VALUE;
    private final AtomicInteger size = new AtomicInteger();
@@ -264,4 +335,10 @@ public final class PoolMetrics {
    private final AtomicLong doomedCloses = new AtomicLong();
    private final AtomicLong cleans = new AtomicLong();
    private final AtomicLong execs = new AtomicLong();
+   private final AtomicLong handOffs = new AtomicLong();
+   private final AtomicLong handOffNanos = new AtomicLong();
+   private final AtomicLong rebuilds = new AtomicLong();
+   private final AtomicLong pulls = new AtomicLong();
+   private final AtomicLong crossReads = new AtomicLong();
+   private final AtomicLong takeOvers = new AtomicLong();
 }
