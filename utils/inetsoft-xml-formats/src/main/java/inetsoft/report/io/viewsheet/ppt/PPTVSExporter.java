@@ -215,6 +215,16 @@ public class PPTVSExporter extends AbstractVSExporter {
    }
 
    /**
+    * fix bug#77287 PowerPoint does not clip a table at its design pixel height, so every
+    * row of the region lens is written. Count every crosstab row toward the design height,
+    * as for freehand and plain tables.
+    */
+   @Override
+   protected boolean isBlankRowHeightExempt(TableDataVSAssembly table) {
+      return false;
+   }
+
+   /**
     * Get the number of rows to display in a table.
     */
    @Override
