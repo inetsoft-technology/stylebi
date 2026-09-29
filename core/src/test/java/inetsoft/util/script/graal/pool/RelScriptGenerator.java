@@ -38,23 +38,14 @@ final class RelScriptGenerator {
     * @param leftovers  names left as non-configurable globals (spec §14.1 leftovers).
     * @param foreign    configurable foreign keys it leaves (the clean deletes up to 32).
     * @param stage      0 ordinary, 1 locks the global, 2 ends the script (throw/loop).
-    * @param finding    the finding this block reproduces, or null.
     */
    record Block(String kind, String source, Category category, Set<String> patched,
-                Set<String> leftovers, int foreign, int stage, String finding)
+                Set<String> leftovers, int foreign, int stage)
    {
    }
 
    RelScriptGenerator(long seed) {
       this.random = new Random(seed);
-   }
-
-   /**
-    * Blocks marked with one of these findings are never generated.
-    */
-   RelScriptGenerator exclude(Set<String> findings) {
-      this.excluded = findings;
-      return this;
    }
 
    /**
@@ -64,25 +55,6 @@ final class RelScriptGenerator {
    RelScriptGenerator avoid(Set<String> names) {
       this.avoided = names;
       return this;
-   }
-
-   /**
-    * Whether infinite-loop blocks (1 s each) may be generated.
-    */
-   RelScriptGenerator loops(boolean loops) {
-      this.loops = loops;
-      return this;
-   }
-
-   Gen polluter() {
-      return combine(blocks());
-   }
-
-   /**
-    * The blocks of the last {@link #polluter()}.
-    */
-   List<Block> lastBlocks() {
-      return last;
    }
 
    /**
@@ -98,14 +70,7 @@ final class RelScriptGenerator {
       List<Block> list = new ArrayList<>();
 
       for(int i = 0; i < n; i++) {
-         Block b;
-
-         do {
-            b = block(free);
-         }
-         while(b.finding() != null && excluded.contains(b.finding()));
-
-         list.add(b);
+         list.add(block(free));
       }
 
       // keep at most one block of each later stage, placed in stage order
@@ -132,7 +97,6 @@ final class RelScriptGenerator {
          result.add(end);
       }
 
-      last = result;
       return result;
    }
 
@@ -299,19 +263,19 @@ final class RelScriptGenerator {
          String[] ops = {"freeze", "seal", "preventExtensions"};
          String op = ops[random.nextInt(ops.length)];
          return new Block(op, "Object." + op + "(globalThis);", Category.DISCARDS_SLOT,
-                          Set.of(), Set.of(), 0, 1, null);
+                          Set.of(), Set.of(), 0, 1);
       }
       if(pick < 900) {
          return new Block("throw", n + " = " + v + "; throw new Error('zq partial');",
-                          Category.CLEANABLE, Set.of(), Set.of(), 1, 2, null);
+                          Category.CLEANABLE, Set.of(), Set.of(), 1, 2);
       }
-      if(!loops || random.nextInt(40) != 0) {
+      if(random.nextInt(40) != 0) {
          return clean("Reflect.set", "Reflect.set(globalThis, '" + n + "', " + v + ");",
                       Set.of(), 1);
       }
 
       return new Block("loop", n + " = 1; while(true) {}", Category.CLEANABLE, Set.of(),
-                       Set.of(), 1, 2, null);
+                       Set.of(), 1, 2);
    }
 
    private Block setPrototype(String n, String v) {
@@ -319,13 +283,13 @@ final class RelScriptGenerator {
 
       if(kind == 0) {
          return new Block("setPrototypeOf null", "Object.setPrototypeOf(globalThis, null);",
-                          Category.CLEANABLE, Set.of(), Set.of(), 0, 0, F_PROTO);
+                          Category.CLEANABLE, Set.of(), Set.of(), 0, 0);
       }
 
       String proto = kind == 1 ? "{" + n + ": " + v + "}" : "Object.create(Object.prototype, " +
          "{" + n + ": {value: " + v + "}})";
       return new Block("setPrototypeOf", "Object.setPrototypeOf(globalThis, " + proto + ");",
-                       Category.CLEANABLE, Set.of(), Set.of(), 0, 0, F_PROTO);
+                       Category.CLEANABLE, Set.of(), Set.of(), 0, 0);
    }
 
    private Block prototypePatch(String n, String v) {
@@ -359,20 +323,20 @@ final class RelScriptGenerator {
    }
 
    private static Block clean(String kind, String src, Set<String> leftovers, int foreign) {
-      return new Block(kind, src, Category.CLEANABLE, Set.of(), leftovers, foreign, 0, null);
+      return new Block(kind, src, Category.CLEANABLE, Set.of(), leftovers, foreign, 0);
    }
 
    private static Block discard(String kind, String src) {
-      return new Block(kind, src, Category.DISCARDS_SLOT, Set.of(), Set.of(), 0, 0, null);
+      return new Block(kind, src, Category.DISCARDS_SLOT, Set.of(), Set.of(), 0, 0);
    }
 
    private static Block b7(String kind, String src, String... patched) {
-      return new Block(kind, src, Category.B7_PROTOTYPE, Set.of(patched), Set.of(), 0, 0, null);
+      return new Block(kind, src, Category.B7_PROTOTYPE, Set.of(patched), Set.of(), 0, 0);
    }
 
    private static Block b8(String kind, String src, String... patched) {
       return new Block(kind, src, Category.B8_BASELINE_MUTATION, Set.of(patched), Set.of(), 0,
-                       0, null);
+                       0);
    }
 
    private String value() {
@@ -445,8 +409,6 @@ final class RelScriptGenerator {
       return "try { out.push('" + prefix + ":" + n + "=' + typeof " + on + "['" + n + "']); } " +
          "catch(e) { out.push('" + prefix + ":" + n + "=throw'); }";
    }
-
-   static final String F_PROTO = "FZ1-global-prototype";
 
    // own keys with typeof and descriptor flags; a data property's primitive value is shown,
    // and an object or function value gets an identity signature (native or source length and
@@ -525,8 +487,5 @@ final class RelScriptGenerator {
    };
 
    private final Random random;
-   private Set<String> excluded = Set.of();
    private Set<String> avoided = Set.of();
-   private boolean loops = true;
-   private List<Block> last = List.of();
 }

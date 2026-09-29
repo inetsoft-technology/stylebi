@@ -81,15 +81,14 @@ class RelCleanFuzzTest {
 
    @Test
    void chainedCleanFuzz() throws Exception {
-      Stats stats = fuzz(seeds(350, 200_000), true, Set.of());
+      Stats stats = fuzz(seeds(350, 200_000), true);
       stats.print("chained");
       stats.assertClean();
    }
 
    @Test
    void freshEnvCleanFuzz() throws Exception {
-      Stats stats = fuzz(Long.getLong("rel.fuzz.freshSeeds", LONG ? 5_000 : 60), false,
-                         Set.of());
+      Stats stats = fuzz(Long.getLong("rel.fuzz.freshSeeds", LONG ? 5_000 : 60), false);
       stats.print("fresh");
       stats.assertClean();
    }
@@ -100,7 +99,7 @@ class RelCleanFuzzTest {
    @Test
    void chainedCleanFuzzWithParanoia() throws Exception {
       PoolParanoia.forced = true;
-      Stats stats = fuzz(seeds(200, 20_000), true, Set.of());
+      Stats stats = fuzz(seeds(200, 20_000), true);
       stats.print("chained+paranoid");
       stats.assertClean();
       assertEquals(0, stats.paranoiaViolations, stats.paranoiaKinds::toString);
@@ -141,7 +140,7 @@ class RelCleanFuzzTest {
     */
    @Test
    void chainedCleanFuzzWithGlobalPrototypeBlocks() throws Exception {
-      Stats stats = fuzz(seeds(200, 20_000), true, Set.of(), 500_000L);
+      Stats stats = fuzz(seeds(200, 20_000), true, 500_000L);
       stats.print("chained+FZ1");
       stats.assertClean();
    }
@@ -178,11 +177,11 @@ class RelCleanFuzzTest {
       return Long.getLong("rel.fuzz.seeds", LONG ? longDef : def);
    }
 
-   Stats fuzz(long count, boolean chained, Set<String> excluded) throws Exception {
-      return fuzz(count, chained, excluded, 0L);
+   Stats fuzz(long count, boolean chained) throws Exception {
+      return fuzz(count, chained, 0L);
    }
 
-   Stats fuzz(long count, boolean chained, Set<String> excluded, long offset) throws Exception {
+   Stats fuzz(long count, boolean chained, long offset) throws Exception {
       long base = Long.getLong("rel.fuzz.seed", 77123L) + offset;
       Stats stats = new Stats();
       WorksheetScriptEnv ref = newEnv();
@@ -199,7 +198,7 @@ class RelCleanFuzzTest {
             slotLeftovers.clear();
          }
 
-         RelScriptGenerator gen = new RelScriptGenerator(seed).exclude(excluded)
+         RelScriptGenerator gen = new RelScriptGenerator(seed)
             .avoid(new HashSet<>(slotLeftovers));
          List<Block> blocks = gen.blocks();
          Gen p = RelScriptGenerator.combine(blocks);
@@ -213,10 +212,6 @@ class RelCleanFuzzTest {
          if(paranoid > 0) {
             stats.paranoiaViolations += paranoid;
             blocks.forEach(b -> stats.paranoiaKinds.merge(b.kind(), 1, Integer::sum));
-
-            if(blocks.stream().noneMatch(b -> RelScriptGenerator.F_PROTO.equals(b.finding()))) {
-               stats.paranoiaWithoutPrototype++;
-            }
          }
 
          recent.addLast("seed " + seed + ": " + p.source().replace('\n', ' '));
@@ -226,7 +221,7 @@ class RelCleanFuzzTest {
          }
 
          if(o.violation() != null) {
-            stats.report(seed, blocks, probe, o, recent, excluded);
+            stats.report(seed, blocks, probe, o, recent);
          }
 
          if(o.discarded()) {
@@ -364,9 +359,9 @@ class RelCleanFuzzTest {
    /**
     * Run a probe. Probes run under the long timeout (a probe once needed 1484 ms, and up to
     * 5 s on a loaded machine, under the 1 s loop timeout); it is read-only, so a probe that
-    * really ran out its timeout is run again, at most twice. An interrupt that stops a probe early, or any interrupt of the probe right after
-    * a loop block, could be the loop's interrupt leaking onto the next exec, so it is never
-    * retried: it becomes a violation.
+    * really ran out its timeout is run again, at most twice. An interrupt that stops a probe
+    * early, or any interrupt of the probe right after a loop block, could be the loop's
+    * interrupt leaking onto the next exec, so it is never retried: it becomes a violation.
     */
    private static String probe(WorksheetScriptEnv env, String probe, boolean afterLoop)
       throws Exception
@@ -493,8 +488,8 @@ class RelCleanFuzzTest {
          blocks.forEach(b -> kinds.merge(b.kind().split(" ")[0], 1, Integer::sum));
       }
 
-      void report(long seed, List<Block> blocks, String probe, Outcome o, Deque<String> recent,
-                  Set<String> excluded) throws Exception
+      void report(long seed, List<Block> blocks, String probe, Outcome o, Deque<String> recent)
+         throws Exception
       {
          violations++;
 
@@ -528,8 +523,8 @@ class RelCleanFuzzTest {
             unexpectedDiscardKinds + " threw=" + threw +
             " (unexpected " + unexpectedThrows + ") driftSeen=" + driftSeen +
             " leftoverDiffs=" + leftoverDiffs + " violations=" + violations +
-            " paranoiaViolations=" + paranoiaViolations + " (without FZ1 block: " +
-            paranoiaWithoutPrototype + ") refCreations=" + refCreations + " probes=" + probes +
+            " paranoiaViolations=" + paranoiaViolations + " refCreations=" + refCreations +
+            " probes=" + probes +
             " probeRetries=" + probeRetries +
             "\n[rel-fuzz] " + mode + " block kinds: " + kinds);
       }
@@ -550,9 +545,8 @@ class RelCleanFuzzTest {
       long seeds, millis, refCreations;
       int probes, probeRetries;
       int discards, expectedDiscards, unexpectedDiscards, threw, unexpectedThrows, driftSeen,
-         leftoverDiffs,
-         violations;
-      long paranoiaViolations, paranoiaWithoutPrototype;
+         leftoverDiffs, violations;
+      long paranoiaViolations;
    }
 
    private static final boolean LONG = Boolean.getBoolean("rel.long");
