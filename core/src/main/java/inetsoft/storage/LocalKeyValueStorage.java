@@ -68,14 +68,10 @@ class LocalKeyValueStorage<T extends Serializable> implements KeyValueStorage<T>
          // possibly incomplete, storage instance rather than fail startup outright. "loaded"
          // is left false so health checks (see inetsoft.util.health.ClusterHealthService) can
          // tell "loaded fine" apart from "timed out here" instead of reporting healthy either
-         // way. A distinct, store-id-specific message here (rather than the generic one below)
-         // is exactly the "log states clearly why" behavior an operator watching a stalled
-         // startup needs (Bug #77225). Recovery from here is left to the store's own
-         // retryLoad() (invoked by callers like PropertiesEngine.getStorage() the next time
-         // this store is accessed) rather than a bespoke listener on this attempt's future —
-         // see Bug #77225 review round 2, which found an async self-heal here could not
-         // reliably beat a K8s startup probe's budget anyway, so it added complexity without
-         // closing that gap; retryLoad() is the one, already-reviewed recovery path.
+         // way. Recovery from here is left to the store's own retryLoad(), invoked by callers
+         // like PropertiesEngine.getStorage() the next time this store is accessed, rather than
+         // a listener on this attempt's future, since an async self-heal here could not
+         // reliably beat a Kubernetes startup probe's budget anyway.
          LoggerFactory.getLogger(getClass()).warn(
             "Key-value storage '{}' did not finish loading within the 3 minute timeout; " +
             "this node is starting with a possibly incomplete or empty store", id, e);
