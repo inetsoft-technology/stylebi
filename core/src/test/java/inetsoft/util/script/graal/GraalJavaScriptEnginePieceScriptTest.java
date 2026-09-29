@@ -209,6 +209,91 @@ class GraalJavaScriptEnginePieceScriptTest {
       assertTrue(crlf.contains("(line 4)"), crlf);
    }
 
+   // a piece declaring one name with function and var/let/const parses as a script but
+   // not as the block of its with: it keeps the eval wrapper, with the values of main
+   @Test void aFunctionAndVarOfOneNameKeepTheEvalWrapper() throws Exception {
+      assertSharedContextValues(
+         "function f77249(){ return 'f' + value } var f77249; if(value > 0) { f77249() }",
+         "f5", "f7", null);
+      assertSharedContextValues(
+         "let lf77249 = 1; function lf77249(){ return 'l' } if(value > 0) { lf77249 }",
+         1.0, 1.0, null);
+      assertSharedContextValues(
+         "const cf77249 = 1; function cf77249(){ return 'c' } if(value > 0) { cf77249 }",
+         1.0, 1.0, null);
+   }
+
+   // the same name in different pieces, or two functions of one name, still split
+   @Test void aFunctionAndVarInDifferentPiecesStillSplit() throws Exception {
+      assertInstanceOf(GraalJavaScriptEngine.PieceScript.class,
+         engine.compile("var g77249 = 1; if(value > 0) { g77249 } function g77249(){}"));
+      assertInstanceOf(GraalJavaScriptEngine.PieceScript.class,
+         engine.compile("function h77249(){ return 'a' } function h77249(){ return 'b' } " +
+                        "if(value > 0) { h77249() }"));
+      assertValues(engine.compile(
+         "function h77249(){ return 'a' } function h77249(){ return 'b' + value } " +
+         "if(value > 0) { h77249() }"), "b5", "b7", null);
+   }
+
+   // the reset of a split formula only takes the vars outside any function-like body:
+   // a var of a method shorthand, a class method or a function with a default object
+   // parameter is not reset, so a global of that name (e.g. of onInit) is kept
+   @Test void theResetSkipsVarsOfMethodBodies() throws Exception {
+      run("var t77249 = 5; var u77249 = 6; var w77249 = 7");
+      assertEquals(9.0, run(
+         "let o = { sq(x) { var t77249 = x * x; return t77249 } }; if(o) { o.sq(3) }"));
+      assertEquals(5.0, run("t77249"));
+      assertEquals(4.0, run(
+         "let C77249 = class { get two() { var u77249 = 2; return u77249 } m(a) { " +
+         "var u77249 = a; return u77249 } }; if(true) { new C77249().m(2) * new C77249().two }"));
+      assertEquals(6.0, run("u77249"));
+      assertEquals(1.0, run(
+         "function d77249(a = { k: 1 }) { var w77249 = a.k; return w77249 } if(true) { d77249() }"));
+      assertEquals(7.0, run("w77249"));
+
+      // a top-level var in a control-flow block is still reset
+      run("var z77249 = 8");
+      assertNull(run("if(false) { var z77249 = 1 } if(true) { z77249 }"));
+   }
+
+   // the pieces count a line break as the plain path does
+   @Test void errorLinesOfOtherLineBreaksMatchThePlainPath() {
+      for(String br : new String[] { "\r", " ", " ", "\r\n", "\n" }) {
+         String pieces = line(assertThrows(Exception.class, () ->
+            run("var a = 1;" + br + "if(a) {" + br + "  undefinedFnS77249() }")).getMessage());
+         String plain = line(assertThrows(Exception.class, () ->
+            run("var a = 1;" + br + "{" + br + "  undefinedFnT77249() }")).getMessage());
+         assertNotNull(plain, "plain line for " + (int) br.charAt(0));
+         assertEquals(plain, pieces, "line break " + (int) br.charAt(0));
+      }
+   }
+
+   private static String line(String msg) {
+      java.util.regex.Matcher m = java.util.regex.Pattern.compile("\\(line \\d+\\)").matcher(msg);
+      return m.find() ? m.group() : null;
+   }
+
+   // one compiled script run on one engine with value 5, 7, -1, as a viewsheet runs it
+   private void assertSharedContextValues(String f, Object... expected) throws Exception {
+      Object script = engine.compile(f);
+      assertInstanceOf(Source.class, script, f);
+      assertTrue(((Source) script).getCharacters().toString().contains("eval("), f);
+      assertValues(script, expected);
+   }
+
+   private void assertValues(Object script, Object... expected) throws Exception {
+      String f = script.toString();
+      int[] values = { 5, 7, -1 };
+
+      for(int i = 0; i < values.length; i++) {
+         MapScope scope = new MapScope();
+         scope.putMember("value", values[i]);
+         Object v = engine.exec(script, scope, scope);
+         assertEquals(expected[i], v instanceof Number n ? n.doubleValue() : v,
+                      f + " value " + values[i]);
+      }
+   }
+
    // the compiled form holds no Value of the Context that compiled it
    @Test void piecesRunOnAnotherEngine() throws Exception {
       Object script = engine.compile("var v = value; if(v > 100) { 0 } else { v + 1 }");

@@ -135,6 +135,30 @@ class FormulaTableLensVarTest {
       assertCounts(eot(lens), 1, "after invalidate, read to the end");
    }
 
+   // Bug #77249: a piece declaring one name with function and var/let parses as a script
+   // but not as the block of its with; it keeps the eval wrapper and computes every row
+   @ParameterizedTest(name = "pool={0}")
+   @ValueSource(booleans = { false, true })
+   void aFunctionAndVarOfOneNameComputeEveryRow(boolean pool) throws Exception {
+      AssetQuerySandbox box = box(pool);
+      TableLens fn = PostProcessor.formula(
+         base(ROWS), new String[] { "out" },
+         new String[] { "function ff(){ return 'f' + field['id'] } var ff; " +
+                        "if(field['id'] > 0) { ff() }" },
+         box.getScriptEnv(), box.getScope(), null, "F", null, List.of(String.class),
+         new boolean[] { false });
+      TableLens let = make(box, base(ROWS),
+         "let lf = field['id']; function lf(){ return 0 } if(field['id'] % 2 == 0) { lf }", "L");
+
+      for(int r = 1; r <= ROWS; r++) {
+         assertTrue(fn.moreRows(r));
+         assertEquals("f" + r, fn.getObject(r, 2), "function+var row " + r);
+         assertTrue(let.moreRows(r));
+         assertEquals(r % 2 == 0 ? (Object) (double) r : null, numOrNull(let.getObject(r, 2)),
+                      "let+function row " + r);
+      }
+   }
+
    @ParameterizedTest(name = "pool={0}")
    @ValueSource(booleans = { false, true })
    void twoColumnsShareAVar(boolean pool) throws Exception {

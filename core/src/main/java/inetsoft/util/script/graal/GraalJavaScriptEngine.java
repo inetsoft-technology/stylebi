@@ -1017,7 +1017,8 @@ public class GraalJavaScriptEngine implements AutoCloseable {
     * Bug #77322); there is no column padding, as only the line is reported.
     *
     * @return the piece script, or {@code null} if a piece cannot be located in
-    *         {@code body} (defensive; the caller then keeps the eval wrapper).
+    *         {@code body} (defensive) or a built piece does not parse as it runs;
+    *         the caller then keeps the eval wrapper.
     */
    private Object buildPieceScript(String body, String lexicalBody, List<String> statements) {
       Set<String> resetNames = collectInitializerlessLexicalNames(lexicalBody);
@@ -1037,8 +1038,9 @@ public class GraalJavaScriptEngine implements AutoCloseable {
             return null;
          }
 
-         // count the line breaks before the piece
-         lines += countLineBreaks(body, scanned, at);
+         // count the line breaks before the piece as the reported line of the plain
+         // path does: LF, CRLF and a lone CR; U+2028/U+2029 do not start a line there
+         lines += countReportedLineBreaks(body, scanned, at);
          scanned = at;
 
          StringBuilder sb = new StringBuilder(
@@ -1055,7 +1057,18 @@ public class GraalJavaScriptEngine implements AutoCloseable {
          pos = at + stmt.length();
       }
 
-      return new PieceScript(pieces, body, resetNames, statements);
+      // A piece is parse-checked as a script (piecesAllParse) but runs as the block of
+      // its with. A block has an early error a script does not: a name declared both
+      // lexically and with var. A function declared in a block is lexical (sloppy
+      // mode; Annex B relaxes only function-vs-function), so a piece like
+      // `function f(){} var f;` (or a rewritten `let`/`const` plus a same-named
+      // function) would throw "already declared" on every run, where the eval wrapper
+      // (in whose eval code the function is var scoped) runs it. Parse each built
+      // piece as it runs, once here at compile time (the caller caches the compiled
+      // script, and the Context reuses the parse for the first eval); if one fails,
+      // keep the eval wrapper.
+      return sourcesAllParse(pieces) ?
+         new PieceScript(pieces, body, resetNames, statements) : null;
    }
 
    /**
@@ -1071,6 +1084,25 @@ public class GraalJavaScriptEngine implements AutoCloseable {
          if(c == '\n' || c == '\u2028' || c == '\u2029' ||
             c == '\r' && (i + 1 >= s.length() || s.charAt(i + 1) != '\n'))
          {
+            lines++;
+         }
+      }
+
+      return lines;
+   }
+
+   /**
+    * The number of line breaks in {@code s} from {@code from} (inclusive) to {@code to}
+    * (exclusive) as the reported line of the plain path counts them: LF, CRLF (once)
+    * and a lone CR; U+2028/U+2029 do not start a reported line (#77249).
+    */
+   private static int countReportedLineBreaks(String s, int from, int to) {
+      int lines = 0;
+
+      for(int i = from; i < to; i++) {
+         char c = s.charAt(i);
+
+         if(c == '\n' || c == '\r' && (i + 1 >= s.length() || s.charAt(i + 1) != '\n')) {
             lines++;
          }
       }
@@ -2068,6 +2100,35 @@ public class GraalJavaScriptEngine implements AutoCloseable {
    }
 
    /**
+    * Parse-validate the built pieces of a {@link PieceScript} exactly as they run
+    * (#77249), under the engine {@code lock} like {@link #piecesAllParse}. Fails safe
+    * (the caller keeps the eval wrapper) if the context is not yet built.
+    */
+   private boolean sourcesAllParse(Source[] sources) {
+      lock.lock();
+
+      try {
+         if(context == null) {
+            return false;
+         }
+
+         for(Source source : sources) {
+            try {
+               context.parse(source);
+            }
+            catch(Exception ex) {
+               return false;
+            }
+         }
+
+         return true;
+      }
+      finally {
+         lock.unlock();
+      }
+   }
+
+   /**
     * Encode a script body as a JavaScript double-quoted string literal for
     * embedding in the {@code eval(...)} wrapper built by {@link #compile}.
     * Escapes the characters that are illegal or ambiguous inside a JS string
@@ -2511,9 +2572,10 @@ public class GraalJavaScriptEngine implements AutoCloseable {
     * run, even if another formula of the table declares a {@code var} of the same name.
     *
     * <p>A lexical scan on the shared tokenizing of {@link #stripStringsAndComments}, like
-    * the other declaration scanners. A missed name keeps the per-script behavior; a name
-    * collected from a method-shorthand body (no {@code function} keyword) becomes owned by
-    * the table, shadowing a same-named global for that table only.
+    * the other declaration scanners. A function body is recognized by the {@code function}
+    * keyword, by {@code => {}}, and by a {@code name(...) {} } head whose name is not a
+    * control keyword (a method shorthand, a class method or accessor, #77249). A missed
+    * name keeps the per-script behavior.
     *
     * @param scripts the scripts, null elements are skipped.
     */
@@ -2539,8 +2601,14 @@ public class GraalJavaScriptEngine implements AutoCloseable {
       String src = stripStringsAndComments(script);
       // per open brace, whether it opens a function body
       Deque<Boolean> braces = new ArrayDeque<>();
+      // per open paren, whether it follows a name that is not a control keyword, so
+      // `name(...) {` is a function body: a method shorthand, a class method, a
+      // getter/setter, or a function whose default parameter holds a brace (#77249)
+      Deque<Boolean> parens = new ArrayDeque<>();
       int fdepth = 0;
       boolean pendingFn = false;
+      boolean fnHead = false;
+      String word = null;
       int n = src.length();
       int i = 0;
       char prev = 0;
@@ -2556,12 +2624,14 @@ public class GraalJavaScriptEngine implements AutoCloseable {
                i++;
             }
 
-            String word = src.substring(start, i);
+            word = src.substring(start, i);
+            fnHead = false;
 
             // ignore keywords used as member names (obj.var / obj.function)
             if(prev != '.') {
                if(word.equals("var") && fdepth == 0) {
                   i = collectVarNames(src, i, names);
+                  word = null;
                }
                else if(word.equals("function")) {
                   pendingFn = true;
@@ -2580,9 +2650,21 @@ public class GraalJavaScriptEngine implements AutoCloseable {
                pendingFn = true;
             }
          }
+         else if(c == '(') {
+            parens.push(word != null && !NON_FUNCTION_HEADS.contains(word));
+         }
+         else if(c == ')' && !parens.isEmpty()) {
+            boolean head = parens.pop();
+            word = null;
+            fnHead = head;
+            prev = c;
+            i++;
+            continue;
+         }
          else if(c == '{') {
-            braces.push(pendingFn);
-            fdepth += pendingFn ? 1 : 0;
+            boolean fn = pendingFn || fnHead;
+            braces.push(fn);
+            fdepth += fn ? 1 : 0;
             pendingFn = false;
          }
          else if(c == '}' && !braces.isEmpty()) {
@@ -2591,11 +2673,20 @@ public class GraalJavaScriptEngine implements AutoCloseable {
 
          if(!Character.isWhitespace(c)) {
             prev = c;
+            word = null;
+            fnHead = false;
          }
 
          i++;
       }
    }
+
+   // names whose parenthesized head is not a function's parameter list, so a brace
+   // after `name(...)` does not open a function body (collectOwnedVarNames)
+   private static final Set<String> NON_FUNCTION_HEADS = Set.of(
+      "if", "for", "while", "switch", "catch", "with", "return", "typeof", "void",
+      "delete", "new", "in", "of", "instanceof", "throw", "case", "do", "else", "await",
+      "yield");
 
    /**
     * Add the names of the top-level {@code let}/{@code const} declarations of
