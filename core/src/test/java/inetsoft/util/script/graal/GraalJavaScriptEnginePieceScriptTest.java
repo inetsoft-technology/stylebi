@@ -240,21 +240,22 @@ class GraalJavaScriptEnginePieceScriptTest {
          "if(value > 0) { h77249() }"), "b5", "b7", null);
    }
 
-   // the reset of a split formula only takes the vars outside any function-like body:
-   // a var of a method shorthand, a class method or a function with a default object
-   // parameter is not reset, so a global of that name (e.g. of onInit) is kept
-   @Test void theResetSkipsVarsOfMethodBodies() throws Exception {
+   // the reset of a split formula takes main's owned vars (review r4 dropped M1): a var of
+   // a method shorthand, a class method or a function with a default object parameter is
+   // reset like a top-level one (the formula's own values are unaffected, the method's var
+   // is local); a lost reset instead would keep a stale value across runs
+   @Test void theResetTakesMainsOwnedVarsOfMethodBodies() throws Exception {
       run("var t77249 = 5; var u77249 = 6; var w77249 = 7");
       assertEquals(9.0, run(
          "let o = { sq(x) { var t77249 = x * x; return t77249 } }; if(o) { o.sq(3) }"));
-      assertEquals(5.0, run("t77249"));
+      assertNull(run("t77249"));
       assertEquals(4.0, run(
          "let C77249 = class { get two() { var u77249 = 2; return u77249 } m(a) { " +
          "var u77249 = a; return u77249 } }; if(true) { new C77249().m(2) * new C77249().two }"));
-      assertEquals(6.0, run("u77249"));
+      assertNull(run("u77249"));
       assertEquals(1.0, run(
          "function d77249(a = { k: 1 }) { var w77249 = a.k; return w77249 } if(true) { d77249() }"));
-      assertEquals(7.0, run("w77249"));
+      assertNull(run("w77249"));
 
       // a top-level var in a control-flow block is still reset
       run("var z77249 = 8");
@@ -370,16 +371,52 @@ class GraalJavaScriptEnginePieceScriptTest {
          for(String key : new String[] { "class", "function" }) {
             String n = key.charAt(0) + "77249";
             // (an undefined completion keeps the key object's value, so String() it)
+            // the var reset follows main's owned vars: a `function` key hides the next
+            // block's var on main too (pre-existing, not reset: the -1 run keeps 7)
+            String last = key.equals("class") ? "undefined" : "7";
             assertRunValues(env, false,
                "ok" + n + " = {" + key + ": 'c'}; if(value > 0) { var tk" + n + " = value } " +
-               "if(true) { String(tk" + n + ") }", "5", "7", "undefined");
+               "if(true) { String(tk" + n + ") }", "5", "7", last);
             assertBlockFunctionValues(env,
                "ob" + n + " = {" + key + ": 'c'}; if(value > 0) { function bk" + n +
                "(){ return 'k' + value } } if(typeof bk" + n + " == 'function') { bk" + n + "() }" +
                " else { 'none' }", "k5", "k7", "none");
             assertRunValues(env, false,
                "[].concat({" + key + ": 1}); if(value > 0) { var tc" + n + " = value } " +
-               "if(true) { String(tc" + n + ") }", "5", "7", "undefined");
+               "if(true) { String(tc" + n + ") }", "5", "7", last);
+         }
+      }
+      finally {
+         if(env != null) {
+            env.retire();
+         }
+      }
+   }
+
+   // Bug #77249 (verify r3 C/D): a class field named `class`, a `static function =`
+   // field, or `yield`/`await`/`of` as an identifier ending a line does not hide the var of
+   // the next block, pool off and on: it is reset, so the -1 run reads undefined (r3 kept 7)
+   @ParameterizedTest(name = "pool={0}")
+   @ValueSource(booleans = { false, true })
+   void aClassFieldOrContextualKeywordDoesNotHideTheNextBlock(boolean pool) throws Exception {
+      WorksheetScriptEnv env = pool ? PoolTestSupport.env() : null;
+
+      try {
+         for(String f : new String[] {
+            "class Ka77249 { static class = 1 }\nif(value > 0) { var kca77249 = value }\n" +
+               "if(true) { String(kca77249) }",
+            "class Kb77249 { class = 1 }\nif(value > 0) { var kcb77249 = value }\n" +
+               "if(true) { String(kcb77249) }",
+            "class Kc77249 { static function = function() { return 1 } }\n" +
+               "if(value > 0) { var kcc77249 = value }\nif(true) { String(kcc77249) }",
+            "var yield = 1; x = yield\n{ Math.abs(1)\n{ if(value > 0) { var kcd77249 = value } } }" +
+               "\nif(true) { String(kcd77249) }",
+            "var await = 1; x = await\n{ Math.abs(1)\n{ if(value > 0) { var kce77249 = value } } }" +
+               "\nif(true) { String(kce77249) }",
+            "var of = 1; x = of\n{ Math.abs(1)\n{ if(value > 0) { var kcf77249 = value } } }" +
+               "\nif(true) { String(kcf77249) }" })
+         {
+            assertRunValues(env, false, f, "5", "7", "undefined");
          }
       }
       finally {
@@ -404,7 +441,13 @@ class GraalJavaScriptEnginePieceScriptTest {
          "if(v) { l: function f(){} }", "if(v) { x = 1 /* c */\n function f(){} }",
          "oc = {class: 'c'}; if(v) { function f(){} }", "foo({function: 1}); if(v) { function f(){} }",
          "o = {get: 1, set: 2, static: 3, async: 4, if: 5}; if(v) { function f(){} }",
-         "o = {'class': 1, ['function']: 2}; if(v) { function f(){} }" })
+         "o = {'class': 1, ['function']: 2}; if(v) { function f(){} }",
+         // a class field named by a keyword (verify r3 C)
+         "class K { static class = 1 }\nif(v) { function f(){} }",
+         "class K { class = 1 }\nif(v) { function f(){} }",
+         "class K { static function = function() {} }\nif(v) { function f(){} }",
+         "class K { function; }\nif(v) { function f(){} }",
+         "class K { function }\nif(v) { function f(){} }" })
       {
          assertTrue(GraalJavaScriptEngine.hasBlockFunctionDeclaration(f), f);
       }

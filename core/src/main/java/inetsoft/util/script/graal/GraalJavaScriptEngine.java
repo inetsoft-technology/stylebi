@@ -2560,10 +2560,9 @@ public class GraalJavaScriptEngine implements AutoCloseable {
     * run, even if another formula of the table declares a {@code var} of the same name.
     *
     * <p>A lexical scan on the shared tokenizing of {@link #stripStringsAndComments}, like
-    * the other declaration scanners. A function body is recognized by the {@code function}
-    * keyword, by {@code => {}}, by a class body, and by a {@code name(...) {} } head in an
-    * object literal (a method shorthand or accessor, #77249); in a block such a head is a
-    * call followed by a block statement. A missed name keeps the per-script behavior.
+    * the other declaration scanners. A missed name keeps the per-script behavior; a name
+    * collected from a method-shorthand body (no {@code function} keyword) becomes owned by
+    * the table, shadowing a same-named global for that table only.
     *
     * @param scripts the scripts, null elements are skipped.
     */
@@ -2586,7 +2585,65 @@ public class GraalJavaScriptEngine implements AutoCloseable {
     * Add the names {@code script} declares with {@code var} outside any function body.
     */
    private static void collectOwnedVarNames(String script, Set<String> names) {
-      scanOwnedVarsAndBlockFunctions(script, names);
+      String src = stripStringsAndComments(script);
+      // per open brace, whether it opens a function body
+      Deque<Boolean> braces = new ArrayDeque<>();
+      int fdepth = 0;
+      boolean pendingFn = false;
+      int n = src.length();
+      int i = 0;
+      char prev = 0;
+
+      while(i < n) {
+         char c = src.charAt(i);
+
+         if(isIdentStart(c)) {
+            int start = i;
+            i++;
+
+            while(i < n && isIdentPart(src.charAt(i))) {
+               i++;
+            }
+
+            String word = src.substring(start, i);
+
+            // ignore keywords used as member names (obj.var / obj.function)
+            if(prev != '.') {
+               if(word.equals("var") && fdepth == 0) {
+                  i = collectVarNames(src, i, names);
+               }
+               else if(word.equals("function")) {
+                  pendingFn = true;
+               }
+            }
+
+            prev = src.charAt(i - 1);
+            continue;
+         }
+
+         // an arrow function with a block body
+         if(c == '=' && i + 1 < n && src.charAt(i + 1) == '>') {
+            int j = skipWhitespace(src, i + 2);
+
+            if(j < n && src.charAt(j) == '{') {
+               pendingFn = true;
+            }
+         }
+         else if(c == '{') {
+            braces.push(pendingFn);
+            fdepth += pendingFn ? 1 : 0;
+            pendingFn = false;
+         }
+         else if(c == '}' && !braces.isEmpty()) {
+            fdepth -= braces.pop() ? 1 : 0;
+         }
+
+         if(!Character.isWhitespace(c)) {
+            prev = c;
+         }
+
+         i++;
+      }
    }
 
    /**
@@ -2603,18 +2660,24 @@ public class GraalJavaScriptEngine implements AutoCloseable {
     * statement that ends without {@code ;} (ASI) does not hide it.
     */
    static boolean hasBlockFunctionDeclaration(String script) {
-      return scanOwnedVarsAndBlockFunctions(script, new HashSet<>());
+      return scanBlockFunctions(script);
    }
 
-   // brace kinds of scanOwnedVarsAndBlockFunctions
+   // brace kinds of scanBlockFunctions
    private static final int BLOCK_BRACE = 0;
    private static final int OBJECT_BRACE = 1;
    private static final int FUNCTION_BRACE = 2;
 
    /**
-    * Add the names {@code script} declares with {@code var} outside any function body,
-    * and return whether it declares a function in a nested block outside any function
+    * Whether {@code script} declares a function in a nested block outside any function
     * body ({@link #hasBlockFunctionDeclaration}).
+    *
+    * <p>This scanner serves only that check. It is deliberately not the one that decides
+    * the table-owned vars ({@link #collectOwnedVarNames(Collection)} keeps the #5806
+    * scanner unchanged): a var this finer brace tracking would take for a function-local
+    * one and drop from the owned set is silently shared across rows and tables (#77123),
+    * while the older scanner only over-owns a var that is local to its method anyway
+    * (#77249 review r4).
     *
     * <p>A brace opens a function body after the {@code function} keyword (at the paren
     * depth of the keyword, so a brace in a default parameter does not count), after
@@ -2623,11 +2686,14 @@ public class GraalJavaScriptEngine implements AutoCloseable {
     * getter or setter). An object literal is a brace in expression position. In a block,
     * {@code name(...)} followed by a brace is a call and a block statement (ASI), not a
     * function (#77249). A {@code var}/{@code function}/{@code class} keyword followed
-    * by {@code :} is an object key, not a declaration. A string, template or regex
+    * by {@code :}, {@code =}, {@code ;} or <code>}</code> is an object key or a class
+    * field, not a declaration. A string, template or regex
     * literal counts as a value token.
     */
-   private static boolean scanOwnedVarsAndBlockFunctions(String script, Set<String> names) {
+   private static boolean scanBlockFunctions(String script) {
       String src = stripStringsAndComments(script, true);
+      // var names are skipped over (collectVarNames), not used
+      Set<String> names = new HashSet<>();
       // per open brace: its kind and the paren depth at which it opened
       Deque<int[]> braces = new ArrayDeque<>();
       // per open paren: its kind (PAREN_*)
@@ -2663,9 +2729,14 @@ public class GraalJavaScriptEngine implements AutoCloseable {
             word = src.substring(start, i);
             methodHead = false;
             afterHead = false;
-            // a keyword used as an object key ({class: 1}, {function: 1}) is a name
+            // a keyword used as an object key ({class: 1}, {function: 1}) or a class
+            // field ({ class = 1 }, { static function = function(){} }, { function; })
+            // is a name: none of `:`, `=`, `;`, `}` can follow the keyword itself
             int after = skipWhitespace(src, i);
-            boolean key = after < n && src.charAt(after) == ':';
+            char next = after < n ? src.charAt(after) : 0;
+            boolean key = next == ':' || next == ';' || next == '}' ||
+               next == '=' && (after + 1 >= n || src.charAt(after + 1) != '=' &&
+               src.charAt(after + 1) != '>');
 
             // ignore keywords used as member names (obj.var / obj.function)
             if(prev != '.' && !key) {
@@ -2767,7 +2838,7 @@ public class GraalJavaScriptEngine implements AutoCloseable {
       return blockFn;
    }
 
-   // paren kinds of scanOwnedVarsAndBlockFunctions
+   // paren kinds of scanBlockFunctions
    private static final int PAREN_OTHER = 0;
    private static final int PAREN_METHOD = 1;
    private static final int PAREN_HEAD = 2;
@@ -2789,7 +2860,7 @@ public class GraalJavaScriptEngine implements AutoCloseable {
       "case", "yield", "await", "extends", "async");
 
    // names whose parenthesized head is not a function's parameter list, so a brace
-   // after `name(...)` does not open a function body (collectOwnedVarNames)
+   // after `name(...)` does not open a function body (scanBlockFunctions)
    private static final Set<String> NON_FUNCTION_HEADS = Set.of(
       "if", "for", "while", "switch", "catch", "with", "return", "typeof", "void",
       "delete", "new", "in", "of", "instanceof", "throw", "case", "do", "else", "await",

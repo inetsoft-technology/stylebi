@@ -123,7 +123,7 @@ class GraalJavaScriptEngineOwnedVarTest {
    }
 
    // Bug #77249: after a call that ends a line without `;`, a brace opens a block statement
-   // (ASI), not a function body, so its var is still owned
+   // (ASI), not a function body, so its var is still owned (as on main)
    @Test
    void aBlockAfterACallIsNotAFunctionBody() {
       assertEquals(Set.of("asi1"), owned("foo(1)\n{ var asi1 = 1 }"));
@@ -134,30 +134,35 @@ class GraalJavaScriptEngineOwnedVarTest {
       assertEquals(Set.of("asi6"), owned("x = { k: 1 }; foo(x)\n{ var asi6 }"));
    }
 
-   // the vars of methods, accessors, class bodies and default-parameter functions are
-   // still not owned (#77249 M1)
+   // Bug #77249 (review r4): the owned vars are the ones of main's scanner. A var of a
+   // method shorthand, accessor or class method (no `function` keyword) is owned, which is
+   // harmless (it is local to its method anyway); the r1 attempt to exclude them (M1) kept
+   // losing vars outside any function body in other shapes, which is data corruption (#77123)
    @Test
-   void varsOfMethodBodiesAreNotOwned() {
-      assertEquals(Set.of(), owned(
+   void varsOfMethodBodiesAreOwnedAsOnMain() {
+      assertEquals(Set.of("u1", "u2", "u3", "u4"), owned(
          "let o = { m(a) { var u1 }, get g() { var u2 }, async n() { var u3 }, *q() { var u4 } }"));
-      assertEquals(Set.of(), owned("foo({ m() { var u5 } })"));
-      assertEquals(Set.of(), owned("let o2 = { a: { m() { var u6 } }, b: [{ n() { var u7 } }] }"));
-      assertEquals(Set.of(), owned("let C = class { m(a) { var u8 } static s(a = {}) { var u9 } }"));
-      assertEquals(Set.of(), owned("class D extends B { constructor() { var v1 } get x() { var v2 } }"));
-      assertEquals(Set.of(), owned("function d(a = { k: 1 }) { var v3 }"));
-      assertEquals(Set.of(), owned("let f = function(a = {}, { b } = {}) { var v4 }"));
+      assertEquals(Set.of("u5"), owned("foo({ m() { var u5 } })"));
+      assertEquals(Set.of("u6", "u7"),
+                   owned("let o2 = { a: { m() { var u6 } }, b: [{ n() { var u7 } }] }"));
+      assertEquals(Set.of("u8", "u9"),
+                   owned("let C = class { m(a) { var u8 } static s(a = {}) { var u9 } }"));
+      assertEquals(Set.of("v1", "v2"),
+                   owned("class D extends B { constructor() { var v1 } get x() { var v2 } }"));
+      assertEquals(Set.of("v3"), owned("function d(a = { k: 1 }) { var v3 }"));
+      assertEquals(Set.of("v4"), owned("let f = function(a = {}, { b } = {}) { var v4 }"));
       assertEquals(Set.of(), owned("let g = (a = { k: 1 }) => { var v5 }"));
-      assertEquals(Set.of(), owned("function e(a = function() { var v6 }) { var v7 }"));
-      assertEquals(Set.of("w"), owned("function h(a = {}) { var v8 } var w"));
+      assertEquals(Set.of("v7"), owned("function e(a = function() { var v6 }) { var v7 }"));
+      assertEquals(Set.of("v8", "w"), owned("function h(a = {}) { var v8 } var w"));
    }
 
-   // Bug #77249 (m1): a keyword used as an object key is a name, not a declaration, so
-   // the next block is not read as a class or function body and its var is still owned
+   // keyword object keys own as on main (a `function` key still takes the next brace for a
+   // function body on main, so k2/k3 are not owned there either)
    @Test
-   void keywordKeysDoNotOpenAFunctionBody() {
+   void keywordKeysOwnAsOnMain() {
       assertEquals(Set.of("k1"), owned("oc = {class: 'c'}; if(v) { var k1 = v }"));
-      assertEquals(Set.of("k2"), owned("foo({function: 1}); if(v) { var k2 = v }"));
-      assertEquals(Set.of("k3"), owned("oc = {class : {a: 1}, function\n: 2}\n{ var k3 }"));
+      assertEquals(Set.of(), owned("foo({function: 1}); if(v) { var k2 = v }"));
+      assertEquals(Set.of(), owned("oc = {class : {a: 1}, function\n: 2}\n{ var k3 }"));
       assertEquals(Set.of("k4"), owned(
          "o = {get: 1, set: 2, static: 3, async: 4, if: 5, var: 6}; if(v) { var k4 }"));
       assertEquals(Set.of("k5"), owned("o = {'class': 1, \"function\": 2}; if(v) { var k5 }"));
@@ -165,12 +170,57 @@ class GraalJavaScriptEngineOwnedVarTest {
       assertEquals(Set.of("k7"), owned("x = a.class; y = b.function; if(v) { var k7 }"));
       assertEquals(Set.of("k9"), owned("let {class: c} = o; if(x) { var k9 }"));
       assertEquals(Set.of("k10"), owned("if(x) { let o = { class: 1 } } if(y) { var k10 }"));
-      // a postfix ++ ends a value: the next brace is a block, a call + block in it is ASI
       assertEquals(Set.of("t40"), owned("i++\n{ foo(1)\n{ var t40 } }"));
-      // methods named by a keyword are still function bodies
-      assertEquals(Set.of("k8"), owned(
+      assertEquals(Set.of("k8", "u1", "u3"), owned(
          "o = { class() { var u1 }, function() { var u2 }, get static() { var u3 } }; " +
          "if(v) { var k8 }"));
+   }
+
+   // Bug #77249 (verify r3 C/D): a class field named `class`, a `static function =` field,
+   // or `yield`/`await`/`of` as an identifier ending a line does not un-own the var of the
+   // next block (r3 lost all of them)
+   @Test
+   void classFieldsAndContextualKeywordsKeepTheNextBlockOwned() {
+      assertEquals(Set.of("c4"), owned("class K { class = 1 }\nif(x) { var c4 }"));
+      assertEquals(Set.of("c5"), owned("class K { static class = 1 }\nif(x) { var c5 }"));
+      assertEquals(Set.of("c7"),
+                   owned("class K { static function = function() { var u } }\nif(x) { var c7 }"));
+      assertEquals(Set.of("t41"), owned("x = yield\n{ foo(1)\n{ var t41 } }"));
+      assertEquals(Set.of("t42"), owned("x = await\n{ foo(1)\n{ var t42 } }"));
+      assertEquals(Set.of("t43"), owned("x = of\n{ foo(1)\n{ var t43 } }"));
+   }
+
+   // Bug #77249 (review r4): differential against main. owned-vars-main.txt holds the owned
+   // sets an independent build of main computed for the scanner shapes of the verify rounds;
+   // this branch must own exactly the same names for every one of them
+   @Test
+   void ownedVarsMatchMainOnTheScannerCorpus() throws Exception {
+      List<String> mismatches = new ArrayList<>();
+      int count = 0;
+
+      try(java.io.InputStream in = getClass().getResourceAsStream("owned-vars-main.txt")) {
+         assertNotNull(in, "owned-vars-main.txt");
+         String text = new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+
+         // (a checkout with core.autocrlf may give the file CRLF line ends)
+         for(String line : text.split("\r?\n")) {
+            if(line.isBlank() || line.startsWith("#")) {
+               continue;
+            }
+
+            String[] cols = line.split("\t", 3);
+            String script = cols[2].replace("\\n", "\n");
+            String actual = new TreeSet<>(owned(script)).toString();
+            count++;
+
+            if(!actual.equals(cols[0])) {
+               mismatches.add(cols[2] + " -> main " + cols[0] + ", here " + actual);
+            }
+         }
+      }
+
+      assertTrue(count >= 100, "corpus size " + count);
+      assertEquals(List.of(), mismatches);
    }
 
    @Test

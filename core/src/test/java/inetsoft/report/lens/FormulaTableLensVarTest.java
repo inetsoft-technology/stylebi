@@ -211,14 +211,15 @@ class FormulaTableLensVarTest {
 
    // Bug #77249 (m1): a keyword object key (or destructuring key) does not hide the var of
    // the next block: it stays table owned, so the accumulator counts every row (pool on it
-   // stopped at a batch), a second table starts over and no global is left (pool off)
+   // stopped at a batch), a second table starts over and no global is left (pool off). (A
+   // `function` key hides it on main too, pre-existing; the owned vars follow main, r4.)
    @ParameterizedTest(name = "pool={0}")
    @ValueSource(booleans = { false, true })
    void aKeywordKeyKeepsTheVarOfTheNextBlockOwned(boolean pool) throws Exception {
       AssetQuerySandbox box = box(pool);
       String[] formulas = {
          "let st = { class: 'a' }; if(true) { var kkAcc1 = (kkAcc1 || 0) + 1 } kkAcc1",
-         "[].concat({function: 1}); if(true) { var kkAcc2 = (kkAcc2 || 0) + 1 } kkAcc2",
+         "let st = { if: 1, static: 2 }; if(true) { var kkAcc2 = (kkAcc2 || 0) + 1 } kkAcc2",
          "let {class: c} = {class: 1}; if(true) { var kkAcc3 = (kkAcc3 || 0) + 1 } kkAcc3" };
 
       for(int k = 0; k < formulas.length; k++) {
@@ -228,6 +229,36 @@ class FormulaTableLensVarTest {
          ScriptEnv env = box.getScriptEnv();
          assertEquals("undef", env.exec(env.compile(
             "typeof kkAcc" + (k + 1) + " == 'undefined' ? 'undef' : kkAcc" + (k + 1)),
+            null, null, null), "global of " + f);
+      }
+   }
+
+   // Bug #77249 (verify r3 C/D): a class field named `class`, a `static function =` field,
+   // or `yield`/`await`/`of` as an identifier ending a line does not hide the var of the
+   // next block: the accumulator counts every row of both tables (r3: pool on stopped at
+   // 442, pool off the second table started at 3001) and no global is left
+   @ParameterizedTest(name = "pool={0}")
+   @ValueSource(booleans = { false, true })
+   void aClassFieldOrContextualKeywordKeepsTheVarOfTheNextBlockOwned(boolean pool)
+      throws Exception
+   {
+      AssetQuerySandbox box = box(pool);
+      String[] formulas = {
+         "class P1 { static class = 1 }\nif(true) { var pqAcc1 = (pqAcc1 || 0) + 1 }\npqAcc1",
+         "class P2 { class = 1 }\nif(true) { var pqAcc2 = (pqAcc2 || 0) + 1 }\npqAcc2",
+         "class P3 { static function = function() { return 1 } }\n" +
+            "if(true) { var pqAcc3 = (pqAcc3 || 0) + 1 }\npqAcc3",
+         "var of = 1; x = of\n{ Math.abs(1)\n{ var pqAcc4 = (pqAcc4 || 0) + 1 } }\npqAcc4",
+         "var yield = 1; x = yield\n{ Math.abs(1)\n{ var pqAcc5 = (pqAcc5 || 0) + 1 } }\npqAcc5",
+         "var await = 1; x = await\n{ Math.abs(1)\n{ var pqAcc6 = (pqAcc6 || 0) + 1 } }\npqAcc6" };
+
+      for(int k = 0; k < formulas.length; k++) {
+         String f = formulas[k];
+         assertCounts(sequential(make(box, base(ROWS), f, "PK" + k)), 1, "first table " + f);
+         assertCounts(sequential(make(box, base(ROWS), f, "PL" + k)), 1, "second table " + f);
+         ScriptEnv env = box.getScriptEnv();
+         assertEquals("undef", env.exec(env.compile(
+            "typeof pqAcc" + (k + 1) + " == 'undefined' ? 'undef' : pqAcc" + (k + 1)),
             null, null, null), "global of " + f);
       }
    }
