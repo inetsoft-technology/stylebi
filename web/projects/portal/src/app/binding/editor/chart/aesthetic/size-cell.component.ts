@@ -22,6 +22,8 @@ import {
    KeyValueDiffer,
    KeyValueDiffers,
    AfterViewInit,
+   OnChanges,
+   SimpleChanges,
    ViewChild
 } from "@angular/core";
 import { AestheticIconCell } from "./aesthetic-icon-cell";
@@ -31,9 +33,11 @@ import { AestheticIconCell } from "./aesthetic-icon-cell";
     template: `<canvas #canvasElem style="vertical-align:middle;"></canvas>`,
     standalone: true
 })
-export class SizeCell extends AestheticIconCell implements AfterViewInit, DoCheck {
+export class SizeCell extends AestheticIconCell implements AfterViewInit, DoCheck, OnChanges {
    @ViewChild("canvasElem") canvasElem: ElementRef;
    differ: KeyValueDiffer<any, any>;
+   private mixedChanged: boolean = false;
+   private paintToken: number = 0;
 
    constructor(differs: KeyValueDiffers) {
       super();
@@ -44,23 +48,31 @@ export class SizeCell extends AestheticIconCell implements AfterViewInit, DoChec
       this.paintsizeCell(this.frameModel, this.canvasElem.nativeElement);
    }
 
+   ngOnChanges(changes: SimpleChanges) {
+      if(changes.isMixed && !changes.isMixed.firstChange) {
+         this.mixedChanged = true;
+      }
+   }
+
    /**
-    * When sizeFrame size property changed, we should auto paint size cell.
+    * Repaint when the frame's values change, including when the frame is replaced by one
+    * of a different type (e.g. static <-> linear), which adds/removes keys, or when isMixed
+    * changes. An equal frame (new object, same values) produces no diff and no repaint.
     */
    ngDoCheck() {
-      let changes = this.differ.diff(this.frameModel);
+      const frameChanged = this.differ.diff(this.frameModel) != null;
+      const repaint = frameChanged || this.mixedChanged;
+      this.mixedChanged = false;
 
-      if(changes) {
-         changes.forEachChangedItem((elt: any) => {
-            if(elt.key === "size") {
-               this.paintsizeCell(this.frameModel, this.canvasElem.nativeElement);
-            }
-        });
+      // canvasElem is not available until ngAfterViewInit, which does the initial paint
+      if(repaint && this.canvasElem) {
+         this.paintsizeCell(this.frameModel, this.canvasElem.nativeElement);
       }
    }
 
    private paintsizeCell(sframe: any, canvas: any) {
       let imgSrc: string = "";
+      const token = ++this.paintToken;
       canvas.width = this.cellWidth;
       canvas.height = this.cellHeight;
       canvas.style.border = "1px solid #cccccc";
@@ -86,8 +98,11 @@ export class SizeCell extends AestheticIconCell implements AfterViewInit, DoChec
          let img = new Image();
          img.src = imgSrc;
 
-         img.onload = function(e) {
-            cxt.drawImage(img, 0, 0);
+         img.onload = () => {
+            // ignore a late load from a paint that has since been superseded
+            if(token === this.paintToken) {
+               cxt.drawImage(img, 0, 0);
+            }
          };
       }
    }
