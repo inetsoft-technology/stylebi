@@ -39,6 +39,7 @@ import java.lang.reflect.Field;
 import java.util.Set;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.doReturn;
@@ -371,6 +372,106 @@ class CrosstabVSAssemblySourceLockOrderingTest {
       assertEquals(3, box.fetches.get(), "each attempt gathers its source once");
       assertEquals(1, query.executions.get(), "the last snapshot was not executed");
       assertNotNull(result, "the crosstab query returned no table after the retries");
+   }
+
+   /**
+    * Bug #77156: when the retries run out, the query answers from the last attempt's snapshot as
+    * a whole: the table is built from that snapshot's source and grouped by that snapshot's
+    * crosstab info, never the old source with the new crosstab info (or the reverse), and the
+    * edit that landed after the snapshot is left in place, neither reverted nor rewritten.
+    */
+   @Test
+   void exhaustedRetryAnswersFromOneConsistentSnapshot() throws Exception {
+      HookedQuery query = new HookedQuery();
+      AtomicInteger gathers = new AtomicInteger();
+      AtomicInteger prepares = new AtomicInteger();
+      AtomicReference<VSCrosstabInfo> lastSnapshotInfo = new AtomicReference<>();
+      // every attempt: a binding edit replacing both the source and the crosstab info, as
+      // apply() does, between the attempt's snapshot and its monitor
+      box.gatherHook = new Window() {
+         @Override
+         public void run() {
+            int n = gathers.incrementAndGet();
+            lastSnapshotInfo.set(crosstab.getVSCrosstabInfo());
+            // alternate the source type too, so a build from the live source cannot pass
+            crosstab.setSourceInfo(n % 2 == 1 ? new SourceInfo(SourceInfo.ASSET, null, QUERY) :
+                                   new SourceInfo(SourceInfo.VS_ASSEMBLY, null, SOURCE));
+            crosstab.setVSCrosstabInfo(n % 2 == 1 ? crosstabInfo("sales", "state") :
+                                       crosstabInfo("state", null));
+
+            if(n < 3) {
+               box.gatherHook = this;
+            }
+         }
+      };
+      query.onPostSort = prepares::incrementAndGet;
+      Future<TableLens> reader = pool.submit(() -> {
+         box.reader = Thread.currentThread();
+         return query.getTableLens();
+      });
+
+      TableLens result = await(reader, "crosstab query with a continuously changing binding");
+      assertNotNull(result, "the crosstab query returned no table after the retries");
+      assertEquals(3, gathers.get(), "each of the 3 attempts gathers once");
+      // attempts 1 and 2 see the change on entering the monitor and skip prepare
+      assertEquals(1, prepares.get(), "only the last attempt prepares");
+      assertEquals(0, box.fetchesUnderMonitor.get(),
+                   "a source was executed while holding the VSCrosstabInfo monitor");
+      assertEquals(1, query.executions.get(), "the last snapshot was not executed");
+
+      // the last attempt snapshotted what edit 2 set: SOURCE grouped by state; live is now
+      // the worksheet query grouped by sales with a Count(state)
+      Set<String> names = tableNames(query.executed);
+      assertTrue(names.contains(SOURCE), "the executed table is not built from the snapshot " +
+                 "source: " + names);
+      assertFalse(names.contains(QUERY), "the executed table is built from the live source, " +
+                  "not the snapshot: " + names);
+      Set<String> built = new java.util.HashSet<>();
+      ColumnSelection selection = query.executed.getColumnSelection(true);
+
+      for(int i = 0; i < selection.getAttributeCount(); i++) {
+         built.add(selection.getAttribute(i).getAttribute());
+      }
+
+      assertTrue(built.contains("state"), "the executed table is not built for the " +
+                 "snapshot crosstab info: " + built);
+      assertFalse(built.contains("sales"), "the executed table is built for the live " +
+                  "crosstab info, not the snapshot: " + built);
+
+      // the edit made after the snapshot is left alone
+      assertEquals(new SourceInfo(SourceInfo.ASSET, null, QUERY), crosstab.getSourceInfo(),
+                   "the query reverted the source edit made after its last snapshot");
+      VSCrosstabInfo live = crosstab.getVSCrosstabInfo();
+      assertNotSame(lastSnapshotInfo.get(), live, "crosstab info edit");
+      assertEquals(1, live.getRuntimeRowHeaders().length, "live row headers");
+      assertEquals("sales", live.getRuntimeRowHeaders()[0].getAttribute(),
+                   "the query rewrote the runtime refs of the crosstab info it did not prepare");
+      assertEquals(1, live.getRuntimeAggregates().length,
+                   "the query restored another crosstab info's runtime aggregates on the live one");
+      // and the snapshot's rewrite was undone
+      assertEquals(1, lastSnapshotInfo.get().getRuntimeRowHeaders().length,
+                   "the prepared crosstab info kept its runtime ref rewrite");
+   }
+
+   /**
+    * A crosstab info as a binding edit creates it, grouped by a row header, with a Count
+    * aggregate of another column or none, runtime refs filled in.
+    */
+   private VSCrosstabInfo crosstabInfo(String row, String count) {
+      VSCrosstabInfo cinfo = new VSCrosstabInfo();
+      VSDimensionRef dim = new VSDimensionRef(new ColumnRef(new AttributeRef(null, row)));
+      dim.setGroupColumnValue(row);
+      cinfo.setDesignRowHeaders(new DataRef[] { dim });
+
+      if(count != null) {
+         VSAggregateRef agg = new VSAggregateRef();
+         agg.setColumnValue(count);
+         agg.setFormulaValue("Count");
+         cinfo.setDesignAggregates(new DataRef[] { agg });
+      }
+
+      cinfo.update(crosstab.getViewsheet(), columns, null, true, null, null);
+      return cinfo;
    }
 
    /**
@@ -725,6 +826,7 @@ class CrosstabVSAssemblySourceLockOrderingTest {
    private static final String CROSSTAB = "Crosstab1";
    private static final String SOURCE = Assembly.TABLE_VS_BOUND + "Table1";
    private static final String SOURCE2 = Assembly.TABLE_VS_BOUND + "Table2";
+   private static final String QUERY = "Query1";
    private static final long CAP = 10;
    private static final AtomicInteger SEQ = new AtomicInteger();
 
