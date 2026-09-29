@@ -121,7 +121,7 @@ public record PoolConfig(long idleMillis, int cleanThreshold, int warnSlotsPerSa
          else if(OFF_LOGGED.compareAndSet(false, true)) {
             LOG.info("{}=false: the worksheet script context pool is off, so the engine-lock " +
                         "hangs of Bug #77016 can occur; see the release note (Turning it off) and " +
-                        "pair it with stall.watchdog.mode=fail.", ENABLED);
+                        "keep stall.watchdog.mode=fail (the default).", ENABLED);
          }
 
          return false;

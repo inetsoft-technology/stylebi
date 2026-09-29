@@ -22,6 +22,7 @@ import org.slf4j.LoggerFactory;
 
 import java.util.OptionalLong;
 import java.util.concurrent.TimeUnit;
+import java.util.function.BooleanSupplier;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
@@ -34,6 +35,14 @@ import java.util.function.Supplier;
  * it waits for does: a registered blocker whose own wait made progress (its timestamp is
  * taken, never "now", so the members of a cycle cannot keep each other alive), or an
  * unregistered blocker that is running.
+ *
+ * <p>In {@code fail} mode a stalled wait fails at once only if the policy fails on the timeout
+ * alone ({@code stall.watchdog.failOnTimeout}). Otherwise it is reported like an
+ * {@code alert}-mode wait and goes on, and fails once the watchdog has confirmed that it can
+ * never progress: it is the victim of a wait-for cycle, or it waits for a cycle that no timeout
+ * releases, or for a JVM deadlock (Feature #77123, see {@link StallWatchdog}). The waiter
+ * checks the confirmation against the current wait-for graph right before it fails, and the
+ * confirmation is revoked if the wait is no longer stuck.
  */
 public final class WaitRecord implements AutoCloseable {
    private WaitRecord() {
@@ -47,6 +56,7 @@ public final class WaitRecord implements AutoCloseable {
       thread = null;
       startNanos = 0;
       creditOnly = false;
+      failOnTimeout = false;
    }
 
    WaitRecord(WaitRegistry registry, String what, LongSupplier progress,
@@ -59,6 +69,7 @@ public final class WaitRecord implements AutoCloseable {
       this.progress = progress;
       this.blockers = blockers;
       this.mode = policy.getMode();
+      this.failOnTimeout = policy.isFailOnTimeout();
       this.limitNanos = TimeUnit.MILLISECONDS.toNanos(policy.getNoProgressMillis());
       this.sliceMillis = Math.max(10, policy.getNoProgressMillis() / 4);
       this.thread = thread;
@@ -81,9 +92,10 @@ public final class WaitRecord implements AutoCloseable {
 
    /**
     * Sample the progress and handle a stall: in {@code fail} mode dump the threads and throw,
-    * in {@code alert} mode dump and warn once per stall episode (an alert-mode wait never
-    * turns health DOWN, see {@link StallWatchdog}). Once the wait failed, every later call
-    * rethrows the same exception.
+    * once the stall is confirmed (see the class doc); in {@code alert} mode, or while a
+    * {@code fail}-mode stall is not confirmed, dump and warn once per stall episode (such a
+    * wait never turns health DOWN by itself, see {@link StallWatchdog}). Once the wait failed,
+    * every later call rethrows the same exception.
     *
     * <p>Only the waiting thread may call this method: the progress sample is not
     * synchronized. Other threads, such as the watchdog, never call it.
@@ -121,6 +133,11 @@ public final class WaitRecord implements AutoCloseable {
       long now = registry.nanoTime();
       sample(now);
 
+      if(now - progressNanos >= limitNanos) {
+         // the cycle a scan confirmed may have dissolved since (Feature #77123)
+         revalidateCycle();
+      }
+
       String reason;
       String path;
       Throwable dumpError = null;
@@ -131,13 +148,25 @@ public final class WaitRecord implements AutoCloseable {
       // dumper's, in that order, never an engine lock or a lens monitor. It also calls the
       // blocker suppliers, outside of any record's monitor, which take at most the private
       // monitor of a LendableReentrantLock, as a leaf (see StallWatchdog.scanRecord()).
+      boolean firstTrip;
+
       synchronized(this) {
          long stalledNanos = now - progressNanos;
 
-         if(stalledNanos < limitNanos || tripped) {
+         if(stalledNanos < limitNanos) {
             return;
          }
 
+         // a fail-mode wait that may still progress is only reported, like an alert-mode
+         // one, until the watchdog confirms it never will (Feature #77123)
+         boolean fail = mode == StallPolicy.Mode.FAIL &&
+            (failOnTimeout || reportOnly != null || cycleConfirmed);
+
+         if(tripped && !fail) {
+            return;
+         }
+
+         firstTrip = !tripped;
          tripped = true;
          long stalledMillis = TimeUnit.NANOSECONDS.toMillis(stalledNanos);
          reason = describe(stalledMillis);
@@ -165,7 +194,7 @@ public final class WaitRecord implements AutoCloseable {
             }
          }
 
-         if(mode == StallPolicy.Mode.FAIL) {
+         if(fail) {
             failed = true;
             failure = new LockStallException(what, thread.getName(), stalledMillis, path);
             this.failure = failure;
@@ -190,13 +219,23 @@ public final class WaitRecord implements AutoCloseable {
          }
          else {
             // the message names the dump's file name only, the log gets its full path
-            LOG.error("{}, thread dump: {}", failure.getMessage(), path == null ? "none" : path);
+            LOG.error("{}{}, thread dump: {}", failOnTimeout ? "" : "Lock cycle confirmed. ",
+                      failure.getMessage(), path == null ? "none" : path);
          }
 
          throw failure;
       }
 
-      LOG.warn("Lock stall, alert only: {}, thread dump: {}", reason, path);
+      if(firstTrip) {
+         if(mode == StallPolicy.Mode.FAIL) {
+            // fails only once the watchdog confirms the wait can never progress
+            LOG.warn("Lock stall, no lock cycle confirmed, waiting on: {}, thread dump: {}",
+                     reason, path);
+         }
+         else {
+            LOG.warn("Lock stall, alert only: {}, thread dump: {}", reason, path);
+         }
+      }
    }
 
    /**
@@ -310,6 +349,115 @@ public final class WaitRecord implements AutoCloseable {
    }
 
    /**
+    * Check if the wait fails on its timeout alone, in {@code fail} mode, as the policy it was
+    * opened with says ({@code stall.watchdog.failOnTimeout}).
+    */
+   public boolean isFailOnTimeout() {
+      return failOnTimeout;
+   }
+
+   /**
+    * Check if the wait fails only once the watchdog confirms it can never progress: a plain
+    * {@code fail}-mode wait whose policy does not fail on the timeout alone (Feature #77123).
+    */
+   boolean isFailOnConfirmedOnly() {
+      return mode == StallPolicy.Mode.FAIL && !failOnTimeout && !creditOnly &&
+         reportOnly == null && registry != null;
+   }
+
+   /**
+    * Check if the watchdog confirmed, during the current stall episode, that this wait can
+    * never progress.
+    */
+   public boolean isCycleConfirmed() {
+      return cycleConfirmed;
+   }
+
+   /**
+    * Get when the watchdog first confirmed the current stall episode, on the registry's clock,
+    * see {@link #isCycleConfirmed()}.
+    */
+   long getCycleConfirmedNanos() {
+      return cycleConfirmedNanos;
+   }
+
+   /**
+    * Confirm that the stalled wait can never progress, so its waiter fails it on its next
+    * check (Feature #77123), if {@code stillStuck} still says so then. Called by the watchdog
+    * only, for a stalled wait. Progress ends the confirmation with the episode, and the
+    * watchdog revokes it ({@link #revokeCycle()}) once it no longer finds the wait stuck.
+    *
+    * @param stillStuck checks the current wait-for graph again, on the waiting thread.
+    */
+   synchronized void confirmCycle(long now, BooleanSupplier stillStuck) {
+      if(now - progressNanos >= limitNanos) {
+         this.stillStuck = stillStuck;
+
+         if(!cycleConfirmed) {
+            cycleConfirmedNanos = now;
+            cycleConfirmed = true;
+         }
+      }
+   }
+
+   /**
+    * Revoke the confirmation of the current stall episode: the cycle it was confirmed for
+    * dissolved, or the wait is no longer the one its cycle fails (Feature #77123). A failed
+    * wait stays failed.
+    */
+   synchronized void revokeCycle() {
+      if(!failed) {
+         cycleConfirmed = false;
+         cycleConfirmedNanos = 0;
+         stillStuck = null;
+      }
+   }
+
+   /**
+    * Check again, right before a confirmed wait fails, that it still can never progress, and
+    * revoke the confirmation if it can. Called on the waiting thread, outside of this record's
+    * monitor: the check walks the wait-for graph (see StallWatchdog.isStillStuck).
+    */
+   private void revalidateCycle() {
+      BooleanSupplier check;
+
+      // read together with the confirmation, which confirmCycle() sets under this monitor
+      synchronized(this) {
+         if(!cycleConfirmed || failed || failOnTimeout || reportOnly != null ||
+            mode != StallPolicy.Mode.FAIL)
+         {
+            return;
+         }
+
+         check = stillStuck;
+      }
+
+      boolean stuck;
+
+      try {
+         stuck = check != null && check.getAsBoolean();
+      }
+      catch(Throwable ex) {
+         // never fail the waiter on a failed check: a later scan confirms it again
+         stuck = false;
+      }
+
+      if(!stuck) {
+         revokeCycle(check);
+      }
+   }
+
+   /**
+    * Revoke the confirmation that {@code check} was found false for, unless a scan confirmed
+    * the wait again since, with a new check.
+    */
+   private synchronized void revokeCycle(BooleanSupplier check) {
+      if(stillStuck == check) {
+         revokeCycle();
+      }
+   }
+
+   /**
     * Mark a wait whose stall is reported but never fails the waiter, which catches the
     * exception and keeps waiting (such as a loan reclaim): a stall is logged as a warning
     * starting with {@code label} instead of as a failed query.
@@ -387,8 +535,12 @@ public final class WaitRecord implements AutoCloseable {
       progressNanos = nanos;
 
       if(!failed && now - nanos < limitNanos &&
-         (tripped || dumpPath != null || watchdogSeenScan != 0 || watchdogReported))
+         (tripped || dumpPath != null || watchdogSeenScan != 0 || watchdogReported ||
+            cycleConfirmed))
       {
+         cycleConfirmed = false;
+         cycleConfirmedNanos = 0;
+         stillStuck = null;
          tripped = false;
          dumpPath = null;
          watchdogSeenScan = 0;
@@ -416,6 +568,8 @@ public final class WaitRecord implements AutoCloseable {
    private final Thread thread;
    private final long startNanos;
    private final boolean creditOnly;
+   // fail-mode: fail on the timeout alone, without a confirmed cycle (Feature #77123)
+   private final boolean failOnTimeout;
    private long lastValue;
    private volatile boolean closed;
    private volatile String reportOnly;
@@ -426,4 +580,9 @@ public final class WaitRecord implements AutoCloseable {
    private volatile String dumpPath;
    private volatile long watchdogSeenScan;
    private volatile boolean watchdogReported;
+   // the watchdog confirmed this stall episode can never progress (Feature #77123)
+   private volatile boolean cycleConfirmed;
+   private volatile long cycleConfirmedNanos;
+   // checks the confirmation again right before the wait fails, see revalidateCycle()
+   private volatile BooleanSupplier stillStuck;
 }
