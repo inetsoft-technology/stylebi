@@ -229,6 +229,24 @@ class DeployManagerServiceScheduleTaskIdentityImportTest {
       verify(asset, never()).setRestrictedImporter(any());
    }
 
+   // A5, the check applies whenever security is on, not only in a multi-tenant install: a
+   // non-site-admin importer of a single-tenant install can't make a task run as the global
+   // system administrator role
+   @Test
+   void notMultiTenant_nonSiteAdminImporter_isStillChecked() throws Exception {
+      sutil.when(SUtil::isMultiTenant).thenReturn(false);
+      ScheduleTaskAsset asset = taskAsset();
+
+      List<String> failed = importEntry(taskXml(
+         BOB.convertToKey(), "idname=\"Administrator~;~__GLOBAL__\" idtype=\"2\""), asset);
+
+      String expected = Catalog.getCatalog().getString(
+         "em.import.file.failed.noPermission", ScheduleTaskAsset.SCHEDULETASK + " imported");
+      assertEquals(List.of(expected), failed);
+      verify(asset, never()).parseContent(any(InputStream.class), any(), anyBoolean(),
+                                          anyBoolean());
+   }
+
    // the content is parsed the same way as it was checked, and the flags only the server sets
    // and the global time ranges are not taken from the file
    @Test
