@@ -384,6 +384,142 @@ public class SubQueryConditionWorksheetCycleTest {
    }
 
    /**
+    * Bug #77223: {@link #formulaReadsFilteredTableFirst} without a sub-query. A distinct table
+    * D with a script expression column is built on a thread holding no lock, and X's formula
+    * {@code D.length} is then the first to read it, inside {@code exec} on the same engine.
+    */
+   @Test
+   @Tag("known-deadlock")
+   @EnabledIfSystemProperty(named = "lockcycle.known", matches = "true")
+   public void distinctTableReadFirstByFormula() throws Exception {
+      worker = new WorkerGate(PARK_ROW);
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly d = embedded(ws, "D", SUB_ROWS, worker);
+      expression(d, "dx", "field['id'] * 1");
+      d.setDistinct(true);
+      EmbeddedTableAssembly x = embedded(ws, "X", 1, null);
+      expression(x, "dlen", "D.length");
+
+      readFirstByFormula(ws, "D", "DistinctTableLens.moreRows");
+   }
+
+   /**
+    * Bug #77223: the same with a grouped table G, whose summary worker reads the formula lens
+    * through a sort; X's formula {@code G.length} waits for the summary's rows.
+    */
+   @Test
+   @Tag("known-deadlock")
+   @EnabledIfSystemProperty(named = "lockcycle.known", matches = "true")
+   public void groupedTableReadFirstByFormula() throws Exception {
+      groupedTableReadFirst("G.length");
+   }
+
+   /**
+    * Bug #77223: {@link #groupedTableReadFirstByFormula} with a formula reading a cell of G
+    * before anything asks G for more rows, which waits for the summary elsewhere.
+    */
+   @Test
+   @Tag("known-deadlock")
+   @EnabledIfSystemProperty(named = "lockcycle.known", matches = "true")
+   public void groupedTableCellReadFirstByFormula() throws Exception {
+      groupedTableReadFirst("G[1][1]");
+   }
+
+   /**
+    * Bug #77223: a distinct mirror M of a table S sorted on its script expression column, so
+    * the distinct worker reads the formula lens through S's sort filter.
+    */
+   @Test
+   @Tag("known-deadlock")
+   @EnabledIfSystemProperty(named = "lockcycle.known", matches = "true")
+   public void distinctMirrorOfSortedTableReadFirstByFormula() throws Exception {
+      worker = new WorkerGate(PARK_ROW);
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly s = embedded(ws, "S", SUB_ROWS, worker);
+      expression(s, "sx", "field['id'] * 1");
+      SortInfo sort = new SortInfo();
+      sort.addSort(new SortRef(s.getColumnSelection(false).getAttribute("sx")));
+      s.setSortInfo(sort);
+      MirrorTableAssembly m = new MirrorTableAssembly(ws, "M", s);
+      ws.addAssembly(m);
+      m.update();
+      m.setDistinct(true);
+      EmbeddedTableAssembly x = embedded(ws, "X", 1, null);
+      expression(x, "mlen", "M.length");
+
+      readFirstByFormula(ws, "M", "DistinctTableLens.moreRows", "SortFilter.checkInit",
+                         "SortFilter.moreRows");
+   }
+
+   /**
+    * Bug #77223: a union U of a table P with a script expression column is not affected, since
+    * the set lens reads every base row on the thread building it.
+    */
+   @Test
+   public void unionTableReadFirstByFormula() throws Exception {
+      worker = new WorkerGate(PARK_ROW);
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly p = embedded(ws, "P", SUB_ROWS, worker);
+      expression(p, "px", "field['id'] * 1");
+      EmbeddedTableAssembly q = embedded(ws, "Q", 10, null);
+      expression(q, "qx", "field['id'] * 1");
+      TableAssemblyOperator union = new TableAssemblyOperator();
+      TableAssemblyOperator.Operator op = new TableAssemblyOperator.Operator();
+      op.setOperation(TableAssemblyOperator.UNION);
+      op.setLeftTable("P");
+      op.setRightTable("Q");
+      union.addOperator(op);
+      ws.addAssembly(new ConcatenatedTableAssembly(
+         ws, "U", new TableAssembly[] { p, q }, new TableAssemblyOperator[] { union }));
+      EmbeddedTableAssembly x = embedded(ws, "X", 1, null);
+      expression(x, "ulen", "U.length");
+
+      readFirstByFormula(ws, "U", "SetTableLens.moreRows");
+      assertFalse(worker.hasParked(), "a lens worker read P's rows");
+   }
+
+   private void groupedTableReadFirst(String formula) throws Exception {
+      worker = new WorkerGate(PARK_ROW);
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly g = embedded(ws, "G", SUB_ROWS, worker);
+      expression(g, "gx", "field['id'] % 50");
+      ColumnSelection columns = g.getColumnSelection(false);
+      AggregateInfo aggregate = new AggregateInfo();
+      aggregate.addGroup(new GroupRef(columns.getAttribute("gx")));
+      aggregate.addAggregate(new AggregateRef(columns.getAttribute("id"), AggregateFormula.COUNT_ALL));
+      g.setAggregateInfo(aggregate);
+      EmbeddedTableAssembly x = embedded(ws, "X", 1, null);
+      expression(x, "gval", formula);
+
+      readFirstByFormula(ws, "G", "SummaryFilter.waitForRow", "SummaryFilter.moreRows",
+                         "SummaryFilter.getObject");
+   }
+
+   /**
+    * Build {@code table} on a thread holding no lock, as a viewsheet or data request would,
+    * then compute X, whose formula reads {@code table} by name inside {@code exec}. If building
+    * the table left a worker running, the worker cannot finish before X waits in one of
+    * {@code frames}; if it did not, X computes the table itself. Either way X must finish.
+    */
+   private void readFirstByFormula(Worksheet ws, String table, String... frames)
+      throws Exception
+   {
+      box = sandbox(ws);
+      lock = box.getScriptEnv().getExecutionLock();
+      harness.await(harness.submit(
+         () -> box.getTableLens(table, AssetQuerySandbox.RUNTIME_MODE)), KNOWN_CAP,
+                    "building " + table);
+
+      Started<Integer> script = harness.start(
+         () -> drain(box.getTableLens("X", AssetQuerySandbox.RUNTIME_MODE)).size());
+      awaitIn(script, KNOWN_CAP, frames);
+      worker.release();
+
+      assertEquals(2, harness.await(script.future, KNOWN_CAP,
+                                    "X's formula reading " + table + " first"));
+   }
+
+   /**
     * Run {@code task} as a script of another engine does, inside {@code exec}: holding the
     * execution lock of its own env (a viewsheet scope's env is never pooled) and flagged as a
     * script thread. This is what {@code LockCycleHarness.Sandbox.asGuest} does, with an env
@@ -580,6 +716,10 @@ public class SubQueryConditionWorksheetCycleTest {
 
       boolean awaitParked(long capSeconds) throws InterruptedException {
          return parked.await(capSeconds, TimeUnit.SECONDS);
+      }
+
+      boolean hasParked() {
+         return parked.getCount() == 0;
       }
 
       void release() {
