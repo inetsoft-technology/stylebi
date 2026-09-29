@@ -74,7 +74,8 @@ public class GraalJavaScriptEngine implements AutoCloseable {
    private ScriptScope calcScope;
 
    // Bug #77181: the HOST_GLOBALS_VAR guest object of the current context, and the
-   // names already added to it (so a repeated put() costs one Java set lookup).
+   // names in it (so a repeated put() costs one Java set lookup, and exec can test a
+   // PieceScript's reset names without a guest call, #77331).
    // Rebuilt on (re)init; guarded by lock.
    private Value hostGlobals;
    private final Set<String> hostGlobalNames = new java.util.HashSet<>();
@@ -208,7 +209,9 @@ public class GraalJavaScriptEngine implements AutoCloseable {
             "Object.defineProperty(g,'" + HOST_GLOBALS_VAR +
             "',{value:h,writable:false,enumerable:false,configurable:true});})(globalThis)",
             "<host-globals>").buildLiteral());
-         hostGlobals = context.getBindings("js").getMember(HOST_GLOBALS_VAR);
+         Value names = context.getBindings("js").getMember(HOST_GLOBALS_VAR);
+         hostGlobalNames.addAll(names.getMemberKeys());
+         hostGlobals = names;
       }
       catch(PolyglotException ex) {
          // without the set every reset is skipped (the emitted guard checks it)
@@ -979,7 +982,7 @@ public class GraalJavaScriptEngine implements AutoCloseable {
     * to {@code var} by {@link #rewriteTopLevelLexicalDeclarations} (#76980); a
     * top-level {@code class} is still confined to its own piece.)
     */
-   private Object buildCompletionPreservingSource(String body, List<String> statements) {
+   private static Object buildCompletionPreservingSource(String body, List<String> statements) {
       StringBuilder sb = new StringBuilder();
       sb.append("(function(){with(__scope__){var ").append(RESULT_VAR).append(",")
          .append(VALUE_VAR).append(";");
@@ -1029,7 +1032,10 @@ public class GraalJavaScriptEngine implements AutoCloseable {
     * owned var, #5806 - is never written), with the #77181 reset of every name the
     * body declares with {@code var} outside a function body plus its
     * initializer-less top-level {@code let}/{@code const} names. As for #77181, a
-    * global the engine itself defines is never reset.
+    * global the engine itself defines is never reset, so a body that declares one
+    * (a CALC function such as {@code max}, or a {@code put()} name) runs as the
+    * eval wrapper instead, decided per exec against the running Context's host
+    * globals (Bug #77331, see {@link PieceScript#collidesWith}).
     *
     * <p>Each piece is preceded by one line break per line break of the body before
     * it, so an error reports the same line as the plain path (the body line,
@@ -1074,7 +1080,7 @@ public class GraalJavaScriptEngine implements AutoCloseable {
          pos = at + stmt.length();
       }
 
-      return new PieceScript(pieces, body);
+      return new PieceScript(pieces, body, resetNames, statements);
    }
 
    /**
@@ -1106,11 +1112,55 @@ public class GraalJavaScriptEngine implements AutoCloseable {
     * can be shared by the static script caches, across pooled contexts and engines.
     * Equal by content, like a Source, so the {@code errorCounts} of a recompiled
     * formula carry over.
+    *
+    * <p>Bug #77331: it also keeps the names its first piece resets and the split body,
+    * so {@link #exec} can run the body as the eval wrapper
+    * ({@link #buildCompletionPreservingSource}, built on first use, also free of any
+    * Context) on a Context where the reset skips one of them.
     */
    static final class PieceScript {
-      PieceScript(Source[] pieces, String text) {
+      PieceScript(Source[] pieces, String text, Set<String> resetNames,
+                  List<String> statements)
+      {
          this.pieces = pieces;
          this.text = text;
+         this.resetNames = resetNames.toArray(new String[0]);
+         this.statements = List.copyOf(statements);
+      }
+
+      /**
+       * Whether the reset of the first piece skips one of its names on a Context
+       * whose host globals are {@code hostNames} ({@code null} if it has none, so
+       * the reset is skipped altogether), leaving that var with the value of the
+       * global the engine defines or of the previous run (Bug #77331).
+       */
+      boolean collidesWith(Set<String> hostNames) {
+         if(hostNames == null) {
+            return resetNames.length > 0;
+         }
+
+         for(String name : resetNames) {
+            if(hostNames.contains(name)) {
+               return true;
+            }
+         }
+
+         return false;
+      }
+
+      /**
+       * The eval wrapper of the body, whose vars are fresh locals of the wrapper
+       * function on every run, as before #77249.
+       */
+      Source wrapper() {
+         Source source = wrapper;
+
+         if(source == null) {
+            // a racing build yields an equal Source
+            wrapper = source = (Source) buildCompletionPreservingSource(text, statements);
+         }
+
+         return source;
       }
 
       Value eval(Context context) {
@@ -1149,6 +1199,9 @@ public class GraalJavaScriptEngine implements AutoCloseable {
 
       private final Source[] pieces;
       private final String text;
+      private final String[] resetNames;
+      private final List<String> statements;
+      private volatile Source wrapper;
    }
 
    // Keywords that begin a statement whose completion value can be *empty* — the
@@ -2153,7 +2206,7 @@ public class GraalJavaScriptEngine implements AutoCloseable {
                   return null;
                }
 
-               Value result = script instanceof PieceScript pieces ? pieces.eval(context)
+               Value result = script instanceof PieceScript pieces ? evalPieces(pieces)
                   : context.eval((Source) script);
                return ScriptValueConverter.toHostResult(result);
             }
@@ -2255,6 +2308,20 @@ public class GraalJavaScriptEngine implements AutoCloseable {
     * engine's Context is in an unknown state. The base engine keeps using it, as before.
     */
    protected void onInterruptTimeout() {
+   }
+
+   /**
+    * Run a {@link PieceScript}. Bug #77331: if the reset of its first piece would skip
+    * one of its names on this Context (a var named like a global the engine defines,
+    * such as the CALC function {@code max} or a {@code put()} name), the var would
+    * start each run with that global or the previous run's value, so run the body as
+    * the eval wrapper instead, whose vars start undefined on every run, as before
+    * #77249. Decided per exec, since a compiled script is shared by engines whose
+    * host globals differ. Caller holds lock.
+    */
+   private Value evalPieces(PieceScript pieces) {
+      return pieces.collidesWith(hostGlobals != null ? hostGlobalNames : null) ?
+         context.eval(pieces.wrapper()) : pieces.eval(context);
    }
 
    /** Lazily create the reusable __scope__ proxy and bind it once. Caller holds lock. */
