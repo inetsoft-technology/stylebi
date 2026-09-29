@@ -110,6 +110,7 @@ public class RelSoakTest {
 
          long leaked0 = PoolMetrics.nodeLeakedClaims();
          long violations0 = PoolParanoia.violations();
+         long inconclusive0 = PoolParanoia.inconclusive();
          long interrupts0 = PoolMetrics.nodeInterruptTimeouts();
          long multi0 = RelPipeline.MULTI_THREADED.get();
          appender.clear();
@@ -166,7 +167,9 @@ public class RelSoakTest {
                samples.add(row);
                out.println(csvRow(row));
                out.flush();
-               System.out.println("soak sample " + csvRow(row) + " | " +
+               // an interrupted paranoid check is reported, never gated (S1)
+               System.out.println("soak sample " + csvRow(row) + " | paranoiaInconclusive=" +
+                                  (PoolParanoia.inconclusive() - inconclusive0) + " | " +
                                   PoolMetrics.nodeSummary());
             }
             finally {
