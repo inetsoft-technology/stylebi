@@ -58,7 +58,7 @@ class ViewsheetServiceOrgIsolationTest {
    void setUp() {
       orgManagerStatic = mockStatic(OrganizationManager.class);
       orgManagerStatic.when(OrganizationManager::getInstance).thenReturn(orgManager);
-      lenient().when(orgManager.getCurrentOrgID()).thenReturn("orgA");
+      lenient().when(orgManager.getCurrentOrgID(any())).thenReturn("orgA");
       service = new ViewsheetService(engine, scheduleClient, client, lifecycleChannel,
                                      monitoringDataService, cluster);
    }
@@ -126,5 +126,94 @@ class ViewsheetServiceOrgIsolationTest {
       service.messageReceived(event);
 
       verify(engine, never()).closeViewsheet(anyString(), any());
+   }
+
+   /**
+    * Bug #77266: the no-arg getCurrentOrgID() lower-cases the org id while the org id of
+    * a viewsheet owner is case-preserved, so a mixed-case org could neither list nor
+    * destroy its own viewsheets.
+    */
+   private void useMixedCaseOrg() {
+      lenient().when(orgManager.getCurrentOrgID()).thenReturn("mixedorg");
+      lenient().when(orgManager.getCurrentOrgID(any())).thenReturn("MixedOrg");
+   }
+
+   private ViewsheetModel model(String id, String ownerOrg) {
+      IdentityID owner = new IdentityID("user", ownerOrg);
+      return ViewsheetModel.builder()
+         .id(id).state(ViewsheetModel.State.OPEN).user(owner).monitorUser(owner)
+         .dateCreated(0L).dateAccessed(0L).build();
+   }
+
+   @Test
+   void destroyLocal_mixedCaseOrgViewsheet_closed() throws Exception {
+      useMixedCaseOrg();
+      stubSheet("vs-1", "MixedOrg");
+
+      service.destroyClusterNodeViewsheets(null, new String[] { "vs-1" });
+
+      verify(engine).closeViewsheet("vs-1", null);
+   }
+
+   @Test
+   void destroyLocal_mixedCaseOrg_otherOrgViewsheetNotClosed() throws Exception {
+      useMixedCaseOrg();
+      stubSheet("vs-1", "OtherOrg");
+
+      service.destroyClusterNodeViewsheets(null, new String[] { "vs-1" });
+
+      verify(engine, never()).closeViewsheet(anyString(), any());
+   }
+
+   @Test
+   void destroyRemote_mixedCaseOrg_messageCarriesCasePreservedOrg() throws Exception {
+      useMixedCaseOrg();
+
+      service.destroyClusterNodeViewsheets("node-2", new String[] { "vs-1" });
+
+      ArgumentCaptor<DestroyViewsheetMessage> captor =
+         ArgumentCaptor.forClass(DestroyViewsheetMessage.class);
+      verify(cluster).sendMessage(eq("node-2"), captor.capture());
+      assertEquals("MixedOrg", captor.getValue().getOrgID());
+   }
+
+   @Test
+   void destroyMessage_mixedCaseOrgViewsheet_closed() throws Exception {
+      stubSheet("vs-1", "MixedOrg");
+      MessageEvent event = mock(MessageEvent.class);
+      when(event.getMessage())
+         .thenReturn(new DestroyViewsheetMessage(new String[] { "vs-1" }, "MixedOrg"));
+
+      service.messageReceived(event);
+
+      verify(engine).closeViewsheet("vs-1", null);
+   }
+
+   @Test
+   void getViewsheets_mixedCaseOrg_listsOwnOrgOnly() {
+      useMixedCaseOrg();
+      when(scheduleClient.isCloud()).thenReturn(true);
+      ViewsheetMetrics metrics = mock(ViewsheetMetrics.class);
+      when(metrics.activeViewsheets()).thenReturn(
+         java.util.List.of(model("own", "MixedOrg"), model("other", "OtherOrg")));
+      when(client.getMetrics(any(), eq("node-1"))).thenReturn(metrics);
+
+      java.util.List<ViewsheetModel> result =
+         service.getViewsheets(ViewsheetModel.State.OPEN, "node-1");
+
+      assertEquals(1, result.size());
+      assertEquals("own", result.get(0).id());
+   }
+
+   @Test
+   void getOpenViewsheets_mixedCaseOrg_listsOwnOrgOnly() {
+      useMixedCaseOrg();
+      when(scheduleClient.isCloud()).thenReturn(true);
+      ViewsheetMetrics metrics = mock(ViewsheetMetrics.class);
+      when(metrics.activeViewsheets()).thenReturn(
+         java.util.List.of(model("own", "MixedOrg"), model("other", "OtherOrg")));
+      when(client.getMetrics(any(), eq("node-1"))).thenReturn(metrics);
+
+      assertEquals(1, service.getOpenViewsheets("node-1", null).size());
    }
 }
