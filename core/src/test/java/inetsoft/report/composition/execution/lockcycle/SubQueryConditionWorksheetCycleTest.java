@@ -47,6 +47,7 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.lang.reflect.Field;
 import java.util.Arrays;
+import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -332,12 +333,13 @@ public class SubQueryConditionWorksheetCycleTest {
       harness.await(harness.submit(
          () -> box.getTableLens("A", AssetQuerySandbox.RUNTIME_MODE)), KNOWN_CAP, "building A");
 
-      Started<Integer> script = harness.start(
-         () -> drain(box.getTableLens("X", AssetQuerySandbox.RUNTIME_MODE)).size());
+      Started<List<List<Object>>> script = harness.start(
+         () -> drain(box.getTableLens("X", AssetQuerySandbox.RUNTIME_MODE)));
       awaitIn(script, KNOWN_CAP, "DistinctTableLens.moreRows");
       worker.release();
 
-      assertEquals(2, harness.await(script.future, KNOWN_CAP, "X's formula reading A first"));
+      // every row of A has its id among B's, and its grp among them when correlated
+      assertFormulaRead(21, harness.await(script.future, KNOWN_CAP, "X's formula reading A first"));
    }
 
    /**
@@ -392,7 +394,8 @@ public class SubQueryConditionWorksheetCycleTest {
       EmbeddedTableAssembly x = embedded(ws, "X", 1, null);
       expression(x, "dlen", "D.length");
 
-      readFirstByFormula(ws, "D", "DistinctTableLens.moreRows");
+      // D.length counts the header row
+      readFirstByFormula(ws, "D", SUB_ROWS + 1, "DistinctTableLens.moreRows");
    }
 
    /**
@@ -401,7 +404,8 @@ public class SubQueryConditionWorksheetCycleTest {
     */
    @Test
    public void groupedTableReadFirstByFormula() throws Exception {
-      groupedTableReadFirst("G.length");
+      // 50 groups and the header row
+      groupedTableReadFirst("G.length", 51);
    }
 
    /**
@@ -411,7 +415,8 @@ public class SubQueryConditionWorksheetCycleTest {
     */
    @Test
    public void groupedTableCellReadFirstByFormula() throws Exception {
-      groupedTableReadFirst("G[1][1]");
+      // G's columns are count(id), gx; the count of group gx = 0
+      groupedTableReadFirst("G[1][0]", SUB_ROWS / 50);
    }
 
    /**
@@ -434,8 +439,8 @@ public class SubQueryConditionWorksheetCycleTest {
       EmbeddedTableAssembly x = embedded(ws, "X", 1, null);
       expression(x, "mlen", "M.length");
 
-      readFirstByFormula(ws, "M", "DistinctTableLens.moreRows", "SortFilter.checkInit",
-                         "SortFilter.moreRows");
+      readFirstByFormula(ws, "M", SUB_ROWS + 1, "DistinctTableLens.moreRows",
+                         "SortFilter.checkInit", "SortFilter.moreRows");
    }
 
    /**
@@ -461,11 +466,60 @@ public class SubQueryConditionWorksheetCycleTest {
       EmbeddedTableAssembly x = embedded(ws, "X", 1, null);
       expression(x, "ulen", "U.length");
 
-      readFirstByFormula(ws, "U", "SetTableLens.moreRows");
+      // Q's rows are rows of P
+      readFirstByFormula(ws, "U", SUB_ROWS + 1, "SetTableLens.moreRows");
       assertFalse(worker.hasParked(), "a lens worker read P's rows");
    }
 
-   private void groupedTableReadFirst(String formula) throws Exception {
+   /**
+    * Bug #77223 review round 1, F1 (O6's intended shape): an embedded table A, sorted and
+    * distinct, small enough that building it computes every formula row, is built on a thread
+    * holding no lock while X's formula reads {@code A.length}. The builder holds A's monitor
+    * ({@code AssetQuerySandbox.getTableLens}) for the rest of the build, and X holds the
+    * engine lock while it waits for that monitor, so nothing the build does after computing
+    * the formula rows may wait for the engine lock. The builder parks inside the monitor after
+    * the formula rows are computed, until X waits for the monitor.
+    */
+   @Test
+   public void sortedDistinctEmbeddedTableBuiltWhileFormulaReadsIt() throws Exception {
+      BuilderGate builder = new BuilderGate(20);
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly a = embedded(ws, "A", 20, builder);
+      expression(a, "ax", "field['id'] * 1");
+      SortInfo sort = new SortInfo();
+      sort.addSort(new SortRef(a.getColumnSelection(false).getAttribute("ax")));
+      a.setSortInfo(sort);
+      a.setDistinct(true);
+      EmbeddedTableAssembly x = embedded(ws, "X", 1, null);
+      expression(x, "alen", "A.length");
+      box = sandbox(ws);
+      lock = box.getScriptEnv().getExecutionLock();
+
+      Started<Integer> building = harness.start(() -> {
+         builder.own();
+         return drain(box.getTableLens("A", AssetQuerySandbox.RUNTIME_MODE)).size();
+      });
+      assertTrue(builder.awaitEntered(KNOWN_CAP), "the builder of A never read A's last row");
+      Started<List<List<Object>>> script = harness.start(
+         () -> drain(box.getTableLens("X", AssetQuerySandbox.RUNTIME_MODE)));
+      releaseAfter(builder, script);
+
+      assertEquals(21, (int) harness.await(building.future, KNOWN_CAP, "the builder of A"));
+      assertFormulaRead(21, harness.await(script.future, KNOWN_CAP, "X's formula reading A"));
+   }
+
+   /**
+    * Let {@code builder}'s owner go on once {@code next} is parked (blocked or waiting) or
+    * finished.
+    */
+   private static void releaseAfter(BuilderGate builder, Started<?> next)
+      throws InterruptedException
+   {
+      LockCycleHarness.awaitParked(next, KNOWN_CAP);
+      builder.release();
+   }
+
+   private void groupedTableReadFirst(String formula, int expected) throws Exception {
       worker = new WorkerGate(PARK_ROW);
       Worksheet ws = new Worksheet();
       EmbeddedTableAssembly g = embedded(ws, "G", SUB_ROWS, worker);
@@ -478,17 +532,18 @@ public class SubQueryConditionWorksheetCycleTest {
       EmbeddedTableAssembly x = embedded(ws, "X", 1, null);
       expression(x, "gval", formula);
 
-      readFirstByFormula(ws, "G", "SummaryFilter.waitForRow", "SummaryFilter.moreRows",
-                         "SummaryFilter.getObject");
+      readFirstByFormula(ws, "G", expected, "SummaryFilter.waitForRow",
+                         "SummaryFilter.moreRows", "SummaryFilter.getObject");
    }
 
    /**
     * Build {@code table} on a thread holding no lock, as a viewsheet or data request would,
     * then compute X, whose formula reads {@code table} by name inside {@code exec}. If building
     * the table left a worker running, the worker cannot finish before X waits in one of
-    * {@code frames}; if it did not, X computes the table itself. Either way X must finish.
+    * {@code frames}; if it did not, X computes the table itself. Either way X must finish,
+    * and its formula must have read {@code expected}.
     */
-   private void readFirstByFormula(Worksheet ws, String table, String... frames)
+   private void readFirstByFormula(Worksheet ws, String table, int expected, String... frames)
       throws Exception
    {
       box = sandbox(ws);
@@ -497,13 +552,22 @@ public class SubQueryConditionWorksheetCycleTest {
          () -> box.getTableLens(table, AssetQuerySandbox.RUNTIME_MODE)), KNOWN_CAP,
                     "building " + table);
 
-      Started<Integer> script = harness.start(
-         () -> drain(box.getTableLens("X", AssetQuerySandbox.RUNTIME_MODE)).size());
+      Started<List<List<Object>>> script = harness.start(
+         () -> drain(box.getTableLens("X", AssetQuerySandbox.RUNTIME_MODE)));
       awaitIn(script, KNOWN_CAP, frames);
       worker.release();
 
-      assertEquals(2, harness.await(script.future, KNOWN_CAP,
-                                    "X's formula reading " + table + " first"));
+      assertFormulaRead(expected, harness.await(script.future, KNOWN_CAP,
+                                                "X's formula reading " + table + " first"));
+   }
+
+   /**
+    * Check that X has its one row, and that its formula column (after id and grp) is
+    * {@code expected}.
+    */
+   private static void assertFormulaRead(int expected, List<List<Object>> rows) {
+      assertEquals(2, rows.size());
+      assertEquals(expected, ((Number) rows.get(1).get(2)).intValue(), "the value X's formula read");
    }
 
    /**
@@ -711,6 +775,55 @@ public class SubQueryConditionWorksheetCycleTest {
 
       private final int row;
       private final CountDownLatch parked = new CountDownLatch(1);
+      private final CountDownLatch released = new CountDownLatch(1);
+   }
+
+   /**
+    * Parks its owner at its first read of the cell values of row {@code row} while it holds no
+    * script lock, i.e. after the formula rows are computed (a formula batch reads the row
+    * holding the engine lock).
+    */
+   private static final class BuilderGate implements Hook {
+      BuilderGate(int row) {
+         this.row = row;
+      }
+
+      void own() {
+         owner = Thread.currentThread();
+      }
+
+      @Override
+      public void onMoreRows(int r) {
+      }
+
+      @Override
+      public void onGetObject(int r) {
+         if(r == row && Thread.currentThread() == owner && !JavaScriptEngine.holdsScriptLock() &&
+            entered.getCount() > 0)
+         {
+            entered.countDown();
+
+            try {
+               // bounded, so a case that never releases cannot park the owner forever
+               released.await(3 * KNOWN_CAP, TimeUnit.SECONDS);
+            }
+            catch(InterruptedException ex) {
+               Thread.currentThread().interrupt();
+            }
+         }
+      }
+
+      boolean awaitEntered(long capSeconds) throws InterruptedException {
+         return entered.await(capSeconds, TimeUnit.SECONDS);
+      }
+
+      void release() {
+         released.countDown();
+      }
+
+      private final int row;
+      private volatile Thread owner;
+      private final CountDownLatch entered = new CountDownLatch(1);
       private final CountDownLatch released = new CountDownLatch(1);
    }
 
