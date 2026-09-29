@@ -65,7 +65,6 @@ class ImportTaskCrossOrgTest {
    private XPrincipal caller;
    private String currentOrg;
    private SecurityProvider provider;
-   private ScheduleTaskService scheduleTaskService;
    // the users that exist, and the security user/group keys the caller administers
    private final Set<IdentityID> users = new HashSet<>();
    private final Set<String> adminOf = new HashSet<>();
@@ -89,11 +88,9 @@ class ImportTaskCrossOrgTest {
       SecurityEngine securityEngine = mock(SecurityEngine.class);
       when(securityEngine.isSecurityEnabled()).thenReturn(true);
       when(securityEngine.getSecurityProvider()).thenReturn(provider);
-      // the real task editor checks, over the mocked security provider
-      scheduleTaskService = new ScheduleTaskService(repository, scheduleManager, null, null,
-                                                    provider, null, securityEngine);
+      // the real owner and execute-as checks, over the mocked security provider
       controller = new ImportTaskController(scheduleManager, mock(ScheduleTaskFolderService.class),
-                                            repository, securityEngine, scheduleTaskService);
+                                            repository, securityEngine);
 
       HttpSession session = mock(HttpSession.class);
       doAnswer(inv -> sessionAttrs.put(inv.getArgument(0), inv.getArgument(1)))
@@ -551,7 +548,7 @@ class ImportTaskCrossOrgTest {
       SecurityEngine securityEngine = mock(SecurityEngine.class);
       when(securityEngine.isSecurityEnabled()).thenReturn(false);
       controller = new ImportTaskController(scheduleManager, mock(ScheduleTaskFolderService.class),
-                                            repository, securityEngine, scheduleTaskService);
+                                            repository, securityEngine);
       caller = principal("anonymous", HOST_ORG);
       when(orgManager.getCurrentOrgID()).thenReturn(HOST_ORG);
       when(orgManager.getCurrentOrgID(any())).thenReturn(HOST_ORG);

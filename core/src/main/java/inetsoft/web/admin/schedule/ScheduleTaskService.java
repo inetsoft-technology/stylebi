@@ -76,6 +76,7 @@ public class ScheduleTaskService {
       this.securityProvider = securityProvider;
       this.scheduleTaskFolderService = scheduleTaskFolderService;
       this.securityEngine = securityEngine;
+      this.identityChecker = new ScheduleTaskIdentityChecker(securityProvider);
    }
 
    public ScheduleTaskDialogModel getNewTaskDialogModel(PortalNewTaskRequest model,
@@ -1554,7 +1555,9 @@ public class ScheduleTaskService {
     * Verifies that the caller may assign the owner and run-as identity requested in the task
     * options. An identity that is unchanged from the saved task, the caller itself, or (for the
     * run-as identity) the task owner is always allowed; any other identity requires admin
-    * permission on that user or group.
+    * permission on that user or group. Bug #77281, a caller that isn't a site admin may only
+    * assign an identity the editor offers (ScheduleTaskIdentityChecker), the admin permission
+    * alone is granted on a user that doesn't exist.
     */
    private void checkTaskIdentityPermission(TaskOptionsPaneModel options, ScheduleTask task,
                                             Principal principal)
@@ -1569,8 +1572,9 @@ public class ScheduleTaskService {
          null : getIdentityId(options.owner(), principal);
 
       if(owner != null && !owner.equals(task.getOwner()) && !owner.equals(caller) &&
-         !securityProvider.checkPermission(principal, ResourceType.SECURITY_USER,
-                                           owner.convertToKey(), ResourceAction.ADMIN))
+         (!securityProvider.checkPermission(principal, ResourceType.SECURITY_USER,
+                                            owner.convertToKey(), ResourceAction.ADMIN) ||
+          !identityChecker.isOwnerAllowed(owner, principal)))
       {
          throw new SecurityException(String.format(
             "Unauthorized assignment of task owner \"%s\" by %s", owner, principal));
@@ -1585,15 +1589,17 @@ public class ScheduleTaskService {
       Identity oldIdentity = task.getIdentity();
       boolean unchanged = oldIdentity != null && oldIdentity.getType() == type &&
          runAs.equals(oldIdentity.getIdentityID());
+      IdentityID taskOwner = owner != null ? owner : task.getOwner();
       boolean selfOrOwner = type == Identity.USER &&
-         (runAs.equals(caller) || runAs.equals(owner != null ? owner : task.getOwner()));
+         (runAs.equals(caller) || runAs.equals(taskOwner));
 
       if(!unchanged && !selfOrOwner) {
          ResourceType resourceType = type == Identity.GROUP ? ResourceType.SECURITY_GROUP :
             type == Identity.ROLE ? ResourceType.SECURITY_ROLE : ResourceType.SECURITY_USER;
 
          if(!securityProvider.checkPermission(principal, resourceType, runAs.convertToKey(),
-                                              ResourceAction.ADMIN))
+                                              ResourceAction.ADMIN) ||
+            !identityChecker.isExecuteAsAllowed(runAs, type, taskOwner, principal))
          {
             throw new SecurityException(String.format(
                "Unauthorized assignment of task run-as identity \"%s\" by %s", runAs,
@@ -1618,6 +1624,7 @@ public class ScheduleTaskService {
    private final SecurityProvider securityProvider;
    private final ScheduleTaskFolderService scheduleTaskFolderService;
    private final SecurityEngine securityEngine;
+   private final ScheduleTaskIdentityChecker identityChecker;
 
    private static final Logger LOG =
       LoggerFactory.getLogger(ScheduleTaskService.class);
