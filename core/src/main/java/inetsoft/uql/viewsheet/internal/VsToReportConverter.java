@@ -1077,9 +1077,10 @@ public class VsToReportConverter {
             (int) Math.round(lens.getRowHeightWithPadding(AssetUtil.defh * scalefont, i, info));
       }
 
-      // the card's top and bottom insets
+      // the card's top and bottom insets, and the top border the title lane starts below
       Insets inset = getCardInset(info);
-      return height + inset.top + inset.bottom;
+      int border = isZero(inset) ? 0 : getCardBorderWidths(info).top;
+      return height + border + inset.top + inset.bottom;
    }
 
    /**
@@ -1509,7 +1510,9 @@ public class VsToReportConverter {
       Rectangle bounds = getPixelBounds(assembly);
       int titleH = getTitleHeight(assembly, true);
       int laneH = info.isTitleVisible() ? titleH : 0;
-      Rectangle topBounds = new Rectangle(bounds.x, bounds.y, bounds.width, inset.top + laneH);
+      Insets bw = getCardBorderWidths(info);
+      int laneY = bw.top + inset.top;
+      Rectangle topBounds = new Rectangle(bounds.x, bounds.y, bounds.width, laneY + laneH);
       // built directly, not through addTextBoxElement0: that path's applyFormat call would
       // rewrite the object's live border Insets in place (isTitle = false there)
       TextBoxElementDef top = new TextBoxElementDef(report, new DefaultTextLens(""));
@@ -1523,13 +1526,25 @@ public class VsToReportConverter {
       addElement0(topBounds, top, sectionName);
 
       if(info.isTitleVisible()) {
-         addCardTitle(assembly, new Rectangle(bounds.x + inset.left, bounds.y + inset.top,
-            Math.max(0, bounds.width - inset.left - inset.right), titleH), sectionName);
+         int titleX = bw.left + inset.left;
+         addCardTitle(assembly, new Rectangle(bounds.x + titleX, bounds.y + laneY,
+            Math.max(0, bounds.width - titleX - inset.right), titleH), sectionName);
       }
 
       // 1px up so the sides join, as the table joins its title without an inset
-      return new Rectangle(bounds.x, bounds.y + inset.top + laneH - 1, bounds.width,
-                           Math.max(0, bounds.height - inset.top - titleH));
+      return new Rectangle(bounds.x, bounds.y + laneY + laneH - 1, bounds.width,
+                           Math.max(0, bounds.height - laneY - titleH));
+   }
+
+   // the object border's top and left widths: the card's inset starts inside the border there,
+   // as the chart's padding does
+   private static Insets getCardBorderWidths(TableDataVSAssemblyInfo info) {
+      VSCompositeFormat format = info.getFormat();
+      Insets borders = format == null ? null : format.getBorders();
+
+      return borders == null ? new Insets(0, 0, 0, 0) :
+         new Insets((int) Math.ceil(Common.getLineWidth(borders.top)),
+                    (int) Math.ceil(Common.getLineWidth(borders.left)), 0, 0);
    }
 
    // the title inside a padded table's card keeps its own format and borders, not the card's

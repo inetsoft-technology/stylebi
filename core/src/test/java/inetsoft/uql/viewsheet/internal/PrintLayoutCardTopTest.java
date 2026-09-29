@@ -39,13 +39,34 @@ class PrintLayoutCardTopTest {
       TextBoxElementDef title = (TextBoxElementDef) elements.get(1);
       TableElementDef table = (TableElementDef) elements.get(2);
 
-      assertEquals(new Rectangle(20, 10, 400, 16 + titleH), fixture.bounds(top));
+      // the lane starts below the THIN top border
+      assertEquals(new Rectangle(20, 10, 400, 1 + 16 + titleH), fixture.bounds(top));
       assertEquals(new Insets(THIN, THIN, NONE, THIN), top.getBorders());
       assertEquals(Color.YELLOW, top.getBackground());
-      assertEquals(new Rectangle(36, 26, 368, titleH), fixture.bounds(title));
-      assertEquals(new Rectangle(20, 10 + 16 + titleH - 1, 400, 250 - 16 - titleH),
+      assertEquals(new Rectangle(37, 27, 367, titleH), fixture.bounds(title));
+      assertEquals(new Rectangle(20, 10 + 1 + 16 + titleH - 1, 400, 250 - 1 - 16 - titleH),
                    fixture.bounds(table));
       assertEquals(new Insets(0, 16, 16, 16), table.getCardInset());
+   }
+
+   @Test
+   void theTitleSitsInsideTheCardBorderAsTheChartTitleDoes() throws Exception {
+      PrintLayoutConverterFixture fixture = new PrintLayoutConverterFixture().inset(16, 16, 16, 16);
+      List<ReportElement> elements = fixture.addTable();
+      int titleH = fixture.info.getTitleHeight();
+
+      // the THIN border's 1px comes before the inset on the top and the left
+      assertEquals(new Rectangle(37, 27, 367, titleH), fixture.bounds(elements.get(1)));
+   }
+
+   @Test
+   void aBorderlessCardPutsTheTitleAtTheInset() throws Exception {
+      PrintLayoutConverterFixture fixture = new PrintLayoutConverterFixture().inset(16, 16, 16, 16);
+      fixture.info.getFormat().getUserDefinedFormat().setBorders(new Insets(NONE, NONE, NONE, NONE));
+      List<ReportElement> elements = fixture.addTable();
+
+      assertEquals(new Rectangle(36, 26, 368, fixture.info.getTitleHeight()),
+                   fixture.bounds(elements.get(1)));
    }
 
    @Test
@@ -67,11 +88,11 @@ class PrintLayoutCardTopTest {
       TextBoxElementDef top = (TextBoxElementDef) elements.get(0);
 
       assertEquals(2, elements.size(), "no title box");
-      assertEquals(new Rectangle(20, 10, 400, 16), fixture.bounds(top));
+      assertEquals(new Rectangle(20, 10, 400, 1 + 16), fixture.bounds(top));
       assertEquals(new Insets(THIN, THIN, NONE, THIN), top.getBorders(),
                    "a padded card keeps its top border with the title hidden");
       // the hidden-title height still comes off, as it did before the inset
-      assertEquals(new Rectangle(20, 10 + 16 - 1, 400, 250 - 16 - titleH),
+      assertEquals(new Rectangle(20, 10 + 1 + 16 - 1, 400, 250 - 1 - 16 - titleH),
                    fixture.bounds(elements.get(1)));
    }
 
@@ -105,8 +126,8 @@ class PrintLayoutCardTopTest {
       List<ReportElement> elements = fixture.addTable();
       int titleH = fixture.info.getTitleHeight();
 
-      assertEquals(new Rectangle(20, 10, 400, 8 + titleH), fixture.bounds(elements.get(0)));
-      assertEquals(new Rectangle(44, 18, 376, titleH), fixture.bounds(elements.get(1)));
+      assertEquals(new Rectangle(20, 10, 400, 1 + 8 + titleH), fixture.bounds(elements.get(0)));
+      assertEquals(new Rectangle(45, 19, 375, titleH), fixture.bounds(elements.get(1)));
       assertEquals(new Insets(0, 24, 4, 0), ((TableElementDef) elements.get(2)).getCardInset());
    }
 

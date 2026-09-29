@@ -72,11 +72,12 @@ class PrintLayoutCardArithmeticTest {
    }
 
    @Test
-   void theTabsHeightAddsTheTopAndBottomInsets() throws Exception {
+   void theTabsHeightCountsTheTopBorderAboveTheTitleLane() throws Exception {
       int plain = new PrintLayoutConverterFixture().printHeight();
       int inset = new PrintLayoutConverterFixture().inset(16, 16, 12, 16).printHeight();
 
-      assertEquals(plain + 16 + 12, inset);
+      // the THIN top border's 1px sits above the top inset
+      assertEquals(plain + 1 + 16 + 12, inset);
    }
 
    @Test

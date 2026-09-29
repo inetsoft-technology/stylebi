@@ -336,9 +336,12 @@ named last. C1 changed none of `VsToReportConverter`, `TableElementDef`, `TableP
 ### 8.3 The card-top box and the title
 
 W and H are the card's width and height. titleH is the title lane's height, and 0 when the title is
-hidden. With a non-zero inset:
+hidden. bt and bl are the widths of the object's top and left borders, `ceil(Common.getLineWidth())`,
+so 1 for a thin line and 0 for none. The top and left insets start inside those borders, as the
+chart's padding does (`VsToReportConverter:1619-1620`), so a table title starts where `Chart1`'s
+does. With a non-zero inset:
 
-- **The card-top box** is a blank `TextBoxElementDef` at (x, y, W, T + titleH). It carries:
+- **The card-top box** is a blank `TextBoxElementDef` at (x, y, W, bt + T + titleH). It carries:
   - the borders (top, left, `NO_BORDER`, right), from the OBJECT format, with its border colour;
   - the OBJECT background.
 
@@ -346,15 +349,16 @@ hidden. With a non-zero inset:
   (`:2118`) would turn every `NO_BORDER` edge into `THIN_LINE`, bottom included, because
   `TableDataVSAssemblyInfo` is not on its exception list. The chart sets its own borders after the
   same call (`:1495`).
-- **The title box** sits at (x + L, y + T, W − L − R, titleH).
+- **The title box** sits at (x + bl + L, y + bt + T, W − bl − L − R, titleH). Its right edge is the
+  grid's, W − R.
   - It is added after the card-top box, so the stable z-index sort (`Arrays.sort`, `:3059`) paints
     it on top.
   - It keeps its TITLE-path format, and only its TITLE-path borders; the object's are not merged in.
-- **A hidden title** creates no title box. The card-top box is T tall and still carries the top
+- **A hidden title** creates no title box. The card-top box is bt + T tall and still carries the top
   border. An unpadded title-hidden table keeps today's missing top.
 - **The table element** starts 1px above the card-top box's bottom, as it starts 1px above the title
-  today, and gets the card inset (0, L, B, R). Its height subtracts T and the title height, whether
-  or not the title shows. The hidden-title subtraction (`:1439-1447`) predates this work and stays.
+  today, and gets the card inset (0, L, B, R). Its height subtracts bt + T and the title height,
+  whether or not the title shows. The hidden-title subtraction (`:1439-1447`) predates this work and stays.
 - **Rounded corners:** not added. Print layout draws none for tables today.
 
 ### 8.4 The converter's arithmetic
@@ -368,8 +372,8 @@ hidden. With a non-zero inset:
     widths (`report/composition/RegionTableLens:30`, `:51-53`).
 - **The fit-page decision** (`VsToReportConverter:1144-1149`) compares the column total against
   W − L − R, in both branches.
-- **`computePrintLayoutTableHeight`** (`:1036`, compared at `:1004`) adds T + B, so a shrunk table in
-  bottom tabs still ends flush with the tab strip.
+- **`computePrintLayoutTableHeight`** (`:1036`, compared at `:1004`) adds bt + T + B, so a shrunk table
+  in bottom tabs still ends flush with the tab strip.
 
 ### 8.5 `TableElementDef`
 
@@ -477,10 +481,11 @@ inset, which is why C2 is its own PR.
      does:
      - the column-width take-back, and the fill to W − L − R;
      - the fit-page decision against W − L − R;
-     - `computePrintLayoutTableHeight` adds T + B;
+     - `computePrintLayoutTableHeight` adds bt + T + B;
      - `addTable`'s three rects: the card-top box with borders (top, left, 0, right), and the title
        box keeping only its TITLE-path borders;
-     - a hidden title gives a card-top box T tall that carries the top border;
+     - the title box starts inside the object border, at (x + bl + L, y + bt + T);
+     - a hidden title gives a card-top box bt + T tall that carries the top border;
      - `PDFVSExporter` hands the converter its resolver.
    - **`TableElementDef`:**
      - under Fit Page Width, the columns are scaled to the grid width;
