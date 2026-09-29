@@ -487,6 +487,27 @@ public class DataSpace implements AutoCloseable {
    }
 
    /**
+    * Retrieve the digest of the content of the file, which identifies what the file holds
+    * whenever it was written, unlike its modification time.
+    *
+    * @param dir directory name
+    * @param file file name
+    *
+    * @return the lower-case hexadecimal MD5 hash of the file content, or {@code null} if the file
+    *         does not exist or is a directory
+    */
+   public String getDigest(String dir, String file) {
+      String path = getPath(dir, file);
+
+      try {
+         return storage().getDigest(path);
+      }
+      catch(FileNotFoundException ignore) {
+         return null;
+      }
+   }
+
+   /**
     * Create the directory named by a path.
     *
     * @param path the specified path

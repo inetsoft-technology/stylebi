@@ -36,6 +36,8 @@ import java.beans.PropertyChangeListener;
 import java.io.*;
 import java.lang.ref.WeakReference;
 import java.nio.charset.StandardCharsets;
+import java.security.DigestOutputStream;
+import java.security.MessageDigest;
 import java.security.Principal;
 import java.util.*;
 import java.util.concurrent.locks.Lock;
@@ -210,11 +212,13 @@ public class RepletRegistry implements Serializable {
       // always add root folder
       getFolderMap().put("/", "/");
       long readDate = STALE_DATE;
+      String readDigest = STALE_DIGEST;
 
       try {
          // taken before the content is read, so that a commit landing during the read leaves date
          // older than what was read and the next save() reads storage again (Bug #76977)
          long lastModified = space.getLastModified(null, getRegistryPath());
+         String digest = space.getDigest(null, getRegistryPath());
 
          while(tokens.hasMoreTokens()) {
             String repfile = getRegistryPath(Tool.convertUserFileName(tokens.nextToken()));
@@ -234,6 +238,7 @@ public class RepletRegistry implements Serializable {
          }
 
          readDate = lastModified;
+         readDigest = digest;
       }
       catch(Exception ex) {
          LOG.error("Failed to initialize the registry", ex);
@@ -241,6 +246,7 @@ public class RepletRegistry implements Serializable {
       finally {
          // a copy that was not read completely counts as behind storage
          date = readDate;
+         storedDigest = readDigest;
          loaded = date != 0;
 
          // always add My Reports folder
@@ -746,7 +752,9 @@ public class RepletRegistry implements Serializable {
       lock.lock();
 
       try {
-         if(!loaded || space.getLastModified(null, repfile) != date) {
+         // Bug #77339, the digest and not the last modified time tells whether storage changed
+         // since this copy read or wrote it, as two commits can share the same millisecond
+         if(!loaded || !Objects.equals(space.getDigest(null, repfile), storedDigest)) {
             // repository.xml exists in the data space but wasn't loaded, or was saved by another
             // node since it was loaded, so reload the registry
             if(space.exists(null, repfile)) {
@@ -779,8 +787,16 @@ public class RepletRegistry implements Serializable {
          dmgr.removeChangeListener(space, getRegistryDir(), getRegistryFileName(), changeListener);
 
          try {
-            space.withOutputStream(null, repfile, this::save);
+            MessageDigest written = MessageDigest.getInstance("MD5");
+            // digest of the bytes this copy wrote, so that a commit of another writer landing
+            // before the token would be read is not taken for this copy's own
+            space.withOutputStream(null, repfile, out -> {
+               DigestOutputStream digestOut = new DigestOutputStream(out, written);
+               save(digestOut);
+               digestOut.flush();
+            });
             date = space.getLastModified(null, repfile);
+            storedDigest = toDigestString(written.digest());
             storedState = new StoredState(getFolderMap(), getFolderContextmap());
          }
          catch(Throwable exc) {
@@ -828,6 +844,19 @@ public class RepletRegistry implements Serializable {
       }
 
       return date;
+   }
+
+   /**
+    * Encodes a digest the way the blob storage does for {@link DataSpace#getDigest}.
+    */
+   private static String toDigestString(byte[] digest) {
+      StringBuilder digestString = new StringBuilder();
+
+      for(byte b : digest) {
+         digestString.append(String.format("%02x", ((int) b) & 0xff));
+      }
+
+      return digestString.toString();
    }
 
    /**
@@ -968,6 +997,7 @@ public class RepletRegistry implements Serializable {
             if(!read) {
                // a copy that was not read completely counts as behind storage
                date = STALE_DATE;
+               storedDigest = STALE_DIGEST;
             }
 
             // always add My Reports folder
@@ -991,11 +1021,13 @@ public class RepletRegistry implements Serializable {
       synchronized void load() throws Exception {
          String file = getRegistryPath();
          long lastModified = 0;
+         String digest = null;
 
          try {
             DataSpace space = DataSpace.getDataSpace();
             // taken before the content is read, as in init() (Bug #76977)
             lastModified = space.getLastModified(null, file);
+            digest = space.getDigest(null, file);
 
             if(!space.exists(null, file)) {
                return;
@@ -1011,6 +1043,7 @@ public class RepletRegistry implements Serializable {
          }
          finally {
             date = lastModified;
+            storedDigest = digest;
             loaded = date != 0;
          }
       }
@@ -1059,9 +1092,10 @@ public class RepletRegistry implements Serializable {
          String file = getRegistryPath();
 
          try {
-            long ndate = DataSpace.getDataSpace().getLastModified(null, file);
+            // Bug #77339, compare digests, as a commit can share the millisecond of the last one
+            String ndigest = DataSpace.getDataSpace().getDigest(null, file);
 
-            if(ndate != date) {
+            if(!Objects.equals(ndigest, storedDigest)) {
                init0();
             }
          }
@@ -1295,12 +1329,17 @@ public class RepletRegistry implements Serializable {
    protected DataChangeListenerManager dmgr = new DataChangeListenerManager();
    protected long date = -2L; // last modified
    protected boolean loaded;
+   // digest of repository.xml as this copy last read or wrote it, null if it did not exist
+   protected String storedDigest = STALE_DIGEST;
    // what this copy last read from or wrote to storage, to tell its unsaved changes
    private transient StoredState storedState;
 
    private static final String SAVE_LOCK_PREFIX = RepletRegistry.class.getName() + ".save:";
    // date of a copy that is behind storage whatever storage holds, as no stored file has it
    private static final long STALE_DATE = -3L;
+   // digest of a copy that is behind storage whatever storage holds: neither null (no file) nor
+   // any stored digest, which are hexadecimal
+   private static final String STALE_DIGEST = "stale";
 
    static final String GLOBAL_LISTENERS = RepletRegistry.class.getName() + ".globalListeners";
    private static final Logger LOG = LoggerFactory.getLogger(RepletRegistry.class);
