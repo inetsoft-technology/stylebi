@@ -3092,15 +3092,25 @@ public class SUtil {
     * initialized, transient backend hiccup), so a storage blip degrades to the old staleness
     * window instead of throwing out of a permission check exercised on every folder listing and
     * viewsheet open.
+    * <p>
+    * A property that is not stored falls back to the sources that never hold stored values: an
+    * {@code INETSOFT_*} environment variable, a system property, or the built-in default, so a
+    * value supplied by {@code -D} or the environment is honored as it is by the cached read. The
+    * cached read is not used for that, because it can still hold a value another node already
+    * removed from the storage (Bug #77323).
     */
    private static String getPropertyBypassingCache(String name) {
+      String value;
+
       try {
-         return SreeEnv.getPropertyFromStorage(name);
+         value = SreeEnv.getPropertyFromStorage(name);
       }
       catch(Exception ex) {
          LOG.debug("Falling back to cached property value for {}", name, ex);
          return SreeEnv.getProperty(name, "false");
       }
+
+      return value != null ? value : SreeEnv.getPropertyFromNonStorageSources(name);
    }
 
    public static boolean isSharedDefaultOrgDashboard(AssetEntry entry) {
