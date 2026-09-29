@@ -346,6 +346,8 @@ export class UsersSettingsPageComponent implements OnInit, OnDestroy {
             tap(() => this.refreshTree({name: model.name, orgID: (model as EditOrganizationPaneModel).id}, IdentityType.ORGANIZATION)),
             finalize(() => this.orgBusy.endOrgSave())
          ).subscribe((msg: string) => {
+            // no need to subscribe: dialog.open() shows the message right away and there is
+            // no logout here that has to wait for it to be closed
             this.showOrganizationSaveMessage(msg);
             this.loading = false;
 
