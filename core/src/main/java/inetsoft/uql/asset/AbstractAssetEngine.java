@@ -2767,21 +2767,35 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
             }
 
             Principal bookmarkUser = user;
+            boolean copyBookmarks = true;
 
             if(sheet instanceof Viewsheet) {
                Viewsheet vs = (Viewsheet) sheet;
                ViewsheetInfo vsInfo = vs.getViewsheetInfo();
+               AssetEntry source = vs.getRuntimeEntry() != null ? vs.getRuntimeEntry() : entry;
+               IdentityID owner = source.getScope() == USER_SCOPE ? source.getUser() : null;
 
-               // no security, logged in as admin and saving a composed dashboard
+               // no security, logged in as admin and saving a composed dashboard owned by
+               // anonymous (with a null org since Bug #74247). The source's bookmarks can only be
+               // keyed by its owner, so copy them as the owner, or skip the copy when the target
+               // is another user's private asset, which cannot hold them (Bug #77345)
                if(vsInfo.isComposedDashboard() && !SecurityEngine.getSecurity().isSecurityEnabled()
-                       && user != null && Tool.equals(XPrincipal.ANONYMOUS, entry.getUser()))
+                  && user != null && owner != null && XPrincipal.ANONYMOUS.equals(owner.getName())
+                  && !owner.equals(IdentityID.getIdentityIDFromKey(user.getName())))
                {
-                  bookmarkUser = new XPrincipal(new IdentityID(XPrincipal.ANONYMOUS, Organization.getDefaultOrganizationID()));
+                  if(entry.getScope() == USER_SCOPE && !owner.equals(entry.getUser())) {
+                     copyBookmarks = false;
+                  }
+                  else {
+                     bookmarkUser = new XPrincipal(owner);
+                  }
                }
             }
 
             // fixed bug1219747176468
-            overwriteBookmarks(sheet, entry, bookmarkUser);
+            if(copyBookmarks) {
+               overwriteBookmarks(sheet, entry, bookmarkUser);
+            }
             // for feature #9005, update dependencies of the binding sources.
 
             if(updateDependency) {
