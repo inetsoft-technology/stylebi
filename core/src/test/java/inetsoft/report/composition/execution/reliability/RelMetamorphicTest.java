@@ -98,7 +98,17 @@ public class RelMetamorphicTest {
       // a long run is split into case ranges, each within one Maven call
       int from = Integer.getInteger("rel.from", 0);
       int to = Integer.getInteger("rel.to", Integer.MAX_VALUE);
-      return cases.skip(from).limit(Math.max(0, to - from));
+      cases = cases.skip(from).limit(Math.max(0, to - from));
+      // or a list of case indexes, e.g. to re-run chosen cases after a harness change
+      String only = System.getProperty("rel.cases", "");
+
+      if(!only.isBlank()) {
+         Set<Integer> indexes = new HashSet<>();
+         Arrays.stream(only.split(",")).forEach(i -> indexes.add(Integer.parseInt(i.trim())));
+         cases = cases.filter(c -> indexes.contains(c.index()));
+      }
+
+      return cases;
    }
 
    /**
