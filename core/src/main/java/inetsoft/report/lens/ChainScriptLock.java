@@ -46,8 +46,9 @@ public final class ChainScriptLock {
     */
    public interface Source {
       /**
-       * @return the execution lock reading this table takes, or {@code null} if it takes none,
-       *         e.g. with pooled script contexts.
+       * @return the execution lock reading this table may still take, or {@code null} if it
+       *         takes none, e.g. with pooled script contexts or when nothing is left to
+       *         compute.
        */
       Lock getScriptLock();
    }
