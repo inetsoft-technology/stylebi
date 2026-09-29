@@ -67,6 +67,9 @@ export class AppComponent implements OnInit, OnDestroy {
    private smallDevice = false;
    private sessionExpirationDialog: MatDialogRef<SessionExpirationDialog>;
    private protectionExpirationDialog: MatDialogRef<SessionExpirationDialog>;
+   private notificationDialogRef: MatDialogRef<any>;
+   private notificationTimer: any;
+   private notificationSticky = false;
 
    constructor(private authzService: AuthorizationService,
                private stompClient: StompClientService, private zone: NgZone,
@@ -187,11 +190,37 @@ export class AppComponent implements OnInit, OnDestroy {
    }
 
    notify(notification: any, width?: string, duration?: number): void {
-      this.notificationMessage = notification.message;
-      const dialog = this.dialog.open(this.notificationDialog, { width: !!width ? width : "350px" });
+      // if the notification dialog is already open, append the message to it instead of
+      // opening another dialog that would share (and overwrite) notificationMessage
+      if(this.notificationDialogRef) {
+         this.notificationMessage += "\n" + notification.message;
+      }
+      else {
+         this.notificationMessage = notification.message;
+         this.notificationSticky = false;
+         const dialog = this.dialog.open(this.notificationDialog, { width: !!width ? width : "350px" });
+         this.notificationDialogRef = dialog;
 
-      if(!!duration) {
-         setTimeout(() => { dialog.close(); }, duration);
+         dialog.afterClosed().subscribe(() => {
+            if(this.notificationDialogRef === dialog) {
+               this.notificationDialogRef = null;
+               clearTimeout(this.notificationTimer);
+               this.notificationTimer = null;
+            }
+         });
+      }
+
+      clearTimeout(this.notificationTimer);
+      this.notificationTimer = null;
+
+      // a message without a duration must stay until the user closes the dialog
+      if(!duration) {
+         this.notificationSticky = true;
+      }
+
+      if(!this.notificationSticky) {
+         const dialog = this.notificationDialogRef;
+         this.notificationTimer = setTimeout(() => { dialog.close(); }, duration);
       }
    }
 
