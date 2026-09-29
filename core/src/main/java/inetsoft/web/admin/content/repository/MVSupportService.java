@@ -682,7 +682,10 @@ public class MVSupportService {
    }
 
    /**
-    * Get the sheet.
+    * Get the sheet. The identifier may be client-supplied, and its org segment selects the
+    * storage that is read, so the caller's access is checked before the sheet is loaded. A
+    * sheet the caller may not analyze and a sheet that does not exist are refused with the same
+    * exception, so the refusal does not reveal whether the sheet exists.
     * @param identifier the specified identifier.
     * @param entry the specified entry.
     */
@@ -696,7 +699,63 @@ public class MVSupportService {
       }
 
       AssetRepository repository = AssetUtil.getAssetRepository(false);
-      return repository.getSheet(entry, user, false, AssetContent.ALL);
+
+      if(!canAnalyzeSheet(repository, entry, user)) {
+         throw sheetUnavailable(entry);
+      }
+
+      // the caller's access was checked above; READ with checkUserAsset=true would refuse the
+      // admin of the owning user, who may analyze that user's private viewsheets
+      AbstractSheet sheet = repository.getSheet(entry, user, false, AssetContent.ALL);
+
+      if(sheet == null) {
+         throw sheetUnavailable(entry);
+      }
+
+      return sheet;
+   }
+
+   /**
+    * Checks whether the user may open the sheet for MV analysis: READ as the caller, and the
+    * sheet must be in the caller's own organization unless the caller is a site admin. The
+    * explicit organization check is needed because READ alone admits host-org viewsheets when
+    * they are globally visible, and that read-only share does not extend to MV analysis.
+    */
+   private static boolean canAnalyzeSheet(AssetRepository repository, AssetEntry entry,
+                                          Principal user) throws Exception
+   {
+      // AbstractAssetEngine.checkAssetPermission() grants everything to a null user
+      if(!(user instanceof XPrincipal)) {
+         return false;
+      }
+
+      String userOrg = ((XPrincipal) user).getOrgId();
+      // an entry without an organization is read from the caller's organization
+      String entryOrg = entry.getOrgID() == null ? userOrg : entry.getOrgID();
+
+      if(!OrganizationManager.getInstance().isSiteAdmin(user) &&
+         (userOrg == null || !userOrg.equalsIgnoreCase(entryOrg)))
+      {
+         return false;
+      }
+
+      // the user-scope permission check dereferences the owner, fail closed without one
+      if(entry.getScope() == AssetRepository.USER_SCOPE && entry.getUser() == null) {
+         return false;
+      }
+
+      try {
+         repository.checkAssetPermission(user, entry, ResourceAction.READ);
+         return true;
+      }
+      catch(MessageException ex) {
+         return false;
+      }
+   }
+
+   private static MessageException sheetUnavailable(AssetEntry entry) {
+      return new MessageException(Catalog.getCatalog().getString(
+         "em.common.security.no.permission", entry.getPath()));
    }
 
    private static void saveViewsheet(String identifier, Principal user) {
