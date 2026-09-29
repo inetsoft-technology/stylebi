@@ -46,8 +46,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * {@link DataSpace} play the two nodes. A save on either one reaches both (and itself) through the
  * DataSpace change listener, on the single BlobStorageEvent thread, as a remote commit would. The
  * tests order that delivery explicitly: {@link #blockEvents()} parks the event thread so that no
- * reload can happen, and {@link #awaitEventsDelivered()} waits until every event queued so far has
- * been dispatched.</p>
+ * reload can happen, and {@link #awaitRepositoryEvent()} waits until the event of the commit just
+ * made has been dispatched.</p>
  *
  * <p>{@link #addFolder} and {@link #save} are the two steps a node takes for
  * {@code POST /api/portal/tree/add-folder} (RepletEngine.addFolder: registry.addFolder, alias,
@@ -119,6 +119,8 @@ class RepletRegistryConcurrentSaveTest {
       awaitRepositoryEvent();
       // node B has now processed A's change event
       String beforeSaveB = reloads();
+      assertTrue(nodeB.isFolder(X), "B did not reload A's commit before its own save: " +
+                 beforeSaveB + "; B=" + folders(nodeB));
       save(nodeB);
       awaitRepositoryEvent();
 
@@ -140,11 +142,12 @@ class RepletRegistryConcurrentSaveTest {
     * been dispatched, so that no late event from the setup reaches the two node registries.
     */
    private void seedParentFolder() throws Exception {
+      boolean newFolder = !space.isDirectory(orgId);
       RepletRegistry seed = new RepletRegistry(orgId);
       seed.addFolder(PARENT);
       seed.save();
       seed.shutdown();
-      awaitRepositoryEvent();
+      awaitSeedEvents(newFolder);
    }
 
    private void assertStoredFolders(String context, String... expected) throws Exception {
@@ -182,12 +185,28 @@ class RepletRegistryConcurrentSaveTest {
 
    /**
     * Waits until the next change event of repository.xml has been dispatched to every listener,
-    * the node registries included.
+    * the node registries included. Only the file's own events count (see {@link #repositoryWatch}),
+    * so the permit taken here is the one of the commit the test just made: that event is already
+    * being dispatched, and the barrier after it waits until it has been.
     */
    private void awaitRepositoryEvent() throws Exception {
       assertTrue(repositoryEvents.tryAcquire(TIMEOUT, TimeUnit.SECONDS),
                  "repository.xml change event was not delivered");
       awaitEventsDelivered();
+   }
+
+   /**
+    * Waits until every change event of the seed's save has been dispatched: the repository.xml
+    * event and, when the save created the org folder, the folder's event, which the DataSpace also
+    * delivers to the repository.xml listeners. Either one may arrive last.
+    */
+   private void awaitSeedEvents(boolean newFolder) throws Exception {
+      if(newFolder) {
+         assertTrue(folderEvents.tryAcquire(TIMEOUT, TimeUnit.SECONDS),
+                    "org folder change event was not delivered");
+      }
+
+      awaitRepositoryEvent();
    }
 
    /**
@@ -228,8 +247,9 @@ class RepletRegistryConcurrentSaveTest {
    /**
     * Waits until every change event already queued on the event thread has been dispatched to all
     * listeners. Events are dispatched in order on one BlobStorageEvent thread, so a marker event
-    * written now is dispatched after them. An event that is still on its way to that thread is not
-    * covered, see {@link #awaitRepositoryEvent()}.
+    * written now is dispatched after them. An event that is still on its way to that thread (the
+    * storage hands each one to a thread pool first, which does not keep their order) is not
+    * covered, so this alone does not wait for a given commit, see {@link #awaitRepositoryEvent()}.
     */
    private void awaitEventsDelivered() throws Exception {
       CountDownLatch delivered = new CountDownLatch(1);
@@ -263,7 +283,20 @@ class RepletRegistryConcurrentSaveTest {
    private RepletRegistry nodeB;
    private Runnable releaseBlocker;
    private final Semaphore repositoryEvents = new Semaphore(0);
-   private final DataChangeListener repositoryWatch = e -> repositoryEvents.release();
+   private final Semaphore folderEvents = new Semaphore(0);
+   /**
+    * Counts the change events of {@code {orgId}/repository.xml} and of the org folder separately.
+    * The first write into a new folder also creates the folder, and the DataSpace delivers the
+    * folder's event (dir null, file orgId) to every listener below it, this one included.
+    */
+   private final DataChangeListener repositoryWatch = e -> {
+      if(orgId.equals(e.getDir()) && "repository.xml".equals(e.getFile())) {
+         repositoryEvents.release();
+      }
+      else if((e.getDir() == null || e.getDir().isEmpty()) && orgId.equals(e.getFile())) {
+         folderEvents.release();
+      }
+   };
    // registries hold their property change listeners weakly, so these are fields
    private final ReloadCounter reloadsOnA = new ReloadCounter();
    private final ReloadCounter reloadsOnB = new ReloadCounter();
