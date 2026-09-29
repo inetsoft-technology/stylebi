@@ -211,7 +211,11 @@ final class RelScriptGenerator {
          return clean("globalThis[k]", "globalThis['" + n + "'] = " + v + ";", Set.of(), 1);
       }
       if(pick < 400) {
-         return clean("eval-var", "eval('var " + n + " = 1');", Set.of(), 1);
+         // a direct eval's var is local to the engine's wrapper function, so it is not a
+         // global; an indirect eval's var and a direct eval's assignment are
+         return random.nextBoolean() ?
+            clean("eval-var", "(0, eval)('var " + n + " = 1');", Set.of(), 1) :
+            clean("eval-assign", "eval('" + n + " = 1');", Set.of(), 1);
       }
       if(pick < 420) {
          return clean("Function", "Function('" + n + " = 1')();", Set.of(), 1);
