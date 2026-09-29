@@ -68,6 +68,7 @@ import java.io.*;
 import java.lang.reflect.Field;
 import java.util.*;
 import java.util.List;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
@@ -84,6 +85,20 @@ public class VsToReportConverter {
       this.fileSystemService = fileSystemService;
       this.dataSpace = dataSpace;
       this.report = new TabularSheet(libManagerProvider, cluster);
+   }
+
+   /**
+    * Resolve each table's card inset through the exporter. Without a resolver, tables print
+    * with no inset.
+    */
+   public void setTableCardInsets(Function<TableDataVSAssemblyInfo, Insets> resolver) {
+      this.tableCardInsets = resolver;
+   }
+
+   // the table's card inset in this export, never null
+   private Insets getCardInset(TableDataVSAssemblyInfo info) {
+      Insets inset = tableCardInsets == null ? null : tableCardInsets.apply(info);
+      return inset == null ? new Insets(0, 0, 0, 0) : inset;
    }
 
    /**
@@ -1062,7 +1077,10 @@ public class VsToReportConverter {
             (int) Math.round(lens.getRowHeightWithPadding(AssetUtil.defh * scalefont, i, info));
       }
 
-      return height;
+      // the card's top and bottom insets, and the top border the title lane starts below
+      Insets inset = getCardInset(info);
+      int border = isZero(inset) ? 0 : getCardBorderWidths(info).top;
+      return height + border + inset.top + inset.bottom;
    }
 
    /**
@@ -1122,9 +1140,13 @@ public class VsToReportConverter {
     */
    private void addTable(TableDataVSAssembly assembly, VSTableLens lens, String sectionName) {
       TableDataVSAssemblyInfo info = (TableDataVSAssemblyInfo) assembly.getInfo();
+      Insets inset = getCardInset(info);
       final Rectangle bounds;
 
-      if(info.isTitleVisible()) {
+      if(!isZero(inset)) {
+         bounds = createCardTop(assembly, inset, sectionName);
+      }
+      else if(info.isTitleVisible()) {
          bounds = createTitle(assembly, sectionName, true);
       }
       else {
@@ -1140,6 +1162,8 @@ public class VsToReportConverter {
       TableElementDef tableelem =
          new TableElementDef(report, new CellInsetTableLens(lens, info));
       tableelem.setKeepRowHeightOnPrint(info.isKeepRowHeightOnPrint());
+      // a padded row splits into pieces too short for its text; move it whole
+      tableelem.setKeepRowsWhole(info.getVizMark() != null || hasPaddedRows(info, lens));
       // use Manual Column Widths to keep the column width.
       tableelem.setEmbedWidth(true);
       VSAssemblyLayout layout = getVSAssemblyLayout(assembly, playout);
@@ -1160,10 +1184,13 @@ public class VsToReportConverter {
          totalw += columnPixelW[i];
       }
 
-      if(totalw < info.getLayoutSize().width) {
+      // compared with the grid, since the columns were filled to it
+      int gridW = Math.max(0, info.getLayoutSize().width - inset.left - inset.right);
+
+      if(totalw < gridW) {
          tableelem.setLayout(ReportSheet.TABLE_FIT_PAGE);
       }
-      else if(totalw > info.getLayoutSize().width * 5 && tableLayout == ReportSheet.TABLE_FIT_PAGE) {
+      else if(totalw > gridW * 5 && tableLayout == ReportSheet.TABLE_FIT_PAGE) {
          tableelem.setLayout(ReportSheet.TABLE_FIT_CONTENT_PAGE);
       }
 
@@ -1195,6 +1222,11 @@ public class VsToReportConverter {
          tableelem.setFont(fmt.getFont());
          tableelem.setForeground(fmt.getForeground());
          tableelem.setBackground(fmt.getBackground());
+      }
+
+      if(!isZero(inset)) {
+         // the card-top box holds the top inset; the element carries the other three edges
+         tableelem.setCardInset(new Insets(0, inset.left, inset.bottom, inset.right));
       }
 
       addElement0(bounds, tableelem, sectionName);
@@ -1274,7 +1306,10 @@ public class VsToReportConverter {
 
       int totalWidth = 0;
       int totalPixelW = 0;
-      int layoutPixelW = info.getLayoutSize().width;
+      // the columns fill the grid, the card less its side insets
+      Insets inset = getCardInset(info);
+      int insetW = inset.left + inset.right;
+      int layoutPixelW = Math.max(0, info.getLayoutSize().width - insetW);
       int[] ws = new int[lens.getColCount()];
       int[] widths = lens.getColumnWidths();
 
@@ -1283,7 +1318,7 @@ public class VsToReportConverter {
          double w = info.getColumnWidth2(i, lens);
 
          if((Double.isNaN(w) || w <= 0) && widths != null && i < widths.length) {
-            w = widths[i];
+            w = lens.getColumnWidthInGrid(i, info, insetW);
          }
 
          if(scalefont != 1) {
@@ -1295,7 +1330,7 @@ public class VsToReportConverter {
       }
 
       Dimension infoSize = info.getPixelSize();
-      totalPixelW += infoSize.width;
+      totalPixelW += Math.max(0, infoSize.width - insetW);
 
       if(totalWidth < layoutPixelW) {
          int remainWidth = layoutPixelW - totalWidth;
@@ -1463,6 +1498,96 @@ public class VsToReportConverter {
       newBounds.height -= titleHeight;
 
       return newBounds;
+   }
+
+   /**
+    * Draw the part of a padded table's card that never grows: the top inset and the title lane,
+    * framed on the top, left and right, with the title inside the side insets.
+    * @return the bounds left for the table element.
+    */
+   private Rectangle createCardTop(TableDataVSAssembly assembly, Insets inset,
+                                   String sectionName)
+   {
+      TableDataVSAssemblyInfo info = (TableDataVSAssemblyInfo) assembly.getInfo();
+      Rectangle bounds = getPixelBounds(assembly);
+      int titleH = getTitleHeight(assembly, true);
+      int laneH = info.isTitleVisible() ? titleH : 0;
+      Insets bw = getCardBorderWidths(info);
+      int laneY = bw.top + inset.top;
+      Rectangle topBounds = new Rectangle(bounds.x, bounds.y, bounds.width, laneY + laneH);
+      // built directly, not through addTextBoxElement0: that path's applyFormat call would
+      // rewrite the object's live border Insets in place (isTitle = false there)
+      TextBoxElementDef top = new TextBoxElementDef(report, new DefaultTextLens(""));
+      applyFormat(top, info.getFormat(), null, info, true);
+      VSCompositeFormat objfmt = info.getFormat();
+      Insets borders = objfmt == null ? null : objfmt.getBorders();
+      // the table element below continues the sides and closes the bottom
+      setBoxBorders(top, borders == null ? new Insets(0, 0, 0, 0) :
+         new Insets(borders.top, borders.left, StyleConstants.NO_BORDER, borders.right));
+      top.setZIndex(info.getZIndex());
+      addElement0(topBounds, top, sectionName);
+
+      if(info.isTitleVisible()) {
+         int titleX = bw.left + inset.left;
+         addCardTitle(assembly, new Rectangle(bounds.x + titleX, bounds.y + laneY,
+            Math.max(0, bounds.width - titleX - inset.right), titleH), sectionName);
+      }
+
+      // 1px up so the sides join, as the table joins its title without an inset
+      return new Rectangle(bounds.x, bounds.y + laneY + laneH - 1, bounds.width,
+                           Math.max(0, bounds.height - laneY - titleH));
+   }
+
+   // the object border's top and left widths: the card's inset starts inside the border there,
+   // as the chart's padding does
+   private static Insets getCardBorderWidths(TableDataVSAssemblyInfo info) {
+      VSCompositeFormat format = info.getFormat();
+      Insets borders = format == null ? null : format.getBorders();
+
+      return borders == null ? new Insets(0, 0, 0, 0) :
+         new Insets((int) Math.ceil(Common.getLineWidth(borders.top)),
+                    (int) Math.ceil(Common.getLineWidth(borders.left)), 0, 0);
+   }
+
+   // the title inside a padded table's card keeps its own format and borders, not the card's
+   private void addCardTitle(TableDataVSAssembly assembly, Rectangle titleBounds,
+                             String sectionName)
+   {
+      TableDataVSAssemblyInfo info = (TableDataVSAssemblyInfo) assembly.getInfo();
+      TextBoxElementDef textbox =
+         new TextBoxElementDef(report, new DefaultTextLens(info.getTitle()));
+      FormatInfo finfo = info.getFormatInfo();
+      VSCompositeFormat detailfmt = finfo == null ? null :
+         finfo.getFormat(new TableDataPath(-1, TableDataPath.TITLE), false);
+      applyFormat(textbox, info.getFormat(), detailfmt, info, true);
+      Insets own = detailfmt == null ? null : detailfmt.getBorders();
+      setBoxBorders(textbox, own == null ? new Insets(0, 0, 0, 0) : (Insets) own.clone());
+      textbox.setZIndex(assembly.getZIndex());
+      addElement0(titleBounds, textbox, sectionName);
+   }
+
+   // an empty frame also clears the box's overall border, as applyFormat does
+   private static void setBoxBorders(TextBoxElementDef box, Insets borders) {
+      box.setBorders(borders);
+
+      if(isZero(borders)) {
+         box.setBorder(StyleConstants.NO_BORDER);
+      }
+   }
+
+   // data rows share the last header row's padding, so rows 0..headerRowCount cover every value
+   private static boolean hasPaddedRows(TableDataVSAssemblyInfo info, VSTableLens lens) {
+      for(int r = 0; r <= lens.getHeaderRowCount() && r < lens.getRowCount(); r++) {
+         if(lens.getRowPadding(r, info) > 0) {
+            return true;
+         }
+      }
+
+      return false;
+   }
+
+   private static boolean isZero(Insets inset) {
+      return inset.top == 0 && inset.left == 0 && inset.bottom == 0 && inset.right == 0;
    }
 
    /**
@@ -3306,6 +3431,7 @@ public class VsToReportConverter {
    private final DataSpace dataSpace;
    private int zindex = 0;
    private float scalefont = 1;
+   private Function<TableDataVSAssemblyInfo, Insets> tableCardInsets = null;
    private PrintLayout playout = null;
    private String baseName = null;
    private ViewsheetSandbox box = null;

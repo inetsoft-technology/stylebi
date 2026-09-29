@@ -869,6 +869,11 @@ public class TableElementDef extends BaseElement
             h += rowHeight[reg.y + i];
          }
 
+         // the last region carries the card's bottom inset
+         if(cardInset != null && currentRegion == regions.size() - 1) {
+            h += cardInset.bottom;
+         }
+
          // @by larryl, if only one pixel difference, allow it to accomodate
          // possible rounding errors
          return avail + 1 >= h ? 1 : -1;
@@ -1030,8 +1035,22 @@ public class TableElementDef extends BaseElement
 
       area.x += indw;
       area.width -= indw;
+      insetToGrid(area);
 
       return area;
+   }
+
+   // a print-layout card keeps its columns inside the side insets
+   private void insetToGrid(Rectangle area) {
+      if(cardInset != null) {
+         area.x += cardInset.left;
+         area.width = Math.max(0, area.width - cardInset.left - cardInset.right);
+      }
+   }
+
+   // the card's bottom inset travels with the table's last row
+   private int getLastRowInset(int row) {
+      return cardInset != null && row == rowHeight.length - 1 ? cardInset.bottom : 0;
    }
 
    /**
@@ -1187,16 +1206,19 @@ public class TableElementDef extends BaseElement
    private float calcHeaderWidth(ReportSheet report, final int ncolumn,
                                  final int headerc) {
       float hwidth = 0;
+      // a card inset narrows the grid the header shares with the data columns
+      float gridW = cardInset == null ? report.printBox.width :
+         Math.max(0, report.printBox.width - cardInset.left - cardInset.right);
 
       for(int j = 0; j < ncolumn && j < headerc; j++) {
          // calculate header column width
          hwidth += colWidth[j];
       }
 
-      // if header fills up the entire page, shrink the header
-      if(hwidth >= report.printBox.width - 1) {
+      // if header fills up the entire grid, shrink the header
+      if(hwidth >= gridW - 1) {
          // reserve 1/6 for content
-         float hw = report.printBox.width * 5 / 6.0f;
+         float hw = gridW * 5 / 6.0f;
          float headerW2 = 0;
 
          for(int k = 0; k < headerc; k++) {
@@ -1210,11 +1232,11 @@ public class TableElementDef extends BaseElement
             "Header columns are wider than page. Shrink header column width.");
       }
 
-      // if the page is not wide enough to fit a single content cell
+      // if the grid is not wide enough to fit a single content cell
       // shrink the column width
       for(int j = headerc; j < ncolumn; j++) {
-         if(hwidth + colWidth[j] > report.printBox.width) {
-            colWidth[j] = report.printBox.width - hwidth;
+         if(hwidth + colWidth[j] > gridW) {
+            colWidth[j] = gridW - hwidth;
          }
       }
 
@@ -1432,8 +1454,11 @@ public class TableElementDef extends BaseElement
                dynamicMaxCell = maxCellWholePage;
             }
 
+            // a row kept whole moves to the next page unless no page could hold it
+            boolean keepWhole = keepRowsWhole && rowh <= maxCellWholePage;
+
              if(rowh != StyleConstants.REMAINDER && splittedRows == 0 &&
-               rowh > dynamicMaxCell && !false)
+               rowh > dynamicMaxCell && !keepWhole)
             {
                // split cells if necessary to allow large cell to span across
                // pages
@@ -1569,6 +1594,7 @@ public class TableElementDef extends BaseElement
          // indent
          nextarea.x += indw;
          nextarea.width -= indw;
+         insetToGrid(nextarea);
 
          // if the top row is no immediately below the header adjust the row
          // height to reflect the different row border (header vs. row on top)
@@ -1631,6 +1657,7 @@ public class TableElementDef extends BaseElement
 
             for(int i = lu.y; i < reg.y + reg.height; i++) {
                h += rowHeight[i];
+               h += getLastRowInset(i);
                // only add page break element after the whole row is printed,
                // which looks better, especially for page break after group.
                // ignore page break at design time. (50182)
@@ -1650,6 +1677,7 @@ public class TableElementDef extends BaseElement
 
             for(int i = lu.y; i < rowHeight.length; i++) {
                h += rowHeight[i];
+               h += getLastRowInset(i);
                 pgbreak = (lens.getRowBorder(i, 0) & TableLens.BREAK_BORDER) != 0 && !singlePage &&
                   !false;
 
@@ -2661,6 +2689,38 @@ public class TableElementDef extends BaseElement
       return borders;
    }
 
+   /**
+    * Set the inset between a print-layout table's card edge and its grid. Only the left, bottom
+    * and right edges are used; the card's top band lives outside the table element.
+    * @param inset the inset, or null for none.
+    */
+   public void setCardInset(Insets inset) {
+      boolean none = inset == null ||
+         inset.left == 0 && inset.bottom == 0 && inset.right == 0;
+      this.cardInset = none ? null : (Insets) inset.clone();
+   }
+
+   /**
+    * Get the print-layout card inset.
+    * @return a copy of the inset, or null for none.
+    */
+   public Insets getCardInset() {
+      return cardInset == null ? null : (Insets) cardInset.clone();
+   }
+
+   /**
+    * Set whether a row moves to the next page whole instead of being split across the page break.
+    * A row no taller than the space the table lays out in (less its header, at least 100pt) is
+    * kept whole; a taller row is still split.
+    */
+   public void setKeepRowsWhole(boolean keepRowsWhole) {
+      this.keepRowsWhole = keepRowsWhole;
+   }
+
+   public boolean isKeepRowsWhole() {
+      return keepRowsWhole;
+   }
+
    public float[] getColWidth() {
       return colWidth;
    }
@@ -2673,6 +2733,10 @@ public class TableElementDef extends BaseElement
    private VSTableLens vsTableLens = null;
    private BorderColors bcolors = null;
    private Insets borders = null;
+   // print layout only: the card inset (0, left, bottom, right) around the grid
+   private Insets cardInset = null;
+   // print layout only: never split a row that fits on a page
+   private boolean keepRowsWhole = false;
 
    // @by billh, the priority should keep in sync with the apply-process,
    // we'd better merge logic of the two parts later...

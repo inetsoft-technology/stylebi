@@ -103,6 +103,7 @@ public class TablePaintable extends BasePaintable {
       this.pgregs = copyPGRegs(pgregs);
       this.lastregion = lastregion;
       TableElementDef telem = (TableElementDef) elem;
+      this.cardInset = telem.getCardInset();
       this.binding = telem.getBindingAttr();
       TableLayout layout = telem.getTableLayout();
       this.calc = layout == null ? false : layout.isCalc();
@@ -653,7 +654,7 @@ public class TablePaintable extends BasePaintable {
       cellbounds = new Bounds[headerR + reg.height + summaryR][headerC + reg.width];
 
       // adjust alignment
-      box.x = printBox.x + (float) elem.getIndent() * 72 + 1;
+      box.x = printBox.x + (float) elem.getIndent() * 72 + 1 + getCardLeft();
 
       // @by larryl, optimization, since the spanmap contains the span setting
       // for the entire table, we mark which span is necessary for this
@@ -744,7 +745,7 @@ public class TablePaintable extends BasePaintable {
 
                      // in printlayout mode, don't paint left border of the
                      // first column but only show table's left border.
-                     ver[i + n][j + m] = (j == 0 && tableBorders.left != 0) ?
+                     ver[i + n][j + m] = (j == 0 && tableBorders.left != 0 && getCardLeft() == 0) ?
                         StyleConstants.NO_BORDER : (m == area.width - 1 ||
                         (j + m) == hor[i].length - 2) ? colborder :
                         StyleConstants.NO_BORDER;
@@ -757,7 +758,7 @@ public class TablePaintable extends BasePaintable {
                    lens.getRowBorder(row, col));
                // in printlayout mode, don't paint left border of the
                // first column but only show table's left border.
-               ver[i][j] = (j == 0 && tableBorders.left != 0) ?
+               ver[i][j] = (j == 0 && tableBorders.left != 0 && getCardLeft() == 0) ?
                   StyleConstants.NO_BORDER : (i == 0) ?
                   StyleConstants.NO_BORDER : (isSummary ?
                   summary.getSummaryColBorder(col) :
@@ -796,7 +797,7 @@ public class TablePaintable extends BasePaintable {
          // in printlayout mode, if content width is match the table
          // width, don't paint the right border of the last column but
          // only show table's right border.
-         if(hideLeftBorder && tableBorders.right != 0) {
+         if(hideLeftBorder && tableBorders.right != 0 && getCardRight() == 0) {
             ver[i][rcol] = StyleConstants.NO_BORDER;
          }
          else {
@@ -814,7 +815,7 @@ public class TablePaintable extends BasePaintable {
          for(int j = 1; j < hor[0].length - 1; j++) {
             // in printlayout mode, don't paint the bottom border
             // of the last row border but only show table's bottom border.
-            if(lastregion && tableBorders.bottom != 0) {
+            if(lastregion && tableBorders.bottom != 0 && getCardBottom() == 0) {
                hor[brow][j] = 0;
             }
             else {
@@ -844,7 +845,31 @@ public class TablePaintable extends BasePaintable {
     * Get the height of this table region.
     */
    public float getHeight() {
-      return height;
+      return height + getCardBottom();
+   }
+
+   private int getCardLeft() {
+      return cardInset == null ? 0 : cardInset.left;
+   }
+
+   private int getCardRight() {
+      return cardInset == null ? 0 : cardInset.right;
+   }
+
+   // the bottom inset belongs to the last region only
+   private int getCardBottom() {
+      return cardInset == null || !lastregion ? 0 : cardInset.bottom;
+   }
+
+   // the grid bounds grown to the card
+   private Rectangle toCard(Rectangle grid) {
+      if(cardInset != null) {
+         grid.x -= cardInset.left;
+         grid.width += cardInset.left + cardInset.right;
+         grid.height += getCardBottom();
+      }
+
+      return grid;
    }
 
    /**
@@ -955,6 +980,8 @@ public class TablePaintable extends BasePaintable {
          }
       }
 
+      boolean cardFilled = cardInset != null && paintCardBackground(g);
+
       // print contents
       content_loop:
       for(int i = 0; i < hor.length - 2; i++) {
@@ -1016,8 +1043,9 @@ public class TablePaintable extends BasePaintable {
                   summary.getSummaryBackground(col) :
                   lens.getBackground(vrow, vcol);
 
-               // if bg not defined for a cell, use element background
-               if(bg == null && elem instanceof TableElementDef) {
+               // if bg not defined for a cell, use element background, unless the card
+               // background already filled this region and would double it under alpha
+               if(bg == null && elem instanceof TableElementDef && !cardFilled) {
                   bg = elem.getBackground();
                }
 
@@ -1410,18 +1438,53 @@ public class TablePaintable extends BasePaintable {
     * so this is only used in printlayout mode.
     */
    private void paintBorder(Graphics g) {
-      Rectangle printband = getPrintBandBounds();
-
-      if(printband == null) {
+      if(!(elem instanceof TableElementDef table) || table.getBorders() == null) {
          return;
       }
 
-      TableElementDef table = (TableElementDef) elem;
-      BorderColors bcolors = table.getBorderColors();
       Insets borders = table.getBorders();
+      float[] frame = getCardFrame(borders);
 
-      if(borders == null) {
+      if(frame == null) {
          return;
+      }
+
+      BorderColors bcolors = table.getBorderColors();
+      float x0 = frame[0];
+      float y0 = frame[1];
+      float x1 = frame[2];
+      float y1 = frame[3];
+
+      // left
+      if(borders.left != 0) {
+         g.setColor(bcolors.leftColor);
+         Common.drawLine(g, x0, y0, x0, y1, borders.left);
+      }
+
+      // right
+      if(borders.right != 0) {
+         g.setColor(bcolors.rightColor);
+         Common.drawLine(g, x1, y0, x1, y1, borders.right);
+      }
+
+      // bottom
+      if(lastregion) {
+         if(borders.bottom != 0) {
+            g.setColor(bcolors.bottomColor);
+            Common.drawLine(g, x0, y1, x1, y1, borders.bottom);
+         }
+      }
+   }
+
+   /**
+    * The table's frame on this region in print layout, {x0, y0, x1, y1} along the border lines,
+    * or null when the region is not in a print-layout band or lies past the page.
+    */
+   private float[] getCardFrame(Insets borders) {
+      Rectangle printband = getPrintBandBounds();
+
+      if(printband == null) {
+         return null;
       }
 
       float linew_l = Common.getLineWidth(borders.left);
@@ -1440,7 +1503,7 @@ public class TablePaintable extends BasePaintable {
       int pwidth = (int) ((pageSize.width - margin.right) * 72.0);
 
       if(reg_x >= pwidth) {
-         return;
+         return null;
       }
 
       if(reg_x + reg_w > pwidth) {
@@ -1463,25 +1526,28 @@ public class TablePaintable extends BasePaintable {
       // borders of each region have no gap.
       y1 = lastregion ? y1 : y1 + tableadv;
 
-      // left
-      if(borders.left != 0) {
-         g.setColor(bcolors.leftColor);
-         Common.drawLine(g, x0, y0, x0, y1, borders.left);
+      return new float[] { x0, y0, x1, y1 };
+   }
+
+   // a print-layout card's background also fills its inset bands; returns true when it
+   // filled the region, so the per-cell fallback below does not paint it a second time
+   private boolean paintCardBackground(Graphics g) {
+      Color bg = elem.getBackground();
+      Insets borders = elem instanceof TableElementDef table ? table.getBorders() : null;
+      float[] frame = getCardFrame(borders == null ? new Insets(0, 0, 0, 0) : borders);
+
+      if(bg == null || frame == null) {
+         return false;
       }
 
-      // right
-      if(borders.right != 0) {
-         g.setColor(bcolors.rightColor);
-         Common.drawLine(g, x1, y0, x1, y1, borders.right);
-      }
-
-      // bottom
-      if(lastregion) {
-         if(borders.bottom != 0) {
-            g.setColor(bcolors.bottomColor);
-            Common.drawLine(g, x0, y1, x1, y1, borders.bottom);
-         }
-      }
+      Color oc = g.getColor();
+      g.setColor(bg);
+      // a non-last region's frame can stop short of its content by the last row's missing
+      // bottom cell border; fill down to the content height it actually printed
+      float bottom = lastregion ? frame[3] : Math.max(frame[3], box.y + height);
+      Common.fillRect(g, frame[0], frame[1], frame[2] - frame[0], bottom - frame[1]);
+      g.setColor(oc);
+      return true;
    }
 
    /**
@@ -1887,9 +1953,9 @@ public class TablePaintable extends BasePaintable {
       float bb = Math.max(Common.getLineWidth(hor[lastR][0]),
          Common.getLineWidth(hor[lastR][lastC]));
 
-      return new Rectangle(Math.round(box.x), Math.round(box.y),
+      return toCard(new Rectangle(Math.round(box.x), Math.round(box.y),
          (int) Math.ceil(box.width + rb - 1),
-         (int) Math.ceil(box.height + bb - 1));
+         (int) Math.ceil(box.height + bb - 1)));
    }
 
    /**
@@ -1900,8 +1966,8 @@ public class TablePaintable extends BasePaintable {
     * @return area bounds or null if element does not occupy an area.
     */
    public Rectangle getBounds2() {
-      return new Rectangle((int) box.x, (int) box.y, (int) box.width,
-                           (int) box.height);
+      return toCard(new Rectangle((int) box.x, (int) box.y, (int) box.width,
+                                  (int) box.height));
    }
 
    /**
@@ -1911,7 +1977,7 @@ public class TablePaintable extends BasePaintable {
     */
    @Override
    public void setLocation(Point loc) {
-      box.setLocation(loc);
+      box.setLocation(new Point(loc.x + getCardLeft(), loc.y));
 
       // @by larryl, if paintable moved, remove cached information that
       // contains positions so the paint would be done at the new location
@@ -1929,7 +1995,9 @@ public class TablePaintable extends BasePaintable {
     */
    @Override
    public Point getLocation() {
-      return box.getLocation();
+      Point loc = box.getLocation();
+      loc.x -= getCardLeft();
+      return loc;
    }
 
    /**
@@ -4524,7 +4592,7 @@ public class TablePaintable extends BasePaintable {
          return false;
       }
 
-      float pw = printb.width;
+      float pw = printb.width - getCardLeft() - getCardRight();
       return w + borderw >= pw;
    }
 
@@ -4605,6 +4673,8 @@ public class TablePaintable extends BasePaintable {
 
    private Int2ObjectOpenHashMap<Rectangle> groupMap = new Int2ObjectOpenHashMap<>();
    private Insets padding;
+   // print layout's card inset (0, left, bottom, right); the box stays the grid
+   private Insets cardInset;
 
    // cols are normally few so they don't need to be saved partially
    private float[] colWidth;
