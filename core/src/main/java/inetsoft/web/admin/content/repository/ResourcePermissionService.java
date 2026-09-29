@@ -21,6 +21,7 @@ import inetsoft.report.LibManagerProvider;
 import inetsoft.report.style.XTableStyle;
 import inetsoft.sree.RepositoryEntry;
 import inetsoft.sree.SreeEnv;
+import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.*;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.service.DataSourceRegistry;
@@ -107,10 +108,13 @@ public class ResourcePermissionService {
             .securityEnabled(securityEngine.isSecurityEnabled())
             .requiresBoth(Boolean.parseBoolean(SreeEnv.getProperty("permission.andCondition",false, true)));
 
-      boolean hasGrantReadToAll = type == ResourceType.DATA_SOURCE_FOLDER && "/".equals(path) ||
+      // the grant-read-to-all flags are global, server-wide properties, only show them to users
+      // who are allowed to change them (site admins, or any admin on a single-tenant server)
+      boolean hasGrantReadToAll = (type == ResourceType.DATA_SOURCE_FOLDER && "/".equals(path) ||
          type == ResourceType.TABLE_STYLE_LIBRARY && catalog.getString("*").equals(path) ||
          type == ResourceType.SCRIPT_LIBRARY && catalog.getString("*").equals(path) ||
-         type == (ResourceType.SCHEDULE_TASK_FOLDER) && "/".equals(path);
+         type == (ResourceType.SCHEDULE_TASK_FOLDER) && "/".equals(path)) &&
+         canSetGrantReadToAll(principal);
 
       if(hasGrantReadToAll) {
          switch(type) {
@@ -235,6 +239,15 @@ public class ResourcePermissionService {
       return permission.hasOrgEditedGrantAll(OrganizationManager.getInstance().getCurrentOrgID());
    }
 
+   /**
+    * Determines if the principal may change the global security.*.everyone (grant read to all)
+    * properties. On a multi-tenant server only a site admin may, because the properties apply
+    * to every organization.
+    */
+   private boolean canSetGrantReadToAll(Principal principal) {
+      return !SUtil.isMultiTenant() || OrganizationManager.getInstance().isSiteAdmin(principal);
+   }
+
    @Audited(
       actionName = ActionRecord.ACTION_NAME_EDIT,
       objectType = ActionRecord.OBJECT_TYPE_OBJECTPERMISSION
@@ -315,7 +328,11 @@ public class ResourcePermissionService {
          return;
       }
 
-      if(tableModel.grantReadToAllVisible()) {
+      // security.*.everyone are global properties shared by all organizations, an org admin
+      // on a multi-tenant server must not change them from a per-org permission save
+      boolean grantReadToAllAllowed = canSetGrantReadToAll(principal);
+
+      if(tableModel.grantReadToAllVisible() && grantReadToAllAllowed) {
          switch(resourceType) {
          case DATA_SOURCE_FOLDER:
             if("/".equals(path)) {

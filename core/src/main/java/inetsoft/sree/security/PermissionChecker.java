@@ -22,6 +22,7 @@ import inetsoft.uql.util.Identity;
 import org.apache.commons.lang3.ArrayUtils;
 
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * PermissionChecker.
@@ -50,7 +51,7 @@ public class PermissionChecker {
 
       String orgID = identity != null ? identity.getOrganizationID() :
          OrganizationManager.getInstance().getCurrentOrgID();
-      boolean useAnd = "true".equals(andCond.get());
+      boolean useAnd = isAndCondition(orgID);
       boolean userGroupPermission = checkUserGroupPermission(identity,
          permission, action, recursive, new HashSet<>());
       boolean organizationPermission = checkUserGroupOrganizationPermission(identity, permission, action);
@@ -274,6 +275,53 @@ public class PermissionChecker {
       return type + "-" + identityName + "-" + orgId;
    }
 
+   /**
+    * Gets whether permission.andCondition is enabled for the given organization. The value is
+    * resolved from the organization's own property (inetsoft.org.&lt;orgID&gt;.permission.andCondition)
+    * with a fallback to the global property, and cached per organization for AND_COND_TIMEOUT ms.
+    * A single shared cache must not be used here because the property is org-scoped: it would
+    * serve one organization's value to every other organization's permission checks.
+    */
+   private static boolean isAndCondition(String orgID) {
+      String key = orgID == null ? "" : orgID;
+      AndCondition cached = andCondCache.get(key);
+      long now = System.currentTimeMillis();
+
+      if(cached == null || now - cached.ts > AND_COND_TIMEOUT) {
+         cached = new AndCondition(resolveAndCondition(orgID), now);
+         andCondCache.put(key, cached);
+      }
+
+      return cached.value;
+   }
+
+   private static boolean resolveAndCondition(String orgID) {
+      String value = null;
+
+      if(orgID != null) {
+         value = SreeEnv.getProperty(
+            "inetsoft.org." + orgID + "." + AND_COND_PROPERTY, false, false);
+      }
+
+      if(value == null) {
+         value = SreeEnv.getProperty(AND_COND_PROPERTY, false, false);
+      }
+
+      return "true".equals(value);
+   }
+
+   /**
+    * Clears the cached permission.andCondition values so the next check re-reads them.
+    */
+   static void resetAndConditionCache() {
+      andCondCache.clear();
+   }
+
+   private record AndCondition(boolean value, long ts) {
+   }
+
    private SecurityProvider provider;
-   private static SreeEnv.Value andCond = new SreeEnv.Value("permission.andCondition", 10000);
+   private static final String AND_COND_PROPERTY = "permission.andCondition";
+   private static final long AND_COND_TIMEOUT = 10000L;
+   private static final Map<String, AndCondition> andCondCache = new ConcurrentHashMap<>();
 }

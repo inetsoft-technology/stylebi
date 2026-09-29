@@ -586,7 +586,7 @@ class PermissionMatrixResourcesS5Test {
     * Sets {@code propertyName} to {@code "false"} for the duration of {@code action}, forcing an
     * immediate cache refresh via {@code refresh} both when disabling and when restoring back to
     * unset (the "true" default) -- these {@code SecurityEngine.updateSecurityXXXEveryoneValue()}
-    * methods are public, unlike S4Test's reflection-based toggle for permission.andCondition.
+    * methods are public, unlike S4Test's package-private cache reset for permission.andCondition.
     */
    private static void withEveryoneFlag(String propertyName, Runnable refresh, Runnable action) {
       SreeEnv.setProperty(propertyName, "false");

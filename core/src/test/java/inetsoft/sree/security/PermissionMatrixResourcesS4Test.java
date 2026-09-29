@@ -43,7 +43,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
-import org.springframework.test.util.ReflectionTestUtils;
 
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class },
@@ -333,10 +332,9 @@ class PermissionMatrixResourcesS4Test {
 
    /**
     * Toggles {@code permission.andCondition} for the duration of {@code action}, then always
-    * restores it. {@link PermissionChecker}'s {@code andCond} field is a 10-second-cached
-    * {@link SreeEnv.Value}; reflection is used to force an immediate refresh both when enabling
-    * and when restoring, since there is no public equivalent of {@code SecurityEngine}'s
-    * {@code updateSecurityXXXEveryoneValue()} helpers for this particular flag.
+    * restores it. {@link PermissionChecker} caches the flag per organization for 10 seconds;
+    * its package-private {@code resetAndConditionCache()} is used to force an immediate
+    * refresh both when enabling and when restoring.
     */
    private static void withAndCondition(boolean enabled, Runnable action) {
       SreeEnv.setProperty("permission.andCondition", String.valueOf(enabled));
@@ -352,8 +350,7 @@ class PermissionMatrixResourcesS4Test {
    }
 
    private static void refreshAndConditionCache() {
-      SreeEnv.Value andCond = (SreeEnv.Value) ReflectionTestUtils.getField(PermissionChecker.class, "andCond");
-      andCond.updateValue();
+      PermissionChecker.resetAndConditionCache();
    }
 
    private static SecurityEngine engine() {
