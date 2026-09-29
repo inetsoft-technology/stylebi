@@ -34,10 +34,12 @@ import { SsoHeartbeatDispatcherService } from "../../../shared/sso/sso-heartbeat
 import { StompClientService } from "../../../shared/stomp/stomp-client.service";
 import { CurrentUserService } from "../../../shared/util/current-user.service";
 import { LogoutService } from "../../../shared/util/logout.service";
+import { SessionExpirationModel } from "../../../shared/util/model/session-expiration-model";
 import { AppComponent } from "./app.component";
 import { AuthorizationService } from "./authorization/authorization.service";
 import { OrganizationDropdownService } from "./navbar/organization-dropdown.service";
 import { TopScrollService } from "./top-scroll/top-scroll.service";
+import { SessionExpirationDialog } from "./widget/dialog/session-expiration-dialog/session-expiration-dialog.component";
 
 describe("AppComponent notifications", () => {
    let fixture: ComponentFixture<AppComponent>;
@@ -172,5 +174,74 @@ describe("AppComponent notifications", () => {
       expect(closeSpy).not.toHaveBeenCalled();
       expect(dialogTexts()[0]).toContain("timed");
       expect(dialogTexts()[0]).toContain("broadcast");
+   });
+});
+
+// Bug #77340: when the server shutdown warning timer ends, a guest must not be logged out, because
+// logging out sends a guest to the login page
+describe("AppComponent session expiration timer", () => {
+   let component: AppComponent;
+   let logoutService: { logout: ReturnType<typeof vi.fn>, setInGracePeriod: ReturnType<typeof vi.fn> };
+   let connection: { send: ReturnType<typeof vi.fn> };
+   let ref: { componentInstance: SessionExpirationDialog, close: ReturnType<typeof vi.fn>,
+              afterClosed: () => Subject<any> };
+
+   beforeEach(() => {
+      vi.useFakeTimers();
+      logoutService = { logout: vi.fn(), setInGracePeriod: vi.fn() };
+      connection = { send: vi.fn() };
+
+      const dialogService = {
+         open: vi.fn((type: any, config: any) => {
+            const closed = new Subject<any>();
+            ref = <any> {
+               close: vi.fn((v: any) => {
+                  closed.next(v);
+                  closed.complete();
+               }),
+               afterClosed: () => closed
+            };
+            ref.componentInstance = new SessionExpirationDialog(<any> ref, config.data);
+            return ref;
+         })
+      };
+
+      component = new AppComponent(
+         <any> {}, <any> {}, <any> { run: (fn: () => any) => fn() }, <any> dialogService,
+         <any> {}, <any> {}, <any> {}, <any> {}, <LogoutService> <any> logoutService,
+         <any> {}, <any> {}, <any> {});
+      (component as any).connection = connection;
+   });
+
+   afterEach(() => {
+      ref?.componentInstance.ngOnDestroy();
+      vi.useRealTimers();
+   });
+
+   const showDialog = (model: SessionExpirationModel): void =>
+      (component as any).showExpirationDialog(model);
+
+   it("should close the dialog instead of logging out a guest", () => {
+      showDialog({ remainingTime: 2000, expiringSoon: true, nodeProtection: true, guest: true });
+      vi.advanceTimersByTime(3000);
+
+      expect(logoutService.logout).not.toHaveBeenCalled();
+      expect(ref.close).toHaveBeenCalledWith(false);
+      expect(connection.send).not.toHaveBeenCalled();
+      expect((component as any).protectionExpirationDialog).toBeNull();
+   });
+
+   it("should log out a named user", () => {
+      showDialog({ remainingTime: 2000, expiringSoon: true, nodeProtection: true, guest: false });
+      vi.advanceTimersByTime(3000);
+
+      expect(logoutService.logout).toHaveBeenCalledWith(false, true);
+   });
+
+   it("should log out when the guest flag is missing", () => {
+      showDialog({ remainingTime: 2000, expiringSoon: true, nodeProtection: false });
+      vi.advanceTimersByTime(3000);
+
+      expect(logoutService.logout).toHaveBeenCalledWith(false, true);
    });
 });

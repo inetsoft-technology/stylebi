@@ -266,6 +266,12 @@ export class AppComponent implements OnInit, OnDestroy {
       });
 
       expirationDialog.componentInstance.onTimerFinished.subscribe(() => {
+         // logging a guest out sends it to the login page, just close the dialog instead
+         if(model.guest) {
+            expirationDialog.close(false);
+            return;
+         }
+
          this.logoutService.logout(false, true);
       });
    }
