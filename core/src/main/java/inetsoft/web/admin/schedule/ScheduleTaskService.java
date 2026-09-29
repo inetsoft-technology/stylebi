@@ -486,7 +486,18 @@ public class ScheduleTaskService {
       // the extension reload compares against to decide whether to update the scheduler)
       ScheduleTask task = scheduleManager.getScheduleTask(name).clone();
       task.setEnabled(enabled);
-      scheduleService.saveTask(name, task, principal);
+      // Bug #77356: save under the resolved task id, the raw name may have been matched by the
+      // legacy fallback in getScheduleTask() and would be written as a separate task
+      scheduleService.saveTask(getResolvedTaskId(name, task), task, principal);
+   }
+
+   /**
+    * Gets the id of a task resolved by a client supplied name, the name itself for a task that
+    * has no id (a data cycle task without an owner).
+    */
+   private static String getResolvedTaskId(String name, ScheduleTask task) {
+      return task.getType() == ScheduleTask.Type.CYCLE_TASK && task.getOwner() == null ?
+         name : task.getTaskId();
    }
 
    /**
@@ -521,6 +532,7 @@ public class ScheduleTaskService {
       boolean internalTask = ScheduleManager.isInternalTask(oldTaskName);
       // if it's an internal task, ignore the localized name
       String taskName = internalTask ? oldTaskName : model.taskName();
+      String saveTaskId = null;
 
       if(internalTask) {
          task = scheduleManager.getScheduleTask(oldTaskName) == null ? null :
@@ -556,6 +568,13 @@ public class ScheduleTaskService {
          taskName = scheduleService.updateTaskName(oldTaskName, taskName, owner, principal);
          task = scheduleManager.getScheduleTask(taskName) == null ? null :
             scheduleManager.getScheduleTask(taskName).clone();
+
+         // Bug #77356: when the task is not renamed, save under the resolved task id, the raw
+         // name may have been matched by the legacy fallback in getScheduleTask() and would be
+         // written as a separate task
+         if(task != null && taskName.equals(Tool.byteDecode(oldTaskName))) {
+            saveTaskId = getResolvedTaskId(taskName, task);
+         }
       }
 
       if(task == null) {
@@ -641,7 +660,7 @@ public class ScheduleTaskService {
       }
 
       // Save task
-      scheduleService.saveTask(taskName, task, principal);
+      scheduleService.saveTask(saveTaskId != null ? saveTaskId : taskName, task, principal);
 
       // Balance tasks after saving
       if(!ranges.isEmpty()) {
