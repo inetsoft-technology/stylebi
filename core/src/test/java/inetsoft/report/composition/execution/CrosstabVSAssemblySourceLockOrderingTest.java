@@ -27,6 +27,7 @@ import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.*;
+import inetsoft.util.Tool;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.test.annotation.DirtiesContext;
@@ -322,7 +323,14 @@ class CrosstabVSAssemblySourceLockOrderingTest {
     */
    @Test
    void sourceSwitchDuringPrepareRebuildsFromTheNewSource() throws Exception {
+      // period calendars make prepare append a period row header, which it must undo
+      addPeriodCalendar(SOURCE);
+      addPeriodCalendar(SOURCE2);
+      DataRef[] rows = (DataRef[]) Tool.clone(crosstab.getVSCrosstabInfo().getRuntimeRowHeaders());
       HookedQuery query = new HookedQuery();
+      AtomicInteger executedRows = new AtomicInteger();
+      query.onExecute = () ->
+         executedRows.set(crosstab.getVSCrosstabInfo().getRuntimeRowHeaders().length);
       AtomicInteger prepares = new AtomicInteger();
       query.onPostSort = () -> {
          if(prepares.incrementAndGet() == 1) {
@@ -344,9 +352,88 @@ class CrosstabVSAssemblySourceLockOrderingTest {
                  names);
       assertFalse(names.contains(SOURCE), "the executed table is built from the old source: " +
                   names);
-      assertEquals(1, crosstab.getVSCrosstabInfo().getRuntimeRowHeaders().length,
-                   "the abandoned prepare left its runtime ref rewrite on the crosstab info");
+      assertEquals(2, executedRows.get(), "prepare did not append exactly one period row header, " +
+                   "so the undo below is not exercised");
+      assertArrayEquals(rows, crosstab.getVSCrosstabInfo().getRuntimeRowHeaders(),
+                        "the query left its runtime ref rewrite on the crosstab info");
       assertNotNull(result, "the crosstab query returned no table");
+   }
+
+   /**
+    * Bug #77156 review: a binding edit that replaces only the crosstab info while prepare runs
+    * (the source info stays equal) must be detected by its identity: the abandoned prepare's
+    * runtime ref rewrite is undone on the crosstab info it prepared, the attempt is redone from a
+    * new snapshot, and the executed attempt prepares the new crosstab info under its own monitor
+    * without the abandoned attempt having touched it.
+    */
+   @Test
+   void crosstabInfoReplacedDuringPrepareIsPreparedAgainFromTheNewInfo() throws Exception {
+      // a period calendar makes prepare append a period row header, which it must undo
+      addPeriodCalendar(SOURCE);
+      VSCrosstabInfo old = crosstab.getVSCrosstabInfo();
+      DataRef[] oldRows = (DataRef[]) Tool.clone(old.getRuntimeRowHeaders());
+      DataRef[] oldAggrs = (DataRef[]) Tool.clone(old.getRuntimeAggregates());
+      // an equal binding, which records the query's reads of its runtime refs
+      RecordingInfo replacement = new RecordingInfo();
+      replacement.setDesignRowHeaders((DataRef[]) Tool.clone(old.getDesignRowHeaders()));
+      replacement.update(crosstab.getViewsheet(), columns, null, true, null, null);
+      DataRef[] newRows = (DataRef[]) Tool.clone(replacement.getRuntimeRowHeaders());
+      HookedQuery query = new HookedQuery();
+      AtomicInteger prepares = new AtomicInteger();
+      AtomicInteger gathers = new AtomicInteger();
+      AtomicReference<DataRef[]> newRowsAtRedo = new AtomicReference<>();
+      AtomicReference<Boolean> redoHoldsNew = new AtomicReference<>();
+      AtomicReference<Boolean> redoHoldsOld = new AtomicReference<>();
+      AtomicInteger executedRows = new AtomicInteger();
+
+      query.onPostSort = () -> {
+         if(prepares.incrementAndGet() == 1) {
+            // what apply() does to the crosstab info, with an equal source info
+            replacement.reader = Thread.currentThread();
+            crosstab.setVSCrosstabInfo(replacement);
+            // the redo's gather: the abandoned attempt must not have used the new info
+            box.gatherHook = () -> {
+               gathers.incrementAndGet();
+               replacement.reader = null;
+               newRowsAtRedo.set((DataRef[]) Tool.clone(replacement.getRuntimeRowHeaders()));
+            };
+         }
+         else {
+            redoHoldsNew.set(Thread.holdsLock(replacement));
+            redoHoldsOld.set(Thread.holdsLock(old));
+         }
+      };
+      query.onExecute = () -> executedRows.set(replacement.getRuntimeRowHeaders().length);
+      Future<TableLens> reader = pool.submit(() -> {
+         box.reader = Thread.currentThread();
+         return query.getTableLens();
+      });
+
+      TableLens result = await(reader, "crosstab query with the crosstab info replaced in prepare");
+      assertNotNull(result, "the crosstab query returned no table");
+      assertEquals(2, prepares.get(), "prepare was not redone for the new crosstab info");
+      assertEquals(1, gathers.get(), "the redo did not gather again");
+      assertEquals(2, box.fetches.get(), "each attempt gathers its source once");
+      assertEquals(0, box.fetchesUnderMonitor.get(),
+                   "a source was executed while holding the VSCrosstabInfo monitor");
+      assertEquals(1, query.executions.get(), "only the redo is executed");
+      assertEquals(Boolean.TRUE, redoHoldsNew.get(),
+                   "the redo did not prepare under the new crosstab info's monitor");
+      assertEquals(Boolean.FALSE, redoHoldsOld.get(),
+                   "the redo prepared under the replaced crosstab info's monitor");
+      assertEquals(0, replacement.reads.get(), "the abandoned attempt read the runtime refs " +
+                   "of the new crosstab info instead of its snapshot");
+      assertArrayEquals(newRows, newRowsAtRedo.get(),
+                        "the abandoned attempt rewrote the runtime refs of the new crosstab info");
+      assertEquals(2, executedRows.get(), "the redo did not prepare the new crosstab info " +
+                   "(period row header not appended)");
+      assertSame(replacement, crosstab.getVSCrosstabInfo(), "the edit was reverted");
+      assertArrayEquals(oldRows, old.getRuntimeRowHeaders(),
+                        "the abandoned prepare left its runtime row header rewrite");
+      assertArrayEquals(oldAggrs, old.getRuntimeAggregates(),
+                        "the abandoned prepare left its runtime aggregates");
+      assertArrayEquals(newRows, replacement.getRuntimeRowHeaders(),
+                        "the executed prepare left its runtime row header rewrite");
    }
 
    /**
@@ -517,6 +604,64 @@ class CrosstabVSAssemblySourceLockOrderingTest {
             collectTableNames(child, names);
          }
       }
+   }
+
+   /**
+    * A crosstab info that counts the reads of its runtime refs by one thread, made directly by
+    * the crosstab query's prepare. Helpers it calls that take the assembly rather than the
+    * crosstab info (the AOA check's {@code VSUtil.getAggregates()}, {@code replaceGroupValues()})
+    * still read the live binding; they only decide the push-down and resolve detail conditions,
+    * and the retry re-checks the binding after prepare.
+    */
+   private static final class RecordingInfo extends VSCrosstabInfo {
+      @Override
+      public DataRef[] getRuntimeAggregates() {
+         record();
+         return super.getRuntimeAggregates();
+      }
+
+      @Override
+      public DataRef[] getRuntimeColHeaders() {
+         record();
+         return super.getRuntimeColHeaders();
+      }
+
+      @Override
+      public DataRef[] getRuntimeRowHeaders() {
+         record();
+         return super.getRuntimeRowHeaders();
+      }
+
+      private void record() {
+         if(reader != null && Thread.currentThread() == reader && StackWalker.getInstance()
+            .walk(frames -> frames.skip(2).findFirst())
+            .map(frame -> frame.getClassName().equals(AbstractCrosstabVSAQuery.class.getName()) ||
+               frame.getClassName().equals(CubeVSAQuery.class.getName()))
+            .orElse(false))
+         {
+            reads.incrementAndGet();
+         }
+      }
+
+      volatile Thread reader;
+      final AtomicInteger reads = new AtomicInteger();
+   }
+
+   /**
+    * A period calendar on a crosstab source, which makes prepare append a period row header
+    * to the runtime row headers (and dispose() remove it).
+    */
+   private void addPeriodCalendar(String source) {
+      Viewsheet vs = crosstab.getViewsheet();
+      CalendarVSAssembly calendar =
+         new CalendarVSAssembly(vs, "Calendar" + (vs.getAssemblies().length + 1));
+      calendar.setTableName(source);
+      calendar.setDataRef(new AttributeRef(null, "sales"));
+      calendar.setPeriod(true);
+      calendar.setDates(new String[] { "y2026" });
+      vs.addAssembly(calendar);
+      assertSame(calendar, inetsoft.uql.viewsheet.internal.VSUtil.getPeriodCalendar(vs, source),
+                 "period calendar");
    }
 
    private void addBrushingChart() {

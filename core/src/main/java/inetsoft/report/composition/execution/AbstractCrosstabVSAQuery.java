@@ -173,7 +173,7 @@ public abstract class AbstractCrosstabVSAQuery extends CubeVSAQuery
       }
 
       sinfoOwner = ((DataVSAssembly) cassembly).getSourceInfo();
-      sinfo = (SourceInfo) sinfoOwner.clone();
+      sinfo = sinfoOwner == null ? null : (SourceInfo) sinfoOwner.clone();
       VSCrosstabInfo cinfo = snapshot != null ? snapshot : cassembly.getVSCrosstabInfo();
       ColumnSelection columns = table.getColumnSelection(false);
 
@@ -440,17 +440,35 @@ public abstract class AbstractCrosstabVSAQuery extends CubeVSAQuery
                   rheaders = cinfo.getRuntimeRowHeaders();
                   cheaders = cinfo.getRuntimeColHeaders();
 
-                  if(last || !isBindingChanged(cassembly, source, cinfo)) {
-                     // out of attempts, the binding kept changing: answer from this
-                     // snapshot, which is consistent in itself; the edit re-executes anyway
+                  if(!isBindingChanged(cassembly, source, cinfo)) {
                      break;
                   }
+
+                  if(last) {
+                     // out of attempts, the binding kept changing: answer from this
+                     // snapshot, which is consistent in itself; the edit re-executes anyway.
+                     // A few peripheral reads in prepare (isCubeSource() and the AOA check
+                     // in pushDownAggregate(), getXCube(), the cube hierarchy, the detail
+                     // conditions' group values) still see the live binding, so on this path
+                     // they can follow the newer edit; they execute nothing.
+                     LOG.debug("Crosstab {} binding kept changing during prepare, answering " +
+                        "from the snapshot of attempt {}/{}", vname, attempt,
+                        MAX_PREPARE_ATTEMPTS);
+                     break;
+                  }
+
+                  LOG.debug("Crosstab {} binding changed during prepare, redoing attempt {}/{}",
+                     vname, attempt, MAX_PREPARE_ATTEMPTS);
 
                   // undo this prepare's runtime ref rewrite, cinfo may still be the live one;
                   // the source info is the edit's, leave it alone
                   sinfo = null;
                   dispose();
                   resetPrepare();
+               }
+               else {
+                  LOG.debug("Crosstab {} binding changed before prepare, redoing attempt {}/{}",
+                     vname, attempt, MAX_PREPARE_ATTEMPTS);
                }
             }
 
