@@ -412,7 +412,10 @@ public class ResourcePermissionService {
             permission.getOrgScopedGroupGrants(action, OrganizationManager.getInstance().getCurrentOrgID()).stream()
                .filter(u -> !isIdentityAuthorized(u, Identity.Type.GROUP, principal))
                .forEach(gid -> groupGrants.add(gid.name));
+            // org-less (global) role grants are kept in the null-org set, which is written
+            // only by site admins, so do not carry them into the org-scoped set here.
             permission.getOrgScopedRoleGrants(action, OrganizationManager.getInstance().getCurrentOrgID()).stream()
+               .filter(u -> u.orgID != null)
                .filter(u -> !isIdentityAuthorized(u, Identity.Type.ROLE, principal))
                .forEach(rid -> roleGrants.add(rid.name));
             permission.getOrgScopedOrganizationGrants(action, OrganizationManager.getInstance().getCurrentOrgID()).stream()
