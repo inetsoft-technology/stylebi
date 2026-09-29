@@ -53,6 +53,7 @@ class ResourcePermissionGlobalRoleGrantTest {
    private MockedStatic<OrganizationManager> orgManagerStatic;
    private MockedStatic<SreeEnv> sreeEnv;
    private MockedStatic<SecurityEngine> securityEngineStatic;
+   private MockedStatic<SUtil> sutil;
    private OrganizationManager orgManager;
    private AuthorizationProvider authz;
    private ResourcePermissionService service;
@@ -65,6 +66,9 @@ class ResourcePermissionGlobalRoleGrantTest {
       orgManagerStatic.when(OrganizationManager::getInstance).thenReturn(orgManager);
       sreeEnv = mockStatic(SreeEnv.class);
       securityEngineStatic = mockStatic(SecurityEngine.class);
+      // multi-tenant mode is stubbed per case in caller(), so the save path never reaches
+      // SecurityEngine.getSecurity() (unstubbed here) through SUtil.isMultiTenant()
+      sutil = mockStatic(SUtil.class, Mockito.CALLS_REAL_METHODS);
 
       authz = mock(AuthorizationProvider.class);
       SecurityProvider securityProvider = mock(SecurityProvider.class);
@@ -81,6 +85,7 @@ class ResourcePermissionGlobalRoleGrantTest {
 
    @AfterEach
    void tearDown() {
+      sutil.close();
       securityEngineStatic.close();
       sreeEnv.close();
       orgManagerStatic.close();
@@ -90,7 +95,7 @@ class ResourcePermissionGlobalRoleGrantTest {
    @Test
    void orgAdminCannotReplaceGlobalRoleGrant() throws Exception {
       Permission permission = storedPermission("orga");
-      caller("orga", false);
+      caller("orga", false, true);
 
       save(role("Analyst", "orga"), role("R2", null));
 
@@ -101,7 +106,7 @@ class ResourcePermissionGlobalRoleGrantTest {
    @Test
    void orgAdminCannotAddAdministratorGlobalRoleGrant() throws Exception {
       Permission permission = storedPermission("orga");
-      caller("orga", false);
+      caller("orga", false, true);
 
       save(role("Analyst", "orga"), role("Administrator", null), role("R1", null));
 
@@ -112,7 +117,7 @@ class ResourcePermissionGlobalRoleGrantTest {
    @Test
    void orgAdminNormalRoundTripKeepsGlobalRoleGrant() throws Exception {
       Permission permission = storedPermission("orga");
-      caller("orga", false);
+      caller("orga", false, true);
 
       save(role("Analyst", "orga"), role("Viewer", "orga"));
 
@@ -123,7 +128,7 @@ class ResourcePermissionGlobalRoleGrantTest {
    @Test
    void orgAdminEmptyBodyKeepsGlobalRoleGrant() throws Exception {
       Permission permission = storedPermission("orga");
-      caller("orga", false);
+      caller("orga", false, true);
 
       save();
 
@@ -134,7 +139,7 @@ class ResourcePermissionGlobalRoleGrantTest {
    @Test
    void siteAdminCanReplaceGlobalRoleGrant() throws Exception {
       Permission permission = storedPermission("orga");
-      caller("orga", true);
+      caller("orga", true, true);
 
       save(role("Analyst", "orga"), role("R2", null));
 
@@ -145,7 +150,7 @@ class ResourcePermissionGlobalRoleGrantTest {
    @Test
    void siteAdminEmptyBodyClearsGlobalRoleGrant() throws Exception {
       Permission permission = storedPermission("orga");
-      caller("orga", true);
+      caller("orga", true, true);
 
       save();
 
@@ -157,7 +162,7 @@ class ResourcePermissionGlobalRoleGrantTest {
    void singleTenantSiteAdminCanChangeGlobalRoleGrant() throws Exception {
       String defaultOrg = Organization.getDefaultOrganizationID();
       Permission permission = storedPermission(defaultOrg);
-      caller(defaultOrg, true);
+      caller(defaultOrg, true, false);
 
       save(role("Analyst", defaultOrg), role("Administrator", null));
       assertEquals(Set.of("Analyst@" + defaultOrg, "Administrator@null"), roleGrants(permission));
@@ -171,7 +176,7 @@ class ResourcePermissionGlobalRoleGrantTest {
    @Test
    void orgAdminCraftedSaveDoesNotChangeGlobalRoleEnforcement() throws Exception {
       Permission permission = storedPermission("orga");
-      caller("orga", false);
+      caller("orga", false, true);
 
       save(role("Analyst", "orga"), role("R2", null));
 
@@ -186,11 +191,8 @@ class ResourcePermissionGlobalRoleGrantTest {
       lenient().when(provider.getPermission(eq(TYPE), eq(PATH), eq("orga"))).thenReturn(permission);
       DefaultCheckPermissionStrategy strategy = new DefaultCheckPermissionStrategy(provider);
 
-      try(MockedStatic<SUtil> sutil = Mockito.mockStatic(SUtil.class, Mockito.CALLS_REAL_METHODS);
-          MockedStatic<XSessionService> session = Mockito.mockStatic(XSessionService.class))
-      {
+      try(MockedStatic<XSessionService> session = Mockito.mockStatic(XSessionService.class)) {
          session.when(XSessionService::getService).thenReturn(mock(XSessionService.class));
-         sutil.when(SUtil::isMultiTenant).thenReturn(true);
          sutil.when(() -> SUtil.isInternalUser(any())).thenReturn(false);
 
          assertTrue(strategy.checkPermission(user("u1", new IdentityID("R1", null)), TYPE, PATH, READ),
@@ -213,7 +215,8 @@ class ResourcePermissionGlobalRoleGrantTest {
       return permission;
    }
 
-   private void caller(String orgID, boolean siteAdmin) {
+   private void caller(String orgID, boolean siteAdmin, boolean multiTenant) {
+      sutil.when(SUtil::isMultiTenant).thenReturn(multiTenant);
       when(orgManager.getCurrentOrgID()).thenReturn(orgID);
       when(orgManager.getCurrentOrgID(any(Principal.class))).thenReturn(orgID);
       when(orgManager.isSiteAdmin(any(Principal.class))).thenReturn(siteAdmin);
