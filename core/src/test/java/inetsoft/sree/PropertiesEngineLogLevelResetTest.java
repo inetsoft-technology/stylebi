@@ -49,6 +49,9 @@ import static org.mockito.Mockito.*;
  * Bug #77006: removing a log level property must reset the running log level, both on the node
  * that removed it and on the nodes that pick up the removal through a reload.
  *
+ * <p>Bug #77302: the log level properties that are only set by defaults.properties or by a JVM
+ * system property must be applied too, with the stored value still taking precedence.</p>
+ *
  * <p>A real {@link LogManager} replaces the mock of the test configuration, and the engine's
  * key-value storage is replaced by an in-memory fake, so that the test can play the part of
  * another cluster node removing a property from the shared storage.</p>
@@ -171,6 +174,93 @@ class PropertiesEngineLogLevelResetTest {
       storage.remoteRemove("log.detail.level", false);
       engine.init(true);
       assertEquals(LogLevel.INFO, logManager.getLevel());
+   }
+
+   /**
+    * Bug #77302: with no log property stored, the log.detail.level=INFO of defaults.properties
+    * must be the running level, so that the INFO/WARN events of the inetsoft loggers (e.g. the
+    * lock stall watchdog) are not dropped.
+    */
+   @Test
+   void defaultDetailLevelIsAppliedWhenNothingIsStored() {
+      initEngine();
+
+      assertEquals("INFO", engine.getProperty("log.detail.level"));
+      assertEquals(LogLevel.INFO, logManager.getLevel(), "the default detail level is not applied");
+      assertTrue(logManager.isLevelEnabled("inetsoft.util.stall.StallDumper", LogLevel.WARN),
+                 "a stall watchdog WARN is dropped");
+      assertTrue(logManager.isLevelEnabled("inetsoft.util.stall.StallDumper", LogLevel.INFO));
+      assertFalse(logManager.isLevelEnabled("inetsoft.util.stall.StallDumper", LogLevel.DEBUG));
+
+      // the other default, log.level.inetsoft.performance=OFF, is applied too
+      assertEquals(LogLevel.OFF, logManager.getLevel("inetsoft.performance"));
+
+      // and a reload keeps the default applied
+      engine.init(true);
+      assertEquals(LogLevel.INFO, logManager.getLevel());
+   }
+
+   @Test
+   void storedDetailLevelWinsOverDefault() {
+      storage.remotePut("log.detail.level", "error", false);
+      initEngine();
+      assertEquals(LogLevel.ERROR, logManager.getLevel());
+      assertFalse(logManager.isLevelEnabled("inetsoft.util.stall.StallDumper", LogLevel.WARN));
+
+      engine.init(true);
+      assertEquals(LogLevel.ERROR, logManager.getLevel());
+   }
+
+   @Test
+   void storedDetailLevelWinsOverSystemProperty() {
+      storage.remotePut("log.detail.level", "error", false);
+      String old = System.setProperty("log.detail.level", "debug");
+
+      try {
+         initEngine();
+         assertEquals(LogLevel.ERROR, logManager.getLevel());
+      }
+      finally {
+         restoreSystemProperty("log.detail.level", old);
+      }
+   }
+
+   @Test
+   void systemPropertyLogLevelsAreApplied() {
+      String detail = System.setProperty("log.detail.level", "debug");
+      String loggerLevel = System.setProperty("log.level." + logger, "warn");
+
+      try {
+         initEngine();
+         assertEquals(LogLevel.DEBUG, logManager.getLevel(), "-Dlog.detail.level is not applied");
+         assertEquals(LogLevel.WARN, logManager.getLevel(logger), "-Dlog.level.* is not applied");
+
+         engine.init(true);
+         assertEquals(LogLevel.DEBUG, logManager.getLevel());
+         assertEquals(LogLevel.WARN, logManager.getLevel(logger));
+
+         // a stored value overrides the system property, and once it is removed the running
+         // level falls back to the system property, not to no level
+         storage.remotePut("log.level." + logger, "debug", false);
+         engine.init(true);
+         assertEquals(LogLevel.DEBUG, logManager.getLevel(logger));
+         storage.remoteRemove("log.level." + logger, false);
+         engine.init(true);
+         assertEquals(LogLevel.WARN, logManager.getLevel(logger));
+      }
+      finally {
+         restoreSystemProperty("log.detail.level", detail);
+         restoreSystemProperty("log.level." + logger, loggerLevel);
+      }
+   }
+
+   private static void restoreSystemProperty(String name, String value) {
+      if(value == null) {
+         System.clearProperty(name);
+      }
+      else {
+         System.setProperty(name, value);
+      }
    }
 
    @Test
