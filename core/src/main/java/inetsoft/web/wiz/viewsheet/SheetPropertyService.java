@@ -20,6 +20,7 @@ package inetsoft.web.wiz.viewsheet;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.web.composer.model.vs.ConvertToWorksheetResponseModel;
+import inetsoft.web.composer.model.vs.SelectDataSourceDialogModel;
 import inetsoft.web.composer.model.vs.ViewsheetParametersDialogModel;
 import inetsoft.web.composer.model.vs.ViewsheetPropertyDialogModel;
 import inetsoft.web.composer.vs.dialog.ViewsheetPropertyDialogService;
@@ -27,6 +28,8 @@ import inetsoft.web.composer.vs.dialog.ViewsheetSettingsService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.security.Principal;
 import java.util.*;
 
@@ -121,6 +124,7 @@ public class SheetPropertyService {
       sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          ViewsheetPropertyDialogModel model = dialogService.getViewsheetInfo(runtimeId, user);
          requireKnownParameterNames(model, resolved, patch);
+         BaseEntryGuard baseEntry = BaseEntryGuard.detach(model);
 
          // Keep PropertyPath.set's returned root. Every alias in the vocabulary currently nests
          // under a pane, which absorbs an Immutables wither's rebuild, so today this reassignment
@@ -132,6 +136,7 @@ public class SheetPropertyService {
                PropertyPath.set(model, entry.getValue(), patch.get(entry.getKey()));
          }
 
+         baseEntry.reattach(model);
          reconcileParameterLists(model, resolved);
          dialogService.setViewsheetInfo(runtimeId, model, user, dispatcher, linkUri, null);
       });
@@ -353,6 +358,95 @@ public class SheetPropertyService {
       result.put("path", response.getModel().getDataSource().getPath());
       result.put("hasMaterializedViews", response.isHasMvs());
       return result;
+   }
+
+   /**
+    * Keeps PropertyPath writes off the viewsheet's LIVE base {@link AssetEntry} (Redmine #77077).
+    *
+    * <p>{@link ViewsheetPropertyDialogService#getViewsheetInfo} puts {@code getBaseEntry()} into
+    * the model by reference -- harmless for the Composer dialog, which serializes the model to
+    * JSON, but a PropertyPath write walking into it here edits the live entry in place, and
+    * {@code setViewsheetInfo}'s rebind is guarded by {@code equals(getBaseEntry())}, which the
+    * same object always satisfies. {@link PropertyAliases} refuses that subtree by name; this is
+    * the second layer for any spelling a refusal list misses.
+    *
+    * <p>{@link #detach} swaps a clone in before the writes; {@link #reattach} refuses if the clone
+    * was replaced or changed, and otherwise puts the original live entry back, so an ordinary
+    * patch reaches {@code setViewsheetInfo} exactly as before (same object, no rebind). The live
+    * entry is never written, so a refusal here -- or any earlier throw -- leaves nothing
+    * half-applied. Swapping the clone through to {@code setViewsheetInfo} instead would be wrong:
+    * a changed clone fails {@code equals} and would rebind the sheet onto a half-built entry.
+    */
+   static final class BaseEntryGuard {
+      private BaseEntryGuard(SelectDataSourceDialogModel holder, AssetEntry live,
+                             AssetEntry copy)
+      {
+         this.holder = holder;
+         this.live = live;
+         this.copy = copy;
+         this.before = stateOf(copy);
+      }
+
+      static BaseEntryGuard detach(ViewsheetPropertyDialogModel model) {
+         SelectDataSourceDialogModel holder = holderOf(model);
+         AssetEntry live = holder == null ? null : holder.getDataSource();
+         AssetEntry copy = live == null ? null : (AssetEntry) live.clone();
+
+         if(copy != null) {
+            holder.setDataSource(copy);
+         }
+
+         return new BaseEntryGuard(holder, live, copy);
+      }
+
+      void reattach(ViewsheetPropertyDialogModel model) {
+         SelectDataSourceDialogModel holder = holderOf(model);
+
+         if(holder != this.holder || (holder != null && holder.getDataSource() != copy) ||
+            !Objects.equals(before, stateOf(copy)))
+         {
+            throw new IllegalArgumentException(
+               "'vsOptionsPane.selectDataSourceDialogModel.dataSource' is not settable through " +
+               "set_viewsheet_properties: this patch reached the viewsheet's base data source " +
+               "entry, and nothing was applied. Use set_viewsheet_data_source to rebind or " +
+               "clear the base, or attach_base_worksheet for a viewsheet with no base yet.");
+         }
+
+         if(copy != null) {
+            holder.setDataSource(live);
+         }
+      }
+
+      private static SelectDataSourceDialogModel holderOf(ViewsheetPropertyDialogModel model) {
+         return model.vsOptionsPane() == null ? null
+            : model.vsOptionsPane().getSelectDataSourceDialogModel();
+      }
+
+      /** Every persisted field (writeXML), plus the ones writeXML omits in compact mode. */
+      private static String stateOf(AssetEntry entry) {
+         if(entry == null) {
+            return null;
+         }
+
+         StringWriter xml = new StringWriter();
+
+         try(PrintWriter writer = new PrintWriter(xml)) {
+            entry.writeXML(writer);
+         }
+
+         return xml + "|" + entry.getAlias() + "|" + entry.getFavoritesUser() + "|" +
+            entry.getCreatedUsername() + "|" + time(entry.getCreatedDate()) + "|" +
+            entry.getModifiedUsername() + "|" + time(entry.getModifiedDate());
+      }
+
+      private static Long time(Date date) {
+         return date == null ? null : date.getTime();
+      }
+
+      private final SelectDataSourceDialogModel holder;
+      private final AssetEntry live;
+      private final AssetEntry copy;
+      private final String before;
    }
 
    /**
