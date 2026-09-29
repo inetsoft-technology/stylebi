@@ -38,7 +38,7 @@ import java.util.function.Predicate;
  * pooled batch with the pool on (Feature #77123, context-pool brief §5 P2). Detection only; it
  * never changes how a script runs. The exception is a top-level var of an expression column's
  * formula, which its table owns (Testing #77123): it is not reported, except, with the pool
- * on, when it is assigned a script object, which is kept only within one batch
+ * on, when it is assigned an array, object or function, which is kept only within one batch
  * ({@link #checkColumn(String, Object, XTable, int, String, String, String, Set, boolean)}).
  *
  * <p>The detector is a token-level lexer (comments, strings, templates, regex vs division) with
@@ -91,8 +91,9 @@ public final class ScriptStateLint {
     * its formulas (Testing #77123): an owned var keeps its value from row to row for the
     * whole table, so reading it before writing it is a supported accumulator and not a
     * finding. The exception is the pool: with the script context pool on, a script object in
-    * an owned var (array, object, Date, function) is kept only within one batch of rows, so a
-    * read-before-write of an owned var that is assigned such a value is still reported.
+    * an owned var (array, object, function; a Date is kept) is kept only within one batch of
+    * rows, so a read-before-write of an owned var that is assigned such a value is still
+    * reported.
     * R2 (an undeclared global) is not affected.
     *
     * @param owned  the names the table owns ({@code GraalJavaScriptEngine.collectOwnedVarNames}
@@ -158,7 +159,7 @@ public final class ScriptStateLint {
       REPORT,
       /** An expression column's var that its table does not own (a let/const of the name). */
       REPORT_NOT_OWNED,
-      /** A var its table owns that holds a script object, with the pool on. */
+      /** A var its table owns that holds an array, object or function, with the pool on. */
       REPORT_POOLED_OBJECT
    }
 
@@ -313,7 +314,7 @@ public final class ScriptStateLint {
             .append(line(script, f.offset())).append(")");
 
          if(kinds.get(i) == Disposition.REPORT_POOLED_OBJECT) {
-            buf.append(" and assigns it an object, array, Date or function");
+            buf.append(" and assigns it an array, object or function");
          }
          else if(kinds.get(i) == Disposition.REPORT_NOT_OWNED) {
             buf.append(", which a formula of this table also declares with let or const, " +
@@ -344,9 +345,10 @@ public final class ScriptStateLint {
       if(pooledObject) {
          buf.append(" A top-level var of an expression column's formula keeps its value " +
                     "from row to row for its whole table, but with the worksheet script " +
-                    "context pool on an object, array, Date or function in it is kept only " +
+                    "context pool on an array, object or function in it is kept only " +
                     "within one batch of rows: a batch that runs on another pooled context " +
-                    "reads it as undefined. A number, string or boolean is always kept.");
+                    "reads it as undefined. A number, string, boolean or Date is always kept " +
+                    "(a Date by its time value).");
       }
 
       if(column != null) {
@@ -430,8 +432,9 @@ public final class ScriptStateLint {
    /**
     * A read of {@code name} at {@code offset} (a char offset) before it is written.
     * {@code objectValue} is true when a top-level write of the name assigns a value that
-    * looks like a script object: an object or array literal, {@code new}, a function or an
-    * arrow function (a lexical check; a call that returns an object is not seen).
+    * looks like a script object that the pool keeps only within one batch: an object or array
+    * literal, {@code new} (except {@code new Date}), a function or an arrow function (a lexical
+    * check; a call that returns an object is not seen).
     */
    public record Finding(String rule, String name, int offset, boolean objectValue) {
       public Finding(String rule, String name, int offset) {
@@ -594,7 +597,7 @@ public final class ScriptStateLint {
       // the first write itself (x = x + 1, x += 1, x++) is not taken for a loop-carried read
       Map<String, Integer> firstWriteStart = new HashMap<>();
       Map<String, List<Integer>> reads = new LinkedHashMap<>();
-      // names that a top-level write may give a script object (array, object, Date, function)
+      // names that a top-level write may give a script object (array, object, function)
       Set<String> objectWrites = new HashSet<>();
       int declDepth = -1;
       boolean declExpectName = false;
@@ -1027,9 +1030,10 @@ public final class ScriptStateLint {
    }
 
    /**
-    * Whether the expression in tokens {@code [from, to)} can evaluate to a script object: it
-    * contains an object literal, an array literal (not a subscript), {@code new},
-    * {@code function} or {@code =>}.
+    * Whether the expression in tokens {@code [from, to)} can evaluate to a script object the
+    * pool keeps only within one batch: it contains an object literal, an array literal (not a
+    * subscript), {@code new} (but not {@code new Date}: a Date is kept across batches,
+    * Testing #77123 B1 residual), {@code function} or {@code =>}.
     */
    private static boolean objectValue(List<Tok> t, int from, int to) {
       for(int i = Math.max(0, from); i < to && i < t.size(); i++) {
@@ -1043,13 +1047,20 @@ public final class ScriptStateLint {
             }
          }
          else if(k.type == T.ID && (k.text.equals("new") || k.text.equals("function")) &&
-                 !isMember(t, i))
+                 !isMember(t, i) && !newDate(t, i, to))
          {
             return true;
          }
       }
 
       return false;
+   }
+
+   // new Date, not new Date.x: a Date is kept across pooled batches
+   private static boolean newDate(List<Tok> t, int i, int to) {
+      return t.get(i).text.equals("new") && i + 1 < to && i + 1 < t.size() &&
+         t.get(i + 1).type == T.ID && t.get(i + 1).text.equals("Date") &&
+         (i + 2 >= to || i + 2 >= t.size() || !t.get(i + 2).text.equals("."));
    }
 
    private static void mark(boolean[] a, int from, int to) {

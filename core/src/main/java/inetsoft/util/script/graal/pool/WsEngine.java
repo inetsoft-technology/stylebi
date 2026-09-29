@@ -22,6 +22,7 @@ import inetsoft.util.script.graal.ScriptTimeoutGuard;
 import org.graalvm.polyglot.Context;
 import org.graalvm.polyglot.Engine;
 import org.graalvm.polyglot.HostAccess;
+import org.graalvm.polyglot.Value;
 
 import java.time.Duration;
 import java.util.Map;
@@ -127,6 +128,9 @@ final class WsEngine extends GraalJavaScriptEngine {
     */
    @Override
    protected void initScope(Map<String, Object> vars) {
+      // the intrinsic Date of the fresh context, before any library or user script ran:
+      // a lens-owned Date var is rebuilt with it (Testing #77123, B1 residual)
+      dateConstructor = context.getBindings("js").getMember("Date");
       super.initScope(WsValueCopier.markForeign(vars, context));
    }
 
@@ -138,6 +142,14 @@ final class WsEngine extends GraalJavaScriptEngine {
       super.put(name, WsValueCopier.markForeign(value, context));
    }
 
+   /**
+    * @return the Date constructor of this engine's context as created, before any script ran.
+    */
+   Value dateConstructor() {
+      return dateConstructor;
+   }
+
+   private volatile Value dateConstructor;
    private final InitSnapshot snapshot;
    private final Map<Object, Integer> errorCounts;
    private volatile Slot slot;
