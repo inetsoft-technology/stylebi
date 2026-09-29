@@ -50,7 +50,8 @@ final class CleanHelper {
     *                  to undefined; they stay declared on the global.
     * @param failed    the global could not be brought back to its baseline.
     * @param restored  baseline keys put back.
-    * @param removed   configurable foreign keys deleted.
+    * @param removed   configurable foreign keys deleted, plus one if the global's replaced
+    *                  prototype was put back.
     * @param tooMany   more configurable foreign keys than {@link PoolConfig#MAX_FOREIGN_DELETES};
     *                  none were deleted.
     */
@@ -118,6 +119,7 @@ final class CleanHelper {
          const defProp = Reflect.defineProperty;
          const delProp = Reflect.deleteProperty;
          const setProto = Reflect.setPrototypeOf;
+         const getProto = Reflect.getPrototypeOf;
          const is = Object.is;
          const isExt = Object.isExtensible;
          const hasOwn = Object.hasOwn;
@@ -365,16 +367,33 @@ final class CleanHelper {
             let extFailed = false;
             try { if(!isExt(G)) extFailed = true; } catch(e) { extFailed = true; }
 
-            const keys = ownKeys(G);
-            const n = keys.length;
-
-            if(ln >= 0) {
-               const r = fast(keys, n, extFailed);
-               if(r !== null) return r;
+            // a re-parented global gets its baseline prototype back; a global that refuses
+            // it (non-extensible) cannot be cleaned
+            let reparented = false;
+            try {
+               if(getProto(G) !== baseProto) {
+                  if(setProto(G, baseProto)) reparented = true; else extFailed = true;
+               }
+            }
+            catch(e) {
+               extFailed = true;
             }
 
-            const r = slow(keys, n, extFailed);
-            if(!r.failed && !r.tooMany) rebuild(); else ln = -1;
+            const keys = ownKeys(G);
+            const n = keys.length;
+            let r = null;
+
+            if(ln >= 0) {
+               r = fast(keys, n, extFailed);
+            }
+
+            if(r === null) {
+               r = slow(keys, n, extFailed);
+               if(!r.failed && !r.tooMany) rebuild(); else ln = -1;
+            }
+
+            // the names the foreign prototype provided are gone, as if deleted
+            if(reparented) r.removed++;
             return r;
          }
 
@@ -463,6 +482,7 @@ final class CleanHelper {
          handles.clean = clean;
          handles.expect = expect;
          handles.forget = forget;
+         const baseProto = getProto(G);
 
          const base = ownKeys(G);
          for(let i = 0; i < base.length; i++) {
