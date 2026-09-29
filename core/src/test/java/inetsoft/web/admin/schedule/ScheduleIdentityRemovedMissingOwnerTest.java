@@ -53,7 +53,8 @@ import static org.mockito.Mockito.*;
  * (PER_CLASS lifecycle), so it is installed in the SecurityEngine that ScheduleManager uses.
  */
 @ExtendWith(SpringExtension.class)
-@ContextConfiguration(classes = { BaseTestConfiguration.class, IntegrationTestConfiguration.class },
+@ContextConfiguration(classes = { BaseTestConfiguration.class, IntegrationTestConfiguration.class,
+                                  SecurityEngineDispatchConfiguration.class },
                       initializers = ConfigurationContextInitializer.class)
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @SreeHome
@@ -72,12 +73,16 @@ class ScheduleIdentityRemovedMissingOwnerTest {
    @Autowired
    ScheduleManager scheduleManager;
 
+   @Autowired
+   SecurityEngineOverrides securityEngineOverrides;
+
    private MockedStatic<SUtil> sutilStatic;
    private SRPrincipal dave;    // org admin of org B
    private final List<String> taskNames = new ArrayList<>();
 
    @BeforeAll
    void setupAll() throws Exception {
+      SecurityEngineOverrides.assertInstalled(SecurityEngine.getSecurity());
       builder = SecurityTestDataBuilder.create()
          .addOrg("idrmOrgA", ORG_A)
          .addOrg("idrmOrgB", ORG_B)
@@ -98,19 +103,19 @@ class ScheduleIdentityRemovedMissingOwnerTest {
       builder.setup();
       // pin the security state to the builder's providers: a properties reload scheduled by a
       // previous test class can otherwise reset security.enabled and rebuild the provider of the
-      // shared engine
-      SecurityEngine engine = SecurityEngine.getSecurity();
+      // shared engine. The engine is a Spring-singleton spy that background threads also use, so it
+      // is pinned through the dispatcher instead of being stubbed (Bug #77346)
       SecurityProvider provider = CompositeSecurityProvider.create(
          provider(), (AuthorizationProvider) ReflectionTestUtils.getField(builder, "authzProvider"));
       assertNotNull(provider.getUser(DAVE), "security provider set up");
-      doReturn(true).when(engine).isSecurityEnabled();
-      doReturn(provider).when(engine).getSecurityProvider();
+      securityEngineOverrides.setSecurityEnabled(true);
+      securityEngineOverrides.setSecurityProvider(provider);
    }
 
    @AfterAll
    void teardownAll() {
-      // back to a plain spy (the engine is a Spring-singleton spy, see BaseTestConfiguration)
-      reset(SecurityEngine.getSecurity());
+      // back to the real methods; never reset the shared spy, that also removes the dispatcher
+      securityEngineOverrides.clear();
 
       if(builder != null) {
          builder.teardown();
