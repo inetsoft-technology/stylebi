@@ -292,9 +292,12 @@ class ScheduleTaskServiceSecretIdTest {
       when(request.getSession(true)).thenReturn(session);
       when(session.getAttribute(ImportTaskController.INFO_ATTR))
          .thenReturn(new ArrayList<>(List.of(imported)));
+      // allow the scheduler permission so the secret id check is what refuses the task
+      AnalyticRepository repository = mock(AnalyticRepository.class);
+      when(repository.checkPermission(any(), eq(ResourceType.SCHEDULER), anyString(),
+                                      eq(ResourceAction.ACCESS))).thenReturn(true);
       ImportTaskController controller = new ImportTaskController(
-         scheduleManager, mock(ScheduleTaskFolderService.class),
-         mock(AnalyticRepository.class), securityEngine);
+         scheduleManager, mock(ScheduleTaskFolderService.class), repository, securityEngine);
 
       ImportTaskResponse response = controller.importScheduleTask(
          List.of(imported.getTaskId()), request, true, "http://host/", principal);

@@ -22,7 +22,8 @@ package inetsoft.web.admin.schedule;
  *
  * ImportTaskController.importScheduleTask() has real in-controller logic:
  *   - For each task in the session-stored list, checks existence and overwrite permission
- *   - If the task exists, overwriting=true, and it's editable but the principal lacks permission,
+ *   - If the task exists, overwriting=true, and the principal lacks permission (regardless of
+ *     the stored task's editable flag, Bug #77259),
  *     the taskId is added to failedList (not imported)
  *   - If the task is new (or overwriting=true with permission), it is imported via
  *     scheduleManager.setScheduleTask()
@@ -33,7 +34,7 @@ package inetsoft.web.admin.schedule;
  * task.getPath() to null so the folder-move branch is never reached.
  *
  * Coverage scope:
- *   [permission denied]     task exists + overwriting + editable + no permission → failedList; no import
+ *   [permission denied]     task exists + overwriting + no permission → failedList; no import
  *   [new task imported]     task does not exist + selected → setScheduleTask called
  *   [not overwriting]       task exists + overwriting=false → setScheduleTask never called
  */
@@ -89,12 +90,11 @@ class ImportTaskControllerTest {
    // importScheduleTask()
    // -------------------------------------------------------------------------
 
-   // [permission denied] task exists + overwriting + editable + no permission → failedList; no import
+   // [permission denied] task exists + overwriting + no permission → failedList; no import
    @Test
    void importScheduleTask_permissionDenied_addedToFailedList() throws Exception {
       when(session.getAttribute(INFO_ATTR)).thenReturn(new ArrayList<>(List.of(incomingTask)));
       when(scheduleManager.getScheduleTask("myTask")).thenReturn(existingTask);
-      when(existingTask.isEditable()).thenReturn(true);
       when(analyticRepository.checkPermission(
          principal, ResourceType.SCHEDULER, "myTask", ResourceAction.ACCESS))
          .thenReturn(false);
@@ -112,6 +112,9 @@ class ImportTaskControllerTest {
       when(session.getAttribute(INFO_ATTR)).thenReturn(new ArrayList<>(List.of(incomingTask)));
       when(scheduleManager.getScheduleTask("myTask")).thenReturn(null); // task does not exist
       when(incomingTask.getActionStream()).thenReturn(Stream.empty()); // updateTaskInfo needs a stream
+      when(analyticRepository.checkPermission(
+         principal, ResourceType.SCHEDULER, "*", ResourceAction.ACCESS))
+         .thenReturn(true);
 
       ImportTaskResponse result = controller.importScheduleTask(
          List.of("myTask"), request, false, "http://host", principal);
