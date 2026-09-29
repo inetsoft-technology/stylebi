@@ -812,13 +812,31 @@ public class DashboardManager implements AutoCloseable {
       return keyValueStorageManager.getStorage(storeID, new LoadDashboardsTask(storeID));
    }
 
+   // syncUserDashboards() (bulk) and syncUserDashboards(Identity) are the same read-modify-write
+   // shape as the setters above -- read the current DashboardData, compute a replacement, write it
+   // back -- against the identical cluster-wide-replicated KeyValueStorage, so they need the same
+   // cluster-wide lock across their whole read-modify-write span (Bug #77299 round 2). Both are
+   // reached from init(), which every locked setter above calls *before* acquiring the cluster
+   // lock, so no reentrant acquisition happens there. But syncUserDashboards(Identity) is also
+   // reached from getDashboards(Identity, boolean), which is in turn called (with the lock already
+   // held) from addDashboard() and from DashboardRegistry/UserDashboardRegistry actions run inside
+   // runLocked() -- those nested acquisitions are safe because Cluster.lockKey() is reentrant, same
+   // as the other setters' documented reentrancy.
    private synchronized void syncUserDashboards() throws Exception {
-      KeyValueStorage<DashboardData> dashboardStorage = getDashboardStorage();
-      SortedMap<String, DashboardData> changes = new TreeMap<>();
-      dashboardStorage.stream().forEach(p -> syncUserDashboards(p, changes));
+      String lockName = getDashboardsLockName();
+      Cluster.getInstance().lockKey(lockName);
 
-      if(!changes.isEmpty()) {
-         dashboardStorage.putAll(changes).get(3L, TimeUnit.MINUTES);
+      try {
+         KeyValueStorage<DashboardData> dashboardStorage = getDashboardStorage();
+         SortedMap<String, DashboardData> changes = new TreeMap<>();
+         dashboardStorage.stream().forEach(p -> syncUserDashboards(p, changes));
+
+         if(!changes.isEmpty()) {
+            dashboardStorage.putAll(changes).get(3L, TimeUnit.MINUTES);
+         }
+      }
+      finally {
+         Cluster.getInstance().unlockKey(lockName);
       }
    }
 
@@ -844,24 +862,32 @@ public class DashboardManager implements AutoCloseable {
    }
 
    private synchronized void syncUserDashboards(Identity user) throws Exception {
-      KeyValueStorage<DashboardData> dashboardStorage = getDashboardStorage();
-      DashboardData data = dashboardStorage.get(getIdentityKey(user));
+      String lockName = getDashboardsLockName();
+      Cluster.getInstance().lockKey(lockName);
 
-      if(data == null) {
-         data = new DashboardData();
+      try {
+         KeyValueStorage<DashboardData> dashboardStorage = getDashboardStorage();
+         DashboardData data = dashboardStorage.get(getIdentityKey(user));
+
+         if(data == null) {
+            data = new DashboardData();
+         }
+
+         List<String> selected = data.getDashboards();
+         List<String> nselected = syncUserDashboards(user, selected);
+
+         if(nselected == null) {
+            nselected = new ArrayList<>();
+         }
+
+         data.setDashboards(nselected);
+
+         if(!Tool.equals(selected, nselected)) {
+            dashboardStorage.put(getIdentityKey(user), data).get(10L, TimeUnit.SECONDS);
+         }
       }
-
-      List<String> selected = data.getDashboards();
-      List<String> nselected = syncUserDashboards(user, selected);
-
-      if(nselected == null) {
-         nselected = new ArrayList<>();
-      }
-
-      data.setDashboards(nselected);
-
-      if(!Tool.equals(selected, nselected)) {
-         dashboardStorage.put(getIdentityKey(user), data).get(10L, TimeUnit.SECONDS);
+      finally {
+         Cluster.getInstance().unlockKey(lockName);
       }
    }
 

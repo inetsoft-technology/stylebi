@@ -53,10 +53,21 @@ package inetsoft.sree.web.dashboard;
  * remote rename/delete, so a read landing mid-reload could permanently discard a still-valid name.
  * The fix stops persisting that filtered result; see
  * getDeselectedDashboards_staleRegistryMiss_doesNotPersistThePrune() below.
+ *
+ * Round 2 (review r1): syncUserDashboards(Identity)/syncUserDashboards() (bulk) are the exact same
+ * read-modify-write shape against the identical KeyValueStorage record, but were left unguarded by
+ * the round-1 fix. getDashboards(Identity, boolean sync=true) -- the overload called by
+ * DashboardController.getDashboards() on every ordinary, non-anonymous dashboard-tab load --
+ * invokes syncUserDashboards(identity), so a same-moment unlocked sync on one node could silently
+ * discard a concurrent, now-correctly-locked setDashboards()/addDashboard() write from another
+ * node. See getDashboards_syncRacingSetDashboardsFromAnotherManagerInstance_doesNotBlockOrLoseIt()
+ * below, which proves the ordinary getDashboards(identity, true) call path is now excluded by the
+ * same cluster-wide lock while another manager instance holds it mid-write.
  */
 
 import inetsoft.sree.security.OrganizationContextHolder;
 import inetsoft.sree.security.SecurityEngine;
+import inetsoft.sree.security.SecurityProvider;
 import inetsoft.storage.KeyValueStorage;
 import inetsoft.storage.KeyValueStorageManager;
 import inetsoft.storage.LoadKeyValueTask;
@@ -100,6 +111,7 @@ class DashboardManagerSetterConcurrencyTest {
    private volatile Park park;
    private final List<Thread> threads = new ArrayList<>();
    private final Identity group = new DefaultIdentity("dash77232_group", Identity.GROUP);
+   private final Identity user = new DefaultIdentity("dash77299_user", Identity.USER);
 
    @BeforeEach
    void setUp() {
@@ -138,6 +150,7 @@ class DashboardManagerSetterConcurrencyTest {
 
       if(rawStorage != null) {
          rawStorage.remove(key(group)).get(10L, TimeUnit.SECONDS);
+         rawStorage.remove(key(user)).get(10L, TimeUnit.SECONDS);
       }
 
       OrganizationContextHolder.clear();
@@ -310,6 +323,65 @@ class DashboardManagerSetterConcurrencyTest {
                    "concurrent remote rename/delete, not a confirmed deletion");
    }
 
+   // ── Bug #77299 round 2: syncUserDashboards (via getDashboards(identity, true)) is also
+   // excluded by the cluster-wide lock ──
+
+   /*
+    * Same shape as renameDashboard_racingSetDashboardsFromAnotherManagerInstance_keepsBothChanges
+    * above, but the "node1" action is now the ordinary, unlocked-by-the-caller path a real
+    * dashboard-tab page load takes: DashboardController.getDashboards() ->
+    * DashboardManager.getDashboards(identity, true) -> syncUserDashboards(identity). Before round
+    * 2, syncUserDashboards(Identity) took no cluster lock at all, so it could read this identity's
+    * record while node2's locked setDashboards() write was still in flight, then -- after node2's
+    * write landed -- unconditionally overwrite the record with a value computed from that stale
+    * pre-write snapshot, discarding node2's change. A USER identity is required here (unlike the
+    * GROUP identity used above) because syncUserDashboards only runs for USER identities.
+    */
+   @Test
+   void getDashboards_syncRacingSetDashboardsFromAnotherManagerInstance_doesNotClobberTheWrite()
+      throws Exception
+   {
+      SecurityEngine securityEngine = mock(SecurityEngine.class);
+      when(securityEngine.getSecurityProvider()).thenReturn(mock(SecurityProvider.class));
+      DashboardRegistryManager registryManager = mock(DashboardRegistryManager.class);
+      // unrecognized by the registry, like getDeselectedDashboards_staleRegistryMiss above; the
+      // plain (non-"__GLOBAL") names used below are kept by syncUserDashboards regardless, so this
+      // only has to be non-null to avoid the NPE getDashboards()/getDeselectedDashboards() would
+      // otherwise hit resolving the global registry for a USER identity.
+      when(registryManager.getRegistry()).thenReturn(mock(DashboardRegistry.class));
+
+      DashboardManager managerA = newManager(securityEngine, registryManager);
+      DashboardManager managerB = newManager(securityEngine, registryManager);
+      seed(user, List.of("A", "X"), List.of());
+
+      park = new Park("node2-set", Step.BEFORE_PUT);
+      Thread node2 = start("node2-set",
+                           () -> managerB.setDashboards(user, new String[] { "X", "A", "Y" }));
+      park.awaitParked();
+
+      CountDownLatch syncDone = new CountDownLatch(1);
+      Thread node1 = start("node1-sync", () -> {
+         managerA.getDashboards(user, true);
+         syncDone.countDown();
+      });
+
+      // node1's sync must be excluded by the same cluster-wide lock node2 is holding: before round
+      // 2, syncUserDashboards(Identity) took no lock at all, so node1 would read and (if it
+      // computed a different value) write back immediately, racing node2's still-pending write.
+      assertFalse(syncDone.await(300, TimeUnit.MILLISECONDS),
+                  "node1's sync must be blocked by the cluster-wide lock while node2 holds it");
+      assertTrue(node1.isAlive(), "node1 ended unexpectedly instead of blocking");
+
+      park.release();
+      assertCompletes(node2);
+      assertCompletes(node1);
+
+      DashboardManager.DashboardData data = rawStorage.get(key(user));
+      assertEquals(List.of("X", "A", "Y"), data.getDashboards(),
+                   "an ordinary dashboard-tab sync running immediately after a concurrent, " +
+                   "cluster-locked setDashboards() must not clobber it");
+   }
+
    /**
     * A second DashboardManager instance sharing the same underlying KeyValueStorage as
     * {@link #manager}, and using its own unstubbed DashboardRegistryManager mock, simulating
@@ -324,6 +396,16 @@ class DashboardManagerSetterConcurrencyTest {
     * using the given DashboardRegistryManager.
     */
    private DashboardManager newManager(DashboardRegistryManager registryManager) {
+      return newManager(mock(SecurityEngine.class), registryManager);
+   }
+
+   /**
+    * A DashboardManager instance sharing the same underlying KeyValueStorage as {@link #manager},
+    * using the given SecurityEngine and DashboardRegistryManager.
+    */
+   private DashboardManager newManager(SecurityEngine securityEngine,
+                                       DashboardRegistryManager registryManager)
+   {
       KeyValueStorageManager storages = mock(KeyValueStorageManager.class);
       when(storages.getStorage(anyString(), any(LoadKeyValueTask.class))).thenAnswer(inv -> {
          KeyValueStorage<DashboardManager.DashboardData> real =
@@ -332,7 +414,7 @@ class DashboardManagerSetterConcurrencyTest {
          return copyOnRead(real);
       });
 
-      DashboardManager m = new DashboardManager(mock(SecurityEngine.class), registryManager, storages);
+      DashboardManager m = new DashboardManager(securityEngine, registryManager, storages);
       // first use switches the manager to the current org, outside the interleavings, as setUp()
       // already does for `manager`
       m.getDashboards(group);
@@ -342,10 +424,16 @@ class DashboardManagerSetterConcurrencyTest {
    // ── fixture ──
 
    private void seed(List<String> selected, List<String> deselected) throws Exception {
+      seed(group, selected, deselected);
+   }
+
+   private void seed(Identity identity, List<String> selected, List<String> deselected)
+      throws Exception
+   {
       DashboardManager.DashboardData data = new DashboardManager.DashboardData();
       data.setDashboards(new ArrayList<>(selected));
       data.setDeselected(new ArrayList<>(deselected));
-      rawStorage.put(key(group), data).get(10L, TimeUnit.SECONDS);
+      rawStorage.put(key(identity), data).get(10L, TimeUnit.SECONDS);
    }
 
    private static String key(Identity identity) {
