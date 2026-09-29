@@ -920,8 +920,12 @@ public class SUtil {
                         // Create a principal with the site admin's roles but the originally-
                         // requested org as context so org-scoped lookups (task map, assets)
                         // continue to use the correct org.
-                        LOG.debug("Resolved cross-org site admin {} (from {}) for task owner {}",
-                                  candidateId, candidateId.orgID, owner);
+                        // Bug #77281, the owner is in another organization than the site admin
+                        // whose roles it gets, log it so that a task whose owner was forged
+                        // before the owner was checked on every write path can be found
+                        LOG.warn("Schedule task owner {} does not exist, running it with the " +
+                                 "roles of the site admin {} of organization {}",
+                                 owner, candidateId, candidateId.orgID);
                         principal = new SRPrincipal(
                            new ClientInfo(owner, addr, null, null),
                            candidate.getRoles(), new String[0], owner.orgID,

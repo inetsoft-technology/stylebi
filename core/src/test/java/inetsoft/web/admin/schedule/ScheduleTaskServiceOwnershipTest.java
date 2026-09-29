@@ -226,6 +226,8 @@ class ScheduleTaskServiceOwnershipTest {
                                             new IdentityID("bob", CALLER_ORG).convertToKey(),
                                             ResourceAction.ADMIN))
          .thenReturn(true);
+      when(securityProvider.getUser(new IdentityID("bob", CALLER_ORG)))
+         .thenReturn(new User(new IdentityID("bob", CALLER_ORG)));
       ScheduleTaskEditorModel model = model(null, options("bob", "bob"));
 
       runSaveIgnoringDownstreamFailures(model);
@@ -269,6 +271,106 @@ class ScheduleTaskServiceOwnershipTest {
       ArgumentCaptor<ScheduleTask> saved = ArgumentCaptor.forClass(ScheduleTask.class);
       verify(scheduleService).saveTask(any(), saved.capture(), eq(principal));
       assertEquals(other, saved.getValue().getOwner());
+   }
+
+   // ── Bug #77281: an owner or execute-as identity that doesn't exist ──────
+
+   // an org admin has SECURITY_USER ADMIN on any user name of the org, even one that doesn't
+   // exist (Bug #66393), and a task owned by "admin~;~orga" runs as the site admin "admin"
+   @Test
+   void saveTask_orgAdminOwnerNamingMissingUser_isRejected() throws Exception {
+      asOrgAdminWithAdminOnEveryUser();
+      ScheduleTaskEditorModel model = model(null, options("admin", null));
+
+      assertThrows(SecurityException.class, () -> service.saveTask(model, "", principal, true));
+      verify(scheduleService, never()).updateTaskName(any(), any(), any(), any());
+      verify(scheduleService, never()).saveTask(any(), any(), any());
+   }
+
+   @Test
+   void saveTask_orgAdminOwnerIsExistingOrgUser_isAllowed() throws Exception {
+      asOrgAdminWithAdminOnEveryUser();
+      IdentityID bob = new IdentityID("bob", CALLER_ORG);
+      when(securityProvider.getUser(bob)).thenReturn(new User(bob));
+      ScheduleTaskEditorModel model = model(null, options("bob", null));
+
+      runSaveIgnoringDownstreamFailures(model);
+
+      verify(scheduleService).updateTaskName(any(), any(), eq(bob), eq(principal));
+   }
+
+   @Test
+   void saveTask_siteAdminOwnerNamingMissingUser_isAllowed() throws Exception {
+      // Bug #73978, a site admin in another org saves a task owned by its own name there
+      asOrgAdminWithAdminOnEveryUser();
+      when(organizationManager.isSiteAdmin(principal)).thenReturn(true);
+      ScheduleTaskEditorModel model = model(null, options("admin", null));
+
+      runSaveIgnoringDownstreamFailures(model);
+
+      verify(scheduleService).updateTaskName(any(), any(), eq(new IdentityID("admin", CALLER_ORG)),
+                                             eq(principal));
+   }
+
+   @Test
+   void saveTask_orgAdminUnchangedMissingOwner_isAllowed() throws Exception {
+      // an org admin edits a task a site admin created in the org without changing its owner
+      IdentityID siteAdminOwner = new IdentityID("admin", CALLER_ORG);
+      ScheduleTask existing = new ScheduleTask("Task1");
+      existing.setOwner(siteAdminOwner);
+      when(scheduleManager.getScheduleTask(anyString())).thenReturn(existing);
+      asOrgAdminWithAdminOnEveryUser();
+      ScheduleTaskEditorModel model = model(null, options("admin", "admin"));
+
+      runSaveIgnoringDownstreamFailures(model);
+
+      verify(scheduleService).updateTaskName(any(), any(), eq(siteAdminOwner), eq(principal));
+   }
+
+   @Test
+   void saveTask_orgAdminRunAsMissingUser_isRejected() throws Exception {
+      asOrgAdminWithAdminOnEveryUser();
+      ScheduleTaskEditorModel model = model(null, options(CALLER.getName(), "admin"));
+
+      assertThrows(SecurityException.class, () -> service.saveTask(model, "", principal, true));
+      verify(scheduleService, never()).saveTask(any(), any(), any());
+   }
+
+   @Test
+   void saveTask_orgAdminRunAsRole_isRejected() throws Exception {
+      asOrgAdminWithAdminOnEveryUser();
+      TaskOptionsPaneModel options = TaskOptionsPaneModel.builder()
+         .from(options(CALLER.getName(), "Administrator"))
+         .idType(Identity.ROLE)
+         .build();
+
+      assertThrows(SecurityException.class,
+                   () -> service.saveTask(model(null, options), "", principal, true));
+      verify(scheduleService, never()).saveTask(any(), any(), any());
+   }
+
+   @Test
+   void saveTask_orgAdminRunAsExistingOrgGroup_isAllowed() throws Exception {
+      asOrgAdminWithAdminOnEveryUser();
+      IdentityID staff = new IdentityID("staff", CALLER_ORG);
+      when(securityProvider.getGroups()).thenReturn(new IdentityID[] { staff });
+      TaskOptionsPaneModel options = TaskOptionsPaneModel.builder()
+         .from(options(CALLER.getName(), "staff"))
+         .idType(Identity.GROUP)
+         .build();
+
+      runSaveIgnoringDownstreamFailures(model(null, options));
+
+      verify(scheduleService).updateTaskName(any(), any(), eq(CALLER), eq(principal));
+   }
+
+   private void asOrgAdminWithAdminOnEveryUser() {
+      when(organizationManager.isOrgAdmin(principal)).thenReturn(true);
+      when(securityProvider.checkPermission(eq(principal), any(ResourceType.class), anyString(),
+                                            eq(ResourceAction.ADMIN)))
+         .thenReturn(true);
+      when(securityProvider.getUsers()).thenReturn(new IdentityID[0]);
+      when(securityProvider.getGroups()).thenReturn(new IdentityID[0]);
    }
 
    private void runSaveIgnoringDownstreamFailures(ScheduleTaskEditorModel model) {

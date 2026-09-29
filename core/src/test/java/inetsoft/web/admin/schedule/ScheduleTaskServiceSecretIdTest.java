@@ -297,8 +297,7 @@ class ScheduleTaskServiceSecretIdTest {
       when(repository.checkPermission(any(), eq(ResourceType.SCHEDULER), anyString(),
                                       eq(ResourceAction.ACCESS))).thenReturn(true);
       ImportTaskController controller = new ImportTaskController(
-         scheduleManager, mock(ScheduleTaskFolderService.class), repository, securityEngine,
-         mock(ScheduleTaskService.class));
+         scheduleManager, mock(ScheduleTaskFolderService.class), repository, securityEngine);
 
       ImportTaskResponse response = controller.importScheduleTask(
          List.of(imported.getTaskId()), request, true, "http://host/", principal);
@@ -327,8 +326,7 @@ class ScheduleTaskServiceSecretIdTest {
       when(repository.checkPermission(any(), eq(ResourceType.SCHEDULER), anyString(),
                                       eq(ResourceAction.ACCESS))).thenReturn(true);
       ImportTaskController controller = new ImportTaskController(
-         scheduleManager, mock(ScheduleTaskFolderService.class), repository, securityEngine,
-         mock(ScheduleTaskService.class));
+         scheduleManager, mock(ScheduleTaskFolderService.class), repository, securityEngine);
 
       ImportTaskResponse response = controller.importScheduleTask(
          List.of(imported.getTaskId()), request, true, "http://host/", principal);
