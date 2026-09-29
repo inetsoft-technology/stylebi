@@ -771,6 +771,8 @@ public class PhysicalModelManagerService {
          autoAlias.removeIncomingJoin(qualifiedName);
       }
 
+      rp.forgetRemovedIncomingJoins(qualifiedName);
+      rp.forgetRemovedIncomingJoins(tableName);
       runtimePartitionService.saveRuntimePartition(rp);
    }
 
@@ -1026,9 +1028,16 @@ public class PhysicalModelManagerService {
     */
    public void updateAutoAliasing(String runtimeId, PhysicalTableModel table) {
       if(table != null) {
-         getPartition(runtimeId).ifPresent(p -> {
-            physicalModelService.addRemoveAutoAlias(p, table);
-            runtimePartitionService.updatePartition(runtimeId, p);
+         getRuntimePartition(runtimeId).ifPresent(rp -> {
+            physicalModelService.addRemoveAutoAlias(rp.getPartition(), table);
+            // the user set the auto-aliases of the table explicitly, don't restore old ones
+            rp.forgetRemovedIncomingJoins(table.getQualifiedName());
+
+            if(table.getAlias() != null) {
+               rp.forgetRemovedIncomingJoins(table.getAlias());
+            }
+
+            runtimePartitionService.saveRuntimePartition(rp);
          });
       }
    }
@@ -1172,7 +1181,10 @@ public class PhysicalModelManagerService {
    public void addAutoJoin(String runtimeId, JoinModel join, String tableName, Principal principal)
    {
       getRuntimePartition(runtimeId).ifPresent(p -> {
+         boolean firstJoin =
+            p.getPartition().findRelationship(tableName, join.getForeignTable()) == null;
          addAutoJoin(p, join, tableName, principal);
+         restoreRemovedIncomingJoins(p, tableName, join.getForeignTable(), firstJoin);
          runtimePartitionService.saveRuntimePartition(p);
       });
    }
@@ -1284,9 +1296,12 @@ public class PhysicalModelManagerService {
     * @param tableName the name of the independent table.
     */
    public void addJoin(String runtimeId, JoinModel join, String tableName) {
-      getPartition(runtimeId).ifPresent(p -> {
-         addJoin(p, join, tableName);
-         runtimePartitionService.updatePartition(runtimeId, p);
+      getRuntimePartition(runtimeId).ifPresent(rp -> {
+         boolean firstJoin =
+            rp.getPartition().findRelationship(tableName, join.getForeignTable()) == null;
+         addJoin(rp.getPartition(), join, tableName);
+         restoreRemovedIncomingJoins(rp, tableName, join.getForeignTable(), firstJoin);
+         runtimePartitionService.saveRuntimePartition(rp);
       });
    }
 
@@ -1335,21 +1350,23 @@ public class PhysicalModelManagerService {
    public void removeJoin(String runtimeId, JoinModel join, String foreignTable,
                           String tableName)
    {
-      getPartition(runtimeId).ifPresent(p -> {
-         removeJoin(p, join, foreignTable, tableName);
-         runtimePartitionService.updatePartition(runtimeId, p);
+      getRuntimePartition(runtimeId).ifPresent(rp -> {
+         removeJoin(rp, join, foreignTable, tableName);
+         runtimePartitionService.saveRuntimePartition(rp);
       });
    }
 
-   private void removeJoin(XPartition partition, JoinModel join, String foreignTable,
-                           String tableName)
+   private void removeJoin(RuntimePartitionService.RuntimeXPartition rp, JoinModel join,
+                           String foreignTable, String tableName)
    {
+      XPartition partition = rp.getPartition();
+
       if(join != null) {
          XRelationship removeRelation = convertJoin(join, tableName);
 
          for(int i = 0; i < partition.getRelationshipCount(); i++) {
             if(removeRelation.equalContents(partition.getRelationship(i))) {
-               deleteJoin(partition, partition.getRelationship(i));
+               deleteJoinAndRememberAutoAliases(rp, partition.getRelationship(i));
 
                break;
             }
@@ -1373,6 +1390,143 @@ public class PhysicalModelManagerService {
 
    public void deleteJoin(XPartition partition, XRelationship deleteJoin) {
       deleteJoin(partition, deleteJoin, true);
+   }
+
+   /**
+    * Deletes a join and remembers the auto-alias incoming joins that are removed with it
+    * because it was the last join between its tables. Re-adding a join between the tables in
+    * the same editor session restores them, see
+    * {@link #restoreRemovedIncomingJoins(RuntimePartitionService.RuntimeXPartition, String, String, boolean)}.
+    */
+   private void deleteJoinAndRememberAutoAliases(RuntimePartitionService.RuntimeXPartition rp,
+                                                 XRelationship deleteJoin)
+   {
+      XPartition partition = rp.getPartition();
+      String table1 = deleteJoin.getDependentTable();
+      String table2 = deleteJoin.getIndependentTable();
+      List<RuntimePartitionService.RemovedIncomingJoin> removed = new ArrayList<>();
+      addOwnIncomingJoin(partition, table2, table1, removed);
+      addOwnIncomingJoin(partition, table1, table2, removed);
+
+      rp.forgetRemovedIncomingJoins(table1, table2);
+      deleteJoin(partition, deleteJoin);
+
+      if(partition.findRelationship(table1, table2) == null) {
+         removed.forEach(rp::rememberRemovedIncomingJoin);
+      }
+   }
+
+   /**
+    * Adds a copy of the incoming join from the source table to the auto-alias of the table, if
+    * the auto-alias is defined in this partition and not in the base partition.
+    */
+   private void addOwnIncomingJoin(XPartition partition, String table, String sourceTable,
+                                   List<RuntimePartitionService.RemovedIncomingJoin> joins)
+   {
+      AutoAlias autoAlias = partition.getAutoAlias(table);
+
+      if(autoAlias == null || !isOwnAutoAlias(partition, table, autoAlias)) {
+         return;
+      }
+
+      for(int i = 0; i < autoAlias.getIncomingJoinCount(); i++) {
+         AutoAlias.IncomingJoin join = autoAlias.getIncomingJoin(i);
+
+         if(Tool.equals(sourceTable, join.getSourceTable())) {
+            joins.add(new RuntimePartitionService.RemovedIncomingJoin(
+               table, i, (AutoAlias.IncomingJoin) join.clone()));
+            break;
+         }
+      }
+   }
+
+   /**
+    * Restores the auto-alias incoming joins that were removed with the last join between the
+    * two tables when a join between them is added again, and forgets them in any case.
+    *
+    * @param firstJoin {@code true} if the added join is the only one between the tables.
+    */
+   private void restoreRemovedIncomingJoins(RuntimePartitionService.RuntimeXPartition rp,
+                                            String table1, String table2, boolean firstJoin)
+   {
+      if(firstJoin) {
+         restoreRemovedIncomingJoin(rp, table2, table1);
+         restoreRemovedIncomingJoin(rp, table1, table2);
+      }
+
+      rp.forgetRemovedIncomingJoins(table1, table2);
+   }
+
+   private void restoreRemovedIncomingJoin(RuntimePartitionService.RuntimeXPartition rp,
+                                           String table, String sourceTable)
+   {
+      RuntimePartitionService.RemovedIncomingJoin removed =
+         rp.getRemovedIncomingJoin(table, sourceTable);
+      XPartition partition = rp.getPartition();
+
+      if(removed == null ||
+         !canRestoreIncomingJoin(partition, table, sourceTable, removed.getJoin().getAlias()))
+      {
+         return;
+      }
+
+      AutoAlias autoAlias = partition.getAutoAlias(table);
+
+      if(autoAlias == null) {
+         autoAlias = new AutoAlias();
+         partition.setAutoAlias(table, autoAlias);
+
+         // the table is defined in the base partition
+         if(partition.getAutoAlias(table) != autoAlias) {
+            return;
+         }
+      }
+      else if(!isOwnAutoAlias(partition, table, autoAlias) ||
+         hasIncomingJoin(autoAlias, sourceTable))
+      {
+         return;
+      }
+
+      List<AutoAlias.IncomingJoin> joins = new ArrayList<>();
+
+      for(int i = 0; i < autoAlias.getIncomingJoinCount(); i++) {
+         joins.add(autoAlias.getIncomingJoin(i));
+      }
+
+      // keep the original position so the alias nodes keep their layout
+      joins.add(Math.min(removed.getIndex(), joins.size()),
+                (AutoAlias.IncomingJoin) removed.getJoin().clone());
+      autoAlias.removeAllIncomingJoins();
+      joins.forEach(autoAlias::addIncomingJoin);
+      partition.setAutoAlias(table, autoAlias);
+   }
+
+   /**
+    * Checks that both tables are still in the partition and that the alias name is not used.
+    */
+   private static boolean canRestoreIncomingJoin(XPartition partition, String table,
+                                                 String sourceTable, String alias)
+   {
+      return alias != null && partition.containsTable(table) &&
+         partition.containsTable(sourceTable) && !partition.containsTable(alias, false) &&
+         !partition.isAlias(alias) && partition.getAllAutoAliasTable(alias) == null;
+   }
+
+   private static boolean isOwnAutoAlias(XPartition partition, String table,
+                                         AutoAlias autoAlias)
+   {
+      XPartition base = partition.getBasePartition();
+      return base == null || base.getAutoAlias(table) != autoAlias;
+   }
+
+   private static boolean hasIncomingJoin(AutoAlias autoAlias, String sourceTable) {
+      for(int i = 0; i < autoAlias.getIncomingJoinCount(); i++) {
+         if(Tool.equals(sourceTable, autoAlias.getIncomingJoin(i).getSourceTable())) {
+            return true;
+         }
+      }
+
+      return false;
    }
 
    /**
