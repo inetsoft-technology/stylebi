@@ -28,19 +28,26 @@ import java.util.function.Function;
 
 /**
  * The settings of the lock-stall watchdog (bug #76967). A wait that sees no progress for
- * {@code stall.watchdog.noProgressMillis} is a stall: in {@code fail} mode it throws a
- * {@link LockStallException}, in {@code alert} mode it only dumps the threads and logs a
- * warning, and {@code off} registers no waits at all.
+ * {@code stall.watchdog.noProgressMillis} is a stall. In {@code fail} mode, the default
+ * (Feature #77123), a stall throws a {@link LockStallException} once the watchdog confirms the
+ * wait can never progress: it is a member of a wait-for cycle, or it waits for a cycle that no
+ * member's failure releases, or for a JVM deadlock. Until then, and for good if it is only a
+ * long wait (e.g. for a lock owner in a slow query), it is reported like an {@code alert}-mode
+ * stall and goes on. {@code stall.watchdog.failOnTimeout=true} fails a {@code fail}-mode stall
+ * on the timeout alone, as {@code fail} did before Feature #77123. In {@code alert} mode a
+ * stall only dumps the threads and logs a warning, and {@code off} registers no waits at all.
  *
- * <p>{@code alert} is the default in this release, so field dumps can show whether any healthy
- * but slow wait trips before {@code fail}, which ends a hung query, becomes the default.
+ * <p>The time threshold alone is no proof of a lock cycle: a wait gets progress credit from a
+ * blocker only if that blocker's own registered wait progresses or it is running, so a lock
+ * owner that polls a slow data source with sleeps, or waits for another thread's query, looks
+ * like a stall. That is why the default {@code fail} mode needs the confirmation.
  *
- * <p>Only a {@code fail}-mode wait that its timeout did not release (its thread could not
- * unwind, or never reached its check) turns the deadlock health check DOWN. {@code alert}
- * never fails a query and a single {@code alert}-mode wait never turns health DOWN by itself;
- * a JVM deadlock is DOWN in every mode, as before the watchdog, and so is a wait-for cycle of
- * registered waits and monitors that no member's timeout can release, one with no plain
- * {@code fail}-mode wait (bug #77152, see {@link StallWatchdog}).
+ * <p>Only a {@code fail}-mode wait that its failure did not release (its thread could not
+ * unwind, or, with {@code failOnTimeout}, never reached its check) turns the deadlock health
+ * check DOWN. {@code alert} never fails a query and a single {@code alert}-mode wait, or an
+ * unconfirmed {@code fail}-mode one, never turns health DOWN by itself; a JVM deadlock is DOWN
+ * in every mode, as before the watchdog, and so is a wait-for cycle of registered waits and
+ * monitors that no member's failure releases (bug #77152, see {@link StallWatchdog}).
  *
  * <p>The properties are cached for 10 seconds, like {@code SreeEnv.Value}, so a change takes
  * effect without a restart. Before the server environment is initialized (e.g. in plain unit
@@ -51,9 +58,9 @@ import java.util.function.Function;
  * beyond it.
  *
  * <p>SREE lowercases property names, so a JVM override of one of these must be written in
- * lowercase, e.g. {@code -Dstall.watchdog.noprogressmillis=2000} or
- * {@code -Dstall.watchdog.maxdumps=50}. A value set in {@code sree.properties} is not affected
- * and accepts any case.
+ * lowercase, e.g. {@code -Dstall.watchdog.noprogressmillis=2000},
+ * {@code -Dstall.watchdog.maxdumps=50} or {@code -Dstall.watchdog.failontimeout=true}. A
+ * value set in {@code sree.properties} is not affected and accepts any case.
  *
  * <p>Keep {@code noProgressMillis} well above 5 seconds. A lens worker queued on the
  * on-demand {@code ThreadPool} may wait up to 5 seconds for an idle pool thread that is
@@ -66,8 +73,10 @@ public final class StallPolicy {
     */
    public enum Mode {
       /**
-       * Fail the stalled wait with a {@link LockStallException}, after a thread dump. A wait
-       * that is not released by its timeout turns health DOWN.
+       * Fail the stalled wait with a {@link LockStallException}, after a thread dump, once
+       * the watchdog confirms it can never progress, or on the timeout alone with
+       * {@code stall.watchdog.failOnTimeout}. A failed wait that is not released turns health
+       * DOWN. The default (Feature #77123).
        */
       FAIL,
       /**
@@ -80,18 +89,38 @@ public final class StallPolicy {
       OFF
    }
 
+   /**
+    * Settings that, in {@code fail} mode, fail a stall on the timeout alone
+    * ({@code failOnTimeout}), as {@code fail} did before Feature #77123. For tests of what a
+    * failed wait leaves behind; the server reads the properties, see {@link #get()}.
+    */
    public StallPolicy(Mode mode, long noProgressMillis, long scanMillis, File dumpDir) {
       this(mode, noProgressMillis, scanMillis, dumpDir, DEFAULT_MAX_DUMPS);
    }
 
    /**
+    * Same as {@link #StallPolicy(Mode, long, long, File)}, failing on the timeout alone.
+    *
     * @param maxDumps how many {@code stall-dump-*.txt} files to keep in the dump directory,
     *                 the oldest are deleted when a new one is written.
     */
    public StallPolicy(Mode mode, long noProgressMillis, long scanMillis, File dumpDir,
                       int maxDumps)
    {
+      this(mode, noProgressMillis, scanMillis, dumpDir, maxDumps, true);
+   }
+
+   /**
+    * @param maxDumps      how many {@code stall-dump-*.txt} files to keep in the dump
+    *                      directory, the oldest are deleted when a new one is written.
+    * @param failOnTimeout in {@code fail} mode, fail a stall on the timeout alone, instead of
+    *                      only once the watchdog confirms the wait can never progress.
+    */
+   public StallPolicy(Mode mode, long noProgressMillis, long scanMillis, File dumpDir,
+                      int maxDumps, boolean failOnTimeout)
+   {
       this.mode = mode;
+      this.failOnTimeout = failOnTimeout;
       this.noProgressMillis = noProgressMillis;
       this.scanMillis = scanMillis;
       this.dumpDir = dumpDir;
@@ -131,6 +160,15 @@ public final class StallPolicy {
       return mode;
    }
 
+   /**
+    * Check if a {@code fail}-mode stall fails on the timeout alone
+    * ({@code stall.watchdog.failOnTimeout}), rather than only once the watchdog confirms the
+    * wait can never progress (the default).
+    */
+   public boolean isFailOnTimeout() {
+      return failOnTimeout;
+   }
+
    public long getNoProgressMillis() {
       return noProgressMillis;
    }
@@ -153,7 +191,8 @@ public final class StallPolicy {
 
    @Override
    public String toString() {
-      return "StallPolicy{mode=" + mode + ", noProgressMillis=" + noProgressMillis +
+      return "StallPolicy{mode=" + mode + ", failOnTimeout=" + failOnTimeout +
+         ", noProgressMillis=" + noProgressMillis +
          ", scanMillis=" + scanMillis + ", dumpDir=" + dumpDir + ", maxDumps=" + maxDumps +
          '}';
    }
@@ -167,7 +206,8 @@ public final class StallPolicy {
       File dumpDir = dir == null || dir.isBlank() ? defaultDumpDir : new File(dir.trim());
       int maxDumps = (int) Math.min(Integer.MAX_VALUE, parseMillis(
          properties.apply(MAX_DUMPS_PROPERTY), DEFAULT_MAX_DUMPS));
-      return new StallPolicy(mode, noProgress, scan, dumpDir, maxDumps);
+      boolean failOnTimeout = parseBoolean(properties.apply(FAIL_ON_TIMEOUT_PROPERTY));
+      return new StallPolicy(mode, noProgress, scan, dumpDir, maxDumps, failOnTimeout);
    }
 
    static Mode parseMode(String value) {
@@ -180,11 +220,25 @@ public final class StallPolicy {
          case "off":
             return Mode.OFF;
          default:
-            LOG.warn("Invalid {} value \"{}\", using alert", MODE_PROPERTY, value);
+            LOG.warn("Invalid {} value \"{}\", using fail", MODE_PROPERTY, value);
          }
       }
 
-      return Mode.ALERT;
+      return Mode.FAIL;
+   }
+
+   static boolean parseBoolean(String value) {
+      if(value == null || value.isBlank()) {
+         return false;
+      }
+
+      String trimmed = value.trim();
+
+      if(!"true".equalsIgnoreCase(trimmed) && !"false".equalsIgnoreCase(trimmed)) {
+         LOG.warn("Invalid {} value \"{}\", using false", FAIL_ON_TIMEOUT_PROPERTY, value);
+      }
+
+      return "true".equalsIgnoreCase(trimmed);
    }
 
    static long parseMillis(String value, long def) {
@@ -243,6 +297,7 @@ public final class StallPolicy {
    public static final String SCAN_PROPERTY = "stall.watchdog.scanMillis";
    public static final String DUMP_DIR_PROPERTY = "stall.watchdog.dumpDir";
    public static final String MAX_DUMPS_PROPERTY = "stall.watchdog.maxDumps";
+   public static final String FAIL_ON_TIMEOUT_PROPERTY = "stall.watchdog.failOnTimeout";
    public static final int DEFAULT_MAX_DUMPS = 20;
    public static final long DEFAULT_NO_PROGRESS_MILLIS = 300000L;
    public static final long DEFAULT_SCAN_MILLIS = 30000L;
@@ -251,11 +306,13 @@ public final class StallPolicy {
    private static final long REFRESH_MILLIS = 10000L;
    private static final File TEMP_DIR = new File(System.getProperty("java.io.tmpdir"));
    private static final StallPolicy DEFAULT = new StallPolicy(
-      Mode.ALERT, DEFAULT_NO_PROGRESS_MILLIS, DEFAULT_SCAN_MILLIS, TEMP_DIR);
+      Mode.FAIL, DEFAULT_NO_PROGRESS_MILLIS, DEFAULT_SCAN_MILLIS, TEMP_DIR, DEFAULT_MAX_DUMPS,
+      false);
    private static volatile StallPolicy override;
    private static volatile Cached cache;
 
    private final Mode mode;
+   private final boolean failOnTimeout;
    private final long noProgressMillis;
    private final long scanMillis;
    private final File dumpDir;

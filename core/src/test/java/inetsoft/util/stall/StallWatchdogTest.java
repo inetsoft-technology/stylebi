@@ -35,6 +35,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
@@ -1020,6 +1021,217 @@ public class StallWatchdogTest {
          watchdog.scan();
          assertNull(watchdog.getUnreleasedStall());
       }
+   }
+
+   /**
+    * Feature #77123: with the default rule, a fail-mode wait that saw no progress for its
+    * limit is no proof of a lock cycle, e.g. the lock owner polls a slow data source with
+    * sleeps (TIMED_WAITING, so no credit). It is reported, never failed and never turns
+    * health DOWN, however long it waits, while no cycle is confirmed.
+    */
+   @Test
+   public void unconfirmedFailModeStallIsReportedNotFailed() throws Exception {
+      policy = confirmedOnly();
+      Thread owner = start("sleeping-owner", () -> {
+         while(release.getCount() > 0) {
+            Thread.sleep(5);
+         }
+      });
+      StallTestSupport.awaitTrue(() -> owner.getState() == Thread.State.TIMED_WAITING, 5,
+                                 "the owner never slept");
+      WaitRecord record = registry.open("slow.site", () -> 0, () -> new Thread[] { owner });
+      assertEquals(StallPolicy.Mode.FAIL, record.getMode());
+      assertFalse(record.isFailOnTimeout());
+
+      advance(1500);
+      record.checkStall();
+      assertTrue(record.isTripped(), "the stall is reported");
+      assertNotNull(record.getDumpPath(), "and dumped");
+      assertFalse(record.isFailed());
+
+      for(int i = 0; i < 6; i++) {
+         advance(500);
+         record.checkStall();
+         watchdog.scan();
+         assertNull(watchdog.getUnreleasedStall(), "an unconfirmed stall is never DOWN");
+      }
+
+      assertFalse(record.isCycleConfirmed());
+      assertFalse(record.isFailed());
+      assertEquals(1, dumper.getDumpCount(), "one dump per episode");
+      record.close();
+   }
+
+   /**
+    * Feature #77123: with the default rule, a fail-mode wait of a wait-for cycle (the waiter
+    * holds a monitor its blocker is BLOCKED on) is confirmed once the cycle is found on two
+    * scans, and fails on its next check. The failure breaks the cycle, which is never DOWN.
+    */
+   @Test
+   public void confirmedCycleFailsTheFailModeWait() throws Exception {
+      policy = confirmedOnly();
+      Object monitor = new Object();
+
+      synchronized(monitor) {
+         AtomicReference<Thread> t2 = new AtomicReference<>();
+         WaitRecord record =
+            registry.open("cycle.site", () -> 0, () -> new Thread[] { t2.get() });
+         t2.set(blockedOn("cycle-t2", monitor));
+
+         advance(1500);
+         record.checkStall();
+         assertTrue(record.isTripped());
+         assertFalse(record.isFailed(), "not confirmed yet");
+
+         watchdog.scan();
+         assertFalse(record.isCycleConfirmed(), "one sighting is not enough");
+         record.checkStall();
+         watchdog.scan();
+         assertTrue(record.isCycleConfirmed(), "found on two scans");
+         assertNull(watchdog.getUnreleasedStall(), "its failure releases it");
+
+         LockStallException ex = assertThrows(LockStallException.class, record::checkStall);
+         assertEquals("cycle.site", ex.getSite());
+         assertTrue(record.isFailed());
+         assertSame(ex, assertThrows(LockStallException.class, record::checkStall),
+                    "a failed wait rethrows the same stall");
+         record.close();
+      }
+
+      watchdog.scan();
+      assertNull(watchdog.getUnreleasedStall());
+   }
+
+   /**
+    * Feature #77123: a thread parked for a lock another thread owns (here the read lock of a
+    * ReentrantReadWriteLock whose write lock the waiter holds, as for the sandbox lock) waits
+    * for that owner, so the cycle through it is confirmed and fails the fail-mode wait.
+    */
+   @Test
+   public void cycleThroughAnOwnedLockFailsTheFailModeWait() throws Exception {
+      policy = confirmedOnly();
+      ReentrantReadWriteLock rw = new ReentrantReadWriteLock();
+      rw.writeLock().lock();
+
+      try {
+         Thread reader = start("rw-reader", () -> {
+            rw.readLock().lock();
+            rw.readLock().unlock();
+         });
+         StallTestSupport.awaitTrue(() -> reader.getState() == Thread.State.WAITING, 5,
+                                    "the reader never parked for the read lock");
+         WaitRecord record = registry.open("rw.site", () -> 0, () -> new Thread[] { reader });
+         advance(1500);
+         record.checkStall();
+         watchdog.scan();
+         watchdog.scan();
+         assertTrue(record.isCycleConfirmed(), "the owned-lock edge closes the cycle");
+         assertThrows(LockStallException.class, record::checkStall);
+         record.close();
+      }
+      finally {
+         rw.writeLock().unlock();
+      }
+   }
+
+   /**
+    * Feature #77123: a confirmed cycle whose fail-mode waiter never reaches its check (it
+    * cannot fail) is unreleased once it was confirmed for two wait slices.
+    */
+   @Test
+   public void confirmedCycleNotBrokenByItsFailureIsUnreleased() throws Exception {
+      policy = confirmedOnly();
+      Object monitor = new Object();
+      AtomicReference<Thread> t2 = new AtomicReference<>();
+      WaitRecord t1 =
+         waitHolding("stuck-t1", monitor, () -> new Thread[] { t2.get() }, release, release);
+      t2.set(blockedOn("stuck-t2", monitor));
+
+      advance(1500);
+      watchdog.scan();
+      watchdog.scan();
+      assertTrue(t1.isCycleConfirmed());
+      assertNull(watchdog.getUnreleasedStall(), "the waiter still gets its chance to fail");
+
+      // the slice is noProgressMillis / 4 = 250 ms
+      advance(500);
+      watchdog.scan();
+      String reason = watchdog.getUnreleasedStall();
+      assertNotNull(reason, "the waiter did not fail and unwind");
+      assertTrue(reason.contains("wait-for cycle") && reason.contains("stuck-t1.site"), reason);
+   }
+
+   /**
+    * Feature #77123: a fail-mode wait for a thread of a JVM deadlock can never progress, so it
+    * is confirmed (on two scans) and fails, although it is no member of a cycle itself.
+    */
+   @Test
+   public void waitForAJvmDeadlockFailsTheFailModeWait() throws Exception {
+      policy = confirmedOnly();
+      Object monitor = new Object();
+      holding("deadlocked", monitor);
+      Thread stuck = blockedOn("deadlocked-peer", monitor);
+      WaitRecord record = registry.open("behind.site", () -> 0, () -> new Thread[] { stuck });
+      advance(1500);
+      record.checkStall();
+      assertFalse(record.isFailed());
+
+      deadlocked = new long[] { stuck.threadId() };
+      watchdog.scan();
+      assertFalse(record.isCycleConfirmed(), "one sighting is not enough");
+      watchdog.scan();
+      assertTrue(record.isCycleConfirmed());
+      assertThrows(LockStallException.class, record::checkStall);
+      record.close();
+   }
+
+   /**
+    * Feature #77123: progress ends a confirmed episode, so a wait that got going again is not
+    * failed by an old confirmation.
+    */
+   @Test
+   public void progressEndsTheConfirmation() throws Exception {
+      policy = confirmedOnly();
+      Object monitor = new Object();
+      AtomicLong rows = new AtomicLong();
+
+      synchronized(monitor) {
+         AtomicReference<Thread> t2 = new AtomicReference<>();
+         WaitRecord record =
+            registry.open("resumed.site", rows::get, () -> new Thread[] { t2.get() });
+         t2.set(blockedOn("resumed-t2", monitor));
+         advance(1500);
+         record.checkStall();
+         watchdog.scan();
+         watchdog.scan();
+         assertTrue(record.isCycleConfirmed());
+
+         rows.incrementAndGet();
+         record.checkStall();
+         assertFalse(record.isCycleConfirmed(), "progress ends the episode");
+         assertFalse(record.isFailed());
+         record.close();
+      }
+   }
+
+   /**
+    * The rule of {@code stall.watchdog.failOnTimeout=true}, and of fail before Feature #77123:
+    * the timeout alone fails the wait, no cycle needed.
+    */
+   @Test
+   public void failOnTimeoutFailsWithoutACycle() {
+      policy = new StallPolicy(StallPolicy.Mode.FAIL, 1000, 500, dumpDir, 20, true);
+      WaitRecord record = registry.open("timeout.site", () -> 0, NONE);
+      advance(1500);
+      assertThrows(LockStallException.class, record::checkStall);
+      record.close();
+   }
+
+   /**
+    * The policy of the default rule (Feature #77123) with this test's limits.
+    */
+   private StallPolicy confirmedOnly() {
+      return new StallPolicy(StallPolicy.Mode.FAIL, 1000, 500, dumpDir, 20, false);
    }
 
    /**

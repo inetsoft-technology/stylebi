@@ -68,7 +68,8 @@ import java.util.regex.Pattern;
  * <p>A wait-for cycle is another matter (bug #77152): a set of threads that each wait for
  * another of the set, through registered waits (the edges of {@link WaitRecord#getBlockers()},
  * such as a {@code LendableReentrantLock} waiter to the lock's owner, invisible to the JVM) and
- * plain monitors a thread is JVM-{@code BLOCKED} entering, in any mix and of any length. It is
+ * plain monitors a thread is JVM-{@code BLOCKED} entering, or owned locks it is parked for
+ * (Feature #77123), in any mix and of any length. It is
  * unreleased, in any mode, when no member's timeout can release it, which
  * {@link #scanWaitCycles} checks as follows:
  * <ul>
@@ -83,6 +84,22 @@ import java.util.regex.Pattern;
  * </ul>
  * So a cycle is reported about {@code noProgressMillis} plus one scan after it forms. A cycle
  * of plain monitors alone is the JVM deadlock's and is not reported twice.
+ *
+ * <p>A {@code fail}-mode wait fails on its timeout alone only with
+ * {@code stall.watchdog.failOnTimeout} (Feature #77123); such a wait is no cycle member, as
+ * described above. By default it fails only once this watchdog confirms it can never
+ * progress, since the time threshold alone is no proof (see {@link StallPolicy}); until then
+ * it is reported like an {@code alert}-mode wait and goes on:
+ * <ul>
+ *    <li>it is a member of a wait-for cycle found on two consecutive scans, found as above
+ *        with such waits as members. Every such member is confirmed, fails on its next check
+ *        and unwinds, which breaks the cycle. The cycle is unreleased only once its members
+ *        were confirmed for two wait slices and it is still there;</li>
+ *    <li>or, on two consecutive scans, it waits (through registered waits and monitors) for a
+ *        thread of a JVM deadlock or of a cycle that is unreleased.</li>
+ * </ul>
+ * Such a wait turns health DOWN by itself only once it failed and is still registered on a
+ * later scan, never while it is unconfirmed, however long it waits.
  */
 public final class StallWatchdog {
    public StallWatchdog(WaitRegistry registry, Supplier<long[]> deadlockFinder) {
@@ -301,6 +318,7 @@ public final class StallWatchdog {
                // DOWN: it falls back to the per-record rules, as before bug #77152
                waitCycleReason = null;
                seenWaitCycles = Set.of();
+               seenDownstream = Set.of();
 
                try {
                   LOG.warn("Lock stall watchdog failed to check for wait-for cycles", ex);
@@ -476,8 +494,15 @@ public final class StallWatchdog {
          boolean tripped = record.isTripped();
          boolean overdue = stalledNanos - limitNanos >= 2 * record.getSliceNanos();
 
+         if(record.isFailOnConfirmedOnly()) {
+            // not failed yet, it may still progress (a slow wait) or be confirmed by the cycle
+            // check, which also reports a confirmed cycle that its failures did not break
+            if(!record.isFailed()) {
+               return;
+            }
+         }
          // a plain stall is dumped only: the waiter notices it on its next check
-         if(!tripped && !overdue) {
+         else if(!tripped && !overdue) {
             return;
          }
 
@@ -552,8 +577,9 @@ public final class StallWatchdog {
     *        park in {@code Object.wait()} for, invisible to {@link
     *        ThreadMXBean#findDeadlockedThreads()} by itself;</li>
     *    <li>a JVM-visible edge for any thread reached so far that is natively {@code BLOCKED}
-    *        entering a plain {@code synchronized} monitor, to that monitor's owner
-    *        ({@link ThreadInfo#getLockOwnerId()}), followed transitively.</li>
+    *        entering a plain {@code synchronized} monitor, or parked for a lock with an
+    *        exclusive owner, to that owner ({@link ThreadInfo#getLockOwnerId()}), followed
+    *        transitively.</li>
     * </ul>
     *
     * <p>Only the threads of qualifying waits ({@link #isCycleMember}) are registered members;
@@ -611,10 +637,10 @@ public final class StallWatchdog {
       }
 
       Set<Set<Long>> found = new HashSet<>();
+      Set<Long> jvmDeadlocked = new HashSet<>();
 
       if(!edges.isEmpty()) {
          addMonitorEdges(nodes, excluded, edges, names);
-         Set<Long> jvmDeadlocked = new HashSet<>();
 
          if(deadlockReason != null && seenDeadlock != null) {
             for(long id : seenDeadlock) {
@@ -632,35 +658,113 @@ public final class StallWatchdog {
       }
 
       List<String> cycles = new ArrayList<>();
+      // the threads that can never progress: of a JVM deadlock, or of an unreleased cycle
+      Set<Long> stuck = new HashSet<>(jvmDeadlocked);
 
       for(Set<Long> cycle : found) {
-         if(seenWaitCycles.contains(cycle)) {
+         if(seenWaitCycles.contains(cycle) && confirmCycle(cycle, registered, now)) {
             cycles.add(describeCycle(cycle, names, registered));
+            stuck.addAll(cycle);
+         }
+      }
+
+      // a fail-mode wait for a thread that can never progress never progresses either
+      Set<Long> downstream = new HashSet<>();
+
+      if(!stuck.isEmpty()) {
+         for(Map.Entry<Long, WaitRecord> entry : registered.entrySet()) {
+            WaitRecord record = entry.getValue();
+
+            if(record.isFailOnConfirmedOnly() && !record.isCycleConfirmed() &&
+               reaches(entry.getKey(), stuck, edges))
+            {
+               downstream.add(entry.getKey());
+
+               if(seenDownstream.contains(entry.getKey())) {
+                  record.confirmCycle(now);
+               }
+            }
          }
       }
 
       seenWaitCycles = found;
+      seenDownstream = downstream;
       Collections.sort(cycles);
       waitCycleReason = cycles.isEmpty() ? null : String.join("; ", cycles);
+   }
+
+   /**
+    * Confirm the fail-mode waits of a cycle found on two consecutive scans, which fail on their
+    * next check (Feature #77123), see the class doc.
+    *
+    * @return {@code true} if the cycle is unreleased: it has no such wait, or all of them were
+    *         confirmed at least two wait slices ago and their failures did not break it.
+    */
+   private static boolean confirmCycle(Set<Long> cycle, Map<Long, WaitRecord> registered,
+                                       long now)
+   {
+      boolean unreleased = true;
+
+      for(long id : cycle) {
+         WaitRecord record = registered.get(id);
+
+         if(record != null && record.isFailOnConfirmedOnly()) {
+            record.confirmCycle(now);
+
+            if(!record.isCycleConfirmed() ||
+               now - record.getCycleConfirmedNanos() < 2 * record.getSliceNanos())
+            {
+               unreleased = false;
+            }
+         }
+      }
+
+      return unreleased;
+   }
+
+   /**
+    * Check if a thread of {@code targets} is reached from {@code start} along {@code edges}.
+    */
+   private static boolean reaches(long start, Set<Long> targets, Map<Long, Set<Long>> edges) {
+      Set<Long> seen = new HashSet<>();
+      Deque<Long> next = new ArrayDeque<>();
+      next.push(start);
+      seen.add(start);
+
+      while(!next.isEmpty()) {
+         for(long id : edges.getOrDefault(next.pop(), Set.of())) {
+            if(targets.contains(id)) {
+               return true;
+            }
+
+            if(seen.add(id)) {
+               next.push(id);
+            }
+         }
+      }
+
+      return false;
    }
 
    /**
     * Check if a wait may be a registered member of a wait-for cycle: it is not governed by its
     * own timeout, and it is stalled itself.
     *
-    * <p>A plain {@code fail}-mode wait is left out, whatever its cycle: its timeout fails the
-    * waiter, which unwinds and so breaks the cycle, or else {@link #scanRecord} reports it
-    * (tripped or overdue, on two scans). A report-only wait (a loan reclaim) and a credit-only
-    * wait never give up, in any mode, so a cycle through them is permanent, like one through
-    * an {@code alert}-mode wait.
+    * <p>A plain {@code fail}-mode wait that fails on its timeout alone
+    * ({@code stall.watchdog.failOnTimeout}) is left out, whatever its cycle: its timeout fails
+    * the waiter, which unwinds and so breaks the cycle, or else {@link #scanRecord} reports it
+    * (tripped or overdue, on two scans). One that fails only once confirmed (the default) is a
+    * member, the cycle confirms it (Feature #77123). A report-only wait (a loan reclaim)
+    * and a credit-only wait never give up, in any mode, so a cycle through them is permanent,
+    * like one through an {@code alert}-mode wait.
     *
     * <p>A wait that made progress within its limit is no member either: in a real cycle no
     * member gets any credit, its blockers being stuck in the cycle too, while a healthy
     * hand-off that merely looks like a cycle for an instant keeps progressing.
     */
    private static boolean isCycleMember(WaitRecord record, long now) {
-      if(record.getMode() == StallPolicy.Mode.FAIL && !record.isCreditOnly() &&
-         !record.isReportOnly())
+      if(record.getMode() == StallPolicy.Mode.FAIL && record.isFailOnTimeout() &&
+         !record.isCreditOnly() && !record.isReportOnly())
       {
          return false;
       }
@@ -670,8 +774,12 @@ public final class StallWatchdog {
 
    /**
     * Add the edge of every thread of {@code nodes} that is {@code BLOCKED} entering a monitor
-    * to the monitor's owner, following the owners the same way. Shallow thread infos only, no
-    * stack walk.
+    * to the monitor's owner, following the owners the same way. A thread parked for a lock
+    * with an exclusive owner, such as a {@code ReentrantReadWriteLock} whose write lock another
+    * thread holds, waits for that owner the same way and gets the same edge (Feature #77123:
+    * without it, a cycle through such a lock, e.g. an engine lock holder waiting for the
+    * sandbox's read lock, is never confirmed). Thread infos of the top frame only, which tells
+    * such a park from an {@code Object.wait()}.
     */
    private static void addMonitorEdges(Set<Long> nodes, Set<Long> excluded,
                                        Map<Long, Set<Long>> edges, Map<Long, String> names)
@@ -684,8 +792,8 @@ public final class StallWatchdog {
          long[] ids = next.stream().mapToLong(Long::longValue).toArray();
          next = new ArrayList<>();
 
-         for(ThreadInfo info : threads.getThreadInfo(ids, 0)) {
-            if(info == null || info.getThreadState() != Thread.State.BLOCKED) {
+         for(ThreadInfo info : threads.getThreadInfo(ids, 1)) {
+            if(info == null || !isWaitingForOwner(info)) {
                continue;
             }
 
@@ -705,6 +813,30 @@ public final class StallWatchdog {
             }
          }
       }
+   }
+
+   /**
+    * Check if a thread waits for the thread that owns what it waits for: {@code BLOCKED}
+    * entering a monitor, or parked ({@code LockSupport.park}) for an owned lock. A thread in
+    * {@code Object.wait()} is not: whoever holds that monitor at the moment is no owner it
+    * waits for.
+    */
+   private static boolean isWaitingForOwner(ThreadInfo info) {
+      Thread.State state = info.getThreadState();
+
+      if(state == Thread.State.BLOCKED) {
+         return true;
+      }
+
+      if(state != Thread.State.WAITING && state != Thread.State.TIMED_WAITING ||
+         info.getLockOwnerId() == -1)
+      {
+         return false;
+      }
+
+      StackTraceElement[] stack = info.getStackTrace();
+      return stack.length > 0 && "park".equals(stack[0].getMethodName()) &&
+         "jdk.internal.misc.Unsafe".equals(stack[0].getClassName());
    }
 
    private static String describeCycle(Set<Long> cycle, Map<Long, String> names,
@@ -875,6 +1007,7 @@ public final class StallWatchdog {
       dumpedDeadlock = null;
       waitCycleReason = null;
       seenWaitCycles = Set.of();
+      seenDownstream = Set.of();
       findings = null;
       probeKeys = new HashMap<>();
       dumpedProbeKeys = new HashMap<>();
@@ -935,6 +1068,9 @@ public final class StallWatchdog {
    // found, reported only if the next scan finds them again, see scanWaitCycles()
    private String waitCycleReason;
    private Set<Set<Long>> seenWaitCycles = Set.of();
+   // the fail-mode waiters of the last scan that wait for a thread that can never progress,
+   // confirmed if the next scan finds them again, see scanWaitCycles()
+   private Set<Long> seenDownstream = Set.of();
    private volatile String unreleased;
    private final CopyOnWriteArrayList<StallProbe> probes = new CopyOnWriteArrayList<>();
    // guarded by this: each probe's keys of its current episodes, and those already dumped

@@ -74,7 +74,10 @@ class WsBoundaryPolicyTest {
                                         "script.ws.contextPool=false in sree.properties",
                                         "unset or blank value keeps", "can occur",
                                         // Bug #77016, pool-off hangs + stall FAIL pairing
-                                        "#77016", "stall.watchdog.mode=fail" })
+                                        "#77016", "stall.watchdog.mode=fail",
+                                        // Feature #77123, fail is the watchdog default
+                                        "defaults to fail", "stall.watchdog.failOnTimeout=true",
+                                        "stall.watchdog.mode=alert", "only logged and goes on" })
       {
          assertTrue(note.contains(topic), "release note misses: " + topic);
       }

@@ -59,6 +59,10 @@ import static org.junit.jupiter.api.Assertions.*;
  * {@code noProgressMillis=2000} (bug #76967): in fail mode each cycle ends with a
  * {@link LockStallException} within the cap instead of hanging, the engine lock is free and
  * no wait stays registered afterwards. A slow but progressing pipeline is not failed.
+ *
+ * <p>The cycles run with the default rule of fail mode (Feature #77123), which fails a wait
+ * once the watchdog confirms its cycle; {@code StallWatchdogCycleFailOnTimeoutTest} runs them
+ * with {@code stall.watchdog.failOnTimeout}, which fails on the timeout alone.
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class, LibManagerTestConfiguration.class, PluginsTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
@@ -69,10 +73,18 @@ public class StallWatchdogCycleTest {
    @BeforeEach
    public void setUp() {
       StallTestSupport.resetGlobalStallState();
-      StallPolicy.setOverride(new StallPolicy(StallPolicy.Mode.FAIL, 2000, 500, dumpDir));
+      StallPolicy.setOverride(new StallPolicy(StallPolicy.Mode.FAIL, 2000, 500, dumpDir,
+                                              StallPolicy.DEFAULT_MAX_DUMPS, failOnTimeout()));
       // the hung threads of known cases run earlier in this JVM stay registered
       preexisting.addAll(WaitRegistry.global().getActive());
       harness = new LockCycleHarness();
+   }
+
+   /**
+    * Whether the fail-mode policy of the cycles fails on the timeout alone.
+    */
+   protected boolean failOnTimeout() {
+      return false;
    }
 
    @AfterEach
@@ -172,13 +184,13 @@ public class StallWatchdogCycleTest {
    }
 
    /**
-    * Bug #77152: the shipped default {@code alert} mode never fails a stalled wait (by design,
-    * see {@link StallPolicy}), so with only the pre-#77152 detection, the exact same #76960 B
-    * (R2) cycle as {@link #monitorFirstLensFailsOneReader} never turns health DOWN: T1 (the
-    * lock waiter) never fails and so never releases the lens monitor, and T2 (the lock holder,
-    * JVM-{@code BLOCKED} on that monitor) never completes either — a genuine, permanent
-    * deadlock that {@code /health/liveness} reported UP for. {@link StallWatchdog} must find
-    * this wait-for cycle and report it unreleased regardless of the per-record alert/fail mode,
+    * Bug #77152: {@code alert} mode (the default before Feature #77123) never fails a stalled
+    * wait (by design, see {@link StallPolicy}), so with only the pre-#77152 detection, the
+    * exact same #76960 B (R2) cycle as {@link #monitorFirstLensFailsOneReader} never turns
+    * health DOWN: T1 (the lock waiter) never fails and so never releases the lens monitor,
+    * and T2 (the lock holder, JVM-{@code BLOCKED} on that monitor) never completes either —
+    * a genuine, permanent deadlock that {@code /health/liveness} reported UP for.
+    * {@link StallWatchdog} must find this wait-for cycle and report it unreleased regardless of the per-record alert/fail mode,
     * the same way a JVM-visible deadlock always does.
     *
     * <p>The cycle is reported once T1 is stalled (the 2000 ms limit) and found again on the
