@@ -43,7 +43,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
-import org.springframework.test.util.ReflectionTestUtils;
 
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class },
@@ -300,6 +299,36 @@ class PermissionMatrixResourcesS4Test {
                .verify()));
    }
 
+   @Test
+   void andRoleOnlyUser_readOnAndItem_orgScopedAndCondition_roundTripsThroughRealProperties() {
+      // Bug #77253: the EM permission save writes permission.andCondition org-scoped
+      // (SreeEnv.setProperty(name, val, true) -> inetsoft.org.<orgID>.permission.andcondition).
+      // PermissionChecker must resolve that same key for the identity's org through the real
+      // PropertiesEngine, with no global value set. Removing the org key falls back to OR.
+      withContextPrincipal(andRoleOnlyUser, () -> {
+         SreeEnv.setProperty("permission.andCondition", "true", true);
+         refreshAndConditionCache();
+
+         try {
+            Assertions.assertNull(SreeEnv.getProperty("permission.andCondition", false, false),
+                                  "org-scoped write must not set the global key");
+            PermissionMatrixVerifier.of(engine())
+               .resource(ResourceType.ASSET, ASSET_AND_ITEM)
+                  .expectDeny(andRoleOnlyUser, ResourceAction.READ)
+               .verify();
+         }
+         finally {
+            SreeEnv.remove("permission.andCondition", true);
+            refreshAndConditionCache();
+         }
+
+         PermissionMatrixVerifier.of(engine())
+            .resource(ResourceType.ASSET, ASSET_AND_ITEM)
+               .expectAllow(andRoleOnlyUser, ResourceAction.READ)
+            .verify();
+      });
+   }
+
    // ════════════════════════════════════════════════════════════════════════════
    // S4-CROSS-GROUP (REPORT) -- via-role path repeated, proving it isn't ASSET-specific
    // ════════════════════════════════════════════════════════════════════════════
@@ -333,10 +362,9 @@ class PermissionMatrixResourcesS4Test {
 
    /**
     * Toggles {@code permission.andCondition} for the duration of {@code action}, then always
-    * restores it. {@link PermissionChecker}'s {@code andCond} field is a 10-second-cached
-    * {@link SreeEnv.Value}; reflection is used to force an immediate refresh both when enabling
-    * and when restoring, since there is no public equivalent of {@code SecurityEngine}'s
-    * {@code updateSecurityXXXEveryoneValue()} helpers for this particular flag.
+    * restores it. {@link PermissionChecker} caches the flag per organization for 10 seconds;
+    * its package-private {@code resetAndConditionCache()} is used to force an immediate
+    * refresh both when enabling and when restoring.
     */
    private static void withAndCondition(boolean enabled, Runnable action) {
       SreeEnv.setProperty("permission.andCondition", String.valueOf(enabled));
@@ -352,8 +380,7 @@ class PermissionMatrixResourcesS4Test {
    }
 
    private static void refreshAndConditionCache() {
-      SreeEnv.Value andCond = (SreeEnv.Value) ReflectionTestUtils.getField(PermissionChecker.class, "andCond");
-      andCond.updateValue();
+      PermissionChecker.resetAndConditionCache();
    }
 
    private static SecurityEngine engine() {
