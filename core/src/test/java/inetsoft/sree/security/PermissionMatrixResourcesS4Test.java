@@ -299,6 +299,36 @@ class PermissionMatrixResourcesS4Test {
                .verify()));
    }
 
+   @Test
+   void andRoleOnlyUser_readOnAndItem_orgScopedAndCondition_roundTripsThroughRealProperties() {
+      // Bug #77253: the EM permission save writes permission.andCondition org-scoped
+      // (SreeEnv.setProperty(name, val, true) -> inetsoft.org.<orgID>.permission.andcondition).
+      // PermissionChecker must resolve that same key for the identity's org through the real
+      // PropertiesEngine, with no global value set. Removing the org key falls back to OR.
+      withContextPrincipal(andRoleOnlyUser, () -> {
+         SreeEnv.setProperty("permission.andCondition", "true", true);
+         refreshAndConditionCache();
+
+         try {
+            Assertions.assertNull(SreeEnv.getProperty("permission.andCondition", false, false),
+                                  "org-scoped write must not set the global key");
+            PermissionMatrixVerifier.of(engine())
+               .resource(ResourceType.ASSET, ASSET_AND_ITEM)
+                  .expectDeny(andRoleOnlyUser, ResourceAction.READ)
+               .verify();
+         }
+         finally {
+            SreeEnv.remove("permission.andCondition", true);
+            refreshAndConditionCache();
+         }
+
+         PermissionMatrixVerifier.of(engine())
+            .resource(ResourceType.ASSET, ASSET_AND_ITEM)
+               .expectAllow(andRoleOnlyUser, ResourceAction.READ)
+            .verify();
+      });
+   }
+
    // ════════════════════════════════════════════════════════════════════════════
    // S4-CROSS-GROUP (REPORT) -- via-role path repeated, proving it isn't ASSET-specific
    // ════════════════════════════════════════════════════════════════════════════
