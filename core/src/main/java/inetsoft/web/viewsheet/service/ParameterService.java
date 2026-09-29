@@ -67,7 +67,8 @@ public class ParameterService {
             String name = e.getKey();
             String[] values0 = e.getValue();
 
-            if(name.endsWith(typeSuffix)) {
+            // Bug #77329, the identity variables are set from the user, never from the client
+            if(name.endsWith(typeSuffix) || VariableTable.isContextVariable(name)) {
                continue;
             }
 
