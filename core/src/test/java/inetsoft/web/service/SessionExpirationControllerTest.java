@@ -99,6 +99,26 @@ class SessionExpirationControllerTest {
       verifySent(1);
    }
 
+   // Bug #77340: the client must know the node protection warning is for a guest, so the
+   // timer end does not log the guest out to the login page
+   @Test
+   void guestNodeProtectionIsMarkedAsGuest() {
+      expiringSoon(XPrincipal.ANONYMOUS, "host-org", true);
+      Assertions.assertTrue(sentModel().guest());
+   }
+
+   @Test
+   void userNodeProtectionIsNotMarkedAsGuest() {
+      expiringSoon("admin", "host-org", true);
+      Assertions.assertFalse(sentModel().guest());
+   }
+
+   @Test
+   void userExpiringSoonIsNotMarkedAsGuest() {
+      expiringSoon("admin", "host-org", false);
+      Assertions.assertFalse(sentModel().guest());
+   }
+
    @Test
    void securityDisabledExpiringSoonIsSent() {
       when(security.isSecurityEnabled()).thenReturn(false);
@@ -119,6 +139,13 @@ class SessionExpirationControllerTest {
    private void verifySent(int count) {
       verify(messagingTemplate, times(count))
          .convertAndSendToUser(anyString(), eq("/session-expiration"), any(Object.class));
+   }
+
+   private SessionExpirationModel sentModel() {
+      ArgumentCaptor<Object> captor = ArgumentCaptor.forClass(Object.class);
+      verify(messagingTemplate)
+         .convertAndSendToUser(anyString(), eq("/session-expiration"), captor.capture());
+      return (SessionExpirationModel) captor.getValue();
    }
 
    private SimpMessagingTemplate messagingTemplate;

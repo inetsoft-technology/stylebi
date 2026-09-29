@@ -96,11 +96,14 @@ public class SessionExpirationController {
 
          // a guest is not asked to stay logged in, the page is reloaded with a new guest
          // session when the session expires (see SessionConnectionService)
-         if(principal != null && !(isGuest(principal) && !event.isNodeProtection())) {
+         boolean guest = principal != null && isGuest(principal);
+
+         if(principal != null && !(guest && !event.isNodeProtection())) {
             SessionExpirationModel model = SessionExpirationModel.builder()
                .remainingTime(event.getRemainingTime())
                .expiringSoon(event.isExpiringSoon())
                .nodeProtection(event.isNodeProtection())
+               .guest(guest)
                .build();
             messagingTemplate
                .convertAndSendToUser(SUtil.getUserDestination(principal), TOPIC, model);
