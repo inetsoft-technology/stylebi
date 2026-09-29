@@ -20,8 +20,6 @@ package inetsoft.util.script.graal.pool;
 import org.graalvm.polyglot.Value;
 import org.junit.jupiter.api.*;
 
-import java.lang.reflect.Constructor;
-import java.lang.reflect.Field;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -233,32 +231,6 @@ class RelMutantKillTest {
       WorksheetScriptEnv env = PoolTestSupport.env();
       envs.add(env);
       return env;
-   }
-
-   /**
-    * Replace a slot's clean function, keeping its other handles (as RelFaultInjectionTest).
-    */
-   private static void injectClean(Slot slot, String factory, Object... args) throws Exception {
-      Field field = Slot.class.getDeclaredField("cleaner");
-      field.setAccessible(true);
-      CleanHelper real = (CleanHelper) field.get(slot);
-      Value clean = slot.engine().context().eval("js", factory);
-
-      if(args.length > 0) {
-         clean = clean.execute(args);
-      }
-
-      Field expect = CleanHelper.class.getDeclaredField("expect");
-      Field forget = CleanHelper.class.getDeclaredField("forget");
-      Field verify = CleanHelper.class.getDeclaredField("verify");
-      expect.setAccessible(true);
-      forget.setAccessible(true);
-      verify.setAccessible(true);
-      Constructor<CleanHelper> ctor = CleanHelper.class.getDeclaredConstructor(
-         Value.class, Value.class, Value.class, Value.class);
-      ctor.setAccessible(true);
-      field.set(slot, ctor.newInstance(clean, expect.get(real), forget.get(real),
-                                       verify.get(real)));
    }
 
    private final ExecutorService ex = Executors.newFixedThreadPool(2);

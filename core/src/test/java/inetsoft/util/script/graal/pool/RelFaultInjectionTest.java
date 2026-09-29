@@ -21,8 +21,6 @@ import inetsoft.util.script.ScriptException;
 import org.graalvm.polyglot.Value;
 import org.junit.jupiter.api.*;
 
-import java.lang.reflect.Constructor;
-import java.lang.reflect.Field;
 import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.*;
@@ -607,33 +605,6 @@ class RelFaultInjectionTest {
 
    private static String eval(Slot slot, String js) {
       return slot.engine().context().eval("js", js).toString();
-   }
-
-   /**
-    * Swap the slot's clean helper for one whose clean is {@code factory} (a guest function
-    * source, applied to {@code args}), keeping its expect and forget. Caller holds the slot.
-    */
-   private static void injectClean(Slot slot, String factory, Object... args) throws Exception {
-      Field field = Slot.class.getDeclaredField("cleaner");
-      field.setAccessible(true);
-      CleanHelper real = (CleanHelper) field.get(slot);
-      Value clean = slot.engine().context().eval("js", factory);
-
-      if(args.length > 0) {
-         clean = clean.execute(args);
-      }
-
-      Field expect = CleanHelper.class.getDeclaredField("expect");
-      Field forget = CleanHelper.class.getDeclaredField("forget");
-      Field verify = CleanHelper.class.getDeclaredField("verify");
-      expect.setAccessible(true);
-      forget.setAccessible(true);
-      verify.setAccessible(true);
-      Constructor<CleanHelper> ctor = CleanHelper.class.getDeclaredConstructor(
-         Value.class, Value.class, Value.class, Value.class);
-      ctor.setAccessible(true);
-      field.set(slot, ctor.newInstance(clean, expect.get(real), forget.get(real),
-                                       verify.get(real)));
    }
 
    private WorksheetScriptEnv env(PoolConfig config) {
