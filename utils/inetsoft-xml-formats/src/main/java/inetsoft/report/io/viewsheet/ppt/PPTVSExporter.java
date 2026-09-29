@@ -161,7 +161,8 @@ public class PPTVSExporter extends AbstractVSExporter {
 
       this.coordinator = new PPTCoordinateHelper();
       coordinator.setViewsheet(vsheet);
-      Dimension size = coordinator.getOutputSize(viewsheet.getPreferredSize());
+      Dimension size = coordinator.getOutputSize(
+         adjustSizeForShapeShadows(viewsheet, viewsheet.getPreferredSize(), false));
       Dimension pptSize = show.getPageSize();
       // fix bug1374173407396, scale the min ppt default size.
       pptSize.width = (int) (pptSize.width * 0.82);
