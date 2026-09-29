@@ -55,6 +55,9 @@ package inetsoft.web.admin.general;
  *       startsWith), since a caller-supplied transactionId may itself contain hyphens and a naive
  *       prefix filter would incorrectly match an unrelated transaction whose id is a
  *       hyphen-delimited extension of the queried one (bug 76553's confirmed refutation finding).
+ * [G11] Redmine #75898 (restored from main): an ordinary backup prunes "backup/" both before and
+ *       after a successful write, so it converges on exactly asset.backup.count files instead of
+ *       N+1. An AI snapshot runs neither prune (see G5).
  */
 
 import ch.qos.logback.classic.Level;
@@ -599,6 +602,98 @@ class DataSpaceSettingsServiceTest {
    // the delete key of a backup, with either separator (#77159 changes it to "/")
    private static String backupKey(String name) {
       return argThat(key -> key != null && key.replace('\\', '/').equals("backup/" + name));
+   }
+
+   // [#75898 G1] at exactly the retention limit, no file may be deleted
+   @Test
+   void retainsAllFilesWhenAtTheLimit() throws Exception {
+      stubBackupCount(3);
+      stubZips("data-20260101000000.zip", "data-20260102000000.zip", "data-20260103000000.zip");
+
+      service.deleteRedundantBackupFiles();
+
+      verify(externalStorageService, never()).delete(anyString());
+   }
+
+   // [#75898 G2] over the limit, only the surplus is deleted, and it is the oldest files
+   @Test
+   void deletesOnlyTheOldestSurplusFiles() throws Exception {
+      stubBackupCount(2);
+      stubZips("data-20260103000000.zip", "data-20260101000000.zip", "data-20260102000000.zip");
+
+      service.deleteRedundantBackupFiles();
+
+      verify(externalStorageService, times(1)).delete("backup/data-20260101000000.zip");
+      verify(externalStorageService, never())
+         .delete("backup/data-20260102000000.zip");
+      verify(externalStorageService, never())
+         .delete("backup/data-20260103000000.zip");
+   }
+
+   // [#75898 G3] a pair of timestamps whose long difference overflows int must not invert the sort
+   @Test
+   void deletesTheOldestEvenWhenTimestampsAreYearsApart() throws Exception {
+      stubBackupCount(1);
+      // difference between these two timestamps overflows int and flips sign under the
+      // narrowing (int) cast, which used to sort the newer file first
+      stubZips("data-20260101000000.zip", "data-20230101000000.zip");
+
+      service.deleteRedundantBackupFiles();
+
+      verify(externalStorageService, times(1))
+         .delete("backup/data-20230101000000.zip");
+      verify(externalStorageService, never())
+         .delete("backup/data-20260101000000.zip");
+   }
+
+   // [#75898 G4] pruning is disabled unless asset.backup.count is a positive integer
+   @Test
+   void doesNotDeleteWhenBackupCountIsNotConfigured() throws Exception {
+      sreeEnvStatic.when(() -> SreeEnv.getProperty("asset.backup.count")).thenReturn(null);
+
+      service.deleteRedundantBackupFiles();
+
+      verify(externalStorageService, never()).listFiles(anyString());
+      verify(externalStorageService, never()).delete(anyString());
+   }
+
+   // [#75898 G5] a successful backup converges on exactly the configured count: the prune
+   // before the write clears only genuine surplus, and the prune after the write trims the
+   // file that was just added back down
+   @Test
+   void doBackupPrunesAgainAfterASuccessfulWrite() throws Exception {
+      DataSpaceSettingsService spyService = spy(service);
+      doNothing().when(spyService).deleteRedundantBackupFiles();
+
+      spyService.doBackup(null);
+
+      verify(spyService, times(2)).deleteRedundantBackupFiles();
+   }
+
+   // [#75898 G6] a failed write must not trigger the second prune -- that is exactly the
+   // failure the extra call exists to protect against
+   @Test
+   void doBackupDoesNotPruneAgainAfterAFailedWrite() throws Exception {
+      DataSpaceSettingsService spyService = spy(service);
+      doNothing().when(spyService).deleteRedundantBackupFiles();
+      doThrow(new IOException("simulated write failure"))
+         .when(externalStorageService).write(any(), any(), any());
+
+      BackupResult result = spyService.doBackup(null);
+
+      assertTrue(result.status().contains("Failed"));
+      verify(spyService, times(1)).deleteRedundantBackupFiles();
+   }
+
+   // [G5] an AI snapshot runs neither the pre-write nor the post-write backup/ prune
+   @Test
+   void aiSnapshotSkipsBothBackupFolderPrunes() throws Exception {
+      DataSpaceSettingsService spyService = spy(service);
+
+      spyService.doBackup(
+         BackupDataModel.builder().dataspace("admin-chg-13").aiSnapshot(true).build());
+
+      verify(spyService, never()).deleteRedundantBackupFiles();
    }
 
    private void stubBackupCount(int count) {

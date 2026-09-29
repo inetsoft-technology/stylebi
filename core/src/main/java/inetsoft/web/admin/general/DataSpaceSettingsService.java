@@ -128,8 +128,8 @@ public class DataSpaceSettingsService extends BackupSupport {
             // This mirrors the per-file handling inside deleteRedundantAiSnapshotFiles, and
             // catches Exception rather than IOException because ExternalStorageService.listFiles
             // declares no checked exception. deleteRedundantBackupFiles is deliberately NOT
-            // guarded this way: it runs BEFORE the write, where a failure legitimately fails the
-            // whole operation.
+            // guarded this way, matching main (#75898): its pre-write call legitimately fails the
+            // whole operation, and its post-write call below is left unguarded as on main.
             try {
                deleteRedundantAiSnapshotFiles();
             }
@@ -137,6 +137,11 @@ public class DataSpaceSettingsService extends BackupSupport {
                LOG.error("Failed to prune old AI snapshots; the new snapshot at {} is unaffected",
                          path, e);
             }
+         }
+         else {
+            // the new backup is safely on disk, so it is now safe to trim the oldest file
+            // back down to the configured count
+            deleteRedundantBackupFiles();
          }
 
          status = catalog.getString("Success");
