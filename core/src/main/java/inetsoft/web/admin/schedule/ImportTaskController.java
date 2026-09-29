@@ -203,8 +203,7 @@ public class ImportTaskController {
       Principal oldPrincipal = ThreadContext.getContextPrincipal();
 
       // parseXML(elem, true) takes the organization from the context principal, through the
-      // no-arg OrganizationManager.getCurrentOrgID() which lower-cases it, the same as a deploy
-      // import and the task permission grant in ScheduleManager.setScheduleTask
+      // no-arg OrganizationManager.getCurrentOrgID() which lower-cases it
       if(principal != null) {
          ThreadContext.setContextPrincipal(principal);
       }
@@ -218,7 +217,49 @@ public class ImportTaskController {
          }
       }
 
+      if(principal != null) {
+         useCurrentOrgID(task, OrganizationManager.getInstance().getCurrentOrgID(principal));
+      }
+
       return task;
+   }
+
+   /**
+    * Bug #77259, an organization id may be mixed case (OrganizationIdRules) but parseXML(elem,
+    * true) lower-cases the remapped owner and execute-as organization. Use the caller's actual
+    * organization id so the owner matches the caller, the users and groups of the organization
+    * and the task map the task is stored in, the same as a task created in the task editor.
+    */
+   private void useCurrentOrgID(ScheduleTask task, String orgID) {
+      if(orgID == null) {
+         return;
+      }
+
+      IdentityID owner = task.getOwner();
+
+      if(owner != null && !orgID.equals(owner.getOrgID()) && orgID.equalsIgnoreCase(owner.getOrgID())) {
+         task.setOwner(new IdentityID(owner.getName(), orgID));
+      }
+
+      Identity identity = task.getIdentity();
+      IdentityID identityID = identity == null ? null : identity.getIdentityID();
+
+      if(identityID != null && !orgID.equals(identityID.getOrgID()) &&
+         orgID.equalsIgnoreCase(identityID.getOrgID()))
+      {
+         IdentityID id = new IdentityID(identityID.getName(), orgID);
+         int type = identity.getType();
+         SecurityProvider provider = securityEngine.getSecurityProvider();
+         Identity resolved = provider == null ? null :
+            type == Identity.USER ? provider.getUser(id) :
+            type == Identity.GROUP ? provider.getGroup(id) :
+            type == Identity.ROLE ? provider.getRole(id) : null;
+
+         // keep an unresolved reference the same as parseXML does (Bug #77120)
+         task.setIdentity(resolved != null ? resolved :
+                             type == Identity.GROUP ? new Group(id) :
+                             type == Identity.ROLE ? new Role(id) : new User(id));
+      }
    }
 
    /**
@@ -278,10 +319,10 @@ public class ImportTaskController {
    {
       IdentityID owner = task.getOwner();
       IdentityID caller = IdentityID.getIdentityIDFromKey(principal.getName());
-      // the owner org was remapped by parseXML(elem, true) to the lower-cased current org
+      // the owner org was remapped to the current org by parseTask
       String orgID = OrganizationManager.getInstance().getCurrentOrgID(principal);
       boolean ownerAllowed = owner != null && owner.getOrgID() != null &&
-         owner.getOrgID().equalsIgnoreCase(orgID) &&
+         owner.getOrgID().equals(orgID) &&
          !XPrincipal.SYSTEM.equals(owner.getName()) &&
          !XPrincipal.ANONYMOUS.equals(owner.getName()) &&
          (owner.equals(caller) ||
@@ -305,7 +346,7 @@ public class ImportTaskController {
       // organization that the caller administers, a global identity (such as a system
       // administrator role) is refused
       boolean identityAllowed = identityID != null && identityID.getOrgID() != null &&
-         identityID.getOrgID().equalsIgnoreCase(orgID) &&
+         identityID.getOrgID().equals(orgID) &&
          (identity.getType() == Identity.USER && (identityID.equals(caller) ||
             scheduleTaskService.getExecuteAsUsers(owner, principal).contains(identityID)) ||
           identity.getType() == Identity.GROUP &&

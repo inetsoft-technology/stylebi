@@ -46,13 +46,14 @@ import static org.mockito.Mockito.*;
  * type and internal-only content of the uploaded xml, and must not write the global time
  * ranges before the import is confirmed or for a caller that can't edit them.
  *
- * Org ids are lower case because parseXML(elem, true) remaps to the lower-cased
- * OrganizationManager.getCurrentOrgID().
+ * The no-arg OrganizationManager.getCurrentOrgID() stub lower-cases the org id like the real
+ * one, the mixedCaseOrg tests cover an org id that isn't lower case.
  */
 @Tag("core")
 class ImportTaskCrossOrgTest {
    private static final String ORG_A = "orga";
    private static final String HOST_ORG = Organization.getDefaultOrganizationID();
+   private static final String MIXED_ORG = "OrgM";
 
    private ScheduleManager scheduleManager;
    private AnalyticRepository repository;
@@ -78,7 +79,8 @@ class ImportTaskCrossOrgTest {
                            new IdentityID("bob", ORG_A), new IdentityID("carol", ORG_A),
                            new IdentityID("admin", HOST_ORG)));
       when(provider.getUser(any(IdentityID.class)))
-         .thenAnswer(inv -> users.contains(inv.<IdentityID>getArgument(0)) ? mock(User.class) : null);
+         .thenAnswer(inv -> users.contains(inv.<IdentityID>getArgument(0)) ?
+            new User(inv.<IdentityID>getArgument(0)) : null);
       when(provider.getUsers()).thenAnswer(inv -> users.toArray(new IdentityID[0]));
       when(provider.getGroups()).thenReturn(new IdentityID[] { new IdentityID("staff", ORG_A) });
       when(provider.checkPermission(any(), any(ResourceType.class), anyString(),
@@ -393,6 +395,86 @@ class ImportTaskCrossOrgTest {
       assertEquals(new IdentityID("bob", ORG_A), persisted.getOwner());
    }
 
+   // n1, the owner is a user the caller administers and also the execute-as identity, which
+   // relies on getExecuteAsUsers() including the owner
+   @Test
+   void administeredOwner_asExecuteAsIdentity_isImported() throws Exception {
+      caller = principal("carol", ORG_A);
+      adminOf.clear();
+      adminOf.add(new IdentityID("alice", ORG_A).convertToKey());
+      parse(task("Nightly", "alice~;~orgb", null, "idname=\"alice~;~orgb\" idtype=\"0\"",
+                 NEVER_RUN));
+
+      ScheduleTask persisted = importAndCapture(false);
+
+      assertNotNull(persisted);
+      assertEquals(new IdentityID("alice", ORG_A), persisted.getOwner());
+      assertEquals(new IdentityID("alice", ORG_A), persisted.getIdentity().getIdentityID());
+   }
+
+   // n1, a host-org delegate that isn't a site admin can't own a task as the host org admin
+   @Test
+   void hostOrgDelegate_ownerNotAdministered_isRefused() throws Exception {
+      caller = principal("dave", HOST_ORG);
+      users.add(new IdentityID("dave", HOST_ORG));
+      stubCurrentOrg(HOST_ORG);
+      adminOf.clear();
+      parse(task("Nightly", "admin~;~" + HOST_ORG, null,
+                 "idname=\"admin~;~" + HOST_ORG + "\" idtype=\"0\"", NEVER_RUN) +
+            task("Mine", "dave~;~" + HOST_ORG, null,
+                 "idname=\"admin~;~" + HOST_ORG + "\" idtype=\"0\"", NEVER_RUN));
+
+      ImportTaskResponse response = importAll(false);
+
+      assertEquals(Set.of("admin~;~" + HOST_ORG + ":Nightly", "dave~;~" + HOST_ORG + ":Mine"),
+                   new HashSet<>(response.failedTasks()));
+      verify(scheduleManager, never()).setScheduleTask(anyString(), any(ScheduleTask.class),
+                                                       any(Principal.class));
+   }
+
+   // m1, a mixed-case org id, the owner and execute-as identity get the caller's actual org id
+   @Test
+   void mixedCaseOrg_ownTask_isImported() throws Exception {
+      asMixedCaseOrgCaller();
+      adminOf.add(new IdentityID("alice", MIXED_ORG).convertToKey());
+      parse(task("Nightly", "carol~;~orgb", null, "idname=\"alice~;~orgb\" idtype=\"0\"",
+                 NEVER_RUN));
+
+      ScheduleTask persisted = importAndCapture(false);
+
+      assertNotNull(persisted);
+      assertEquals(new IdentityID("carol", MIXED_ORG), persisted.getOwner());
+      assertEquals("carol~;~" + MIXED_ORG + ":Nightly", persisted.getTaskId());
+      assertEquals(new IdentityID("alice", MIXED_ORG), persisted.getIdentity().getIdentityID());
+      assertEquals(Identity.USER, persisted.getIdentity().getType());
+   }
+
+   // m1, a foreign or not administered owner is still refused in a mixed-case org
+   @Test
+   void mixedCaseOrg_foreignOwner_isRefused() throws Exception {
+      asMixedCaseOrgCaller();
+      parse(task("Escalate", "admin~;~" + HOST_ORG, null, null, NEVER_RUN) +
+            task("Alices", "alice~;~orgb", null, null, NEVER_RUN) +
+            task("RunAsAdmin", "carol~;~orgb", null,
+                 "idname=\"admin~;~" + HOST_ORG + "\" idtype=\"0\"", NEVER_RUN));
+
+      ImportTaskResponse response = importAll(false);
+
+      assertEquals(Set.of("admin~;~" + MIXED_ORG + ":Escalate", "alice~;~" + MIXED_ORG + ":Alices",
+                          "carol~;~" + MIXED_ORG + ":RunAsAdmin"),
+                   new HashSet<>(response.failedTasks()));
+      verify(scheduleManager, never()).setScheduleTask(anyString(), any(ScheduleTask.class),
+                                                       any(Principal.class));
+   }
+
+   private void asMixedCaseOrgCaller() {
+      users.addAll(List.of(new IdentityID("carol", MIXED_ORG),
+                           new IdentityID("alice", MIXED_ORG)));
+      caller = principal("carol", MIXED_ORG);
+      stubCurrentOrg(MIXED_ORG);
+      adminOf.clear();
+   }
+
    // ---------------------------------------------------------------------------------------
    // site admin
    // ---------------------------------------------------------------------------------------
@@ -531,7 +613,8 @@ class ImportTaskCrossOrgTest {
    private void stubCurrentOrg(String org) {
       currentOrg = org;
       when(orgManager.getCurrentOrgID()).thenAnswer(
-         inv -> ThreadContext.getContextPrincipal() == caller ? currentOrg : "no-context-org");
+         inv -> ThreadContext.getContextPrincipal() == caller ?
+            currentOrg.toLowerCase() : "no-context-org");
       when(orgManager.getCurrentOrgID(any())).thenReturn(org);
    }
 
