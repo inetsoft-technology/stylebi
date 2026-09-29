@@ -785,6 +785,13 @@ public final class ScriptStateLint {
       int n = s.length();
       int i = 0;
       boolean nl = false;
+      String prevWord = null;   // previous identifier/keyword token, else null
+      // as in GraalJavaScriptEngine's scanTopLevel/skipInitializer/
+      // stripStringsAndComments: one entry per open bracket, whether it is the
+      // `(` of an if/while/for/with head, whose `)` is followed by a statement
+      // (so a `/` there starts a regex, bug #77305)
+      Deque<Boolean> brackets = new ArrayDeque<>();
+      boolean afterHead = false;   // the previous token closed a control-flow head
 
       while(i < n) {
          char c = s.charAt(i);
@@ -836,6 +843,8 @@ public final class ScriptStateLint {
             i = Math.min(i + 1, n);
             out.add(new Tok(T.STR, "\"\"", start, nl));
             nl = false;
+            prevWord = null;
+            afterHead = false;
             continue;
          }
 
@@ -843,29 +852,38 @@ public final class ScriptStateLint {
             i = skipTemplate(s, i + 1);
             out.add(new Tok(T.STR, "``", start, nl));
             nl = false;
+            prevWord = null;
+            afterHead = false;
             continue;
          }
 
-         if(c == '/' && regexAllowed(out)) {
+         if(c == '/' && (afterHead || regexAllowed(out))) {
             int e = regexEnd(s, i);
 
             if(e > 0) {
                i = e;
                out.add(new Tok(T.STR, "//", start, nl));
                nl = false;
+               prevWord = null;
+               afterHead = false;
                continue;
             }
          }
 
          if(Character.isJavaIdentifierStart(c)) {
+            boolean afterDot = !out.isEmpty() && out.get(out.size() - 1).type == T.P &&
+               out.get(out.size() - 1).text.equals(".");
             i++;
 
             while(i < n && Character.isJavaIdentifierPart(s.charAt(i))) {
                i++;
             }
 
-            out.add(new Tok(T.ID, s.substring(start, i), start, nl));
+            String word = s.substring(start, i);
+            out.add(new Tok(T.ID, word, start, nl));
             nl = false;
+            prevWord = afterDot ? null : word;   // a property name isn't a keyword
+            afterHead = false;
             continue;
          }
 
@@ -878,6 +896,8 @@ public final class ScriptStateLint {
 
             out.add(new Tok(T.NUM, s.substring(start, i), start, nl));
             nl = false;
+            prevWord = null;
+            afterHead = false;
             continue;
          }
 
@@ -895,14 +915,38 @@ public final class ScriptStateLint {
             p = "?";
          }
 
+         boolean closedHead = false;
+
+         if(p.equals("(") || p.equals("[") || p.equals("{")) {
+            brackets.push(p.equals("(") && prevWord != null && CONTROL_HEAD_KEYWORDS.contains(prevWord));
+         }
+         else if(p.equals(")") || p.equals("]") || p.equals("}")) {
+            if(!brackets.isEmpty()) {
+               closedHead = brackets.pop() && p.equals(")");
+            }
+         }
+
          i += p.length();
          out.add(new Tok(T.P, p, start, nl));
          nl = false;
+         prevWord = null;
+         afterHead = closedHead;
       }
 
       return out;
    }
 
+   /**
+    * Whether a {@code /} at the current lexing position begins a
+    * regular-expression literal rather than a division operator, based on the
+    * last emitted token. Does not by itself account for a {@code /} right after
+    * an {@code if}/{@code while}/{@code for}/{@code with} head's closing
+    * {@code )} \u2014 that case is handled by the caller's {@code afterHead} flag
+    * (bug #77305), since the last token here is always {@code )}, never the
+    * control-head keyword itself, so {@link #REGEX_AFTER_WORD} (which covers a
+    * regex directly after a keyword token, e.g. {@code return /x/}) does not
+    * apply to this shape.
+    */
    private static boolean regexAllowed(List<Tok> out) {
       if(out.isEmpty()) {
          return true;
@@ -1228,6 +1272,13 @@ public final class ScriptStateLint {
    private static final Set<String> REGEX_AFTER_WORD = Set.of(
       "return", "typeof", "instanceof", "in", "of", "new", "delete", "void", "throw", "case",
       "do", "else", "yield", "await");
+   // mirrors GraalJavaScriptEngine.CONTROL_HEAD_KEYWORDS (bug #77305): a `)` that
+   // closes one of these heads is followed by a statement, so a `/` right after
+   // it starts a regex, not a division — a structurally different case from
+   // REGEX_AFTER_WORD above (that set is keyed on the token directly preceding
+   // the `/` being the keyword itself; here the token directly preceding the
+   // `/` is always `)`, never the keyword).
+   private static final Set<String> CONTROL_HEAD_KEYWORDS = Set.of("if", "while", "for", "with");
    private static final String[] PUNCT = {
       ">>>=", "...", "===", "!==", "**=", "<<=", ">>=", ">>>", "&&=", "||=", "??=",
       "=>", "==", "!=", "<=", ">=", "&&", "||", "??", "?.", "++", "--", "+=", "-=", "*=", "/=",

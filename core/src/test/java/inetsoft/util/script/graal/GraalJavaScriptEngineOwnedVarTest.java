@@ -53,6 +53,61 @@ class GraalJavaScriptEngineOwnedVarTest {
       assertEquals(Set.of(), owned("o.var = 1; /var z/.test(s)"));
    }
 
+   /**
+    * Bug #77305: a regex literal placed directly after an if/while/for/with head's closing
+    * `)` was misread as division, so the tokenizer walked into the regex's own pattern text as
+    * if it were real code and picked up a spurious `var` name from inside it.
+    */
+   @Test
+   void controlHeadAdjacentRegexIsNotOwned() {
+      assertEquals(Set.of(), owned("if(true) /var z=1/.test('z')"));
+      assertEquals(Set.of(), owned("while(false) /var z=1/.test('z')"));
+      assertEquals(Set.of(), owned("for(;;) /var z=1/.test('z')"));
+      assertEquals(Set.of(), owned("with(o) /var z=1/.test('z')"));
+   }
+
+   /**
+    * Bug #77305, cross-column false negative (the centerpiece shape): a control-head-adjacent
+    * regex in one column also contains a stray unterminated-string-starting quote that swallows
+    * the rest of that formula's text, including a real `let`/`const` of a name a different
+    * column's clean accumulator needs to not-own. Before the fix, the swallow hid the `let`, so
+    * the accumulator's name stayed wrongly in the shared `owned` set.
+    */
+   @Test
+   void crossColumnLetSwallowNoLongerHidesLexicalDeclaration() {
+      String accIf = "var k = (k||0) + field['x']; k";
+      String poisonedIf = "if(true) /'/.test(s); let k = 5;";
+      assertEquals(Set.of(), GraalJavaScriptEngine.collectOwnedVarNames(
+         List.of(accIf, poisonedIf)));
+
+      // different control-head keyword and variable name
+      String accWhile = "var p = (p||0) + field['y']; p";
+      String poisonedWhile = "while(false) /'/.test(s); let p = 9;";
+      assertEquals(Set.of(), GraalJavaScriptEngine.collectOwnedVarNames(
+         List.of(accWhile, poisonedWhile)));
+   }
+
+   /**
+    * Bug #77305, cross-column false positive (the third, recheck-round shape): a column with no
+    * `var` of its own relies entirely on a sibling column's real `var` declaration, and that
+    * sibling's declaration is swallowed by a control-head-adjacent poisoned regex. Before the
+    * fix, the swallow hid the `var`, so {@code collectOwnedVarNames} never learned the name was
+    * declared anywhere in the table.
+    */
+   @Test
+   void crossColumnVarSwallowNoLongerHidesOwnership() {
+      String reliesOnOtherColumn = "v = (v || 0) + field['x']; v";
+      String poisonedVarDecl = "if(true) /\"/.test(x); var v = 1;";
+      assertEquals(Set.of("v"), GraalJavaScriptEngine.collectOwnedVarNames(
+         List.of(reliesOnOtherColumn, poisonedVarDecl)));
+
+      // different control-head keyword, swallow character and variable name
+      String reliesOnOtherColumn2 = "z2 = (z2 || 0) + field['y']; z2";
+      String poisonedVarDecl2 = "while(false) /'/.test(x); var z2 = 1;";
+      assertEquals(Set.of("z2"), GraalJavaScriptEngine.collectOwnedVarNames(
+         List.of(reliesOnOtherColumn2, poisonedVarDecl2)));
+   }
+
    @Test
    void aNameDeclaredWithLetOrConstInAnyFormulaIsNotOwned() {
       assertEquals(Set.of(), GraalJavaScriptEngine.collectOwnedVarNames(
