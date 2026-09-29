@@ -18,6 +18,7 @@
 package inetsoft.report.composition.execution;
 
 import inetsoft.report.TableLens;
+import inetsoft.report.filter.AbstractConditionFilter;
 import inetsoft.report.filter.ConditionGroup;
 import inetsoft.report.lens.DefaultTableLens;
 import inetsoft.report.lens.FormulaTableLens;
@@ -35,6 +36,8 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+import java.util.concurrent.*;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -66,6 +69,86 @@ public class PoolOffConditionFilterLockingTest {
       assertFalse(filter.moreRows(Integer.MAX_VALUE));
       assertEquals(ROWS + 1, filter.getRowCount());
       assertTrue(probe.sawScriptLock, "pool-off CF2 must populate under the env's lock");
+   }
+
+   /**
+    * Bug #77273: getBaseRowIndex() for a row past the end of a completed map answers from
+    * the lock-free published end, as moreRows() does, and fails fast. Its last fallback, which
+    * maps a row under the engine lock, must not wait for the lock another thread holds.
+    */
+   @Test
+   public void rowPastCompletedMapFailsFastWithoutTheEngineLock() throws Exception {
+      AssetQuerySandbox box = sandbox();
+      ScriptEnv env = box.getScriptEnv();
+      env.compile("1");
+      TableLens formula = new FormulaTableLens(new ProbeTable(ROWS), new String[] {"f"},
+                                               new String[] {"1"}, env, null);
+      AbstractConditionFilter filter =
+         (AbstractConditionFilter) PostProcessor.filter(formula, allRows(), box);
+      assertFalse(filter.moreRows(Integer.MAX_VALUE));
+
+      ExecutorService pool = Executors.newFixedThreadPool(2);
+      CountDownLatch held = new CountDownLatch(1);
+      CountDownLatch release = new CountDownLatch(1);
+
+      try {
+         Future<?> holder = pool.submit(() -> {
+            env.getExecutionLock().lock();
+
+            try {
+               held.countDown();
+               release.await();
+            }
+            finally {
+               env.getExecutionLock().unlock();
+            }
+
+            return null;
+         });
+         assertTrue(held.await(10, TimeUnit.SECONDS));
+
+         Future<Integer> reader = pool.submit(() -> filter.getBaseRowIndex(ROWS + 5));
+         ExecutionException ex = assertThrows(ExecutionException.class,
+            () -> reader.get(5, TimeUnit.SECONDS),
+            "a row past the completed map waited for the engine lock");
+         assertInstanceOf(IndexOutOfBoundsException.class, ex.getCause());
+
+         release.countDown();
+         holder.get(10, TimeUnit.SECONDS);
+      }
+      finally {
+         release.countDown();
+         pool.shutdownNow();
+      }
+   }
+
+   /**
+    * Bug #77273: the last fallback of getBaseRowIndex(), which maps the row and reads it in
+    * one step under the monitor, takes the env's lock before the monitor as a pool-off
+    * population in moreRows() does (#76918), and records it as held (#76938).
+    */
+   @Test
+   public void fallbackMapsTheRowUnderTheEngineLock() throws Exception {
+      AssetQuerySandbox box = sandbox();
+      ScriptEnv env = box.getScriptEnv();
+      env.compile("1");
+      ProbeTable probe = new ProbeTable(ROWS);
+      TableLens formula = new FormulaTableLens(probe, new String[] {"f"}, new String[] {"1"},
+                                               env, null);
+      TableLens filter = PostProcessor.filter(formula, allRows(), box);
+      Method map = AbstractConditionFilter.class.getDeclaredMethod("mapBaseRowIndex", int.class);
+      map.setAccessible(true);
+
+      assertEquals(10, map.invoke(filter, 10));
+      assertTrue(probe.sawScriptLock, "the fallback must populate under the env's lock");
+   }
+
+   private static AssetQuerySandbox sandbox() throws Exception {
+      AssetQuerySandbox box = Mockito.mock(AssetQuerySandbox.class, Mockito.CALLS_REAL_METHODS);
+      Field lock = AssetQuerySandbox.class.getDeclaredField("lock");
+      lock.setAccessible(true);
+      lock.set(box, new Object());
+      return box;
    }
 
    static ConditionGroup allRows() {
