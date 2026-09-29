@@ -114,6 +114,20 @@ public abstract class BlobStorage<T extends Serializable> implements AutoCloseab
    }
 
    /**
+    * Gets the digest of the content of the blob, the lower-case hexadecimal MD5 hash of its bytes.
+    * Two commits of different content never share it, whenever they were made.
+    *
+    * @param path the path to the blob.
+    *
+    * @return the digest or {@code null} if the blob is a directory.
+    *
+    * @throws FileNotFoundException if no blob exists at the specified path.
+    */
+   public final String getDigest(String path) throws FileNotFoundException {
+      return getBlob(path).getDigest();
+   }
+
+   /**
     * Gets the date and time at which the storage was last modified.
     *
     * @return the last modified time.
