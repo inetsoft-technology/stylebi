@@ -646,6 +646,14 @@ public class Scheduler {
                }
             }
 
+            // Bug #77359, the tasks of different organizations with the same id are one job
+            try {
+               ScheduleManager.getScheduleManager().logDuplicateTaskIds();
+            }
+            catch(Exception ex) {
+               LOG.warn("Failed to check the schedule task ids", ex);
+            }
+
             if(isCloudRun) {
                cluster.setLocalNodeProperty(CLOUD_RUNNER_SCHEDULER_TASK_LOADED, "true");
             }

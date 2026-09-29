@@ -838,10 +838,18 @@ public class ScheduleManager {
       user = SUtil.getOwnerForNewTask(user);
 
       if(task.getOwner() == null) {
+         // Bug #77359, the owner organization is part of the task id, which is the scheduler
+         // (quartz) key of the task in all organizations, keep it the organization the task is
+         // stored in, the same as a materialized view task (MVSupportService)
+         if(!internal && user != null && user.orgID != null && !user.orgID.equalsIgnoreCase(orgID)) {
+            user = new IdentityID(user.name, orgID);
+         }
+
          task.setOwner(user);
          taskId = task.getTaskId();
       }
 
+      checkOwnerOrganization(taskId, task, orgID, internal);
       ScheduleTaskMessage.Action action;
 
       if(getOrgTaskMap(orgID).containsKey(getTaskIdentifier(taskId, orgID), orgID)) {
@@ -878,6 +886,76 @@ public class ScheduleManager {
          LOG.error("Failed to set permission on scheduled task " +
                task.getTaskId() + " for user " + owner.getName(), e);
       }
+   }
+
+   /**
+    * Bug #77359, the task id embeds the owner and it's the scheduler (quartz) job key of the task
+    * in all organizations, so a task whose owner is in another organization than the one it's
+    * stored in can have the same id as a task of that organization, and running, stopping or
+    * saving one of them affects the other. Refuses to store a task that way, unless the stored
+    * task already is (a task saved before this check, e.g. to change its enabled state).
+    */
+   private void checkOwnerOrganization(String taskId, ScheduleTask task, String orgID,
+                                       boolean internal)
+      throws IOException
+   {
+      IdentityID owner = task.getOwner();
+
+      if(internal || task.getType() == ScheduleTask.Type.INTERNAL_TASK || owner == null ||
+         owner.orgID == null || orgID == null || owner.orgID.equalsIgnoreCase(orgID))
+      {
+         return;
+      }
+
+      String identifier = getTaskIdentifier(taskId, orgID);
+      ScheduleTaskMap map = getOrgTaskMap(orgID);
+      ScheduleTask stored = map.containsKey(identifier, orgID) ? map.get(identifier) : null;
+      IdentityID storedOwner = stored == null ? null : stored.getOwner();
+
+      if(storedOwner == null || storedOwner.orgID == null ||
+         storedOwner.orgID.equalsIgnoreCase(orgID))
+      {
+         throw new IOException(
+            "Schedule task " + taskId + " is not saved in organization " + orgID +
+            ", its owner " + owner.convertToKey() + " is in another organization.");
+      }
+
+      LOG.warn("Schedule task {} of organization {} is owned by {} of another organization, " +
+               "it has the same scheduler job as a task of that organization with the same id",
+               taskId, orgID, owner.convertToKey());
+   }
+
+   /**
+    * Logs the tasks of different organizations that have the same id. A task id is the scheduler
+    * (quartz) job key of the task in all organizations, only one of them is scheduled.
+    *
+    * @return the ids of the tasks stored in more than one organization.
+    */
+   public Set<String> logDuplicateTaskIds() {
+      Map<String, String> taskOrgs = new HashMap<>();
+      Set<String> duplicates = new TreeSet<>();
+
+      for(Map.Entry<String, ScheduleTaskMap> entry : new ArrayList<>(taskMap.entrySet())) {
+         String orgID = entry.getKey();
+
+         for(ScheduleTask task : entry.getValue().values()) {
+            if(task == null || task.getType() == ScheduleTask.Type.INTERNAL_TASK) {
+               continue;
+            }
+
+            String otherOrgID = taskOrgs.putIfAbsent(task.getTaskId(), orgID);
+
+            if(otherOrgID != null && !otherOrgID.equals(orgID)) {
+               duplicates.add(task.getTaskId());
+               LOG.warn("Schedule task {} is stored in organizations {} and {}, it's one " +
+                        "scheduler job and only one of the tasks is scheduled. Its owner " +
+                        "should be in the organization it's stored in.",
+                        task.getTaskId(), otherOrgID, orgID);
+            }
+         }
+      }
+
+      return duplicates;
    }
 
    /**
