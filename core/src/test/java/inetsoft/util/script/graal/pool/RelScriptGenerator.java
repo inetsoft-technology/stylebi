@@ -350,9 +350,9 @@ final class RelScriptGenerator {
 
    private Block baselineMutation(String n, String v) {
       return switch(random.nextInt(4)) {
-         case 0 -> b8("Math.new", "Math." + n + " = " + v + ";", "math:" + n);
+         case 0 -> b8("Math.new", "Math." + n + " = " + v + ";", "math:" + n, "own:Math");
          case 1 -> b8("Math.max", "Math.max = function() { return 42; };", "call:Math.max");
-         case 2 -> b8("JSON.new", "JSON." + n + " = " + v + ";", "json:" + n);
+         case 2 -> b8("JSON.new", "JSON." + n + " = " + v + ";", "json:" + n, "own:JSON");
          default -> b8("JSON.stringify", "JSON.stringify = function() { return 'x'; };",
                        "call:JSON.stringify");
       };
@@ -448,16 +448,41 @@ final class RelScriptGenerator {
 
    static final String F_PROTO = "FZ1-global-prototype";
 
-   // own keys with typeof and descriptor flags; a data property's primitive value is shown
+   // own keys with typeof and descriptor flags; a data property's primitive value is shown,
+   // and an object or function value gets an identity signature (native or source length and
+   // own name for a function; own-key count and first sorted own key), so a same-typeof
+   // overwrite shows
    private static final String OWN_KEYS = """
-      { const G = globalThis; const ks = Reflect.ownKeys(G);
+      { const G = globalThis; const ks = Reflect.ownKeys(G); const FTS = Function.prototype.toString;
+        const sig = function(v) {
+           // the global itself holds the polluters' leftovers, which the own-key lines show
+           if(v === G) return ' the-global';
+           let r = '';
+           if(typeof v === 'function') {
+              try { const src = FTS.call(v); r += src.indexOf('[native code]') >= 0 ? ' native' : ' src' + src.length; }
+              catch(e) { r += ' host'; }
+              try {
+                 const nd = Reflect.getOwnPropertyDescriptor(v, 'name');
+                 if(nd !== undefined && typeof nd.value === 'string') r += ' name:' + nd.value;
+              }
+              catch(e) { r += ' name?'; }
+           }
+           try {
+              const o = Reflect.ownKeys(v).map(String).sort();
+              r += ' keys' + o.length + (o.length > 0 ? ':' + o[0] : '');
+           }
+           catch(e) { r += ' keys?'; }
+           return r;
+        };
         for(let i = 0; i < ks.length; i++) {
            const k = ks[i]; const d = Reflect.getOwnPropertyDescriptor(G, k);
            let s;
            if(Object.hasOwn(d, 'value')) {
               const t = typeof d.value;
               s = t + (t === 'number' || t === 'string' || t === 'boolean' ? ':' + d.value : '') +
-                 (d.value === null ? ':null' : '') + ' w' + (d.writable ? 1 : 0);
+                 (d.value === null ? ':null' : '') +
+                 ((t === 'object' && d.value !== null) || t === 'function' ? sig(d.value) : '') +
+                 ' w' + (d.writable ? 1 : 0);
            }
            else {
               s = 'accessor get' + (d.get === undefined ? 0 : 1) + ' set' + (d.set === undefined ? 0 : 1);

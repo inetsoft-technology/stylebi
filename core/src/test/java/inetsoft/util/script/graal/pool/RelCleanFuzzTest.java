@@ -146,6 +146,34 @@ class RelCleanFuzzTest {
       stats.assertClean();
    }
 
+   /**
+    * Review M2: the probe tells a same-typeof overwrite of a baseline global from the baseline
+    * value (here seen inside the overwriting claim, before any clean), so a missed restore of
+    * such a key would be a violation.
+    */
+   @Test
+   void probeSeesSameTypeofOverwrites() throws Exception {
+      WorksheetScriptEnv ref = newEnv();
+      WorksheetScriptEnv env = newEnv();
+      String probe = new RelScriptGenerator(1L).probe();
+      Map<String, String> base = parse(String.valueOf(run(ref, probe)));
+      String[][] cases = {
+         {"formatDate", "formatDate = function() { return 1; };"},
+         {"StyleConstant", "StyleConstant = {a: 1};"},
+         {"CALC", "CALC = {a: 1};"},
+         {"Array", "Array = function() {};"},
+         {"Math", "Math = {E: 1};"},
+         {"parseInt", "parseInt = parseFloat;"},
+      };
+
+      for(String[] c : cases) {
+         Map<String, String> seen = parse(String.valueOf(run(env, c[1] + " " + probe)));
+         String key = "own:" + c[0];
+         assertNotNull(base.get(key), key);
+         assertNotEquals(base.get(key), seen.get(key), c[1]);
+      }
+   }
+
    private static long seeds(long def, long longDef) {
       return Long.getLong("rel.fuzz.seeds", LONG ? longDef : def);
    }
