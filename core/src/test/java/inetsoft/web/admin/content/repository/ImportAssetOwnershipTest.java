@@ -17,6 +17,7 @@
  */
 package inetsoft.web.admin.content.repository;
 
+import inetsoft.sree.RepositoryEntry;
 import inetsoft.sree.internal.DeployManagerService;
 import inetsoft.sree.internal.DeploymentInfo;
 import inetsoft.sree.internal.cluster.Cluster;
@@ -196,6 +197,23 @@ class ImportAssetOwnershipTest {
 
       assertNotNull(service.getJarFileInfo(ID, ownerUpperCaseOrg));
       verify(deployService).getJarFileInfo(eq(ID), any(), isNull(), same(ownerUpperCaseOrg));
+   }
+
+   @Test
+   void foreignCallerCannotUpdateImportInfoForTargetFolder() throws Exception {
+      ImportAssetContext context = putOwnerContext();
+
+      for(Principal caller : List.of(foreignOrgAdmin, ownerInOtherOrg)) {
+         assertThrows(IllegalStateException.class, () -> service.updateImportInfo(
+            ID, "/", RepositoryEntry.FOLDER, null, caller));
+      }
+
+      assertSame(context, backing.get(ID));
+      assertSame(ownerInfo, context.getInfo());
+      verifyNoInteractions(deployService);
+
+      assertNotNull(service.updateImportInfo(ID, "/", RepositoryEntry.FOLDER, null, owner));
+      verify(deployService).getJarFileInfo(eq(ID), any(), notNull(), same(owner));
    }
 
    // ---- bookmark conflicts ----
