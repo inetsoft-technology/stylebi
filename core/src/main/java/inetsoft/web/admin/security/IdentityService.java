@@ -2639,8 +2639,14 @@ public class IdentityService {
       Organization fromOrg = eprovider.getOrganization(oldID);
       String fromOrgID = fromOrg != null ? fromOrg.getId() : null;
 
+      // Tool.equals(String[], List) is always false (an array never equals a non-array), so compare
+      // membership by content instead; order is not significant to updateOrganizationMembers() below,
+      // which tests membership with List.contains(), not by position.
+      Set<String> oldMemberSet = oldOrg.getMembers() != null ?
+         new HashSet<>(Arrays.asList(oldOrg.getMembers())) : Collections.emptySet();
+
       if(model.oldName() == null ||
-            !Tool.equals(oldOrg.getMembers(), memberNames) ||
+            !oldMemberSet.equals(new HashSet<>(memberNames)) ||
             !Tool.equals(fromOrgID, model.id()))
       {
          updateOrganizationMembers(newOrg, members, oldID, eprovider, principal);
