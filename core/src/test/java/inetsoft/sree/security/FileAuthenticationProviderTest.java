@@ -706,12 +706,14 @@ public class FileAuthenticationProviderTest {
    }
 
    // Bug #77070: a failed write during an update must not delete the existing record
+   // Bug #77354: and must be reported to the caller instead of being swallowed
    @Test
    void setUser_putFails_existingUserNotDeleted() throws Exception {
       IdentityID id = new IdentityID("keepUser", "testOrg");
       provider.addUser(new FSUser(id));
 
-      withFailingPut("userStorage", () -> provider.setUser(id, new FSUser(id)));
+      withFailingPut("userStorage", () -> assertThrows(
+         RuntimeException.class, () -> provider.setUser(id, new FSUser(id))));
 
       assertNotNull(provider.getUser(id), "user must survive a failed update write");
    }
@@ -721,7 +723,8 @@ public class FileAuthenticationProviderTest {
       IdentityID id = new IdentityID("keepGroup", "testOrg");
       provider.addGroup(new FSGroup(id));
 
-      withFailingPut("groupStorage", () -> provider.setGroup(id, new FSGroup(id)));
+      withFailingPut("groupStorage", () -> assertThrows(
+         RuntimeException.class, () -> provider.setGroup(id, new FSGroup(id))));
 
       assertNotNull(provider.getGroup(id), "group must survive a failed update write");
    }
@@ -731,7 +734,8 @@ public class FileAuthenticationProviderTest {
       IdentityID id = new IdentityID("keepRole", "testOrg");
       provider.addRole(new FSRole(id));
 
-      withFailingPut("roleStorage", () -> provider.setRole(id, new FSRole(id)));
+      withFailingPut("roleStorage", () -> assertThrows(
+         RuntimeException.class, () -> provider.setRole(id, new FSRole(id))));
 
       assertNotNull(provider.getRole(id), "role must survive a failed update write");
    }
@@ -742,7 +746,8 @@ public class FileAuthenticationProviderTest {
       org.setName("Keep Org");
       provider.addOrganization(org);
 
-      withFailingPut("organizationStorage", () -> provider.setOrganization("keepOrg", org));
+      withFailingPut("organizationStorage", () -> assertThrows(
+         RuntimeException.class, () -> provider.setOrganization("keepOrg", org)));
 
       assertNotNull(provider.getOrganization("keepOrg"),
                     "organization must survive a failed update write");
