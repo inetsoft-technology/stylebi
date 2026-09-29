@@ -161,7 +161,9 @@ final class CleanHelper {
 
          const expected = create(null);
          const known = create(null);
-         const expKeys = create(null);
+         // appended in remember() only and read below nexp only: a dense prototype-less array, not a
+         // dictionary keyed by index strings (one string + entry per baseline key per context)
+         const expKeys = arr();
          let nexp = 0;
 
          // The layout: the global's own keys, in ownKeys order, right after the last clean that

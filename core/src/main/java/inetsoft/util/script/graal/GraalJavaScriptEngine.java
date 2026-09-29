@@ -360,7 +360,8 @@ public class GraalJavaScriptEngine implements AutoCloseable {
       // (c) CALC: install the object as CALC, plus each function unqualified
       // (Rhino set a Calc as the global prototype so functions resolve directly).
       try {
-         inetsoft.util.script.Calc calc = new inetsoft.util.script.Calc();
+         // stateless, so one instance serves every Context (see SharedHostObjects)
+         inetsoft.util.script.Calc calc = SharedHostObjects.calc();
          bindings.putMember("CALC", ScriptValueConverter.toGuest(calc));
 
          for(Object key : calc.getMemberKeys()) {
@@ -433,7 +434,7 @@ public class GraalJavaScriptEngine implements AutoCloseable {
    private static void putFunction(Value bindings, String jsName, Class<?> cls,
                                    String method, Class<?>... params)
    {
-      bindings.putMember(jsName, new ScriptFunction(null, cls, method, params));
+      bindings.putMember(jsName, SharedHostObjects.function(cls, method, params));
    }
 
    /**
@@ -442,15 +443,8 @@ public class GraalJavaScriptEngine implements AutoCloseable {
     * {@code addFunctions(Class, Scriptable)} enumeration.
     */
    private static void addStaticFunctions(Value bindings, Class<?> cls) {
-      for(java.lang.reflect.Method m : cls.getMethods()) {
-         if(m.getDeclaringClass() != cls ||
-            !java.lang.reflect.Modifier.isStatic(m.getModifiers()) ||
-            !java.lang.reflect.Modifier.isPublic(m.getModifiers()))
-         {
-            continue;
-         }
-
-         bindings.putMember(m.getName(), new ScriptFunction(null, m));
+      for(Map.Entry<String, ScriptFunction> func : SharedHostObjects.staticFunctions(cls)) {
+         bindings.putMember(func.getKey(), func.getValue());
       }
    }
 
@@ -461,31 +455,12 @@ public class GraalJavaScriptEngine implements AutoCloseable {
     */
    private void putConstantScope(Value bindings, String name, Class<?>... classes) {
       try {
-         ConstantScope scope = new ConstantScope(classes);
-         installMapTypeConstants(scope);
+         // read-only, so one instance serves every Context (see SharedHostObjects)
+         ConstantScope scope = SharedHostObjects.constants(classes);
          bindings.putMember(name, ScriptValueConverter.toGuest(scope));
       }
       catch(Throwable ex) {
          LOG.warn("Failed to install constant object " + name, ex);
-      }
-   }
-
-   /**
-    * Register the dynamic {@code MAP_TYPE_<TYPE>} constants (e.g.
-    * {@code MAP_TYPE_U.S.} = "U.S.") derived from the installed map data. These
-    * are not {@code public static final} fields, so the reflected
-    * {@link ConstantScope} does not pick them up; Rhino added them explicitly to
-    * both the {@code Chart} and {@code StyleConstant} scopes, so restore them
-    * here to keep {@code mapType = Chart["MAP_TYPE_U.S."]} working. (#75679)
-    */
-   private void installMapTypeConstants(ConstantScope scope) {
-      try {
-         for(String type : inetsoft.report.internal.graph.MapData.getMapTypes()) {
-            scope.putConstant("MAP_TYPE_" + type.toUpperCase(), type);
-         }
-      }
-      catch(Throwable ex) {
-         LOG.warn("Failed to install map type constants", ex);
       }
    }
 
