@@ -1027,17 +1027,23 @@ public class ScheduleManager {
 
    //return true if user does not actually exist, a site admin of the same name exists and the
    //caller is that site admin (e.g. site admin created the task while in another organization)
+   //or the owner identity itself
    private boolean isSiteAdminOtherOrg(IdentityID principalID, Principal caller) {
       if(getSecurityEngine().isSecurityEnabled() &&
          getSecurityEngine().getSecurityProvider().getUser(principalID) == null)
       {
          // Bug #77284: the bypass must depend on the caller, not only on the task owner,
-         // otherwise any user could delete a task owned by a site admin in another organization
+         // otherwise any user could delete a task owned by a site admin in another organization.
+         // A caller whose full identity (name and organization) is the owner itself is accepted:
+         // the owner is not a user, such a principal is built by the server from the stored
+         // owner (the import overwrite in ScheduleTaskAsset uses new SRPrincipal(owner), which
+         // carries no site admin roles)
          IdentityID callerID = caller == null ? null :
             IdentityID.getIdentityIDFromKey(caller.getName());
 
          if(callerID == null || !Tool.equals(principalID.name, callerID.name) ||
-            !OrganizationManager.getInstance().isSiteAdmin(caller))
+            (!principalID.equals(callerID) &&
+             !OrganizationManager.getInstance().isSiteAdmin(caller)))
          {
             return false;
          }

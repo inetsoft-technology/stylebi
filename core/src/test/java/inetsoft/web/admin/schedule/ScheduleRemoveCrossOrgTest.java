@@ -35,6 +35,7 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.io.IOException;
 import java.security.Principal;
 import java.util.*;
 
@@ -183,7 +184,7 @@ class ScheduleRemoveCrossOrgTest {
       // central check, e.g. through RepletEngine.removeScheduleTask or ScheduleTaskAsset
       withContextPrincipal(alice);
 
-      assertThrows(Exception.class, () -> scheduleManager.removeScheduleTask(VICTIM_JOB, alice));
+      assertThrows(IOException.class, () -> scheduleManager.removeScheduleTask(VICTIM_JOB, alice));
 
       verify(scheduleClient, never()).taskRemoved(anyString());
    }
@@ -237,7 +238,7 @@ class ScheduleRemoveCrossOrgTest {
       assertNotNull(login, "password login");
       withContextPrincipal(login);
 
-      assertThrows(Exception.class, () -> scheduleManager.removeScheduleTask(VICTIM_JOB, login));
+      assertThrows(IOException.class, () -> scheduleManager.removeScheduleTask(VICTIM_JOB, login));
 
       verify(scheduleClient, never()).taskRemoved(anyString());
       assertNotNull(scheduleManager.getScheduleTask(VICTIM_JOB, ORG_B), "bob's task survives");
@@ -250,7 +251,7 @@ class ScheduleRemoveCrossOrgTest {
       withContextPrincipal(carol);
 
       assertThrows(Exception.class, () -> deleteTask(SADM_JOB, carol));
-      assertThrows(Exception.class, () -> scheduleManager.removeScheduleTask(SADM_JOB, carol));
+      assertThrows(IOException.class, () -> scheduleManager.removeScheduleTask(SADM_JOB, carol));
 
       verify(scheduleClient, never()).taskRemoved(anyString());
    }
@@ -259,7 +260,7 @@ class ScheduleRemoveCrossOrgTest {
    void plainUser_siteAdminTaskInOwnOrg_noOwnerOnlyBypass() throws Exception {
       withContextPrincipal(erin);
 
-      assertThrows(Exception.class, () -> scheduleManager.removeScheduleTask(SADM_JOB, erin));
+      assertThrows(IOException.class, () -> scheduleManager.removeScheduleTask(SADM_JOB, erin));
 
       verify(scheduleClient, never()).taskRemoved(anyString());
       assertNotNull(scheduleManager.getScheduleTask(SADM_JOB, ORG_B));
@@ -277,6 +278,50 @@ class ScheduleRemoveCrossOrgTest {
 
       verify(scheduleClient).taskRemoved(SADM_JOB);
       assertNull(scheduleManager.getScheduleTask(SADM_JOB, ORG_B));
+   }
+
+   @Test
+   void importOverwrite_siteAdminPhantomOwnerPrincipal_hostOrgContext_allowed() throws Exception {
+      // the site admin imports while in the host organization
+      withContextPrincipal(sadm);
+
+      importOverwriteRemove(SADM_IN_B, SADM_JOB);
+   }
+
+   @Test
+   void importOverwrite_siteAdminPhantomOwnerPrincipal_switchedIntoOrgB_allowed()
+      throws Exception
+   {
+      SRPrincipal switched = loginPrincipalOf("sadm", ORG_A);
+      switched.setProperty("curr_org_id", ORG_B);
+      withContextPrincipal(switched);
+
+      importOverwriteRemove(SADM_IN_B, SADM_JOB);
+   }
+
+   @Test
+   void importOverwrite_siteAdminPhantomOwnerPrincipal_orgContextB_allowed() throws Exception {
+      OrganizationContextHolder.setCurrentOrgId(ORG_B);
+
+      try {
+         importOverwriteRemove(SADM_IN_B, SADM_JOB);
+      }
+      finally {
+         OrganizationContextHolder.clear();
+      }
+   }
+
+   @Test
+   void phantomOwnerNameInOtherOrg_rejected() throws Exception {
+      // same name as the owner, but not the owner identity: not accepted as the owner
+      SRPrincipal other = new SRPrincipal(new IdentityID("sadm", "rmxorgc"));
+      other.setIgnoreLogin(true);
+      withContextPrincipal(other);
+
+      assertThrows(IOException.class, () -> scheduleManager.removeScheduleTask(SADM_JOB, other));
+
+      verify(scheduleClient, never()).taskRemoved(anyString());
+      assertNotNull(scheduleManager.getScheduleTask(SADM_JOB, ORG_B));
    }
 
    @Test
@@ -342,7 +387,7 @@ class ScheduleRemoveCrossOrgTest {
    }
 
    @Test
-   void crossOrgExemption_onlyForInternalAndSiteAdminCallers() {
+   void crossOrgExemption_onlyForSystemVirtualAndSiteAdminCallers() {
       // the system principal (SchedulerMonitoringService) and no principal are exempt from the
       // org check; the remaining delete permission checks are unchanged for them
       Principal system = SUtil.getPrincipal(new IdentityID(XPrincipal.SYSTEM, ORG_A), null, false);
@@ -353,6 +398,18 @@ class ScheduleRemoveCrossOrgTest {
       assertEquals(Boolean.FALSE, isCrossOrgRemoveAllowed(alice));
       assertEquals(Boolean.FALSE, isCrossOrgRemoveAllowed(carol));
       assertEquals(Boolean.FALSE, isCrossOrgRemoveAllowed(login(ALICE)));
+   }
+
+   private void importOverwriteRemove(IdentityID owner, String taskId) throws Exception {
+      // ScheduleTaskAsset.parseContent (overwrite) removes the existing task with a principal
+      // built from the stored owner, for a site admin phantom owner it has no roles
+      SRPrincipal principal = new SRPrincipal(owner);
+      principal.setIgnoreLogin(true);
+
+      scheduleManager.removeScheduleTask(taskId, principal);
+
+      verify(scheduleClient).taskRemoved(taskId);
+      assertNull(scheduleManager.getScheduleTask(taskId, owner.getOrgID()));
    }
 
    private static SRPrincipal loginPrincipalOf(String name, String orgID) {
