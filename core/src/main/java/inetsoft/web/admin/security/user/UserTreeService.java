@@ -1120,16 +1120,21 @@ public class UserTreeService {
       String orgPrefix = "inetsoft.org." + orgID.getOrgID().toLowerCase() + ".";
 
       for(Object key : keyset) {
-         String propName = (String) key;
+         String qualifiedName = (String) key;
 
-         if(!(propName).startsWith(orgPrefix)) {
+         if(!(qualifiedName).startsWith(orgPrefix)) {
             continue;
          }
 
-         propName = propName.substring(orgPrefix.length());
+         String propName = qualifiedName.substring(orgPrefix.length());
 
-         if(SreeEnv.getProperty(propName, false, true) != null) {
-            properties.add(PropertyModel.builder().name(propName).value(SreeEnv.getProperty(propName, false, true)).build());
+         // read by the already-org-qualified key (orgScope=false) instead of re-resolving the
+         // bare name against the CALLER's current org (orgScope=true), which silently drops
+         // every property whenever the caller is viewing an org other than their own
+         String propValue = SreeEnv.getProperty(qualifiedName, false, false);
+
+         if(propValue != null) {
+            properties.add(PropertyModel.builder().name(propName).value(propValue).build());
          }
       }
 

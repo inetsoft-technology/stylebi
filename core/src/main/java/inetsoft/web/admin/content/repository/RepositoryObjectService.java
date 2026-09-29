@@ -443,7 +443,7 @@ public class RepositoryObjectService {
 
                break;
             case RepositoryEntry.DASHBOARD:
-               this.repositoryDashboardService.delete(node.path(), node.owner());
+               this.repositoryDashboardService.delete(node.path(), node.owner(), principal);
                break;
             case RepositoryEntry.DATA_MODEL | RepositoryEntry.FOLDER:
                deleteDataModelFolder(node, principal);

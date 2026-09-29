@@ -24,7 +24,6 @@ import inetsoft.web.admin.security.ResourcePermissionModel;
 import inetsoft.web.admin.security.ResourcePermissionTableModel;
 import inetsoft.web.factory.RemainingPath;
 import inetsoft.web.security.*;
-import jakarta.annotation.PostConstruct;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
@@ -41,22 +40,6 @@ public class ActionPermissionController {
       this.actionService = actionService;
       this.permissionService = permissionService;
       this.securityEngine = securityEngine;
-   }
-
-   @PostConstruct
-   public void loadActions() {
-      ActionTreeNode root = this.actionService.getActionTree(ThreadContext.getContextPrincipal());
-      Deque<ActionTreeNode> queue = new ArrayDeque<>(root.children());
-
-      while(!queue.isEmpty()) {
-         ActionTreeNode node = queue.removeFirst();
-         Resource resource = new Resource(node.type(), node.resource());
-         actions.put(resource, node.actions());
-
-         for(ActionTreeNode child : node.children()) {
-            queue.addLast(child);
-         }
-      }
    }
 
    @Secured(
@@ -79,13 +62,12 @@ public class ActionPermissionController {
       )
    )
    @GetMapping("/api/em/security/actions/{type}/**")
-   public synchronized ResourcePermissionModel getPermissions(@PathVariable("type") String typeName,
+   public ResourcePermissionModel getPermissions(@PathVariable("type") String typeName,
                                                  @RemainingPath String path,
                                                  @RequestParam("isGrant") boolean isGrant,
                                                  @PermissionUser Principal principal)
    {
       ResourceType type = ResourceType.valueOf(typeName);
-      Resource resource = new Resource(type, path);
       IdentityID pId = IdentityID.getIdentityIDFromKey(principal.getName());
       String currOrgID = OrganizationManager.getInstance().getCurrentOrgID();
 
@@ -111,9 +93,11 @@ public class ActionPermissionController {
             .noneMatch(provider::isSystemAdministratorRole);
       }
 
+      // Bug #77251, only a node of the caller's own action tree may be read, and its actions come
+      // from that node, never from state shared with other principals
+      ActionTreeNode node = getActionNode(type, path, principal);
       label = Catalog.getCatalog().getString(label);
-      loadActions();
-      return permissionService.getTableModel(path, type, actions.get(resource), label, principal);
+      return permissionService.getTableModel(path, type, node.actions(), label, principal);
    }
 
    @Secured(
@@ -137,6 +121,19 @@ public class ActionPermissionController {
          throw new InvalidOrgException(Catalog.getCatalog().getString("em.security.invalidOrganizationPassed"));
       }
 
+      // Bug #77251, Bug #77252, the target must be a node of the caller's own action tree (which
+      // never contains the org admin exclusions or any SECURITY_* resource), and only the actions
+      // that node offers may be written. setResourcePermissions() writes every action in
+      // displayActions, so an unchecked client model could store e.g. an ADMIN grant.
+      ActionTreeNode node = getActionNode(type, path, principal);
+      EnumSet<ResourceAction> displayActions = permissions.displayActions();
+
+      if(displayActions == null || !node.actions().containsAll(displayActions)) {
+         throw new java.lang.SecurityException(
+            "Unauthorized actions " + displayActions + " for action permission " + typeName +
+            ":" + path + " by user " + principal);
+      }
+
       permissionService
          .setResourcePermissions(path, type, getActionObjectName(typeName, path), permissions, principal);
       return getPermissions(typeName, path, isGrant, principal);
@@ -154,6 +151,30 @@ public class ActionPermissionController {
       @RequestBody List<ResourcePermissionTableModel> identities)
    {
       return permissionService.findMissingIdentities(identities);
+   }
+
+   /**
+    * Finds the node of the principal's action tree that matches the requested type and path,
+    * searching folders as well as leaves.
+    *
+    * @throws java.lang.SecurityException if the tree has no such node.
+    */
+   private ActionTreeNode getActionNode(ResourceType type, String path, Principal principal) {
+      ActionTreeNode root = actionService.getActionTree(principal);
+      Deque<ActionTreeNode> queue = new ArrayDeque<>(root.children());
+
+      while(!queue.isEmpty()) {
+         ActionTreeNode node = queue.removeFirst();
+
+         if(node.type() == type && node.resource() != null && node.resource().equals(path)) {
+            return node;
+         }
+
+         queue.addAll(node.children());
+      }
+
+      throw new java.lang.SecurityException(
+         "Unauthorized access to action permission " + type + ":" + path + " by user " + principal);
    }
 
    private String getActionObjectName(String typeName, String path) {
@@ -175,5 +196,4 @@ public class ActionPermissionController {
    private final ActionPermissionService actionService;
    private final ResourcePermissionService permissionService;
    private final SecurityEngine securityEngine;
-   private final Map<Resource, EnumSet<ResourceAction>> actions = new HashMap<>();
 }

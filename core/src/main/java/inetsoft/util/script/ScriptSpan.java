@@ -40,14 +40,14 @@ public interface ScriptSpan extends AutoCloseable {
    };
 
    /**
-    * @return the minimum number of rows a lens should populate under this span, so that one
-    * context clean is shared by a batch of rows; 0 for no minimum.
+    * @return above 0 if a lens should batch its rows under this span, so that one context
+    * clean is shared by a batch of rows; 0 for no batching.
     */
    int batchRows();
 
    /**
-    * @return the most rows one batch may read ahead: under sequential access a consumer's
-    * batches grow geometrically from {@link #batchRows()} up to this (bug #76960, spec
+    * @return the most rows one batch may read ahead: under sequential access a lens's
+    * batches grow geometrically from the pool-off look-ahead up to this (bug #76960, spec
     * §14.14). Equal to {@link #batchRows()} when not adaptive, so 0 for {@link #NONE}.
     */
    default int maxBatchRows() {

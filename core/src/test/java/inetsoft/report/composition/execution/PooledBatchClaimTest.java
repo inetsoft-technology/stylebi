@@ -42,9 +42,10 @@ import static org.mockito.Mockito.when;
 
 /**
  * Batch claims (bug #76960, spec §5.3, §6.7, §14.3, §14.8; gates G3, G3b, the sequential
- * part of G6): under sequential access a formula lens or a condition filter cleans its
- * pooled context once per batch of at least batchRows rows, never per row; script globals
- * live for the outermost claimed span.
+ * part of G6): under sequential access a formula lens, bare or under a condition filter,
+ * cleans its pooled context once per batch, never per row, and its batches double from the
+ * pool-off look-ahead (context-pool regression D1); script globals live for the outermost
+ * claimed span.
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class, LibManagerTestConfiguration.class, PluginsTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
@@ -99,32 +100,23 @@ public class PooledBatchClaimTest {
 
    /**
     * G3b and clean determinism: a bare formula batch is cleaned at its own end, so the
-    * accumulator restarts at 1 in the next batch, which is at least batchRows rows later.
+    * accumulator restarts at 1 in the next batch and counts through the whole of it: the
+    * first batch is the pool-off look-ahead (11 rows), the next ones double.
     */
    @Test
    public void bareFormulaBatchIsCleanedAtItsEnd() {
       WorksheetScriptEnv env = PoolTestSupport.env();
-      FormulaTableLens formula = formula(table(1000), env, ACCUMULATOR);
-      int reset = -1;
+      List<Integer> runs = runs(formula(table(1000), env, ACCUMULATOR), 1, 1000);
 
-      for(int r = 1; formula.moreRows(r); r++) {
-         double value = (Double) formula.getObject(r, 3);
-
-         if(r > 1 && value == 1.0 && reset < 0) {
-            reset = r;
-         }
-
-         if(reset < 0) {
-            assertEquals((double) r, value, "row " + r);
-         }
-      }
-
-      assertTrue(reset - 1 >= env.getConfig().batchRows(), "batch was " + (reset - 1));
+      assertEquals(List.of(11, 21, 41), runs.subList(0, 3));
+      assertEquals(runs.size(), env.getMetrics().getCleans(), "one clean per batch");
    }
 
    /**
     * G3: FTL_outer(CF2(FTL_inner)). The outer accumulator runs across one outer batch while
-    * the inner population runs between its rows on the same thread, sharing the claim.
+    * the inner populations, and the several inner formula batches they cross, run between
+    * its rows on the same thread, sharing the claim. A bounded read of 300 rows is one outer
+    * batch; the inner lens is read row by row, so its batches are 11, 21, 41, ... rows.
     */
    @Test
    public void outerFormulaStateSurvivesInnerPopulation() {
@@ -134,9 +126,9 @@ public class PooledBatchClaimTest {
       FormulaTableLens outer = new FormulaTableLens(filter, new String[] {"g"},
                                                     new String[] {ACCUMULATOR}, env, null);
 
-      assertTrue(outer.moreRows(1));
+      assertTrue(outer.moreRows(300));
 
-      for(int r = 1; r <= env.getConfig().batchRows(); r++) {
+      for(int r = 1; r <= 300; r++) {
          assertEquals((double) r, outer.getObject(r, 4), "row " + r);
       }
    }
@@ -160,85 +152,79 @@ public class PooledBatchClaimTest {
    }
 
    /**
-    * Spec §14.14: under sequential reads a bare formula lens's batches double from batchRows
-    * up to maxBatchRows, and never exceed it. Each bare batch is cleaned at its end, so the
-    * accumulator restarts at 1 in the next one; a batch spans its read-ahead plus the row
-    * that asked for it.
+    * Spec §14.14: under sequential reads a bare formula lens's batches double from the
+    * pool-off look-ahead (10 rows) up to maxBatchRows, and never exceed it. Each bare batch is
+    * cleaned at its end, so the accumulator restarts at 1 in the next one; a batch spans its
+    * read-ahead plus the row that asked for it.
     */
    @Test
    public void sequentialFormulaBatchesDoubleUpToTheCap() {
       WorksheetScriptEnv env = geometricEnv(1024);
       List<Integer> runs = runs(formula(table(8000), env, ACCUMULATOR), 1, 8000);
 
-      assertEquals(List.of(257, 513, 1025, 1025, 1025, 1025, 1025), runs.subList(0, 7));
+      assertEquals(List.of(11, 21, 41, 81, 161, 321, 641, 1025, 1025), runs.subList(0, 9));
       runs.forEach(run -> assertTrue(run <= 1025, "batch of " + run + " rows"));
    }
 
    /**
-    * Spec §14.14: a non-sequential access starts the batches over at batchRows.
+    * Spec §14.14: a non-sequential access starts the batches over at the pool-off
+    * look-ahead.
     */
    @Test
    public void formulaBatchesResetOnARandomAccess() {
       WorksheetScriptEnv env = geometricEnv(4096);
       FormulaTableLens formula = formula(table(8000), env, ACCUMULATOR);
 
-      // rows 1-1795 are computed; reading row 1795 itself would ask for the next batch
-      assertEquals(List.of(257, 513, 1024), runs(formula, 1, 1794));
-      // skip ahead of the first row not yet computed (1796)
-      assertTrue(formula.moreRows(1798));
-      assertEquals(List.of(257, 513), runs(formula, 1796, 1796 + 257 + 513 - 1));
+      // rows 1-636 are computed; reading row 636 itself would ask for the next batch
+      assertEquals(List.of(11, 21, 41, 81, 161, 320), runs(formula, 1, 635));
+      // skip ahead of the first row not yet computed (637)
+      assertTrue(formula.moreRows(639));
+      assertEquals(List.of(11, 21), runs(formula, 637, 637 + 11 + 21 - 1));
    }
 
    /**
-    * Spec §14.14: under sequential reads a pooled filter's populations double from batchRows
-    * up to maxBatchRows, and never exceed it.
+    * Spec §14.14, context-pool regression D1: a pooled filter maps no row past the one asked
+    * for, and the formula batches below it double under sequential reads, up to
+    * maxBatchRows, one claim and one clean each.
     */
    @Test
    public void sequentialFilterBatchesDoubleUpToTheCap() {
       WorksheetScriptEnv env = geometricEnv(1024);
-      TableLens filter = PostProcessor.filter(formula(table(8000), env, "1"), allRows(),
-                                              poolBox(env));
-      List<Integer> batches = new ArrayList<>();
-      int mapped = mappedRows(filter);
+      TableLens filter = PostProcessor.filter(formula(table(8000), env, ACCUMULATOR),
+                                              allRows(), poolBox(env));
 
-      for(int r = 1; filter.moreRows(r); r++) {
-         int now = mappedRows(filter);
-
-         if(now != mapped) {
-            batches.add(now - mapped);
-            mapped = now;
-         }
+      for(int r = 1; r <= 3000; r++) {
+         assertTrue(filter.moreRows(r));
+         assertEquals(r + 1, mappedRows(filter), "no filter read-ahead, row " + r);
       }
 
-      assertEquals(List.of(256, 512, 1024, 1024, 1024, 1024, 1024), batches.subList(0, 7));
-      batches.forEach(batch -> assertTrue(batch <= 1024, "batch of " + batch + " rows"));
+      List<Integer> runs = runs(filter, 1, 8000);
+      assertEquals(List.of(11, 21, 41, 81, 161, 321, 641, 1025, 1025), runs.subList(0, 9));
+      runs.forEach(run -> assertTrue(run <= 1025, "batch of " + run + " rows"));
+      assertEquals(runs.size(), env.getMetrics().getCleans(), "one clean per batch");
       assertEquals(0, SlotClaim.openClaims());
    }
 
    /**
-    * Spec §14.14: a non-sequential access to a pooled filter starts its populations over at
-    * batchRows.
+    * Spec §14.14: a non-sequential access to a pooled filter starts the formula batches below
+    * it over at the pool-off look-ahead.
     */
    @Test
    public void filterBatchesResetOnARandomAccess() {
       WorksheetScriptEnv env = geometricEnv(4096);
-      TableLens filter = PostProcessor.filter(formula(table(8000), env, "1"), allRows(),
-                                              poolBox(env));
+      TableLens filter = PostProcessor.filter(formula(table(8000), env, ACCUMULATOR),
+                                              allRows(), poolBox(env));
 
-      for(int r = 1; r < 1793; r++) {
-         assertTrue(filter.moreRows(r));
-      }
-
-      assertEquals(1 + 256 + 512 + 1024, mappedRows(filter));
-      // skip ahead of the first row not yet mapped (1793)
-      assertTrue(filter.moreRows(1795));
-      assertEquals(1793 + 256, mappedRows(filter));
-      assertTrue(filter.moreRows(1793 + 256));
-      assertEquals(1793 + 256 + 512, mappedRows(filter));
+      assertEquals(List.of(11, 21, 41, 81, 161, 320), runs(filter, 1, 635));
+      // skip ahead of the first row not yet computed (637)
+      assertTrue(filter.moreRows(639));
+      assertEquals(640, mappedRows(filter), "no filter read-ahead");
+      assertEquals(List.of(11, 21), runs(filter, 637, 637 + 11 + 21 - 1));
    }
 
    /**
-    * perf-g6 (c)(i): a long sequential scan pays O(log(max/batchRows) + rows/max) cleans.
+    * perf-g6 (c)(i): a long sequential scan pays O(log(max/10) + rows/max) cleans, the
+    * batches ramping from the pool-off look-ahead (10 rows).
     */
    @Test
    public void longSequentialScanCleansLogarithmically() {
@@ -250,7 +236,8 @@ public class PooledBatchClaimTest {
       }
 
       PoolConfig config = env.getConfig();
-      long bound = 5 + 100_000 / config.maxBatchRows() + 2;
+      int ramp = 32 - Integer.numberOfLeadingZeros(config.maxBatchRows() / 10);
+      long bound = ramp + 100_000 / config.maxBatchRows() + 2;
       assertTrue(env.getMetrics().getCleans() <= bound,
                  "cleans " + env.getMetrics().getCleans() + " > " + bound);
    }
@@ -282,20 +269,26 @@ public class PooledBatchClaimTest {
    }
 
    /**
-    * @return the lengths of the accumulator's runs over rows {@code from..to}, read in order.
+    * @return the lengths of the accumulator's runs over rows {@code from..to}, read in order;
+    * within a run the accumulator counts up by one from row to row.
     */
-   private static List<Integer> runs(FormulaTableLens formula, int from, int to) {
+   static List<Integer> runs(TableLens lens, int from, int to) {
       List<Integer> runs = new ArrayList<>();
       int run = 0;
+      double last = 0;
 
-      for(int r = from; r <= to && formula.moreRows(r); r++) {
-         double value = (Double) formula.getObject(r, 3);
+      for(int r = from; r <= to && lens.moreRows(r); r++) {
+         double value = ((Number) lens.getObject(r, 3)).doubleValue();
 
          if(value == 1.0 && run > 0) {
             runs.add(run);
             run = 0;
          }
+         else if(run > 0) {
+            assertEquals(last + 1, value, "row " + r);
+         }
 
+         last = value;
          run++;
       }
 

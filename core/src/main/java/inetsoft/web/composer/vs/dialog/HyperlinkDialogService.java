@@ -31,6 +31,7 @@ import inetsoft.report.composition.graph.GraphTypeUtil;
 import inetsoft.report.composition.graph.GraphUtil;
 import inetsoft.report.internal.table.TableHyperlinkAttr;
 import inetsoft.sree.security.IdentityID;
+import inetsoft.sree.security.ResourceAction;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.erm.DataRef;
@@ -38,6 +39,7 @@ import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.internal.*;
+import inetsoft.util.MessageException;
 import inetsoft.util.Tool;
 import inetsoft.web.binding.drm.DataRefModel;
 import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
@@ -48,6 +50,8 @@ import inetsoft.web.composer.vs.objects.controller.VSTrapService;
 import inetsoft.web.service.HighlightService;
 import inetsoft.web.viewsheet.service.*;
 import org.apache.commons.lang3.ArrayUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.security.Principal;
@@ -64,7 +68,8 @@ public class HyperlinkDialogService {
                                  DataRefModelFactoryService dataRefModelService,
                                  VSTrapService trapService,
                                  VSAssemblyInfoHandler assemblyInfoHandler,
-                                 HighlightService highlightService)
+                                 HighlightService highlightService,
+                                 AssetRepository assetRepository)
    {
       this.coreLifecycleService = coreLifecycleService;
       this.vsObjectPropertyService = vsObjectPropertyService;
@@ -73,6 +78,7 @@ public class HyperlinkDialogService {
       this.trapService = trapService;
       this.assemblyInfoHandler = assemblyInfoHandler;
       this.highlightService = highlightService;
+      this.assetRepository = assetRepository;
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
@@ -244,8 +250,7 @@ public class HyperlinkDialogService {
       Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
       Viewsheet viewsheet = rvs.getViewsheet();
       VSAssembly assembly = viewsheet.getAssembly(objectId);
-      IdentityID pId = IdentityID.getIdentityIDFromKey(principal.getName());
-      Hyperlink hyperlink = getHyperlink(model, pId);
+      Hyperlink hyperlink = getHyperlink(model, principal);
 
       if(assembly instanceof TableDataVSAssembly) {
          TableDataVSAssemblyInfo info = (TableDataVSAssemblyInfo) assembly.getInfo();
@@ -356,9 +361,7 @@ public class HyperlinkDialogService {
 
       TableVSAssemblyInfo oinfo = (TableVSAssemblyInfo) assembly.getInfo().clone();
       TableVSAssemblyInfo ninfo = (TableVSAssemblyInfo) assembly.getInfo().clone();
-      IdentityID pId = IdentityID.getIdentityIDFromKey(principal.getName());
-
-      Hyperlink hyperlink = getHyperlink(model, pId);
+      Hyperlink hyperlink = getHyperlink(model, principal);
       VSTableLens lens = box.get().getVSTableLens(objectId, false);
       TableDataPath dataPath = lens.getTableDataPath(model.getRow(), model.getCol());
 
@@ -375,7 +378,7 @@ public class HyperlinkDialogService {
       return result;
    }
 
-   private Hyperlink getHyperlink(HyperlinkDialogModel model, IdentityID currentUser) {
+   private Hyperlink getHyperlink(HyperlinkDialogModel model, Principal principal) {
       Hyperlink hyperlink;
 
       if(model.getLinkType() == NONE) {
@@ -390,10 +393,12 @@ public class HyperlinkDialogService {
                               model.getWebLink() : model.getAssetLinkId());
 
          if(model.getLinkType() == Hyperlink.VIEWSHEET_LINK) {
-            VSBookmarkInfo[] bookmarks = VSUtil.getBookmarks(model.getAssetLinkId(), currentUser);
             String bm = model.getBookmark();
+            AssetEntry entry = bm == null ? null : getReadableLinkEntry(model.getAssetLinkId(), principal);
 
-            if(bm != null) {
+            if(entry != null) {
+               IdentityID currentUser = IdentityID.getIdentityIDFromKey(principal.getName());
+               VSBookmarkInfo[] bookmarks = VSUtil.getBookmarks(entry, currentUser);
                int userIdx = bm.lastIndexOf('(') > 0 ? bm.lastIndexOf('(') : bm.length();
                String bookmarkName = bm.substring(0, userIdx);
 
@@ -425,6 +430,34 @@ public class HyperlinkDialogService {
       }
 
       return hyperlink;
+   }
+
+   /**
+    * Get the entry of a hyperlink target viewsheet if the principal may read it.
+    *
+    * @return the entry, or <tt>null</tt> if the id is malformed or the viewsheet is not readable.
+    */
+   private AssetEntry getReadableLinkEntry(String id, Principal principal) {
+      AssetEntry entry = id == null ? null : AssetEntry.createAssetEntry(id);
+
+      if(entry == null || principal == null) {
+         return null;
+      }
+
+      // the id is client supplied and its orgID is kept, so check READ (including the
+      // cross-org check) and resolve no bookmark for a viewsheet the caller cannot read
+      try {
+         assetRepository.checkAssetPermission(principal, entry, ResourceAction.READ);
+      }
+      catch(MessageException ex) {
+         return null;
+      }
+      catch(Exception ex) {
+         LOG.warn("Failed to check viewsheet permission: {}", id, ex);
+         return null;
+      }
+
+      return entry;
    }
 
    private String fixParameterValue(String type, String value) {
@@ -818,5 +851,7 @@ public class HyperlinkDialogService {
    private final int NONE = 9;
    private final VSAssemblyInfoHandler assemblyInfoHandler;
    private final HighlightService highlightService;
+   private final AssetRepository assetRepository;
+   private static final Logger LOG = LoggerFactory.getLogger(HyperlinkDialogService.class);
    private final DataRefModelFactoryService dataRefModelService;
 }

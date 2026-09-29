@@ -886,6 +886,16 @@ public class ScheduleManager {
    {
       String orgID = getTaskOrgID(taskName);
       RepletRepository engine = SUtil.getRepletRepository();
+
+      // Bug #77284: the org of the task is taken from the owner key prefix of the id, which may
+      // come from the client. The quartz job key is global, so an id that names another
+      // organization would unschedule that organization's task. Only trusted callers may act on
+      // a task outside their current organization.
+      if(isOtherOrgTaskId(taskName, orgID, principal) && !isCrossOrgRemoveAllowed(principal)) {
+         throw new IOException(principal.getName() +
+                               " doesn't have delete permission for: " + taskName);
+      }
+
       ScheduleTask task = getScheduleTask(taskName, orgID);
 
       //possible site admin created in other organization
@@ -901,7 +911,7 @@ public class ScheduleManager {
             throw new IOException("Task is not removable: " + task.getName());
          }
 
-         boolean isSiteAdminInOtherOrg = isSiteAdminOtherOrg(task.getOwner());
+         boolean isSiteAdminInOtherOrg = isSiteAdminOtherOrg(task.getOwner(), principal);
 
          boolean adminPermission = getSecurityEngine().checkPermission(
             principal, ResourceType.SECURITY_USER, task.getOwner(), ResourceAction.ADMIN);
@@ -931,6 +941,10 @@ public class ScheduleManager {
          }
       }
 
+      // act on the id of the resolved task, the raw name may have been matched by the legacy
+      // fallback in getScheduleTask() and name a different quartz job
+      String taskId = task != null ? task.getTaskId() : taskName;
+
       // not an ext task? check if a normal task
       if(!ext) {
          if(task != null) {
@@ -941,9 +955,9 @@ public class ScheduleManager {
             getOrgTaskMap(orgID).remove(getTaskIdentifier(taskName, orgID));
          }
 
-         scheduleClient.taskRemoved(taskName);
+         scheduleClient.taskRemoved(taskId);
          ScheduleTaskMessage message = new ScheduleTaskMessage();
-         message.setTaskName(taskName);
+         message.setTaskName(taskId);
          // Bug #74338: include the task in the REMOVED message so that
          // shouldHandleReceivedMessage() can fall back to task.getOwner() when
          // getTaskOwner(taskId) returns null (e.g. for MV tasks whose IDs lack the
@@ -954,10 +968,10 @@ public class ScheduleManager {
       }
 
       try {
-         engine.setPermission(principal, ResourceType.SCHEDULE_TASK, taskName, null);
+         engine.setPermission(principal, ResourceType.SCHEDULE_TASK, taskId, null);
       }
       catch(Exception ex) {
-         LOG.error("Failed to clear permissions for schedule task {}", taskName, ex);
+         LOG.error("Failed to clear permissions for schedule task {}", taskId, ex);
       }
 
       if(extChanged) {
@@ -965,11 +979,75 @@ public class ScheduleManager {
       }
    }
 
-   //return true if user does not actually exist and a site admin of the same name exists
-   private boolean isSiteAdminOtherOrg(IdentityID principalID) {
+   /**
+    * Whether the task id carries an owner key prefix with an explicit organization that is not
+    * the current organization of the caller.
+    */
+   private boolean isOtherOrgTaskId(String taskId, String taskOrgID, Principal principal) {
+      if(taskId == null || taskOrgID == null) {
+         return false;
+      }
+
+      int index = taskId.indexOf(':');
+
+      // an owner key without an organization is resolved in the caller's organization
+      if(index < 0 || !taskId.substring(0, index).contains(IdentityID.KEY_DELIMITER)) {
+         return false;
+      }
+
+      String callerOrgID = OrganizationManager.getInstance().getCurrentOrgID(principal);
+      return !taskOrgID.equalsIgnoreCase(callerOrgID);
+   }
+
+   /**
+    * Whether the caller may remove a task of another organization: callers without a user
+    * (scheduler cleanup), the virtual group/role execute-as principals built by the scheduler,
+    * the system principal and site administrators.
+    */
+   private boolean isCrossOrgRemoveAllowed(Principal principal) {
+      // Bug #77284: do not exempt SUtil.isInternalUser() principals, SecurityEngine.authenticate()
+      // marks every login principal as __internal__
+      if(principal == null ||
+         principal instanceof XPrincipal &&
+         "true".equals(((XPrincipal) principal).getProperty("virtual")))
+      {
+         return true;
+      }
+
+      IdentityID callerID = IdentityID.getIdentityIDFromKey(principal.getName());
+
+      if(callerID != null && XPrincipal.SYSTEM.equals(callerID.name) &&
+         getSecurityEngine().getSecurityProvider().getUser(callerID) == null)
+      {
+         return true;
+      }
+
+      return OrganizationManager.getInstance().isSiteAdmin(principal);
+   }
+
+   //return true if user does not actually exist, a site admin of the same name exists and the
+   //caller is that site admin (e.g. site admin created the task while in another organization)
+   //or the owner identity itself
+   private boolean isSiteAdminOtherOrg(IdentityID principalID, Principal caller) {
       if(getSecurityEngine().isSecurityEnabled() &&
          getSecurityEngine().getSecurityProvider().getUser(principalID) == null)
       {
+         // Bug #77284: the bypass must depend on the caller, not only on the task owner,
+         // otherwise any user could delete a task owned by a site admin in another organization.
+         // A caller whose full identity (name and organization) is the owner itself is accepted:
+         // the owner is not a user, such a principal is built by the server from the stored
+         // owner (the import overwrite in ScheduleTaskAsset uses new SRPrincipal(owner), which
+         // carries no site admin roles)
+         IdentityID callerID = caller == null ? null :
+            IdentityID.getIdentityIDFromKey(caller.getName());
+
+         if(callerID == null || !Tool.equals(principalID.name, callerID.name) ||
+            (!principalID.equals(callerID) &&
+             !OrganizationManager.getInstance().isSiteAdmin(caller)))
+         {
+            return false;
+         }
+
          for(IdentityID user : getSecurityEngine().getUsers()) {
             if(Tool.equals(principalID.name,user.name) && OrganizationManager.getInstance().isSiteAdmin(user)) {
                return true;
@@ -1285,8 +1363,9 @@ public class ScheduleManager {
     * Compute, without modifying anything, which scheduled tasks would be affected if the
     * given identity were removed: tasks owned by a user (which
     * {@link #identityRemoved(Identity, EditableAuthenticationProvider)} deletes) and tasks where
-    * the identity is the "execute as" (which it resets). The notification-list cleanup that
-    * identityRemoved also performs is not reported here.
+    * the identity is the "execute as" (which it resets). The recipient cleanup that
+    * identityRemoved also performs (removing the identity's tokens from the notification and the
+    * delivery to, cc and bcc lists) is not reported here.
     */
    public synchronized IdentityTaskImpact getIdentityRemovalImpact(Identity identity,
                                                                    EditableAuthenticationProvider eprovider)
@@ -1538,38 +1617,72 @@ public class ScheduleManager {
 
 
    /**
-    * Removes (nname is null) or renames the notification recipients that denote the identity.
+    * Removes (nname is null) or renames the recipients that denote the identity in the
+    * notification list and in the delivery (to, cc and bcc) lists of the action. A list is only
+    * set back, and the task only marked as changed, when a token of it denotes the identity.
     */
    private void updateNotifications(ScheduleAction action, String oname, String nname, int type,
                                     ScheduleTask task, Set<ScheduleTask> changedTasks)
    {
       if(action instanceof AbstractAction) {
          AbstractAction aaction = (AbstractAction) action;
+         String notifies = updateNotifications(aaction.getNotifications(), oname, nname, type);
 
-         if(aaction.getNotifications() != null && aaction.getNotifications().length() > 0) {
-            String newNotifies =
-               updateNotifications(aaction.getNotifications(), oname, nname, type);
+         if(notifies != null) {
+            aaction.setNotifications(notifies);
+            changedTasks.add(task);
+         }
 
-            if(newNotifies != null) {
-               aaction.setNotifications(newNotifies);
-               changedTasks.add(task);
-            }
+         String emails = updateNotifications(aaction.getEmails(), oname, nname, type);
+
+         if(emails != null) {
+            aaction.setEmails(emails);
+            changedTasks.add(task);
+         }
+
+         String ccAddresses = updateNotifications(aaction.getCCAddresses(), oname, nname, type);
+
+         if(ccAddresses != null) {
+            aaction.setCCAddresses(ccAddresses);
+            changedTasks.add(task);
+         }
+
+         String bccAddresses = updateNotifications(aaction.getBCCAddresses(), oname, nname, type);
+
+         if(bccAddresses != null) {
+            aaction.setBCCAddresses(bccAddresses);
+            changedTasks.add(task);
          }
       }
    }
 
    /**
-    * Removes (nname is null) or renames the recipients that denote the identity in a notification
-    * list. A bare name that is not an email address denotes a user, name(User) a user and
-    * name(Group) a group, so a user matches a bare or a (User) token and a group matches only a
-    * (Group) token. A renamed token keeps its form. The other tokens, the delimiters and the
-    * spacing are kept.
+    * Removes (nname is null) or renames the recipients that denote the identity in a recipient
+    * list, which is a notification list or a delivery (to, cc or bcc) list. A bare name that is
+    * not an email address denotes a user, name(User) a user and name(Group) a group, so a user
+    * matches a bare or a (User) token and a group matches only a (Group) token. A renamed token
+    * keeps its form. The other tokens, the delimiters and the spacing are kept.
+    * <p>
+    * This is the shared helper for any stored recipient list (it is also used for the data
+    * cycle notification recipients), not to be confused with the private
+    * {@code updateNotifications(ScheduleAction, ...)} overload, which applies it to the lists
+    * of a schedule action.
     *
-    * @return the new list, or null if no token denotes the identity.
+    * @param notifies the recipient list, tokens separated by ',' or ';'.
+    * @param oname    the old (or removed) name of the identity.
+    * @param nname    the new name of the identity, or null to remove its tokens.
+    * @param type     the identity type, {@link Identity#USER} or {@link Identity#GROUP}.
+    *
+    * @return the new list, or null if the list is null or empty or no token denotes the
+    *         identity.
     */
-   private static String updateNotifications(String notifies, String oname, String nname,
-                                             int type)
+   public static String updateNotifications(String notifies, String oname, String nname,
+                                            int type)
    {
+      if(notifies == null || notifies.isEmpty()) {
+         return null;
+      }
+
       List<String> tokens = new ArrayList<>();
       List<String> delimiters = new ArrayList<>();
       Matcher matcher = NOTIFICATION_DELIMITER.matcher(notifies);

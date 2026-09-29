@@ -26,6 +26,7 @@ import inetsoft.sree.security.IdentityID;
 import inetsoft.sree.security.OrganizationManager;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.viewsheet.*;
+import inetsoft.util.ThreadContext;
 import inetsoft.util.Tool;
 import inetsoft.web.admin.monitoring.*;
 import inetsoft.web.admin.schedule.ScheduleMetrics;
@@ -217,7 +218,8 @@ public class ViewsheetService
     * Destroy the viewsheet.
     */
    public void destroy(String id) throws Exception {
-      destroy(id, OrganizationManager.getInstance().getCurrentOrgID());
+      destroy(id, OrganizationManager.getInstance()
+              .getCurrentOrgID(ThreadContext.getContextPrincipal()));
    }
 
    /**
@@ -247,7 +249,8 @@ public class ViewsheetService
     * Destroy the viewsheet.
     */
    public void destroy(String[] ids, String node) throws Exception {
-      destroy(ids, node, OrganizationManager.getInstance().getCurrentOrgID());
+      destroy(ids, node, OrganizationManager.getInstance()
+              .getCurrentOrgID(ThreadContext.getContextPrincipal()));
    }
 
    private void destroy(String[] ids, String node, String orgID) throws Exception {
@@ -264,7 +267,8 @@ public class ViewsheetService
 
    public void destroyClusterNodeViewsheets(String address, String[] ids) throws Exception {
       destroyClusterNodeViewsheets(
-         address, ids, OrganizationManager.getInstance().getCurrentOrgID());
+         address, ids, OrganizationManager.getInstance()
+            .getCurrentOrgID(ThreadContext.getContextPrincipal()));
    }
 
    private void destroyClusterNodeViewsheets(String address, String[] ids, String orgID)
@@ -410,7 +414,8 @@ public class ViewsheetService
          }
 
          // Filter viewsheets
-         String orgID = OrganizationManager.getInstance().getCurrentOrgID();
+         String orgID = OrganizationManager.getInstance()
+            .getCurrentOrgID(ThreadContext.getContextPrincipal());
          viewsheets = viewsheets.stream()
             .filter(vs -> vs.monitorUser() != null &&
                Tool.equals(vs.monitorUser().getOrgID(), orgID))
@@ -441,7 +446,8 @@ public class ViewsheetService
       }
 
       // Filter viewsheets
-      String orgID = OrganizationManager.getInstance().getCurrentOrgID();
+      String orgID = OrganizationManager.getInstance()
+         .getCurrentOrgID(ThreadContext.getContextPrincipal());
       viewsheets = viewsheets.stream()
          .filter(vs -> vs.monitorUser() != null &&
             Tool.equals(vs.monitorUser().getOrgID(), orgID))
@@ -478,7 +484,8 @@ public class ViewsheetService
    }
 
    List<ViewsheetMonitoringTableModel> getOpenViewsheets(String server, Principal principal) {
-      String orgID = OrganizationManager.getInstance().getCurrentOrgID();
+      String orgID = OrganizationManager.getInstance()
+         .getCurrentOrgID(ThreadContext.getContextPrincipal());
 
       return getViewsheets(ViewsheetModel.State.OPEN, server).stream()
          .filter(vs -> vs.user() != null && Tool.equals(vs.user().getOrgID(), orgID))

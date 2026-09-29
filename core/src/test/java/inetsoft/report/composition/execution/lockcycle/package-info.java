@@ -37,7 +37,8 @@
  *
  * <p>Classes of this suite:
  * <ul>
- * <li>{@code JoinWorkerCycleTest}: #76960 A, CrossJoin/HashJoin/MergeJoin workers.</li>
+ * <li>{@code JoinWorkerCycleTest}: #76960 A, CrossJoin/HashJoin/MergeJoin workers (formula
+ * and filtered inputs fixed by #77273; script join keys still known-deadlock).</li>
  * <li>{@code MonitorFirstLensCycleTest}: #76960 B (R2), Sort/MaxRows/Union/Ranking monitors.</li>
  * <li>{@code CrossSandboxCycleTest}: #76960 B (R2-X, R2-X′), #76964 (R3), #76938.</li>
  * <li>{@code BoxResetCycleTest}: #76961, reset/dispose of the building sandbox.</li>
@@ -47,12 +48,16 @@
  * <li>{@code SubQueryConditionWorksheetCycleTest}: #77158, the #76965 cycle on worksheets the
  * product builds (a sub table with a script expression column), and a condition filter over one;
  * a script thread of another engine populating a lock-first filter over a running async worker;
- * and, known-deadlock and not fixed by #77158, a worksheet formula that is the first to populate
- * such a filter while the sub table's worker is running.</li>
+ * and (#77223) a worksheet formula that is the first to populate such a filter, or to read a
+ * distinct or grouped table, built on a thread holding no lock, and a union that is not
+ * affected.</li>
  * <li>{@code HolderBuiltJoinCycleTest}: #77215, Hash/MergeJoin built by a guest, and a worker
  * probing a computed formula lens while the engine lock is held.</li>
  * <li>{@code GuestReaderCycleTest}: true guest (in-{@code exec}) holders: #76918 shapes, unions,
- * guest variants of #76960 A/B and #76964, and a reader racing {@code invalidate()}.</li>
+ * guest variants of #76960 A/B and #76964, readers racing {@code invalidate()}, and #77273:
+ * hash/merge/cross joins built without the engine lock and read by a guest, within and past the
+ * pre-drain, the end of a completed condition filter, and (known-deadlock) a join input
+ * invalidated under a guest.</li>
  * </ul>
  *
  * <p>Earlier tests of the same family stay where they are and belong to the suite:

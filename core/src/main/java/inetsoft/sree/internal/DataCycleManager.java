@@ -1056,7 +1056,9 @@ public class DataCycleManager
     */
    @Override
    public void identityRemoved(Identity identity) {
-      // do nothing
+      if(identity != null) {
+         updateCycleRecipients(identity, identity.getName(), null);
+      }
    }
 
    /**
@@ -1066,7 +1068,81 @@ public class DataCycleManager
     */
    @Override
    public void identityRenamed(String oname, Identity identity) {
-      // do nothing
+      if(identity != null) {
+         updateCycleRecipients(identity, oname, identity.getName());
+      }
+   }
+
+   /**
+    * Removes (nname is null) or renames the tokens that denote a user or a group in the start,
+    * end, failure and exceed notification recipients of the data cycles of the identity's
+    * organization. All four lists are updated regardless of their notify flags, because a
+    * disabled notification keeps its recipients and they apply again when it is enabled.
+    * Other identity types are ignored. Errors are logged and not thrown.
+    */
+   private void updateCycleRecipients(Identity identity, String oname, String nname) {
+      int type = identity.getType();
+      IdentityID id = identity.getIdentityID();
+
+      if((type != Identity.USER && type != Identity.GROUP) || oname == null || id == null ||
+         id.getOrgID() == null)
+      {
+         return;
+      }
+
+      String orgId = id.getOrgID();
+
+      try {
+         // the data cycles are listed and regenerated for the current org, so run in the
+         // identity's org, which may differ from the org of the (site admin) caller
+         OrganizationManager.runInOrgScope(orgId, () -> {
+            boolean changed = false;
+
+            for(String cycle : Collections.list(getDataCycles(orgId))) {
+               CycleInfo info = getCycleInfo(cycle, orgId);
+
+               if(info == null) {
+                  continue;
+               }
+
+               // non-short-circuit, every list is updated
+               boolean cycleChanged =
+                  updateRecipients(info.getStartEmail(), oname, nname, type, info::setStartEmail) |
+                  updateRecipients(info.getEndEmail(), oname, nname, type, info::setEndEmail) |
+                  updateRecipients(info.getFailureEmail(), oname, nname, type,
+                                   info::setFailureEmail) |
+                  updateRecipients(info.getExceedEmail(), oname, nname, type,
+                                   info::setExceedEmail);
+
+               if(cycleChanged) {
+                  setCycleInfo(cycle, orgId, info);
+                  changed = true;
+               }
+            }
+
+            if(changed) {
+               save();
+            }
+
+            return null;
+         });
+      }
+      catch(Exception e) {
+         LOG.error("Failed to update the data cycle notification recipients of {}", id, e);
+      }
+   }
+
+   private static boolean updateRecipients(String list, String oname, String nname, int type,
+                                           Consumer<String> setter)
+   {
+      String result = ScheduleManager.updateNotifications(list, oname, nname, type);
+
+      if(result == null) {
+         return false;
+      }
+
+      setter.accept(result);
+      return true;
    }
 
    /**

@@ -76,6 +76,7 @@ public abstract class AbstractConditionFilter extends AbstractTableLens
       baseRow = headers;
       // before the new map is published: a fast-path reader that sees the new map sees no
       // mapped rows until a population publishes its count (bug #76960)
+      completedCount = 0;
       mappedCount = 0;
       rowmap = map;
 
@@ -235,14 +236,28 @@ public abstract class AbstractConditionFilter extends AbstractTableLens
                   rowmap + " in " + this, new Exception("Stack trace"));
             }
 
-            // a pooled worksheet filter reads ahead, so one claimed span covers a batch of
-            // rows (bug #76960, spec §14.8); without a minimum the floor never holds, which
-            // is the loop as before even if a reentrant invalidate() resets baseRow
-            int min = getMinPopulationRows();
-            int floor = min > 0 ? baseRow + min : Integer.MIN_VALUE;
+            // each base row maps at most one row, so the base rows through this bound are
+            // read by the loop below anyway; a pooled worksheet filter asks for them in
+            // bounded reads of at most preRead rows, so a formula lens below computes them as
+            // bounded batches, not as a sequential scan it reads ahead of (context-pool
+            // regression D1). A row-by-row population (bound == baseRow) skips it
+            int preRead = getPreReadRows();
 
-            while((row >= rowmap.size() || baseRow < floor) &&
-                  (more = table.moreRows(baseRow)) && !cancelled)
+            long bound = row >= rowmap.size() && preRead > 0
+               ? Math.min((long) baseRow + (row - rowmap.size()), Integer.MAX_VALUE) : baseRow;
+
+            if(bound > baseRow) {
+               // each read asks for the next preRead base rows, the last one through bound
+               for(long read = baseRow - 1; read < bound && !cancelled; ) {
+                  read = Math.min(read + preRead, bound);
+
+                  if(!table.moreRows((int) read)) {
+                     break;
+                  }
+               }
+            }
+
+            while(row >= rowmap.size() && (more = table.moreRows(baseRow)) && !cancelled)
             {
                if(checkCondition(baseRow)) {
                   rowmap.add(baseRow);
@@ -260,16 +275,19 @@ public abstract class AbstractConditionFilter extends AbstractTableLens
          // publish the mapped rows for isRowMapped(): this volatile write orders every row
          // map write before it, for a reader that takes no monitor (bug #76960)
          mappedCount = rowmap.size();
+         // publish the end of a completed map for isPastCompletedMap() (bug #77273)
+         completedCount = completed ? rowmap.size() : 0;
       }
 
       return row < rowmap.size();
    }
 
    /**
-    * @return the minimum number of base rows one population in {@link #moreRows} maps, 0 for
-    * no minimum.
+    * @return above 0 if a population in {@link #moreRows} first asks the base table for every
+    * base row it is sure to read, in reads of at most this many rows; 0 (the default) keeps
+    * the row-by-row loop alone.
     */
-   protected int getMinPopulationRows() {
+   protected int getPreReadRows() {
       return 0;
    }
 
@@ -286,6 +304,21 @@ public abstract class AbstractConditionFilter extends AbstractTableLens
    protected final boolean isRowMapped(int row) {
       XSwappableIntList map = rowmap;
       return map != null && row < mappedCount;
+   }
+
+   /**
+    * @return whether the row map is completed and {@code row} is past its end, read without
+    * the monitor (bug #77273). A {@code false} answer only means the caller takes the normal
+    * path.
+    *
+    * <p>One volatile read answers it: the completed map's size is published in a single write
+    * after the population that completed it, and {@code invalidate} and {@code dispose} zero
+    * it before they replace the map, so a non-zero count is always the size of the map that
+    * was current when it was read, never a size combined with another map's state.
+    */
+   protected final boolean isPastCompletedMap(int row) {
+      int count = completedCount;
+      return count > 0 && row >= count;
    }
 
    /**
@@ -653,6 +686,7 @@ public abstract class AbstractConditionFilter extends AbstractTableLens
       table.dispose();
 
       if(rowmap != null) {
+         completedCount = 0;
          mappedCount = 0;
          rowmap.dispose();
          rowmap = null;
@@ -749,6 +783,9 @@ public abstract class AbstractConditionFilter extends AbstractTableLens
    // the rows of rowmap the last population published, written under the monitor and read
    // without it by isRowMapped (bug #76960)
    private volatile int mappedCount;
+   // the size of rowmap once completed, 0 while it is not, read without the monitor by
+   // isPastCompletedMap (bug #77273)
+   private volatile int completedCount;
    private boolean completed = false;
    private transient boolean debug = "true".equals(SreeEnv.getProperty("filter.debug", "false"));
    private int baseRow = 0;

@@ -166,6 +166,13 @@ public final class WsExecContext {
    }
 
    /**
+    * @return the pooled slot executing on this thread, or {@code null}.
+    */
+   static Slot currentSlot() {
+      return everEntered ? CURRENT.get() : null;
+   }
+
+   /**
     * Per-context state of a host object (spec §6.4), for the pooled context executing on this
     * thread; only that context's owner ever uses it.
     *
@@ -209,7 +216,8 @@ public final class WsExecContext {
    static final String COPY_MUTATION_MESSAGE =
       "A Java method changed a worksheet script array or object passed to it (for example " +
       "java.util.Collections.sort or an out parameter) while the script ran. With " +
-      "script.ws.contextPool=true, Java gets a copy, so the script does not see the change. " +
+      "the worksheet script context pool on (the default; script.ws.contextPool=false turns " +
+      "it off), Java gets a copy, so the script does not see the change. " +
       "Return the changed value from the Java method and assign it in the script instead. " +
       "This is logged once per script.";
 

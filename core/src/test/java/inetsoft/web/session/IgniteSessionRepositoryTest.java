@@ -121,6 +121,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -332,6 +333,98 @@ class IgniteSessionRepositoryTest {
       repository.entryExpired(event);
 
       verify(authenticationService)
+         .logout(same(principal), eq("127.0.0.1"), eq(SessionRecord.LOGOFF_SESSION_TIMEOUT));
+   }
+
+   /**
+    * Bug #77300: on the node that lazily reaps an expired session, deleteById()'s own logout() and
+    * the same node's entryRemoved()/entryExpired() reaction to that removal run on different
+    * threads and both pass the non-atomic isActiveUser() gate, writing two LOGOFF records. Here
+    * entryExpired() (path B) is still inside authenticationService.logout() -- with the principal
+    * still reported active -- when deleteById() (path A) runs on another thread; only one logout
+    * may be issued.
+    */
+   @Test
+   void concurrentTimeoutLogouts_forOneSession_logOutOnce() throws Exception {
+      SRPrincipal principal = mockPrincipal("admin", "127.0.0.1");
+      when(securityEngine.isActiveUser(principal)).thenReturn(true);
+
+      IgniteSessionRepository.IgniteSession session = repository.createSession();
+      session.setAttribute(RepletRepository.PRINCIPAL_COOKIE, principal);
+      repository.save(session);
+      String id = session.getId();
+
+      @SuppressWarnings("unchecked")
+      Cache<String, org.springframework.session.MapSession> rawSessions =
+         cluster.getCache(IgniteSessionRepository.DEFAULT_SESSION_MAP_NAME, true, null);
+      org.springframework.session.MapSession rawSession = rawSessions.get(id);
+      inetsoft.sree.internal.cluster.EntryEvent<String, org.springframework.session.MapSession>
+         event = new inetsoft.sree.internal.cluster.EntryEvent<>(
+            IgniteSessionRepository.DEFAULT_SESSION_MAP_NAME, id, rawSession, null);
+
+      AtomicInteger calls = new AtomicInteger();
+      AtomicReference<Throwable> otherFailure = new AtomicReference<>();
+      AtomicBoolean otherFinished = new AtomicBoolean();
+
+      doAnswer(invocation -> {
+         if(calls.incrementAndGet() == 1) {
+            Thread other = new Thread(() -> {
+               try {
+                  repository.deleteById(id);
+                  otherFinished.set(true);
+               }
+               catch(Throwable e) {
+                  otherFailure.set(e);
+               }
+            });
+            other.start();
+            other.join(TimeUnit.SECONDS.toMillis(10));
+         }
+
+         return null;
+      }).when(authenticationService).logout(any(), anyString(), anyString());
+
+      repository.entryExpired(event);
+
+      assertNull(otherFailure.get(), "concurrent deleteById() should not fail");
+      assertTrue(otherFinished.get(), "concurrent deleteById() should return without blocking");
+      verify(authenticationService, times(1))
+         .logout(same(principal), eq("127.0.0.1"), eq(SessionRecord.LOGOFF_SESSION_TIMEOUT));
+   }
+
+   /**
+    * Bug #77300: the per-session claim is released once logout() returns, so a later caller for
+    * the same session is not skipped by the claim -- it is stopped by isActiveUser(), which the
+    * first logout (synchronously deregistering the principal) has turned false.
+    */
+   @Test
+   void sequentialTimeoutLogouts_forOneSession_secondGatedByIsActiveUser() {
+      SRPrincipal principal = mockPrincipal("admin", "127.0.0.1");
+      AtomicBoolean active = new AtomicBoolean(true);
+      when(securityEngine.isActiveUser(principal)).thenAnswer(invocation -> active.get());
+      doAnswer(invocation -> {
+         active.set(false);
+         return null;
+      }).when(authenticationService).logout(any(), anyString(), anyString());
+
+      IgniteSessionRepository.IgniteSession session = repository.createSession();
+      session.setAttribute(RepletRepository.PRINCIPAL_COOKIE, principal);
+      repository.save(session);
+      String id = session.getId();
+
+      @SuppressWarnings("unchecked")
+      Cache<String, org.springframework.session.MapSession> rawSessions =
+         cluster.getCache(IgniteSessionRepository.DEFAULT_SESSION_MAP_NAME, true, null);
+      org.springframework.session.MapSession rawSession = rawSessions.get(id);
+      inetsoft.sree.internal.cluster.EntryEvent<String, org.springframework.session.MapSession>
+         event = new inetsoft.sree.internal.cluster.EntryEvent<>(
+            IgniteSessionRepository.DEFAULT_SESSION_MAP_NAME, id, rawSession, null);
+
+      repository.deleteById(id);
+      repository.entryExpired(event);
+
+      verify(securityEngine, times(2)).isActiveUser(principal);
+      verify(authenticationService, times(1))
          .logout(same(principal), eq("127.0.0.1"), eq(SessionRecord.LOGOFF_SESSION_TIMEOUT));
    }
 

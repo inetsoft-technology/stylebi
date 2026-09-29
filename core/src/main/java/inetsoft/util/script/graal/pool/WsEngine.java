@@ -22,6 +22,7 @@ import inetsoft.util.script.graal.ScriptTimeoutGuard;
 import org.graalvm.polyglot.Context;
 import org.graalvm.polyglot.Engine;
 import org.graalvm.polyglot.HostAccess;
+import org.graalvm.polyglot.Value;
 
 import java.time.Duration;
 import java.util.Map;
@@ -127,6 +128,14 @@ final class WsEngine extends GraalJavaScriptEngine {
     */
    @Override
    protected void initScope(Map<String, Object> vars) {
+      // the intrinsic Date of the fresh context, before any library or user script ran:
+      // a lens-owned Date var is rebuilt with it (Testing #77123, B1 residual)
+      Value date = context.getBindings("js").getMember("Date");
+      // getTime.call bound once: calling it runs the builtin with the value as this, which
+      // reads the Date internal slot (a TypeError for any other object) and no script code
+      Value getTime = date.getMember("prototype").getMember("getTime");
+      dateGetTime = getTime.getMember("call").invokeMember("bind", getTime);
+      dateConstructor = date;
       super.initScope(WsValueCopier.markForeign(vars, context));
    }
 
@@ -138,6 +147,24 @@ final class WsEngine extends GraalJavaScriptEngine {
       super.put(name, WsValueCopier.markForeign(value, context));
    }
 
+   /**
+    * @return the Date constructor of this engine's context as created, before any script ran.
+    */
+   Value dateConstructor() {
+      return dateConstructor;
+   }
+
+   /**
+    * @return the intrinsic {@code Date.prototype.getTime}, bound as {@code getTime.call}:
+    *         {@code dateGetTime().execute(v)} gives the time value of the Date {@code v} and
+    *         throws a TypeError for anything else, running no script code.
+    */
+   Value dateGetTime() {
+      return dateGetTime;
+   }
+
+   private volatile Value dateConstructor;
+   private volatile Value dateGetTime;
    private final InitSnapshot snapshot;
    private final Map<Object, Integer> errorCounts;
    private volatile Slot slot;

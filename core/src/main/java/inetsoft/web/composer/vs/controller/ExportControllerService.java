@@ -85,15 +85,25 @@ public class ExportControllerService {
       // Bug #77217: set it before the refresh so that export/check reports the export as in
       // progress (keeping the viewer's exporting tip up and blocking a second export) while
       // the viewsheet is still being refreshed.
-      rvs.setProperty("__EXPORTING__", "true");
+      // Bug #77227: claim the export atomically, before the refresh, and reject a concurrent
+      // export (or print) of the same runtime viewsheet instead of letting both reset and
+      // refresh the shared sandbox. This is outside the try so a rejected request neither
+      // clears the running export's flag nor closes its viewsheet.
+      VSExportService.beginExport(rvs, principal);
 
       try {
          CommandDispatcher.withDummyDispatcher(principal, d -> {
             ChangedAssemblyList clist = this.coreLifecycleService.createList(false, d, rvs, null);
             // do not reset the form table.
             ViewsheetSandbox.exportRefresh.set(true);
-            coreLifecycleService.refreshViewsheet(rvs, rvs.getID(), null, d, false, true, true, clist);
-            ViewsheetSandbox.exportRefresh.set(false);
+
+            try {
+               coreLifecycleService.refreshViewsheet(rvs, rvs.getID(), null, d, false, true, true, clist);
+            }
+            finally {
+               ViewsheetSandbox.exportRefresh.set(false);
+            }
+
             return null;
          });
 
@@ -144,7 +154,7 @@ public class ExportControllerService {
          throw ex;
       }
       finally {
-         rvs.setProperty("__EXPORTING__", null);
+         rvs.endExport();
 
          if(!previewPrintLayout && (matchesAssetIdFormat ||
             "true".equals(rvs.getProperty("_CLOSE_AFTER_EXPORT_"))))

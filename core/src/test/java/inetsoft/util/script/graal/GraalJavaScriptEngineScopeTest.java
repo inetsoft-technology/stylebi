@@ -242,7 +242,7 @@ class GraalJavaScriptEngineScopeTest {
    @Test void trailingUnrunControlFlowKeepsEarlierCompletionValue() throws Exception {
       String cmd = "if(price > 500) { [237,211,237] }\nif(row > 1){ if(value < 0) { [14,179,250] } }";
       String code = compiledSource(cmd);
-      assertTrue(code.contains("eval("),
+      assertTrue(code.startsWith(PIECES) && !code.contains("eval("),
                  "multi-statement body ending in control-flow must use the completion wrapper");
 
       MapScope scope = new MapScope();
@@ -272,7 +272,7 @@ class GraalJavaScriptEngineScopeTest {
       // var and a function declared in earlier pieces.
       String cmd = "var base = 3;\nfunction dbl(x){ return x * 2 }\nif(base > 0){ dbl(base) }";
       String code = compiledSource(cmd);
-      assertTrue(code.contains("eval("), "body ending in control-flow must use the completion wrapper");
+      assertTrue(code.startsWith(PIECES) && !code.contains("eval("), "body ending in control-flow must use the completion wrapper");
 
       MapScope scope = new MapScope();
       assertEquals(6.0, ((Number) engine.exec(engine.compile(cmd), scope, scope)).doubleValue());
@@ -284,7 +284,7 @@ class GraalJavaScriptEngineScopeTest {
    @Test void newlineSeparatedValueThenUnrunControlFlowKeepsValue() throws Exception {
       String cmd = "[237,211,237]\nif(row > 1){ [14,179,250] }";
       String code = compiledSource(cmd);
-      assertTrue(code.contains("eval("), "value-then-control-flow must use the completion wrapper");
+      assertTrue(code.startsWith(PIECES) && !code.contains("eval("), "value-then-control-flow must use the completion wrapper");
 
       MapScope scope = new MapScope();
       scope.putMember("row", 1.0);
@@ -298,7 +298,7 @@ class GraalJavaScriptEngineScopeTest {
    @Test void standaloneWhileAfterBlockDoesNotClobber() throws Exception {
       String cmd = "if(price > 500){ [237,211,237] }\nwhile(false){ }";
       String code = compiledSource(cmd);
-      assertTrue(code.contains("eval("), "trailing standalone while must use the completion wrapper");
+      assertTrue(code.startsWith(PIECES) && !code.contains("eval("), "trailing standalone while must use the completion wrapper");
 
       MapScope scope = new MapScope();
       scope.putMember("price", 2850.0);
@@ -345,7 +345,7 @@ class GraalJavaScriptEngineScopeTest {
    @Test void labeledTrailingControlFlowKeepsEarlierValue() throws Exception {
       String cmd = "[7,7,7]\nouter: if(false){ [1,1,1] }";
       String code = compiledSource(cmd);
-      assertTrue(code.contains("eval("), "labeled trailing control-flow must use the completion wrapper");
+      assertTrue(code.startsWith(PIECES) && !code.contains("eval("), "labeled trailing control-flow must use the completion wrapper");
 
       MapScope scope = new MapScope();
       assertArrayEquals(new Object[] { 7.0, 7.0, 7.0 },
@@ -361,8 +361,23 @@ class GraalJavaScriptEngineScopeTest {
          (Object[]) engine.exec(engine.compile("cond ? [1] : [2]"), scope, scope));
    }
 
+   // Bug #77249: a this-free multi-piece body compiles to parsed-once pieces
+   private static final String PIECES = "PIECES:";
+
    private String compiledSource(String cmd) throws Exception {
-      return ((org.graalvm.polyglot.Source) engine.compile(cmd)).getCharacters().toString();
+      Object script = engine.compile(cmd);
+
+      if(script instanceof GraalJavaScriptEngine.PieceScript pieces) {
+         StringBuilder sb = new StringBuilder(PIECES);
+
+         for(org.graalvm.polyglot.Source piece : pieces.pieces()) {
+            sb.append(piece.getCharacters()).append(';');
+         }
+
+         return sb.toString();
+      }
+
+      return ((org.graalvm.polyglot.Source) script).getCharacters().toString();
    }
 
    private static ScriptScope makeParam(String k, String v) {

@@ -119,7 +119,10 @@ public final class LegacyJavaShim {
    /**
     * Name of the internal helper the {@code .length()} rewrite emits; see
     * {@link #installStringCompat} and
-    * {@code GraalJavaScriptEngine.rewriteJavaLengthCalls}.
+    * {@code GraalJavaScriptEngine.rewriteJavaLengthCalls}. Called as
+    * {@code X.__jlen('length')} — a call-expression shape where {@code X} is
+    * the untouched, still-attached receiver (bug #77184; see
+    * {@code rewriteJavaLengthCalls}'s Javadoc for the full rationale).
     */
    public static final String LENGTH_HELPER = "__jlen";
 
@@ -187,20 +190,30 @@ public final class LegacyJavaShim {
          // .length() cannot be restored as a String.prototype method: every string
          // has an own, non-configurable `length` property that shadows the
          // prototype, and `s.length` must keep returning the number. The rewrite
-         // emits `s.length.__jlen()` instead, which works for all three receiver
-         // kinds a script can hold: a guest string (`length` is a number), a host
-         // CharSequence such as StringBuilder (`length` is the bound Java method),
-         // and an array (`length` is a number).
+         // instead emits a call-expression-shaped `X.__jlen('length')` (bug
+         // #77184): X is never relocated or re-evaluated, so `this` inside the
+         // helper is always the original receiver. `Object.prototype` is the
+         // installation target — not the narrower String/Number/Function/Array
+         // prototypes STRING_COMPAT_JS uses below — because rewriteJavaLengthCalls
+         // is purely lexical and cannot know what X is; a plain user JS object
+         // literal such as `{ length: function(){...} }` (the #77184 repro itself)
+         // has only Object.prototype in its chain, so a narrower install would
+         // miss it. The helper re-derives `X.length` itself and calls it with X as
+         // receiver only when it is a function (the host CharSequence case, e.g.
+         // StringBuilder, where `length` is a bound Java method), otherwise
+         // returns it as-is (the guest string/array/plain-number case, where
+         // `length` is already the count).
          context.eval("js",
             "(function(){" +
-            "  var dn = function(proto, name, fn){" +
-            "     if(!(name in proto)) {" +
-            "        Object.defineProperty(proto, name," +
-            "           {value: fn, writable: true, configurable: true, enumerable: false});" +
-            "     }" +
-            "  };" +
-            "  dn(Number.prototype, '" + LENGTH_HELPER + "', function(){ return this.valueOf(); });" +
-            "  dn(Function.prototype, '" + LENGTH_HELPER + "', function(){ return this(); });" +
+            "  if(!('" + LENGTH_HELPER + "' in Object.prototype)) {" +
+            "     Object.defineProperty(Object.prototype, '" + LENGTH_HELPER + "', {" +
+            "        value: function(name){" +
+            "           var v = this[name];" +
+            "           return typeof v === 'function' ? v.call(this) : v;" +
+            "        }," +
+            "        writable: true, configurable: true, enumerable: false" +
+            "     });" +
+            "  }" +
             "})();");
 
          if(!isEnabled()) {

@@ -956,4 +956,52 @@ describe("UsersSettingsPageComponent — setOrganization(): save message", () =>
       expect(dialogSpy.open).toHaveBeenCalledTimes(2);
       expect(dialogSpy.open.mock.calls[1][1].data.content).toBe("Cannot delete yourself.");
    });
+
+   // 🔁 Regression-sensitive (Bug #77118): the logout must wait for the message dialog to be
+   // closed, otherwise the page navigates away before the user can read the message
+   it("should log out only after the message dialog is closed when the current organization changes", async () => {
+      respondWith("The folder for the organization is locked.");
+      const openSpy = vi.spyOn(window, "open").mockReturnValue(null);
+      const { comp, dialogSpy } = await renderComponent({
+         loginUserOrgName: "CurrentOrg",
+         loginUserOrgID: "currentorg",
+      });
+
+      const messageClosed = new Subject<unknown>();
+      dialogSpy.open.mockReset();
+      dialogSpy.open
+         .mockReturnValueOnce({ afterClosed: () => of(true) })
+         .mockReturnValueOnce({ afterClosed: () => messageClosed });
+
+      const model: EditOrganizationPaneModel = { ...makeOrgModel("CurrentOrg", "currentorg"), id: "renamedorg" };
+      comp.setOrganization(model);
+
+      await vi.waitFor(() => expect(dialogSpy.open).toHaveBeenCalledTimes(2));
+      expect(dialogSpy.open.mock.calls[1][1].data.content).toBe("The folder for the organization is locked.");
+      expect(openSpy).not.toHaveBeenCalled();
+
+      messageClosed.next(undefined);
+      messageClosed.complete();
+
+      expect(openSpy).toHaveBeenCalledTimes(1);
+      expect(openSpy).toHaveBeenCalledWith("../logout?fromEm=true", "_self");
+   });
+
+   // Bug #77118: with no message there is nothing to wait for, so the logout stays immediate
+   it("should log out immediately when the current organization changes and the save returns no message", async () => {
+      respondWith("");
+      const openSpy = vi.spyOn(window, "open").mockReturnValue(null);
+      const { comp, dialogSpy } = await renderComponent({
+         dialogClosesWith: true,
+         loginUserOrgName: "CurrentOrg",
+         loginUserOrgID: "currentorg",
+      });
+
+      const model: EditOrganizationPaneModel = { ...makeOrgModel("CurrentOrg", "currentorg"), id: "renamedorg" };
+      dialogSpy.open.mockClear();
+      comp.setOrganization(model);
+
+      await vi.waitFor(() => expect(openSpy).toHaveBeenCalledWith("../logout?fromEm=true", "_self"));
+      expect(dialogSpy.open).toHaveBeenCalledTimes(1);
+   });
 });

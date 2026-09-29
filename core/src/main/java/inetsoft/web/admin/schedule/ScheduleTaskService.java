@@ -76,6 +76,7 @@ public class ScheduleTaskService {
       this.securityProvider = securityProvider;
       this.scheduleTaskFolderService = scheduleTaskFolderService;
       this.securityEngine = securityEngine;
+      this.identityChecker = new ScheduleTaskIdentityChecker(securityProvider);
    }
 
    public ScheduleTaskDialogModel getNewTaskDialogModel(PortalNewTaskRequest model,
@@ -100,6 +101,7 @@ public class ScheduleTaskService {
                                                         String timeZoneId, String orgId)
       throws Exception
    {
+      checkOrganizationAccess(orgId, principal);
       String originalOrg = OrganizationContextHolder.getCurrentOrgId();
 
       if(!Tool.isEmptyString(orgId)) {
@@ -505,6 +507,7 @@ public class ScheduleTaskService {
       throws Exception
    {
       String orgId = model.orgId();
+      checkOrganizationAccess(orgId, principal);
       String originalOrg = OrganizationContextHolder.getCurrentOrgId();
 
       if(!Tool.isEmptyString(orgId)) {
@@ -522,6 +525,10 @@ public class ScheduleTaskService {
       if(internalTask) {
          task = scheduleManager.getScheduleTask(oldTaskName) == null ? null :
             scheduleManager.getScheduleTask(oldTaskName).clone();
+
+         if(task != null) {
+            checkTaskIdentityPermission(model.options(), task, principal);
+         }
       }
       else {
          if("".equals(taskName)) {
@@ -545,6 +552,7 @@ public class ScheduleTaskService {
                "Unauthorized access to resource \"%s\" by %s", oldTaskName, principal));
          }
 
+         checkTaskIdentityPermission(model.options(), existingTask, principal);
          taskName = scheduleService.updateTaskName(oldTaskName, taskName, owner, principal);
          task = scheduleManager.getScheduleTask(taskName) == null ? null :
             scheduleManager.getScheduleTask(taskName).clone();
@@ -1117,7 +1125,11 @@ public class ScheduleTaskService {
       }
 
       IdentityID oldIdentityID = oldIdentity != null ? oldIdentity.getIdentityID() : null;
-      task.setOwner(getIdentityId(model.owner(), principal));
+      // an omitted owner means no change, never clear the owner of the task
+      if(!Tool.isEmptyString(model.owner())) {
+         task.setOwner(getIdentityId(model.owner(), principal));
+      }
+
       task.setLocale(getTaskLocale(model.locale()));
       task.setDescription(model.description());
       task.setTimeZone(model.timeZone());
@@ -1524,6 +1536,78 @@ public class ScheduleTaskService {
          user, ResourceType.SCHEDULE_TIME_RANGE, range.getName(), ResourceAction.ACCESS);
    }
 
+   /**
+    * Rejects a client-supplied organization id that is not the caller's own organization unless
+    * the caller is a site administrator, so the request cannot switch into another organization.
+    */
+   private void checkOrganizationAccess(String orgId, Principal principal)
+      throws SecurityException
+   {
+      if(!Tool.isEmptyString(orgId) && !OrganizationManager.getInstance().isSiteAdmin(principal) &&
+         !(principal instanceof XPrincipal xp && orgId.equalsIgnoreCase(xp.getOrgId())))
+      {
+         throw new SecurityException(String.format(
+            "Unauthorized access to organization \"%s\" by %s", orgId, principal));
+      }
+   }
+
+   /**
+    * Verifies that the caller may assign the owner and run-as identity requested in the task
+    * options. An identity that is unchanged from the saved task, the caller itself, or (for the
+    * run-as identity) the task owner is always allowed; any other identity requires admin
+    * permission on that user or group. Bug #77281, a caller that isn't a site admin may only
+    * assign an identity the editor offers (ScheduleTaskIdentityChecker), the admin permission
+    * alone is granted on a user that doesn't exist.
+    */
+   private void checkTaskIdentityPermission(TaskOptionsPaneModel options, ScheduleTask task,
+                                            Principal principal)
+      throws SecurityException
+   {
+      if(options == null) {
+         return;
+      }
+
+      IdentityID caller = IdentityID.getIdentityIDFromKey(principal.getName());
+      IdentityID owner = Tool.isEmptyString(options.owner()) ?
+         null : getIdentityId(options.owner(), principal);
+
+      if(owner != null && !owner.equals(task.getOwner()) && !owner.equals(caller) &&
+         (!securityProvider.checkPermission(principal, ResourceType.SECURITY_USER,
+                                            owner.convertToKey(), ResourceAction.ADMIN) ||
+          !identityChecker.isOwnerAllowed(owner, principal)))
+      {
+         throw new SecurityException(String.format(
+            "Unauthorized assignment of task owner \"%s\" by %s", owner, principal));
+      }
+
+      if(Tool.isEmptyString(options.idName())) {
+         return;
+      }
+
+      IdentityID runAs = getIdentityId(options.idName(), principal);
+      int type = options.idType();
+      Identity oldIdentity = task.getIdentity();
+      boolean unchanged = oldIdentity != null && oldIdentity.getType() == type &&
+         runAs.equals(oldIdentity.getIdentityID());
+      IdentityID taskOwner = owner != null ? owner : task.getOwner();
+      boolean selfOrOwner = type == Identity.USER &&
+         (runAs.equals(caller) || runAs.equals(taskOwner));
+
+      if(!unchanged && !selfOrOwner) {
+         ResourceType resourceType = type == Identity.GROUP ? ResourceType.SECURITY_GROUP :
+            type == Identity.ROLE ? ResourceType.SECURITY_ROLE : ResourceType.SECURITY_USER;
+
+         if(!securityProvider.checkPermission(principal, resourceType, runAs.convertToKey(),
+                                              ResourceAction.ADMIN) ||
+            !identityChecker.isExecuteAsAllowed(runAs, type, taskOwner, principal))
+         {
+            throw new SecurityException(String.format(
+               "Unauthorized assignment of task run-as identity \"%s\" by %s", runAs,
+               principal));
+         }
+      }
+   }
+
    private IdentityID getIdentityId(String name, Principal principal) {
       if(name == null) {
          return null;
@@ -1540,6 +1624,7 @@ public class ScheduleTaskService {
    private final SecurityProvider securityProvider;
    private final ScheduleTaskFolderService scheduleTaskFolderService;
    private final SecurityEngine securityEngine;
+   private final ScheduleTaskIdentityChecker identityChecker;
 
    private static final Logger LOG =
       LoggerFactory.getLogger(ScheduleTaskService.class);

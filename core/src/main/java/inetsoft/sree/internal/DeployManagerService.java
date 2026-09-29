@@ -47,6 +47,7 @@ import inetsoft.util.audit.Audit;
 import inetsoft.util.dep.*;
 import inetsoft.web.admin.deploy.*;
 import inetsoft.web.admin.schedule.ScheduleSecretIdChecker;
+import inetsoft.web.admin.schedule.ScheduleTaskIdentityChecker;
 import inetsoft.web.portal.data.SecretIdAuthorizer;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -1777,6 +1778,21 @@ public class DeployManagerService {
                return false;
             }
 
+            // Bug #77281, the owner and execute-as identity of the task xml are not trusted
+            if(asset instanceof ScheduleTaskAsset scheduleTaskAsset && principal != null &&
+               !new ScheduleTaskIdentityChecker(securityEngine).isUnrestricted(principal))
+            {
+               if(!isImportedScheduleTaskAllowed(file, principal)) {
+                  String msg = catalog.getString("em.import.file.failed.noPermission",
+                     asset.getType() + " " + path);
+                  failedList.add(msg);
+                  LOG.warn(msg);
+                  return false;
+               }
+
+               scheduleTaskAsset.setRestrictedImporter(principal);
+            }
+
             if(ViewsheetAsset.VIEWSHEET.equals(type) && path.contains("/")) {
                String folder = path.substring(0, path.lastIndexOf("/"));
                setFolderProperty(folder, asset.getUser(), jarInfo);
@@ -2025,6 +2041,62 @@ public class DeployManagerService {
 
       ScheduleTask existing = ScheduleManager.getScheduleManager().getScheduleTask(task.getTaskId());
       return new ScheduleSecretIdChecker(securityEngine).isAllowed(task, existing, principal);
+   }
+
+   /**
+    * Bug #77281, determines if an importer that is not a site admin may import a schedule
+    * task. The task is parsed the same way ScheduleTaskAsset.parseContent stores it for such
+    * an importer, with the owner and execute-as identity moved to the importer's organization,
+    * and it gets the same checks as the schedule task import (ImportTaskController): the
+    * scheduler permission regardless of the removable flag, no internal task or internal task
+    * content, and an owner and execute-as identity the task editor lets the importer pick.
+    */
+   boolean isImportedScheduleTaskAllowed(File file, Principal principal) throws Exception {
+      Element taskElem;
+
+      try(InputStream input = new FileInputStream(file)) {
+         Document doc = input.available() > 0 ? Tool.parseXML(input) : null;
+         taskElem = doc == null ? null :
+            Tool.getChildNodeByTagName(doc.getDocumentElement(), "Task");
+      }
+
+      if(taskElem == null) {
+         return true;
+      }
+
+      if(!securityEngine.checkPermission(principal, ResourceType.SCHEDULER, "*",
+                                         ResourceAction.ACCESS))
+      {
+         LOG.warn("Schedule task is not imported, the user doesn't have the scheduler permission");
+         return false;
+      }
+
+      ScheduleTaskIdentityChecker checker = new ScheduleTaskIdentityChecker(securityEngine);
+      ScheduleTask task = checker.parseImportedTask(taskElem, principal);
+      String taskId = task.getTaskId();
+
+      if(task.getType() == ScheduleTask.Type.INTERNAL_TASK ||
+         ScheduleManager.isInternalTask(taskId) || ScheduleManager.isInternalTask(task.getName()))
+      {
+         LOG.warn("Internal task {} is not imported, it's not allowed for the user", taskId);
+         return false;
+      }
+
+      if(!checker.isAllowed(task, taskId, principal)) {
+         return false;
+      }
+
+      for(String internalTask : ScheduleTaskIdentityChecker.getInternalTaskContents(task)) {
+         if(!securityEngine.checkPermission(principal, ResourceType.SCHEDULE_TASK, internalTask,
+                                            ResourceAction.WRITE))
+         {
+            LOG.warn("Task {} is not imported, it contains the actions or conditions of " +
+                     "the internal task {}", taskId, internalTask);
+            return false;
+         }
+      }
+
+      return true;
    }
 
    private static String getIdleSrtFileNameInSpace(String folder, String fname) {
