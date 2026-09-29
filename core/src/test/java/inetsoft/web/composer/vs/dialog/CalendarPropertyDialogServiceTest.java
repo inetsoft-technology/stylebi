@@ -25,6 +25,8 @@ import inetsoft.uql.viewsheet.internal.CalendarVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.TabVSAssemblyInfo;
 import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
 import inetsoft.web.composer.model.vs.CalendarPropertyDialogModel;
+import inetsoft.web.composer.model.vs.DynamicValueModel;
+import inetsoft.web.composer.model.vs.VSAssemblyScriptPaneModel;
 import inetsoft.web.composer.vs.objects.controller.VSObjectPropertyService;
 import inetsoft.web.composer.vs.objects.controller.VSTrapService;
 import inetsoft.web.viewsheet.service.*;
@@ -170,11 +172,7 @@ class CalendarPropertyDialogServiceTest {
       when(viewsheet.getAssembly(anyString())).thenReturn(calendarAssembly);
       when(calendarAssembly.getVSAssemblyInfo()).thenReturn(info);
 
-      CalendarPropertyDialogModel model = new CalendarPropertyDialogModel();
-      model.getCalendarAdvancedPaneModel().setMin(
-         new inetsoft.web.composer.model.vs.DynamicValueModel("2024-01-10"));
-      model.getCalendarAdvancedPaneModel().setMax(
-         new inetsoft.web.composer.model.vs.DynamicValueModel("2024-01-01"));
+      CalendarPropertyDialogModel model = minMaxModel("2024-01-10", "2024-01-01");
 
       Exception thrown = org.junit.jupiter.api.Assertions.assertThrows(
          IllegalArgumentException.class,
@@ -195,11 +193,7 @@ class CalendarPropertyDialogServiceTest {
       when(viewsheet.getAssembly(anyString())).thenReturn(calendarAssembly);
       when(calendarAssembly.getVSAssemblyInfo()).thenReturn(info);
 
-      CalendarPropertyDialogModel model = new CalendarPropertyDialogModel();
-      model.getCalendarAdvancedPaneModel().setMin(
-         new inetsoft.web.composer.model.vs.DynamicValueModel("2024-01-01"));
-      model.getCalendarAdvancedPaneModel().setMax(
-         new inetsoft.web.composer.model.vs.DynamicValueModel("2024-01-10"));
+      CalendarPropertyDialogModel model = minMaxModel("2024-01-01", "2024-01-10");
 
       service.setCalendarPropertyModel(
          "Viewsheet1", "Calendar1", model, "", null, commandDispatcher);
@@ -208,6 +202,21 @@ class CalendarPropertyDialogServiceTest {
          any(RuntimeViewsheet.class), any(CalendarVSAssemblyInfo.class), any(String.class),
          any(String.class), any(String.class), nullable(Principal.class),
          any(CommandDispatcher.class), eq(true), nullable(Integer.class));
+   }
+
+   /**
+    * Builds a model like the one the dialog sends: the script pane has no lazy default in
+    * the model and the general pane carries the assembly name.
+    */
+   private CalendarPropertyDialogModel minMaxModel(String min, String max) {
+      CalendarPropertyDialogModel model = new CalendarPropertyDialogModel();
+      model.setVsAssemblyScriptPaneModel(
+         VSAssemblyScriptPaneModel.builder().scriptEnabled(false).expression("").build());
+      model.getCalendarGeneralPaneModel().getGeneralPropPaneModel()
+         .getBasicGeneralPaneModel().setName("Calendar1");
+      model.getCalendarAdvancedPaneModel().setMin(new DynamicValueModel(min));
+      model.getCalendarAdvancedPaneModel().setMax(new DynamicValueModel(max));
+      return model;
    }
 
    @Mock VSObjectPropertyService vsObjectPropertyService;
