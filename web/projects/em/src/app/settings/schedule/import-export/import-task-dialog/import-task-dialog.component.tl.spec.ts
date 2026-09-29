@@ -33,7 +33,8 @@
  *     removing the `as any` casts previously needed to assign non-empty fixture arrays.
  *
  * KEY contracts:
- *   - finish() collects selection.selected values and sends their `.task` strings in POST body.
+ *   - finish() collects selection.selected values and sends their `.taskId` (parsed task id, falling
+ *     back to `.task` when absent) in the POST body (Bug #77283).
  *   - model setter always calls selection.clear() then selection.select(...tasks) (all pre-selected).
  *   - loading=true  → uploadForm.get("file").disabled === true.
  *   - loading=false → uploadForm.get("file").disabled === false.
@@ -151,6 +152,33 @@ describe("ImportTaskDialogComponent — finish(): POST body contains only select
       expect(capturedBody).toContain("Task1");
       expect(capturedBody).toContain("Task3");
       expect(capturedBody).not.toContain("Task2");
+   });
+
+   // 🔁 Regression-sensitive (Bug #77283): the backend matches the selection against the parsed
+   // task id (owner-prefixed for normal tasks), so the dialog must send taskId, not the display name.
+   it("should POST the parsed task ids of selected tasks rather than their display names", async () => {
+      let capturedBody: string[] | null = null;
+      server.use(
+         http.post(IMPORT_URL, async ({ request }) => {
+            capturedBody = await request.json() as string[];
+            return HttpResponse.json({ failedTasks: [], failed: false } as ImportTaskResponse);
+         })
+      );
+
+      const { comp } = await renderComp({ dialogClosesWith: undefined });
+      comp.model = {
+         tasks: [
+            { task: "Backdoor", dependency: "", taskId: "admin~;~orga:Backdoor" },
+            { task: "Nightly", dependency: "", taskId: "alice~;~orga:Nightly" },
+            { task: "__asset file backup__", dependency: "", taskId: "__asset file backup__" },
+         ]
+      };
+
+      comp.selection.deselect(comp.model.tasks[1]);
+      comp.finish();
+
+      await waitFor(() => expect(capturedBody).not.toBeNull());
+      expect(capturedBody).toEqual(["admin~;~orga:Backdoor", "__asset file backup__"]);
    });
 
    // Risk Point/Contract: sending an empty selection posts an empty array — backend should

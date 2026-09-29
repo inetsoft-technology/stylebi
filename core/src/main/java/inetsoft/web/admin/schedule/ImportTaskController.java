@@ -84,6 +84,8 @@ public class ImportTaskController {
 
          TaskDependencyModel model = TaskDependencyModel.builder()
                  .task(name)
+                 // Bug #77283, the import matches the selection against the parsed task id
+                 .taskId(task.getTaskId())
                  .dependency(getDependency(task))
                  .build();
          tasklistModel.add(model);
