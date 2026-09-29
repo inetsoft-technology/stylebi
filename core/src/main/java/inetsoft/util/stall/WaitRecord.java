@@ -22,6 +22,7 @@ import org.slf4j.LoggerFactory;
 
 import java.util.OptionalLong;
 import java.util.concurrent.TimeUnit;
+import java.util.function.BooleanSupplier;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
@@ -38,8 +39,10 @@ import java.util.function.Supplier;
  * <p>In {@code fail} mode a stalled wait fails at once only if the policy fails on the timeout
  * alone ({@code stall.watchdog.failOnTimeout}). Otherwise it is reported like an
  * {@code alert}-mode wait and goes on, and fails once the watchdog has confirmed that it can
- * never progress: it is a member of a wait-for cycle, or waits for one that no timeout
- * releases, or for a JVM deadlock (Feature #77123, see {@link StallWatchdog}).
+ * never progress: it is the victim of a wait-for cycle, or it waits for a cycle that no timeout
+ * releases, or for a JVM deadlock (Feature #77123, see {@link StallWatchdog}). The waiter
+ * checks the confirmation against the current wait-for graph right before it fails, and the
+ * confirmation is revoked if the wait is no longer stuck.
  */
 public final class WaitRecord implements AutoCloseable {
    private WaitRecord() {
@@ -130,6 +133,11 @@ public final class WaitRecord implements AutoCloseable {
       long now = registry.nanoTime();
       sample(now);
 
+      if(now - progressNanos >= limitNanos) {
+         // the cycle a scan confirmed may have dissolved since (Feature #77123)
+         revalidateCycle();
+      }
+
       String reason;
       String path;
       Throwable dumpError = null;
@@ -211,7 +219,8 @@ public final class WaitRecord implements AutoCloseable {
          }
          else {
             // the message names the dump's file name only, the log gets its full path
-            LOG.error("{}, thread dump: {}", failure.getMessage(), path == null ? "none" : path);
+            LOG.error("{}{}, thread dump: {}", failOnTimeout ? "" : "Lock cycle confirmed. ",
+                      failure.getMessage(), path == null ? "none" : path);
          }
 
          throw failure;
@@ -374,13 +383,62 @@ public final class WaitRecord implements AutoCloseable {
 
    /**
     * Confirm that the stalled wait can never progress, so its waiter fails it on its next
-    * check (Feature #77123). Called by the watchdog only, for a stalled wait. Progress ends the
-    * confirmation with the episode.
+    * check (Feature #77123), if {@code stillStuck} still says so then. Called by the watchdog
+    * only, for a stalled wait. Progress ends the confirmation with the episode, and the
+    * watchdog revokes it ({@link #revokeCycle()}) once it no longer finds the wait stuck.
+    *
+    * @param stillStuck checks the current wait-for graph again, on the waiting thread.
     */
-   synchronized void confirmCycle(long now) {
-      if(!cycleConfirmed && now - progressNanos >= limitNanos) {
-         cycleConfirmedNanos = now;
-         cycleConfirmed = true;
+   synchronized void confirmCycle(long now, BooleanSupplier stillStuck) {
+      if(now - progressNanos >= limitNanos) {
+         this.stillStuck = stillStuck;
+
+         if(!cycleConfirmed) {
+            cycleConfirmedNanos = now;
+            cycleConfirmed = true;
+         }
+      }
+   }
+
+   /**
+    * Revoke the confirmation of the current stall episode: the cycle it was confirmed for
+    * dissolved, or the wait is no longer the one its cycle fails (Feature #77123). A failed
+    * wait stays failed.
+    */
+   synchronized void revokeCycle() {
+      if(!failed) {
+         cycleConfirmed = false;
+         cycleConfirmedNanos = 0;
+         stillStuck = null;
+      }
+   }
+
+   /**
+    * Check again, right before a confirmed wait fails, that it still can never progress, and
+    * revoke the confirmation if it can. Called on the waiting thread, outside of this record's
+    * monitor: the check walks the wait-for graph (see StallWatchdog.isStillStuck).
+    */
+   private void revalidateCycle() {
+      BooleanSupplier check = stillStuck;
+
+      if(!cycleConfirmed || failed || failOnTimeout || reportOnly != null ||
+         mode != StallPolicy.Mode.FAIL)
+      {
+         return;
+      }
+
+      boolean stuck;
+
+      try {
+         stuck = check != null && check.getAsBoolean();
+      }
+      catch(Throwable ex) {
+         // never fail the waiter on a failed check: a later scan confirms it again
+         stuck = false;
+      }
+
+      if(!stuck) {
+         revokeCycle();
       }
    }
 
@@ -467,6 +525,7 @@ public final class WaitRecord implements AutoCloseable {
       {
          cycleConfirmed = false;
          cycleConfirmedNanos = 0;
+         stillStuck = null;
          tripped = false;
          dumpPath = null;
          watchdogSeenScan = 0;
@@ -509,4 +568,6 @@ public final class WaitRecord implements AutoCloseable {
    // the watchdog confirmed this stall episode can never progress (Feature #77123)
    private volatile boolean cycleConfirmed;
    private volatile long cycleConfirmedNanos;
+   // checks the confirmation again right before the wait fails, see revalidateCycle()
+   private volatile BooleanSupplier stillStuck;
 }

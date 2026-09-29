@@ -30,10 +30,10 @@ import java.util.function.Function;
  * The settings of the lock-stall watchdog (bug #76967). A wait that sees no progress for
  * {@code stall.watchdog.noProgressMillis} is a stall. In {@code fail} mode, the default
  * (Feature #77123), a stall throws a {@link LockStallException} once the watchdog confirms the
- * wait can never progress: it is a member of a wait-for cycle, or it waits for a cycle that no
- * member's failure releases, or for a JVM deadlock. Until then, and for good if it is only a
- * long wait (e.g. for a lock owner in a slow query), it is reported like an {@code alert}-mode
- * stall and goes on. {@code stall.watchdog.failOnTimeout=true} fails a {@code fail}-mode stall
+ * wait can never progress: it is the one victim the watchdog picks in a wait-for cycle, or it
+ * waits for a cycle that its victim's failure did not release, or for a JVM deadlock. Until
+ * then, and for good if it is only a long wait (e.g. for a lock owner in a slow query), it is
+ * reported like an {@code alert}-mode stall and goes on. {@code stall.watchdog.failOnTimeout=true} fails a {@code fail}-mode stall
  * on the timeout alone, as {@code fail} did before Feature #77123. In {@code alert} mode a
  * stall only dumps the threads and logs a warning, and {@code off} registers no waits at all.
  *

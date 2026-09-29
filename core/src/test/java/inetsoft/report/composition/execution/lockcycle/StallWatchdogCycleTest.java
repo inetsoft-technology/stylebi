@@ -53,6 +53,7 @@ import java.util.concurrent.TimeUnit;
 
 import static inetsoft.report.composition.execution.lockcycle.LockCycleHarness.*;
 import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
 /**
  * The known lock cycles of the #76966 suite, run with the lock-stall watchdog at
@@ -103,6 +104,7 @@ public class StallWatchdogCycleTest {
     */
    @Test
    public void hashJoinExecKeyFailsInsteadOfHanging() throws Exception {
+      assumeFalse(POOL, POOL_OFF_CYCLE);
       harness.forceHashJoin();
       Sandbox s = harness.sandbox();
       Future<TableLens> built = harness.submit(() -> {
@@ -135,6 +137,7 @@ public class StallWatchdogCycleTest {
    @ParameterizedTest
    @EnumSource(value = MonitorKind.class, names = "MAX_ROWS", mode = EnumSource.Mode.EXCLUDE)
    public void monitorFirstLensFailsOneReader(MonitorKind kind) throws Exception {
+      assumeFalse(POOL, POOL_OFF_CYCLE);
       Gate gate = harness.gate();
       Sandbox control = harness.control();
       TableLens controlLens = harness.track(build(kind, control, gate));
@@ -209,6 +212,7 @@ public class StallWatchdogCycleTest {
     */
    @Test
    public void monitorFirstLensAlertModeTurnsHealthDown() throws Exception {
+      assumeFalse(POOL, POOL_OFF_CYCLE);
       StallPolicy.setOverride(new StallPolicy(StallPolicy.Mode.ALERT, 2000, 500, dumpDir));
       Gate gate = harness.gate();
       Sandbox s = harness.sandbox();
@@ -261,6 +265,8 @@ public class StallWatchdogCycleTest {
     */
    @Test
    public void slowProgressingSummaryUnderLockCompletes() throws Exception {
+      assumeFalse(POOL, "pool off only: the holder lends the engine lock to the summary " +
+                  "worker, which pool mode never does");
       StallPolicy.setOverride(new StallPolicy(StallPolicy.Mode.FAIL, 8000, 500, dumpDir));
       Sandbox control = harness.control();
       List<List<Object>> expected = harness.await(harness.submit(
@@ -415,6 +421,9 @@ public class StallWatchdogCycleTest {
    }
 
    private static final int ROWS = 120;
+   private static final String POOL_OFF_CYCLE =
+      "pool off only: the case builds a cycle that pooled worksheet script contexts do not " +
+      "form, so there is no stall to fail";
    @TempDir
    File dumpDir;
    private LockCycleHarness harness;
