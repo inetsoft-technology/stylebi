@@ -178,6 +178,60 @@ class FormulaTableLensVarTest {
       }
    }
 
+   // Bug #77249 (I1, m1): a block function after a statement without `;` (ASI), or after an
+   // object with a keyword key, exists only on the rows that enter the block (an unrun if
+   // keeps an earlier value, hence the else)
+   @ParameterizedTest(name = "pool={0}")
+   @ValueSource(booleans = { false, true })
+   void aFunctionOfABlockAfterASIOrAKeywordKeyExistsOnlyOnItsRows(boolean pool)
+      throws Exception
+   {
+      AssetQuerySandbox box = box(pool);
+      String[] formulas = {
+         "if(field['id'] % 2 == 1) {\n var xa = field['id']\n" +
+            " function bfa(){ return 'b' + field['id'] }\n}\nif(typeof bfa == 'function') { bfa() }" +
+            " else { 'none' }",
+         "oc = {class: 'c'}; if(field['id'] % 2 == 1) { function bfk(){ return 'b' + field['id'] } }" +
+            " if(typeof bfk == 'function') { bfk() } else { 'none' }",
+         "[].concat({function: 1}); if(field['id'] % 2 == 1) { function bff(){ return 'b' + field['id'] } }" +
+            " if(typeof bff == 'function') { bff() } else { 'none' }" };
+
+      for(String f : formulas) {
+         TableLens t = PostProcessor.formula(
+            base(ROWS), new String[] { "out" }, new String[] { f },
+            box.getScriptEnv(), box.getScope(), null, "BA", null, List.of(String.class),
+            new boolean[] { false });
+
+         for(int r = 1; r <= ROWS; r++) {
+            assertTrue(t.moreRows(r));
+            assertEquals(r % 2 == 1 ? "b" + r : "none", t.getObject(r, 2), f + " row " + r);
+         }
+      }
+   }
+
+   // Bug #77249 (m1): a keyword object key (or destructuring key) does not hide the var of
+   // the next block: it stays table owned, so the accumulator counts every row (pool on it
+   // stopped at a batch), a second table starts over and no global is left (pool off)
+   @ParameterizedTest(name = "pool={0}")
+   @ValueSource(booleans = { false, true })
+   void aKeywordKeyKeepsTheVarOfTheNextBlockOwned(boolean pool) throws Exception {
+      AssetQuerySandbox box = box(pool);
+      String[] formulas = {
+         "let st = { class: 'a' }; if(true) { var kkAcc1 = (kkAcc1 || 0) + 1 } kkAcc1",
+         "[].concat({function: 1}); if(true) { var kkAcc2 = (kkAcc2 || 0) + 1 } kkAcc2",
+         "let {class: c} = {class: 1}; if(true) { var kkAcc3 = (kkAcc3 || 0) + 1 } kkAcc3" };
+
+      for(int k = 0; k < formulas.length; k++) {
+         String f = formulas[k];
+         assertCounts(sequential(make(box, base(ROWS), f, "K" + k)), 1, "first table " + f);
+         assertCounts(sequential(make(box, base(ROWS), f, "L" + k)), 1, "second table " + f);
+         ScriptEnv env = box.getScriptEnv();
+         assertEquals("undef", env.exec(env.compile(
+            "typeof kkAcc" + (k + 1) + " == 'undefined' ? 'undef' : kkAcc" + (k + 1)),
+            null, null, null), "global of " + f);
+      }
+   }
+
    @ParameterizedTest(name = "pool={0}")
    @ValueSource(booleans = { false, true })
    void twoColumnsShareAVar(boolean pool) throws Exception {

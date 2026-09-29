@@ -151,6 +151,28 @@ class GraalJavaScriptEngineOwnedVarTest {
       assertEquals(Set.of("w"), owned("function h(a = {}) { var v8 } var w"));
    }
 
+   // Bug #77249 (m1): a keyword used as an object key is a name, not a declaration, so
+   // the next block is not read as a class or function body and its var is still owned
+   @Test
+   void keywordKeysDoNotOpenAFunctionBody() {
+      assertEquals(Set.of("k1"), owned("oc = {class: 'c'}; if(v) { var k1 = v }"));
+      assertEquals(Set.of("k2"), owned("foo({function: 1}); if(v) { var k2 = v }"));
+      assertEquals(Set.of("k3"), owned("oc = {class : {a: 1}, function\n: 2}\n{ var k3 }"));
+      assertEquals(Set.of("k4"), owned(
+         "o = {get: 1, set: 2, static: 3, async: 4, if: 5, var: 6}; if(v) { var k4 }"));
+      assertEquals(Set.of("k5"), owned("o = {'class': 1, \"function\": 2}; if(v) { var k5 }"));
+      assertEquals(Set.of("k6"), owned("o = {['class']: 1, [k]: 2}; if(v) { var k6 }"));
+      assertEquals(Set.of("k7"), owned("x = a.class; y = b.function; if(v) { var k7 }"));
+      assertEquals(Set.of("k9"), owned("let {class: c} = o; if(x) { var k9 }"));
+      assertEquals(Set.of("k10"), owned("if(x) { let o = { class: 1 } } if(y) { var k10 }"));
+      // a postfix ++ ends a value: the next brace is a block, a call + block in it is ASI
+      assertEquals(Set.of("t40"), owned("i++\n{ foo(1)\n{ var t40 } }"));
+      // methods named by a keyword are still function bodies
+      assertEquals(Set.of("k8"), owned(
+         "o = { class() { var u1 }, function() { var u2 }, get static() { var u3 } }; " +
+         "if(v) { var k8 }"));
+   }
+
    @Test
    void aNameDeclaredWithLetOrConstInAnyFormulaIsNotOwned() {
       assertEquals(Set.of(), GraalJavaScriptEngine.collectOwnedVarNames(

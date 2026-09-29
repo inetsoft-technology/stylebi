@@ -2596,7 +2596,11 @@ public class GraalJavaScriptEngine implements AutoCloseable {
     * {@link PieceScript}, such a function is hoisted (Annex B) to a global of the
     * Context, which keeps the previous run's function when the block is not entered;
     * in the eval wrapper it is a fresh binding of the wrapper function on every run.
-    * A lexical scan: a false positive only keeps the (correct, slower) eval wrapper.
+    * A lexical scan: a false positive only keeps the (correct, slower) eval wrapper,
+    * so a {@code function} keyword counts as a declaration unless it is clearly in
+    * expression position (after an operator, {@code (}, {@code ,}, {@code [}, an
+    * object key's {@code :}, or an expression keyword such as {@code return}); a
+    * statement that ends without {@code ;} (ASI) does not hide it.
     */
    static boolean hasBlockFunctionDeclaration(String script) {
       return scanOwnedVarsAndBlockFunctions(script, new HashSet<>());
@@ -2618,19 +2622,23 @@ public class GraalJavaScriptEngine implements AutoCloseable {
     * after a {@code name(...)} head directly in an object literal (a method shorthand,
     * getter or setter). An object literal is a brace in expression position. In a block,
     * {@code name(...)} followed by a brace is a call and a block statement (ASI), not a
-    * function (#77249).
+    * function (#77249). A {@code var}/{@code function}/{@code class} keyword followed
+    * by {@code :} is an object key, not a declaration. A string, template or regex
+    * literal counts as a value token.
     */
    private static boolean scanOwnedVarsAndBlockFunctions(String script, Set<String> names) {
-      String src = stripStringsAndComments(script);
+      String src = stripStringsAndComments(script, true);
       // per open brace: its kind and the paren depth at which it opened
       Deque<int[]> braces = new ArrayDeque<>();
-      // per open paren: whether it is the parameter list of an object literal method
-      Deque<Boolean> parens = new ArrayDeque<>();
+      // per open paren: its kind (PAREN_*)
+      Deque<Integer> parens = new ArrayDeque<>();
       // per pending function: the paren depth of its body brace
       Deque<Integer> pendingFns = new ArrayDeque<>();
       int fdepth = 0;
       boolean pendingClass = false;
       boolean methodHead = false;
+      // the previous token is the `)` of an if/while/for/with head
+      boolean afterHead = false;
       boolean blockFn = false;
       // the previous token if it is a word, kept across whitespace
       String word = null;
@@ -2651,26 +2659,36 @@ public class GraalJavaScriptEngine implements AutoCloseable {
             }
 
             String before = word;
+            boolean head = afterHead;
             word = src.substring(start, i);
             methodHead = false;
+            afterHead = false;
+            // a keyword used as an object key ({class: 1}, {function: 1}) is a name
+            int after = skipWhitespace(src, i);
+            boolean key = after < n && src.charAt(after) == ':';
 
             // ignore keywords used as member names (obj.var / obj.function)
-            if(prev != '.') {
+            if(prev != '.' && !key) {
                if(word.equals("var") && fdepth == 0) {
                   i = collectVarNames(src, i, names);
                   word = null;
                }
                else if(word.equals("function")) {
-                  // a declaration (statement position) nested in a block or a statement;
-                  // an async function or a generator is not hoisted out of its block,
-                  // but over-matching only keeps the eval wrapper
-                  boolean statement = before != null ?
-                     before.equals("else") || before.equals("do") :
-                     prev == 0 || prev == '{' || prev == '}' || prev == ';' || prev == ')' ||
-                        prev == ':' && enclosing == BLOCK_BRACE;
-                  boolean nested = !braces.isEmpty() || before != null || prev == ')';
+                  // a declaration unless in expression position: a statement that ends
+                  // without `;` (ASI) is still a statement. An async function is not
+                  // hoisted out of its block, a generator is; over-matching only keeps
+                  // the eval wrapper
+                  boolean expression = before != null ?
+                     FUNCTION_EXPRESSION_AFTER_WORDS.contains(before) :
+                     prev == ':' ? enclosing == OBJECT_BRACE :
+                     isExpressionOperator(src, start, prev);
+                  // a method named `function` ({ function() {} }) directly in an object
+                  boolean property = enclosing == OBJECT_BRACE &&
+                     parens.size() == braces.peek()[1] && (prev == '{' || prev == ',');
+                  boolean nested = !braces.isEmpty() || head ||
+                     "else".equals(before) || "do".equals(before);
 
-                  if(fdepth == 0 && statement && nested) {
+                  if(fdepth == 0 && !expression && !property && nested) {
                      blockFn = true;
                   }
 
@@ -2694,11 +2712,15 @@ public class GraalJavaScriptEngine implements AutoCloseable {
             }
          }
          else if(c == '(') {
-            parens.push(word != null && !NON_FUNCTION_HEADS.contains(word) &&
-               enclosing == OBJECT_BRACE && parens.size() == braces.peek()[1]);
+            parens.push(word != null && CONTROL_HEAD_KEYWORDS.contains(word) ? PAREN_HEAD :
+               word != null && !NON_FUNCTION_HEADS.contains(word) &&
+               enclosing == OBJECT_BRACE && parens.size() == braces.peek()[1] ?
+               PAREN_METHOD : PAREN_OTHER);
          }
          else if(c == ')' && !parens.isEmpty()) {
-            methodHead = parens.pop();
+            int kind = parens.pop();
+            methodHead = kind == PAREN_METHOD;
+            afterHead = kind == PAREN_HEAD;
             word = null;
             prev = c;
             i++;
@@ -2721,8 +2743,7 @@ public class GraalJavaScriptEngine implements AutoCloseable {
                kind = enclosing == OBJECT_BRACE ? OBJECT_BRACE : BLOCK_BRACE;
             }
             else {
-               kind = prev != 0 && "=(,[?!&|+-*/%<>~^".indexOf(prev) >= 0 ?
-                  OBJECT_BRACE : BLOCK_BRACE;
+               kind = isExpressionOperator(src, i, prev) ? OBJECT_BRACE : BLOCK_BRACE;
             }
 
             pendingClass = false;
@@ -2737,6 +2758,7 @@ public class GraalJavaScriptEngine implements AutoCloseable {
             prev = c;
             word = null;
             methodHead = false;
+            afterHead = false;
          }
 
          i++;
@@ -2744,6 +2766,27 @@ public class GraalJavaScriptEngine implements AutoCloseable {
 
       return blockFn;
    }
+
+   // paren kinds of scanOwnedVarsAndBlockFunctions
+   private static final int PAREN_OTHER = 0;
+   private static final int PAREN_METHOD = 1;
+   private static final int PAREN_HEAD = 2;
+
+   /**
+    * Whether {@code prev}, the last significant char before {@code pos} of the stripped
+    * source, is an operator (or {@code (}, {@code ,}, {@code [}), so the next token is in
+    * expression position. A postfix {@code ++}/{@code --} ends a value instead.
+    */
+   private static boolean isExpressionOperator(String src, int pos, char prev) {
+      return prev != 0 && "=(,[?!&|+-*/%<>~^".indexOf(prev) >= 0 &&
+         !((prev == '+' || prev == '-') && afterPostfixIncDec(src, pos));
+   }
+
+   // words after which `function` is an expression (async: an async function
+   // declaration is block scoped, not hoisted out of its block)
+   private static final Set<String> FUNCTION_EXPRESSION_AFTER_WORDS = Set.of(
+      "return", "typeof", "void", "delete", "new", "in", "of", "instanceof", "throw",
+      "case", "yield", "await", "extends", "async");
 
    // names whose parenthesized head is not a function's parameter list, so a brace
    // after `name(...)` does not open a function body (collectOwnedVarNames)
@@ -2976,7 +3019,18 @@ public class GraalJavaScriptEngine implements AutoCloseable {
     * read it as division (bug #77305).
     */
    private static String stripStringsAndComments(String s) {
+      return stripStringsAndComments(s, false);
+   }
+
+   /**
+    * {@link #stripStringsAndComments(String)}; with {@code markLiterals} the first
+    * blanked char of a string, template (and of each template part after a
+    * substitution) and regex literal is {@code 0} instead of a space, so a scan sees
+    * the literal as a value token (#77249: {@code s = 'a'} ends a statement).
+    */
+   private static String stripStringsAndComments(String s, boolean markLiterals) {
       int n = s.length();
+      char lit = markLiterals ? '0' : ' ';
       StringBuilder sb = new StringBuilder(n);
       // Code-brace depth at which each open template substitution (`${`) began;
       // the matching `}` at that depth resumes template scanning.
@@ -3037,7 +3091,7 @@ public class GraalJavaScriptEngine implements AutoCloseable {
 
             if(end > 0) {
                for(int k = i; k < end; k++) {
-                  sb.append(isLineBreak(s.charAt(k)) ? s.charAt(k) : ' ');
+                  sb.append(k == i ? lit : isLineBreak(s.charAt(k)) ? s.charAt(k) : ' ');
                }
 
                i = end;
@@ -3051,7 +3105,7 @@ public class GraalJavaScriptEngine implements AutoCloseable {
          // single/double-quoted string
          if(c == '"' || c == '\'') {
             char quote = c;
-            sb.append(' ');
+            sb.append(lit);
             i++;
 
             while(i < n) {
@@ -3081,7 +3135,7 @@ public class GraalJavaScriptEngine implements AutoCloseable {
 
          // template-literal start
          if(c == '`') {
-            sb.append(' ');
+            sb.append(lit);
             i = scanTemplateBody(s, i + 1, sb, braceDepth, templateStack);
             prevSig = ')';
             prevWord = null;
@@ -3092,7 +3146,7 @@ public class GraalJavaScriptEngine implements AutoCloseable {
          // '}' that closes an open template substitution -> resume the template
          if(c == '}' && !templateStack.isEmpty() && braceDepth == templateStack.peek()) {
             templateStack.pop();
-            sb.append(' ');
+            sb.append(lit);
             i = scanTemplateBody(s, i + 1, sb, braceDepth, templateStack);
             prevSig = ')';
             prevWord = null;
