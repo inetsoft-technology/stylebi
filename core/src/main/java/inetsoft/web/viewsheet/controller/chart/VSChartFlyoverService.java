@@ -39,7 +39,9 @@ import org.springframework.stereotype.Service;
 import java.awt.*;
 import java.security.Principal;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.TreeSet;
 
 @Service
@@ -123,6 +125,7 @@ public class VSChartFlyoverService extends VSChartControllerService<VSChartFlyov
       // running the actual flyover logic. See BaseTableFlyoverService.applyFlyovers() for the
       // matching table-side implementation.
       TreeSet<String> lockNames = new TreeSet<>();
+      Map<String, ViewsheetSandbox.FlyoverRequest> requests = new HashMap<>();
 
       if(tassembly != null) {
          lockNames.add(tassembly.getName());
@@ -132,7 +135,18 @@ public class VSChartFlyoverService extends VSChartControllerService<VSChartFlyov
          VSAssembly tip = (VSAssembly) vs.getAssembly(view);
 
          if(tip != null && !view.equals(name)) {
-            lockNames.add(tip.getAbsoluteName());
+            String tipName = tip.getAbsoluteName();
+            lockNames.add(tipName);
+
+            // Register this request as the latest one for the target before waiting for the
+            // target's flyover lock below. The lock is held by an earlier request for its whole
+            // execution, so cancelling the superseded query only after acquiring the lock (as
+            // doProcessFlyover() does) could no longer pre-empt anything. Registering cancels
+            // the superseded query now, while the earlier request may still be running it, and
+            // lets any earlier request still waiting for the lock skip the target (see
+            // doProcessFlyover()).
+            requests.put(view, box.startFlyoverRequest(
+               tipName, chartAssembly.getAbsoluteName(), conds));
          }
       }
 
@@ -143,7 +157,7 @@ public class VSChartFlyoverService extends VSChartControllerService<VSChartFlyov
       }
 
       processFlyoverLocked(locks, 0, chartState, linkUri, dispatcher, name, conds, box,
-                           chartAssembly, tassembly, views, vs);
+                           chartAssembly, tassembly, views, vs, requests);
    }
 
    /**
@@ -158,25 +172,62 @@ public class VSChartFlyoverService extends VSChartControllerService<VSChartFlyov
                                      String linkUri, CommandDispatcher dispatcher, String name,
                                      String conds, ViewsheetSandbox box,
                                      ChartVSAssembly chartAssembly,
-                                     AbstractTableAssembly tassembly, String[] views, Viewsheet vs)
+                                     AbstractTableAssembly tassembly, String[] views, Viewsheet vs,
+                                     Map<String, ViewsheetSandbox.FlyoverRequest> requests)
       throws Exception
    {
       if(index >= locks.size()) {
          doProcessFlyover(chartState, linkUri, dispatcher, name, conds, box, chartAssembly,
-                          tassembly, views, vs);
+                          tassembly, views, vs, requests);
          return;
       }
 
       synchronized(locks.get(index)) {
          processFlyoverLocked(locks, index + 1, chartState, linkUri, dispatcher, name, conds,
-                              box, chartAssembly, tassembly, views, vs);
+                              box, chartAssembly, tassembly, views, vs, requests);
       }
    }
 
    private void doProcessFlyover(VSChartStateInfo chartState, String linkUri,
                                  CommandDispatcher dispatcher, String name, String conds,
                                  ViewsheetSandbox box, ChartVSAssembly chartAssembly,
-                                 AbstractTableAssembly tassembly, String[] views, Viewsheet vs)
+                                 AbstractTableAssembly tassembly, String[] allViews, Viewsheet vs,
+                                 Map<String, ViewsheetSandbox.FlyoverRequest> requests)
+      throws Exception
+   {
+      // skip the targets for which a newer flyover request was registered while this one was
+      // waiting for the flyover locks, the newer request applies its own conditions. This is
+      // decided once so both loops in runFlyover() process the same targets.
+      List<String> views = new ArrayList<>();
+      Map<String, ViewsheetSandbox.FlyoverRequest> running = new HashMap<>();
+
+      try {
+         for(String view : allViews) {
+            VSAssembly tip = (VSAssembly) vs.getAssembly(view);
+            ViewsheetSandbox.FlyoverRequest request = requests.get(view);
+
+            if(tip != null && !view.equals(name) &&
+               box.beginFlyoverRequest(tip.getAbsoluteName(), request))
+            {
+               views.add(view);
+               running.put(tip.getAbsoluteName(), request);
+            }
+         }
+
+         if(!views.isEmpty()) {
+            runFlyover(chartState, linkUri, dispatcher, name, conds, box, chartAssembly,
+                       tassembly, views, vs);
+         }
+      }
+      finally {
+         running.forEach(box::endFlyoverRequest);
+      }
+   }
+
+   private void runFlyover(VSChartStateInfo chartState, String linkUri,
+                           CommandDispatcher dispatcher, String name, String conds,
+                           ViewsheetSandbox box, ChartVSAssembly chartAssembly,
+                           AbstractTableAssembly tassembly, List<String> views, Viewsheet vs)
       throws Exception
    {
       ConditionList preList = null;
@@ -210,6 +261,12 @@ public class VSChartFlyoverService extends VSChartControllerService<VSChartFlyov
          }
          finally {
             box.unlockRead();
+         }
+
+         // the target's query was cancelled by a later request (see processFlyover()), which
+         // may have left it without data for conditions that are already applied, re-execute
+         if(box.clearFlyoverCancelled(tip.getAbsoluteName()) && hint == VSAssembly.NONE_CHANGED) {
+            hint = VSAssembly.INPUT_DATA_CHANGED;
          }
 
          hints.add(hint);
