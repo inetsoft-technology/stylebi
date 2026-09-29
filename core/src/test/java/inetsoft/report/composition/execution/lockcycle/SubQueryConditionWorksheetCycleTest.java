@@ -60,7 +60,8 @@ import static org.mockito.Mockito.when;
 
 /**
  * Bug #77158: the #76965 cycle on a worksheet the product builds itself, with the context
- * pool off (the default). Table A has a pre-condition "id one of (sub-query on B.bx)", where
+ * pool off (this suite's default; the product default is on since #77123). Table A has a
+ * pre-condition "id one of (sub-query on B.bx)", where
  * {@code bx} is a JavaScript expression column of B, so the sub table is
  * {@code DistinctTableLens(FormulaTableLens)} on the worksheet sandbox's engine; A's own base
  * has no script, so A's condition filter populates under its monitor without the engine lock.
@@ -101,10 +102,9 @@ public class SubQueryConditionWorksheetCycleTest {
       harness = new LockCycleHarness();
 
       // the sandboxes of this class are real, so -Dlockcycle.pool reaches them through the
-      // property their env is chosen by
-      if(POOL) {
-         SreeEnv.setProperty(PoolConfig.ENABLED, "true");
-      }
+      // property their env is chosen by; set it either way, since the pool is on by default
+      // (Feature #77123) and this suite runs pool off unless -Dlockcycle.pool=true
+      SreeEnv.setProperty(PoolConfig.ENABLED, Boolean.toString(POOL));
    }
 
    @AfterEach
@@ -129,9 +129,7 @@ public class SubQueryConditionWorksheetCycleTest {
          }
       }
 
-      if(POOL) {
-         SreeEnv.remove(PoolConfig.ENABLED);
-      }
+      SreeEnv.remove(PoolConfig.ENABLED);
    }
 
    /**

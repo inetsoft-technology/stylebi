@@ -54,7 +54,7 @@ class WsBoundaryPolicyTest {
                                         "past the one requested", "script.max.errors",
                                         "per worksheet script environment", "prototype",
                                         "crosstab aggregation", "AssetEventUtil",
-                                        "-Dscript.ws.contextpool=true", "lowercase",
+                                        "-Dscript.ws.contextpool=false", "lowercase",
                                         "insertion order", "IndexOutOfBoundsException",
                                         "3 s longer", "logged at INFO",
                                         // Testing #77123, the table-owned formula var
@@ -68,7 +68,13 @@ class WsBoundaryPolicyTest {
                                         // context-pool regression D1, the pool-off first batch
                                         "evaluates what pool off would", "2N + 10",
                                         "undeclared", "object-valued var",
-                                        "turns script batching off" })
+                                        "turns script batching off",
+                                        // Feature #77123, the pool is on by default
+                                        "on by default", "Turning it off",
+                                        "script.ws.contextPool=false in sree.properties",
+                                        "unset or blank value keeps", "can occur",
+                                        // Bug #77016, pool-off hangs + stall FAIL pairing
+                                        "#77016", "stall.watchdog.mode=fail" })
       {
          assertTrue(note.contains(topic), "release note misses: " + topic);
       }
@@ -76,8 +82,8 @@ class WsBoundaryPolicyTest {
 
    @Test
    void releaseNoteIsTheWholePrText() {
-      assertEquals("Worksheet script context pool (script.ws.contextPool, default false " +
-                      "in this release)", WsBoundaryPolicy.RELEASE_NOTE.get(0));
+      assertEquals("Worksheet script context pool (script.ws.contextPool, on by default " +
+                      "from this release)", WsBoundaryPolicy.RELEASE_NOTE.get(0));
       assertTrue(WsBoundaryPolicy.RELEASE_NOTE.get(WsBoundaryPolicy.RELEASE_NOTE.size() - 1)
                     .endsWith("reused."));
 
