@@ -301,6 +301,7 @@ public class IdentityService {
       // track (org, task name) so distinct tasks that share a name across orgs aren't merged
       Set<TaskRef> ownedTasks = new LinkedHashSet<>();
       Set<TaskRef> executeAsTasks = new LinkedHashSet<>();
+      Set<TaskRef> refusedTasks = new LinkedHashSet<>();
       AuthenticationProvider authcProvider = this.getProvider(providerName);
 
       if(authcProvider instanceof EditableAuthenticationProvider provider) {
@@ -339,6 +340,7 @@ public class IdentityService {
                      targetOrg, () -> scheduleManager.getIdentityRemovalImpact(identity, provider));
                impact.ownedTasks().forEach(name -> ownedTasks.add(new TaskRef(targetOrg, name)));
                impact.executeAsTasks().forEach(name -> executeAsTasks.add(new TaskRef(targetOrg, name)));
+               impact.refusedTasks().forEach(name -> refusedTasks.add(new TaskRef(targetOrg, name)));
             }
             catch(Exception ex) {
                LOG.warn("Failed to compute schedule task impact for {}", model.identityID(), ex);
@@ -348,10 +350,12 @@ public class IdentityService {
 
       // a task whose owner is being deleted is removed entirely, so don't also report it as a reset
       executeAsTasks.removeAll(ownedTasks);
+      refusedTasks.removeAll(ownedTasks);
 
       return DeleteIdentitiesTaskImpactResponse.builder()
          .ownedTasks(toDisplayNames(ownedTasks))
          .executeAsTasks(toDisplayNames(executeAsTasks))
+         .refusedTasks(toDisplayNames(refusedTasks))
          .build();
    }
 

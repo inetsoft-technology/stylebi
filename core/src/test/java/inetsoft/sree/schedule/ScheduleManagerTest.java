@@ -1154,6 +1154,8 @@ public class ScheduleManagerTest {
       when(provider.getOrganizationIDs()).thenReturn(orgs);
       when(provider.getRole(any())).thenAnswer(inv -> new Role(inv.<IdentityID>getArgument(0)));
       when(provider.getGroup(any())).thenAnswer(inv -> new Group(inv.<IdentityID>getArgument(0)));
+      // the task owners exist, so a removed "execute as" is reset to the owner (Bug #77332)
+      when(provider.getUser(any())).thenAnswer(inv -> new User(inv.<IdentityID>getArgument(0)));
       stubSecurityEngineSafely(() -> doReturn(orgs).when(securityEngine).getOrganizations());
       stubSecurityEngineSafely(() -> doReturn(provider).when(securityEngine).getSecurityProvider());
 

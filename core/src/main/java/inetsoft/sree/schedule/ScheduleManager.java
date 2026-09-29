@@ -1293,7 +1293,9 @@ public class ScheduleManager {
 
          Identity iden = task.getIdentity();
 
-         if(iden != null && type == iden.getType() && identityID.equals(iden.getIdentityID())) {
+         if(iden != null && type == iden.getType() && identityID.equals(iden.getIdentityID()) &&
+            canResetToOwner(task))
+         {
             task.setIdentity(null);
             changedTasks.add(task);
          }
@@ -1342,7 +1344,7 @@ public class ScheduleManager {
             Identity iden = task.getIdentity();
 
             if(iden != null && iden.getType() == Identity.ROLE &&
-               identityID.equals(iden.getIdentityID()))
+               identityID.equals(iden.getIdentityID()) && canResetToOwner(task))
             {
                task.setIdentity(null);
                changedTasks.add(task);
@@ -1360,10 +1362,41 @@ public class ScheduleManager {
    }
 
    /**
+    * Bug #77332, whether the "execute as" of a task may be cleared when its identity is removed,
+    * so that the task runs as its owner. An owner that is not a user runs with the roles of a
+    * site admin of the same name ({@link SUtil#getScheduleTaskOwnerPrincipal}), so for such a
+    * task the removed identity is kept instead: it no longer resolves and the task refuses to
+    * run until a new "execute as" is selected. The owner is looked up in the whole security
+    * provider chain, not only in the provider the identity is removed from.
+    */
+   private boolean canResetToOwner(ScheduleTask task) {
+      IdentityID owner = task.getOwner();
+
+      // same exclusions as the site admin fallback in getScheduleTaskOwnerPrincipal, internal
+      // tasks run as the system user and must keep running
+      if(owner == null || owner.orgID == null || XPrincipal.ANONYMOUS.equals(owner.name) ||
+         XPrincipal.SYSTEM.equals(owner.name) || isInternalTask(task.getTaskId()))
+      {
+         return true;
+      }
+
+      try {
+         return !getSecurityEngine().isSecurityEnabled() ||
+            getSecurityEngine().getSecurityProvider().getUser(owner) != null;
+      }
+      catch(Exception ex) {
+         LOG.warn("Failed to check the owner {} of schedule task {}, keeping its execute-as",
+                  owner, task.getTaskId(), ex);
+         return false;
+      }
+   }
+
+   /**
     * Compute, without modifying anything, which scheduled tasks would be affected if the
     * given identity were removed: tasks owned by a user (which
     * {@link #identityRemoved(Identity, EditableAuthenticationProvider)} deletes) and tasks where
-    * the identity is the "execute as" (which it resets). The recipient cleanup that
+    * the identity is the "execute as" (which it resets, or keeps when the task owner is not a
+    * user so that the task refuses to run). The recipient cleanup that
     * identityRemoved also performs (removing the identity's tokens from the notification and the
     * delivery to, cc and bcc lists) is not reported here.
     */
@@ -1372,6 +1405,7 @@ public class ScheduleManager {
    {
       List<String> ownedTasks = new ArrayList<>();
       List<String> executeAsTasks = new ArrayList<>();
+      List<String> refusedTasks = new ArrayList<>();
       int type = identity.getType();
       IdentityID identityID = identity.getIdentityID();
       // the identity carries its own org; prefer it so a site/host admin deleting a user in a
@@ -1395,7 +1429,7 @@ public class ScheduleManager {
       }
 
       if(orgID == null) {
-         return new IdentityTaskImpact(ownedTasks, executeAsTasks);
+         return new IdentityTaskImpact(ownedTasks, executeAsTasks, refusedTasks);
       }
 
       for(ScheduleTask task : getOrgTaskMap(orgID).values()) {
@@ -1411,18 +1445,22 @@ public class ScheduleManager {
          Identity iden = task.getIdentity();
 
          if(iden != null && type == iden.getType() && identityID.equals(iden.getIdentityID())) {
-            executeAsTasks.add(task.getName());
+            (canResetToOwner(task) ? executeAsTasks : refusedTasks).add(task.getName());
          }
       }
 
-      return new IdentityTaskImpact(ownedTasks, executeAsTasks);
+      return new IdentityTaskImpact(ownedTasks, executeAsTasks, refusedTasks);
    }
 
    /**
     * The scheduled tasks affected by removing an identity: tasks the identity owns
-    * (which are deleted) and tasks where the identity is the "execute as" (which is reset).
+    * (which are deleted), tasks where the identity is the "execute as" (which is reset), and
+    * tasks where the identity is the "execute as" of a task whose owner is not a user (which is
+    * kept, so the task refuses to run).
     */
-   public record IdentityTaskImpact(List<String> ownedTasks, List<String> executeAsTasks) {
+   public record IdentityTaskImpact(List<String> ownedTasks, List<String> executeAsTasks,
+                                    List<String> refusedTasks)
+   {
    }
 
    /**
