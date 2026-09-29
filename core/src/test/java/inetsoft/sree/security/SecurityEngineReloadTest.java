@@ -17,14 +17,12 @@
  */
 package inetsoft.sree.security;
 
-import inetsoft.sree.EarlyLoadedProperties;
 import inetsoft.sree.PropertiesEngine;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.storage.KeyValueEngine;
 import inetsoft.storage.LoadKeyValueTask;
 import inetsoft.test.*;
-import inetsoft.util.ConfigurationContext;
 import inetsoft.util.DataSpace;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -52,14 +50,6 @@ import static org.junit.jupiter.api.Assertions.*;
 @SreeHome
 @Tag("core")
 class SecurityEngineReloadTest {
-   @AfterAll
-   static void clearEarlyLoadedProperties() {
-      // the early-loaded properties outlive a context in the test JVM and still hold the
-      // security.enabled=true that these tests stored. A later test class that sets the same
-      // value would not store it, so its next reload would turn security off
-      ConfigurationContext.getContext().remove(EarlyLoadedProperties.class.getName());
-   }
-
    @BeforeEach
    void startWithSecurityDisabled() {
       DataSpace space = DataSpace.getDataSpace();
