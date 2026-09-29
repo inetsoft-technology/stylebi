@@ -17,6 +17,7 @@
  */
 package inetsoft.web.admin.schedule;
 
+import inetsoft.sree.ClientInfo;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.schedule.*;
 import inetsoft.sree.security.*;
@@ -49,7 +50,8 @@ import static org.mockito.Mockito.*;
  *
  * Uses the real SecurityEngine / DefaultCheckPermissionStrategy (SecurityTestDataBuilder) and the
  * real ScheduleManager bean; only SUtil.isMultiTenant() and the injected mock ScheduleClient are
- * test doubles.
+ * test doubles. User principals are marked {@code __internal__=true}, as
+ * SecurityEngine.authenticate() marks every login principal.
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class, IntegrationTestConfiguration.class },
@@ -119,11 +121,11 @@ class ScheduleRemoveCrossOrgTest {
       sutilStatic = mockStatic(SUtil.class, CALLS_REAL_METHODS);
       sutilStatic.when(SUtil::isMultiTenant).thenReturn(true);
 
-      alice = builder.principalOf("alice", ORG_A);
-      carol = builder.principalOf("carol", ORG_A);
-      sadm = builder.principalOf("sadm", ORG_A);
-      dave = builder.principalOf("dave", ORG_B);
-      erin = builder.principalOf("erin", ORG_B);
+      alice = loginPrincipalOf("alice", ORG_A);
+      carol = loginPrincipalOf("carol", ORG_A);
+      sadm = loginPrincipalOf("sadm", ORG_A);
+      dave = loginPrincipalOf("dave", ORG_B);
+      erin = loginPrincipalOf("erin", ORG_B);
 
       // org A: alice's own task
       ScheduleTask own = new ScheduleTask("Daily");
@@ -220,6 +222,27 @@ class ScheduleRemoveCrossOrgTest {
       verify(scheduleClient, never()).taskRemoved(anyString());
    }
 
+   @Test
+   void passwordLoginPrincipal_isMarkedInternal() {
+      Principal login = login(ALICE);
+
+      assertNotNull(login, "password login");
+      assertTrue(SUtil.isInternalUser(login), "a password login principal is __internal__");
+   }
+
+   @Test
+   void passwordLoginOrgAdmin_removeScheduleTaskWithOtherOrgId_rejected() throws Exception {
+      // the principal of a real web login (AuthenticationService -> SecurityEngine.authenticate)
+      Principal login = login(ALICE);
+      assertNotNull(login, "password login");
+      withContextPrincipal(login);
+
+      assertThrows(Exception.class, () -> scheduleManager.removeScheduleTask(VICTIM_JOB, login));
+
+      verify(scheduleClient, never()).taskRemoved(anyString());
+      assertNotNull(scheduleManager.getScheduleTask(VICTIM_JOB, ORG_B), "bob's task survives");
+   }
+
    // --- isSiteAdminOtherOrg requires the caller to be the site admin -------------------------
 
    @Test
@@ -305,6 +328,20 @@ class ScheduleRemoveCrossOrgTest {
    }
 
    @Test
+   void executeAsVirtualPrincipal_crossOrgExempt() {
+      // JobCompletionListener builds a virtual principal for a group/role execute-as identity;
+      // a global role (no org) resolves to the default organization
+      Principal role = SUtil.getPrincipal(new Role(new IdentityID("rmxGlobalRole", null)), null,
+                                          false);
+      Principal group = SUtil.getPrincipal(new Group(new IdentityID("rmxGroup", ORG_A)), null,
+                                           false);
+
+      assertEquals("true", ((XPrincipal) role).getProperty("virtual"));
+      assertEquals(Boolean.TRUE, isCrossOrgRemoveAllowed(role));
+      assertEquals(Boolean.TRUE, isCrossOrgRemoveAllowed(group));
+   }
+
+   @Test
    void crossOrgExemption_onlyForInternalAndSiteAdminCallers() {
       // the system principal (SchedulerMonitoringService) and no principal are exempt from the
       // org check; the remaining delete permission checks are unchanged for them
@@ -315,6 +352,19 @@ class ScheduleRemoveCrossOrgTest {
       assertEquals(Boolean.TRUE, isCrossOrgRemoveAllowed(sadm));
       assertEquals(Boolean.FALSE, isCrossOrgRemoveAllowed(alice));
       assertEquals(Boolean.FALSE, isCrossOrgRemoveAllowed(carol));
+      assertEquals(Boolean.FALSE, isCrossOrgRemoveAllowed(login(ALICE)));
+   }
+
+   private static SRPrincipal loginPrincipalOf(String name, String orgID) {
+      SRPrincipal principal = builder.principalOf(name, orgID);
+      principal.setProperty("__internal__", "true");
+      return principal;
+   }
+
+   private static Principal login(IdentityID id) {
+      // the package-private login used by AuthenticationService.authenticate (web login)
+      return ReflectionTestUtils.invokeMethod(SecurityEngine.getSecurity(), "authenticate",
+         new ClientInfo(id, "127.0.0.1"), new DefaultTicket(id, "password"));
    }
 
    private Boolean isCrossOrgRemoveAllowed(Principal principal) {

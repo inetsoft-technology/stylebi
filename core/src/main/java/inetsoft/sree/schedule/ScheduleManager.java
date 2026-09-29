@@ -1000,11 +1000,17 @@ public class ScheduleManager {
    }
 
    /**
-    * Whether the caller may remove a task of another organization: internal callers without a
-    * user (scheduler cleanup, system principal) and site administrators.
+    * Whether the caller may remove a task of another organization: callers without a user
+    * (scheduler cleanup), the virtual group/role execute-as principals built by the scheduler,
+    * the system principal and site administrators.
     */
    private boolean isCrossOrgRemoveAllowed(Principal principal) {
-      if(principal == null || SUtil.isInternalUser(principal)) {
+      // Bug #77284: do not exempt SUtil.isInternalUser() principals, SecurityEngine.authenticate()
+      // marks every login principal as __internal__
+      if(principal == null ||
+         principal instanceof XPrincipal &&
+         "true".equals(((XPrincipal) principal).getProperty("virtual")))
+      {
          return true;
       }
 
