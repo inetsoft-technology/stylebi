@@ -69,7 +69,8 @@ import static net.bytebuddy.matcher.ElementMatchers.*;
  * class outside {@code inetsoft.} (a JDK queue's or executor's, Truffle's, Spring's: internal to
  * that class), or allocated before recording started, is not recorded (counted in
  * {@link #ignoredEvents}). A monitor is named by its class,
- * and a plain {@code Object}/{@code Class} monitor by the class of the frame that locked it
+ * and a plain {@code Object}/{@code Class} monitor by the class of the frame it was first seen
+ * locked or awaited in, kept per object identity hash for the run
  * ({@code MON@java.lang.Object@inetsoft...AssetQuerySandbox}).
  *
  * <p>Edge kinds: {@code BLOCKING} ({@code lock()}, {@code lockInterruptibly()}, monitor entry),
@@ -694,7 +695,10 @@ public final class LockOrderRecorder {
       String node = "MON@" + cls;
 
       if((cls.equals("java.lang.Object") || cls.equals("java.lang.Class")) && frame != null) {
-         node += "@" + frame.getClassName();
+         // one name per object, from the frame it was first seen locked (or awaited) in: its
+         // holder and a thread blocked on it name it from different frames
+         String first = node + "@" + frame.getClassName();
+         node = PLAIN_MONITORS.computeIfAbsent(hash, h -> first);
       }
 
       return new Mon(node, hash);
@@ -1010,6 +1014,9 @@ public final class LockOrderRecorder {
    private static final StackWalker WALKER = StackWalker.getInstance();
    private static final ThreadLocal<ThreadState> STATE = ThreadLocal.withInitial(ThreadState::new);
    private static final Map<ThreadState, Boolean> HOLDERS = new ConcurrentHashMap<>();
+   // identity hash -> name of a plain Object/Class monitor (a reused hash after a collection
+   // may inherit an older name; rare, and it can only merge two nodes)
+   private static final Map<Integer, String> PLAIN_MONITORS = new ConcurrentHashMap<>();
    private static LockOrderRecorder instance;
    private static volatile String currentTest = "?";
 
