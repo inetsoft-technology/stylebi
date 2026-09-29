@@ -36,7 +36,8 @@ import java.util.concurrent.locks.Lock;
  * engine and {@code vars} are never used.
  *
  * <p>Only {@code AssetQuerySandbox.getScriptEnv()} creates it, for a sandbox built with
- * {@code script.ws.contextPool} on. Viewsheet and report envs are unaffected.
+ * {@code script.ws.contextPool} on (the default; {@code false} turns it off). Viewsheet and
+ * report envs are unaffected.
  */
 public class WorksheetScriptEnv extends GraalJavaScriptEnv {
    public WorksheetScriptEnv(PoolConfig config) {

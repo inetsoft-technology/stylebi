@@ -18,6 +18,7 @@
 package inetsoft.sree.web.dashboard;
 
 import inetsoft.sree.SreeEnv;
+import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.security.*;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.util.DefaultIdentity;
@@ -34,9 +35,25 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.*;
+import java.util.concurrent.locks.Lock;
+import java.util.function.Predicate;
 
 /**
  * Provides the interface for adding and removing dashboards.
+ *
+ * <p>The registry file is shared by all cluster nodes, and each node caches its own copy of it.
+ * The dashboards are therefore changed with {@link #putDashboard}, {@link #updateDashboard},
+ * {@link #renameDashboard} or {@link #removeDashboard}, which read the current file, apply only
+ * the change and write the file back, holding a cluster-wide lock of the file (Bug #77272).
+ * Changing the cached map and calling {@link #save()} writes this node's copy over the file, and
+ * so loses a change that another node has saved since this node last loaded the file.
+ *
+ * <p>Lock order: DashboardManager, then its store lock, then the DashboardRegistryManager lock,
+ * then the cluster lock of one registry file, then the user registry, then the global registry,
+ * then the data space blob locks. The cluster lock of a file is never waited for while holding a
+ * registry's monitor or the cluster lock of another file, and the DashboardRegistryManager lock
+ * and the DashboardManager are never taken while holding the cluster lock of a file, so the
+ * global registry used to port an old user file is resolved before the lock is taken.
  *
  * @author InetSoft Technology
  * @since  8.5
@@ -89,7 +106,9 @@ public class DashboardRegistry {
    }
 
    /**
-    * Adds a dashboard.
+    * Adds a dashboard to the cached map only. It is written by {@link #save()}, which writes this
+    * node's whole copy of the registry, so it is only used to build a registry that is saved as a
+    * whole. A dashboard is added to a registry in use by {@link #putDashboard}.
     *
     * @param name      the dashboard name.
     * @param dashboard the dashboard to add.
@@ -97,6 +116,39 @@ public class DashboardRegistry {
    public synchronized void addDashboard(String name, Dashboard dashboard) {
       dashboardsMap.put(name, dashboard);
       fireChangeEvent(this, DashboardChangeEvent.Type.CREATED, null, name);
+   }
+
+   /**
+    * Adds or replaces a dashboard and saves the registry file, as one step that is atomic across
+    * the cluster (see {@link #update}). It must not be called while holding a registry's monitor.
+    *
+    * @param name      the dashboard name.
+    * @param dashboard the dashboard to add.
+    */
+   public void putDashboard(String name, Dashboard dashboard) throws Exception {
+      update(map -> {
+         map.put(name, dashboard);
+         return true;
+      });
+
+      fireChangeEvent(this, DashboardChangeEvent.Type.CREATED, null, name);
+   }
+
+   /**
+    * Changes a dashboard and saves the registry file, as one step that is atomic across the
+    * cluster (see {@link #update}). The dashboard passed to the change is read from the current
+    * file, not the cached one. It must not be called while holding a registry's monitor.
+    *
+    * @param name   the dashboard name.
+    * @param change changes the dashboard, and returns true if it changed it.
+    *
+    * @return true if the dashboard exists and was changed.
+    */
+   public boolean updateDashboard(String name, Predicate<Dashboard> change) throws Exception {
+      return update(map -> {
+         Dashboard dashboard = map.get(name);
+         return dashboard != null && change.test(dashboard);
+      });
    }
 
    /**
@@ -217,7 +269,10 @@ public class DashboardRegistry {
    }
 
    /**
-    * Save dashboards to a .xml file.
+    * Save dashboards to a .xml file. It writes this node's whole copy of the registry over the
+    * file, so it is only used to save a registry that is replaced as a whole (an organization copy
+    * or migration, a user rename or removal). Some dashboards are changed with {@link #update},
+    * see the class comment.
     */
    public synchronized void save() throws Exception {
       DataSpace space = DataSpace.getDataSpace();
@@ -310,7 +365,9 @@ public class DashboardRegistry {
     * Build up the dashboard registry by parse a .xml file.
     */
    void loadDashboard(DashboardRegistry globalRegistry) {
-      loadDashboard(getPath(), globalRegistry, false);
+      if(loadDashboard(getPath(), globalRegistry, false)) {
+         savePorted(globalRegistry);
+      }
    }
 
    /**
@@ -323,12 +380,15 @@ public class DashboardRegistry {
     * @param reload         {@code true} when called from the change listener: the reload is
     *                       skipped when the file still holds exactly what this instance last
     *                       saved or loaded, or when this registry has been detached by clear().
+    *
+    * @return true if an old file was loaded and ported. The caller then saves it with
+    *         {@link #savePorted}, after releasing this monitor.
     */
-   private synchronized void loadDashboard(String path, DashboardRegistry globalRegistry,
-                                           boolean reload)
+   private synchronized boolean loadDashboard(String path, DashboardRegistry globalRegistry,
+                                              boolean reload)
    {
       if(reload && detached) {
-         return;
+         return false;
       }
 
       DataSpace space = DataSpace.getDataSpace();
@@ -365,13 +425,13 @@ public class DashboardRegistry {
          LOG.error("Failed to read dashboard registry file " + path, ex);
          // the file state is unknown: keep the current map and let the next event retry
          syncedDigest = null;
-         return;
+         return false;
       }
 
       String digest = content == null ? ABSENT_DIGEST : digest(content);
 
       if(reload && digest != null && digest.equals(syncedDigest)) {
-         return;
+         return false;
       }
 
       // parse into a new map and swap it in, so that readers never see a partially loaded or
@@ -390,21 +450,29 @@ public class DashboardRegistry {
 
             if(reload) {
                syncedDigest = null;
-               return;
+               return false;
             }
          }
       }
 
       dashboardsMap = map;
-      syncedDigest = digest;
+      // a ported map is not what the file holds until savePorted() has written it, so the next
+      // notification reloads (and ports) it again instead of taking it as up to date
+      syncedDigest = ported ? null : digest;
+      return ported;
+   }
 
-      if(ported) {
-         try {
-            save();
-         }
-         catch(Exception exc) {
-            LOG.error(exc.getMessage(), exc);
-         }
+   /**
+    * Saves a ported old file. The file is read and ported again under its cluster lock (see
+    * {@link #update}), so that a change another node saved since it was loaded is kept, and it is
+    * not written again if another thread has saved the port meanwhile.
+    */
+   private void savePorted(DashboardRegistry globalRegistry) {
+      try {
+         update(globalRegistry, map -> false);
+      }
+      catch(Exception exc) {
+         LOG.error(exc.getMessage(), exc);
       }
    }
 
@@ -412,8 +480,89 @@ public class DashboardRegistry {
     * Re-load the dashboards after a change of the file. The path is read under the lock, because
     * the registry may have been moved to another org (modifyOrgId) while the event waited for it.
     */
-   private synchronized void reload(DashboardRegistry globalRegistry) {
-      loadDashboard(getPath(), globalRegistry, true);
+   private void reload(DashboardRegistry globalRegistry) {
+      boolean ported;
+
+      synchronized(this) {
+         ported = loadDashboard(getPath(), globalRegistry, true);
+      }
+
+      if(ported) {
+         savePorted(globalRegistry);
+      }
+   }
+
+   /**
+    * Applies a change to the dashboards of the registry file and saves it, see
+    * {@link #update(DashboardRegistry, Predicate)}.
+    */
+   private boolean update(Predicate<Map<String, Dashboard>> change) throws Exception {
+      // resolved before the file is locked, since it may lock the registry manager
+      DashboardRegistry globalRegistry = isGlobal() ? null :
+         DashboardRegistryManager.getInstance().getGlobalForPort(getOrgID());
+      return update(globalRegistry, change);
+   }
+
+   /**
+    * Applies a change to the dashboards of the registry file and saves it, as one step that is
+    * atomic across the cluster (Bug #77272). Holding the cluster lock of the file and then this
+    * registry's monitor, it reads the current file, applies the change to what it read, writes
+    * the result and makes it the cached map. The cached map is not changed and written instead,
+    * since it may be missing a change that another node saved and whose notification has not
+    * reached this node yet. A notification that arrives meanwhile waits for the monitor and then
+    * finds the file this call wrote, so it does not reload.
+    *
+    * <p>It must not be called while holding a registry's monitor, and the change must not call
+    * the registry manager or the dashboard manager (see the lock order in the class comment).
+    *
+    * @param globalRegistry the global registry, used to port an old user file, resolved by the
+    *                       caller before the lock is taken.
+    * @param change         changes the dashboards read from the file, and returns true if it
+    *                       changed them.
+    *
+    * @return true if the change changed the dashboards.
+    */
+   private boolean update(DashboardRegistry globalRegistry,
+                          Predicate<Map<String, Dashboard>> change) throws Exception
+   {
+      DataSpace space = DataSpace.getDataSpace();
+
+      while(true) {
+         String path = getPath();
+         Lock lock = Cluster.getInstance().getLock(LOCK_PREFIX + space.getPath(null, path));
+         lock.lock();
+
+         try {
+            synchronized(this) {
+               // moved to another org (modifyOrgId) while waiting, lock the new file instead
+               if(!path.equals(getPath())) {
+                  continue;
+               }
+
+               byte[] content = readFile(space, path);
+               Map<String, Dashboard> map = new LinkedHashMap<>();
+               boolean ported = false;
+
+               if(content != null) {
+                  Document doc = Tool.parseXML(new ByteArrayInputStream(content));
+                  ported = parseXML(doc.getDocumentElement(), globalRegistry, map);
+               }
+
+               boolean changed = change.test(map);
+               dashboardsMap = map;
+               syncedDigest = content == null ? ABSENT_DIGEST : digest(content);
+
+               if(changed || ported) {
+                  save();
+               }
+
+               return changed;
+            }
+         }
+         finally {
+            lock.unlock();
+         }
+      }
    }
 
    /**
@@ -438,29 +587,29 @@ public class DashboardRegistry {
    }
 
    /**
-    * Rename a dashboard in the map and save the file, holding this registry's lock. The old name
-    * may be gone if the registry was re-loaded in the meantime, then nothing is renamed, so that a
-    * null dashboard is never put in the map.
+    * Rename a dashboard in the registry file and save it (see {@link #update}). The old name may
+    * be gone if the dashboard was removed in the meantime, then nothing is renamed, so that a null
+    * dashboard is never put in the map.
     *
     * @return true if the dashboard was renamed.
     */
-   synchronized boolean renameEntry(String oname, String name) throws Exception {
-      if(!dashboardsMap.containsKey(oname)) {
-         return false;
-      }
+   boolean renameEntry(String oname, String name) throws Exception {
+      return update(map -> {
+         if(!map.containsKey(oname)) {
+            return false;
+         }
 
-      dashboardsMap.put(name, dashboardsMap.get(oname));
-      dashboardsMap.remove(oname);
-      save();
-      return true;
+         map.put(name, map.get(oname));
+         map.remove(oname);
+         return true;
+      });
    }
 
    /**
-    * Remove a dashboard from the map and save the file, holding this registry's lock.
+    * Remove a dashboard from the registry file and save it (see {@link #update}).
     */
-   synchronized void removeEntry(String name) throws Exception {
-      dashboardsMap.remove(name);
-      save();
+   void removeEntry(String name) throws Exception {
+      update(map -> map.remove(name) != null);
    }
 
    /**
@@ -551,8 +700,8 @@ public class DashboardRegistry {
          manager.runLocked(() -> {
             try {
                Identity identity = getIdentity(user);
-               String[] dashboards = manager.getDashboards(identity);
-               manager.setDashboards(identity, Tool.replace(dashboards, oname, name));
+               manager.updateDashboards(identity,
+                                        dashboards -> Tool.replace(dashboards, oname, name));
 
                if(renameEntry(oname, name)) {
                   fireChangeEvent(this, DashboardChangeEvent.Type.RENAMED, oname, name);
@@ -574,8 +723,7 @@ public class DashboardRegistry {
          manager.runLocked(() -> {
             try {
                Identity identity = getIdentity(user);
-               String[] dashboards = manager.getDashboards(identity);
-               manager.setDashboards(identity, Tool.remove(dashboards, name));
+               manager.updateDashboards(identity, dashboards -> Tool.remove(dashboards, name));
                removeEntry(name);
                fireChangeEvent(this, DashboardChangeEvent.Type.REMOVED, name, null);
             }
@@ -683,5 +831,7 @@ public class DashboardRegistry {
    private static final String ABSENT_DIGEST = "<absent>";
 
    private static final String FILE_NAME = "dashboard-registry.xml";
+   // the prefix of the cluster lock name of a registry file, see update()
+   private static final String LOCK_PREFIX = DashboardRegistry.class.getName() + ".lock:";
    private static final Logger LOG = LoggerFactory.getLogger(DashboardRegistry.class);
 }

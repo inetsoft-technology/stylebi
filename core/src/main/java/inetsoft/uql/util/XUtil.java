@@ -1224,9 +1224,17 @@ public final class XUtil {
 
    /**
     * Gets the groups for the user identified by the specified Principal.
+    *
+    * <p>Always returns a fresh array, never the principal's live {@code groups}
+    * field. Several callers expose the result to scripts (viewsheet
+    * {@code parameter._GROUPS_}, VPM {@code groups}, and the {@code _GROUPS_}
+    * query variable), and a script must not be able to mutate the live principal
+    * in place through it. (Bug #77256) No caller relies on getting the live array
+    * back -- every call site only reads it or stores it in a variable table.
+    *
     * @param user a Principal object that identifies the user.
     * @param includeOrg whether to include organization in group name.
-    * @return an array of group names.
+    * @return an array of group names (a defensive copy).
     */
    public static String[] getUserGroups(Principal user, boolean includeOrg) {
       if(user == null) {
@@ -1237,7 +1245,9 @@ public final class XUtil {
 
       if(Identity.UNKNOWN_USER.equals(name)) {
          if(user instanceof XPrincipal) {
-            return ((XPrincipal) user).getGroups();
+            // clone: XPrincipal.getGroups() hands back the live array (see the
+            // defensive-copy contract on this method).
+            return ((XPrincipal) user).getGroups().clone();
          }
          else {
             return new String[0];
@@ -1262,7 +1272,11 @@ public final class XUtil {
          }
       }
 
-      return userGroups;
+      // clone: finder.getUserGroups can return the principal's live in-memory
+      // groups array (SRPrincipal.createUser().getGroups()), and the includeOrg /
+      // no-provider paths skip the copy above (see the defensive-copy contract on
+      // this method).
+      return userGroups == null ? null : userGroups.clone();
    }
 
    public static AuthenticationProvider getSecurityProvider(String providerName) {

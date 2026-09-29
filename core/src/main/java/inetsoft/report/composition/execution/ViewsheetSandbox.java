@@ -67,6 +67,7 @@ import java.util.List;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.stream.Collectors;
@@ -2446,7 +2447,13 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       exportScriptError = null;
 
       try {
-         processOnLoad(new ChangedAssemblyList(), false);
+         // executeVSScript() (invoked by processOnLoad() to actually run the onLoad
+         // script) catches and swallows the script's own exception so it never
+         // propagates here (#77183) -- pass a handler so that specific failure is
+         // still captured and logged at ERROR, without changing behavior for any
+         // other processOnLoad() caller or for the onInit script, which also runs
+         // through executeVSScript().
+         processOnLoad(new ChangedAssemblyList(), false, this::recordExportScriptError);
       }
       catch(Exception ex) {
          // An onLoad script routinely sets the query parameters the whole sheet is
@@ -2454,13 +2461,27 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
          // query then runs unfiltered and the export is a structurally valid file
          // of the wrong data, sized to whatever the unfiltered result turned out to
          // be. Nothing downstream can tell it apart from a good export. Record it
-         // so the exporter can say so on the document, and log it at ERROR -- the
-         // export is wrong, not merely suspect. (#76780)
-         exportScriptError = ex;
-         LOG.error("Failed to process the onLoad script for export of \"{}\"; the exported " +
-                      "content will not reflect anything that script sets, including any " +
-                      "query parameters it computes", getSheetName(), ex);
+         // so the exporter can say so on the document. (#76780)
+         recordExportScriptError(ex);
       }
+   }
+
+   /**
+    * Records this export's script error (first one wins, so a later, unrelated
+    * failure can't overwrite it) and logs it at ERROR -- the export is wrong, not
+    * merely suspect. Called both when the onLoad script's own exception is
+    * captured via {@link #executeVSScript} (through {@link #processOnLoad}'s
+    * handler) and when some other exception escapes {@link #processOnLoad} back
+    * up to {@link #prepareForExport}'s own catch.
+    */
+   private void recordExportScriptError(Exception ex) {
+      if(exportScriptError == null) {
+         exportScriptError = ex;
+      }
+
+      LOG.error("Failed to process the onLoad script for export of \"{}\"; the exported " +
+                   "content will not reflect anything that script sets, including any " +
+                   "query parameters it computes", getSheetName(), ex);
    }
 
    /**
@@ -2482,12 +2503,23 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       }
    }
 
+   private void processOnLoad(ChangedAssemblyList clist, boolean processDependency)
+         throws Exception
+   {
+      processOnLoad(clist, processDependency, null);
+   }
+
    /**
     * Process onLoad javascript attached to this viewsheet.
     * @param processDependency true to check if assemblies may have been
     * changed and trigger cascading selection processing
+    * @param onLoadScriptError if non-null, invoked with the onLoad script's own
+    * exception when {@link #executeVSScript} catches and swallows it, so a caller
+    * (only {@link #prepareForExport}) can observe that specific failure. This does
+    * not change behavior for any other caller of this method.
     */
-   private void processOnLoad(ChangedAssemblyList clist, boolean processDependency)
+   private void processOnLoad(ChangedAssemblyList clist, boolean processDependency,
+                               Consumer<Exception> onLoadScriptError)
          throws Exception
    {
       String onload = vs.getViewsheetInfo().getOnLoad();
@@ -2535,7 +2567,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       VariableTable vars = getVariableTable();
       VariableTable ovars = vars.clone();
 
-      executeVSScript(onload, ViewsheetScope.VIEWSHEET_SCRIPTABLE);
+      executeVSScript(onload, ViewsheetScope.VIEWSHEET_SCRIPTABLE, onLoadScriptError);
 
       // variable changed, clear cached data
       if(!vars.equals(ovars)) {
@@ -2567,6 +2599,16 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
     * Execute viewsheet scope script.
     */
    private void executeVSScript(String cmd, String scriptable) {
+      executeVSScript(cmd, scriptable, null);
+   }
+
+   /**
+    * Execute viewsheet scope script.
+    * @param scriptError if non-null, invoked with the script's own exception when it
+    * is caught here and would otherwise only be logged/swallowed. See
+    * {@link #processOnLoad(ChangedAssemblyList, boolean, Consumer)}.
+    */
+   private void executeVSScript(String cmd, String scriptable, Consumer<Exception> scriptError) {
       if(cmd == null || cmd.trim().length() == 0) {
          return;
       }
@@ -2585,6 +2627,10 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
          }
          else {
             LOG.warn("Failed to execute viewsheet script: {}", ex.getMessage());
+         }
+
+         if(scriptError != null) {
+            scriptError.accept(ex);
          }
 
          CoreTool.addUserMessage(ex.getMessage());

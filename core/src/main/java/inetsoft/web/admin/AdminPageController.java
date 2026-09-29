@@ -34,6 +34,7 @@ import org.springframework.web.servlet.ModelAndView;
 
 import java.net.URLEncoder;
 import java.security.Principal;
+import java.util.Set;
 
 @Controller
 public class AdminPageController {
@@ -90,10 +91,15 @@ public class AdminPageController {
             !Tool.isEmptyString(provider.getOrganization(orgId).getTheme())
             && !(Tool.equals("default", provider.getOrganization(orgId).getTheme())))
          {
-            hasOrgTheme = true;
+            String orgThemeId = provider.getOrganization(orgId).getTheme();
+            Set<CustomTheme> themes = customThemesManager.getCustomThemes();
 
-            hasDarkEMTheme = customThemesManager.getCustomThemes().stream()
-               .filter(t -> t.getId().equals(provider.getOrganization(orgId).getTheme()))
+            // same rule as GlobalStyleController: a theme of another organization is not served,
+            // so it must not set the flags either (Bug #77285)
+            hasOrgTheme = !CustomTheme.isHiddenFromOrganization(themes, orgThemeId, orgId);
+
+            hasDarkEMTheme = themes.stream()
+               .filter(t -> t.getId().equals(orgThemeId) && t.isVisibleToOrganization(orgId))
                .findAny()
                .map(CustomTheme::isEMDark)
                .orElse(false);

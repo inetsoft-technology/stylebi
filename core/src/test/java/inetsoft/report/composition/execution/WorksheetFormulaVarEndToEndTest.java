@@ -404,7 +404,8 @@ class WorksheetFormulaVarEndToEndTest {
          assertEquals(1, appender.list.size(), () -> "pool on: " + appender.list);
          String msg = appender.list.get(0).getFormattedMessage();
          assertTrue(msg.contains("reads variable \"a\"") &&
-                    msg.contains("assigns it an object") && msg.contains("within one batch"),
+                    msg.contains("assigns it an array, object or function") &&
+                    msg.contains("within one batch"),
                     msg);
 
          for(boolean pool : new boolean[] { false, true }) {

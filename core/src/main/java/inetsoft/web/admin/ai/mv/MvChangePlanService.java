@@ -88,11 +88,11 @@ public class MvChangePlanService {
 
       for(FlatChange fc : flat) {
          if(MvChangeRequest.VERB_CREATE.equals(fc.verb)) {
-            changes.add(resolveCreate(fc, orgId, candidatesByAnalysisId));
+            changes.add(resolveCreate(fc, orgId, candidatesByAnalysisId, user));
             hasCreate = true;
          }
          else if(MvChangeRequest.VERB_SET_CYCLE.equals(fc.verb)) {
-            changes.add(resolveSetCycle(fc, orgId, candidatesByAnalysisId));
+            changes.add(resolveSetCycle(fc, orgId, candidatesByAnalysisId, user));
          }
          else {
             changes.add(resolveDelete(fc, orgId));
@@ -111,9 +111,10 @@ public class MvChangePlanService {
    }
 
    private PlanChange resolveCreate(FlatChange fc, String orgId,
-                                    Map<String, List<MVSupportService.MVStatus>> candidatesByAnalysisId)
+                                    Map<String, List<MVSupportService.MVStatus>> candidatesByAnalysisId,
+                                    Principal user)
    {
-      requireCandidate(fc, candidatesByAnalysisId);
+      requireCandidate(fc, candidatesByAnalysisId, user);
       boolean noData = fc.source.getNoData() == null || fc.source.getNoData();
       // Mirrors applyCreate's gating in MvChangesetApplyService so this preview string describes
       // the runInBackground value apply will actually use.
@@ -126,9 +127,10 @@ public class MvChangePlanService {
    }
 
    private PlanChange resolveSetCycle(FlatChange fc, String orgId,
-                                      Map<String, List<MVSupportService.MVStatus>> candidatesByAnalysisId)
+                                      Map<String, List<MVSupportService.MVStatus>> candidatesByAnalysisId,
+                                      Principal user)
    {
-      MVSupportService.MVStatus status = requireCandidate(fc, candidatesByAnalysisId);
+      MVSupportService.MVStatus status = requireCandidate(fc, candidatesByAnalysisId, user);
       String currentCycle = status.getDefinition().getCycle();
       return new PlanChange(fc.mvName, orgId, currentCycle, fc.source.getCycle(),
                             AdminChangeRecord.RISK_LOW, AdminChangeRecord.SCOPE_STORAGE, true,
@@ -149,7 +151,8 @@ public class MvChangePlanService {
     * fc.mvName} within it, translating both "analysis not valid" and "name not a candidate" into
     * loud, field-named refusals rather than a silent stale/foreign resolution. */
    private MVSupportService.MVStatus requireCandidate(
-      FlatChange fc, Map<String, List<MVSupportService.MVStatus>> candidatesByAnalysisId)
+      FlatChange fc, Map<String, List<MVSupportService.MVStatus>> candidatesByAnalysisId,
+      Principal user)
    {
       if(fc.source.getAnalysisId() == null || fc.source.getAnalysisId().isBlank()) {
          throw new IllegalArgumentException(
@@ -158,10 +161,8 @@ public class MvChangePlanService {
 
       List<MVSupportService.MVStatus> candidates = candidatesByAnalysisId.computeIfAbsent(
          fc.source.getAnalysisId(), id -> {
-            MVSupportService.AnalysisResult result = mvGateway.getAnalysisResult(id);
-
             try {
-               return result.getStatus();
+               return mvGateway.getAnalysisResult(id, user).getStatus();
             }
             catch(IllegalStateException e) {
                throw new AnalysisExpiredException(id);

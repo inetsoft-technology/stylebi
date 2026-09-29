@@ -29,6 +29,7 @@ import org.slf4j.LoggerFactory;
 import java.time.Duration;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Deque;
 import java.util.LinkedHashSet;
@@ -600,14 +601,23 @@ public class GraalJavaScriptEngine implements AutoCloseable {
     * <p>It cannot be fixed on {@code String.prototype}: the own {@code length}
     * property shadows the prototype, and {@code s.length} must keep returning the
     * number. So rewrite the call site instead —
-    * <pre>X.length()  -&gt;  X.length.__jlen()</pre>
-    * which needs no knowledge of what {@code X} is, and stays correct for every
-    * receiver a script can hold: for a guest string or an array {@code X.length}
-    * is a number and {@link LegacyJavaShim#LENGTH_HELPER} on
-    * {@code Number.prototype} returns it; for a host {@code CharSequence} such as
-    * {@code StringBuilder} — where {@code X.length()} already works today and must
-    * keep working — {@code X.length} is the bound Java method and the helper on
-    * {@code Function.prototype} invokes it.
+    * <pre>X.length()  -&gt;  X.{@value LegacyJavaShim#LENGTH_HELPER}('length')</pre>
+    * a <em>call-expression</em> shape: {@code X} is never relocated or
+    * re-evaluated, it stays exactly where it already was as the receiver of a
+    * method call, so the helper's {@code this} is always {@code X} itself.
+    * (Bug #77184: the original shape, {@code X.length.__jlen()}, evaluated
+    * {@code X.length} first as a bare property read — which detaches the
+    * property value from {@code X} — and then invoked the detached value; for a
+    * user JS object whose {@code length} is a function that reads {@code this},
+    * that function ran with the wrong receiver, either throwing or silently
+    * returning data read off the JS global object instead of {@code X}.) The
+    * helper, installed once on {@code Object.prototype} (see
+    * {@link LegacyJavaShim#installStringCompat}), re-derives {@code X.length}
+    * itself and invokes it {@code .call(this)} only when it is a function,
+    * otherwise returns it as-is — so a guest string/array's numeric
+    * {@code length}, a host {@code CharSequence} such as {@code StringBuilder}'s
+    * bound Java method, and a plain JS object's own {@code length} method are
+    * all handled correctly, with no knowledge of what {@code X} is.
     *
     * <p>Only the exact token sequence {@code .length} + {@code (} + {@code )} is
     * rewritten, and only outside string/template/regex literals and comments, so
@@ -616,6 +626,14 @@ public class GraalJavaScriptEngine implements AutoCloseable {
     * the preceding {@code .} and a non-identifier character after {@code length}.
     * Optional chaining ({@code ?.length()}) is not rewritten; it did not exist in
     * the Rhino-era scripts this restores.
+    *
+    * <p>Bug #77184: the regex-vs-division decision below also tracks
+    * {@code afterHead} the same way {@link #scanTopLevel} and
+    * {@link #skipInitializer} do (#76980) — a {@code /} immediately after an
+    * {@code if}/{@code while}/{@code for}/{@code with} head's closing {@code )}
+    * starts a regex literal, not a division, so its source text (which may
+    * itself contain a {@code .length()}-shaped substring) is skipped as an
+    * opaque unit instead of being scanned into and corrupted.
     *
     * @return the rewritten source, or {@code cmd} unchanged when the legacy gate
     * is off or there is nothing to rewrite.
@@ -629,6 +647,12 @@ public class GraalJavaScriptEngine implements AutoCloseable {
       int n = cmd.length();
       int copied = 0;
       char prevSig = 0;
+      String prevWord = null;   // previous identifier/keyword token, else null
+      // one entry per open bracket: whether it is the `(` of an if/while/for/with
+      // head, whose `)` is followed by a statement (so a `/` there is a regex) —
+      // mirrors scanTopLevel/skipInitializer (#76980)
+      Deque<Boolean> brackets = new ArrayDeque<>();
+      boolean afterHead = false;   // the previous token closed a control-flow head
       int i = 0;
 
       while(i < n) {
@@ -655,12 +679,16 @@ public class GraalJavaScriptEngine implements AutoCloseable {
             continue;
          }
 
-         if(c == '/' && regexAllowed(cmd, i, prevSig == LITERAL_END ? ')' : prevSig)) {
+         if(c == '/' &&
+            (afterHead || regexAllowed(cmd, i, prevSig == LITERAL_END ? ')' : prevSig)))
+         {
             int end = scanRegexEnd(cmd, i);
 
             if(end > 0) {
                i = end;
                prevSig = LITERAL_END;
+               prevWord = null;
+               afterHead = false;
                continue;
             }
          }
@@ -668,12 +696,16 @@ public class GraalJavaScriptEngine implements AutoCloseable {
          if(c == '"' || c == '\'') {
             i = skipStringLiteral(cmd, i + 1, c);
             prevSig = LITERAL_END;
+            prevWord = null;
+            afterHead = false;
             continue;
          }
 
          if(c == '`') {
             i = skipTemplateLiteral(cmd, i + 1);
             prevSig = LITERAL_END;
+            prevWord = null;
+            afterHead = false;
             continue;
          }
 
@@ -684,18 +716,49 @@ public class GraalJavaScriptEngine implements AutoCloseable {
                out = new StringBuilder(n + 32);
             }
 
-            out.append(cmd, copied, i).append(".length.")
-               .append(LegacyJavaShim.LENGTH_HELPER).append("()");
+            out.append(cmd, copied, i).append('.')
+               .append(LegacyJavaShim.LENGTH_HELPER).append("('length')");
             copied = end;
             i = end;
             prevSig = ')';
+            prevWord = null;
+            afterHead = false;
             continue;
          }
 
-         if(!Character.isWhitespace(c)) {
-            prevSig = c;
+         if(isIdentStart(c)) {
+            int start = i;
+            i++;
+
+            while(i < n && isIdentPart(cmd.charAt(i))) {
+               i++;
+            }
+
+            prevWord = prevSig == '.' ? null : cmd.substring(start, i);
+            prevSig = cmd.charAt(i - 1);
+            afterHead = false;
+            continue;
          }
 
+         if(Character.isWhitespace(c)) {
+            i++;
+            continue;
+         }
+
+         boolean closedHead = false;
+
+         if(c == '(' || c == '[' || c == '{') {
+            brackets.push(c == '(' && prevWord != null && CONTROL_HEAD_KEYWORDS.contains(prevWord));
+         }
+         else if(c == ')' || c == ']' || c == '}') {
+            if(!brackets.isEmpty()) {
+               closedHead = brackets.pop() && c == ')';
+            }
+         }
+
+         prevSig = c;
+         prevWord = null;
+         afterHead = closedHead;
          i++;
       }
 
@@ -706,7 +769,7 @@ public class GraalJavaScriptEngine implements AutoCloseable {
       out.append(cmd, copied, n);
       String rewritten = out.toString();
 
-      LOG.debug("Rewrote Rhino-style .length() call(s) to .length.{}() for GraalJS; " +
+      LOG.debug("Rewrote Rhino-style .length() call(s) to .{}('length') for GraalJS; " +
                    "disable with {}=false",
                 LegacyJavaShim.LENGTH_HELPER, LegacyJavaShim.GATE_PROPERTY);
 
@@ -830,7 +893,13 @@ public class GraalJavaScriptEngine implements AutoCloseable {
       List<String> statements = splitTopLevelStatements(body);
 
       if(statements.size() > 1 && piecesAllParse(statements)) {
-         return buildCompletionPreservingSource(body, statements);
+         // Bug #77249: without `this`, run each piece as its own parsed-once
+         // with(__scope__) Source instead of a per-exec direct eval (which GraalJS
+         // re-parses on every execution). A `this` body keeps the eval wrapper.
+         Object pieces = THIS_REF.matcher(body).find() ? null :
+            buildPieceScript(body, lexicalBody, statements);
+
+         return pieces != null ? pieces : buildCompletionPreservingSource(body, statements);
       }
 
       // Bug #75625: the direct-eval wrapper below re-parses the script body on
@@ -854,8 +923,9 @@ public class GraalJavaScriptEngine implements AutoCloseable {
       // where a native `let r;` would start `undefined`. Reset those names at the
       // start of each run, outside the `with` (so a same-named scope member is
       // never written) and on the first line (so error line numbers keep their
-      // offset). The split and `this` paths below run the body in a wrapper
-      // function whose `var`s are fresh per run, so they need no reset.
+      // offset). The `this` paths (eval wrappers) run the body in a wrapper
+      // function whose `var`s are fresh per run, so they need no reset; the
+      // this-free split path (buildPieceScript, #77249) resets on its first piece.
       if(!THIS_REF.matcher(body).find()) {
          return Source.newBuilder("js",
             buildLexicalReset(collectInitializerlessLexicalNames(lexicalBody)) +
@@ -918,6 +988,134 @@ public class GraalJavaScriptEngine implements AutoCloseable {
       sb.append("return ").append(RESULT_VAR).append(";}}).call(__scope__)");
 
       return Source.newBuilder("js", sb.toString(), "<cmd>").buildLiteral();
+   }
+
+   /**
+    * Bug #77249: compile a this-free body that {@link #splitTopLevelStatements} cut
+    * into more than one piece (#75688) to a {@link PieceScript}: each piece becomes
+    * its own {@code with(__scope__){ piece }} Source, the plain-path shape, which
+    * Truffle parses once per Context and reuses, where the eval wrapper of
+    * {@link #buildCompletionPreservingSource} re-parsed every piece on every exec.
+    *
+    * <p>Each piece is a top-level script, so a top-level {@code var} (and a
+    * rewritten {@code let}/{@code const}, #76980) becomes a declared global of the
+    * Context, visible to the later pieces and to later scripts, as on the plain
+    * path; the #75596 hoist is not needed. On the eval wrapper such a var was a
+    * fresh binding of the wrapper function on every run, so a formula like
+    * {@code var c; if(v > 100) { c = [255,0,0] } c} (a per-cell color or a
+    * viewsheet binding run on one shared Context) started with {@code c}
+    * undefined each time. To keep that, the first piece starts, outside its
+    * {@code with} (so a same-named scope member - including a formula table's
+    * owned var, #5806 - is never written), with the #77181 reset of every name the
+    * body declares with {@code var} outside a function body plus its
+    * initializer-less top-level {@code let}/{@code const} names. As for #77181, a
+    * global the engine itself defines is never reset.
+    *
+    * <p>Each piece is preceded by one line break per line break of the body before
+    * it, so an error reports the same line as the plain path (body line + 1);
+    * there is no column padding, as only the line is reported.
+    *
+    * @return the piece script, or {@code null} if a piece cannot be located in
+    *         {@code body} (defensive; the caller then keeps the eval wrapper).
+    */
+   private Object buildPieceScript(String body, String lexicalBody, List<String> statements) {
+      Set<String> resetNames = collectInitializerlessLexicalNames(lexicalBody);
+      resetNames.addAll(collectOwnedVarNames(List.of(lexicalBody)));
+      resetNames.removeAll(NEVER_RESET);
+      String reset = buildLexicalReset(resetNames);
+      Source[] pieces = new Source[statements.size()];
+      int pos = 0;
+      int scanned = 0;
+      int lines = 0;
+
+      for(int i = 0; i < pieces.length; i++) {
+         String stmt = statements.get(i);
+         int at = body.indexOf(stmt, pos);
+
+         if(at < 0) {
+            return null;
+         }
+
+         // count the line breaks before the piece (CR, LF, CRLF, U+2028, U+2029)
+         for(; scanned < at; scanned++) {
+            char c = body.charAt(scanned);
+
+            if(c == '\n' || c == '\u2028' || c == '\u2029' ||
+               c == '\r' && (scanned + 1 >= body.length() || body.charAt(scanned + 1) != '\n'))
+            {
+               lines++;
+            }
+         }
+
+         StringBuilder sb = new StringBuilder(
+            stmt.length() + lines + 20 + (i == 0 ? reset.length() : 0));
+
+         if(i == 0) {
+            sb.append(reset);
+         }
+
+         sb.append("with(__scope__){\n");
+         sb.append("\n".repeat(lines));
+         sb.append(stmt).append("\n}");
+         pieces[i] = Source.newBuilder("js", sb.toString(), "<cmd>").buildLiteral();
+         pos = at + stmt.length();
+      }
+
+      return new PieceScript(pieces, body);
+   }
+
+   /**
+    * Bug #77249: the compiled form of a this-free multi-piece body (#75688), see
+    * {@link #buildPieceScript}. {@link #exec} runs the pieces in order and keeps the
+    * last result that is not {@code undefined} ({@code null} counts as a value), as
+    * the eval wrapper's {@code V!==undefined}; an exception in a piece skips the
+    * rest. Holds Sources only, so like a Source it is not bound to any Context and
+    * can be shared by the static script caches, across pooled contexts and engines.
+    * Equal by content, like a Source, so the {@code errorCounts} of a recompiled
+    * formula carry over.
+    */
+   static final class PieceScript {
+      PieceScript(Source[] pieces, String text) {
+         this.pieces = pieces;
+         this.text = text;
+      }
+
+      Value eval(Context context) {
+         Value result = null;
+         Value last = null;
+
+         for(Source piece : pieces) {
+            last = context.eval(piece);
+
+            if(!ScriptValueConverter.isUndefined(last)) {
+               result = last;
+            }
+         }
+
+         return result != null ? result : last;
+      }
+
+      Source[] pieces() {
+         return pieces.clone();
+      }
+
+      @Override
+      public boolean equals(Object obj) {
+         return obj instanceof PieceScript other && Arrays.equals(pieces, other.pieces);
+      }
+
+      @Override
+      public int hashCode() {
+         return Arrays.hashCode(pieces);
+      }
+
+      @Override
+      public String toString() {
+         return text;
+      }
+
+      private final Source[] pieces;
+      private final String text;
    }
 
    // Keywords that begin a statement whose completion value can be *empty* — the
@@ -1878,7 +2076,7 @@ public class GraalJavaScriptEngine implements AutoCloseable {
    public Object exec(Object script, Object scope, Object rscope) throws Exception {
       lock.lock();
       // marks which pooled worksheet context, if any, is executing (bug #76960)
-      Object execMark = enterExecContext();
+      Object execMark = enterExecContext(script);
 
       try {
          // FIX A: guard against null context before initialization
@@ -1922,11 +2120,9 @@ public class GraalJavaScriptEngine implements AutoCloseable {
                   return null;
                }
 
-               Value result = context.eval((Source) script);
-               Object hostResult = ScriptValueConverter.toHostResult(result);
-               // still inside the timeout guard, and only on normal completion (bug #77123)
-               execCompleted(execMark);
-               return hostResult;
+               Value result = script instanceof PieceScript pieces ? pieces.eval(context)
+                  : context.eval((Source) script);
+               return ScriptValueConverter.toHostResult(result);
             }
          }
          catch(PolyglotException ex) {
@@ -2006,9 +2202,11 @@ public class GraalJavaScriptEngine implements AutoCloseable {
     * pooled exec: a nested exec of this engine must never see the host-boundary conversions of
     * the outer worksheet context. With the pool off no mark is ever set and this is a no-op.
     *
+    * @param script the script about to run; a pooled engine names it in its diagnostics.
+    *
     * @return the token {@link #exitExecContext} restores.
     */
-   protected Object enterExecContext() {
+   protected Object enterExecContext(Object script) {
       return WsExecContext.suspend();
    }
 
@@ -2017,14 +2215,6 @@ public class GraalJavaScriptEngine implements AutoCloseable {
     */
    protected void exitExecContext(Object token) {
       WsExecContext.resume(token);
-   }
-
-   /**
-    * Called when an exec completed normally, inside its timeout guard, with the token of
-    * {@link #enterExecContext}. A pooled engine re-snapshots the Java-held views of its
-    * script's values here (bug #77123); this engine does nothing.
-    */
-   protected void execCompleted(Object token) {
    }
 
    /**
@@ -2525,7 +2715,11 @@ public class GraalJavaScriptEngine implements AutoCloseable {
     * {@code //} comment). Regex-vs-division is disambiguated by the preceding
     * significant token; when genuinely ambiguous the text is left as code, which
     * at worst over-collects a declaration name (harmless — the emitted copy is
-    * typeof-guarded) rather than dropping one.
+    * typeof-guarded) rather than dropping one. As in {@link #scanTopLevel} and
+    * {@link #skipInitializer}, a {@code )} that closes an {@code if}/{@code while}/
+    * {@code for}/{@code with} head's condition is followed by a statement, so a
+    * {@code /} there starts a regex even though {@link #regexAllowed} alone would
+    * read it as division (bug #77305).
     */
    private static String stripStringsAndComments(String s) {
       int n = s.length();
@@ -2535,6 +2729,12 @@ public class GraalJavaScriptEngine implements AutoCloseable {
       java.util.Deque<Integer> templateStack = new java.util.ArrayDeque<>();
       int braceDepth = 0;
       char prevSig = 0;   // previous significant code char (regex/division hint)
+      String prevWord = null;   // previous identifier/keyword token, else null
+      // as in scanTopLevel/skipInitializer: per open bracket, whether it is the
+      // `(` of an if/while/for/with head, whose `)` is followed by a statement,
+      // so a `/` there starts a regex
+      java.util.Deque<Boolean> brackets = new java.util.ArrayDeque<>();
+      boolean afterHead = false;   // the previous token closed a control-flow head
       int i = 0;
 
       while(i < n) {
@@ -2578,7 +2778,7 @@ public class GraalJavaScriptEngine implements AutoCloseable {
          }
 
          // regular-expression literal (only where '/' cannot be division)
-         if(c == '/' && regexAllowed(s, i, prevSig)) {
+         if(c == '/' && (afterHead || regexAllowed(s, i, prevSig))) {
             int end = scanRegexEnd(s, i);
 
             if(end > 0) {
@@ -2588,6 +2788,8 @@ public class GraalJavaScriptEngine implements AutoCloseable {
 
                i = end;
                prevSig = ')';   // a regex literal ends an expression (division next)
+               prevWord = null;
+               afterHead = false;
                continue;
             }
          }
@@ -2618,6 +2820,8 @@ public class GraalJavaScriptEngine implements AutoCloseable {
             }
 
             prevSig = ')';   // a string ends an expression
+            prevWord = null;
+            afterHead = false;
             continue;
          }
 
@@ -2626,6 +2830,8 @@ public class GraalJavaScriptEngine implements AutoCloseable {
             sb.append(' ');
             i = scanTemplateBody(s, i + 1, sb, braceDepth, templateStack);
             prevSig = ')';
+            prevWord = null;
+            afterHead = false;
             continue;
          }
 
@@ -2635,22 +2841,61 @@ public class GraalJavaScriptEngine implements AutoCloseable {
             sb.append(' ');
             i = scanTemplateBody(s, i + 1, sb, braceDepth, templateStack);
             prevSig = ')';
+            prevWord = null;
+            afterHead = false;
             continue;
          }
 
-         if(c == '{') {
-            braceDepth++;
+         // whitespace and comments between a control head's `)` and the next
+         // token must not reset afterHead (only a real token does) — handled
+         // above for // and /* comments (which `continue` without touching
+         // afterHead) and here for plain whitespace.
+         if(Character.isWhitespace(c)) {
+            sb.append(c);
+            i++;
+            continue;
          }
-         else if(c == '}' && braceDepth > 0) {
-            braceDepth--;
+
+         // identifier / keyword, tracked so a following `(` can be recognized as
+         // an if/while/for/with control-flow head, mirroring scanTopLevel/
+         // skipInitializer.
+         if(isIdentStart(c)) {
+            int start = i;
+
+            while(i < n && isIdentPart(s.charAt(i))) {
+               sb.append(s.charAt(i));
+               i++;
+            }
+
+            prevWord = prevSig == '.' ? null : s.substring(start, i);
+            prevSig = s.charAt(i - 1);
+            afterHead = false;
+            continue;
+         }
+
+         boolean closedHead = false;
+
+         if(c == '(' || c == '[' || c == '{') {
+            brackets.push(c == '(' && prevWord != null && CONTROL_HEAD_KEYWORDS.contains(prevWord));
+
+            if(c == '{') {
+               braceDepth++;
+            }
+         }
+         else if(c == ')' || c == ']' || c == '}') {
+            if(c == '}' && braceDepth > 0) {
+               braceDepth--;
+            }
+
+            if(!brackets.isEmpty()) {
+               closedHead = brackets.pop() && c == ')';
+            }
          }
 
          sb.append(c);
-
-         if(!Character.isWhitespace(c)) {
-            prevSig = c;
-         }
-
+         prevSig = c;
+         prevWord = null;
+         afterHead = closedHead;
          i++;
       }
 

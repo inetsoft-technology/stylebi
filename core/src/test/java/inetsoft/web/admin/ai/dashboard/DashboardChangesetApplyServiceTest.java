@@ -184,7 +184,7 @@ class DashboardChangesetApplyServiceTest {
          String path = inv.getArgument(0);
          dashboardStore.remove(path);
          return null;
-      }).when(repositoryDashboardService).delete(anyString(), any());
+      }).when(repositoryDashboardService).delete(anyString(), any(), any());
 
       lenient().when(repositoryDashboardService.getDashboardFolderSettings(eq(user)))
          .thenAnswer(inv -> RepositoryFolderDashboardSettingsModel.builder()
@@ -436,7 +436,7 @@ class DashboardChangesetApplyServiceTest {
       doomedDelete.setOwner("bob:host-org");
       // No-op delete for the SECOND entry: verification fails without throwing, forcing rollback of
       // the first (already-applied) delete.
-      doAnswer(inv -> null).when(repositoryDashboardService).delete(eq("OtherDashboard"), eq(OWNER));
+      doAnswer(inv -> null).when(repositoryDashboardService).delete(eq("OtherDashboard"), eq(OWNER), any());
 
       var result = service.apply(applyRequest("mixed", delete, doomedDelete), user);
 
@@ -578,7 +578,7 @@ class DashboardChangesetApplyServiceTest {
       // rollback of the already-applied reorder -- same technique as the dashboard-unit rollback
       // tests above, just with the roles reversed (reorder is the one being undone here).
       doAnswer(inv -> null).when(repositoryDashboardService)
-         .delete(eq("DoomedDashboard__GLOBAL"), isNull());
+         .delete(eq("DoomedDashboard__GLOBAL"), isNull(), any());
 
       var result = service.apply(applyRequest("mixed", reorder, doomedDelete), user);
 
@@ -615,7 +615,7 @@ class DashboardChangesetApplyServiceTest {
       reorder.setOwner("bob:host-org");
       DashboardChangeRequest doomedDelete = deleteDashboardChange("DoomedDashboard__GLOBAL");
       doAnswer(inv -> null).when(repositoryDashboardService)
-         .delete(eq("DoomedDashboard__GLOBAL"), isNull());
+         .delete(eq("DoomedDashboard__GLOBAL"), isNull(), any());
 
       var result = service.apply(applyRequest("mixed", reorder, doomedDelete), user);
 

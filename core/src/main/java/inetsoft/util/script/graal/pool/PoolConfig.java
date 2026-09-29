@@ -18,20 +18,29 @@
 package inetsoft.util.script.graal.pool;
 
 import inetsoft.sree.SreeEnv;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Configuration of the worksheet script context pool (bug #76960). Whether the pool is on is
  * read once per sandbox ({@link #isEnabled()}); the tuning values once per env ({@link #read()}).
+ * The pool is on by default (Feature #77123); {@code script.ws.contextPool=false} turns it off.
  *
  * @param idleMillis          an idle pooled context is closed after this long.
  * @param cleanThreshold      a context whose non-configurable leftover globals exceed this is
  *                            closed instead of reused.
  * @param warnSlotsPerSandbox warn (never cap) when one sandbox has more contexts than this.
  * @param warnSlotsPerNode    warn (never cap) when the node has more pooled contexts than this.
- * @param batchRows           the minimum rows a lens populates under one claimed span.
+ * @param batchRows           above 0, a formula lens batches its rows under one claimed span;
+ *                            0 turns batching off. A first or random batch is what pool off
+ *                            computes (context-pool regression D1).
  * @param maxBatchRows        the most rows one batch reads ahead: under sequential access a
- *                            consumer's batches double from batchRows up to this (spec §14.14).
- *                            Never below batchRows.
+ *                            lens's batches double from the pool-off look-ahead up to this
+ *                            (spec §14.14). Never below batchRows.
  */
 public record PoolConfig(long idleMillis, int cleanThreshold, int warnSlotsPerSandbox,
                          int warnSlotsPerNode, int batchRows, int maxBatchRows)
@@ -55,14 +64,57 @@ public record PoolConfig(long idleMillis, int cleanThreshold, int warnSlotsPerSa
    }
 
    /**
-    * @return whether a sandbox built now runs its worksheet scripts on pooled contexts.
+    * The pool mode when {@link #ENABLED} is not set: on (Feature #77123).
+    */
+   public static final boolean DEFAULT_ENABLED = true;
+
+   /**
+    * @return whether a sandbox built now runs its worksheet scripts on pooled contexts: true
+    *         unless {@link #ENABLED} is set to something other than true (any case), for
+    *         example {@code script.ws.contextPool=false}. A value that is neither true nor
+    *         false (for example a typo) also turns the pool off, and is logged once as a WARN;
+    *         an explicit false is logged once as an INFO.
     */
    public static boolean isEnabled() {
       try {
-         return "true".equalsIgnoreCase(SreeEnv.getProperty(ENABLED, "false"));
+         String value = SreeEnv.getProperty(ENABLED);
+
+         if(value == null || value.isBlank()) {
+            return DEFAULT_ENABLED;
+         }
+
+         String trimmed = value.trim();
+
+         if("true".equalsIgnoreCase(trimmed)) {
+            return true;
+         }
+
+         if(!"false".equalsIgnoreCase(trimmed)) {
+            warnUnrecognized(trimmed);
+         }
+         else if(OFF_LOGGED.compareAndSet(false, true)) {
+            LOG.info("{}=false: the worksheet script context pool is off, so the engine-lock " +
+                        "hangs of Bug #77016 can occur; see the release note (Turning it off) and " +
+                        "pair it with stall.watchdog.mode=fail.", ENABLED);
+         }
+
+         return false;
       }
       catch(Exception ex) {
-         return false;
+         return DEFAULT_ENABLED;
+      }
+   }
+
+   /**
+    * Logs one WARN per distinct unrecognized {@link #ENABLED} value, at most
+    * {@link #MAX_WARNED_VALUES} values per JVM.
+    */
+   private static void warnUnrecognized(String value) {
+      if(WARNED_VALUES.size() < MAX_WARNED_VALUES && WARNED_VALUES.add(value)) {
+         String shown = value.length() > 64 ? value.substring(0, 64) + "..." : value;
+         LOG.warn("{}='{}' is neither true nor false; the worksheet script context pool is " +
+                     "turned OFF. Set it to true (or remove it) to keep the pool on.",
+                  ENABLED, shown);
       }
    }
 
@@ -87,4 +139,9 @@ public record PoolConfig(long idleMillis, int cleanThreshold, int warnSlotsPerSa
          return def;
       }
    }
+
+   static final int MAX_WARNED_VALUES = 16;
+   private static final Set<String> WARNED_VALUES = ConcurrentHashMap.newKeySet();
+   private static final AtomicBoolean OFF_LOGGED = new AtomicBoolean();
+   private static final Logger LOG = LoggerFactory.getLogger(PoolConfig.class);
 }

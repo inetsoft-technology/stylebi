@@ -40,6 +40,7 @@ import org.springframework.expression.Expression;
 import org.springframework.expression.spel.standard.SpelExpressionParser;
 import org.springframework.expression.spel.support.StandardEvaluationContext;
 import org.springframework.stereotype.Component;
+import org.springframework.web.context.request.RequestAttributes;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
@@ -84,14 +85,17 @@ public class SecuredAspect {
          return joinPoint.proceed();
       }
 
-      HttpServletRequest request =
-         ((ServletRequestAttributes) RequestContextHolder.currentRequestAttributes())
-            .getRequest();
+      // no request is bound when the method runs outside a servlet request, e.g. a
+      // @ClusterProxyMethod executed on the key owner's affinity thread
+      RequestAttributes attributes = RequestContextHolder.getRequestAttributes();
+      HttpServletRequest request = attributes instanceof ServletRequestAttributes servletAttributes ?
+         servletAttributes.getRequest() : null;
 
       Principal user = null;
       IdentityID defaultOwner = null;
       String path = null;
-      String uri = request.getRequestURI();
+      String uri = request != null ? request.getRequestURI() :
+         method.getDeclaringClass().getName() + "." + method.getName();
 
       Annotation[][] annotations = method.getParameterAnnotations();
 
@@ -119,7 +123,9 @@ public class SecuredAspect {
          }
       }
 
-      if(user == null) {
+      // without a request, only an explicit @PermissionUser principal is used, a missing one
+      // leaves the user null and the permission check denies access
+      if(user == null && request != null) {
          user = request.getUserPrincipal();
       }
 

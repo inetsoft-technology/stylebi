@@ -354,6 +354,11 @@ public class SreeEnv {
 
    /**
     * A value that is cached for the timeout period.
+    * <p>
+    * A property read resolves an <code>inetsoft.org.&lt;org&gt;.</code> override in the current
+    * thread's organization, so the value is cached separately for each organization it is read
+    * in, keyed by the same resolution {@link SreeEnv#getProperty(String)} applies. A thread with
+    * no principal reads the global key and uses the unscoped cache entry.
     */
    public static class Value {
       public Value(String name, int timeout, String def) {
@@ -367,27 +372,68 @@ public class SreeEnv {
       }
 
       public String get() {
+         String orgID = getOrgScope();
+         // read the generation before resolving, so a resolve that races with updateValue()
+         // stores an entry that is already stale instead of one that looks current
+         int generation = this.generation;
+         Entry entry = orgID == null ? globalEntry : orgEntries.get(orgID);
          long now = System.currentTimeMillis();
 
-         if(now - ts > timeout) {
-            updateValue();
+         if(entry == null || entry.generation != generation || now - entry.ts > timeout) {
+            String value = def != null ? SreeEnv.getProperty(name, def) : SreeEnv.getProperty(name);
+            entry = new Entry(value, now, generation);
+
+            if(orgID == null) {
+               globalEntry = entry;
+            }
+            else {
+               orgEntries.put(orgID, entry);
+            }
          }
 
-         return value;
+         return entry.value;
       }
 
       /**
-       * Imperatively update the underlying property value without regard to the timeout.
+       * Imperatively discard the cached property value, in every organization, without regard to
+       * the timeout. The next {@link #get()} in each organization reads the property again.
        */
       public void updateValue() {
-         value = def != null ? SreeEnv.getProperty(name, def) : SreeEnv.getProperty(name);
-         ts = System.currentTimeMillis();
+         generation++;
+         globalEntry = null;
+         orgEntries.clear();
+      }
+
+      /**
+       * Get the organization that a property read on the current thread is resolved in, or
+       * <code>null</code> if it reads the global key.
+       */
+      private String getOrgScope() {
+         // no principal, no organization lookup; checked here so that threads without a
+         // principal (e.g. Ignite internal threads) never look up the properties engine
+         if(!PropertiesEngine.hasThreadPrincipal()) {
+            return null;
+         }
+
+         String caseName = this.caseName;
+
+         if(caseName == null) {
+            caseName = PropertiesEngine.getInstance().getPropertyNameCase(name);
+            this.caseName = caseName;
+         }
+
+         return PropertiesEngine.getPropertyOrgScope(caseName);
+      }
+
+      private record Entry(String value, long ts, int generation) {
       }
 
       private final int timeout;
       private final String name;
-      private String value;
       private String def;
-      private long ts;
+      private volatile String caseName;
+      private volatile Entry globalEntry;
+      private final Map<String, Entry> orgEntries = new ConcurrentHashMap<>();
+      private volatile int generation;
    }
 }

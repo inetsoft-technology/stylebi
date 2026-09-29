@@ -23,6 +23,7 @@ import inetsoft.report.internal.Util;
 import inetsoft.report.internal.binding.OrderInfo;
 import inetsoft.report.internal.table.CancellableTableLens;
 import inetsoft.report.internal.table.TableFormat;
+import inetsoft.report.lens.ChainScriptLock;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.internal.ColumnIndexMap;
 import inetsoft.uql.table.XSwappableTable;
@@ -2136,6 +2137,15 @@ public class SummaryFilter extends AbstractGroupedTable
     */
    @Override
    public int getRowCount() {
+      // a row count probe (e.g. AssetQuery.validateDataTypes) starts nothing if the base
+      // needs an engine lock this thread doesn't hold: it must not take the lock, it may be
+      // building a table inside that table's monitor, and a worker must not be left for a
+      // reader that can't lend it the lock. the first read of rows processes them
+      // (bug #77223)
+      if(!inited && getUnheldChainScriptLock() != null) {
+         return -1;
+      }
+
       checkInit();
 
       synchronized(SummaryFilter.this) {
@@ -2407,15 +2417,52 @@ public class SummaryFilter extends AbstractGroupedTable
     */
    private void checkInit() {
       if(!inited) {
+         // the first read of rows takes the engine lock the base needs before this filter's
+         // monitor, like a condition filter (bug #76918), and processes them on this thread.
+         // a worker needing the lock could wait forever for a reader inside a script on that
+         // engine, which can't lend it the lock (bug #77223)
+         LendableReentrantLock execLock = getUnheldChainScriptLock();
+
+         if(execLock == null) {
+            checkInit0();
+            return;
+         }
+
+         execLock.lock();
+         JavaScriptEngine.pushHeldScriptLock(execLock);
+
+         try {
+            checkInit0();
+         }
+         finally {
+            JavaScriptEngine.popHeldScriptLock();
+            execLock.unlock();
+         }
+      }
+   }
+
+   /**
+    * Get the engine lock reading the base may take if the current thread does not hold it.
+    */
+   private LendableReentrantLock getUnheldChainScriptLock() {
+      LendableReentrantLock execLock = ChainScriptLock.find(table);
+      return execLock != null && !execLock.isHeldByCurrentThread() ? execLock : null;
+   }
+
+   private void checkInit0() {
+      if(!inited) {
          synchronized(this) {
             if(!inited) {
                inited = true;
-               boolean inExec = JavaScriptEngine.holdsScriptLock();
 
                // if this is called from JavaScriptEngine.exec() or a condition filter
                // (bug #76938), the script engine is already locked. running process() in
                // a separate thread would create a deadlock waiting forever for the
-               // JavaScriptEngine lock to be released.
+               // JavaScriptEngine lock to be released. if the base needs an engine lock,
+               // only holding that lock counts, see checkInit() (bug #77223)
+               LendableReentrantLock chainLock = ChainScriptLock.find(table);
+               boolean inExec = chainLock != null ? chainLock.isHeldByCurrentThread()
+                  : JavaScriptEngine.holdsScriptLock();
 
                if(!inExec) {
                   // a thread holding the lock may still wait for this worker later on,

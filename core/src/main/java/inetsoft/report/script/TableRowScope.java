@@ -18,19 +18,19 @@
 package inetsoft.report.script;
 
 import inetsoft.util.script.DynamicScope;
+import inetsoft.util.script.ScriptSpan;
 import inetsoft.util.script.graal.OwnedVarScope;
 import inetsoft.util.script.graal.ScriptArrayScope;
 import inetsoft.util.script.graal.ScriptScope;
 import inetsoft.util.script.graal.ScriptValueConverter;
+import inetsoft.util.script.graal.pool.OwnedValueCodec;
 import inetsoft.util.script.graal.pool.WsExecContext;
 import org.graalvm.polyglot.Context;
 import org.graalvm.polyglot.Value;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Set;
+import java.util.*;
 
 /**
  * This is used to execute script in a TableRow scope. It makes the builtin
@@ -78,7 +78,111 @@ public class TableRowScope implements DynamicScope, ScriptArrayScope, OwnedVarSc
          return;
       }
 
-      valmap.put(id, ScriptValueConverter.toOwnedVar(value));
+      Object stored = ScriptValueConverter.toOwnedVar(value);
+      hasObjects |= stored instanceof Value;
+      valmap.put(id, stored);
+   }
+
+   /**
+    * At the end of a pooled batch, on the slot {@code span} claimed, save the context-free
+    * form of the script object each owned var of that slot holds (Testing #77123, B1
+    * residual): a later batch that runs on another slot rebuilds a Date from it. Runs at
+    * every batch end, however the batch ended, as it runs no script code
+    * ({@link OwnedValueCodec}). A var holding an object of another slot keeps its snapshot:
+    * that object was not used in this batch. A value that cannot be read is lost (read as
+    * undefined, with a warning, on another slot), never left with an older snapshot. Nothing
+    * with the pool off. Never throws a RuntimeException: it runs in the batch's finally.
+    */
+   public void snapshotOwnedObjects(ScriptSpan span) {
+      if(!hasObjects) {
+         return;
+      }
+
+      Set<String> saved = null;
+
+      try {
+         OwnedValueCodec codec = OwnedValueCodec.forSpan(span);
+
+         if(codec == null) {
+            // pool off, or no slot claimed (no formula ran): the snapshots are current. A
+            // claimed slot that cannot be saved (closed): its objects are lost
+            loseObjectsOf(OwnedValueCodec.claimedContext(span));
+            return;
+         }
+
+         saved = new HashSet<>();
+         Context context = codec.context();
+         Map<Value, Object> ids = new HashMap<>();
+
+         for(Object o : valmap.entrySet()) {
+            Map.Entry<?, ?> e = (Map.Entry<?, ?>) o;
+            String name = String.valueOf(e.getKey());
+
+            if(!(e.getValue() instanceof Value v) || !owned.contains(name)) {
+               continue;
+            }
+
+            Object node;
+
+            try {
+               if(!context.equals(v.getContext())) {
+                  continue;
+               }
+
+               node = codec.snapshot(v, ids);
+            }
+            catch(RuntimeException ex) {
+               node = OwnedValueCodec.UNREADABLE;
+            }
+
+            snapshots.put(name, node);
+            saved.add(name);
+         }
+
+         snapshots.keySet().removeIf(k -> !(valmap.get(k) instanceof Value));
+      }
+      catch(RuntimeException ex) {
+         LOG.debug("Failed to save the script objects of formula variables", ex);
+
+         for(Object o : valmap.entrySet()) {
+            Map.Entry<?, ?> e = (Map.Entry<?, ?>) o;
+            String name = String.valueOf(e.getKey());
+
+            if(e.getValue() instanceof Value && owned.contains(name) &&
+               (saved == null || !saved.contains(name)))
+            {
+               snapshots.put(name, OwnedValueCodec.UNREADABLE);
+            }
+         }
+      }
+   }
+
+   // mark every owned var holding an object of context (or one whose context cannot be
+   // read) lost: never left with an older snapshot
+   private void loseObjectsOf(Context context) {
+      if(context == null) {
+         return;
+      }
+
+      for(Object o : valmap.entrySet()) {
+         Map.Entry<?, ?> e = (Map.Entry<?, ?>) o;
+         String name = String.valueOf(e.getKey());
+
+         if(e.getValue() instanceof Value v && owned.contains(name)) {
+            boolean of;
+
+            try {
+               of = context.equals(v.getContext());
+            }
+            catch(RuntimeException ex) {
+               of = true;
+            }
+
+            if(of) {
+               snapshots.put(name, OwnedValueCodec.UNREADABLE);
+            }
+         }
+      }
    }
 
    /**
@@ -93,6 +197,9 @@ public class TableRowScope implements DynamicScope, ScriptArrayScope, OwnedVarSc
    public void releaseOwnedObjects() {
       ((HashMap<?, ?>) valmap).entrySet().removeIf(
          e -> e.getValue() instanceof Value && owned.contains(e.getKey()));
+      // no formula reads them again in this scope
+      snapshots.clear();
+      hasObjects = false;
    }
 
    @Override
@@ -166,8 +273,10 @@ public class TableRowScope implements DynamicScope, ScriptArrayScope, OwnedVarSc
    /**
     * The script object an owned var holds, if it belongs to the context executing now. With
     * the context pool, a batch of rows can run on another context than the batch that created
-    * it, where it cannot be used (a live reference fails or reads another thread's context):
-    * it reads as undefined, as the pool's per-batch reset gave, with one warning per var.
+    * it, where it cannot be used (a live reference fails or reads another thread's context).
+    * A Date is rebuilt there from its batch-end snapshot (Testing #77123, B1 residual); any
+    * other object reads as undefined, as the pool's per-batch reset gave, with one warning
+    * per var naming what it holds.
     */
    private Object ownedObject(String id, Value v) {
       Context current = WsExecContext.currentContext();
@@ -176,16 +285,76 @@ public class TableRowScope implements DynamicScope, ScriptArrayScope, OwnedVarSc
          return v;
       }
 
+      OwnedValueCodec codec = snapshots.isEmpty() ? null : OwnedValueCodec.current();
+
+      if(codec != null) {
+         rebuildForeign(codec, current);
+
+         if(valmap.get(id) instanceof Value nv && isOf(nv, current)) {
+            return nv;
+         }
+      }
+
       valmap.remove(id);
 
       if(warned.add(id)) {
-         LOG.warn("The formula variable \"{}\" holds a script object created on another " +
+         String kind = snapshots.get(id) instanceof OwnedValueCodec.Lost lost
+            ? lost.kind() : "a script object";
+         LOG.warn("The formula variable \"{}\" holds {} created on another " +
                   "script context of the worksheet context pool; it cannot be used there and " +
-                  "reads as undefined. Keep a number, string or boolean in a variable that " +
-                  "must last for the whole table.", id);
+                  "reads as undefined. Keep a number, string, boolean or Date in a variable " +
+                  "that must last for the whole table.", id, kind);
       }
 
       return UNDEFINED;
+   }
+
+   /**
+    * Rebuild in {@code current} every owned var that holds a Date of another context, from
+    * its snapshot, all at once so two vars holding one Date still hold one Date. A Date with
+    * own properties or of a subclass is rebuilt as a plain Date from its time value, with one
+    * warning per var. A var that holds anything else is left for its read.
+    */
+   private void rebuildForeign(OwnedValueCodec codec, Context current) {
+      IdentityHashMap<Object, Value> built = new IdentityHashMap<>();
+
+      for(Object o : valmap.entrySet()) {
+         @SuppressWarnings("unchecked")
+         Map.Entry<Object, Object> e = (Map.Entry<Object, Object>) o;
+         String name = String.valueOf(e.getKey());
+
+         if(!(e.getValue() instanceof Value v) || !owned.contains(name) || isOf(v, current)) {
+            continue;
+         }
+
+         Object node = snapshots.get(name);
+         Value nv;
+
+         try {
+            nv = codec.rebuild(node, built);
+         }
+         catch(RuntimeException ex) {
+            // e.g. the batch was interrupted: the var is lost (undefined + warning on its
+            // read), never a half-rebuilt alias
+            LOG.debug("Failed to rebuild the Date of the formula variable {}", name, ex);
+            snapshots.put(name, OwnedValueCodec.UNREADABLE);
+            continue;
+         }
+
+         if(nv == null) {
+            continue;
+         }
+
+         e.setValue(nv);
+
+         if(node instanceof OwnedValueCodec.DateNode d && d.dropped() != null &&
+            warned.add(name))
+         {
+            LOG.warn("The formula variable \"{}\" holds a Date {}; a batch of rows on " +
+                     "another script context of the worksheet context pool rebuilds it as a " +
+                     "plain Date from its time value only.", name, d.dropped());
+         }
+      }
    }
 
    private static boolean isOf(Value v, Context context) {
@@ -206,5 +375,11 @@ public class TableRowScope implements DynamicScope, ScriptArrayScope, OwnedVarSc
    private HashMap valmap = new HashMap();
    private Set<String> owned = Set.of();
    private final Set<String> warned = new HashSet<>();
+   // the batch-end snapshots (OwnedValueCodec nodes) of the owned vars that hold script
+   // objects, by var name; confined like valmap (written in the batch's finally, before the
+   // lens lock is released)
+   private final HashMap<String, Object> snapshots = new HashMap<>();
+   // set once an owned var held a script object: a table of primitives takes no snapshot
+   private boolean hasObjects;
    private static final Logger LOG = LoggerFactory.getLogger(TableRowScope.class);
 }

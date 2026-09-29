@@ -23,6 +23,7 @@ import { MatDialog } from "@angular/material/dialog";
 import { NoopAnimationsModule } from "@angular/platform-browser/animations";
 import { of } from "rxjs";
 import { DownloadService } from "../../../../../../shared/download/download.service";
+import { MessageDialogType } from "../../../common/util/message-dialog";
 import { CustomThemeModel } from "./custom-theme-model";
 import { PresentationThemesViewComponent } from "./presentation-themes-view.component";
 
@@ -115,5 +116,117 @@ describe("PresentationThemesViewComponent", () => {
 
       expect(component.themes[0].id).toBe("theme1");
       expect(component.selectedTheme.id).toBe("theme1");
+   });
+
+   // Bug #77285: a rejected save must be reported instead of failing silently
+   describe("save errors (bug #77285)", () => {
+      const uri = "../api/em/settings/presentation/themes/theme1";
+      let original: CustomThemeModel;
+      let current: CustomThemeModel;
+
+      beforeEach(() => {
+         original = { id: "theme1", name: "theme1" } as CustomThemeModel;
+         current = { id: "theme1", name: "renamed" } as CustomThemeModel;
+         component.themes = [original];
+         component.selectedTheme = current;
+         dialog.open.mockClear();
+      });
+
+      function shownMessage(): string {
+         expect(dialog.open).toHaveBeenCalledTimes(1);
+         const config = dialog.open.mock.calls[0][1];
+         expect(config.data.type).toBe(MessageDialogType.ERROR);
+         return config.data.content;
+      }
+
+      it("should show the ProblemDetail reason of a rejected save and keep the edits", () => {
+         component.saveTheme(current);
+         http.expectOne(uri).flush(
+            { type: "about:blank", title: "Bad Request", status: 400, detail: "not allowed: theme1" },
+            { status: 400, statusText: "Bad Request" });
+
+         expect(shownMessage()).toBe("not allowed: theme1");
+         // the list is unchanged and the form still holds the unsaved edits
+         expect(component.themes[0].name).toBe("theme1");
+         expect(component.selectedTheme.name).toBe("renamed");
+         expect(component.themeModified).toBe(true);
+      });
+
+      it("should show the message of a GenericError", () => {
+         component.saveTheme(current);
+         http.expectOne(uri).flush({ message: "server failure" },
+            { status: 500, statusText: "Internal Server Error" });
+
+         expect(shownMessage()).toBe("server failure");
+      });
+
+      it("should show a default message when the error has no body", () => {
+         component.saveTheme(current);
+         http.expectOne(uri).flush(null, { status: 500, statusText: "Internal Server Error" });
+
+         expect(shownMessage()).toBe("_#(js:em.presentation.theme.saveFailed)");
+      });
+
+      it("should report a failed theme creation", () => {
+         dialog.open.mockImplementation(() => ({ afterClosed: () => of({ id: "t2", name: "t2" }) }));
+
+         component.createTheme();
+         http.expectOne("../api/em/settings/presentation/themes/ids").flush([]);
+         const post = http.expectOne("../api/em/settings/presentation/themes");
+         expect(post.request.method).toBe("POST");
+         post.flush({ detail: "cannot create" }, { status: 400, statusText: "Bad Request" });
+
+         const errorCall = dialog.open.mock.calls.find(c => c[1]?.data?.type === MessageDialogType.ERROR);
+         expect(errorCall[1].data.content).toBe("cannot create");
+      });
+   });
+
+   // Bug #77285: "Default for All Organizations" is only shown in single-tenant mode and to a
+   // site admin in the host organization; elsewhere its (server-reported) value must not be sent
+   describe("default for all organizations payload (bug #77285)", () => {
+      const uri = "../api/em/settings/presentation/themes/theme1";
+
+      function savedPayload(): CustomThemeModel {
+         const current = { id: "theme1", name: "theme1", defaultThemeGlobal: true } as CustomThemeModel;
+         component.themes = [{ ...current }];
+         component.saveTheme(current);
+         const req = http.expectOne(uri);
+         const body = req.request.body;
+         req.flush({ id: "theme1" });
+         return body;
+      }
+
+      it("should not assert the flag for a site admin in another organization", () => {
+         component.isMultiTenant = true;
+         component.isSiteAdmin = true;
+         component.orgId = "org1";
+
+         expect(savedPayload().defaultThemeGlobal).toBeNull();
+         // the local model keeps the server's value
+         expect(component.themes[0].defaultThemeGlobal).toBe(true);
+      });
+
+      it("should not assert the flag for an organization admin", () => {
+         component.isMultiTenant = true;
+         component.isSiteAdmin = false;
+         component.orgId = "org1";
+
+         expect(savedPayload().defaultThemeGlobal).toBeNull();
+      });
+
+      it("should send the flag for a site admin in the host organization", () => {
+         component.isMultiTenant = true;
+         component.isSiteAdmin = true;
+         component.orgId = "host-org";
+
+         expect(savedPayload().defaultThemeGlobal).toBe(true);
+      });
+
+      it("should send the flag in single-tenant mode", () => {
+         component.isMultiTenant = false;
+         component.isSiteAdmin = false;
+
+         expect(savedPayload().defaultThemeGlobal).toBe(true);
+      });
    });
 });

@@ -18,6 +18,7 @@
 package inetsoft.report.lens;
 
 import inetsoft.report.*;
+import inetsoft.report.composition.execution.PostProcessor;
 import inetsoft.report.internal.Util;
 import inetsoft.report.internal.table.BinaryTableDataPath;
 import inetsoft.report.internal.table.CancellableTableLens;
@@ -140,8 +141,12 @@ abstract class JoinTable extends PagedTableLens {
          }
       }
 
-      leftTable.moreRows(10000);
-      rightTable.moreRows(10000);
+      // an input that can reach a script is computed here to the end, while this thread is
+      // the only one that can see the join: a worker computing it later needs the script
+      // engine lock, which a script thread reading the join may hold while it waits for the
+      // worker's rows (bug #77273). Other inputs keep streaming from the workers
+      leftTable.moreRows(PostProcessor.canReachScript(leftTable) ? XTable.EOT : 10000);
+      rightTable.moreRows(PostProcessor.canReachScript(rightTable) ? XTable.EOT : 10000);
    }
 
    /**

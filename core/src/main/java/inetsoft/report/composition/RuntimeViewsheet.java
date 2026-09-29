@@ -56,6 +56,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.Principal;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReentrantLock;
 
 /**
@@ -2640,6 +2641,37 @@ public class RuntimeViewsheet extends RuntimeSheet {
    }
 
    /**
+    * Claims the export of this runtime viewsheet for the calling thread. Only one export
+    * (including print) of a runtime viewsheet may run at a time: concurrent exports each
+    * reset and refresh the same sandbox and swap its viewsheet, and starve each other's
+    * bounded sandbox lock restores (Bug #77227). While claimed, the
+    * <tt>__EXPORTING__</tt> property is set so export/check and closeViewsheet() see the
+    * export as in progress.
+    *
+    * @return <tt>true</tt> if the caller now owns the export and must call
+    *         {@link #endExport()} when done, <tt>false</tt> if another export of this
+    *         runtime viewsheet is already in progress.
+    */
+   public boolean beginExport() {
+      if(!exporting.compareAndSet(false, true)) {
+         return false;
+      }
+
+      setProperty("__EXPORTING__", "true");
+      return true;
+   }
+
+   /**
+    * Releases the export claimed by a successful {@link #beginExport()}. Must only be
+    * called by the owner of the export.
+    */
+   public void endExport() {
+      // clear the flag before releasing so it cannot clobber the next owner's flag
+      setProperty("__EXPORTING__", null);
+      exporting.set(false);
+   }
+
+   /**
     * Current layout state index.
     */
    public int getLayoutPoint() {
@@ -2945,6 +2977,9 @@ public class RuntimeViewsheet extends RuntimeSheet {
    private ViewsheetLayout rvsLayout;
    private List<AbstractLayout> layoutPoints = new ArrayList<>();
    private transient ReentrantLock layoutPointLock = new ReentrantLock();
+   // node-local, not part of the saved state: an export only runs on the node that owns
+   // the runtime viewsheet, so a restored copy starts with no export in progress
+   private final transient AtomicBoolean exporting = new AtomicBoolean();
    private int layoutPoint = -1;
    private VSTemporaryInfo temporaryInfo;
    private boolean wizardViewsheet = false;

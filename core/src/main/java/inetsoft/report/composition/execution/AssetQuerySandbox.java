@@ -58,6 +58,7 @@ import java.security.Principal;
 import java.sql.SQLException;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.locks.Lock;
 import java.util.function.BiFunction;
 
 /**
@@ -914,17 +915,7 @@ public class AssetQuerySandbox implements Serializable, Cloneable, ActionListene
       // execution runs outside synchronized(table), eliminating lock contention on
       // concurrent worksheet opens (Bug #73971).
       if(table instanceof EmbeddedTableAssembly) {
-         synchronized(table) {
-            ColumnSelection columns = table.getColumnSelection(pub);
-            data = getTableLens0(name, mode, table.isAggregate(), columns.hashCode());
-            int ncol = columns.getAttributeCount();
-
-            if(data != null && data.getColCount() == ncol) {
-               return data;
-            }
-
-            data = executeQuery(table, table, name, mode, pub, vars);
-         }
+         data = getEmbeddedTableLens(table, name, mode, pub, vars);
       }
       else {
          // Clone the table so each thread gets its own copy. The synchronized(table) block
@@ -948,6 +939,298 @@ public class AssetQuerySandbox implements Serializable, Cloneable, ActionListene
       }
 
       return data;
+   }
+
+   /**
+    * Build (or return the cached) table lens for an {@code EmbeddedTableAssembly}, keeping
+    * setup+execution atomic under {@code synchronized(table)} (Bug #73971) while avoiding the
+    * AB-BA deadlock that atomicity can otherwise create against the worksheet's shared GraalJS
+    * script-execution lock (Bug #77301).
+    *
+    * <p>Building an embedded table can force eager formula-row computation (the type probe in
+    * {@code AssetQuery.getRuntimeTableLens}/{@code validateDataTypes}, which samples up to 1000
+    * rows through {@code Util.getColType}), which blocks in {@code FormulaTableLens.lockForRow}
+    * on the sandbox's shared script-execution lock whenever the context pool is off. A
+    * concurrent script elsewhere in the same worksheet that reads this same table by name (e.g.
+    * {@code A.length}) reaches {@code TableAssemblyScriptable.getElementTable()} while it
+    * already holds that same lock (it is acquired for the whole duration of
+    * {@code GraalJavaScriptEngine.exec()}), and blocks entering {@code synchronized(table)}
+    * here. If this method took {@code synchronized(table)} before the script lock, the two
+    * threads would acquire the monitor and the lock in opposite orders -- a classic AB-BA
+    * deadlock, permanent under the default {@code stall.watchdog.mode=alert} because entering a
+    * plain {@code synchronized} block can never time out.
+    *
+    * <p>The same cycle also forms one hop further out, with {@code table} having no expression
+    * column of its own at all (review round 1 of this bug's fix): {@code
+    * AssetQuery.getRuntimeTableLens} chains both {@link TableAssembly#getPreConditionList()} and
+    * {@link TableAssembly#getPostConditionList()} onto the base lens (lines ~911-953) before its
+    * <em>second</em> {@code validateDataTypes} call (line ~994, run against the fully-chained
+    * lens -- unlike the first, earlier call against the unfiltered base). If either condition
+    * list has a sub-query whose sub table can itself reach the script engine, the resulting
+    * {@code PostProcessor$ConditionFilter2} sets its own {@code needsScriptLock} (bug #77158,
+    * see {@code ConditionFilter2.subTableNeedsScriptLock}) and takes the engine lock the first
+    * time {@code moreRows()} runs -- which that second {@code validateDataTypes} call forces,
+    * still inside this method's {@code synchronized(table)}. A concurrent script that already
+    * holds the lock and reads {@code table} by name blocks entering the monitor exactly as
+    * above: the identical AB-BA cycle, just entered through a condition list instead of
+    * {@code table}'s own columns.
+    *
+    * <p>Taking the script-execution lock first, before {@code synchronized(table)} -- the same
+    * order {@code PostProcessor$ConditionFilter2} already uses for its own monitor (bug #76918)
+    * -- keeps every path into this method ordered the same way: a thread already inside script
+    * execution (already holding the lock) just re-acquires it (reentrant) and proceeds straight
+    * to the monitor exactly as it does today, while a thread about to build the table for the
+    * first time must wait for the lock before it ever touches the monitor, so it can never hold
+    * the monitor while blocked on the lock.
+    *
+    * <p>Only when {@code table}'s build might reach the script engine -- its own script/JS
+    * expression column ({@link #hasOwnScriptColumn(TableAssembly)}), or a pre-/post-condition
+    * sub-query whose sub table does
+    * ({@link #hasScriptReachingSubQuerySubTable(TableAssembly, Set)}) -- the two shapes this bug
+    * needs, and the only ones this fix takes on (checked separately, not through one combined
+    * method, so this code can tell which one is the reason -- see below on why that distinction
+    * matters). A false positive there only costs one extra,
+    * uncontested lock acquisition (the same trade-off {@code PostProcessor$ConditionFilter2}
+    * accepts for its own conservative checks), but forcing this path -- and the GraalJS
+    * {@code Context} it requires, see below -- for every {@code EmbeddedTableAssembly} build
+    * regardless of whether it can reach a script turned out not to be free: a first version of
+    * this fix took it unconditionally, and it measurably slowed down unrelated concurrent
+    * embedded-table builds enough to flake an unrelated timing-sensitive lock-cycle test
+    * elsewhere in this same suite ({@code SubQueryConditionWorksheetCycleTest}'s
+    * {@code WorkerGate}, which waits for a background worker to reach a specific row within a
+    * fixed wall-clock budget).
+    *
+    * <p><strong>Round 1 of this fix shipped without the condition-list shape above</strong>,
+    * reasoning it belonged to a separate, differently-shaped, already-tracked bug
+    * ({@code SubQueryConditionWorksheetCycleTest.formulaReadsFilteredTableFirst}). Review round
+    * 1 traced that this was a misattribution: {@code formulaReadsFilteredTableFirst}'s cycle is
+    * entirely inside {@code ConditionFilter2}'s own monitor waiting on a background
+    * {@code DistinctTableLens} worker holding the engine lock -- a worker-lending question
+    * (bug #76938's family, needing a fundamentally different fix) -- and does not involve this
+    * method's {@code synchronized(table)} at all: by the time that cycle's second thread starts,
+    * this method has already returned for the table in question. The shape above is different:
+    * it needs no worker, no {@code Distinct}, and no completed first build -- it is the exact
+    * {@code synchronized(table)}-vs-engine-lock cycle this method exists to close, just entered
+    * through a condition list instead of {@code table}'s own columns, and round 2 of this fix
+    * closes it via {@link #hasScriptReachingSubQuerySubTable}.
+    *
+    * <p>Uses the creating {@link #getScriptEnv()}, not {@link #peekScriptEnv()}, and calls
+    * {@code init()} on it before reading its lock: the reported scenario is two concurrent,
+    * otherwise-ordinary requests, neither of them a script, racing to build {@code A} and
+    * {@code X} for the first time in a sandbox that has run no script yet -- so no env, and no
+    * initialized GraalJS engine, exists for either side yet when the race starts.
+    * {@link ScriptEnv#getExecutionLock()} answers {@code null} until the engine backing it has
+    * actually been built ({@code init()}, not merely constructing the env object) -- so reading
+    * {@link #peekScriptEnv()}, or even the creating {@link #getScriptEnv()} without forcing
+    * {@code init()}, would let both threads see no lock yet, take no lock here, and still
+    * deadlock the moment each one's own {@code FormulaTableLens} lazily initializes and locks
+    * the (shared, per-sandbox) env deeper in the call -- exactly as if this method did nothing,
+    * which is what an even earlier version of this fix did, and a live run of
+    * {@code EmbeddedTableScriptLockCycleTest} caught it.
+    */
+   private TableLens getEmbeddedTableLens(TableAssembly table, String name, int mode,
+                                          boolean pub, VariableTable vars)
+      throws Exception
+   {
+      Lock execLock = null;
+      boolean ownColumn = false;
+
+      if(!isScriptPoolMode()) {
+         ownColumn = hasOwnScriptColumn(table);
+
+         if(ownColumn || hasScriptReachingSubQuerySubTable(table,
+            Collections.newSetFromMap(new IdentityHashMap<>())))
+         {
+            ScriptEnv senv = getScriptEnv();
+            senv.init();
+            execLock = senv.getExecutionLock();
+         }
+      }
+
+      if(execLock == null) {
+         synchronized(table) {
+            return getOrBuildEmbeddedTableLens(table, name, mode, pub, vars);
+         }
+      }
+
+      execLock.lock();
+
+      // Recorded (so a lens further down that would otherwise hand its own row
+      // computation to a background worker and wait for it can lend this lock to that
+      // worker instead, bug #76938) only when table's own column is the reason: that is
+      // round 1's already-shipped, already-validated behavior, covering any worker A's
+      // own pipeline directly waits for. When only a pre-/post-condition sub-query's sub
+      // table reaches script, this thread never itself waits on a worker before
+      // PostProcessor$ConditionFilter2 exists (see getEmbeddedTableLens's javadoc) --
+      // recording the lock here regardless would make a lens like DistinctTableLens see
+      // JavaScriptEngine.holdsScriptLock() == true the first time it validates the
+      // sub-query's own sub table (inside AssetConditionGroup's constructor, before any
+      // filter exists), and it would compute inline rather than spawn its background
+      // worker even though nothing here is yet waiting for one -- silently changing an
+      // established, separately-tested concurrency behavior for a lens this fix has no
+      // reason to touch (caught live: recording it here made
+      // SubQueryConditionWorksheetCycleTest#formulaReadsFilteredTableByName's own
+      // WorkerGate never see its worker at all). Any wait *this* thread later does for a
+      // worker spawned that way is already covered once ConditionFilter2 exists, by its
+      // own, narrower, already-shipped push (bug #77158) -- unaffected by this one.
+      if(ownColumn) {
+         JavaScriptEngine.pushHeldScriptLock(execLock);
+      }
+
+      try {
+         synchronized(table) {
+            return getOrBuildEmbeddedTableLens(table, name, mode, pub, vars);
+         }
+      }
+      finally {
+         if(ownColumn) {
+            JavaScriptEngine.popHeldScriptLock();
+         }
+
+         execLock.unlock();
+      }
+   }
+
+   /**
+    * The cache-check + build formerly inlined in {@code getTableLens()}'s
+    * {@code EmbeddedTableAssembly} branch; the caller holds {@code synchronized(table)}.
+    */
+   private TableLens getOrBuildEmbeddedTableLens(TableAssembly table, String name, int mode,
+                                                 boolean pub, VariableTable vars)
+      throws Exception
+   {
+      ColumnSelection columns = table.getColumnSelection(pub);
+      TableLens data = getTableLens0(name, mode, table.isAggregate(), columns.hashCode());
+      int ncol = columns.getAttributeCount();
+
+      if(data != null && data.getColCount() == ncol) {
+         return data;
+      }
+
+      return executeQuery(table, table, name, mode, pub, vars);
+   }
+
+   /**
+    * Recursive check, used to decide whether a table reached through a sub-query might
+    * itself reach the script engine: {@code table} has its own script column
+    * ({@link #hasOwnScriptColumn}), or one of *its* pre-/post-conditions is in turn a
+    * sub-query whose sub table does ({@link #hasScriptReachingSubQuerySubTable}).
+    * {@code visited} (identity-based) is checked and grown for every table entered --
+    * {@code table} itself included -- so a pathological condition cycle (a sub-query,
+    * however many hops away, whose own condition list loops back to an ancestor)
+    * terminates instead of recursing forever. Ordinary worksheets nest sub-queries at
+    * most one or two levels deep, so this is never meaningful extra work in practice.
+    *
+    * <p>{@link #getEmbeddedTableLens} does not call this for the table it is building
+    * itself -- it checks {@link #hasOwnScriptColumn} and
+    * {@link #hasScriptReachingSubQuerySubTable} separately there, so it can tell which
+    * one is the reason (see its javadoc on why that distinction matters for whether the
+    * held lock is recorded for lending).
+    */
+   private static boolean needsEmbeddedTableScriptLock(TableAssembly table,
+                                                        Set<TableAssembly> visited)
+   {
+      if(table == null || !visited.add(table)) {
+         return false;
+      }
+
+      return hasOwnScriptColumn(table) ||
+         hasScriptReachingSubQuerySubTable(table.getPreConditionList(), visited) ||
+         hasScriptReachingSubQuerySubTable(table.getPostConditionList(), visited);
+   }
+
+   /**
+    * @return {@code true} if {@code table} has its own script/JS expression column -- i.e. a
+    * {@link ColumnRef#isExpression()} column in {@link TableAssembly#getColumnSelection()}, the
+    * same selection {@code AssetQuery.getFormulaTableLens} scans to decide which columns need a
+    * {@code FormulaTableLens}. Deliberately conservative in one direction only: every
+    * {@link ColumnRef#isExpression()} column counts, even one {@code getFormulaTableLens} would
+    * itself skip (a grouped or already-processed expression, an SQL expression on a mergeable
+    * source) -- those refinements only ever narrow whether a formula lens actually gets built,
+    * never widen it, and an embedded source is never SQL-mergeable in the first place (see this
+    * class's own {@code EmbeddedTableAssembly} handling), so replicating them here would only
+    * risk a false negative for no real gain.
+    */
+   private static boolean hasOwnScriptColumn(TableAssembly table) {
+      ColumnSelection columns = table.getColumnSelection();
+
+      for(int i = 0; i < columns.getAttributeCount(); i++) {
+         DataRef ref = columns.getAttribute(i);
+
+         if(ref instanceof ColumnRef && ((ColumnRef) ref).isExpression()) {
+            return true;
+         }
+      }
+
+      return false;
+   }
+
+   /**
+    * @return {@code true} if a pre- or post-condition of {@code table} is a sub-query whose sub
+    * table might itself reach the script engine, recursively (bug #77301, review round 1: the
+    * same {@code synchronized(table)}-vs-engine-lock cycle {@link #getEmbeddedTableLens} exists
+    * to close is also reachable this way, not just through {@code table}'s own columns). Both
+    * {@link TableAssembly#getPreConditionList()} and {@link TableAssembly#getPostConditionList()}
+    * are walked: {@code AssetQuery.getRuntimeTableLens} chains both onto the base lens (lines
+    * ~911-953) before its row-forcing second {@code validateDataTypes} call (line ~994), so a
+    * sub-query on either list reaches that call the same way -- neither can be skipped.
+    *
+    * <p>This mirrors, rather than calls, {@code PostProcessor.ConditionFilter2
+    * .subTableNeedsScriptLock}: that method inspects an already-built runtime
+    * {@code ConditionGroup} and, through {@code AssetCondition.getSubTable()}, the sub query's
+    * already-materialized {@code TableLens} -- neither of which exists yet at this call site.
+    * This check runs *before* {@code table} is built at all, specifically to decide the lock
+    * order for that build (by the time a {@code ConditionGroup} exists, {@code executeQuery} is
+    * already inside {@code synchronized(table)} -- too late to change the order), so it has to
+    * work from {@code table}'s static definition instead. It reads
+    * {@link AssetCondition#getSubQueryValue()} directly: its {@code TableAssembly} is the
+    * sub-query's definition (set by {@code SubQueryValue.update()} when the condition was
+    * authored), available whether or not the condition has ever been evaluated -- unlike
+    * {@link AssetCondition#getSubTable()}, which only answers non-{@code null} after
+    * {@code initSubTable()} has actually run the sub-query once, deep inside a build already in
+    * progress.
+    *
+    * <p>Recurses into a found sub table through {@link #needsEmbeddedTableScriptLock(TableAssembly,
+    * Set)}, which grows the same {@code visited} set this method was called with -- see that
+    * method for the cycle guard.
+    */
+   private static boolean hasScriptReachingSubQuerySubTable(TableAssembly table,
+                                                             Set<TableAssembly> visited)
+   {
+      visited.add(table);
+      return hasScriptReachingSubQuerySubTable(table.getPreConditionList(), visited) ||
+         hasScriptReachingSubQuerySubTable(table.getPostConditionList(), visited);
+   }
+
+   private static boolean hasScriptReachingSubQuerySubTable(ConditionListWrapper wrapper,
+                                                             Set<TableAssembly> visited)
+   {
+      ConditionList list = wrapper == null ? null : wrapper.getConditionList();
+
+      if(list == null) {
+         return false;
+      }
+
+      for(int i = 0; i < list.getConditionSize(); i++) {
+         if(!list.isConditionItem(i)) {
+            continue;
+         }
+
+         XCondition cond = list.getConditionItem(i).getXCondition();
+
+         if(!(cond instanceof AssetCondition)) {
+            continue;
+         }
+
+         SubQueryValue sval = ((AssetCondition) cond).getSubQueryValue();
+         TableAssembly stable = sval == null ? null : sval.getTable();
+
+         if(stable != null && needsEmbeddedTableScriptLock(stable, visited)) {
+            return true;
+         }
+      }
+
+      return false;
    }
 
    /**

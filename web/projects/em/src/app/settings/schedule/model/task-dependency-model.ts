@@ -18,4 +18,6 @@
 export interface TaskDependencyModel {
    task: string;
    dependency: string;
+   // id of the parsed task, set by the import dialog's upload. It is what the import matches.
+   taskId?: string;
 }

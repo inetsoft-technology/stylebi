@@ -203,7 +203,7 @@ public class MvChangesetApplyService {
       throws Throwable
    {
       MVSupportService.AnalysisResult analysisResult =
-         mvGateway.getAnalysisResult(fc.source.getAnalysisId());
+         mvGateway.getAnalysisResult(fc.source.getAnalysisId(), user);
       List<MVSupportService.MVStatus> mvStatusList = analysisResult.getStatus();
       // Bug #76672: past this point, this entry's own mutating call(s) below are the only
       // remaining risk -- a throw caught by the loop from here on genuinely leaves unknown state.
@@ -245,7 +245,7 @@ public class MvChangesetApplyService {
                               List<Undo> undoable, AtomicBoolean mutationEntered)
    {
       MVSupportService.AnalysisResult analysisResult =
-         mvGateway.getAnalysisResult(fc.source.getAnalysisId());
+         mvGateway.getAnalysisResult(fc.source.getAnalysisId(), user);
       // Bug #76672: unlike applyCreate, this method has no other explicit freshness re-check of its
       // own -- without this call, the live analysis-freshness lookup only happens one call deeper,
       // inside MVSupportService.setDataCycle itself, by which point mutationEntered would already be
@@ -322,7 +322,7 @@ public class MvChangesetApplyService {
                // expired, this fails and is reported as a genuine rollback failure -- documented,
                // not silently smoothed over (design section 5, risk item).
                MVSupportService.AnalysisResult analysisResult =
-                  mvGateway.getAnalysisResult(undo.analysisId);
+                  mvGateway.getAnalysisResult(undo.analysisId, user);
                mvGateway.setDataCycle(List.of(undo.mvName), analysisResult, undo.oldCycle, undo.orgId);
                String after = analysisResult.getStatus().stream()
                   .filter(s -> s.getDefinition().getName().equals(undo.mvName))

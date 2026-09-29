@@ -190,13 +190,14 @@ export class EmbedChartComponent extends CommandProcessor implements OnInit, OnD
       showHyperlinkService.inEmbed = true;
 
       // When bootstrapped as a <inetsoft-chart> custom element (@angular/elements), this
-      // component's view is attached directly to the page-wide ApplicationRef and is only
-      // auto-refreshed when the shared NgZone reports itself stable. That signal can be missed
-      // when this element's STOMP command stream races another <inetsoft-chart> instance's own
-      // async round-trips on the same page (bug #76903) -- the command handlers below correctly
-      // update this component's fields, but the view is never re-checked. Force a check after
-      // the specific commands whose handler mutates a template-bound field (see
-      // CD_TICK_COMMAND_TYPES above) instead of relying on the implicit app-wide tick.
+      // component's view is attached directly to the page-wide ApplicationRef. The element app
+      // is bootstrapped with createApplication() and is therefore zoneless (NgZone is a no-op),
+      // so a field changed from a STOMP/RxJS callback schedules no refresh on its own; a tick
+      // caused by another <inetsoft-chart> on the same page only refreshes that element's view
+      // (bug #76903) -- the command handlers below correctly update this component's fields,
+      // but the view is never re-checked. Force a check after the specific commands whose
+      // handler mutates a template-bound field (see CD_TICK_COMMAND_TYPES above) instead of
+      // relying on an implicit app-wide tick.
       this.subscriptions.add(this.viewsheetClient.commands.subscribe(
          (message: ViewsheetCommandMessage) => {
             if(EmbedChartComponent.CD_TICK_COMMAND_TYPES.has(message.type)) {
@@ -512,6 +513,10 @@ export class EmbedChartComponent extends CommandProcessor implements OnInit, OnD
             .subscribe(() => setTimeout(() => this.openViewsheet0(), 0)));
          this.subscriptions.add(this.viewsheetClient.connectionError().subscribe((error) => {
             this.timeoutError = !!error;
+            // Not a command, so not covered by the CD_TICK_COMMAND_TYPES check above (bug
+            // #77291). markForCheck() rather than detectChanges(): this can emit synchronously
+            // from connect() below while ngOnInit is still running.
+            this.cdRef.markForCheck();
          }));
          this.viewsheetClient.connect(!!this.url);
          this.viewsheetClient.beforeDestroy = () => this.beforeDestroy();

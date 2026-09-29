@@ -82,19 +82,23 @@ public class StallWatchdogCycleTest {
    }
 
    /**
-    * #76960 A2: the holder waits in the join's XSwappableTable holding the engine lock, the
-    * JoinThreads wait for the lock in their input condition filters.
+    * #76960 A2 with a script join key: the holder, the joined table's condition filter over
+    * its expression column, waits in the join's XSwappableTable holding the engine lock; the
+    * JoinThreads wait for the lock in {@code exec}, which computes the key of every row they
+    * read. Since #77273 a join computes formula inputs before its workers start, so the cycle
+    * over filtered formula inputs this case used to stall on is gone; a script run per read
+    * cannot be computed ahead.
     */
    @Test
-   public void hashJoinFilteredInputsFailsInsteadOfHanging() throws Exception {
+   public void hashJoinExecKeyFailsInsteadOfHanging() throws Exception {
       harness.forceHashJoin();
       Sandbox s = harness.sandbox();
       Future<TableLens> built = harness.submit(() -> {
-         TableLens left = s.filteredFormula(new SlowTable(ROWS, Slow.WORKERS));
-         TableLens right = s.filteredFormula(new SlowTable(ROWS, Slow.WORKERS));
+         TableLens left = s.execTable(ROWS, Slow.WORKERS);
+         TableLens right = s.execTable(ROWS, Slow.WORKERS);
          JoinTableLens join = new JoinTableLens(left, right, new int[] { 1 }, new int[] { 1 },
                                                 JoinTableLens.INNER_JOIN, true);
-         return harness.track(cf2(harness.track(join), s.box));
+         return harness.track(cf2(s.formula(harness.track(join)), s.box));
       });
       TableLens outer = harness.await(built, ACTIVE_CAP, "build");
       Future<List<List<Object>>> holder = harness.submit(() -> drain(outer));
@@ -111,9 +115,13 @@ public class StallWatchdogCycleTest {
     * <p>The gate parks T1 between the lens and its filtered base: inside the lens monitor but
     * before the inner condition filter takes the engine lock. T2 then takes the lock and
     * blocks on the monitor before T1 goes on, so the cycle forms on every run.
+    *
+    * <p>Not MAX_ROWS: since bug #77311 {@code MaxRowsTableLens} reads its base without its
+    * monitor, so there is no cycle to stall (see
+    * {@code MonitorFirstLensCycleTest.maxRowsOverFilteredFormula}).
     */
    @ParameterizedTest
-   @EnumSource(MonitorKind.class)
+   @EnumSource(value = MonitorKind.class, names = "MAX_ROWS", mode = EnumSource.Mode.EXCLUDE)
    public void monitorFirstLensFailsOneReader(MonitorKind kind) throws Exception {
       Gate gate = harness.gate();
       Sandbox control = harness.control();
@@ -234,6 +242,10 @@ public class StallWatchdogCycleTest {
     * 10 s, longer than the 8 s limit, and the holder completes. The limit is above the up to
     * 5 s a queued SummaryFilter worker may wait for an idle on-demand pool thread in its
     * clean-up hold (ThreadPool.cleanUp) plus one row, so no pool state makes this a stall.
+    *
+    * <p>The summary's base needs no engine lock, so building it starts the worker (bug
+    * #77223: over a base that needs the lock, the first reader would process the rows itself
+    * and nothing would be lent).
     */
    @Test
    public void slowProgressingSummaryUnderLockCompletes() throws Exception {
@@ -249,13 +261,15 @@ public class StallWatchdogCycleTest {
       // start the worker unlocked (query build time), then drain under the lock
       harness.await(harness.submit(() -> summary.getRowCount()), ACTIVE_CAP, "getRowCount");
       Future<List<List<Object>>> holder = harness.submit(() -> drain(outer));
+      StallTestSupport.awaitTrue(s.lock::isLent, ACTIVE_CAP,
+                                 "the holder never lent the engine lock to the worker");
 
       assertEquals(expected, harness.await(holder, ACTIVE_CAP, "slow holder"));
       assertLocksFree(s);
    }
 
    private SummaryFilter summary(Sandbox s, TableLens base) {
-      return harness.track(new SummaryFilter(s.filteredFormula(base), new int[] { 0 },
+      return harness.track(new SummaryFilter(cf2(base, s.box), new int[] { 0 },
                                              new int[] { 1 }, new SumFormula(), null));
    }
 

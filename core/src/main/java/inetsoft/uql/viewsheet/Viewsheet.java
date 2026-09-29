@@ -642,7 +642,8 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
                VSAssembly assembly = (VSAssembly) assemblies.get(i);
 
                if(assembly.getAssemblyType() == VIEWSHEET_ASSET) {
-                  Viewsheet tvs = (Viewsheet) assembly;
+                  Viewsheet otvs = (Viewsheet) assembly;
+                  Viewsheet tvs = otvs;
                   ByteArrayOutputStream out = new ByteArrayOutputStream();
                   PrintWriter writer = new PrintWriter(new OutputStreamWriter(out, StandardCharsets.UTF_8));
                   tvs.writeState(writer, true);
@@ -654,6 +655,7 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
                      Document doc = Tool.parseXML(in);
                      Element element = doc.getDocumentElement();
                      tvs.parseState(element);
+                     copyMaxModeState(otvs, tvs);
                      updateVSAssembly((VSAssembly) assemblies.get(i), tvs);
                      clearCache();
                      in.close();
@@ -714,6 +716,69 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
          if(assemblies.get(i).equals(vsAssembly)) {
             assemblies.set(i, newAssembly);
             return;
+         }
+      }
+   }
+
+   /**
+    * Copy the runtime max mode state from an embedded viewsheet to its refreshed copy. The
+    * state is not part of the viewsheet state (bookmark), so without this an assembly shown
+    * in max mode inside an embedded viewsheet loses its max size while the top viewsheet
+    * stays in max mode, which hides all assemblies.
+    * @param ovs the embedded viewsheet before refresh.
+    * @param nvs the refreshed copy of the embedded viewsheet.
+    */
+   private static void copyMaxModeState(Viewsheet ovs, Viewsheet nvs) {
+      if(!ovs.isMaxMode()) {
+         return;
+      }
+
+      nvs.setMaxMode(true);
+
+      for(Assembly oassembly : ovs.getAssemblies()) {
+         Assembly nassembly = nvs.getAssembly(oassembly.getName());
+
+         if(nassembly == null || nassembly.getAssemblyType() != oassembly.getAssemblyType()) {
+            continue;
+         }
+
+         if(oassembly instanceof Viewsheet ochild) {
+            if(nassembly instanceof Viewsheet nchild && ochild.isMaxMode()) {
+               // the z-index of a nested embedded viewsheet is raised in max mode, but the
+               // refreshed copy is created with the design z-index
+               nchild.setZIndex(ochild.getZIndex());
+               copyMaxModeState(ochild, nchild);
+            }
+
+            continue;
+         }
+
+         AssemblyInfo oinfo = oassembly.getInfo();
+         AssemblyInfo ninfo = nassembly.getInfo();
+
+         if(oinfo instanceof TableDataVSAssemblyInfo otinfo &&
+            ninfo instanceof TableDataVSAssemblyInfo ntinfo)
+         {
+            if(otinfo.getMaxSize() != null) {
+               ntinfo.setMaxSize(otinfo.getMaxSize());
+               ntinfo.setMaxModeZIndex(otinfo.getMaxModeZIndex());
+            }
+         }
+         else if(oinfo instanceof ChartVSAssemblyInfo ocinfo &&
+            ninfo instanceof ChartVSAssemblyInfo ncinfo)
+         {
+            if(ocinfo.getMaxSize() != null) {
+               ncinfo.setMaxSize(ocinfo.getMaxSize());
+               ncinfo.setMaxModeZIndex(ocinfo.getMaxModeZIndex());
+            }
+         }
+         else if(oinfo instanceof MaxModeSupportAssemblyInfo ominfo &&
+            ninfo instanceof MaxModeSupportAssemblyInfo nminfo)
+         {
+            if(ominfo.getMaxSize() != null) {
+               nminfo.setMaxSize(ominfo.getMaxSize());
+               nminfo.setMaxModeZIndex(ominfo.getMaxModeZIndex());
+            }
          }
       }
    }

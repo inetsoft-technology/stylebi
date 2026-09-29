@@ -71,6 +71,16 @@ public class CustomThemesManager implements XMLSerializable, AutoCloseable {
    }
 
    /**
+    * Gets the current custom themes to be changed and written back by
+    * {@link #updateCustomThemes(ThemesUpdate)}. Because the write is a full replace of the store,
+    * this throws rather than returning an empty or partial set when the themes cannot be read
+    * reliably, e.g. when the store is closed or not loaded (Bug #77222).
+    */
+   public Set<CustomTheme> getCustomThemesForUpdate() {
+      return impl.getCustomThemesForUpdate();
+   }
+
+   /**
     * Replaces the whole set of custom themes. This is a full replace of the store: any theme
     * missing from the given set is deleted. Code that changes the current themes must use
     * {@link #updateCustomThemes(ThemesUpdate)} instead, so that the read, the change and the
@@ -97,13 +107,15 @@ public class CustomThemesManager implements XMLSerializable, AutoCloseable {
     * @param <E>    the type of exception the update can throw.
     *
     * @throws E if the update throws. The store is not changed in that case.
+    * @throws IllegalStateException if the current themes cannot be read reliably. The update is
+    *                               not applied and the store is not changed in that case.
     */
    public <E extends Exception> void updateCustomThemes(ThemesUpdate<E> update) throws E {
       Lock lock = getThemesLock();
       lock.lock();
 
       try {
-         Set<CustomTheme> themes = update.apply(new HashSet<>(getCustomThemes()));
+         Set<CustomTheme> themes = update.apply(new HashSet<>(getCustomThemesForUpdate()));
 
          if(themes != null) {
             setCustomThemes(themes);
@@ -179,66 +191,80 @@ public class CustomThemesManager implements XMLSerializable, AutoCloseable {
     * file location after a file or folder rename in the DataSpace.
     */
    public void renameThemeJar(String oldPath, String newPath) {
-      updateCustomThemes(themes -> {
-         if(themes.isEmpty()) {
-            return null;
-         }
-
-         boolean changed = false;
-         String oldPathPrefix = oldPath + "/";
-
-         for(CustomTheme theme : new ArrayList<>(themes)) {
-            String jarPath = theme.getJarPath();
-
-            if(jarPath == null) {
-               continue;
+      // called after every data space rename, which has already been done: a theme store that
+      // cannot be read reliably (Bug #77222) leaves the themes unchanged and is only logged
+      try {
+         updateCustomThemes(themes -> {
+            if(themes.isEmpty()) {
+               return null;
             }
 
-            String updatedPath = null;
+            boolean changed = false;
+            String oldPathPrefix = oldPath + "/";
 
-            if(oldPath.equals(jarPath)) {
-               updatedPath = newPath;
-            }
-            else if(jarPath.startsWith(oldPathPrefix)) {
-               updatedPath = newPath + jarPath.substring(oldPath.length());
+            for(CustomTheme theme : new ArrayList<>(themes)) {
+               String jarPath = theme.getJarPath();
+
+               if(jarPath == null) {
+                  continue;
+               }
+
+               String updatedPath = null;
+
+               if(oldPath.equals(jarPath)) {
+                  updatedPath = newPath;
+               }
+               else if(jarPath.startsWith(oldPathPrefix)) {
+                  updatedPath = newPath + jarPath.substring(oldPath.length());
+               }
+
+               if(updatedPath != null) {
+                  themes.remove(theme);
+                  theme.setJarPath(updatedPath);
+                  themes.add(theme);
+                  changed = true;
+               }
             }
 
-            if(updatedPath != null) {
-               themes.remove(theme);
-               theme.setJarPath(updatedPath);
-               themes.add(theme);
-               changed = true;
-            }
-         }
-
-         return changed ? themes : null;
-      });
+            return changed ? themes : null;
+         });
+      }
+      catch(IllegalStateException e) {
+         LOG.error("Failed to update the custom themes after renaming {} to {}", oldPath, newPath, e);
+      }
    }
 
    public void reloadThemes(String path) {
       Set<CustomTheme> removed = new HashSet<>();
 
-      updateCustomThemes(themes -> {
-         if(themes.isEmpty()) {
-            return null;
-         }
-
-         Set<CustomTheme> newThemes = new HashSet<>();
-         String pathPrefix = path + "/";
-
-         themes.forEach(theme -> {
-            String jarPath = theme.getJarPath();
-
-            if(jarPath == null || (!jarPath.equals(path) && !jarPath.startsWith(pathPrefix))) {
-               newThemes.add(theme);
+      // called after every data space delete, which has already been done: a theme store that
+      // cannot be read reliably (Bug #77222) leaves the themes unchanged and is only logged
+      try {
+         updateCustomThemes(themes -> {
+            if(themes.isEmpty()) {
+               return null;
             }
-            else {
-               removed.add(theme);
-            }
+
+            Set<CustomTheme> newThemes = new HashSet<>();
+            String pathPrefix = path + "/";
+
+            themes.forEach(theme -> {
+               String jarPath = theme.getJarPath();
+
+               if(jarPath == null || (!jarPath.equals(path) && !jarPath.startsWith(pathPrefix))) {
+                  newThemes.add(theme);
+               }
+               else {
+                  removed.add(theme);
+               }
+            });
+
+            return newThemes;
          });
-
-         return newThemes;
-      });
+      }
+      catch(IllegalStateException e) {
+         LOG.error("Failed to update the custom themes after deleting {}", path, e);
+      }
 
       removed.forEach(t -> removeSelectedTheme(t.getId()));
    }

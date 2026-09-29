@@ -141,7 +141,7 @@ public class AdminAssetImportApplyService {
             false, user, bookmarkResolutions);
 
          try {
-            importService.finishImport(plan.stagingToken());
+            importService.finishImport(plan.stagingToken(), user);
          }
          catch(Exception e) {
             LOG.warn("Failed to evict staged import context {} after apply", plan.stagingToken(), e);

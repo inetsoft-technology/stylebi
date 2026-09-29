@@ -320,6 +320,7 @@ public abstract class AbstractEditableAuthenticationProvider
          newOrg.setMembers(editedNewOrganization.getMembers());
          newOrg.setLocale(editedNewOrganization.getLocale());
          newOrg.setTheme(editedNewOrganization.getTheme());
+         newOrg.setActive(editedNewOrganization.isActive());
       }
       else {
          newOrg.setMembers(addedMembers.stream().map(id -> id.name).toArray(String[]::new));
@@ -404,22 +405,31 @@ public abstract class AbstractEditableAuthenticationProvider
       // of the store (Bug #76978). The migration copies theme jars and moves the selected
       // theme pointers of the organizations, which are entangled with the change of the set,
       // so they are done under the lock as well; this is a rare administrative operation.
-      manager.updateCustomThemes(themes -> {
-         // the store is fully replaced with the returned set. If no themes could be read
-         // there is nothing to migrate, and persisting an empty set (e.g. when the themes
-         // failed to load) would wipe every custom theme across all orgs. Skip persistence
-         // entirely in that case so a failed/empty read cannot delete the store.
-         if(themes.isEmpty()) {
-            if(replace) {
-               manager.setOrgSelectedTheme(null, fromOrgId);
+      // The update is not applied when the themes cannot be read reliably, e.g. when the store
+      // was closed or not loaded (Bug #77222). The themes are then left unchanged; that is
+      // logged rather than aborting the rest of the organization copy.
+      try {
+         manager.updateCustomThemes(themes -> {
+            // the store is fully replaced with the returned set. If no themes could be read
+            // there is nothing to migrate, and persisting an empty set (e.g. when the themes
+            // failed to load) would wipe every custom theme across all orgs. Skip persistence
+            // entirely in that case so a failed/empty read cannot delete the store.
+            if(themes.isEmpty()) {
+               if(replace) {
+                  manager.setOrgSelectedTheme(null, fromOrgId);
+               }
+
+               return null;
             }
 
-            return null;
-         }
-
-         newOrgThemeId[0] = copyThemes(themes, manager, fromOrgId, toOrgId, replace);
-         return themes;
-      });
+            newOrgThemeId[0] = copyThemes(themes, manager, fromOrgId, toOrgId, replace);
+            return themes;
+         });
+      }
+      catch(IllegalStateException e) {
+         LOG.error("Failed to copy the custom themes of organization {} to {}",
+                   fromOrgId, toOrgId, e);
+      }
 
       return newOrgThemeId[0];
    }

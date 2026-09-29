@@ -1258,6 +1258,11 @@ public class CoreLifecycleService {
 
          applyEmbedChartSize(rvs, assembly);
 
+         // a nested restoreLocks() that fails (e.g. while initializing a chart for its
+         // annotations) leaves this thread without the write lock taken here while the frames
+         // below catch the error, checked after the unlock as in refreshViewsheet() (77227)
+         long lostLocks = box.get().getLockLostCount();
+         Throwable failure = null;
          box.get().lockWrite();
 
          try {
@@ -1292,8 +1297,17 @@ public class CoreLifecycleService {
                                     dispatcher, new ArrayList<>());
             }
          }
+         catch(Throwable ex) {
+            failure = ex;
+            throw ex;
+         }
          finally {
             box.get().unlockWrite();
+
+            // only if no other exception is on its way out, so it doesn't replace it
+            if(failure == null) {
+               box.get().checkLockNotLostSince(lostLocks);
+            }
          }
       }
    }

@@ -341,7 +341,7 @@ public class DashboardChangesetApplyService {
          oname, current.description(), current.viewsheet(), current.enable());
 
       mutationEntered.set(true);
-      repositoryDashboardService.delete(registryName, owner);
+      repositoryDashboardService.delete(registryName, owner, user);
 
       boolean verified = registry.getDashboard(registryName) == null;
       String status = verified ? AdminChangeRecord.STATUS_VERIFIED : AdminChangeRecord.STATUS_FAILED;
@@ -443,7 +443,7 @@ public class DashboardChangesetApplyService {
                                         List<RollbackFailure> failures) throws Exception
    {
       String registryName = DashboardChangePlanService.fixDashboardName(undo.name, undo.owner);
-      repositoryDashboardService.delete(registryName, undo.owner);
+      repositoryDashboardService.delete(registryName, undo.owner, user);
       DashboardRegistry registry = planService.registryFor(undo.owner);
       boolean verified = registry.getDashboard(registryName) == null;
       writeAudit(txId, task, undo.key, AdminChangeRecord.RISK_LOW, AdminChangeRecord.ACTION_ROLLBACK,

@@ -577,23 +577,48 @@ public class PropertiesEngine {
       return name;
    }
 
-   private String useAvailableOrgProperty(String propertyName) {
+   /**
+    * Get the property name as it is stored, i.e. with the case rules applied that every read and
+    * write applies to it.
+    */
+   String getPropertyNameCase(String name) {
+      return fixPropertyNameCase(name);
+   }
+
+   /**
+    * Get the organization whose <code>inetsoft.org.&lt;org&gt;.</code> override a property read
+    * made on the current thread consults. This is the same resolution that
+    * {@link #useAvailableOrgProperty(String)} applies, so a cache of property values can be keyed
+    * by it and still resolve exactly as an uncached read does.
+    *
+    * @param propertyName the property name, with {@link #fixPropertyNameCase(String)} applied.
+    *
+    * @return the lower case organization ID, or <code>null</code> if the read uses the global
+    *         key because the property is never organization scoped or the thread has no
+    *         principal. No organization lookup is made in either of those cases.
+    */
+   static String getPropertyOrgScope(String propertyName) {
       // Fast path: check excluded properties first before any expensive operations
-      if(EXCLUDED_ORG_PROPERTIES.contains(propertyName)) {
-         return propertyName;
-      }
-
-      XPrincipal principal = (XPrincipal) ThreadContext.getPrincipal();
-      principal = principal == null ? (XPrincipal) ThreadContext.getContextPrincipal() : principal;
-
-      if(principal == null) {
-         return propertyName;
+      if(EXCLUDED_ORG_PROPERTIES.contains(propertyName) || !hasThreadPrincipal()) {
+         return null;
       }
 
       String orgID = OrganizationManager.getInstance().getCurrentOrgID();
+      return orgID == null ? null : orgID.toLowerCase();
+   }
+
+   /**
+    * Determines if the current thread has a principal, in which case a property read is
+    * resolved in the principal's organization.
+    */
+   static boolean hasThreadPrincipal() {
+      return ThreadContext.getPrincipal() != null || ThreadContext.getContextPrincipal() != null;
+   }
+
+   private String useAvailableOrgProperty(String propertyName) {
+      String orgID = getPropertyOrgScope(propertyName);
 
       if(orgID != null) {
-         orgID = orgID.toLowerCase();
          Properties prop = getLoadedProperties();
          String orgPropertyName = "inetsoft.org." + orgID + "." + propertyName;
 

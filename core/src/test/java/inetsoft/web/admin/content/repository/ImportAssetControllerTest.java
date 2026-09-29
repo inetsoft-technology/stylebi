@@ -33,7 +33,7 @@ package inetsoft.web.admin.content.repository;
  *   [updateImportInfo: delegation]       all parameters forwarded to proxy unchanged
  *   [getBookmarkConflicts: delegation]   all parameters forwarded to proxy unchanged
  *   [importAsset: delegation]            all parameters (including ignoreList, flags) forwarded
- *   [finishImport: delegation]           proxy.finishImport(importId) called
+ *   [finishImport: delegation]           proxy.finishImport(importId, principal) called
  */
 
 import inetsoft.sree.internal.cluster.Cluster;
@@ -153,11 +153,11 @@ class ImportAssetControllerTest {
    // finishImport()
    // -------------------------------------------------------------------------
 
-   // [delegation] proxy.finishImport(importId) called
+   // [delegation] proxy.finishImport(importId, principal) called
    @Test
    void finishImport_delegatesToService() {
-      controller.finishImport("id1");
+      controller.finishImport("id1", principal);
 
-      verify(importService).finishImport("id1");
+      verify(importService).finishImport("id1", principal);
    }
 }

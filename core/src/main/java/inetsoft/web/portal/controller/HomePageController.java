@@ -18,12 +18,15 @@
 package inetsoft.web.portal.controller;
 
 import inetsoft.sree.SreeEnv;
+import inetsoft.sree.portal.CustomTheme;
 import inetsoft.sree.portal.CustomThemesManager;
 import inetsoft.sree.security.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.util.DataSpace;
+import inetsoft.util.MessageException;
+import inetsoft.util.ThreadContext;
 import inetsoft.util.Tool;
 import inetsoft.web.assistant.AIAssistantController;
 import inetsoft.web.viewsheet.service.LinkUri;
@@ -44,6 +47,7 @@ import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
 import java.net.*;
 import java.nio.charset.StandardCharsets;
+import java.security.Principal;
 import java.util.*;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
@@ -90,7 +94,10 @@ public class HomePageController {
 
          if(provider.getOrganization(orgId) != null &&
             !Tool.isEmptyString(provider.getOrganization(orgId).getTheme()) &&
-            !(Tool.equals("default", provider.getOrganization(orgId).getTheme())))
+            !(Tool.equals("default", provider.getOrganization(orgId).getTheme())) &&
+            // same rule as GlobalStyleController, which does not serve the theme then
+            !CustomTheme.isHiddenFromOrganization(customThemesManager.getCustomThemes(),
+                                                  provider.getOrganization(orgId).getTheme(), orgId))
          {
             hasOrgTheme = true;
          }
@@ -108,7 +115,10 @@ public class HomePageController {
       addAdditionalStyles(model, linkUri);
       addAdditionalScripts(model, linkUri);
       addDataSpaceTags(model, linkUri);
-      addOpenGraphTags(model, linkUri, request.getRequestURI(), request.getHeader("User-Agent"));
+      Principal principal = request.getUserPrincipal() != null ?
+         request.getUserPrincipal() : ThreadContext.getContextPrincipal();
+      addOpenGraphTags(model, linkUri, request.getRequestURI(), request.getHeader("User-Agent"),
+                       principal);
 
       return model;
    }
@@ -134,7 +144,7 @@ public class HomePageController {
    }
 
    private void addOpenGraphTags(ModelAndView model, String linkUri, String requestUri,
-                                 String userAgent)
+                                 String userAgent, Principal principal)
    {
       String title = null;
       String description = null;
@@ -169,13 +179,30 @@ public class HomePageController {
                AssetRepository repository = AssetUtil.getAssetRepository(false);
                AssetEntry entry = AssetEntry.createAssetEntry(assetId);
 
+               // Bug #77261: the identifier keeps its own orgID, so the sheet must be opened
+               // with a READ check against the requesting user (a null user skips the check).
+               // Nothing derived from the sheet is disclosed without a principal or on denial.
+               if(principal == null) {
+                  entry = null;
+               }
+
                if(entry != null) {
                   entry = repository.getAssetEntry(entry);
                }
 
+               Viewsheet vs = null;
+
                if(entry != null) {
+                  try {
+                     vs = (Viewsheet) repository.getSheet(entry, principal, true, AssetContent.ALL);
+                  }
+                  catch(MessageException e) {
+                     LOG.debug("Viewsheet is not readable for Open Graph tags: {}", requestUri, e);
+                  }
+               }
+
+               if(vs != null) {
                   title = entry.getAlias() == null ? entry.getPath() : entry.getAlias();
-                  Viewsheet vs = (Viewsheet) repository.getSheet(entry, null, false, AssetContent.ALL);
                   description = vs.getViewsheetInfo().getDescription();
 
                   index = title.lastIndexOf('/');

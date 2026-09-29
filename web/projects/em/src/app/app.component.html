@@ -22,7 +22,7 @@
 <ng-template #notificationDialog>
   <em-modal-header [title]="'_#(Notification)'"></em-modal-header>
   <div mat-dialog-content>
-    <p style="white-space: pre-line;">{{ notificationMessage }}</p>
+    <p style="white-space: pre-line;">{{ notificationMessage() }}</p>
   </div>
   <div mat-dialog-actions>
     <button mat-raised-button mat-dialog-close color="primary">_#(OK)</button>

@@ -18,6 +18,7 @@
 package inetsoft.sree.web.dashboard;
 
 import inetsoft.sree.ClientInfo;
+import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.security.*;
 import inetsoft.storage.*;
 import inetsoft.uql.util.DefaultIdentity;
@@ -34,6 +35,8 @@ import java.io.Serializable;
 import java.security.Principal;
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.concurrent.locks.Lock;
+import java.util.function.UnaryOperator;
 
 /**
  * A dashboard manager is a manager of dashboard. It is used to read &
@@ -80,8 +83,9 @@ public class DashboardManager implements AutoCloseable {
     * Runs an action while holding this manager's lock. A dashboard registry renames or removes
     * a dashboard through this, so that the change to the stored selections and the change to the
     * registry are atomic with respect to getDashboards(), which prunes the selected names that are
-    * not in the registries. The lock order is this manager, then DashboardRegistryManager, then
-    * the user registry, then the global registry.
+    * not in the registries. The lock order is this manager, then the store lock (getStoreLock()),
+    * then DashboardRegistryManager, then the user registry, then the global registry (see
+    * DashboardRegistry for the registry file locks).
     */
    synchronized void runLocked(Runnable action) {
       action.run();
@@ -149,26 +153,19 @@ public class DashboardManager implements AutoCloseable {
          uregistry = dashboardRegistryManager.getRegistry(identity.getIdentityID());
       }
 
-      boolean changed = false;
-
+      // The names that are not in the registries are left out, but not removed from the stored
+      // record. The registries are this node's cached copies, which may not have loaded a
+      // dashboard that another node has just created and selected (Bug #77272). A dashboard
+      // that is really removed is removed from the records by removeDashboard(String).
       for(String dashboard : values) {
          if((uregistry != null && uregistry.getDashboard(dashboard) != null) ||
             identity.getType() != Identity.USER || gregistry.getDashboard(dashboard) != null)
          {
             list.add(dashboard);
          }
-         else {
-            changed = true;
-         }
       }
 
-      String[] dashboards = list.toArray(new String[0]);
-
-      if(changed) {
-         setDashboards(identity, dashboards);
-      }
-
-      return dashboards;
+      return list.toArray(new String[0]);
    }
 
    /**
@@ -181,50 +178,57 @@ public class DashboardManager implements AutoCloseable {
     */
    public synchronized String[] getDeselectedDashboards(Identity identity) {
       init();
+      Lock storeLock = getStoreLock();
+      storeLock.lock();
 
-      DashboardData data = getDashboardStorage().get(getIdentityKey(identity));
-      List<String> values = data == null ? null : data.getDeselected();
+      try {
+         DashboardData data = getDashboardStorage().get(getIdentityKey(identity));
+         List<String> values = data == null ? null : data.getDeselected();
 
-      List<String> list = new ArrayList<>();
-      DashboardRegistry registry = dashboardRegistryManager.getRegistry();
-      boolean changed = false;
+         List<String> list = new ArrayList<>();
+         List<String> added = new ArrayList<>();
+         DashboardRegistry registry = dashboardRegistryManager.getRegistry();
 
-      if(values != null) {
-         for(String dashboard : values) {
-            if(registry.getDashboard(dashboard) != null) {
-               list.add(dashboard);
-            }
-            else {
-               changed = true;
-            }
-         }
-      }
-
-      if(identity.getType() == Identity.USER) {
-         IdentityID userId = identity.getIdentityID();
-
-         if(OrganizationManager.getInstance().isOrgAdmin(userId) ||
-            OrganizationManager.getInstance().isSiteAdmin(userId))
-         {
-            List<String> selectedDashboards = Arrays.asList(getDashboards(identity, false));
-
-            // go through all the global dashboards
-            for(String dashboard : registry.getDashboardNames()) {
-               if(!selectedDashboards.contains(dashboard) && !list.contains(dashboard)) {
+         // the names that are not in this node's cached registry are left out, but not removed
+         // from the stored record, see getDashboards(Identity, boolean)
+         if(values != null) {
+            for(String dashboard : values) {
+               if(registry.getDashboard(dashboard) != null) {
                   list.add(dashboard);
-                  changed = true;
                }
             }
          }
+
+         if(identity.getType() == Identity.USER) {
+            IdentityID userId = identity.getIdentityID();
+
+            if(OrganizationManager.getInstance().isOrgAdmin(userId) ||
+               OrganizationManager.getInstance().isSiteAdmin(userId))
+            {
+               List<String> selectedDashboards = Arrays.asList(getDashboards(identity, false));
+
+               // go through all the global dashboards
+               for(String dashboard : registry.getDashboardNames()) {
+                  if(!selectedDashboards.contains(dashboard) && !list.contains(dashboard)) {
+                     list.add(dashboard);
+                     added.add(dashboard);
+                  }
+               }
+            }
+         }
+
+         if(!added.isEmpty()) {
+            // only the added names are stored, on top of the stored record
+            List<String> stored = values == null ? new ArrayList<>() : new ArrayList<>(values);
+            added.stream().filter(d -> !stored.contains(d)).forEach(stored::add);
+            setDeselectedDashboards(identity, stored.toArray(new String[0]));
+         }
+
+         return list.toArray(new String[0]);
       }
-
-      String[] dashboards = list.toArray(new String[0]);
-
-      if(changed) {
-         setDeselectedDashboards(identity, dashboards);
+      finally {
+         storeLock.unlock();
       }
-
-      return dashboards;
    }
 
    /**
@@ -259,16 +263,21 @@ public class DashboardManager implements AutoCloseable {
    public synchronized void renameDashboard(String oname, String name) {
       init();
 
-      SortedMap<String, DashboardData> changes = new TreeMap<>();
-      KeyValueStorage<DashboardData> dashboardStorage = getDashboardStorage();
-      dashboardStorage.stream()
-            .forEach(p -> renameDashboard(oname, name, p, changes));
+      Lock storeLock = getStoreLock();
+      storeLock.lock();
 
       try {
+         SortedMap<String, DashboardData> changes = new TreeMap<>();
+         KeyValueStorage<DashboardData> dashboardStorage = getDashboardStorage();
+         dashboardStorage.stream()
+               .forEach(p -> renameDashboard(oname, name, p, changes));
          dashboardStorage.putAll(changes).get(60L, TimeUnit.SECONDS);
       }
       catch(InterruptedException | TimeoutException | ExecutionException e) {
          throw new RuntimeException(e);
+      }
+      finally {
+         storeLock.unlock();
       }
    }
 
@@ -322,16 +331,21 @@ public class DashboardManager implements AutoCloseable {
    public synchronized void removeDashboard(String name) {
       init();
 
-      SortedMap<String, DashboardData> changes = new TreeMap<>();
-      KeyValueStorage<DashboardData> dashboardStorage = getDashboardStorage();
-      dashboardStorage.stream()
-         .forEach(p -> removeDashboard(name, p, changes));
+      Lock storeLock = getStoreLock();
+      storeLock.lock();
 
       try {
+         SortedMap<String, DashboardData> changes = new TreeMap<>();
+         KeyValueStorage<DashboardData> dashboardStorage = getDashboardStorage();
+         dashboardStorage.stream()
+            .forEach(p -> removeDashboard(name, p, changes));
          dashboardStorage.putAll(changes).get(60L, TimeUnit.SECONDS);
       }
       catch(InterruptedException | TimeoutException | ExecutionException e) {
          throw new RuntimeException(e);
+      }
+      finally {
+         storeLock.unlock();
       }
    }
 
@@ -550,8 +564,10 @@ public class DashboardManager implements AutoCloseable {
    }
 
    // The setters below read the whole DashboardData record, change one field and put it back, so
-   // they hold this manager's monitor for the whole read-modify-write (77232). Lock order is this
-   // manager, then DashboardRegistryManager.lock, then the user registry, then the global registry.
+   // they hold this manager's monitor (77232) and the store lock of the cluster (getStoreLock(),
+   // since the record is shared by all nodes, 77272) for the whole read-modify-write. Lock order
+   // is this manager, then the store lock, then DashboardRegistryManager.lock, then the user
+   // registry, then the global registry.
    // The setters take only this manager's monitor and no registry locks, so they must not be
    // called while holding DashboardRegistryManager.lock or a registry monitor; a registry calls
    // them only inside runLocked(), before it locks itself.
@@ -577,13 +593,38 @@ public class DashboardManager implements AutoCloseable {
    {
       init();
       KeyValueStorage<DashboardData> dashboardStorage = getDashboardStorage();
+      Lock storeLock = getStoreLock();
+      storeLock.lock();
 
-      if(dashboards == null) {
-         String key = getIdentityKey(identity);
-         DashboardData data = dashboardStorage.get(key);
+      try {
+         if(dashboards == null) {
+            String key = getIdentityKey(identity);
+            DashboardData data = dashboardStorage.get(key);
 
-         if(data != null) {
-            data.setDashboards(new ArrayList<>());
+            if(data != null) {
+               data.setDashboards(new ArrayList<>());
+
+               try {
+                  dashboardStorage.put(key, data).get(10L, TimeUnit.SECONDS);
+               }
+               catch(InterruptedException | ExecutionException | TimeoutException e) {
+                  throw new RuntimeException("Failed to save dashboard", e);
+               }
+            }
+         }
+         else if(identity != null && identity.getName() != null) {
+            String key = getIdentityKey(identity);
+            DashboardData data = dashboardStorage.get(key);
+
+            if(data == null) {
+               data = new DashboardData();
+            }
+
+            data.setDashboards(new ArrayList<>(Arrays.asList(dashboards)));
+
+            if(userChanged != null) {
+               data.setUserChanged(userChanged);
+            }
 
             try {
                dashboardStorage.put(key, data).get(10L, TimeUnit.SECONDS);
@@ -593,26 +634,8 @@ public class DashboardManager implements AutoCloseable {
             }
          }
       }
-      else if(identity != null && identity.getName() != null) {
-         String key = getIdentityKey(identity);
-         DashboardData data = dashboardStorage.get(key);
-
-         if(data == null) {
-            data = new DashboardData();
-         }
-
-         data.setDashboards(new ArrayList<>(Arrays.asList(dashboards)));
-
-         if(userChanged != null) {
-            data.setUserChanged(userChanged);
-         }
-
-         try {
-            dashboardStorage.put(key, data).get(10L, TimeUnit.SECONDS);
-         }
-         catch(InterruptedException | ExecutionException | TimeoutException e) {
-            throw new RuntimeException("Failed to save dashboard", e);
-         }
+      finally {
+         storeLock.unlock();
       }
    }
 
@@ -647,13 +670,34 @@ public class DashboardManager implements AutoCloseable {
    public synchronized void setDeselectedDashboards(Identity identity, String[] dashboards) {
       init();
       KeyValueStorage<DashboardData> dashboardStorage = getDashboardStorage();
+      Lock storeLock = getStoreLock();
+      storeLock.lock();
 
-      if(dashboards == null) {
-         String key = getIdentityKey(identity);
-         DashboardData data = dashboardStorage.get(key);
+      try {
+         if(dashboards == null) {
+            String key = getIdentityKey(identity);
+            DashboardData data = dashboardStorage.get(key);
 
-         if(data != null) {
-            data.setDeselected(new ArrayList<>());
+            if(data != null) {
+               data.setDeselected(new ArrayList<>());
+
+               try {
+                  dashboardStorage.put(key, data).get(10L, TimeUnit.SECONDS);
+               }
+               catch(InterruptedException | ExecutionException | TimeoutException e) {
+                  throw new RuntimeException("Failed to deselected dashboard", e);
+               }
+            }
+         }
+         else if(identity.getName() != null) {
+            String key = getIdentityKey(identity);
+            DashboardData data = dashboardStorage.get(key);
+
+            if(data == null) {
+               data = new DashboardData();
+            }
+
+            data.setDeselected(new ArrayList<>(Arrays.asList(dashboards)));
 
             try {
                dashboardStorage.put(key, data).get(10L, TimeUnit.SECONDS);
@@ -663,22 +707,8 @@ public class DashboardManager implements AutoCloseable {
             }
          }
       }
-      else if(identity.getName() != null) {
-         String key = getIdentityKey(identity);
-         DashboardData data = dashboardStorage.get(key);
-
-         if(data == null) {
-            data = new DashboardData();
-         }
-
-         data.setDeselected(new ArrayList<>(Arrays.asList(dashboards)));
-
-         try {
-            dashboardStorage.put(key, data).get(10L, TimeUnit.SECONDS);
-         }
-         catch(InterruptedException | ExecutionException | TimeoutException e) {
-            throw new RuntimeException("Failed to deselected dashboard", e);
-         }
+      finally {
+         storeLock.unlock();
       }
    }
 
@@ -686,22 +716,70 @@ public class DashboardManager implements AutoCloseable {
     * Add a dashboard to specified identity.
     */
    public synchronized void addDashboard(Identity identity, String dashboard) {
-      init();
-
-      String[] dashboards = getDashboards(identity);
-      dashboards = dashboards == null ? new String[0] : dashboards;
-
-      for(String dashboardName : dashboards) {
-         if(dashboardName.equals(dashboard)) {
-            return;
-         }
+      if(identity == null) {
+         return;
       }
 
-      String[] narr = new String[dashboards.length + 1];
-      System.arraycopy(dashboards, 0, narr, 0, dashboards.length);
-      narr[narr.length - 1] = dashboard;
+      init();
+      Lock storeLock = getStoreLock();
+      storeLock.lock();
 
-      setDashboards(identity, narr);
+      try {
+         if(identity.getType() == Identity.USER &&
+            !ClientInfo.ANONYMOUS.equals(identity.getName()))
+         {
+            try {
+               syncUserDashboards(identity);
+            }
+            catch(Exception exc) {
+               LOG.error(exc.getMessage(), exc);
+            }
+         }
+
+         // appended to the stored names, not to getDashboards(), which leaves out the names
+         // that are not in this node's cached registries (Bug #77272)
+         updateDashboards(identity, dashboards -> {
+            if(Arrays.asList(dashboards).contains(dashboard)) {
+               return dashboards;
+            }
+
+            String[] narr = Arrays.copyOf(dashboards, dashboards.length + 1);
+            narr[narr.length - 1] = dashboard;
+            return narr;
+         });
+      }
+      finally {
+         storeLock.unlock();
+      }
+   }
+
+   /**
+    * Changes the stored selected dashboards of an identity, holding the store lock for the whole
+    * read-modify-write. The stored names are changed, including the names that are not in this
+    * node's cached registries, which getDashboards(Identity) leaves out, so that a dashboard
+    * that another node has just created and selected is kept (Bug #77272).
+    *
+    * @param identity the identity.
+    * @param change   returns the new names from the stored names.
+    */
+   synchronized void updateDashboards(Identity identity, UnaryOperator<String[]> change) {
+      init();
+      Lock storeLock = getStoreLock();
+      storeLock.lock();
+
+      try {
+         DashboardData data = getDashboardStorage().get(getIdentityKey(identity));
+         String[] dashboards = data == null ?
+            new String[0] : data.getDashboards().toArray(new String[0]);
+         String[] ndashboards = change.apply(dashboards);
+
+         if(!Arrays.equals(dashboards, ndashboards)) {
+            setDashboards(identity, ndashboards);
+         }
+      }
+      finally {
+         storeLock.unlock();
+      }
    }
 
    public void removeDashboardStorage(String orgID) throws Exception {
@@ -736,13 +814,33 @@ public class DashboardManager implements AutoCloseable {
       return keyValueStorageManager.getStorage(storeID, new LoadDashboardsTask(storeID));
    }
 
-   private synchronized void syncUserDashboards() throws Exception {
-      KeyValueStorage<DashboardData> dashboardStorage = getDashboardStorage();
-      SortedMap<String, DashboardData> changes = new TreeMap<>();
-      dashboardStorage.stream().forEach(p -> syncUserDashboards(p, changes));
+   /**
+    * Gets the cluster lock of the current org's dashboards store (Bug #77272). The records are
+    * shared by all cluster nodes and KeyValueStorage has no compare-and-set, so a read-modify-write
+    * of the records holds this lock, not only this manager's monitor, which is local to a node. It
+    * is taken after this manager's monitor, and before the DashboardRegistryManager lock and the
+    * registry locks.
+    */
+   private Lock getStoreLock() {
+      String orgID = OrganizationManager.getInstance().getCurrentOrgID();
+      return Cluster.getInstance().getLock(STORE_LOCK_PREFIX + orgID.toLowerCase());
+   }
 
-      if(!changes.isEmpty()) {
-         dashboardStorage.putAll(changes).get(3L, TimeUnit.MINUTES);
+   private synchronized void syncUserDashboards() throws Exception {
+      Lock storeLock = getStoreLock();
+      storeLock.lock();
+
+      try {
+         KeyValueStorage<DashboardData> dashboardStorage = getDashboardStorage();
+         SortedMap<String, DashboardData> changes = new TreeMap<>();
+         dashboardStorage.stream().forEach(p -> syncUserDashboards(p, changes));
+
+         if(!changes.isEmpty()) {
+            dashboardStorage.putAll(changes).get(3L, TimeUnit.MINUTES);
+         }
+      }
+      finally {
+         storeLock.unlock();
       }
    }
 
@@ -768,24 +866,32 @@ public class DashboardManager implements AutoCloseable {
    }
 
    private synchronized void syncUserDashboards(Identity user) throws Exception {
-      KeyValueStorage<DashboardData> dashboardStorage = getDashboardStorage();
-      DashboardData data = dashboardStorage.get(getIdentityKey(user));
+      Lock storeLock = getStoreLock();
+      storeLock.lock();
 
-      if(data == null) {
-         data = new DashboardData();
+      try {
+         KeyValueStorage<DashboardData> dashboardStorage = getDashboardStorage();
+         DashboardData data = dashboardStorage.get(getIdentityKey(user));
+
+         if(data == null) {
+            data = new DashboardData();
+         }
+
+         List<String> selected = data.getDashboards();
+         List<String> nselected = syncUserDashboards(user, selected);
+
+         if(nselected == null) {
+            nselected = new ArrayList<>();
+         }
+
+         data.setDashboards(nselected);
+
+         if(!Tool.equals(selected, nselected)) {
+            dashboardStorage.put(getIdentityKey(user), data).get(10L, TimeUnit.SECONDS);
+         }
       }
-
-      List<String> selected = data.getDashboards();
-      List<String> nselected = syncUserDashboards(user, selected);
-
-      if(nselected == null) {
-         nselected = new ArrayList<>();
-      }
-
-      data.setDashboards(nselected);
-
-      if(!Tool.equals(selected, nselected)) {
-         dashboardStorage.put(getIdentityKey(user), data).get(10L, TimeUnit.SECONDS);
+      finally {
+         storeLock.unlock();
       }
    }
 
@@ -885,6 +991,8 @@ public class DashboardManager implements AutoCloseable {
    private final DashboardRegistryManager dashboardRegistryManager;
    private final KeyValueStorageManager keyValueStorageManager;
    private String orgID = null;
+   // the prefix of the cluster lock name of a dashboards store, see getStoreLock()
+   private static final String STORE_LOCK_PREFIX = DashboardManager.class.getName() + ".lock:";
    private static final Logger LOG = LoggerFactory.getLogger(DashboardManager.class);
 
    public static final class DashboardData implements Serializable {

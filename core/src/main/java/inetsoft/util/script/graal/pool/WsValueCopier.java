@@ -233,6 +233,7 @@ public final class WsValueCopier {
          copy.put(key, interopElement(v.getMember(key)));
       }
 
+      copy.origin(WsExecContext.currentOrigin());
       return copy;
    }
 
@@ -243,6 +244,7 @@ public final class WsValueCopier {
          copy.add(interopElement(v.getArrayElement(i)));
       }
 
+      copy.origin(WsExecContext.currentOrigin());
       return copy;
    }
 

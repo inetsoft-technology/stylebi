@@ -109,8 +109,7 @@ class FormulaTableLensStateLintTest {
    @ParameterizedTest
    @ValueSource(strings = {
       "var list = list || []; list.push(field['x']); list.length",
-      "var seen = seen || {}; seen[field['x']] = 1; Object.keys(seen).length",
-      "var first; if(!first) { first = new Date(); } first.getTime() > 0 ? 1 : 0"
+      "var seen = seen || {}; seen[field['x']] = 1; Object.keys(seen).length"
    })
    void ownedObjectAccumulatorWarnsOnlyWithThePoolOn(String text) {
       TabularSheet report = new TabularSheet(Mockito.mock(LibManagerProvider.class),
@@ -139,10 +138,39 @@ class FormulaTableLensStateLintTest {
       String msg = warns.get(0).getFormattedMessage();
       assertTrue(msg.contains("expression column \"Obj\" of table \"Query2\""), msg);
       assertTrue(msg.contains("rule R1"), msg);
-      assertTrue(msg.contains("assigns it an object, array, Date or function"), msg);
+      assertTrue(msg.contains("assigns it an array, object or function"), msg);
       assertTrue(msg.contains("kept only within one batch"), msg);
       assertFalse(msg.contains("not reset between tables"), msg);
       assertEquals(scripts + 1, ScriptStateLint.nodeStateHazardScripts());
+   }
+
+   /**
+    * A Date in an owned var is kept across pooled batches (Testing #77123, B1 residual), so
+    * its read-before-write does not warn, pool off or on.
+    */
+   @ParameterizedTest
+   @ValueSource(strings = {
+      "var first; if(!first) { first = new Date(); } first.getTime() > 0 ? 1 : 0",
+      "var d = d || new Date(0); d.setTime(d.getTime() + 1000); d.getTime()"
+   })
+   void aDateAccumulatorDoesNotWarnWithThePoolOn(String text) {
+      TabularSheet report = new TabularSheet(Mockito.mock(LibManagerProvider.class),
+                                             Mockito.mock(Cluster.class));
+      String formula = unique(text);
+      long scripts = ScriptStateLint.nodeStateHazardScripts();
+
+      readAll(new FormulaTableLens(table(ROWS), new String[] { "D" },
+                                   new String[] { formula }, report.getScriptEnv(),
+                                   new PoolTestSupport.MapScope()));
+      FormulaTableLens lens = new FormulaTableLens(table(ROWS), new String[] { "D" },
+                                                   new String[] { formula },
+                                                   PoolTestSupport.env(),
+                                                   new PoolTestSupport.MapScope());
+      lens.setTableName("Query2");
+      readAll(lens);
+
+      assertEquals(0, warnings(formula).size(), () -> "warnings: " + appender.list);
+      assertEquals(scripts, ScriptStateLint.nodeStateHazardScripts());
    }
 
    /** R2 is unchanged: an undeclared global accumulator warns once, pool off and on. */
