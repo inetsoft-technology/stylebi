@@ -65,7 +65,9 @@ import static inetsoft.test.XTableUtil.date;
  * never wrapped the table in a {@code DCMergeDatePartFilter}, the "week of quarter" column
  * reaching {@code computeValidParts()} stayed a bare period-relative {@code Integer}, and every
  * older, already fully-elapsed quarter's weeks past the current (in-progress) quarter's own
- * reach were wrongly excluded (reported as "some weeks are missing").
+ * reach were wrongly excluded (reported as "some weeks are missing"). (Bug #77236 later
+ * removed computeValidParts() itself, so the end-to-end test below passes for either part
+ * shape; the temp ref still keeps the part's value and label period-relative.)
  *
  * <p>The fix adds a check on {@link DateComparisonInfo#getGranularityParentLevel()} to the
  * gate: it now only skips producing a temp ref when the granularity's true parent level (the
