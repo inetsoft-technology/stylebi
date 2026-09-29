@@ -155,6 +155,48 @@ public final class LockOrderRecorder {
       recorder.names.clear();
       HOLDERS.clear();
       PLAIN_MONITORS.clear();
+      deleteBootJar();
+   }
+
+   /**
+    * Delete the hook's temp jar. The JVM's boot class path keeps the jar open until the JVM
+    * exits, so on Windows this (and deleteOnExit) fails while the JVM runs; the next install
+    * sweeps such leftovers of earlier JVMs instead (see {@link #sweepBootJars}).
+    */
+   private static void deleteBootJar() {
+      Path jar = bootJar;
+
+      if(jar == null) {
+         return;
+      }
+
+      try {
+         Files.deleteIfExists(jar);
+         bootJar = null;
+      }
+      catch(IOException ex) {
+         // still open on the boot class path (Windows): swept by a later JVM's install
+      }
+   }
+
+   /**
+    * Delete the hook jars that earlier JVMs left in the temp directory; one still open by a
+    * running JVM cannot be deleted on Windows and is skipped.
+    */
+   private static void sweepBootJars(Path dir) {
+      try(DirectoryStream<Path> jars = Files.newDirectoryStream(dir, BOOT_JAR_PREFIX + "*.jar")) {
+         for(Path jar : jars) {
+            try {
+               Files.deleteIfExists(jar);
+            }
+            catch(IOException ex) {
+               // in use by another JVM
+            }
+         }
+      }
+      catch(IOException ex) {
+         // best effort
+      }
    }
 
    /**
@@ -392,8 +434,10 @@ public final class LockOrderRecorder {
          bytes = Objects.requireNonNull(in, resource).readAllBytes();
       }
 
-      Path jar = Files.createTempFile("lockorder-boot", ".jar");
+      sweepBootJars(Paths.get(System.getProperty("java.io.tmpdir")));
+      Path jar = Files.createTempFile(BOOT_JAR_PREFIX, ".jar");
       jar.toFile().deleteOnExit();
+      bootJar = jar;
 
       try(JarOutputStream out = new JarOutputStream(Files.newOutputStream(jar))) {
          out.putNextEntry(new JarEntry(resource));
@@ -401,7 +445,11 @@ public final class LockOrderRecorder {
          out.closeEntry();
       }
 
-      inst.appendToBootstrapClassLoaderSearch(new JarFile(jar.toFile()));
+      // the JVM opens the jar by its name; this handle is not needed once it is appended
+      try(JarFile file = new JarFile(jar.toFile())) {
+         inst.appendToBootstrapClassLoaderSearch(file);
+      }
+
       Class<?> hook = Class.forName(name, true, null);
 
       if(hook.getClassLoader() != null) {
@@ -1108,6 +1156,9 @@ public final class LockOrderRecorder {
    private static LockOrderRecorder instance;
    // the bootstrap LockHook, injected once per JVM
    private static Class<?> HOOK;
+   private static final String BOOT_JAR_PREFIX = "lockorder-boot";
+   // the hook's temp jar while it may still exist
+   private static volatile Path bootJar;
    private static volatile String currentTest = "?";
 
    private final Map<IdentityKey, Site> names = new ConcurrentHashMap<>();
