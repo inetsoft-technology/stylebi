@@ -335,8 +335,10 @@ public class FormulaTableLens extends AbstractTableLens
       long start = System.currentTimeMillis();
       // advance at least 10 to avoid going through this once per row
       final int advance = Math.min(Math.max(r / 100, 10), 100);
-      // the last row processed in this pass, see lockForRow()
-      final int lastRow = Math.max(r, getProcessedRowCount() + hrows + advance);
+      // the last row processed in this pass, see lockForRow(); in pool mode the end of the
+      // pooled batch, whose base rows are loaded before the lens lock (finding F1)
+      final int lastRow = Math.max(r, getProcessedRowCount() + hrows +
+                                      Math.max(advance, peekPoolBatch(r)));
       Lock execLock = lockForRow(r, lastRow);
       // no row remains to compute, and none is computed without the engine lock
       boolean computed = execLock == COMPUTED;
@@ -368,9 +370,10 @@ public class FormulaTableLens extends AbstractTableLens
             senv = report.getScriptEnv();
          }
 
-         // pool mode: one claimed span for this whole batch, including the base population
-         // below, so a script global lives for the batch and the context is cleaned once at
-         // its end (bug #76960, spec §5.3); nested batches share the claim
+         // pool mode: one claimed span for this whole batch, so a script global lives for the
+         // batch and the context is cleaned once at its end (bug #76960, spec §5.3); nested
+         // batches share the claim. The batch's base rows were loaded before the lens lock
+         // (finding F1), so a pooled formula base computed them under its own claim
          span = senv == null ? ScriptSpan.NONE : senv.openSpan();
 
          if(tableRow == null) {
@@ -419,11 +422,9 @@ public class FormulaTableLens extends AbstractTableLens
          // reads this lens in reads of at most maxBatchRows rows; a direct far or EOT read
          // computes through r in one batch, as off the pool
          final int batch = Math.max(advance, nextPoolBatch(span, r, nrows + hrows));
-         // under the engine lock, stop at the rows whose base was loaded before taking it,
-         // see lockForRow(); a pooled env takes no engine lock, so its batch is not capped
-         final int maxr = execLock != null
-            ? Math.min(Math.max(r, nrows + hrows + advance), lastRow)
-            : Math.max(r, nrows + hrows + batch);
+         // stop at the rows whose base was loaded before taking the locks, see lockForRow()
+         final int maxr = Math.min(Math.max(r, nrows + hrows +
+                                               (execLock != null ? advance : batch)), lastRow);
 
          for(int i = nrows + hrows; i <= maxr && table.moreRows(i) && scripts != null; i++) {
             // optimization, don't call get/put if never in the loop
@@ -599,7 +600,13 @@ public class FormulaTableLens extends AbstractTableLens
 
       if(env == null || !env.usesExecutionLock()) {
          // a pooled env never makes a script wait for another thread's script, so there is
-         // no engine lock to order against (bug #76960)
+         // no engine lock to order against (bug #76960). The base is still read before this
+         // lens's lock, as below: a batch waiting for a base row under the lock deadlocks
+         // against a thread that holds the base's monitor and reads this lens (finding F1)
+         if(r >= getProcessedRowCount() + hrows) {
+            table.moreRows(lastRow);
+         }
+
          lockBounded();
          return null;
       }
@@ -1628,7 +1635,8 @@ public class FormulaTableLens extends AbstractTableLens
     * up to maxBatchRows (never below batchRows, see PoolConfig), so a row-by-row reader of N
     * rows computes at most about 2N + 10. A batch computes its read-ahead plus the row that
     * asked for it, as pool off does, so a capped batch is maxBatchRows + 1 rows. 0 off the
-    * pool, where batchRows is 0.
+    * pool, where batchRows is 0. {@link #peekPoolBatch} predicts this before the lens lock;
+    * keep the two in step, although a mismatch only shortens a batch.
     *
     * @param next the first row not yet computed.
     */
@@ -1648,6 +1656,31 @@ public class FormulaTableLens extends AbstractTableLens
       // the pool-off look-ahead of moreRows()
       poolBatch = Math.min(Math.max(r / 100, 10), 100);
       return 0;
+   }
+
+   /**
+    * The look-ahead {@link #nextPoolBatch} would take for row {@code r}, without updating it,
+    * so that moreRows() loads the base rows of a pooled batch before it takes the lens lock
+    * (finding F1). It reads {@link #poolBatch} without the lock, so it may differ from the
+    * batch's own; the batch stops at the rows loaded here and the next read continues it.
+    * Keep it in step with nextPoolBatch(); a mismatch only shortens a batch.
+    */
+   private int peekPoolBatch(int r) {
+      if(!(getScriptEnv() instanceof WorksheetScriptEnv wenv) ||
+         wenv.getConfig().batchRows() <= 0)
+      {
+         return 0;
+      }
+
+      int next = getProcessedRowCount() + hrows;
+      int prev = poolBatch;
+
+      if(prev <= 0 || r > next || next <= hrows) {
+         return 0;
+      }
+
+      int max = Math.max(wenv.getConfig().batchRows(), wenv.getConfig().maxBatchRows());
+      return prev >= max / 2 ? max : prev * 2;
    }
 
    /**
