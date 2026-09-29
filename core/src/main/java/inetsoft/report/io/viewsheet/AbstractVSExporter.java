@@ -2918,9 +2918,13 @@ public abstract class AbstractVSExporter implements VSExporter {
    }
 
    /**
-    * Get row/column count to insert, the result will be more minus
-    * those assemblies which has been insert row/column, but not cause the
-    * current object to move.
+    * Get row/column count to insert. The result is more minus the row/columns a
+    * previous insert already added directly below (or right of) this assembly,
+    * i.e. only those recorded at a position inside {@code (top, bottom]} of this
+    * assembly. An insert at or before the assembly's top moved the assembly
+    * itself along with everything after it, and an insert after its bottom left
+    * the assemblies in between where they were; neither opened room here, so
+    * neither is netted out.
     * @param expanded the row/column insert map.
     * @param obj the object assembly cause the viewsheet to insert row/column.
     * @param size the obj assembly old grid size.
@@ -2948,14 +2952,20 @@ public abstract class AbstractVSExporter implements VSExporter {
       }
 
       int start = exprow ? obj.getPixelOffset().y : obj.getPixelOffset().x;
+      // the position this assembly inserts at, same as the key used in addMore()
+      int insertPos = start + (exprow ? size.height : size.width);
       int added = 0;
       Iterator<Integer> iterator = keys.iterator();
 
       while(iterator.hasNext()) {
          int pos = iterator.next();
 
-         // the insert place not cause current assembly move
-         if(pos > start) {
+         // only an earlier insert made at a position inside (start, insertPos] added
+         // room directly below/right of this assembly: an insert at or before start
+         // moved this assembly together with everything after it, and an insert after
+         // insertPos left the assemblies between insertPos and that position where
+         // they were, so netting it out here under-shifts them. (77208, 71211)
+         if(pos > start && pos <= insertPos) {
             added += vexpand.get(pos);
          }
       }
@@ -3075,8 +3085,6 @@ public abstract class AbstractVSExporter implements VSExporter {
     * @param exprow inset row or column.
     */
    private void insert(VSAssembly obj, Dimension size, int more, boolean exprow) {
-      int omore = more;
-
       if(more > 0) {
          more = getMore(exprow ? rmap : cmap, obj, size, more, exprow);
       }
@@ -3087,7 +3095,7 @@ public abstract class AbstractVSExporter implements VSExporter {
 
       addMore(exprow ? rmap : cmap, obj, size, more, exprow);
       Dimension oldSize = getViewsheetSize(obj.getViewsheet(), true);
-      moveAssemblies(obj, size, omore, more, exprow);
+      moveAssemblies(obj, size, more, exprow);
       addGrid(obj, size, more, exprow);
       expandParent(obj.getViewsheet(), oldSize, exprow);
    }
@@ -3099,7 +3107,7 @@ public abstract class AbstractVSExporter implements VSExporter {
     * @param more move row/column count.
     * @param exprow to move row or column direction.
     */
-   protected void moveAssemblies(VSAssembly obj, Dimension size, int omore, int more, boolean exprow) {
+   protected void moveAssemblies(VSAssembly obj, Dimension size, int more, boolean exprow) {
       Viewsheet vs = obj == null ? null : obj.getViewsheet();
 
       if(vs == null) {
@@ -3121,12 +3129,6 @@ public abstract class AbstractVSExporter implements VSExporter {
             objs[i] instanceof AnnotationRectangleVSAssembly)
          {
             continue;
-         }
-
-         if(objs[i] instanceof SelectionListVSAssembly ||
-            objs[i] instanceof SelectionTreeVSAssembly)
-         {
-            more = omore;
          }
 
          Point p2 = objs[i].getPixelOffset();
@@ -3234,7 +3236,7 @@ public abstract class AbstractVSExporter implements VSExporter {
       }
 
       //addMore(expanded, vs, osize, more, exprow);
-      moveAssemblies(vs, osize, more, more, exprow);
+      moveAssemblies(vs, osize, more, exprow);
       Dimension posize = getViewsheetSize(pvs, true);
       addGrid(vs, osize, more, exprow);
       expandParent(pvs, posize, exprow);
