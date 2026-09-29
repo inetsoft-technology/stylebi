@@ -572,4 +572,61 @@ class AdminPropertyCatalogTest {
       assertThrows(IllegalArgumentException.class,
                    () -> catalog.canonicalizeValue(entry, "0"));
    }
+
+   @Test
+   void validatesTheCorpusDocumentedTogglesThatUsedToPassThroughUnchecked() {
+      // Redmine #76015: documentation search named both of these on the first call, and
+      // get_property then came back recognized:false with a null type, so "tru" or "yes" would
+      // have been written verbatim to a property the corpus documents as boolean.
+      for(String name : new String[] { "security.user.casesensitive",
+                                       "security.datasource.everyone" })
+      {
+         CatalogEntry entry = catalog.getEntry(AdminPropertyName.parse(name));
+         assertNotNull(entry, name + " should be catalogued");
+         assertEquals("boolean", entry.type(), name);
+         assertEquals("true", catalog.canonicalizeValue(entry, "TRUE"));
+         assertThrows(IllegalArgumentException.class,
+                      () -> catalog.canonicalizeValue(entry, "tru"), name);
+         assertThrows(IllegalArgumentException.class,
+                      () -> catalog.canonicalizeValue(entry, "yes"), name);
+      }
+   }
+
+   @Test
+   void acceptsTheDeclaredDefaultOfAnEnumWhoseCorpusListWrapsAcrossLines() {
+      // The corpus page wraps this allowedValues list over five lines. promote_from_corpus.py
+      // used to read only the first, proposing a one-element enum holding the string
+      // '["Year", ...' - which would have rejected the declared default and every real value.
+      CatalogEntry entry = catalog.getEntry(
+         AdminPropertyName.parse("crosstab.datetime.expandall.level"));
+
+      assertNotNull(entry);
+      assertEquals(28, entry.allowedValues().size());
+      // DateRangeRef.getDateRangeOption switches on the exact spelling, so canonicalization must
+      // hand back the catalog's casing.
+      assertEquals("DayOfMonth", catalog.canonicalizeValue(entry, "dayofmonth"));
+      assertEquals("YearOfWeek", catalog.canonicalizeValue(entry, "YearOfWeek"));
+   }
+
+   @Test
+   void leavesOutPromotionCandidatesThatWouldReportSuccessForNothing() {
+      // Each of these has a corpus page, and each was deliberately NOT promoted in #76015:
+      //   btree.page.size, script.execution.stackdepth, application.url, jdbc.max.cursor,
+      //   replet.auto.reload - declared, but the corpus page shows nothing reads them, which is
+      //                        the class javadoc's "reported as success for a property nothing
+      //                        reads" case exactly
+      //   query.max.time     - its corpus read site no longer exists in community
+      //   monitor.level      - stored as a number ("1"); the corpus's HIGH/MEDIUM/LOW/OFF list
+      //                        would reject the value the server itself writes back
+      //   mail.smtp.auth     - declared "false", which the corpus's allowedValues omits
+      // Promoting any of them is a decision to re-verify, not a transcription to redo.
+      for(String name : new String[] { "btree.page.size", "script.execution.stackdepth",
+                                       "application.url", "jdbc.max.cursor",
+                                       "replet.auto.reload", "query.max.time", "monitor.level",
+                                       "mail.smtp.auth" })
+      {
+         assertNull(catalog.getEntry(AdminPropertyName.parse(name)),
+                    name + " must stay uncatalogued until re-verified");
+      }
+   }
 }
