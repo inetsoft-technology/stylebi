@@ -216,6 +216,26 @@ public class RelMetamorphicTest {
       }
    }
 
+   /**
+    * The oracle kind of each case in each shape, for the report's share of error-only
+    * comparisons: only with -Drel.oracles=true (e.g. with -Drel.step=1 over the whole corpus),
+    * since it runs the four pool-off oracles of each case and compares nothing.
+    */
+   @ParameterizedTest(name = "{0}")
+   @MethodSource("cases")
+   public void oracleKinds(Case c) {
+      Assumptions.assumeTrue(Boolean.getBoolean("rel.oracles"));
+
+      for(Shape shape : Shape.values()) {
+         OracleKind kind = kind(shape, oracle(c, shape));
+         count("case." + shape + "." + kind);
+
+         if(kind != OracleKind.COMPUTING) {
+            DRIFTS.add("kind " + kind + " " + shape + " " + c.label());
+         }
+      }
+   }
+
    @ParameterizedTest(name = "{0}")
    @MethodSource("cases")
    public void mr1Batch(Case c) throws Exception {
@@ -442,8 +462,9 @@ public class RelMetamorphicTest {
    /**
     * The kind of result an oracle is, to tell comparisons of computed values from
     * comparisons of errors: ERROR when every cell failed; NO_VALUE for a condition whose
-    * script gave no value (each group's value is null or failed, so its evaluations only
-    * compare with null); CONSTANT when every non-error cell of a row shape is the same value
+    * script gave no value (each group's value is null, or still the expression because the
+    * script failed, e.g. it reads field[...] and a condition has no row, so its evaluations
+    * are constant); CONSTANT when every non-error cell of a row shape is the same value
     * (the script does not depend on the row); else COMPUTING.
     */
    static OracleKind kind(Shape shape, List<String> oracle) {
@@ -456,7 +477,8 @@ public class RelMetamorphicTest {
 
       if(shape == Shape.CONDITION) {
          return values.stream().filter(v -> v.startsWith("v:"))
-            .allMatch(v -> v.equals("v:null")) ? OracleKind.NO_VALUE : OracleKind.COMPUTING;
+            .allMatch(v -> v.equals("v:null") || v.startsWith("v:ExpressionValue:"))
+            ? OracleKind.NO_VALUE : OracleKind.COMPUTING;
       }
 
       return values.stream().distinct().count() == 1 ? OracleKind.CONSTANT

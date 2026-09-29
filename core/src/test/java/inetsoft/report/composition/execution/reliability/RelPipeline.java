@@ -286,7 +286,10 @@ public final class RelPipeline {
             continue;
          }
 
-         result.add("v:" + str(condition.getValue(0)));
+         // the group evaluates a clone of the condition, whose value the script's result
+         // replaced; the condition built here keeps its expression
+         XCondition evaluated = ((XConditionGroup.CondItem) group.getItem(0)).condition;
+         result.add("v:" + str(((Condition) evaluated).getValue(0)));
          String[] cells = new String[ROWS];
 
          for(int r : read.order(ROWS)) {
