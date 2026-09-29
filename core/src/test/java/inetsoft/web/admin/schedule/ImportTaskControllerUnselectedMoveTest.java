@@ -179,6 +179,28 @@ class ImportTaskControllerUnselectedMoveTest {
       assertFalse(captureMove().removable());
    }
 
+   // the reported attack, an org admin (refused SCHEDULE_TASK WRITE on internal tasks) imports
+   // its own task with the host internal task left unselected in the same file, only its own
+   // task is imported and moved
+   @Test
+   void orgAdminMixedImport_movesOnlyOwnTaskNotHostInternalTask() throws Exception {
+      when(repository.checkPermission(any(), eq(ResourceType.SCHEDULE_TASK), eq(BACKUP),
+                                      eq(ResourceAction.WRITE))).thenReturn(false);
+      ScheduleTask own = normalTask("orgadmin", "t1", true);
+      ScheduleTask internal = internalTask(true);
+      ScheduleTask stored = mock(ScheduleTask.class);
+      when(stored.isRemovable()).thenReturn(false);
+      when(scheduleManager.getScheduleTask(own.getTaskId())).thenReturn(null);
+      when(scheduleManager.getScheduleTask(BACKUP)).thenReturn(stored);
+
+      importTasks(List.of(own.getTaskId()), false, internal, own);
+
+      verify(scheduleManager).setScheduleTask(own.getTaskId(), own, principal);
+      verify(scheduleManager, never()).setScheduleTask(eq(BACKUP), any(ScheduleTask.class),
+                                                       any(Principal.class));
+      assertEquals(own.getTaskId(), captureMove().name());
+   }
+
    private void importTasks(List<String> selected, boolean overwriting, ScheduleTask... tasks)
       throws Exception
    {
