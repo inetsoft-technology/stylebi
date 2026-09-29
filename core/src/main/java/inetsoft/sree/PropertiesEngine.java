@@ -836,6 +836,38 @@ public class PropertiesEngine {
    }
 
 
+   /**
+    * Gets the value of a property from the sources that never hold key-value storage values,
+    * in the same order the cached properties layer them: an {@code INETSOFT_*} environment
+    * variable, then a system property, then the built-in defaults. Callers that read a property
+    * from the storage with {@link #getPropertyFromStorage(String)} use this when it is not
+    * stored, instead of {@link #getProperty(String, String)}, whose cached storage values may be
+    * stale on a cluster node that has not reloaded yet (Bug #77323).
+    *
+    * @param name the name of the property.
+    *
+    * @return the property value, or {@code null} if none of these sources supplies it.
+    */
+   public String getPropertyFromNonStorageSources(String name) {
+      name = fixPropertyNameCase(name);
+
+      if(name == null) {
+         return null;
+      }
+
+      String value = EarlyLoadedProperties.getEnvironmentProperty(name);
+
+      if(value == null) {
+         value = System.getProperty(name);
+      }
+
+      if(value == null) {
+         value = getDefaultProperties().getProperty(name);
+      }
+
+      return value;
+   }
+
    public Properties getDefaultProperties() {
       Properties prop = defaultProperties;
 
