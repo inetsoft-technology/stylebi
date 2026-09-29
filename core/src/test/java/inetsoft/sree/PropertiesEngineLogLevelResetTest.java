@@ -17,8 +17,12 @@
  */
 package inetsoft.sree;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.LoggerContext;
+import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.classic.util.ContextInitializer;
+import ch.qos.logback.core.read.ListAppender;
 import inetsoft.sree.security.SecurityEngine;
 import inetsoft.sree.security.SecurityProvider;
 import inetsoft.storage.InMemoryKeyValueStorage;
@@ -26,6 +30,8 @@ import inetsoft.storage.KeyValueStorage;
 import inetsoft.test.*;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.util.log.*;
+import inetsoft.util.log.logback.LogbackContextFilter;
+import inetsoft.util.stall.StallWatchdog;
 import inetsoft.web.admin.properties.PropertiesController;
 import inetsoft.web.admin.security.IdentityService;
 import org.junit.jupiter.api.*;
@@ -38,6 +44,7 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.lang.reflect.Field;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.BooleanSupplier;
@@ -251,6 +258,63 @@ class PropertiesEngineLogLevelResetTest {
       finally {
          restoreSystemProperty("log.detail.level", detail);
          restoreSystemProperty("log.level." + logger, loggerLevel);
+      }
+   }
+
+   /**
+    * Bug #77302, end to end through Logback: with nothing stored, a WARN and an INFO logged
+    * through the lock stall watchdog's logger must reach an appender of the real Logback context
+    * that the log manager configures (root at ERROR, gated by {@link LogbackContextFilter}), and
+    * a stored log.detail.level=ERROR must still drop them.
+    */
+   @Test
+   void stallWatchdogWarnReachesAppenderWhenNothingIsStored() throws Exception {
+      initEngine();
+      assertEquals(List.of(Level.WARN, Level.INFO), emittedStallEvents(),
+                   "the stall watchdog WARN/INFO did not reach the appender");
+
+      storage.remotePut("log.detail.level", "error", false);
+      engine.init(true);
+      assertEquals(List.of(), emittedStallEvents(),
+                   "a stored log.detail.level=ERROR no longer suppresses the WARN/INFO");
+   }
+
+   /**
+    * Logs a WARN, an INFO and a DEBUG through the logger of {@link StallWatchdog} and returns
+    * the levels of the events that reached an appender attached to it.
+    */
+   private List<Level> emittedStallEvents() throws Exception {
+      LoggerContext context = (LoggerContext) LoggerFactory.getILoggerFactory();
+      assertEquals(Level.ERROR, context.getLogger(Logger.ROOT_LOGGER_NAME).getLevel(),
+                   "not the Logback context configured by the log manager");
+      LogbackContextFilter filter = context.getTurboFilterList().stream()
+         .filter(LogbackContextFilter.class::isInstance)
+         .map(LogbackContextFilter.class::cast)
+         .findFirst()
+         .orElseThrow(() -> new AssertionError("no LogbackContextFilter installed"));
+
+      // the filter resolves LogManager.getInstance(), which is a mock in the test context, so
+      // point it at the real log manager that the engine configured
+      Field field = LogbackContextFilter.class.getDeclaredField("log");
+      field.setAccessible(true);
+      field.set(filter, logManager);
+
+      Logger stallLogger = context.getLogger(StallWatchdog.class);
+      ListAppender<ILoggingEvent> appender = new ListAppender<>();
+      appender.setContext(context);
+      appender.start();
+      stallLogger.addAppender(appender);
+
+      try {
+         org.slf4j.Logger log = LoggerFactory.getLogger(StallWatchdog.class);
+         log.warn("Lock stall detected by the watchdog: test");
+         log.info("stall info test");
+         log.debug("stall debug test");
+         return appender.list.stream().map(ILoggingEvent::getLevel).toList();
+      }
+      finally {
+         stallLogger.detachAppender(appender);
+         appender.stop();
       }
    }
 
