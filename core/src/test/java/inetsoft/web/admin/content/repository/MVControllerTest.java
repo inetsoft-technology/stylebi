@@ -133,14 +133,14 @@ class MVControllerTest {
    // [getModel wrapping] updateStatus called per status entry; completed=true returned
    @Test
    void getModel_callsUpdateStatusForEachEntry_returnsCompleted() {
-      when(support.getMVStatusList("aid")).thenReturn(List.of());
+      when(support.getMVStatusList("aid", principal)).thenReturn(List.of());
       when(mvService.getMaterializedModel(List.of(), false, true)).thenReturn(List.of());
 
       // Tool.getDateFormatPattern() calls SreeEnv which requires Spring — intercept it
       try(MockedStatic<Tool> toolMock = mockStatic(Tool.class, withSettings().lenient())) {
          toolMock.when(Tool::getDateFormatPattern).thenReturn("yyyy-MM-dd HH:mm:ss");
 
-         AnalyzeMVResponse response = controller.getModel(false, true, "aid");
+         AnalyzeMVResponse response = controller.getModel(false, true, "aid", principal);
 
          assertTrue(response.completed());
          assertEquals("aid", response.analysisId());
