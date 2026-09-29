@@ -19,19 +19,23 @@ package inetsoft.web.admin.content.repository;
 
 import inetsoft.report.LibManagerProvider;
 import inetsoft.sree.SreeEnv;
+import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.*;
 import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.util.Identity;
+import inetsoft.uql.util.XSessionService;
+import inetsoft.util.Tool;
 import inetsoft.web.admin.security.ResourcePermissionModel;
 import inetsoft.web.admin.security.ResourcePermissionTableModel;
 import org.junit.jupiter.api.*;
 import org.mockito.MockedStatic;
+import org.mockito.Mockito;
 
 import java.security.Principal;
 import java.util.*;
 import java.util.stream.Collectors;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
@@ -160,6 +164,45 @@ class ResourcePermissionGlobalRoleGrantTest {
 
       save(role("Analyst", defaultOrg));
       assertEquals(Set.of("Analyst@" + defaultOrg), roleGrants(permission));
+   }
+
+   // enforcement: after an org admin's crafted save, a real permission check still grants
+   // READ to a holder of the site-admin-placed R1@null, and not to a holder of only R2@null
+   @Test
+   void orgAdminCraftedSaveDoesNotChangeGlobalRoleEnforcement() throws Exception {
+      Permission permission = storedPermission("orga");
+      caller("orga", false);
+
+      save(role("Analyst", "orga"), role("R2", null));
+
+      SecurityProvider provider = mock(SecurityProvider.class);
+      lenient().when(provider.getAllRoles(any(IdentityID[].class)))
+         .thenAnswer(inv -> inv.getArgument(0));
+      lenient().when(provider.getRoles(any())).thenReturn(new IdentityID[0]);
+      lenient().when(provider.getUserGroups(any())).thenReturn(new String[0]);
+      lenient().when(provider.getAllGroups(any(IdentityID[].class))).thenReturn(new IdentityID[0]);
+      lenient().when(provider.getAuthenticationProvider())
+         .thenReturn(mock(AuthenticationProvider.class));
+      lenient().when(provider.getPermission(eq(TYPE), eq(PATH), eq("orga"))).thenReturn(permission);
+      DefaultCheckPermissionStrategy strategy = new DefaultCheckPermissionStrategy(provider);
+
+      try(MockedStatic<SUtil> sutil = Mockito.mockStatic(SUtil.class, Mockito.CALLS_REAL_METHODS);
+          MockedStatic<XSessionService> session = Mockito.mockStatic(XSessionService.class))
+      {
+         session.when(XSessionService::getService).thenReturn(mock(XSessionService.class));
+         sutil.when(SUtil::isMultiTenant).thenReturn(true);
+         sutil.when(() -> SUtil.isInternalUser(any())).thenReturn(false);
+
+         assertTrue(strategy.checkPermission(user("u1", new IdentityID("R1", null)), TYPE, PATH, READ),
+                    "holder of the site-admin-granted global role keeps READ");
+         assertFalse(strategy.checkPermission(user("u2", new IdentityID("R2", null)), TYPE, PATH, READ),
+                     "holder of only the crafted global role gets no READ");
+      }
+   }
+
+   private static SRPrincipal user(String name, IdentityID role) {
+      return new SRPrincipal(new IdentityID(name, "orga"), new IdentityID[]{ role },
+                             new String[0], "orga", Tool.getSecureRandom().nextLong());
    }
 
    private Permission storedPermission(String orgID) {
