@@ -18,6 +18,7 @@
 package inetsoft.web.portal.controller;
 
 import inetsoft.sree.SreeEnv;
+import inetsoft.sree.portal.CustomTheme;
 import inetsoft.sree.portal.CustomThemesManager;
 import inetsoft.sree.security.*;
 import inetsoft.uql.asset.*;
@@ -93,7 +94,10 @@ public class HomePageController {
 
          if(provider.getOrganization(orgId) != null &&
             !Tool.isEmptyString(provider.getOrganization(orgId).getTheme()) &&
-            !(Tool.equals("default", provider.getOrganization(orgId).getTheme())))
+            !(Tool.equals("default", provider.getOrganization(orgId).getTheme())) &&
+            // same rule as GlobalStyleController, which does not serve the theme then
+            !CustomTheme.isHiddenFromOrganization(customThemesManager.getCustomThemes(),
+                                                  provider.getOrganization(orgId).getTheme(), orgId))
          {
             hasOrgTheme = true;
          }
