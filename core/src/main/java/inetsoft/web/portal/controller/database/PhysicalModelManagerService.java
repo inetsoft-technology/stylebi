@@ -1372,7 +1372,24 @@ public class PhysicalModelManagerService {
    }
 
    public void deleteJoin(XPartition partition, XRelationship deleteJoin) {
-      if(partition.removeRelationship(deleteJoin)) {
+      deleteJoin(partition, deleteJoin, true);
+   }
+
+   /**
+    * Deletes a join.
+    *
+    * @param partition        the partition.
+    * @param deleteJoin       the join to delete.
+    * @param removeAutoAlias  {@code true} to remove the auto-alias incoming join when the
+    *                         deleted join was the last one between the two tables. The join
+    *                         edit pane passes {@code false} so that re-creating the join keeps
+    *                         the same auto-alias, and prunes the orphans on close instead, see
+    *                         {@link #removeOrphanAutoAliases(XPartition)}.
+    */
+   public void deleteJoin(XPartition partition, XRelationship deleteJoin,
+                          boolean removeAutoAlias)
+   {
+      if(partition.removeRelationship(deleteJoin) && removeAutoAlias) {
          // remove auto alias settings
          String sourceTable = deleteJoin.getDependentTable();
          String targetTable = deleteJoin.getIndependentTable();
@@ -1380,6 +1397,40 @@ public class PhysicalModelManagerService {
          if(partition.findRelationship(sourceTable, targetTable) == null) {
             removeAutoAlias(partition, sourceTable, targetTable);
             removeAutoAlias(partition, targetTable, sourceTable);
+         }
+      }
+   }
+
+   /**
+    * Removes the auto-alias incoming joins of this partition that no longer have a join
+    * between the incoming table and the aliased table. The relationships of the base partition
+    * are considered, and the auto-aliases defined in the base partition are left unchanged.
+    */
+   public void removeOrphanAutoAliases(XPartition partition) {
+      XPartition base = partition.getBasePartition();
+      Set<String> tables = new LinkedHashSet<>();
+
+      for(Enumeration<XPartition.PartitionTable> e = partition.getTables(); e.hasMoreElements();) {
+         tables.add(e.nextElement().getName());
+      }
+
+      for(String table : tables) {
+         AutoAlias autoAlias = partition.getAutoAlias(table);
+
+         if(autoAlias == null || base != null && base.getAutoAlias(table) == autoAlias) {
+            continue;
+         }
+
+         for(int i = autoAlias.getIncomingJoinCount() - 1; i >= 0; i--) {
+            String sourceTable = autoAlias.getIncomingJoin(i).getSourceTable();
+
+            if(sourceTable == null || partition.findRelationship(sourceTable, table) == null) {
+               autoAlias.removeIncomingJoin(i);
+            }
+         }
+
+         if(autoAlias.getIncomingJoinCount() < 1) {
+            partition.setAutoAlias(table, null);
          }
       }
    }
