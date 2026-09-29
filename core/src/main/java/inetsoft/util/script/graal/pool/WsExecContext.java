@@ -166,6 +166,13 @@ public final class WsExecContext {
    }
 
    /**
+    * @return the pooled slot executing on this thread, or {@code null}.
+    */
+   static Slot currentSlot() {
+      return everEntered ? CURRENT.get() : null;
+   }
+
+   /**
     * Per-context state of a host object (spec §6.4), for the pooled context executing on this
     * thread; only that context's owner ever uses it.
     *

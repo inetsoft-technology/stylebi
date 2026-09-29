@@ -523,7 +523,7 @@ public abstract class RuntimeSheet {
     * @return the value of the property.
     */
    public Object getProperty(String key) {
-      return prop.get(key);
+      return key == null ? null : prop.get(key);
    }
 
    /**
@@ -533,6 +533,10 @@ public abstract class RuntimeSheet {
     * property.
     */
    public void setProperty(String key, Object value) {
+      if(key == null) {
+         return;
+      }
+
       if(value == null) {
          prop.remove(key);
       }
@@ -753,19 +757,31 @@ public abstract class RuntimeSheet {
     * Deserializes the prop map, restoring type information for polymorphic values.
     */
    private Map<String, Object> loadPropMap(String json, ObjectMapper mapper) {
+      Map<String, Object> result = new ConcurrentHashMap<>();
+
       if(json == null || json.isEmpty()) {
-         return new HashMap<>();
+         return result;
       }
 
       try {
          TypedPropertyMapWrapper wrapper = mapper.readValue(json, TypedPropertyMapWrapper.class);
-         return wrapper.getValues();
+         Map<String, Object> values = wrapper.getValues();
+
+         if(values != null) {
+            // a concurrent map holds no null keys or values, and a null value means "not set"
+            values.forEach((key, value) -> {
+               if(key != null && value != null) {
+                  result.put(key, value);
+               }
+            });
+         }
       }
       catch(Exception e) {
          LOG.error("Failed to load prop map (json length: {}): {}",
                    json.length(), e, e);
-         return new HashMap<>();
       }
+
+      return result;
    }
 
    /**
@@ -1279,7 +1295,9 @@ public abstract class RuntimeSheet {
    private boolean isLockProcessed; // unlocked flag
    private boolean disposed;        // disposed flag
    volatile long heartbeat = System.currentTimeMillis(); // heartbeat timestamp
-   private Map<String, Object> prop = new HashMap<>();
+   // read and written by concurrent requests of the sheet (e.g. __EXPORTING__ by an export and
+   // export/check), without the sheet monitor (77227)
+   private Map<String, Object> prop = new ConcurrentHashMap<>();
    private String previousURL;
 
    // the viewsheet.heartbeat.timeout value most recently complained about, per organization,

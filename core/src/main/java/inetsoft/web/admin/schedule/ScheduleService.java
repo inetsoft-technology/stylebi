@@ -365,12 +365,17 @@ public class ScheduleService {
          }
       }
 
-      ScheduleTask currTask = scheduleManager.getScheduleTask(oldId);
+      ScheduleTask currTask = scheduleManager.getScheduleTask(oldId, orgId);
 
       if(currTask == null) {
          throw new MessageException(catalog.getString(
             "em.scheduler.taskNotFound", oldId));
       }
+
+      // Bug #77284: act on the task resolved in the caller's organization, the raw name may
+      // have been matched by the legacy fallback in getScheduleTask() and name another
+      // organization's task (quartz job keys are global)
+      oldId = currTask.getTaskId();
 
       if(scheduleManager.hasDependency(allTasks, oldId)) {
          oldId = SUtil.getTaskNameWithoutOrg(oldId);
@@ -1789,11 +1794,21 @@ public class ScheduleService {
       throws Exception
    {
       Catalog catalog = Catalog.getCatalog(principal);
-      ScheduleTask taskToDelete = scheduleManager.getScheduleTask(taskName);
+      ScheduleTask taskToDelete = scheduleManager.getScheduleTask(
+         taskName, OrganizationManager.getInstance().getCurrentOrgID(principal));
 
-      if(taskToDelete != null &&
-         !ScheduleManager.hasTaskPermission(taskToDelete.getOwner(), principal, ResourceAction.DELETE))
-      {
+      // Bug #77284: the task must resolve in the caller's organization, otherwise the raw name
+      // would reach removeScheduleTask() without a permission check on the task
+      if(taskToDelete == null) {
+         throw new MessageException(catalog.getString(
+            "em.scheduler.taskNotFound", SUtil.getTaskNameWithoutOrg(taskName)));
+      }
+
+      // use the resolved task id from here on, the raw name may have been matched by the legacy
+      // fallback in getScheduleTask() and name a different quartz job (another org's task)
+      taskName = taskToDelete.getTaskId();
+
+      if(!ScheduleManager.hasTaskPermission(taskToDelete.getOwner(), principal, ResourceAction.DELETE)) {
          throw new SecurityException(String.format(
             "Unauthorized access to resource \"%s\" by %s", taskName, principal));
       }
@@ -2194,7 +2209,10 @@ public class ScheduleService {
          if(entry.isScheduleTaskFolder()) {
             removeScheduledTasks0(entry, principal);
          }
-         else {
+         // a folder entry can outlive its task, skip it instead of failing the folder delete
+         else if(scheduleManager.getScheduleTask(
+            entry.getName(), OrganizationManager.getInstance().getCurrentOrgID(principal)) != null)
+         {
             removeScheduledTask("", "", entry.getName(), principal);
          }
       }

@@ -313,6 +313,9 @@ class ScheduleTaskServiceSecretIdTest {
       stored.addAction(saveAction("ftp://files.corp.example/out/a", OWN_ID));
       ScheduleTask imported = new ScheduleTask("imported");
       imported.addAction(saveAction("ftp://files.corp.example/out/a", OWN_ID));
+      // the caller's own task, the import only allows an owner the caller may act as
+      imported.setOwner(new IdentityID("alice", "orga"));
+      when(orgManager.getCurrentOrgID(principal)).thenReturn("orga");
       when(scheduleManager.getScheduleTask(imported.getTaskId())).thenReturn(stored);
       HttpServletRequest request = mock(HttpServletRequest.class);
       HttpSession session = mock(HttpSession.class);

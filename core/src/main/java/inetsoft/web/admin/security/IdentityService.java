@@ -1759,7 +1759,14 @@ public class IdentityService {
       permission.setUserGrantsForOrg(action, userGrants, orgId);
       permission.setGroupGrantsForOrg(action, groupGrants, orgId);
       permission.setRoleGrantsForOrg(action, roleGrants, orgId);
-      permission.setRoleGrantsForOrg(action, globalRoleGrants, null);
+
+      // only a site admin may change global (org-less) role grants. non site admins do
+      // not see them (see getPermission), so keep the existing ones unchanged and
+      // ignore any global role rows in the request.
+      if(OrganizationManager.getInstance().isSiteAdmin(principal)) {
+         permission.setRoleGrantsForOrg(action, globalRoleGrants, null);
+      }
+
       permission.setOrganizationGrantsForOrg(action, organizationGrants, orgId);
 
       if(permittedIdentities != null && !permittedIdentities.isEmpty()) {
@@ -2596,6 +2603,7 @@ public class IdentityService {
          fromOrg instanceof FSOrganization)
       {
          fromOrg.setName(name);
+         ((FSOrganization) fromOrg).setActive(model.status());
          ((FSOrganization) fromOrg).setLocale(localeString);
          updateCustomThemeOrganization(fromOrg.getTheme(), theme, fromOrgID, fromOrgID);
          ((FSOrganization) fromOrg).setTheme(theme);
@@ -2851,14 +2859,41 @@ public class IdentityService {
    }
 
    /**
-    * Determines if the principal is deleting its own user or a role its user holds.
+    * Determines if the principal is deleting its own user, a role its user holds directly or
+    * through its groups, or one of its groups or their ancestor groups.
     */
    private boolean isSelfDelete(Principal principal, IdentityID identityId, int type,
                                 AuthenticationProvider provider)
    {
-      return isSelfAndEMUser(principal, identityId, type) ||
-         isSelfRole(provider.getUser(IdentityID.getIdentityIDFromKey(principal.getName())),
-                    identityId, type);
+      if(isSelfAndEMUser(principal, identityId, type)) {
+         return true;
+      }
+
+      User user = provider.getUser(IdentityID.getIdentityIDFromKey(principal.getName()));
+
+      if(type == Identity.GROUP) {
+         return user != null &&
+            Arrays.asList(provider.getAllGroups(getUserGroupIDs(user))).contains(identityId);
+      }
+
+      return isSelfRole(user, identityId, type, provider);
+   }
+
+   /**
+    * Gets the ids of the user's groups. They are in the user's own organization, not the current
+    * one, so that a site admin who switched into another organization does not match that
+    * organization's groups of the same names.
+    */
+   private static IdentityID[] getUserGroupIDs(User user) {
+      String[] groups = user.getGroups();
+
+      if(groups == null) {
+         return new IdentityID[0];
+      }
+
+      return Arrays.stream(groups)
+         .map(g -> new IdentityID(g, user.getOrganizationID()))
+         .toArray(IdentityID[]::new);
    }
 
    /**
@@ -2902,6 +2937,16 @@ public class IdentityService {
          else if(principal != null && isSelfDelete(principal, id, type, eprovider)) {
             Tool.addUserMessage(catalog.getString("em.security.delself"));
          }
+         // like deleteIdentities(), never delete a group that still has users. A user remains if
+         // it is still a member or it is the requester, which the member update never deletes.
+         // Users dropped in this save are deleted before the groups, so they don't count.
+         else if(type == Identity.GROUP &&
+            Arrays.stream(eprovider.getUsers(id)).anyMatch(
+               u -> memberNames.contains(u.getName()) ||
+                  principal != null && isSelfAndEMUser(principal, u, Identity.USER)))
+         {
+            Tool.addUserMessage(catalog.getString("em.security.delgroup"));
+         }
          else {
             continue;
          }
@@ -2922,18 +2967,31 @@ public class IdentityService {
    }
 
    /**
-    * Check if the role is self.
+    * Check if the role is held by the user, directly or through its groups and their ancestor
+    * groups.
     */
-   private boolean isSelfRole(Identity principal, IdentityID identityID, int type) {
-      if(type != Identity.ROLE) {
+   private boolean isSelfRole(User user, IdentityID identityID, int type,
+                              AuthenticationProvider provider)
+   {
+      if(type != Identity.ROLE || user == null) {
          return false;
       }
 
-      if(principal == null || principal.getRoles() == null) {
-         return false;
+      if(user.getRoles() != null && Arrays.asList(user.getRoles()).contains(identityID)) {
+         return true;
       }
 
-      return Arrays.asList(principal.getRoles()).contains(identityID);
+      for(IdentityID groupID : provider.getAllGroups(getUserGroupIDs(user))) {
+         Group group = provider.getGroup(groupID);
+
+         if(group != null && group.getRoles() != null &&
+            Arrays.asList(group.getRoles()).contains(identityID))
+         {
+            return true;
+         }
+      }
+
+      return false;
    }
 
    public void clearRootPermittedIdentities(String orgID, Principal principal) {

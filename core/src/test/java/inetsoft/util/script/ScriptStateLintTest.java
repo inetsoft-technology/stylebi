@@ -428,7 +428,12 @@ class ScriptStateLintTest {
       return Stream.of(
          Arguments.of("var a = a || []; a.push(1); a.length", true),
          Arguments.of("var o = o || {}; o.n = 1; o", true),
-         Arguments.of("var d; if(!d) { d = new Date(); } d", true),
+         // a Date is kept across pooled batches (Testing #77123, B1 residual)
+         Arguments.of("var d; if(!d) { d = new Date(); } d", false),
+         Arguments.of("var d2 = d2 || new Date(0); d2.setTime(d2.getTime() + 1); d2", false),
+         Arguments.of("var m = m || new Map(); m.set(1, 1); m", true),
+         Arguments.of("var e = e || [new Date(0)]; e", true),
+         Arguments.of("var q = q || new Date.Foo(); q", true),
          Arguments.of("var f = f || function(x) { return x; }; f(1)", true),
          Arguments.of("var g = g || (x => x); g(1)", true),
          Arguments.of("var c; c ||= []; c", true),
@@ -469,9 +474,9 @@ class ScriptStateLintTest {
                                   true);
       assertEquals(1, warnings().size());
       String msg = warnings().get(0).getFormattedMessage();
-      assertTrue(msg.contains("assigns it an object, array, Date or function"), msg);
+      assertTrue(msg.contains("assigns it an array, object or function"), msg);
       assertTrue(msg.contains("kept only within one batch"), msg);
-      assertTrue(msg.contains("A number, string or boolean is always kept"), msg);
+      assertTrue(msg.contains("A number, string, boolean or Date is always kept"), msg);
       assertFalse(msg.contains("not reset between tables"), msg);
 
       String notOwned = "var k = (k || 0) + 1; k";

@@ -25,6 +25,7 @@ import inetsoft.sree.schedule.ScheduleClient;
 import inetsoft.sree.security.OrganizationManager;
 import inetsoft.uql.util.*;
 import inetsoft.util.Catalog;
+import inetsoft.util.ThreadContext;
 import inetsoft.util.Tool;
 import inetsoft.web.admin.monitoring.*;
 import inetsoft.web.admin.schedule.ScheduleQueriesStatus;
@@ -282,7 +283,8 @@ public class QueryService
     * @param id the unique identifier for the query.
     */
    public void destroy(String id) throws Exception {
-      destroy(id, OrganizationManager.getInstance().getCurrentOrgID());
+      destroy(id, OrganizationManager.getInstance()
+              .getCurrentOrgID(ThreadContext.getContextPrincipal()));
    }
 
    /**
@@ -342,7 +344,8 @@ public class QueryService
    }
 
    public void destroyClusterQueries(String address, String[] ids) throws Exception {
-      String orgID = OrganizationManager.getInstance().getCurrentOrgID();
+      String orgID = OrganizationManager.getInstance()
+         .getCurrentOrgID(ThreadContext.getContextPrincipal());
 
       if(StringUtils.isEmpty(address)) {
          destroy(ids, orgID);
@@ -365,7 +368,8 @@ public class QueryService
     * @param ids the unique identifier arrays for the query.
     */
    public void destroy(String[] ids) throws Exception {
-      destroy(ids, OrganizationManager.getInstance().getCurrentOrgID());
+      destroy(ids, OrganizationManager.getInstance()
+              .getCurrentOrgID(ThreadContext.getContextPrincipal()));
    }
 
    private void destroy(String[] ids, String orgID) throws Exception {

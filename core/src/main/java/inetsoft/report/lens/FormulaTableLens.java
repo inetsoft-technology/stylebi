@@ -523,11 +523,20 @@ public class FormulaTableLens extends AbstractTableLens
             // not the lens lock), and an NPE here would replace the batch's result
             TableRow2 completedRow = tableRow;
 
-            if(!more && !stalled && !failed && completedRow != null) {
-               completedRow.thisScope.releaseOwnedObjects();
+            // span.close() in its own finally: nothing here may skip it or the unlock
+            try {
+               if(!more && !stalled && !failed && completedRow != null) {
+                  completedRow.thisScope.releaseOwnedObjects();
+               }
+               // still on the slot this batch claimed, whatever ended the batch: a later batch
+               // may run on another slot, which rebuilds a Date var from this snapshot
+               else if(completedRow != null) {
+                  completedRow.thisScope.snapshotOwnedObjects(span);
+               }
             }
-
-            span.close();
+            finally {
+               span.close();
+            }
          }
          finally {
             lock.unlock();

@@ -24,8 +24,6 @@ import inetsoft.sree.security.*;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
-import inetsoft.uql.util.Identity;
-import inetsoft.util.ThreadContext;
 import inetsoft.util.Tool;
 import inetsoft.web.admin.model.FileData;
 import inetsoft.web.admin.schedule.model.*;
@@ -55,6 +53,7 @@ public class ImportTaskController {
       this.analyticRepository = analyticRepository;
       this.securityEngine = securityEngine;
       this.secretIdChecker = new ScheduleSecretIdChecker(securityEngine);
+      this.identityChecker = new ScheduleTaskIdentityChecker(securityEngine);
    }
 
    @Secured(
@@ -197,24 +196,7 @@ public class ImportTaskController {
     * are moved to the caller's current organization, the same as a site admin deploy import.
     */
    private ScheduleTask parseTask(Element ele, Principal principal) throws Exception {
-      ScheduleTask task = new ScheduleTask();
-      Principal oldPrincipal = ThreadContext.getContextPrincipal();
-
-      // parseXML(elem, true) takes the organization from the context principal
-      if(principal != null) {
-         ThreadContext.setContextPrincipal(principal);
-      }
-
-      try {
-         task.parseXML(ele, true);
-      }
-      finally {
-         if(principal != null) {
-            ThreadContext.setContextPrincipal(oldPrincipal);
-         }
-      }
-
-      return task;
+      return identityChecker.parseImportedTask(ele, principal);
    }
 
    /**
@@ -228,23 +210,6 @@ public class ImportTaskController {
       if(!analyticRepository.checkPermission(principal, ResourceType.SCHEDULER, "*", ResourceAction.ACCESS)) {
          LOG.warn("Task {} is not imported, the user doesn't have the scheduler permission", taskId);
          return false;
-      }
-
-      Identity identity = task.getIdentity();
-
-      if(identity != null && !isSiteAdmin(principal)) {
-         IdentityID identityID = identity.getIdentityID();
-         String orgID = OrganizationManager.getInstance().getCurrentOrgID(principal);
-
-         // the task editor only lets the caller run a task as a user or group of the current
-         // organization, a global identity (such as a system administrator role) is refused
-         if(identity.getType() == Identity.ROLE || identityID == null ||
-            identityID.getOrgID() == null || !identityID.getOrgID().equalsIgnoreCase(orgID))
-         {
-            LOG.warn("Task {} is not imported, the execute-as identity {} is not allowed",
-                     taskId, identityID);
-            return false;
-         }
       }
 
       boolean internalType = task.getType() == ScheduleTask.Type.INTERNAL_TASK;
@@ -262,7 +227,11 @@ public class ImportTaskController {
          return true;
       }
 
-      for(String internalTask : getInternalTaskContents(task)) {
+      if(!identityChecker.isAllowed(task, taskId, principal)) {
+         return false;
+      }
+
+      for(String internalTask : ScheduleTaskIdentityChecker.getInternalTaskContents(task)) {
          if(!canWriteInternalTask(internalTask, principal)) {
             LOG.warn("Task {} is not imported, it contains the actions or conditions of " +
                      "the internal task {}", taskId, internalTask);
@@ -271,35 +240,6 @@ public class ImportTaskController {
       }
 
       return true;
-   }
-
-   /**
-    * Gets the names of the internal tasks whose actions or conditions are in the task.
-    */
-   private Set<String> getInternalTaskContents(ScheduleTask task) {
-      Set<String> names = new HashSet<>();
-
-      for(int i = 0; i < task.getActionCount(); i++) {
-         ScheduleAction action = task.getAction(i);
-
-         if(action instanceof AssetFileBackupAction) {
-            names.add(InternalScheduledTaskService.ASSET_FILE_BACKUP);
-         }
-         else if(action instanceof TaskBalancerAction) {
-            names.add(InternalScheduledTaskService.BALANCE_TASKS);
-         }
-         else if(action instanceof UpdateAssetsDependenciesAction) {
-            names.add(InternalScheduledTaskService.UPDATE_ASSETS_DEPENDENCIES);
-         }
-      }
-
-      for(int i = 0; i < task.getConditionCount(); i++) {
-         if(task.getCondition(i) instanceof TaskBalancerCondition) {
-            names.add(InternalScheduledTaskService.BALANCE_TASKS);
-         }
-      }
-
-      return names;
    }
 
    /**
@@ -326,9 +266,9 @@ public class ImportTaskController {
 
       boolean allowed = analyticRepository.checkPermission(
          principal, ResourceType.EM_COMPONENT, "settings/schedule/settings", ResourceAction.ACCESS) &&
-         (!SUtil.isMultiTenant() || isSiteAdmin(principal) &&
+         (!SUtil.isMultiTenant() || (isSiteAdmin(principal) &&
             Tool.equals(OrganizationManager.getInstance().getCurrentOrgID(principal),
-                        Organization.getDefaultOrganizationID()));
+                        Organization.getDefaultOrganizationID())));
 
       if(!allowed) {
          LOG.debug("Time ranges in the imported file are ignored, the user can't edit them");
@@ -386,6 +326,7 @@ public class ImportTaskController {
    private final AnalyticRepository analyticRepository;
    private final SecurityEngine securityEngine;
    private final ScheduleSecretIdChecker secretIdChecker;
+   private final ScheduleTaskIdentityChecker identityChecker;
    static final String INFO_ATTR = "__private_scheduleXmlInfo";
    static final String TIME_RANGES_ATTR = "__private_scheduleXmlTimeRanges";
    private static final Logger LOG = LoggerFactory.getLogger(ImportTaskController.class);

@@ -26,6 +26,9 @@ import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.asset.internal.AssetFolder;
 import inetsoft.util.IndexedStorage;
 import inetsoft.util.Tool;
+import inetsoft.web.admin.schedule.ScheduleTaskIdentityChecker;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
 
@@ -285,7 +288,12 @@ public class ScheduleTaskAsset extends AbstractXAsset {
          }
       }
 
-      if(timeRanges != null) {
+      // Bug #77281, the time ranges are global, an importer that isn't a site admin can't
+      // edit them
+      if(timeRanges != null && restrictedImporter != null) {
+         LOG.debug("Time ranges in the imported file are ignored, the user can't edit them");
+      }
+      else if(timeRanges != null) {
          NodeList rangeNodes = Tool.getChildNodesByTagName(timeRanges, "timeRange");
          List<TimeRange> ranges = new ArrayList<>();
          ranges.addAll(TimeRange.getTimeRanges());
@@ -304,8 +312,31 @@ public class ScheduleTaskAsset extends AbstractXAsset {
          TimeRange.setTimeRanges(ranges);
       }
 
-      ScheduleTask newTask = new ScheduleTask();
-      newTask.parseXML(Tool.getChildNodeByTagName(elem, "Task"), isSiteAdmin);
+      Element taskElem = Tool.getChildNodeByTagName(elem, "Task");
+      ScheduleTask newTask;
+
+      if(restrictedImporter != null) {
+         // parsed the same as DeployManagerService.isImportedScheduleTaskAllowed checked it
+         newTask = new ScheduleTaskIdentityChecker(SecurityEngine.getSecurity())
+            .parseImportedTask(taskElem, restrictedImporter);
+
+         if(newTask.getType() == ScheduleTask.Type.INTERNAL_TASK) {
+            throw new inetsoft.sree.security.SecurityException(
+               "Internal task " + newTask.getTaskId() + " can't be imported by " +
+               restrictedImporter.getName());
+         }
+
+         // only the tasks the server creates (internal and MV tasks) are not removable or
+         // editable, a task that can't be removed skips the scheduler permission check and
+         // can't be deleted afterwards
+         newTask.setRemovable(true);
+         newTask.setEditable(true);
+      }
+      else {
+         newTask = new ScheduleTask();
+         newTask.parseXML(taskElem, isSiteAdmin);
+      }
+
       String parentPath = newTask.getPath();
 
       SRPrincipal principal = new SRPrincipal(newTask.getOwner());
@@ -488,6 +519,18 @@ public class ScheduleTaskAsset extends AbstractXAsset {
       return catalog.getString("common.xasset.depends", from, to);
    }
 
+   /**
+    * Bug #77281, sets the caller of a deploy import that is not a site admin. The task is then
+    * moved to the caller's organization, the global time ranges in the file are ignored, and
+    * the task can't be made internal, non-removable or non-editable. The owner and execute-as
+    * identity are checked by DeployManagerService before the content is parsed.
+    */
+   public void setRestrictedImporter(Principal principal) {
+      this.restrictedImporter = principal;
+   }
+
    private String task;
    private IdentityID user;
+   private transient Principal restrictedImporter;
+   private static final Logger LOG = LoggerFactory.getLogger(ScheduleTaskAsset.class);
 }

@@ -69,6 +69,11 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
          roleStorage.addListener(roleCacheListener);
          userStorage.addListener(userCacheListener);
          groupStorage.addListener(groupCacheListener);
+
+         // a change made while a storage was closed (e.g. by another provider's tearDown()) fired no
+         // listener, so drop what was cached before the re-open. This is done after the listeners
+         // are added so that a change arriving in between is not missed (Bug #77204)
+         clearCache();
       }
    }
 
@@ -401,6 +406,13 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
          synchronized(this) {
             if(userStorage != null) {
                try {
+                  userStorage.removeListener(userCacheListener);
+               }
+               catch(Exception e) {
+                  LOG.warn("Failed to remove user cache listener", e);
+               }
+
+               try {
                   userStorage.close();
                }
                catch(Exception e) {
@@ -412,6 +424,13 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
 
             if(groupStorage != null) {
                try {
+                  groupStorage.removeListener(groupCacheListener);
+               }
+               catch(Exception e) {
+                  LOG.warn("Failed to remove group cache listener", e);
+               }
+
+               try {
                   groupStorage.close();
                }
                catch(Exception e) {
@@ -422,6 +441,13 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
             }
 
             if(roleStorage != null) {
+               try {
+                  roleStorage.removeListener(roleCacheListener);
+               }
+               catch(Exception e) {
+                  LOG.warn("Failed to remove role cache listener", e);
+               }
+
                try {
                   roleStorage.close();
                }
