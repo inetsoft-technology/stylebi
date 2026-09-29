@@ -146,6 +146,57 @@ describe("IdentityTablesPaneComponent", () => {
       });
    });
 
+   // Bug #77314: a site admin's members list for a global role is authoritative on the server, so a
+   // paste that dropped other organizations' rows removed the role from every other org's holders.
+   describe("pasteMembers into a global role", () => {
+      const user = (name: string, orgID: string): IdentityModel =>
+         ({ identityID: { name, orgID }, type: IdentityType.USER });
+      const hostAdmin = user("admin", "host-org");
+      const bob = user("bob", "host-org");
+      const g7coa = user("g7coa", "g7d");
+      const oa = user("oa", "g5a");
+      const salesAdmin = user("orgadmin", "sales1");
+      const g5aOrg: IdentityModel = { identityID: { name: "g5a", orgID: "g5a" }, type: IdentityType.ORGANIZATION };
+      const editorRole: IdentityModel = { identityID: { name: "editor", orgID: "host-org" }, type: IdentityType.ROLE };
+      let emitted: IdentityModel[][];
+
+      beforeEach(() => {
+         component.type = IdentityType.ROLE;
+         component.name = "Organization Administrator";
+         component.members = [hostAdmin, g7coa, oa, salesAdmin, g5aOrg];
+         emitted = [];
+         component.membersChanged.subscribe(v => emitted.push(v));
+      });
+
+      it("should keep other organizations' members and replace only the pasted organization's members", () => {
+         component.globalRole = true;
+         component.pasteMembers([bob]);
+         expect(component.members).toEqual([g7coa, oa, salesAdmin, g5aOrg, bob]);
+         expect(emitted).toEqual([[g7coa, oa, salesAdmin, g5aOrg, bob]]);
+      });
+
+      it("should replace every pasted organization's members when the clipboard spans several organizations", () => {
+         const x = user("x", "g5a");
+         component.globalRole = true;
+         component.pasteMembers([oa, x, bob]);
+         expect(component.members).toEqual([g7coa, salesAdmin, g5aOrg, oa, x, bob]);
+      });
+
+      it("should keep the current organization's members when every pasted identity is rejected", () => {
+         component.globalRole = true;
+         component.pasteMembers([editorRole]);
+         expect(component.members).toEqual([hostAdmin, g7coa, oa, salesAdmin, g5aOrg]);
+         expect(emitted).toEqual([[hostAdmin, g7coa, oa, salesAdmin, g5aOrg]]);
+      });
+
+      it("should still replace the whole list when the role is not a global role", () => {
+         component.globalRole = false;
+         component.pasteMembers([bob]);
+         expect(component.members).toEqual([bob]);
+         expect(emitted).toEqual([[bob]]);
+      });
+   });
+
    describe("membersPasteTypeFilter", () => {
       it("should be [GROUP] for USER type", () => {
          component.type = IdentityType.USER;

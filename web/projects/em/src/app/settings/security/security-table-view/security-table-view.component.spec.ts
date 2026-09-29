@@ -235,6 +235,29 @@ describe("SecurityTableViewComponent", () => {
         [self]
       );
     });
+
+    it("should use the replace-all confirm text by default", () => {
+      mockClipboardService.paste.mockReturnValue([makeIdentity("alice")]);
+      const dialogSpy = vi.spyOn(component["dialog"], "open")
+        .mockReturnValue({ afterClosed: () => of(false) } as any);
+
+      component.pasteIdentities();
+
+      expect((dialogSpy.mock.calls[0][1] as any).data.content)
+        .toBe("_#(js:em.security.pasteIdentities.confirm)");
+    });
+
+    it("should say other organizations' entries are kept when pasteKeepsOtherOrgs is set (Bug #77314)", () => {
+      component.pasteKeepsOtherOrgs = true;
+      mockClipboardService.paste.mockReturnValue([makeIdentity("alice")]);
+      const dialogSpy = vi.spyOn(component["dialog"], "open")
+        .mockReturnValue({ afterClosed: () => of(false) } as any);
+
+      component.pasteIdentities();
+
+      expect((dialogSpy.mock.calls[0][1] as any).data.content)
+        .toBe("_#(js:em.security.pasteIdentities.confirmKeepOtherOrgs)");
+    });
   });
 
   describe("pasteTooltip", () => {
