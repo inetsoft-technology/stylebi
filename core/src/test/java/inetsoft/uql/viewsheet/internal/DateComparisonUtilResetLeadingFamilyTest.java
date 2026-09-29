@@ -69,8 +69,9 @@ import static inetsoft.test.XTableUtil.date;
  * rule: {@code applyDateRange()} skips the heuristic entirely when
  * {@link StandardPeriods#isToDate()} is false, since every older period is then complete
  * whatever the part's shape. These tests still guard the same outcome. They don't
- * special-case any one period/context-level combination: both the reported QUARTER-period/MONTH-context shape and the previously
- * untested YEAR-period/MONTH-context shape from the #76391 family are exercised here, using
+ * special-case any one period/context-level combination: both the reported
+ * QUARTER-period/MONTH-context shape and the previously untested YEAR-period/MONTH-context
+ * shape from the #76391 family are exercised here, using
  * the real {@link DCMergeDatePartFilter}/{@code MergePartCell} construction and real
  * {@link DateComparisonInfo}/{@link StandardPeriods}/{@link DateComparisonInterval} wiring
  * through the production {@code DateComparisonUtil.applyDateRange()} entry point (not just
@@ -155,9 +156,9 @@ class DateComparisonUtilResetLeadingFamilyTest {
     * round-1 recheck identified as untested against this exact defect class under
     * {@code isToDate()==false} -- #76391's own regression test never exercises
     * {@link DateComparisonInfo} at all, so it never had the chance to reach the query-level
-    * condition that would let this shape occur. If the fix in computeValidParts() were
-    * special-cased to the QUARTER-period/MONTH-context combination above, this test would
-    * still fail -- it must pass too, on the same general leading-family logic.
+    * condition that would let this shape occur. If the fix were special-cased to the
+    * QUARTER-period/MONTH-context combination above, this test would still fail -- it must
+    * pass too, on the same general rule.
     */
    @Test
    void yearPeriodMonthContextToDateFalseKeepsOlderYearsRealData() {

@@ -97,11 +97,14 @@ class DateComparisonUtilApplyDateRangeTest {
     * weeks of data (Jan-Apr), while 2019/2020 have real December weeks. Compare-All mode must
     * still render those December weeks; they must not be excluded as "orphaned" merely because
     * the current period hasn't reached December yet.
+    *
+    * <p>Uses {@code toDate=true}: with toDate off, applyDateRange() skips the heuristic anyway
+    * (Bug #77236), so this test would no longer guard the Compare-All skip itself.</p>
     */
    @Test
    void compareAllModeDoesNotOrphanPriorPeriodsUnreachedParts() {
       DataSet data = buildRows();
-      DateComparisonInfo dcInfo = dcInfo(true);
+      DateComparisonInfo dcInfo = dcInfo(true, true);
 
       Scale partScale = applyAndGetPartScale(dcInfo, data, CoordShape.NO_FACET);
 
@@ -144,11 +147,14 @@ class DateComparisonUtilApplyDateRangeTest {
     * results anticipated (facets 5-7 should span only the older periods). Facet mode must keep
     * those groups' older-period rows; they must not be excluded as "orphaned" merely because the
     * most recent period has no row for that facet.
+    *
+    * <p>Uses {@code toDate=true} for the same reason as
+    * {@link #compareAllModeDoesNotOrphanPriorPeriodsUnreachedParts()} (Bug #77236).</p>
     */
    @Test
    void facetModeDoesNotOrphanFacetsTheMostRecentPeriodLacks() {
       DataSet data = buildRows();
-      DateComparisonInfo dcInfo = dcInfo(false);
+      DateComparisonInfo dcInfo = dcInfo(false, true);
 
       Scale partScale = applyAndGetPartScale(dcInfo, data, CoordShape.PART_IS_FACET);
 
@@ -351,12 +357,9 @@ class DateComparisonUtilApplyDateRangeTest {
 
    /**
     * Standard Periods (previous 2 years), interval level ALL (Compare-All) or SAME_WEEK
-    * (an ordinary, non-Compare-All interval type) per {@code compareAll}.
+    * (an ordinary, non-Compare-All interval type) per {@code compareAll}, with the given
+    * {@code toDate}.
     */
-   private static DateComparisonInfo dcInfo(boolean compareAll) {
-      return dcInfo(compareAll, false);
-   }
-
    private static DateComparisonInfo dcInfo(boolean compareAll, boolean toDate) {
       DateComparisonInfo dcInfo = new DateComparisonInfo();
       StandardPeriods periods = new StandardPeriods();
