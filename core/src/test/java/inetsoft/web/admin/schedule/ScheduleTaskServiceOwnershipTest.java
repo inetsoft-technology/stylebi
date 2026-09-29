@@ -488,6 +488,38 @@ class ScheduleTaskServiceOwnershipTest {
       assertEquals(UA, identity.getIdentityID());
    }
 
+   @Test
+   void saveTask_orgAdminResendsExecuteAsThatNoLongerResolves_keepsItAndDoesNotRunAsOwner()
+      throws Exception
+   {
+      // the execute-as user was removed from the provider; the unchanged exemption must keep
+      // the stored placeholder (Bug #77120), never store no identity (run as the missing owner)
+      storedTask(MISSING_OWNER, new User(UA));
+      when(securityProvider.getUser(UA)).thenReturn(null);
+      asOrgAdminWithAdminOnEveryUser();
+
+      Identity identity = savedIdentity(model(null, options("admin", "ua")));
+
+      assertNotNull(identity);
+      assertEquals(UA, identity.getIdentityID());
+      assertEquals(Identity.USER, identity.getType());
+   }
+
+   @Test
+   void saveTask_orgAdminResendsUnresolvedExecuteAsWithOtherType_isRejected() throws Exception {
+      // same name, different type: the keep-rule doesn't apply, so the stored identity would be
+      // null and the task would run as the missing owner
+      storedTask(MISSING_OWNER, new User(UA));
+      when(securityProvider.getUser(UA)).thenReturn(null);
+      asOrgAdminWithAdminOnEveryUser();
+      TaskOptionsPaneModel options = TaskOptionsPaneModel.builder()
+         .from(options("admin", "ua"))
+         .idType(Identity.GROUP)
+         .build();
+
+      assertRefusedBeforeAnyWrite(model(null, options), true);
+   }
+
    @ParameterizedTest
    @NullAndEmptySource
    void saveTask_orgAdminMissingOwnerTaskAlreadyWithoutExecuteAs_isAllowed(String idName)
