@@ -123,6 +123,43 @@ class LegacyStringCompatTest {
       assertEquals(9, num(eval("({ length: function(n){ return n; } }).length(9)")));
    }
 
+   // Bug #77184: the reporter's original repro. A plain JS object whose own
+   // `length` is a zero-arg method that reads `this` must see its own receiver,
+   // not a detached function bound to nothing (or the JS global object).
+   @Test
+   void lengthMethodReadingThisSeesItsOwnReceiver() throws Exception {
+      Object result = eval(
+         "var o = {items:[1,2], length:function(){return this.items.length}}; o.length()");
+      assertEquals(2, num(result));
+   }
+
+   // Bug #77184: the receiver must be preserved through a longer member-access
+   // chain, not just a bare identifier, and through a call-expression receiver —
+   // neither is a simple identifier the rewrite could special-case.
+   @Test
+   void lengthMethodReceiverIsPreservedForChainedAndCallExpressionReceivers() throws Exception {
+      Object chained = eval(
+         "var a = {b: {items:[1,2,3], length:function(){return this.items.length}}};" +
+         "a.b.length()");
+      assertEquals(3, num(chained));
+
+      Object callExpr = eval(
+         "function f(){ return {items:[1,2,3,4], length:function(){return this.items.length}}; }" +
+         "f().length()");
+      assertEquals(4, num(callExpr));
+   }
+
+   // Bug #77184: rewriteJavaLengthCalls's own regex-vs-division decision lacked
+   // the `afterHead` override #76980 added to the sibling top-level scanners, so
+   // a regex literal immediately after an `if`/`while`/`for`/`with` head was
+   // misread as division and the tokenizer walked into the regex's own source
+   // text, corrupting any `.length()`-shaped substring inside the pattern.
+   @Test
+   void regexAfterControlHeadIsNotCorrupted() throws Exception {
+      assertEquals(Boolean.TRUE,
+                   eval("if(true) /a.length()/.test('a.length()')"));
+   }
+
    @Test
    void javaStringMethodsAbsentFromJsAreRestored() throws Exception {
       assertEquals(Boolean.TRUE, eval("selected[0].equals('m2020-7')"));
