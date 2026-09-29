@@ -166,13 +166,18 @@ public class PhysicalGraphModelController {
                                  @RequestParam(value="save", required = false) boolean save)
    {
       if(save) {
-         XPartition partition = this.runtimePartitionService.getPartition(newRuntimeId);
+         RuntimePartitionService.RuntimeXPartition rp =
+            this.runtimePartitionService.getRuntimePartition(newRuntimeId);
+         XPartition partition = rp == null ? null : rp.getPartition();
 
          // the pane keeps the auto-alias of a deleted join so that re-creating it keeps the
          // same alias, remove the ones that are not joined anymore
          if(partition != null) {
             physicalModelManager.removeOrphanAutoAliases(partition);
-            runtimePartitionService.updatePartition(newRuntimeId, partition);
+            // tables joined in the pane (created or dragged) keep the alias the user chose,
+            // don't restore the auto-aliases removed from them earlier
+            rp.forgetJoinedRemovedIncomingJoins();
+            runtimePartitionService.saveRuntimePartition(rp);
          }
       }
 
@@ -256,10 +261,13 @@ public class PhysicalGraphModelController {
    ))
    @DeleteMapping("/api/data/physicalmodel/table/{runtimeId}")
    public void clearTable(@PathVariable("runtimeId") String runtimeId) {
-      XPartition partition = this.runtimePartitionService.getPartition(runtimeId);
+      RuntimePartitionService.RuntimeXPartition rp =
+         this.runtimePartitionService.getRuntimePartition(runtimeId);
+      XPartition partition = rp.getPartition();
       partition.clearTable();
       partition.clearRelationship();
-      runtimePartitionService.updatePartition(runtimeId, partition);
+      rp.clearRemovedIncomingJoins();
+      runtimePartitionService.saveRuntimePartition(rp);
    }
 
    @Secured(@RequiredPermission(
@@ -269,10 +277,13 @@ public class PhysicalGraphModelController {
    ))
    @DeleteMapping("/api/data/physicalmodel/join/{runtimeId}")
    public void clearJoin(@PathVariable("runtimeId") String runtimeId) {
-      XPartition partition = this.runtimePartitionService.getPartition(runtimeId);
+      RuntimePartitionService.RuntimeXPartition rp =
+         this.runtimePartitionService.getRuntimePartition(runtimeId);
+      XPartition partition = rp.getPartition();
       partition.clearRelationship();
       partition.removeAllAutoAliases();
-      runtimePartitionService.updatePartition(runtimeId, partition);
+      rp.clearRemovedIncomingJoins();
+      runtimePartitionService.saveRuntimePartition(rp);
    }
 
    @Secured(@RequiredPermission(
