@@ -625,12 +625,15 @@ class RelFaultInjectionTest {
 
       Field expect = CleanHelper.class.getDeclaredField("expect");
       Field forget = CleanHelper.class.getDeclaredField("forget");
+      Field verify = CleanHelper.class.getDeclaredField("verify");
       expect.setAccessible(true);
       forget.setAccessible(true);
-      Constructor<CleanHelper> ctor =
-         CleanHelper.class.getDeclaredConstructor(Value.class, Value.class, Value.class);
+      verify.setAccessible(true);
+      Constructor<CleanHelper> ctor = CleanHelper.class.getDeclaredConstructor(
+         Value.class, Value.class, Value.class, Value.class);
       ctor.setAccessible(true);
-      field.set(slot, ctor.newInstance(clean, expect.get(real), forget.get(real)));
+      field.set(slot, ctor.newInstance(clean, expect.get(real), forget.get(real),
+                                       verify.get(real)));
    }
 
    private WorksheetScriptEnv env(PoolConfig config) {
