@@ -163,6 +163,7 @@ class RelCleanFuzzTest {
       Set<String> slotLeftovers = new HashSet<>();
       Deque<String> recent = new ArrayDeque<>();
       long start = System.nanoTime();
+      int probes0 = PROBES.get(), retries0 = PROBE_RETRIES.get();
 
       for(long i = 0; i < count; i++) {
          long seed = base + i;
@@ -225,6 +226,8 @@ class RelCleanFuzzTest {
       }
 
       stats.millis = (System.nanoTime() - start) / 1_000_000L;
+      stats.probes = PROBES.get() - probes0;
+      stats.probeRetries = PROBE_RETRIES.get() - retries0;
       stats.seeds = count;
       stats.refCreations = ref.getMetrics().getCreations();
       return stats;
@@ -258,7 +261,7 @@ class RelCleanFuzzTest {
       long t0 = System.nanoTime();
 
       try {
-         r1 = probe(env, probe);
+         r1 = probe(env, probe, "loop".equals(blocks.get(blocks.size() - 1).kind()));
       }
       catch(Exception ex) {
          // the probe is read-only and fast: a throw here is judged, not a test error
@@ -268,7 +271,7 @@ class RelCleanFuzzTest {
       }
 
       boolean discarded = env.getMetrics().getCreations() > c0;
-      String r2 = probe(ref, probe);
+      String r2 = probe(ref, probe, false);
 
       Set<String> leftovers = new HashSet<>(slotLeftovers);
       leftovers.addAll(RelScriptGenerator.leftovers(blocks));
@@ -322,15 +325,27 @@ class RelCleanFuzzTest {
    /**
     * Run a probe. The probe runs under the 1 s script timeout the loop blocks need, and a
     * cold JVM on a loaded machine can take longer (seen once, 1484 ms, on a run's first
-    * seed); it is read-only, so a timed-out probe is simply run again, at most twice.
+    * seed); it is read-only, so a probe that really ran out its timeout is run again, at most
+    * twice. An interrupt that stops a probe early, or any interrupt of the probe right after
+    * a loop block, could be the loop's interrupt leaking onto the next exec, so it is never
+    * retried: it becomes a violation.
     */
-   private static String probe(WorksheetScriptEnv env, String probe) throws Exception {
+   private static String probe(WorksheetScriptEnv env, String probe, boolean afterLoop)
+      throws Exception
+   {
       for(int attempt = 0; ; attempt++) {
+         PROBES.incrementAndGet();
+         long start = System.nanoTime();
+
          try {
             return String.valueOf(run(env, probe));
          }
          catch(Exception ex) {
-            if(attempt >= 2 || !String.valueOf(ex.getMessage()).contains("interrupted")) {
+            long ms = (System.nanoTime() - start) / 1_000_000L;
+
+            if(afterLoop || attempt >= 2 || ms < 900 ||
+               !String.valueOf(ex.getMessage()).contains("interrupted"))
+            {
                throw ex;
             }
 
@@ -471,14 +486,17 @@ class RelCleanFuzzTest {
             " (unexpected " + unexpectedThrows + ") driftSeen=" + driftSeen +
             " leftoverDiffs=" + leftoverDiffs + " violations=" + violations +
             " paranoiaViolations=" + paranoiaViolations + " (without FZ1 block: " +
-            paranoiaWithoutPrototype + ") refCreations=" + refCreations + " probeRetries=" +
-            PROBE_RETRIES.get() +
+            paranoiaWithoutPrototype + ") refCreations=" + refCreations + " probes=" + probes +
+            " probeRetries=" + probeRetries +
             "\n[rel-fuzz] " + mode + " block kinds: " + kinds);
       }
 
       void assertClean() {
          assertEquals(1, refCreations, "the reference env's slot was never replaced");
          assertEquals(0, violations, () -> String.join("\n", reports));
+         // a slow probe is rare; many would mean the retry hides something
+         assertTrue(probeRetries * 100L <= probes, probeRetries + " of " + probes +
+            " probes were retried");
       }
 
       final Map<Category, Integer> byCategory = new EnumMap<>(Category.class);
@@ -487,6 +505,7 @@ class RelCleanFuzzTest {
       final Map<String, Integer> paranoiaKinds = new TreeMap<>();
       final List<String> reports = new ArrayList<>();
       long seeds, millis, refCreations;
+      int probes, probeRetries;
       int discards, expectedDiscards, unexpectedDiscards, threw, unexpectedThrows, driftSeen,
          leftoverDiffs,
          violations;
@@ -495,6 +514,8 @@ class RelCleanFuzzTest {
 
    private static final boolean LONG = Boolean.getBoolean("rel.long");
    private static final java.util.concurrent.atomic.AtomicInteger PROBE_RETRIES =
+      new java.util.concurrent.atomic.AtomicInteger();
+   private static final java.util.concurrent.atomic.AtomicInteger PROBES =
       new java.util.concurrent.atomic.AtomicInteger();
    private static String previousTimeout;
    private Boolean forcedBefore;
