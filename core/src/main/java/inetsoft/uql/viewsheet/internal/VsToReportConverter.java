@@ -1162,9 +1162,8 @@ public class VsToReportConverter {
       TableElementDef tableelem =
          new TableElementDef(report, new CellInsetTableLens(lens, info));
       tableelem.setKeepRowHeightOnPrint(info.isKeepRowHeightOnPrint());
-      // a modern row is mostly cell padding, so a piece of it split at a page break can't hold
-      // its text; move it whole instead
-      tableelem.setKeepRowsWhole(info.getVizMark() != null);
+      // a padded row splits into pieces too short for its text; move it whole
+      tableelem.setKeepRowsWhole(info.getVizMark() != null || hasPaddedRows(info, lens));
       // use Manual Column Widths to keep the column width.
       tableelem.setEmbedWidth(true);
       VSAssemblyLayout layout = getVSAssemblyLayout(assembly, playout);
@@ -1574,6 +1573,17 @@ public class VsToReportConverter {
       if(isZero(borders)) {
          box.setBorder(StyleConstants.NO_BORDER);
       }
+   }
+
+   // data rows share the last header row's padding, so rows 0..headerRowCount cover every value
+   private static boolean hasPaddedRows(TableDataVSAssemblyInfo info, VSTableLens lens) {
+      for(int r = 0; r <= lens.getHeaderRowCount() && r < lens.getRowCount(); r++) {
+         if(lens.getRowPadding(r, info) > 0) {
+            return true;
+         }
+      }
+
+      return false;
    }
 
    private static boolean isZero(Insets inset) {

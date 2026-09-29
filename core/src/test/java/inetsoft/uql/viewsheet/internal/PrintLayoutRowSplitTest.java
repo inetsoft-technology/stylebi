@@ -3,6 +3,7 @@ package inetsoft.uql.viewsheet.internal;
 import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.SreeHome;
+import inetsoft.uql.CompositeValue;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -10,11 +11,14 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import java.awt.Insets;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * A modern table's rows carry their cell padding in their height, so the converter asks the report
- * engine to move them whole at a page break; a legacy table keeps today's row splitting.
+ * A modern table, or one with any padded row, carries that padding in its row height, so the
+ * converter asks the report engine to move its rows whole at a page break; a table that is
+ * neither keeps today's row splitting.
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class },
@@ -44,7 +48,19 @@ class PrintLayoutRowSplitTest {
    void aLegacyTableLetsItsRowsSplit() throws Exception {
       PrintLayoutConverterFixture fixture = new PrintLayoutConverterFixture();
       fixture.info.setVizMark(null);
+      fixture.info.setCellPadding(null, CompositeValue.Type.DEFAULT);
+      fixture.info.setCellPadding(null, CompositeValue.Type.USER);
 
       assertFalse(fixture.tableElement().isKeepRowsWhole());
+   }
+
+   @Test
+   void anUnmarkedTableWithATypedCellPaddingKeepsItsRowsWhole() throws Exception {
+      PrintLayoutConverterFixture fixture = new PrintLayoutConverterFixture();
+      fixture.info.setVizMark(null);
+      fixture.info.setCellPadding(new Insets(7, 4, 7, 4), CompositeValue.Type.USER);
+      fixture.info.setDataRowHeight(32);
+
+      assertTrue(fixture.tableElement().isKeepRowsWhole());
    }
 }
