@@ -266,6 +266,27 @@ class MVServiceStatusOwnershipTest {
       assertTrue(service.update(ID, new String[0], false, null).complete());
    }
 
+   @Test
+   void ownerOrgIsComparedIgnoringCaseAndNullOrgOnlyMatchesNullOrg() throws Throwable {
+      // stamped org differs from the owner's current org only in case: still the owner's job
+      createBacking.put(ID, new MVService.MVJobStatus(owner.getName(), "ORGB", true, false, null));
+      updateBacking.put(ID, new MVService.MVJobStatus(owner.getName(), "OrgB", true, false, null));
+
+      assertTrue(service.create(ID, ANALYSIS_ID, null, owner).complete());
+      assertFalse(createBacking.containsKey(ID));
+      assertTrue(service.update(ID, new String[0], false, owner).complete());
+      assertFalse(updateBacking.containsKey(ID));
+
+      // an entry stamped without an org is not readable by the same user name in an org
+      updateBacking.put(ID, new MVService.MVJobStatus(owner.getName(), null, true, true, SECRET));
+      CreateMVResponse response = service.update(ID, new String[0], false, owner);
+
+      assertFalse(response.complete());
+      assertNull(response.error());
+      assertTrue(updateBacking.containsKey(ID));
+      assertTrue(jobs.isEmpty());
+   }
+
    private void assertForeignCreateRefused(Principal caller) throws Throwable {
       createBacking.put(ID, status(true, true, SECRET));
 
