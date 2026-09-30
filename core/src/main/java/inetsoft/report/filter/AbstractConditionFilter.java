@@ -51,8 +51,15 @@ public abstract class AbstractConditionFilter extends AbstractTableLens
     * filtering calculation to validate itself.
     */
    @Override
-   public synchronized void invalidate() {
-      invalidate(true);
+   public void invalidate() {
+      synchronized(this) {
+         invalidate(false);
+      }
+
+      // fire after releasing the monitor: a downstream lens's invalidate() takes its own
+      // monitor, which a reader of that lens may hold while it waits for this monitor to read
+      // the next row (bug #77432)
+      fireChangeEvent();
    }
 
    /**
@@ -120,10 +127,15 @@ public abstract class AbstractConditionFilter extends AbstractTableLens
     * Set the base table of this filter.
     */
    @Override
-   public synchronized void setTable(TableLens table) {
-      this.table = table;
-      this.table.addChangeListener(new DefaultTableChangeListener(this));
-      invalidate(true);
+   public void setTable(TableLens table) {
+      synchronized(this) {
+         this.table = table;
+         this.table.addChangeListener(new DefaultTableChangeListener(this));
+         invalidate(false);
+      }
+
+      // fire after releasing the monitor, see invalidate() (bug #77432)
+      fireChangeEvent();
    }
 
    /**
