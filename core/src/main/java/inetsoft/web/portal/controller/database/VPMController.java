@@ -1427,9 +1427,14 @@ public class VPMController {
       actions = ResourceAction.ACCESS
    ))
    @PostMapping(value = "/api/data/vpm/browserData")
-   public List<String> getBrowserData(@RequestBody BrowserData data) throws Exception {
+   public List<String> getBrowserData(@RequestBody BrowserData data, Principal principal)
+      throws Exception
+   {
       List<String> results = new ArrayList<>();
       XDataModel dataModel = repository.getDataModel(data.getDatabase());
+      // Bug #77189, the column values are queried from the data model's data source.
+      queryManagerService.checkDataSourceReadPermission(
+         dataModel == null ? null : dataModel.getDataSource(), principal);
       String tableName = data.getTableName();
       String column = data.getColumnName();
       String type = data.getColumnType();

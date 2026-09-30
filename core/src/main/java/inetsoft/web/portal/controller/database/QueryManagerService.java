@@ -1361,7 +1361,8 @@ public class QueryManagerService {
     * asset engine resolves the children of such an entry from the data source in its prefix
     * without checking it, so the prefix is required and must be readable. Only the root and
     * data source folders are exempt, because the engine lists their data sources READ-filtered
-    * (Bug #77163).
+    * (Bug #77163). A logical model or entity also requires READ on the logical model
+    * (Bug #77189).
     *
     * @throws java.lang.SecurityException if the prefix is missing, if READ is not granted, or
     *                                     if the check itself fails.
@@ -1371,6 +1372,110 @@ public class QueryManagerService {
          !entry.isRoot() && !entry.isDataSourceFolder())
       {
          checkDataSourceReadPermission(entry.getProperty("prefix"), principal);
+         checkModelEntryReadPermission(entry, principal);
+      }
+   }
+
+   /**
+    * Checks a client-supplied query-scope entry that the composer asset tree or grouping tree
+    * expands. Unlike {@link #checkQueryEntryReadPermission}, an entry without a prefix is
+    * allowed, because the server itself sends such entries to the tree (the Cubes folder, cube
+    * tables and dimensions) and the asset engine resolves nothing from a missing prefix. A data
+    * source entry must name a readable source in both its prefix and its path, which keys the
+    * connection parameter lookup. A physical folder or table requires the same PHYSICAL_TABLE
+    * ACCESS that listing the physical tables of a data source does, and a logical model or
+    * entity requires READ on the logical model (Bug #77189).
+    *
+    * @throws java.lang.SecurityException if a permission is not granted.
+    */
+   public void checkAssetTreeEntryPermission(AssetEntry entry, Principal principal) {
+      if(entry == null || entry.getScope() != AssetRepository.QUERY_SCOPE ||
+         entry.isRoot() || entry.isDataSourceFolder())
+      {
+         return;
+      }
+
+      String prefix = entry.getProperty("prefix");
+
+      if(entry.isDataSource()) {
+         checkDataSourceReadPermission(prefix, principal);
+
+         if(!Tool.equals(prefix, entry.getPath())) {
+            checkDataSourceReadPermission(entry.getPath(), principal);
+         }
+      }
+      else if(!StringUtils.isEmpty(prefix)) {
+         checkDataSourceReadPermission(prefix, principal);
+         checkModelEntryReadPermission(entry, principal);
+      }
+
+      if(entry.isPhysicalFolder() || entry.isPhysicalTable()) {
+         boolean allowed;
+
+         try {
+            allowed = securityEngine != null && securityEngine.checkPermission(
+               principal, ResourceType.PHYSICAL_TABLE, "*", ResourceAction.ACCESS);
+         }
+         catch(Exception e) {
+            LOG.debug("Failed to check physical table permission", e);
+            allowed = false;
+         }
+
+         if(!allowed) {
+            throw new java.lang.SecurityException(
+               "Unauthorized access to physical tables by user " +
+               (principal == null ? null : principal.getName()));
+         }
+      }
+   }
+
+   /**
+    * Checks READ on the logical model of a model or entity entry, the same permissions (data
+    * model folder READ and QUERY READ) that the data source listing filters its logical models
+    * by. The folder is read from the server's data model, never from the entry. A model that
+    * does not exist is left alone, because nothing is listed for it (Bug #77189).
+    *
+    * @throws java.lang.SecurityException if READ is not granted, or if the check itself fails.
+    */
+   public void checkLogicalModelReadPermission(String dataSource, String lmodel,
+                                               Principal principal)
+   {
+      boolean allowed;
+
+      try {
+         XDataModel model = dataSource == null || lmodel == null ?
+            null : repository.getDataModel(dataSource);
+         XLogicalModel logicalModel = model == null ? null : model.getLogicalModel(lmodel);
+
+         if(logicalModel == null) {
+            return;
+         }
+
+         String folder = logicalModel.getFolder();
+         String resource = folder != null && !folder.equals("")
+            ? "__^" + folder + "^" + lmodel + "::" + dataSource : lmodel + "::" + dataSource;
+         allowed = securityEngine != null &&
+            securityEngine.checkPermission(principal, ResourceType.DATA_MODEL_FOLDER,
+                                           dataSource + "/" + folder, ResourceAction.READ) &&
+            securityEngine.checkPermission(principal, ResourceType.QUERY, resource,
+                                           ResourceAction.READ);
+      }
+      catch(Exception e) {
+         LOG.debug("Failed to check logical model permission: {}::{}", lmodel, dataSource, e);
+         allowed = false;
+      }
+
+      if(!allowed) {
+         throw new java.lang.SecurityException(
+            "Unauthorized access to logical model \"" + lmodel + "\" by user " +
+            (principal == null ? null : principal.getName()));
+      }
+   }
+
+   private void checkModelEntryReadPermission(AssetEntry entry, Principal principal) {
+      if(entry.isLogicModel() || entry.isTable()) {
+         checkLogicalModelReadPermission(
+            entry.getProperty("prefix"), entry.getProperty("source"), principal);
       }
    }
 
