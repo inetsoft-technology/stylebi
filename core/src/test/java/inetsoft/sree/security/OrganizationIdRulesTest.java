@@ -25,7 +25,9 @@ package inetsoft.sree.security;
 
 import inetsoft.sree.SreeEnv;
 import inetsoft.util.Catalog;
+import inetsoft.util.DataSpace;
 import inetsoft.util.MessageException;
+import inetsoft.util.ShutdownException;
 import inetsoft.util.config.*;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.function.Executable;
@@ -216,6 +218,64 @@ class OrganizationIdRulesTest {
       assertFalse(OrganizationIdRules.isStorageSystemFolder("dat"));
       assertFalse(OrganizationIdRules.isStorageSystemFolder("database"));
       assertFalse(OrganizationIdRules.isStorageSystemFolder("sub"));
+   }
+
+   // Bug #77307: an org owns the data space paths portal/<id>, <id> and their children, so an id
+   // naming a global data space folder would move or delete it with the organization
+   @ParameterizedTest
+   @ValueSource(strings = { "portal", "Portal", "sreeUserData", "SREEUSERDATA", "fonts",
+                            "web-assets", "inetsoftdb", "shapes", "theme", "font" })
+   void dataSpaceFolders_rejectedOnCreateAndRename(String id) {
+      assertRejected(() -> OrganizationIdRules.checkCreate(id), id);
+      assertRejected(() -> OrganizationIdRules.checkRename("orgA", id), id);
+      // not system folders of external storage, the user space and task save file guards
+      // keep their behavior
+      assertFalse(OrganizationIdRules.isReserved(id));
+      assertFalse(OrganizationIdRules.isStorageSystemFolder(id));
+   }
+
+   @Test
+   void dataSpacePathsOfId_rejectedOnCreateAndRename() {
+      try(MockedStatic<DataSpace> ignored = useDataSpacePaths("g8zz", "rt")) {
+         assertTrue(OrganizationIdRules.hasDataSpacePaths("g8zz"));
+         assertDataSpaceRejected(() -> OrganizationIdRules.checkCreate("g8zz"), "g8zz");
+         assertDataSpaceRejected(() -> OrganizationIdRules.checkRename("orgA", "g8zz"), "g8zz");
+         assertDoesNotThrow(() -> OrganizationIdRules.checkCreate("g8zz2"));
+         assertDoesNotThrow(() -> OrganizationIdRules.checkRename("orgA", "orgB"));
+      }
+   }
+
+   @Test
+   void dataSpacePathsOfId_caseOnlyRenameAccepted() {
+      // the paths are case-sensitive, the org's own rt/... paths are not claimed by RT
+      try(MockedStatic<DataSpace> ignored = useDataSpacePaths("rt")) {
+         assertDoesNotThrow(() -> OrganizationIdRules.checkRename("rt", "RT"));
+         assertDoesNotThrow(() -> OrganizationIdRules.checkRename("rt", "rt"));
+      }
+   }
+
+   @Test
+   void dataSpaceUnavailable_checkSkipped() {
+      try(MockedStatic<DataSpace> dataSpaceStatic = mockStatic(DataSpace.class)) {
+         dataSpaceStatic.when(DataSpace::getDataSpace).thenThrow(new ShutdownException());
+         assertFalse(OrganizationIdRules.hasDataSpacePaths("orgA"));
+         assertDoesNotThrow(() -> OrganizationIdRules.checkCreate("orgA"));
+      }
+   }
+
+   private static MockedStatic<DataSpace> useDataSpacePaths(String... ids) {
+      List<String> owned = List.of(ids);
+      DataSpace dataSpace = mock(DataSpace.class);
+      when(dataSpace.hasOrgScopedPaths(anyString())).thenAnswer(i -> owned.contains(i.getArgument(0)));
+      MockedStatic<DataSpace> dataSpaceStatic = mockStatic(DataSpace.class);
+      dataSpaceStatic.when(DataSpace::getDataSpace).thenReturn(dataSpace);
+      return dataSpaceStatic;
+   }
+
+   private static void assertDataSpaceRejected(Executable executable, String id) {
+      MessageException thrown = assertThrows(MessageException.class, executable);
+      assertEquals(Catalog.getCatalog().getString("em.security.dataSpaceOrganizationID", id),
+                   thrown.getMessage());
    }
 
    private static MockedStatic<SreeEnv> useSaveLocations(String locations) {

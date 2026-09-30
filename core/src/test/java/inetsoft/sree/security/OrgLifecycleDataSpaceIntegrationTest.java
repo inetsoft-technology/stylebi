@@ -275,6 +275,113 @@ class OrgLifecycleDataSpaceIntegrationTest {
       assertEquals("css", readAll("portal/" + toB + "/theme.css"));
    }
 
+   // ── Bug #77307: an org id that also occurs elsewhere in a path (in "portal", in
+   //    "sreeUserData", in a user name) -- only the org segment may be rewritten ──
+
+   @Test
+   void rename_updateOrgScopedDataSpace_idInPortalAndUserName_onlyOrgSegmentRewritten()
+      throws Exception
+   {
+      seedCollidingOrg("rt", "rtuser");
+
+      invokeUpdateOrgScopedDataSpace(newIdentityServiceWithRealDataSpace(),
+                                     new Organization("rt"), new Organization("rt9"));
+
+      assertCollidingOrgMoved("rt", "rt9", "rtuser", "port9al");
+   }
+
+   @Test
+   void rename_copyDataSpace_idInPortalAndUserName_onlyOrgSegmentRewritten() throws Exception {
+      seedCollidingOrg("al", "aluser");
+
+      new AbstractEditableAuthenticationProviderStaticDepTest.StubProvider()
+         .callCopyDataSpace(new Organization("al"), new Organization("al9"), true);
+
+      assertCollidingOrgMoved("al", "al9", "aluser", "portal9");
+   }
+
+   // setOrganizationInfo runs updateOrgScopedDataSpace, then copyDataSpace(replace=true) through
+   // syncIdentity, after migrateRegistry already wrote portal/<new>/dashboard-registry.xml
+   @Test
+   void rename_bothPasses_newPortalFolderExists_completes() throws Exception {
+      seedCollidingOrg("po", "pouser");
+      dataSpace.withOutputStream("portal/po9", "dashboard-registry.xml", out -> out.write(bytes("reg")));
+
+      invokeUpdateOrgScopedDataSpace(newIdentityServiceWithRealDataSpace(),
+                                     new Organization("po"), new Organization("po9"));
+      assertDoesNotThrow(() -> new AbstractEditableAuthenticationProviderStaticDepTest.StubProvider()
+         .callCopyDataSpace(new Organization("po"), new Organization("po9"), true));
+
+      assertCollidingOrgMoved("po", "po9", "pouser", "po9rtal");
+      assertEquals("reg", readAll("portal/po9/dashboard-registry.xml"));
+   }
+
+   @Test
+   void clone_copyDataSpace_idInPortalAndSreeUserData_onlyOrgSegmentRewritten() throws Exception {
+      seedCollidingOrg("ta", "tauser");
+
+      new AbstractEditableAuthenticationProviderStaticDepTest.StubProvider()
+         .callCopyDataSpace(new Organization("ta"), new Organization("organization77307"), false);
+
+      String to = "organization77307";
+      assertEquals("probe", readAll("portal/" + to + "/probe/file.txt"));
+      assertEquals("registry", readAll("portal/" + to + "/tauser/dashboard-registry.xml"));
+      assertEquals("repository", readAll(to + "/repository.xml"));
+      assertEquals("env", readAll("sreeUserData/tauser_" + to + ".xml"));
+      assertFalse(dataSpace.exists(null, "por" + to + "l/" + to + "/probe/file.txt"));
+      assertFalse(dataSpace.exists(null, "sreeUserDa" + to + "/" + to + "user_" + to + ".xml"));
+      // a copy keeps the source
+      assertEquals("probe", readAll("portal/ta/probe/file.txt"));
+      assertEquals("env", readAll("sreeUserData/tauser_ta.xml"));
+   }
+
+   // the id rules reject an id that would claim existing data space paths, e.g. a global
+   // top-level folder, which org delete would otherwise remove
+   @Test
+   void idRules_existingDataSpacePathsOfId_rejected() throws Exception {
+      dataSpace.withOutputStream("g8zz77307/keepme", "file.txt", out -> out.write(bytes("keep")));
+      dataSpace.withOutputStream("portal/p77307", "file.txt", out -> out.write(bytes("keep")));
+      dataSpace.withOutputStream("sreeUserData", "bob_u77307.xml", out -> out.write(bytes("keep")));
+
+      for(String id : List.of("g8zz77307", "p77307", "u77307")) {
+         assertTrue(OrganizationIdRules.hasDataSpacePaths(id), id);
+         assertThrows(inetsoft.util.MessageException.class,
+                      () -> OrganizationIdRules.checkCreate(id), id);
+         assertThrows(inetsoft.util.MessageException.class,
+                      () -> OrganizationIdRules.checkRename("orgA", id), id);
+      }
+
+      assertFalse(OrganizationIdRules.hasDataSpacePaths("g8zz7730"));
+      assertFalse(OrganizationIdRules.hasDataSpacePaths("G8ZZ77307"));
+      assertDoesNotThrow(() -> OrganizationIdRules.checkCreate("g8zz7730"));
+   }
+
+   private void seedCollidingOrg(String orgId, String user) throws Exception {
+      dataSpace.withOutputStream("portal/" + orgId + "/probe", "file.txt", out -> out.write(bytes("probe")));
+      dataSpace.withOutputStream("portal/" + orgId + "/" + user, "dashboard-registry.xml",
+                                 out -> out.write(bytes("registry")));
+      dataSpace.withOutputStream(orgId, "repository.xml", out -> out.write(bytes("repository")));
+      dataSpace.withOutputStream("sreeUserData", user + "_" + orgId + ".xml",
+                                 out -> out.write(bytes("env")));
+   }
+
+   private void assertCollidingOrgMoved(String from, String to, String user, String badPortal)
+      throws Exception
+   {
+      assertEquals("probe", readAll("portal/" + to + "/probe/file.txt"));
+      assertEquals("registry", readAll("portal/" + to + "/" + user + "/dashboard-registry.xml"));
+      assertEquals("repository", readAll(to + "/repository.xml"));
+      assertEquals("env", readAll("sreeUserData/" + user + "_" + to + ".xml"));
+
+      assertFalse(dataSpace.exists(null, "portal/" + from + "/probe/file.txt"));
+      assertFalse(dataSpace.exists(null, from + "/repository.xml"));
+      assertFalse(dataSpace.exists(null, "sreeUserData/" + user + "_" + from + ".xml"));
+      assertFalse(dataSpace.exists(null, badPortal + "/" + to + "/probe/file.txt"),
+                  "the id inside \"portal\" must not be rewritten");
+      assertFalse(dataSpace.exists(null, "sreeUserData/" + user.replace(from, to) + "_" + to + ".xml"),
+                  "the id inside the user name must not be rewritten");
+   }
+
    // ── fixture helpers ──
 
    private static byte[] bytes(String s) {

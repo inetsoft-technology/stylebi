@@ -2834,9 +2834,7 @@ public class IdentityService {
             continue;
          }
 
-         String toPath;
-
-         toPath = path.replace(oorg.getId(), norg.getId());
+         String toPath = OrgScopedPaths.rewrite(path, oorg.getId(), norg.getId());
 
          if(Tool.equals(toPath, path)) {
             continue;
