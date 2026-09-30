@@ -42,20 +42,34 @@ import java.util.function.BiFunction;
  * <p>This wrapper exposes only an allow-list of read accessors (deny by default) and
  * returns copies of anything mutable. Property assignment and deletion are rejected.
  *
- * <p>{@link #unwrap()} still returns the real principal, so a script can pass the
- * principal to Java code (script functions and host methods declaring a
- * {@code Principal} parameter) as before. This is safe in Rhino because every value a
- * host method returns is wrapped again through the context's {@link WrapFactory}
- * ({@link JSFactory}), so a principal that comes back from Java code (for example
- * {@code VpmScope.getUser()}) is read-only again. This reasoning is Rhino-specific:
- * the GraalJS engine does not re-wrap host return values, which is why its
- * counterpart ({@code ReadOnlyPrincipalProxy}) must not be unwrapped for raw host
- * calls.
+ * <p>{@link #unwrap()} lets a script pass the principal to Java code (script functions
+ * and host methods declaring a {@code Principal} parameter) as before, but it hands
+ * that code a detached copy ({@link XPrincipal#detachedCopy()}), never the live session
+ * instance. Some script-visible Java helpers invoke methods on their arguments
+ * reflectively, so the live instance would let a script reach the setters this wrapper
+ * hides. Changing the copy never changes the session principal. The copy is equal to
+ * the session principal, so permission and session checks treat it the same.
+ *
+ * <p>A principal that comes back from Java code (for example {@code VpmScope.getUser()})
+ * is read-only again, because Rhino wraps every value a host method returns through the
+ * context's {@link WrapFactory} ({@link JSFactory}). This reasoning is Rhino-specific:
+ * the GraalJS engine does not re-wrap host return values, which is why its counterpart
+ * ({@code ReadOnlyPrincipalProxy}) must not be unwrapped for raw host calls.
  */
 public class ReadOnlyPrincipalObject extends NativeJavaObject {
    public ReadOnlyPrincipalObject(Scriptable scope, Principal principal, Class<?> staticType) {
       super(scope, principal, staticType);
       this.principal = principal;
+   }
+
+   /**
+    * Returns a detached copy of the principal for Java code, never the live session
+    * instance (see the class comment). Principals that are not {@code XPrincipal}s
+    * carry no session state a script could change and are returned as-is.
+    */
+   @Override
+   public Object unwrap() {
+      return principal instanceof XPrincipal xp ? xp.detachedCopy() : principal;
    }
 
    @Override
@@ -209,35 +223,9 @@ public class ReadOnlyPrincipalObject extends NativeJavaObject {
       return names == null ? null : Collections.enumeration(Collections.list(names));
    }
 
-   // A parameter value can be any mutable object a script must not change in place:
-   // an array, a Collection, a Map or a Date. Return a copy of those; immutable scalars
-   // and anything unrecognized are returned as-is.
+   // A parameter value can be any mutable object a script must not change in place.
    private static Object copyValue(Object value) {
-      if(value == null) {
-         return null;
-      }
-
-      if(value.getClass().isArray()) {
-         int len = java.lang.reflect.Array.getLength(value);
-         Object copy = java.lang.reflect.Array.newInstance(
-            value.getClass().getComponentType(), len);
-         System.arraycopy(value, 0, copy, 0, len);
-         return copy;
-      }
-
-      if(value instanceof Map<?, ?> map) {
-         return new LinkedHashMap<>(map);
-      }
-
-      if(value instanceof Collection<?> col) {
-         return new ArrayList<>(col);
-      }
-
-      if(value instanceof Date date) {
-         return date.clone();
-      }
-
-      return value;
+      return XPrincipal.copyParameterValue(value);
    }
 
    private static XPrincipal x(Principal p) {

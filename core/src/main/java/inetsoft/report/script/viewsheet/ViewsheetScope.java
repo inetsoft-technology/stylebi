@@ -1046,7 +1046,8 @@ public class ViewsheetScope extends ScriptableObject implements Cloneable, Dynam
          throw updatedException;
       }
       finally {
-         // if principal parameter is changed in script, make sure it's used in vtable
+         // make sure principal parameters set during execution are used in vtable. Scripts
+         // see the principal read-only (Bug #77384), so only Java code can change them.
          if(vtable != null && box.getUser() != null) {
             vtable.copyParameters((XPrincipal) box.getUser());
          }
