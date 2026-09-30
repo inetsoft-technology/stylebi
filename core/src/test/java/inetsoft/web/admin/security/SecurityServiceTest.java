@@ -105,6 +105,11 @@ class SecurityServiceTest {
       securityProvider = mock(SecurityProvider.class, withSettings().lenient());
       when(securityProvider.getAuthenticationProvider()).thenReturn(authenticationProvider);
 
+      // an update that omits adminIdentities re-keys the grant through the authorization
+      // provider on a rename (Bug #77326); tests that check the grant replace it via stubAuthz()
+      when(securityProvider.getAuthorizationProvider())
+         .thenReturn(mock(AuthorizationChain.class, withSettings().lenient()));
+
       SecurityEngine securityEngine = mock(SecurityEngine.class, withSettings().lenient());
       when(securityEngine.getSecurityProvider()).thenReturn(securityProvider);
       // ActionRecord's constructor (invoked by createUser/createGroup/createRole) reaches for
@@ -363,10 +368,12 @@ class SecurityServiceTest {
       assertEquals(List.of(ADMIN_ROLE, VIEWER_ROLE), captor.getValue().roles());
    }
 
+   // Issue #77171: omitted roles keep the user's current roles
    @Test
-   void updateUser_rolesNotSpecified_doesNotSetRoles() throws Exception {
+   void updateUser_rolesNotSpecified_keepsCurrentRoles() throws Exception {
       IdentityID userId = new IdentityID("orgadmin1", "org1");
       FSUser oldUser = new FSUser(userId);
+      oldUser.setRoles(new IdentityID[] { VIEWER_ROLE });
       when(securityProvider.getUser(userId)).thenReturn(oldUser);
       when(securityProvider.checkPermission(principal, ResourceType.SECURITY_USER,
                                             userId.convertToKey(), ResourceAction.ADMIN))
@@ -382,7 +389,7 @@ class SecurityServiceTest {
 
       ArgumentCaptor<EditUserPaneModel> captor = ArgumentCaptor.forClass(EditUserPaneModel.class);
       verify(identityService).setIdentity(eq(oldUser), captor.capture(), eq(editableProvider), eq(principal));
-      assertTrue(captor.getValue().roles().isEmpty());
+      assertEquals(List.of(VIEWER_ROLE), captor.getValue().roles());
    }
 
    // ── updateUser locale (Bug #76609) ───────────────────────────────────────
@@ -495,10 +502,11 @@ class SecurityServiceTest {
       assertEquals(List.of(ADMIN_ROLE, VIEWER_ROLE), captor.getValue().roles());
    }
 
+   // Issue #77171: omitted roles keep the group's current roles
    @Test
-   void updateGroup_rolesNotSpecified_doesNotSetRoles() throws Exception {
+   void updateGroup_rolesNotSpecified_keepsCurrentRoles() throws Exception {
       IdentityID groupId = new IdentityID("orggroup1", "org1");
-      FSGroup oldGroup = new FSGroup(groupId);
+      FSGroup oldGroup = new FSGroup(groupId, null, new String[0], new IdentityID[] { VIEWER_ROLE });
       when(securityProvider.getGroup(groupId)).thenReturn(oldGroup);
       when(securityProvider.checkPermission(principal, ResourceType.SECURITY_GROUP,
                                             groupId.convertToKey(), ResourceAction.ADMIN))
@@ -514,7 +522,7 @@ class SecurityServiceTest {
 
       ArgumentCaptor<EditGroupPaneModel> captor = ArgumentCaptor.forClass(EditGroupPaneModel.class);
       verify(identityService).setIdentity(eq(oldGroup), captor.capture(), eq(editableProvider), eq(principal));
-      assertTrue(captor.getValue().roles().isEmpty());
+      assertEquals(List.of(VIEWER_ROLE), captor.getValue().roles());
    }
 
    // ── updateRole (inheritedRoles) ─────────────────────────────────────────
@@ -567,10 +575,11 @@ class SecurityServiceTest {
       assertEquals(List.of(ADMIN_ROLE, VIEWER_ROLE), captor.getValue().roles());
    }
 
+   // Issue #77171: omitted inherited roles keep the role's current inherited roles
    @Test
-   void updateRole_inheritedRolesNotSpecified_doesNotSetRoles() throws Exception {
+   void updateRole_inheritedRolesNotSpecified_keepsCurrentRoles() throws Exception {
       IdentityID roleId = new IdentityID("orgrole1", "org1");
-      FSRole oldRole = new FSRole(roleId);
+      FSRole oldRole = new FSRole(roleId, new IdentityID[] { VIEWER_ROLE });
       when(securityProvider.getRole(roleId)).thenReturn(oldRole);
       when(securityProvider.checkPermission(principal, ResourceType.SECURITY_ROLE,
                                             roleId.convertToKey(), ResourceAction.ADMIN))
@@ -588,7 +597,569 @@ class SecurityServiceTest {
 
       ArgumentCaptor<EditRolePaneModel> captor = ArgumentCaptor.forClass(EditRolePaneModel.class);
       verify(identityService).setIdentity(eq(oldRole), captor.capture(), eq(editableProvider), eq(principal));
-      assertTrue(captor.getValue().roles().isEmpty());
+      assertEquals(List.of(VIEWER_ROLE), captor.getValue().roles());
+   }
+
+   // ── Issue #77171: user/group/role updates keep the fields that the request omits ──
+   //
+   // A field that the request omits (null) keeps the identity's current value in the editable
+   // provider. An explicit value, including an empty list or string, replaces it. Ported from
+   // the enterprise SecurityApiServiceTest on main; a locale is a code here (Bug #76707), and an
+   // empty locale code maps to no label (null), which setIdentity() clears like an empty one.
+
+   private static final IdentityID U1 = new IdentityID("u1", "org1");
+   private static final IdentityID ORG1_OTHER_USER = new IdentityID("u2", "org1");
+
+   private FSUser stubInactiveUser() {
+      FSUser oldUser = new FSUser(U1);
+      oldUser.setActive(false);
+      oldUser.setLocale("en_US");
+      oldUser.setAlias("User One");
+      oldUser.setEmails(new String[] { "old@x.com" });
+      oldUser.setGroups(new String[] { "sales" });
+      oldUser.setRoles(new IdentityID[] { VIEWER_ROLE });
+      when(securityProvider.getUser(U1)).thenReturn(oldUser);
+      when(editableProvider.getUser(U1)).thenReturn(oldUser);
+      allowAdmin();
+      Properties locales = new Properties();
+      locales.setProperty("en_US", "English(America)");
+      sUtilStatic.when(SUtil::loadLocaleProperties).thenReturn(locales);
+      return oldUser;
+   }
+
+   private EditUserPaneModel updateUserAndCapture(SecurityUser request) throws Exception {
+      service.updateUser(U1, request, principal);
+      ArgumentCaptor<EditUserPaneModel> captor = ArgumentCaptor.forClass(EditUserPaneModel.class);
+      verify(identityService).setIdentity(any(), captor.capture(), eq(editableProvider), eq(principal));
+      return captor.getValue();
+   }
+
+   private static SecurityUser userRequest() {
+      SecurityUser request = new SecurityUser();
+      request.setIdentityID(U1);
+      return request;
+   }
+
+   @Test
+   void updateUser_activeOmitted_inactiveUserStaysInactive() throws Exception {
+      stubInactiveUser();
+      SecurityUser request = userRequest();
+      request.setEmails(List.of("new@x.com"));
+
+      assertFalse(updateUserAndCapture(request).status());
+   }
+
+   @Test
+   void updateUser_activeOmitted_selfUpdate_staysActive() throws Exception {
+      stubInactiveUser();
+      when(principal.getName()).thenReturn(U1.convertToKey());
+
+      assertTrue(updateUserAndCapture(userRequest()).status());
+   }
+
+   @Test
+   void updateUser_explicitActiveTrue_activates() throws Exception {
+      stubInactiveUser();
+      SecurityUser request = userRequest();
+      request.setActive(Boolean.TRUE);
+
+      assertTrue(updateUserAndCapture(request).status());
+   }
+
+   @Test
+   void updateUser_explicitActiveFalse_deactivates() throws Exception {
+      FSUser oldUser = stubInactiveUser();
+      oldUser.setActive(true);
+      SecurityUser request = userRequest();
+      request.setActive(Boolean.FALSE);
+
+      assertFalse(updateUserAndCapture(request).status());
+   }
+
+   @Test
+   void updateUser_fieldsOmitted_keepsLocaleAliasEmailsGroupsRoles() throws Exception {
+      stubInactiveUser();
+
+      EditUserPaneModel model = updateUserAndCapture(userRequest());
+
+      assertAll(
+         () -> assertEquals("English(America)", model.locale(), "locale"),
+         () -> assertEquals("User One", model.alias(), "alias"),
+         () -> assertEquals("old@x.com", model.email(), "emails"),
+         () -> assertEquals(List.of(SALES), model.members().stream()
+            .map(IdentityModel::identityID).toList(), "groups"),
+         () -> assertEquals(List.of(VIEWER_ROLE), model.roles(), "roles"));
+   }
+
+   @Test
+   void updateUser_groupsOmitted_keepsGroupCallerCannotAdminister() throws Exception {
+      stubInactiveUser();
+      denyAdmin(ResourceType.SECURITY_GROUP, SALES);
+
+      EditUserPaneModel model = updateUserAndCapture(userRequest());
+
+      assertEquals(List.of(SALES), model.members().stream().map(IdentityModel::identityID).toList());
+   }
+
+   @Test
+   void updateUser_explicitEmptyValues_clear() throws Exception {
+      stubInactiveUser();
+      SecurityUser request = userRequest();
+      request.setLocale("");
+      request.setAlias("");
+      request.setEmails(List.of());
+      request.setGroups(List.of());
+      request.setRoles(List.of());
+
+      EditUserPaneModel model = updateUserAndCapture(request);
+
+      assertAll(
+         // the empty code maps to no label, which setIdentity() clears like an empty one
+         () -> assertNull(model.locale(), "locale"),
+         () -> assertEquals("", model.alias(), "alias"),
+         () -> assertEquals("", model.email(), "emails"),
+         () -> assertTrue(model.members().isEmpty(), "groups"),
+         () -> assertTrue(model.roles().isEmpty(), "roles"));
+   }
+
+   @Test
+   void updateUser_explicitEmptyAdminIdentities_clearsGrants() throws Exception {
+      stubInactiveUser();
+      when(identityService.getPermission(U1, ResourceType.SECURITY_USER, "org1", principal))
+         .thenReturn(List.of(model(ORG1_OTHER_USER, Identity.USER)));
+      SecurityUser request = userRequest();
+      request.setAdminIdentities(new AdminIdentities());
+
+      service.updateUser(U1, request, principal);
+
+      verify(identityService).setIdentityPermissions(
+         eq(U1), eq(U1), eq(ResourceType.SECURITY_USER), eq(principal), eq(List.of()), anyString());
+   }
+
+   @Test
+   void updateUser_identityIDOmitted_defaultsToPathName() throws Exception {
+      stubInactiveUser();
+      SecurityUser request = new SecurityUser();
+      request.setEmails(List.of("new@x.com"));
+
+      EditUserPaneModel model = updateUserAndCapture(request);
+
+      assertEquals("u1", model.name());
+      assertEquals("u1", model.oldName());
+   }
+
+   @Test
+   void createUser_activeOmitted_createsActiveUser() throws Exception {
+      stubCommonCreateGates();
+      when(editableProvider.getOrganization("org1")).thenReturn(new FSOrganization("org1"));
+      SecurityUser request = new SecurityUser();
+      request.setIdentityID(new IdentityID("newuser1", "org1"));
+      request.setPassword("Str0ng!Passw0rd");
+
+      service.createUser(request, null, principal);
+
+      ArgumentCaptor<FSUser> captor = ArgumentCaptor.forClass(FSUser.class);
+      verify(editableProvider).addUser(captor.capture());
+      assertTrue(captor.getValue().isActive());
+   }
+
+   @Test
+   void securityUser_json_activeOmittedIsNull_explicitValueKept_serializedByGet() throws Exception {
+      com.fasterxml.jackson.databind.ObjectMapper mapper =
+         new com.fasterxml.jackson.databind.ObjectMapper();
+
+      assertNull(mapper.readValue("{}", SecurityUser.class).getActive());
+      assertNull(mapper.readValue("{\"active\":null}", SecurityUser.class).getActive());
+      assertEquals(Boolean.FALSE,
+                   mapper.readValue("{\"active\":false}", SecurityUser.class).getActive());
+
+      // GET (getUserModel) always sets the status, so its JSON still contains "active"
+      SecurityUser user = new SecurityUser();
+      user.setActive(Boolean.FALSE);
+      assertTrue(mapper.writeValueAsString(user).contains("\"active\":false"));
+      user.setActive(Boolean.TRUE);
+      assertTrue(mapper.writeValueAsString(user).contains("\"active\":true"));
+   }
+
+   // the omitted member lists are covered by the Bug #77303 tests below
+   private FSGroup stubSalesGroup() {
+      FSGroup oldGroup = new FSGroup(SALES, null, new String[0], new IdentityID[] { VIEWER_ROLE });
+      when(securityProvider.getGroup(SALES)).thenReturn(oldGroup);
+      when(editableProvider.getGroup(SALES)).thenReturn(oldGroup);
+      allowAdmin();
+      return oldGroup;
+   }
+
+   private EditGroupPaneModel updateGroupAndCapture(SecurityGroup request) throws Exception {
+      service.updateGroup(SALES, request, principal);
+      ArgumentCaptor<EditGroupPaneModel> captor = ArgumentCaptor.forClass(EditGroupPaneModel.class);
+      verify(identityService).setIdentity(any(), captor.capture(), eq(editableProvider), eq(principal));
+      return captor.getValue();
+   }
+
+   private static SecurityGroup groupRequest() {
+      SecurityGroup request = new SecurityGroup();
+      request.setIdentityID(SALES);
+      return request;
+   }
+
+   @Test
+   void updateGroup_rolesOmitted_keepCurrent() throws Exception {
+      stubSalesGroup();
+
+      EditGroupPaneModel model = updateGroupAndCapture(groupRequest());
+
+      assertEquals(List.of(VIEWER_ROLE), model.roles());
+   }
+
+   @Test
+   void updateGroup_explicitEmptyMembersAndRoles_clear() throws Exception {
+      stubSalesGroup();
+      SecurityGroup request = groupRequest();
+      request.setMemberUsers(List.of());
+      request.setMemberGroups(List.of());
+      request.setRoles(List.of());
+
+      EditGroupPaneModel model = updateGroupAndCapture(request);
+
+      assertAll(
+         () -> assertTrue(model.members().isEmpty(), "members"),
+         () -> assertTrue(model.roles().isEmpty(), "roles"));
+   }
+
+   @Test
+   void updateGroup_identityIDOmitted_defaultsToPathName() throws Exception {
+      stubSalesGroup();
+
+      EditGroupPaneModel model = updateGroupAndCapture(new SecurityGroup());
+
+      assertEquals("sales", model.name());
+   }
+
+   // the omitted assignment lists are covered by the Bug #77303 tests below
+   private FSRole stubAnalystRole() {
+      FSRole oldRole = new FSRole(ANALYST, new IdentityID[] { VIEWER_ROLE }, "Analysts");
+      when(securityProvider.getRole(ANALYST)).thenReturn(oldRole);
+      when(editableProvider.getRole(ANALYST)).thenReturn(oldRole);
+      allowAdmin();
+      when(identityService.getIdentityInfo(ANALYST, Identity.ROLE, editableProvider))
+         .thenReturn(new IdentityInfo());
+      return oldRole;
+   }
+
+   private EditRolePaneModel updateRoleAndCapture(SecurityRole request) throws Exception {
+      service.updateRole(ANALYST, request, principal);
+      ArgumentCaptor<EditRolePaneModel> captor = ArgumentCaptor.forClass(EditRolePaneModel.class);
+      verify(identityService).setIdentity(any(), captor.capture(), eq(editableProvider), eq(principal));
+      return captor.getValue();
+   }
+
+   private static SecurityRole roleRequest() {
+      SecurityRole request = new SecurityRole();
+      request.setIdentityID(ANALYST);
+      return request;
+   }
+
+   @Test
+   void updateRole_descriptionInheritedRolesOmitted_keepCurrent() throws Exception {
+      stubAnalystRole();
+
+      EditRolePaneModel model = updateRoleAndCapture(roleRequest());
+
+      assertAll(
+         () -> assertEquals("Analysts", model.description(), "description"),
+         () -> assertEquals(List.of(VIEWER_ROLE), model.roles(), "inherited roles"));
+   }
+
+   @Test
+   void updateRole_explicitEmptyValues_clear() throws Exception {
+      stubAnalystRole();
+      SecurityRole request = roleRequest();
+      request.setDescription("");
+      request.setInheritedRoles(List.of());
+      request.setAssignedUsers(List.of());
+      request.setAssignedGroups(List.of());
+
+      EditRolePaneModel model = updateRoleAndCapture(request);
+
+      assertAll(
+         () -> assertEquals("", model.description(), "description"),
+         () -> assertTrue(model.roles().isEmpty(), "inherited roles"),
+         () -> assertTrue(model.members().isEmpty(), "assignments"));
+   }
+
+   @Test
+   void updateRole_identityIDOmitted_defaultsToPathName() throws Exception {
+      stubAnalystRole();
+
+      EditRolePaneModel model = updateRoleAndCapture(new SecurityRole());
+
+      assertEquals("analyst", model.name());
+   }
+
+   private static IdentityModel model(IdentityID id, int type) {
+      return IdentityModel.builder().identityID(id).type(type).build();
+   }
+
+   // ── Bug #77326: an omitted role/group/user field keeps the stored value ─
+   //
+   // The EM model was built with only the fields the request sets, so an omitted field took the
+   // model default (an empty list, null, or true for the user status) and setIdentity() stored
+   // it. An omitted adminIdentities was passed to setIdentityPermissions() as an empty list,
+   // which drops every grantee the caller can administer. The stored identities below have a
+   // value for every field, so a kept value can only come from the provider.
+
+   private static final IdentityID PARENT_ROLE = new IdentityID("parent", "org2");
+
+   private FSRole storedAnalystRole() {
+      return stubUpdatableRole(
+         ANALYST_ROLE, new FSRole(ANALYST_ROLE, new IdentityID[] { PARENT_ROLE }, "keep me"));
+   }
+
+   private FSGroup storedSalesGroup() {
+      FSGroup oldGroup = stubUpdatableGroup(SALES_GROUP);
+      oldGroup.setRoles(new IdentityID[] { PARENT_ROLE });
+      return oldGroup;
+   }
+
+   // sales@org2: role parent, group g1, an email, an alias, locale en_US and disabled
+   private FSUser storedSalesUser() {
+      FSUser oldUser = stubUpdatableUser(SALES_USER);
+      oldUser.setRoles(new IdentityID[] { PARENT_ROLE });
+      oldUser.setGroups(new String[] { "g1" });
+      oldUser.setEmails(new String[] { "a@b.c" });
+      oldUser.setAlias("Ali");
+      oldUser.setLocale("en_US");
+      oldUser.setActive(false);
+      Properties locales = new Properties();
+      locales.setProperty("en_US", "English(America)");
+      locales.setProperty("de_DE", "Deutsch(Deutschland)");
+      sUtilStatic.when(SUtil::loadLocaleProperties).thenReturn(locales);
+      return oldUser;
+   }
+
+   private EditGroupPaneModel captureGroupModel(FSGroup oldGroup) throws Exception {
+      ArgumentCaptor<EditGroupPaneModel> captor = ArgumentCaptor.forClass(EditGroupPaneModel.class);
+      verify(identityService).setIdentity(eq(oldGroup), captor.capture(), eq(editableProvider),
+                                          eq(principal));
+      return captor.getValue();
+   }
+
+   private EditUserPaneModel captureUserModel(FSUser oldUser) throws Exception {
+      ArgumentCaptor<EditUserPaneModel> captor = ArgumentCaptor.forClass(EditUserPaneModel.class);
+      verify(identityService).setIdentity(eq(oldUser), captor.capture(), eq(editableProvider),
+                                          eq(principal));
+      return captor.getValue();
+   }
+
+   // the grant is neither merged nor written
+   private void verifyGrantUntouched(AuthorizationProvider authz) {
+      verify(identityService, never())
+         .setIdentityPermissions(any(), any(), any(), any(), any(), any());
+      verify(identityService, never())
+         .setIdentityPermissions(any(), any(), any(), any(), any(), any(), any());
+      verifyNoInteractions(authz);
+   }
+
+   @Test
+   void updateRole_omittedFields_keepStoredDescriptionInheritedRolesAndGrant() throws Exception {
+      FSRole oldRole = storedAnalystRole();
+      AuthorizationProvider authz = stubAuthz();
+      // an org admin: the kept roles are not filtered, since they do not change
+      when(orgManager.isSiteAdmin(principal)).thenReturn(false);
+
+      service.updateRole(ANALYST_ROLE, roleRequest(ANALYST_ROLE), principal);
+
+      EditRolePaneModel model = captureRoleModel(oldRole);
+      assertEquals(List.of(PARENT_ROLE), model.roles());
+      assertEquals("keep me", model.description());
+      verifyGrantUntouched(authz);
+   }
+
+   @Test
+   void updateRole_emptyValues_clearDescriptionInheritedRolesAndGrant() throws Exception {
+      FSRole oldRole = storedAnalystRole();
+      SecurityRole request = roleRequest(ANALYST_ROLE);
+      request.setDescription("");
+      request.setInheritedRoles(List.of());
+      request.setAdminIdentities(new AdminIdentities());
+
+      service.updateRole(ANALYST_ROLE, request, principal);
+
+      EditRolePaneModel model = captureRoleModel(oldRole);
+      assertEquals(List.of(), model.roles());
+      assertEquals("", model.description());
+      // an org role's grants are scoped to the role's own org (Bug #76866)
+      verify(identityService).setIdentityPermissions(
+         eq(ANALYST_ROLE), eq(ANALYST_ROLE), eq(ResourceType.SECURITY_ROLE), eq(principal),
+         eq(List.of()), eq("org2"));
+   }
+
+   @Test
+   void updateRole_listedValues_replaceStoredValues() throws Exception {
+      FSRole oldRole = storedAnalystRole();
+      SecurityRole request = roleRequest(ANALYST_ROLE);
+      request.setDescription("new");
+      request.setInheritedRoles(List.of(VIEWER_ROLE));
+
+      service.updateRole(ANALYST_ROLE, request, principal);
+
+      EditRolePaneModel model = captureRoleModel(oldRole);
+      assertEquals(List.of(VIEWER_ROLE), model.roles());
+      assertEquals("new", model.description());
+   }
+
+   @Test
+   void updateRole_renamedWithOmittedAdminIdentitiesAndNoGrant_createsNoGrant() throws Exception {
+      storedAnalystRole();
+      AuthorizationProvider authz = stubAuthz();
+
+      service.updateRole(ANALYST_ROLE, roleRequest(new IdentityID("analyst2", "org2")), principal);
+
+      verify(authz).getPermission(ResourceType.SECURITY_ROLE, ANALYST_ROLE);
+      verify(authz, never()).setPermission(any(ResourceType.class), any(IdentityID.class),
+                                           any(Permission.class));
+      verify(authz, never()).removePermission(any(ResourceType.class), any(IdentityID.class));
+      verify(identityService, never())
+         .setIdentityPermissions(any(), any(), any(), any(), any(), any());
+   }
+
+   @Test
+   void updateRole_globalRoleOmittedFields_keepStoredAndRekeyGrantWithNullOrg() throws Exception {
+      IdentityID globalParent = new IdentityID("gParent", null);
+      IdentityID renamed = new IdentityID("gRole2", null);
+      FSRole oldRole = stubUpdatableRole(
+         GLOBAL_ROLE_PATH, new FSRole(GLOBAL_ROLE, new IdentityID[] { globalParent }, "global"));
+      AuthorizationProvider authz = stubAuthz();
+      Permission grant = new Permission();
+      when(authz.getPermission(ResourceType.SECURITY_ROLE, GLOBAL_ROLE)).thenReturn(grant);
+
+      service.updateRole(GLOBAL_ROLE_PATH, roleRequest(renamed), principal);
+
+      EditRolePaneModel model = captureRoleModel(oldRole);
+      assertEquals(List.of(globalParent), model.roles());
+      assertEquals("global", model.description());
+      verify(authz).setPermission(ResourceType.SECURITY_ROLE, renamed, grant);
+      verify(authz).removePermission(ResourceType.SECURITY_ROLE, GLOBAL_ROLE);
+   }
+
+   @Test
+   void updateGroup_omittedRolesAndAdminIdentities_keepStoredRolesAndGrant() throws Exception {
+      FSGroup oldGroup = storedSalesGroup();
+      AuthorizationProvider authz = stubAuthz();
+      when(orgManager.isSiteAdmin(principal)).thenReturn(false);
+
+      service.updateGroup(SALES_GROUP, groupRequest(SALES_GROUP), principal);
+
+      assertEquals(List.of(PARENT_ROLE), captureGroupModel(oldGroup).roles());
+      verifyGrantUntouched(authz);
+   }
+
+   @Test
+   void updateGroup_emptyValues_clearRolesAndGrant() throws Exception {
+      FSGroup oldGroup = storedSalesGroup();
+      SecurityGroup request = groupRequest(SALES_GROUP);
+      request.setRoles(List.of());
+      request.setAdminIdentities(new AdminIdentities());
+
+      service.updateGroup(SALES_GROUP, request, principal);
+
+      assertEquals(List.of(), captureGroupModel(oldGroup).roles());
+      verify(identityService).setIdentityPermissions(
+         eq(SALES_GROUP), eq(SALES_GROUP), eq(ResourceType.SECURITY_GROUP), eq(principal),
+         eq(List.of()), eq("org2"));
+   }
+
+   @Test
+   void updateUser_omittedFields_keepStoredValuesAndGrant() throws Exception {
+      FSUser oldUser = storedSalesUser();
+      AuthorizationProvider authz = stubAuthz();
+      when(orgManager.isSiteAdmin(principal)).thenReturn(false);
+
+      service.updateUser(SALES_USER, userRequest(SALES_USER), principal);
+
+      EditUserPaneModel model = captureUserModel(oldUser);
+      assertEquals(List.of(PARENT_ROLE), model.roles());
+      // the kept group is not filtered by the caller's permissions, since it does not change
+      assertEquals(Set.of(groupKey(new IdentityID("g1", "org2"))), memberKeys(model.members()));
+      assertEquals("a@b.c", model.email());
+      assertEquals("Ali", model.alias());
+      // setIdentity() takes the label and maps it back to the stored key
+      assertEquals("English(America)", model.locale());
+      assertFalse(model.status(), "an omitted active flag must not re-enable the user");
+      verifyGrantUntouched(authz);
+   }
+
+   @Test
+   void updateUser_emptyValues_clearStoredValuesAndGrant() throws Exception {
+      FSUser oldUser = storedSalesUser();
+      SecurityUser request = userRequest(SALES_USER);
+      request.setRoles(List.of());
+      request.setGroups(List.of());
+      request.setEmails(List.of());
+      request.setAlias("");
+      request.setLocale("");
+      request.setActive(Boolean.TRUE);
+      request.setAdminIdentities(new AdminIdentities());
+
+      service.updateUser(SALES_USER, request, principal);
+
+      EditUserPaneModel model = captureUserModel(oldUser);
+      assertEquals(List.of(), model.roles());
+      assertEquals(List.of(), model.members());
+      assertEquals("", model.email());
+      assertEquals("", model.alias());
+      // the empty code maps to no label, which setIdentity() clears like an empty one
+      assertNull(model.locale());
+      assertTrue(model.status());
+      verify(identityService).setIdentityPermissions(
+         eq(SALES_USER), eq(SALES_USER), eq(ResourceType.SECURITY_USER), eq(principal),
+         eq(List.of()), eq(""));
+   }
+
+   @Test
+   void updateUser_listedValues_replaceStoredValues() throws Exception {
+      FSUser oldUser = storedSalesUser();
+      allowAdminOnEveryIdentity();
+      IdentityID g2 = new IdentityID("g2", "org2");
+      doReturn(new FSGroup(g2)).when(authenticationProvider).getGroup(g2);
+      SecurityUser request = userRequest(SALES_USER);
+      request.setGroups(List.of("g2"));
+      request.setEmails(List.of("x@y.z", "u@v.w"));
+      request.setAlias("Bo");
+      // the REST locale is a code (Bug #76707), passed to setIdentity() as its label
+      request.setLocale("de_DE");
+
+      service.updateUser(SALES_USER, request, principal);
+
+      EditUserPaneModel model = captureUserModel(oldUser);
+      assertEquals(Set.of(groupKey(g2)), memberKeys(model.members()));
+      assertEquals("x@y.z,u@v.w", model.email());
+      assertEquals("Bo", model.alias());
+      assertEquals("Deutsch(Deutschland)", model.locale());
+   }
+
+   @Test
+   void updateUser_activeFalseForAnotherUser_disables() throws Exception {
+      FSUser oldUser = stubUpdatableUser(SALES_USER);
+      SecurityUser request = userRequest(SALES_USER);
+      request.setActive(Boolean.FALSE);
+
+      service.updateUser(SALES_USER, request, principal);
+
+      assertFalse(captureUserModel(oldUser).status());
+   }
+
+   @Test
+   void updateUser_activeFalseForSelf_staysActive() throws Exception {
+      IdentityID self = new IdentityID("caller", "org1");
+      FSUser oldUser = stubUpdatableUser(self);
+      SecurityUser request = userRequest(self);
+      request.setActive(Boolean.FALSE);
+
+      service.updateUser(self, request, principal);
+
+      assertTrue(captureUserModel(oldUser).status(), "a caller cannot deactivate itself");
    }
 
    // ── updateRole permission-write org (bug #76866 regression) ─────────────
@@ -596,7 +1167,9 @@ class SecurityServiceTest {
    // IdentityService.setIdentityPermissions now refuses an all-empty org id (bug #76866). A global
    // (org-less) role has no org of its own, so updateRole used to pass "" and the call threw after
    // setIdentity() had already committed the rename/member change. updateRole must pass the
-   // editing org explicitly for a global role, and the role's own org otherwise.
+   // editing org explicitly for a global role, and the role's own org otherwise. The requests
+   // below carry adminIdentities, since an update that omits them keeps the grant without calling
+   // setIdentityPermissions() (Bug #77326).
 
    @Test
    void updateRole_globalRole_passesCallerCurrentOrgToSetIdentityPermissions() throws Exception {
@@ -611,6 +1184,7 @@ class SecurityServiceTest {
 
       SecurityRole request = new SecurityRole();
       request.setIdentityID(new IdentityID("grole2", null));
+      request.setAdminIdentities(new AdminIdentities());
 
       service.updateRole(roleId, request, principal);
 
@@ -632,6 +1206,7 @@ class SecurityServiceTest {
 
       SecurityRole request = new SecurityRole();
       request.setIdentityID(roleId);
+      request.setAdminIdentities(new AdminIdentities());
 
       service.updateRole(roleId, request, principal);
 
@@ -760,6 +1335,109 @@ class SecurityServiceTest {
       ArgumentCaptor<FSRole> captor = ArgumentCaptor.forClass(FSRole.class);
       verify(editableProvider).addRole(captor.capture());
       assertEquals(List.of(VIEWER_ROLE), List.of(captor.getValue().getRoles()));
+   }
+
+   // Bug #77381: create paths write the identity to the provider directly, bypassing the role
+   // assignment check in IdentityService.setIdentity(), so the roles taken from the request must
+   // go through IdentityService.checkAssignableRoles(). The default roles applied when the request
+   // roles are not honored must not, or a caller without ASSIGN on a default role could not create
+   // any user.
+
+   @Test
+   void createUser_requestedRoles_areCheckedForAssignability() throws Exception {
+      stubCommonCreateGates();
+      when(editableProvider.getOrganization("org1")).thenReturn(new FSOrganization("org1"));
+      SecurityUser request = new SecurityUser();
+      request.setIdentityID(new IdentityID("newuser1", "org1"));
+      request.setPassword("Str0ng!Passw0rd");
+      request.setRoles(List.of(ADMIN_ROLE, VIEWER_ROLE));
+
+      service.createUser(request, null, principal);
+
+      verify(identityService).checkAssignableRoles(eq(Set.of(VIEWER_ROLE)), isNull(), eq(principal));
+   }
+
+   @Test
+   void createUser_unassignableRequestedRole_isRejected() throws Exception {
+      stubCommonCreateGates();
+      when(editableProvider.getOrganization("org1")).thenReturn(new FSOrganization("org1"));
+      doThrow(new java.lang.SecurityException("denied"))
+         .when(identityService).checkAssignableRoles(any(), any(), eq(principal));
+      SecurityUser request = new SecurityUser();
+      request.setIdentityID(new IdentityID("newuser1", "org1"));
+      request.setPassword("Str0ng!Passw0rd");
+      request.setRoles(List.of(VIEWER_ROLE));
+
+      assertThrows(UnauthorizedAccessException.class,
+                   () -> service.createUser(request, null, principal));
+      verify(editableProvider, never()).addUser(any());
+   }
+
+   @Test
+   void createUser_defaultRoleFallback_isNotCheckedForAssignability() throws Exception {
+      stubCommonCreateGates();
+      when(editableProvider.getOrganization("org1")).thenReturn(new FSOrganization("org1"));
+      // without ADMIN on the roles root the request roles are ignored and default roles apply
+      when(securityProvider.checkPermission(eq(principal), eq(ResourceType.SECURITY_ROLE),
+                                            anyString(), eq(ResourceAction.ADMIN)))
+         .thenReturn(false);
+      FSRole defaultRole = new FSRole(VIEWER_ROLE);
+      defaultRole.setDefaultRole(true);
+      when(editableProvider.getRoles()).thenReturn(new IdentityID[] { VIEWER_ROLE });
+      when(editableProvider.getRole(VIEWER_ROLE)).thenReturn(defaultRole);
+      SecurityUser request = new SecurityUser();
+      request.setIdentityID(new IdentityID("newuser1", "org1"));
+      request.setPassword("Str0ng!Passw0rd");
+      request.setRoles(List.of(VIEWER_ROLE));
+
+      service.createUser(request, null, principal);
+
+      verify(identityService, never()).checkAssignableRoles(any(), any(), any());
+      ArgumentCaptor<FSUser> captor = ArgumentCaptor.forClass(FSUser.class);
+      verify(editableProvider).addUser(captor.capture());
+      assertEquals(List.of(VIEWER_ROLE), List.of(captor.getValue().getRoles()));
+   }
+
+   @Test
+   void createGroup_unassignableRequestedRole_isRejected() throws Exception {
+      stubCommonCreateGates();
+      doThrow(new java.lang.SecurityException("denied"))
+         .when(identityService).checkAssignableRoles(any(), any(), eq(principal));
+      SecurityGroup request = new SecurityGroup();
+      request.setIdentityID(new IdentityID("newgroup1", "org1"));
+      request.setOrgID("org1");
+      request.setRoles(List.of(VIEWER_ROLE));
+
+      assertThrows(UnauthorizedAccessException.class,
+                   () -> service.createGroup(request, null, principal));
+      verify(editableProvider, never()).addGroup(any());
+   }
+
+   @Test
+   void createGroup_requestedRoles_areCheckedForAssignability() throws Exception {
+      stubCommonCreateGates();
+      SecurityGroup request = new SecurityGroup();
+      request.setIdentityID(new IdentityID("newgroup1", "org1"));
+      request.setOrgID("org1");
+      request.setRoles(List.of(VIEWER_ROLE));
+
+      service.createGroup(request, null, principal);
+
+      verify(identityService).checkAssignableRoles(eq(Set.of(VIEWER_ROLE)), isNull(), eq(principal));
+   }
+
+   @Test
+   void createRole_unassignableInheritedRole_isRejected() throws Exception {
+      stubCommonCreateGates();
+      doThrow(new java.lang.SecurityException("denied"))
+         .when(identityService).checkAssignableRoles(any(), any(), eq(principal));
+      SecurityRole request = new SecurityRole();
+      request.setIdentityID(new IdentityID("neworgrole1", "org1"));
+      request.setInheritedRoles(List.of(VIEWER_ROLE));
+
+      assertThrows(UnauthorizedAccessException.class,
+                   () -> service.createRole(request, null, principal));
+      verify(editableProvider, never()).addRole(any());
    }
 
    // ── global role name resolution (Bug #76828) ─────────────────────────────────────────────
@@ -3714,6 +4392,29 @@ class SecurityServiceTest {
          namedTheme("s1", "Sales Theme", "sales"), namedTheme("o1", "Sales Theme", "org1")));
    }
 
+   // Bug #77117: create and update share one lookup (SecurityService.findOrganizationTheme)
+
+   @Test
+   void createOrganization_ownThemeBeatsSameNamedGlobalWithLowerId() throws Exception {
+      assertEquals("s1", createOrganizationWithThemes("Shared",
+         namedTheme("a", "Shared", null), namedTheme("s1", "Shared", "sales")));
+   }
+
+   @Test
+   void createOrganization_emptyOrgIdThemeIsGlobal() throws Exception {
+      assertEquals("g1", createOrganizationWithThemes("Global", namedTheme("g1", "Global", "")));
+   }
+
+   @Test
+   void createOrganization_reservedDefaultId_noThemeEvenWithThemeNamedDefault() throws Exception {
+      // Bug #77304: the reserved id "default" means "use the default theme", so create stores no
+      // theme, as for an omitted one, and never resolves it to a theme named "default" (default1)
+      assertNull(createOrganizationWithThemes(CustomTheme.DEFAULT_THEME_ID,
+         namedTheme("default1", CustomTheme.DEFAULT_THEME_ID, null)));
+      verify(customThemesManager, never()).setCustomThemes(any());
+      verify(customThemesManager, never()).setOrgSelectedTheme(anyString(), anyString());
+   }
+
    @Test
    void createOrganization_duplicateThemeNames_lowestIdSelected() throws Exception {
       assertEquals("a", createOrganizationWithThemes("Global",
@@ -4066,6 +4767,45 @@ class SecurityServiceTest {
       assertNull(model.locale());
    }
 
+   // Bug #77170: the GET of an organization returns the locale key, and setIdentity() only
+   // accepts the label, so a GET followed by a PUT of the same body must keep the locale. On this
+   // branch the REST locale is always a code (Bug #76707), converted to its label for setIdentity().
+   @Test
+   void organization_getThenPutSameLocale_keepsLocale() throws Exception {
+      stubOrgsForUpdate();
+      stubOrg1ThemeAndLocale("t1", "en_US");
+      doReturn(new String[0]).when(securityProvider).getOrganizationMembers("org1");
+      when(identityService.getIdentityInfo(any(), eq(Identity.ORGANIZATION), any()))
+         .thenAnswer(inv -> new IdentityInfo(editableProvider.getOrganization("org1"), securityProvider));
+
+      SecurityOrganization got = service.getOrganization("org1", principal);
+      assertEquals("en_US", got.getLocale());
+
+      SecurityOrganization request = newOrgRequest("org1", "Org One");
+      request.setLocale(got.getLocale());
+      service.updateOrganization("org1", request, principal);
+
+      assertEquals("English(America)", captureOrgModel().locale());
+   }
+
+   // a value that is both a key and a label is a locale code, so its own label is passed on
+   // (main treated it as a label; the REST locale is a code on this branch, Bug #76707)
+   @Test
+   void updateOrganization_localeCodeThatIsAlsoLabel_passedAsItsLabel() throws Exception {
+      stubOrgsForUpdate();
+      stubOrg1ThemeAndLocale("t1", null);
+      Properties localeProperties = new Properties();
+      localeProperties.setProperty("en_US", "English");
+      localeProperties.setProperty("English", "Other");
+      sUtilStatic.when(SUtil::loadLocaleProperties).thenReturn(localeProperties);
+      SecurityOrganization request = newOrgRequest("org1", "Org One");
+      request.setLocale("English");
+
+      service.updateOrganization("org1", request, principal);
+
+      assertEquals("Other", captureOrgModel().locale());
+   }
+
    // a stored locale key without a label in locale.properties cannot be passed as a label, so it
    // is cleared even though the request omits the locale (documented limitation)
    @Test
@@ -4094,6 +4834,198 @@ class SecurityServiceTest {
       service.updateOrganization("org1", newOrgRequest("org1", "Org One"), principal);
 
       assertEquals("English", captureOrgModel().locale());
+   }
+
+   // Bug #77147: the REST organization has no status, so an update must keep the stored status
+   // instead of passing the model default, which would reactivate an inactive organization
+   @Test
+   void updateOrganization_inactiveOrg_staysInactive() throws Exception {
+      stubOrgsForUpdate();
+      ((FSOrganization) editableProvider.getOrganization("org1")).setActive(false);
+
+      service.updateOrganization("org1", newOrgRequest("org1", "Org Renamed"), principal);
+
+      assertFalse(captureOrgModel().status());
+   }
+
+   @Test
+   void updateOrganization_activeOrg_staysActive() throws Exception {
+      stubOrgsForUpdate();
+
+      service.updateOrganization("org1", newOrgRequest("org1", "Org Renamed"), principal);
+
+      assertTrue(captureOrgModel().status());
+   }
+
+   // Bug #77117: the REST create matched the organization theme by name, but the update passed
+   // the value verbatim to IdentityService, whose eligibility checks only match theme ids, so a
+   // theme name on update was silently ignored (site admin) or rejected (org admin). The update
+   // now resolves a name to the id of an eligible (global or own-organization) theme first.
+
+   private String updateOrgTheme(String requested, CustomTheme... themes) throws Exception {
+      return updateOrgTheme("org1", requested, themes);
+   }
+
+   private String updateOrgTheme(String newId, String requested, CustomTheme... themes)
+      throws Exception
+   {
+      when(customThemesManager.getCustomThemes()).thenReturn(new HashSet<>(Arrays.asList(themes)));
+      SecurityOrganization request = newOrgRequest(newId, "Org One");
+      request.setTheme(requested);
+
+      service.updateOrganization("org1", request, principal);
+
+      return captureOrgModel().theme();
+   }
+
+   @Test
+   void updateOrganization_themeName_resolvedToGlobalThemeId() throws Exception {
+      stubOrgsForUpdate();
+
+      assertEquals("g1", updateOrgTheme("Blue Global", namedTheme("g1", "Blue Global", null)));
+   }
+
+   @Test
+   void updateOrganization_themeName_resolvedToOwnOrgThemeId() throws Exception {
+      stubOrgsForUpdate();
+
+      assertEquals("t1", updateOrgTheme("Mine", namedTheme("t1", "Mine", "org1")));
+   }
+
+   @Test
+   void updateOrganization_themeId_unchanged() throws Exception {
+      // control: the ids that EM and existing REST clients send are passed through as is
+      stubOrgsForUpdate();
+
+      assertEquals("g1", updateOrgTheme("g1", namedTheme("g1", "Blue Global", null)));
+   }
+
+   @Test
+   void updateOrganization_themeId_winsOverNameEqualToThatId() throws Exception {
+      stubOrgsForUpdate();
+
+      assertEquals("g1", updateOrgTheme("g1", namedTheme("a", "g1", null),
+                                        namedTheme("g1", "Other", null)));
+   }
+
+   @Test
+   void updateOrganization_themeName_ownOrgThemeWinsOverSameNamedGlobal() throws Exception {
+      // the global theme has the lower id, so this is not the lowest-id tie-break
+      stubOrgsForUpdate();
+
+      assertEquals("z-org1", updateOrgTheme("Blue", namedTheme("a-global", "Blue", null),
+                                            namedTheme("z-org1", "Blue", "org1")));
+   }
+
+   @Test
+   void updateOrganization_themeName_sameNamedGlobals_lowestIdWins() throws Exception {
+      // a theme with an empty org id is global, as in IdentityService
+      stubOrgsForUpdate();
+
+      assertEquals("b", updateOrgTheme("Blue", namedTheme("c", "Blue", null),
+                                       namedTheme("b", "Blue", "")));
+   }
+
+   @Test
+   void updateOrganization_otherOrgThemeName_passedThroughUnresolved() throws Exception {
+      // the sink then ignores it (site admin) or rejects it (org admin), as before
+      stubOrgsForUpdate();
+
+      assertEquals("Private", updateOrgTheme("Private", namedTheme("o2", "Private", "org2")));
+   }
+
+   @Test
+   void updateOrganization_unknownTheme_passedThroughUnresolved() throws Exception {
+      stubOrgsForUpdate();
+
+      assertEquals("unknown", updateOrgTheme("unknown", namedTheme("g1", "Blue", null)));
+   }
+
+   @Test
+   void updateOrganization_nullTheme_unchanged() throws Exception {
+      stubOrgsForUpdate();
+
+      assertNull(updateOrgTheme(null, namedTheme("blank", null, null)));
+   }
+
+   @Test
+   void updateOrganization_emptyTheme_notResolvedAsName() throws Exception {
+      stubOrgsForUpdate();
+
+      assertEquals("", updateOrgTheme("", namedTheme("blank", "", null)));
+   }
+
+   @Test
+   void updateOrganization_reservedDefaultId_passedThroughEvenWithThemeNamedDefault()
+      throws Exception
+   {
+      // Bug #77304: the reserved id "default" means "use the default theme" and the sink clears
+      // the assignment, so it is never resolved by name to a theme named "default" (default1),
+      // which stays reachable by its own id
+      stubOrgsForUpdate();
+
+      assertEquals(CustomTheme.DEFAULT_THEME_ID,
+                   updateOrgTheme(CustomTheme.DEFAULT_THEME_ID,
+                                  namedTheme("default1", CustomTheme.DEFAULT_THEME_ID, null)));
+   }
+
+   @Test
+   void updateOrganization_defaultWithoutThemeOfThatName_passedThroughUnresolved()
+      throws Exception
+   {
+      stubOrgsForUpdate();
+
+      assertEquals(CustomTheme.DEFAULT_THEME_ID,
+                   updateOrgTheme(CustomTheme.DEFAULT_THEME_ID, namedTheme("g1", "Blue", null)));
+   }
+
+   @Test
+   void updateOrganization_otherOrgThemeId_resolvedToEligibleThemeWithThatName()
+      throws Exception
+   {
+      // the id match only considers eligible themes, so another org's theme id does not win
+      // over an eligible theme whose name is that value
+      stubOrgsForUpdate();
+
+      assertEquals("t1", updateOrgTheme("x", namedTheme("x", "Mine", "org2"),
+                                        namedTheme("t1", "x", "org1")));
+   }
+
+   @Test
+   void updateOrganization_idRename_themeNameResolvedAgainstCurrentOrgId() throws Exception {
+      // the org's own themes still carry the current id until setIdentity() copies them
+      stubOrgsForUpdate();
+
+      assertEquals("t1", updateOrgTheme("org1b", "Mine", namedTheme("t1", "Mine", "org1")));
+   }
+
+   @Test
+   void updateOrganization_legacyNameStored_putByNamePassesIdToSink() throws Exception {
+      // a create on main stored the theme name; a PUT with that name now passes the id to the
+      // sink. The sink is mocked here, so this only checks the REST layer, not the stored heal.
+      FSOrganization org1 = stubOrgsForUpdate();
+      org1.setTheme("Blue Global");
+
+      assertEquals("g1", updateOrgTheme("Blue Global", namedTheme("g1", "Blue Global", null)));
+   }
+
+   @Test
+   void updateOrganization_themeOmitted_legacyStoredNameKeptUnresolved() throws Exception {
+      // Bug #77146 keeps the current theme when the PUT omits it; only a theme that the request
+      // supplies is resolved, so a locale-only PUT must not rewrite a legacy stored name
+      stubOrgsForUpdate();
+      stubOrg1ThemeAndLocale("Blue Global", "en_US");
+      when(customThemesManager.getCustomThemes())
+         .thenReturn(new HashSet<>(List.of(namedTheme("g1", "Blue Global", null))));
+      SecurityOrganization request = newOrgRequest("org1", "Org One");
+      // the REST locale is a code (Bug #76707), passed to setIdentity() as its label
+      request.setLocale("de_DE");
+
+      service.updateOrganization("org1", request, principal);
+
+      EditOrganizationPaneModel model = captureOrgModel();
+      assertEquals("Blue Global", model.theme());
+      assertEquals("Deutsch(Deutschland)", model.locale());
    }
 
    private void stubOrg1ThemeAndLocale(String theme, String locale) {
@@ -5082,15 +6014,19 @@ class SecurityServiceTest {
    void updateUser_renamed_migratesUserRenameOnStoredOrgAfterSetIdentity() throws Exception {
       FSUser oldUser = stubUpdatableUser(SALES_USER);
       IdentityID renamed = new IdentityID("sales3", "org2");
+      AuthorizationProvider authz = stubAuthz();
+      Permission grant = new Permission();
+      when(authz.getPermission(ResourceType.SECURITY_USER, SALES_USER)).thenReturn(grant);
 
       // The body carries a different org; the migration must still use the stored/path org.
       service.updateUser(SALES_USER, userRequest(new IdentityID("sales3", "org3")), principal);
 
-      InOrder order = inOrder(identityService, userTreeService);
+      // the body omits adminIdentities, so the grant is moved to the new key (Bug #77326)
+      InOrder order = inOrder(identityService, authz, userTreeService);
       order.verify(identityService).setIdentity(eq(oldUser), any(EditUserPaneModel.class),
                                                 eq(editableProvider), eq(principal));
-      order.verify(identityService).setIdentityPermissions(
-         eq(SALES_USER), eq(renamed), eq(ResourceType.SECURITY_USER), eq(principal), any(), eq(""));
+      order.verify(authz).setPermission(ResourceType.SECURITY_USER, renamed, grant);
+      order.verify(authz).removePermission(ResourceType.SECURITY_USER, SALES_USER);
       order.verify(userTreeService).migrateUserRename(SALES_USER, renamed);
       verifyNoMoreInteractions(userTreeService);
    }
@@ -5150,18 +6086,21 @@ class SecurityServiceTest {
    void updateGroup_renamed_migratesGroupRenameLastOnStoredOrg() throws Exception {
       FSGroup oldGroup = stubUpdatableGroup(SALES_GROUP);
       IdentityID renamed = new IdentityID("sales2", "org2");
+      AuthorizationProvider authz = stubAuthz();
+      Permission grant = new Permission();
+      when(authz.getPermission(ResourceType.SECURITY_GROUP, SALES_GROUP)).thenReturn(grant);
 
       // The body carries a different org; the migration must still use the stored/path org.
       service.updateGroup(SALES_GROUP, groupRequest(new IdentityID("sales2", "org3")), principal);
 
       // The migration must follow updateParentGroups (which re-saves the group under the new
-      // ID), so a migration failure can't skip the provider-level parent-group move.
-      InOrder order = inOrder(identityService, editableProvider, userTreeService);
+      // ID), so a migration failure can't skip the provider-level parent-group move. The body
+      // omits adminIdentities, so the grant is moved to the new key (Bug #77326).
+      InOrder order = inOrder(identityService, authz, editableProvider, userTreeService);
       order.verify(identityService).setIdentity(eq(oldGroup), any(EditGroupPaneModel.class),
                                                 eq(editableProvider), eq(principal));
-      order.verify(identityService).setIdentityPermissions(
-         eq(SALES_GROUP), eq(renamed), eq(ResourceType.SECURITY_GROUP), eq(principal), any(),
-         eq("org2"));
+      order.verify(authz).setPermission(ResourceType.SECURITY_GROUP, renamed, grant);
+      order.verify(authz).removePermission(ResourceType.SECURITY_GROUP, SALES_GROUP);
       order.verify(editableProvider).setGroup(eq(renamed), any(FSGroup.class));
       order.verify(userTreeService).migrateGroupRename(SALES_GROUP, renamed);
       verifyNoMoreInteractions(userTreeService);
@@ -5252,15 +6191,19 @@ class SecurityServiceTest {
    void updateRole_renamed_migratesRoleRenameLastOnStoredOrg() throws Exception {
       FSRole oldRole = stubUpdatableRole(ANALYST_ROLE);
       IdentityID renamed = new IdentityID("analyst2", "org2");
+      AuthorizationProvider authz = stubAuthz();
+      Permission grant = new Permission();
+      when(authz.getPermission(ResourceType.SECURITY_ROLE, ANALYST_ROLE)).thenReturn(grant);
 
       // The body carries a different org; the migration must still use the stored/path org.
       service.updateRole(ANALYST_ROLE, roleRequest(new IdentityID("analyst2", "org3")), principal);
 
-      InOrder order = inOrder(identityService, userTreeService);
+      // the body omits adminIdentities, so the grant is moved to the new key (Bug #77326)
+      InOrder order = inOrder(identityService, authz, userTreeService);
       order.verify(identityService).setIdentity(eq(oldRole), any(EditRolePaneModel.class),
                                                 eq(editableProvider), eq(principal));
-      order.verify(identityService).setIdentityPermissions(
-         eq(ANALYST_ROLE), eq(renamed), eq(ResourceType.SECURITY_ROLE), eq(principal), any(), eq("org2"));
+      order.verify(authz).setPermission(ResourceType.SECURITY_ROLE, renamed, grant);
+      order.verify(authz).removePermission(ResourceType.SECURITY_ROLE, ANALYST_ROLE);
       order.verify(userTreeService).migrateRoleRename(ANALYST_ROLE, renamed);
       verifyNoMoreInteractions(userTreeService);
    }
@@ -5277,16 +6220,18 @@ class SecurityServiceTest {
    }
 
    @Test
-   void updateRole_noIdentityIdInBody_throwsBeforeAnyWriteOrMigration() throws Exception {
-      stubUpdatableRole(ANALYST_ROLE);
+   void updateRole_noIdentityIdInBody_keepsNameAndDoesNotMigrate() throws Exception {
+      FSRole oldRole = stubUpdatableRole(ANALYST_ROLE);
 
-      // EntityModel.name() is non-null, so the immutable builder rejects the null name before
-      // setIdentity, the permission update or the VPM migration can run with a null role name
-      NullPointerException ex = assertRefusedBeforeMutation(NullPointerException.class, () ->
-         service.updateRole(ANALYST_ROLE, roleRequest(null), principal));
+      // Bug #77171: an omitted identityID keeps the role's name (the path name), so the update
+      // is not a rename and runs no VPM rename migration
+      service.updateRole(ANALYST_ROLE, roleRequest(null), principal);
 
-      assertEquals("name", ex.getMessage());
-      verify(identityService, never()).setIdentity(any(), any(), any(), any());
+      ArgumentCaptor<EditRolePaneModel> captor = ArgumentCaptor.forClass(EditRolePaneModel.class);
+      verify(identityService).setIdentity(eq(oldRole), captor.capture(), eq(editableProvider),
+                                          eq(principal));
+      assertEquals(ANALYST_ROLE.name, captor.getValue().name());
+      // an omitted adminIdentities keeps the role's grants (Bug #77326)
       verify(identityService, never())
          .setIdentityPermissions(any(), any(), any(), any(), any(), any());
       verifyNoInteractions(userTreeService);
@@ -5605,6 +6550,164 @@ class SecurityServiceTest {
       assertEquals(List.of("save:ds-org1@org1", "save:ds-org2@org2"), vpmEvents);
       verify(repository, never()).getDataSourceFullNames(
          new IdentityID(GLOBAL_ORG_KEY, GLOBAL_ORG_KEY));
+   }
+
+   // ── Bug #77114: a rename rewrites the renamed identity's own permitted-identities entry ─
+   //
+   // A GET of a user/group/role returns its admin identities, which include the identity's own
+   // ADMIN self grant under its current name. PUTting that body back with a new name passed the
+   // old-name entry to setIdentityPermissions(), which replaces the grantees, so the renamed
+   // identity's grant named the old (no longer existing) identity. The same-type entry naming the
+   // old identity must be rewritten to the new one; every other entry is passed on unchanged.
+
+   private void allowAdminOnEveryIdentity() {
+      when(securityProvider.checkPermission(eq(principal), any(ResourceType.class), anyString(),
+                                            eq(ResourceAction.ADMIN)))
+         .thenReturn(true);
+   }
+
+   private static AdminIdentities adminIdentities(List<IdentityID> users, List<IdentityID> groups,
+                                                  List<IdentityID> roles)
+   {
+      AdminIdentities ids = new AdminIdentities();
+      ids.setUsers(users);
+      ids.setGroups(groups);
+      ids.setRoles(roles);
+      return ids;
+   }
+
+   private static String permittedKey(int type, String name, String orgID) {
+      return type + ":" + name + "@" + orgID;
+   }
+
+   @SuppressWarnings("unchecked")
+   private Set<String> capturePermittedIdentities(ResourceType type) {
+      ArgumentCaptor<List<IdentityModel>> captor = ArgumentCaptor.forClass(List.class);
+      verify(identityService).setIdentityPermissions(
+         any(), any(), eq(type), eq(principal), captor.capture(), any());
+      Set<String> keys = new HashSet<>();
+
+      for(IdentityModel model : captor.getValue()) {
+         keys.add(permittedKey(model.type(), model.identityID().name, model.identityID().orgID));
+      }
+
+      return keys;
+   }
+
+   @Test
+   void updateUser_renamed_rewritesOwnUserEntry_keepsOtherEntriesUnchanged() throws Exception {
+      stubUpdatableUser(SALES_USER);
+      allowAdminOnEveryIdentity();
+      SecurityUser request = userRequest(new IdentityID("sales3", "org2"));
+      // a same-named group and role are other identities; an entry of another org is not
+      // re-stamped with the renamed user's org
+      request.setAdminIdentities(adminIdentities(
+         List.of(SALES_USER, new IdentityID("other", "org9")),
+         List.of(new IdentityID("sales", "org2")), List.of(new IdentityID("sales", "org2"))));
+
+      service.updateUser(SALES_USER, request, principal);
+
+      assertEquals(Set.of(permittedKey(Identity.USER, "sales3", "org2"),
+                          permittedKey(Identity.USER, "other", "org9"),
+                          permittedKey(Identity.GROUP, "sales", "org2"),
+                          permittedKey(Identity.ROLE, "sales", "org2")),
+                   capturePermittedIdentities(ResourceType.SECURITY_USER));
+   }
+
+   @Test
+   void updateUser_renamed_ownEntryWithoutOrg_rewritten() throws Exception {
+      stubUpdatableUser(SALES_USER);
+      allowAdminOnEveryIdentity();
+      SecurityUser request = userRequest(new IdentityID("sales3", "org2"));
+      // setIdentityPermissions() stamps the path org on a user grantee, so an entry sent without
+      // an org still names the renamed user
+      request.setAdminIdentities(
+         adminIdentities(List.of(new IdentityID("sales", null)), null, null));
+
+      service.updateUser(SALES_USER, request, principal);
+
+      assertEquals(Set.of(permittedKey(Identity.USER, "sales3", "org2")),
+                   capturePermittedIdentities(ResourceType.SECURITY_USER));
+   }
+
+   @Test
+   void updateUser_renamedByDelegatedCaller_rewritesOwnEntry_keepsCallerEntry() throws Exception {
+      stubUpdatableUser(SALES_USER);
+      when(orgManager.isSiteAdmin(principal)).thenReturn(false);
+      // the caller administers the user and itself through grants, not as an admin
+      IdentityID delegate = new IdentityID("dlg", "org2");
+      when(securityProvider.checkPermission(principal, ResourceType.SECURITY_USER,
+                                            delegate.convertToKey(), ResourceAction.ADMIN))
+         .thenReturn(true);
+      SecurityUser request = userRequest(new IdentityID("sales3", "org2"));
+      request.setAdminIdentities(adminIdentities(List.of(SALES_USER, delegate), null, null));
+
+      service.updateUser(SALES_USER, request, principal);
+
+      assertEquals(Set.of(permittedKey(Identity.USER, "sales3", "org2"),
+                          permittedKey(Identity.USER, "dlg", "org2")),
+                   capturePermittedIdentities(ResourceType.SECURITY_USER));
+   }
+
+   @Test
+   void updateUser_nameUnchanged_passesOwnEntryThrough() throws Exception {
+      stubUpdatableUser(SALES_USER);
+      allowAdminOnEveryIdentity();
+      SecurityUser request = userRequest(SALES_USER);
+      request.setAdminIdentities(adminIdentities(List.of(SALES_USER), null, null));
+
+      service.updateUser(SALES_USER, request, principal);
+
+      assertEquals(Set.of(permittedKey(Identity.USER, "sales", "org2")),
+                   capturePermittedIdentities(ResourceType.SECURITY_USER));
+   }
+
+   @Test
+   void updateGroup_renamed_rewritesOwnGroupEntry_keepsSameNamedUser() throws Exception {
+      stubUpdatableGroup(SALES_GROUP);
+      allowAdminOnEveryIdentity();
+      SecurityGroup request = groupRequest(new IdentityID("sales2", "org2"));
+      request.setAdminIdentities(adminIdentities(
+         List.of(new IdentityID("sales", "org2")), List.of(SALES_GROUP), null));
+
+      service.updateGroup(SALES_GROUP, request, principal);
+
+      assertEquals(Set.of(permittedKey(Identity.GROUP, "sales2", "org2"),
+                          permittedKey(Identity.USER, "sales", "org2")),
+                   capturePermittedIdentities(ResourceType.SECURITY_GROUP));
+   }
+
+   @Test
+   void updateRole_renamed_rewritesOwnRoleEntry_keepsSameNamedGlobalRoleAndUser() throws Exception {
+      stubUpdatableRole(ANALYST_ROLE);
+      allowAdminOnEveryIdentity();
+      SecurityRole request = roleRequest(new IdentityID("analyst2", "org2"));
+      // a global role of the same name is a different role
+      request.setAdminIdentities(adminIdentities(
+         List.of(new IdentityID("analyst", "org2")), null,
+         List.of(ANALYST_ROLE, new IdentityID("analyst", null))));
+
+      service.updateRole(ANALYST_ROLE, request, principal);
+
+      assertEquals(Set.of(permittedKey(Identity.ROLE, "analyst2", "org2"),
+                          permittedKey(Identity.ROLE, "analyst", null),
+                          permittedKey(Identity.USER, "analyst", "org2")),
+                   capturePermittedIdentities(ResourceType.SECURITY_ROLE));
+   }
+
+   @Test
+   void updateRole_globalRoleRenamed_rewritesOwnGlobalEntry_keepsSameNamedOrgRole() throws Exception {
+      stubUpdatableRole(GLOBAL_ROLE_PATH, new FSRole(GLOBAL_ROLE));
+      allowAdminOnEveryIdentity();
+      SecurityRole request = roleRequest(new IdentityID("gRole2", null));
+      request.setAdminIdentities(adminIdentities(
+         null, null, List.of(GLOBAL_ROLE, new IdentityID("gRole", "org1"))));
+
+      service.updateRole(GLOBAL_ROLE_PATH, request, principal);
+
+      assertEquals(Set.of(permittedKey(Identity.ROLE, "gRole2", null),
+                          permittedKey(Identity.ROLE, "gRole", "org1")),
+                   capturePermittedIdentities(ResourceType.SECURITY_ROLE));
    }
 
    // ── getOrganization / getOrganizations theme ────────────────────────────

@@ -19,8 +19,9 @@ package inetsoft.web.admin.security;
  * Bug #77265: REST create/update user accepted "theme" but never assigned it, because
  * updateUser only called the rename-only IdentityThemeService.updateTheme and createUser never
  * touched the theme service. Both now call updateUserTheme like the EM user editor
- * (null = keep, "" = default theme, an id that cannot be assigned to the user's organization is
- * ignored with a warning).
+ * (null = keep, "" or the reserved "default" id = default theme, an id that cannot be assigned
+ * to the user's organization is ignored with a warning). Bug #77304: "default" clears the
+ * assignment like "", matching the organization update.
  */
 
 import inetsoft.sree.SreeEnv;
@@ -52,6 +53,10 @@ class SecurityServiceUserThemeTest {
       authenticationProvider = mock(AuthenticationProvider.class, withSettings().defaultAnswer(CALLS_REAL_METHODS));
       securityProvider = mock(SecurityProvider.class, withSettings().lenient());
       when(securityProvider.getAuthenticationProvider()).thenReturn(authenticationProvider);
+      // a rename that omits adminIdentities re-keys the grant through the authorization
+      // provider (Bug #77326)
+      when(securityProvider.getAuthorizationProvider())
+         .thenReturn(mock(AuthorizationChain.class, withSettings().lenient()));
 
       SecurityEngine securityEngine = mock(SecurityEngine.class, withSettings().lenient());
       when(securityEngine.getSecurityProvider()).thenReturn(securityProvider);

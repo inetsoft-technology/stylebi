@@ -17,6 +17,7 @@
  */
 package inetsoft.web.admin.security;
 
+import com.fasterxml.jackson.annotation.*;
 import inetsoft.sree.security.*;
 import io.swagger.v3.oas.annotations.media.ArraySchema;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -92,18 +93,51 @@ public class SecurityUser {
    /**
     * Gets if the user is active
     *
-    * @return true if the user is active
+    * @return true if the user is active, or {@code null} if not specified. A new user is active
+    *         and an update keeps the user's current status when it is not specified.
     */
-   @Schema(description = "Flag indicating if the user is active.", example = "true")
-   public boolean isActive() {
+   @Schema(description = "Flag indicating if the user is active. A new user is active if it is " +
+      "not specified, and an update that omits it keeps the user's current status.",
+      example = "true")
+   @JsonProperty("active")
+   // not sent when unset, so that a server that reads it as a primitive does not disable the user
+   @JsonInclude(JsonInclude.Include.NON_NULL)
+   public Boolean getActive() {
       return active;
    }
 
    /**
     * Sets if the user is active
     *
-    * @param active true if the user is active
+    * @param active true if the user is active, or {@code null} if not specified.
     */
+   @JsonProperty("active")
+   public void setActive(Boolean active) {
+      this.active = active;
+   }
+
+   /**
+    * Gets if the user is active.
+    *
+    * @return true if the user is active or if it is not specified.
+    *
+    * @deprecated use {@link #getActive()}, which tells an unspecified status apart.
+    */
+   @Deprecated
+   @JsonIgnore
+   public boolean isActive() {
+      return active == null || active;
+   }
+
+   /**
+    * Sets if the user is active.
+    *
+    * @param active true if the user is active
+    *
+    * @deprecated use {@link #setActive(Boolean)}.
+    */
+   @Deprecated
+   @JsonIgnore
    public void setActive(boolean active) {
       this.active = active;
    }
@@ -278,7 +312,7 @@ public class SecurityUser {
    private String alias;
    private String locale;
    private String theme;
-   private boolean active = true;
+   private Boolean active;
    private List<String> emails;
    private List<String> groups;
    private List<IdentityID> roles;

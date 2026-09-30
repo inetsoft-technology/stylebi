@@ -25,12 +25,14 @@ import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.sync.*;
 import inetsoft.uql.jdbc.JDBCDataSource;
+import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.util.Tool;
 import inetsoft.util.audit.ActionRecord;
 import inetsoft.util.audit.Audit;
 import inetsoft.web.admin.content.database.DatabaseTypeService;
 import inetsoft.web.admin.content.database.types.CustomDatabaseType;
 import inetsoft.web.admin.idgen.MD5IdentifierGenerator;
+import inetsoft.web.portal.data.SecretIdAuthorizer;
 import inetsoft.web.security.auth.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -55,12 +57,13 @@ public class DataSourceService {
    @Autowired
    public DataSourceService(XRepository repository, SecurityEngine securityEngine,
                             DatabaseTypeService databaseTypeService,
-                            MD5IdentifierGenerator ids)
+                            MD5IdentifierGenerator ids, DataSourceRegistry dataSourceRegistry)
    {
       this.repository = repository;
       this.securityEngine = securityEngine;
       this.databaseTypeService = databaseTypeService;
       this.ids = ids;
+      this.secretIdAuthorizer = new SecretIdAuthorizer(securityEngine, dataSourceRegistry);
    }
 
    /**
@@ -157,6 +160,10 @@ public class DataSourceService {
          }
 
          checkMovePermissions(user, oldName, newName);
+
+         if(XDataSource.JDBC.equals(ds.getType())) {
+            checkSecretId((JDBCDataSource) ds, (JdbcDataSourceProperties) properties, user);
+         }
 
          //Create parent datasource folders
          int idx = newName.indexOf('/');
@@ -379,6 +386,20 @@ public class DataSourceService {
       return ds;
    }
 
+   /**
+    * Checks that the caller may use the secret id that the properties reference (Bug #77157).
+    * This is done before the data source is changed, so that the secret id it stores is still
+    * known.
+    */
+   private void checkSecretId(JDBCDataSource ds, JdbcDataSourceProperties properties,
+                              Principal user)
+   {
+      if(properties.isRequireLogin() && Tool.isCloudSecrets()) {
+         SecretIdAuthorizer.checkSecretId(
+            properties.getCredentialID(), secretIdAuthorizer.createCheck(ds, user));
+      }
+   }
+
    private void updateDataSource(JDBCDataSource ds, JdbcDataSourceProperties properties) {
       ds.setName(properties.getName());
       ds.setURL(properties.getUrl());
@@ -442,4 +463,5 @@ public class DataSourceService {
    private final SecurityEngine securityEngine;
    private final DatabaseTypeService databaseTypeService;
    private final MD5IdentifierGenerator ids;
+   private final SecretIdAuthorizer secretIdAuthorizer;
 }

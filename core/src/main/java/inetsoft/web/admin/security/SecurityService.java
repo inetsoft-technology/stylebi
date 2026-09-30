@@ -240,7 +240,8 @@ public class SecurityService {
 
          String alias = request.getAlias();
          String locale = validateLocale(request.getLocale());
-         boolean active = request.isActive();
+         // a new user is active unless the request says otherwise
+         boolean active = request.getActive() == null || request.getActive();
          List<String> emails = request.getEmails() == null ?
             new ArrayList<>() : request.getEmails();
          Set<IdentityID> roles = Arrays.stream(provider.getRoles())
@@ -255,6 +256,7 @@ public class SecurityService {
             if(request.getRoles() != null) {
                roles = resolveRoleReferencesOrThrow(
                   filterSystemAdminRoles(request.getRoles(), securityProvider, principal), provider);
+               checkAssignableRoles(roles, principal);
             }
          }
 
@@ -289,6 +291,11 @@ public class SecurityService {
       }
    }
 
+   /**
+    * Updates a user. A property or list that the request omits ({@code null}) leaves that
+    * property of the user unchanged. A value that is present replaces the current one, and an
+    * empty list or string clears it.
+    */
    public void updateUser(IdentityID id, SecurityUser request, Principal principal) throws Exception {
       SecurityProvider securityProvider = this.securityEngine.getSecurityProvider();
       EditableAuthenticationProvider provider = getEditableAuthenticationProvider(securityProvider);
@@ -302,7 +309,9 @@ public class SecurityService {
             throw new UnauthorizedAccessException("Permission denied to update user");
          }
 
-         if(provider.getUser(id) == null) {
+         final User currentUser = provider.getUser(id);
+
+         if(currentUser == null) {
             if(securityProvider.getUser(id) == null) {
                throw new MissingResourceException(id.name);
             }
@@ -315,9 +324,15 @@ public class SecurityService {
          List<IdentityID> groupIds = request.getGroups() == null ? null : request.getGroups().stream()
             .map(n -> new IdentityID(n, id.orgID)).collect(Collectors.toList());
 
+         // A property that the request omits (null) keeps the user's current value, taken from
+         // the editable provider (Bug #77326). An omitted group list keeps the current groups,
+         // which are not filtered by the caller's permissions, because they do not change.
+         Collection<IdentityID> groups = groupIds == null ?
+            Arrays.stream(currentUser.getGroups() == null ? new String[0] : currentUser.getGroups())
+               .map(n -> new IdentityID(n, id.orgID)).toList() :
+            filterPermittedIds(groupIds, ResourceType.SECURITY_GROUP, securityProvider, principal);
          List<IdentityModel> parentGroups =
-            filterPermittedIds(groupIds, ResourceType.SECURITY_GROUP,
-                               securityProvider, principal)
+            groups
                .stream()
                .map(group -> IdentityModel.builder()
                   .identityID(group)
@@ -325,23 +340,31 @@ public class SecurityService {
                   .build())
                .collect(Collectors.toList());
 
+         Boolean active = request.getActive();
+         List<String> emails = request.getEmails() != null ? request.getEmails() :
+            currentUser.getEmails() == null ? null : Arrays.asList(currentUser.getEmails());
+
          EditUserPaneModel.Builder builder = EditUserPaneModel.builder()
-            .name(request.getIdentityID() == null ? null : request.getIdentityID().getName())
+            .name(request.getIdentityID() == null ? id.name : request.getIdentityID().getName())
             .oldName(id.name)
             .organization(id.orgID)
-            .alias(request.getAlias())
-            .locale(toLocaleLabel(request.getLocale()))
-            .status(request.isActive() || principal.getName().equals(id.convertToKey()))
+            .alias(request.getAlias() != null ? request.getAlias() : currentUser.getAlias())
+            .locale(getLocaleLabel(request.getLocale(), currentUser.getLocale()))
+            .status((active != null ? active : currentUser.isActive()) ||
+                       principal.getName().equals(id.convertToKey()))
             .theme(request.getTheme())
             .members(parentGroups);
 
-         if(request.getEmails() != null) {
-            builder.email(String.join(",", request.getEmails()));
+         if(emails != null) {
+            builder.email(String.join(",", emails));
          }
 
          if(request.getRoles() != null) {
             builder = builder.roles(new ArrayList<>(resolveRoleReferencesOrThrow(
                filterSystemAdminRoles(request.getRoles(), securityProvider, principal), provider)));
+         }
+         else if(currentUser.getRoles() != null) {
+            builder = builder.roles(Arrays.asList(currentUser.getRoles()));
          }
 
          if(request.getAdminIdentities() != null) {
@@ -360,9 +383,16 @@ public class SecurityService {
       identityService.setIdentity(oldUser, userModel, provider, principal);
       themeService.assignTheme(oldUser.getName(), userModel.name(), userModel.organization(),
                                userModel.theme(), CustomTheme::getUsers);
-      identityService.setIdentityPermissions(
-         oldId, newId, ResourceType.SECURITY_USER,
-         principal, userModel.permittedIdentities(), "");
+
+      if(request.getAdminIdentities() == null) {
+         keepIdentityPermissions(oldId, newId, ResourceType.SECURITY_USER, securityProvider);
+      }
+      else {
+         identityService.setIdentityPermissions(
+            oldId, newId, ResourceType.SECURITY_USER, principal,
+            renameOwnPermittedEntry(userModel.permittedIdentities(), Identity.USER, oldId, newId),
+            "");
+      }
 
       // Run the same rename migrations as EM (assets, MV, data cycles, recycle bin, ...), on the
       // stored user's org, and only after the provider rename succeeded.
@@ -538,6 +568,7 @@ public class SecurityService {
             if(request.getRoles() != null) {
                roles = resolveRoleReferencesOrThrow(
                   filterSystemAdminRoles(request.getRoles(), securityProvider, principal), provider);
+               checkAssignableRoles(roles, principal);
             }
          }
 
@@ -581,6 +612,12 @@ public class SecurityService {
       }
    }
 
+   /**
+    * Updates a group. A property or list that the request omits ({@code null}) leaves that
+    * property of the group unchanged. A value that is present replaces the current one, and an
+    * empty list or string clears it, except for the parent groups: a parent group list is added to
+    * the group's current parent groups, and an empty one removes none.
+    */
    public void updateGroup(IdentityID identityID, SecurityGroup request, Principal principal) throws Exception {
       SecurityProvider securityProvider = this.securityEngine.getSecurityProvider();
       EditableAuthenticationProvider provider = getEditableAuthenticationProvider(securityProvider);
@@ -594,7 +631,9 @@ public class SecurityService {
             throw new UnauthorizedAccessException("Permission denied to update group");
          }
 
-         if(provider.getGroup(identityID) == null) {
+         final Group currentGroup = provider.getGroup(identityID);
+
+         if(currentGroup == null) {
             if(securityProvider.getGroup(identityID) == null) {
                throw new MissingResourceException(identityID.name);
             }
@@ -653,15 +692,19 @@ public class SecurityService {
          }
 
          EditGroupPaneModel.Builder builder = EditGroupPaneModel.builder()
-            .name(request.getIdentityID() == null ? null : request.getIdentityID().getName())
+            .name(request.getIdentityID() == null ? identityID.name : request.getIdentityID().getName())
             .oldName(identityID.name)
             .theme(request.getTheme())
             .organization(identityID.orgID)
             .members(members);
 
+         // omitted roles keep the group's current roles, from the editable provider (Bug #77326)
          if(request.getRoles() != null) {
             builder.roles(new ArrayList<>(resolveRoleReferencesOrThrow(
                filterSystemAdminRoles(request.getRoles(), securityProvider, principal), provider)));
+         }
+         else if(currentGroup.getRoles() != null) {
+            builder.roles(Arrays.asList(currentGroup.getRoles()));
          }
 
          if(request.getAdminIdentities() != null) {
@@ -682,9 +725,17 @@ public class SecurityService {
       themeService.updateIdentityTheme(oldGroup.getName(), groupModel.name(),
                                        groupModel.organization(), groupModel.theme(),
                                        CustomTheme::getGroups, principal);
-      identityService.setIdentityPermissions(
-         oldId, newId, ResourceType.SECURITY_GROUP,
-         principal, groupModel.permittedIdentities(), identityID.orgID);
+
+      if(request.getAdminIdentities() == null) {
+         keepIdentityPermissions(oldId, newId, ResourceType.SECURITY_GROUP, securityProvider);
+      }
+      else {
+         identityService.setIdentityPermissions(
+            oldId, newId, ResourceType.SECURITY_GROUP, principal,
+            renameOwnPermittedEntry(groupModel.permittedIdentities(), Identity.GROUP, oldId, newId),
+            identityID.orgID);
+      }
+
       // oldId/newId already carry the validated org (from groupModel.organization()); using the
       // raw request body identity here would let a caller move the group into another org.
       updateParentGroups(oldId, newId, request.getParentGroups(), securityProvider, principal);
@@ -963,17 +1014,10 @@ public class SecurityService {
          organization.setLocale(orgLocale);
          // the requested theme may be given by ID (as returned by getOrganization) or by name,
          // and must be a global theme or one of the new organization's own themes. The
-         // organization stores the theme ID, see GlobalStyleController.
-         String requestedTheme = request.getTheme();
-         CustomTheme currentTheme = requestedTheme == null ? null :
-            customThemesManager.getCustomThemes().stream()
-               .filter(t -> t.getOrgID() == null || t.getOrgID().equals(oid))
-               .filter(t -> requestedTheme.equals(t.getId()) ||
-                  requestedTheme.equals(t.getName()))
-               .min(Comparator.comparing((CustomTheme t) -> !requestedTheme.equals(t.getId()))
-                       .thenComparing(CustomTheme::getId,
-                                      Comparator.nullsLast(Comparator.naturalOrder())))
-               .orElse(null);
+         // organization stores the theme ID, see GlobalStyleController. Update resolves it
+         // the same way.
+         CustomTheme currentTheme =
+            findOrganizationTheme(request.getTheme(), oid).orElse(null);
          organization.setTheme(currentTheme == null ? null : currentTheme.getId());
          provider.addOrganization(organization);
          applyOrganizationProperties(oid, request.getProperties());
@@ -1074,8 +1118,17 @@ public class SecurityService {
          // setIdentity() applies the theme and locale and clears them when they are null or
          // empty, so a theme or locale that the request omits keeps the organization's current
          // value, and an empty string clears it. See getOrganizationLocale() for the locale.
-         final String theme = request.getTheme() == null ?
-            currentOrganization.getTheme() : request.getTheme();
+         // Only a theme that the request supplies is resolved: a theme name is resolved to its
+         // id before setIdentity(), whose eligibility checks only match ids, and eligibility uses
+         // the current org id, as those checks do. A value that matches no eligible theme, and the
+         // reserved "default" id, is passed on unchanged for those checks to handle. The kept
+         // current theme is passed through untouched, so an update that omits the theme never
+         // rewrites a stored value (Bug #77117).
+         final String requestedTheme = request.getTheme();
+         final String theme = requestedTheme == null ? currentOrganization.getTheme() :
+            findOrganizationTheme(requestedTheme, oldOrganization.getId())
+               .map(CustomTheme::getId)
+               .orElse(requestedTheme);
 
          EditOrganizationPaneModel.Builder builder = EditOrganizationPaneModel.builder()
             .name(request.getName())
@@ -1083,6 +1136,8 @@ public class SecurityService {
             .oldName(oldOrganization.getName())
             .locale(getOrganizationLocale(request.getLocale(), currentOrganization))
             .theme(theme)
+            // the REST organization has no status, keep the stored one (Bug #77147)
+            .status(currentOrganization.isActive())
             .members(members);
 
          if(request.getRoles() != null) {
@@ -1262,12 +1317,97 @@ public class SecurityService {
    private String getOrganizationLocale(String requestLocale, Organization organization)
       throws InvalidResourceException
    {
+      return getLocaleLabel(requestLocale, organization.getLocale());
+   }
+
+   /**
+    * Gets the locale label to pass to setIdentity() for an organization or user update, see
+    * {@link #getOrganizationLocale}: the label of the request locale code if present, otherwise
+    * the label of the current locale key, so that an omitted locale is unchanged (Bug #77326).
+    *
+    * @param requestLocale the locale code in the request, or {@code null} if omitted.
+    * @param localeKey     the current locale key of the identity in the editable provider.
+    */
+   private String getLocaleLabel(String requestLocale, String localeKey)
+      throws InvalidResourceException
+   {
       if(requestLocale != null) {
          return toLocaleLabel(requestLocale);
       }
 
-      String localeKey = organization.getLocale();
       return localeKey == null ? null : SUtil.loadLocaleProperties().getProperty(localeKey);
+   }
+
+   /**
+    * Finds the theme requested for an organization among the themes eligible for it (a global
+    * theme or one of the organization's own themes). A value that is the id of an eligible theme
+    * selects that theme; otherwise it is matched against the names of the eligible themes. When
+    * several eligible themes have that name, the organization's own theme wins over a global one,
+    * then the lowest id. Used by both createOrganization() and updateOrganization() (Bug #77117).
+    * <p>
+    * The reserved id {@link CustomTheme#DEFAULT_THEME_ID} ({@code "default"}, exact case) means
+    * "use the default theme", like an empty value (Bug #77304), so it is never resolved, not even
+    * to a theme named "default" (such a theme is only reachable by its own id, e.g.
+    * {@code default1}). On update it is passed through and the sink clears the theme; on create
+    * no theme is stored.
+    *
+    * @param requested the theme id or name from the request.
+    * @param orgID     the id of the organization the theme must be eligible for.
+    *
+    * @return the matching theme, or empty if {@code requested} is empty or the reserved default
+    *         id, or matches no eligible theme.
+    */
+   private Optional<CustomTheme> findOrganizationTheme(String requested, String orgID) {
+      if(Tool.isEmptyString(requested) || CustomTheme.isReservedId(requested)) {
+         return Optional.empty();
+      }
+
+      // Same eligibility rule as IdentityService.getEligibleOrgTheme(), which compares org ids
+      // with Tool.equals(); IdentityService.checkOrganizationTheme() compares them ignoring case,
+      // so the two sink checks only differ for org ids that differ in case.
+      List<CustomTheme> eligible = customThemesManager.getCustomThemes().stream()
+         .filter(t -> Tool.isEmptyString(t.getOrgID()) || Tool.equals(t.getOrgID(), orgID))
+         .toList();
+      Optional<CustomTheme> byId = eligible.stream()
+         .filter(t -> Tool.equals(t.getId(), requested))
+         .findFirst();
+
+      if(byId.isPresent()) {
+         return byId;
+      }
+
+      // an id only wins among eligible themes, so a value equal to the org's current but no
+      // longer eligible theme id can still resolve by name to an eligible theme
+      return eligible.stream()
+         .filter(t -> t.getId() != null && Tool.equals(t.getName(), requested))
+         .min(Comparator.comparing((CustomTheme t) -> Tool.isEmptyString(t.getOrgID()))
+                 .thenComparing(CustomTheme::getId));
+   }
+
+   /**
+    * Keeps the grant of who may administer (or assign) a user, group or role, for an update that
+    * omits adminIdentities (Bug #77326). IdentityService.setIdentityPermissions() treats an
+    * omitted list like an empty one and drops every grantee the caller can administer, so it is
+    * not called. setIdentity() renames the identity where it is a grantee, but not the grant keyed
+    * by the identity itself, so on a rename that grant is moved to the new key. Nothing is created
+    * when there is no grant. The grant is in the current org's permission storage, where the
+    * update with a list reads and writes it.
+    */
+   private static void keepIdentityPermissions(IdentityID oldId, IdentityID newId,
+                                               ResourceType type,
+                                               SecurityProvider securityProvider)
+   {
+      if(oldId.equals(newId)) {
+         return;
+      }
+
+      AuthorizationProvider authzProvider = securityProvider.getAuthorizationProvider();
+      Permission permission = authzProvider.getPermission(type, oldId);
+
+      if(permission != null) {
+         authzProvider.setPermission(type, newId, permission);
+         authzProvider.removePermission(type, oldId);
+      }
    }
 
    /**
@@ -1762,6 +1902,7 @@ public class SecurityService {
                .stream()
                .filter(role -> provider.getRole(role) != null)
                .collect(Collectors.toSet());
+            checkAssignableRoles(inheritedRoles, principal);
          }
 
          FSRole role = new FSRole(id, description);
@@ -1806,6 +1947,11 @@ public class SecurityService {
       }
    }
 
+   /**
+    * Updates a role. A property or list that the request omits ({@code null}) leaves that
+    * property of the role unchanged. A value that is present replaces the current one, and an
+    * empty list or string clears it.
+    */
    public void updateRole(IdentityID roleId, SecurityRole request, Principal principal) throws Exception {
       SecurityProvider securityProvider = this.securityEngine.getSecurityProvider();
       EditableAuthenticationProvider provider = getEditableAuthenticationProvider(securityProvider);
@@ -1820,7 +1966,9 @@ public class SecurityService {
             throw new UnauthorizedAccessException("Permission denied to update role");
          }
 
-         if(provider.getRole(roleId) == null) {
+         final Role currentRole = provider.getRole(roleId);
+
+         if(currentRole == null) {
             if(securityProvider.getRole(roleId) == null) {
                throw new MissingResourceException(roleId.name);
             }
@@ -1880,8 +2028,10 @@ public class SecurityService {
                   .build())
                .collect(Collectors.toList()));
 
+         // an omitted description or inherited role list keeps the role's current value, from the
+         // editable provider (Bug #77326)
          EditRolePaneModel.Builder builder = EditRolePaneModel.builder()
-            .name(request.getIdentityID() == null ? null : request.getIdentityID().getName())
+            .name(request.getIdentityID() == null ? roleId.name : request.getIdentityID().getName())
             .oldName(roleId.name)
             .organization(orgID)
             // request already carries either the caller's override or the current value, preserved
@@ -1889,7 +2039,7 @@ public class SecurityService {
             // -- reading info/provider's OWN current state here (as this used to) would make request's
             // value inert. A raw REST caller who omits the field gets Boolean.TRUE.equals(null) ==
             // false, the same blind-overwrite-on-omission contract every other field in this builder
-            // already has (description/theme below never fall back to the current value either).
+            // already has (theme below never falls back to the current value either).
             .defaultRole(Boolean.TRUE.equals(request.getDefaultRole()))
             .isSysAdmin(Boolean.TRUE.equals(request.getSysAdmin()))
             // Deliberately NOT the same blind-overwrite-on-omission contract as defaultRole/sysAdmin
@@ -1900,12 +2050,16 @@ public class SecurityService {
             // reset to false -- do not "fix" this to match defaultRole/sysAdmin's pattern.
             .isOrgAdmin(request.getOrgAdmin() != null ? request.getOrgAdmin() :
                        provider.isOrgAdministratorRole(roleId))
-            .description(request.getDescription())
+            .description(request.getDescription() != null ?
+                            request.getDescription() : currentRole.getDescription())
             .theme(request.getTheme())
             .members(asssignedIDs);
 
          if(request.getInheritedRoles() != null) {
             builder.roles(filterSystemAdminRoles(request.getInheritedRoles(), securityProvider, principal));
+         }
+         else if(currentRole.getRoles() != null) {
+            builder.roles(Arrays.asList(currentRole.getRoles()));
          }
 
          if(request.getAdminIdentities() != null) {
@@ -1926,9 +2080,16 @@ public class SecurityService {
       themeService.updateIdentityTheme(oldRole.getName(), roleModel.name(),
                                        roleModel.organization(), roleModel.theme(),
                                        CustomTheme::getRoles, principal);
-      identityService.setIdentityPermissions(
-         oldId, newId, ResourceType.SECURITY_ROLE,
-         principal, roleModel.permittedIdentities(), permOrgId);
+
+      if(request.getAdminIdentities() == null) {
+         keepIdentityPermissions(oldId, newId, ResourceType.SECURITY_ROLE, securityProvider);
+      }
+      else {
+         identityService.setIdentityPermissions(
+            oldId, newId, ResourceType.SECURITY_ROLE, principal,
+            renameOwnPermittedEntry(roleModel.permittedIdentities(), Identity.ROLE, oldId, newId),
+            permOrgId);
+      }
 
       // Run the same rename migration as EM (VPM hidden-column roles), on the stored role's name
       // and org, falling back to the path's. A global role has a null org or the global org key,
@@ -2113,6 +2274,25 @@ public class SecurityService {
       return roles.stream()
          .filter(role -> !isSystemAdminRoleAssignment(authenticationProvider, role))
          .collect(Collectors.toList());
+   }
+
+   /**
+    * Rejects the roles requested for a new user, group or role when the caller is not a site
+    * administrator and may not assign one of them, or when one of them leads to an organization
+    * administrator role and the caller is not an organization administrator (Bug #77381).
+    * Identities created through this API are written to the provider directly, bypassing the
+    * role assignment check in IdentityService.setIdentity(). Only call this with roles taken from
+    * the request, not with default roles the API applies on its own.
+    */
+   private void checkAssignableRoles(Collection<IdentityID> roles, Principal principal)
+      throws UnauthorizedAccessException
+   {
+      try {
+         identityService.checkAssignableRoles(roles, null, principal);
+      }
+      catch(java.lang.SecurityException e) {
+         throw new UnauthorizedAccessException("Permission denied to assign the requested roles");
+      }
    }
 
    /**
@@ -2419,6 +2599,43 @@ public class SecurityService {
       return newModels;
    }
 
+   /**
+    * Points the renamed identity's own entry in a permitted-identities list at its new name.
+    * The list is typically read (GET) before the rename, so it names the renamed identity by its
+    * old name. setIdentity() has already renamed the grantee in the stored permission, and
+    * setIdentityPermissions() replaces the grantees with this list, so an entry left under the old
+    * name would grant the (no longer existing) old identity instead (Bug #77114). EM does the same
+    * in UserTreeService.getRenamedPermittedIdentities(), but without re-stamping other entries.
+    *
+    * Only an entry of the renamed identity's type is rewritten. A user or group entry matches by
+    * name only, since setIdentityPermissions() stamps the path org on user and group grantees
+    * anyway. A role entry must also match the org, as an org role and a global (null org) role
+    * can share a name. Every other entry is kept as is.
+    */
+   private static List<IdentityModel> renameOwnPermittedEntry(
+      List<IdentityModel> permittedIdentities, int type, IdentityID oldId, IdentityID newId)
+   {
+      if(permittedIdentities == null || oldId.equals(newId)) {
+         return permittedIdentities;
+      }
+
+      return permittedIdentities.stream()
+         .map(identity -> isOwnEntry(identity, type, oldId) ?
+            IdentityModel.builder().from(identity).identityID(newId).build() : identity)
+         .collect(Collectors.toList());
+   }
+
+   /**
+    * Checks whether a permitted-identities entry names the renamed identity by its old id, using
+    * the matching rules described in renameOwnPermittedEntry(). A role entry must match the org
+    * exactly; organization ids that differ only by case cannot be created.
+    */
+   private static boolean isOwnEntry(IdentityModel identity, int type, IdentityID oldId) {
+      return identity.type() == type &&
+         Objects.equals(identity.identityID().name, oldId.name) &&
+         (type != Identity.ROLE || Objects.equals(identity.identityID().orgID, oldId.orgID));
+   }
+
    private void deleteIdentity(IdentityID identityID, int type,
                                Principal principal, AuthenticationProvider provider)
       throws Exception
@@ -2628,6 +2845,9 @@ public class SecurityService {
       // the null-org (global) role grants of the request, the other grants are in orgId
       Set<PermissionGrant> globalRoleRequests = new HashSet<>();
 
+      Permission permission = securityProvider.getPermission(type, resourcePath);
+      permission = permission == null ? new Permission() : permission;
+
       // Bug #77274, validate every grant before anything is written. The permission is stored in
       // the current org's bucket, where only the current org's grantees (and global roles) are
       // read, and an action tree node may only be granted the actions it offers (as in EM,
@@ -2641,9 +2861,21 @@ public class SecurityService {
                grant.getIdentityID().name);
          }
 
+         // the bucket the write below stores this grant in: a global role in the null bucket,
+         // every other grantee in orgId
+         boolean globalRole = grantOrg == null && "ROLE".equals(grant.getType()) &&
+            isGlobalRole(grant.getIdentityID().name, orgId, securityProvider);
+         String grantBucket = globalRole ? null : orgId;
+
          if(node != null) {
             for(String action : grant.getActions()) {
-               if(node.actions().stream().noneMatch(a -> a.name().equals(action))) {
+               // Bug #77376, an action the node does not offer that the grantee already holds
+               // (for example a default grant) is kept by EM, which writes only the node's
+               // actions. Here it may only be sent back for that same stored grantee, where the
+               // write puts it, but may not be added or moved.
+               if(node.actions().stream().noneMatch(a -> a.name().equals(action)) &&
+                  !isStoredGrantAction(permission, grant, action, grantBucket))
+               {
                   throw new UnauthorizedAccessException(
                      "Unauthorized action " + action + " for action permission " + type + ":" +
                      resourcePath);
@@ -2651,15 +2883,10 @@ public class SecurityService {
             }
          }
 
-         if(grantOrg == null && "ROLE".equals(grant.getType()) &&
-            isGlobalRole(grant.getIdentityID().name, orgId, securityProvider))
-         {
+         if(globalRole) {
             globalRoleRequests.add(grant);
          }
       }
-
-      Permission permission = securityProvider.getPermission(type, resourcePath);
-      permission = permission == null ? new Permission() : permission;
 
       for(ResourceAction action : ResourceAction.values()) {
          Set<String> userGrants = new HashSet<>();
@@ -2746,6 +2973,36 @@ public class SecurityService {
             }
          }
       }
+   }
+
+   /**
+    * Checks if the stored permission already grants the action to the grantee of a requested
+    * grant, that is to a stored grantee of the same type and name in the bucket (org id, or null
+    * for a global role) the write stores the requested grant in.
+    */
+   private static boolean isStoredGrantAction(Permission permission, PermissionGrant grant,
+                                              String action, String bucket)
+   {
+      int identityType = switch(String.valueOf(grant.getType())) {
+         case "USER" -> Identity.USER;
+         case "GROUP" -> Identity.GROUP;
+         case "ROLE" -> Identity.ROLE;
+         case "ORGANIZATION" -> Identity.ORGANIZATION;
+         default -> -1;
+      };
+      ResourceAction resourceAction = Arrays.stream(ResourceAction.values())
+         .filter(a -> a.name().equals(action))
+         .findFirst()
+         .orElse(null);
+
+      if(identityType < 0 || resourceAction == null) {
+         return false;
+      }
+
+      String name = grant.getIdentityID().name;
+      return permission.getGrants(resourceAction, identityType, null).stream()
+         .anyMatch(g -> Objects.equals(g.getName(), name) &&
+            Objects.equals(g.getOrganizationID(), bucket));
    }
 
    /**

@@ -312,33 +312,106 @@ class SecurityServicePermissionWriteTest {
 
    // ── stale out-of-node actions stored before the fix ─────────────────────
 
-   // A stored action tree permission that already holds an action the node does not offer (for
-   // example ADMIN written through this API before Bug #77274) comes back in the GET view, and
-   // the grant endpoints send the whole GET view through setPermission, so every single-grant
-   // write that keeps the stale row is rejected without a write.
+   // A stored action tree permission may already hold an action the node does not offer (for
+   // example ADMIN written through this API before Bug #77274, or the default Advanced ACCESS on
+   // DASHBOARD *, Bug #77376). It comes back in the GET view, and the grant endpoints send the
+   // whole GET view through setPermission. Sending it back unchanged for the same grantee is
+   // accepted and keeps it; adding it or moving it to another grantee is still rejected.
    @Test
-   void createPermissionGrant_storedOutOfNodeAction_rejectedWithoutWrite() {
+   void setPermission_unchangedRoundTrip_storedOutOfNodeAction_accepted() throws Exception {
+      delegate();
+      staleAdmin();
+      ResourcePermission view = service.getPermission(USERS, "EM_COMPONENT", principal);
+
+      service.setPermission(USERS, "EM_COMPONENT", view, principal);
+
+      Permission saved = captureSaved(ResourceType.EM_COMPONENT, USERS);
+      assertEquals(Set.of("alice@orga", "old@orga"),
+                   names(saved.getAllUserGrants(ResourceAction.ACCESS)));
+      assertEquals(Set.of("old@orga"), names(saved.getAllUserGrants(ResourceAction.ADMIN)));
+   }
+
+   @Test
+   void setPermission_newOutOfNodeAction_otherGrantee_rejectedWithoutWrite() {
       delegate();
       staleAdmin();
 
       UnauthorizedAccessException e = assertThrows(
-         UnauthorizedAccessException.class, () -> service.createPermissionGrant(
-            USERS, "EM_COMPONENT", user("bob", ORG, "ACCESS"), principal));
+         UnauthorizedAccessException.class, () -> service.setPermission(
+            USERS, "EM_COMPONENT",
+            model(user("old", ORG, "ACCESS", "ADMIN"), user("alice", ORG, "ACCESS", "ADMIN")),
+            principal));
+
+      assertTrue(e.getMessage().contains("ADMIN"), e.getMessage());
+      verify(securityProvider, never()).setPermission(any(), anyString(), any());
+   }
+
+   // a grantee type other than the stored one does not inherit the stored out-of-node action
+   @Test
+   void setPermission_storedOutOfNodeAction_otherGranteeType_rejectedWithoutWrite() {
+      delegate();
+      staleAdmin();
+
+      assertThrows(UnauthorizedAccessException.class, () -> service.setPermission(
+         USERS, "EM_COMPONENT",
+         model(user("old", ORG, "ACCESS", "ADMIN"), grant("GROUP", "old", ORG, "ADMIN")),
+         principal));
+
+      verify(securityProvider, never()).setPermission(any(), anyString(), any());
+   }
+
+   @Test
+   void updatePermissionGrant_moveStoredOutOfNodeActionToOtherIdentity_rejectedWithoutWrite() {
+      delegate();
+      staleAdmin();
+
+      UnauthorizedAccessException e = assertThrows(
+         UnauthorizedAccessException.class, () -> service.updatePermissionGrant(
+            USERS, "EM_COMPONENT", new IdentityID("old", ORG).convertToKey(), "USER",
+            user("carol", ORG, "ACCESS", "ADMIN"), principal));
 
       assertTrue(e.getMessage().contains("ADMIN"), e.getMessage());
       verify(securityProvider, never()).setPermission(any(), anyString(), any());
    }
 
    @Test
-   void deletePermissionGrant_otherGrantee_storedOutOfNodeAction_rejectedWithoutWrite() {
+   void createPermissionGrant_storedOutOfNodeAction_acceptedAndKept() throws Exception {
       delegate();
       staleAdmin();
 
-      assertThrows(UnauthorizedAccessException.class, () -> service.deletePermissionGrant(
-         USERS, "EM_COMPONENT", new IdentityID("alice", ORG).convertToKey(), "USER",
-         principal));
+      service.createPermissionGrant(USERS, "EM_COMPONENT", user("bob", ORG, "ACCESS"), principal);
+
+      Permission saved = captureSaved(ResourceType.EM_COMPONENT, USERS);
+      assertEquals(Set.of("alice@orga", "bob@orga", "old@orga"),
+                   names(saved.getAllUserGrants(ResourceAction.ACCESS)));
+      assertEquals(Set.of("old@orga"), names(saved.getAllUserGrants(ResourceAction.ADMIN)));
+   }
+
+   @Test
+   void createPermissionGrant_newOutOfNodeAction_rejectedWithoutWrite() {
+      delegate();
+      staleAdmin();
+
+      assertThrows(UnauthorizedAccessException.class, () -> service.createPermissionGrant(
+         USERS, "EM_COMPONENT", user("bob", ORG, "ACCESS", "ADMIN"), principal));
 
       verify(securityProvider, never()).setPermission(any(), anyString(), any());
+   }
+
+   @Test
+   void deletePermissionGrant_otherGrantee_storedOutOfNodeAction_acceptedAndKept()
+      throws Exception
+   {
+      delegate();
+      staleAdmin();
+
+      service.deletePermissionGrant(USERS, "EM_COMPONENT",
+                                    new IdentityID("alice", ORG).convertToKey(), "USER",
+                                    principal);
+
+      Permission saved = captureSaved(ResourceType.EM_COMPONENT, USERS);
+      assertEquals(Set.of("old@orga"), names(saved.getAllUserGrants(ResourceAction.ACCESS)));
+      assertEquals(Set.of("old@orga"), names(saved.getAllUserGrants(ResourceAction.ADMIN)));
    }
 
    // removing the stale grantee itself drops its row from the request, so it is accepted
@@ -369,6 +442,135 @@ class SecurityServicePermissionWriteTest {
       assertEquals(Set.of("alice@orga", "old@orga"),
                    names(saved.getAllUserGrants(ResourceAction.ACCESS)));
       assertTrue(saved.getAllUserGrants(ResourceAction.ADMIN).isEmpty());
+   }
+
+   // the stored action is matched where the write puts the row, so a row naming the grantee
+   // without its org, or with its org in another case, is also accepted, as the org check is
+   @Test
+   void setPermission_storedOutOfNodeAction_grantOrgOmittedOrOtherCase_accepted()
+      throws Exception
+   {
+      delegate();
+      staleAdmin();
+
+      service.setPermission(USERS, "EM_COMPONENT",
+                            model(user("old", null, "ACCESS", "ADMIN"),
+                                  user("alice", "ORGA", "ACCESS")),
+                            principal);
+
+      Permission saved = captureSaved(ResourceType.EM_COMPONENT, USERS);
+      assertEquals(Set.of("alice@orga", "old@orga"),
+                   names(saved.getAllUserGrants(ResourceAction.ACCESS)));
+      assertEquals(Set.of("old@orga"), names(saved.getAllUserGrants(ResourceAction.ADMIN)));
+   }
+
+   // an org role (the reported grant is a role) keeps its stored out-of-node action
+   @Test
+   void setPermission_orgRole_unchangedRoundTrip_storedOutOfNodeAction_accepted()
+      throws Exception
+   {
+      delegate();
+      Permission permission = new Permission();
+      permission.setRoleGrantsForOrg(ResourceAction.ACCESS, Set.of("Everyone"), ORG);
+      permission.setRoleGrantsForOrg(ResourceAction.ADMIN, Set.of("Everyone"), ORG);
+      when(securityProvider.getPermission(ResourceType.EM_COMPONENT, USERS)).thenReturn(permission);
+      ResourcePermission view = service.getPermission(USERS, "EM_COMPONENT", principal);
+
+      service.setPermission(USERS, "EM_COMPONENT", view, principal);
+
+      Permission saved = captureSaved(ResourceType.EM_COMPONENT, USERS);
+      assertEquals(Set.of("Everyone@orga"), names(saved.getAllRoleGrants(ResourceAction.ACCESS)));
+      assertEquals(Set.of("Everyone@orga"), names(saved.getAllRoleGrants(ResourceAction.ADMIN)));
+   }
+
+   // a global role keeps its stored out-of-node action in the global (null) bucket
+   @Test
+   void setPermission_globalRole_unchangedRoundTrip_storedOutOfNodeAction_acceptedAndStaysGlobal()
+      throws Exception
+   {
+      siteAdmin();
+      Permission permission = new Permission();
+      permission.setRoleGrantsForOrg(ResourceAction.ACCESS, Set.of(OA), null);
+      permission.setRoleGrantsForOrg(ResourceAction.ADMIN, Set.of(OA), null);
+      when(securityProvider.getPermission(ResourceType.EM_COMPONENT, USERS)).thenReturn(permission);
+      ResourcePermission view = service.getPermission(USERS, "EM_COMPONENT", principal);
+
+      service.setPermission(USERS, "EM_COMPONENT", view, principal);
+
+      Permission saved = captureSaved(ResourceType.EM_COMPONENT, USERS);
+      assertEquals(Set.of(OA + "@null"), names(saved.getAllRoleGrants(ResourceAction.ACCESS)));
+      assertEquals(Set.of(OA + "@null"), names(saved.getAllRoleGrants(ResourceAction.ADMIN)));
+   }
+
+   // the GET view reports a global role and a same-name org role both as (name, null), but the
+   // write puts that row on the org role. The global role's stored out-of-node action must not be
+   // copied onto the org role.
+   @Test
+   void setPermission_globalRoleActionWithSameNameOrgRole_rejectedWithoutWrite()
+      throws Exception
+   {
+      delegate();
+      when(securityProvider.getRole(new IdentityID("Administrator", ORG)))
+         .thenReturn(mock(Role.class));
+      Permission permission = new Permission();
+      permission.setRoleGrantsForOrg(ResourceAction.ACCESS, Set.of("Administrator"), null);
+      permission.setRoleGrantsForOrg(ResourceAction.ADMIN, Set.of("Administrator"), null);
+      when(securityProvider.getPermission(ResourceType.EM_COMPONENT, USERS)).thenReturn(permission);
+      ResourcePermission view = service.getPermission(USERS, "EM_COMPONENT", principal);
+      assertTrue(view.getPermissionGrants().stream().anyMatch(
+         g -> "ROLE".equals(g.getType()) && "Administrator".equals(g.getIdentityID().name) &&
+            g.getIdentityID().orgID == null && g.getActions().contains("ADMIN")),
+                 String.valueOf(view.getPermissionGrants()));
+
+      UnauthorizedAccessException e = assertThrows(
+         UnauthorizedAccessException.class,
+         () -> service.setPermission(USERS, "EM_COMPONENT", view, principal));
+
+      assertTrue(e.getMessage().contains("ADMIN"), e.getMessage());
+      verify(securityProvider, never()).setPermission(any(), anyString(), any());
+   }
+
+   // the reported case (Bug #77376): a site admin in the default org GETs DASHBOARD * as seeded by
+   // the old bootstrap (Designer READ/WRITE plus the stray Advanced ACCESS, which the node does not
+   // offer) and PUTs it back unchanged. It is accepted and nothing changes; giving ACCESS to
+   // another role is still rejected.
+   @Test
+   void setPermission_defaultOrgDashboard_unchangedRoundTripAccepted_newAccessRejected()
+      throws Exception
+   {
+      String hostOrg = Organization.getDefaultOrganizationID();
+      when(orgManager.getCurrentOrgID()).thenReturn(hostOrg);
+      siteAdmin();
+      Permission seeded = new Permission();
+      seeded.setOrgEditedGrantAll(new HashMap<>(Map.of(hostOrg, true)));
+      seeded.setRoleGrantsForOrg(ResourceAction.READ, Set.of("Designer"), hostOrg);
+      seeded.setRoleGrantsForOrg(ResourceAction.WRITE, Set.of("Designer"), hostOrg);
+      seeded.setRoleGrantsForOrg(ResourceAction.ACCESS, Set.of("Advanced"), hostOrg);
+      when(securityProvider.getPermission(ResourceType.DASHBOARD, "*")).thenReturn(seeded);
+
+      ResourcePermission view = service.getPermission("*", "DASHBOARD", principal);
+      assertTrue(view.getPermissionGrants().stream().anyMatch(
+         g -> "ROLE".equals(g.getType()) && "Advanced".equals(g.getIdentityID().name) &&
+            g.getActions().equals(List.of("ACCESS"))), String.valueOf(view.getPermissionGrants()));
+
+      UnauthorizedAccessException e = assertThrows(
+         UnauthorizedAccessException.class, () -> service.setPermission(
+            "*", "DASHBOARD",
+            model(grant("ROLE", "Designer", hostOrg, "READ", "WRITE", "ACCESS"),
+                  grant("ROLE", "Advanced", hostOrg, "ACCESS")),
+            principal));
+      assertTrue(e.getMessage().contains("ACCESS for action permission DASHBOARD:*"),
+                 e.getMessage());
+      verify(securityProvider, never()).setPermission(any(), anyString(), any());
+
+      service.setPermission("*", "DASHBOARD", view, principal);
+
+      Permission saved = captureSaved(ResourceType.DASHBOARD, "*");
+      String designer = "Designer@" + hostOrg;
+      assertEquals(Set.of(designer), names(saved.getAllRoleGrants(ResourceAction.READ)));
+      assertEquals(Set.of(designer), names(saved.getAllRoleGrants(ResourceAction.WRITE)));
+      assertEquals(Set.of("Advanced@" + hostOrg),
+                   names(saved.getAllRoleGrants(ResourceAction.ACCESS)));
    }
 
    // ── site admin, not multi-tenant ────────────────────────────────────────
@@ -448,9 +650,14 @@ class SecurityServicePermissionWriteTest {
          .resource(USERS).label(USERS).folder(false)
          .type(ResourceType.EM_COMPONENT).actions(EnumSet.of(ResourceAction.ACCESS))
          .build();
+      // the portal Dashboard tab leaf, as in ActionPermissionService.getPortalTabsNode
+      ActionTreeNode dashboard = ActionTreeNode.builder()
+         .resource("*").label("Dashboard").folder(false)
+         .type(ResourceType.DASHBOARD).actions(EnumSet.of(ResourceAction.READ, ResourceAction.WRITE))
+         .build();
       return ActionTreeNode.builder()
          .label("").folder(true).actions(EnumSet.noneOf(ResourceAction.class))
-         .addChildren(leaf)
+         .addChildren(leaf, dashboard)
          .build();
    }
 
