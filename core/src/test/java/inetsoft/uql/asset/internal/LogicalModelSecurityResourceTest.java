@@ -63,6 +63,17 @@ class LogicalModelSecurityResourceTest {
                    AssetUtil.getParentSecurityResource("DS^LM^Ext", XLogicalModelAsset.XLOGICALMODEL));
    }
 
+   // a model with no permission of its own inherits from its data model folder, then the data source
+   @Test
+   void parentSecurityResource_modelInFolder_inheritsFolderThenDataSource() {
+      Resource resource =
+         AssetUtil.getParentSecurityResource("DS^__^F^LM", XLogicalModelAsset.XLOGICALMODEL);
+      Resource folder = resource.getType().getParent(resource.getPath());
+      assertEquals(new Resource(ResourceType.DATA_MODEL_FOLDER, "DS/F"), folder);
+      assertEquals(new Resource(ResourceType.DATA_SOURCE, "DS"),
+                   folder.getType().getParent(folder.getPath()));
+   }
+
    @Test
    void assetSecurityResource_modelInFolder_usesStoredKey() {
       assertEquals(new Resource(ResourceType.QUERY, "LM::DS^__^F"),
