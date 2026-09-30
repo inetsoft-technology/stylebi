@@ -99,6 +99,9 @@ class ActionPermissionControllerTest {
 
       orgManagerStatic.when(OrganizationManager::getInstance).thenReturn(orgManager);
       lenient().when(orgManager.getCurrentOrgID()).thenReturn("host-org");
+      // the caller is an org admin, so the Bug #77362 hold-to-grant check does not apply
+      // (covered by ActionPermissionHoldToGrantTest)
+      lenient().when(orgManager.isOrgAdmin(principal)).thenReturn(true);
       lenient().when(securityEngine.getSecurityProvider()).thenReturn(securityProvider);
       lenient().when(securityProvider.getOrganization("host-org")).thenReturn(organization);
       catalogStatic.when(Catalog::getCatalog).thenReturn(catalog);
