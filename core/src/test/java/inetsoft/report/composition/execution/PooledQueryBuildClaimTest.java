@@ -17,6 +17,7 @@
  */
 package inetsoft.report.composition.execution;
 
+import inetsoft.mv.MVManager;
 import inetsoft.report.TableLens;
 import inetsoft.report.lens.DefaultTableLens;
 import inetsoft.report.lens.FormulaTableLens;
@@ -29,9 +30,12 @@ import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.util.XEmbeddedTable;
 import inetsoft.util.script.ScriptEnv;
+import inetsoft.util.script.ScriptSpan;
 import inetsoft.util.script.graal.pool.*;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -40,6 +44,7 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.util.*;
+import java.util.concurrent.*;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.mock;
@@ -68,12 +73,20 @@ class PooledQueryBuildClaimTest {
          when(provider.getObject()).thenReturn(mock(DistributedTableCacheStore.class));
          return new AssetDataCache(mock(DataSourceRegistry.class), provider);
       }
+
+      // a data-cached table checks its MV state (the dashboard case)
+      @Bean
+      public MVManager mvManager() {
+         return mock(MVManager.class);
+      }
    }
 
    static final String ACC = "var acc = (acc || 0) + field['id']; acc";
    static final String GROW = "var a = a || []; a.push(field['id']); a.length";
+   static final String OBJ = "var o = o || {s: 0}; o.s += field['id']; o.s";
    static final String CACHE10 =
       "var c = c || {}; c['k' + (field['id'] % 10)] = field['id']; var n = (n || 0) + 1; n";
+   static final String COUNT = "var n = (n || 0) + 1; n";
    static final String DATE =
       "var d = d || new Date(0); d = new Date(d.getTime() + 1000); d.getTime() / 1000";
 
@@ -92,13 +105,13 @@ class PooledQueryBuildClaimTest {
    }
 
    /**
-    * A build of a mirror over a table with six formula columns and JavaScript condition
-    * values on both takes one context; on main each formula batch, condition value and
-    * compile took its own.
+    * A build of a mirror over a table with six formula columns (number and Date vars, no
+    * object var) and JavaScript condition values on both takes one context; on main each
+    * formula batch, condition value and compile took its own.
     */
    @Test
    void aBuildWithManyFormulasAndConditionsTakesOneClaim() throws Exception {
-      AssetQuerySandbox box = sandbox(true, mirrorWorksheet(ROWS));
+      AssetQuerySandbox box = sandbox(true, mirrorWorksheet(ROWS, false));
       WorksheetScriptEnv env = (WorksheetScriptEnv) box.getScriptEnv();
       long before = env.getMetrics().getCheckouts();
       long cleansBefore = env.getMetrics().getCleans();
@@ -113,16 +126,41 @@ class PooledQueryBuildClaimTest {
 
       assertEquals(1, build, "claims of one query build");
       assertEquals(1, buildCleans, "cleans of one query build");
+      assertEquals(0, env.getMetrics().getBuildYields());
       assertEquals(ROWS, rows.size() - 1);
       assertRowsExact(rows);
+   }
+
+   /**
+    * Round 2: with an object var (a resident table), each batch of the table at the build's
+    * top level ends the build's hold (one clean each, as on main, for that table only); the
+    * rows stay exact and match the pool off.
+    */
+   @Test
+   void aBuildWithAnObjectVarTableYieldsAtItsBatches() throws Exception {
+      AssetQuerySandbox box = sandbox(true, mirrorWorksheet(ROWS, true));
+      WorksheetScriptEnv env = (WorksheetScriptEnv) box.getScriptEnv();
+      TableLens m = box.getTableLens("M", AssetQuerySandbox.RUNTIME_MODE);
+      long yields = env.getMetrics().getBuildYields();
+      long build = env.getMetrics().getCheckouts();
+      List<List<Object>> rows = drain(m);
+      System.out.println("G10Q object-var build claims " + build + ", yields " + yields +
+                         ", cleans after the full read " + env.getMetrics().getCleans());
+
+      assertTrue(yields > 0, "no batch of the resident table yielded");
+      assertEquals(build, yields + 1, "claims of the build: one, plus one per yield");
+      assertEquals(ROWS, rows.size() - 1);
+      assertRowsExact(rows);
+      assertEquals(drain(sandbox(false, mirrorWorksheet(ROWS, true))
+                            .getTableLens("M", AssetQuerySandbox.RUNTIME_MODE)), rows);
    }
 
    @Test
    void theRowsMatchThePoolOff() throws Exception {
       for(String name : new String[] { "A", "M" }) {
-         List<List<Object>> off = drain(sandbox(false, mirrorWorksheet(ROWS))
+         List<List<Object>> off = drain(sandbox(false, mirrorWorksheet(ROWS, true))
                                            .getTableLens(name, AssetQuerySandbox.RUNTIME_MODE));
-         List<List<Object>> on = drain(sandbox(true, mirrorWorksheet(ROWS))
+         List<List<Object>> on = drain(sandbox(true, mirrorWorksheet(ROWS, true))
                                           .getTableLens(name, AssetQuerySandbox.RUNTIME_MODE));
          assertEquals(off, on, name);
          assertEquals(ROWS + 1, on.size(), name);
@@ -159,6 +197,203 @@ class PooledQueryBuildClaimTest {
       }
 
       readPages(t, cid, cout, 2001, rows);
+   }
+
+   /**
+    * Round 2 (review finding 1, A1): a thread reads rows of a table whose array var lives on
+    * a context while it is inside a query build, then another thread reads later rows of the
+    * same lens. The batch at the build's top level ends the build's hold on its context, so
+    * the home is idle and the other thread pulls the array: every row exact, as with the pool
+    * off, and no second context (round 1: the build held the home, the other thread read the
+    * array as undefined, row 5001 = 3938). Also with the first batch nested in an outer span
+    * of the build (a condition filter, another table's batch): the hold ends with that span.
+    */
+   @ParameterizedTest
+   @ValueSource(booleans = { false, true })
+   void anotherThreadReadsATableWhileABuildHoldsItsFirstBatch(boolean nested) throws Exception {
+      Map<Boolean, List<Double>> results = new HashMap<>();
+      SreeEnv.setProperty(PoolConfig.BATCH_ROWS, "100");
+      SreeEnv.setProperty(PoolConfig.MAX_BATCH_ROWS, "100");
+      ExecutorService other = Executors.newSingleThreadExecutor();
+
+      try {
+         for(boolean pool : new boolean[] { false, true }) {
+            Worksheet ws = new Worksheet();
+            EmbeddedTableAssembly a = embedded(ws, "A", 20000);
+            expression(a, "out", GROW);
+            AssetQuerySandbox box = sandbox(pool, ws);
+            List<Double> values = new ArrayList<>();
+
+            try(SlotClaim.Build ignored = pool ? SlotClaim.openBuild() : null) {
+               TableLens t = box.getTableLens("A", AssetQuerySandbox.RUNTIME_MODE);
+               int cid = col(t, "id");
+               int cout = col(t, "out");
+               try(ScriptSpan outer = nested ? box.getScriptEnv().openSpan() : ScriptSpan.NONE) {
+                  values.addAll(readValues(t, cout, 1, 100));
+               }
+
+               values.addAll(other.submit(() -> readValues(t, cout, 5001, 5100))
+                                .get(120, TimeUnit.SECONDS));
+
+               for(int i = 0; i < 100; i++) {
+                  assertEquals(i + 1.0, values.get(i), "row " + (i + 1));
+                  assertEquals(i + 5001.0, values.get(100 + i), "row " + (i + 5001));
+               }
+
+               assertEquals(5100.0, num(t.getObject(5100, cid)));
+
+               if(box.getScriptEnv() instanceof WorksheetScriptEnv env) {
+                  assertEquals(1, env.getMetrics().getSize(), "a second context");
+                  assertTrue(env.getMetrics().getBuildYields() > 0, "no yield");
+               }
+            }
+
+            results.put(pool, values);
+         }
+      }
+      finally {
+         other.shutdownNow();
+         SreeEnv.remove(PoolConfig.BATCH_ROWS);
+         SreeEnv.remove(PoolConfig.MAX_BATCH_ROWS);
+      }
+
+      assertEquals(results.get(false), results.get(true), "pool on vs off");
+   }
+
+   /**
+    * Round 2 (tester's finding, single user): an aggregate or distinct over a table with
+    * object vars reads the formula table on an on-demand worker thread while the query build
+    * runs on its own. Repeated builds in one sandbox give the pool-off rows every time, with
+    * no lost-var warning (round 1: 19 of 20 builds wrong, the build held the home).
+    */
+   @ParameterizedTest
+   @ValueSource(strings = { "agg", "distinct", "mirrorAgg" })
+   void onDemandWorkersOfABuildReadItsObjectVarTableExactly(String shape) throws Exception {
+      String name = shape.equals("mirrorAgg") ? "M" : "A";
+      List<List<Object>> off = drain(sandbox(false, workerWorksheet(shape, 3000))
+                                        .getTableLens(name, AssetQuerySandbox.RUNTIME_MODE));
+      AssetQuerySandbox box = sandbox(true, workerWorksheet(shape, 3000));
+
+      for(int b = 0; b < 5; b++) {
+         if(b > 0) {
+            box.resetTableLens(name);
+         }
+
+         assertEquals(off, drain(box.getTableLens(name, AssetQuerySandbox.RUNTIME_MODE)),
+                      shape + " build " + b);
+      }
+   }
+
+   /**
+    * Round 2 (tester's dashboard case): four aggregate assemblies over one data-cached table
+    * with object vars, built and read at once on four threads, all get the same cached lens
+    * of the table. Every table matches the pool off in every round (round 1: 16 of 20 wrong,
+    * a build held the home the other threads' workers needed).
+    */
+   @Test
+   void assembliesSharingACachedObjectVarTableMatchThePoolOff() throws Exception {
+      int k = 4;
+      List<List<List<Object>>> truth = new ArrayList<>();
+      AssetDataCache.getCache().clearCache();
+      AssetQuerySandbox off = sandbox(false, dashboardWorksheet(k, 3000));
+
+      for(int i = 0; i < k; i++) {
+         truth.add(drain(off.getTableLens("B" + i, AssetQuerySandbox.RUNTIME_MODE)));
+      }
+
+      AssetQuerySandbox box = sandbox(true, dashboardWorksheet(k, 3000));
+      ExecutorService threads = Executors.newFixedThreadPool(k);
+
+      try {
+         for(int round = 0; round < 4; round++) {
+            AssetDataCache.getCache().clearCache();
+            box.resetTableLens();
+            CyclicBarrier barrier = new CyclicBarrier(k);
+            List<Future<List<List<Object>>>> tables = new ArrayList<>();
+
+            for(int i = 0; i < k; i++) {
+               String name = "B" + i;
+               tables.add(threads.submit(() -> {
+                  barrier.await(60, TimeUnit.SECONDS);
+                  return drain(box.getTableLens(name, AssetQuerySandbox.RUNTIME_MODE));
+               }));
+            }
+
+            for(int i = 0; i < k; i++) {
+               assertEquals(truth.get(i), tables.get(i).get(120, TimeUnit.SECONDS),
+                            "B" + i + " round " + round);
+            }
+         }
+      }
+      finally {
+         threads.shutdownNow();
+         AssetDataCache.getCache().clearCache();
+      }
+   }
+
+   // A with object and array vars, in the data cache, and k aggregate mirrors B0..Bk-1 of it
+   private static Worksheet dashboardWorksheet(int k, int rows) {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly a = embedded(ws, "A", rows);
+      a.setProperty("no_cache", null);
+      expression(a, "obj", OBJ);
+      expression(a, "arr", GROW);
+
+      for(int i = 0; i < k; i++) {
+         MirrorTableAssembly b = new MirrorTableAssembly(ws, "B" + i, a);
+         b.setProperty("no_cache", "true");
+         ws.addAssembly(b);
+         b.update();
+         ColumnSelection cols = b.getColumnSelection(false);
+         AggregateInfo agg = new AggregateInfo();
+         agg.addGroup(new GroupRef(cols.getAttribute("grp")));
+         agg.addAggregate(new AggregateRef(cols.getAttribute("obj"), AggregateFormula.SUM));
+         agg.addAggregate(new AggregateRef(cols.getAttribute("arr"), AggregateFormula.MAX));
+         b.setAggregateInfo(agg);
+      }
+
+      return ws;
+   }
+
+   private static Worksheet workerWorksheet(String shape, int rows) {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly a = embedded(ws, "A", rows);
+      expression(a, "obj", OBJ);
+      expression(a, "arr", GROW);
+      TableAssembly top = a;
+
+      if(shape.equals("mirrorAgg")) {
+         MirrorTableAssembly m = new MirrorTableAssembly(ws, "M", a);
+         m.setProperty("no_cache", "true");
+         ws.addAssembly(m);
+         m.update();
+         top = m;
+      }
+
+      if(shape.equals("distinct")) {
+         a.setDistinct(true);
+      }
+      else {
+         ColumnSelection cols = top.getColumnSelection(false);
+         AggregateInfo agg = new AggregateInfo();
+         agg.addGroup(new GroupRef(cols.getAttribute("grp")));
+         agg.addAggregate(new AggregateRef(cols.getAttribute("obj"), AggregateFormula.SUM));
+         agg.addAggregate(new AggregateRef(cols.getAttribute("arr"), AggregateFormula.MAX));
+         top.setAggregateInfo(agg);
+      }
+
+      return ws;
+   }
+
+   private static List<Double> readValues(TableLens t, int col, int from, int to) {
+      List<Double> values = new ArrayList<>();
+      t.moreRows(to);
+
+      for(int r = from; r <= to; r++) {
+         values.add(num(t.getObject(r, col)));
+      }
+
+      return values;
    }
 
    /**
@@ -288,16 +523,16 @@ class PooledQueryBuildClaimTest {
       }
    }
 
-   // A with six formula columns (lens-owned number, object and Date vars, each named unlike
-   // its column: a column name in the formula reads the column) and JavaScript
+   // A with six formula columns (lens-owned number, Date and, if objects, object vars, each
+   // named unlike its column: a column name in the formula reads the column) and JavaScript
    // condition values, and a mirror M of A with a formula column and a JavaScript condition
-   private static Worksheet mirrorWorksheet(int rows) {
+   private static Worksheet mirrorWorksheet(int rows, boolean objects) {
       Worksheet ws = new Worksheet();
       EmbeddedTableAssembly a = embedded(ws, "A", rows);
       expression(a, "sum", ACC);
       expression(a, "x2", "Math.sqrt(field['value']) + field['grp'] * 2");
       expression(a, "s", "'r' + field['id'] + '-' + field['grp']");
-      expression(a, "cnt", CACHE10);
+      expression(a, "cnt", objects ? CACHE10 : COUNT);
       expression(a, "dt", DATE);
       expression(a, "g", "field['grp'] > 2 ? 'hi' : 'lo'");
       jsCondition(a, "id", "Math.min(0, 1)", "Math.max(-5, -10)");

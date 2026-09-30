@@ -84,6 +84,18 @@ public final class PoolMetrics {
       swaps.incrementAndGet();
    }
 
+   void buildYielded() {
+      buildYields.incrementAndGet();
+   }
+
+   /**
+    * @return the contexts a query build gave back before its end, because a formula table
+    * batch made them the home of the table's script objects (G10 piece Q, round 2).
+    */
+   public long getBuildYields() {
+      return buildYields.get();
+   }
+
    /**
     * @return the contexts taken by claims, one per claim that ran a script: with a query build
     * claim (G10 piece Q) one per build, however many formulas and conditions it runs.
@@ -362,6 +374,7 @@ public final class PoolMetrics {
    private final AtomicLong execs = new AtomicLong();
    private final AtomicLong checkouts = new AtomicLong();
    private final AtomicLong swaps = new AtomicLong();
+   private final AtomicLong buildYields = new AtomicLong();
    private final AtomicLong handOffs = new AtomicLong();
    private final AtomicLong handOffNanos = new AtomicLong();
    private final AtomicLong rebuilds = new AtomicLong();

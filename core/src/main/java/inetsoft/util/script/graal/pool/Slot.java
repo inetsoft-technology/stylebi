@@ -149,6 +149,15 @@ final class Slot {
    }
 
    /**
+    * Let the next clean delete up to {@code max} implicit globals before it reports too many
+    * (the release of a query build claim, G10 piece Q amendment 3); later cleans are back at
+    * {@link PoolConfig#MAX_FOREIGN_DELETES}. Owner only.
+    */
+   void allowDeletes(int max) {
+      maxDeletes = max;
+   }
+
+   /**
     * Set a variable on this context now, and expect it (spec N2, §14.2). Owner only.
     */
    void applyOwn(String name, Object value) {
@@ -176,6 +185,8 @@ final class Slot {
       metrics.cleaned();
       ScriptTimeoutGuard.Guard guard;
       CleanHelper.Result result;
+      int maxDeletes = this.maxDeletes;
+      this.maxDeletes = PoolConfig.MAX_FOREIGN_DELETES;
 
       try {
          guard = engine.guard(cleanTimeout);
@@ -186,7 +197,7 @@ final class Slot {
       }
 
       try(guard) {
-         result = cleaner.run();
+         result = cleaner.run(maxDeletes);
 
          if(result.removed() > 0) {
             engine.globalsCleaned();
@@ -371,6 +382,7 @@ final class Slot {
    Duration cleanTimeout = CleanHelper.TIMEOUT;
    private Cleaner.Cleanable nodeCount; // set at creation, before the slot is shared
    private long version; // owner only
+   private int maxDeletes = PoolConfig.MAX_FOREIGN_DELETES; // owner only
    private volatile boolean doomed;
    private volatile boolean interruptLost;
    private volatile boolean closed;

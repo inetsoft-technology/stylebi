@@ -654,15 +654,23 @@ public abstract class AssetQuery extends PreAssetQuery {
     * @return the table of the query.
     */
    public TableLens getTableLens(VariableTable vars) throws Exception {
-      // pool mode: all the scripts of this build (its formula columns, condition values,
-      // compiles; nested sub-queries join it) share one lazily claimed context and one clean
-      // at its end, instead of one claim and clean per script or batch (G10 piece Q)
-      try(SlotClaim.Build ignored = box != null && box.isScriptPoolMode() ?
-         SlotClaim.openBuild() : null)
-      {
+      try(SlotClaim.Build ignored = openScriptBuild()) {
          return GroupedThread.runWithRecordContext(this::getLogRecord,
                                                    () -> this.doGetTableLens(vars));
       }
+   }
+
+   /**
+    * Pool mode: all the scripts of this query build (its formula columns, condition values,
+    * compiles; nested sub-queries join it) share one lazily claimed context and one clean at
+    * its end, instead of one claim and clean per script or batch (G10 piece Q). An override
+    * of {@link #getTableLens} that does not call it opens its own (DataQuery), or runs its
+    * scripts on a claim each, as without a build (MVAssetQuery, perf only).
+    *
+    * @return the build to close in a try-with-resources, or {@code null} off the pool.
+    */
+   protected final SlotClaim.Build openScriptBuild() {
+      return box != null && box.isScriptPoolMode() ? SlotClaim.openBuild() : null;
    }
 
    private TableLens doGetTableLens(VariableTable vars) throws Exception {

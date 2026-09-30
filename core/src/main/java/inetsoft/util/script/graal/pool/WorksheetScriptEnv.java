@@ -100,7 +100,7 @@ public class WorksheetScriptEnv extends GraalJavaScriptEnv {
    @Override
    public Object compile(String cmd, boolean fieldOnly) throws Exception {
       try(SlotClaim claim = SlotClaim.acquire(pool, false)) {
-         return claim.slot().engine().compile(cmd, fieldOnly);
+         return claim.scriptSlot(state, sql).engine().compile(cmd, fieldOnly);
       }
    }
 

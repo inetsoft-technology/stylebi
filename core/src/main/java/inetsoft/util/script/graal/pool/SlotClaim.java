@@ -74,6 +74,11 @@ public final class SlotClaim implements ScriptSpan {
 
       claim.depth++;
 
+      // a script, batch or span at the build's top level: on main, its own claim and clean
+      if(claim.build && claim.depth == 2) {
+         claim.units++;
+      }
+
       if(!lazy) {
          try {
             claim.slot();
@@ -121,7 +126,11 @@ public final class SlotClaim implements ScriptSpan {
     *    scripts go on on it, as they do on a batch claim, and the build's release closes it;
     *    </li>
     *    <li>brings it up to the env's variables, which another thread may have set after the
-    *    build's first script (amendment 2).</li>
+    *    build's first script (amendment 2). It does so at every script call of the build,
+    *    inside a span too: a formula table batch or condition filter run in a build can see
+    *    a variable another thread set between two of its rows, as with the pool off, where
+    *    a batch outside a build sees the variables of its checkout for the whole batch.
+    *    Owner only, never waits; one version compare when nothing changed.</li>
     * </ul>
     * A retire of the env during the build dooms the slot but does not swap it: the build ends
     * on the context it started on, as a batch claim does, and its release closes it
@@ -138,6 +147,8 @@ public final class SlotClaim implements ScriptSpan {
       if(held.isInterruptLost() && depth == 2) {
          slot = null;
          held.metrics().swapped();
+         allowBuildDeletes(held);
+         units = 1;
          pool.release(held);
          return slot();
       }
@@ -181,7 +192,8 @@ public final class SlotClaim implements ScriptSpan {
 
       /**
        * End this level of the build; the outermost close releases the claims the build held,
-       * each cleaning and returning its context. Never throws on the thread that opened it.
+       * each cleaning and returning its context. A RuntimeException of a release is logged;
+       * an Error is rethrown once every claim was released.
        */
       @Override
       public void close() {
@@ -200,12 +212,33 @@ public final class SlotClaim implements ScriptSpan {
          }
 
          BUILD.remove();
+         Throwable error = null;
 
+         // every claim is released, even if one release throws an Error: a claim left
+         // locked would hold its context until the thread's releaseLeaked
          for(SlotClaim claim : claims) {
-            claim.endBuild();
+            try {
+               claim.endBuild();
+            }
+            catch(Throwable ex) {
+               if(error == null) {
+                  error = ex;
+               }
+               else {
+                  error.addSuppressed(ex);
+               }
+            }
          }
 
          claims.clear();
+
+         if(error instanceof Error err) {
+            throw err;
+         }
+         else if(error != null) {
+            // endBuild logs a RuntimeException and never throws one
+            throw new IllegalStateException(error);
+         }
       }
 
       private final Thread owner;
@@ -221,6 +254,10 @@ public final class SlotClaim implements ScriptSpan {
 
       build = false;
 
+      if(depth == 1 && slot != null) {
+         allowBuildDeletes(slot);
+      }
+
       try {
          close();
       }
@@ -229,6 +266,46 @@ public final class SlotClaim implements ScriptSpan {
          LOG.warn("Failed to release the worksheet script claim of a query build", ex);
       }
    }
+
+   /*
+    * A script, batch or span of a query build ended (this claim's 2 to 1 release) and the
+    * build's slot is now the home of a formula table's script objects (G10 piece Q, round 2):
+    * give the slot back now, cleaned and idle as the home, exactly where it is released
+    * without a build (the end of the batch, or of the span or script the batch ran in). A
+    * batch of the table on another thread (an aggregate's or distinct's on-demand worker,
+    * another assembly sharing the cached lens) then pulls the objects from it instead of
+    * reading them as undefined: A1 as without a build, not widened to the whole build. The
+    * build keeps this claim; its next script checks out a context again, the table's next
+    * batch its home if still idle. Only builds that run batches of tables with object vars
+    * pay this, one clean per such unit, as without a build. hasTenants is a leaf monitor.
+    */
+   private void giveBackHome() {
+      Slot held = slot;
+      slot = null;
+      held.metrics().buildYielded();
+      allowBuildDeletes(held);
+      units = 0;
+      pool.release(held);
+   }
+
+   /**
+    * Let the clean at the release of a build claim delete up to {@link
+    * PoolConfig#MAX_FOREIGN_DELETES} implicit globals per top-level script of the build
+    * (amendment 3, round 2): without a build, each of them had its own claim and clean
+    * under that cap, so a build whose scripts leave a few globals each would otherwise
+    * close its context at every build end. Bounded by {@link #MAX_BUILD_DELETES}, far under
+    * the clean's time guard; a single script above the cap still closes the context.
+    */
+   private void allowBuildDeletes(Slot held) {
+      long max = (long) PoolConfig.MAX_FOREIGN_DELETES * Math.max(1, units);
+      held.allowDeletes((int) Math.min(MAX_BUILD_DELETES, max));
+   }
+
+   /**
+    * The most implicit globals the clean of a build claim deletes before it closes the
+    * context instead: about 50 ms at 48 us a delete (spec §14.1).
+    */
+   static final int MAX_BUILD_DELETES = 1024;
 
    /**
     * @return the claimed slot, or {@code null} if none was checked out yet.
@@ -306,6 +383,11 @@ public final class SlotClaim implements ScriptSpan {
       }
 
       if(--depth > 0) {
+         // back at the build's own hold, on a formula table's home
+         if(depth == 1 && build && slot != null && slot.hasTenants()) {
+            giveBackHome();
+         }
+
          return;
       }
 
@@ -398,6 +480,8 @@ public final class SlotClaim implements ScriptSpan {
    private Slot slot;
    // set while a query build holds this claim (G10 piece Q), which then counts one depth
    private boolean build;
+   // the build's top-level scripts, batches and spans on this claim (amendment 3)
+   private int units;
 
    private static final Logger LOG = LoggerFactory.getLogger(SlotClaim.class);
 }

@@ -38,8 +38,10 @@ import static org.junit.jupiter.api.Assertions.*;
  * context ({@link SlotClaim#openBuild()}), with the four amendments of the refute: a context
  * an interrupt could not stop is left at the build's next top-level script (1); a variable
  * another thread sets during the build is seen by its next script (2); the clean's cap of
- * {@value PoolConfig#MAX_FOREIGN_DELETES} deleted implicit globals applies per build (3); a
- * reset during a build ends it on its context (4). Plus a timeout during a build.
+ * {@value PoolConfig#MAX_FOREIGN_DELETES} deleted implicit globals applies per top-level
+ * script of the build (3); a reset during a build ends it on its context (4). Plus a timeout
+ * during a build, an Error at a build's end, and a resident table batch at a build's top
+ * level, which ends the build's hold (round 2).
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class },
@@ -221,38 +223,87 @@ class QueryBuildClaimTest {
    }
 
    /**
-    * Amendment 3: the clean's cap of deleted implicit globals applies to the whole build,
-    * whose scripts' implicit globals all fall on its one clean: within the cap the context is
-    * reused, above it the context is closed instead of cleaned. Either way the next build
-    * sees none of them.
+    * Amendment 3 (round 2): the clean at a build's end may delete up to {@value
+    * PoolConfig#MAX_FOREIGN_DELETES} implicit globals per top-level script of the build, as
+    * each of them had its own clean under that cap without a build. A build whose scripts
+    * leave a few globals each, more than the cap together, keeps its context (round 1 closed
+    * it at every build end); one script above the cap still closes it. Either way the next
+    * build sees none of them.
     */
    @Test
-   void theCapOfDeletedImplicitGlobalsAppliesPerBuild() throws Exception {
+   void theCapOfDeletedImplicitGlobalsAppliesPerTopLevelScript() throws Exception {
       int cap = PoolConfig.MAX_FOREIGN_DELETES;
-      buildWithGlobals(cap);
-      assertEquals(1, env.getMetrics().getCreations(), "a build within the cap was closed");
-      assertNoGlobals(cap + 1);
-      assertEquals(1, env.getMetrics().getCreations());
 
-      buildWithGlobals(cap + 1);
-      assertNoGlobals(cap + 1);
-      assertEquals(2, env.getMetrics().getCreations(), "a build above the cap was reused");
-   }
+      for(int round = 0; round < 3; round++) {
+         // four scripts, each leaving cap / 2 + 1 globals: twice the cap together
+         try(SlotClaim.Build ignored = SlotClaim.openBuild()) {
+            for(int s = 0; s < 4; s++) {
+               StringBuilder js = new StringBuilder();
 
-   private void buildWithGlobals(int n) throws Exception {
-      try(SlotClaim.Build ignored = SlotClaim.openBuild()) {
-         for(int i = 0; i < n; i++) {
-            run(env, "implicit" + i + " = " + i);
+               for(int i = 0; i <= cap / 2; i++) {
+                  js.append("implicit").append(s).append('_').append(i).append(" = 1;");
+               }
+
+               run(env, js.toString());
+            }
          }
       }
+
+      assertEquals(1, env.getMetrics().getCreations(), "a build within its cap was closed");
+
+      try(SlotClaim.Build ignored = SlotClaim.openBuild()) {
+         assertEquals("undefined", run(env, "typeof implicit3_" + cap / 2));
+      }
+
+      // one top-level script (compiled before the build) above the cap
+      StringBuilder js = new StringBuilder();
+
+      for(int i = 0; i <= cap; i++) {
+         js.append("single").append(i).append(" = 1;");
+      }
+
+      Object script = env.compile(js.toString());
+
+      try(SlotClaim.Build ignored = SlotClaim.openBuild()) {
+         env.exec(script, null, null, null);
+      }
+
+      try(SlotClaim.Build ignored = SlotClaim.openBuild()) {
+         assertEquals("undefined", run(env, "typeof single0"));
+      }
+
+      // a context is created lazily, by the next build's first script
+      assertEquals(2, env.getMetrics().getCreations(), "a script above the cap was reused");
    }
 
-   private void assertNoGlobals(int n) throws Exception {
+   /**
+    * The build's budget is bounded: however many scripts it ran, its clean deletes at most
+    * {@link SlotClaim#MAX_BUILD_DELETES} globals.
+    */
+   @Test
+   void theBuildBudgetIsBounded() throws Exception {
+      int n = SlotClaim.MAX_BUILD_DELETES + 1;
+      StringBuilder js = new StringBuilder();
+
+      for(int i = 0; i < n; i++) {
+         js.append("many").append(i).append(" = 1;");
+      }
+
+      Object script = env.compile(js.toString());
+
       try(SlotClaim.Build ignored = SlotClaim.openBuild()) {
          for(int i = 0; i < n; i++) {
-            assertEquals("undefined", run(env, "typeof implicit" + i));
+            run(env, "1");
          }
+
+         env.exec(script, null, null, null);
       }
+
+      try(SlotClaim.Build ignored = SlotClaim.openBuild()) {
+         assertEquals("undefined", run(env, "typeof many0"));
+      }
+
+      assertEquals(2, env.getMetrics().getCreations(), "a clean above the bound");
    }
 
    /**
@@ -364,6 +415,123 @@ class QueryBuildClaimTest {
       assertEquals(0, task.get(10, TimeUnit.SECONDS));
       // the leaked claim's context was released, so the next script reused it
       assertEquals(1, env.getMetrics().getSize(), "a context was left locked");
+   }
+
+   /**
+    * Round 2: an Error from one claim's release at the build's end does not leave the other
+    * claims of the build locked; it is rethrown once all of them were released.
+    */
+   @Test
+   void anErrorAtABuildsEndReleasesEveryClaim() throws Exception {
+      WorksheetScriptEnv other = env();
+      env.pool().beforeIdleHook = () -> {
+         throw new AssertionError("release failed");
+      };
+
+      try {
+         AssertionError error = assertThrows(AssertionError.class, () -> {
+            try(SlotClaim.Build ignored = SlotClaim.openBuild()) {
+               run(env, "1");
+               run(other, "2");
+            }
+         });
+
+         assertEquals("release failed", error.getMessage());
+      }
+      finally {
+         env.pool().beforeIdleHook = null;
+      }
+
+      assertEquals(0, SlotClaim.openClaims());
+      // the second claim's context was released: another thread takes it
+      assertEquals(3.0, executor.submit(() -> run(other, "1 + 2")).get(10, TimeUnit.SECONDS));
+      assertEquals(1, other.getMetrics().getCreations(), "the other build claim stayed locked");
+      env.retire();
+   }
+
+   /**
+    * Round 2: a compile at the build's top level also leaves a context an interrupt could not
+    * stop (amendment 1), as an exec does.
+    */
+   @Test
+   void aCompileAtTheTopLevelLeavesAContextAnInterruptCouldNotStop() throws Exception {
+      try(SlotClaim.Build ignored = SlotClaim.openBuild()) {
+         run(env, "1");
+         Slot first = SlotClaim.current(env.pool()).peekSlot();
+         first.engine().onInterruptTimeout();
+         env.compile("2");
+         assertNotSame(first, SlotClaim.current(env.pool()).peekSlot());
+         assertTrue(first.isClosed());
+      }
+
+      assertEquals(1, env.getMetrics().getSwaps());
+   }
+
+   /**
+    * Round 2: once the build's context is a formula table's home, the build gives it back at
+    * the end of the build's top-level unit the table's batch ran in (the batch itself, or an
+    * outer span such as a condition filter or another table's batch), where the context is
+    * released without a build: the home is idle then, not only at the build's end. The
+    * build's next script checks out a context again, on the same claim.
+    */
+   @Test
+   void aHomeEnrolledInABuildIsReleasedAtTheEndOfItsTopLevelUnit() throws Exception {
+      SlotTenant tenant = codec -> true;
+
+      try(SlotClaim.Build ignored = SlotClaim.openBuild()) {
+         // the batch is the top-level unit
+         Slot home;
+
+         try(ScriptSpan batch = env.openSpan()) {
+            run(env, "1");
+            home = SlotClaim.current(env.pool()).peekSlot();
+            OwnedValueCodec.enroll(OwnedValueCodec.homeOf(batch), tenant);
+         }
+
+         assertEquals(1, env.getMetrics().getBuildYields());
+         assertEquals(1, env.getMetrics().getCleans(), "the home was not cleaned");
+         assertNull(SlotClaim.current(env.pool()).peekSlot());
+         assertIdle(home);
+
+         run(env, "2");
+         assertNotSame(home, SlotClaim.current(env.pool()).peekSlot());
+
+         // nested in an outer span of the build: the hold ends with the outer span
+         try(ScriptSpan outer = env.openSpan()) {
+            Slot nested;
+
+            try(ScriptSpan batch = env.openSpan()) {
+               run(env, "4");
+               nested = SlotClaim.current(env.pool()).peekSlot();
+               OwnedValueCodec.enroll(OwnedValueCodec.homeOf(batch), tenant);
+            }
+
+            run(env, "5");
+            assertEquals(1, env.getMetrics().getBuildYields(), "released inside the span");
+            assertSame(nested, SlotClaim.current(env.pool()).peekSlot());
+            home = nested;
+         }
+
+         assertEquals(2, env.getMetrics().getBuildYields());
+         assertNull(SlotClaim.current(env.pool()).peekSlot());
+         assertIdle(home);
+
+         // units that enroll no home keep the build's context
+         run(env, "6");
+         Slot last = SlotClaim.current(env.pool()).peekSlot();
+         run(env, "7");
+         assertSame(last, SlotClaim.current(env.pool()).peekSlot());
+      }
+
+      assertEquals(2, env.getMetrics().getBuildYields());
+      assertEquals(0, SlotClaim.openClaims());
+      assertEquals(3, env.getMetrics().getCleans());
+   }
+
+   // another thread can take the slot now, without waiting
+   private void assertIdle(Slot slot) throws Exception {
+      assertTrue(executor.submit(slot::tryAcquire).get(10, TimeUnit.SECONDS), "still held");
+      executor.submit(slot::release).get(10, TimeUnit.SECONDS);
    }
 
    private static void refreshTimeout() throws Exception {
