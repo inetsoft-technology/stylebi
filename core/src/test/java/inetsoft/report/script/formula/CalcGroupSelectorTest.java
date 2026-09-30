@@ -22,6 +22,7 @@ import inetsoft.report.internal.table.CalcCellContext;
 import inetsoft.report.internal.table.RuntimeCalcTableLens;
 import inetsoft.test.*;
 import inetsoft.util.script.FormulaContext;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -64,6 +65,13 @@ class CalcGroupSelectorTest {
       // Mock RuntimeCalcTableLens to return a valid CalcCellContext
       mockContext = mock(CalcCellContext.class);
       when(mockCalcTableLens.getCellContext(1, 1)).thenReturn(mockContext);
+   }
+
+   // the formula context is a thread local, so a mock left on it outlives this test
+   @AfterEach
+   void tearDown() {
+      FormulaContext.popTable();
+      FormulaContext.popCellLocation();
    }
 
    /**
