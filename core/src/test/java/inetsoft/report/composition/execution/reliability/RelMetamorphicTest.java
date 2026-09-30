@@ -110,16 +110,30 @@ public class RelMetamorphicTest {
       // a long run is split into case ranges, each within one Maven call
       int from = bound(all, "rel.from", 0);
       int to = bound(all, "rel.to", Integer.MAX_VALUE);
-      Stream<Case> cases = all.stream().skip(from).limit(Math.max(0, to - from));
-      // or a list of cases, e.g. to re-run chosen cases after a harness change
+      List<Case> range = all.stream().skip(from).limit(Math.max(0, to - from)).toList();
+      // or a list of cases, e.g. to re-run chosen cases after a harness change; a key that
+      // selects nothing (unknown, out of range, or left out by rel.step) fails the run
       String only = System.getProperty("rel.cases", "");
 
       if(!only.isBlank()) {
          List<String> keys = Arrays.stream(only.split(",")).map(String::trim).toList();
-         cases = cases.filter(c -> keys.stream().anyMatch(k -> selects(k, c)));
+
+         for(String key : keys) {
+            if(range.stream().noneMatch(c -> selects(key, c))) {
+               throw new IllegalArgumentException("-Drel.cases=" + key + " selects no case " +
+                  "of this run (" + range.size() + " cases, rel.step=" +
+                  Integer.getInteger("rel.step", LONG ? 1 : 70) + ", rel.from/to)");
+            }
+         }
+
+         range = range.stream().filter(c -> keys.stream().anyMatch(k -> selects(k, c))).toList();
       }
 
-      return cases;
+      if(range.isEmpty()) {
+         throw new IllegalArgumentException("the case selection is empty (rel.from/to/cases)");
+      }
+
+      return range.stream();
    }
 
    // a case index, or a label: "syn:name" or "corpus#c" (the label without its class)
@@ -832,7 +846,7 @@ public class RelMetamorphicTest {
     * same number of cells, the same failed cells and the same row ids. Then it is C6 if every
     * differing cell is a GraalJS value on one side and a host container of equal typed
     * content on the other (a host copy displayed differently); else the script's drift (B1 /
-    * B3 / implicit global, see {@link #drift(String, Shape, Map, List)}) if every differing
+    * B3 / implicit global, see {@link #drift(String, Shape, Map, List, List)}) if every differing
     * cell is a value of the same type on both sides (only the variable's value differs); else
     * none.
     *
@@ -1026,6 +1040,12 @@ public class RelMetamorphicTest {
    }
 
    /**
+    * The 10-row window is a harness choice: a restart begins a batch at row k, and the rows
+    * from k to the first difference may equal the pool-off cells only by chance, which the
+    * synthetic plain scripts' values (counts, lengths, dates that change every row) make
+    * unlikely beyond the pool-off look-ahead of 10 rows; a wider miss is unknown (fails), not
+    * excused.
+    *
     * @return whether a formula lens's cells are its pool-off cells up to a row k within 10 rows
     * of the first difference, and from k on exactly what a new table computes from row k (the
     * vars restarted once, as a loss makes them), never an older value.
