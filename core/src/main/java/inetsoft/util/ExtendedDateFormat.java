@@ -25,7 +25,6 @@ import java.time.*;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoField;
 import java.time.temporal.TemporalAccessor;
-import java.time.zone.ZoneRules;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -596,23 +595,26 @@ public class ExtendedDateFormat extends SimpleDateFormat {
             nanosecond = temporal.get(ChronoField.NANO_OF_SECOND);
          }
 
-         /*
-               The default system time zone for this bug is Asia/Shanghai.  Before 1901,
-         the time zone offset for this time zone was UTC+08:05:43 and after 1901 it was UTC+8.
-         Using the system time zone directly generates the ZonedDateTime generated with the
-         UTC+08:05:43 time zone offset using the UTC+8 time zone offset to generate the Date,
-         resulting in the "1882-01-01" parse as Sat Dec 31 23:54:17 CST 1881.
-               To ensure that the date in the parse file is consistent with the time displayed
-         in the string, use java's current time zone offset to avoid impact caused
-         by time zone offset changes.
-         */
-         if(zone.getID().equals("Asia/Shanghai") && year < 1901) {
-            ZoneRules zoneRules = ZoneId.systemDefault().getRules();
-            ZoneOffset currentOffset = zoneRules.getOffset(Instant.now());
-            OffsetDateTime offsetDateTime = LocalDateTime
-               .of(year, month, day, hour, minute, second, nanosecond)
-               .atOffset(currentOffset);
-            return new Date(offsetDateTime.toInstant().toEpochMilli());
+         // before 1901 java.time and the hybrid Julian/Gregorian calendar used by format()
+         // disagree: java.time is proleptic Gregorian (7 days off in 1012) and applies the
+         // zone's local mean time, while java.util.TimeZone applies its raw offset before its
+         // first transition around 1900 (e.g. Asia/Shanghai +8:05:43 vs +8). converting the
+         // fields through java.time shifts the date on every save and reload, so convert with
+         // the same calendar and zone as format(). SimpleDateFormat is tried first because
+         // the SMART resolver has already clamped a Julian leap day such as 1500-02-29
+         if(year < 1901) {
+            Date date = super.parse(str, new ParsePosition(0));
+
+            if(date != null) {
+               return date;
+            }
+
+            GregorianCalendar calendar = new GregorianCalendar(zone);
+            calendar.setLenient(true);
+            calendar.clear();
+            calendar.set(year, month - 1, day, hour, minute, second);
+            calendar.set(Calendar.MILLISECOND, nanosecond / 1_000_000);
+            return calendar.getTime();
          }
          else {
             ZonedDateTime dateTime = LocalDateTime
