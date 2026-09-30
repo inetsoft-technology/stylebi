@@ -151,6 +151,8 @@ class ContentRepositoryTreeControllerTest {
       String path = Tool.MY_DASHBOARD;
       CommonKVModel<String, String>[] users =
          new CommonKVModel[]{ new CommonKVModel<>(key, path) };
+      // the caller is the owner, so the #77378 owner-org check passes
+      when(principal.getName()).thenReturn(key);
 
       when(treeService.getUserReports(any(IdentityID.class), eq(registry), eq(principal)))
          .thenReturn(treeNode);
@@ -168,6 +170,8 @@ class ContentRepositoryTreeControllerTest {
       String path = SUtil.MY_DASHBOARD;
       CommonKVModel<String, String>[] users =
          new CommonKVModel[]{ new CommonKVModel<>(key, path) };
+      // the caller is the owner, so the #77378 owner-org check passes
+      when(principal.getName()).thenReturn(key);
 
       when(treeService.getUserDashboardNode(any(IdentityID.class), eq(registry), eq(principal)))
          .thenReturn(treeNode);
@@ -187,6 +191,8 @@ class ContentRepositoryTreeControllerTest {
    void getRepositoryTreeNode_myDashboardPath_callsGetUserReports() throws Exception {
       String owner = new IdentityID("alice", "org").convertToKey();
       String path = Tool.MY_DASHBOARD;
+      // the caller is the owner, so the #77378 owner-org check passes
+      when(principal.getName()).thenReturn(owner);
 
       when(treeService.getUserReports(any(IdentityID.class), eq(registry), eq(principal)))
          .thenReturn(treeNode);
