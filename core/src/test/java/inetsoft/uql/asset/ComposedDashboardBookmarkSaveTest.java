@@ -176,15 +176,20 @@ class ComposedDashboardBookmarkSaveTest {
    }
 
    @Test
-   void nonAnonymousOwnedNonComposedViewsheetIsNotAffected() throws Exception {
-      // an ordinary viewsheet owned by another (non-anonymous) user keeps the pre-existing
-      // overwriteBookmarks behavior (a separate follow-up)
-      AssetEntry entry = createDashboard(new IdentityID("Bug77345User", orgId), false);
+   void adminResavesOtherUsersNonComposedViewsheetKeepsOwnerBookmarks() throws Exception {
+      // an ordinary viewsheet owned by another (non-anonymous) user is outside both the
+      // composed-dashboard branch and the security-off anonymous-owner rule, so the source
+      // bookmarks are read as the saving admin, who cannot see them. The copy is skipped instead
+      // of failing the save, and the owner's bookmarks are left untouched (Bug #77363)
+      IdentityID user = new IdentityID("Bug77345User", orgId);
+      AssetEntry entry = createDashboard(user, false);
       Viewsheet vs = openAndEdit(entry);
 
-      RuntimeException ex = assertThrows(RuntimeException.class,
-                                         () -> repository.setSheet(entry, vs, admin, true));
-      assertTrue(ex.getMessage().startsWith("Invalid entry found"), ex.getMessage());
+      assertDoesNotThrow(() -> repository.setSheet(entry, vs, admin, true));
+
+      assertPersisted(entry);
+      assertTrue(repository.getVSBookmark(entry, new XPrincipal(user), true)
+                    .containsBookmark(OWNER_BOOKMARK), "owner's bookmark must be kept");
    }
 
    private AssetEntry createDashboard(IdentityID dashboardOwner, boolean composed)

@@ -4681,6 +4681,14 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
 
       try {
          VSBookmark book1 = getVSBookmark(entry1, readUser, true);
+
+         // readUser cannot see the source bookmarks (e.g. a site admin saving another user's
+         // private viewsheet). Skip the copy instead of failing the save, and leave the owner's
+         // bookmarks untouched (Bug #77363)
+         if(book1 == null) {
+            return;
+         }
+
          setVSBookmark(entry2, book1, user);
       }
       finally {
