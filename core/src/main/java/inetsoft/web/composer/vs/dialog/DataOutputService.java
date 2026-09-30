@@ -25,10 +25,14 @@ import inetsoft.report.composition.event.AssetEventUtil;
 import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.viewsheet.CalculateRef;
+import inetsoft.uql.viewsheet.SelectionVSAssembly;
+import inetsoft.uql.viewsheet.VSAssembly;
+import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.SelectionVSUtil;
 import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
 import inetsoft.web.composer.model.vs.*;
+import inetsoft.web.portal.controller.database.QueryManagerService;
 import inetsoft.web.viewsheet.service.VSOutputService;
 import org.springframework.stereotype.Service;
 
@@ -40,10 +44,12 @@ import java.util.*;
 public class DataOutputService {
 
    public DataOutputService(ViewsheetService viewsheetService,
-                            VSOutputService vsOutputService)
+                            VSOutputService vsOutputService,
+                            QueryManagerService queryManagerService)
    {
       this.viewsheetService = viewsheetService;
       this.vsOutputService = vsOutputService;
+      this.queryManagerService = queryManagerService;
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
@@ -51,6 +57,11 @@ public class DataOutputService {
                                                     String table, Principal principal) throws Exception
    {
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
+      // a cube table is resolved from its data source without a permission check, so a cube
+      // that no assembly of the viewsheet is bound to is checked before its columns are
+      // listed (Bug #77427)
+      queryManagerService.checkNewCubeTablesReadPermission(
+         Collections.singletonList(table), getBoundTables(rvs.getViewsheet()), principal);
       ColumnSelection selection =
          this.vsOutputService.getOutputTableColumns(rvs, table, true, principal);
       List<OutputColumnModel> columnList = new ArrayList<>();
@@ -234,6 +245,25 @@ public class DataOutputService {
       return columns.toArray(new OutputColumnRefModel[0]);
    }
 
+   /**
+    * The tables that the assemblies of the viewsheet are bound to.
+    */
+   private static List<String> getBoundTables(Viewsheet vs) {
+      List<String> tables = new ArrayList<>();
+
+      for(Assembly assembly : vs.getAssemblies()) {
+         if(assembly instanceof SelectionVSAssembly selection) {
+            tables.addAll(selection.getTableNames());
+         }
+         else if(assembly instanceof VSAssembly vsAssembly) {
+            tables.add(vsAssembly.getTableName());
+         }
+      }
+
+      return tables;
+   }
+
    private final VSOutputService vsOutputService;
    private final ViewsheetService viewsheetService;
+   private final QueryManagerService queryManagerService;
 }

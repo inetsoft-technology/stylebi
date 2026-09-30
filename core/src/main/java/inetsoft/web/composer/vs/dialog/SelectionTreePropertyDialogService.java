@@ -39,6 +39,7 @@ import inetsoft.web.composer.model.TreeNodeModel;
 import inetsoft.web.composer.model.vs.*;
 import inetsoft.web.composer.vs.objects.controller.VSObjectPropertyService;
 import inetsoft.web.composer.vs.objects.controller.VSTrapService;
+import inetsoft.web.portal.controller.database.QueryManagerService;
 import inetsoft.web.viewsheet.event.ApplySelectionListEvent;
 import inetsoft.web.viewsheet.service.*;
 import org.springframework.stereotype.Service;
@@ -61,7 +62,8 @@ public class SelectionTreePropertyDialogService {
                                              SelectionDialogService selectionDialogService,
                                              VSAssemblyInfoHandler assemblyInfoHandler,
                                              DataRefModelFactoryService dataRefService,
-                                             DataSourceRegistry dataSourceRegistry)
+                                             DataSourceRegistry dataSourceRegistry,
+                                             QueryManagerService queryManagerService)
    {
       this.vsObjectPropertyService = vsObjectPropertyService;
       this.vsOutputService = vsOutputService;
@@ -73,6 +75,7 @@ public class SelectionTreePropertyDialogService {
       this.assemblyInfoHandler = assemblyInfoHandler;
       this.dataRefService = dataRefService;
       this.dataSourceRegistry = dataSourceRegistry;
+      this.queryManagerService = queryManagerService;
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
@@ -294,7 +297,7 @@ public class SelectionTreePropertyDialogService {
       streeInfo.setSelectFirstItemValue(selectionGeneralPane.isSelectFirstItem());
       streeInfo.setQuickSwitchAllowedValue(selectionGeneralPane.isQuickSwitchAllowed());
 
-      setAssemblyInfoTables(streeInfo, selectionTreePaneModel);
+      setAssemblyInfoTables(streeInfo, selectionTreePaneModel, principal);
       setAssemblyInfoDataRefs(streeInfo, selectionTreePaneModel);
       setAssemblyInfoMeasure(streeInfo, selectionMeasurePaneModel);
 
@@ -345,7 +348,7 @@ public class SelectionTreePropertyDialogService {
 
          SelectionMeasurePaneModel selectionMeasurePaneModel = value.getSelectionMeasurePaneModel();
 
-         setAssemblyInfoTables(newAssemblyInfo, value);
+         setAssemblyInfoTables(newAssemblyInfo, value, principal);
          setAssemblyInfoDataRefs(newAssemblyInfo, value);
          setAssemblyInfoMeasure(newAssemblyInfo, selectionMeasurePaneModel);
          VSTableTrapModel trap = trapService.checkTrap(rvs, oldAssemblyInfo, newAssemblyInfo);
@@ -386,7 +389,7 @@ public class SelectionTreePropertyDialogService {
 
          SelectionMeasurePaneModel selectionMeasurePaneModel = value.getSelectionMeasurePaneModel();
 
-         setAssemblyInfoTables(newAssemblyInfo, value);
+         setAssemblyInfoTables(newAssemblyInfo, value, principal);
          setAssemblyInfoDataRefs(newAssemblyInfo, value);
          setAssemblyInfoMeasure(newAssemblyInfo, selectionMeasurePaneModel);
          List<DataRefModel> grayed = getGrayedFields(rvs, oldAssemblyInfo, newAssemblyInfo);
@@ -425,8 +428,12 @@ public class SelectionTreePropertyDialogService {
    }
 
    private void setAssemblyInfoTables(SelectionTreeVSAssemblyInfo info,
-                                      SelectionTreePaneModel model)
+                                      SelectionTreePaneModel model, Principal principal)
    {
+      // a cube table is resolved from its data source without a permission check, so check
+      // a newly bound one before it is set (Bug #77427)
+      queryManagerService.checkNewCubeTablesReadPermission(
+         model.getSelectedTable(), model.getAdditionalTables(), info.getTableNames(), principal);
       info.setFirstTableName(model.getSelectedTable());
       info.setAdditionalTableNames(model.getAdditionalTables());
    }
@@ -560,4 +567,5 @@ public class SelectionTreePropertyDialogService {
    private final VSAssemblyInfoHandler assemblyInfoHandler;
    private final DataRefModelFactoryService dataRefService;
    private final DataSourceRegistry dataSourceRegistry;
+   private final QueryManagerService queryManagerService;
 }

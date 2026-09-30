@@ -49,6 +49,7 @@ import inetsoft.web.composer.model.ws.MVConditionPaneModel;
 import inetsoft.web.composer.ws.WorksheetControllerService;
 import inetsoft.web.composer.ws.assembly.WorksheetEventUtil;
 import inetsoft.web.composer.ws.joins.JoinUtil;
+import inetsoft.web.portal.controller.database.QueryManagerService;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Service;
@@ -65,12 +66,14 @@ public class AssemblyConditionDialogService extends WorksheetControllerService {
                                          DataRefModelFactoryService dataRefModelFactoryService,
                                          XRepository xrepository,
                                          VSScriptableController scriptController,
-                                         DataSourceRegistry dataSourceRegistry)
+                                         DataSourceRegistry dataSourceRegistry,
+                                         QueryManagerService queryManagerService)
    {
       super(viewsheetService, dataSourceRegistry);
       this.dataRefModelFactoryService = dataRefModelFactoryService;
       this.xrepository = xrepository;
       this.scriptController = scriptController;
+      this.queryManagerService = queryManagerService;
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
@@ -346,6 +349,9 @@ public class AssemblyConditionDialogService extends WorksheetControllerService {
    public BrowseDataModel browseData(@ClusterProxyKey String runtimeId, String assemblyName, DataRefModel dataRefModel, Principal principal) throws Exception
    {
       RuntimeWorksheet rws = getWorksheetEngine().getWorksheet(runtimeId, principal);
+      // a cube table name is resolved from its data source without a permission check and
+      // never names a table of the worksheet, so it is checked (Bug #77427)
+      queryManagerService.checkCubeTableReadPermission(assemblyName, principal);
       BrowseDataController browseDataController = new BrowseDataController();
       DataRef dataRef = dataRefModel.createDataRef();
 
@@ -580,4 +586,5 @@ public class AssemblyConditionDialogService extends WorksheetControllerService {
    private DataRefModelFactoryService dataRefModelFactoryService;
    private XRepository xrepository;
    private VSScriptableController scriptController;
+   private final QueryManagerService queryManagerService;
 }

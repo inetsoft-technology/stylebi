@@ -26,6 +26,7 @@ import inetsoft.uql.viewsheet.internal.TextVSAssemblyInfo;
 import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
 import inetsoft.web.binding.service.DataRefModelFactoryService;
 import inetsoft.web.composer.vs.dialog.VSConditionDialogService;
+import inetsoft.web.portal.controller.database.QueryManagerService;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -55,7 +56,8 @@ class VSConditionDialogServiceTest {
 
    @BeforeEach
    void setup() throws Exception {
-      service = new VSConditionDialogService(dataRefModelFactoryService, vsAssemblyInfoHandler, viewsheetEngine, dataSourceRegistry);
+      service = new VSConditionDialogService(dataRefModelFactoryService, vsAssemblyInfoHandler, viewsheetEngine, dataSourceRegistry,
+                                             mock(QueryManagerService.class));
    }
 
    @Test

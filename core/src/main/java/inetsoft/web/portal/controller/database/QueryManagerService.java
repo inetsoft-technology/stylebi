@@ -1555,6 +1555,92 @@ public class QueryManagerService {
    }
 
    /**
+    * Checks a table name that an authoring or data browsing endpoint is about to resolve in a
+    * viewsheet. A cube table name (<tt>___inetsoft_cube_&lt;data source&gt;/&lt;cube&gt;</tt>) is
+    * resolved by the worksheet straight from the data source, outside the base worksheet and
+    * without a permission check, so it requires READ on its data source and the cube READ
+    * that the asset tree's cube listing requires. Any other name is a table of the base
+    * worksheet, whose source is checked when it is bound, and is not checked here. Callers
+    * must not call this for a table that is already bound, so an existing viewsheet keeps
+    * working (Bug #77427).
+    *
+    * @param tableName the table name, or null.
+    * @param principal the current user.
+    *
+    * @throws java.lang.SecurityException if a permission is not granted.
+    */
+   public void checkCubeTableReadPermission(String tableName, Principal principal) {
+      if(tableName == null || !tableName.startsWith(Assembly.CUBE_VS)) {
+         return;
+      }
+
+      // parsed the same way as Worksheet.getCubeTableAssembly
+      String name = tableName.substring(Assembly.CUBE_VS.length());
+      int idx = name.lastIndexOf('/');
+
+      if(idx < 0) {
+         return;
+      }
+
+      String dataSource = name.substring(0, idx);
+      String cube = name.substring(idx + 1);
+      checkDataSourceReadPermission(dataSource, principal);
+      checkCubeReadPermission(dataSource, cube, principal);
+   }
+
+   /**
+    * Checks <tt>newTable</tt> as {@link #checkCubeTableReadPermission} does, unless it is the
+    * already bound <tt>oldTable</tt> (Bug #77427).
+    *
+    * @throws java.lang.SecurityException if a permission is not granted.
+    */
+   public void checkNewCubeTableReadPermission(String newTable, String oldTable,
+                                               Principal principal)
+   {
+      if(!Tool.equals(newTable, oldTable)) {
+         checkCubeTableReadPermission(newTable, principal);
+      }
+   }
+
+   /**
+    * Checks the cube table names in <tt>newTables</tt> that are not in <tt>oldTables</tt>, as
+    * {@link #checkCubeTableReadPermission} does. A table that is already bound is not checked
+    * (Bug #77427).
+    *
+    * @throws java.lang.SecurityException if a permission is not granted.
+    */
+   public void checkNewCubeTablesReadPermission(Collection<String> newTables,
+                                                Collection<String> oldTables,
+                                                Principal principal)
+   {
+      if(newTables == null) {
+         return;
+      }
+
+      for(String table : newTables) {
+         if(oldTables == null || !oldTables.contains(table)) {
+            checkCubeTableReadPermission(table, principal);
+         }
+      }
+   }
+
+   /**
+    * Checks the first and additional tables of a selection that are not in
+    * <tt>oldTables</tt>, as {@link #checkCubeTableReadPermission} does (Bug #77427).
+    *
+    * @throws java.lang.SecurityException if a permission is not granted.
+    */
+   public void checkNewCubeTablesReadPermission(String firstTable,
+                                                Collection<String> additionalTables,
+                                                Collection<String> oldTables,
+                                                Principal principal)
+   {
+      checkNewCubeTablesReadPermission(
+         Collections.singletonList(firstTable), oldTables, principal);
+      checkNewCubeTablesReadPermission(additionalTables, oldTables, principal);
+   }
+
+   /**
     * Checks a client-supplied entry that is about to be newly bound as the base source of a
     * viewsheet (new viewsheet, wizard, properties dialog, Save-As). A worksheet requires READ on
     * the worksheet, which the viewsheet opens without a permission check. A query, physical

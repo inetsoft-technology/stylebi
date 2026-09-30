@@ -53,6 +53,7 @@ import inetsoft.web.composer.vs.VSObjectTreeService;
 import inetsoft.web.composer.vs.command.PopulateVSObjectTreeCommand;
 import inetsoft.web.composer.vs.objects.controller.*;
 import inetsoft.web.composer.vs.objects.event.ChangeVSObjectBindingEvent;
+import inetsoft.web.portal.controller.database.QueryManagerService;
 import inetsoft.web.viewsheet.command.MessageCommand;
 import inetsoft.web.viewsheet.command.RefreshVSObjectCommand;
 import inetsoft.web.viewsheet.controller.table.BaseTableService;
@@ -93,7 +94,8 @@ public class VSBindingService {
                            AnalyticAssistant analyticAssistant,
                            VSAssemblyInfoHandler assemblyHandler,
                            VSObjectTreeService vsObjectTreeService,
-                           CoreLifecycleService coreLifecycleService)
+                           CoreLifecycleService coreLifecycleService,
+                           QueryManagerService queryManagerService)
    {
       this.trapService = trapService;
       this.vsTableService = vsTableService;
@@ -107,6 +109,7 @@ public class VSBindingService {
       this.assemblyHandler = assemblyHandler;
       this.vsObjectTreeService = vsObjectTreeService;
       this.coreLifecycleService = coreLifecycleService;
+      this.queryManagerService = queryManagerService;
       factories.forEach((factory) -> this.registerFactory(factory.getAssemblyClass(), factory));
    }
 
@@ -403,6 +406,8 @@ public class VSBindingService {
    {
       Viewsheet viewsheet = rvs.getViewsheet();
       VSAssemblyInfo info = assembly == null ? null : assembly.getVSAssemblyInfo();
+      // check a newly bound cube table before the assembly is changed (Bug #77427)
+      checkNewCubeTables(bindings, assembly == null ? null : getBoundTables(assembly), principal);
 
       AssetEntry binding = bindings.get(0);
       DataRef ref = createDataRef(binding);
@@ -1371,10 +1376,13 @@ public class VSBindingService {
     *
     * @param model the specified binidng model.
     * @param assembly the specified assembly.
+    * @param principal the current user.
     *
     * @return the assembly.
     */
-   public VSAssembly updateAssembly(BindingModel model, VSAssembly assembly) {
+   public VSAssembly updateAssembly(BindingModel model, VSAssembly assembly,
+                                    Principal principal)
+   {
       VSBindingFactory factory = vsFactories.get(assembly.getClass());
 
       if(factory == null) {
@@ -1383,6 +1391,8 @@ public class VSBindingService {
             assembly.getClass().getName());
       }
 
+      // check a newly bound cube table before the assembly is changed (Bug #77427)
+      checkNewSourceInfo(model, assembly, principal);
       VSAssembly oassembly = (VSAssembly) assembly.clone();
       VSAssembly nassembly = factory.updateAssembly(model, assembly);
       updateSourceInfo(model, assembly);
@@ -1454,6 +1464,8 @@ public class VSBindingService {
       int type = 0;
       ColumnSelection columns = new ColumnSelection();
       Viewsheet viewsheet = rvs.getViewsheet();
+      // every table of a new assembly is newly bound (Bug #77427)
+      checkNewCubeTables(bindings, null, principal);
 
       AssetEntry binding = bindings.get(0);
       DataRef ref = createDataRef(binding);
@@ -1467,7 +1479,7 @@ public class VSBindingService {
       if(binding.getType() == AssetEntry.Type.TABLE ||
          binding.getType() == AssetEntry.Type.PHYSICAL_TABLE)
       {
-         vsassembly = vsTableService.createTable(rvs, viewsheetService, binding, x, y);
+         vsassembly = vsTableService.createTable(rvs, viewsheetService, binding, x, y, principal);
       }
       else if(binding.getProperty("DIMENSION_FOLDER") != null) {
          type = AbstractSheet.SELECTION_TREE_ASSET;
@@ -1685,6 +1697,45 @@ public class VSBindingService {
       }
 
       return nsource;
+   }
+
+   /**
+    * Checks the cube tables of the dropped entries that the assembly is not already bound to.
+    * A cube table is resolved from its data source without a permission check (Bug #77427).
+    */
+   private void checkNewCubeTables(List<AssetEntry> bindings, List<String> oldTables,
+                                   Principal principal)
+   {
+      if(bindings == null) {
+         return;
+      }
+
+      List<String> tables = bindings.stream()
+         .map(entry -> entry.getProperty("assembly"))
+         .filter(Objects::nonNull)
+         .toList();
+      queryManagerService.checkNewCubeTablesReadPermission(tables, oldTables, principal);
+   }
+
+   /**
+    * Checks the source of the binding model when it changes the assembly's source. A cube
+    * table is resolved from its data source without a permission check, and an unchanged
+    * source is not checked, so an existing binding keeps working (Bug #77427).
+    */
+   private void checkNewSourceInfo(BindingModel model, VSAssembly assembly,
+                                   Principal principal)
+   {
+      SourceInfo nsinfo = model.getSource();
+
+      if(!(assembly instanceof DataVSAssembly dassembly) || nsinfo == null) {
+         return;
+      }
+
+      inetsoft.uql.asset.SourceInfo osinfo = dassembly.getSourceInfo();
+
+      if(nsinfo.toSourceAttr(osinfo) != osinfo) {
+         queryManagerService.checkCubeTableReadPermission(nsinfo.getSource(), principal);
+      }
    }
 
    /**
@@ -2067,6 +2118,7 @@ public class VSBindingService {
    private final VSAssemblyInfoHandler assemblyHandler;
    private final VSObjectTreeService vsObjectTreeService;
    private final CoreLifecycleService coreLifecycleService;
+   private final QueryManagerService queryManagerService;
 
    private static final Logger LOG = LoggerFactory.getLogger(VSBindingService.class);
 }

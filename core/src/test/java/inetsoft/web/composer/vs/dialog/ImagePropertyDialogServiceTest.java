@@ -44,6 +44,7 @@ import inetsoft.web.composer.vs.VSObjectTreeService;
 import inetsoft.web.composer.vs.controller.VSLayoutService;
 import inetsoft.web.composer.vs.objects.controller.VSObjectPropertyService;
 import inetsoft.web.composer.vs.objects.controller.VSTrapService;
+import inetsoft.web.portal.controller.database.QueryManagerService;
 import inetsoft.web.service.BinaryTransferService;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
 import inetsoft.web.viewsheet.model.VSObjectModelFactoryService;
@@ -126,7 +127,8 @@ class ImagePropertyDialogServiceTest {
                                                imagePreviewPaneService,
                                                dialogService,
                                                trapService,
-                                               infoHandler);
+                                               infoHandler,
+                                               mock(QueryManagerService.class));
    }
 
    @Test

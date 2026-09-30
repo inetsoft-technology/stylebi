@@ -28,6 +28,7 @@ import inetsoft.web.composer.model.vs.CalendarPropertyDialogModel;
 import inetsoft.web.composer.model.vs.SizePositionPaneModel;
 import inetsoft.web.composer.vs.objects.controller.VSObjectPropertyService;
 import inetsoft.web.composer.vs.objects.controller.VSTrapService;
+import inetsoft.web.portal.controller.database.QueryManagerService;
 import inetsoft.web.viewsheet.service.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -51,6 +52,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.doCallRealMethod;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -69,7 +71,8 @@ class CalendarPropertyDialogServiceTest {
          dialogService,
          engine,
          trapService,
-         assemblyInfoHandler);
+         assemblyInfoHandler,
+         mock(QueryManagerService.class));
    }
 
    @Test
