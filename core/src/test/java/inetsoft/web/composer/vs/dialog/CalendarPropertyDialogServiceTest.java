@@ -25,6 +25,7 @@ import inetsoft.uql.viewsheet.internal.CalendarVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.TabVSAssemblyInfo;
 import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
 import inetsoft.web.composer.model.vs.CalendarPropertyDialogModel;
+import inetsoft.web.composer.model.vs.SizePositionPaneModel;
 import inetsoft.web.composer.vs.objects.controller.VSObjectPropertyService;
 import inetsoft.web.composer.vs.objects.controller.VSTrapService;
 import inetsoft.web.viewsheet.service.*;
@@ -35,7 +36,10 @@ import org.mockito.*;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.awt.*;
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.security.Principal;
+import java.util.ArrayList;
 import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
 import org.junit.jupiter.api.Tag;
@@ -46,6 +50,7 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.doCallRealMethod;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -109,14 +114,96 @@ class CalendarPropertyDialogServiceTest {
       assertEquals(300, result.getPixelOffset().y);
    }
 
+   @Test
+   void bottomTabsCalendarHeightKeptWhenNothingChanged() throws Exception {
+      // a calendar resized to 300 by dragging, then OK without changes
+      CalendarVSAssemblyInfo result =
+         save(CalendarVSAssemblyInfo.CALENDAR_SHOW_TYPE, true,
+              CalendarVSAssemblyInfo.CALENDAR_SHOW_TYPE, 20,
+              new Dimension(300, 300), new Dimension(300, 300));
+      assertEquals(new Dimension(300, 300), result.getPixelSize());
+      // bottom stays on the tab strip: tabTop(420) - 300 = 120
+      assertEquals(120, result.getPixelOffset().y);
+   }
+
+   @Test
+   void bottomTabsCalendarKeepsUserTypedHeight() throws Exception {
+      // user types height 250 in the size/position pane
+      CalendarVSAssemblyInfo result =
+         save(CalendarVSAssemblyInfo.CALENDAR_SHOW_TYPE, true,
+              CalendarVSAssemblyInfo.CALENDAR_SHOW_TYPE, 20,
+              new Dimension(300, 300), new Dimension(300, 250));
+      assertEquals(new Dimension(300, 250), result.getPixelSize());
+      // position should be: tabTop(420) - 250 = 170
+      assertEquals(170, result.getPixelOffset().y);
+   }
+
+   @Test
+   void bottomTabsCalendarHeightKeptOnTitleHeightChange() throws Exception {
+      // title height 20 -> 60 does not change the outer calendar height
+      CalendarVSAssemblyInfo result =
+         save(CalendarVSAssemblyInfo.CALENDAR_SHOW_TYPE, true,
+              CalendarVSAssemblyInfo.CALENDAR_SHOW_TYPE, 60,
+              new Dimension(300, 300), new Dimension(300, 300));
+      assertEquals(300, result.getPixelSize().height);
+      assertEquals(120, result.getPixelOffset().y);
+   }
+
+   @Test
+   void resizeAfterSwitchToCalendarNotResetOnWriteXML() throws Exception {
+      CalendarVSAssemblyInfo result =
+         save(CalendarVSAssemblyInfo.DROPDOWN_SHOW_TYPE, true,
+              CalendarVSAssemblyInfo.CALENDAR_SHOW_TYPE, 20,
+              new Dimension(300, 18), new Dimension(300, 18));
+      assertEquals(new Dimension(300, CalendarVSAssemblyInfo.DEFAULT_CALENDAR_HEIGHT),
+                   result.getPixelSize());
+
+      // apply the dialog result to the assembly, then resize the calendar by dragging
+      CalendarVSAssemblyInfo live = new CalendarVSAssemblyInfo();
+      live.setShowTypeValue(CalendarVSAssemblyInfo.DROPDOWN_SHOW_TYPE);
+      live.setPixelOffset(new Point(50, 300));
+      live.setPixelSize(new Dimension(300, 18));
+      // the mocked data pane leaves the additional table list unset
+      result.setAdditionalTableNames(new ArrayList<>());
+      live.copyInfo(result);
+      live.setPixelSize(new Dimension(300, 280));
+
+      // saving the viewsheet must not reset the resized height
+      live.writeXML(new PrintWriter(new StringWriter()));
+      assertEquals(280, live.getPixelSize().height);
+   }
+
    private CalendarVSAssemblyInfo save(int oldShowType, boolean bottomTabs, int newShowType,
                                        int newTitleHeight) throws Exception
+   {
+      return save(oldShowType, bottomTabs, newShowType, newTitleHeight,
+                  new Dimension(200, 20), null);
+   }
+
+   /**
+    * @param dialogSize the size in the size/position pane, or null to leave the size unchanged.
+    */
+   private CalendarVSAssemblyInfo save(int oldShowType, boolean bottomTabs, int newShowType,
+                                       int newTitleHeight, Dimension size,
+                                       Dimension dialogSize) throws Exception
    {
       CalendarVSAssemblyInfo info = new CalendarVSAssemblyInfo();
       info.setShowTypeValue(oldShowType);
       info.setTitleHeightValue(20);
       info.setPixelOffset(new Point(50, 300));
-      info.setPixelSize(new Dimension(200, 20));
+      info.setPixelSize(size);
+
+      if(dialogSize != null) {
+         doCallRealMethod().when(dialogService)
+            .setAssemblySize(any(), any(SizePositionPaneModel.class));
+         doCallRealMethod().when(dialogService).setAssemblySize(any(), anyInt(), anyInt());
+         given(calendarPropertyDialogModel.getCalendarGeneralPaneModel()
+                  .getSizePositionPaneModel().getWidth())
+            .willReturn(dialogSize.width);
+         given(calendarPropertyDialogModel.getCalendarGeneralPaneModel()
+                  .getSizePositionPaneModel().getHeight())
+            .willReturn(dialogSize.height);
+      }
 
       TabVSAssemblyInfo tabInfo = new TabVSAssemblyInfo();
       tabInfo.setBottomTabsValue(bottomTabs);
