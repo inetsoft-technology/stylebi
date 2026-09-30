@@ -205,6 +205,16 @@ class ActionPermissionHoldToGrantTest {
       assertFalse(canAccess(secondUser, SETTINGS_USERS));
    }
 
+   // an organization grant is keyed by the org name and reaches every member, the delegate too
+   @Test
+   void delegate_grantToOwnOrganization_refused() throws Exception {
+      assertRefused(SETTINGS_USERS, grant(row(ORG_NAME, Identity.Type.ORGANIZATION)));
+      assertFalse(permission(SETTINGS_USERS)
+                     .getOrgScopedGrants(ResourceAction.ACCESS, Identity.ORGANIZATION, ORG_ID)
+                     .stream().anyMatch(id -> ORG_NAME.equals(id.name)));
+      assertFalse(canAccess(delegate, SETTINGS_USERS));
+   }
+
    // an existing grant echoed back does not excuse a new one in the same save
    @Test
    void delegate_grantAddedToExistingRows_refused() throws Exception {
