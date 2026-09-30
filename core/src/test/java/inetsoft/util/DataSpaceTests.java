@@ -417,6 +417,73 @@ class DataSpaceTests {
       }
    }
 
+   /**
+    * Bug #77387: a folder that has children but no marker of its own, as left by older
+    * versions, must be repaired so that it is listed and deleting it removes its children.
+    */
+   @Test
+   void shouldRepairMissingFolders() throws Exception {
+      DataSpace space = DataSpace.getDataSpace();
+      String root = "test77387-repair";
+
+      try {
+         // only the leaf markers, the shape of the legacy data
+         space.makeDirectory(root + "/a/b");
+         space.makeDirectory(root + "/c/d");
+         assertFalse(space.exists(null, root));
+         assertFalse(space.exists(null, root + "/a"));
+         assertFalse(Arrays.asList(space.list("")).contains(root));
+
+         assertTrue(space.repairMissingFolders() >= 3);
+
+         assertTrue(space.isDirectory(root));
+         assertTrue(space.isDirectory(root + "/a"));
+         assertTrue(space.isDirectory(root + "/a/b"));
+         assertTrue(space.isDirectory(root + "/c"));
+         assertTrue(Arrays.asList(space.list("")).contains(root));
+         assertEquals(Set.of("a", "c"), Set.of(space.list(root)));
+         assertEquals(0, space.repairMissingFolders(), "a repaired data space is not changed");
+
+         assertTrue(space.delete(null, root));
+         assertFalse(space.exists(null, root + "/a/b"));
+         assertFalse(space.exists(null, root + "/c/d"));
+      }
+      finally {
+         deleteQuietly(space, root + "/a/b");
+         deleteQuietly(space, root + "/c/d");
+         deleteQuietly(space, root);
+      }
+   }
+
+   /**
+    * Bug #77387: the repair must not replace a file with a directory marker, or create a
+    * folder under a file.
+    */
+   @Test
+   void shouldNotRepairFoldersOverFile() throws Exception {
+      DataSpace space = DataSpace.getDataSpace();
+      String root = "test77387-file";
+      String file = root + "/file.txt";
+
+      try {
+         space.withOutputStream(root, "file.txt", out -> out.write(1));
+         String digest = space.getDigest(null, file);
+         // a legacy key under the file, which the current version refuses to create
+         space.makeDirectory(file + "/x/y");
+
+         space.repairMissingFolders();
+
+         assertFalse(space.isDirectory(file));
+         assertEquals(digest, space.getDigest(null, file), "the file must be intact");
+         assertFalse(space.exists(null, file + "/x"));
+      }
+      finally {
+         deleteQuietly(space, file + "/x/y");
+         deleteQuietly(space, file);
+         deleteQuietly(space, root);
+      }
+   }
+
    private static boolean move(DataSpace space, String operation, String from, String to) {
       return "rename".equals(operation) ? space.rename(from, to) : space.copy(from, to);
    }

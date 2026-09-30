@@ -17,6 +17,7 @@
  */
 package inetsoft.util;
 
+import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.security.Organization;
 import inetsoft.sree.security.OrgScopedPaths;
 import inetsoft.storage.*;
@@ -32,6 +33,8 @@ import java.nio.file.NotDirectoryException;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListSet;
+import java.util.concurrent.locks.Lock;
+import java.util.stream.Collectors;
 
 /**
  * DataSpace object represents a data access implementation.
@@ -674,6 +677,74 @@ public class DataSpace implements AutoCloseable {
    }
 
    /**
+    * Creates the missing directory markers of folders that have children but no key of their
+    * own. Such a folder is not listed and is not treated as a directory, so deleting it leaves
+    * its children behind. They are left by older versions and by restoring a backup taken from
+    * one (Bug #77387). The passes of the cluster nodes are serialized, and no existing key is
+    * replaced.
+    *
+    * @return the number of directory markers created.
+    */
+   public int repairMissingFolders() {
+      Lock lock = Cluster.getInstance().getLock(REPAIR_FOLDERS_LOCK);
+      lock.lock();
+
+      try {
+         Set<String> keys = storage().paths().collect(Collectors.toSet());
+         // shortest first, so that a parent is created before its children
+         SortedSet<String> missing = new TreeSet<>(
+            Comparator.comparingInt(String::length).thenComparing(Comparator.naturalOrder()));
+
+         for(String key : keys) {
+            for(String parent = getParentPath(key); parent != null; parent = getParentPath(parent)) {
+               // a raw key that is not in canonical form can't be reached through the data space
+               if(!keys.contains(parent) && !parent.isEmpty() &&
+                  parent.equals(sanitizePathComponent(parent)))
+               {
+                  missing.add(parent);
+               }
+            }
+         }
+
+         int created = 0;
+
+         for(String folder : missing) {
+            // check the live store again, the snapshot is stale if a folder was created, deleted
+            // or renamed since it was taken
+            if(storage().exists(folder) ||
+               storage().paths().noneMatch(p -> p.startsWith(folder + "/")))
+            {
+               continue;
+            }
+
+            String file = findFileAncestor(folder);
+
+            if(file != null) {
+               LOG.warn("Cannot create the missing directory {}, {} is a file", folder, file);
+               continue;
+            }
+
+            try {
+               storage().createDirectory(folder, new Metadata());
+               created++;
+            }
+            catch(Exception e) {
+               LOG.warn("Failed to create the missing directory {}", folder, e);
+            }
+         }
+
+         if(created > 0) {
+            LOG.info("Created {} missing data space directories", created);
+         }
+
+         return created;
+      }
+      finally {
+         lock.unlock();
+      }
+   }
+
+   /**
     * Dispose the data space.
     */
    public void dispose() {
@@ -748,6 +819,7 @@ public class DataSpace implements AutoCloseable {
 
    private static final String HOME_PLACEHOLDER = "$(sree.home)";
    private static final String STORAGE_ID = "dataSpace";
+   private static final String REPAIR_FOLDERS_LOCK = DataSpace.class.getName() + ".repairFolders";
    private static final Logger LOG = LoggerFactory.getLogger(DataSpace.class);
 
    public static final class Metadata implements Serializable {
