@@ -23,6 +23,7 @@ import inetsoft.sree.SreeEnv;
 import inetsoft.uql.viewsheet.internal.DateComparisonUtil;
 import inetsoft.util.*;
 import inetsoft.util.graphics.SVGSupport;
+import inetsoft.util.script.graal.ScriptHostAccess;
 import inetsoft.util.script.graal.ScriptScope;
 import inetsoft.web.viewsheet.command.MessageCommand;
 import org.pojava.datetime.DateTime;
@@ -294,10 +295,21 @@ public class JavaScriptEngine {
    }
 
    /**
-    * Create a new instance of an object.
+    * Create a new instance of an object. The class must be visible to scripts
+    * according to the script class filter; the name is checked before the class
+    * is loaded so a rejected class is never initialized.
     */
    public static Object newInstance(String cls) throws Exception {
-      return Class.forName(cls).newInstance();
+      if(cls == null || cls.isBlank()) {
+         throw new IllegalArgumentException("Class name is required");
+      }
+
+      if(!ScriptHostAccess.classFilter().test(cls)) {
+         throw new SecurityException("Class " + cls + " is not allowed in scripts");
+      }
+
+      Class<?> clazz = Class.forName(cls, false, JavaScriptEngine.class.getClassLoader());
+      return clazz.getDeclaredConstructor().newInstance();
    }
 
    /**
