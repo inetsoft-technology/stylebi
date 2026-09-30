@@ -988,13 +988,13 @@ public class VariableTable implements ContentObject, Serializable, Cloneable {
             }
             else if(e.getValue().get("type") != null) {
                String type = e.getValue().get("type").asText();
-               Class<?> valueClass;
+               Class<?> valueClass = VALUE_TYPES.get(type);
 
-               try {
-                  valueClass = Class.forName(type);
-               }
-               catch(Exception ex) {
-                  throw new JsonMappingException(parser, "Failed to create class " + type, ex);
+               // the type name is never loaded, a value of any other type is kept as the
+               // plain JSON value (string, number, boolean, list or map)
+               if(valueClass == null) {
+                  LOG.debug("Variable {} has unsupported type {}", e.getKey(), type);
+                  valueClass = Object.class;
                }
 
                JsonNode valueNode = e.getValue().get("value");
@@ -1029,5 +1029,23 @@ public class VariableTable implements ContentObject, Serializable, Cloneable {
          table.copyParameterTS = node.get("copyParameterTS").asLong();
          return table;
       }
+
+      private static Map<String, Class<?>> createTypeMap(Class<?>... types) {
+         Map<String, Class<?>> map = new HashMap<>();
+
+         for(Class<?> type : types) {
+            map.put(type.getName(), type);
+            map.put(type.arrayType().getName(), type.arrayType());
+         }
+
+         return Collections.unmodifiableMap(map);
+      }
+
+      // the parameter value types and their arrays, Object[] holds multi-value parameters
+      private static final Map<String, Class<?>> VALUE_TYPES = createTypeMap(
+         Object.class, String.class, Boolean.class, Character.class, Byte.class, Short.class,
+         Integer.class, Long.class, Float.class, Double.class, java.math.BigInteger.class,
+         java.math.BigDecimal.class, Date.class, java.sql.Date.class, java.sql.Time.class,
+         java.sql.Timestamp.class);
    }
 }
