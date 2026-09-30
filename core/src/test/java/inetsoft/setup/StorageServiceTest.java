@@ -107,6 +107,18 @@ class StorageServiceTest {
    }
 
    @Test
+   void deeperFileAncestorIsRejectedWithoutCreatingEarlierMarkers() throws Exception {
+      // a file under an implicit folder, as written before missing markers were created
+      service.write("a/x", file("x", "x"));
+      keyValueEngine.remove("dataSpace", "a");
+
+      assertThrows(IOException.class, () -> service.write("a/x/y/z.txt", file("z.txt", "z")));
+
+      assertEquals(Set.of("a/x"), keys());
+      assertFalse(blobEngine.exists("dataSpace", DigestUtils.md5Hex("z")));
+   }
+
+   @Test
    void backslashPathCreatesMarkers() throws Exception {
       service.write("portal\\theme\\x.jar", file("x.jar", "jar"));
 
