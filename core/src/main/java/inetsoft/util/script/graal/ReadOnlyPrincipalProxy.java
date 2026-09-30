@@ -58,6 +58,15 @@ import java.util.function.BiFunction;
  * {@link HostBeanProxy}'s host-method limitation. This is intentional: it keeps a
  * script from handing the live principal to arbitrary host code. The supported path
  * is our own script functions, which unwrap it.
+ *
+ * <p>Unwrapping the proxy for raw host calls (e.g. a GraalJS target-type mapping to
+ * {@code Principal} or {@code XPrincipal}) is not supported because host return
+ * values are never re-wrapped: any reachable setter/getter pair hands the live
+ * principal straight back to the script, with all of its setters. Two concrete
+ * round trips are {@code VpmScope.setUser(Principal)}/{@code getUser()} and
+ * {@code AssetQuerySandbox.setVPMUser(XPrincipal)}/{@code getVPMUser()} (the latter
+ * also mutates the principal it is given). Either would reopen Bug #77255/#77256.
+ * (Bug #77361)
  */
 public final class ReadOnlyPrincipalProxy implements ProxyObject {
    private ReadOnlyPrincipalProxy(Principal target) {
@@ -223,6 +232,11 @@ public final class ReadOnlyPrincipalProxy implements ProxyObject {
       add("getParameterNames", XPrincipal.class,
           (p, a) -> new HashSet<>(x(p).getParameterNames()));
       add("getLocale", SRPrincipal.class, (p, a) -> ((SRPrincipal) p).getLocale());
+      add("getHost", SRPrincipal.class, (p, a) -> ((SRPrincipal) p).getHost());
+      add("getParameterTS", XPrincipal.class, (p, a) -> {
+         String name = stringArg(a);
+         return name == null ? 0L : x(p).getParameterTS(name);
+      });
    }
 
    // Weak identity-keyed intern table, as in HostBeanProxy.
