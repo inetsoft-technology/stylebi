@@ -156,7 +156,9 @@ public class AdminExceptionHandler {
     * Error handler for access denied. {@link UnauthorizedAccessException} is thrown by
     * {@link inetsoft.web.security.DeniedMultiTenancyOrgUserAspect} and by service-level
     * permission checks; it reaches this handler unwrapped when the controller method declares
-    * it. Map it to a sanitized 403 instead of reporting it as a server error.
+    * it. Map it to a sanitized 403 instead of reporting it as a server error. The return type
+    * allows a subclass to override it with a more specific error, as the enterprise public API
+    * handler does to keep its 401 response.
     */
    @ExceptionHandler(UnauthorizedAccessException.class)
    @ResponseBody
@@ -165,7 +167,7 @@ public class AdminExceptionHandler {
          responseCode = "403",
          description = "Access was denied because the user does not have the required permissions.")
    })
-   public ResponseEntity<GenericError> handleUnauthorizedAccess(UnauthorizedAccessException e) {
+   public ResponseEntity<? extends ApiError> handleUnauthorizedAccess(UnauthorizedAccessException e) {
       return accessDenied(e);
    }
 
