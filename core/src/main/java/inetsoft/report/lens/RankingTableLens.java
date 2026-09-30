@@ -225,11 +225,8 @@ public class RankingTableLens extends AbstractTableLens
     */
    @Override
    public synchronized void invalidate() {
-      if(rows != null) {
-         rows.dispose();
-         rows = null;
-      }
-
+      // don't dispose the rows, a lock-free reader may still hold them (bug #77397)
+      rows = null;
       hrows = table.getHeaderRowCount();
       completed = false;
       fireChangeEvent();
@@ -296,9 +293,11 @@ public class RankingTableLens extends AbstractTableLens
    /**
     * Validate the ranking table lens.
     */
-   private synchronized void validate() {
+   private synchronized XSwappableIntList validate() {
+      XSwappableIntList rows = this.rows;
+
       if(rows != null) {
-         return;
+         return rows;
       }
 
       List<Integer> list = new ArrayList<>();
@@ -339,7 +338,8 @@ public class RankingTableLens extends AbstractTableLens
          LOG.error("Failed to sort list", ex);
       }
 
-      // use swappable int list to save memory
+      // use swappable int list to save memory. build it locally and publish it only once
+      // filled, the readers read it without the monitor (bug #77397)
       rows = new XSwappableIntList();
 
       for(int i = 0; i < size; i++) {
@@ -347,10 +347,12 @@ public class RankingTableLens extends AbstractTableLens
       }
 
       rows.complete();
+      this.rows = rows;
       completed = true;
 
       // notify waiting consumers
       notifyAll();
+      return rows;
    }
 
    /**
@@ -365,11 +367,15 @@ public class RankingTableLens extends AbstractTableLens
     */
    @Override
    public boolean moreRows(int row) {
+      int hrows = this.hrows;
+
       if(row < hrows) {
          return true;
       }
 
-      validate();
+      // read the rows validate() returns, invalidate() may clear the field any time
+      // (bug #77397)
+      XSwappableIntList rows = validate();
 
       return rows != null && row - hrows < rows.size();
    }
@@ -382,9 +388,10 @@ public class RankingTableLens extends AbstractTableLens
     */
    @Override
    public int getRowCount() {
-      validate();
+      // the published rows are always complete (bug #77397)
+      XSwappableIntList rows = validate();
 
-      return completed ? rows.size() + hrows : -rows.size() - hrows - 1;
+      return rows.size() + hrows;
    }
 
    /**
@@ -787,12 +794,18 @@ public class RankingTableLens extends AbstractTableLens
          return r;
       }
 
-      if(!moreRows(r)) {
-         return -1;
-      }
+      // read the header count and the rows once, invalidate() may reset both any time
+      // (bug #77397)
+      int hrows = this.hrows;
 
       if(r < hrows) {
          return r;
+      }
+
+      XSwappableIntList rows = validate();
+
+      if(rows == null || r - hrows >= rows.size()) {
+         return -1;
       }
 
       return rows.get(r - hrows);
@@ -886,8 +899,8 @@ public class RankingTableLens extends AbstractTableLens
    private boolean top;           // ranking top flag
    private boolean kept;          // keep equal flag
    private TableLens table;       // the base table
-   private int hrows;             // header row count
-   private XSwappableIntList rows;// rows
+   private volatile int hrows;             // header row count
+   private volatile XSwappableIntList rows;// rows
    private boolean completed;     // completed flag
    private volatile boolean cancelled;     // cancelled flag
    private Lock cancelLock = new ReentrantLock();

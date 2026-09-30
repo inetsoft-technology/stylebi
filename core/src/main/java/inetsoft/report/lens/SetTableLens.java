@@ -434,11 +434,15 @@ public abstract class SetTableLens
 
       try {
          cancelled = !completed;
+         MergedTable old = merged;
 
-         if(merged != null) {
-            merged.dispose();
-            merged = null;
+         // close the merged table holding only cancelLock, which the merge worker never
+         // takes: the worker holds the btree monitor and takes the merged table's and this
+         // lens's monitors while it visits (bug #77397). the worker's epilogue then nulls
+         // the field and completes the rows found so far
+         if(old != null) {
             cancelled = true;
+            old.dispose();
          }
 
          for(TableLens table : tables) {
@@ -466,26 +470,30 @@ public abstract class SetTableLens
     */
    @Override
    public void invalidate() {
+      MergedTable old;
+
       synchronized(this) {
          if(!validated) {
             return;
          }
 
-         if(merged != null) {
-            merged.dispose();
-            merged = null;
-         }
-
-         if(rows != null) {
-            rows.dispose();
-            rows = null;
-         }
-
+         // don't dispose the rows, a lock-free reader or the superseded worker may still
+         // hold them, and close the merged table outside of this monitor: the worker
+         // holds its btree monitor and takes this one while it visits (bug #77397)
+         old = merged;
+         merged = null;
+         rows = null;
+         lastIdx = -1;
+         lastRow = null;
          completed = false;
          validated = false;
          stallFailure = null;
          scannedRows = 0;
          mmap.clear();
+      }
+
+      if(old != null) {
+         old.dispose();
       }
 
       fireChangeEvent();
@@ -561,13 +569,14 @@ public abstract class SetTableLens
       }
 
       final MergedTable merged2 = merged;
+      final Pass pass = new Pass(rows);
 
       // if this is called from JavaScriptEngine.exec() or a condition filter
       // (bug #76938), the script engine is already locked. merging in a separate
       // thread would create a deadlock waiting forever for the JavaScriptEngine lock
       // to be released.
       if(JavaScriptEngine.holdsScriptLock()) {
-         merge(merged2);
+         merge(merged2, pass);
          return;
       }
 
@@ -582,7 +591,7 @@ public abstract class SetTableLens
             borrower.begin();
 
             try {
-               merge(merged2);
+               merge(merged2, pass);
             }
             finally {
                borrower.end();
@@ -594,9 +603,11 @@ public abstract class SetTableLens
    /**
     * Merge the tables into the set rows.
     */
-   private void merge(MergedTable merged2) {
+   private void merge(MergedTable merged2, Pass pass) {
+      LockStallException stall = null;
+
       try {
-         MergedTable.Visitor visitor = getVisitor();
+         MergedTable.Visitor visitor = getVisitor(pass);
 
          // count the visited rows, the worker's progress for the lock-stall watchdog, it may
          // add few rows (e.g. intersect) (bug #76967)
@@ -610,33 +621,62 @@ public abstract class SetTableLens
       }
       catch(LockStallException ex) {
          // logged by the wait site; the readers rethrow it rather than take the rows so far
-         // for the whole table (bug #76967)
-         stallFailure = ex;
+         // for the whole table (bug #76967). kept only if this pass is current (bug #77397)
+         stall = ex;
       }
       catch(Exception ex) {
          // a stall may reach the worker wrapped by the base table (bug #76967)
-         LockStallException stall = LockStallException.find(ex);
-
-         if(stall != null) {
-            stallFailure = stall;
-         }
-
+         stall = LockStallException.find(ex);
          LOG.error("Failed to merge tables", ex);
       }
 
+      // complete only this pass's own rows, a superseded pass must not complete (or fail)
+      // the next pass's rows. a cancelled pass (merged2 disposed) still completes the rows
+      // found so far, or its readers would wait forever (bug #77397)
       synchronized(SetTableLens.this) {
-         if(rows != null) {
-            rows.complete();
-         }
+         if(rows == pass.target) {
+            if(stall != null) {
+               stallFailure = stall;
+            }
 
-         if(!merged2.isDisposed()) {
-            merged.dispose();
-            merged = null;
+            pass.target.complete();
             completed = true;
-            // notify waiting consumers
             SetTableLens.this.notifyAll();
          }
+
+         if(merged == merged2) {
+            merged = null;
+         }
       }
+
+      merged2.dispose();
+   }
+
+   /**
+    * The rows of one merge pass. A visitor adds through its pass, so a pass superseded by
+    * invalidate() never adds to the rows of the next pass (bug #77397).
+    */
+   protected final class Pass {
+      Pass(XSwappableObjectList<Row> target) {
+         this.target = target;
+      }
+
+      /**
+       * Add a row to this pass's rows, or stop the visit once invalidate() replaced them.
+       */
+      public void add(Row row) throws InterruptedException {
+         if(rows != target) {
+            throw new InterruptedException("superseded");
+         }
+
+         target.add(row);
+      }
+
+      public int size() {
+         return target.size();
+      }
+
+      final XSwappableObjectList<Row> target;
    }
 
    /**
@@ -788,7 +828,15 @@ public abstract class SetTableLens
             throwStallFailure();
          }
 
-         return completed ? rows.size() : -rows.size() - 1;
+         XSwappableObjectList<Row> list = rows;
+
+         // only dispose() leaves no rows once validated, report the empty complete table that
+         // moreRows() reports instead of -1 (still loading) and an error (bug #77397)
+         if(list == null) {
+            return 0;
+         }
+
+         return completed ? list.size() : -list.size() - 1;
       }
       catch(LockStallException ex) {
          throw ex;
@@ -883,7 +931,12 @@ public abstract class SetTableLens
     */
    @Override
    public final boolean isNull(int r, int c) {
-      Row row = getRow(r);
+      Row row = findRow(r);
+
+      if(row == null) {
+         return true;
+      }
+
       TableLens table = tables.get(row.getTable());
       return table.isNull(row.getRow(), c);
    }
@@ -900,7 +953,12 @@ public abstract class SetTableLens
          return null;
       }
 
-      Row row = getRow(r);
+      Row row = findRow(r);
+
+      if(row == null) {
+         return null;
+      }
+
       TableLens table = tables.get(row.getTable());
       return table.getObject(row.getRow(), c);
    }
@@ -913,7 +971,12 @@ public abstract class SetTableLens
     */
    @Override
    public final double getDouble(int r, int c) {
-      Row row = getRow(r);
+      Row row = findRow(r);
+
+      if(row == null) {
+         return 0;
+      }
+
       TableLens table = tables.get(row.getTable());
       return table.getDouble(row.getRow(), c);
    }
@@ -926,7 +989,12 @@ public abstract class SetTableLens
     */
    @Override
    public final float getFloat(int r, int c) {
-      Row row = getRow(r);
+      Row row = findRow(r);
+
+      if(row == null) {
+         return 0;
+      }
+
       TableLens table = tables.get(row.getTable());
       return table.getFloat(row.getRow(), c);
    }
@@ -939,7 +1007,12 @@ public abstract class SetTableLens
     */
    @Override
    public final long getLong(int r, int c) {
-      Row row = getRow(r);
+      Row row = findRow(r);
+
+      if(row == null) {
+         return 0;
+      }
+
       TableLens table = tables.get(row.getTable());
       return table.getLong(row.getRow(), c);
    }
@@ -952,7 +1025,12 @@ public abstract class SetTableLens
     */
    @Override
    public final int getInt(int r, int c) {
-      Row row = getRow(r);
+      Row row = findRow(r);
+
+      if(row == null) {
+         return 0;
+      }
+
       TableLens table = tables.get(row.getTable());
       return table.getInt(row.getRow(), c);
    }
@@ -965,7 +1043,12 @@ public abstract class SetTableLens
     */
    @Override
    public final short getShort(int r, int c) {
-      Row row = getRow(r);
+      Row row = findRow(r);
+
+      if(row == null) {
+         return 0;
+      }
+
       TableLens table = tables.get(row.getTable());
       return table.getShort(row.getRow(), c);
    }
@@ -978,7 +1061,12 @@ public abstract class SetTableLens
     */
    @Override
    public final byte getByte(int r, int c) {
-      Row row = getRow(r);
+      Row row = findRow(r);
+
+      if(row == null) {
+         return 0;
+      }
+
       TableLens table = tables.get(row.getTable());
       return table.getByte(row.getRow(), c);
    }
@@ -991,7 +1079,12 @@ public abstract class SetTableLens
     */
    @Override
    public final boolean getBoolean(int r, int c) {
-      Row row = getRow(r);
+      Row row = findRow(r);
+
+      if(row == null) {
+         return false;
+      }
+
       TableLens table = tables.get(row.getTable());
       return table.getBoolean(row.getRow(), c);
    }
@@ -1067,7 +1160,12 @@ public abstract class SetTableLens
          return;
       }
 
-      Row row = getRow(r);
+      Row row = findRow(r);
+
+      if(row == null) {
+         return;
+      }
+
       TableLens table = tables.get(row.getTable());
       table.setObject(row.getRow(), c, v);
    }
@@ -1085,7 +1183,12 @@ public abstract class SetTableLens
          return -1;
       }
 
-      Row row = getRow(r);
+      Row row = findRow(r);
+
+      if(row == null) {
+         return -1;
+      }
+
       TableLens table = tables.get(row.getTable());
       return table.getRowHeight(row.getRow());
    }
@@ -1119,7 +1222,12 @@ public abstract class SetTableLens
          return null;
       }
 
-      Row row = getRow(r);
+      Row row = findRow(r);
+
+      if(row == null) {
+         return null;
+      }
+
       TableLens table = tables.get(row.getTable());
       return table.getRowBorderColor(row.getRow(), c);
    }
@@ -1136,7 +1244,12 @@ public abstract class SetTableLens
          return null;
       }
 
-      Row row = getRow(r);
+      Row row = findRow(r);
+
+      if(row == null) {
+         return null;
+      }
+
       TableLens table = tables.get(row.getTable());
       return table.getColBorderColor(row.getRow(), c);
    }
@@ -1156,7 +1269,12 @@ public abstract class SetTableLens
          return -1;
       }
 
-      Row row = getRow(r);
+      Row row = findRow(r);
+
+      if(row == null) {
+         return -1;
+      }
+
       TableLens table = tables.get(row.getTable());
       return table.getRowBorder(row.getRow(), c);
    }
@@ -1176,7 +1294,12 @@ public abstract class SetTableLens
          return -1;
       }
 
-      Row row = getRow(r);
+      Row row = findRow(r);
+
+      if(row == null) {
+         return -1;
+      }
+
       TableLens table = tables.get(row.getTable());
       return table.getColBorder(row.getRow(), c);
    }
@@ -1193,7 +1316,12 @@ public abstract class SetTableLens
          return null;
       }
 
-      Row row = getRow(r);
+      Row row = findRow(r);
+
+      if(row == null) {
+         return null;
+      }
+
       TableLens table = tables.get(row.getTable());
       return table.getInsets(row.getRow(), c);
    }
@@ -1214,7 +1342,12 @@ public abstract class SetTableLens
          return null;
       }
 
-      Row row = getRow(r);
+      Row row = findRow(r);
+
+      if(row == null) {
+         return null;
+      }
+
       TableLens table = tables.get(row.getTable());
       return table.getSpan(row.getRow(), c);
    }
@@ -1231,7 +1364,12 @@ public abstract class SetTableLens
          return -1;
       }
 
-      Row row = getRow(r);
+      Row row = findRow(r);
+
+      if(row == null) {
+         return -1;
+      }
+
       TableLens table = tables.get(row.getTable());
       return table.getAlignment(row.getRow(), c);
    }
@@ -1248,7 +1386,12 @@ public abstract class SetTableLens
          return null;
       }
 
-      Row row = getRow(r);
+      Row row = findRow(r);
+
+      if(row == null) {
+         return null;
+      }
+
       TableLens table = tables.get(row.getTable());
       return table.getFont(row.getRow(), c);
    }
@@ -1267,7 +1410,12 @@ public abstract class SetTableLens
          return false;
       }
 
-      Row row = getRow(r);
+      Row row = findRow(r);
+
+      if(row == null) {
+         return false;
+      }
+
       TableLens table = tables.get(row.getTable());
       return table.isLineWrap(row.getRow(), c);
    }
@@ -1285,7 +1433,12 @@ public abstract class SetTableLens
          return null;
       }
 
-      Row row = getRow(r);
+      Row row = findRow(r);
+
+      if(row == null) {
+         return null;
+      }
+
       TableLens table = tables.get(row.getTable());
       return table.getForeground(row.getRow(), c);
    }
@@ -1303,7 +1456,12 @@ public abstract class SetTableLens
          return null;
       }
 
-      Row row = getRow(r);
+      Row row = findRow(r);
+
+      if(row == null) {
+         return null;
+      }
+
       TableLens table = tables.get(row.getTable());
       return table.getBackground(row.getRow(), c);
    }
@@ -1312,7 +1470,7 @@ public abstract class SetTableLens
     * Get the merged table visitor.
     * @return the merged table visitor.
     */
-   protected abstract MergedTable.Visitor getVisitor();
+   protected abstract MergedTable.Visitor getVisitor(Pass pass);
 
    /**
     * Finalize the set table lens.
@@ -1327,8 +1485,28 @@ public abstract class SetTableLens
     * Dispose the set table lens.
     */
    @Override
-   public synchronized void dispose() {
-      disposeResources();
+   public void dispose() {
+      MergedTable old;
+
+      // close the merged table outside of this monitor (bug #77397), and end the waits of
+      // the readers
+      synchronized(this) {
+         old = merged;
+         merged = null;
+
+         if(rows != null) {
+            rows.dispose();
+            rows = null;
+         }
+
+         completed = true;
+         notifyAll();
+      }
+
+      if(old != null) {
+         old.dispose();
+      }
+
       disposeTables();
    }
 
@@ -1384,16 +1562,49 @@ public abstract class SetTableLens
     * @return the associated row object.
     */
    protected synchronized Row getRow(int row) {
-      if(lastIdx == row) {
+      XSwappableObjectList<Row> list = rows;
+
+      if(lastIdx == row && lastList == list && lastRow != null) {
          return lastRow;
       }
 
       if(row < 0) {
-         return lastRow = new Row(0, lastIdx = row);
+         return new Row(0, row);
       }
 
-      return lastRow = rows.get(lastIdx = row);
+      // cache only a row found in the current rows, keyed by the list, a failed lookup must
+      // not leave another row cached for this index (bug #77397)
+      if(list == null || row >= list.size()) {
+         return null;
+      }
+
+      Row result = list.get(row);
+
+      if(result != null) {
+         lastIdx = row;
+         lastRow = result;
+         lastList = list;
+      }
+
+      return result;
    }
+
+   /**
+    * Get the row object, waiting for the row if it is not loaded yet. Called without this
+    * lens's monitor, moreRows() may lend the script engine lock (bug #76938). Returns null
+    * if the row does not exist, e.g. after invalidate() the rows are rebuilt (bug #77397).
+    */
+   private Row findRow(int r) {
+      for(int retry = 0; ; retry++) {
+         Row row = getRow(r);
+
+         if(row != null || retry >= 100 || !moreRows(r)) {
+            return row;
+         }
+      }
+   }
+
+   private transient XSwappableObjectList<Row> lastList;
 
    protected boolean isSetRowsInitialized() {
       return rows != null;
@@ -1464,9 +1675,9 @@ public abstract class SetTableLens
    private List<TableChangeListener> clisteners = new ArrayList<>();
    private transient TableChangeEvent event;
 
-   private XSwappableObjectList<Row> rows; // rows
+   private volatile XSwappableObjectList<Row> rows; // rows
    private int ccount;                  // column count
-   private MergedTable merged;          // temporary merged table
+   private volatile MergedTable merged;          // temporary merged table
    private final List<TableLens> tables = new ArrayList<>();
    private boolean completed;           // completed flag
    private volatile boolean cancelled;           // cancelled flag
