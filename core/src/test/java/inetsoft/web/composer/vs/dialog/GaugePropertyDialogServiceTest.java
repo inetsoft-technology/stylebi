@@ -60,7 +60,8 @@ class GaugePropertyDialogServiceTest {
       // the real property service; with no sandbox it returns right after merging the dialog
       // info into the live assembly (setVSAssemblyInfo -> copyInfo)
       VSObjectPropertyService propertyService = new VSObjectPropertyService(
-         mock(CoreLifecycleService.class), null, null, null, null, null, null, null);
+         mock(CoreLifecycleService.class), null, null, null, null, null, null, null,
+         mock(QueryManagerService.class));
       service = new GaugePropertyDialogService(propertyService, vsOutputService, dialogService,
                                                engine, trapService, assemblyInfoHandler,
                                                mock(QueryManagerService.class));

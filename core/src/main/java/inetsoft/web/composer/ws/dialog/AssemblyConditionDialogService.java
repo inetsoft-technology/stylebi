@@ -349,8 +349,9 @@ public class AssemblyConditionDialogService extends WorksheetControllerService {
    public BrowseDataModel browseData(@ClusterProxyKey String runtimeId, String assemblyName, DataRefModel dataRefModel, Principal principal) throws Exception
    {
       RuntimeWorksheet rws = getWorksheetEngine().getWorksheet(runtimeId, principal);
-      // a cube table name is resolved from its data source without a permission check and
-      // never names a table of the worksheet, so it is checked (Bug #77427)
+      // Worksheet.getAssembly resolves a cube table name from its data source, ahead of any
+      // worksheet table of that name and without a permission check, so it is checked
+      // (Bug #77427)
       queryManagerService.checkCubeTableReadPermission(assemblyName, principal);
       BrowseDataController browseDataController = new BrowseDataController();
       DataRef dataRef = dataRefModel.createDataRef();

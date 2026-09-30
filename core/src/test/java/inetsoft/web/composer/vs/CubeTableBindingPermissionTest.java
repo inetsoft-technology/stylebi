@@ -18,6 +18,7 @@
 package inetsoft.web.composer.vs;
 
 import inetsoft.analytic.composition.ViewsheetService;
+import inetsoft.analytic.composition.event.VSEventUtil;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.RuntimeWorksheet;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
@@ -31,20 +32,29 @@ import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.util.ColumnCache;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.xmla.Domain;
+import inetsoft.web.binding.controller.ModifyCalculateFieldService;
 import inetsoft.web.binding.drm.DataRefModel;
+import inetsoft.web.binding.event.ModifyCalculateFieldEvent;
 import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
 import inetsoft.web.binding.model.BindingModel;
 import inetsoft.web.binding.service.VSBindingFactory;
 import inetsoft.web.binding.service.VSBindingService;
 import inetsoft.web.composer.model.condition.ConditionExpression;
 import inetsoft.web.composer.model.condition.ConditionUtil;
+import inetsoft.web.composer.model.vs.*;
 import inetsoft.web.composer.model.ws.GroupingAssemblyDialogModel;
 import inetsoft.web.composer.vs.dialog.DataOutputService;
+import inetsoft.web.composer.vs.dialog.GaugePropertyDialogService;
+import inetsoft.web.composer.vs.dialog.SelectionListPropertyDialogService;
 import inetsoft.web.composer.vs.dialog.VSConditionDialogService;
+import inetsoft.web.composer.vs.objects.controller.VSTableService;
+import inetsoft.web.composer.vs.objects.controller.VSTrapService;
+import inetsoft.web.composer.vs.objects.event.ChangeVSObjectBindingEvent;
 import inetsoft.web.composer.ws.assembly.WorksheetEventUtil;
 import inetsoft.web.composer.ws.dialog.GroupingAssemblyDialogService;
 import inetsoft.web.portal.controller.database.*;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
+import inetsoft.web.viewsheet.service.CoreLifecycleService;
 import inetsoft.web.viewsheet.service.VSOutputService;
 import inetsoft.web.vswizard.handler.VSWizardBindingHandler;
 import inetsoft.web.vswizard.model.recommender.VSTemporaryInfo;
@@ -77,6 +87,11 @@ import static org.mockito.Mockito.*;
  *    <li>O /vs/dataOutput/table/columns</li>
  *    <li>C VS condition dialog browse-data</li>
  *    <li>G worksheet grouping dialog onlyFor</li>
+ *    <li>M ModifyCalculateFieldService, the source of a chart without one</li>
+ *    <li>T VSTableService.createTable (entry name)</li>
+ *    <li>D composer canvas drop (VSBindingService.changeBinding, getNewAssemblyFromBindings)</li>
+ *    <li>S selection list dialog (only newly added tables)</li>
+ *    <li>U gauge data output dialog</li>
  *    <li>W VSWizardBindingHandler.changeSource (the VS wizard refresh-fields endpoint)</li>
  * </ul>
  */
@@ -471,6 +486,288 @@ class CubeTableBindingPermissionTest {
          new SourceInfo(SourceInfo.ASSET, null, CUBE_TABLE), oldSource,
          temporaryInfo(tempChart), null, principal)));
       assertSame(oldSource, tempChart.getSourceInfo());
+      verifyNothingChecked();
+   }
+
+   // ---- M: ModifyCalculateFieldService, a calc field on a chart without a source ----
+
+   private ModifyCalculateFieldService calcFieldService(ChartVSAssembly chart,
+                                                        ViewsheetService viewsheetService)
+      throws Exception
+   {
+      Viewsheet vs = chart.getViewsheet();
+      vs.addAssembly(chart);
+      RuntimeViewsheet rvs = runtimeViewsheet(vs, viewsheetService);
+      when(rvs.getViewsheetSandbox()).thenReturn(Optional.empty());
+      return new ModifyCalculateFieldService(null, null, null, null, null, null,
+                                             viewsheetService, null, null, queryManager);
+   }
+
+   private static ModifyCalculateFieldEvent calcFieldEvent(String table) {
+      ModifyCalculateFieldEvent event = mock(ModifyCalculateFieldEvent.class);
+      when(event.name()).thenReturn("Chart1");
+      when(event.tableName()).thenReturn(table);
+      when(event.refName()).thenReturn("calc1");
+      when(event.create()).thenReturn(true);
+      return event;
+   }
+
+   @Test
+   void mCalcFieldOnUnboundChartDeniedCube() throws Throwable {
+      ChartVSAssembly chart = chart(null);
+      ModifyCalculateFieldService service =
+         calcFieldService(chart, mock(ViewsheetService.class));
+      withCube(true, false, () -> assertThrows(java.lang.SecurityException.class,
+         () -> service.modifyCalculateField(RUNTIME_ID, calcFieldEvent(CUBE_TABLE), principal,
+                                            mock(CommandDispatcher.class), null)));
+      verifyCubeChecked();
+      assertNull(chart.getSourceInfo());
+   }
+
+   @Test
+   void mCalcFieldOnUnboundChartReadableCubeAllowed() throws Throwable {
+      ChartVSAssembly chart = chart(null);
+      ModifyCalculateFieldService service =
+         calcFieldService(chart, mock(ViewsheetService.class));
+      withCube(true, true, () -> service.modifyCalculateField(
+         RUNTIME_ID, calcFieldEvent(CUBE_TABLE), principal, mock(CommandDispatcher.class), null));
+      verifyCubeChecked();
+   }
+
+   @Test
+   void mCalcFieldOnNonCubeTableNotChecked() throws Throwable {
+      ChartVSAssembly chart = chart(null);
+      ModifyCalculateFieldService service =
+         calcFieldService(chart, mock(ViewsheetService.class));
+      withCube(false, false, () -> service.modifyCalculateField(
+         RUNTIME_ID, calcFieldEvent(OTHER_TABLE), principal, mock(CommandDispatcher.class), null));
+      verifyNothingChecked();
+   }
+
+   @Test
+   void mCalcFieldOnCubeBoundChartNotChecked() throws Throwable {
+      ChartVSAssembly chart = chart(CUBE_TABLE);
+      ModifyCalculateFieldService service =
+         calcFieldService(chart, mock(ViewsheetService.class));
+      withCube(false, false, () -> service.modifyCalculateField(
+         RUNTIME_ID, calcFieldEvent(CUBE_TABLE), principal, mock(CommandDispatcher.class), null));
+      verifyNothingChecked();
+   }
+
+   // ---- T: VSTableService.createTable, the entry name branch (A2) ----
+
+   private static AssetEntry baseTableEntry(String name) {
+      AssetEntry entry = new AssetEntry(
+         AssetRepository.COMPONENT_SCOPE, AssetEntry.Type.TABLE,
+         "Base/" + name.replace("/", "^_^"), null);
+      entry.setProperty("source", VSEventUtil.BASE_WORKSHEET);
+      return entry;
+   }
+
+   @Test
+   void tCreateTableFromCubeNameDenied() throws Throwable {
+      AssetEntry entry = baseTableEntry(CUBE_TABLE);
+      assertEquals(CUBE_TABLE, entry.getName());
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      Viewsheet vs = mock(Viewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      when(vs.getBaseWorksheet()).thenReturn(new Worksheet());
+
+      withCube(false, true, () -> assertThrows(java.lang.SecurityException.class,
+         () -> new VSTableService(queryManager).createTable(rvs, null, entry, 0, 0, principal)));
+      withCube(true, false, () -> assertThrows(java.lang.SecurityException.class,
+         () -> new VSTableService(queryManager).createTable(rvs, null, entry, 0, 0, principal)));
+      verify(vs, never()).convertToEmbeddedTable(any(), anyString());
+   }
+
+   @Test
+   void tCreateTableFromWorksheetTableNotChecked() throws Throwable {
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      Viewsheet vs = mock(Viewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      when(vs.getBaseWorksheet()).thenReturn(new Worksheet());
+
+      withCube(false, false, () -> assertNull(new VSTableService(queryManager)
+         .createTable(rvs, null, baseTableEntry(OTHER_TABLE), 0, 0, principal)));
+      verifyNothingChecked();
+   }
+
+   // ---- D: canvas drop, VSBindingService.changeBinding / getNewAssemblyFromBindings ----
+
+   private static AssetEntry columnEntry(String table) {
+      AssetEntry entry = new AssetEntry(
+         AssetRepository.COMPONENT_SCOPE, AssetEntry.Type.COLUMN, table + "/State", null);
+      entry.setProperty("assembly", table);
+      entry.setProperty("attribute", "State");
+      entry.setProperty("dtype", "string");
+      return entry;
+   }
+
+   private SelectionListVSAssembly selectionList(Viewsheet vs, String... tables) {
+      SelectionListVSAssembly list = new SelectionListVSAssembly(vs, "SelectionList1");
+      list.setTableNames(new ArrayList<>(List.of(tables)));
+      vs.addAssembly(list);
+      return list;
+   }
+
+   private VSBindingService dropService(ViewsheetService viewsheetService) {
+      return new VSBindingService(null, mock(VSTableService.class), null, viewsheetService,
+                                  List.of(), null, null, null, null, null,
+                                  mock(VSAssemblyInfoHandler.class), null,
+                                  mock(CoreLifecycleService.class), queryManager);
+   }
+
+   private static ChangeVSObjectBindingEvent dropEvent(String table) {
+      ChangeVSObjectBindingEvent event = new ChangeVSObjectBindingEvent();
+      event.setName("SelectionList1");
+      event.setBinding(List.of(columnEntry(table)));
+      return event;
+   }
+
+   @Test
+   void dDropNewCubeOnExistingAssemblyDenied() throws Throwable {
+      Viewsheet vs = new Viewsheet();
+      SelectionListVSAssembly list = selectionList(vs, OTHER_TABLE);
+      ViewsheetService viewsheetService = mock(ViewsheetService.class);
+      runtimeViewsheet(vs, viewsheetService);
+
+      withCube(true, false, () -> assertThrows(java.lang.SecurityException.class,
+         () -> dropService(viewsheetService).changeBinding(
+            RUNTIME_ID, dropEvent(CUBE_TABLE), principal, mock(CommandDispatcher.class), null)));
+      assertEquals(List.of(OTHER_TABLE), list.getTableNames());
+   }
+
+   @Test
+   void dDropSameCubeOnExistingAssemblyNotChecked() throws Throwable {
+      Viewsheet vs = new Viewsheet();
+      SelectionListVSAssembly list = selectionList(vs, CUBE_TABLE);
+      ViewsheetService viewsheetService = mock(ViewsheetService.class);
+      runtimeViewsheet(vs, viewsheetService);
+
+      withCube(false, false, () -> dropService(viewsheetService).changeBinding(
+         RUNTIME_ID, dropEvent(CUBE_TABLE), principal, mock(CommandDispatcher.class), null));
+      assertEquals(CUBE_TABLE, list.getTableName());
+      verifyNothingChecked();
+   }
+
+   @Test
+   void dDropCubeAsNewAssemblyDenied() throws Throwable {
+      Viewsheet vs = new Viewsheet();
+      ViewsheetService viewsheetService = mock(ViewsheetService.class);
+      RuntimeViewsheet rvs = runtimeViewsheet(vs, viewsheetService);
+      VSBindingService service = dropService(viewsheetService);
+
+      withCube(false, true, () -> assertThrows(java.lang.SecurityException.class,
+         () -> service.getNewAssemblyFromBindings(
+            List.of(columnEntry(CUBE_TABLE)), 0, 0, rvs, principal)));
+      assertEquals(0, vs.getAssemblies().length);
+   }
+
+   // ---- S: selection list dialog, the multi-table rule ----
+
+   private static SelectionListPropertyDialogModel selectionDialog(String first,
+                                                                   String... additional)
+   {
+      SelectionListPaneModel pane = new SelectionListPaneModel();
+      pane.setSelectedTable(first);
+      pane.setAdditionalTables(new ArrayList<>(List.of(additional)));
+      SelectionListPropertyDialogModel model = new SelectionListPropertyDialogModel();
+      model.setSelectionListPaneModel(pane);
+      return model;
+   }
+
+   private SelectionListPropertyDialogService selectionDialogService(
+      ViewsheetService viewsheetService, VSTrapService trapService)
+   {
+      return new SelectionListPropertyDialogService(
+         null, null, viewsheetService, trapService, null, null, null, null, null, queryManager);
+   }
+
+   @Test
+   void sAddedCubeTableDenied() throws Throwable {
+      Viewsheet vs = new Viewsheet();
+      SelectionListVSAssembly list = selectionList(vs, OTHER_TABLE);
+      ViewsheetService viewsheetService = mock(ViewsheetService.class);
+      runtimeViewsheet(vs, viewsheetService);
+      VSTrapService trapService = mock(VSTrapService.class);
+
+      withCube(true, false, () -> assertThrows(java.lang.SecurityException.class,
+         () -> selectionDialogService(viewsheetService, trapService).checkVSTrap(
+            RUNTIME_ID, selectionDialog(OTHER_TABLE, CUBE_TABLE), "SelectionList1", principal)));
+      verifyCubeChecked();
+      verifyNoInteractions(trapService);
+      assertEquals(List.of(OTHER_TABLE), list.getTableNames());
+   }
+
+   @Test
+   void sResavedCubeAndAddedQueryNotChecked() throws Throwable {
+      Viewsheet vs = new Viewsheet();
+      selectionList(vs, OTHER_TABLE, CUBE_TABLE);
+      ViewsheetService viewsheetService = mock(ViewsheetService.class);
+      runtimeViewsheet(vs, viewsheetService);
+      VSTrapService trapService = mock(VSTrapService.class);
+
+      // the cube is kept as an additional table and another worksheet table is added
+      withCube(false, false, () -> selectionDialogService(viewsheetService, trapService)
+         .checkVSTrap(RUNTIME_ID, selectionDialog(OTHER_TABLE, CUBE_TABLE, "Query2"),
+                      "SelectionList1", principal));
+      verify(trapService).checkTrap(any(), any(), any());
+      verifyNothingChecked();
+   }
+
+   // ---- U: gauge data output ----
+
+   private static GaugePropertyDialogModel gaugeDialog(String table) {
+      DataOutputPaneModel output = new DataOutputPaneModel();
+      output.setTable(table);
+      output.setColumn("Sales");
+      GaugePropertyDialogModel model = new GaugePropertyDialogModel();
+      model.setDataOutputPaneModel(output);
+      return model;
+   }
+
+   private GaugeVSAssembly gauge(Viewsheet vs, String table) {
+      GaugeVSAssembly gauge = new GaugeVSAssembly(vs, "Gauge1");
+      ScalarBindingInfo binding = new ScalarBindingInfo();
+      binding.setTableName(table);
+      gauge.setScalarBindingInfo(binding);
+      vs.addAssembly(gauge);
+      return gauge;
+   }
+
+   private GaugePropertyDialogService gaugeService(ViewsheetService viewsheetService,
+                                                   VSTrapService trapService)
+   {
+      return new GaugePropertyDialogService(null, null, null, viewsheetService, trapService,
+                                            null, queryManager);
+   }
+
+   @Test
+   void uNewCubeOutputDenied() throws Throwable {
+      Viewsheet vs = new Viewsheet();
+      GaugeVSAssembly gauge = gauge(vs, OTHER_TABLE);
+      ViewsheetService viewsheetService = mock(ViewsheetService.class);
+      runtimeViewsheet(vs, viewsheetService);
+      VSTrapService trapService = mock(VSTrapService.class);
+
+      withCube(false, true, () -> assertThrows(java.lang.SecurityException.class,
+         () -> gaugeService(viewsheetService, trapService)
+            .checkTrap(RUNTIME_ID, gaugeDialog(CUBE_TABLE), "Gauge1", principal)));
+      verifyNoInteractions(trapService);
+      assertEquals(OTHER_TABLE, gauge.getTableName());
+   }
+
+   @Test
+   void uUnchangedCubeOutputNotChecked() throws Throwable {
+      Viewsheet vs = new Viewsheet();
+      gauge(vs, CUBE_TABLE);
+      ViewsheetService viewsheetService = mock(ViewsheetService.class);
+      runtimeViewsheet(vs, viewsheetService);
+      VSTrapService trapService = mock(VSTrapService.class);
+
+      withCube(false, false, () -> gaugeService(viewsheetService, trapService)
+         .checkTrap(RUNTIME_ID, gaugeDialog(CUBE_TABLE), "Gauge1", principal));
+      verify(trapService).checkTrap(any(), any(), any());
       verifyNothingChecked();
    }
 }

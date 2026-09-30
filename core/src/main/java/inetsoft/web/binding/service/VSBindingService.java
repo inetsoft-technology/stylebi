@@ -1732,10 +1732,9 @@ public class VSBindingService {
       }
 
       inetsoft.uql.asset.SourceInfo osinfo = dassembly.getSourceInfo();
-
-      if(nsinfo.toSourceAttr(osinfo) != osinfo) {
-         queryManagerService.checkCubeTableReadPermission(nsinfo.getSource(), principal);
-      }
+      // compare the table name only, as VSAssemblyInfoHandler.changeSource does
+      queryManagerService.checkNewCubeTableReadPermission(
+         nsinfo.getSource(), osinfo == null ? null : osinfo.getSource(), principal);
    }
 
    /**

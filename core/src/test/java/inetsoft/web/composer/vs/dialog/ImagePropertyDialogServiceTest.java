@@ -117,7 +117,8 @@ class ImagePropertyDialogServiceTest {
                                                                                         temporaryInfoService,
                                                                                         vsCompositionService,
                                                                                         sharedFilterService,
-                                                                                        dataSourceRegistry));
+                                                                                        dataSourceRegistry,
+                                                                                        mock(QueryManagerService.class)));
       BinaryTransferService binaryTransferService = new BinaryTransferService(fileSystemService);
       ImagePreviewPaneService imagePreviewPaneService =
          new ImagePreviewPaneService(viewsheetService, vsObjectService, binaryTransferService, fileSystemService, dataSpace);
