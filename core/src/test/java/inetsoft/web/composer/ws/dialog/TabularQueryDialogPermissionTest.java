@@ -227,6 +227,31 @@ class TabularQueryDialogPermissionTest {
          any(), any(), any(), any(), any(), any(), any(), any(), same(query)));
    }
 
+   /**
+    * Bug #77399: TabularUtil.getOAuthParameters stores the token URI under "tokenUri", and the
+    * composer response must carry it like the data source level endpoint does.
+    */
+   @Test
+   void oauthParamsCopiesTokenUri() throws Exception {
+      grantRead(true);
+      Map<String, String> oauth = new HashMap<>();
+      oauth.put("clientId", "id");
+      oauth.put("clientSecret", "secret");
+      oauth.put("authorizationUri", "https://auth");
+      oauth.put("tokenUri", "https://token");
+      tabularUtil.when(() -> TabularUtil.getOAuthParameters(
+         any(), any(), any(), any(), any(), any(), any(), any(), same(query))).thenReturn(oauth);
+
+      try(MockedStatic<SreeEnv> sreeEnv = mockStatic(SreeEnv.class)) {
+         sreeEnv.when(() -> SreeEnv.getProperty("license.key")).thenReturn("key1");
+         TabularOAuthParams params =
+            controller.getOAuthParameters(oauthParamsRequest(), DS, principal, request);
+         assertEquals("https://token", params.tokenUri());
+         assertEquals("https://auth", params.authorizationUri());
+         assertEquals("id", params.clientId());
+      }
+   }
+
    @Test
    void oauthTokensAllowedWithRead() throws Exception {
       grantRead(true);
