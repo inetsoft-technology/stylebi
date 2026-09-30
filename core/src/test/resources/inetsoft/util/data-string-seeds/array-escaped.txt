@@ -1,0 +1,2 @@
+array
+^string~a\^b^string~x\~y^string~c\\
