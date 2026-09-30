@@ -152,6 +152,39 @@ public class ScheduleManager {
       return tasks.stream().filter(Objects::nonNull).distinct().collect(Collectors.toList());
    }
 
+   /**
+    * Gets the schedule tasks of all organizations, including the extension tasks, by the
+    * organization they're stored in. Unlike {@link #getScheduleTasks()}, a task stored in more
+    * than one organization is in the tasks of each of them.
+    */
+   Map<String, List<ScheduleTask>> getScheduleTasksByOrganization() {
+      Map<String, List<ScheduleTask>> tasks = new LinkedHashMap<>();
+
+      for(Map.Entry<String, ScheduleTaskMap> entry : new ArrayList<>(taskMap.entrySet())) {
+         List<ScheduleTask> orgTasks = tasks.computeIfAbsent(entry.getKey(), k -> new ArrayList<>());
+         entry.getValue().values().stream().filter(Objects::nonNull).forEach(orgTasks::add);
+      }
+
+      extensionLock.lock();
+
+      try {
+         for(Map.Entry<ExtTaskKey, ScheduleTask> entry : extensionTasks.entrySet()) {
+            ScheduleTask task = entry.getValue();
+            List<ScheduleTask> orgTasks =
+               tasks.computeIfAbsent(entry.getKey().orgId(), k -> new ArrayList<>());
+
+            if(orgTasks.stream().noneMatch(t -> t.getTaskId().equals(task.getTaskId()))) {
+               orgTasks.add(task);
+            }
+         }
+      }
+      finally {
+         extensionLock.unlock();
+      }
+
+      return tasks;
+   }
+
    public ScheduleTaskMap getOrgTaskMap(String orgID) {
       ScheduleTaskMap map = taskMap.get(orgID);
 
@@ -821,6 +854,27 @@ public class ScheduleManager {
       checkOwnerOrganization(taskId, task, stored, orgID, internal);
    }
 
+   /**
+    * Saves a schedule task, that was read from an organization, back to that organization, e.g.
+    * a task changed by the task balancer, which balances the tasks of all organizations. Like an
+    * internal save, the scheduler permission and the owner organization aren't checked and the
+    * owner isn't granted permissions, the task is saved as it's stored. An internal task is
+    * saved in the host organization.
+    *
+    * @param orgID the organization the task was read from.
+    */
+   synchronized void setScheduleTask(String taskId, ScheduleTask task, AssetEntry parent,
+                                     String orgID, Principal principal)
+      throws Exception
+   {
+      if(isInternalTask(taskId)) {
+         setScheduleTask(taskId, task, parent, true, principal);
+      }
+      else {
+         setScheduleTask(taskId, task, parent, orgID, false, true, principal, false);
+      }
+   }
+
    private synchronized void setScheduleTask(String taskId, ScheduleTask task, AssetEntry parent,
                                              boolean internal, Principal principal,
                                              boolean ownerChecked)
@@ -830,9 +884,6 @@ public class ScheduleManager {
          return;
       }
 
-      task.setLastModified(System.currentTimeMillis());
-
-      final RepletRepository engine = internal ? null : SUtil.getRepletRepository();
       final String orgID;
       if(internal) {
          orgID = Organization.getDefaultOrganizationID();
@@ -840,6 +891,30 @@ public class ScheduleManager {
       else {
          orgID = OrganizationManager.getInstance().getCurrentOrgID(principal);
       }
+
+      setScheduleTask(taskId, task, parent, orgID, internal, internal, principal, ownerChecked);
+   }
+
+   /**
+    * Saves a schedule task in an organization.
+    *
+    * @param internal if the task is saved as an internal task, the owner of an owner-less task
+    *                 isn't moved to the organization.
+    * @param trusted  if the scheduler permission and the owner organization aren't checked and
+    *                 the owner isn't granted permissions.
+    */
+   private synchronized void setScheduleTask(String taskId, ScheduleTask task, AssetEntry parent,
+                                             String orgID, boolean internal, boolean trusted,
+                                             Principal principal, boolean ownerChecked)
+      throws Exception
+   {
+      if(task == null) {
+         return;
+      }
+
+      task.setLastModified(System.currentTimeMillis());
+
+      final RepletRepository engine = trusted ? null : SUtil.getRepletRepository();
 
       // Bug #77213: an extension (data cycle) task is derived from the extension's own asset.
       // Only its enabled state can change and that belongs to the extension, it must never be
@@ -885,7 +960,7 @@ public class ScheduleManager {
       // tasks (such as MV ondemand) are created without user intervention, and the originating
       // task (such as creating MV) is already controlled by a permission, so we shouldn't
       // check the permission here again.
-      if(!internal && task.isRemovable() &&
+      if(!trusted && task.isRemovable() &&
          !engine.checkPermission(principal, ResourceType.SCHEDULER, "*", ResourceAction.ACCESS))
       {
          throw new IOException("User '" + user.getName() + "' doesn't have schedule permission.");
@@ -916,7 +991,7 @@ public class ScheduleManager {
       }
 
       if(!ownerChecked) {
-         checkOwnerOrganization(taskId, task, orgID, internal);
+         checkOwnerOrganization(taskId, task, orgID, trusted);
       }
 
       ScheduleTaskMessage.Action action;
@@ -941,7 +1016,7 @@ public class ScheduleManager {
       IdentityID owner = task.getOwner();
 
       try {
-         if(!internal && Tool.equals(owner.orgID, OrganizationManager.getInstance().getCurrentOrgID())) {
+         if(!trusted && Tool.equals(owner.orgID, OrganizationManager.getInstance().getCurrentOrgID())) {
             Permission perm = new Permission();
             String orgId = getTaskOrgID(taskId);
             Set<Permission.PermissionIdentity> users = Collections.singleton(new Permission.PermissionIdentity(owner.name, orgId));
