@@ -101,6 +101,48 @@ class GraalJavaScriptEngineCancelTest {
    }
 
    /**
+    * Review M1: the install stopped by the interrupt of a fired timeout guard of the thread
+    * (not a cancel) is retried too, so the engine still gets its host global set, and no flag
+    * is left for the guard's interrupt.
+    */
+   @Test
+   void aTimeoutInterruptDuringTheHostGlobalInstallIsRetried() throws Exception {
+      GraalJavaScriptEngine engine = new GraalJavaScriptEngine();
+
+      try(org.graalvm.polyglot.Context outer = org.graalvm.polyglot.Context.create("js")) {
+         engine.init(new HashMap<>());
+         Method install = GraalJavaScriptEngine.class.getDeclaredMethod("installHostGlobals");
+         install.setAccessible(true);
+
+         try(var open = new ScriptTimeoutGuard().guard(outer, java.time.Duration.ofMillis(50))) {
+            long end = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(10);
+
+            while(!open.interruptFired() && System.nanoTime() - end < 0) {
+               Thread.onSpinWait();
+            }
+
+            assertTrue(open.interruptFired());
+            engine.getExecutionLock().lock();
+
+            try {
+               // the flag as the fired guard's interrupt would set it
+               Thread.currentThread().interrupt();
+               install.invoke(engine);
+            }
+            finally {
+               engine.getExecutionLock().unlock();
+            }
+
+            assertFalse(Thread.interrupted(), "the timeout's interrupt was re-asserted");
+            assertNotNull(hostGlobals(engine), "the engine has no host global set");
+         }
+      }
+      finally {
+         engine.close();
+      }
+   }
+
+   /**
     * The pool-off env creates its engine at the first put (as AssetQuerySandbox.getScope does).
     */
    @Test

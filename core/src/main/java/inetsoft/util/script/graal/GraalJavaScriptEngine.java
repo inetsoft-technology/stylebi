@@ -208,8 +208,9 @@ public class GraalJavaScriptEngine implements AutoCloseable {
     * script-created globals (the stale values the reset exists to clear) are
     * never in it. Caller holds {@code lock}.
     * <p>
-    * A cancel that lands while it runs would leave the engine without the set for its life,
-    * so the install is retried without the interrupt flag, which is set again after
+    * An interrupt that stops it would leave the engine without the set for its life, so the
+    * install, our own bounded JS, is retried without the interrupt flag on any interrupt (a
+    * cancel or a timeout of a guard of the thread); only a cancel's flag is set again after
     * (Testing #77123).
     */
    private void installHostGlobals() {
@@ -222,8 +223,8 @@ public class GraalJavaScriptEngine implements AutoCloseable {
                return;
             }
             catch(PolyglotException ex) {
-               if(attempt < 3 && ScriptTimeoutGuard.isCancel(ex, null)) {
-                  cancelled = true;
+               if(attempt < 3 && ScriptTimeoutGuard.isInterrupt(ex)) {
+                  cancelled |= ScriptTimeoutGuard.isCancel(ex, null);
                   Thread.interrupted();
                   continue;
                }
@@ -361,6 +362,8 @@ public class GraalJavaScriptEngine implements AutoCloseable {
          putFunction(bindings, "numberToString", jse, "numberToString", Object.class);
       }
       catch(Throwable ex) {
+         // a cancel that landed during the init is kept (Testing #77123)
+         ScriptTimeoutGuard.keepCancel(ex, null);
          LOG.warn("Failed to install global utility functions", ex);
       }
 
@@ -372,6 +375,8 @@ public class GraalJavaScriptEngine implements AutoCloseable {
                      int.class, int.class, int.class, int.class);
       }
       catch(Throwable ex) {
+         // a cancel that landed during the init is kept (Testing #77123)
+         ScriptTimeoutGuard.keepCancel(ex, null);
          LOG.warn("Failed to install setupGoogleMapsPlot", ex);
       }
 
@@ -382,6 +387,8 @@ public class GraalJavaScriptEngine implements AutoCloseable {
          addStaticFunctions(bindings, inetsoft.report.script.formula.FormulaFunctions.class);
       }
       catch(Throwable ex) {
+         // a cancel that landed during the init is kept (Testing #77123)
+         ScriptTimeoutGuard.keepCancel(ex, null);
          LOG.warn("Failed to install FormulaFunctions", ex);
       }
    }
@@ -425,6 +432,8 @@ public class GraalJavaScriptEngine implements AutoCloseable {
          calcScope = calc;
       }
       catch(Throwable ex) {
+         // a cancel that landed during the init is kept (Testing #77123)
+         ScriptTimeoutGuard.keepCancel(ex, null);
          LOG.warn("Failed to install CALC functions", ex);
       }
 
@@ -497,6 +506,8 @@ public class GraalJavaScriptEngine implements AutoCloseable {
          bindings.putMember(name, ScriptValueConverter.toGuest(scope));
       }
       catch(Throwable ex) {
+         // a cancel that landed during the init is kept (Testing #77123)
+         ScriptTimeoutGuard.keepCancel(ex, null);
          LOG.warn("Failed to install constant object " + name, ex);
       }
    }
@@ -544,6 +555,7 @@ public class GraalJavaScriptEngine implements AutoCloseable {
       }
       catch(Throwable ex) {
          // LibManager/provider unavailable (e.g. minimal/test contexts) — skip
+         ScriptTimeoutGuard.keepCancel(ex, null);
          LOG.debug("Library functions not installed; LibManager unavailable", ex);
       }
    }
@@ -572,6 +584,8 @@ public class GraalJavaScriptEngine implements AutoCloseable {
       }
       catch(PolyglotException ex) {
          // don't let one bad library function break engine init
+         // a cancel that landed during the init is kept (Testing #77123)
+         ScriptTimeoutGuard.keepCancel(ex, null);
          LOG.warn("Failed to compile library function " + name, ex);
       }
    }
