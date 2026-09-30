@@ -55,6 +55,18 @@ export class ViewsheetClientService implements OnDestroy {
    private _focusedLayoutName: string = "Master";
    private _beforeDestroy: () => void;
    private _destroyDelayTime: number = 0;
+   private commandsSubscription: Subscription;
+   // Bug #77292: state used only by sendOpenEvent() / closeWhenRuntimeIdKnown()
+   private openMessage: ViewsheetEventMessage | null = null;
+   private openSent: boolean = false;
+   private receivedRuntimeId: string | null = null;
+   private deferredCloseDestination: string | null = null;
+
+   /**
+    * The maximum time a close deferred by closeWhenRuntimeIdKnown() keeps the connection
+    * reference and waits for the runtime id before giving up.
+    */
+   static readonly DEFERRED_CLOSE_TIMEOUT: number = 30000;
 
    /**
     * Creates a new instance of <tt>ViewsheetClient</tt>.
@@ -120,7 +132,7 @@ export class ViewsheetClientService implements OnDestroy {
     * Subscribes the to the events channel.
     */
    private subscribe(): void {
-      this.connection.subscribe("/user/commands", (message) => {
+      this.commandsSubscription = this.connection.subscribe("/user/commands", (message) => {
          const headers = message.frame.headers;
          // broadcast messages won't have the client ID, so accept those without a client ID, but a
          // matching runtime ID
@@ -128,6 +140,19 @@ export class ViewsheetClientService implements OnDestroy {
             (!headers["inetsoftClientId"] && headers["sheetRuntimeId"] === this._runtimeId ||
             headers["inetsoftClientId"] === this._clientId))
          {
+            // Bug #77292: with a non-websocket transport the command may still be queued in
+            // commandSubject when the service is destroyed, so remember the id from the frame
+            if(this.openMessage && headers["commandType"] === "SetRuntimeIdCommand") {
+               this.receivedRuntimeId = this.getRuntimeId(message.frame.body);
+            }
+            // the open failed before a runtime id was sent, so there is nothing to wait for and
+            // a later removal must not defer the close
+            else if(this.openMessage && headers["commandType"] === "EmbedErrorCommand" &&
+                    headers["inetsoftClientId"] === this._clientId)
+            {
+               this.openSent = false;
+            }
+
             this.processCommand(headers, message);
          }
       });
@@ -156,6 +181,10 @@ export class ViewsheetClientService implements OnDestroy {
       if(this.eventSubject) {
          this.eventSubject.subscribe((message: ViewsheetEventMessage) => {
             this.connection.send(message.destination, this.getHeaders(), message.body);
+
+            if(message === this.openMessage) {
+               this.openSent = true;
+            }
          });
       }
 
@@ -190,6 +219,9 @@ export class ViewsheetClientService implements OnDestroy {
    }
 
    private doDestroy(): void {
+      // Bug #77292: beforeDestroy must run before commandSubject and eventSubject are completed
+      // below. closeWhenRuntimeIdKnown() called from it decides whether to defer the close,
+      // and the deferral in the connection block relies on that decision.
       if(this._beforeDestroy) {
          this._beforeDestroy();
          this._beforeDestroy = null;
@@ -206,7 +238,14 @@ export class ViewsheetClientService implements OnDestroy {
       }
 
       if(this.connection) {
-         this.connection.disconnect();
+         if(this.deferredCloseDestination) {
+            this.deferClose(this.connection, this.deferredCloseDestination);
+            this.deferredCloseDestination = null;
+         }
+         else {
+            this.connection.disconnect();
+         }
+
          this.connection = null;
       }
 
@@ -235,6 +274,13 @@ export class ViewsheetClientService implements OnDestroy {
     * @param event       the event to send.
     */
    public sendEvent(destination: string, event?: ViewsheetEvent): void {
+      if(this.eventSubject) {
+         this.eventSubject.next(
+            new ViewsheetEventMessage(destination, JSON.stringify(this.toDto(event))));
+      }
+   }
+
+   private toDto(event: ViewsheetEvent): {[name: string]: string} {
       let dto: {[name: string]: string} = {};
 
       for(let property in event) {
@@ -247,8 +293,129 @@ export class ViewsheetClientService implements OnDestroy {
          }
       }
 
+      return dto;
+   }
+
+   /**
+    * Sends the event that opens a sheet whose runtime id is only learned from a later
+    * SetRuntimeIdCommand. Use together with closeWhenRuntimeIdKnown(). The open is only
+    * considered in flight once it has actually been handed to the connection.
+    *
+    * @param destination the destination for the open event.
+    * @param event       the open event.
+    */
+   public sendOpenEvent(destination: string, event: ViewsheetEvent): void {
+      this.openMessage = new ViewsheetEventMessage(destination, JSON.stringify(this.toDto(event)));
+      this.openSent = false;
+
       if(this.eventSubject) {
-         this.eventSubject.next(new ViewsheetEventMessage(destination, JSON.stringify(dto)));
+         this.eventSubject.next(this.openMessage);
+      }
+   }
+
+   /**
+    * Closes the sheet opened by sendOpenEvent(). Must be called from the beforeDestroy
+    * callback (bug #77292).
+    *
+    * - If the runtime id is known, the close event is sent, the same as sendEvent().
+    * - If the open was never sent, there is no sheet to close and nothing is sent.
+    * - If the open was sent but the runtime id has not arrived yet, destroying this service
+    *   keeps the connection reference and a /user/commands listener for this client. When
+    *   SetRuntimeIdCommand arrives, the close is sent with that runtime id and the connection is
+    *   released. The connection is also released without a close on EmbedErrorCommand, on a
+    *   socket disconnect or reconnect error, or after DEFERRED_CLOSE_TIMEOUT. No other event is
+    *   sent after destroy and no command is delivered to the destroyed subscribers.
+    * - If the server never replies to the open at all, the connection is held for up to
+    *   DEFERRED_CLOSE_TIMEOUT and then released without a close. The server heartbeat reaper
+    *   is the backstop for that sheet.
+    *
+    * The runtime id normally reaches _runtimeId through processSetRuntimeIdCommand(). With a
+    * non-websocket transport that command may still be queued in commandSubject when this is
+    * called, so the id recorded from the raw frame (receivedRuntimeId) is copied to _runtimeId
+    * first. receivedRuntimeId is only recorded after sendOpenEvent() sets openMessage, so
+    * services that do not opt in are unaffected. When the close is deferred, deferClose() sets
+    * _runtimeId itself from the SetRuntimeIdCommand before sending the close.
+    *
+    * @param destination the destination for the close event.
+    */
+   public closeWhenRuntimeIdKnown(destination: string): void {
+      if(!this._runtimeId && this.receivedRuntimeId) {
+         this._runtimeId = this.receivedRuntimeId;
+      }
+
+      if(this._runtimeId) {
+         this.sendEvent(destination);
+      }
+      else if(this.openSent) {
+         this.deferredCloseDestination = destination;
+      }
+   }
+
+   private deferClose(connection: StompClientConnection, destination: string): void {
+      const subscriptions = new Subscription();
+      let released = false;
+      let timer: ReturnType<typeof setTimeout> | null = null;
+
+      const release = () => {
+         if(!released) {
+            released = true;
+            clearTimeout(timer);
+            subscriptions.unsubscribe();
+            connection.disconnect();
+         }
+      };
+
+      subscriptions.add(connection.subscribe("/user/commands", (message) => {
+         const headers = message.frame.headers;
+
+         if(released || !headers || headers["inetsoftClientId"] !== this._clientId) {
+            return;
+         }
+
+         if(headers["commandType"] === "SetRuntimeIdCommand") {
+            const runtimeId = this.getRuntimeId(message.frame.body);
+
+            if(runtimeId) {
+               this._runtimeId = runtimeId;
+               connection.send(destination, this.getHeaders(), JSON.stringify({}));
+            }
+
+            release();
+         }
+         else if(headers["commandType"] === "EmbedErrorCommand") {
+            // the open failed before the runtime id was sent, there is no id to close with
+            release();
+         }
+      }));
+
+      // The subscribers of this service are gone, stop delivering to them. This is done after
+      // the listener above is added so the /user/commands STOMP subscription is never dropped.
+      [this.commandsSubscription, this.renameTransformSubscription,
+       this.transformFinishedSubscription]
+         .filter((sub) => !!sub)
+         .forEach((sub) => sub.unsubscribe());
+      this.commandsSubscription = null;
+      this.renameTransformSubscription = null;
+      this.transformFinishedSubscription = null;
+
+      subscriptions.add(this.client.whenDisconnected().subscribe(() => release()));
+      subscriptions.add(this.client.reconnectError().subscribe(() => release()));
+
+      // The subjects above do not emit synchronously in production, but a test double may, in
+      // which case release() already ran and no timer is needed. The timer runs outside the
+      // Angular zone so a pending deferral does not keep the zone unstable.
+      if(!released) {
+         timer = this.zone.runOutsideAngular(
+            () => setTimeout(release, ViewsheetClientService.DEFERRED_CLOSE_TIMEOUT));
+      }
+   }
+
+   private getRuntimeId(body: string): string {
+      try {
+         return JSON.parse(body)?.runtimeId;
+      }
+      catch(e) {
+         return null;
       }
    }
 
