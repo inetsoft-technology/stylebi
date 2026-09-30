@@ -5305,6 +5305,9 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
          // reposition input child in bottom-tab container after script may
          // have changed label properties (visible, position, gap, font).
          // a position explicitly set by script is kept as is (Bug #77369)
+         // the positionByScript flag is sticky for the runtime session: once a script
+         // placed the child it is not re-flushed here, even by a later label change,
+         // until a design position is copied in (VSAssemblyInfo.copyViewInfo clears it)
          if(assembly instanceof InputVSAssembly &&
             !assembly.getVSAssemblyInfo().isPositionByScript() &&
             assembly.getContainer() instanceof TabVSAssembly tabContainer)

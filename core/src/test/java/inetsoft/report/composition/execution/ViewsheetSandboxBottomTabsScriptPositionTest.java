@@ -196,6 +196,27 @@ class ViewsheetSandboxBottomTabsScriptPositionTest {
       info.copyInfo(design);
       assertEquals(new Point(20, FLUSH_Y), info.getPixelOffset());
       assertFalse(info.isPositionByScript());
+
+      // with an equal offset the flag is not taken from the source, the target keeps its own
+      info.setPixelOffset(new Point(300, 40));
+      info.setPositionByScript(true);
+      VSAssemblyInfo same = info.clone();
+      same.setPositionByScript(false);
+      info.copyInfo(same);
+      assertEquals(new Point(300, 40), info.getPixelOffset());
+      assertTrue(info.isPositionByScript());
+   }
+
+   @Test
+   void ownComponentScriptPositionIsKeptAcrossRefreshes() {
+      input.getVSAssemblyInfo().setScript("position = [300, 40];");
+
+      refresh();
+      assertEquals(new Point(300, 40), inputPos());
+      assertTrue(input.getVSAssemblyInfo().isPositionByScript());
+
+      refresh();
+      assertEquals(new Point(300, 40), inputPos());
    }
 
    /**

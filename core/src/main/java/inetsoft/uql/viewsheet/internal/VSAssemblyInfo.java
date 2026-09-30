@@ -659,7 +659,9 @@ public class VSAssemblyInfo extends AssemblyInfo implements FloatableVSAssemblyI
 
       if(!Tool.equals(getPixelOffset(), info.getPixelOffset())) {
          setPixelOffset(info.getPixelOffset());
-         // the position now comes from the other info, so is only script-set if it was there
+         // the position now comes from the other info, so is only script-set if it was there.
+         // the flag follows the offset only when the offset changes, with an equal offset
+         // this info keeps its own flag (harmless, the position is the same either way)
          positionByScript = info.positionByScript;
          result = true;
       }
