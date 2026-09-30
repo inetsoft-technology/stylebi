@@ -148,6 +148,37 @@
    // what a root that shares an object with a lost root is lost for (amendment A3)
    const SHARED = 'an object that it shares with a variable whose value is not kept';
    const UNREAD = 'a value that could not be read';
+   const INTERRUPTED = 'Thread was interrupted.';
+
+   // an interrupt of the thread (a caller's cancel, or a timeout's), which Graal raises at a
+   // guest safepoint as an error that a catch here sees, and whose flag it clears: never
+   // taken for a value that could not be read, it stops the snapshot (Testing #77123). Only
+   // Graal throws here (no script code runs), and it tells the interrupt by its message.
+   // Graal's error is no script object (Reflect refuses it), so its message is an interop
+   // read, which runs no script code; a script error's own message is read with the captured
+   // getOwnPropertyDescriptor, which runs no getter
+   function keepInterrupt(e) {
+      if(e === STOP || typeof e !== 'object' || e === null) {
+         return;
+      }
+
+      let d;
+
+      try {
+         d = gOPD(e, 'message');
+      }
+      catch(x) {
+         if(e.message === INTERRUPTED) {
+            throw e;
+         }
+
+         return;
+      }
+
+      if(d !== undefined && d.value === INTERRUPTED) {
+         throw e;
+      }
+   }
 
    // roots (a host array of values) -> one JSON-like string. A root that cannot be kept is
    // reported with fail(i, kind) and encoded as undefined, and so is every root that shares an
@@ -390,6 +421,7 @@
                t = getTime(o);
             }
             catch(e) {
+               keepInterrupt(e);
                stop('an object that inherits Date.prototype but is no Date');
             }
 
@@ -419,6 +451,7 @@
                t = getTime(o);
             }
             catch(e) {
+               keepInterrupt(e);
                isDate = false;
             }
 
@@ -613,6 +646,7 @@
             mark(roots[j], j);
          }
          catch(e) {
+            keepInterrupt(e);
             const k = e === STOP ? why : UNREAD;
             hard = false;
 
@@ -633,6 +667,7 @@
             drain();
          }
          catch(e) {
+            keepInterrupt(e);
             // anything but a refusal (e.g. a value that could not be read) loses this root only
             const k = e === STOP ? why : UNREAD;
 

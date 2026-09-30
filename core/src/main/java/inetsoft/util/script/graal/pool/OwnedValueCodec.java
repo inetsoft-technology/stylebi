@@ -114,10 +114,11 @@ public final class OwnedValueCodec {
    /**
     * The snapshot of {@code v}, a value of {@link #context()}; aliases share one node through
     * {@code ids}. Never throws a RuntimeException: a value that cannot be read is
-    * {@link Lost}.
+    * {@link Lost}. A caller's cancel is kept (see {@link #snapshotTree}).
     */
    public Object snapshot(Value v, Map<Value, Object> ids) {
       Object node;
+      boolean cancelled = Thread.interrupted();
 
       try {
          Supplier<? extends Throwable> fault = readFault;
@@ -156,7 +157,13 @@ public final class OwnedValueCodec {
          ids.put(v, node);
       }
       catch(RuntimeException ex) {
+         ScriptTimeoutGuard.keepCancel(ex, null);
          node = UNREADABLE;
+      }
+      finally {
+         if(cancelled) {
+            Thread.currentThread().interrupt();
+         }
       }
 
       return node;
@@ -167,8 +174,26 @@ public final class OwnedValueCodec {
     * share one value through {@code built}.
     *
     * @return the value, or {@code null} if the node is not rebuilt (a {@link Lost} value).
+    *         A caller's cancel is kept (see {@link #snapshotTree}).
     */
    public Value rebuild(Object node, IdentityHashMap<Object, Value> built) {
+      boolean cancelled = Thread.interrupted();
+
+      try {
+         return rebuild0(node, built);
+      }
+      catch(RuntimeException ex) {
+         ScriptTimeoutGuard.keepCancel(ex, null);
+         throw ex;
+      }
+      finally {
+         if(cancelled) {
+            Thread.currentThread().interrupt();
+         }
+      }
+   }
+
+   private Value rebuild0(Object node, IdentityHashMap<Object, Value> built) {
       Value seen = built.get(node);
 
       if(seen != null) {
@@ -405,6 +430,13 @@ public final class OwnedValueCodec {
     * context's pristine cloner, so aliases and cycles among them are kept. Runs no script code.
     * Bounded by the pool's hand-off budget (an entry cap and a time bound, not the script
     * timeout, amendment A6), and by an interrupt past it. Never throws a RuntimeException.
+    * <p>
+    * A caller's cancel (an interrupt of the thread) is kept (Testing #77123): a flag set
+    * before the snapshot is cleared while it runs, so Graal does not stop the snapshot on it,
+    * and set again after; a cancel that lands during the snapshot loses every root (it is
+    * {@link #UNREADABLE}, never kept from an older batch) and is re-asserted, since Graal
+    * cleared it. Only an interrupt of the hand-off's own time bound, or of a timeout guard
+    * still open on the thread, is a time-out.
     *
     * @return one node per root: a {@link TreeRef}, or a {@link Lost} naming what that root
     *         holds that is not kept (a function, a class instance, a Proxy, an accessor...);
@@ -427,6 +459,8 @@ public final class OwnedValueCodec {
       Map<Integer, String> failed = new HashMap<>();
       Map<Integer, String> drops = new HashMap<>();
       long start = System.nanoTime();
+      ScriptTimeoutGuard.Guard budget = null;
+      boolean cancelled = Thread.interrupted();
 
       try {
          Supplier<? extends Throwable> fault = readFault;
@@ -455,6 +489,7 @@ public final class OwnedValueCodec {
          try(ScriptTimeoutGuard.Guard guard =
                 slot.engine().guard(Duration.ofMillis(config.handOffMillis() + 1000)))
          {
+            budget = guard;
             text = snap.execute(ProxyArray.fromList(new ArrayList<Object>(roots)),
                                 config.handOffEntries(), config.handOffMillis(),
                                 markBudget(config.handOffEntries())).asString();
@@ -469,11 +504,14 @@ public final class OwnedValueCodec {
          }
       }
       catch(PolyglotException ex) {
-         Arrays.fill(nodes, ex.isInterrupted() || ex.isCancelled()
+         // a caller's cancel, not this hand-off's time bound: kept, the roots unreadable
+         boolean cancel = ScriptTimeoutGuard.keepCancel(ex, budget);
+         Arrays.fill(nodes, !cancel && (ex.isInterrupted() || ex.isCancelled())
             ? new Lost("a value that took longer than " + config.handOffMillis() +
                        " ms to save", true) : UNREADABLE);
       }
       catch(RuntimeException ex) {
+         ScriptTimeoutGuard.keepCancel(ex, budget);
          Arrays.fill(nodes, UNREADABLE);
       }
       finally {
@@ -481,6 +519,10 @@ public final class OwnedValueCodec {
          FAILS.remove();
          DROPS.remove();
          slot.metrics().handedOff(System.nanoTime() - start);
+
+         if(cancelled) {
+            Thread.currentThread().interrupt();
+         }
       }
 
       return nodes;
