@@ -31,6 +31,7 @@ import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.util.XUtil;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.util.ColumnCache;
+import inetsoft.util.ThreadContext;
 import inetsoft.web.composer.model.LoadAssetTreeNodesEvent;
 import inetsoft.web.composer.model.LoadAssetTreeNodesValidator;
 import inetsoft.web.composer.ws.assembly.VariableAssemblyModelInfo;
@@ -283,6 +284,47 @@ class ConnectionVariablesPermissionTest {
       assertNotNull(result.parameters());
       assertEquals(List.of(CUSTOM),
                    result.parameters().stream().map(VariableAssemblyModelInfo::getName).toList());
+   }
+
+   @Test
+   void onlyIdentityVariablesExpandWithoutPrompt() throws Exception {
+      // a tabular source whose only variable is $(_USER_) is expanded, not prompted
+      when(repository.getConnectionParameters(any(), eq(":" + ALLOWED)))
+         .thenReturn(new UserVariable[] { variable("_USER_") });
+      AssetEntry entry = new AssetEntry(AssetRepository.QUERY_SCOPE, AssetEntry.Type.DATA_SOURCE,
+                                        ALLOWED, null);
+      entry.setProperty("prefix", ALLOWED);
+
+      LoadAssetTreeNodesValidator result = expand(entry);
+
+      assertTrue(result.parameters() == null || result.parameters().isEmpty());
+      verify(assetRepository).getEntries(same(entry), same(principal), eq(ResourceAction.READ), any());
+   }
+
+   @Test
+   void identityVariablesResolveToCallerInTestAndConnect() throws Exception {
+      List<VariableAssemblyModelInfo> vars = identityAndCustom();
+      vars.add(info(XUtil.DB_PASSWORD_PREFIX + ALLOWED, "p"));
+      Principal oldPrincipal = ThreadContext.getContextPrincipal();
+      ThreadContext.setContextPrincipal(principal);
+
+      try {
+         treeController.setConnectionVariables(
+            CollectParametersOverEvent.builder().variables(vars).build(), principal);
+
+         ArgumentCaptor<VariableTable> tested = ArgumentCaptor.forClass(VariableTable.class);
+         ArgumentCaptor<VariableTable> connected = ArgumentCaptor.forClass(VariableTable.class);
+         verify(repository).testDataSource(same(session), any(), tested.capture());
+         verify(repository).connect(same(session), eq(":" + ALLOWED), connected.capture());
+
+         // $(_USER_) in the source resolves to the session user, not the client value
+         assertEquals("bob", tested.getValue().get("_USER_"));
+         assertEquals("bob", connected.getValue().get("_USER_"));
+         assertSame(principal, connected.getValue().get("__principal__"));
+      }
+      finally {
+         ThreadContext.setContextPrincipal(oldPrincipal);
+      }
    }
 
    // ---- B: asset tree, CUBE_TABLE entry ----
