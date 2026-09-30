@@ -116,16 +116,16 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
    public void setOrganization(String oid, Organization org) {
       init();
       lock.lock();
-      boolean saved = false;
+      boolean removingOld = false;
 
       try {
          String oldOrgName = getOrganization(oid) != null ? getOrganization(oid).getName() : null;
 
          // write the new record first so a failed write can't delete the existing organization
          organizationStorage.put(org.getId(), (FSOrganization) org).get(10L, TimeUnit.SECONDS);
-         saved = true;
 
          if(!oid.equals(org.getId())) {
+            removingOld = true;
             organizationStorage.remove(oid).get(10L, TimeUnit.SECONDS);
          }
 
@@ -135,9 +135,8 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
          }
       }
       catch(Exception e) {
-         // processAuthenticationChange handles its own failures, so a failure after the new record
-         // is saved can only come from removing the old one
-         throw storageWriteFailure(saved ?
+         // if removingOld, the new record was saved but the old one may still exist
+         throw storageWriteFailure(removingOld ?
             renameFailureMessage("organization", oid, org.getId()) :
             "Failed to update organization " + oid, e);
       }
@@ -570,17 +569,17 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
    @Override
    public void setUser(IdentityID oldIdentity, User user) {
       init();
-      lock.lock();
       IdentityID newUserIdentity = user.getIdentityID();
-      boolean saved = false;
+      boolean removingOld = false;
+      lock.lock();
 
       try {
          // write the new record first so a failed write can't delete the existing user
          userStorage.put(newUserIdentity.convertToKey(), (FSUser) user).get(10L, TimeUnit.SECONDS);
-         saved = true;
          userRoleCache.invalidateAll();
 
          if(!oldIdentity.equals(newUserIdentity)) {
+            removingOld = true;
             userStorage.remove(oldIdentity.convertToKey()).get(10L, TimeUnit.SECONDS);
             processAuthenticationChange(oldIdentity, newUserIdentity, null, null, Identity.USER, false);
          }
@@ -589,9 +588,8 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
          userRoleCache.invalidateAll();
       }
       catch(Exception e) {
-         // processAuthenticationChange handles its own failures, so a failure after the new record
-         // is saved can only come from removing the old one
-         throw storageWriteFailure(saved ?
+         // if removingOld, the new record was saved but the old one may still exist
+         throw storageWriteFailure(removingOld ?
             renameFailureMessage("user", oldIdentity.getLabel(), newUserIdentity.getLabel()) :
             "Failed to update user " + oldIdentity.getLabel(), e);
       }
@@ -645,26 +643,25 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
    @Override
    public void setGroup(IdentityID oldIdentity, Group group) {
       init();
-      lock.lock();
       IdentityID newIdentity = group.getIdentityID();
-      boolean saved = false;
+      boolean removingOld = false;
+      lock.lock();
 
       try {
          // write the new record first so a failed write can't delete the existing group
          groupStorage.put(newIdentity.convertToKey(), (FSGroup) group).get(10L, TimeUnit.SECONDS);
-         saved = true;
          userGroupCache.invalidateAll();
          userRoleCache.invalidateAll();
 
          if(!oldIdentity.equals(newIdentity)) {
+            removingOld = true;
             groupStorage.remove(oldIdentity.convertToKey()).get(10L, TimeUnit.SECONDS);
             processAuthenticationChange(oldIdentity, newIdentity, null, null, Identity.GROUP, false);
          }
       }
       catch(Exception e) {
-         // processAuthenticationChange handles its own failures, so a failure after the new record
-         // is saved can only come from removing the old one
-         throw storageWriteFailure(saved ?
+         // if removingOld, the new record was saved but the old one may still exist
+         throw storageWriteFailure(removingOld ?
             renameFailureMessage("group", oldIdentity.getLabel(), newIdentity.getLabel()) :
             "Failed to update group " + oldIdentity.getLabel(), e);
       }
@@ -723,25 +720,24 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
    @Override
    public void setRole(IdentityID oldIdentity, Role role) {
       init();
-      lock.lock();
       IdentityID newIdentity = role.getIdentityID();
-      boolean saved = false;
+      boolean removingOld = false;
+      lock.lock();
 
       try {
          // write the new record first so a failed write can't delete the existing role
          roleStorage.put(newIdentity.convertToKey(), (FSRole) role).get(10L, TimeUnit.SECONDS);
-         saved = true;
          userRoleCache.invalidateAll();
 
          if(!oldIdentity.equals(newIdentity)) {
+            removingOld = true;
             roleStorage.remove(oldIdentity.convertToKey()).get(10L, TimeUnit.SECONDS);
             processAuthenticationChange(oldIdentity, newIdentity, null, null, Identity.ROLE, false);
          }
       }
       catch(Exception e) {
-         // processAuthenticationChange handles its own failures, so a failure after the new record
-         // is saved can only come from removing the old one
-         throw storageWriteFailure(saved ?
+         // if removingOld, the new record was saved but the old one may still exist
+         throw storageWriteFailure(removingOld ?
             renameFailureMessage("role", oldIdentity.getLabel(), newIdentity.getLabel()) :
             "Failed to update role " + oldIdentity.getLabel(), e);
       }
