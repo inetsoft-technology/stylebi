@@ -17,7 +17,7 @@
  */
 import { BreakpointObserver } from "@angular/cdk/layout";
 import { HttpClient, HttpErrorResponse } from "@angular/common/http";
-import { Component, OnInit } from "@angular/core";
+import { Component, OnInit, ViewChild } from "@angular/core";
 import { MatDialog } from "@angular/material/dialog";
 import { forkJoin, Observable, of } from "rxjs";
 import { map } from "rxjs/operators";
@@ -62,6 +62,7 @@ interface CustomThemeList {
     imports: [MatDrawerContainer, MatDrawer, ThemeListViewComponent, MatDrawerContent, ThemeEditorViewComponent]
 })
 export class PresentationThemesViewComponent implements OnInit {
+   @ViewChild(ThemeEditorViewComponent) themeEditor: ThemeEditorViewComponent;
    themes: CustomThemeModel[] = [];
    selectedTheme: CustomThemeModel;
    unselectedThemeNames: string[] = [];
@@ -253,7 +254,10 @@ export class PresentationThemesViewComponent implements OnInit {
                }
             },
             // the edits are kept in the form, so they can be corrected and applied again
-            error: (error: HttpErrorResponse) => this.showSaveError(error)
+            error: (error: HttpErrorResponse) => {
+               this.showSaveError(error);
+               this.themeEditor?.saveFailed();
+            }
          });
       }
    }

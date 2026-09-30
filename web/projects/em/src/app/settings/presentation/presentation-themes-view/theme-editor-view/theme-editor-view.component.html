@@ -18,7 +18,7 @@
 <div class="theme-editor-view">
   @if (theme) {
     <div class="flex theme-editor-container">
-      <em-editor-panel
+      <em-editor-panel #editorPanel
         contentClass="tabbed-editor-panel-content"
         [applyDisabled]="!themeValid"
         (applyClicked)="themeSaved.emit(theme)"
