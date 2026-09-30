@@ -278,15 +278,9 @@ public class BeanUtil {
                           Float.valueOf(sa[1]).floatValue());
       }
       else if(type.equals("TOC")) {
-         String vstr = null;
-
-         try {
-            vstr = Tool.getAttribute(node, "Value");
-            value = Tool.loadSubclass(vstr, Object.class).newInstance();
-         }
-         catch(Exception ex) {
-            LOG.warn("Failed to instantiate TOC class: " + vstr, ex);
-         }
+         // TOC values are never written, don't construct a class named in the XML
+         LOG.warn("Ignoring unsupported TOC property value: " +
+                     Tool.getAttribute(node, "Value"));
       }
       else if(type.equals("Hyperlink")) {
          String vstr = Tool.getAttribute(node, "Value");

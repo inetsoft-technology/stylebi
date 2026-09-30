@@ -17,6 +17,7 @@
  */
 package inetsoft.util;
 
+import inetsoft.report.internal.table.PresenterRef;
 import inetsoft.test.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.jdbc.JDBCDataSource;
@@ -189,6 +190,20 @@ class ToolLoadSubclassTest {
       assertEquals(0, EDITOR[1], "constructor ran");
    }
 
+   @Test
+   void presenterIgnoresTocParameterClass() throws Exception {
+      Element elem = parse(
+         "<presenter name=\"inetsoft.report.painter.BarPresenter\">" +
+         "<presenterParameter Name=\"p\" Type=\"TOC\" Value=\"" +
+         PresenterSentinel.class.getName() + "\"/></presenter>");
+
+      PresenterRef ref = new PresenterRef();
+      ref.parseXML(elem);
+      assertNull(ref.getParameter("p"));
+      assertEquals(0, PRESENTER[0], "static initializer ran");
+      assertEquals(0, PRESENTER[1], "constructor ran");
+   }
+
    private static Element writeWorksheet() throws Exception {
       Worksheet ws = new Worksheet();
       ws.addAssembly(new EmbeddedTableAssembly(ws, "T1"));
@@ -284,6 +299,7 @@ class ToolLoadSubclassTest {
    private static final int[] SELECTION = new int[2];
    private static final int[] CREDENTIAL = new int[2];
    private static final int[] EDITOR = new int[2];
+   private static final int[] PRESENTER = new int[2];
 
    public static class HelperSentinel {
       static { HELPER[0]++; }
@@ -313,5 +329,10 @@ class ToolLoadSubclassTest {
    public static class EditorSentinel {
       static { EDITOR[0]++; }
       public EditorSentinel() { EDITOR[1]++; }
+   }
+
+   public static class PresenterSentinel {
+      static { PRESENTER[0]++; }
+      public PresenterSentinel() { PRESENTER[1]++; }
    }
 }
