@@ -258,6 +258,185 @@ class ScriptTimeoutGuardTest {
       }
    }
 
+   /**
+    * Testing #77123: ctx.interrupt interrupts the exec's thread, and when it times out (the
+    * exec sits in a host call that ignores interrupts), Graal never clears that flag. The
+    * next wait, lock or context creation on the thread then failed once, although it has
+    * nothing to do with the timed-out exec. close() must clear the guard's own flag.
+    */
+   @Test void timedOutInterruptDoesNotLeaveTheThreadInterrupted() throws Exception {
+      Thread.interrupted();
+
+      try(Context ctx = Context.newBuilder("js").build()) {
+         CountDownLatch inHost = new CountDownLatch(1);
+         ctx.getBindings("js").putMember("hostSpin", hostSpin(inHost, null));
+         holdInterruptUntil(inHost);
+
+         try {
+            ScriptTimeoutGuard.Guard guard =
+               new ScriptTimeoutGuard().guard(ctx, Duration.ofMillis(50));
+
+            try(guard) {
+               ctx.eval("js", "hostSpin()");
+            }
+            catch(PolyglotException ignore) {
+               // not what is tested
+            }
+
+            assertTrue(guard.interruptTimedOut(), "the interrupt must have timed out");
+            assertFalse(Thread.currentThread().isInterrupted(),
+                        "the timed-out interrupt left the thread interrupted");
+         }
+         finally {
+            ScriptTimeoutGuard.beforeInterruptHook = null;
+            Thread.interrupted();
+         }
+      }
+   }
+
+   /**
+    * Testing #77123, end to end with the pool off: after an exec whose interrupt timed out,
+    * the same thread's next exec, sleep and new Context all work.
+    */
+   @Test void nextWorkOnTheThreadSucceedsAfterAnInterruptTimeout() throws Exception {
+      Thread.interrupted();
+      GraalJavaScriptEngine engine = new GraalJavaScriptEngine() {
+         @Override
+         protected Duration currentTimeout() {
+            return Duration.ofMillis(50);
+         }
+      };
+
+      engine.init(new java.util.HashMap<>());
+
+      try {
+         CountDownLatch inHost = new CountDownLatch(1);
+         engine.context.getBindings("js").putMember("hostSpin", hostSpin(inHost, null));
+         holdInterruptUntil(inHost);
+
+         try {
+            engine.exec(engine.compile("hostSpin(); 5"), null, null);
+         }
+         catch(Exception ignore) {
+            // not what is tested
+         }
+         finally {
+            ScriptTimeoutGuard.beforeInterruptHook = null;
+         }
+
+         assertFalse(Thread.currentThread().isInterrupted(),
+                     "the timed-out interrupt left the thread interrupted");
+         Thread.sleep(1);
+
+         try(Context next = Context.newBuilder("js").build()) {
+            assertEquals(3, next.eval("js", "1+2").asInt());
+         }
+
+         assertEquals(2, ((Number) engine.exec(engine.compile("1+1"), null, null)).intValue());
+      }
+      finally {
+         Thread.interrupted();
+         engine.close();
+      }
+   }
+
+   /**
+    * Testing #77123: an interrupt of the exec's thread from elsewhere (e.g. a cancel) that
+    * came before the timeout's interrupt is not the guard's, and close() must keep it.
+    */
+   @Test void anEarlierInterruptOfTheThreadIsKept() throws Exception {
+      Thread.interrupted();
+
+      try(Context ctx = Context.newBuilder("js").build()) {
+         CountDownLatch inHost = new CountDownLatch(1);
+         // the host call interrupts its own thread (as a cancel would) before the guard's
+         // interrupt starts
+         ctx.getBindings("js").putMember(
+            "hostSpin", hostSpin(inHost, () -> Thread.currentThread().interrupt()));
+         holdInterruptUntil(inHost);
+
+         try {
+            ScriptTimeoutGuard.Guard guard =
+               new ScriptTimeoutGuard().guard(ctx, Duration.ofMillis(50));
+
+            try(guard) {
+               ctx.eval("js", "hostSpin()");
+            }
+            catch(PolyglotException ignore) {
+               // not what is tested
+            }
+
+            assertTrue(guard.interruptTimedOut(), "the interrupt must have timed out");
+            assertTrue(Thread.currentThread().isInterrupted(), "the cancel's interrupt was lost");
+         }
+         finally {
+            ScriptTimeoutGuard.beforeInterruptHook = null;
+            Thread.interrupted();
+         }
+      }
+   }
+
+   /**
+    * Testing #77123: an interrupt of the thread that comes after the exec is kept too; the
+    * guard clears only in its own close().
+    */
+   @Test void anInterruptAfterTheExecIsKept() throws Exception {
+      Thread.interrupted();
+
+      try(Context ctx = Context.newBuilder("js").build()) {
+         CountDownLatch inHost = new CountDownLatch(1);
+         ctx.getBindings("js").putMember("hostSpin", hostSpin(inHost, null));
+         holdInterruptUntil(inHost);
+
+         try {
+            try(var ignored = new ScriptTimeoutGuard().guard(ctx, Duration.ofMillis(50))) {
+               ctx.eval("js", "hostSpin()");
+            }
+            catch(PolyglotException ignore) {
+               // not what is tested
+            }
+
+            Thread.currentThread().interrupt();
+
+            // a later exec whose guard never fires must not touch the flag
+            try(var ignored = new ScriptTimeoutGuard().guard(ctx, Duration.ofSeconds(30))) {
+               ctx.eval("js", "1");
+            }
+            catch(PolyglotException ignore) {
+               // Graal may report the pending interrupt; not what is tested
+            }
+
+            assertTrue(Thread.currentThread().isInterrupted(), "a later interrupt was lost");
+         }
+         finally {
+            ScriptTimeoutGuard.beforeInterruptHook = null;
+            Thread.interrupted();
+         }
+      }
+   }
+
+   /**
+    * A host callback that signals entry, optionally runs {@code atEntry}, then busy-spins for
+    * 3 s ignoring interrupts, longer than ctx.interrupt's 2 s bound, so the interrupt (held
+    * until entry by the hook) times out while the exec is still in the Context.
+    */
+   private static ProxyExecutable hostSpin(CountDownLatch inHost, Runnable atEntry) {
+      return args -> {
+         if(atEntry != null) {
+            atEntry.run();
+         }
+
+         inHost.countDown();
+         long end = System.nanoTime() + TimeUnit.SECONDS.toNanos(3);
+
+         while(System.nanoTime() - end < 0) {
+            Thread.onSpinWait();
+         }
+
+         return 1;
+      };
+   }
+
    /** Hold the claimed interrupt until the exec is inside the host callback. */
    private static void holdInterruptUntil(CountDownLatch inHost) {
       ScriptTimeoutGuard.beforeInterruptHook = () -> {
