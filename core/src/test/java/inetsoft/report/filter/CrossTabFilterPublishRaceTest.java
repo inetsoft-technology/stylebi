@@ -147,13 +147,17 @@ public class CrossTabFilterPublishRaceTest {
          Thread pass = start(filter::checkInit, "pass");
          base.gate.awaitParked();
          assertNull(getData(filter), "the gate is in the aggregation phase");
-         // row 1 was aggregated already. the change event invalidates the crosstab
-         Thread change = start(() -> base.setObject(1, VALUE_COL, CHANGED_VALUE), "change");
+         // row 1 was aggregated already. invalidate as the change event does: the event's
+         // listener is only weakly held by the base, so after a gc the event may not come
+         Thread change = start(() -> {
+            base.setObject(1, VALUE_COL, CHANGED_VALUE);
+            filter.invalidate();
+         }, "change");
          change.join(JOIN_MS);
 
          if(change.isAlive()) {
             base.gate.open();
-            fail("the base change event blocked on the running pass");
+            fail("the base change blocked on the running pass");
          }
 
          base.gate.open();
