@@ -259,7 +259,21 @@ final class SlotPool {
     */
    private boolean take(Slot slot, SlotTenant hint) {
       if(homes.isEmpty() || !homes.contains(slot)) {
-         return slot.tryAcquire();
+         runPlainTakeHook(slot);
+
+         if(!slot.tryAcquire()) {
+            return false;
+         }
+
+         // under the slot's lock no batch can enroll on it: this is the authoritative check
+         if(!homes.contains(slot)) {
+            return true;
+         }
+
+         // a batch made it its home between the check and the lock (Testing #77123, finding
+         // G2): keeping it would hold the home for this whole claim, so the table's next batch
+         // lost its objects. Give it back and take it as a home: the tenants' locks first
+         giveBack(slot);
       }
 
       if(slot.exclusiveHome != null && (hint == null || !slot.hasTenant(hint))) {
@@ -729,12 +743,26 @@ final class SlotPool {
       }
    }
 
+   private void runPlainTakeHook(Slot slot) {
+      java.util.function.Consumer<Slot> hook = plainTakeHook;
+
+      if(hook != null) {
+         hook.accept(slot);
+      }
+   }
+
    /**
     * Test hook run by a take-over, an expiry or {@link #handOffIdleHomes} once it holds an idle
     * home without a claim, before it hands off the tenants (Testing #77123, B1-R2-1); null in
     * production.
     */
    volatile java.util.function.Consumer<Slot> handOffHook;
+
+   /**
+    * Test hook run by a take of a slot that is no home, after that check and before it
+    * takes the slot's lock (Testing #77123, finding G2); null in production.
+    */
+   volatile java.util.function.Consumer<Slot> plainTakeHook;
 
    /**
     * Test hook run right before a slot this pool keeps goes idle (release's keep path and
