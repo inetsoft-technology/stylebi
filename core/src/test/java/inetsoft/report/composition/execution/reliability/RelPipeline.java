@@ -264,6 +264,44 @@ public final class RelPipeline {
    }
 
    /**
+    * The cells a new formula lens computes from row {@code from} of the standard table on, the
+    * pool off, read sequentially: what a lens gives once its vars restart at that row. For
+    * scripts that read only the current row's fields and do not fail.
+    */
+   public static List<String> restartedAt(String formula, int from) {
+      TableLens base = baseTable();
+      Object[][] data = new Object[ROWS - from + 2][];
+
+      for(int r = 0; r < data.length; r++) {
+         int row = r == 0 ? 0 : from + r - 1;
+         data[r] = new Object[base.getColCount()];
+
+         for(int c = 0; c < data[r].length; c++) {
+            data[r][c] = base.getObject(row, c);
+         }
+      }
+
+      AssetQuerySandbox box = sandbox(RelConfig.off());
+
+      try {
+         TableLens part = new DefaultTableLens(data);
+         FormulaTableLens lens = new FormulaTableLens(part, new String[] { COLUMN },
+            new String[] { formula }, box.getScriptEnv(), box.getScope());
+         List<String> cells = new ArrayList<>();
+
+         for(int r = 1; r < data.length; r++) {
+            lens.moreRows(r);
+            cells.add(str(lens.getObject(r, part.getColCount())));
+         }
+
+         return cells;
+      }
+      finally {
+         box.dispose();
+      }
+   }
+
+   /**
     * Read several formula lenses over the standard table in one sandbox, interleaved:
     * {@code step} rows of each in turn, so their batches claim contexts one after the other
     * and take over each other's idle homes (B1 residual hand-offs). For scripts that do not

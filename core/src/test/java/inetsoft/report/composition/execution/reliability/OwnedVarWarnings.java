@@ -52,6 +52,10 @@ final class OwnedVarWarnings {
          return;
       }
 
+      if(saved == null) {
+         saved = new Object[] { logger.getLevel(), logger.isAdditive() };
+      }
+
       logger.setLevel(Level.WARN);
       logger.setAdditive(false);
 
@@ -62,6 +66,21 @@ final class OwnedVarWarnings {
 
       if(!logger.isAttached(APPENDER)) {
          logger.addAppender(APPENDER);
+      }
+   }
+
+   /**
+    * Stop capturing: detach the appender and give the TableRowScope logger back its level and
+    * additivity, so later test classes of the fork log its warnings as before.
+    */
+   static synchronized void uninstall() {
+      Logger logger = (Logger) LoggerFactory.getLogger(TableRowScope.class);
+      logger.detachAppender(APPENDER);
+
+      if(saved != null) {
+         logger.setLevel((Level) saved[0]);
+         logger.setAdditive((Boolean) saved[1]);
+         saved = null;
       }
    }
 
@@ -150,6 +169,8 @@ final class OwnedVarWarnings {
    static final String HOME_IN_USE = "a home in use by another thread";
 
    private static final Capture APPENDER = new Capture();
+   // the logger's level and additivity before install()
+   private static Object[] saved;
    private static final Map<Thread, Recording> RECORDINGS = new ConcurrentHashMap<>();
    private static final AtomicLong UNATTRIBUTED = new AtomicLong();
 }

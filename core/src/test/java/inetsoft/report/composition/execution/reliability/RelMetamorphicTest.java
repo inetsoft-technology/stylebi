@@ -89,6 +89,7 @@ public class RelMetamorphicTest {
    public static void summary() {
       EXECUTOR.shutdownNow();
       ((Logger) LoggerFactory.getLogger("inetsoft")).setLevel(savedLevel);
+      OwnedVarWarnings.uninstall();
       StringBuilder str = new StringBuilder("RelMetamorphicTest summary (long=" + LONG + ")\n");
       STATS.forEach((k, v) -> str.append("  ").append(k).append(" = ").append(v).append('\n'));
       DRIFTS.forEach(d -> str.append("  drift: ").append(d).append('\n'));
@@ -97,22 +98,58 @@ public class RelMetamorphicTest {
       System.out.println(str);
    }
 
+   /**
+    * The cases of this run. With step 1 there are 1018 = 39 synthetic + 979 corpus cases, and
+    * corpus#c is case 39 + c (round 2 added 11 synthetic object-var scripts: before it, 1007 =
+    * 28 + 979 and corpus#c was case 28 + c). So {@code -Drel.from}, {@code -Drel.to} and
+    * {@code -Drel.cases} take a case index or a stable label: {@code syn:objDate},
+    * {@code corpus#689} (a corpus index, whatever the synthetic set).
+    */
    public static Stream<Case> cases() {
-      Stream<Case> cases = cases(Integer.getInteger("rel.step", LONG ? 1 : 70));
+      List<Case> all = cases(Integer.getInteger("rel.step", LONG ? 1 : 70)).toList();
       // a long run is split into case ranges, each within one Maven call
-      int from = Integer.getInteger("rel.from", 0);
-      int to = Integer.getInteger("rel.to", Integer.MAX_VALUE);
-      cases = cases.skip(from).limit(Math.max(0, to - from));
-      // or a list of case indexes, e.g. to re-run chosen cases after a harness change
+      int from = bound(all, "rel.from", 0);
+      int to = bound(all, "rel.to", Integer.MAX_VALUE);
+      Stream<Case> cases = all.stream().skip(from).limit(Math.max(0, to - from));
+      // or a list of cases, e.g. to re-run chosen cases after a harness change
       String only = System.getProperty("rel.cases", "");
 
       if(!only.isBlank()) {
-         Set<Integer> indexes = new HashSet<>();
-         Arrays.stream(only.split(",")).forEach(i -> indexes.add(Integer.parseInt(i.trim())));
-         cases = cases.filter(c -> indexes.contains(c.index()));
+         List<String> keys = Arrays.stream(only.split(",")).map(String::trim).toList();
+         cases = cases.filter(c -> keys.stream().anyMatch(k -> selects(k, c)));
       }
 
       return cases;
+   }
+
+   // a case index, or a label: "syn:name" or "corpus#c" (the label without its class)
+   private static boolean selects(String key, Case c) {
+      if(key.chars().allMatch(Character::isDigit)) {
+         return c.index() == Integer.parseInt(key);
+      }
+
+      return c.label().equals(key) || c.label().startsWith(key + ":");
+   }
+
+   // the position in cases of a case range bound given as an index or a label
+   private static int bound(List<Case> cases, String property, int def) {
+      String key = System.getProperty(property, "").trim();
+
+      if(key.isEmpty()) {
+         return def;
+      }
+
+      if(key.chars().allMatch(Character::isDigit)) {
+         return Integer.parseInt(key);
+      }
+
+      for(int i = 0; i < cases.size(); i++) {
+         if(selects(key, cases.get(i))) {
+            return i;
+         }
+      }
+
+      throw new IllegalArgumentException(property + "=" + key + " names no case");
    }
 
    /**
@@ -143,20 +180,29 @@ public class RelMetamorphicTest {
       RelCorpus.load().forEach(e -> counts.merge(e.cls(), 1, Integer::sum));
       System.out.println("corpus classification: " + counts);
       assertEquals(979, RelCorpus.load().size());
+      // the case numbering the class comment documents
+      List<Case> all = cases(1).toList();
+      assertEquals(1018, all.size());
+      assertEquals(39, SYNTHETIC.length);
+      assertTrue(all.get(39 + 689).label().startsWith("corpus#689:"), all.get(39 + 689).label());
+      assertTrue(selects("corpus#689", all.get(39 + 689)));
+      assertTrue(selects("syn:objDate", all.stream().filter(c -> c.label().equals("syn:objDate"))
+         .findFirst().orElseThrow()));
+      assertFalse(selects("corpus#68", all.get(39 + 689)));
       assertEquals("field['name'] + field['value'] + field[-1]['day']", RelCorpus.rename(
          "field['State'] + field['Sum(Sales)'] + field[-1]['Order Date']"));
       // B1 needs the run's loss warning of one of the script's vars, B3 is a condition's var
       String list = "var list = list || []; list.push(1)";
       List<String> cells = List.of("Double:1.0");
-      assertEquals(Drift.B1_OBJECT_VAR, drift(list, Shape.FTL, Map.of("list", "an array"), cells));
-      assertEquals(Drift.NONE, drift(list, Shape.FTL, Map.of(), cells));
-      assertEquals(Drift.NONE, drift(list, Shape.FTL, Map.of("other", "an array"), cells));
-      assertEquals(Drift.NONE, drift(list, Shape.CALC_FIELD, Map.of("list", "an array"), cells));
-      assertEquals(Drift.B3_CONDITION_VAR, drift(list, Shape.CONDITION, Map.of(), cells));
-      assertEquals(Drift.IMPLICIT_GLOBAL, drift("n = (n || 0) + 1; n", Shape.FTL, Map.of(), cells));
-      assertEquals(Drift.NONE, drift("var acc = (acc || 0) + 1; acc", Shape.FTL, Map.of(), cells));
+      assertEquals(Drift.B1_OBJECT_VAR, drift(list, Shape.FTL, Map.of("list", "an array"), cells, cells));
+      assertEquals(Drift.NONE, drift(list, Shape.FTL, Map.of(), cells, cells));
+      assertEquals(Drift.NONE, drift(list, Shape.FTL, Map.of("other", "an array"), cells, cells));
+      assertEquals(Drift.NONE, drift(list, Shape.CALC_FIELD, Map.of("list", "an array"), cells, cells));
+      assertEquals(Drift.B3_CONDITION_VAR, drift(list, Shape.CONDITION, Map.of(), cells, cells));
+      assertEquals(Drift.IMPLICIT_GLOBAL, drift("n = (n || 0) + 1; n", Shape.FTL, Map.of(), cells, cells));
+      assertEquals(Drift.NONE, drift("var acc = (acc || 0) + 1; acc", Shape.FTL, Map.of(), cells, cells));
       assertEquals(Drift.B3_CONDITION_VAR,
-                   drift("var acc = (acc || 0) + 1; acc", Shape.CONDITION, Map.of(), cells));
+                   drift("var acc = (acc || 0) + 1; acc", Shape.CONDITION, Map.of(), cells, cells));
    }
 
    /**
@@ -168,31 +214,48 @@ public class RelMetamorphicTest {
    public void restartShape() {
       String counter = LOSSY_OBJECT_VARS.iterator().next();
       Map<String, String> lost = Map.of(varNames(counter).iterator().next(), "a function");
-      assertEquals(Drift.B1_OBJECT_VAR, drift(counter, Shape.FTL, lost,
+      assertEquals(Drift.B1_OBJECT_VAR, counterDrift(Shape.FTL, lost,
          List.of("Double:1.0", "Double:2.0", "Double:1.0", "Double:2.0")));
       // a filtered row between: a restart may show as 2
-      assertEquals(Drift.B1_OBJECT_VAR, drift(counter, Shape.FTL_UNDER_CF2, lost,
+      assertEquals(Drift.B1_OBJECT_VAR, counterDrift(Shape.FTL_UNDER_CF2, lost,
          List.of("1|Double:1.0", "2|Double:2.0", "4|Double:2.0", "5|Double:3.0")));
       // an older value, a skipped step, a start past 1
-      assertEquals(Drift.NONE, drift(counter, Shape.FTL, lost,
+      assertEquals(Drift.NONE, counterDrift(Shape.FTL, lost,
          List.of("Double:1.0", "Double:2.0", "Double:3.0", "Double:2.0", "Double:3.0")));
-      assertEquals(Drift.NONE, drift(counter, Shape.FTL, lost,
+      assertEquals(Drift.NONE, counterDrift(Shape.FTL, lost,
          List.of("Double:1.0", "Double:2.0", "Double:4.0")));
-      assertEquals(Drift.NONE, drift(counter, Shape.FTL_UNDER_CF2, lost,
+      assertEquals(Drift.NONE, counterDrift(Shape.FTL_UNDER_CF2, lost,
          List.of("1|Double:1.0", "2|Double:2.0", "4|Double:3.0", "5|Double:2.0")));
-      assertEquals(Drift.NONE, drift(counter, Shape.FTL, lost,
+      assertEquals(Drift.NONE, counterDrift(Shape.FTL, lost,
          List.of("Double:3.0", "Double:4.0")));
-      assertEquals(Drift.NONE, drift(counter, Shape.FTL, lost, List.of("S:1")));
-      // a plain-data var lost to a home in use by another thread
+      assertEquals(Drift.NONE, counterDrift(Shape.FTL, lost, List.of("S:1")));
+      // MR5 compares two pooled runs: a stale base side is not excused either
+      List<String> restart = List.of("Double:1.0", "Double:2.0", "Double:1.0", "Double:2.0");
+      List<String> stale = List.of("Double:1.0", "Double:2.0", "Double:1.0", "Double:5.0");
+      assertEquals(Drift.NONE, drift(counter, Shape.FTL, lost, stale, restart));
+      assertEquals(Drift.B1_OBJECT_VAR, drift(counter, Shape.FTL, lost, restart,
+         List.of("Double:1.0", "Double:1.0", "Double:2.0", "Double:3.0")));
+
+      // a plain-data var lost to a home in use by another thread: one fresh restart only
       String data = PLAIN_OBJECT_VARS.iterator().next();
       Map<String, String> busy = Map.of(varNames(data).iterator().next(),
                                         OwnedVarWarnings.HOME_IN_USE);
-      assertEquals(Drift.B1_HOME_BUSY, drift(data, Shape.FTL, busy, List.of("Double:1.0")));
+      List<String> oracle = run(data, Shape.FTL, RelConfig.off(), ReadPattern.SEQUENTIAL);
+      List<String> lostAt501 = new ArrayList<>(oracle.subList(0, 500));
+      lostAt501.addAll(RelPipeline.restartedAt(data, 501));
+      assertNotEquals(oracle, lostAt501);
+      assertEquals(Drift.B1_HOME_BUSY, drift(oracle, lostAt501, data, Shape.FTL, busy));
+      List<String> staleAfter = new ArrayList<>(lostAt501);
+      staleAfter.set(900, oracle.get(900));
+      assertNotEquals(lostAt501.get(900), oracle.get(900));
+      assertEquals(Drift.NONE, drift(oracle, staleAfter, data, Shape.FTL, busy));
+      assertEquals(Drift.NONE, drift(oracle, lostAt501, data, Shape.FTL, Map.of()));
       assertNotNull(plainLoss(data, busy, false));
       assertNull(plainLoss(data, busy, true));
 
       for(String plain : PLAIN_OBJECT_VARS) {
-         assertEquals(Drift.NONE, drift(plain, Shape.FTL, Map.of(), List.of("Double:1.0")));
+         assertEquals(Drift.NONE, drift(plain, Shape.FTL, Map.of(), List.of("Double:1.0"),
+                                        List.of("Double:2.0")));
          assertNotNull(plainLoss(plain, Map.of("x", "an array"), false));
          assertNull(plainLoss(plain, Map.of(), false));
       }
@@ -257,6 +320,21 @@ public class RelMetamorphicTest {
       assertTrue(seven >= RelPipeline.ROWS / 17, "7/7 batches: " + seven);
    }
 
+   // the drift of a lossy counter against a base run that counted every row
+   private static Drift counterDrift(Shape shape, Map<String, String> lost, List<String> actual) {
+      List<String> base = new ArrayList<>();
+
+      // a filtered row's id is skipped: its count is the row id
+      for(String cell : actual) {
+         String id = cell.substring(0, cell.length() - unprefixed(cell).length());
+         int row = id.isEmpty() ? base.size() + 1
+            : Integer.parseInt(id.substring(0, id.length() - 1));
+         base.add(id + "Double:" + row + ".0");
+      }
+
+      return drift(LOSSY_OBJECT_VARS.iterator().next(), shape, lost, base, actual);
+   }
+
    // the drift of a formula lens difference whose runs warned of no lost var
    private static Drift ftlDrift(List<String> expected, List<String> actual, String script) {
       return drift(expected, actual, script, Shape.FTL, Map.of());
@@ -271,6 +349,7 @@ public class RelMetamorphicTest {
    @Test
    public void objectVarsUnderFreshContexts() {
       RelConfig fresh = RelConfig.on().with(PoolConfig.CLEAN_THRESHOLD, "-1");
+      long unattributed = OwnedVarWarnings.unattributed();
       List<String> failures = new ArrayList<>();
 
       for(String script : PLAIN_OBJECT_VARS) {
@@ -306,6 +385,8 @@ public class RelMetamorphicTest {
       }
 
       assertEquals(List.of(), failures);
+      // every warning of these single-threaded runs was their own
+      assertEquals(unattributed, OwnedVarWarnings.unattributed(), "unattributed warnings");
    }
 
    /**
@@ -795,7 +876,7 @@ public class RelMetamorphicTest {
          return Drift.C6_HOST_COPY;
       }
 
-      return sameTypes ? drift(script, shape, lost, actual) : Drift.NONE;
+      return sameTypes ? drift(script, shape, lost, expected, actual) : Drift.NONE;
    }
 
    /**
@@ -846,20 +927,32 @@ public class RelMetamorphicTest {
     * </ul>
     * A difference without that evidence is none (unknown).
     *
-    * @param actual the cells of the pooled run, for the restart shape of a lossy counter.
+    * <p>The restart shape is checked for the synthetic scripts only: a corpus script whose var
+    * warned is excused by the warning alone. A CF2 row-id gap lets a restart value up to 1 +
+    * the gap pass, so an older copy that lands in that window is not told apart.
+    *
+    * @param expected the cells of the base run (the pool off, or the pool on in MR5), which
+    *                 must have the restart shape too: in MR5 either side may be the stale one.
+    * @param actual the cells of the compared run.
     */
    static Drift drift(String script, Shape shape, Map<String, String> lost,
-                      List<String> actual)
+                      List<String> expected, List<String> actual)
    {
       String code = RelCorpus.stripStrings(script);
 
       if(shape.rowScripted()) {
          Map<String, String> own = new LinkedHashMap<>(lost);
          own.keySet().retainAll(varNames(script));
+         boolean lossy = LOSSY_OBJECT_VARS.contains(script);
 
-         if(!own.isEmpty() && (!LOSSY_OBJECT_VARS.contains(script) || restarted(actual))) {
-            // a home another thread held loses even plain data (concurrent runs only)
-            if(own.values().stream().allMatch(OwnedVarWarnings.HOME_IN_USE::equals)) {
+         if(!own.isEmpty() && (!lossy || restarted(expected) && restarted(actual))) {
+            // a home another thread held loses even plain data: callers let a plain-data
+            // warning through only in a concurrent run (plainLoss), and the data must then be
+            // exactly one fresh restart of the table, never an older value (formula lens only)
+            if(own.values().stream().allMatch(OwnedVarWarnings.HOME_IN_USE::equals) &&
+               (!PLAIN_OBJECT_VARS.contains(script) ||
+                shape == Shape.FTL && restartedOnce(script, expected, actual)))
+            {
                return Drift.B1_HOME_BUSY;
             }
 
@@ -930,6 +1023,35 @@ public class RelMetamorphicTest {
       }
 
       return true;
+   }
+
+   /**
+    * @return whether a formula lens's cells are its pool-off cells up to a row k within 10 rows
+    * of the first difference, and from k on exactly what a new table computes from row k (the
+    * vars restarted once, as a loss makes them), never an older value.
+    */
+   static boolean restartedOnce(String script, List<String> expected, List<String> actual) {
+      int first = 0;
+
+      while(first < expected.size() && first < actual.size() &&
+            expected.get(first).equals(actual.get(first)))
+      {
+         first++;
+      }
+
+      for(int k = first + 1; k >= Math.max(1, first + 1 - 10); k--) {
+         int from = k;
+         List<String> fresh = RESTARTS.computeIfAbsent(script + "\u0000" + from,
+            key -> RelPipeline.restartedAt(script, from));
+
+         if(actual.size() == k - 1 + fresh.size() &&
+            actual.subList(k - 1, actual.size()).equals(fresh))
+         {
+            return true;
+         }
+      }
+
+      return false;
    }
 
    /**
@@ -1074,6 +1196,8 @@ public class RelMetamorphicTest {
          return thread;
       });
    private static final Map<String, List<String>> ORACLES = new ConcurrentHashMap<>();
+   /** the cells of a new table from a row on, by script and row */
+   private static final Map<String, List<String>> RESTARTS = new ConcurrentHashMap<>();
    private static final Map<String, AtomicLong> STATS = new ConcurrentSkipListMap<>();
    private static final List<String> DRIFTS = Collections.synchronizedList(new ArrayList<>());
    private static Level savedLevel;

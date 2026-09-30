@@ -201,6 +201,7 @@ public class RelSoakTest {
          }
 
          root().detachAppender(appender);
+         OwnedVarWarnings.uninstall();
          levels.forEach((name, level) ->
             ((Logger) LoggerFactory.getLogger(name)).setLevel(level));
          SreeEnv.setProperty("script.execution.timeout", timeout);

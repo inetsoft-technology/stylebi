@@ -76,6 +76,7 @@ public class RelConcurrencyMetamorphicTest {
    @AfterAll
    public static void summary() {
       ((Logger) LoggerFactory.getLogger("inetsoft")).setLevel(savedLevel);
+      OwnedVarWarnings.uninstall();
       StringBuilder str = new StringBuilder("RelConcurrencyMetamorphicTest summary (reps=" +
                                             REPS + ", cases=" + cases.size() + ")\n");
       STATS.forEach((k, v) -> str.append("  ").append(k).append(" = ").append(v).append('\n'));
@@ -140,30 +141,38 @@ public class RelConcurrencyMetamorphicTest {
    @ParameterizedTest(name = "maxHomes={0}")
    @ValueSource(strings = { "4", "0" })
    public void interleavedObjectVars(String maxHomes) throws Exception {
-      interleaved("f" + maxHomes, maxHomes, false);
+      interleaved("f" + maxHomes, maxHomes, false, REPS);
    }
 
    /**
-    * (f) with no excuse for a plain-data var lost to a home in use by another thread: every
-    * lens reads its own vars on one thread, yet another thread's claim can hold its home for an
-    * instant (a take-over it gives back when the lens's lock is busy), and a read then loses
-    * the lens's plain data (loud, restarts, never stale). Round 2 seat r2-b1: about 1 in 300
-    * lens runs with maxHomes 4 (rep 11 of 20: syn:objDate lost o from row 936).
+    * (f) with no excuse for a plain-data var lost to a home in use by another thread
+    * (finding B1-R2-1): every lens reads its own vars on one thread, yet another thread's
+    * claim can hold its idle home for an instant (inferred: a take-over it gives back when the
+    * lens's lock is busy), and a read then loses the lens's plain data (loud, restarts, never
+    * stale). The pin is probabilistic, no deterministic repro: measured 1 hit in about 5,000
+    * interleaved lens runs (maxHomes 4, rep 11 of the first 20; 0 in the 90 reps after), so
+    * {@code -Drel.long=true} runs {@code -Drel.pinReps} (320) reps per maxHomes: 2 x 320 x 24
+    * = 15,360 lens runs, a hit with probability about 95% at that rate. The peer session's fix
+    * brings its own deterministic regression test; this stays disabled until it merges.
     */
-   @Disabled("finding B1-R2-1: a single-reader lens loses plain object vars when another " +
-             "thread's claim briefly holds its idle home (HOME_BUSY), intermittent")
+   @Disabled("finding B1-R2-1 (probabilistic, ~1 in 5,000 lens runs): a single-reader lens " +
+             "loses plain object vars when another thread's claim briefly holds its idle " +
+             "home (HOME_BUSY); -Drel.long=true runs 320 reps per maxHomes")
    @ParameterizedTest(name = "maxHomes={0}")
    @ValueSource(strings = { "4", "0" })
    public void interleavedPlainObjectVarsAreNeverLost(String maxHomes) throws Exception {
-      interleaved("strict-f" + maxHomes, maxHomes, true);
+      Assumptions.assumeTrue(Boolean.getBoolean("rel.long"), "the pin needs -Drel.long=true");
+      interleaved("strict-f" + maxHomes, maxHomes, true, Integer.getInteger("rel.pinReps", 320));
    }
 
-   private void interleaved(String variant, String maxHomes, boolean strict) throws Exception {
+   private void interleaved(String variant, String maxHomes, boolean strict, int reps)
+      throws Exception
+   {
       RelConfig cfg = RelConfig.on().with(PoolConfig.BATCH_ROWS, "1")
          .with(PoolConfig.MAX_BATCH_ROWS, "1").with(PoolConfig.MAX_HOMES, maxHomes);
       List<RelMetamorphicTest.Case> objects = objectCases();
 
-      for(int rep = 0; rep < REPS; rep++) {
+      for(int rep = 0; rep < reps; rep++) {
          AssetQuerySandbox box = RelPipeline.sandbox(cfg);
          ExecutorService executor = Executors.newFixedThreadPool(THREADS);
          long leaked = PoolMetrics.nodeLeakedClaims();
@@ -173,7 +182,8 @@ public class RelConcurrencyMetamorphicTest {
             List<Future<List<String>>> runs = new ArrayList<>();
 
             for(int t = 0; t < THREADS; t++) {
-               // 3 different scripts per thread, so a warning names the var of one of them
+               // 3 different scripts per thread, whose var names are disjoint (objectCases),
+               // so a warning names the var of one of them
                List<RelMetamorphicTest.Case> mine = new ArrayList<>();
 
                for(int k = 0; k < 3; k++) {
@@ -240,10 +250,24 @@ public class RelConcurrencyMetamorphicTest {
       }
    }
 
+   /**
+    * @return the synthetic object-var cases, whose var names are disjoint: the interleaved
+    * variant attributes a thread's warnings to its lenses by var name.
+    */
    private static List<RelMetamorphicTest.Case> objectCases() {
-      return cases.stream().filter(c -> RelMetamorphicTest.PLAIN_OBJECT_VARS.contains(c.script()) ||
-                                        RelMetamorphicTest.LOSSY_OBJECT_VARS.contains(c.script()))
+      List<RelMetamorphicTest.Case> list = cases.stream()
+         .filter(c -> RelMetamorphicTest.PLAIN_OBJECT_VARS.contains(c.script()) ||
+                      RelMetamorphicTest.LOSSY_OBJECT_VARS.contains(c.script()))
          .toList();
+      Set<String> names = new HashSet<>();
+
+      for(RelMetamorphicTest.Case c : list) {
+         for(String name : RelMetamorphicTest.varNames(c.script())) {
+            assertTrue(names.add(name), "var " + name + " of " + c.label() + " is not unique");
+         }
+      }
+
+      return list;
    }
 
    private void repeat(String variant, int rep, boolean ownBoxes, boolean churn)
