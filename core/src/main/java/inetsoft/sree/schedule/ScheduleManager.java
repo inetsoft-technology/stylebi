@@ -603,10 +603,44 @@ public class ScheduleManager {
 
       // older version (pre 13.1) doesn't have user name as part of the task name (48791).
       if(task == null && taskId != null && taskId.contains(":")) {
-         task = getOrgTaskMap(orgID).get(getTaskIdentifier(taskId.substring(taskId.indexOf(':') + 1), orgID));
+         int index = taskId.indexOf(':');
+         ScheduleTask legacyTask =
+            getOrgTaskMap(orgID).get(getTaskIdentifier(taskId.substring(index + 1), orgID));
+
+         // Bug #77356: don't resolve an owner prefix of another organization to a task of this
+         // organization
+         if(legacyTask != null &&
+            isLegacyTaskIdPrefix(taskId.substring(0, index), orgID, taskId, legacyTask))
+         {
+            task = legacyTask;
+         }
       }
 
       return task;
+   }
+
+   /**
+    * Whether the owner prefix stripped by the legacy task id fallback may match a task stored
+    * with an owner-less id in the given organization: a prefix without an organization (pre 13.1
+    * owner name), a prefix naming that organization, or the found task's own id (e.g. a legacy
+    * owner of another organization, the host organization system user).
+    */
+   private static boolean isLegacyTaskIdPrefix(String prefix, String orgID, String taskId,
+                                               ScheduleTask legacyTask)
+   {
+      if(!prefix.contains(IdentityID.KEY_DELIMITER)) {
+         return true;
+      }
+
+      String prefixOrgID = IdentityID.getIdentityIDFromKey(prefix).getOrgID();
+
+      if(prefixOrgID != null && prefixOrgID.equalsIgnoreCase(orgID)) {
+         return true;
+      }
+
+      // a data cycle task without an owner has no id
+      return (legacyTask.getType() != ScheduleTask.Type.CYCLE_TASK ||
+              legacyTask.getOwner() != null) && taskId.equals(legacyTask.getTaskId());
    }
 
    /**

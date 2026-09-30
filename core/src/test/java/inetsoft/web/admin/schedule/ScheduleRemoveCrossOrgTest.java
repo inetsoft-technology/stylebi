@@ -190,18 +190,32 @@ class ScheduleRemoveCrossOrgTest {
    }
 
    @Test
-   void orgAdmin_renameWithOtherOrgId_actsOnlyOnResolvedTask() throws Exception {
-      // the legacy fallback resolves "bob~;~orgB:Nightly" in org A to org A's "Nightly"
-      withContext(alice, () -> {
-         ScheduleTask legacy = new ScheduleTask(LEGACY_JOB, ScheduleTask.Type.INTERNAL_TASK);
-         legacy.setOwner(ALICE);
-         scheduleManager.save(List.of(legacy), ORG_A);
-      });
+   void orgAdmin_renameWithOtherOrgId_isNotFound() throws Exception {
+      // Bug #77356: the legacy fallback does not resolve another org's id "bob~;~orgB:Nightly"
+      // to org A's legacy "Nightly", so neither org's task is removed
+      saveLegacyTaskInOrgA();
+      withContextPrincipal(alice);
+      reset(scheduleClient);
+
+      assertThrows(Exception.class, () -> ReflectionTestUtils.invokeMethod(
+         service, "renameTask", VICTIM_JOB, ALICE.convertToKey() + ":Renamed", ALICE, alice));
+
+      verify(scheduleClient, never()).taskRemoved(anyString());
+      assertNotNull(scheduleManager.getScheduleTask(VICTIM_JOB, ORG_B), "bob's task survives");
+      assertNotNull(scheduleManager.getScheduleTask(LEGACY_JOB, ORG_A),
+                    "org A's legacy task survives");
+   }
+
+   @Test
+   void orgAdmin_renameWithOwnOrgLegacyId_actsOnlyOnResolvedTask() throws Exception {
+      // the legacy fallback resolves an own-org prefixed id to org A's "Nightly"
+      saveLegacyTaskInOrgA();
       withContextPrincipal(alice);
       reset(scheduleClient);
 
       try {
-         ReflectionTestUtils.invokeMethod(service, "renameTask", VICTIM_JOB,
+         ReflectionTestUtils.invokeMethod(service, "renameTask",
+                                          ALICE.convertToKey() + ":" + LEGACY_JOB,
                                           ALICE.convertToKey() + ":Renamed", ALICE, alice);
       }
       catch(Exception ignore) {
@@ -211,6 +225,14 @@ class ScheduleRemoveCrossOrgTest {
       verify(scheduleClient, never()).taskRemoved(VICTIM_JOB);
       verify(scheduleClient).taskRemoved(LEGACY_JOB);
       assertNotNull(scheduleManager.getScheduleTask(VICTIM_JOB, ORG_B), "bob's task survives");
+   }
+
+   private void saveLegacyTaskInOrgA() throws Exception {
+      withContext(alice, () -> {
+         ScheduleTask legacy = new ScheduleTask(LEGACY_JOB, ScheduleTask.Type.INTERNAL_TASK);
+         legacy.setOwner(ALICE);
+         scheduleManager.save(List.of(legacy), ORG_A);
+      });
    }
 
    @Test

@@ -21,6 +21,7 @@ import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.schedule.*;
 import inetsoft.sree.security.*;
 import inetsoft.test.*;
+import inetsoft.util.MessageException;
 import inetsoft.util.ThreadContext;
 import inetsoft.util.Tool;
 import inetsoft.util.audit.ActionRecord;
@@ -42,10 +43,10 @@ import static org.mockito.Mockito.*;
 
 /**
  * Bug #77262: run/stop must pass the resolved task id to the scheduler, not the raw client
- * name. The legacy pre-13.1 fallback in {@link ScheduleManager#getScheduleTask(String, String)}
- * resolves "bob~;~orgB:Nightly" in org A to org A's owner-less task "Nightly"; the permission
- * check then passes on that task, so the quartz job that is triggered or stopped must be
- * "Nightly" and never bob's "bob~;~orgB:Nightly".
+ * name. Bug #77356: the legacy pre-13.1 fallback in
+ * {@link ScheduleManager#getScheduleTask(String, String)} no longer resolves another org's id
+ * "bob~;~orgB:Nightly" in org A to org A's owner-less task "Nightly", so run/stop of that id in
+ * org A fails with task-not-found and neither "Nightly" nor bob's job is triggered or stopped.
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class, IntegrationTestConfiguration.class },
@@ -131,24 +132,26 @@ class ScheduleRunStopLegacyNameFallbackTest {
    }
 
    @Test
-   void runScheduledTask_otherOrgJobName_runsOnlyResolvedTask() throws Exception {
-      service.runScheduledTask(VICTIM_JOB, alice);
+   void runScheduledTask_otherOrgJobName_isNotFound() throws Exception {
+      assertThrows(MessageException.class, () -> service.runScheduledTask(VICTIM_JOB, alice));
 
       verify(scheduleClient, never()).runNow(VICTIM_JOB);
-      verify(scheduleClient).runNow(LEGACY_JOB);
-      // the audit record names the task that actually ran, not the other org's task
-      sutilStatic.verify(() -> SUtil.getActionRecord(
-         any(Principal.class), eq(ActionRecord.ACTION_NAME_RUN), eq(LEGACY_JOB), anyString()));
-      sutilStatic.verify(() -> SUtil.getActionRecord(
-         any(Principal.class), anyString(), eq(VICTIM_JOB), anyString()), never());
+      verify(scheduleClient, never()).runNow(LEGACY_JOB);
    }
 
    @Test
-   void stopScheduledTask_otherOrgJobName_stopsOnlyResolvedTask() throws Exception {
-      service.stopScheduledTask(VICTIM_JOB, alice);
+   void stopScheduledTask_otherOrgJobName_isNotFound() throws Exception {
+      assertThrows(MessageException.class, () -> service.stopScheduledTask(VICTIM_JOB, alice));
 
       verify(scheduleClient, never()).stopNow(VICTIM_JOB);
-      verify(scheduleClient).stopNow(LEGACY_JOB);
+      verify(scheduleClient, never()).stopNow(LEGACY_JOB);
+   }
+
+   @Test
+   void runScheduledTask_ownOrgPrefixedLegacyName_runsResolvedTask() throws Exception {
+      service.runScheduledTask(ALICE.convertToKey() + ":" + LEGACY_JOB, alice);
+
+      verify(scheduleClient).runNow(LEGACY_JOB);
    }
 
    @Test
