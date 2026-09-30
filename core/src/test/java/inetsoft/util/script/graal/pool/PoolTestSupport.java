@@ -20,8 +20,10 @@ package inetsoft.util.script.graal.pool;
 import inetsoft.report.composition.execution.AssetQuerySandbox;
 import inetsoft.util.script.ScriptEnv;
 import inetsoft.util.script.graal.ScriptScope;
+import org.graalvm.polyglot.Value;
 import org.mockito.Mockito;
 
+import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.util.*;
 import java.util.concurrent.*;
@@ -217,6 +219,35 @@ public final class PoolTestSupport {
 
       private final java.util.concurrent.atomic.AtomicInteger hits =
          new java.util.concurrent.atomic.AtomicInteger();
+   }
+
+   /**
+    * Swap the slot's clean helper for one whose clean is {@code factory} (a guest function
+    * source, applied to {@code args}), keeping its other handles. Caller holds the slot. The
+    * one place that builds a CleanHelper reflectively (final review I2): a change to its
+    * handles or constructor is fixed here.
+    */
+   static void injectClean(Slot slot, String factory, Object... args) throws Exception {
+      Field field = Slot.class.getDeclaredField("cleaner");
+      field.setAccessible(true);
+      CleanHelper real = (CleanHelper) field.get(slot);
+      Value clean = slot.engine().context().eval("js", factory);
+
+      if(args.length > 0) {
+         clean = clean.execute(args);
+      }
+
+      Field expect = CleanHelper.class.getDeclaredField("expect");
+      Field forget = CleanHelper.class.getDeclaredField("forget");
+      Field verify = CleanHelper.class.getDeclaredField("verify");
+      expect.setAccessible(true);
+      forget.setAccessible(true);
+      verify.setAccessible(true);
+      Constructor<CleanHelper> ctor = CleanHelper.class.getDeclaredConstructor(
+         Value.class, Value.class, Value.class, Value.class);
+      ctor.setAccessible(true);
+      field.set(slot, ctor.newInstance(clean, expect.get(real), forget.get(real),
+                                       verify.get(real)));
    }
 
    @FunctionalInterface

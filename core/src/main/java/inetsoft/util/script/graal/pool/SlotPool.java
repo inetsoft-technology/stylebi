@@ -90,6 +90,7 @@ final class SlotPool {
       try {
          if(!slot.isDoomed() && slot.epoch() >= epoch.get()) {
             keep = slot.clean().reusable(config.cleanThreshold()) &&
+               (!PoolParanoia.enabled() || PoolParanoia.accept(slot)) &&
                !slot.isDoomed() && slot.epoch() >= epoch.get();
          }
       }
@@ -507,7 +508,7 @@ final class SlotPool {
          slot.engine().setSQL(source.isSQL());
          return true;
       }
-      catch(RuntimeException ex) {
+      catch(RuntimeException | Error ex) {
          discard(slot);
          throw ex;
       }
@@ -536,8 +537,14 @@ final class SlotPool {
 
       pooled.remove(slot);
       primary.compareAndSet(slot, null);
-      slot.close();
-      slot.unlock();
+
+      try {
+         slot.close();
+      }
+      finally {
+         // Slot.close catches Exception only: an Error there must not leak the lock
+         slot.unlock();
+      }
    }
 
    private void checkAlarms() {
@@ -572,7 +579,7 @@ final class SlotPool {
             try {
                PoolMetrics.logNodeSummary();
             }
-            catch(RuntimeException ex) {
+            catch(RuntimeException | Error ex) {
                LOG.debug("Failed to log the worksheet script pool metrics", ex);
             }
          }, minutes, minutes, TimeUnit.MINUTES);
@@ -591,7 +598,7 @@ final class SlotPool {
          try {
             pool.evictIdle(System.currentTimeMillis());
          }
-         catch(RuntimeException ex) {
+         catch(RuntimeException | Error ex) {
             LOG.warn("Failed to evict idle worksheet script contexts", ex);
          }
       }, period, period, TimeUnit.MILLISECONDS);

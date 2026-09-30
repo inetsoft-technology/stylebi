@@ -318,6 +318,10 @@ final class Slot {
       }
    }
 
+   CleanHelper cleaner() {
+      return cleaner;
+   }
+
    /**
     * Per-slot state of host objects (e.g. a table's row window), only ever used by the owner.
     */

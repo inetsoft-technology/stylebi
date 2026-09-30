@@ -32,6 +32,7 @@ import inetsoft.report.script.formula.AssetQueryScope;
 import inetsoft.test.*;
 import inetsoft.uql.asset.Worksheet;
 import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.condition.DisabledIfSystemProperty;
 import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.test.annotation.DirtiesContext;
@@ -458,6 +459,10 @@ public class GuestReaderCycleTest {
     * is no E: the reset map is answered from the new rows without waiting for the guest.
     */
    @Test
+   @DisabledIfSystemProperty(named = "lockcycle.pool", matches = "true",
+      disabledReason = "pool-off only: it asserts the reader of the reset map waits for the " +
+         "engine lock the guest holds; a pooled condition filter takes no engine lock " +
+         "(RelPooledCompletionTest.pastCompletedMapReaderAfterInvalidateCompletesPooled)")
    public void pastCompletedMapReaderAfterInvalidate() throws Exception {
       Sandbox s = harness.sandbox();
       ResizableTable base = new ResizableTable(2 * INV_ROWS, INV_ROWS);
