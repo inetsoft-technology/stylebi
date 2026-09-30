@@ -494,17 +494,26 @@ public class SchedulerMonitoringService
 
       ScheduleTask task = scheduleManager.getScheduleTask(taskName);
 
-      if(task != null && !task.isEnabled()) {
+      if(task == null) {
+         throw new Exception(Catalog.getCatalog().getString(
+            "scheduleManager.taskNotFound"));
+      }
+
+      // use the resolved task id from here on, the raw name may have been matched by the legacy
+      // fallback in getScheduleTask() and name a different quartz job (another org's task)
+      String taskId = task.getTaskId();
+
+      if(!task.isEnabled()) {
          throw new Exception(Catalog.getCatalog().
-            getString("em.schedule.task.failedRun", taskName));
+            getString("em.schedule.task.failedRun", taskId));
       }
 
       try {
-         scheduleClient.runNow(taskName);
+         scheduleClient.runNow(taskId);
       }
       catch(Throwable ex) {
          throw new Exception(Catalog.getCatalog().
-            getString("em.schedule.task.failedRun", taskName));
+            getString("em.schedule.task.failedRun", taskId));
       }
    }
 
@@ -524,17 +533,26 @@ public class SchedulerMonitoringService
       else {
          ScheduleTask task = scheduleManager.getScheduleTask(taskName);
 
-         if(task != null && !task.isEnabled()) {
+         if(task == null) {
+            throw new Exception(Catalog.getCatalog().getString(
+               "scheduleManager.taskNotFound"));
+         }
+
+         // use the resolved task id from here on, the raw name may have been matched by the
+         // legacy fallback in getScheduleTask() and name a different quartz job (another org's task)
+         String taskId = task.getTaskId();
+
+         if(!task.isEnabled()) {
             throw new Exception(Catalog.getCatalog().
-               getString("em.schedule.task.failedStop", taskName));
+               getString("em.schedule.task.failedStop", taskId));
          }
 
          try {
-            scheduleClient.stopNow(taskName);
+            scheduleClient.stopNow(taskId);
          }
          catch(Throwable ex) {
             throw new Exception(Catalog.getCatalog().
-               getString("em.schedule.task.failedStop", taskName));
+               getString("em.schedule.task.failedStop", taskId));
          }
       }
    }
