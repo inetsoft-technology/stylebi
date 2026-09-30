@@ -45,6 +45,7 @@ import java.net.URLEncoder;
 import java.security.Principal;
 import java.sql.Timestamp;
 import java.util.*;
+import java.util.regex.Pattern;
 
 @Service
 public class DataSpaceContentSettingsService {
@@ -322,6 +323,41 @@ public class DataSpaceContentSettingsService {
    }
 
    /**
+    * Check a new file or folder name entered by the user. Mirrors the EM client validator
+    * FormValidators.isValidDataSpaceFileName, plus a required check, so that a name such as
+    * "a/b" or "a\\b" can't create or move an item under another parent.
+    *
+    * @param name the raw name entered by the user.
+    *
+    * @throws IllegalArgumentException if the name is not valid.
+    */
+   public static void validateName(String name) {
+      if(name == null || name.trim().isEmpty() || INVALID_NAME_CHARS.matcher(name).find() ||
+         name.endsWith(".") || name.startsWith(".") && !".stylereport".equals(name))
+      {
+         throw new IllegalArgumentException("Invalid data space name: " + name);
+      }
+   }
+
+   /**
+    * Check the name of an uploaded file. Only names that resolve to another folder are
+    * rejected; other characters are legal in OS file names and are allowed.
+    *
+    * @param name the uploaded file name.
+    *
+    * @throws IllegalArgumentException if the name is not valid.
+    */
+   public static void validateUploadFileName(String name) {
+      String trimmed = name == null ? "" : name.trim();
+
+      if(trimmed.isEmpty() || ".".equals(trimmed) || "..".equals(trimmed) ||
+         name.contains("/") || name.contains("\\"))
+      {
+         throw new IllegalArgumentException("Invalid upload file name: " + name);
+      }
+   }
+
+   /**
     * Get full path.
     */
    protected String getPath(String parentPath, String name) {
@@ -519,4 +555,5 @@ public class DataSpaceContentSettingsService {
    private final DataSpace dataSpace;
    private static final String DEFAULT_ORG_FOLDER = "portal/" + Organization.getDefaultOrganizationID();
    private static final Logger LOG = LoggerFactory.getLogger(DataSpaceContentSettingsService.class);
+   private static final Pattern INVALID_NAME_CHARS = Pattern.compile("[*+:\"<>?|\\\\#'/%,]");
 }
