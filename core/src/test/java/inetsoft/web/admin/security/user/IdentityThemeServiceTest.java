@@ -689,13 +689,41 @@ class IdentityThemeServiceTest {
       }
    }
 
+   // Bug #77352 review: a mixed-case organization ID must still match its own themes for a
+   // global role, so the current organization is compared with its case preserved
+   @Test
+   void updateIdentityTheme_globalRoleMixedCaseOrg_currentOrgThemeAssigned() {
+      CustomTheme mixed = theme("mixed", "OrgMixed");
+      CustomTheme lower = theme("lower", "orglower");
+
+      try(MockedStatic<SUtil> ignored2 = mockMultiTenant(true)) {
+         when(manager.getCustomThemes()).thenReturn(new HashSet<>(Set.of(mixed, lower)));
+
+         try(MockedStatic<OrganizationManager> ignored = mockOrg("OrgMixed", false)) {
+            service.updateIdentityTheme("Designer", "Designer", null, "mixed",
+                                        CustomTheme::getRoles, null);
+         }
+
+         try(MockedStatic<OrganizationManager> ignored = mockOrg("orglower", false)) {
+            service.updateIdentityTheme("Designer", "Designer", null, "lower",
+                                        CustomTheme::getRoles, null);
+         }
+
+         assertEquals(List.of("Designer"), mixed.getRoles());
+         assertEquals(List.of("Designer"), lower.getRoles(),
+                      "a lower-case organization ID still matches");
+      }
+   }
+
    private static MockedStatic<OrganizationManager> mockOrg(String currentOrgID,
                                                             boolean siteAdmin)
    {
-      OrganizationManager orgManager = mock(OrganizationManager.class);
+      OrganizationManager orgManager = mock(OrganizationManager.class, withSettings().lenient());
       MockedStatic<OrganizationManager> orgManagerStatic = mockStatic(OrganizationManager.class);
       orgManagerStatic.when(OrganizationManager::getInstance).thenReturn(orgManager);
-      when(orgManager.getCurrentOrgID()).thenReturn(currentOrgID);
+      // like OrganizationManager, the no-argument getter lower-cases the organization ID
+      when(orgManager.getCurrentOrgID()).thenReturn(currentOrgID.toLowerCase());
+      when(orgManager.getCurrentOrgID(nullable(Principal.class))).thenReturn(currentOrgID);
       when(orgManager.isSiteAdmin(nullable(Principal.class))).thenReturn(siteAdmin);
       return orgManagerStatic;
    }

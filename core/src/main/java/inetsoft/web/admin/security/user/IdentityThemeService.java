@@ -21,6 +21,7 @@ import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.portal.CustomTheme;
 import inetsoft.sree.portal.CustomThemesManager;
 import inetsoft.sree.security.*;
+import inetsoft.util.ThreadContext;
 import inetsoft.util.Tool;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -227,7 +228,9 @@ public class IdentityThemeService {
 
       if(orgID == null) {
          OrganizationManager orgManager = OrganizationManager.getInstance();
-         String currentOrgID = orgManager.getCurrentOrgID();
+         // keep the case of the organization ID, which the no-argument getter lower-cases
+         String currentOrgID = orgManager.getCurrentOrgID(
+            principal != null ? principal : ThreadContext.getContextPrincipal());
          boolean globalThemes = !SUtil.isMultiTenant() || orgManager.isSiteAdmin(principal);
          assignable = theme -> Tool.isEmptyString(theme.getOrgID()) ?
             globalThemes : theme.getOrgID().equals(currentOrgID);

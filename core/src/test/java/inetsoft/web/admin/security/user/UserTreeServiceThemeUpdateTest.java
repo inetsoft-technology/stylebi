@@ -52,6 +52,7 @@ class UserTreeServiceThemeUpdateTest {
       sUtilStatic = mockStatic(SUtil.class, withSettings().strictness(Strictness.LENIENT));
       orgManager = mock(OrganizationManager.class, withSettings().lenient());
       when(orgManager.getCurrentOrgID()).thenReturn(ORG);
+      when(orgManager.getCurrentOrgID(any())).thenReturn(ORG);
       when(orgManager.isSiteAdmin(any(Principal.class))).thenReturn(true);
       orgManagerStatic = mockStatic(OrganizationManager.class,
                                     withSettings().strictness(Strictness.LENIENT));
