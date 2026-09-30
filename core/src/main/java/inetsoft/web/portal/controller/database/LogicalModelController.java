@@ -25,6 +25,7 @@ import inetsoft.uql.asset.*;
 import inetsoft.uql.erm.*;
 import inetsoft.uql.jdbc.SQLHelper;
 import inetsoft.uql.schema.XVariable;
+import inetsoft.uql.util.XUtil;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.util.*;
 import inetsoft.web.adhoc.model.FormatInfoModel;
@@ -178,12 +179,65 @@ public class LogicalModelController {
       actions = ResourceAction.ACCESS
    ))
    @PostMapping("/api/data/logicalModel/tables/nodes")
-   public TreeNodeModel getPhysicalModelTablesTree(@RequestBody GetModelEvent event)
+   public TreeNodeModel getPhysicalModelTablesTree(@RequestBody GetModelEvent event,
+                                                   Principal principal)
       throws Exception
    {
+      checkPhysicalModelTablesPermission(event, principal);
       return treeService.getPhysicalModelTree(
          event.getDatasource(), event.getPhysicalName(), event.getLogicalName(), event.getParent(),
          event.getAdditional());
+   }
+
+   /**
+    * The tables tree lists the tables and columns of a physical view. For an existing logical
+    * model built on that view, READ on the model is enough (the model editor shows the same
+    * tables); otherwise the caller must be able to edit data models of the data source, as
+    * when creating a new logical model.
+    */
+   private void checkPhysicalModelTablesPermission(GetModelEvent event, Principal principal)
+      throws Exception
+   {
+      String database = event.getDatasource();
+      String additional = event.getAdditional();
+      XDataModel dataModel = modelService.getDataModel(database);
+      String name = event.getLogicalName();
+      String parent = event.getParent();
+      XLogicalModel logicalModel = null;
+
+      if(!Tool.isEmptyString(name)) {
+         if(Tool.isEmptyString(parent)) {
+            logicalModel = dataModel.getLogicalModel(name);
+         }
+         else {
+            XLogicalModel parentModel = dataModel.getLogicalModel(parent);
+            logicalModel = parentModel == null ? null : parentModel.getLogicalModel(name);
+         }
+      }
+
+      if(logicalModel != null &&
+         Tool.equals(logicalModel.getPartition(), event.getPhysicalName()) &&
+         modelService.checkPermission(database, getModelFolder(logicalModel), name,
+                                      logicalModel.getConnection(), ResourceAction.READ,
+                                      principal) &&
+         (!isAdditionalConnection(additional) ||
+            Tool.equals(additional, logicalModel.getConnection())))
+      {
+         return;
+      }
+
+      dataSourceService.checkDataModelEditPermission(database, additional, principal);
+   }
+
+   private static String getModelFolder(XLogicalModel logicalModel) {
+      XLogicalModel base = logicalModel.getBaseModel();
+      return base == null ? logicalModel.getFolder() : base.getFolder();
+   }
+
+   private static boolean isAdditionalConnection(String additional) {
+      return !Tool.isEmptyString(additional) &&
+         !XUtil.OUTER_MOSE_LAYER_DATABASE.equals(additional) &&
+         !XDataModel.DEFAULTCONNECTION.equals(additional);
    }
 
    /**
@@ -415,7 +469,8 @@ public class LogicalModelController {
       value = "/api/data/logicalmodel/checkOuterDependencies",
       method = RequestMethod.POST
    )
-   public StringWrapper checkOuterDependencies(@RequestBody CheckDependenciesEvent event)
+   public StringWrapper checkOuterDependencies(@RequestBody CheckDependenciesEvent event,
+                                               Principal principal)
       throws Exception
    {
       if(event.isNewCreate()) {
@@ -453,6 +508,8 @@ public class LogicalModelController {
          throw new MessageException(
             catalog.getString("data.logicalmodel.cannotFind", modelName));
       }
+
+      modelService.checkModelPermission(dataSource, logicalModel, ResourceAction.READ, principal);
 
       try {
          if(elems == null) {

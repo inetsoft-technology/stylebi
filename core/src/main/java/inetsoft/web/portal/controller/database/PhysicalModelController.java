@@ -757,6 +757,7 @@ public class PhysicalModelController {
    public JoinModel getCardinality(@RequestParam("database") String database,
                                    @RequestParam(value = "additional", required = false) String additional,
                                    @RequestBody CardinalityHelper helper, Principal principal)
+      throws Exception
    {
       return physicalModelService.getCardinality(database, additional, helper, principal);
    }

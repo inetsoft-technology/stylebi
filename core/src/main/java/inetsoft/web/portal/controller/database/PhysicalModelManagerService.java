@@ -321,6 +321,7 @@ public class PhysicalModelManagerService {
    {
       XDataModel dataModel = getDataModel(dsName);
       boolean isExtended = !StringUtils.isBlank(parent);
+      XPartition storedPartition;
 
       if(isExtended) {
          XPartition parentPartition = dataModel.getPartition(parent);
@@ -332,17 +333,25 @@ public class PhysicalModelManagerService {
          if(parentPartition.getPartition(name) == null) {
             throw new FileNotFoundException(dsName + "/" + parent + "/" + name);
          }
+
+         storedPartition = parentPartition;
       }
       else {
-         if(dataModel.getPartition(name) == null) {
+         storedPartition = dataModel.getPartition(name);
+
+         if(storedPartition == null) {
             throw new FileNotFoundException(dsName + "/" + name);
          }
       }
 
-      if(!dataSourceService.checkPermission(dsName, folder, ResourceAction.WRITE, principal)) {
+      // check the folder the view is stored in, not the one named in the request
+      checkWritePermission(dsName, storedPartition, principal);
+
+      // the model written below is identified by the definition, so it must be the checked one
+      if(model == null || !Tool.equals(name, model.getName())) {
          throw new SecurityException(
-            "Unauthorized access to resource \"" + dsName + "\" by user " +
-               principal);
+            "Physical view \"" + dsName + "/" + name + "\" cannot be saved as \"" +
+               (model == null ? null : model.getName()) + "\" by user " + principal);
       }
 
       for(PhysicalTableModel table: model.getTables()) {
@@ -476,10 +485,12 @@ public class PhysicalModelManagerService {
          throw new FileNotFoundException(dataSource);
       }
 
-      if(!dataSourceService.checkPermission(dataSource, folder, ResourceAction.WRITE, principal)) {
-         throw new SecurityException(
-            "Unauthorized access to resource \"" + dataSource + "\" by user " +
-               principal);
+      // check the folder the view is stored in, not the one named in the request
+      XPartition storedPartition = dataModel.getPartition(oldName);
+      checkWritePermission(dataSource, storedPartition, principal);
+
+      if(storedPartition != null) {
+         folder = storedPartition.getFolder();
       }
 
       if(dataModel.getPartition(newName) != null) {
@@ -557,13 +568,12 @@ public class PhysicalModelManagerService {
          throw new FileNotFoundException(dataSource);
       }
 
-      if(!dataSourceService.checkPermission(dataSource, folder, ResourceAction.WRITE, principal)) {
-         throw new SecurityException(
-            "Unauthorized access to resource \"" + dataSource + "\" by user " +
-               principal);
-      }
-
       boolean isExtended = !StringUtils.isBlank(parent);
+
+      // check the folder the view (or its base view) is stored in, not the one in the request
+      checkWritePermission(
+         dataSource, dataModel.getPartition(isExtended ? parent : name), principal);
+
       XPartition partition;
       XPartition basePartition = null;
 
@@ -1057,6 +1067,8 @@ public class PhysicalModelManagerService {
       throws Exception
    {
       String additional = model.getConnection();
+      // reads metadata of, and may run inline-view SQL on, the named source
+      dataSourceService.checkDataModelEditPermission(dataSource, additional, principal);
       JDBCDataSource jdbc = (JDBCDataSource) dataSourceService.getDataSource(dataSource, additional);
       XDataModel dataModel = getDataModel(dataSource);
       AutoJoinColumnsModel result = new AutoJoinColumnsModel();
@@ -1670,6 +1682,25 @@ public class PhysicalModelManagerService {
    }
 
    /**
+    * Checks WRITE on the folder a stored physical view is in (the data source when it is at the
+    * root, or when the view does not exist), the same rule {@link #openModel} applies.
+    *
+    * @param dataSource the name of the parent data source.
+    * @param partition  the stored view, or its base view for an extended view.
+    * @param principal  a principal that identifies the remote user.
+    */
+   private void checkWritePermission(String dataSource, XPartition partition, Principal principal)
+      throws Exception
+   {
+      String folder = partition == null ? null : partition.getFolder();
+
+      if(!dataSourceService.checkPermission(dataSource, folder, ResourceAction.WRITE, principal)) {
+         throw new SecurityException("Unauthorized access to resource \"" + dataSource +
+            (folder == null ? "" : "/" + folder) + "\" by user " + principal);
+      }
+   }
+
+   /**
     * Load runtime columns for target partition table.
     * @param database         the database name.
     * @param partitionId      the partition runtime id in portal data model.
@@ -1692,6 +1723,8 @@ public class PhysicalModelManagerService {
                                         boolean preview)
       throws Exception
    {
+      RuntimePartitionService.checkDataSource(
+         runtimePartitionService.getRuntimePartition(partitionId), database);
       XPartition partition = this.runtimePartitionService.getPartition(partitionId);
 
       if(preview) {

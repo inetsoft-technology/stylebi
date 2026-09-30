@@ -123,6 +123,23 @@ public class LogicalModelService {
     *
     * @throws SecurityException if the user does not have the required permission.
     */
+   public void checkModelPermission(String database, XLogicalModel model,
+                                    ResourceAction action, Principal principal)
+      throws SecurityException
+   {
+      validatePermission(database, model, action, principal);
+   }
+
+   /**
+    * Checks if a user has the specified permission on a logical model.
+    *
+    * @param database      the name of the parent data source.
+    * @param model         the target logical model.
+    * @param action        the action to check the permission of.
+    * @param principal     the principal that identifies the remote user.
+    *
+    * @throws SecurityException if the user does not have the required permission.
+    */
    private void validatePermission(String database, XLogicalModel model,
                                    ResourceAction action, Principal principal)
       throws SecurityException
@@ -322,10 +339,26 @@ public class LogicalModelService {
                                              Principal principal)
       throws Exception
    {
-      getLogicalModel(
+      XLogicalModel storedModel = getLogicalModel(
          dataSource, model.getPartition(), parent, name, principal, ResourceAction.WRITE);
       XDataModel dataModel = getDataModel(dataSource);
       boolean isExtended = !StringUtils.isEmpty(parent);
+
+      // the write below replaces the model named in the definition, so it must be the model the
+      // WRITE check was made on (renaming has its own endpoint)
+      if(!Tool.equals(name, model.getName())) {
+         throw new SecurityException(String.format(
+            "Logical model \"%s\" cannot be saved as \"%s\" by %s",
+            dataSource + "/" + name, model.getName(), principal));
+      }
+
+      // saving with a different folder moves the model, which needs WRITE in the target folder
+      String targetFolder = Tool.isEmptyString(model.getFolder()) ? null : model.getFolder();
+
+      if(!isExtended && !Tool.equals(storedModel.getFolder(), targetFolder)) {
+         validatePermission(dataSource, targetFolder, null, model.getName(),
+            model.getConnection(), ResourceAction.WRITE, principal);
+      }
       String path = isExtended ? dataSource + "/" + parent + "/" + name :
          dataSource + "/" + name;
       AssetEntry entry = getModelEntry(path, isExtended);

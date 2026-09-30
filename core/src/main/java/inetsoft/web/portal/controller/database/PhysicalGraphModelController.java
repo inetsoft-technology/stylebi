@@ -112,6 +112,8 @@ public class PhysicalGraphModelController {
    {
       String ds = event.getDatasource();
       String physicalView = event.getPhysicalName();
+      RuntimePartitionService.checkDataSource(
+         runtimePartitionService.getRuntimePartition(event.getRuntimeID()), ds);
       XDataModel dataModel = physicalModelService.getDataModel(ds, physicalView);
       XPartition partition = this.runtimePartitionService.getPartition(event.getRuntimeID());
 

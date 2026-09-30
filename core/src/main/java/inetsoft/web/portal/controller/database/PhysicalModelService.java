@@ -652,6 +652,9 @@ public class PhysicalModelService {
                                       Principal principal)
       throws Exception
    {
+      // runs the SQL on the named source, so the caller must be able to edit its data models
+      dataSourceService.checkDataModelEditPermission(dataSource, additional, principal);
+
       if(sql == null || (sql = sql.trim()).isEmpty()) {
          throw new Exception("The SQL statement is empty");
       }
@@ -943,7 +946,10 @@ public class PhysicalModelService {
 
    public JoinModel getCardinality(String database, String additional,
                                    CardinalityHelper helper, Principal principal)
+      throws Exception
    {
+      // reads key metadata of, and may run inline-view SQL on, the named source
+      dataSourceService.checkDataModelEditPermission(database, additional, principal);
       JoinModel join = helper.getJoin();
 
       try {
