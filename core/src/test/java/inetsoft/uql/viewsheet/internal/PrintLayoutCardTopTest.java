@@ -227,6 +227,41 @@ class PrintLayoutCardTopTest {
                    fixture.bounds(table(elements)));
    }
 
+   @Test
+   void aTitleWithoutItsOwnBackgroundDoesNotRepeatTheCardFill() throws Exception {
+      PrintLayoutConverterFixture fixture = new PrintLayoutConverterFixture().inset(16, 16, 16, 16);
+      List<ReportElement> elements = fixture.addTable();
+      TextBoxElementDef top = (TextBoxElementDef) elements.get(0);
+      TextBoxElementDef title = (TextBoxElementDef) elements.get(1);
+
+      // the card-top box already filled the lane, so a second identical fill would double it
+      assertEquals(Color.YELLOW, top.getBackground());
+      assertNull(title.getBackground());
+   }
+
+   @Test
+   void aTitleKeepsItsOwnBackgroundOverTheCard() throws Exception {
+      PrintLayoutConverterFixture fixture = new PrintLayoutConverterFixture().inset(16, 16, 16, 16);
+      fixture.titleFormat().setBackground(Color.ORANGE);
+      List<ReportElement> elements = fixture.addTable();
+
+      assertEquals(Color.YELLOW, ((TextBoxElementDef) elements.get(0)).getBackground());
+      assertEquals(Color.ORANGE, ((TextBoxElementDef) elements.get(1)).getBackground());
+   }
+
+   @Test
+   void aTranslucentCardDoesNotRepeatItsFillBehindTheTitle() throws Exception {
+      PrintLayoutConverterFixture fixture = new PrintLayoutConverterFixture().inset(16, 16, 16, 16);
+      fixture.info.getFormat().getUserDefinedFormat().setAlpha(50);
+      List<ReportElement> elements = fixture.addTable();
+      TextBoxElementDef top = (TextBoxElementDef) elements.get(0);
+      TextBoxElementDef title = (TextBoxElementDef) elements.get(1);
+
+      // the case the defect is about: two of these stacked read darker than the card
+      assertEquals(128, top.getBackground().getAlpha(), "the card is genuinely translucent");
+      assertNull(title.getBackground());
+   }
+
    private static ReportElement table(List<ReportElement> elements) {
       return elements.stream().filter(e -> e instanceof TableElementDef)
          .findFirst().orElseThrow();

@@ -1530,7 +1530,8 @@ public class VsToReportConverter {
       if(info.isTitleVisible()) {
          int titleX = bw.left + inset.left;
          addCardTitle(assembly, new Rectangle(bounds.x + titleX, bounds.y + laneY,
-            Math.max(0, bounds.width - titleX - inset.right), titleH), sectionName);
+            Math.max(0, bounds.width - titleX - inset.right), titleH), sectionName,
+            top.getBackground());
       }
 
       // 1px up so the sides join, as the table joins its title without an inset, but never
@@ -1555,7 +1556,7 @@ public class VsToReportConverter {
 
    // the title inside a padded table's card keeps its own format and borders, not the card's
    private void addCardTitle(TableDataVSAssembly assembly, Rectangle titleBounds,
-                             String sectionName)
+                             String sectionName, Color cardBackground)
    {
       TableDataVSAssemblyInfo info = (TableDataVSAssemblyInfo) assembly.getInfo();
       TextBoxElementDef textbox =
@@ -1564,6 +1565,13 @@ public class VsToReportConverter {
       VSCompositeFormat detailfmt = finfo == null ? null :
          finfo.getFormat(new TableDataPath(-1, TableDataPath.TITLE), false);
       applyFormat(textbox, info.getFormat(), detailfmt, info, true);
+
+      // the card-top box already filled the lane, so an identical second fill doubles a
+      // translucent background; a title that sets its own colour differs and keeps it
+      if(Tool.equals(textbox.getBackground(), cardBackground)) {
+         textbox.setBackground(null);
+      }
+
       Insets own = detailfmt == null ? null : detailfmt.getBorders();
       setBoxBorders(textbox, own == null ? new Insets(0, 0, 0, 0) : (Insets) own.clone());
       textbox.setZIndex(assembly.getZIndex());
