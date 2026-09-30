@@ -661,13 +661,14 @@ class PooledLensObjectHandOffTest {
    }
 
    /**
-    * M2 / T3: two tables whose batches ran nested in one claim share one home. While one
-    * table's batch holds that home on another thread, a read of the other table cannot take
-    * its objects without waiting: each of its vars is lost with one warning of its own, starts
-    * over, and never reads a stale value; the first table is exact.
+    * M2 / T3: two tables whose batches ran nested in one claim. On main they shared one
+    * home, and while one table's batch held it on another thread, a read of the other table
+    * lost each of its vars with one warning. Each batch of a table with object vars now takes
+    * a context of its own (Testing #77123, cond-home), so each table has its own home: the
+    * read of the second table while the first one's batch is busy is exact too, no warning.
     */
    @Test
-   void aReadOfAHomeSharedWithABusyTableIsLostWithOneWarningPerVar() throws Exception {
+   void aReadOfATableWhileAnotherTableOfTheSameSpanIsBusyIsExact() throws Exception {
       AssetQuerySandbox box = box();
       WorksheetScriptEnv w = (WorksheetScriptEnv) box.getScriptEnv();
       // past what the first span computes ahead (batches of 10, 20, 40, 80 rows)
@@ -684,7 +685,7 @@ class PooledLensObjectHandOffTest {
          read(t2, v2, 1, 100);
       }
 
-      assertEquals(1, PoolTestSupport.homes(w), "one home for both tables");
+      assertEquals(2, PoolTestSupport.homes(w), "a home for each table");
       ExecutorService ex = Executors.newSingleThreadExecutor();
 
       try {
@@ -714,31 +715,11 @@ class PooledLensObjectHandOffTest {
          assertEquals(r, v1[r], "t1 row " + r);
       }
 
-      // c.n and q[0] start over together at the first row computed while the home was busy
-      int restart = 0;
-
       for(int r = 1; r <= ROWS; r++) {
-         double c = Math.floor(v2[r] / 10000);
-         double q = v2[r] % 10000;
-         assertEquals(c, q, "t2's vars agree, row " + r);
-
-         if(restart == 0 && c != r) {
-            restart = r;
-         }
-
-         if(restart != 0) {
-            assertEquals(r - restart + 1, c, "t2 starts over, never stale, row " + r);
-         }
+         assertEquals(r * 10000.0 + r, v2[r], "t2 row " + r);
       }
 
-      assertTrue(restart > 100 && restart <= 300, "t2 lost its values: " + restart);
-      List<String> warns = warningTexts();
-      assertEquals(2, warns.size(), () -> "one warning per var of t2: " + warns);
-
-      for(String var : new String[] { "c", "q" }) {
-         assertTrue(warns.stream().anyMatch(m -> m.contains("\"" + var + "\" holds an array " +
-            "or object that stays on a script context")), () -> var + ": " + warns);
-      }
+      assertTrue(warningTexts().isEmpty(), () -> "no warning: " + warningTexts());
    }
 
    /**

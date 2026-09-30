@@ -191,11 +191,12 @@ class PooledLensObjectVarTest {
    }
 
    /**
-    * A2: two tables read under one outer span share one home, then are read separately:
-    * both exact, no snapshot.
+    * A2: two tables read under one outer span each take a context of their own for their
+    * batches (Testing #77123, cond-home), so each has its own home, then are read
+    * separately: both exact, no snapshot.
     */
    @Test
-   void twoLensesShareOneHome() throws Exception {
+   void twoLensesReadUnderOneSpanHaveAHomeEach() throws Exception {
       AssetQuerySandbox box = box();
       WorksheetScriptEnv w = (WorksheetScriptEnv) box.getScriptEnv();
       TableLens t1 = make(box, base(ROWS), ARRAY, "T1");
@@ -208,7 +209,7 @@ class PooledLensObjectVarTest {
          read(t2, v2, 1, 100);
       }
 
-      assertEquals(1, PoolTestSupport.homes(w), "one home for both tables");
+      assertEquals(2, PoolTestSupport.homes(w), "a home for each table");
 
       for(int s = 101; s <= ROWS; s += 100) {
          read(t1, v1, s, s + 99);
@@ -375,11 +376,12 @@ class PooledLensObjectVarTest {
    }
 
    /**
-    * A pull: a batch that runs inside another claim, on another context, pulls the objects
-    * from the idle home, exactly once.
+    * A batch that runs inside another claim takes a context of its own, the idle home, even
+    * though the outer claim skipped it and holds another context (Testing #77123,
+    * cond-home): no pull is needed.
     */
    @Test
-   void aLensInsideAnotherClaimPullsFromItsIdleHome() throws Exception {
+   void aLensInsideAnotherClaimTakesItsIdleHome() throws Exception {
       AssetQuerySandbox box = box();
       WorksheetScriptEnv w = (WorksheetScriptEnv) box.getScriptEnv();
       TableLens t = make(box, base(ROWS), NESTED, "T");
@@ -392,24 +394,34 @@ class PooledLensObjectVarTest {
       }
 
       read(t, v, 601, ROWS);
-      assertAll(v, "pulled");
-      assertEquals(1, PoolTestSupport.metric(w, "Pulls"), "one pull");
+      assertAll(v, "home taken");
+      assertEquals(0, PoolTestSupport.metric(w, "Pulls"), "no pull");
       assertTrue(warnings().isEmpty(), () -> "no warning: " + warnings());
    }
 
    /**
-    * A1: while an outer claim keeps the home, a read of the table by another thread cannot
-    * take the objects: they are lost with one warning, never read stale, and the other
-    * thread's batch continues with fresh values.
+    * A1 (Testing #77123, cond-home): while an outer claim or span of this thread is still
+    * open (a condition filter's population, another table's batch), another thread reads
+    * the table. The table's batches took a context of their own, given back at each batch
+    * end, so the other thread's batch takes the idle home: every row exact, no warning. On
+    * main the outer claim held the home and the other thread lost the objects (row 201
+    * restarted at 1, with one warning).
     */
-   @Test
-   void aReadWhileAnOuterClaimHoldsTheHomeIsLostWithOneWarning() throws Exception {
+   @ParameterizedTest(name = "{0}")
+   @ValueSource(strings = { "eager claim", "lazy span", "lazy span with a script" })
+   void aReadWhileAnOuterClaimIsOpenTakesTheGivenBackHome(String outer) throws Exception {
       AssetQuerySandbox box = box();
       WorksheetScriptEnv w = (WorksheetScriptEnv) box.getScriptEnv();
       TableLens t = make(box, base(ROWS), ARRAY, "T");
       double[] v = new double[ROWS + 1];
 
-      try(SlotClaim outer = w.claimSlot()) {
+      try(ScriptSpan span = outer.equals("eager claim") ? w.claimSlot() : w.openSpan()) {
+         if(outer.equals("lazy span with a script")) {
+            // the span takes its context before the table's first batch, as a condition
+            // filter's JavaScript value does
+            assertEquals(2, ((Number) w.exec(w.compile("1 + 1"), null, null, null)).intValue());
+         }
+
          read(t, v, 1, 200);
          ExecutorService ex = Executors.newSingleThreadExecutor();
 
@@ -422,24 +434,16 @@ class PooledLensObjectVarTest {
          finally {
             ex.shutdownNow();
          }
+
+         read(t, v, 401, 600);
       }
 
-      for(int r = 1; r <= 200; r++) {
+      for(int r = 1; r <= 600; r++) {
          assertEquals(r, v[r], "row " + r);
       }
 
-      int first = 200;
-
-      while(first < 400 && v[first + 1] == first + 1) {
-         first++;
-      }
-
-      assertTrue(first < 400, "the other thread could not use the held home");
-      assertEquals(1.0, v[first + 1], "restarts, never a stale array");
-      List<String> warns = warningTexts();
-      assertEquals(1, warns.size(), () -> "one warning: " + warns);
-      assertTrue(warns.get(0).contains("\"a\" holds an array or object that stays on a " +
-                                       "script context"), warns.get(0));
+      assertTrue(warnings().isEmpty(), () -> "no warning: " + warnings());
+      assertEquals(0, PoolTestSupport.metric(w, "HandOffs"), "no snapshot");
    }
 
    /**
