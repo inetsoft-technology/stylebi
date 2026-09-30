@@ -763,6 +763,69 @@ public class ScheduleManager {
                                             boolean internal, Principal principal)
       throws Exception
    {
+      setScheduleTask(taskId, task, parent, internal, principal, false);
+   }
+
+   /**
+    * Replaces a stored task with a task, i.e. removes the task stored under the old id and saves
+    * the task under its own id. Bug #77359, the owner organization of the task is checked before
+    * the old task is removed, against the task stored before this change, so a task that is
+    * refused isn't lost and a task that already is owned by another organization (stored before
+    * the check) can still be modified.
+    *
+    * @param oldTaskId the id of the stored task.
+    * @param task      the task to save under its own id.
+    */
+   public synchronized void replaceScheduleTask(String oldTaskId, ScheduleTask task,
+                                                AssetEntry parent, Principal principal)
+      throws Exception
+   {
+      if(task == null) {
+         return;
+      }
+
+      String taskId = task.getTaskId();
+      boolean ownerChecked = task.getOwner() != null;
+
+      if(ownerChecked) {
+         checkReplaceOwnerOrganization(oldTaskId, taskId, task, principal);
+      }
+
+      removeScheduleTask(oldTaskId, principal);
+      setScheduleTask(taskId, task, parent, isInternalTask(taskId), principal, ownerChecked);
+   }
+
+   /**
+    * Checks, before a stored task is removed to save a task in its place (e.g. to rename it),
+    * that the task will not be refused because its owner is in another organization than the
+    * one it's stored in.
+    *
+    * @param oldTaskId the id of the stored task, which is removed.
+    * @param taskId    the id the task is saved under.
+    *
+    * @throws IOException if the task would be refused.
+    */
+   public synchronized void checkReplaceOwnerOrganization(String oldTaskId, String taskId,
+                                                          ScheduleTask task, Principal principal)
+      throws IOException
+   {
+      if(task == null || taskId == null) {
+         return;
+      }
+
+      boolean internal = isInternalTask(taskId);
+      String orgID = internal ? Organization.getDefaultOrganizationID() :
+         OrganizationManager.getInstance().getCurrentOrgID(principal);
+      ScheduleTask stored = oldTaskId == null || orgID == null ? null :
+         getScheduleTask(oldTaskId, orgID);
+      checkOwnerOrganization(taskId, task, stored, orgID, internal);
+   }
+
+   private synchronized void setScheduleTask(String taskId, ScheduleTask task, AssetEntry parent,
+                                             boolean internal, Principal principal,
+                                             boolean ownerChecked)
+      throws Exception
+   {
       if(task == null) {
          return;
       }
@@ -852,7 +915,10 @@ public class ScheduleManager {
          taskId = task.getTaskId();
       }
 
-      checkOwnerOrganization(taskId, task, orgID, internal);
+      if(!ownerChecked) {
+         checkOwnerOrganization(taskId, task, orgID, internal);
+      }
+
       ScheduleTaskMessage.Action action;
 
       if(getOrgTaskMap(orgID).containsKey(getTaskIdentifier(taskId, orgID), orgID)) {
@@ -902,20 +968,35 @@ public class ScheduleManager {
                                        boolean internal)
       throws IOException
    {
-      IdentityID owner = task.getOwner();
-
-      if(internal || task.getType() == ScheduleTask.Type.INTERNAL_TASK || owner == null ||
-         owner.orgID == null || orgID == null || owner.orgID.equalsIgnoreCase(orgID))
-      {
+      if(isOwnerOrganizationUnchecked(task, orgID, internal)) {
          return;
       }
 
       // the stored task, including one stored under its pre 13.1 owner-less id
-      ScheduleTask stored = getScheduleTask(taskId, orgID);
+      checkOwnerOrganization(taskId, task, getScheduleTask(taskId, orgID), orgID, internal);
+   }
+
+   /**
+    * Checks the owner organization of a task against the task stored before it's saved.
+    *
+    * @param stored the task stored before the change, if any.
+    */
+   private void checkOwnerOrganization(String taskId, ScheduleTask task, ScheduleTask stored,
+                                       String orgID, boolean internal)
+      throws IOException
+   {
+      if(isOwnerOrganizationUnchecked(task, orgID, internal)) {
+         return;
+      }
+
+      IdentityID owner = task.getOwner();
       IdentityID storedOwner = stored == null ? null : stored.getOwner();
 
+      // the task and the id it's saved under must both be the stored task's, the id of a task
+      // with an owner is its scheduler job key
       if(storedOwner == null || storedOwner.orgID == null ||
-         storedOwner.orgID.equalsIgnoreCase(orgID) || !taskId.equals(stored.getTaskId()))
+         storedOwner.orgID.equalsIgnoreCase(orgID) || !taskId.equals(stored.getTaskId()) ||
+         !taskId.equals(task.getTaskId()))
       {
          throw new IOException(
             "Schedule task " + taskId + " is not saved in organization " + orgID +
@@ -925,6 +1006,14 @@ public class ScheduleManager {
       LOG.warn("Schedule task {} of organization {} is owned by {} of another organization, " +
                "it has the same scheduler job as a task of that organization with the same id",
                taskId, orgID, owner.convertToKey());
+   }
+
+   private static boolean isOwnerOrganizationUnchecked(ScheduleTask task, String orgID,
+                                                       boolean internal)
+   {
+      IdentityID owner = task.getOwner();
+      return internal || task.getType() == ScheduleTask.Type.INTERNAL_TASK || owner == null ||
+         owner.orgID == null || orgID == null || owner.orgID.equalsIgnoreCase(orgID);
    }
 
    /**

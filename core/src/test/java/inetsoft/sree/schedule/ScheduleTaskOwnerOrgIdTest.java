@@ -240,6 +240,21 @@ class ScheduleTaskOwnerOrgIdTest {
    }
 
    @Test
+   void setScheduleTask_storedIdWithTaskOfOtherForeignOwner_isRefused() throws Exception {
+      // the id of a stored task owned in another organization, but a task of another owner
+      ScheduleTask stored = newTask("ooWeekly", new IdentityID(XPrincipal.SYSTEM, HOST));
+      String key = new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.SCHEDULE_TASK,
+                                  "/" + stored.getTaskId(),
+                                  SUtil.getTaskOwner(stored.getTaskId()), ORG_B).toIdentifier();
+      scheduleManager.getOrgTaskMap(ORG_B).put(key, stored, ORG_B);
+      ScheduleTask other = newTask("ooWeekly", ALICE);
+
+      assertThrows(IOException.class, () -> scheduleManager.setScheduleTask(
+         stored.getTaskId(), other, principal(BOB, ORG_B)));
+      assertNull(scheduleManager.getScheduleTask(other.getTaskId(), ORG_B));
+   }
+
+   @Test
    void setScheduleTask_siteAdminSavingTaskOfOtherOrg_isSaved() throws Exception {
       // a site admin working in org B keeps the owner of org B
       ScheduleTask task = newTask("ooNightly", BOB);

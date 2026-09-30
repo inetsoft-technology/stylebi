@@ -384,6 +384,9 @@ public class ScheduleService {
             "em.schedule.task.renameDependency", oldId));
       }
 
+      // Bug #77359, check the owner organization before the task is removed, a renamed task
+      // whose owner is in another organization is refused by setScheduleTask() and would be lost
+      scheduleManager.checkReplaceOwnerOrganization(oldId, newId, currTask, principal);
       scheduleManager.removeScheduleTask(oldId, principal);
       String newName = newId;
 
