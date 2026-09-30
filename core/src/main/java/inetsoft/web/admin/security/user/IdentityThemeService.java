@@ -17,6 +17,7 @@
  */
 package inetsoft.web.admin.security.user;
 
+import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.portal.CustomTheme;
 import inetsoft.sree.portal.CustomThemesManager;
 import inetsoft.sree.security.*;
@@ -194,47 +195,88 @@ public class IdentityThemeService {
     *                the user's organization is ignored.
     */
    public void updateUserTheme(String oldName, String name, String orgID, String ntheme) {
-      updateIdentityTheme(oldName, name, orgID, ntheme, CustomTheme::getUsers, theme -> true,
-                          "user");
+      assignIdentityTheme(oldName, name, orgID, ntheme, CustomTheme::getUsers, theme -> true,
+                          "user", false);
    }
 
    /**
-    * Renames a group or role in the themes that can refer to it and assigns it to the selected
-    * theme, with the same rules as {@link #updateUserTheme(String, String, String, String)}.
-    * Only the themes of the identity's organization are changed, see
-    * {@link CustomTheme#isIdentityOrganization(String)}.
+    * Renames a group in the themes that can refer to it and assigns it to the selected theme,
+    * with the same rules as {@link #updateUserTheme(String, String, String, String)}. Only the
+    * themes of the group's organization are changed, see
+    * {@link CustomTheme#isIdentityOrganization(String)}. Selecting the theme that the group is
+    * already assigned to, e.g. saving the editor without changing the theme, keeps the group's
+    * theme assignments unchanged.
     *
-    * @param oldName the old identity name.
-    * @param name    the new identity name.
-    * @param orgID   the organization of the identity, or <tt>null</tt> for a global identity
-    *                (e.g. a global role). A global identity is renamed in the themes of every
-    *                organization, but its theme is only selected among the themes that the
-    *                current organization can use, so selecting a theme does not remove the
-    *                identity from another organization's theme.
+    * @param oldName the old group name.
+    * @param name    the new group name.
+    * @param orgID   the organization of the group.
     * @param ntheme  the ID of the selected theme, an empty string or
     *                {@link CustomTheme#DEFAULT_THEME_ID} for the default theme, or
-    *                <tt>null</tt> to only rename the identity. A theme that cannot be assigned to
-    *                the identity's organization is ignored.
-    * @param fn      the function that gets the identity list of a theme.
+    *                <tt>null</tt> to only rename the group. A theme that cannot be assigned to
+    *                the group's organization is ignored.
     */
-   public void updateIdentityTheme(String oldName, String name, String orgID, String ntheme,
-                                   Function<CustomTheme, List<String>> fn)
+   public void updateGroupTheme(String oldName, String name, String orgID, String ntheme) {
+      assignIdentityTheme(oldName, name, orgID, ntheme, CustomTheme::getGroups, theme -> true,
+                          "group", true);
+   }
+
+   /**
+    * Renames a role in the themes that can refer to it and assigns it to the selected theme,
+    * with the same rules as {@link #updateUserTheme(String, String, String, String)}. Only the
+    * themes of the role's organization are changed, see
+    * {@link CustomTheme#isIdentityOrganization(String)}. Selecting the theme that the role is
+    * already assigned to, e.g. saving the editor without changing the theme, keeps the role's
+    * theme assignments unchanged.
+    * <p>
+    * A global role (<tt>orgID</tt> is <tt>null</tt>) is renamed in the themes of every
+    * organization, but its theme is only selected among the themes that the current
+    * organization can use, so selecting a theme does not remove the role from another
+    * organization's theme. In a multi-tenant environment a global theme applies to the users of
+    * every organization, so only a site administrator can assign a global role to a global theme
+    * or remove it from one; for other users the global themes are kept as they are.
+    *
+    * @param oldName   the old role name.
+    * @param name      the new role name.
+    * @param orgID     the organization of the role, or <tt>null</tt> for a global role.
+    * @param ntheme    the ID of the selected theme, an empty string or
+    *                  {@link CustomTheme#DEFAULT_THEME_ID} for the default theme, or
+    *                  <tt>null</tt> to only rename the role. A theme that cannot be assigned
+    *                  to the role is ignored.
+    * @param principal the user that saves the role.
+    */
+   public void updateRoleTheme(String oldName, String name, String orgID, String ntheme,
+                               Principal principal)
    {
       Predicate<CustomTheme> selectable = theme -> true;
 
       if(orgID == null) {
-         String currentOrgID = OrganizationManager.getInstance().getCurrentOrgID();
-         // same rule as getThemes(), the themes that can be selected in the current organization
-         selectable = theme -> Tool.isEmptyString(theme.getOrgID()) ||
-            Tool.equals(theme.getOrgID(), currentOrgID);
+         OrganizationManager orgManager = OrganizationManager.getInstance();
+         String currentOrgID = orgManager.getCurrentOrgID();
+         boolean globalSelectable = !SUtil.isMultiTenant() || orgManager.isSiteAdmin(principal);
+         // same rule as getThemes(), the themes that can be selected in the current organization,
+         // without the global themes (shared by every organization) unless allowed
+         selectable = theme -> Tool.isEmptyString(theme.getOrgID()) ?
+            globalSelectable : Tool.equals(theme.getOrgID(), currentOrgID);
       }
 
-      updateIdentityTheme(oldName, name, orgID, ntheme, fn, selectable, "identity");
+      assignIdentityTheme(oldName, name, orgID, ntheme, CustomTheme::getRoles, selectable, "role",
+                          true);
    }
 
-   private void updateIdentityTheme(String oldName, String name, String orgID, String ntheme,
+   /**
+    * Renames an identity in the themes of its organization and assigns it to the selected
+    * theme, removing it from the other selectable themes.
+    *
+    * @param selectable  the themes that can be selected. The other themes of the organization
+    *                    are only renamed.
+    * @param type        the identity type, for the log.
+    * @param keepCurrent <tt>true</tt> to only rename the identity when the selected theme is
+    *                    one that the identity is already assigned to.
+    */
+   private void assignIdentityTheme(String oldName, String name, String orgID, String ntheme,
                                     Function<CustomTheme, List<String>> fn,
-                                    Predicate<CustomTheme> selectable, String type)
+                                    Predicate<CustomTheme> selectable, String type,
+                                    boolean keepCurrent)
    {
       if(oldName == null || name == null) {
          return;
@@ -244,13 +286,28 @@ public class IdentityThemeService {
          // the default theme id selects the default theme like an empty string
          String selected = CustomTheme.isReservedId(ntheme) ? "" : ntheme;
 
-         if(!Tool.isEmptyString(selected) && themes.stream().noneMatch(
-            theme -> ntheme.equals(theme.getId()) && theme.isIdentityOrganization(orgID) &&
-               selectable.test(theme)))
-         {
-            LOG.warn("Ignoring theme {} for {} {} because it cannot be assigned to organization {}",
-                     ntheme, type, name, orgID);
-            selected = null;
+         if(!Tool.isEmptyString(selected)) {
+            // the theme that the identity is already assigned to, e.g. the value that the editor
+            // read back and sent unchanged
+            boolean current = themes.stream().anyMatch(
+               theme -> ntheme.equals(theme.getId()) && theme.isIdentityOrganization(orgID) &&
+                  fn.apply(theme).contains(oldName));
+
+            if(themes.stream().noneMatch(
+               theme -> ntheme.equals(theme.getId()) && theme.isIdentityOrganization(orgID) &&
+                  selectable.test(theme)))
+            {
+               if(!current) {
+                  LOG.warn("Ignoring theme {} for {} {} because it cannot be assigned to " +
+                           "organization {}", ntheme, type, name, orgID);
+               }
+
+               selected = null;
+            }
+            else if(current && keepCurrent) {
+               // selecting the current theme again only renames the identity
+               selected = null;
+            }
          }
 
          boolean changed = false;

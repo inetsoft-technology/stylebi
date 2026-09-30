@@ -364,6 +364,104 @@ class UserTreeServiceThemeUpdateTest {
          "another organization's theme cannot be selected");
    }
 
+   // under multi-tenancy a global theme applies to every organization, so an organization
+   // administrator can neither assign a global role to it nor remove the role from it
+   @Test
+   void editRole_globalRoleMultiTenantOrgAdmin_globalThemeKept() throws Exception {
+      sUtilStatic.when(SUtil::isMultiTenant).thenReturn(true);
+      when(orgManager.isSiteAdmin(any(Principal.class))).thenReturn(false);
+      CustomTheme aTheme = theme("aTheme", ORG);
+      aTheme.getRoles().clear();
+      CustomTheme globalTheme = theme("globalTheme", null);
+      CustomTheme otherGlobalTheme = theme("otherGlobalTheme", null);
+      otherGlobalTheme.getRoles().clear();
+      UserTreeService saveService = themeUpdateService(aTheme, globalTheme, otherGlobalTheme);
+      when(provider.getRole(new IdentityID("designer", null))).thenReturn(new FSRole(
+         new IdentityID("designer", null)));
+
+      // selecting an organization theme does not take the role out of the global theme
+      saveService.editRole(roleModel("designer", "designer", null, "aTheme"), "Primary",
+                           principal);
+      assertEquals(List.of("designer"), aTheme.getRoles());
+      assertEquals(List.of("designer"), globalTheme.getRoles(), "global theme must be kept");
+
+      // selecting a global theme is ignored
+      saveService.editRole(roleModel("designer", "designer", null, "otherGlobalTheme"),
+                           "Primary", principal);
+      assertEquals(List.of(), otherGlobalTheme.getRoles());
+      assertEquals(List.of("designer"), aTheme.getRoles());
+      assertEquals(List.of("designer"), globalTheme.getRoles());
+
+      // the default theme only clears the organization theme
+      saveService.editRole(roleModel("designer", "designer", null, ""), "Primary", principal);
+      assertEquals(List.of(), aTheme.getRoles());
+      assertEquals(List.of("designer"), globalTheme.getRoles());
+   }
+
+   // a save that sends back the theme the editor read (a global theme that the organization
+   // administrator cannot change) must not change any theme
+   @Test
+   void editRole_globalRoleMultiTenantOrgAdminEchoesGlobalTheme_noChange() throws Exception {
+      sUtilStatic.when(SUtil::isMultiTenant).thenReturn(true);
+      when(orgManager.isSiteAdmin(any(Principal.class))).thenReturn(false);
+      CustomTheme aTheme = theme("aTheme", ORG);
+      CustomTheme globalTheme = theme("globalTheme", null);
+      CustomThemesManager themesManager = mock(CustomThemesManager.class);
+      CustomThemesManagerMocks.applyUpdates(themesManager);
+      when(themesManager.getCustomThemes())
+         .thenReturn(new HashSet<>(Set.of(aTheme, globalTheme)));
+      IdentityThemeService echoService = new IdentityThemeService(themesManager);
+
+      echoService.updateRoleTheme("designer", "designer", null, "globalTheme", principal);
+      echoService.updateRoleTheme("designer", "designer", null, "aTheme", principal);
+
+      assertEquals(List.of("designer"), aTheme.getRoles());
+      assertEquals(List.of("designer"), globalTheme.getRoles());
+   }
+
+   // a site administrator can still assign a global role to a global theme under multi-tenancy
+   @Test
+   void editRole_globalRoleMultiTenantSiteAdmin_globalThemeAssigned() throws Exception {
+      sUtilStatic.when(SUtil::isMultiTenant).thenReturn(true);
+      when(orgManager.isSiteAdmin(any(Principal.class))).thenReturn(true);
+      CustomTheme aTheme = theme("aTheme", ORG);
+      CustomTheme globalTheme = theme("globalTheme", null);
+      globalTheme.getRoles().clear();
+      CustomTheme bTheme = theme("bTheme", "organizationB");
+      UserTreeService saveService = themeUpdateService(aTheme, globalTheme, bTheme);
+      when(provider.getRole(new IdentityID("designer", null))).thenReturn(new FSRole(
+         new IdentityID("designer", null)));
+
+      saveService.editRole(roleModel("designer", "designer", null, "globalTheme"), "Primary",
+                           principal);
+
+      assertEquals(List.of("designer"), globalTheme.getRoles());
+      assertEquals(List.of(), aTheme.getRoles());
+      assertEquals(List.of("designer"), bTheme.getRoles(), "org B's theme must be kept");
+
+      saveService.editRole(roleModel("designer", "designer", null, ""), "Primary", principal);
+
+      assertEquals(List.of(), globalTheme.getRoles());
+   }
+
+   // saving without changing the theme keeps every theme the group is assigned to
+   @Test
+   void editGroup_currentThemeSelected_otherAssignmentsKept() throws Exception {
+      CustomTheme aTheme = theme("aTheme", ORG);
+      aTheme.getGroups().add("sales");
+      CustomTheme bTheme = theme("bTheme", ORG);
+      bTheme.getGroups().add("sales");
+      UserTreeService saveService = themeUpdateService(aTheme, bTheme);
+      IdentityID pathGroup = new IdentityID("sales", ORG);
+      when(provider.getGroup(pathGroup)).thenReturn(new FSGroup(pathGroup));
+
+      saveService.editGroup("Primary", pathGroup, groupModel("sales", "sales", "aTheme"),
+                            principal);
+
+      assertEquals(List.of("sales"), aTheme.getGroups());
+      assertEquals(List.of("sales"), bTheme.getGroups());
+   }
+
    // the reported case: single-tenant, a group and a role of the default organization are
    // assigned a theme without an organization, and the editor reads the theme back
    @Test
