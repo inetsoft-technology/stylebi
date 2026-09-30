@@ -401,6 +401,27 @@ class UserSignupServiceTest {
             existing.getEmails());
       }
 
+      // Bug #77354: setUser now reports storage failures; the email append is best-effort and a
+      // failed save must not fail the SSO login
+      @Test
+      void autoRegisterUser_existingSsoUserSaveFails_doesNotThrow() {
+         EditableAuthenticationProvider provider = mock(EditableAuthenticationProvider.class);
+         FSUser existing = new FSUser(DEFAULT_ORG_USER);
+         existing.setGoogleSSOId(GOOGLE_USER_ID);
+         existing.setEmails(new String[] { "other@example.com" });
+
+         when(authenticationProviderService.getAuthenticationChain())
+            .thenReturn(Optional.of(authenticationChain));
+         when(authenticationChain.getProviders()).thenReturn(List.of(provider));
+         when(provider.getUsers()).thenReturn(new IdentityID[] { DEFAULT_ORG_USER });
+         when(provider.getUser(DEFAULT_ORG_USER)).thenReturn(existing);
+         doThrow(new RuntimeException("simulated write failure"))
+            .when(provider).setUser(eq(DEFAULT_ORG_USER), same(existing));
+
+         assertDoesNotThrow(() -> userSignupService.autoRegisterUser(GOOGLE_USER_ID, SIGNUP_EMAIL));
+         verify(provider).setUser(eq(DEFAULT_ORG_USER), same(existing));
+      }
+
       @Test
       void autoRegisterUser_noExistingUser_delegatesToCreateUser() {
          UserSignupService spyService = spy(userSignupService);
