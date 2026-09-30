@@ -233,6 +233,15 @@ public class WorksheetScriptEnv extends GraalJavaScriptEnv {
    }
 
    /**
+    * A lazy claim of its own, also inside another claim of this thread, never adopted by a
+    * query build (Testing #77123, cond-home): see {@link SlotClaim#acquireOwn}.
+    */
+   @Override
+   public ScriptSpan openOwnSpan() {
+      return SlotClaim.acquireOwn(pool);
+   }
+
+   /**
     * Claim a context now, eagerly, for a caller that must hold one across calls; only the
     * pool tests do. Production callers, the R connector among them, use the lazy
     * {@link #openSpan()} instead. Close it in a try-with-resources.

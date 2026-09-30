@@ -367,6 +367,13 @@ public class FormulaTableLens extends AbstractTableLens
       ScriptSpan span = ScriptSpan.NONE;
       // the home of this table's objects, which this batch's checkout prefers (Testing #77123)
       Object homeHint = TableRowScope.NO_HINT;
+      // whether a batch of this table that took a context of its own is open on this thread,
+      // read and restored under the lens lock
+      final boolean inOwnBatch = ownBatch;
+      // the span of that batch, restored with ownBatch
+      final ScriptSpan inOwnSpan = ownSpan;
+      // whether this batch took a context of its own (Testing #77123, cond-home)
+      boolean own = false;
       // set when this batch ends in a lock stall: the rows past the stall are not computed,
       // so the row table is not complete even if the base has no more rows (bug #77123)
       boolean stalled = false;
@@ -410,7 +417,24 @@ public class FormulaTableLens extends AbstractTableLens
          // batches share the claim. The batch's base rows were loaded before the lens lock
          // (finding F1), so a pooled formula base computed them under its own claim
          homeHint = tableRow == null ? TableRowScope.NO_HINT : tableRow.thisScope.preferHome();
-         span = senv == null ? ScriptSpan.NONE : senv.openSpan();
+         // a resident table, whose vars hold arrays or objects on a home, takes a context of
+         // its own for the batch, also inside another span of this thread (a condition
+         // filter's population, another table's batch, a query build): that context, the home
+         // of the objects, is given back at the batch end, while this thread may still hold
+         // the outer span, so a batch of this table on another thread, which holds this lens's
+         // lock, takes the home instead of losing the objects (Testing #77123, A1). A batch of
+         // a table that is not resident yet (its first one, or one of primitives or Dates
+         // only) shares the span it runs in, as a batch always did; if its vars hold objects
+         // at its end and that span outlives it, they are saved as a tree there instead of
+         // staying on the span's context (snapshotOwnedObjects). A batch nested in an own
+         // batch of this table re-enters that batch's span, also below a batch of another
+         // table nested in it (A -> B -> A): the objects live on its context
+         own = senv != null && !inOwnBatch && tableRow != null &&
+            tableRow.batchRows == target && tableRow.thisScope.takesOwnSpan();
+         span = senv == null ? ScriptSpan.NONE : own ? senv.openOwnSpan()
+            : inOwnBatch ? inOwnSpan.reenter() : senv.openSpan();
+         ownBatch = inOwnBatch || own;
+         ownSpan = own ? span : inOwnSpan;
 
          if(tableRow == null || tableRow.batchRows != target) {
             scripts = new Object[formulas.length];
@@ -579,7 +603,7 @@ public class FormulaTableLens extends AbstractTableLens
                // still on the slot this batch claimed, whatever ended the batch: a later batch
                // may run on another slot, which rebuilds a Date var from this snapshot
                else if(completedRow != null) {
-                  completedRow.thisScope.snapshotOwnedObjects(span);
+                  completedRow.thisScope.snapshotOwnedObjects(span, !own && !inOwnBatch);
                }
             }
             finally {
@@ -587,6 +611,8 @@ public class FormulaTableLens extends AbstractTableLens
                   span.close();
                }
                finally {
+                  ownBatch = inOwnBatch;
+                  ownSpan = inOwnSpan;
                   TableRowScope.restoreHome(homeHint);
                }
             }
@@ -1978,6 +2004,10 @@ public class FormulaTableLens extends AbstractTableLens
    private transient ReportSheet report;
    private transient ScriptEnv senv;
    private transient Object scope;
+   // set while a batch of this table that took a context of its own is open, under the lock
+   private transient boolean ownBatch;
+   // that batch's span, while ownBatch is set
+   private transient ScriptSpan ownSpan;
    // volatile: getObject reads it without the lock, and invalidate() publishes it without
    // the lock (bug #77243)
    private volatile XSwappableTable rows;

@@ -93,6 +93,88 @@ public final class SlotClaim implements ScriptSpan {
    }
 
    /**
+    * Open a lazy claim of its own on {@code pool} for one batch of a resident formula table,
+    * one whose vars hold arrays or objects on a home (Testing #77123, cond-home), also inside
+    * another claim of this thread (a condition filter's population, another table's batch, a
+    * query build's hold). The batch's context, the home of the table's objects, is then given
+    * back at the batch end, cleaned and idle, instead of staying held by the outer claim until
+    * that ends: a batch of the table on another thread, which holds the table's lock this
+    * batch held, takes the home or pulls from it rather than losing the objects (A1). Until
+    * this claim closes it is this thread's claim on {@code pool}: the scripts of the batch, and
+    * any span nested in it, re-enter it. Its close restores the outer claim, if any.
+    *
+    * <p>It is never adopted by a query build open on this thread (G10 piece Q): its release
+    * is its own batch end. So it takes no part in the build's amendments: its checkout syncs
+    * the env's variables once, as a batch outside a build does, and it cleans itself under
+    * the default delete cap. Never waits.
+    *
+    * <p>Semantics (B6, narrowed): the script globals of a context live per claimed span, and
+    * now also per batch of a resident table. Between the outer script (a condition value, a
+    * calc field, another table's batch) and a batch of a resident table nested in it, implicit
+    * globals ({@code g = 1}) and top-level {@code function} declarations are not shared, as
+    * they live on the context. The env's variables (parameters, the worksheet and viewsheet
+    * scopes, puts) are unaffected: the own claim's checkout brings its context up to them.
+    * With the pool off, and for tables that are not resident, they are shared as before.
+    */
+   static SlotClaim acquireOwn(SlotPool pool) {
+      Map<SlotPool, SlotClaim> claims = CLAIMS.get();
+
+      if(claims == null) {
+         if(!everClaimed) {
+            everClaimed = true;
+         }
+
+         claims = new IdentityHashMap<>();
+         CLAIMS.set(claims);
+      }
+
+      SlotClaim own = new SlotClaim(pool);
+      own.outer = claims.get(pool);
+      own.depth = 1;
+      claims.put(pool, own);
+      return own;
+   }
+
+   /**
+    * Re-enter this open claim (Testing #77123, cond-home, review finding 4). If another claim
+    * of this thread replaced it on the pool since (a claim of its own of another table's batch
+    * nested in the batch that opened this one), this claim is the thread's claim again until
+    * the re-entry closes, which then restores that other claim. Never waits.
+    */
+   @Override
+   public ScriptSpan reenter() {
+      if(Thread.currentThread() != owner) {
+         throw new IllegalStateException(
+            "A worksheet script claim must be re-entered by the thread that opened it");
+      }
+
+      Map<SlotPool, SlotClaim> claims = CLAIMS.get();
+
+      if(depth <= 0 || claims == null) {
+         // closed: nothing to re-enter, a plain span of the thread
+         return acquire(pool, true);
+      }
+
+      SlotClaim current = claims.get(pool);
+
+      if(current != this) {
+         if(displaced == null) {
+            displaced = new ArrayDeque<>();
+         }
+
+         displaced.push(new Displaced(current, depth));
+         claims.put(pool, this);
+      }
+
+      depth++;
+      return this;
+   }
+
+   // a claim a re-entry replaced as the thread's claim, and this claim's depth before it
+   private record Displaced(SlotClaim claim, int depth) {
+   }
+
+   /**
     * @return this thread's open claim on {@code pool}, or {@code null}.
     */
    static SlotClaim current(SlotPool pool) {
@@ -127,10 +209,12 @@ public final class SlotClaim implements ScriptSpan {
     *    </li>
     *    <li>brings it up to the env's variables, which another thread may have set after the
     *    build's first script (amendment 2). It does so at every script call of the build,
-    *    inside a span too: a formula table batch or condition filter run in a build can see
-    *    a variable another thread set between two of its rows, as with the pool off, where
-    *    a batch outside a build sees the variables of its checkout for the whole batch.
-    *    Owner only, never waits; one version compare when nothing changed.</li>
+    *    inside a span that re-enters the build's claim too: a condition filter, or a batch
+    *    of a formula table that is not resident, run in a build can see a variable another
+    *    thread set between two of its rows. A batch of a resident table runs on a claim of
+    *    its own ({@link #acquireOwn}), which is not a build claim: it sees the variables of
+    *    its own checkout for the whole batch, as a batch outside a build does. Owner only,
+    *    never waits; one version compare when nothing changed.</li>
     * </ul>
     * A retire of the env during the build dooms the slot but does not swap it: the build ends
     * on the context it started on, as a batch claim does, and its release closes it
@@ -140,6 +224,14 @@ public final class SlotClaim implements ScriptSpan {
       Slot held = slot;
 
       if(held == null || !build) {
+         // a batch nested in this claim ran on a claim of its own (acquireOwn, reenter) and
+         // may have set a variable of the env there: bring this claim's context up to it
+         // once, as the shared context did before (Testing #77123, cond-home)
+         if(held != null && resync) {
+            resync = false;
+            held.resync(state.snapshot(), sql);
+         }
+
          return slot();
       }
 
@@ -278,6 +370,14 @@ public final class SlotClaim implements ScriptSpan {
     * build keeps this claim; its next script checks out a context again, the table's next
     * batch its home if still idle. Only builds that run batches of tables with object vars
     * pay this, one clean per such unit, as without a build. hasTenants is a leaf monitor.
+    *
+    * Since cond-home (Testing #77123) this is the path of a table's batch that becomes
+    * resident at the build's top level ({@link #buildTop}): it enrolls the build's slot as its
+    * home, as a top-level batch without a build does, and this gives the home back at the
+    * batch end. A resident table's later batches run on claims of their own (acquireOwn),
+    * never adopted, and a batch that becomes resident nested deeper (a condition filter's
+    * population, another table's batch) saves its objects as a tree. One hasTenants check
+    * per unit.
     */
    private void giveBackHome() {
       Slot held = slot;
@@ -316,6 +416,16 @@ public final class SlotClaim implements ScriptSpan {
 
    int depth() {
       return depth;
+   }
+
+   /**
+    * @return {@code true} if this is a query build's claim at its top level plus one: a
+    *         script, batch or span the build runs directly, whose close (2 to 1) gives a
+    *         formula table's home back ({@link #giveBackHome}) exactly where a claim without a
+    *         build is released (Testing #77123, cond-home round 3).
+    */
+   boolean buildTop() {
+      return build && depth == 2;
    }
 
    SlotPool pool() {
@@ -383,6 +493,19 @@ public final class SlotClaim implements ScriptSpan {
       }
 
       if(--depth > 0) {
+         // the end of a re-entry: the claim it replaced is the thread's claim again
+         if(displaced != null && !displaced.isEmpty() && displaced.peek().depth() == depth) {
+            Displaced d = displaced.pop();
+            Map<SlotPool, SlotClaim> claims = CLAIMS.get();
+
+            if(claims != null && d.claim() != null) {
+               claims.put(pool, d.claim());
+               d.claim().resync = true;
+            }
+
+            return;
+         }
+
          // back at the build's own hold, on a formula table's home
          if(depth == 1 && build && slot != null && slot.hasTenants()) {
             giveBackHome();
@@ -394,13 +517,21 @@ public final class SlotClaim implements ScriptSpan {
       Map<SlotPool, SlotClaim> claims = CLAIMS.get();
 
       if(claims != null) {
-         claims.remove(pool);
+         // a claim of its own (acquireOwn) gives the thread's claim back to its outer one
+         if(outer != null) {
+            claims.put(pool, outer);
+            outer.resync = true;
+         }
+         else {
+            claims.remove(pool);
 
-         if(claims.isEmpty()) {
-            CLAIMS.remove();
+            if(claims.isEmpty()) {
+               CLAIMS.remove();
+            }
          }
       }
 
+      outer = null;
       Slot held = slot;
       slot = null;
 
@@ -447,7 +578,38 @@ public final class SlotClaim implements ScriptSpan {
 
       CLAIMS.remove();
 
-      for(SlotClaim claim : new ArrayList<>(claims.values())) {
+      List<SlotClaim> open = new ArrayList<>();
+
+      // with the outer claims a claim of its own (acquireOwn) left open had replaced, and the
+      // claims a re-entry replaced
+      Set<SlotClaim> seen = Collections.newSetFromMap(new IdentityHashMap<>());
+      Deque<SlotClaim> todo = new ArrayDeque<>(claims.values());
+
+      while(!todo.isEmpty()) {
+         SlotClaim c = todo.pop();
+
+         if(!seen.add(c)) {
+            continue;
+         }
+
+         open.add(c);
+
+         if(c.outer != null) {
+            todo.push(c.outer);
+         }
+
+         if(c.displaced != null) {
+            for(Displaced d : c.displaced) {
+               if(d.claim() != null) {
+                  todo.push(d.claim());
+               }
+            }
+         }
+      }
+
+      for(SlotClaim claim : open) {
+         claim.outer = null;
+         claim.displaced = null;
          LOG.warn("A worksheet script claim was left open at the end of {} (depth {}); " +
                   "releasing it", where, claim.depth);
          PoolMetrics.leakedClaim();
@@ -482,6 +644,12 @@ public final class SlotClaim implements ScriptSpan {
    private boolean build;
    // the build's top-level scripts, batches and spans on this claim (amendment 3)
    private int units;
+   // the claim a claim of its own (acquireOwn) replaced on this thread until it closes
+   private SlotClaim outer;
+   // the claims re-entries of this claim replaced on this thread, innermost first (reenter)
+   private Deque<Displaced> displaced;
+   // set when a claim that replaced this one closed: its next script syncs the env's vars
+   private boolean resync;
 
    private static final Logger LOG = LoggerFactory.getLogger(SlotClaim.class);
 }

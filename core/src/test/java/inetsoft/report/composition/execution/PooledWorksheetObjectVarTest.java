@@ -90,8 +90,10 @@ class PooledWorksheetObjectVarTest {
 
    /**
     * F1 probe: a post condition over the formula column, read in 100-row pages. Pool on gives
-    * the pool-off rows, with no tree snapshot at all (on the design as first proposed, one per
-    * page).
+    * the pool-off rows, with no tree snapshot per page (on the design as first proposed, one
+    * per page): the table's first batch, at the query build's top level, makes the build's
+    * slot the home, which the build gives back at the batch end, so no tree is taken
+    * (Testing #77123, cond-home, round 3); every later batch runs on a claim of its own.
     */
    @ParameterizedTest(name = "{0}")
    @ValueSource(strings = { "grow", "cache10" })
@@ -110,7 +112,7 @@ class PooledWorksheetObjectVarTest {
          assertEquals(id, on[id], "id " + id);
       }
 
-      assertEquals(0, handOffs[0], "no snapshot per page");
+      assertEquals(0, handOffs[0], "no tree, not one per page");
    }
 
    private double[] run(boolean pool, String formula, long[] handOffs) throws Exception {

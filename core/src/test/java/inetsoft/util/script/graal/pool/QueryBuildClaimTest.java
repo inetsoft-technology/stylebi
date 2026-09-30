@@ -528,6 +528,130 @@ class QueryBuildClaimTest {
       assertEquals(3, env.getMetrics().getCleans());
    }
 
+   /**
+    * cond-home (Testing #77123, review finding 2a): a claim of its own, for a resident
+    * formula table's batch, is never adopted by the build open on the thread, whether or not
+    * the build already holds a claim. Its scripts, and a span nested in it, run on its own
+    * context, which is cleaned and given back when it closes, while the build's claim, if
+    * any, is restored and keeps its context until the build ends.
+    */
+   @Test
+   void aClaimOfItsOwnIsNeverAdoptedByTheBuild() throws Exception {
+      try(SlotClaim.Build ignored = SlotClaim.openBuild()) {
+         // no outer claim yet: a build would adopt a plain claim opened here
+         Slot own;
+
+         try(ScriptSpan batch = env.openOwnSpan()) {
+            assertEquals(2.0, run(env, "1 + 1"));
+            own = SlotClaim.current(env.pool()).peekSlot();
+
+            try(ScriptSpan nested = env.openSpan()) {
+               assertSame(batch, nested, "a nested span re-enters the own claim");
+               assertEquals(3.0, run(env, "1 + 2"));
+               assertSame(own, SlotClaim.current(env.pool()).peekSlot());
+            }
+         }
+
+         assertNull(SlotClaim.current(env.pool()), "the build adopted the own claim");
+         assertEquals(1, env.getMetrics().getCleans(), "the own claim was not released");
+         assertIdle(own);
+
+         // with the build's claim open: replaced for the own claim, then restored
+         run(env, "b = 1");
+         SlotClaim build = SlotClaim.current(env.pool());
+         Slot held = build.peekSlot();
+
+         try(ScriptSpan batch = env.openOwnSpan()) {
+            assertNotSame(build, SlotClaim.current(env.pool()));
+            assertEquals("undefined", run(env, "typeof b"), "an own batch shares no global");
+            assertNotSame(held, SlotClaim.current(env.pool()).peekSlot());
+         }
+
+         assertSame(build, SlotClaim.current(env.pool()), "the build's claim was not restored");
+         assertSame(held, build.peekSlot());
+         assertEquals(1.0, ((Number) run(env, "b")).doubleValue());
+         assertEquals(2, env.getMetrics().getCleans());
+      }
+
+      assertEquals(0, env.getMetrics().getBuildYields());
+      assertEquals(3, env.getMetrics().getCleans());
+      assertEquals(0, SlotClaim.openClaims());
+   }
+
+   /**
+    * cond-home (review finding 4): a re-entry of an own claim below another own claim runs
+    * on the first one's context and, when it closes, gives the thread's claim back to the
+    * other one.
+    */
+   @Test
+   void aReentryOfAnOwnClaimBelowAnotherRestoresIt() throws Exception {
+      try(ScriptSpan a = env.openOwnSpan()) {
+         run(env, "ga = 1");
+         Slot slotA = SlotClaim.current(env.pool()).peekSlot();
+
+         try(ScriptSpan b = env.openOwnSpan()) {
+            run(env, "gb = 1");
+
+            try(ScriptSpan again = a.reenter()) {
+               assertSame(a, SlotClaim.current(env.pool()));
+               assertSame(slotA, SlotClaim.current(env.pool()).peekSlot());
+               assertEquals(1.0, ((Number) run(env, "ga")).doubleValue());
+
+               try(ScriptSpan nested = env.openSpan()) {
+                  assertSame(a, nested);
+               }
+
+               assertSame(a, SlotClaim.current(env.pool()));
+            }
+
+            assertSame(b, SlotClaim.current(env.pool()), "b was not restored");
+            assertEquals(1.0, ((Number) run(env, "gb")).doubleValue());
+         }
+
+         assertSame(a, SlotClaim.current(env.pool()));
+      }
+
+      assertEquals(0, SlotClaim.openClaims());
+      assertEquals(2, env.getMetrics().getCleans());
+   }
+
+   /**
+    * cond-home (tester's finding): a variable of the env set while a claim of its own ran,
+    * inside another claim of the thread (a formula calls back into the env), is seen by the
+    * outer claim's next script, as when the batch shared the outer context.
+    */
+   @Test
+   void aVariableSetDuringAnOwnClaimIsSeenByTheOuterClaim() throws Exception {
+      try(ScriptSpan outer = env.openSpan()) {
+         assertEquals(1.0, run(env, "1"));
+
+         try(ScriptSpan own = env.openOwnSpan()) {
+            assertEquals(2.0, run(env, "2"));
+            env.put("p2", 7);
+         }
+
+         assertEquals(7, ((Number) run(env, "p2")).intValue());
+      }
+   }
+
+   /**
+    * cond-home: a claim of its own left open (a bug) is released by releaseLeaked together
+    * with the claim it replaced.
+    */
+   @Test
+   void aLeakedClaimOfItsOwnReleasesTheClaimItReplaced() throws Exception {
+      ScriptSpan outer = env.openSpan();
+      run(env, "1");
+      ScriptSpan own = env.openOwnSpan();
+      run(env, "2");
+      assertEquals(1, SlotClaim.openClaims());
+      SlotClaim.releaseLeaked("test");
+      assertEquals(0, SlotClaim.openClaims());
+      assertEquals(2, env.getMetrics().getCleans(), "both contexts released");
+      assertNotNull(outer);
+      assertNotNull(own);
+   }
+
    // another thread can take the slot now, without waiting
    private void assertIdle(Slot slot) throws Exception {
       assertTrue(executor.submit(slot::tryAcquire).get(10, TimeUnit.SECONDS), "still held");

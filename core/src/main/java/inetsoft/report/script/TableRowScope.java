@@ -111,9 +111,25 @@ public class TableRowScope implements DynamicScope, ScriptArrayScope, OwnedVarSc
     *    for this table, and this table's next batch prefers it. The objects are saved as one
     *    tree, Dates included (A8), only at a hand-off: a batch on another context pulls them
     *    from the idle home, or the pool closes, expires or takes over the home.</li>
+    *    <li>A batch that shares a span which stays open after it ({@code shared}, and {@link
+    *    OwnedValueCodec#outlives}: a condition filter's population, another table's batch, a
+    *    span nested in a query build's script) does not make its slot a home: the thread holds that slot until the
+    *    outer span ends, while another thread's batch of this table may need the objects
+    *    (Testing #77123, cond-home, A1). The objects are saved as one tree there instead, as
+    *    at a hand-off, and the next batch rebuilds them on its context. Only a table's batch
+    *    that is not resident yet at its start shares a span (its first one, or the one that
+    *    makes a table of primitives or Dates resident): the batches of a resident table take
+    *    a context of their own, which is given back, as the home, at their end. If that tree
+    *    would lose a value to the hand-off budget (the entry cap or the time bound), the slot
+    *    is made the home instead, as before cond-home, and the table's later batches share
+    *    the span they run in (round 3): the value stays live on the thread's context, and a
+    *    batch on another thread loses it at a hand-off, as such a value always did (A6).</li>
     * </ul>
+    *
+    * @param shared {@code true} if the batch ran on the span of its thread, not on a claim of
+    *               its own, nor nested in a batch of this table that has one.
     */
-   public void snapshotOwnedObjects(ScriptSpan span) {
+   public void snapshotOwnedObjects(ScriptSpan span, boolean shared) {
       if(!hasObjects) {
          return;
       }
@@ -124,11 +140,67 @@ public class TableRowScope implements DynamicScope, ScriptArrayScope, OwnedVarSc
 
       if(resident) {
          try {
-            enrollHome(span);
+            if(shared && !spanHome && OwnedValueCodec.outlives(span)) {
+               parkShared(span);
+            }
+            else {
+               enrollHome(span);
+            }
          }
          catch(RuntimeException ex) {
             LOG.debug("Failed to keep the script objects of formula variables", ex);
          }
+      }
+   }
+
+   /**
+    * @return {@code true} once an owned var held an array or an object that is not a Date, so
+    * that this table keeps its objects on a home (B1 residual part 2): its batches then take a
+    * context of their own (Testing #77123, cond-home), unless its objects are too big to save
+    * as a tree at a batch end (round 3, {@link #snapshotOwnedObjects}).
+    */
+   public boolean takesOwnSpan() {
+      return resident && !spanHome;
+   }
+
+   // a batch end on a span that outlives the batch: save the objects of its context as a tree
+   private void parkShared(ScriptSpan span) {
+      OwnedValueCodec codec = OwnedValueCodec.forSpan(span);
+
+      if(codec == null) {
+         // no slot claimed (no formula ran), or a closed one, whose objects are lost
+         Context context = OwnedValueCodec.claimedContext(span);
+
+         if(context != null) {
+            for(Object o : valmap.entrySet()) {
+               @SuppressWarnings("unchecked")
+               Map.Entry<Object, Object> e = (Map.Entry<Object, Object>) o;
+
+               if(e.getValue() instanceof Value v && owned.contains(e.getKey()) &&
+                  isOf(v, context))
+               {
+                  e.setValue(OwnedValueCodec.UNREADABLE);
+                  snapshots.remove(e.getKey());
+               }
+            }
+         }
+
+         return;
+      }
+
+      // a value too big for the budget stays live on this context, which becomes the home as
+      // on a span that does not outlive the batch; so do the table's later batches (round 3)
+      if(!park(codec, true)) {
+         spanHome = true;
+         enrollHome(span);
+         return;
+      }
+
+      // this context is not a home of this table any more, if it was
+      OwnedValueCodec.Home home = homes.remove(codec.context());
+
+      if(home != null) {
+         OwnedValueCodec.leave(home, this);
       }
    }
 
@@ -288,6 +360,12 @@ public class TableRowScope implements DynamicScope, ScriptArrayScope, OwnedVarSc
    // save the objects of codec's context as one tree: each var then holds its tree root, or
    // the Lost of what it held that is not kept (A3: only that var)
    private void park(OwnedValueCodec codec) {
+      park(codec, false);
+   }
+
+   // keepOnBudget: if a value would be lost to the hand-off budget, change nothing and
+   // return false; the objects stay live on codec's context
+   private boolean park(OwnedValueCodec codec, boolean keepOnBudget) {
       Context context = codec.context();
       List<String> names = new ArrayList<>();
       List<Value> values = new ArrayList<>();
@@ -304,10 +382,16 @@ public class TableRowScope implements DynamicScope, ScriptArrayScope, OwnedVarSc
 
       Object[] nodes = codec.snapshotTree(values);
 
+      if(keepOnBudget && Arrays.stream(nodes).anyMatch(OwnedValueCodec::overBudget)) {
+         return false;
+      }
+
       for(int i = 0; i < nodes.length; i++) {
          valmap.put(names.get(i), nodes[i]);
          snapshots.remove(names.get(i));
       }
+
+      return true;
    }
 
    // mark every owned var holding an object of context (or one whose context cannot be
@@ -355,6 +439,7 @@ public class TableRowScope implements DynamicScope, ScriptArrayScope, OwnedVarSc
       snapshots.clear();
       hasObjects = false;
       resident = false;
+      spanHome = false;
 
       for(OwnedValueCodec.Home home : homes.values()) {
          try {
@@ -662,6 +747,10 @@ public class TableRowScope implements DynamicScope, ScriptArrayScope, OwnedVarSc
    // set once an owned var held a script object that is not a Date (B1 residual part 2):
    // its objects live on homes, one per context they are on; confined like valmap
    private boolean resident;
+   // set when a batch end on a span that outlives the batch could not save a value within the
+   // hand-off budget: the table's objects stay on the span's context, its batches share the
+   // span (Testing #77123, cond-home round 3). Under the lens lock
+   private boolean spanHome;
    private final HashMap<Context, OwnedValueCodec.Home> homes = new HashMap<>();
    // set while this scope moves its own objects, so a hand-off re-entered on its thread
    // refuses (returns false) instead of saving them under the move

@@ -132,23 +132,25 @@ class PooledQueryBuildClaimTest {
    }
 
    /**
-    * Round 2: with an object var (a resident table), each batch of the table at the build's
-    * top level ends the build's hold (one clean each, as on main, for that table only); the
-    * rows stay exact and match the pool off.
+    * With an object var (a resident table): the table's first batch, at the build's top
+    * level, makes the build's slot the home, and the build gives it back at that batch's end
+    * (one yield, G10 piece Q); each later batch runs on a claim of its own, which the build
+    * does not adopt and which is given back as the home at the batch end (Testing #77123,
+    * cond-home, round 3). The rows stay exact and match the pool off.
     */
    @Test
-   void aBuildWithAnObjectVarTableYieldsAtItsBatches() throws Exception {
+   void aBuildWithAnObjectVarTableRunsItsLaterBatchesOnClaimsOfTheirOwn() throws Exception {
       AssetQuerySandbox box = sandbox(true, mirrorWorksheet(ROWS, true));
       WorksheetScriptEnv env = (WorksheetScriptEnv) box.getScriptEnv();
       TableLens m = box.getTableLens("M", AssetQuerySandbox.RUNTIME_MODE);
-      long yields = env.getMetrics().getBuildYields();
       long build = env.getMetrics().getCheckouts();
       List<List<Object>> rows = drain(m);
-      System.out.println("G10Q object-var build claims " + build + ", yields " + yields +
-                         ", cleans after the full read " + env.getMetrics().getCleans());
+      System.out.println("G10Q object-var build claims " + build + ", claims after the " +
+                         "full read " + env.getMetrics().getCheckouts() + ", cleans " +
+                         env.getMetrics().getCleans());
 
-      assertTrue(yields > 0, "no batch of the resident table yielded");
-      assertEquals(build, yields + 1, "claims of the build: one, plus one per yield");
+      assertEquals(1, env.getMetrics().getBuildYields(), "the build gave its slot back once");
+      assertTrue(env.getMetrics().getCheckouts() > build, "no batch took a claim of its own");
       assertEquals(ROWS, rows.size() - 1);
       assertRowsExact(rows);
       assertEquals(drain(sandbox(false, mirrorWorksheet(ROWS, true))
@@ -168,11 +170,11 @@ class PooledQueryBuildClaimTest {
    }
 
    /**
-    * Residency: the formula batches a build runs are nested in its claim, so the table's
-    * array lives on the build's context (its home) with no snapshot at those batch ends
-    * (amendment A1). A later build whose first script is not a batch of the table runs the
-    * batch on another context and pulls the array from the idle home once; every row is
-    * exact throughout.
+    * Residency (Testing #77123, cond-home): the table's first batch runs at the build's top
+    * level, so its slot becomes the home and the build gives it back at the batch end, with
+    * no tree (round 3: a tree there cost every build a second context). Every later batch of the resident table takes a claim of its own,
+    * the idle home at its end: also in a later build whose first script is not a batch of
+    * the table, it takes the home and needs no pull. Every row is exact throughout.
     */
    @Test
    void aTableBatchInsideABuildKeepsItsObjectVarsExact() throws Exception {
@@ -183,7 +185,8 @@ class PooledQueryBuildClaimTest {
       AssetQuerySandbox box = sandbox(true, ws);
       WorksheetScriptEnv env = (WorksheetScriptEnv) box.getScriptEnv();
       TableLens t = box.getTableLens("A", AssetQuerySandbox.RUNTIME_MODE);
-      assertEquals(0, PoolTestSupport.metric(env, "HandOffs"), "a snapshot in the build");
+      assertEquals(0, PoolTestSupport.metric(env, "HandOffs"), "no tree at the build's top");
+      assertEquals(1, env.getMetrics().getBuildYields(), "the home given back");
       int cid = col(t, "id");
       int cout = col(t, "out");
       readPages(t, cid, cout, 1, 1000);
@@ -193,7 +196,7 @@ class PooledQueryBuildClaimTest {
          // the build's first script is no batch of the table: its context is not the home
          assertEquals(2.0, env.exec(env.compile("1 + 1"), null, null, null));
          readPages(t, cid, cout, 1001, 2000);
-         assertEquals(pulls + 1, PoolTestSupport.metric(env, "Pulls"), "pulls in the build");
+         assertEquals(pulls, PoolTestSupport.metric(env, "Pulls"), "pulls in the build");
       }
 
       readPages(t, cid, cout, 2001, rows);
@@ -205,8 +208,11 @@ class PooledQueryBuildClaimTest {
     * same lens. The batch at the build's top level ends the build's hold on its context, so
     * the home is idle and the other thread pulls the array: every row exact, as with the pool
     * off, and no second context (round 1: the build held the home, the other thread read the
-    * array as undefined, row 5001 = 3938). Also with the first batch nested in an outer span
-    * of the build (a condition filter, another table's batch): the hold ends with that span.
+    * array as undefined, row 5001 = 3938). Also with the read in an outer span of the build
+    * (a condition filter, another table's batch). The lens's first batch runs at the build's
+    * top level, so the build gives its slot back as the home there (one yield); the other
+    * thread's batch runs on a claim of its own and takes the idle home (Testing #77123,
+    * cond-home, round 3).
     */
    @ParameterizedTest
    @ValueSource(booleans = { false, true })
@@ -243,8 +249,7 @@ class PooledQueryBuildClaimTest {
                assertEquals(5100.0, num(t.getObject(5100, cid)));
 
                if(box.getScriptEnv() instanceof WorksheetScriptEnv env) {
-                  assertEquals(1, env.getMetrics().getSize(), "a second context");
-                  assertTrue(env.getMetrics().getBuildYields() > 0, "no yield");
+                  assertEquals(1, env.getMetrics().getBuildYields(), "yields");
                }
             }
 

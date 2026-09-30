@@ -73,6 +73,18 @@ public final class OwnedValueCodec {
    }
 
    /**
+    * @return {@code true} if {@code span} is a pooled claim that stays open on its thread after
+    *         {@code span} closes: it re-entered an outer span of the thread (a condition
+    *         filter's population, another table's batch) or a query build holds it (Testing
+    *         #77123, cond-home). Its slot is then not given back at the end of the batch that
+    *         opened {@code span}. A span at a query build's top level does not outlive its
+    *         batch: the build gives the home back at the batch end (round 3).
+    */
+   public static boolean outlives(ScriptSpan span) {
+      return span instanceof SlotClaim claim && claim.depth() > 1 && !claim.buildTop();
+   }
+
+   /**
     * @return the codec of the pooled context executing on this thread, or {@code null}.
     */
    public static OwnedValueCodec current() {
@@ -452,13 +464,14 @@ public final class OwnedValueCodec {
 
          for(int i = 0; i < nodes.length; i++) {
             String kind = failed.get(i);
-            nodes[i] = kind != null ? new Lost(kind) : new TreeRef(tree, i, drops.get(i));
+            nodes[i] = kind != null ? new Lost(kind, isBudgetKind(kind))
+               : new TreeRef(tree, i, drops.get(i));
          }
       }
       catch(PolyglotException ex) {
          Arrays.fill(nodes, ex.isInterrupted() || ex.isCancelled()
             ? new Lost("a value that took longer than " + config.handOffMillis() +
-                       " ms to save") : UNREADABLE);
+                       " ms to save", true) : UNREADABLE);
       }
       catch(RuntimeException ex) {
          Arrays.fill(nodes, UNREADABLE);
@@ -573,7 +586,12 @@ public final class OwnedValueCodec {
    /** A value that is not kept across contexts, e.g. an array. */
    public static final class Lost {
       Lost(String kind) {
+         this(kind, false);
+      }
+
+      Lost(String kind, boolean budget) {
          this.kind = kind;
+         this.budget = budget;
       }
 
       /** @return what the value was, with its article ("an array", "a function"). */
@@ -581,7 +599,32 @@ public final class OwnedValueCodec {
          return kind;
       }
 
+      /**
+       * @return {@code true} if the value was lost to the hand-off budget (the entry cap, the
+       *         marking budget or the time bound), not for what it is: it stays usable on its
+       *         own context (Testing #77123, cond-home round 3).
+       */
+      public boolean overBudget() {
+         return budget;
+      }
+
       private final String kind;
+      private final boolean budget;
+   }
+
+   /**
+    * @return {@code true} if {@code node}, a snapshot node, is a value lost to the hand-off
+    *         budget ({@link Lost#overBudget}).
+    */
+   public static boolean overBudget(Object node) {
+      return node instanceof Lost lost && lost.overBudget();
+   }
+
+   // the kinds owned-cloner.js reports past its budget (stopHard: TIME, the entry cap, MARKS)
+   private static boolean isBudgetKind(String kind) {
+      return kind.startsWith("a value that took longer than ") ||
+         kind.startsWith("a value with more than ") ||
+         kind.startsWith("a value that could not be checked for an object shared with a ");
    }
 
    /** The node of an object that inherits Date.prototype without being a Date. */
