@@ -35,6 +35,7 @@ import java.util.*;
  */
 public class ExtendedDecimalFormat extends DecimalFormat {
    public static final String AUTO_FORMAT = "#.#B";
+   private static final String DEFAULT_PATTERN = "#,##0.###";
 
    /**
     * Create an empty format. The format pattern must be set before it's used.
@@ -134,6 +135,12 @@ public class ExtendedDecimalFormat extends DecimalFormat {
                this.symbol = last;
             }
          }
+      }
+
+      // an empty pattern (e.g. the pattern was only a K/M/B suffix) leaves DecimalFormat with
+      // unlimited integer/fraction digits, and toPattern() would then exhaust the heap
+      if(pattern != null && pattern.isEmpty()) {
+         pattern = DEFAULT_PATTERN;
       }
 
       super.applyPattern(pattern);
