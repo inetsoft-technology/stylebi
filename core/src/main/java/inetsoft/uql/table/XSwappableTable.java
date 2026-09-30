@@ -1290,7 +1290,10 @@ public class XSwappableTable implements XTable, Externalizable {
    private Object[] headers; // header row
    private Map<TableDataPath, XMetaInfo> mmap = null; // meta info table
    private transient volatile Thread producer; // the thread adding the rows, if known
-   private boolean completed = false; // data fully loaded
+   // data fully loaded. volatile: moreRows() reads it without rlock, and a reader that sees
+   // the table complete must also see all of its rows, and anything written before the table
+   // was completed (bug #77364)
+   private volatile boolean completed = false;
    private boolean disposed = false; // table disposed
    private String[] paths;
    private XIdentifierContainer identifiers = null; // identifier container
