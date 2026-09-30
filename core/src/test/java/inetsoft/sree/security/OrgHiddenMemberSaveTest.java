@@ -120,10 +120,11 @@ class OrgHiddenMemberSaveTest {
       SRPrincipal orgAdmin = loginAs(ORG_ADMIN);
       assertTrue(OrganizationManager.getInstance().isSiteAdmin(SITE_ADMIN),
                  "precondition: siteAdmin must be a site admin");
-      assertTrue(SecurityEngine.getSecurity().getSecurityProvider().checkPermission(
-                    orgAdmin, ResourceType.SECURITY_USER, SITE_ADMIN.convertToKey(),
-                    ResourceAction.ADMIN),
-                 "precondition: the Users root grant gives the org admin ADMIN on the site admin");
+      // Bug #77347, the Users root grant doesn't reach a site admin, only site admins do
+      assertFalse(SecurityEngine.getSecurity().getSecurityProvider().checkPermission(
+                     orgAdmin, ResourceType.SECURITY_USER, SITE_ADMIN.convertToKey(),
+                     ResourceAction.ADMIN),
+                  "precondition: the Users root grant gives the org admin no ADMIN on the site admin");
       assertTrue(identityService.isOrgMemberHiddenFrom(SITE_ADMIN, orgAdmin),
                  "a site admin member must be hidden from an org admin");
       assertFalse(identityService.isOrgMemberHiddenFrom(PLAIN, orgAdmin),
