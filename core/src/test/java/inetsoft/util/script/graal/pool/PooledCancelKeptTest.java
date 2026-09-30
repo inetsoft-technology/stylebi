@@ -21,6 +21,8 @@ import org.junit.jupiter.api.*;
 
 import java.time.Duration;
 import java.util.*;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -148,6 +150,64 @@ class PooledCancelKeptTest {
          assertEquals("undefined", PoolTestSupport.run(env, "typeof u"));
       }
       finally {
+         env.retire();
+      }
+   }
+
+   /**
+    * A host object whose call signals entry, then stays out of guest code until the calling
+    * thread is interrupted (at most 10 s), so a cancel lands after the script's last guest
+    * safepoint, deterministically.
+    */
+   public static final class Spinner {
+      public int spin() {
+         entered.countDown();
+         long end = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+
+         while(!Thread.currentThread().isInterrupted() && System.nanoTime() - end < 0) {
+            Thread.onSpinWait();
+         }
+
+         return 1;
+      }
+
+      final CountDownLatch entered = new CountDownLatch(1);
+   }
+
+   /**
+    * CX2 as it happens in a run: another thread cancels the pooled exec while it is in a host
+    * call past its last guest safepoint. The script completes, and the cancel must still be
+    * set on the thread after the claim's release (whose clean runs JS).
+    */
+   @Test
+   void aCancelDuringAPooledScriptIsKept() throws Exception {
+      WorksheetScriptEnv env = PoolTestSupport.env();
+      Spinner spinner = new Spinner();
+      Thread self = Thread.currentThread();
+      Thread canceller = new Thread(() -> {
+         try {
+            if(spinner.entered.await(30, TimeUnit.SECONDS)) {
+               self.interrupt();
+            }
+         }
+         catch(InterruptedException ignore) {
+            // the test ends
+         }
+      }, "pooled-cancel-canceller");
+
+      try {
+         env.put("sp", spinner);
+         PoolTestSupport.run(env, "var w = 1; 1");
+         canceller.start();
+         Object value = PoolTestSupport.run(env, "var u = 2; sp.spin()");
+         canceller.join(30_000);
+         assertEquals(0, spinner.entered.getCount(), "the host call did not run");
+         assertTrue(Thread.interrupted(), "the cancel was lost");
+         assertEquals(1, ((Number) value).intValue());
+         assertEquals("undefined", PoolTestSupport.run(env, "typeof u"));
+      }
+      finally {
+         canceller.interrupt();
          env.retire();
       }
    }
