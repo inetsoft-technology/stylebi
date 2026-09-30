@@ -118,6 +118,31 @@ class FormulaTableLensTest {
       XTableUtil.assertEquals(lens, expected);
    }
 
+   // Bug #77321 verification: sum/year as well, and a later column still calls the
+   // CALC functions count(...)/sum(...) after the columns declaring those names ran
+   @Test
+   void initializerlessLetNamedLikeSumYearKeepsCalcFunctions() {
+      DefaultTableLens tbl = new DefaultTableLens(new Object[][] {
+         {"col0"}, {10}, {1}, {1}
+      });
+      FormulaTableLens lens = new FormulaTableLens(tbl,
+         new String[] { "r_sum", "r_year", "r_count", "r_calc" },
+         new String[] {
+            "let sum; field['col0'] > 5 && (sum = 'High'); sum",
+            "let year; field['col0'] > 5 && (year = 'High'); year",
+            "let count; field['col0'] > 5 && (count = 'High'); count",
+            "count([1,2,3]) + sum([1,2])"
+         }, new GraalJavaScriptEnv(), null);
+      Object[][] expected = {
+         {"col0", "r_sum", "r_year", "r_count", "r_calc"},
+         {10, "High", "High", "High", 6.0},
+         {1, null, null, null, 6.0},
+         {1, null, null, null, 6.0},
+      };
+
+      XTableUtil.assertEquals(lens, expected);
+   }
+
    @Test
    public void testSerialize() throws Exception {
       String[] headers = { "f1" };

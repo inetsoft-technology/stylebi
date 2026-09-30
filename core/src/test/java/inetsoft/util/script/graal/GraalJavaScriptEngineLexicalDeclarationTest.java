@@ -692,6 +692,72 @@ class GraalJavaScriptEngineLexicalDeclarationTest {
       assertEquals(Collections.nCopies(3, "function,E"), outT);
    }
 
+   // ---- Bug #77321 verification: gaps the refuter listed
+
+   // a library function that calls the engine global value(...) while the body runs
+   @Test void libraryCallingCalcFunctionInsideBody() throws Exception {
+      run("function lib77321v() { return value('5'); }");
+      List<Object> out = rows("let value; a > 5 && (value = lib77321v()); value", 10, 1, 1);
+      assertEquals(Arrays.asList(5.0, null, null), out.stream()
+         .map(v -> v == null ? null : ((Number) v).doubleValue()).toList());
+      assertEquals("function", run("typeof value"));
+   }
+
+   // nested exec on the same engine: an inner colliding script run from inside the
+   // outer body neither sees nor replaces the outer block let, nor the engine global
+   @Test void nestedExecOnSameEngine() throws Exception {
+      Object inner = engine.compile("let value; b > 5 && (value = 'In'); value");
+      Object outer = engine.compile(
+         "let value; a > 5 && (value = 'High'); var i77321 = inner(); i77321 + '|' + value");
+      MapScope innerRow = new MapScope();
+      innerRow.putMember("b", 10);
+      MapScope row = new MapScope();
+      row.putMember("inner", (org.graalvm.polyglot.proxy.ProxyExecutable) args -> {
+         try {
+            return engine.exec(inner, innerRow, innerRow);
+         }
+         catch(Exception ex) {
+            throw new RuntimeException(ex);
+         }
+      });
+      List<Object> out = new ArrayList<>();
+
+      for(Object v : new Object[] { 10, 1, 1 }) {
+         row.putMember("a", v);
+         out.add(engine.exec(outer, row, row));
+      }
+
+      assertEquals(Arrays.asList("In|High", "In|undefined", "In|undefined"), out);
+      assertEquals("function", run("typeof value"));
+   }
+
+   // a scope member named like the CALC function: the block let shadows it, so the
+   // assignment neither leaks through the member nor overwrites it
+   @Test void scopeMemberNamedValue() throws Exception {
+      Object compiled = engine.compile("let value; a > 5 && (value = 'High'); value");
+      MapScope row = new MapScope();
+      row.putMember("value", "SCOPE");
+      List<Object> out = new ArrayList<>();
+
+      for(Object v : new Object[] { 10, 1, 1 }) {
+         row.putMember("a", v);
+         out.add(engine.exec(compiled, row, row));
+      }
+
+      assertEquals(highNullNull(), out);
+      assertEquals("SCOPE", row.getMember("value"));
+      assertEquals("function", run("typeof value"));
+   }
+
+   // an intentional assignment of a host global without a declaration (onInit style)
+   // keeps replacing the global and stays visible to later scripts
+   @Test void undeclaredHostGlobalAssignmentStillPersists() throws Exception {
+      assertInstanceOf(org.graalvm.polyglot.Source.class, engine.compile("value = 5"));
+      run("value = 5");
+      assertEquals(5.0, num("value"));
+      assertEquals(6.0, num("value + 1"));
+   }
+
    // the extractor: which names it takes, and where it declines
    @ParameterizedTest
    @CsvSource(delimiter = '|', quoteCharacter = '"', value = {
