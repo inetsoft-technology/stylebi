@@ -29,9 +29,10 @@ package inetsoft.web.viewsheet.service;
  * the combobox came back showing 1899-12-31.
  *
  * The fix sends a wall clock "yyyy-MM-dd" string, which VSInputService turns straight into the
- * java.sql.Date it names. Going through Tool.getData()'s string parse instead is NOT enough --
- * CoreTool.parseDate() resolves LMT while the truncation that follows does not, so it loses the
- * same day (pinned by [G2] below). That is a wider defect in CoreTool, left alone here.
+ * java.sql.Date it names. Tool.getData()'s string parse used to lose the same day, because
+ * ExtendedDateFormat converted the parsed fields through java.time (LMT) while java.util.Date
+ * does not; since Bug #77416 it converts pre-1901 fields with the same calendar and zone as
+ * format(), so the string parse keeps the day as well ([G2]).
  *
  * Surefire pins these tests to America/New_York (core/pom.xml argLine), whose LMT era ends in
  * 1883, so 1880-01-01 stands in for the reported 1900-01-01 under Asia/Shanghai. The mechanism
@@ -44,8 +45,8 @@ package inetsoft.web.viewsheet.service;
  * [G1] convertWallClockDate() keeps the day exactly as picked, for an LMT-era date and a
  *      modern one, and yields a java.sql.Date that Tool.getData() then passes through
  *      unchanged (no re-parse, no truncation).
- * [G2] Pins the two paths this replaces -- an instant, and Tool.getData()'s own string parse --
- *      both losing a day for an LMT-era date, so [G1] is not guarding a non-problem.
+ * [G2] Pins the instant path this replaces losing a day for an LMT-era date, so [G1] is not
+ *      guarding a non-problem, and Tool.getData()'s string parse keeping it (Bug #77416).
  * [G3] isWallClockDate() accepts only a yyyy-MM-dd string on a "date" combobox; a millis
  *      payload, a date/time string and the other date types still take the instant path.
  * [G4] An impossible date that still matches the pattern is returned unchanged rather than
@@ -90,7 +91,7 @@ class VSComboBoxDateValueTest {
 
    // [G2]
    @Test
-   void bothReplacedPathsLoseADayForAnLmtEraDate() {
+   void instantPathLosesADayButStringParseKeepsIt() {
       assertTrue(isInLmtEra(LMT_ERA_DATE),
                  "the test date must sit in the zone's LMT era for this to be meaningful");
 
@@ -100,9 +101,8 @@ class VSComboBoxDateValueTest {
 
       assertEquals(SHIFTED_DATE, Tool.getData(XSchema.DATE, new Date(millis)).toString(),
                    "pins the instant path the wall clock string replaces");
-      assertEquals(SHIFTED_DATE, Tool.getData(XSchema.DATE, LMT_ERA_DATE).toString(),
-                   "pins CoreTool.parseDate's own LMT/truncation split -- why the conversion "
-                      + "builds the java.sql.Date itself instead of handing over the string");
+      assertEquals(LMT_ERA_DATE, Tool.getData(XSchema.DATE, LMT_ERA_DATE).toString(),
+                   "the string parse converts with the same calendar and zone as format()");
    }
 
    // [G3]
