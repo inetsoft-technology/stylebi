@@ -268,13 +268,11 @@ public final class ImportedAssetProperties {
     * Attributes left out of the save-and-reload comparison because they are known to change.
     * Remove an entry together with the fix for its bug.
     * <ul>
-    *    <li>{@code tipClick}: a chart or table saved without a {@code tipClickValue} is written
-    *        as {@code tipClickValue="null"}, which reloads as "show tooltip on click".</li>
     *    <li>{@code zIndex}: the selection lists in the "Return Analysis" example move up by 3
     *        on every save and reload.</li>
     * </ul>
     */
-   public static final Set<String> KNOWN_ISSUES = Set.of("tipClick", "zIndex");
+   public static final Set<String> KNOWN_ISSUES = Set.of("zIndex");
 
    /**
     * Larger entries are skipped.
