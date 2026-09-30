@@ -609,6 +609,18 @@ public final class RelPipeline {
          }
       }
 
+      List<String> messages = MESSAGES.get();
+
+      if(messages != null) {
+         StringBuilder chain = new StringBuilder();
+
+         for(Throwable t = ex; t != null; t = t.getCause() == t ? null : t.getCause()) {
+            chain.append(chain.length() == 0 ? "" : " <- ").append(t);
+         }
+
+         messages.add(chain.toString());
+      }
+
       // opt-in (-Drel.errlog=true): log each distinct cell error, so an unexplained mismatch
       // (R1, Testing #77123) records its message
       if(Boolean.getBoolean("rel.errlog")) {
@@ -639,6 +651,9 @@ public final class RelPipeline {
             (k, v) -> System.out.println("[rel-errlog] " + v + " x " + k))));
       }
    }
+
+   /** when set on a thread, the message chain of each cell error of its runs is added to it */
+   static final ThreadLocal<List<String>> MESSAGES = new ThreadLocal<>();
 
    /** the cell errors seen so far that were GraalJS multi-threaded access errors */
    public static final AtomicLong MULTI_THREADED = new AtomicLong();
