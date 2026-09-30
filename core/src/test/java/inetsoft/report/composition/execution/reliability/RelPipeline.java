@@ -530,7 +530,35 @@ public final class RelPipeline {
          }
       }
 
+      // opt-in (-Drel.errlog=true): log each distinct cell error, so an unexplained mismatch
+      // (R1, Testing #77123) records its message
+      if(Boolean.getBoolean("rel.errlog")) {
+         StringBuilder k = new StringBuilder();
+         for(Throwable t = ex; t != null && k.length() < 600; t = t.getCause() == t ? null : t.getCause()) {
+            k.append(t.getClass().getSimpleName()).append(": ")
+               .append(String.valueOf(t.getMessage()).replaceAll("\\s+", " ")).append(" <- ");
+         }
+         String key = k.length() > 400 ? k.substring(0, 400) : k.toString();
+         boolean odd = key.matches("(?is).*(interrupt|timed out|timeout|cancel|closed|multi thread).*");
+         if(ERRS.merge(key, 1, Integer::sum) == 1 || odd) {
+            StringBuilder fr = new StringBuilder();
+            StackTraceElement[] st = ex.getStackTrace();
+            for(int i = 0; i < Math.min(8, st.length); i++) fr.append(" | ").append(st[i]);
+            System.out.println("[rel-errlog] " + (odd ? "ODD " : "NEW ") + java.time.LocalTime.now() + " " +
+               Thread.currentThread().getName() + " " + key + fr);
+         }
+      }
+
       return "E:" + ex.getClass().getSimpleName();
+   }
+
+   static final java.util.concurrent.ConcurrentHashMap<String, Integer> ERRS = new java.util.concurrent.ConcurrentHashMap<>();
+
+   static {
+      if(Boolean.getBoolean("rel.errlog")) {
+         Runtime.getRuntime().addShutdownHook(new Thread(() -> ERRS.forEach(
+            (k, v) -> System.out.println("[rel-errlog] " + v + " x " + k))));
+      }
    }
 
    /** the cell errors seen so far that were GraalJS multi-threaded access errors */
