@@ -1533,8 +1533,12 @@ public class VsToReportConverter {
             Math.max(0, bounds.width - titleX - inset.right), titleH), sectionName);
       }
 
-      // 1px up so the sides join, as the table joins its title without an inset
-      return new Rectangle(bounds.x, bounds.y + laneY + laneH - 1, bounds.width,
+      // 1px up so the sides join, as the table joins its title without an inset, but never
+      // above the inside of the top border: a hidden title over a zero top inset leaves no
+      // lane to climb into, and the overlap would take the border band itself
+      int y = bounds.y + Math.max(bw.top, laneY + laneH - 1);
+
+      return new Rectangle(bounds.x, y, bounds.width,
                            Math.max(0, bounds.height - laneY - titleH));
    }
 
