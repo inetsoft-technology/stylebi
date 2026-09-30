@@ -133,7 +133,7 @@ public class TabularQueryDialogController extends WorksheetController {
                .clientId(params.get("clientId"))
                .clientSecret(params.get("clientSecret"))
                .authorizationUri(params.get("authorizationUri"))
-               .tokenUri(params.get("tokensUri"));
+               .tokenUri(params.get("tokenUri"));
 
             String scope = params.get("scope");
 
