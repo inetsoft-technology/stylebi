@@ -250,6 +250,12 @@ public class TableRowScope implements DynamicScope, ScriptArrayScope, OwnedVarSc
       }
    }
 
+   /** The lens lock: the pool tryLocks it before it takes this table's idle home. */
+   @Override
+   public Lock handOffLock() {
+      return lensLock;
+   }
+
    /**
     * Hand off (the pool, holding the idle slot of {@code codec}): save the objects that live
     * there as one tree, under this table's lock taken without waiting.

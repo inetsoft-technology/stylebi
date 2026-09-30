@@ -26,6 +26,7 @@ import java.lang.ref.WeakReference;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.*;
+import java.util.concurrent.locks.Lock;
 
 /**
  * The contexts of one pooled worksheet env (bug #76960, spec §4.3-§4.5): a primary and any
@@ -260,37 +261,104 @@ final class SlotPool {
          return slot.tryAcquire();
       }
 
-      if(slot.exclusiveHome != null && (hint == null || !slot.hasTenant(hint)) ||
-         !slot.tryAcquire())
-      {
+      if(slot.exclusiveHome != null && (hint == null || !slot.hasTenant(hint))) {
          return false;
       }
 
-      // under the slot's lock no batch can enroll on it: this is the authoritative check
-      if(hint != null && slot.hasTenant(hint)) {
-         return true;
+      TenantLocks locks = new TenantLocks();
+
+      try {
+         // a take-over holds the tenants' locks before the slot (B1-R2-1); the claim's own
+         // home needs none
+         if(!(hint != null && slot.hasTenant(hint)) && !locks.take(slot) ||
+            !slot.tryAcquire())
+         {
+            return false;
+         }
+
+         // under the slot's lock no batch can enroll on it: this is the authoritative check
+         if(hint != null && slot.hasTenant(hint)) {
+            return true;
+         }
+
+         runHandOffHook(slot);
+         boolean exclusive;
+
+         synchronized(homesLock) {
+            purge(slot);
+            exclusive = slot.exclusiveHome != null;
+         }
+
+         // a home whose tenants were only collected is no take-over
+         boolean tenants = slot.hasTenants();
+
+         // a tenant that enrolled before the slot was taken is locked now, or the home is
+         // skipped before anything is handed off
+         if(!exclusive && (!tenants || locks.take(slot) && handOffAll(slot)) &&
+            !homes.contains(slot))
+         {
+            if(tenants) {
+               metrics.tookOver();
+            }
+
+            return true;
+         }
+
+         // given back while the tenants' locks are still held: none of their batches saw it
+         giveBack(slot);
+         return false;
       }
-
-      boolean exclusive;
-
-      synchronized(homesLock) {
-         purge(slot);
-         exclusive = slot.exclusiveHome != null;
+      finally {
+         locks.release();
       }
+   }
 
-      // a home whose tenants were only collected is no take-over
-      boolean tenants = slot.hasTenants();
+   /**
+    * The locks of an idle home's tenants, which a hand-off by the pool (a take-over, the
+    * expiry) takes without waiting BEFORE the slot, and releases only after it gave the slot
+    * back (Testing #77123, finding B1-R2-1). A tenant's batch holds its lock (the formula
+    * table's lens lock) from before it takes a context until after it pulled its values from
+    * its home, so while the pool holds a home for a hand-off no batch of a locked tenant runs:
+    * none can miss its home because of the hand-off and then fail to pull from it, which lost
+    * every object var of the home (a warning "... another thread is using"). This is the order
+    * every batch takes them in (a table's lock, then its context), and every lock here is only
+    * tryLocked, so the pool never waits and no cycle can form; a batch that wants its table's
+    * lock meanwhile waits no longer than the hand-off, as it did when the hand-off took the
+    * lock itself.
+    */
+   private static final class TenantLocks {
+      /**
+       * TryLock the lock of every tenant of {@code slot} not locked yet.
+       *
+       * @return false if another thread holds one: skip the home (nothing was handed off).
+       */
+      boolean take(Slot slot) {
+         for(SlotTenant tenant : slot.tenants()) {
+            Lock lock = tenant.handOffLock();
 
-      if(!exclusive && (!tenants || handOffAll(slot)) && !homes.contains(slot)) {
-         if(tenants) {
-            metrics.tookOver();
+            if(lock == null || held.contains(lock)) {
+               continue;
+            }
+
+            if(!lock.tryLock()) {
+               return false;
+            }
+
+            held.add(lock);
          }
 
          return true;
       }
 
-      giveBack(slot);
-      return false;
+      void release() {
+         for(int i = held.size() - 1; i >= 0; i--) {
+            held.get(i).unlock();
+         }
+
+         held.clear();
+      }
+
+      private final List<Lock> held = new ArrayList<>();
    }
 
    /**
@@ -394,19 +462,33 @@ final class SlotPool {
             purge(slot);
          }
 
-         if(budget <= 0 || !homes.contains(slot) || !isEvictable(slot, now) ||
-            !slot.tryAcquire())
-         {
+         if(budget <= 0 || !homes.contains(slot) || !isEvictable(slot, now)) {
             continue;
          }
 
-         budget--;
+         TenantLocks locks = new TenantLocks();
 
          try {
-            handOffAll(slot);
+            // the tenants' locks before the slot, see TenantLocks
+            if(!locks.take(slot) || !slot.tryAcquire()) {
+               continue;
+            }
+
+            budget--;
+
+            try {
+               runHandOffHook(slot);
+
+               if(locks.take(slot)) {
+                  handOffAll(slot);
+               }
+            }
+            finally {
+               giveBack(slot);
+            }
          }
          finally {
-            giveBack(slot);
+            locks.release();
          }
       }
    }
@@ -428,15 +510,25 @@ final class SlotPool {
       int n = 0;
 
       for(Slot slot : new ArrayList<>(homes)) {
-         if(slot.tryAcquire()) {
-            try {
-               if(handOffAll(slot)) {
-                  n++;
+         TenantLocks locks = new TenantLocks();
+
+         try {
+            // the tenants' locks before the slot, see TenantLocks
+            if(locks.take(slot) && slot.tryAcquire()) {
+               try {
+                  runHandOffHook(slot);
+
+                  if(locks.take(slot) && handOffAll(slot)) {
+                     n++;
+                  }
+               }
+               finally {
+                  giveBack(slot);
                }
             }
-            finally {
-               giveBack(slot);
-            }
+         }
+         finally {
+            locks.release();
          }
       }
 
@@ -621,6 +713,21 @@ final class SlotPool {
          hook.run();
       }
    }
+
+   private void runHandOffHook(Slot slot) {
+      java.util.function.Consumer<Slot> hook = handOffHook;
+
+      if(hook != null) {
+         hook.accept(slot);
+      }
+   }
+
+   /**
+    * Test hook run by a take-over, an expiry or {@link #handOffIdleHomes} once it holds an idle
+    * home without a claim, before it hands off the tenants (Testing #77123, B1-R2-1); null in
+    * production.
+    */
+   volatile java.util.function.Consumer<Slot> handOffHook;
 
    /**
     * Test hook run right before a slot this pool keeps goes idle (release's keep path and
