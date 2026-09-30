@@ -72,7 +72,7 @@ public class ViewsheetPropertyDialogServiceTest {
       service = new ViewsheetPropertyDialogService(coreLifecycleService, viewsheetService,
                                                    layoutService, viewsheetSettingsService,
                                                    vsAssemblyInfoHandler, null,
-                                                   null, null);
+                                                   null, null, null);
    }
 
    // Bug #16756 Update layout info if it has same id as incoming layout
@@ -136,7 +136,7 @@ public class ViewsheetPropertyDialogServiceTest {
 
       ViewsheetPropertyDialogService service = new ViewsheetPropertyDialogService(
          coreLifecycleService, viewsheetService, layoutService, viewsheetSettingsService,
-         vsAssemblyInfoHandler, securityEngine, null, deviceRegistry);
+         vsAssemblyInfoHandler, securityEngine, null, deviceRegistry, null);
 
       when(viewsheetService.getViewsheet(anyString(), nullable(Principal.class))).thenReturn(rvs);
       when(viewsheetService.getAssetRepository()).thenReturn(assetRepository);

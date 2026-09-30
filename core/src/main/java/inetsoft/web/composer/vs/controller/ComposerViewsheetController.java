@@ -25,6 +25,7 @@ import inetsoft.util.*;
 import inetsoft.web.composer.vs.event.CloseSheetEvent;
 import inetsoft.web.composer.vs.event.NewViewsheetEvent;
 import inetsoft.web.composer.ws.event.SaveSheetEvent;
+import inetsoft.web.portal.controller.database.QueryManagerService;
 import inetsoft.web.viewsheet.LoadingMask;
 import inetsoft.web.viewsheet.command.*;
 import inetsoft.web.viewsheet.event.*;
@@ -53,12 +54,14 @@ public class ComposerViewsheetController {
    public ComposerViewsheetController(RuntimeViewsheetRef runtimeViewsheetRef,
                                       ViewsheetService viewsheetService,
                                       ComposerViewsheetServiceProxy composerViewsheetService,
-                                      SecurityEngine securityEngine)
+                                      SecurityEngine securityEngine,
+                                      QueryManagerService queryManagerService)
    {
       this.runtimeViewsheetRef = runtimeViewsheetRef;
       this.viewsheetService = viewsheetService;
       this.composerViewsheetService = composerViewsheetService;
       this.securityEngine = securityEngine;
+      this.queryManagerService = queryManagerService;
    }
 
    /**
@@ -81,6 +84,9 @@ public class ComposerViewsheetController {
             "composer.authorization.permissionDenied"));
       }
 
+      // the base source of the new viewsheet is newly bound (Bug #77400)
+      queryManagerService.checkViewsheetBaseEntryPermission(
+         event.getDataSource(), viewsheetService.getAssetRepository(), principal);
       String runtimeId = viewsheetService.openTemporaryViewsheet(event.getDataSource(), principal);
       runtimeViewsheetRef.setRuntimeId(runtimeId);
 
@@ -293,5 +299,6 @@ public class ComposerViewsheetController {
    private final ViewsheetService viewsheetService;
    private final ComposerViewsheetServiceProxy composerViewsheetService;
    private final SecurityEngine securityEngine;
+   private final QueryManagerService queryManagerService;
    private static final Logger LOG = LoggerFactory.getLogger(ComposerViewsheetController.class);
 }

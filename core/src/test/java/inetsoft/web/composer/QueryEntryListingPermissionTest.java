@@ -264,9 +264,37 @@ class QueryEntryListingPermissionTest {
 
       assertDenied(() -> expand(event(entry)));
       verifyNothingListed();
+      // the name the permission editors store the model's permission under (Bug #77400)
       verify(securityEngine).checkPermission(
-         principal, ResourceType.QUERY, "__^" + MODEL_FOLDER + "^" + MODEL + "::" + ALLOWED,
+         principal, ResourceType.QUERY, MODEL + "::" + ALLOWED + "^__^" + MODEL_FOLDER,
          ResourceAction.READ);
+   }
+
+   @Test
+   void tLogicalModelInFolderDeniedByExplicitModelPermission() throws Exception {
+      // Bug #77400: only the model itself is denied, not its data source or folder
+      when(securityEngine.checkPermission(
+         any(Principal.class), eq(ResourceType.QUERY), anyString(), eq(ResourceAction.READ)))
+         .thenAnswer(inv -> !(MODEL + "::" + ALLOWED + "^__^" + MODEL_FOLDER)
+            .equals(inv.getArgument(2)));
+
+      assertDenied(() -> expand(event(modelEntry(AssetEntry.Type.LOGIC_MODEL, ALLOWED))));
+      verifyNothingListed();
+   }
+
+   @Test
+   void tLogicalModelWithoutFolderCheckedWithoutFolderSuffix() throws Exception {
+      when(queryManagerModel().getFolder()).thenReturn(null);
+      AssetEntry entry = modelEntry(AssetEntry.Type.LOGIC_MODEL, ALLOWED);
+
+      expand(event(entry));
+      verify(securityEngine).checkPermission(
+         principal, ResourceType.QUERY, MODEL + "::" + ALLOWED, ResourceAction.READ);
+      verify(assetRepository).getEntries(same(entry), same(principal), eq(ResourceAction.READ), any());
+   }
+
+   private XLogicalModel queryManagerModel() throws Exception {
+      return repository.getDataModel(ALLOWED).getLogicalModel(MODEL);
    }
 
    @Test
@@ -403,6 +431,19 @@ class QueryEntryListingPermissionTest {
          assertEquals(0, wsUtilControllers.getAttributes(
             modelEntry(AssetEntry.Type.LOGIC_MODEL, ALLOWED), principal).length);
          util.verify(() -> AssetEventUtil.getAttributesBySource(any(), same(principal), any()));
+      }
+   }
+
+   @Test
+   void aAttributesDeniedWithoutPhysicalTableAccess() throws Exception {
+      // Bug #77400: a physical table source also requires PHYSICAL_TABLE ACCESS
+      grantPhysicalAccess(false);
+      AssetEntry entry = forgedSourceEntry(ALLOWED);
+      entry.setProperty("type", SourceInfo.PHYSICAL_TABLE + "");
+
+      try(MockedStatic<AssetEventUtil> util = mockStatic(AssetEventUtil.class)) {
+         assertDenied(() -> wsUtilControllers.getAttributes(entry, principal));
+         util.verifyNoInteractions();
       }
    }
 

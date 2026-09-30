@@ -454,6 +454,30 @@ public final class XUtil {
    }
 
    /**
+    * Gets the QUERY resource name that the permission of a logical model is stored under, in the
+    * same form as <tt>ResourcePermissionService.getLogicalModelResourceName</tt> builds it for
+    * the permission editors: <tt>model::dataSource</tt>, followed by
+    * {@link #DATAMODEL_FOLDER_SPLITER} and the folder when the model is in a folder (Bug #77400).
+    *
+    * @param dataSource the data source of the logical model.
+    * @param folder     the data model folder of the logical model, or null or empty if none.
+    * @param lmodel     the name of the logical model.
+    *
+    * @return the resource name.
+    */
+   public static String getLogicalModelResourceName(String dataSource, String folder,
+                                                    String lmodel)
+   {
+      String resource = lmodel + "::" + dataSource;
+
+      if(folder != null && !folder.isEmpty()) {
+         resource += DATAMODEL_FOLDER_SPLITER + folder;
+      }
+
+      return resource;
+   }
+
+   /**
     * Format an object with the specified format.
     */
    public static String format(Format format, Object val) {

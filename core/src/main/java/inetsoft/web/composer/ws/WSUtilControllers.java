@@ -196,17 +196,10 @@ public class WSUtilControllers extends WorksheetController {
    /**
     * The source is built from the client's entry properties, whatever the entry's scope, and
     * its logical model is listed without a permission check, so check the source here
-    * (Bug #77189).
+    * (Bug #77189). A physical table also requires PHYSICAL_TABLE ACCESS (Bug #77400).
     */
    private void checkSourceReadPermission(SourceInfo source, Principal principal) {
-      if(source.getType() == SourceInfo.MODEL) {
-         queryManagerService.checkDataSourceReadPermission(source.getPrefix(), principal);
-         queryManagerService.checkLogicalModelReadPermission(
-            source.getPrefix(), source.getSource(), principal);
-      }
-      else if(!StringUtils.isEmpty(source.getPrefix())) {
-         queryManagerService.checkDataSourceReadPermission(source.getPrefix(), principal);
-      }
+      queryManagerService.checkSourceReadPermission(source, principal);
    }
 
    private DataRefModelFactoryService dataRefModelFactoryService;

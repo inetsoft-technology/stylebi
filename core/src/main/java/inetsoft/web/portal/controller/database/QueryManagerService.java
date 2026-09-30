@@ -1420,22 +1420,26 @@ public class QueryManagerService {
     */
    private void checkPhysicalEntryAccess(AssetEntry entry, Principal principal) {
       if(entry.isPhysicalFolder() || entry.isPhysicalTable()) {
-         boolean allowed;
+         checkPhysicalTableAccess(principal);
+      }
+   }
 
-         try {
-            allowed = securityEngine != null && securityEngine.checkPermission(
-               principal, ResourceType.PHYSICAL_TABLE, "*", ResourceAction.ACCESS);
-         }
-         catch(Exception e) {
-            LOG.debug("Failed to check physical table permission", e);
-            allowed = false;
-         }
+   private void checkPhysicalTableAccess(Principal principal) {
+      boolean allowed;
 
-         if(!allowed) {
-            throw new java.lang.SecurityException(
-               "Unauthorized access to physical tables by user " +
-               (principal == null ? null : principal.getName()));
-         }
+      try {
+         allowed = securityEngine != null && securityEngine.checkPermission(
+            principal, ResourceType.PHYSICAL_TABLE, "*", ResourceAction.ACCESS);
+      }
+      catch(Exception e) {
+         LOG.debug("Failed to check physical table permission", e);
+         allowed = false;
+      }
+
+      if(!allowed) {
+         throw new java.lang.SecurityException(
+            "Unauthorized access to physical tables by user " +
+            (principal == null ? null : principal.getName()));
       }
    }
 
@@ -1443,7 +1447,9 @@ public class QueryManagerService {
     * Checks READ on the logical model of a model or entity entry, the same permissions (data
     * model folder READ and QUERY READ) that the data source listing filters its logical models
     * by. The folder is read from the server's data model, never from the entry. A model that
-    * does not exist is left alone, because nothing is listed for it (Bug #77189).
+    * does not exist is left alone, because nothing is listed for it (Bug #77189). The QUERY
+    * resource is the name the permission editors store the model's permission under, so an
+    * explicit permission on a model in a folder is honored (Bug #77400).
     *
     * @throws java.lang.SecurityException if READ is not granted, or if the check itself fails.
     */
@@ -1462,8 +1468,8 @@ public class QueryManagerService {
          }
 
          String folder = logicalModel.getFolder();
-         String resource = folder != null && !folder.equals("")
-            ? "__^" + folder + "^" + lmodel + "::" + dataSource : lmodel + "::" + dataSource;
+         // the stored form of the logical model permission (Bug #77400)
+         String resource = XUtil.getLogicalModelResourceName(dataSource, folder, lmodel);
          allowed = securityEngine != null &&
             securityEngine.checkPermission(principal, ResourceType.DATA_MODEL_FOLDER,
                                            dataSource + "/" + folder, ResourceAction.READ) &&
@@ -1479,6 +1485,81 @@ public class QueryManagerService {
          throw new java.lang.SecurityException(
             "Unauthorized access to logical model \"" + lmodel + "\" by user " +
             (principal == null ? null : principal.getName()));
+      }
+   }
+
+   /**
+    * Checks a source that an authoring endpoint is about to newly bind into a worksheet table or
+    * a viewsheet base worksheet. The source is built from the client's entry properties and
+    * neither the asset engine nor query execution checks it, so the permission the composer
+    * asset tree requires to list the source is checked here. A logical model requires READ on
+    * its data source and on the model, a physical table requires READ on its data source and
+    * PHYSICAL_TABLE ACCESS, and any other source with a data source in its prefix requires READ
+    * on that data source (Bug #77189, Bug #77400).
+    *
+    * @param source    the source to check, or null if nothing is bound.
+    * @param principal the current user.
+    *
+    * @throws java.lang.SecurityException if a permission is not granted.
+    */
+   public void checkSourceReadPermission(SourceInfo source, Principal principal) {
+      if(source == null) {
+         return;
+      }
+
+      if(source.getType() == SourceInfo.MODEL) {
+         checkDataSourceReadPermission(source.getPrefix(), principal);
+         checkLogicalModelReadPermission(source.getPrefix(), source.getSource(), principal);
+      }
+      else if(source.getType() == SourceInfo.PHYSICAL_TABLE) {
+         checkDataSourceReadPermission(source.getPrefix(), principal);
+         checkPhysicalTableAccess(principal);
+      }
+      else if(!StringUtils.isEmpty(source.getPrefix())) {
+         checkDataSourceReadPermission(source.getPrefix(), principal);
+      }
+   }
+
+   /**
+    * Checks a client-supplied entry that is about to be newly bound as the base source of a
+    * viewsheet (new viewsheet, wizard, properties dialog, Save-As). A worksheet requires READ on
+    * the worksheet, which the viewsheet opens without a permission check. A query, physical
+    * table or logical model entry requires the permissions of both the entry, whose children
+    * are listed for the base table columns, and the source that is built from its
+    * <tt>prefix</tt>, <tt>source</tt> and <tt>type</tt> properties. Callers must not call this
+    * for a base entry that is unchanged, so an existing viewsheet keeps working (Bug #77400).
+    *
+    * @param entry           the new base entry, or null if the base source is cleared.
+    * @param assetRepository the asset repository that checks worksheet permissions.
+    * @param principal       the current user.
+    *
+    * @throws Exception if a permission is not granted.
+    */
+   public void checkViewsheetBaseEntryPermission(AssetEntry entry,
+                                                 AssetRepository assetRepository,
+                                                 Principal principal)
+      throws Exception
+   {
+      if(entry == null) {
+         return;
+      }
+
+      if(entry.isWorksheet()) {
+         assetRepository.checkAssetPermission(principal, entry, ResourceAction.READ);
+      }
+      else if(entry.isQuery() || entry.isPhysicalTable() || entry.isLogicModel()) {
+         SourceInfo source;
+
+         try {
+            source = new SourceInfo(Integer.parseInt(entry.getProperty("type")),
+                                    entry.getProperty("prefix"), entry.getProperty("source"));
+         }
+         catch(NumberFormatException e) {
+            throw new java.lang.SecurityException("Invalid data source type");
+         }
+
+         checkAssetTreeEntryPermission(entry, principal);
+         checkSourceReadPermission(source, principal);
       }
    }
 
