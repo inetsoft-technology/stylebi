@@ -249,6 +249,29 @@ class ScriptHostAccessTest {
       }
    }
 
+   /**
+    * Bug #77348 denies java.io.Externalizable for the exact type only, to hide the
+    * interface-declared readExternal/writeExternal on principals. Scripts still hold
+    * other Externalizable objects (e.g. query result tables such as XSwappableTable),
+    * so their own members must stay callable: a subclass-wide deny would hide them.
+    */
+   @Test void externalizableHostObjectKeepsItsOwnMembers() {
+      try(Context ctx = newContext()) {
+         ctx.getBindings("js").putMember("t", new ExternalizableBean());
+         assertEquals("v:1", ScriptValueConverter.toHost(
+            ctx.eval("js", "t.getValue() + ':' + t.getRowCount()")));
+         assertEquals(true, ScriptValueConverter.toHost(
+            ctx.eval("js", "Object.keys(t).indexOf('getValue') >= 0")));
+      }
+   }
+
+   public static class ExternalizableBean implements java.io.Externalizable {
+      public String getValue() { return "v"; }
+      public int getRowCount() { return 1; }
+      @Override public void writeExternal(java.io.ObjectOutput out) { }
+      @Override public void readExternal(java.io.ObjectInput in) { }
+   }
+
    public static class Sample {
       @org.graalvm.polyglot.HostAccess.Export public String allowed() { return "ok"; }
       public String denied() { return "no"; }
