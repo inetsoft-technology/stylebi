@@ -17,6 +17,8 @@
  */
 package inetsoft.util.script.graal.pool;
 
+import java.util.concurrent.locks.Lock;
+
 /**
  * A formula table whose owned vars hold script objects that live on a pooled context, its
  * home (Testing #77123, B1 residual part 2). The pool holds tenants weakly.
@@ -33,4 +35,16 @@ public interface SlotTenant {
     *         stays its home.
     */
    boolean handOff(OwnedValueCodec codec);
+
+   /**
+    * The lock {@link #handOff} takes, which the tenant's own batches hold from before they take
+    * a context until after they pulled their values (Testing #77123, B1-R2-1). The pool
+    * tryLocks it before it takes the tenant's idle home for a hand-off, the order a batch
+    * takes them in, so a batch never finds its home held by a hand-off that then fails.
+    *
+    * @return the lock, or {@code null} if the tenant has none ({@link #handOff} decides alone).
+    */
+   default Lock handOffLock() {
+      return null;
+   }
 }
