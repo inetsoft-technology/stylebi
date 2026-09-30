@@ -240,6 +240,11 @@ public final class ScriptHostAccess {
                   // XUtil.getXIdentityFinder() resolves every user's roles, groups
                   // and org, and its getters return the live arrays
                   .denyAccess(inetsoft.uql.util.XIdentityFinder.class)
+                  // Bug #77421: the driver and data source registries load and
+                  // initialize classes by name through plugin class loaders
+                  // without consulting classFilter(); neither is script API
+                  .denyAccess(inetsoft.uql.util.Drivers.class)
+                  .denyAccess(inetsoft.uql.util.Config.class)
                   // XUtil.getSecurityProvider(), and the interfaces its providers'
                   // configuration and cache methods are declared by
                   .denyAccess(inetsoft.sree.security.AuthenticationProvider.class)
@@ -449,6 +454,30 @@ public final class ScriptHostAccess {
       final boolean comOrgF = comOrg;
 
       return classFilter(extra, customPkgsF, comOrgF);
+   }
+
+   /**
+    * Loads a class named by a script for a helper that turns a script-supplied class
+    * name into a class or an instance. The name is checked against
+    * {@link #classFilter()} first, and the class is loaded without being initialized,
+    * so no code of a class the filter refuses runs. (Bug #77421)
+    *
+    * @param name   the fully qualified class name.
+    * @param loader the class loader to load the class from.
+    *
+    * @return the loaded, uninitialized class.
+    *
+    * @throws SecurityException      if the class filter refuses the name.
+    * @throws ClassNotFoundException if the class could not be found.
+    */
+   public static Class<?> loadScriptVisibleClass(String name, ClassLoader loader)
+      throws ClassNotFoundException
+   {
+      if(!classFilter().test(name)) {
+         throw new SecurityException("Class " + name + " is not allowed in scripts");
+      }
+
+      return Class.forName(name, false, loader);
    }
 
    /**
