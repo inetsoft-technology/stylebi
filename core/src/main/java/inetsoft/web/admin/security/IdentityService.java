@@ -2736,7 +2736,8 @@ public class IdentityService {
    /**
     * Gets the theme to store as the default of an organization. Only a global theme or a theme
     * owned by the organization may be used, any other requested theme is ignored and the
-    * organization keeps its current theme. An empty theme clears the organization default.
+    * organization keeps its current theme. An empty theme or the default theme id
+    * ({@link CustomTheme#DEFAULT_THEME_ID}) clears the organization default.
     *
     * @param theme        the requested theme id.
     * @param currentTheme the current theme id of the organization.
@@ -2745,7 +2746,7 @@ public class IdentityService {
     * @return the theme id to store.
     */
    private String getEligibleOrgTheme(String theme, String currentTheme, String orgID) {
-      if(Tool.isEmptyString(theme)) {
+      if(Tool.isEmptyString(theme) || CustomTheme.isReservedId(theme)) {
          return null;
       }
 
