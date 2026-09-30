@@ -525,6 +525,35 @@ class ModelEditorPermissionTest {
          .updateModel(DS, FOLDER, LM, lmDefinition(LM, FOLDER), null, principal));
    }
 
+   // the model permission is removed under the key it is stored with (Bug #77428)
+   @Test
+   void removeLogicalModel_inFolder_removesStoredPermission() throws Exception {
+      storedLogicalModel(FOLDER);
+      lmGrants.add(DS + "/" + FOLDER + "/" + LM + ":DELETE");
+
+      logicalModelService().removeModel(DS, FOLDER, LM, null, principal);
+      verify(securityEngine).removePermission(ResourceType.QUERY, LM + "::" + DS + "^__^" + FOLDER);
+   }
+
+   @Test
+   void removeLogicalModel_atRoot_removesStoredPermission() throws Exception {
+      storedLogicalModel(null);
+      lmGrants.add(DS + "/" + LM + ":DELETE");
+
+      logicalModelService().removeModel(DS, null, LM, null, principal);
+      verify(securityEngine).removePermission(ResourceType.QUERY, LM + "::" + DS);
+   }
+
+   // the folder of the stored model is used, not the one in the request
+   @Test
+   void removeLogicalModel_requestOmitsFolder_removesStoredPermission() throws Exception {
+      storedLogicalModel(FOLDER);
+      lmGrants.add(DS + "/" + FOLDER + "/" + LM + ":DELETE");
+
+      logicalModelService().removeModel(DS, null, LM, null, principal);
+      verify(securityEngine).removePermission(ResourceType.QUERY, LM + "::" + DS + "^__^" + FOLDER);
+   }
+
    // same rule for an extended logical model: it is written under its base model
    @Test
    void createExtendedLogicalModel_baseModelFolderNotWritable_isDenied() throws Exception {

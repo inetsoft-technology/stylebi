@@ -3223,9 +3223,9 @@ public class AssetUtil {
          resource = new Resource(ResourceType.QUERY, path);
       }
       else if(type.equals(XLogicalModelAsset.XLOGICALMODEL)) {
-         int index = path.indexOf("^");
-         resource = new Resource(
-            ResourceType.QUERY, path.substring(index + 1) + "::" + path.substring(0, index));
+         XLogicalModelAsset asset = new XLogicalModelAsset(path);
+         resource = new Resource(ResourceType.QUERY, XUtil.getLogicalModelResourceName(
+            asset.getDataSource(), asset.getModelFolder(), asset.getModelName()));
       }
       else if(type.equals(ViewsheetAsset.VIEWSHEET)) {
          resource = new Resource(ResourceType.REPORT, path);
