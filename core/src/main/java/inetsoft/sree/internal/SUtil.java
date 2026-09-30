@@ -3270,6 +3270,21 @@ public class SUtil {
          currOrgId = organizationManager.getCurrentOrgID();
       }
 
+      return getOwnerForNewTask(user, currOrgId);
+   }
+
+   /**
+    * Gets the owner of a new task of an organization, the user itself if it's in the
+    * organization, otherwise an admin of the organization, or the user's name in the
+    * organization if the organization has no admin (a site admin owning a task of another
+    * organization, see {@link #getScheduleTaskOwnerPrincipal}).
+    *
+    * @param user      the user creating the task.
+    * @param currOrgId the id of the organization the task is stored in.
+    */
+   public static IdentityID getOwnerForNewTask(IdentityID user, String currOrgId) {
+      OrganizationManager organizationManager = OrganizationManager.getInstance();
+
       if(user != null && !Tool.equals(user.getOrgID(), currOrgId)) {
          SecurityEngine security = SecurityEngine.getSecurity();
          IdentityID[] orgUsers = security.getOrgUsers(currOrgId);

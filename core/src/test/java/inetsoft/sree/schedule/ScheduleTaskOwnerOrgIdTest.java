@@ -119,6 +119,39 @@ class ScheduleTaskOwnerOrgIdTest {
                          false).getTaskId());
    }
 
+   @Test
+   void parseXML_legacyOwnerWithoutOrg_isMovedToStorageOrg() throws Exception {
+      for(String xml : new String[] { "<Task name=\"ooNightly\" owner=\"null\"/>",
+                                      "<Task name=\"ooNightly\"/>" })
+      {
+         ScheduleTask host = parse(xml, false);
+         ScheduleTask b = parse(xml, false);
+
+         // the organization isn't known when parsing, it's the host organization's system user
+         assertEquals(system(HOST) + ":ooNightly", b.getTaskId(), xml);
+
+         host.setLegacyOwnerOrganization(HOST);
+         b.setLegacyOwnerOrganization(ORG_B);
+
+         assertEquals(system(HOST) + ":ooNightly", host.getTaskId(), xml);
+         assertEquals(system(ORG_B) + ":ooNightly", b.getTaskId(), xml);
+      }
+   }
+
+   @Test
+   void setLegacyOwnerOrganization_explicitOwner_isUnchanged() throws Exception {
+      ScheduleTask hostSystem =
+         parse("<Task name=\"ooNightly\" owner=\"" + system(HOST) + "\"/>", false);
+      ScheduleTask alice =
+         parse("<Task name=\"ooNightly\" owner=\"" + ALICE.convertToKey() + "\"/>", false);
+
+      hostSystem.setLegacyOwnerOrganization(ORG_B);
+      alice.setLegacyOwnerOrganization(ORG_B);
+
+      assertEquals(system(HOST) + ":ooNightly", hostSystem.getTaskId());
+      assertEquals(ALICE.convertToKey() + ":ooNightly", alice.getTaskId());
+   }
+
    // ---- org copy ----
 
    @Test
@@ -189,6 +222,46 @@ class ScheduleTaskOwnerOrgIdTest {
 
       assertDoesNotThrow(() -> scheduleManager.setScheduleTask(
          modified.getTaskId(), modified, principal(BOB, ORG_B)));
+   }
+
+   @Test
+   void setScheduleTask_storedUnderLegacyIdOwnedInOtherOrg_canBeModified() throws Exception {
+      // a task saved before this check, stored under its pre 13.1 owner-less id
+      ScheduleTask stored = newTask("ooMonthly", new IdentityID(XPrincipal.SYSTEM, HOST));
+      String key = new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.SCHEDULE_TASK,
+                                  "/ooMonthly", null, ORG_B).toIdentifier();
+      scheduleManager.getOrgTaskMap(ORG_B).put(key, stored, ORG_B);
+
+      ScheduleTask modified = (ScheduleTask) stored.clone();
+      modified.setEnabled(false);
+
+      assertDoesNotThrow(() -> scheduleManager.setScheduleTask(
+         modified.getTaskId(), modified, principal(BOB, ORG_B)));
+   }
+
+   @Test
+   void setScheduleTask_siteAdminSavingTaskOfOtherOrg_isSaved() throws Exception {
+      // a site admin working in org B keeps the owner of org B
+      ScheduleTask task = newTask("ooNightly", BOB);
+
+      scheduleManager.setScheduleTask(task.getTaskId(), task,
+                                      principal(new IdentityID("admin", HOST), ORG_B));
+
+      assertNotNull(scheduleManager.getScheduleTask(task.getTaskId(), ORG_B));
+   }
+
+   @Test
+   void setScheduleTask_internal_isStoredInHostOrg() throws Exception {
+      // an internal save (e.g. the task balancer) stores in the host organization, not checked
+      ScheduleTask task = newTask("ooBalanced", new IdentityID(XPrincipal.SYSTEM, HOST));
+      String key = new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.SCHEDULE_TASK,
+                                  "/" + task.getTaskId(), SUtil.getTaskOwner(task.getTaskId()),
+                                  HOST).toIdentifier();
+      hostKeys.add(key);
+
+      scheduleManager.setScheduleTask(task.getTaskId(), task, null, true, principal(BOB, ORG_B));
+
+      assertNotNull(scheduleManager.getScheduleTask(task.getTaskId(), HOST));
    }
 
    @Test

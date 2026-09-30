@@ -840,9 +840,12 @@ public class ScheduleManager {
       if(task.getOwner() == null) {
          // Bug #77359, the owner organization is part of the task id, which is the scheduler
          // (quartz) key of the task in all organizations, keep it the organization the task is
-         // stored in, the same as a materialized view task (MVSupportService)
-         if(!internal && user != null && user.orgID != null && !user.orgID.equalsIgnoreCase(orgID)) {
-            user = new IdentityID(user.name, orgID);
+         // stored in (e.g. a site admin working in another organization), the same as a
+         // materialized view task (MVSupportService)
+         if(!internal && user != null && user.orgID != null && orgID != null &&
+            !user.orgID.equalsIgnoreCase(orgID))
+         {
+            user = SUtil.getOwnerForNewTask(user, orgID);
          }
 
          task.setOwner(user);
@@ -907,13 +910,12 @@ public class ScheduleManager {
          return;
       }
 
-      String identifier = getTaskIdentifier(taskId, orgID);
-      ScheduleTaskMap map = getOrgTaskMap(orgID);
-      ScheduleTask stored = map.containsKey(identifier, orgID) ? map.get(identifier) : null;
+      // the stored task, including one stored under its pre 13.1 owner-less id
+      ScheduleTask stored = getScheduleTask(taskId, orgID);
       IdentityID storedOwner = stored == null ? null : stored.getOwner();
 
       if(storedOwner == null || storedOwner.orgID == null ||
-         storedOwner.orgID.equalsIgnoreCase(orgID))
+         storedOwner.orgID.equalsIgnoreCase(orgID) || !taskId.equals(stored.getTaskId()))
       {
          throw new IOException(
             "Schedule task " + taskId + " is not saved in organization " + orgID +
