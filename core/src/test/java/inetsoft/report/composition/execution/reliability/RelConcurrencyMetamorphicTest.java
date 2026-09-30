@@ -147,17 +147,14 @@ public class RelConcurrencyMetamorphicTest {
    /**
     * (f) with no excuse for a plain-data var lost to a home in use by another thread
     * (finding B1-R2-1): every lens reads its own vars on one thread, yet another thread's
-    * claim can hold its idle home for an instant (inferred: a take-over it gives back when the
-    * lens's lock is busy), and a read then loses the lens's plain data (loud, restarts, never
-    * stale). The pin is probabilistic, no deterministic repro: measured 1 hit in about 5,000
-    * interleaved lens runs (maxHomes 4, rep 11 of the first 20; 0 in the 90 reps after), so
-    * {@code -Drel.long=true} runs {@code -Drel.pinReps} (320) reps per maxHomes: 2 x 320 x 24
-    * = 15,360 lens runs, a hit with probability about 95% at that rate. The peer session's fix
-    * brings its own deterministic regression test; this stays disabled until it merges.
+    * claim could hold its idle home for an instant (a failed take-over given back when the
+    * lens's lock was busy), and a read then lost the lens's plain data (loud, restarted, never
+    * stale). Fixed by #5965, which brings its own deterministic regression test; this pin is
+    * now a probabilistic regression guard. Before the fix it hit about 1 in 5,000 interleaved
+    * lens runs, so {@code -Drel.long=true} runs {@code -Drel.pinReps} (320) reps per maxHomes:
+    * 2 x 320 x 24 = 15,360 lens runs, a hit with probability about 95% at that rate. A run
+    * after #5965 merged passed all 15,360 with no plain-data loss.
     */
-   @Disabled("finding B1-R2-1 (probabilistic, ~1 in 5,000 lens runs): a single-reader lens " +
-             "loses plain object vars when another thread's claim briefly holds its idle " +
-             "home (HOME_BUSY); -Drel.long=true runs 320 reps per maxHomes")
    @ParameterizedTest(name = "maxHomes={0}")
    @ValueSource(strings = { "4", "0" })
    public void interleavedPlainObjectVarsAreNeverLost(String maxHomes) throws Exception {
