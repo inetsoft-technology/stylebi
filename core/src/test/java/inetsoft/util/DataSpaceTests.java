@@ -221,6 +221,35 @@ class DataSpaceTests {
       }
    }
 
+   @ParameterizedTest(name = "should {0} a file into a partially existing folder chain")
+   @ValueSource(strings = { "rename", "copy" })
+   void shouldCreateOnlyMissingAncestorsForFile(String operation) throws Exception {
+      DataSpace space = DataSpace.getDataSpace();
+      String src = "test77377-" + operation + "-file-src.txt";
+      String root = "test77377-" + operation + "-partial";
+
+      try {
+         space.withOutputStream(null, src, out -> out.write(1));
+         space.withOutputStream(root, "sibling.txt", out -> out.write(2));
+         String digest = space.getDigest(root, "sibling.txt");
+
+         assertTrue(move(space, operation, src, root + "/y/moved.txt"));
+         assertTrue(space.isDirectory(root + "/y"));
+         assertFalse(space.isDirectory(root + "/y/moved.txt"));
+         assertTrue(space.exists(root + "/y", "moved.txt"));
+         assertEquals(digest, space.getDigest(root, "sibling.txt"), "the existing folder must be kept");
+         assertEquals("copy".equals(operation), space.exists(null, src));
+
+         assertTrue(space.delete(null, root));
+         assertFalse(space.exists(root + "/y", "moved.txt"));
+         assertFalse(space.exists(null, root));
+      }
+      finally {
+         deleteQuietly(space, root);
+         deleteQuietly(space, src);
+      }
+   }
+
    @Test
    void shouldKeepFolderWhenRenamedIntoOwnSubtree() throws Exception {
       DataSpace space = DataSpace.getDataSpace();
