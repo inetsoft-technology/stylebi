@@ -28,6 +28,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.*;
 import java.nio.file.NoSuchFileException;
+import java.nio.file.NotDirectoryException;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListSet;
@@ -616,6 +617,14 @@ public class DataSpace implements AutoCloseable {
     */
    public boolean makeDirectories(String path) {
       String sanitized = sanitizePathComponent(path);
+      // check the whole chain first so that a refused call creates no markers
+      String file = isFile(sanitized) ? sanitized : findFileAncestor(sanitized);
+
+      if(file != null) {
+         LOG.warn("Cannot create directory {}, {} is a file", sanitized, file);
+         return false;
+      }
+
       int start = 0;
       int end = 0;
 
@@ -634,6 +643,34 @@ public class DataSpace implements AutoCloseable {
       }
 
       return true;
+   }
+
+   /**
+    * Determines if a sanitized path exists and is a file. A directory marker over a file
+    * replaces the file and orphans its content.
+    */
+   private boolean isFile(String path) {
+      return path != null && storage().exists(path) && !storage().isDirectory(path);
+   }
+
+   /**
+    * Finds the nearest ancestor of a sanitized path, from the parent up to the root, that is a
+    * file. The path itself is not checked.
+    *
+    * @return the ancestor path, or {@code null} if no ancestor is a file.
+    */
+   private String findFileAncestor(String path) {
+      String parent = path == null ? null : getParentPath(path);
+
+      while(parent != null) {
+         if(isFile(parent)) {
+            return parent;
+         }
+
+         parent = getParentPath(parent);
+      }
+
+      return null;
    }
 
    /**
@@ -775,22 +812,34 @@ public class DataSpace implements AutoCloseable {
 
       public OutputStream newStream(String dir, String file) throws IOException {
          String path = getPath(dir, file);
-         String parentPath = getParentPath(path);
-         return tx.newStream(path, new Metadata(), () -> {
-            if(parentPath != null) {
-               makeDirectories(parentPath);
-            }
-         });
+         return tx.newStream(path, new Metadata(), () -> makeParentDirectories(path));
       }
 
       public OutputStream newStream(String dir, String file, long lastModified) throws IOException {
          String path = getPath(dir, file);
+         return tx.newStream(path, new Metadata(), () -> makeParentDirectories(path),
+                             lastModified);
+      }
+
+      /**
+       * Creates the parent directories of a file before it is committed. The write fails, and is
+       * rolled back, if an ancestor is a file.
+       */
+      private void makeParentDirectories(String path) throws IOException {
          String parentPath = getParentPath(path);
-         return tx.newStream(path, new Metadata(), () -> {
-            if(parentPath != null) {
-               makeDirectories(parentPath);
-            }
-         }, lastModified);
+
+         if(parentPath == null) {
+            return;
+         }
+
+         String ancestor = findFileAncestor(path);
+
+         if(ancestor != null) {
+            LOG.warn("Cannot write {}, {} is a file", path, ancestor);
+            throw new NotDirectoryException(ancestor);
+         }
+
+         makeDirectories(parentPath);
       }
 
       public void commit() throws IOException {

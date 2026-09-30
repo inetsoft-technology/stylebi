@@ -29,6 +29,7 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.Arrays;
@@ -271,6 +272,97 @@ class DataSpaceTests {
       }
       finally {
          deleteQuietly(space, dir);
+      }
+   }
+
+   /**
+    * Bug #77389: writing under a path whose parent or ancestor is a file must fail and keep the
+    * file, instead of replacing the file with a directory marker and orphaning its content.
+    */
+   @ParameterizedTest(name = "should not write under a file [{index}] at ''{0}'' with {1}")
+   @MethodSource
+   void shouldNotWriteUnderFile(String subdir, boolean lastModified) throws Exception {
+      DataSpace space = DataSpace.getDataSpace();
+      String file = "test77389-write-file.txt";
+      String dir = subdir.isEmpty() ? file : file + "/" + subdir;
+
+      try {
+         space.withOutputStream(null, file, out -> out.write(1));
+         String digest = space.getDigest(null, file);
+
+         IOException e = assertThrows(IOException.class, () -> {
+            if(lastModified) {
+               space.withOutputStream(dir, "b.txt", 1000L, out -> out.write(2));
+            }
+            else {
+               space.withOutputStream(dir, "b.txt", out -> out.write(2));
+            }
+         });
+
+         assertTrue(e.getMessage().contains(file), "the error must name the file: " + e);
+         assertFalse(space.isDirectory(file));
+         assertEquals(digest, space.getDigest(null, file), "the file must be intact");
+         assertFalse(space.exists(dir, "b.txt"));
+         assertFalse(space.exists(null, file + "/x"));
+      }
+      finally {
+         deleteQuietly(space, dir + "/b.txt");
+         deleteQuietly(space, file + "/x");
+         deleteQuietly(space, file);
+      }
+   }
+
+   static Stream<Arguments> shouldNotWriteUnderFile() {
+      return Stream.of(
+         Arguments.of("", false),
+         Arguments.of("", true),
+         Arguments.of("x", false),
+         Arguments.of("x/y", true)
+      );
+   }
+
+   @ParameterizedTest(name = "should not make directories over a file [{index}] at ''{0}''")
+   @ValueSource(strings = { "", "/x", "/x/y" })
+   void shouldNotMakeDirectoriesOverFile(String suffix) throws Exception {
+      DataSpace space = DataSpace.getDataSpace();
+      String root = "test77389-dirs";
+      String file = root + "/file.txt";
+
+      try {
+         space.withOutputStream(root, "file.txt", out -> out.write(1));
+         String digest = space.getDigest(null, file);
+
+         assertFalse(space.makeDirectories(file + suffix));
+         assertFalse(space.isDirectory(file));
+         assertEquals(digest, space.getDigest(null, file), "the file must be intact");
+         assertTrue(space.isDirectory(root), "the existing folder must be kept");
+         assertFalse(space.exists(null, file + "/x"));
+         assertFalse(space.exists(null, file + "/x/y"));
+      }
+      finally {
+         deleteQuietly(space, file + "/x/y");
+         deleteQuietly(space, file + "/x");
+         deleteQuietly(space, root);
+      }
+   }
+
+   @Test
+   void shouldMakeMissingDirectories() throws Exception {
+      DataSpace space = DataSpace.getDataSpace();
+      String root = "test77389-mkdirs";
+
+      try {
+         space.withOutputStream(root, "sibling.txt", out -> out.write(1));
+         String digest = space.getDigest(root, "sibling.txt");
+
+         assertTrue(space.makeDirectories(root + "/y/z"));
+         assertTrue(space.isDirectory(root + "/y"));
+         assertTrue(space.isDirectory(root + "/y/z"));
+         assertTrue(space.makeDirectories(root + "/y/z"), "existing directories are not an error");
+         assertEquals(digest, space.getDigest(root, "sibling.txt"), "the existing folder must be kept");
+      }
+      finally {
+         deleteQuietly(space, root);
       }
    }
 
