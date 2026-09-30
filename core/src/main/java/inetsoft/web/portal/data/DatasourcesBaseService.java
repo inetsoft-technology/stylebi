@@ -139,12 +139,19 @@ public abstract class DatasourcesBaseService {
    }
 
    public DataSourceDefinition refreshTabularView(DataSourceDefinition definition) {
-      refreshDraftDataSource(definition);
+      DraftDataSource draft = refreshDraftDataSource(definition);
+
+      // the OAuth button can't be used until the secret id is resolved, tell the user why
+      if(isAuthorizeBlocked(draft, definition)) {
+         CoreTool.addUserMessage(getSecretIdWithheldMessage(draft.principal()));
+      }
+
       return definition;
    }
 
    public TabularOAuthParams getOAuthParams(DataSourceOAuthParamsRequest request) {
-      Object ds = refreshDraftDataSource(request.dataSource());
+      DraftDataSource draft = refreshDraftDataSource(request.dataSource());
+      Object ds = draft.dataSource();
       String license = SreeEnv.getProperty("license.key");
       int index = license.indexOf(',');
 
@@ -158,6 +165,10 @@ public abstract class DatasourcesBaseService {
       if(!LicenseManager.isEnterprise() && (license == null || license.isEmpty())) {
          return builder.error(Catalog.getCatalog().getString("em.license.communityAPIKeyMissing"))
             .build();
+      }
+
+      if(isAuthorizeBlocked(draft, request.dataSource())) {
+         return builder.error(getSecretIdWithheldMessage(draft.principal())).build();
       }
 
       if(ds != null) {
@@ -192,7 +203,7 @@ public abstract class DatasourcesBaseService {
    }
 
    public DataSourceDefinition setOAuthTokens(DataSourceOAuthTokens tokens) {
-      Object ds = refreshDraftDataSource(tokens.dataSource());
+      Object ds = refreshDraftDataSource(tokens.dataSource()).dataSource();
 
       if(ds != null) {
          Tokens params = Tokens.builder()
@@ -215,13 +226,56 @@ public abstract class DatasourcesBaseService {
     * view. The definition may reference any secret id, so a secret is only resolved if the caller
     * can already see it through a saved data source.
     */
-   private Object refreshDraftDataSource(DataSourceDefinition definition) {
+   private DraftDataSource refreshDraftDataSource(DataSourceDefinition definition) {
       Principal principal = ThreadContext.getContextPrincipal();
       Map<String, Boolean> authorized = new HashMap<>();
-      return TabularDataSource.withCredentialFetchGate(
+      Object ds = TabularDataSource.withCredentialFetchGate(
          secretId -> authorized.computeIfAbsent(
             secretId, id -> isSecretIdAuthorized(definition, id, principal)),
          () -> refreshAndGetDataSource(definition));
+      // only the data source's own secret id counts, not those of its additional connections
+      boolean withheld = ds instanceof TabularDataSource<?> tabular &&
+         tabular.isUseCredentialId() && !Tool.isEmptyString(tabular.getCredentialId()) &&
+         Boolean.FALSE.equals(authorized.get(tabular.getCredentialId()));
+      return new DraftDataSource(ds, withheld, principal);
+   }
+
+   /**
+    * Gets the message that explains why the secret id of a draft data source was not resolved.
+    * Saving the data source resolves it only if the caller may introduce new secret ids.
+    */
+   private String getSecretIdWithheldMessage(Principal principal) {
+      return Catalog.getCatalog().getString(
+         secretIdAuthorizer.canIntroduceSecretIds(principal) ?
+            "data.datasources.saveBeforeAuthorize" : "data.datasources.secretIdNotAllowed");
+   }
+
+   /**
+    * Determines if the OAuth button of a draft data source can't be used because its secret id
+    * was withheld. A button that uses a hosted OAuth service does not need the secret.
+    */
+   private static boolean isAuthorizeBlocked(DraftDataSource draft,
+                                             DataSourceDefinition definition)
+   {
+      return draft.secretIdWithheld() && definition.getTabularView() != null &&
+         hasVisibleClientOAuthButton(definition.getTabularView().getViews());
+   }
+
+   private static boolean hasVisibleClientOAuthButton(TabularView[] views) {
+      if(views != null) {
+         for(TabularView view : views) {
+            TabularButton button = view.getButton();
+
+            if(view.isVisible() && (button != null && button.getType() == ButtonType.OAUTH &&
+               Tool.isEmptyString(button.getOauthServiceName()) ||
+               hasVisibleClientOAuthButton(view.getViews())))
+            {
+               return true;
+            }
+         }
+      }
+
+      return false;
    }
 
    /**
@@ -760,6 +814,19 @@ public abstract class DatasourcesBaseService {
    private final DataSourceRegistry dataSourceRegistry;
    private final Config uqlConfig;
    private final SecretIdAuthorizer secretIdAuthorizer;
+
+   /**
+    * A data source created from a client-supplied definition.
+    *
+    * @param dataSource       the data source, or {@code null} if it could not be created.
+    * @param secretIdWithheld {@code true} if the secret id of the data source was not resolved
+    *                         because the caller may not use it yet.
+    * @param principal        the caller.
+    */
+   private record DraftDataSource(Object dataSource, boolean secretIdWithheld,
+                                  Principal principal)
+   {
+   }
 
    private record AuthorizedDataSource(XDataSource dataSource,
                                        List<AdditionalConnectionDataSource<?>> additionalConnections)
