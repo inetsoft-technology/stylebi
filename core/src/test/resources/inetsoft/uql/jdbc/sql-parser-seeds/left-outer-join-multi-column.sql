@@ -1,0 +1,1 @@
+select a.x, b.y from a left outer join b on a.id = b.id and a.k = b.k

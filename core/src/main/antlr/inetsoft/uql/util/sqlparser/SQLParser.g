@@ -221,6 +221,72 @@ private void clearTableOps() {
     map.clear();
 }
 
+/**
+ * Get the joins of an outer join ON condition. An outer join is only
+ * represented as XJoin nodes in the where clause, so the condition must be a
+ * column = column join, or an AND of such joins between the same two tables.
+ * Any other condition can't be represented and fails the parse, since moving
+ * it to the where clause would change the query results.
+ */
+private List getOuterJoins(UniformSQL sql, XFilterNode cond, Token tok)
+   throws SemanticException
+{
+   List joins = new ArrayList();
+
+   if(collectOuterJoins(cond, joins)) {
+      Set tables = null;
+      boolean sameTables = true;
+
+      for(int i = 0; i < joins.size() && sameTables; i++) {
+         XJoin join = (XJoin) joins.get(i);
+         Set tables2 = new HashSet();
+         tables2.add(join.getTable1(sql));
+         tables2.add(join.getTable2(sql));
+
+         // several joins must all name the same two tables
+         if(joins.size() > 1 && (tables2.size() != 2 || tables2.contains(null) ||
+            tables2.contains("")))
+         {
+            sameTables = false;
+         }
+         else if(tables == null) {
+            tables = tables2;
+         }
+         else {
+            sameTables = tables.equals(tables2);
+         }
+      }
+
+      if(sameTables) {
+         return joins;
+      }
+   }
+
+   throw new SemanticException("Unsupported outer join condition: " + cond,
+                               getFilename(), tok.getLine(), tok.getColumn());
+}
+
+private boolean collectOuterJoins(XFilterNode node, List joins) {
+   if(node instanceof XJoin) {
+      joins.add(node);
+      return "=".equals(((XJoin) node).getOp());
+   }
+
+   if(node instanceof XSet && !node.isIsNot() && node.getChildCount() > 0 &&
+      XSet.AND.equalsIgnoreCase(((XSet) node).getRelation()))
+   {
+      for(int i = 0; i < node.getChildCount(); i++) {
+         if(!collectOuterJoins((XFilterNode) node.getChild(i), joins)) {
+            return false;
+         }
+      }
+
+      return true;
+   }
+
+   return false;
+}
+
 public boolean hasField(){
    return hasField;
 }
@@ -2715,44 +2781,40 @@ join_condition [UniformSQL sql, String op, String tbl2] returns [String jc = ""]
         jc = a.getText() + " " + tmp.toString();
 
         if(sql != null) {
+           String outerType = null;
+           String outerOp = null;
+
            if(op.length() >= 4 && op.substring(0, 4).equalsIgnoreCase("LEFT")) {
-              XJoin join = ((XJoin) tmp);
-              String op1 = getTableOp(sql, join.getTable1(sql));
-
-              if(op1 != null && op1.substring(0, 4).equalsIgnoreCase("LEFT")) {
-                 XExpression exp1 = join.getExpression1();
-                 XExpression exp2 = join.getExpression2();
-                 join.setExpression1(exp2);
-                 join.setExpression2(exp1);
-              }
-
-              join.setOp("*=");
+              outerType = "LEFT";
+              outerOp = "*=";
            }
            else if(op.length() >= 5 && op.substring(0, 5).equalsIgnoreCase("RIGHT")) {
-              XJoin join = ((XJoin) tmp);
-              String op1 = getTableOp(sql, join.getTable1(sql));
-
-              if(op1 != null && op1.substring(0, 5).equalsIgnoreCase("RIGHT")) {
-                 XExpression exp1 = join.getExpression1();
-                 XExpression exp2 = join.getExpression2();
-                 join.setExpression1(exp2);
-                 join.setExpression2(exp1);
-              }
-
-              join.setOp("=*");
+              outerType = "RIGHT";
+              outerOp = "=*";
            }
            else if(op.length() >= 4 && op.substring(0, 4).equalsIgnoreCase("FULL")) {
-              XJoin join = ((XJoin) tmp);
-              String op1 = getTableOp(sql, join.getTable1(sql));
+              outerType = "FULL";
+              outerOp = "*=*";
+           }
 
-              if(op1 != null && op1.substring(0, 4).equalsIgnoreCase("FULL")) {
-                 XExpression exp1 = join.getExpression1();
-                 XExpression exp2 = join.getExpression2();
-                 join.setExpression1(exp2);
-                 join.setExpression2(exp1);
+           if(outerType != null) {
+              List joins = getOuterJoins(sql, tmp, a);
+
+              for(int i = 0; i < joins.size(); i++) {
+                 XJoin join = (XJoin) joins.get(i);
+                 String op1 = getTableOp(sql, join.getTable1(sql));
+
+                 if(op1 != null && op1.length() >= outerType.length() &&
+                    op1.substring(0, outerType.length()).equalsIgnoreCase(outerType))
+                 {
+                    XExpression exp1 = join.getExpression1();
+                    XExpression exp2 = join.getExpression2();
+                    join.setExpression1(exp2);
+                    join.setExpression2(exp1);
+                 }
+
+                 join.setOp(outerOp);
               }
-
-              join.setOp("*=*");
            }
 
            sql.combineWhereByAnd(tmp);
