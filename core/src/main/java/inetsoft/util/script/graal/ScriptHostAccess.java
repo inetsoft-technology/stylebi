@@ -112,7 +112,14 @@ public final class ScriptHostAccess {
       "inetsoft.util.Plugins",
       "inetsoft.util.IndexStorage",
       "inetsoft.util.XMLIndexedStorage",
-      "inetsoft.util.BlobIndexedStorage"
+      "inetsoft.util.BlobIndexedStorage",
+      // its statics hand out the raw executing ScriptScope (bypassing ScopeProxy
+      // and the read-only principal view) and the thread's restricted flag that
+      // gates runQuery from the web. Internal plumbing, never script API. (#77348)
+      "inetsoft.util.script.FormulaContext",
+      // same for getExecScriptable()/pushExecScriptable(); its script-facing
+      // functions are bound as globals, not looked up by name (#77348)
+      "inetsoft.util.script.JavaScriptEngine"
    );
 
    // Tier 1: curated exact-match safe classes. Finalized by audit in Task 6.4,
@@ -198,6 +205,48 @@ public final class ScriptHostAccess {
                   .denyAccess(Process.class)
                   .denyAccess(ProcessBuilder.class)
                   .denyAccess(Thread.class)
+                  // Bug #77348: the #77255 read-only principal view is applied only
+                  // where the engine converts a value for a script (toGuest). A raw
+                  // host call (a Spring holder, VariableTable.get('__principal__'),
+                  // a runtime sheet's getUser()) returns the live principal
+                  // unconverted, and allowPublicAccess would expose its setters. So
+                  // deny, by type, every member of the objects that are or hold the
+                  // live session identity, or that decide which identity a session
+                  // trusts. Deny is by the member's declaring class, so the extra
+                  // interfaces a principal implements are listed too: Graal reports
+                  // their methods as declared by the interface, not the principal.
+                  .denyAccess(java.security.Principal.class)
+                  // SRPrincipal.getClientUserID() is the live ClientInfo IdentityID
+                  // that getName()/getIdentityID() are computed from
+                  .denyAccess(inetsoft.util.LogPrincipal.class)
+                  // readExternal resets an object's whole state; only the
+                  // interface-declared methods, not every Externalizable class
+                  .denyAccess(java.io.Externalizable.class, false)
+                  // DestinationUserNameProviderPrincipal is a Principal, but Graal
+                  // reports getDestinationUserName() as declared by this interface
+                  .denyAccess(org.springframework.messaging.simp.user
+                                 .DestinationUserNameProvider.class, false)
+                  // the principal's user identity holder
+                  .denyAccess(inetsoft.sree.ClientInfo.class)
+                  // setUser/setBaseUser/setVPMUser swap which principal a session
+                  // trusts without touching the principal itself
+                  .denyAccess(inetsoft.report.composition.execution.ViewsheetSandbox.class)
+                  .denyAccess(inetsoft.report.composition.execution.AssetQuerySandbox.class)
+                  // every live session's sheet, its user and its sandbox
+                  .denyAccess(inetsoft.report.composition.RuntimeSheet.class)
+                  // the engine (static WorksheetEngine.getWorksheetService(),
+                  // ViewsheetEngine), which hands out every user's sheets on the node
+                  .denyAccess(inetsoft.report.composition.WorksheetService.class)
+                  // XUtil.getXIdentityFinder() resolves every user's roles, groups
+                  // and org, and its getters return the live arrays
+                  .denyAccess(inetsoft.uql.util.XIdentityFinder.class)
+                  // XUtil.getSecurityProvider(), and the interfaces its providers'
+                  // configuration and cache methods are declared by
+                  .denyAccess(inetsoft.sree.security.AuthenticationProvider.class)
+                  .denyAccess(inetsoft.sree.security.AuthorizationProvider.class)
+                  .denyAccess(inetsoft.sree.security.JsonConfigurableProvider.class)
+                  .denyAccess(inetsoft.sree.security.CachableProvider.class)
+                  .denyAccess(inetsoft.sree.security.AuthenticationChangeListener.class, false)
                   // legacy convenience: scripts pass JS numbers to Java APIs.
                   // The range check matters: Double::intValue narrows by Java
                   // cast, which CLAMPS anything past the int range to
