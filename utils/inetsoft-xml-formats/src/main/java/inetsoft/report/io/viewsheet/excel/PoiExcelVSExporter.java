@@ -492,7 +492,9 @@ public class PoiExcelVSExporter extends ExcelVSExporter {
       int rowCount = Math.min(table.getRowCount(), getMaxRow(ypos));
 
       if(info instanceof TitledVSAssemblyInfo) {
-         titleRow = ((TitledVSAssemblyInfo) info).isTitleVisible() ? 1 : 0;
+         // the rows the title actually merges, not a flat one
+         titleRow = PoiExcelVSUtil.getExcelTitleHeight((TitledVSAssemblyInfo) info) /
+            AssetUtil.defh;
       }
 
       int rows = titleRow;
@@ -501,7 +503,11 @@ public class PoiExcelVSExporter extends ExcelVSExporter {
 
       while(i < rowCount) {
          int h = lens.getWrappedHeight(i, true);
-         int count = (int) Math.round(((double)h) / AssetUtil.defh);
+         int padded = (int) lens.getRowHeightWithPadding(h, i, info);
+         // a padded row spans what the writer's ceil gives it; an unpadded row keeps the
+         // historical rounding so legacy exports do not move
+         int count = padded > h ? (int) Math.ceil(((double) padded) / AssetUtil.defh) :
+            (int) Math.round(((double) h) / AssetUtil.defh);
          count = Math.max(1, count);
          rows += count;
          i++;

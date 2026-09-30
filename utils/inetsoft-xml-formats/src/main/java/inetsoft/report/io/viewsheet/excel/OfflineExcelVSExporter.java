@@ -122,7 +122,11 @@ public class OfflineExcelVSExporter extends PoiExcelVSExporter {
             h = lens.getWrappedHeight(i, true);
          }
 
-         h = (int)Math.round(((double)h) / AssetUtil.defh) * AssetUtil.defh;
+         int padded = (int) lens.getRowHeightWithPadding(h, i, info);
+         // a padded row spans what the writer's ceil gives it; an unpadded row keeps the
+         // historical rounding so legacy exports do not move
+         h = padded > h ? (int) Math.ceil(((double) padded) / AssetUtil.defh) * AssetUtil.defh :
+            (int) Math.round(((double) h) / AssetUtil.defh) * AssetUtil.defh;
          totalHeight += h;
       }
 
