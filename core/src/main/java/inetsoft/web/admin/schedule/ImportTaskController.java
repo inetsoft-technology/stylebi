@@ -143,6 +143,16 @@ public class ImportTaskController {
       session.removeAttribute(INFO_ATTR);
       List<TimeRange> timeRanges = (List<TimeRange>) session.getAttribute(TIME_RANGES_ATTR);
       session.removeAttribute(TIME_RANGES_ATTR);
+
+      // Bug #77360, no uploaded task file in the session (never uploaded, or already imported)
+      if(tasklist == null) {
+         LOG.warn("No uploaded task file found in the session, the tasks are not imported");
+         return ImportTaskResponse.builder()
+            .failedTasks(selectedTasks == null ? new ArrayList<>() : new ArrayList<>(selectedTasks))
+            .failed(true)
+            .build();
+      }
+
       applyTimeRanges(timeRanges, principal);
 
       for(int i=0; i < tasklist.size(); i++) {
