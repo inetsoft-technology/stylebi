@@ -369,6 +369,39 @@ public class Config implements Serializable {
    }
 
    /**
+    * Loads a data source or supporting class from the appropriate class loader and
+    * checks that it is the expected type. Unlike {@link #getClass(String, String)},
+    * the class is not initialized, so a class of the wrong type is rejected before
+    * any of its code runs.
+    *
+    * @param dxtype    the data source type.
+    * @param className the name of the class to load.
+    * @param expected  the type the class must extend or implement.
+    *
+    * @return the loaded class or {@code null} if a driver class could not be found.
+    *
+    * @throws ClassNotFoundException if a class with the specified name could not be
+    *                                found.
+    * @throws ClassCastException     if the class is not a subtype of the expected type.
+    */
+   public <T> Class<? extends T> getClass(String dxtype, String className, Class<T> expected)
+      throws ClassNotFoundException
+   {
+      DSInfo ds = dxmap.get(dxtype);
+      Class<? extends T> result;
+
+      if(ds != null && ds.isTabular()) {
+         result = Tool.checkSubclass(Class.forName(
+            className, false, ds.tabularService.getClass().getClassLoader()), expected);
+      }
+      else {
+         result = Drivers.getInstance().getDriverClass(className, expected);
+      }
+
+      return result;
+   }
+
+   /**
     * Loads a resource from the appropriate class loader for a data source type.
     *
     * @param dxtype the type of data source.

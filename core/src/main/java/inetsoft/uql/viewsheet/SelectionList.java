@@ -687,7 +687,7 @@ public class SelectionList extends XSwappable implements AssetObject, DataSerial
          for(int i = 0; i < valuesList.getLength(); i++) {
             Element vnode = (Element) valuesList.item(i);
             String cls = Tool.getAttribute(vnode, "class");
-            SelectionValue value = (SelectionValue) Class.forName(cls).newInstance();
+            SelectionValue value = (SelectionValue) Tool.loadSubclass(cls, SelectionValue.class).newInstance();
             value.parseXML(vnode);
             list.add(value);
          }

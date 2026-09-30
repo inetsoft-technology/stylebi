@@ -78,6 +78,21 @@ interface DriverProvider {
    Class<?> getDriverClass(String className) throws ClassNotFoundException;
 
    /**
+    * Loads a class from the driver class loader without initializing it, and checks
+    * that it is the expected type.
+    *
+    * @param className the name of the class.
+    * @param expected  the type the class must extend or implement.
+    *
+    * @return the class or {@code null} if not found.
+    *
+    * @throws ClassNotFoundException if the class could not be found.
+    * @throws ClassCastException     if the class is not a subtype of the expected type.
+    */
+   <T> Class<? extends T> getDriverClass(String className, Class<T> expected)
+      throws ClassNotFoundException;
+
+   /**
     * Gets the URL of a resource from the driver class loader.
     *
     * @param name the name of the resource.

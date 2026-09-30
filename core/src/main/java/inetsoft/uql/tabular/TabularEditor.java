@@ -787,8 +787,12 @@ public class TabularEditor implements XMLSerializable {
 
       if(type == Type.LIST) {
          NodeList valueNodes = Tool.getChildNodesByTagName(node, "value");
-         Class collectionClass = Class.forName(propertyType);
-         Class elementClass = Class.forName(propertySubtype);
+         Class collectionClass = Tool.loadSubclass(propertyType, Object.class);
+         Class elementClass = Tool.loadSubclass(propertySubtype, Object.class);
+
+         if(!collectionClass.isArray()) {
+            Tool.checkSubclass(collectionClass, Collection.class);
+         }
 
          if(collectionClass.isArray()) {
             value = Array.newInstance(elementClass,

@@ -282,7 +282,7 @@ public class BeanUtil {
 
          try {
             vstr = Tool.getAttribute(node, "Value");
-            value = Class.forName(vstr).newInstance();
+            value = Tool.loadSubclass(vstr, Object.class).newInstance();
          }
          catch(Exception ex) {
             LOG.warn("Failed to instantiate TOC class: " + vstr, ex);

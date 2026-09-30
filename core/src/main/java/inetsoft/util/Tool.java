@@ -4052,6 +4052,44 @@ public final class Tool extends CoreTool {
    }
 
    /**
+    * Load a class named in stored or imported data, such as an asset XML
+    * <tt>class</tt> attribute, and check that it is the expected type before
+    * it is initialized or constructed. The class is loaded by the core class
+    * loader without running its static initializer, and it is not instantiated.
+    *
+    * @param name     the class name.
+    * @param expected the type the named class must extend or implement.
+    *
+    * @return the loaded class.
+    *
+    * @throws ClassNotFoundException if the class could not be found.
+    * @throws ClassCastException     if the class is not a subtype of the expected type.
+    */
+   public static <T> Class<? extends T> loadSubclass(String name, Class<T> expected)
+      throws ClassNotFoundException
+   {
+      return checkSubclass(Class.forName(name, false, Tool.class.getClassLoader()), expected);
+   }
+
+   /**
+    * Check that a loaded class is a subtype of the expected type.
+    *
+    * @param cls      the loaded class.
+    * @param expected the type the class must extend or implement.
+    *
+    * @return the class as a subclass of the expected type.
+    *
+    * @throws ClassCastException if the class is not a subtype of the expected type.
+    */
+   public static <T> Class<? extends T> checkSubclass(Class<?> cls, Class<T> expected) {
+      if(!expected.isAssignableFrom(cls)) {
+         throw new ClassCastException(cls.getName() + " is not a " + expected.getName());
+      }
+
+      return cls.asSubclass(expected);
+   }
+
+   /**
     * Convert user specifield file name.
     */
    public static String convertUserFileName(String fname) {

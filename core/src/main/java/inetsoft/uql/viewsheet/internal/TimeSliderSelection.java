@@ -83,19 +83,19 @@ public class TimeSliderSelection {
          Element lastSelectedNode = Tool.getChildNodeByTagName(lastSelectedParent, "VSValue");
 
          String cls = Tool.getAttribute(startVNode, "class");
-         SelectionValue startVal = (SelectionValue) Class.forName(cls).newInstance();
+         SelectionValue startVal = (SelectionValue) Tool.loadSubclass(cls, SelectionValue.class).newInstance();
          startVal.parseXML(startVNode);
 
          cls = Tool.getAttribute(endVNode, "class");
-         SelectionValue endVal = (SelectionValue) Class.forName(cls).newInstance();
+         SelectionValue endVal = (SelectionValue) Tool.loadSubclass(cls, SelectionValue.class).newInstance();
          endVal.parseXML(endVNode);
 
          cls = Tool.getAttribute(firstSelectedNode, "class");
-         SelectionValue firstSelectedVal = (SelectionValue) Class.forName(cls).newInstance();
+         SelectionValue firstSelectedVal = (SelectionValue) Tool.loadSubclass(cls, SelectionValue.class).newInstance();
          firstSelectedVal.parseXML(firstSelectedNode);
 
          cls = Tool.getAttribute(lastSelectedNode, "class");
-         SelectionValue lastSelectedVal = (SelectionValue) Class.forName(cls).newInstance();
+         SelectionValue lastSelectedVal = (SelectionValue) Tool.loadSubclass(cls, SelectionValue.class).newInstance();
          lastSelectedVal.parseXML(lastSelectedNode);
 
          Format lblfmt = null;
@@ -106,7 +106,7 @@ public class TimeSliderSelection {
          cls = Tool.getAttribute(labelFmtNode, "class");
 
          try {
-            lblfmt = (Format) Class.forName(cls).newInstance();
+            lblfmt = (Format) Tool.loadSubclass(cls, Format.class).newInstance();
 
             if(lblfmt instanceof DecimalFormat) {
                ((DecimalFormat) lblfmt).applyPattern(lblfmtPattern);
@@ -136,7 +136,7 @@ public class TimeSliderSelection {
             cls = Tool.getAttribute(valueFmtNode, "class");
 
             try {
-               valfmt = (Format) Class.forName(cls).newInstance();
+               valfmt = (Format) Tool.loadSubclass(cls, Format.class).newInstance();
 
                if(valfmt instanceof DecimalFormat) {
                   ((DecimalFormat) valfmt).applyPattern(valfmtPattern);

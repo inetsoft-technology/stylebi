@@ -56,8 +56,8 @@ public class VSChartInfo extends AbstractChartInfo implements ContentObject, Dat
     */
    public static VSChartInfo createVSChartInfo(Element elem) throws Exception {
       String cls = Tool.getAttribute(elem, "class");
-      VSChartInfo info = (VSChartInfo) VSChartInfo.class.getClassLoader()
-         .loadClass(cls).getConstructor().newInstance();
+      VSChartInfo info = (VSChartInfo) Tool.loadSubclass(cls, VSChartInfo.class)
+         .getConstructor().newInstance();
       info.parseXML(elem);
 
       return info;

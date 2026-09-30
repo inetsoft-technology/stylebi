@@ -587,7 +587,7 @@ public abstract class AbstractCondition implements XCondition {
     */
    public static XCondition createXCondition(Element elem) throws Exception {
       String cls = Tool.getAttribute(elem, "class");
-      XCondition condition = (XCondition) Class.forName(cls).newInstance();
+      XCondition condition = (XCondition) Tool.loadSubclass(cls, XCondition.class).newInstance();
       condition.parseXML(elem);
       return condition;
    }

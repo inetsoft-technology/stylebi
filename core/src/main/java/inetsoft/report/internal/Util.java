@@ -1126,7 +1126,7 @@ public class Util implements inetsoft.report.StyleConstants {
       String oFormula = formula;
 
       try {
-         Class cls = Class.forName(scls);
+         Class cls = Tool.loadSubclass(scls, Formula.class);
          int idx = formula.indexOf('(');
          String pstr = null;
 
