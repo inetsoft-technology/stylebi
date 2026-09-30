@@ -70,6 +70,13 @@ public class CalendarVSAssemblyInfo extends SelectionVSAssemblyInfo
    public static final int DEFAULT_CALENDAR_ROWS = 9;
    public static final int DEFAULT_CALENDAR_HEIGHT =
       DEFAULT_CALENDAR_ROWS * DEFAULT_CALENDAR_ROW_HEIGHT;
+   /**
+    * Height of the calendar body below the title, same as the frontend
+    * VSUtil.CALENDAR_BODY_HEIGHT (web/projects/portal/src/app/vsobjects/util/vs-util.ts).
+    * Keep the two in sync, CalendarVSAssemblyInfoFixSizeTest checks that they match.
+    */
+   public static final int CALENDAR_BODY_HEIGHT =
+      DEFAULT_CALENDAR_HEIGHT - DEFAULT_CALENDAR_ROW_HEIGHT;
 
    /**
     * Constructor.
@@ -1386,10 +1393,27 @@ public class CalendarVSAssemblyInfo extends SelectionVSAssemblyInfo
          runtimePixelSize = new Dimension(runtimePixelSize.width, DEFAULT_CALENDAR_ROW_HEIGHT);
       }
       else if(getShowType() == CALENDAR_SHOW_TYPE) {
-         runtimePixelSize = new Dimension(runtimePixelSize.width, DEFAULT_CALENDAR_HEIGHT);
+         runtimePixelSize = new Dimension(runtimePixelSize.width,
+                                          fitCalendarHeightToTitle(DEFAULT_CALENDAR_HEIGHT));
       }
 
       setPixelSize(runtimePixelSize);
+   }
+
+   /**
+    * Get the pixel height a calendar show type calendar needs so that its title
+    * does not take up the whole height. The title is drawn inside the pixel
+    * height, so a title as tall as the height (or taller) leaves no room for the
+    * calendar body, and the rendered calendar grows past its pixel height.
+    *
+    * @param height the current pixel height.
+    *
+    * @return the height, or the title height plus the calendar body height if the
+    *         title would not leave any room for the body.
+    */
+   public int fitCalendarHeightToTitle(int height) {
+      int titleHeight = getTitleHeight();
+      return titleHeight >= height ? titleHeight + CALENDAR_BODY_HEIGHT : height;
    }
 
    private static FormatInfo normalDefault = new FormatInfo();
