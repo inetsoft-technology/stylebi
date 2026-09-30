@@ -18,6 +18,7 @@
 package inetsoft.web.portal.controller.database;
 
 import inetsoft.report.composition.RuntimeWorksheet;
+import inetsoft.report.composition.event.AssetEventUtil;
 import inetsoft.report.composition.execution.AssetQuerySandbox;
 import inetsoft.report.internal.Util;
 import inetsoft.report.lens.xnode.XNodeTableLens;
@@ -1494,8 +1495,9 @@ public class QueryManagerService {
     * neither the asset engine nor query execution checks it, so the permission the composer
     * asset tree requires to list the source is checked here. A logical model requires READ on
     * its data source and on the model, a physical table requires READ on its data source and
-    * PHYSICAL_TABLE ACCESS, and any other source with a data source in its prefix requires READ
-    * on that data source (Bug #77189, Bug #77400).
+    * PHYSICAL_TABLE ACCESS, a cube requires READ on its data source and the cube READ that the
+    * asset tree's cube listing requires, and any other source with a data source in its prefix
+    * requires READ on that data source (Bug #77189, Bug #77400).
     *
     * @param source    the source to check, or null if nothing is bound.
     * @param principal the current user.
@@ -1515,8 +1517,38 @@ public class QueryManagerService {
          checkDataSourceReadPermission(source.getPrefix(), principal);
          checkPhysicalTableAccess(principal);
       }
+      else if(AssetEventUtil.isCubeType(source.getType())) {
+         checkDataSourceReadPermission(source.getPrefix(), principal);
+         checkCubeReadPermission(source.getPrefix(), source.getSource(), principal);
+      }
       else if(!StringUtils.isEmpty(source.getPrefix())) {
          checkDataSourceReadPermission(source.getPrefix(), principal);
+      }
+   }
+
+   /**
+    * Checks READ on a cube with the same decision that the asset tree's cube listing makes
+    * ({@link AssetEventUtil#getXCube}): CUBE READ on an OLAP cube, or QUERY READ on a model
+    * cube. A cube that cannot be resolved is refused, because nothing can be bound to it
+    * (Bug #77400).
+    *
+    * @throws java.lang.SecurityException if READ is not granted, or if the check itself fails.
+    */
+   private void checkCubeReadPermission(String dataSource, String cube, Principal principal) {
+      boolean allowed;
+
+      try {
+         allowed = AssetEventUtil.getXCube(dataSource, cube, principal) != null;
+      }
+      catch(Exception e) {
+         LOG.debug("Failed to check cube permission: {}::{}", dataSource, cube, e);
+         allowed = false;
+      }
+
+      if(!allowed) {
+         throw new java.lang.SecurityException(
+            "Unauthorized access to cube \"" + cube + "\" by user " +
+            (principal == null ? null : principal.getName()));
       }
    }
 

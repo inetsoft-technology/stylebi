@@ -21,11 +21,15 @@ import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.composition.RuntimeWorksheet;
 import inetsoft.sree.security.*;
 import inetsoft.test.*;
+import inetsoft.uql.XCube;
+import inetsoft.uql.XDomain;
 import inetsoft.uql.XRepository;
 import inetsoft.uql.asset.*;
+import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.erm.XDataModel;
 import inetsoft.uql.erm.XLogicalModel;
 import inetsoft.uql.util.ColumnCache;
+import inetsoft.uql.xmla.Domain;
 import inetsoft.web.composer.ws.assembly.WorksheetEventUtil;
 import inetsoft.web.composer.ws.event.ImmutableOpenAssetEvent;
 import inetsoft.web.composer.ws.event.OpenAssetEvent;
@@ -202,6 +206,107 @@ class WorksheetOpenAssetPermissionTest {
          util.verify(() -> WorksheetEventUtil.loadTableData(
             any(), eq(assemblies[0].getName()), eq(true), eq(true)));
       }
+   }
+
+   // ---- cube columns: the same READ that the asset tree's cube listing requires ----
+
+   private static final String CUBE_SOURCE = "XMLA";
+   private static final String CUBE = "Budget";
+
+   private static AssetEntry cubeColumn() {
+      AssetEntry entry = new AssetEntry(
+         AssetRepository.QUERY_SCOPE, AssetEntry.Type.COLUMN,
+         CUBE_SOURCE + "/" + CUBE + "/Measure/Amount", null);
+      entry.setProperty("prefix", CUBE_SOURCE);
+      entry.setProperty("source", CUBE);
+      entry.setProperty("type", DataRef.CUBE_MEASURE + "");
+      entry.setProperty("refType", DataRef.CUBE_MEASURE + "");
+      entry.setProperty("attribute", "Amount");
+      entry.setProperty("table", CUBE_SOURCE + "/" + CUBE);
+      return entry;
+   }
+
+   /**
+    * Runs the call with the static security engine and repository that the cube listing
+    * decision uses, with an OLAP cube (CUBE READ) or a model cube (QUERY READ).
+    */
+   private void withCube(boolean olap, boolean cubeReadable, Executable call) throws Throwable {
+      grantRead(ALLOWED, CUBE_SOURCE);
+      XDomain domain = olap ? mock(Domain.class) : mock(XDomain.class);
+      XCube cube = mock(XCube.class);
+      when(domain.getCube(CUBE)).thenReturn(cube);
+      XRepository repository = mock(XRepository.class);
+      when(repository.getDomain(CUBE_SOURCE)).thenReturn(domain);
+      when(securityEngine.checkPermission(
+         any(Principal.class), eq(ResourceType.CUBE), anyString(), eq(ResourceAction.READ)))
+         .thenAnswer(inv -> cubeReadable || !(CUBE_SOURCE + "::" + CUBE).equals(inv.getArgument(2)));
+
+      if(!olap) {
+         when(securityEngine.checkPermission(
+            any(Principal.class), eq(ResourceType.QUERY), anyString(), eq(ResourceAction.READ)))
+            .thenAnswer(inv -> cubeReadable || !(CUBE + "::" + CUBE_SOURCE).equals(inv.getArgument(2)));
+      }
+
+      try(MockedStatic<SecurityEngine> security = mockStatic(SecurityEngine.class);
+          MockedStatic<XRepository> repositoryStatic = mockStatic(XRepository.class))
+      {
+         security.when(SecurityEngine::getSecurity).thenReturn(securityEngine);
+         repositoryStatic.when(XRepository::getRepository).thenReturn(repository);
+         call.execute();
+      }
+   }
+
+   @Test
+   void oCubeColumnDeniedWithoutCubeRead() throws Throwable {
+      withCube(true, false, () -> assertDeniedAndNothingAdded(() -> openAsset(event(cubeColumn()))));
+      verify(securityEngine).checkPermission(
+         principal, ResourceType.CUBE, CUBE_SOURCE + "::" + CUBE, ResourceAction.READ);
+   }
+
+   @Test
+   void oModelCubeColumnDeniedWithoutQueryRead() throws Throwable {
+      withCube(false, false, () -> assertDeniedAndNothingAdded(() -> openAsset(event(cubeColumn()))));
+      verify(securityEngine).checkPermission(
+         principal, ResourceType.QUERY, CUBE + "::" + CUBE_SOURCE, ResourceAction.READ);
+   }
+
+   @Test
+   void oCubeColumnDeniedWithoutDataSourceRead() throws Throwable {
+      withCube(true, true, () -> {
+         grantRead(ALLOWED);
+         assertDeniedAndNothingAdded(() -> openAsset(event(cubeColumn())));
+      });
+   }
+
+   @Test
+   void cCheckTrapCubeDeniedWithoutCubeRead() throws Throwable {
+      withCube(true, false, () -> assertDeniedAndNothingAdded(
+         () -> service.checkTrap(RUNTIME_ID, event(cubeColumn()), principal)));
+   }
+
+   @Test
+   void oCubeColumnAddedWithCubeRead() throws Throwable {
+      withCube(true, true, () -> {
+         try(MockedStatic<WorksheetEventUtil> util = mockStatic(WorksheetEventUtil.class)) {
+            openAsset(event(cubeColumn()));
+
+            Assembly[] assemblies = worksheet.getAssemblies();
+            assertEquals(1, assemblies.length);
+            assertInstanceOf(CubeTableAssembly.class, assemblies[0]);
+            util.verify(() -> WorksheetEventUtil.loadTableData(
+               any(), eq(assemblies[0].getName()), eq(true), eq(true)));
+         }
+      });
+   }
+
+   @Test
+   void oModelCubeColumnAddedWithQueryRead() throws Throwable {
+      withCube(false, true, () -> {
+         try(MockedStatic<WorksheetEventUtil> util = mockStatic(WorksheetEventUtil.class)) {
+            openAsset(event(cubeColumn()));
+            assertInstanceOf(CubeTableAssembly.class, worksheet.getAssemblies()[0]);
+         }
+      });
    }
 
    @Test
