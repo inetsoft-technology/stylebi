@@ -17,14 +17,19 @@
  */
 package inetsoft.web.wiz.binding;
 
+import inetsoft.graph.aesthetic.LineFrame;
+import inetsoft.graph.aesthetic.TextureFrame;
+import inetsoft.graph.aesthetic.VisualFrame;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.viewsheet.ChartVSAssembly;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.VSDataRef;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.graph.AestheticRef;
+import inetsoft.uql.viewsheet.graph.ChartAggregateRef;
 import inetsoft.uql.viewsheet.graph.ChartBindable;
 import inetsoft.uql.viewsheet.graph.GraphTypes;
+import inetsoft.uql.viewsheet.graph.RelationChartInfo;
 import inetsoft.uql.viewsheet.graph.VSChartInfo;
 import inetsoft.web.binding.controller.ChangeChartAestheticService;
 import inetsoft.web.binding.event.ChangeChartRefEvent;
@@ -148,6 +153,7 @@ public class ChartAestheticAgentService {
    {
       boolean relationChart = isRelationChart(sessionToken, user, assemblyName);
       String name = AestheticChannels.requireFrameChannel(channel, relationChart);
+      requireNotDateComparisonInjected(sessionToken, user, assemblyName, name);
 
       apply(sessionToken, user, assemblyName, name, linkUri,
             (chart, model) -> ChartAestheticMutator.resetFrame(
@@ -413,7 +419,14 @@ public class ChartAestheticAgentService {
     * fallback, added for the same bug's VCA-003 finding, which is what lets
     * {@code get_chart_aesthetics} surface such a field at all) — so a caller acting on that read
     * deserves the identical refusal, not a write that reaches the aggregate's own field and
-    * reverts on the next refresh exactly the same way.
+    * reverts on the next refresh exactly the same way. The aggregates scanned are
+    * {@code getAestheticAggregateRefs(true)} — the exact list {@code ChartDcProcessor} injects
+    * into, which on a Gantt chart also includes its start/end/milestone refs — together with
+    * {@code getAggregateRefs()}.
+    *
+    * <p>Wired into every write that can reach such a ref: {@code set_aesthetic_field},
+    * {@code clear_aesthetic_field}, {@code set_visual_frame} and {@code reset_visual_frame} (the
+    * last writes {@code field.setFrame(...)} on the very same live ref).
     */
    private void requireNotDateComparisonInjected(String sessionToken, Principal user,
                                                  String assemblyName, String channel)
@@ -427,12 +440,23 @@ public class ChartAestheticAgentService {
          return;
       }
 
+      Set<ChartBindable> aggregates = new LinkedHashSet<>();
+      List<ChartAggregateRef> aestheticAggregates = info.getAestheticAggregateRefs(true);
       VSDataRef[] aggregateRefs = info.getAggregateRefs();
-      boolean injected = isRuntimeInjected(info, channel) ||
-         (aggregateRefs != null && Arrays.stream(aggregateRefs)
+
+      if(aestheticAggregates != null) {
+         aggregates.addAll(aestheticAggregates);
+      }
+
+      if(aggregateRefs != null) {
+         Arrays.stream(aggregateRefs)
             .filter(ChartBindable.class::isInstance)
             .map(ChartBindable.class::cast)
-            .anyMatch(agg -> isRuntimeInjected(agg, channel)));
+            .forEach(aggregates::add);
+      }
+
+      boolean injected = isRuntimeInjected(info, channel) ||
+         aggregates.stream().anyMatch(agg -> isRuntimeInjected(agg, channel));
 
       if(injected) {
          throw new IllegalArgumentException(
@@ -444,17 +468,42 @@ public class ChartAestheticAgentService {
       }
    }
 
-   /** Whether {@code channel}'s current field on {@code bindable} is date comparison's own ref. */
+   /**
+    * Whether {@code channel}'s current field on {@code bindable} is date comparison's own ref.
+    *
+    * <p>{@code line}/{@code texture} have no field of their own: their frame lives on the
+    * <b>shape</b> field whenever that field holds a {@code LineFrame}/{@code TextureFrame}
+    * ({@code ChartAestheticMutator.frameField} resolves them the same way). Date comparison can
+    * put its own runtime ref exactly there — {@code ChartDcProcessor.updateAestheticField} moves
+    * an explicitly bound color field onto a new runtime shape ref when shape is empty, and
+    * {@code GraphUtil.fixVisualFrame} then gives it a line frame on a line chart — so those two
+    * channels are checked against that shape ref. The node channels are checked on a relation
+    * chart for completeness; date comparison does not inject there today.
+    */
    private static boolean isRuntimeInjected(ChartBindable bindable, String channel) {
       AestheticRef ref = switch(channel) {
          case "color" -> bindable.getColorField();
          case "shape" -> bindable.getShapeField();
          case "size" -> bindable.getSizeField();
          case "text" -> bindable.getTextField();
+         case "line" -> shapeCarrying(bindable, LineFrame.class);
+         case "texture" -> shapeCarrying(bindable, TextureFrame.class);
+         case "node-color" ->
+            bindable instanceof RelationChartInfo relation ? relation.getNodeColorField() : null;
+         case "node-size" ->
+            bindable instanceof RelationChartInfo relation ? relation.getNodeSizeField() : null;
          default -> null;
       };
 
       return ref != null && ref.isRuntime();
+   }
+
+   /** The shape field when its frame is of {@code family}, i.e. when it drives line/texture. */
+   private static AestheticRef shapeCarrying(ChartBindable bindable,
+                                             Class<? extends VisualFrame> family)
+   {
+      AestheticRef shape = bindable.getShapeField();
+      return shape != null && family.isInstance(shape.getVisualFrame()) ? shape : null;
    }
 
    private void apply(String sessionToken, Principal user, String assemblyName, String channel,

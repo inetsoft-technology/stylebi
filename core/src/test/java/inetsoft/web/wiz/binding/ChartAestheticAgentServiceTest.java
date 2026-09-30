@@ -17,6 +17,10 @@
  */
 package inetsoft.web.wiz.binding;
 
+import inetsoft.graph.aesthetic.LineFrame;
+import inetsoft.graph.aesthetic.ShapeFrame;
+import inetsoft.graph.aesthetic.TextureFrame;
+import inetsoft.graph.aesthetic.VisualFrame;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.*;
@@ -518,6 +522,110 @@ class ChartAestheticAgentServiceTest {
 
       assertInstanceOf(StaticColorModel.class,
                        captureEvent(aesthetics).getModel().getColorFrame());
+   }
+
+   /**
+    * reset_visual_frame writes {@code field.setFrame(...)} on the very same live ref, so it
+    * reverts on the next refresh exactly like set_visual_frame (PR #5740 review).
+    */
+   @Test
+   void refusesResettingAFrameOnADateComparisonInjectedColorChannel() {
+      ChartAestheticAgentService service = serviceWith(
+         sessionsFor(dateComparisonInjectedColorFieldChartAssembly()), new ChartBindingModel(),
+         mock(ChangeChartAestheticService.class));
+
+      Exception thrown = assertThrows(
+         Exception.class,
+         () -> service.resetFrame("tok", principal(), "Chart1", "color", null, ""));
+      assertTrue(thrown.getMessage().toLowerCase().contains("clear_date_comparison"),
+                thrown.getMessage());
+   }
+
+   /**
+    * line/texture read their frame from the shape field when it carries their family, and date
+    * comparison can put its own runtime ref there: {@code ChartDcProcessor.updateAestheticField}
+    * moves an explicitly bound color field onto a new runtime shape ref when shape is empty.
+    */
+   @Test
+   void refusesALineFrameWriteWhileADateComparisonShapeCarriesTheLineFrame() {
+      ChartAestheticAgentService service = serviceWith(
+         sessionsFor(dateComparisonInjectedShapeFieldChartAssembly(mock(LineFrame.class))),
+         new ChartBindingModel(), mock(ChangeChartAestheticService.class));
+
+      Exception thrown = assertThrows(
+         Exception.class,
+         () -> service.setFrame("tok", principal(), "Chart1", "line",
+                                spec("type", "static", "line", 1), ""));
+      assertTrue(thrown.getMessage().toLowerCase().contains("clear_date_comparison"),
+                thrown.getMessage());
+   }
+
+   @Test
+   void refusesATextureFrameResetWhileADateComparisonShapeCarriesTheTextureFrame() {
+      ChartAestheticAgentService service = serviceWith(
+         sessionsFor(dateComparisonInjectedShapeFieldChartAssembly(mock(TextureFrame.class))),
+         new ChartBindingModel(), mock(ChangeChartAestheticService.class));
+
+      Exception thrown = assertThrows(
+         Exception.class,
+         () -> service.resetFrame("tok", principal(), "Chart1", "texture", null, ""));
+      assertTrue(thrown.getMessage().toLowerCase().contains("clear_date_comparison"),
+                thrown.getMessage());
+   }
+
+   /**
+    * A runtime shape field holding a point {@code ShapeFrame} does not drive line: that write goes
+    * to the field-less slot, which the refresh leaves alone, so it must keep working.
+    */
+   @Test
+   void allowsALineFrameWriteWhenTheInjectedShapeCarriesAPointShapeFrame() throws Exception {
+      ChangeChartAestheticService aesthetics = mock(ChangeChartAestheticService.class);
+
+      serviceWith(sessionsFor(dateComparisonInjectedShapeFieldChartAssembly(mock(ShapeFrame.class))),
+                  new ChartBindingModel(), aesthetics)
+         .setFrame("tok", principal(), "Chart1", "line", spec("type", "static", "line", 1), "");
+
+      assertNotNull(captureEvent(aesthetics).getModel().getLineFrame());
+   }
+
+   /**
+    * {@code ChartDcProcessor} injects into {@code getAestheticAggregateRefs(true)}, which on a
+    * Gantt chart also carries the start/end/milestone refs {@code getAggregateRefs()} does not.
+    */
+   @Test
+   void refusesAFrameWriteOnAnInjectedAestheticOnlyAggregate() {
+      AestheticRef colorField = mock(AestheticRef.class);
+      when(colorField.isRuntime()).thenReturn(true);
+      ChartAggregateRef aggregate = mock(ChartAggregateRef.class);
+      when(aggregate.getColorField()).thenReturn(colorField);
+      VSChartInfo info = mock(VSChartInfo.class);
+      when(info.isAppliedDateComparison()).thenReturn(true);
+      when(info.getAestheticAggregateRefs(true)).thenReturn(new ArrayList<>(List.of(aggregate)));
+      ChartVSAssembly chart = mock(ChartVSAssembly.class);
+      when(chart.getVSChartInfo()).thenReturn(info);
+      ChartAestheticAgentService service = serviceWith(
+         sessionsFor(chart), new ChartBindingModel(), mock(ChangeChartAestheticService.class));
+
+      Exception thrown = assertThrows(
+         Exception.class,
+         () -> service.setFrame("tok", principal(), "Chart1", "color",
+                                spec("type", "static", "color", "#4e79a7"), ""));
+      assertTrue(thrown.getMessage().toLowerCase().contains("clear_date_comparison"),
+                thrown.getMessage());
+   }
+
+   private static ChartVSAssembly dateComparisonInjectedShapeFieldChartAssembly(
+      VisualFrame shapeFrame)
+   {
+      AestheticRef shapeField = mock(AestheticRef.class);
+      when(shapeField.isRuntime()).thenReturn(true);
+      when(shapeField.getVisualFrame()).thenReturn(shapeFrame);
+      VSChartInfo info = mock(VSChartInfo.class);
+      when(info.isAppliedDateComparison()).thenReturn(true);
+      when(info.getShapeField()).thenReturn(shapeField);
+      ChartVSAssembly chart = mock(ChartVSAssembly.class);
+      when(chart.getVSChartInfo()).thenReturn(info);
+      return chart;
    }
 
    private static ChartVSAssembly dateComparisonInjectedColorFieldChartAssembly() {

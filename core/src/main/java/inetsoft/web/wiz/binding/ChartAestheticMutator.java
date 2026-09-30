@@ -120,7 +120,7 @@ public final class ChartAestheticMutator {
       AestheticInfo existing = read(model, name);
       AestheticInfo info = existing != null ? existing : new AestheticInfo();
       VisualFrameModel carriedFrame = info.getFrame() != null
-         ? info.getFrame() : frameOf(model, name, perMeasureFrameChannels);
+         ? info.getFrame() : frameOf(model, name, perMeasureFrameChannels, existing);
       info.setFullName(field.column());
       info.setDataInfo(FieldRefFactory.toChartRef(field, model, rvs, source, refModelService));
       info.setFrame(carriedFrame);
@@ -199,10 +199,13 @@ public final class ChartAestheticMutator {
                                Collection<String> perMeasureFrameChannels, String measure)
    {
       String name = AestheticChannels.requireFrameChannel(channel, relationChart);
-      AestheticInfo field = frameField(model, name, perMeasureFrameChannels);
+      // The chart-level lookup, not reportedField(): whether this write goes into one field's
+      // frame or is broadcast to every measure must not depend on the first measure alone
+      // happening to carry a field of its own (see reportedField).
+      AestheticInfo field = frameField(model, name);
       VisualFrameModel frame = carryCategoricalColors(
          VisualFrameAliases.create(name, spec, relationChart),
-         frameOf(model, name, perMeasureFrameChannels), name, fieldNameOf(field), spec);
+         frameOf(model, name, perMeasureFrameChannels, field), name, fieldNameOf(field), spec);
 
       // A bound field carries its own frame (AestheticInfo.frame) -- that, not the top-level
       // ChartBindingModel.xxxFrame property, is what the interactive Composer's own dialog writes
@@ -338,7 +341,8 @@ public final class ChartAestheticMutator {
                                  Collection<String> perMeasureFrameChannels, String measure)
    {
       String name = AestheticChannels.requireFrameChannel(channel, relationChart);
-      AestheticInfo field = frameField(model, name, perMeasureFrameChannels);
+      // Chart-level only, for the same reason as setFrame.
+      AestheticInfo field = frameField(model, name);
 
       if(field != null) {
          if(measure != null) {
@@ -825,12 +829,17 @@ public final class ChartAestheticMutator {
     * first would then describe a chart that is visibly drawing something else beside it, which is
     * the failure this class spends its length avoiding. Emitted only on disagreement so the common
     * chart's read stays as short as it was.
+    *
+    * <p>Gated on the <b>chart-level</b> field, not {@link #reportedField}'s: once that fallback
+    * finds a field on the first measure, the measures can still render different frames — each
+    * from its own field's frame where it has one, from its field-less slot where it does not — and
+    * that is exactly the disagreement this method exists to disclose.
     */
    private static Map<String, Object> divergentMeasureFrames(
-      ChartBindingModel model, String channel, AestheticInfo field,
+      ChartBindingModel model, String channel, AestheticInfo chartLevelField,
       Collection<String> perMeasureFrameChannels)
    {
-      if(field != null || !perMeasureFrameChannels.contains(channel)) {
+      if(chartLevelField != null || !perMeasureFrameChannels.contains(channel)) {
          return null;
       }
 
@@ -846,7 +855,7 @@ public final class ChartAestheticMutator {
 
       for(int i = 0; i < aggregates.size(); i++) {
          Object described =
-            VisualFrameAliases.describe(aggregateFrameOf(aggregates.get(i), channel));
+            VisualFrameAliases.describe(renderedAggregateFrameOf(aggregates.get(i), channel));
          byMeasure.put(measureLabel(aggregates.get(i)), described);
 
          if(i == 0) {
@@ -1318,33 +1327,15 @@ public final class ChartAestheticMutator {
     * field holding a {@code ShapeFrame} — a point chart — leaves {@code line} and {@code texture}
     * on their field-less slots, which is where that chart does read them from.
     *
-    * <p>Multi-aesthetic charts are <b>not</b> out of scope for the field itself, unlike everywhere
-    * else in this class: {@code set_aesthetic_field}/{@code clear_aesthetic_field} refuse to run
-    * on one, but {@code ChartDcProcessor}'s date-comparison color-by-default injection writes
-    * straight past that guard, onto each aesthetic aggregate ref
-    * ({@code info.getAestheticAggregateRefs(true)}), never onto the chart-level slot this method
-    * used to read alone — so a multi-style chart's color/shape channel rendered a real, visible
-    * legend while this read reported {@code field: null} forever, no matter how {@code
-    * ChartAestheticService}'s own {@code isRuntime()} filter was narrowed (bug #77014
-    * VCA-003). Reported per-measure fields can disagree once {@code setFrame}'s own {@code
-    * measure} parameter gives one measure its own frame while the field itself still varies by
-    * measure some other way; see {@link #divergentMeasureFields} for that disclosure. The
-    * fallback is gated on {@code perMeasureFrameChannels}, the same chart-type-derived set
-    * {@link #frameOf}/{@link #setFrame} already use, since whether the renderer reads a
-    * per-measure field at all is a property of the chart type, not of the channel.
+    * <p>Multi-aesthetic charts are out of scope here as they are everywhere else in this class:
+    * the strategies read {@code aggr.getShapeField()} per measure and ignore the chart-level one,
+    * and {@code set_aesthetic_field} already refuses to run on them. This is the lookup every
+    * <em>write</em> path branches on; the read path reports through {@link #reportedField}, which
+    * adds the per-measure fallback on top.
     */
-   private static AestheticInfo frameField(ChartBindingModel model, String channel,
-                                           Collection<String> perMeasureFrameChannels)
-   {
+   private static AestheticInfo frameField(ChartBindingModel model, String channel) {
       if(acceptsField(channel)) {
-         AestheticInfo field = read(model, channel);
-
-         if(field != null || !perMeasureFrameChannels.contains(channel)) {
-            return field;
-         }
-
-         List<ChartAggregateRefModel> aggregates = aggregates(model);
-         return aggregates.isEmpty() ? null : aggregateFieldOf(aggregates.get(0), channel);
+         return read(model, channel);
       }
 
       if(!"line".equals(channel) && !"texture".equals(channel)) {
@@ -1357,6 +1348,41 @@ public final class ChartAestheticMutator {
          ? frame instanceof LineFrameModel : frame instanceof TextureFrameModel;
 
       return carriesThisFamily ? shape : null;
+   }
+
+   /**
+    * The field {@code get_chart_aesthetics} reports for a channel: {@link #frameField}, falling
+    * back to the first measure's own field when the chart-level slot is empty on a channel this
+    * chart renders per measure.
+    *
+    * <p>{@code ChartDcProcessor}'s date-comparison color-by-default injection writes straight
+    * past {@code set_aesthetic_field}'s multi-style guard, onto each aesthetic aggregate ref
+    * ({@code info.getAestheticAggregateRefs(true)}), never onto the chart-level slot — so a
+    * multi-style chart's color/shape channel rendered a real, visible legend while a read of the
+    * chart-level slot alone reported {@code field: null} forever (bug #77014 VCA-003). Reported
+    * per-measure fields can disagree once a multi-style chart is built or edited some other way;
+    * see {@link #divergentMeasureFields} for that disclosure. The fallback is gated on
+    * {@code perMeasureFrameChannels}, the same chart-type-derived set {@link #frameOf}/
+    * {@link #setFrame} already use, since whether the renderer reads a per-measure field at all is
+    * a property of the chart type, not of the channel.
+    *
+    * <p><b>Read-only.</b> The write paths ({@link #setFrame}, {@link #resetFrame},
+    * {@link #setField}'s carry-forward) branch on {@link #frameField} instead: this answers "what
+    * does the first measure render", not "is a field bound for the whole channel", and treating
+    * the former as the latter made a frame write on a multi-measure chart land in the first
+    * measure's field alone and silently skip every other measure.
+    */
+   private static AestheticInfo reportedField(ChartBindingModel model, String channel,
+                                              Collection<String> perMeasureFrameChannels)
+   {
+      AestheticInfo field = frameField(model, channel);
+
+      if(field != null || !acceptsField(channel) || !perMeasureFrameChannels.contains(channel)) {
+         return field;
+      }
+
+      List<ChartAggregateRefModel> aggregates = aggregates(model);
+      return aggregates.isEmpty() ? null : aggregateFieldOf(aggregates.get(0), channel);
    }
 
    private static boolean acceptsFrame(String channel) {
@@ -1382,8 +1408,8 @@ public final class ChartAestheticMutator {
                                                   boolean colorShapeSupported)
    {
       Map<String, Object> view = new LinkedHashMap<>();
-      AestheticInfo chartLevelField = acceptsField(channel) ? read(model, channel) : null;
-      AestheticInfo info = frameField(model, channel, perMeasureFrameChannels);
+      AestheticInfo chartLevelField = frameField(model, channel);
+      AestheticInfo info = reportedField(model, channel, perMeasureFrameChannels);
 
       view.put("field", fieldNameOf(info));
       view.put("frame",
@@ -1392,7 +1418,7 @@ public final class ChartAestheticMutator {
       view.put("acceptsFrame", acceptsFrame(channel));
 
       Map<String, Object> perMeasureFrame =
-         divergentMeasureFrames(model, channel, info, perMeasureFrameChannels);
+         divergentMeasureFrames(model, channel, chartLevelField, perMeasureFrameChannels);
 
       if(perMeasureFrame != null) {
          view.put("framesByMeasure", perMeasureFrame);
@@ -1467,8 +1493,19 @@ public final class ChartAestheticMutator {
    private static VisualFrameModel frameOf(ChartBindingModel model, String channel,
                                            Collection<String> perMeasureFrameChannels)
    {
-      AestheticInfo field = frameField(model, channel, perMeasureFrameChannels);
+      return frameOf(model, channel, perMeasureFrameChannels,
+                     reportedField(model, channel, perMeasureFrameChannels));
+   }
 
+   /**
+    * {@link #frameOf} with the field already resolved — the write paths pass
+    * {@link #frameField}'s chart-level answer so the frame they read agrees with the slot they
+    * are about to write; the read path passes {@link #reportedField}'s.
+    */
+   private static VisualFrameModel frameOf(ChartBindingModel model, String channel,
+                                           Collection<String> perMeasureFrameChannels,
+                                           AestheticInfo field)
+   {
       if(field != null) {
          return field.getFrame();
       }
@@ -1503,6 +1540,18 @@ public final class ChartAestheticMutator {
          case "texture" -> aggregate.getTextureFrame();
          default -> null;
       };
+   }
+
+   /**
+    * The frame a measure actually renders a channel from: its own field's frame when it has a
+    * field on that channel, its field-less slot otherwise — {@code VSFrameVisitor.createFrame}
+    * prefers the former in the same way.
+    */
+   private static VisualFrameModel renderedAggregateFrameOf(ChartAggregateRefModel aggregate,
+                                                            String channel)
+   {
+      AestheticInfo field = aggregateFieldOf(aggregate, channel);
+      return field != null ? field.getFrame() : aggregateFrameOf(aggregate, channel);
    }
 
    /**
