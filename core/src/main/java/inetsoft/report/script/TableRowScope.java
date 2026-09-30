@@ -231,18 +231,19 @@ public class TableRowScope implements DynamicScope, ScriptArrayScope, OwnedVarSc
       }
    }
 
+   /** What {@link #preferHome} returns when it changed nothing. */
+   public static final Object NO_HINT = new Object();
+
    /**
     * Make this thread's next checkout prefer the home of this table's objects, around one
     * batch; call {@link #restoreHome} with the result in the batch's finally. Costs nothing
     * for a table that is not resident.
     */
-   /** What {@link #preferHome} returns when it changed nothing. */
-   public static final Object NO_HINT = new Object();
-
    public Object preferHome() {
       return resident && !homes.isEmpty() ? OwnedValueCodec.preferHomeOf(this) : NO_HINT;
    }
 
+   /** Restore the preference {@link #preferHome} returned. */
    public static void restoreHome(Object previous) {
       if(previous != NO_HINT) {
          OwnedValueCodec.restoreHomeHint(previous);
@@ -485,7 +486,7 @@ public class TableRowScope implements DynamicScope, ScriptArrayScope, OwnedVarSc
       Object held = valmap.remove(id);
 
       if(warned.add(id)) {
-         if(held == HOME_BUSY) {
+         if(held == OwnedValueCodec.HOME_BUSY) {
             LOG.warn("The formula variable \"{}\" holds an array or object that stays on a " +
                      "script context of the worksheet context pool that another thread is " +
                      "using; a batch of rows on another context reads it as undefined.", id);
@@ -615,7 +616,8 @@ public class TableRowScope implements DynamicScope, ScriptArrayScope, OwnedVarSc
 
          if(!pulled) {
             OwnedValueCodec.leave(home, this);
-            Object lost = home.isClosed() ? OwnedValueCodec.UNREADABLE : HOME_BUSY;
+            Object lost = home.isClosed() ? OwnedValueCodec.UNREADABLE
+               : OwnedValueCodec.HOME_BUSY;
 
             for(Object o : valmap.entrySet()) {
                @SuppressWarnings("unchecked")
@@ -661,10 +663,9 @@ public class TableRowScope implements DynamicScope, ScriptArrayScope, OwnedVarSc
    // its objects live on homes, one per context they are on; confined like valmap
    private boolean resident;
    private final HashMap<Context, OwnedValueCodec.Home> homes = new HashMap<>();
-   // set while this scope moves its own objects, so a hand-off re-entered on its thread waits
+   // set while this scope moves its own objects, so a hand-off re-entered on its thread
+   // refuses (returns false) instead of saving them under the move
    private boolean busy;
    private volatile Lock lensLock;
-   // the objects of a home another thread holds, as a pull found them: lost for this batch
-   private static final OwnedValueCodec.Lost HOME_BUSY = OwnedValueCodec.HOME_BUSY;
    private static final Logger LOG = LoggerFactory.getLogger(TableRowScope.class);
 }

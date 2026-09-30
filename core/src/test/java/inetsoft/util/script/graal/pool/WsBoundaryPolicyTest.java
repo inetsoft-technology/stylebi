@@ -68,8 +68,17 @@ class WsBoundaryPolicyTest {
                                         "Date, array or plain object",
                                         "function- or class-valued var", "hand-off",
                                         "an Intl formatter", ".handOffMillis (5000)",
-                                        ".handOffEntries (200000)", ".maxHomes (1)",
+                                        ".handOffEntries (200000)", ".maxHomes (4)",
+                                        // round 2: the two concurrent losses, A3 aliases
+                                        "never waits for another thread's",
+                                        "a context the two", "reads an older value",
+                                        "var holding an object it shares with such a value",
                                         ".maxHomesPerNode (128)",
+                                        // round 3: what each bound loses, Date-only tables
+                                        "hold only Dates keeps them",
+                                        "every var of the table that holds a Date",
+                                        "each var sharing an object with it",
+                                        "through a closure, a getter or a WeakMap",
                                         // context-pool regression D1, the pool-off first batch
                                         "evaluates what pool off would", "2N + 10",
                                         "undeclared", "class-valued var",

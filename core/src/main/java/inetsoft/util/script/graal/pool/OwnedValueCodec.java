@@ -26,6 +26,7 @@ import org.graalvm.polyglot.proxy.ProxyArray;
 
 import java.time.Duration;
 import java.util.*;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 /**
@@ -359,9 +360,7 @@ public final class OwnedValueCodec {
     *
     * @return {@code false} if the slot is held or closed: nothing was saved.
     */
-   public static boolean pull(Home home, SlotTenant tenant,
-                              java.util.function.Consumer<OwnedValueCodec> save)
-   {
+   public static boolean pull(Home home, SlotTenant tenant, Consumer<OwnedValueCodec> save) {
       Slot slot = home.slot;
 
       if(!slot.tryAcquire()) {
@@ -397,7 +396,10 @@ public final class OwnedValueCodec {
     *
     * @return one node per root: a {@link TreeRef}, or a {@link Lost} naming what that root
     *         holds that is not kept (a function, a class instance, a Proxy, an accessor...);
-    *         a refusal loses only the root it was found in (A3).
+    *         a refusal loses the root it was found in and every root that shares an object
+    *         with that root, each with its own kind (A3), and no other root. Past the time
+    *         bound every root is lost, and so it is past the entry cap while the lost roots
+    *         are checked for shared objects.
     */
    public Object[] snapshotTree(List<Value> roots) {
       Object[] nodes = new Object[roots.size()];

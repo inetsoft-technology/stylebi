@@ -43,9 +43,11 @@ import java.util.concurrent.atomic.AtomicBoolean;
  *                            (spec §14.14). Never below batchRows.
  * @param maxHomes            the most exclusive homes of one sandbox: idle contexts reserved
  *                            for the formula tables whose vars hold arrays or objects living on
- *                            them (Testing #77123, B1 residual part 2). Past it a home is soft:
+ *                            them (Testing #77123, B1 residual part 2), so up to this many
+ *                            tables of a sandbox keep one each. Past it a home is soft:
  *                            another claim takes it over after saving its values.
- * @param maxHomesPerNode     the most exclusive homes of the node.
+ * @param maxHomesPerNode     the most exclusive homes of the node, which bounds the memory
+ *                            they retain (about 0.16 MB per context).
  * @param handOffMillis       the time bound of one hand-off snapshot or rebuild of such values,
  *                            not the script timeout; past it the values are lost with a warning.
  * @param handOffEntries      the most array elements and object properties one hand-off saves.
@@ -62,7 +64,7 @@ public record PoolConfig(long idleMillis, int cleanThreshold, int warnSlotsPerSa
            DEFAULT_HAND_OFF_MILLIS, DEFAULT_HAND_OFF_ENTRIES);
    }
 
-   public static final int DEFAULT_MAX_HOMES = 1;
+   public static final int DEFAULT_MAX_HOMES = 4;
    public static final int DEFAULT_MAX_HOMES_PER_NODE = 128;
    public static final long DEFAULT_HAND_OFF_MILLIS = 5000L;
    public static final int DEFAULT_HAND_OFF_ENTRIES = 200_000;

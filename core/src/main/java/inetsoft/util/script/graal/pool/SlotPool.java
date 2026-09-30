@@ -244,7 +244,7 @@ final class SlotPool {
                return slot;
             }
 
-            slot.unlock();
+            giveBack(slot);
          }
       }
 
@@ -278,13 +278,29 @@ final class SlotPool {
          exclusive = slot.exclusiveHome != null;
       }
 
-      if(!exclusive && (!slot.hasTenants() || handOffAll(slot)) && !homes.contains(slot)) {
-         metrics.tookOver();
+      // a home whose tenants were only collected is no take-over
+      boolean tenants = slot.hasTenants();
+
+      if(!exclusive && (!tenants || handOffAll(slot)) && !homes.contains(slot)) {
+         if(tenants) {
+            metrics.tookOver();
+         }
+
          return true;
       }
 
-      slot.unlock();
+      giveBack(slot);
       return false;
+   }
+
+   /**
+    * Give back a slot this pool took without a claim (a refused take, a hand-off), never
+    * waiting: close it if a retire() doomed it meanwhile, which could only doom it while it
+    * was held (N6).
+    */
+   private void giveBack(Slot slot) {
+      slot.unlock();
+      closeIfRetired(slot);
    }
 
    private boolean isLive(Slot slot) {
@@ -299,11 +315,13 @@ final class SlotPool {
          slot.addTenant(tenant);
          homes.add(slot);
 
-         if(slot.exclusiveHome == null && exclusiveHomes < config.maxHomes() &&
-            PoolMetrics.nodeHomes() < config.maxHomesPerNode())
-         {
-            slot.exclusiveHome = PoolMetrics.homeGranted(slot);
-            exclusiveHomes++;
+         if(slot.exclusiveHome == null && exclusiveHomes < config.maxHomes()) {
+            // the node cap is granted atomically across the node's pools
+            slot.exclusiveHome = PoolMetrics.tryGrantHome(slot, config.maxHomesPerNode());
+
+            if(slot.exclusiveHome != null) {
+               exclusiveHomes++;
+            }
          }
       }
    }
@@ -363,24 +381,32 @@ final class SlotPool {
    }
 
    /**
-    * Hand off the homes idle for longer than idleMillis (amendment A5), or stale ones; a home
-    * whose tenant cannot take its lock now is kept for the next tick.
+    * Hand off the homes idle for longer than idleMillis (amendment A5), or stale ones, at most
+    * {@link #HAND_OFFS_PER_PASS} per pass: the evictor thread is shared by every pool of the
+    * node, so the rest waits for the next tick. A home whose tenant cannot take its lock now
+    * is kept for the next tick too.
     */
    private void expireHomes(long now) {
+      int budget = HAND_OFFS_PER_PASS;
+
       for(Slot slot : new ArrayList<>(homes)) {
          synchronized(homesLock) {
             purge(slot);
          }
 
-         if(!homes.contains(slot) || !isEvictable(slot, now) || !slot.tryAcquire()) {
+         if(budget <= 0 || !homes.contains(slot) || !isEvictable(slot, now) ||
+            !slot.tryAcquire())
+         {
             continue;
          }
+
+         budget--;
 
          try {
             handOffAll(slot);
          }
          finally {
-            slot.unlock();
+            giveBack(slot);
          }
       }
    }
@@ -409,7 +435,7 @@ final class SlotPool {
                }
             }
             finally {
-               slot.unlock();
+               giveBack(slot);
             }
          }
       }
@@ -609,6 +635,8 @@ final class SlotPool {
          return thread;
       });
    private static final AtomicBoolean NODE_WARNED = new AtomicBoolean();
+   // the most homes one pool's evictor pass hands off (Testing #77123, B1 residual part 2)
+   static final int HAND_OFFS_PER_PASS = 4;
    // the node-wide metrics log (PoolMetrics.logNodeSummary) starts with the first pool
    private static final AtomicBoolean NODE_LOG_STARTED = new AtomicBoolean();
 

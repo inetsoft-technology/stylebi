@@ -436,9 +436,9 @@ public final class ScriptStateLint {
     * A read of {@code name} at {@code offset} (a char offset) before it is written.
     * {@code objectValue} is true when a top-level write of the name assigns a value that
     * looks like a script object that the pool does not keep across contexts: {@code new}
-    * (except {@code new Date}), a function, an arrow function or a class (a lexical check; a
-    * call that returns one is not seen). Arrays, plain objects and Dates are kept (Testing
-    * #77123, B1 residual part 2).
+    * (except {@code new Date}, {@code new Array}, {@code new Object}), a function, an arrow
+    * function or a class (a lexical check; a call that returns one is not seen). Arrays,
+    * plain objects and Dates are kept (Testing #77123, B1 residual part 2).
     */
    public record Finding(String rule, String name, int offset, boolean objectValue) {
       public Finding(String rule, String name, int offset) {
@@ -1079,9 +1079,10 @@ public final class ScriptStateLint {
 
    /**
     * Whether the expression in tokens {@code [from, to)} can evaluate to a script object the
-    * pool does not keep across contexts: it contains {@code new} (but not {@code new Date}),
-    * {@code function}, {@code class} or {@code =>}. Arrays, plain objects and Dates are kept
-    * across pooled batches (Testing #77123, B1 residual).
+    * pool does not keep across contexts: it contains {@code new} (but not {@code new Date},
+    * {@code new Array} or {@code new Object}), {@code function}, {@code class} or
+    * {@code =>}. Arrays, plain objects and Dates are kept across pooled batches (Testing
+    * #77123, B1 residual).
     */
    private static boolean objectValue(List<Tok> t, int from, int to) {
       for(int i = Math.max(0, from); i < to && i < t.size(); i++) {
@@ -1094,7 +1095,7 @@ public final class ScriptStateLint {
          }
          else if(k.type == T.ID && (k.text.equals("new") || k.text.equals("function") ||
                                     k.text.equals("class")) &&
-                 !isMember(t, i) && !newDate(t, i, to))
+                 !isMember(t, i) && !newKept(t, i, to))
          {
             return true;
          }
@@ -1103,10 +1104,17 @@ public final class ScriptStateLint {
       return false;
    }
 
-   // new Date, not new Date.x: a Date is kept across pooled batches
-   private static boolean newDate(List<Tok> t, int i, int to) {
-      return t.get(i).text.equals("new") && i + 1 < to && i + 1 < t.size() &&
-         t.get(i + 1).type == T.ID && t.get(i + 1).text.equals("Date") &&
+   // new Date, new Array or new Object (not new Date.Foo): the pool keeps these across
+   // contexts like a literal (Testing #77123, B1 residual part 2)
+   private static boolean newKept(List<Tok> t, int i, int to) {
+      if(!t.get(i).text.equals("new") || i + 1 >= to || i + 1 >= t.size() ||
+         t.get(i + 1).type != T.ID)
+      {
+         return false;
+      }
+
+      String cls = t.get(i + 1).text;
+      return (cls.equals("Date") || cls.equals("Array") || cls.equals("Object")) &&
          (i + 2 >= to || i + 2 >= t.size() || !t.get(i + 2).text.equals("."));
    }
 

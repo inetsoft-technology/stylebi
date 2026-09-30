@@ -134,10 +134,24 @@ public final class PoolMetrics {
    }
 
    /**
-    * Count an exclusive home of this node until the handle is cleaned or the slot collected.
+    * Count an exclusive home of this node, if the node has fewer than {@code max}, until the
+    * handle is cleaned or the slot collected. Atomic across the node's pools.
+    *
+    * @return the handle, or {@code null} if the node already has {@code max} homes.
     */
-   static Cleaner.Cleanable homeGranted(Object slot) {
-      NODE_HOMES.incrementAndGet();
+   static Cleaner.Cleanable tryGrantHome(Object slot, int max) {
+      while(true) {
+         int n = NODE_HOMES.get();
+
+         if(n >= max) {
+            return null;
+         }
+
+         if(NODE_HOMES.compareAndSet(n, n + 1)) {
+            break;
+         }
+      }
+
       // the action must not reference the slot
       return CLEANER.register(slot, NODE_HOMES::decrementAndGet);
    }
