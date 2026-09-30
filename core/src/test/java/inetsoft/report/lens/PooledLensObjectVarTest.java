@@ -490,6 +490,43 @@ class PooledLensObjectVarTest {
    }
 
    /**
+    * As {@link #anObjectOverTheBudgetStaysOnItsOuterSpan} for the marking budget (post-merge
+    * review M1): a var holding a function next to a large array is lost for its function, and
+    * marking its graph for objects shared with the small var m runs past the marking budget
+    * (four entry caps), which loses m to the budget. That keeps the table's objects live on
+    * the outer span's context: every row exact, the function callable, no warning. Past the
+    * budget as a long array (refused before its keys are listed) or as many small objects.
+    */
+   @ParameterizedTest(name = "{0}")
+   @ValueSource(strings = { "array", "objects" })
+   void aVarPastTheMarkingBudgetStaysOnItsOuterSpan(String shape) throws Exception {
+      SreeEnv.setProperty(HAND_OFF_ENTRIES, "100");
+      int rows = 1000;
+      AssetQuerySandbox box = box();
+      WorksheetScriptEnv w = (WorksheetScriptEnv) box.getScriptEnv();
+      TableLens t = make(box, base(rows), "var b = b || {f: function(x) { return x; }, " +
+         "a: (function() { var x = []; for(var i = 0; i < " +
+         (shape.equals("array") ? "500; i++) x[i] = i; " : "150; i++) x[i] = {v: i, w: i}; ") +
+         "return x; })()}; var m = m || {cnt: 0}; m.cnt++; b.f(m.cnt)", "T");
+      double[] v = new double[rows + 1];
+
+      try(ScriptSpan all = w.openSpan()) {
+         assertEquals(2, ((Number) w.exec(w.compile("1 + 1"), null, null, null)).intValue());
+
+         for(int s = 1; s <= rows; s += 100) {
+            try(ScriptSpan page = w.openSpan()) {
+               assertEquals(2, ((Number) w.exec(w.compile("1 + 1"), null, null, null))
+                  .intValue());
+               read(t, v, s, s + 99);
+            }
+         }
+      }
+
+      assertAll(v, "past the marking budget (" + shape + ")");
+      assertTrue(warnings().isEmpty(), () -> "no warning: " + warningTexts());
+   }
+
+   /**
     * A6: a hand-off of a million-entry array stops at the entry cap: bounded, the var is lost
     * with one warning, and a second reader waits no longer than the hand-off. The hand-off
     * and the reader race for the idle home: if the reader takes it first, nothing is handed
