@@ -43,6 +43,7 @@ import static org.mockito.Mockito.*;
  * not manage. These tests drive the real SecurityService write paths with a mocked action tree,
  * SecurityProvider and OrganizationManager, and assert on the stored Permission.
  */
+@Tag("core")
 class SecurityServicePermissionWriteTest {
    private static final String ORG = "orga";
    private static final String USERS = "settings/security/users";

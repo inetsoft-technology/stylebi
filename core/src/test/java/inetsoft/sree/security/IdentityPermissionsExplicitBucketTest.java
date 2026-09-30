@@ -217,15 +217,17 @@ class IdentityPermissionsExplicitBucketTest {
       identityService.setIdentityPermissions(
          orgKey, orgKey, ORG, caller, List.of(user("newAdmin", HOST_ORG)), HOST_ORG);
 
+      // the grant is read and removed in the ambient org, but written under the resolved org
+      // (here the ambient org too), never the ambient 3-arg setPermission (Bug #76866)
       assertEquals(Set.of("hiddenUser", "newAdmin"),
-                   names(store.get(key(orgKey, AMBIENT)).getUserGrants(ADMIN, HOST_ORG)),
+                   names(store.get(key(orgKey, HOST_ORG)).getUserGrants(ADMIN, HOST_ORG)),
                    "the ambient path must keep the ambient org's hidden grantees");
       verify(authz).getPermission(ORG, orgKey);
-      verify(authz).setPermission(eq(ORG), eq(orgKey), any(Permission.class));
+      verify(authz).setPermission(eq(ORG), eq(orgKey), any(Permission.class), eq(HOST_ORG));
       verify(authz).removePermission(ORG, new IdentityID(HOST_ORG, HOST_ORG));
       verify(authz, never()).getPermission(any(ResourceType.class), any(IdentityID.class), any());
       verify(authz, never()).setPermission(any(ResourceType.class), any(IdentityID.class),
-                                           any(Permission.class), any());
+                                           any(Permission.class));
       verify(authz, never()).removePermission(any(ResourceType.class), any(IdentityID.class), any());
    }
 
