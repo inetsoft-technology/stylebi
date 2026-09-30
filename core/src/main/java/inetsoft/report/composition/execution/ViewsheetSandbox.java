@@ -5303,8 +5303,10 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
          executeScript(assembly);
 
          // reposition input child in bottom-tab container after script may
-         // have changed label properties (visible, position, gap, font)
+         // have changed label properties (visible, position, gap, font).
+         // a position explicitly set by script is kept as is (Bug #77369)
          if(assembly instanceof InputVSAssembly &&
+            !assembly.getVSAssemblyInfo().isPositionByScript() &&
             assembly.getContainer() instanceof TabVSAssembly tabContainer)
          {
             TabVSAssemblyInfo tabInfo =
