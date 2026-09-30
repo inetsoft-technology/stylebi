@@ -46,10 +46,11 @@ class PoolParanoiaTest {
                PoolParanoia.VERIFIES.get();
             System.out.println(line);
 
-            // surefire may have closed the fork's stdout by now: also append it to a file
+            // surefire may have closed the fork's stdout by now: also append it to a file in
+            // the working directory (core/target/test-workdir)
             try {
                java.nio.file.Files.writeString(
-                  java.nio.file.Path.of("target", "pool-paranoia-summary.txt"),
+                  java.nio.file.Path.of("pool-paranoia-summary.txt"),
                   java.time.Instant.now() + " " + line + "\n",
                   java.nio.file.StandardOpenOption.CREATE,
                   java.nio.file.StandardOpenOption.APPEND);
