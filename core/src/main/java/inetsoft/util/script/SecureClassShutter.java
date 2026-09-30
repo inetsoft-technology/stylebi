@@ -80,7 +80,9 @@ public class SecureClassShutter implements ClassShutter {
       "inetsoft.util.SingletonManager",
       "inetsoft.util.IndexStorage",
       "inetsoft.util.XMLIndexedStorage",
-      "inetsoft.util.BlobIndexedStorage"
+      "inetsoft.util.BlobIndexedStorage",
+      // invokes methods by name on caller-supplied objects (Bug #77384)
+      "inetsoft.uql.tabular.TabularUtil"
    ));
 
    // Safe classes that are explicitly allowed (whitelist approach for sensitive areas)

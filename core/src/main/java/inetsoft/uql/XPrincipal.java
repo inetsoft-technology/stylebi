@@ -428,6 +428,99 @@ public class XPrincipal implements Principal, Serializable, Cloneable {
    }
 
    /**
+    * Creates a copy of this principal that shares no mutable state with it, so changing
+    * the copy (through its setters or through a value it returns) never changes this
+    * principal. The copy is still equal to this principal. This is what a script hands
+    * to Java code when it passes the session principal to a method (Bug #77384).
+    *
+    * @return the detached copy.
+    */
+   public XPrincipal detachedCopy() {
+      XPrincipal copy = (XPrincipal) clone();
+
+      if(copy == null) {
+         throw new IllegalStateException("Failed to copy principal " + getName());
+      }
+
+      copy.detachState();
+      return copy;
+   }
+
+   /**
+    * Replaces the mutable state this (cloned) principal shares with the original by
+    * copies. Subclasses holding more mutable state override this and call super.
+    */
+   protected void detachState() {
+      roles = copyIdentities(roles);
+      groups = groups == null ? null : groups.clone();
+      prop = prop == null ? null : new ConcurrentHashMap<>(prop);
+      paramTS = paramTS == null ? null : new HashMap<>(paramTS);
+      allRoles = copyIdentities(allRoles);
+      allGroups = copyIdentities(allGroups);
+
+      if(params != null) {
+         Hashtable copy = new Hashtable();
+
+         for(Object key : params.keySet()) {
+            copy.put(key, copyParameterValue(params.get(key)));
+         }
+
+         params = copy;
+      }
+   }
+
+   protected static IdentityID copyIdentity(IdentityID id) {
+      return id == null ? null : new IdentityID(id.getName(), id.getOrgID());
+   }
+
+   protected static IdentityID[] copyIdentities(IdentityID[] ids) {
+      if(ids == null) {
+         return null;
+      }
+
+      IdentityID[] result = new IdentityID[ids.length];
+
+      for(int i = 0; i < ids.length; i++) {
+         result[i] = copyIdentity(ids[i]);
+      }
+
+      return result;
+   }
+
+   /**
+    * Copies a parameter value that could be changed in place: an array, a Map, a
+    * Collection or a Date. Immutable scalars and anything unrecognized are returned
+    * as-is.
+    */
+   public static Object copyParameterValue(Object value) {
+      if(value == null) {
+         return null;
+      }
+
+      if(value.getClass().isArray()) {
+         int len = java.lang.reflect.Array.getLength(value);
+         Object copy = java.lang.reflect.Array.newInstance(
+            value.getClass().getComponentType(), len);
+         System.arraycopy(value, 0, copy, 0, len);
+         return copy;
+      }
+
+      if(value instanceof Map<?, ?> map) {
+         return new LinkedHashMap<>(map);
+      }
+
+      if(value instanceof Collection<?> col) {
+         return new ArrayList<>(col);
+      }
+
+      if(value instanceof Date date) {
+         return date.clone();
+      }
+
+      return value;
+   }
+
+   /**
     * Set ignore login status.
     * @param ignoreLogin true if should not check login status of this
     * principal, false otherwise.

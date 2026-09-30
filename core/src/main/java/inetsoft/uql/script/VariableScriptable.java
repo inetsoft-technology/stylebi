@@ -40,6 +40,11 @@ public class VariableScriptable implements Scriptable, Wrapper {
       this.vars = vars;
    }
 
+   private static Scriptable getRunningScriptScope() {
+      Context cx = Context.getCurrentContext();
+      return cx != null && ScriptRuntime.hasTopCall(cx) ? ScriptRuntime.getTopCallScope(cx) : null;
+   }
+
    /**
     * Get the name of the set of objects implemented by this Java class.
     */
@@ -74,7 +79,17 @@ public class VariableScriptable implements Scriptable, Wrapper {
                   return ScriptUtil.getNativeArray((Object[]) val, getParentScope());
                }
 
-               return Context.javaToJS(val, getParentScope());
+               Scriptable scope = getParentScope();
+
+               // Bug #77384, never hand a script the raw session principal: without a
+               // parent scope the conversion below fails and the raw object would be
+               // returned, which a script can pass to Java code as the live instance.
+               // Wrap it in the scope of the running script instead.
+               if(scope == null && val instanceof java.security.Principal) {
+                  scope = getRunningScriptScope();
+               }
+
+               return Context.javaToJS(val, scope);
             }
             catch(Throwable ex) {
                return val;

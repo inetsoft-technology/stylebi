@@ -20,6 +20,8 @@ package inetsoft.util.script;
 import inetsoft.sree.ClientInfo;
 import inetsoft.sree.security.DestinationUserNameProviderPrincipal;
 import inetsoft.sree.security.IdentityID;
+import inetsoft.sree.security.SRPrincipal;
+import inetsoft.uql.XPrincipal;
 import inetsoft.uql.VariableTable;
 import inetsoft.uql.script.VariableScriptable;
 import org.junit.jupiter.api.*;
@@ -52,7 +54,12 @@ class PrincipalScriptAccessTest {
       VariableTable vars = new VariableTable();
       vars.put("__principal__", principal);
       scope.put("parameter", scope, new VariableScriptable(vars));
-      scope.put("host", scope, Context.javaToJS(new Host(principal), scope));
+      // viewsheet-style binding: VariableScriptable with a parent scope
+      VariableScriptable vsparameter = new VariableScriptable(vars);
+      vsparameter.setParentScope(scope);
+      scope.put("vsparameter", scope, vsparameter);
+      host = new Host(principal);
+      scope.put("host", scope, Context.javaToJS(host, scope));
    }
 
    @AfterEach
@@ -124,8 +131,8 @@ class PrincipalScriptAccessTest {
 
    @Test
    void principalCanBePassedToHostMethods() {
-      assertEquals("same:orgA", exec("'' + host.consume(p)"));
-      assertEquals("same:orgA", exec("'' + host.consume(host.getUser())"));
+      assertEquals("equal:orgA", exec("'' + host.consume(p)"));
+      assertEquals("equal:orgA", exec("'' + host.consume(host.getUser())"));
    }
 
    @Test
@@ -136,6 +143,69 @@ class PrincipalScriptAccessTest {
       assertEquals("undefined", exec("typeof host.getUser().setOrgId"));
       assertEquals("orgA", exec("'' + host.getUser().getOrgId()"));
       assertPrincipalUnchanged();
+   }
+
+   @Test
+   void hostMethodReceivesDetachedCopyOfPrincipal() {
+      assertHostReceivesDetachedCopy("host.capture(p)");
+   }
+
+   @Test
+   void hostMethodReceivesDetachedCopyOfPrincipalWithParentScope() {
+      assertHostReceivesDetachedCopy("host.capture(vsparameter.__principal__)");
+   }
+
+   private void assertHostReceivesDetachedCopy(String script) {
+      Object session = new Object();
+      principal.setSession(session);
+      exec(script);
+      XPrincipal copy = host.captured;
+
+      // the host reads the same identity, but not the live session instance
+      assertNotNull(copy);
+      assertNotSame(principal, copy);
+      assertInstanceOf(DestinationUserNameProviderPrincipal.class, copy);
+      assertEquals(principal, copy);
+      assertEquals("orgA", copy.getOrgId());
+      assertEquals(Arrays.asList("readers"), Arrays.asList(copy.getGroups()));
+      assertEquals("true", copy.getProperty("__internal__"));
+      assertEquals(principal.getSecureID(), ((SRPrincipal) copy).getSecureID());
+      assertEquals(principal.getUser(), ((SRPrincipal) copy).getUser());
+      assertNull(((SRPrincipal) copy).getSession());
+
+      // changing the copy in Java must leave the session principal unchanged
+      copy.setOrgId("orgVICTIM");
+      copy.setGroups(new String[] { "admins" });
+      copy.setRoles(new IdentityID[] { new IdentityID("Administrator", "orgA") });
+      copy.setProperty("__internal__", "false");
+      copy.setProperty("virtual", "true");
+      copy.setParameter("p2", "x");
+      copy.setAlias("mallory");
+      copy.setIgnoreLogin(true);
+      copy.setProfiling(true);
+      ((String[]) copy.getParameter("p1"))[0] = "z";
+      ((SRPrincipal) copy).getUser().getUserIdentity().setName("mallory");
+      ((SRPrincipal) copy).getUser().setLocale(java.util.Locale.GERMAN);
+      ((SRPrincipal) copy).setSession(new Object());
+
+      assertPrincipalUnchanged();
+      assertEquals("Everyone", principal.getRoles()[0].getName());
+      assertEquals(1, principal.getRoles().length);
+      assertNull(principal.getParameter("p2"));
+      assertEquals("alice", principal.getUser().getUserIdentity().getName());
+      assertNull(principal.getUser().getLocale());
+      assertSame(session, principal.getSession());
+   }
+
+   @Test
+   void tabularUtilIsNotAccessibleFromScript() {
+      assertFalse(new SecureClassShutter().visibleToScripts("inetsoft.uql.tabular.TabularUtil"));
+      // a blocked class name resolves to a (useless) package, not a Java class
+      assertFalse(((String) exec("'' + Packages.inetsoft.uql.tabular.TabularUtil"))
+                     .startsWith("[JavaClass"));
+      // control: a class in the same package is still visible
+      assertTrue(((String) exec("'' + Packages.inetsoft.uql.tabular.TabularQuery"))
+                    .startsWith("[JavaClass"));
    }
 
    private void assertPrincipalUnchanged() {
@@ -171,8 +241,12 @@ class PrincipalScriptAccessTest {
       }
 
       public String consume(Principal p) {
-         return p == principal ? "same:" + ((DestinationUserNameProviderPrincipal) p).getOrgId()
-            : "different";
+         return principal.equals(p)
+            ? "equal:" + ((DestinationUserNameProviderPrincipal) p).getOrgId() : "different";
+      }
+
+      public void capture(Principal p) {
+         captured = (XPrincipal) p;
       }
 
       public Principal getUser() {
@@ -180,9 +254,11 @@ class PrincipalScriptAccessTest {
       }
 
       private final Principal principal;
+      private XPrincipal captured;
    }
 
    private DestinationUserNameProviderPrincipal principal;
+   private Host host;
    private Context cx;
    private Scriptable scope;
 }
