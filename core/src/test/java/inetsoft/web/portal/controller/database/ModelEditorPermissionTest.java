@@ -402,6 +402,61 @@ class ModelEditorPermissionTest {
    }
 
    @Test
+   void createView_runtimeInOtherFolder_isDenied() throws Exception {
+      grant(ResourceType.DATA_MODEL_FOLDER, DS + "/" + FOLDER, ResourceAction.WRITE);
+      RuntimePartitionService runtimes = runtimes("rt", DS, "NewView", "G");
+      PhysicalModelDefinition model = viewDefinition("NewView", "rt");
+      model.setFolder(FOLDER);
+
+      assertDenied(() -> manager(runtimes).createAndSaveModel(DS, FOLDER, null, model, principal));
+      verify(dataModel, never()).addPartition(any());
+      verify(repository, never()).updateDataModel(any());
+   }
+
+   // review r2 R2-1: an extended view is written under its base view, so the base view's
+   // stored folder is what needs WRITE, not the folder in the request
+   @Test
+   void createExtendedView_baseViewNotWritable_isDenied() throws Exception {
+      XPartition base = baseView(null);
+      grant(ResourceType.DATA_SOURCE, DS, ResourceAction.READ);
+      grant(ResourceType.DATA_MODEL_FOLDER, DS + "/" + FOLDER, ResourceAction.WRITE);
+      RuntimePartitionService runtimes = runtimes("rt", DS, "Ext", FOLDER);
+      PhysicalModelDefinition model = viewDefinition("Ext", "rt");
+      model.setFolder(FOLDER);
+
+      assertDenied(() -> manager(runtimes).createAndSaveModel(DS, FOLDER, VIEW, model, principal));
+      verify(base, never()).addPartition(any(), anyBoolean());
+      verify(repository, never()).updateDataModel(any());
+   }
+
+   @Test
+   void createExtendedViewRuntime_baseViewNotWritable_isDenied() throws Exception {
+      baseView(null);
+      grant(ResourceType.DATA_MODEL_FOLDER, DS + "/" + FOLDER, ResourceAction.WRITE);
+      RuntimePartitionService runtimes = mock(RuntimePartitionService.class);
+      PhysicalModelDefinition model = viewDefinition("Ext");
+      model.setFolder(FOLDER);
+
+      assertDenied(() -> manager(runtimes).createModel(DS, VIEW, model, principal));
+      verify(runtimes, never()).createModel(any(), any());
+   }
+
+   @Test
+   void createExtendedView_baseViewWritable_saves() throws Exception {
+      XPartition base = baseView(FOLDER);
+      grant(ResourceType.DATA_MODEL_FOLDER, DS + "/" + FOLDER, ResourceAction.WRITE);
+      RuntimePartitionService runtimes = runtimes("rt", DS, "Ext", null);
+      PhysicalModelDefinition model = viewDefinition("Ext", "rt");
+      doThrow(new IllegalStateException("reached")).when(dataSourceService)
+         .getModelAssetEntry(any());
+
+      // the request names no folder, the base view's folder is what is checked
+      assertReached(() -> manager(runtimes).createAndSaveModel(DS, null, VIEW, model, principal));
+      verify(base).addPartition(argThat(p -> "Ext".equals(p.getName())), eq(false));
+      verify(repository).updateDataModel(dataModel);
+   }
+
+   @Test
    void removeView_folderFromRequestNotStored_isDenied() throws Exception {
       storedView(null);
       grant(ResourceType.DATA_MODEL_FOLDER, DS + "/" + FOLDER, ResourceAction.WRITE);
@@ -468,6 +523,32 @@ class ModelEditorPermissionTest {
 
       assertReached(() -> logicalModelService(sources)
          .updateModel(DS, FOLDER, LM, lmDefinition(LM, FOLDER), null, principal));
+   }
+
+   // same rule for an extended logical model: it is written under its base model
+   @Test
+   void createExtendedLogicalModel_baseModelFolderNotWritable_isDenied() throws Exception {
+      XLogicalModel base = baseLogicalModel(null);
+      lmGrants.add(DS + "/" + FOLDER + "/Ext:WRITE");
+      DataSourceService sources = mock(DataSourceService.class);
+
+      assertDenied(() -> logicalModelService(sources)
+         .createModel(DS, FOLDER, VIEW, lmDefinition("Ext", FOLDER), LM, principal));
+      verify(base, never()).addLogicalModel(any(), anyBoolean());
+      verify(repository, never()).updateDataModel(any());
+   }
+
+   @Test
+   void createExtendedLogicalModel_baseModelFolderWritable_saves() throws Exception {
+      XLogicalModel base = baseLogicalModel(null);
+      lmGrants.add(DS + "/Ext:WRITE");
+      DataSourceService sources = mock(DataSourceService.class);
+      when(sources.getModelAssetEntry(any())).thenThrow(new IllegalStateException("reached"));
+
+      assertReached(() -> logicalModelService(sources)
+         .createModel(DS, FOLDER, VIEW, lmDefinition("Ext", FOLDER), LM, principal));
+      verify(base).addLogicalModel(argThat(m -> "Ext".equals(m.getName())), eq(false));
+      verify(repository).updateDataModel(dataModel);
    }
 
    @Test
@@ -708,10 +789,29 @@ class ModelEditorPermissionTest {
       assertEquals("reached", ex.getMessage());
    }
 
-   private void storedView(String folder) {
+   private XPartition storedView(String folder) {
       XPartition partition = new XPartition(VIEW);
       partition.setFolder(folder);
       when(dataModel.getPartition(VIEW)).thenReturn(partition);
+      return partition;
+   }
+
+   private XPartition baseView(String folder) {
+      XPartition base = mock(XPartition.class);
+      when(base.getName()).thenReturn(VIEW);
+      when(base.getFolder()).thenReturn(folder);
+      when(dataModel.getPartition(VIEW)).thenReturn(base);
+      return base;
+   }
+
+   private XLogicalModel baseLogicalModel(String folder) {
+      XLogicalModel base = mock(XLogicalModel.class);
+      when(base.getName()).thenReturn(LM);
+      when(base.getPartition()).thenReturn(VIEW);
+      when(base.getFolder()).thenReturn(folder);
+      when(dataModel.getLogicalModel(LM)).thenReturn(base);
+      when(dataModel.getPartition(VIEW)).thenReturn(new XPartition(VIEW));
+      return base;
    }
 
    private void storedLogicalModel(String folder) {

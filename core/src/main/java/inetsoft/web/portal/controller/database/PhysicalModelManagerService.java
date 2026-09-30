@@ -148,16 +148,10 @@ public class PhysicalModelManagerService {
          return null;
       }
 
-      if(!dataSourceService.checkPermission(dataSource, model.getFolder(),
-         ResourceAction.WRITE, principal))
-      {
-         throw new SecurityException(
-            "Unauthorized access to resource \"" + dataSource + "\" by user " + principal);
-      }
-
       boolean isExtended = !StringUtils.isBlank(parent);
-      XPartition partition = physicalModelService.createPartition(model);
       XDataModel dataModel = getDataModel(dataSource);
+      checkCreatePermission(dataSource, dataModel, model.getFolder(), parent, principal);
+      XPartition partition = physicalModelService.createPartition(model);
       partition.setDataModel(dataModel);
 
       if(isExtended) {
@@ -216,11 +210,7 @@ public class PhysicalModelManagerService {
          path = dataSource + "/" + parent + "/" + model.getName();
       }
 
-      if(!dataSourceService.checkPermission(dataSource, folder, ResourceAction.WRITE, principal)) {
-         throw new SecurityException(
-            "Unauthorized access to resource \"" + dataSource + "\" by user " + principal);
-      }
-
+      checkCreatePermission(dataSource, dataModel, folder, parent, principal);
       DataSourceRegistry.IGNORE_GLOBAL_SHARE.set(true);
 
       try {
@@ -388,8 +378,9 @@ public class PhysicalModelManagerService {
     * @param runtimeId     the runtime identifier from the definition.
     * @param name          the view name the save checked.
     * @param checkedFolder the folder the save checked WRITE on ({@code null} for the root).
-    * @param checkFolder   {@code false} for an extended view, which is stored under its base
-    *                      view whatever its own folder is.
+    * @param checkFolder   {@code false} for an extended view: it is written under its base
+    *                      view whatever its own folder is, and the caller has already checked
+    *                      WRITE on the stored base view's folder.
     * @param principal     a principal that identifies the remote user.
     */
    private RuntimePartitionService.RuntimeXPartition getRuntimeToSave(
@@ -1724,6 +1715,33 @@ public class PhysicalModelManagerService {
       }
 
       return null;
+   }
+
+   /**
+    * Checks the permission to create a physical view. An extended view is written under its
+    * base view, so it needs WRITE on the stored base view's folder, as opening or removing it
+    * does, whatever folder the request names. Other views need WRITE on the folder they are
+    * created in.
+    *
+    * @param dataSource the name of the parent data source.
+    * @param dataModel  the data model of the data source.
+    * @param folder     the folder named in the request.
+    * @param parent     the name of the base view or {@code null} if none.
+    * @param principal  a principal that identifies the remote user.
+    */
+   private void checkCreatePermission(String dataSource, XDataModel dataModel, String folder,
+                                      String parent, Principal principal)
+      throws Exception
+   {
+      if(!StringUtils.isBlank(parent)) {
+         checkWritePermission(dataSource, dataModel.getPartition(parent), principal);
+      }
+      else if(!dataSourceService.checkPermission(dataSource, folder, ResourceAction.WRITE,
+                                                 principal))
+      {
+         throw new SecurityException(
+            "Unauthorized access to resource \"" + dataSource + "\" by user " + principal);
+      }
    }
 
    /**

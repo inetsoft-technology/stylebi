@@ -250,7 +250,8 @@ public class LogicalModelService {
       String path = isExtended ? dataSource + "/" + parent + "/" + model.getName() :
          dataSource + "/" + model.getName();
 
-      validateModelParameters(dataSource, physicalModel, model, principal, dataModel, path);
+      validateModelParameters(dataSource, physicalModel, model, parent, principal, dataModel,
+         path);
 
       if(isExtended) {
          XLogicalModel pLogicalModel = dataModel.getLogicalModel(parent);
@@ -302,7 +303,8 @@ public class LogicalModelService {
          throw new FileNotFoundException(dataSource + "/" + parent);
       }
 
-      validateModelParameters(dataSource, physicalModel, model, principal, dataModel, path);
+      validateModelParameters(dataSource, physicalModel, model, parent, principal, dataModel,
+         path);
 
       XLogicalModel pLogicalModel = dataModel.getLogicalModel(parent);
 
@@ -954,34 +956,47 @@ public class LogicalModelService {
       return logicalModel;
    }
 
+   /**
+    * Checks a new logical model before it is created. The model is written under the base
+    * model named by {@code parent} (the parameter the create uses, not the definition's
+    * parent), so an extended model needs WRITE in the base model's folder, as the Data tab
+    * requires, not in the folder named in the definition.
+    */
    private void validateModelParameters(String dataSource, String physicalModel,
-                                        LogicalModelDefinition model, Principal principal,
-                                        XDataModel dataModel, String path) throws Exception
+                                        LogicalModelDefinition model, String parent,
+                                        Principal principal, XDataModel dataModel, String path)
+      throws Exception
    {
-      validatePermission(dataSource, model, ResourceAction.WRITE, principal);
+      if(StringUtils.isEmpty(parent)) {
+         validatePermission(dataSource, model, ResourceAction.WRITE, principal);
+      }
+      else {
+         XLogicalModel baseModel = dataModel.getLogicalModel(parent);
+         validatePermission(dataSource, baseModel == null ? null : baseModel.getFolder(), parent,
+            model.getName(), model.getConnection(), ResourceAction.WRITE, principal);
+      }
 
       if(dataModel.getPartition(physicalModel) == null) {
          throw new FileNotFoundException(dataSource + "/" + physicalModel);
       }
 
-      if(StringUtils.isEmpty(model.getParent())) {
+      if(StringUtils.isEmpty(parent)) {
          if(dataModel.getLogicalModel(model.getName()) != null) {
             throw new FileExistsException(path);
          }
       }
       else {
-         XLogicalModel pLogicalModel = dataModel.getLogicalModel(model.getParent());
+         XLogicalModel pLogicalModel = dataModel.getLogicalModel(parent);
 
          if(pLogicalModel == null || pLogicalModel.getPartition() != null &&
             !pLogicalModel.getPartition().equals(physicalModel))
          {
-            throw new FileNotFoundException(dataSource + "/" + physicalModel + "/" +
-               model.getParent());
+            throw new FileNotFoundException(dataSource + "/" + physicalModel + "/" + parent);
          }
 
          if(pLogicalModel.getLogicalModel(model.getName()) != null) {
             throw new FileExistsException(dataSource + "/" + physicalModel + "/" +
-               model.getParent() + "/" + model.getName());
+               parent + "/" + model.getName());
          }
       }
    }
