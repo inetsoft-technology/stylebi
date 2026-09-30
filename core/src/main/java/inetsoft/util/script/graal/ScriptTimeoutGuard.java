@@ -53,6 +53,9 @@ import java.util.concurrent.locks.LockSupport;
  *    interrupt and close() race for it, and a close() that lost waits for the interrupt to
  *    finish before the Context is handed on.</li>
  *    <li>At most one interrupt per exec. The watchdog claims a guard before it submits.</li>
+ *    <li>No stray thread interrupt (Testing #77123). When an interrupt times out, Graal leaves
+ *    the exec thread's interrupt flag set, so close() clears it on that thread. A flag that
+ *    was already set when the interrupt started is not the guard's and is kept.</li>
  *    <li>No leak (bug #77004). Nothing is queued per exec, and a closed guard stays reachable
  *    only below a newer guard of the same thread that is still open. The watchdog drops the
  *    stack of a thread that has died.</li>
@@ -380,6 +383,12 @@ public class ScriptTimeoutGuard {
             return;
          }
 
+         // ctx.interrupt also interrupts the exec's thread (Thread.interrupt), and Graal clears
+         // that flag only when the thread leaves the Context while the interrupt is still in
+         // progress. A flag that is already set now is not this guard's (e.g. a cancel), so
+         // close() must never clear it
+         boolean ownerInterrupted = true;
+
          try {
             Runnable hook = beforeInterruptHook;
 
@@ -387,9 +396,15 @@ public class ScriptTimeoutGuard {
                hook.run();
             }
 
+            Thread owner = watch.thread.get();
+            ownerInterrupted = owner == null || owner.isInterrupted();
             ctx.interrupt(Duration.ofSeconds(2));
          }
          catch(TimeoutException ex) {
+            // the interrupt gave up while the exec was still in the Context, so the owner
+            // thread's interrupt flag outlives the exec and would fail the thread's next
+            // wait, lock or context creation (Testing #77123); close() clears it there
+            leftThreadInterrupt = !ownerInterrupted;
             timedOut = true;
          }
          catch(Exception ignore) {
@@ -434,18 +449,32 @@ public class ScriptTimeoutGuard {
             return;
          }
 
-         try {
-            if(!interruptDone.await(3, TimeUnit.SECONDS)) {
-               // the claimed interrupt may still land on a later exec: report the Context
-               // as unknown, so a pooled one is closed instead of reused (spec §6.3, G5)
+         // an interrupt that already finished needs no wait; the await would also throw at
+         // once on the flag that interrupt may have left set
+         if(interruptDone.getCount() > 0) {
+            try {
+               if(!interruptDone.await(3, TimeUnit.SECONDS)) {
+                  // the claimed interrupt may still land on a later exec: report the Context
+                  // as unknown, so a pooled one is closed instead of reused (spec §6.3, G5)
+                  timedOut = true;
+                  return;
+               }
+            }
+            catch(InterruptedException ex) {
+               // restore the flag and return rather than keep waiting; the claimed interrupt
+               // may still land on a later exec, so report the Context as unknown too
                timedOut = true;
+               Thread.currentThread().interrupt();
+               return;
             }
          }
-         catch(InterruptedException ex) {
-            // restore the flag and return rather than keep waiting; the claimed interrupt
-            // may still land on a later exec, so report the Context as unknown too
-            timedOut = true;
-            Thread.currentThread().interrupt();
+
+         // Testing #77123: this exec's own interrupt timed out, so Graal left the thread's
+         // interrupt flag set. Clear it here, on the owner thread, so the thread's next exec,
+         // context creation or wait does not fail. Only this guard's flag is cleared: one
+         // that was set before the interrupt ran is kept (see interrupt())
+         if(leftThreadInterrupt && watch.isOwner()) {
+            Thread.interrupted();
          }
       }
 
@@ -467,6 +496,8 @@ public class ScriptTimeoutGuard {
       private final AtomicInteger state = new AtomicInteger(ACTIVE);
       private final CountDownLatch interruptDone = new CountDownLatch(1);
       private volatile boolean timedOut;
+      /** This guard's interrupt timed out and left the owner thread's interrupt flag set. */
+      private volatile boolean leftThreadInterrupt;
       private volatile boolean popped;
       private volatile int fired;
    }
