@@ -118,10 +118,15 @@ class PooledLensHandOffBudgetTest {
    }
 
    // the bits of a power of two whose decimal digits take about 1.6 s (1.0 s .. 2.6 s: the
-   // guard fires at 1 s and its interrupt gives up 2 s later)
+   // guard fires at 1 s and its interrupt gives up 2 s later). The first sample is thrown
+   // away: it warms up the context and the host's BigInteger code, and under load it takes
+   // several times as long as the warm digits in the pooled context. A size is kept only
+   // when two samples of it in a row take 1.3 s .. 2 s; if none settles, the test is
+   // aborted, since the hand-off would then show nothing about the guard
    private static long calibrate() {
       try(Context ctx = Context.create("js")) {
          long bits = 1L << 20;
+         time(ctx, bits);
          long ms = time(ctx, bits);
 
          while(ms < 300) {
@@ -129,20 +134,24 @@ class PooledLensHandOffBudgetTest {
             ms = time(ctx, bits);
          }
 
-         for(int i = 0; i < 4; i++) {
+         for(int i = 0; i < 12; i++) {
             if(ms >= 1300 && ms <= 2000) {
-               return bits;
+               long again = time(ctx, bits);
+
+               if(again >= 1300 && again <= 2000) {
+                  return bits;
+               }
+
+               // load only adds time, so the faster of the two is the closer one
+               ms = Math.min(ms, again);
             }
 
             bits = (long) (bits * Math.pow(1600.0 / ms, 1 / 1.5));
             ms = time(ctx, bits);
          }
 
-         if(ms < 1300 || ms > 2000) {
-            System.out.println("CODEC-CANCEL calibration ended at " + ms + " ms");
-         }
-
-         return bits;
+         return Assumptions.abort("the calibration did not settle: " + ms + " ms, bits " +
+            bits);
       }
    }
 
