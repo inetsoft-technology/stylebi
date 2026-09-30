@@ -40,9 +40,24 @@ class PoolParanoiaTest {
       // a paranoid suite run reports the node-wide count when its JVM exits, since only
       // every 100th violation is logged; one comes from this class's planted defect
       if(Boolean.getBoolean(PoolParanoia.PROPERTY)) {
-         Runtime.getRuntime().addShutdownHook(new Thread(() -> System.out.println(
-            "[pool-paranoia] violations=" + PoolParanoia.violations() + " verifies=" +
-            PoolParanoia.VERIFIES.get())));
+         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            String line = "[pool-paranoia] violations=" + PoolParanoia.violations() +
+               " inconclusive=" + PoolParanoia.inconclusive() + " verifies=" +
+               PoolParanoia.VERIFIES.get();
+            System.out.println(line);
+
+            // surefire may have closed the fork's stdout by now: also append it to a file
+            try {
+               java.nio.file.Files.writeString(
+                  java.nio.file.Path.of("target", "pool-paranoia-summary.txt"),
+                  java.time.Instant.now() + " " + line + "\n",
+                  java.nio.file.StandardOpenOption.CREATE,
+                  java.nio.file.StandardOpenOption.APPEND);
+            }
+            catch(Exception ignore) {
+               // the printed line is the report
+            }
+         }));
       }
    }
 
@@ -159,6 +174,38 @@ class PoolParanoiaTest {
       assertEquals(40, PoolParanoia.VERIFIES.get() - verifies);
       assertEquals(violations, PoolParanoia.violations());
       assertEquals(1, env.getMetrics().getCreations(), "a clean slot is kept");
+   }
+
+   /**
+    * Round 2, #5885: the clean's baseline key list is a dense array with a null prototype, so
+    * a script that gives Array.prototype a trapping prototype sees nothing when host vars are
+    * put: no trap runs in the expect, the clean or the check, the new host vars stay in the
+    * baseline, and the check finds the kept slot at its baseline.
+    */
+   @Test
+   void baselineKeysOfAPutReachNoArrayPrototypeTrap() throws Exception {
+      PoolParanoia.forced = true;
+      WorksheetScriptEnv env = env();
+      PoolTestSupport.Probe probe = new PoolTestSupport.Probe();
+      env.put("zqprobe", probe);
+      PoolTestSupport.run(env, "1");
+      long violations = PoolParanoia.violations();
+      // an index read or any write that misses an array's own elements now reaches a trap
+      PoolTestSupport.run(env, "Object.setPrototypeOf(Array.prototype, new Proxy(" +
+         "Object.prototype, {get(t, k, r) { if(typeof k === 'string' && k >= '0' && " +
+         "k <= '9~') zqprobe.hit(); return Reflect.get(t, k, r); }, " +
+         "set(t, k, v, r) { zqprobe.hit(); return Reflect.set(t, k, v, r); }})); 1");
+      int hits = probe.hits();
+
+      for(int i = 0; i < 5; i++) {
+         env.put("zqnew" + i, "x" + i);
+      }
+
+      assertEquals("x4", PoolTestSupport.run(env, "zqnew4"));
+      assertEquals("x0", PoolTestSupport.run(env, "zqnew0"));
+      assertEquals(hits, probe.hits(), "no trap ran");
+      assertEquals(violations, PoolParanoia.violations());
+      assertEquals(1, env.getMetrics().getCreations(), "the slot is kept");
    }
 
    /**
