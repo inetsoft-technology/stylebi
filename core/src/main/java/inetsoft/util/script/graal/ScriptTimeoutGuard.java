@@ -18,6 +18,7 @@
 package inetsoft.util.script.graal;
 
 import org.graalvm.polyglot.Context;
+import org.graalvm.polyglot.PolyglotException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -81,6 +82,72 @@ public class ScriptTimeoutGuard {
       default boolean interruptTimedOut() {
          return false;
       }
+
+      /**
+       * @return {@code true} if this guard's timeout interrupted its exec (whether or not the
+       * interrupt stopped it in time).
+       */
+      default boolean interruptFired() {
+         return false;
+      }
+   }
+
+   /**
+    * Testing #77123: whether {@code ex} is a caller's cancel rather than a timeout. At its next
+    * guest safepoint Graal turns a set thread interrupt flag into "Thread was interrupted."
+    * and clears the flag, so code that catches that exception and goes on would lose the
+    * cancel. An interrupt is a cancel when no timeout guard of the calling thread issued it:
+    * neither {@code own} (the guard of the failed eval, if any, possibly closed by now) nor a
+    * guard still open on the thread. The message cannot tell them apart: a timeout interrupt
+    * may also surface as "Thread was interrupted.". Call it on the thread that ran the eval.
+    *
+    * @param ex  the caught exception; its cause chain is searched.
+    * @param own the eval's own guard, or {@code null} if it had none.
+    */
+   public static boolean isCancel(Throwable ex, Guard own) {
+      if(!isInterrupt(ex)) {
+         return false;
+      }
+
+      // a flag that was already set when the eval's own guard fired was a cancel's (M2)
+      if(own != null && own.interruptFired() &&
+         !(own instanceof TokenGuard token && token.cancelPending))
+      {
+         return false;
+      }
+
+      // counted rather than read from the guard stack, which skips a frame once it fired
+      ThreadWatch w = THREAD_WATCH.get();
+      return w == null || w.firedOpen.get() <= 0;
+   }
+
+   /**
+    * Testing #77123: re-assert the calling thread's interrupt flag if {@code ex} is a caller's
+    * cancel (see {@link #isCancel}) whose flag Graal cleared, so a catch that goes on without
+    * rethrowing it does not lose the cancel.
+    *
+    * @return whether the flag was re-asserted.
+    */
+   public static boolean keepCancel(Throwable ex, Guard own) {
+      if(isCancel(ex, own)) {
+         Thread.currentThread().interrupt();
+         return true;
+      }
+
+      return false;
+   }
+
+   /**
+    * @return whether {@code ex}, or a cause, is a Graal interrupt (a timeout's or a cancel's).
+    */
+   static boolean isInterrupt(Throwable ex) {
+      for(int depth = 0; ex != null && depth < 16; ex = ex.getCause(), depth++) {
+         if(ex instanceof PolyglotException pe && pe.isInterrupted()) {
+            return true;
+         }
+      }
+
+      return false;
    }
 
    /** Test hook run by the interrupt task right before it interrupts; null in production. */
@@ -170,7 +237,7 @@ public class ScriptTimeoutGuard {
       }
 
       ensureWatchdog();
-      ThreadWatch w = THREAD_WATCH.get();
+      ThreadWatch w = watch();
       long deadline = System.nanoTime() + saturatedNanos(timeout);
       // the volatile write of top publishes the frame's final fields to the watchdog; only
       // this thread ever writes its own top
@@ -361,6 +428,24 @@ public class ScriptTimeoutGuard {
       final WeakReference<Thread> thread;
       /** The newest frame; written only by the owner thread. */
       volatile TokenGuard top;
+      /**
+       * The guards of this thread that fired and are not closed yet (Testing #77123,
+       * {@link #isCancel}); the stack skips such a frame once it fired, so it cannot tell.
+       */
+      final AtomicInteger firedOpen = new AtomicInteger();
+   }
+
+   /** The calling thread's guard stack, created and registered on first use. */
+   private static ThreadWatch watch() {
+      ThreadWatch w = THREAD_WATCH.get();
+
+      if(w == null) {
+         w = new ThreadWatch();
+         WATCHES.add(w);
+         THREAD_WATCH.set(w);
+      }
+
+      return w;
    }
 
    /**
@@ -383,6 +468,9 @@ public class ScriptTimeoutGuard {
             return;
          }
 
+         interruptFired = true;
+         watch.firedOpen.incrementAndGet();
+
          // ctx.interrupt also interrupts the exec's thread (Thread.interrupt), and Graal clears
          // that flag only when the thread leaves the Context while the interrupt is still in
          // progress. A flag that is already set now is not this guard's (e.g. a cancel), so
@@ -398,6 +486,7 @@ public class ScriptTimeoutGuard {
 
             Thread owner = watch.thread.get();
             ownerInterrupted = owner == null || owner.isInterrupted();
+            cancelPending = owner != null && ownerInterrupted;
             ctx.interrupt(Duration.ofSeconds(2));
          }
          catch(TimeoutException ex) {
@@ -449,6 +538,11 @@ public class ScriptTimeoutGuard {
             return;
          }
 
+         // the interrupt won the token, so it counted this guard as fired and open
+         if(FIRED_CLOSED.compareAndSet(this, 0, 1)) {
+            watch.firedOpen.decrementAndGet();
+         }
+
          // an interrupt that already finished needs no wait; the await would also throw at
          // once on the flag that interrupt may have left set
          if(interruptDone.getCount() > 0) {
@@ -483,11 +577,18 @@ public class ScriptTimeoutGuard {
          return timedOut;
       }
 
+      @Override
+      public boolean interruptFired() {
+         return interruptFired;
+      }
+
       private static final int ACTIVE = 0;
       private static final int INTERRUPTING = 1;
       private static final int DONE = 2;
       private static final AtomicIntegerFieldUpdater<TokenGuard> FIRED =
          AtomicIntegerFieldUpdater.newUpdater(TokenGuard.class, "fired");
+      private static final AtomicIntegerFieldUpdater<TokenGuard> FIRED_CLOSED =
+         AtomicIntegerFieldUpdater.newUpdater(TokenGuard.class, "firedClosed");
 
       private final Context ctx;
       private final long deadline;
@@ -496,6 +597,11 @@ public class ScriptTimeoutGuard {
       private final AtomicInteger state = new AtomicInteger(ACTIVE);
       private final CountDownLatch interruptDone = new CountDownLatch(1);
       private volatile boolean timedOut;
+      /** This guard's interrupt ran (Testing #77123, {@link #isCancel}). */
+      private volatile boolean interruptFired;
+      /** The owner thread was already interrupted when this guard fired (a cancel's flag). */
+      private volatile boolean cancelPending;
+      private volatile int firedClosed;
       /** This guard's interrupt timed out and left the owner thread's interrupt flag set. */
       private volatile boolean leftThreadInterrupt;
       private volatile boolean popped;
@@ -509,11 +615,8 @@ public class ScriptTimeoutGuard {
    private static final long FAILURE_LOG_NANOS = TimeUnit.MINUTES.toNanos(1);
 
    private static final ConcurrentLinkedQueue<ThreadWatch> WATCHES = new ConcurrentLinkedQueue<>();
-   private static final ThreadLocal<ThreadWatch> THREAD_WATCH = ThreadLocal.withInitial(() -> {
-      ThreadWatch w = new ThreadWatch();
-      WATCHES.add(w);
-      return w;
-   });
+   /** Set by {@link #watch()}; {@link #isCancel} reads it without creating one. */
+   private static final ThreadLocal<ThreadWatch> THREAD_WATCH = new ThreadLocal<>();
    private static volatile Watchdog watchdog;
    private static final Logger LOG = LoggerFactory.getLogger(ScriptTimeoutGuard.class);
 }
