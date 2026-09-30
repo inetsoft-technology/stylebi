@@ -57,6 +57,8 @@ public class RepositoryFolderService {
       throws Exception
    {
       owner = owner != null && owner.name.length() > 0 ? owner : null;
+      // the ADMIN check below is skipped for an owner, so refuse an owner from another org first
+      RepositoryOwnerOrgCheck.checkOwnerOrg(owner, principal);
       ResourceType resourceType = isWorksheetFolder ? ResourceType.ASSET : ResourceType.REPORT;
 
       // private/owned assets (e.g. a user's own "My Dashboards"/"Data Worksheets" folders)
@@ -122,6 +124,10 @@ public class RepositoryFolderService {
       boolean isWSFolder = model.isWSFolder();
       String oldPath = model.oldPath();
       String newPath = SUtil.removeControlChars(model.newPath());
+      // both the owner and a destination owner encoded as "(key)" in newPath select a per-owner
+      // registry, so refuse either one from another organization before anything is changed
+      RepositoryOwnerOrgCheck.checkOwnerOrg(owner, principal);
+      RepositoryOwnerOrgCheck.checkOwnerOrg(getUserFromFolder(newPath), principal);
       int type = RepositoryEntry.REPOSITORY | RepositoryEntry.FOLDER;
       ActionRecord actionRecord = SUtil.getActionRecord(principal,
          ActionRecord.ACTION_NAME_EDIT, oldPath, ActionRecord.OBJECT_TYPE_FOLDER);

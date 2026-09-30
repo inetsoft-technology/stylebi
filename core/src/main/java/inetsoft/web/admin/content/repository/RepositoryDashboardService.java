@@ -103,29 +103,10 @@ public class RepositoryDashboardService {
 
    /**
     * Rejects a client-supplied dashboard owner from another organization unless the caller is a
-    * site administrator. {@link DashboardRegistryManager#getRegistry(IdentityID)} loads the
-    * registry of the owner's organization, so without this check an organization administrator
-    * could read or change another organization's user dashboards.
+    * site administrator. See {@link RepositoryOwnerOrgCheck#checkOwnerOrg}.
     */
    private void checkOwnerOrg(IdentityID owner, Principal principal) {
-      if(owner == null || Tool.isEmptyString(owner.orgID)) {
-         return;
-      }
-
-      if(principal != null && owner.equals(IdentityID.getIdentityIDFromKey(principal.getName()))) {
-         return;
-      }
-
-      if(principal instanceof XPrincipal xp && owner.orgID.equalsIgnoreCase(xp.getOrgId())) {
-         return;
-      }
-
-      if(principal instanceof XPrincipal && OrganizationManager.getInstance().isSiteAdmin(principal)) {
-         return;
-      }
-
-      throw new MessageException(Catalog.getCatalog().getString(
-         "em.common.security.no.permission", owner.getName()));
+      RepositoryOwnerOrgCheck.checkOwnerOrg(owner, principal);
    }
 
    private Identity effectiveIdentity(IdentityID owner, Principal principal) {
