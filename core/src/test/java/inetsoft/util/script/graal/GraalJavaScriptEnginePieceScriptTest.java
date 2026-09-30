@@ -17,8 +17,13 @@
  */
 package inetsoft.util.script.graal;
 
+import inetsoft.util.script.graal.pool.PoolTestSupport;
+import inetsoft.util.script.graal.pool.SlotClaim;
+import inetsoft.util.script.graal.pool.WorksheetScriptEnv;
 import org.graalvm.polyglot.Source;
 import org.junit.jupiter.api.*;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -207,6 +212,336 @@ class GraalJavaScriptEnginePieceScriptTest {
       String crlf = assertThrows(Exception.class,
          () -> run("var a = 1;\r\nif(a) { 1 }\r\n\r\nif(a) { undefinedFnR77249() }")).getMessage();
       assertTrue(crlf.contains("(line 4)"), crlf);
+   }
+
+   // a piece declaring one name with function and var/let/const parses as a script but
+   // not as the block of its with: it keeps the eval wrapper, with the values of main
+   @Test void aFunctionAndVarOfOneNameKeepTheEvalWrapper() throws Exception {
+      assertSharedContextValues(
+         "function f77249(){ return 'f' + value } var f77249; if(value > 0) { f77249() }",
+         "f5", "f7", null);
+      assertSharedContextValues(
+         "let lf77249 = 1; function lf77249(){ return 'l' } if(value > 0) { lf77249 }",
+         1.0, 1.0, null);
+      assertSharedContextValues(
+         "const cf77249 = 1; function cf77249(){ return 'c' } if(value > 0) { cf77249 }",
+         1.0, 1.0, null);
+   }
+
+   // the same name in different pieces, or two functions of one name, still split
+   @Test void aFunctionAndVarInDifferentPiecesStillSplit() throws Exception {
+      assertInstanceOf(GraalJavaScriptEngine.PieceScript.class,
+         engine.compile("var g77249 = 1; if(value > 0) { g77249 } function g77249(){}"));
+      assertInstanceOf(GraalJavaScriptEngine.PieceScript.class,
+         engine.compile("function h77249(){ return 'a' } function h77249(){ return 'b' } " +
+                        "if(value > 0) { h77249() }"));
+      assertValues(engine.compile(
+         "function h77249(){ return 'a' } function h77249(){ return 'b' + value } " +
+         "if(value > 0) { h77249() }"), "b5", "b7", null);
+   }
+
+   // the reset of a split formula takes main's owned vars (review r4 dropped M1): a var of
+   // a method shorthand, a class method or a function with a default object parameter is
+   // reset like a top-level one (the formula's own values are unaffected, the method's var
+   // is local); a lost reset instead would keep a stale value across runs
+   @Test void theResetTakesMainsOwnedVarsOfMethodBodies() throws Exception {
+      run("var t77249 = 5; var u77249 = 6; var w77249 = 7");
+      assertEquals(9.0, run(
+         "let o = { sq(x) { var t77249 = x * x; return t77249 } }; if(o) { o.sq(3) }"));
+      assertNull(run("t77249"));
+      assertEquals(4.0, run(
+         "let C77249 = class { get two() { var u77249 = 2; return u77249 } m(a) { " +
+         "var u77249 = a; return u77249 } }; if(true) { new C77249().m(2) * new C77249().two }"));
+      assertNull(run("u77249"));
+      assertEquals(1.0, run(
+         "function d77249(a = { k: 1 }) { var w77249 = a.k; return w77249 } if(true) { d77249() }"));
+      assertNull(run("w77249"));
+
+      // a top-level var in a control-flow block is still reset
+      run("var z77249 = 8");
+      assertNull(run("if(false) { var z77249 = 1 } if(true) { z77249 }"));
+   }
+
+   // Bug #77249 (F2): a call ending a line without `;` followed by a bare block is a call
+   // and a block statement (ASI), not a method head: the block's var is still reset
+   @Test void aVarInABlockAfterACallIsReset() throws Exception {
+      run("var asi77249 = 8; var bsi77249 = 9; function noop77249(){}");
+      assertNull(run("noop77249(1)\n{ if(false) { var asi77249 = 1 } }\nif(true) { asi77249 }"));
+      assertNull(run("if(true) noop77249(2)\n{ var bsi77249 }\nif(true) { bsi77249 }"));
+   }
+
+   // Bug #77249 (F1): a function declared in a block (Annex B) that the next run does not
+   // enter is gone on that run, as on the eval wrapper, pool off and on; as a piece its
+   // global kept the previous run's function
+   @ParameterizedTest(name = "pool={0}")
+   @ValueSource(booleans = { false, true })
+   void aFunctionOfABlockDoesNotOutliveItsRun(boolean pool) throws Exception {
+      WorksheetScriptEnv env = pool ? PoolTestSupport.env() : null;
+
+      try {
+         assertBlockFunctionValues(env,
+            "if(value > 0) { function bf77249(){ return 'b' + value } } " +
+            "if(typeof bf77249 == 'function') { bf77249() }", "b5", "b7", null);
+         assertBlockFunctionValues(env,
+            "switch(value > 0) { case true: function sf77249(){ return 's' + value } } " +
+            "if(typeof sf77249 == 'function') { sf77249() }", "s5", "s7", null);
+         assertBlockFunctionValues(env,
+            "var n77249 = 1; if(value > 0) function nf77249(){ return 'n' + value }\n" +
+            "if(typeof nf77249 == 'function') { nf77249() }", "n5", "n7", null);
+      }
+      finally {
+         if(env != null) {
+            env.retire();
+         }
+      }
+   }
+
+   // what counts as a function declared in a block: a false positive only keeps the eval
+   // wrapper, a miss keeps a piece
+   @Test void blockFunctionDeclarationsAreFound() throws Exception {
+      for(String f : new String[] {
+         "if(a) { function f(){} }", "if(a) function f(){}", "if(a) {} else function f(){}",
+         "switch(a) { case 1: function f(){} }", "for(;;) { function f(){} }",
+         "{ function f(){} }", "try { function f(){} } catch(e) {}", "foo(1)\n{ function f(){} }" })
+      {
+         assertTrue(GraalJavaScriptEngine.hasBlockFunctionDeclaration(f), f);
+      }
+
+      for(String f : new String[] {
+         "function f(){} if(a) { f() }", "if(a) { var g = function(){} }",
+         "if(a) { [1].map(function(x){ return x }) }", "if(a) { o = { k: function(){} } }",
+         "function o(){ if(a) { function i(){} } }", "if(a) { x = b ? function(){} : null }",
+         "let o = { m() { if(a) { function i(){} } } }", "if(a) { (function(){})() }",
+         "if(a) { return function(){} }", "if(a) { async function f(){} }",
+         "var s = 'if(a) { function f(){} }'; if(a) { s }" })
+      {
+         assertFalse(GraalJavaScriptEngine.hasBlockFunctionDeclaration(f), f);
+      }
+
+      // a top-level function still splits
+      assertInstanceOf(GraalJavaScriptEngine.PieceScript.class,
+         engine.compile("function tf77249(){ return 1 } if(value > 0) { tf77249() }"));
+   }
+
+   // Bug #77249 (I1): a block function after a statement that ends without `;` (ASI) is
+   // found too, pool off and on; as a piece it outlived its run (a-1 instead of null)
+   @ParameterizedTest(name = "pool={0}")
+   @ValueSource(booleans = { false, true })
+   void aFunctionOfABlockAfterASIDoesNotOutliveItsRun(boolean pool) throws Exception {
+      WorksheetScriptEnv env = pool ? PoolTestSupport.env() : null;
+
+      try {
+         assertBlockFunctionValues(env,
+            "if(value > 0) {\n var xa77249 = value\n function ia77249(){ return 'a' + value }\n}\n" +
+            "if(typeof ia77249 == 'function') { ia77249() }", "a5", "a7", null);
+         assertBlockFunctionValues(env,
+            "if(value > 0) {\n nb77249 = 5\n function ib77249(){ return 'b' + value }\n}\n" +
+            "if(typeof ib77249 == 'function') { ib77249() }", "b5", "b7", null);
+         assertBlockFunctionValues(env,
+            "var cc77249 = 0; if(value > 0) {\n cc77249++\n function ic77249(){ return 'c' + value }\n}\n" +
+            "if(typeof ic77249 == 'function') { ic77249() }", "c5", "c7", null);
+         assertBlockFunctionValues(env,
+            "if(value > 0) {\n sd77249 = 'a'\n function id77249(){ return 'd' + value }\n}\n" +
+            "if(typeof id77249 == 'function') { id77249() }", "d5", "d7", null);
+         assertBlockFunctionValues(env,
+            "if(value > 0) {\n ae77249 = [value][0]\n function ie77249(){ return 'e' + value }\n}\n" +
+            "if(typeof ie77249 == 'function') { ie77249() }", "e5", "e7", null);
+         assertBlockFunctionValues(env,
+            "if(value > 0) {\n tf77249 = true\n function if77249(){ return 'f' + value }\n}\n" +
+            "if(typeof if77249 == 'function') { if77249() }", "f5", "f7", null);
+         assertBlockFunctionValues(env,
+            "if(value > 0) {\n rg77249 = /x/\n function ig77249(){ return 'g' + value }\n}\n" +
+            "if(typeof ig77249 == 'function') { ig77249() }", "g5", "g7", null);
+      }
+      finally {
+         if(env != null) {
+            env.retire();
+         }
+      }
+   }
+
+   // Bug #77249 (m1): a keyword used as an object key does not make the next block a
+   // function body, pool off and on: its var is still reset and its function is found
+   @ParameterizedTest(name = "pool={0}")
+   @ValueSource(booleans = { false, true })
+   void aKeywordKeyDoesNotHideTheNextBlock(boolean pool) throws Exception {
+      WorksheetScriptEnv env = pool ? PoolTestSupport.env() : null;
+
+      try {
+         for(String key : new String[] { "class", "function" }) {
+            String n = key.charAt(0) + "77249";
+            // (an undefined completion keeps the key object's value, so String() it)
+            // the var reset follows main's owned vars: a `function` key hides the next
+            // block's var on main too (pre-existing, not reset: the -1 run keeps 7)
+            String last = key.equals("class") ? "undefined" : "7";
+            assertRunValues(env, false,
+               "ok" + n + " = {" + key + ": 'c'}; if(value > 0) { var tk" + n + " = value } " +
+               "if(true) { String(tk" + n + ") }", "5", "7", last);
+            assertBlockFunctionValues(env,
+               "ob" + n + " = {" + key + ": 'c'}; if(value > 0) { function bk" + n +
+               "(){ return 'k' + value } } if(typeof bk" + n + " == 'function') { bk" + n + "() }" +
+               " else { 'none' }", "k5", "k7", "none");
+            assertRunValues(env, false,
+               "[].concat({" + key + ": 1}); if(value > 0) { var tc" + n + " = value } " +
+               "if(true) { String(tc" + n + ") }", "5", "7", last);
+         }
+      }
+      finally {
+         if(env != null) {
+            env.retire();
+         }
+      }
+   }
+
+   // Bug #77249 (verify r3 C/D): a class field named `class`, a `static function =`
+   // field, or `yield`/`await`/`of` as an identifier ending a line does not hide the var of
+   // the next block, pool off and on: it is reset, so the -1 run reads undefined (r3 kept 7)
+   @ParameterizedTest(name = "pool={0}")
+   @ValueSource(booleans = { false, true })
+   void aClassFieldOrContextualKeywordDoesNotHideTheNextBlock(boolean pool) throws Exception {
+      WorksheetScriptEnv env = pool ? PoolTestSupport.env() : null;
+
+      try {
+         for(String f : new String[] {
+            "class Ka77249 { static class = 1 }\nif(value > 0) { var kca77249 = value }\n" +
+               "if(true) { String(kca77249) }",
+            "class Kb77249 { class = 1 }\nif(value > 0) { var kcb77249 = value }\n" +
+               "if(true) { String(kcb77249) }",
+            "class Kc77249 { static function = function() { return 1 } }\n" +
+               "if(value > 0) { var kcc77249 = value }\nif(true) { String(kcc77249) }",
+            "var yield = 1; x = yield\n{ Math.abs(1)\n{ if(value > 0) { var kcd77249 = value } } }" +
+               "\nif(true) { String(kcd77249) }",
+            "var await = 1; x = await\n{ Math.abs(1)\n{ if(value > 0) { var kce77249 = value } } }" +
+               "\nif(true) { String(kce77249) }",
+            "var of = 1; x = of\n{ Math.abs(1)\n{ if(value > 0) { var kcf77249 = value } } }" +
+               "\nif(true) { String(kcf77249) }" })
+         {
+            assertRunValues(env, false, f, "5", "7", "undefined");
+         }
+      }
+      finally {
+         if(env != null) {
+            env.retire();
+         }
+      }
+   }
+
+   // the ASI and keyword-key shapes of #77249 I1/m1; and a top-level function after a
+   // statement without `;` still splits
+   @Test void blockFunctionDeclarationsAfterASIAndKeywordKeysAreFound() throws Exception {
+      for(String f : new String[] {
+         "if(v) { var n = 5\n function f(){} }", "if(v) { n = 5\n function f(){} }",
+         "if(v) { n = x\n function f(){} }", "if(v) { x++\n function f(){} }",
+         "if(v) { x--\n function f(){} }", "if(v) { s = 'a'\n function f(){} }",
+         "if(v) { s = `a${b}`\n function f(){} }", "if(v) { r = /a/\n function f(){} }",
+         "if(v) { a = b[0]\n function f(){} }", "if(v) { a = true\n function f(){} }",
+         "if(v) { f()\n function g(){} }", "if(v) { o = {a: 1}\n function f(){} }",
+         "if(v) { var a = [1]\n function f(){} }", "if(v) { var s = 'x'\n function f(){} }",
+         "if(v) { n++\n function f(){} }","let {class: c} = o; if(v) { function f(){} }",
+         "if(v) { l: function f(){} }", "if(v) { x = 1 /* c */\n function f(){} }",
+         "oc = {class: 'c'}; if(v) { function f(){} }", "foo({function: 1}); if(v) { function f(){} }",
+         "o = {get: 1, set: 2, static: 3, async: 4, if: 5}; if(v) { function f(){} }",
+         "o = {'class': 1, ['function']: 2}; if(v) { function f(){} }",
+         // a class field named by a keyword (verify r3 C)
+         "class K { static class = 1 }\nif(v) { function f(){} }",
+         "class K { class = 1 }\nif(v) { function f(){} }",
+         "class K { static function = function() {} }\nif(v) { function f(){} }",
+         "class K { function; }\nif(v) { function f(){} }",
+         "class K { function }\nif(v) { function f(){} }" })
+      {
+         assertTrue(GraalJavaScriptEngine.hasBlockFunctionDeclaration(f), f);
+      }
+
+      for(String f : new String[] {
+         "if(v) { x = y ||\n function(){} }", "if(v) { x = y +\n function(){} }",
+         "if(v) { o = { function: 1 } }", "if(v) { o = { function() { return 1 } } }",
+         "if(v) { o = { a: 1, function() {} } }", "if(v) { x = typeof function(){} }",
+         "if(v) { x = new function(){} }", "if(v) { x = void function(){} }",
+         "if(v) { foo(1,\n function(){}) }", "if(v) { x = [\n function(){}] }",
+         "if(v) { x = !function(){}() }", "if(v) { x = a => function(){} }",
+         "if(v) { x = o.function }" })
+      {
+         assertFalse(GraalJavaScriptEngine.hasBlockFunctionDeclaration(f), f);
+      }
+
+      for(String f : new String[] {
+         "a = b\nfunction tf77249(){ return 1 } if(value > 0) { tf77249() }",
+         "a = 5\nfunction tg77249(){ return 1 } if(value > 0) { tg77249() }",
+         "Math.abs(1)\nfunction th77249(){ return 1 } if(value > 0) { th77249() }" })
+      {
+         assertFalse(GraalJavaScriptEngine.hasBlockFunctionDeclaration(f), f);
+         assertInstanceOf(GraalJavaScriptEngine.PieceScript.class, engine.compile(f), f);
+      }
+   }
+
+   private void assertBlockFunctionValues(WorksheetScriptEnv env, String f, Object... expected)
+      throws Exception
+   {
+      assertRunValues(env, true, f, expected);
+   }
+
+   // run f with value 5, 7, -1 (on one claimed context when pooled); evalRoute: whether
+   // f must compile to the eval wrapper
+   private void assertRunValues(WorksheetScriptEnv env, boolean evalRoute, String f,
+                                Object... expected)
+      throws Exception
+   {
+      Object script = env != null ? env.compile(f) : engine.compile(f);
+      int[] values = { 5, 7, -1 };
+
+      // pooled, the runs share one claimed context, as the rows of a formula table batch
+      try(SlotClaim claim = env != null ? env.claimSlot() : null) {
+         for(int i = 0; i < values.length; i++) {
+            MapScope scope = new MapScope();
+            scope.putMember("value", values[i]);
+            Object v = env != null ? env.exec(script, scope, scope, null) :
+               engine.exec(script, scope, scope);
+            assertEquals(expected[i], v instanceof Number num ? num.doubleValue() : v,
+                         f + " value " + values[i]);
+         }
+      }
+
+      if(evalRoute) {
+         assertInstanceOf(Source.class, script, f);
+      }
+   }
+
+   // the pieces count a line break as the plain path does
+   @Test void errorLinesOfOtherLineBreaksMatchThePlainPath() {
+      for(String br : new String[] { "\r", "\u2028", "\u2029", "\r\n", "\n" }) {
+         String pieces = line(assertThrows(Exception.class, () ->
+            run("var a = 1;" + br + "if(a) {" + br + "  undefinedFnS77249() }")).getMessage());
+         String plain = line(assertThrows(Exception.class, () ->
+            run("var a = 1;" + br + "{" + br + "  undefinedFnT77249() }")).getMessage());
+         assertNotNull(plain, "plain line for " + (int) br.charAt(0));
+         assertEquals(plain, pieces, "line break " + (int) br.charAt(0));
+      }
+   }
+
+   private static String line(String msg) {
+      java.util.regex.Matcher m = java.util.regex.Pattern.compile("\\(line \\d+\\)").matcher(msg);
+      return m.find() ? m.group() : null;
+   }
+
+   // one compiled script run on one engine with value 5, 7, -1, as a viewsheet runs it
+   private void assertSharedContextValues(String f, Object... expected) throws Exception {
+      Object script = engine.compile(f);
+      assertInstanceOf(Source.class, script, f);
+      assertTrue(((Source) script).getCharacters().toString().contains("eval("), f);
+      assertValues(script, expected);
+   }
+
+   private void assertValues(Object script, Object... expected) throws Exception {
+      String f = script.toString();
+      int[] values = { 5, 7, -1 };
+
+      for(int i = 0; i < values.length; i++) {
+         MapScope scope = new MapScope();
+         scope.putMember("value", values[i]);
+         Object v = engine.exec(script, scope, scope);
+         assertEquals(expected[i], v instanceof Number n ? n.doubleValue() : v,
+                      f + " value " + values[i]);
+      }
    }
 
    // the compiled form holds no Value of the Context that compiled it

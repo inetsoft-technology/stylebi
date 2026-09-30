@@ -32,6 +32,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Deque;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -875,8 +876,10 @@ public class GraalJavaScriptEngine implements AutoCloseable {
          // Bug #77249: without `this`, run each piece as its own parsed-once
          // with(__scope__) Source instead of a per-exec direct eval (which GraalJS
          // re-parses on every execution). A `this` body keeps the eval wrapper.
-         Object pieces = THIS_REF.matcher(body).find() ? null :
-            buildPieceScript(body, lexicalBody, statements);
+         // A function declared in a nested block keeps the eval wrapper too: as a
+         // piece it would keep its function across runs (hasBlockFunctionDeclaration).
+         Object pieces = THIS_REF.matcher(body).find() || hasBlockFunctionDeclaration(body) ?
+            null : buildPieceScript(body, lexicalBody, statements);
 
          return pieces != null ? pieces : buildCompletionPreservingSource(body, statements);
       }
@@ -1017,7 +1020,8 @@ public class GraalJavaScriptEngine implements AutoCloseable {
     * Bug #77322); there is no column padding, as only the line is reported.
     *
     * @return the piece script, or {@code null} if a piece cannot be located in
-    *         {@code body} (defensive; the caller then keeps the eval wrapper).
+    *         {@code body} (defensive) or a built piece does not parse as it runs;
+    *         the caller then keeps the eval wrapper.
     */
    private Object buildPieceScript(String body, String lexicalBody, List<String> statements) {
       Set<String> resetNames = collectInitializerlessLexicalNames(lexicalBody);
@@ -1037,8 +1041,9 @@ public class GraalJavaScriptEngine implements AutoCloseable {
             return null;
          }
 
-         // count the line breaks before the piece
-         lines += countLineBreaks(body, scanned, at);
+         // count the line breaks before the piece as the reported line of the plain
+         // path does: LF, CRLF and a lone CR; U+2028/U+2029 do not start a line there
+         lines += countReportedLineBreaks(body, scanned, at);
          scanned = at;
 
          StringBuilder sb = new StringBuilder(
@@ -1055,7 +1060,18 @@ public class GraalJavaScriptEngine implements AutoCloseable {
          pos = at + stmt.length();
       }
 
-      return new PieceScript(pieces, body, resetNames, statements);
+      // A piece is parse-checked as a script (piecesAllParse) but runs as the block of
+      // its with. A block has an early error a script does not: a name declared both
+      // lexically and with var. A function declared in a block is lexical (sloppy
+      // mode; Annex B relaxes only function-vs-function), so a piece like
+      // `function f(){} var f;` (or a rewritten `let`/`const` plus a same-named
+      // function) would throw "already declared" on every run, where the eval wrapper
+      // (in whose eval code the function is var scoped) runs it. Parse each built
+      // piece as it runs, once here at compile time (the caller caches the compiled
+      // script, and the Context reuses the parse for the first eval); if one fails,
+      // keep the eval wrapper.
+      return sourcesAllParse(pieces) ?
+         new PieceScript(pieces, body, resetNames, statements) : null;
    }
 
    /**
@@ -1071,6 +1087,25 @@ public class GraalJavaScriptEngine implements AutoCloseable {
          if(c == '\n' || c == '\u2028' || c == '\u2029' ||
             c == '\r' && (i + 1 >= s.length() || s.charAt(i + 1) != '\n'))
          {
+            lines++;
+         }
+      }
+
+      return lines;
+   }
+
+   /**
+    * The number of line breaks in {@code s} from {@code from} (inclusive) to {@code to}
+    * (exclusive) as the reported line of the plain path counts them: LF, CRLF (once)
+    * and a lone CR; U+2028/U+2029 do not start a reported line (#77249).
+    */
+   private static int countReportedLineBreaks(String s, int from, int to) {
+      int lines = 0;
+
+      for(int i = from; i < to; i++) {
+         char c = s.charAt(i);
+
+         if(c == '\n' || c == '\r' && (i + 1 >= s.length() || s.charAt(i + 1) != '\n')) {
             lines++;
          }
       }
@@ -2044,6 +2079,20 @@ public class GraalJavaScriptEngine implements AutoCloseable {
     * (no split).
     */
    private boolean piecesAllParse(List<String> pieces) {
+      return allParse(pieces, piece -> context.parse("js", piece));
+   }
+
+   /**
+    * Parse-validate the built pieces of a {@link PieceScript} exactly as they run
+    * (#77249), under the engine {@code lock} like {@link #piecesAllParse}. Fails safe
+    * (the caller keeps the eval wrapper) if the context is not yet built.
+    */
+   private boolean sourcesAllParse(Source[] sources) {
+      return allParse(Arrays.asList(sources), source -> context.parse(source));
+   }
+
+   // parse each item under the engine lock; false if the context is not built or one fails
+   private <T> boolean allParse(List<T> items, java.util.function.Consumer<T> parse) {
       lock.lock();
 
       try {
@@ -2051,9 +2100,9 @@ public class GraalJavaScriptEngine implements AutoCloseable {
             return false;
          }
 
-         for(String piece : pieces) {
+         for(T item : items) {
             try {
-               context.parse("js", piece);
+               parse.accept(item);
             }
             catch(Exception ex) {
                return false;
@@ -2598,6 +2647,231 @@ public class GraalJavaScriptEngine implements AutoCloseable {
    }
 
    /**
+    * Bug #77249: whether {@code script} declares a function in a nested block (or as
+    * the statement of an {@code if}/{@code else}/loop) outside any function body,
+    * e.g. {@code if(v > 0) { function f(){} }}. Run as a piece of a
+    * {@link PieceScript}, such a function is hoisted (Annex B) to a global of the
+    * Context, which keeps the previous run's function when the block is not entered;
+    * in the eval wrapper it is a fresh binding of the wrapper function on every run.
+    * A lexical scan: a false positive only keeps the (correct, slower) eval wrapper,
+    * so a {@code function} keyword counts as a declaration unless it is clearly in
+    * expression position (after an operator, {@code (}, {@code ,}, {@code [}, an
+    * object key's {@code :}, or an expression keyword such as {@code return}); a
+    * statement that ends without {@code ;} (ASI) does not hide it.
+    */
+   static boolean hasBlockFunctionDeclaration(String script) {
+      return scanBlockFunctions(script);
+   }
+
+   // brace kinds of scanBlockFunctions
+   private static final int BLOCK_BRACE = 0;
+   private static final int OBJECT_BRACE = 1;
+   private static final int FUNCTION_BRACE = 2;
+
+   /**
+    * Whether {@code script} declares a function in a nested block outside any function
+    * body ({@link #hasBlockFunctionDeclaration}).
+    *
+    * <p>This scanner serves only that check. It is deliberately not the one that decides
+    * the table-owned vars ({@link #collectOwnedVarNames(Collection)} keeps the #5806
+    * scanner unchanged): a var this finer brace tracking would take for a function-local
+    * one and drop from the owned set is silently shared across rows and tables (#77123),
+    * while the older scanner only over-owns a var that is local to its method anyway
+    * (#77249 review r4).
+    *
+    * <p>A brace opens a function body after the {@code function} keyword (at the paren
+    * depth of the keyword, so a brace in a default parameter does not count), after
+    * {@code =>}, after a {@code class} head (a class body holds no top-level var), and
+    * after a {@code name(...)} head directly in an object literal (a method shorthand,
+    * getter or setter). An object literal is a brace in expression position. In a block,
+    * {@code name(...)} followed by a brace is a call and a block statement (ASI), not a
+    * function (#77249). A {@code var}/{@code function}/{@code class} keyword followed
+    * by {@code :}, {@code =}, {@code ;} or <code>}</code> is an object key or a class
+    * field, not a declaration. A string, template or regex
+    * literal counts as a value token.
+    */
+   private static boolean scanBlockFunctions(String script) {
+      String src = stripStringsAndComments(script, true);
+      // var names are skipped over (collectVarNames), not used
+      Set<String> names = new HashSet<>();
+      // per open brace: its kind and the paren depth at which it opened
+      Deque<int[]> braces = new ArrayDeque<>();
+      // per open paren: its kind (PAREN_*)
+      Deque<Integer> parens = new ArrayDeque<>();
+      // per pending function: the paren depth of its body brace
+      Deque<Integer> pendingFns = new ArrayDeque<>();
+      int fdepth = 0;
+      boolean pendingClass = false;
+      boolean methodHead = false;
+      // the previous token is the `)` of an if/while/for/with head
+      boolean afterHead = false;
+      boolean blockFn = false;
+      // the previous token if it is a word, kept across whitespace
+      String word = null;
+      int n = src.length();
+      int i = 0;
+      char prev = 0;
+
+      while(i < n) {
+         char c = src.charAt(i);
+         int enclosing = braces.isEmpty() ? BLOCK_BRACE : braces.peek()[0];
+
+         if(isIdentStart(c)) {
+            int start = i;
+            i++;
+
+            while(i < n && isIdentPart(src.charAt(i))) {
+               i++;
+            }
+
+            String before = word;
+            boolean head = afterHead;
+            word = src.substring(start, i);
+            methodHead = false;
+            afterHead = false;
+            // a keyword used as an object key ({class: 1}, {function: 1}) or a class
+            // field ({ class = 1 }, { static function = function(){} }, { function; })
+            // is a name: none of `:`, `=`, `;`, `}` can follow the keyword itself
+            int after = skipWhitespace(src, i);
+            char next = after < n ? src.charAt(after) : 0;
+            boolean key = next == ':' || next == ';' || next == '}' ||
+               next == '=' && (after + 1 >= n || src.charAt(after + 1) != '=' &&
+               src.charAt(after + 1) != '>');
+
+            // ignore keywords used as member names (obj.var / obj.function)
+            if(prev != '.' && !key) {
+               if(word.equals("var") && fdepth == 0) {
+                  i = collectVarNames(src, i, names);
+                  word = null;
+               }
+               else if(word.equals("function")) {
+                  // a declaration unless in expression position: a statement that ends
+                  // without `;` (ASI) is still a statement. An async function is not
+                  // hoisted out of its block, a generator is; over-matching only keeps
+                  // the eval wrapper
+                  boolean expression = before != null ?
+                     FUNCTION_EXPRESSION_AFTER_WORDS.contains(before) :
+                     prev == ':' ? enclosing == OBJECT_BRACE :
+                     isExpressionOperator(src, start, prev);
+                  // a method named `function` ({ function() {} }) directly in an object
+                  boolean property = enclosing == OBJECT_BRACE &&
+                     parens.size() == braces.peek()[1] && (prev == '{' || prev == ',');
+                  boolean nested = !braces.isEmpty() || head ||
+                     "else".equals(before) || "do".equals(before);
+
+                  if(fdepth == 0 && !expression && !property && nested) {
+                     blockFn = true;
+                  }
+
+                  pendingFns.push(parens.size());
+               }
+               else if(word.equals("class")) {
+                  pendingClass = true;
+               }
+            }
+
+            prev = src.charAt(i - 1);
+            continue;
+         }
+
+         // an arrow function with a block body
+         if(c == '=' && i + 1 < n && src.charAt(i + 1) == '>') {
+            int j = skipWhitespace(src, i + 2);
+
+            if(j < n && src.charAt(j) == '{') {
+               pendingFns.push(parens.size());
+            }
+         }
+         else if(c == '(') {
+            parens.push(word != null && CONTROL_HEAD_KEYWORDS.contains(word) ? PAREN_HEAD :
+               word != null && !NON_FUNCTION_HEADS.contains(word) &&
+               enclosing == OBJECT_BRACE && parens.size() == braces.peek()[1] ?
+               PAREN_METHOD : PAREN_OTHER);
+         }
+         else if(c == ')' && !parens.isEmpty()) {
+            int kind = parens.pop();
+            methodHead = kind == PAREN_METHOD;
+            afterHead = kind == PAREN_HEAD;
+            word = null;
+            prev = c;
+            i++;
+            continue;
+         }
+         else if(c == '{') {
+            int kind;
+
+            if(!pendingFns.isEmpty() && pendingFns.peek() == parens.size()) {
+               pendingFns.pop();
+               kind = FUNCTION_BRACE;
+            }
+            else if(methodHead || pendingClass) {
+               kind = FUNCTION_BRACE;
+            }
+            else if(word != null) {
+               kind = OBJECT_AFTER_WORDS.contains(word) ? OBJECT_BRACE : BLOCK_BRACE;
+            }
+            else if(prev == ':') {
+               kind = enclosing == OBJECT_BRACE ? OBJECT_BRACE : BLOCK_BRACE;
+            }
+            else {
+               kind = isExpressionOperator(src, i, prev) ? OBJECT_BRACE : BLOCK_BRACE;
+            }
+
+            pendingClass = false;
+            braces.push(new int[] { kind, parens.size() });
+            fdepth += kind == FUNCTION_BRACE ? 1 : 0;
+         }
+         else if(c == '}' && !braces.isEmpty()) {
+            fdepth -= braces.pop()[0] == FUNCTION_BRACE ? 1 : 0;
+         }
+
+         if(!Character.isWhitespace(c)) {
+            prev = c;
+            word = null;
+            methodHead = false;
+            afterHead = false;
+         }
+
+         i++;
+      }
+
+      return blockFn;
+   }
+
+   // paren kinds of scanBlockFunctions
+   private static final int PAREN_OTHER = 0;
+   private static final int PAREN_METHOD = 1;
+   private static final int PAREN_HEAD = 2;
+
+   /**
+    * Whether {@code prev}, the last significant char before {@code pos} of the stripped
+    * source, is an operator (or {@code (}, {@code ,}, {@code [}), so the next token is in
+    * expression position. A postfix {@code ++}/{@code --} ends a value instead.
+    */
+   private static boolean isExpressionOperator(String src, int pos, char prev) {
+      return prev != 0 && "=(,[?!&|+-*/%<>~^".indexOf(prev) >= 0 &&
+         !((prev == '+' || prev == '-') && afterPostfixIncDec(src, pos));
+   }
+
+   // words after which `function` is an expression (async: an async function
+   // declaration is block scoped, not hoisted out of its block)
+   private static final Set<String> FUNCTION_EXPRESSION_AFTER_WORDS = Set.of(
+      "return", "typeof", "void", "delete", "new", "in", "of", "instanceof", "throw",
+      "case", "yield", "await", "extends", "async");
+
+   // names whose parenthesized head is not a function's parameter list, so a brace
+   // after `name(...)` does not open a function body (scanBlockFunctions)
+   private static final Set<String> NON_FUNCTION_HEADS = Set.of(
+      "if", "for", "while", "switch", "catch", "with", "return", "typeof", "void",
+      "delete", "new", "in", "of", "instanceof", "throw", "case", "do", "else", "await",
+      "yield");
+
+   // words after which a brace opens an object literal (expression position)
+   private static final Set<String> OBJECT_AFTER_WORDS = Set.of(
+      "return", "typeof", "void", "delete", "new", "in", "of", "instanceof", "throw",
+      "case", "yield", "await", "extends");
+
+   /**
     * Add the names of the top-level {@code let}/{@code const} declarations of
     * {@code script}, the ones {@link #rewriteTopLevelLexicalDeclarations} rewrites.
     */
@@ -2816,7 +3090,18 @@ public class GraalJavaScriptEngine implements AutoCloseable {
     * read it as division (bug #77305).
     */
    private static String stripStringsAndComments(String s) {
+      return stripStringsAndComments(s, false);
+   }
+
+   /**
+    * {@link #stripStringsAndComments(String)}; with {@code markLiterals} the first
+    * blanked char of a string, template (and of each template part after a
+    * substitution) and regex literal is {@code 0} instead of a space, so a scan sees
+    * the literal as a value token (#77249: {@code s = 'a'} ends a statement).
+    */
+   private static String stripStringsAndComments(String s, boolean markLiterals) {
       int n = s.length();
+      char lit = markLiterals ? '0' : ' ';
       StringBuilder sb = new StringBuilder(n);
       // Code-brace depth at which each open template substitution (`${`) began;
       // the matching `}` at that depth resumes template scanning.
@@ -2877,7 +3162,7 @@ public class GraalJavaScriptEngine implements AutoCloseable {
 
             if(end > 0) {
                for(int k = i; k < end; k++) {
-                  sb.append(isLineBreak(s.charAt(k)) ? s.charAt(k) : ' ');
+                  sb.append(k == i ? lit : isLineBreak(s.charAt(k)) ? s.charAt(k) : ' ');
                }
 
                i = end;
@@ -2891,7 +3176,7 @@ public class GraalJavaScriptEngine implements AutoCloseable {
          // single/double-quoted string
          if(c == '"' || c == '\'') {
             char quote = c;
-            sb.append(' ');
+            sb.append(lit);
             i++;
 
             while(i < n) {
@@ -2921,7 +3206,7 @@ public class GraalJavaScriptEngine implements AutoCloseable {
 
          // template-literal start
          if(c == '`') {
-            sb.append(' ');
+            sb.append(lit);
             i = scanTemplateBody(s, i + 1, sb, braceDepth, templateStack);
             prevSig = ')';
             prevWord = null;
@@ -2932,7 +3217,7 @@ public class GraalJavaScriptEngine implements AutoCloseable {
          // '}' that closes an open template substitution -> resume the template
          if(c == '}' && !templateStack.isEmpty() && braceDepth == templateStack.peek()) {
             templateStack.pop();
-            sb.append(' ');
+            sb.append(lit);
             i = scanTemplateBody(s, i + 1, sb, braceDepth, templateStack);
             prevSig = ')';
             prevWord = null;
