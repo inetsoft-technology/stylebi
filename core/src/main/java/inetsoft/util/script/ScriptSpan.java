@@ -54,6 +54,18 @@ public interface ScriptSpan extends AutoCloseable {
       return batchRows();
    }
 
+   /**
+    * Re-enter this span on its own thread, while it is open, for work nested in it that must
+    * run on its context even if another span of the thread was opened since (Testing #77123,
+    * cond-home: a batch of a formula table nested in another table's batch that is nested in
+    * this table's own batch). Close the result like any span, before this one.
+    *
+    * @return the span to close; {@link #NONE} for a span without a pooled context.
+    */
+   default ScriptSpan reenter() {
+      return NONE;
+   }
+
    @Override
    void close();
 }

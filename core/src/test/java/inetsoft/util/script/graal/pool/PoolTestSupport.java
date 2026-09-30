@@ -28,6 +28,7 @@ import java.lang.reflect.Field;
 import java.util.*;
 import java.util.concurrent.*;
 
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
 /**
@@ -253,6 +254,50 @@ public final class PoolTestSupport {
    @FunctionalInterface
    public interface ThrowingRunnable {
       void run() throws Exception;
+   }
+
+   /**
+    * @return the context this thread's claim on {@code env} holds now, or {@code null}; for
+    * {@link #holdElsewhere}.
+    */
+   public static Object currentSlot(WorksheetScriptEnv env) {
+      SlotClaim claim = SlotClaim.current(env.pool());
+      return claim == null ? null : claim.peekSlot();
+   }
+
+   /**
+    * Hold {@code slot} (from {@link #currentSlot}, idle now) on {@code executor}'s thread, as
+    * the pool's evictor or a take-over does for a moment, until the returned task is run.
+    */
+   public static Runnable holdElsewhere(Object slot, ExecutorService executor) throws Exception {
+      Slot held = (Slot) slot;
+      assertTrue(executor.submit(held::tryAcquire).get(10, TimeUnit.SECONDS), "not idle");
+      return () -> {
+         try {
+            executor.submit(held::release).get(10, TimeUnit.SECONDS);
+         }
+         catch(Exception ex) {
+            throw new IllegalStateException(ex);
+         }
+      };
+   }
+
+   /**
+    * A host object a script fires once: its task runs at the first {@link #fire} only.
+    */
+   public static final class Hook {
+      public boolean fire() {
+         Runnable run = task;
+         task = null;
+
+         if(run != null) {
+            run.run();
+         }
+
+         return true;
+      }
+
+      public volatile Runnable task;
    }
 
    /**

@@ -73,6 +73,17 @@ public final class OwnedValueCodec {
    }
 
    /**
+    * @return {@code true} if {@code span} is a pooled claim that stays open on its thread after
+    *         {@code span} closes: it re-entered an outer span of the thread (a condition
+    *         filter's population, another table's batch) or a query build holds it (Testing
+    *         #77123, cond-home). Its slot is then not given back at the end of the batch that
+    *         opened {@code span}.
+    */
+   public static boolean outlives(ScriptSpan span) {
+      return span instanceof SlotClaim claim && claim.depth() > 1;
+   }
+
+   /**
     * @return the codec of the pooled context executing on this thread, or {@code null}.
     */
    public static OwnedValueCodec current() {

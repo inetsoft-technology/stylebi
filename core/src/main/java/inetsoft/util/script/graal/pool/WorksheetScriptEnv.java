@@ -233,8 +233,8 @@ public class WorksheetScriptEnv extends GraalJavaScriptEnv {
    }
 
    /**
-    * A lazy claim of its own, also inside another claim of this thread (Testing #77123): see
-    * {@link SlotClaim#acquireOwn}.
+    * A lazy claim of its own, also inside another claim of this thread, never adopted by a
+    * query build (Testing #77123, cond-home): see {@link SlotClaim#acquireOwn}.
     */
    @Override
    public ScriptSpan openOwnSpan() {

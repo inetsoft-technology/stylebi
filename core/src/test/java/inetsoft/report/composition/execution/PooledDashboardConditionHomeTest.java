@@ -99,14 +99,14 @@ class PooledDashboardConditionHomeTest {
    }
 
    /**
-    * The condition shape (the tester's dashboard case), and the aggregate and sort shapes
-    * next to it, which were already exact: k assemblies on k threads, several rounds, each
-    * table equal to the pool off. The loss on main depends on timing (in the tester's runs
+    * The condition shape (the tester's dashboard case), and the aggregate, distinct, sort
+    * and plain data-cache shapes next to it, which were already exact: k assemblies on k
+    * threads, several rounds, each table equal to the pool off, with the pool on. The loss on main depends on timing (in the tester's runs
     * 0 to 20 % of the condition tables per run); PooledLensObjectVarTest's
     * aReadWhileAnOuterClaimIsOpenTakesTheGivenBackHome reproduces it deterministically.
     */
    @ParameterizedTest(name = "{0} k={1}")
-   @CsvSource({ "cond, 2", "cond, 4", "agg, 4", "sort, 4" })
+   @CsvSource({ "cond, 2", "cond, 4", "agg, 4", "distinct, 4", "sort, 4", "cache, 4" })
    void assembliesSharingACachedObjectVarTableMatchThePoolOff(String kind, int k)
       throws Exception
    {
@@ -184,6 +184,13 @@ class PooledDashboardConditionHomeTest {
             agg.addAggregate(new AggregateRef(cols.getAttribute("v"), AggregateFormula.SUM));
             agg.addAggregate(new AggregateRef(cols.getAttribute("v2"), AggregateFormula.MAX));
             b.setAggregateInfo(agg);
+         }
+         else if(kind.equals("distinct")) {
+            b.setDistinct(true);
+         }
+         else if(kind.equals("cache")) {
+            // a formula column of the mirror's own over the shared table's object var
+            expression(b, "w", "field['v'] + 1");
          }
          else if(kind.equals("sort")) {
             SortInfo sort = new SortInfo();

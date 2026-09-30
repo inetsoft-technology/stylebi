@@ -111,9 +111,21 @@ public class TableRowScope implements DynamicScope, ScriptArrayScope, OwnedVarSc
     *    for this table, and this table's next batch prefers it. The objects are saved as one
     *    tree, Dates included (A8), only at a hand-off: a batch on another context pulls them
     *    from the idle home, or the pool closes, expires or takes over the home.</li>
+    *    <li>A batch that shares a span which stays open after it ({@code shared}, and {@link
+    *    OwnedValueCodec#outlives}: a condition filter's population, another table's batch, a
+    *    query build) does not make its slot a home: the thread holds that slot until the
+    *    outer span ends, while another thread's batch of this table may need the objects
+    *    (Testing #77123, cond-home, A1). The objects are saved as one tree there instead, as
+    *    at a hand-off, and the next batch rebuilds them on its context. Only a table's batch
+    *    that is not resident yet at its start shares a span (its first one, or the one that
+    *    makes a table of primitives or Dates resident): the batches of a resident table take
+    *    a context of their own, which is given back, as the home, at their end.</li>
     * </ul>
+    *
+    * @param shared {@code true} if the batch ran on the span of its thread, not on a claim of
+    *               its own, nor nested in a batch of this table that has one.
     */
-   public void snapshotOwnedObjects(ScriptSpan span) {
+   public void snapshotOwnedObjects(ScriptSpan span, boolean shared) {
       if(!hasObjects) {
          return;
       }
@@ -124,11 +136,59 @@ public class TableRowScope implements DynamicScope, ScriptArrayScope, OwnedVarSc
 
       if(resident) {
          try {
-            enrollHome(span);
+            if(shared && OwnedValueCodec.outlives(span)) {
+               parkShared(span);
+            }
+            else {
+               enrollHome(span);
+            }
          }
          catch(RuntimeException ex) {
             LOG.debug("Failed to keep the script objects of formula variables", ex);
          }
+      }
+   }
+
+   /**
+    * @return {@code true} once an owned var held an array or an object that is not a Date, so
+    * that this table keeps its objects on a home (B1 residual part 2): its batches then take a
+    * context of their own (Testing #77123, cond-home).
+    */
+   public boolean isResident() {
+      return resident;
+   }
+
+   // a batch end on a span that outlives the batch: save the objects of its context as a tree
+   private void parkShared(ScriptSpan span) {
+      OwnedValueCodec codec = OwnedValueCodec.forSpan(span);
+
+      if(codec == null) {
+         // no slot claimed (no formula ran), or a closed one, whose objects are lost
+         Context context = OwnedValueCodec.claimedContext(span);
+
+         if(context != null) {
+            for(Object o : valmap.entrySet()) {
+               @SuppressWarnings("unchecked")
+               Map.Entry<Object, Object> e = (Map.Entry<Object, Object>) o;
+
+               if(e.getValue() instanceof Value v && owned.contains(e.getKey()) &&
+                  isOf(v, context))
+               {
+                  e.setValue(OwnedValueCodec.UNREADABLE);
+                  snapshots.remove(e.getKey());
+               }
+            }
+         }
+
+         return;
+      }
+
+      // this context is not a home of this table any more, if it was
+      OwnedValueCodec.Home home = homes.remove(codec.context());
+      park(codec);
+
+      if(home != null) {
+         OwnedValueCodec.leave(home, this);
       }
    }
 
