@@ -198,8 +198,12 @@ public class AssetTreeController {
          if(!"cubeRoot".equals(expandedEntry.getProperty("entryName"))) {
             Set<UserVariable> list = new HashSet<>();
 
-            if("true".equals(expandedEntry.getProperty("CUBE_TABLE")) ||
-               expandedEntry.isDataSource())
+            // Bug #77401, only look up the connection parameters of a readable data source. A
+            // server-built cube table path (ds/cube) is not a data source and does not inherit
+            // READ from ds, so skip the lookup instead of denying and expand the node as on a miss.
+            if(("true".equals(expandedEntry.getProperty("CUBE_TABLE")) ||
+               expandedEntry.isDataSource()) &&
+               isDataSourceReadable(expandedEntry.getPath(), principal))
             {
                UserVariable[] vars = null;
 
@@ -507,6 +511,12 @@ public class AssetTreeController {
                   dbs.add((String) var.getValue()[0]);
                }
             }
+         }
+
+         // Bug #77401, the data source lookup, test and connect below check nothing, so every
+         // named source must be readable. Check all of them before acting on any.
+         for(String db : dbs) {
+            queryManagerService.checkDataSourceReadPermission(db, principal);
          }
 
          Object session = assetRepository.getSession();
@@ -1069,6 +1079,24 @@ public class AssetTreeController {
 
             getSubEntries(engine, user, curNode, ae, filter, selector, perm);
          }
+      }
+   }
+
+   /**
+    * Checks READ on a data source name without throwing, for lookups that are skipped (not
+    * denied) when the name is not a readable data source (Bug #77401).
+    */
+   private boolean isDataSourceReadable(String dataSource, Principal principal) {
+      if(dataSource == null || dataSource.isBlank()) {
+         return false;
+      }
+
+      try {
+         return securityEngine.checkPermission(
+            principal, ResourceType.DATA_SOURCE, dataSource, ResourceAction.READ);
+      }
+      catch(Exception e) {
+         return false;
       }
    }
 
