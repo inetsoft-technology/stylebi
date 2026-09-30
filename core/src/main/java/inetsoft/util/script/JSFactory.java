@@ -29,6 +29,12 @@ public class JSFactory extends WrapFactory {
    public Scriptable wrapAsJavaObject(Context cx, Scriptable scope,
                                       Object javaObject, Class staticType)
    {
+      // the session principal must not be mutable from script (Bug #77384)
+      if(javaObject instanceof java.security.Principal) {
+         return new ReadOnlyPrincipalObject(scope, (java.security.Principal) javaObject,
+                                            staticType);
+      }
+
       if(javaObject instanceof java.util.Date) {
          CachedObjects objs = null;
 
