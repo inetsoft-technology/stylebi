@@ -328,8 +328,14 @@ public class CalcTableLens extends DefaultTableLens {
     * Create a spanmap of the table.
     */
    public SpanMap createSpanMap() {
+      // double-checked on a volatile field, read once, so a lock-free reader never sees
+      // the map before its contents (bug #77397)
+      SpanMap spanMap = this.spanMap;
+
       if(spanMap == null) {
          synchronized(spanMapLock) {
+            spanMap = this.spanMap;
+
             if(spanMap == null) {
                SpanMap nSanMap = new SpanMap();
 
@@ -343,7 +349,7 @@ public class CalcTableLens extends DefaultTableLens {
                   }
                }
 
-               spanMap = nSanMap;
+               this.spanMap = spanMap = nSanMap;
             }
          }
       }
@@ -3450,7 +3456,7 @@ public class CalcTableLens extends DefaultTableLens {
    private ReportSheet report;
    private volatile CalcTableScope tableScope;
    private TableLens data;
-   private SpanMap spanMap;
+   private volatile SpanMap spanMap;
    private final Object spanMapLock = new byte[0];
    private transient SparseMatrix formulaCache = null; // formula result cache
    private transient boolean cancelled = false;

@@ -430,6 +430,10 @@ public class AttributeTableLens extends AbstractTableLens
    }
 
    private Presenter getCachedColPresenter(int c) {
+      // read once, build locally and publish only once filled: another reader must not see
+      // an unfilled array, and invalidate() may clear the field at any time (bug #77397)
+      Presenter[] cpresenters = this.cpresenters;
+
       if(cpresenters == null) {
          boolean more = moreRows(0);
          int ccnt = table == null ? 0 : table.getColCount();
@@ -440,6 +444,8 @@ public class AttributeTableLens extends AbstractTableLens
             String header = obj == null ? null : obj.toString();
             cpresenters[i] = getPresenter(header, i);
          }
+
+         this.cpresenters = cpresenters;
       }
 
       return c >= cpresenters.length ? null : cpresenters[c];
@@ -2057,7 +2063,7 @@ public class AttributeTableLens extends AbstractTableLens
    private int rcnt;
    private int ccnt;
    private HashMap<String, Presenter> presenterColMap;
-   private Presenter[] cpresenters;
+   private volatile Presenter[] cpresenters;
 
    private static final Logger LOG =
       LoggerFactory.getLogger(AttributeTableLens.class);

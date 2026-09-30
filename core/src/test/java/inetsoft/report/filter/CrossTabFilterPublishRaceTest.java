@@ -38,7 +38,8 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * A crosstab read while its first pass is still running returns the finished crosstab, and an
- * invalidate() that lands while a pass is running is not lost (bug #77365).
+ * invalidate() that lands while a pass is running is not lost (bug #77365), not even by a
+ * pass that gives up after its retries or by a copy taken during a pass (bug #77397).
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
@@ -247,6 +248,69 @@ public class CrossTabFilterPublishRaceTest {
       assertEquals(1, results.size(), summary);
    }
 
+   /**
+    * An invalidate() storm that makes a pass give up after its retries doesn't leave the
+    * possibly stale crosstab published: once the storm is over, a read regenerates it
+    * (bug #77397).
+    */
+   @Test
+   public void crosstabAfterRetryCapIsNotKeptPublished() throws Exception {
+      StormTable base = new StormTable(data(ROWS), STORMS);
+      CrossTabFilter filter = crosstab(base, new SumFormula());
+      base.filter = filter;
+
+      // the read that meets the storm, it may return the data of its last pass
+      cells(filter);
+      assertEquals(0, base.storms, "every pass of the read was invalidated");
+
+      Object[][] changed = data(ROWS);
+      changed[1][VALUE_COL] = CHANGED_VALUE + STORMS;
+      List<List<Object>> expected = cells(crosstab(new DefaultTableLens(changed),
+                                                   new SumFormula()));
+      List<List<Object>> actual = cells(filter);
+      assertEquals(expected, actual, () -> diff(expected, actual));
+   }
+
+   /**
+    * A copy taken while a pass runs doesn't keep the working data of that pass: after a base
+    * change and invalidate() of the copy, the copy reads the changed crosstab (bug #77397).
+    */
+   @Test
+   public void copyTakenDuringPassRecoversAfterInvalidate() throws Exception {
+      Object[][] changed = data(ROWS);
+      changed[1][VALUE_COL] = CHANGED_VALUE;
+      List<List<Object>> expected = cells(crosstab(new DefaultTableLens(changed),
+                                                   new SumFormula()));
+      List<String> failures = new ArrayList<>();
+
+      for(int run = 0; run < CLONE_RUNS; run++) {
+         GatedFormula.Gate gate = new GatedFormula.Gate();
+         DefaultTableLens base = new DefaultTableLens(data(ROWS));
+         CrossTabFilter filter = crosstab(base, new GatedFormula(gate));
+         // park the pass once its working data exists
+         gate.arm(() -> getData(filter) != null);
+
+         Thread pass = start(filter::checkInit, "pass");
+         gate.awaitParked();
+         // cast: the covariant clone() is new with bug #77397
+         CrossTabFilter copy = (CrossTabFilter) filter.clone();
+         gate.open();
+         pass.join(JOIN_MS);
+         assertFalse(pass.isAlive(), "the pass did not finish");
+
+         base.setObject(1, VALUE_COL, CHANGED_VALUE);
+         copy.invalidate();
+         List<List<Object>> actual = cells(copy);
+
+         if(!expected.equals(actual)) {
+            failures.add("run " + run + ": " + diff(expected, actual));
+         }
+      }
+
+      assertTrue(failures.isEmpty(), failures.size() + "/" + CLONE_RUNS +
+         " copies kept the data from before the base change: " + failures);
+   }
+
    // row header r0..r(RGROUPS-1), column header c0..c(CGROUPS-1), value b
    private static Object[][] data(int rows) {
       Object[][] data = new Object[rows + 1][];
@@ -403,6 +467,31 @@ public class CrossTabFilterPublishRaceTest {
       private final int col;
    }
 
+   /**
+    * A base whose read of the last aggregated cell changes row 1, which a pass has aggregated
+    * already, and invalidates the filter, for the first {@code storms} reads.
+    */
+   private static final class StormTable extends DefaultTableLens {
+      StormTable(Object[][] data, int storms) {
+         super(data);
+         this.storms = storms;
+      }
+
+      @Override
+      public Object getObject(int r, int c) {
+         if(r == ROWS && c == VALUE_COL && filter != null && storms > 0) {
+            storms--;
+            super.setObject(1, VALUE_COL, CHANGED_VALUE + STORMS - storms);
+            filter.invalidate();
+         }
+
+         return super.getObject(r, c);
+      }
+
+      volatile CrossTabFilter filter;
+      volatile int storms;
+   }
+
    private static final Field DATA;
 
    static {
@@ -421,6 +510,9 @@ public class CrossTabFilterPublishRaceTest {
    private static final int VALUE_COL = 2;
    private static final int CHANGED_VALUE = 100000;
    private static final int GATED_RUNS = 20;
+   private static final int CLONE_RUNS = 10;
+   // one more than the retries of a pass
+   private static final int STORMS = 11;
    private static final int READERS = 4;
    private static final long STRESS_MS = 4000;
    private static final long JOIN_MS = 10000;

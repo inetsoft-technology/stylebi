@@ -47,6 +47,7 @@ import java.text.SimpleDateFormat;
 import java.util.List;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 import java.util.stream.Collectors;
 
 import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
@@ -2233,7 +2234,9 @@ public class CrossTabFilter extends AbstractTableLens
       // don't take the lock or clear the scratch of the pass here: a pass may be running, it
       // clears its scratch when it starts, and it sees the new generation and runs again
       // rather than publish data that misses the change (bug #77365)
-      generation++;
+      // atomic, a lost increment of two concurrent invalidate() calls could let a pass
+      // publish data that misses a change (bug #77397)
+      GENERATION.incrementAndGet(this);
       published = null;
       // the descriptor's meta info cache, not scratch of the pass
       mmap.clear();
@@ -5847,6 +5850,21 @@ public class CrossTabFilter extends AbstractTableLens
    }
 
    /**
+    * Clone the crosstab. The copy never takes the working data of a pass running on another
+    * thread, it uses the published data or generates its own (bug #77397).
+    */
+   @Override
+   public CrossTabFilter clone() {
+      CrossTabFilter copy = (CrossTabFilter) super.clone();
+
+      if(copy != null) {
+         copy.data = null;
+      }
+
+      return copy;
+   }
+
+   /**
     * Get the crosstab data, generating it first if it is not published. The data is published
     * only once it is filled, and only if the crosstab was not invalidated while it was
     * generated (bug #77365).
@@ -5896,6 +5914,9 @@ public class CrossTabFilter extends AbstractTableLens
             if(retry >= MAX_PROCESS_RETRIES) {
                LOG.warn("Crosstab published after it was invalidated {} times while it was " +
                         "generated", MAX_PROCESS_RETRIES);
+               // this caller takes the data, but it may miss a change, so don't keep it
+               // published: the next reader generates it again (bug #77397)
+               this.published = null;
                return published;
             }
 
@@ -7212,8 +7233,9 @@ public class CrossTabFilter extends AbstractTableLens
    private final Hashtable<Object, Object> i18n2headers = new Hashtable<>();
    private final Hashtable<Object, Object> headers2i18n = new Hashtable<>();
    private TableLens table;
-   // the data of the running pass, only used while holding the lock
-   private Object[][] data;
+   // the data of the running pass, only used while holding the lock. transient and not
+   // cloned, a copy taken during a pass must not keep the working array (bug #77397)
+   private transient Object[][] data;
    // the filled data, read without the lock (bug #77365)
    private volatile Object[][] published;
    // bumped by invalidate(), a pass that sees it change doesn't keep its data (bug #77365)
@@ -7310,5 +7332,9 @@ public class CrossTabFilter extends AbstractTableLens
    private transient Map<Integer, CalcColumn> aggCalcMap = new HashMap<>();
 
    private static final int MAX_PROCESS_RETRIES = 10;
+   // a field updater, not an AtomicInteger: the shallow clone would share an AtomicInteger
+   // between a crosstab and its copies (bug #77397)
+   private static final AtomicIntegerFieldUpdater<CrossTabFilter> GENERATION =
+      AtomicIntegerFieldUpdater.newUpdater(CrossTabFilter.class, "generation");
    private static final Logger LOG = LoggerFactory.getLogger(CrossTabFilter.class);
 }

@@ -31,12 +31,15 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Concurrent first readers of a summary-only table summary filter all get the summary, never
- * a null or a summary accumulated twice (bug #77365).
+ * a null or a summary accumulated twice (bug #77365), and a setObject() of the summary never
+ * throws (bug #77397).
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
@@ -162,11 +165,101 @@ public class TableSummaryFilterPublishRaceTest {
       assertEquals(1, results.size(), summary);
    }
 
+   /**
+    * A setObject() of the summary concurrent with invalidate() never throws (bug #77397).
+    */
+   @Test
+   public void setObjectDuringInvalidateDoesNotThrow() throws Exception {
+      TableLens filter = PostProcessor.tableSummary(new DefaultTableLens(data()),
+                                                    new int[] { 1 },
+                                                    new Formula[] { new SumFormula() });
+      AtomicBoolean done = new AtomicBoolean();
+      AtomicLong invalidations = new AtomicLong();
+      Map<String, Integer> results = new ConcurrentHashMap<>();
+
+      Thread invalidator = new Thread(() -> {
+         while(!done.get()) {
+            ((TableSummaryFilter) filter).invalidate();
+            invalidations.incrementAndGet();
+         }
+      }, "TableSummaryFilterPublishRaceTest-invalidator");
+
+      Thread[] writers = new Thread[2];
+
+      for(int i = 0; i < writers.length; i++) {
+         writers[i] = new Thread(() -> {
+            while(!done.get()) {
+               String result;
+
+               try {
+                  filter.setObject(1, 1, 7);
+                  result = "ok";
+               }
+               catch(Throwable ex) {
+                  result = ex.getClass().getSimpleName();
+               }
+
+               results.merge(result, 1, Integer::sum);
+            }
+         }, "TableSummaryFilterPublishRaceTest-writer-" + i);
+      }
+
+      invalidator.start();
+
+      for(Thread writer : writers) {
+         writer.start();
+      }
+
+      Thread.sleep(STRESS_MS);
+      done.set(true);
+      invalidator.join(JOIN_MS);
+
+      for(Thread writer : writers) {
+         writer.join(JOIN_MS);
+      }
+
+      assertFalse(invalidator.isAlive(), "invalidator did not stop");
+
+      for(Thread writer : writers) {
+         assertFalse(writer.isAlive(), "writer did not stop");
+      }
+
+      String summary = "invalidations=" + invalidations.get() + " results=" + results;
+      assertTrue(invalidations.get() > 0, summary);
+      assertTrue(results.getOrDefault("ok", 0) > 0, summary);
+      assertEquals(1, results.size(), summary);
+   }
+
+   /**
+    * A setObject() past the summary row before the summary is built is dropped, as
+    * getObject() reads null there, instead of throwing (bug #77397). Once the summary is
+    * built, the same call writes the summary cell, as getObject() reads the summary there.
+    */
+   @Test
+   public void setObjectPastSummaryRowBeforeBuildIsDropped() {
+      TableSummaryFilter fresh = new TableSummaryFilter(new DefaultTableLens(data(10)), null,
+                                                        new int[] { 1 },
+                                                        new Formula[] { new SumFormula() });
+      Object expected = fresh.getObject(11, 1);
+      assertEquals(55.0, ((Number) expected).doubleValue());
+
+      TableSummaryFilter filter = new TableSummaryFilter(new DefaultTableLens(data(10)), null,
+                                                         new int[] { 1 },
+                                                         new Formula[] { new SumFormula() });
+      assertNull(filter.getObject(20, 1));
+      assertDoesNotThrow(() -> filter.setObject(20, 1, 5));
+      assertEquals(expected, filter.getObject(11, 1));
+   }
+
    private static Object[][] data() {
-      Object[][] data = new Object[ROWS + 1][];
+      return data(ROWS);
+   }
+
+   private static Object[][] data(int rows) {
+      Object[][] data = new Object[rows + 1][];
       data[0] = new Object[] { "id", "value" };
 
-      for(int b = 1; b <= ROWS; b++) {
+      for(int b = 1; b <= rows; b++) {
          data[b] = new Object[] { b, b };
       }
 
@@ -246,4 +339,5 @@ public class TableSummaryFilterPublishRaceTest {
    private static final int TRIALS = 2000;
    private static final int READERS = 4;
    private static final long JOIN_MS = 10000;
+   private static final long STRESS_MS = 2000;
 }
