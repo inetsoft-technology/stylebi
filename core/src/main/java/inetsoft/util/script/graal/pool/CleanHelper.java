@@ -85,8 +85,12 @@ final class CleanHelper {
                              handles.getMember("forget"));
    }
 
-   Result run() {
-      Value r = clean.execute();
+   /**
+    * @param maxDeletes the most configurable foreign keys this clean deletes; above it, it
+    *                   deletes none and reports {@link Result#tooMany()}.
+    */
+   Result run(int maxDeletes) {
+      Value r = clean.execute(maxDeletes);
       return new Result(r.getMember("leftovers").asInt(), r.getMember("failed").asBoolean(),
                         r.getMember("restored").asInt(), r.getMember("removed").asInt(),
                         r.getMember("tooMany").asBoolean());
@@ -128,6 +132,8 @@ final class CleanHelper {
          // non-writable, so this is the prototype of every descriptor gopd returns, for good
          const OP = Object.prototype;
          const MAX_DELETES = %MAX_DELETES%;
+         // the cap of the running clean: MAX_DELETES, or more at a query build's release
+         let maxDeletes = MAX_DELETES;
 
          function copyDesc(d) {
             const o = create(null);
@@ -291,7 +297,7 @@ final class CleanHelper {
                }
             }
 
-            if(nforeign > MAX_DELETES) {
+            if(nforeign > maxDeletes) {
                tooMany = true;
             }
             else {
@@ -365,7 +371,8 @@ final class CleanHelper {
             return r;
          }
 
-         function clean() {
+         function clean(max) {
+            maxDeletes = typeof max === 'number' && max >= 0 ? max : MAX_DELETES;
             let extFailed = false;
             try { if(!isExt(G)) extFailed = true; } catch(e) { extFailed = true; }
 
@@ -437,7 +444,7 @@ final class CleanHelper {
                }
             }
 
-            if(nforeign > MAX_DELETES) {
+            if(nforeign > maxDeletes) {
                tooMany = true;
             }
             else {

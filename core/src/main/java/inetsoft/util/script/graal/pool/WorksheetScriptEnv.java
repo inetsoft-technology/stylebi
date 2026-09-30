@@ -100,7 +100,7 @@ public class WorksheetScriptEnv extends GraalJavaScriptEnv {
    @Override
    public Object compile(String cmd, boolean fieldOnly) throws Exception {
       try(SlotClaim claim = SlotClaim.acquire(pool, false)) {
-         return claim.slot().engine().compile(cmd, fieldOnly);
+         return claim.scriptSlot(state, sql).engine().compile(cmd, fieldOnly);
       }
    }
 
@@ -124,7 +124,7 @@ public class WorksheetScriptEnv extends GraalJavaScriptEnv {
 
       try(SlotClaim claim = SlotClaim.acquire(pool, false)) {
          metrics.executed();
-         return claim.slot().engine().exec(script, scope, rscope);
+         return claim.scriptSlot(state, sql).engine().exec(script, scope, rscope);
       }
       finally {
          if(scriptScope != null) {
@@ -136,14 +136,14 @@ public class WorksheetScriptEnv extends GraalJavaScriptEnv {
    @Override
    public void checkFunction(String name, String cmd) throws Exception {
       try(SlotClaim claim = SlotClaim.acquire(pool, false)) {
-         claim.slot().engine().checkFunction(name, cmd);
+         claim.scriptSlot(state, sql).engine().checkFunction(name, cmd);
       }
    }
 
    @Override
    public Object[] getIds(Object id, Object scope, boolean parent) {
       try(SlotClaim claim = SlotClaim.acquire(pool, false)) {
-         return claim.slot().engine().getMemberKeys();
+         return claim.scriptSlot(state, sql).engine().getMemberKeys();
       }
    }
 
