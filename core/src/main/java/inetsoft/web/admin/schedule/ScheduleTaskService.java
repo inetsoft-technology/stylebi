@@ -666,6 +666,15 @@ public class ScheduleTaskService {
          setTaskOptions(model.options(), task, principal);
       }
 
+      // Bug #77405, a task that still runs with the roles of a site admin after the save (with
+      // the owner and execute-as identity it is stored with) runs its actions with those roles,
+      // only a site admin may add or change them
+      if(!identityChecker.isContentChangeAllowed(task.getOwner(), task.getIdentity(), principal) &&
+         addsOrChangesContent(originalTask, task, linkURI, principal, em))
+      {
+         throw new SecurityException(catalog.getString("em.scheduler.siteAdminTaskContent"));
+      }
+
       // Save task
       scheduleService.saveTask(saveTaskId != null ? saveTaskId : taskName, task, principal);
 
@@ -685,6 +694,69 @@ public class ScheduleTaskService {
             OrganizationContextHolder.setCurrentOrgId(originalOrg);
          }
       }
+   }
+
+   /**
+    * Bug #77405, determines if a save adds or changes an action or a condition of a task. The
+    * actions and conditions are compared on the models the task editor shows. A stored item is
+    * compared as it is saved when the editor sends its model back unchanged (a stored item may
+    * not have the defaults an item built from a model has), so an item that isn't edited is the
+    * same as the stored item.
+    *
+    * @param stored the stored task.
+    * @param task   the task that is saved.
+    */
+   private boolean addsOrChangesContent(ScheduleTask stored, ScheduleTask task, String linkURI,
+                                        Principal principal, boolean em)
+      throws Exception
+   {
+      List<ScheduleConditionModel> storedConditions = new ArrayList<>();
+      List<ScheduleActionModel> storedActions = new ArrayList<>();
+
+      for(int i = 0; i < stored.getConditionCount(); i++) {
+         storedConditions.add(getResavedConditionModel(stored.getCondition(i), principal));
+      }
+
+      for(int i = 0; i < stored.getActionCount(); i++) {
+         storedActions.add(getResavedActionModel(stored.getAction(i), linkURI, principal, em));
+      }
+
+      List<ScheduleConditionModel> conditions = task.getConditionStream()
+         .map(c -> scheduleConditionService.getConditionModel(c, principal)).toList();
+      List<ScheduleActionModel> actions = task.getActionStream()
+         .map(a -> scheduleService.getActionModel(a, principal, em)).toList();
+
+      return !ScheduleTaskIdentityChecker.isKeptOrRemoved(storedConditions, conditions,
+                                                          Objects::equals) ||
+         !ScheduleTaskIdentityChecker.isKeptOrRemoved(storedActions, actions, Objects::equals);
+   }
+
+   /**
+    * Gets the model of a stored condition as it is saved when the editor sends it back.
+    */
+   private ScheduleConditionModel getResavedConditionModel(ScheduleCondition condition,
+                                                           Principal principal)
+      throws Exception
+   {
+      ScheduleConditionModel model =
+         scheduleConditionService.getConditionModel(condition, principal);
+      ScheduleCondition resaved =
+         model == null ? null : scheduleConditionService.getConditionFromModel(model);
+      return resaved == null ?
+         model : scheduleConditionService.getConditionModel(resaved, principal);
+   }
+
+   /**
+    * Gets the model of a stored action as it is saved when the editor sends it back.
+    */
+   private ScheduleActionModel getResavedActionModel(ScheduleAction action, String linkURI,
+                                                     Principal principal, boolean em)
+      throws Exception
+   {
+      ScheduleActionModel model = scheduleService.getActionModel(action, principal, em);
+      ScheduleAction resaved = model == null ?
+         null : scheduleService.getActionFromModel(model, action, principal, linkURI);
+      return resaved == null ? model : scheduleService.getActionModel(resaved, principal, em);
    }
 
    public void sanitizeConditions(ScheduleTask task, ScheduleTask originalTask,
