@@ -41,6 +41,8 @@ import inetsoft.web.RecycleUtils;
 import inetsoft.web.admin.content.database.model.DataModelFolderManagerService;
 import inetsoft.web.admin.content.repository.model.*;
 import org.junit.jupiter.api.*;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.MockedStatic;
 
 import java.security.Principal;
@@ -348,6 +350,30 @@ class RepositoryContentCrossOrgOwnerTest {
                                 siteAdmin, false, false);
       recycleUtils.verify(() -> RecycleUtils.moveRepositoryFolderToRecycleBin(
          eq(FOLDER), any(), eq(BOB), eq(siteAdmin), any()));
+   }
+
+   @ParameterizedTest
+   @ValueSource(ints = {
+      RepositoryEntry.FOLDER, RepositoryEntry.REPOSITORY | RepositoryEntry.FOLDER,
+      RepositoryEntry.TRASHCAN, RepositoryEntry.DASHBOARD })
+   void deleteNodes_crossOrgOwner_binTrashcanOrDashboard_isRefused(int type) throws Exception {
+      // an in-bin folder is removed straight from the owner's registry (removeFolder + save);
+      // trashcan and dashboard nodes go through the same per-node owner check
+      String binPath = ROOT + "/" + RecycleUtils.RECYCLE_BIN_FOLDER + "/Q";
+      TreeNodeInfo[] nodes = { node(type, binPath, BOB) };
+
+      assertThrows(MessageException.class,
+                   () -> objectService.deleteNodes(nodes, dave, false, true));
+      assertNoRegistryLoaded();
+   }
+
+   @Test
+   void deleteNodes_sameOrgOwnerInRecycleBin_isAllowed() throws Exception {
+      String binPath = ROOT + "/" + RecycleUtils.RECYCLE_BIN_FOLDER + "/Q";
+      TreeNodeInfo[] nodes =
+         { node(RepositoryEntry.REPOSITORY | RepositoryEntry.FOLDER, binPath, CAROL) };
+      objectService.deleteNodes(nodes, dave, false, true);
+      verify(repletRegistryManager).getRegistry(CAROL);
    }
 
    // ---- RepositoryObjectService.addFolder ----
