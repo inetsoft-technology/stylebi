@@ -248,6 +248,7 @@ describe("PresentationThemesViewComponent", () => {
          } as CustomThemeModel;
          component.themes = [original];
          component.selectedTheme = { ...original, defaultThemeGlobal: true };
+         // the fields were set outside change detection (TestBed runs zoneless here)
          fixture.debugElement.injector.get(ChangeDetectorRef).markForCheck();
          fixture.detectChanges();
       });
@@ -285,22 +286,28 @@ describe("PresentationThemesViewComponent", () => {
          expect(panel.applyDisabled).toBe(false);
       });
 
-      it("should re-enable the apply button after a rejected click on it", async () => {
+      it("should re-enable the apply button after a rejected click on it", () => {
          const apply: HTMLButtonElement = fixture.nativeElement
             .querySelector("em-editor-panel button[color='primary']");
          expect(apply).toBeTruthy();
          expect(apply.disabled).toBe(false);
 
-         apply.click();
-         fixture.detectChanges();
-         expect(apply.disabled).toBe(true);
+         vi.useFakeTimers();
 
-         // the panel debounces the click before it emits
-         await new Promise(resolve => setTimeout(resolve, 250));
+         try {
+            apply.click();
+            fixture.detectChanges();
+            expect(apply.disabled).toBe(true);
+
+            // the panel debounces the click before it emits
+            vi.advanceTimersByTime(200);
+         }
+         finally {
+            vi.useRealTimers();
+         }
+
          http.expectOne("../api/em/settings/presentation/themes/theme1")
             .flush({ status: 400, detail: reasons[0] }, { status: 400, statusText: "Bad Request" });
-         // TestBed runs zoneless here, so stand in for the zone tick the app gets after the response
-         fixture.componentRef.changeDetectorRef.markForCheck();
          fixture.detectChanges();
 
          expect(dialog.open).toHaveBeenCalledTimes(1);
