@@ -94,6 +94,30 @@ class FormulaTableLensTest {
       XTableUtil.assertEquals(lens, expected);
    }
 
+   // Bug #77321: the reporter's columns; `value` and `count` are lower-case CALC
+   // functions, i.e. engine-owned globals the #77181 reset skips
+   @Test
+   void initializerlessLetNamedLikeCalcFunctionStartsUndefinedEveryRow() {
+      DefaultTableLens tbl = new DefaultTableLens(new Object[][] {
+         {"col0"}, {10}, {1}, {1}
+      });
+      FormulaTableLens lens = new FormulaTableLens(tbl,
+         new String[] { "r_value", "r_count", "r_total" },
+         new String[] {
+            "let value; field['col0'] > 5 && (value = 'High'); value",
+            "let count; field['col0'] > 5 && (count = 'High'); count",
+            "let total; field['col0'] > 5 && (total = 'High'); total"
+         }, new GraalJavaScriptEnv(), null);
+      Object[][] expected = {
+         {"col0", "r_value", "r_count", "r_total"},
+         {10, "High", "High", "High"},
+         {1, null, null, null},
+         {1, null, null, null},
+      };
+
+      XTableUtil.assertEquals(lens, expected);
+   }
+
    @Test
    public void testSerialize() throws Exception {
       String[] headers = { "f1" };

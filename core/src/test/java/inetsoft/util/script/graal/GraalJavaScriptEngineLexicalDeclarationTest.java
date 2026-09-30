@@ -439,12 +439,13 @@ class GraalJavaScriptEngineLexicalDeclarationTest {
                       .stream().map(v -> v == null ? null : ((Number) v).doubleValue()).toList());
    }
 
-   // a put() made after the formula was compiled is still never reset
+   // a put() made after the formula was compiled is still never reset; since
+   // #77321 the declaration is a native block let there, so it reads undefined
    @Test void putAfterCompileNotReset() throws Exception {
       Object compiled = engine.compile("let lateput; lateput");
       engine.put("lateput", "LP");
       MapScope scope = new MapScope();
-      assertEquals("LP", engine.exec(compiled, scope, scope));
+      assertNull(engine.exec(compiled, scope, scope));
       assertEquals("LP", run("lateput"));
    }
 
@@ -457,6 +458,7 @@ class GraalJavaScriptEngineLexicalDeclarationTest {
       Object r = env.compile("let r; (a > 5) && (r = 'High'); r");
       Object n = env.compile("let n; n = (n || 0) + 1; n");
       Object e = env.compile("let envv; envv");
+      Object reader = env.compile("envv");
       List<Object> outR = new ArrayList<>(), outN = new ArrayList<>(), outE = new ArrayList<>();
       MapScope row = new MapScope();
 
@@ -466,12 +468,14 @@ class GraalJavaScriptEngineLexicalDeclarationTest {
             outR.add(env.exec(r, row, row, null));
             outN.add(((Number) env.exec(n, row, row, null)).doubleValue());
             outE.add(env.exec(e, row, row, null));
+            outE.add(env.exec(reader, row, row, null));
          }
       }
 
       assertEquals(highNullNull(), outR);
       assertEquals(Arrays.asList(1.0, 1.0, 1.0), outN);
-      assertEquals(Arrays.asList("E", "E", "E"), outE);
+      // #77321: the declaration is a native block let (undefined), the env value survives
+      assertEquals(Arrays.asList(null, "E", null, "E", null, "E"), outE);
    }
 
    // review r1: an undeclared global after a `i++ / 2` initializer is not reset
@@ -499,6 +503,7 @@ class GraalJavaScriptEngineLexicalDeclarationTest {
       inetsoft.util.script.graal.pool.WorksheetScriptEnv env =
          inetsoft.util.script.graal.pool.PoolTestSupport.env();
       Object e = env.compile("let inspan; inspan");
+      Object reader = env.compile("inspan");
       List<Object> out = new ArrayList<>();
       MapScope row = new MapScope();
 
@@ -508,10 +513,183 @@ class GraalJavaScriptEngineLexicalDeclarationTest {
 
          for(int k = 0; k < 3; k++) {
             out.add(env.exec(e, row, row, null));
+            out.add(env.exec(reader, row, row, null));
          }
       }
 
-      assertEquals(Arrays.asList("I", "I", "I"), out);
+      // #77321: the declaration is a native block let (undefined), the put value survives
+      assertEquals(Arrays.asList(null, "I", null, "I", null, "I"), out);
+   }
+
+   // ---- Bug #77321: an initializer-less top-level let/const named like a global the
+   // engine defines (a lower-case CALC function, a global function, a put() name) must
+   // start undefined on every run of a single-piece formula, and the engine global
+   // must stay intact. The single-piece `&&` form: an `if` would split the body into
+   // pieces (the #77331 path), which was already right.
+
+   @ParameterizedTest
+   @CsvSource({ "value", "count", "sum", "year", "max", "split" })
+   void hostGlobalNamedLetStartsUndefinedEveryRow(String name) throws Exception {
+      String typeBefore = String.valueOf(run("typeof " + name));
+      String script = "let " + name + "; a > 5 && (" + name + " = 'High'); " + name;
+
+      assertEquals(highNullNull(), rows(script, 10, 1, 1), script);
+      // a first row that does not assign reads undefined, not the engine function
+      assertEquals(Arrays.asList(null, "High", null), rows(script, 1, 10, 1), script);
+      assertEquals(typeBefore, run("typeof " + name), name);
+      assertEquals("function", typeBefore, name);
+   }
+
+   @Test void calcFunctionStillWorksAfterAssigningRuns() throws Exception {
+      rows("let count; a > 5 && (count = 'High'); count", 10, 1, 1);
+      rows("let value; a > 5 && (value = 'High'); value", 10, 1, 1);
+      assertEquals(3.0, num("count([1,2,3])"));
+      assertEquals("function", run("typeof value"));
+   }
+
+   @Test void constNamedLikeCalcFunction() throws Exception {
+      assertEquals(highNullNull(), rows("const value; a > 5 && (value = 'High'); value", 10, 1, 1));
+      assertEquals("function", run("typeof value"));
+   }
+
+   // a declaration mixing a colliding and a non-colliding name
+   @Test void mixedDeclarationNamedLikeCalcFunction() throws Exception {
+      assertEquals(highNullNull(),
+                   rows("let value, total; a > 5 && (value = 'High'); value", 10, 1, 1));
+      assertEquals(highNullNull(),
+                   rows("let x = 1, count; a > 5 && (count = 'High'); count", 10, 1, 1));
+      assertEquals("function", run("typeof count"));
+   }
+
+   // a host function that calls the engine global while the body runs still sees it
+   @Test void hostFunctionCallingEngineGlobalInsideBody() throws Exception {
+      run("function lib77321() { return typeof value; }");
+      assertEquals(Arrays.asList("function", null, null),
+                   rows("let value; a > 5 && (value = lib77321()); value", 10, 1, 1));
+   }
+
+   // a put() name: decided per exec against the running engine's host globals
+   @Test void putNameStartsUndefinedEveryRow() throws Exception {
+      Object compiled = engine.compile("let pv77321; a > 5 && (pv77321 = 'High'); pv77321");
+      engine.put("pv77321", "P");
+      MapScope row = new MapScope();
+      List<Object> out = new ArrayList<>();
+
+      for(Object v : new Object[] { 10, 1, 1 }) {
+         row.putMember("a", v);
+         out.add(engine.exec(compiled, row, row));
+      }
+
+      assertEquals(highNullNull(), out);
+      assertEquals("P", run("pv77321"));
+   }
+
+   // a body that also declares the name with var is an early error as a native let
+   // block: it falls back to the eval wrapper, never to the leaking plain Source
+   @ParameterizedTest
+   @CsvSource(delimiter = '|', value = {
+      "let value; var value; a > 5 && (value = 'High'); value",
+      "let count; let count; a > 5 && (count = 'High'); count",
+   })
+   void duplicateDeclarationFallsBackToEvalWrapper(String script) throws Exception {
+      Object compiled = engine.compile(script);
+      assertInstanceOf(GraalJavaScriptEngine.PlainScript.class, compiled);
+      assertTrue(((GraalJavaScriptEngine.PlainScript) compiled).colliding()
+                    .getCharacters().toString().contains("eval("), script);
+      assertEquals(highNullNull(), rows(script, 10, 1, 1), script);
+   }
+
+   @Test void collidingSourceKeepsNativeLet() throws Exception {
+      GraalJavaScriptEngine.PlainScript compiled = (GraalJavaScriptEngine.PlainScript)
+         engine.compile("const value; let x = 1; let y = 2, total; value");
+      assertEquals("with(__scope__){let   value; var x = 1; let y = 2, total; value\n}",
+                   compiled.colliding().getCharacters().toString());
+   }
+
+   // a name that is no host global keeps the #77181 plain Source (and its #76980
+   // cross-script visibility)
+   @Test void nonCollidingNameKeepsPlainSource() throws Exception {
+      Object compiled = engine.compile("let total; a > 5 && (total = 'High'); total");
+      assertInstanceOf(GraalJavaScriptEngine.PlainScript.class, compiled);
+      GraalJavaScriptEngine.PlainScript plain = (GraalJavaScriptEngine.PlainScript) compiled;
+      assertSame(plain.plain(), plain.source(Set.of("value", "count")));
+      assertSame(plain.colliding(), plain.source(Set.of("total")));
+      assertSame(plain.colliding(), plain.source(null));
+      assertEquals(highNullNull(), rows("let total; a > 5 && (total = 'High'); total", 10, 1, 1));
+      run("let pk77321; pk77321 = 7;");
+      assertEquals(7.0, num("pk77321"));
+      // a body without reset names still compiles to a bare Source
+      assertInstanceOf(org.graalvm.polyglot.Source.class, engine.compile("var q = 1; q"));
+   }
+
+   @Test void plainScriptEqualByContent() throws Exception {
+      String script = "let value; a > 5 && (value = 'High'); value";
+      Object a = engine.compile(script);
+      Object b = engine.compile(script);
+      assertNotSame(a, b);
+      assertEquals(a, b);
+      assertEquals(a.hashCode(), b.hashCode());
+      // the compiled body, as PieceScript names it (WsExecContext logs it)
+      assertEquals("var value; a > 5 && (value = 'High'); value", a.toString());
+   }
+
+   @Test void collidingErrorLineUnchanged() {
+      Exception ex = assertThrows(Exception.class,
+                                  () -> run("let value;\nundefinedFn77321()"));
+      assertTrue(ex.getMessage().contains("(line 2)"), ex.getMessage());
+
+      ex = assertThrows(Exception.class,
+                        () -> run("let value; var value;\nundefinedFn77321()"));
+      assertTrue(ex.getMessage().contains("(line 2)"), ex.getMessage());
+   }
+
+   // accepted behavior change (pre-#76980 semantics): a read before the declaration
+   // is in the temporal dead zone
+   @Test void collidingReadBeforeDeclarationIsTdz() {
+      Exception ex = assertThrows(Exception.class,
+                                  () -> run("var t77321 = typeof value; let value; t77321"));
+      assertTrue(ex.getMessage().contains("ReferenceError"), ex.getMessage());
+   }
+
+   // accepted behavior change (pre-#76980 semantics): a function declared in the body
+   // closes over the block let, not the engine global
+   @Test void collidingBodyFunctionSeesBlockLet() throws Exception {
+      assertEquals("X", run("let value; function get77321() { return value; } " +
+                              "value = 'X'; get77321()"));
+      assertEquals("X", run("get77321()"));
+      assertEquals("function", run("typeof value"));
+   }
+
+   // the completion value of the body is kept
+   @Test void collidingCompletionValue() throws Exception {
+      assertEquals(7.0, num("let value; 7"));
+      assertNull(run("let value;"));
+      assertEquals(3.0, num("let value; value = 1; value + 2"));
+   }
+
+   // pool on: the pooled env names and CALC functions are host globals there too
+   @Test void pooledSpanHostGlobalNamedLetStartsUndefinedEveryRow() throws Exception {
+      inetsoft.util.script.graal.pool.WorksheetScriptEnv env =
+         inetsoft.util.script.graal.pool.PoolTestSupport.env();
+      env.put("envw", "E");
+      Object v = env.compile("let value; (a > 5) && (value = 'High'); value");
+      Object w = env.compile("let envw; (a > 5) && (envw = 'High'); envw");
+      Object t = env.compile("typeof value + ',' + envw");
+      List<Object> outV = new ArrayList<>(), outW = new ArrayList<>(), outT = new ArrayList<>();
+      MapScope row = new MapScope();
+
+      try(var span = env.openSpan()) {
+         for(Object a : new Object[] { 10, 1, 1 }) {
+            row.putMember("a", a);
+            outV.add(env.exec(v, row, row, null));
+            outW.add(env.exec(w, row, row, null));
+            outT.add(env.exec(t, row, row, null));
+         }
+      }
+
+      assertEquals(highNullNull(), outV);
+      assertEquals(highNullNull(), outW);
+      assertEquals(Collections.nCopies(3, "function,E"), outT);
    }
 
    // the extractor: which names it takes, and where it declines
