@@ -441,8 +441,7 @@ public class CrossTabFilter extends AbstractTableLens
     */
    @Override
    public int getRowCount() {
-      checkInit();
-      return data.length;
+      return getData().length;
    }
 
    /**
@@ -452,8 +451,7 @@ public class CrossTabFilter extends AbstractTableLens
     */
    @Override
    public int getColCount() {
-      checkInit();
-      return data[0].length;
+      return getData()[0].length;
    }
 
    /**
@@ -898,7 +896,8 @@ public class CrossTabFilter extends AbstractTableLens
     */
    @Override
    public Object getObject(int r, int c) {
-      checkInit();
+      // read once, invalidate() may clear it at any time (bug #77365)
+      Object[][] data = getData();
 
       if(r == 0 && c >= getHeaderColCount() && c < data[r].length && data[r][c] == null ||
          c == 0 && r >= getHeaderRowCount() && r < data.length && data[r][c] == null)
@@ -976,7 +975,8 @@ public class CrossTabFilter extends AbstractTableLens
     */
    @Override
    public void setObject(int r, int c, Object v) {
-      checkInit();
+      // write into the published data, read once (bug #77365)
+      Object[][] data = getData();
 
       if(r == 0 && c >= getHeaderColCount() && data[r][c] == null ||
          c == 0 && r >= getHeaderRowCount() && data[r][c] == null)
@@ -2230,11 +2230,13 @@ public class CrossTabFilter extends AbstractTableLens
          style.setTrailerRowCount(isSuppressRowGrandTotal() ? 0 : 1);
       }
 
-      data = null;
-      spanmap.clear();
+      // don't take the lock or clear the scratch of the pass here: a pass may be running, it
+      // clears its scratch when it starts, and it sees the new generation and runs again
+      // rather than publish data that misses the change (bug #77365)
+      generation++;
+      published = null;
+      // the descriptor's meta info cache, not scratch of the pass
       mmap.clear();
-      rnumMap.clear();
-      totalPos.clear();
       formulas.clear();
 
       fireChangeEvent();
@@ -5841,11 +5843,63 @@ public class CrossTabFilter extends AbstractTableLens
     */
    @Override
    public void checkInit() {
-      if(data == null) {
-         synchronized(this) {
-            if(data == null) {
+      getData();
+   }
+
+   /**
+    * Get the crosstab data, generating it first if it is not published. The data is published
+    * only once it is filled, and only if the crosstab was not invalidated while it was
+    * generated (bug #77365).
+    */
+   private Object[][] getData() {
+      Object[][] published = this.published;
+
+      if(published != null) {
+         return published;
+      }
+
+      synchronized(this) {
+         published = this.published;
+
+         if(published != null) {
+            return published;
+         }
+
+         // called from the pass on this thread, e.g. for a cell's default format
+         if(data != null) {
+            return data;
+         }
+
+         for(int retry = 0; ; retry++) {
+            int generation = this.generation;
+            spanmap.clear();
+            mmap.clear();
+            rnumMap.clear();
+            totalPos.clear();
+
+            try {
                process();
+               published = data;
             }
+            finally {
+               data = null;
+            }
+
+            this.published = published;
+
+            // invalidate() bumps the generation before it clears the published data, so an
+            // invalidate that raced this publish is seen here or clears it afterwards
+            if(generation == this.generation) {
+               return published;
+            }
+
+            if(retry >= MAX_PROCESS_RETRIES) {
+               LOG.warn("Crosstab published after it was invalidated {} times while it was " +
+                        "generated", MAX_PROCESS_RETRIES);
+               return published;
+            }
+
+            this.published = null;
          }
       }
    }
@@ -7158,7 +7212,12 @@ public class CrossTabFilter extends AbstractTableLens
    private final Hashtable<Object, Object> i18n2headers = new Hashtable<>();
    private final Hashtable<Object, Object> headers2i18n = new Hashtable<>();
    private TableLens table;
+   // the data of the running pass, only used while holding the lock
    private Object[][] data;
+   // the filled data, read without the lock (bug #77365)
+   private volatile Object[][] published;
+   // bumped by invalidate(), a pass that sees it change doesn't keep its data (bug #77365)
+   private volatile int generation;
    private final Formula[] sum;
    private Formula[] oldFormula;
    private FormulaAgent[] fagents;
@@ -7250,5 +7309,6 @@ public class CrossTabFilter extends AbstractTableLens
    private Map<String, String> calcMeasureMap = new HashMap<>();
    private transient Map<Integer, CalcColumn> aggCalcMap = new HashMap<>();
 
+   private static final int MAX_PROCESS_RETRIES = 10;
    private static final Logger LOG = LoggerFactory.getLogger(CrossTabFilter.class);
 }
