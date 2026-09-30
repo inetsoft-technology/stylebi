@@ -45,7 +45,6 @@ import inetsoft.uql.util.XUtil;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.web.composer.model.vs.DateComparisonPaneModel;
-import org.apache.commons.lang3.ArrayUtils;
 
 import java.text.Format;
 import java.time.*;
@@ -1220,18 +1219,9 @@ public class DateComparisonUtil {
                                                         Viewsheet vs)
    {
       if(dcInfo != null && !dcInfo.invalid() && dateComparisonRef != null) {
-         XDimensionRef[] tempDateGroups = dcInfo.getTempDateGroupRef(source, vs, dateComparisonRef);
-
-         if(tempDateGroups != null && tempDateGroups.length > 0 &&
-            dcInfo.needWeekOfYearAuxiliaryRef())
-         {
-            VSDimensionRef auxiliary = dateComparisonRef.clone();
-            auxiliary.setDateLevelValue(DateRangeRef.QUARTER_OF_YEAR_DATE_GROUP + "");
-            setForceDcToDateWeekOfMonth(dcInfo.getToDateWeekOfMonth(), auxiliary);
-            tempDateGroups = (XDimensionRef[]) ArrayUtils.add(tempDateGroups, auxiliary);
-         }
-
-         return tempDateGroups;
+         // don't group by an auxiliary QuarterOfYear here, a week that spans two quarters
+         // would be split into two rows (and compared against half a week).
+         return dcInfo.getTempDateGroupRef(source, vs, dateComparisonRef);
       }
 
       return new XDimensionRef[0];

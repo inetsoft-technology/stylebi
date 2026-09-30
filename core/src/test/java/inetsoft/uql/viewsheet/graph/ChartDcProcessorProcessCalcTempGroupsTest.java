@@ -69,16 +69,17 @@ class ChartDcProcessorProcessCalcTempGroupsTest {
       assertFalse(r.calcTemps.contains(r.partName), "calc temps " + r.calcTemps);
    }
 
+   /**
+    * Bug #77318: no auxiliary QuarterOfYear temp group, so a week spanning two quarters is
+    * not split into two rows and the lookup has nothing left to ignore.
+    */
    @Test
-   void yearWeekToDateWeekKeepsOtherTempsIgnored() {
+   void yearWeekToDateWeekHasNoQuarterOfYearTemp() {
       Result r = process(XConstants.YEAR_DATE_GROUP, DateComparisonInfo.WEEK_TO_DATE,
                          DateComparisonInfo.WEEK, XConstants.WEEK_DATE_GROUP);
 
-      List<String> expected = new ArrayList<>(r.infoTemps);
-      expected.removeIf(r.partName::equals);
-      assertTrue(r.infoTemps.contains(r.partName), "info temps " + r.infoTemps);
-      assertFalse(expected.isEmpty(), "fixture: auxiliary temp expected " + r.infoTemps);
-      assertEquals(expected, r.calcTemps);
+      assertEquals(List.of(r.partName), r.infoTemps);
+      assertEquals(List.of(), r.calcTemps);
    }
 
    private record Result(String partName, List<String> infoTemps, List<String> calcTemps) {
