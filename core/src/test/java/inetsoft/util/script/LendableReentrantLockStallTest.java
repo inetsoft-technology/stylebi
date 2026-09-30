@@ -40,7 +40,8 @@ import static org.junit.jupiter.api.Assertions.*;
 public class LendableReentrantLockStallTest {
    @BeforeEach
    public void setUp() {
-      StallPolicy.setOverride(new StallPolicy(StallPolicy.Mode.FAIL, 1000, 200, dumpDir));
+      StallPolicy.setOverride(new StallPolicy(StallPolicy.Mode.FAIL, 1000, 200, dumpDir,
+                                              StallPolicy.DEFAULT_MAX_DUMPS, true));
    }
 
    @AfterEach
@@ -106,7 +107,8 @@ public class LendableReentrantLockStallTest {
 
    @Test
    public void offModeWaitsOn() throws Exception {
-      StallPolicy.setOverride(new StallPolicy(StallPolicy.Mode.OFF, 1000, 200, dumpDir));
+      StallPolicy.setOverride(new StallPolicy(StallPolicy.Mode.OFF, 1000, 200, dumpDir,
+                                              StallPolicy.DEFAULT_MAX_DUMPS, false));
       LendableReentrantLock lock = new LendableReentrantLock();
       Thread owner = holdUntilReleased(lock);
       FutureTask<Boolean> waiter = new FutureTask<>(() -> {
@@ -144,7 +146,8 @@ public class LendableReentrantLockStallTest {
     */
    @Test
    public void loanStillBypassesThreadsQueuedEarlier() throws Exception {
-      StallPolicy.setOverride(new StallPolicy(StallPolicy.Mode.FAIL, 60000, 200, dumpDir));
+      StallPolicy.setOverride(new StallPolicy(StallPolicy.Mode.FAIL, 60000, 200, dumpDir,
+                                              StallPolicy.DEFAULT_MAX_DUMPS, false));
       LendableReentrantLock lock = new LendableReentrantLock();
       LendableReentrantLock.Borrower borrower = new LendableReentrantLock.Borrower();
       CountDownLatch borrowerAcquired = new CountDownLatch(1);

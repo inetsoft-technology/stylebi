@@ -264,6 +264,85 @@ public final class RelPipeline {
    }
 
    /**
+    * The cells a new formula lens computes from row {@code from} of the standard table on, the
+    * pool off, read sequentially: what a lens gives once its vars restart at that row. For
+    * scripts that read only the current row's fields and do not fail.
+    */
+   public static List<String> restartedAt(String formula, int from) {
+      TableLens base = baseTable();
+      Object[][] data = new Object[ROWS - from + 2][];
+
+      for(int r = 0; r < data.length; r++) {
+         int row = r == 0 ? 0 : from + r - 1;
+         data[r] = new Object[base.getColCount()];
+
+         for(int c = 0; c < data[r].length; c++) {
+            data[r][c] = base.getObject(row, c);
+         }
+      }
+
+      AssetQuerySandbox box = sandbox(RelConfig.off());
+
+      try {
+         TableLens part = new DefaultTableLens(data);
+         FormulaTableLens lens = new FormulaTableLens(part, new String[] { COLUMN },
+            new String[] { formula }, box.getScriptEnv(), box.getScope());
+         List<String> cells = new ArrayList<>();
+
+         for(int r = 1; r < data.length; r++) {
+            lens.moreRows(r);
+            cells.add(str(lens.getObject(r, part.getColCount())));
+         }
+
+         return cells;
+      }
+      finally {
+         box.dispose();
+      }
+   }
+
+   /**
+    * Read several formula lenses over the standard table in one sandbox, interleaved:
+    * {@code step} rows of each in turn, so their batches claim contexts one after the other
+    * and take over each other's idle homes (B1 residual hand-offs). For scripts that do not
+    * fail: a failed row stops the read.
+    *
+    * @return the cells of each lens, as {@link #run} gives them for a sequential FTL read.
+    */
+   public static List<List<String>> interleaved(List<String> formulas, AssetQuerySandbox box,
+                                                int step)
+   {
+      List<FormulaTableLens> lenses = new ArrayList<>();
+      List<List<String>> cells = new ArrayList<>();
+
+      for(String formula : formulas) {
+         TableLens base = baseTable();
+         lenses.add(new FormulaTableLens(base, new String[] { COLUMN },
+            new String[] { formula }, box.getScriptEnv(), box.getScope()));
+         cells.add(new ArrayList<>());
+      }
+
+      int fcol = baseTable().getColCount();
+
+      for(int from = 1; from <= ROWS; from += step) {
+         for(int i = 0; i < lenses.size(); i++) {
+            for(int r = from; r < from + step && r <= ROWS; r++) {
+               lenses.get(i).moreRows(r);
+               cells.get(i).add(str(lenses.get(i).getObject(r, fcol)));
+            }
+         }
+      }
+
+      for(int i = 0; i < lenses.size(); i++) {
+         if(lenses.get(i).moreRows(ROWS + 1)) {
+            cells.get(i).add("extra row " + (ROWS + 1));
+         }
+      }
+
+      return cells;
+   }
+
+   /**
     * Make row {@code r} of {@code table} available. A formula error thrown on the way is
     * recorded against the failed row of the formula lens (the last row it added) and the
     * read resumed, as a reader that skips a failed row would.
@@ -530,6 +609,18 @@ public final class RelPipeline {
          }
       }
 
+      List<String> messages = MESSAGES.get();
+
+      if(messages != null) {
+         StringBuilder chain = new StringBuilder();
+
+         for(Throwable t = ex; t != null; t = t.getCause() == t ? null : t.getCause()) {
+            chain.append(chain.length() == 0 ? "" : " <- ").append(t);
+         }
+
+         messages.add(chain.toString());
+      }
+
       // opt-in (-Drel.errlog=true): log each distinct cell error, so an unexplained mismatch
       // (R1, Testing #77123) records its message
       if(Boolean.getBoolean("rel.errlog")) {
@@ -560,6 +651,9 @@ public final class RelPipeline {
             (k, v) -> System.out.println("[rel-errlog] " + v + " x " + k))));
       }
    }
+
+   /** when set on a thread, the message chain of each cell error of its runs is added to it */
+   static final ThreadLocal<List<String>> MESSAGES = new ThreadLocal<>();
 
    /** the cell errors seen so far that were GraalJS multi-threaded access errors */
    public static final AtomicLong MULTI_THREADED = new AtomicLong();

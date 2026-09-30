@@ -133,6 +133,22 @@ final class RelScriptGenerator {
       return set;
    }
 
+   /**
+    * Whether the block's leftovers are declared (var, let/const rewritten to var, function,
+    * in a block or not), not made at runtime by defineProperty.
+    */
+   static boolean declares(Block b) {
+      return DECLARING.contains(b.kind()) || b.kind().startsWith("leftovers ");
+   }
+
+   /**
+    * Whether the block declares names holding a value that is not undefined when the script
+    * ends (the leftovers x<n> var list has no initializers).
+    */
+   static boolean declaresDefined(Block b) {
+      return DECLARING.contains(b.kind());
+   }
+
    static Set<String> leftovers(List<Block> blocks) {
       Set<String> set = new HashSet<>();
       blocks.forEach(b -> set.addAll(b.leftovers()));
@@ -269,6 +285,9 @@ final class RelScriptGenerator {
          return new Block("throw", n + " = " + v + "; throw new Error('zq partial');",
                           Category.CLEANABLE, Set.of(), Set.of(), 1, 2);
       }
+      if(pick < 930) {
+         return sharedHostWrite(n, v);
+      }
       if(random.nextInt(40) != 0) {
          return clean("Reflect.set", "Reflect.set(globalThis, '" + n + "', " + v + ");",
                       Set.of(), 1);
@@ -292,17 +311,59 @@ final class RelScriptGenerator {
                        Category.CLEANABLE, Set.of(), Set.of(), 0, 0);
    }
 
+   /**
+    * Writes to the host objects every context of the JVM shares (#5885: CALC and its
+    * functions, the ScriptFunction globals, the StyleConstant/Chart constant scopes). The host
+    * boundary ignores (or refuses) them, so they are cleanable with no drift: a write that
+    * reached the shared Java object would show on every context, the reference env included,
+    * which the probe's host entries check against their pristine values.
+    */
+   private Block sharedHostWrite(String n, String v) {
+      String[] targets = { "CALC", "StyleConstant", "Chart", "sum", "CALC.sum", "isNull" };
+      StringBuilder src = new StringBuilder();
+      int count = 1 + random.nextInt(3);
+
+      for(int i = 0; i < count; i++) {
+         src.append("try { ").append(targets[random.nextInt(targets.length)]).append('.')
+            .append(n).append(" = ").append(v).append("; } catch(e) {} ");
+      }
+
+      if(random.nextInt(3) == 0) {
+         src.append("try { ").append(HOST_OVERWRITES[random.nextInt(HOST_OVERWRITES.length)])
+            .append("; } catch(e) {}");
+      }
+
+      return clean("shared host write", src.toString().trim(), Set.of(), 0);
+   }
+
+   /**
+    * @return the value a probe's host entry has on any context while no write reached a
+    *         shared host object, or {@code null} for an entry that is not a host entry.
+    */
+   static String hostPristine(String key) {
+      if(!key.startsWith("host:")) {
+         return null;
+      }
+
+      String expected = HOST_PRISTINE.get(key.substring(5));
+      return expected != null ? expected : "undefined"; // a zq* member none of them has
+   }
+
    private Block prototypePatch(String n, String v) {
       int kind = random.nextInt(6);
 
       return switch(kind) {
          case 0 -> b7("Array.prototype", "Array.prototype." + n + " = " + v + ";", "arr:" + n);
          case 1 -> b7("String.prototype", "String.prototype." + n + " = " + v + ";", "str:" + n);
+         // a host function (a CALC or ScriptFunction global) has Function.prototype, and every
+         // host object Object.prototype, as its prototype in the guest
          case 2 -> b7("Function.prototype", "Function.prototype." + n + " = " + v + ";",
-                      "fn:" + n);
+                      "fn:" + n, "host:CALC.sum." + n, "host:sum." + n, "host:isNull." + n);
          case 3 -> b7("Object.prototype", "Object.prototype." + n + " = " + v + ";",
                       "name:" + n, "arr:" + n, "str:" + n, "fn:" + n, "obj:" + n, "math:" + n,
-                      "json:" + n);
+                      "json:" + n, "host:CALC." + n, "host:StyleConstant." + n,
+                      "host:Chart." + n, "host:sum." + n, "host:CALC.sum." + n,
+                      "host:isNull." + n);
          default -> {
             // a descriptor field name on %Object.prototype% (the clean's slow path)
             String f = DESC_FIELDS[random.nextInt(DESC_FIELDS.length)];
@@ -400,9 +461,30 @@ final class RelScriptGenerator {
             parts.add("out.push('sym:" + n + "=' + (Symbol.for('" + n + "') in globalThis));");
          }
       }
+
+      // the shared host objects: each zq* member some context may have tried to write, and
+      // the members the host overwrites target
+      for(String n : NAMES) {
+         if(random.nextInt(4) == 0) {
+            for(String on : new String[] { "CALC", "StyleConstant", "Chart", "sum", "CALC.sum",
+                                           "isNull" })
+            {
+               parts.add(hostEntry(on + "." + n, "typeof " + on + "." + n));
+            }
+         }
+      }
+
+      for(Map.Entry<String, String> e : HOST_READS.entrySet()) {
+         parts.add(hostEntry(e.getKey(), e.getValue()));
+      }
       Collections.shuffle(parts, random);
       return "(function() { 'use strict'; const out = [];\n" + String.join("\n", parts) +
          "\nout.sort(); return out.join(String.fromCharCode(10)); })()";
+   }
+
+   private static String hostEntry(String name, String expr) {
+      return "try { out.push('host:" + name + "=' + String(" + expr + ")); } " +
+         "catch(e) { out.push('host:" + name + "=throw'); }";
    }
 
    private static String member(String prefix, String on, String n) {
@@ -453,6 +535,9 @@ final class RelScriptGenerator {
                     (d.configurable ? 1 : 0));
         } }""";
 
+   // the blocks that declare their leftover with an initializer or as a function
+   private static final Set<String> DECLARING = Set.of(
+      "var", "var-in-block", "let", "const", "function", "function-in-block");
    // 16 names polluters use, plus the '2' suffix of let-in-block
    static final String[] NAMES = {
       "zqa", "zqb", "zqc", "zqd", "zqe", "zqf", "zqg", "zqh", "zqi", "zqj", "zqk", "zql", "zqm",
@@ -482,6 +567,30 @@ final class RelScriptGenerator {
       {"typeof formatDate", "typeof formatDate"},
       {"zhost", "typeof zhost === 'undefined' ? 'none' : zhost"},
    };
+   // overwrites of shared host members the host boundary ignores or refuses
+   private static final String[] HOST_OVERWRITES = {
+      "CALC.sum = 42", "delete CALC.sum", "CALC.sum = function() { return 42; }",
+      "StyleConstant.PORTRAIT = 99", "delete StyleConstant.PORTRAIT", "Chart.PORTRAIT = 99",
+      "Chart.CHART_BAR = 99", "delete Chart.CHART_BAR"
+   };
+   // probe host entries read on every probe, and their expressions
+   private static final Map<String, String> HOST_READS = new LinkedHashMap<>();
+   private static final Map<String, String> HOST_PRISTINE = new HashMap<>();
+
+   static {
+      HOST_READS.put("CALC.sum", "typeof CALC.sum");
+      HOST_READS.put("CALC.sum()", "CALC.sum([1, 2, 3])");
+      HOST_READS.put("StyleConstant.PORTRAIT", "StyleConstant.PORTRAIT");
+      // not a Chart constant: an overwrite must not add it
+      HOST_READS.put("Chart.PORTRAIT", "Chart.PORTRAIT");
+      HOST_READS.put("Chart.CHART_BAR", "Chart.CHART_BAR");
+      HOST_PRISTINE.put("CALC.sum", "function");
+      HOST_PRISTINE.put("CALC.sum()", "6");
+      HOST_PRISTINE.put("StyleConstant.PORTRAIT", "1");
+      HOST_PRISTINE.put("Chart.PORTRAIT", "undefined");
+      HOST_PRISTINE.put("Chart.CHART_BAR", "1");
+   }
+
    private static final String[] VALUES = {
       "1", "'s'", "true", "null", "{a: 1}", "[1, 2]", "function() { return 3; }", "0.5"
    };

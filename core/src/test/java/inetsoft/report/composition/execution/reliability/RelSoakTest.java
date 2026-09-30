@@ -53,7 +53,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * between them, dispose), some runs on 2 long-lived sandboxes shared by all workers and reset
  * now and then by another thread, a fifth of the short-lived sandboxes with a non-default
  * batch configuration. Scripts are the synthetic set, every {@code -Drel.soak.step}-th (3)
- * corpus script, and 1% of the time a script whose row 600 loops until the 2 s script
+ * corpus script, and 1% ({@code -Drel.soak.timeoutPercent}) of the time a script whose row 600 loops until the 2 s script
  * timeout interrupts it. Every result is compared with the pool-off sequential oracle of its
  * (script, shape), all computed before the soak starts, and differences are classified as in
  * {@link RelMetamorphicTest}.
@@ -83,6 +83,7 @@ public class RelSoakTest {
       Files.createDirectories(dir);
       Path csv = dir.resolve("soak-" + tag + ".csv");
       Map<String, Level> levels = quiet();
+      OwnedVarWarnings.install();
       Counter appender = new Counter();
       appender.start();
       root().addAppender(appender);
@@ -200,6 +201,7 @@ public class RelSoakTest {
          }
 
          root().detachAppender(appender);
+         OwnedVarWarnings.uninstall();
          levels.forEach((name, level) ->
             ((Logger) LoggerFactory.getLogger(name)).setLevel(level));
          SreeEnv.setProperty("script.execution.timeout", timeout);
@@ -350,7 +352,7 @@ public class RelSoakTest {
    private static Work pick(Random random, List<RelMetamorphicTest.Case> normal,
                             List<RelMetamorphicTest.Case> timeouts)
    {
-      RelMetamorphicTest.Case c = random.nextInt(100) == 0
+      RelMetamorphicTest.Case c = random.nextInt(100) < TIMEOUT_PERCENT
          ? timeouts.get(random.nextInt(timeouts.size()))
          : normal.get(random.nextInt(normal.size()));
       Shape shape = Shape.values()[random.nextInt(Shape.values().length)];
@@ -375,12 +377,18 @@ public class RelSoakTest {
    private static void runOne(AssetQuerySandbox box, Work w, String where, RelConfig cfg) {
       long start = System.nanoTime();
       List<String> actual;
+      Map<String, String> lost;
 
-      try {
-         actual = RelPipeline.run(w.c().script(), w.shape(), box, w.read());
-      }
-      catch(Exception ex) {
-         actual = List.of("RUN-" + RelPipeline.error(ex));
+      // the loss warnings of the lens this worker reads
+      try(OwnedVarWarnings.Recording recording = OwnedVarWarnings.record()) {
+         try {
+            actual = RelPipeline.run(w.c().script(), w.shape(), box, w.read());
+         }
+         catch(Exception ex) {
+            actual = List.of("RUN-" + RelPipeline.error(ex));
+         }
+
+         lost = recording.lost();
       }
 
       add("runMillis", (System.nanoTime() - start) / 1_000_000);
@@ -392,6 +400,23 @@ public class RelSoakTest {
       List<String> expected = RelMetamorphicTest.comparable(oracle, script);
       actual = RelMetamorphicTest.comparable(actual, script);
       inc("comparisons");
+
+      if(!lost.isEmpty()) {
+         inc("warned." + w.shape());
+      }
+
+      // a plain-data object var is kept: its loss is a finding, but for a home in use by
+      // another thread (long-lived sandboxes are shared)
+      String plainLoss = RelMetamorphicTest.plainLoss(script, lost, true);
+
+      if(plainLoss != null) {
+         inc("mismatches");
+         String what = w.c().label() + " " + w.shape() + " " + w.read() + " " + where + " " +
+            cfg + ": " + plainLoss;
+         example(FAILURES, "mismatch " + what + "\nscript: " + script);
+         System.out.println("SOAK MISMATCH " + what + "\nscript: " + script);
+         return;
+      }
 
       if(expected.equals(actual)) {
          return;
@@ -413,7 +438,8 @@ public class RelSoakTest {
       }
 
       String diff = RelMetamorphicTest.diff(expected, actual);
-      RelMetamorphicTest.Drift drift = RelMetamorphicTest.drift(expected, actual, script);
+      RelMetamorphicTest.Drift drift =
+         RelMetamorphicTest.drift(expected, actual, script, w.shape(), lost);
       String what = w.c().label() + " " + w.shape() + " " + w.read() + " " + where + " " + cfg +
          ": " + diff;
 
@@ -765,6 +791,8 @@ public class RelSoakTest {
    private static final int STEP = Integer.getInteger("rel.soak.step", 3);
    private static final int LONG_LIVED = 2;
    private static final int LONG_LIVED_PERCENT = 30;
+   /** percent of picks that are a timeout script (1 by default) */
+   private static final int TIMEOUT_PERCENT = Integer.getInteger("rel.soak.timeoutPercent", 1);
    private static final int MAX_EXAMPLES = 40;
    private static final long SEED = Long.getLong("rel.seed", 77123L);
    private static final AtomicInteger THREAD_IDS = new AtomicInteger();
