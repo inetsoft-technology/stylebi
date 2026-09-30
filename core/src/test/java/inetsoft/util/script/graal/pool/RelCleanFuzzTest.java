@@ -42,6 +42,13 @@ import static org.junit.jupiter.api.Assertions.*;
  * mutation, and the non-configurable leftovers of spec §14.1, which stay declared holding
  * undefined). A slot the clean must fail is closed, and the probe then runs on a new one.
  *
+ * <p>Which leftovers a polluter leaves follows its compiled form (round 2, after #5849 and
+ * #5858): a plain or piece script declares its vars before it runs, so a throwing one leaves
+ * them too, while the eval wrapper's hoist copies them after the body as configurable keys.
+ * The slot must be discarded exactly when the model says so for a polluter that ran to its
+ * end. Probe entries of the host objects every context of the JVM shares (#5885) are also
+ * judged absolutely, since a write that reached one would show on the reference env too.
+ *
  * <p>Chained runs reuse one env for many seeds (the primary is cleaned again and again, as in
  * production; a B7/B8 seed retires it); fresh runs build a new env per seed. A violation is
  * reproduced on fresh envs and shrunk block by block before it is reported.
@@ -104,6 +111,8 @@ class RelCleanFuzzTest {
       stats.print("chained+paranoid");
       stats.assertClean();
       assertEquals(0, stats.paranoiaViolations, stats.paranoiaKinds::toString);
+      // the check ran: at least the polluter's and the probe's release of every seed
+      assertTrue(stats.paranoiaVerifies >= stats.seeds, "verifies " + stats.paranoiaVerifies);
    }
 
 
@@ -206,6 +215,7 @@ class RelCleanFuzzTest {
       Deque<String> recent = new ArrayDeque<>();
       long start = System.nanoTime();
       int probes0 = PROBES.get(), retries0 = PROBE_RETRIES.get();
+      long verifies0 = PoolParanoia.VERIFIES.get(), inconclusive0 = PoolParanoia.inconclusive();
 
       for(long i = 0; i < count; i++) {
          long seed = base + i;
@@ -240,6 +250,10 @@ class RelCleanFuzzTest {
             stats.report(seed, blocks, probe, o, recent);
          }
 
+         if(unexpectedDiscard(o)) {
+            stats.sampleUnexpectedDiscard(seed, blocks, probe, o.form());
+         }
+
          if(o.discarded()) {
             slotLeftovers.clear();
          }
@@ -267,6 +281,8 @@ class RelCleanFuzzTest {
       stats.probes = PROBES.get() - probes0;
       stats.probeRetries = PROBE_RETRIES.get() - retries0;
       stats.maxProbeMs = MAX_PROBE_MS.get();
+      stats.paranoiaVerifies = PoolParanoia.VERIFIES.get() - verifies0;
+      stats.paranoiaInconclusive = PoolParanoia.inconclusive() - inconclusive0;
       stats.seeds = count;
       stats.refCreations = ref.getMetrics().getCreations();
       return stats;
@@ -275,12 +291,14 @@ class RelCleanFuzzTest {
    /**
     * Run one polluter and probe and judge the result.
     */
-   private static Outcome check(WorksheetScriptEnv env, WorksheetScriptEnv ref, List<Block> blocks,
-                                Gen p, String probe, Set<String> slotLeftovers)
+   static Outcome check(WorksheetScriptEnv env, WorksheetScriptEnv ref, List<Block> blocks,
+                        Gen p, String probe, Set<String> slotLeftovers)
       throws Exception
    {
       long c0 = env.getMetrics().getCreations();
+      int s0 = env.getMetrics().getSize();
       boolean threw = false, unexpectedThrow = false;
+      String form = null;
 
       boolean loops = "loop".equals(blocks.get(blocks.size() - 1).kind());
 
@@ -290,7 +308,9 @@ class RelCleanFuzzTest {
             setTimeout(LOOP_TIMEOUT_SECONDS);
          }
 
-         run(env, p.source());
+         Object script = env.compile(p.source());
+         form = form(script);
+         env.exec(script, null, null, null);
       }
       catch(Exception ex) {
          threw = true;
@@ -317,21 +337,41 @@ class RelCleanFuzzTest {
       catch(Exception ex) {
          // the probe is read-only and fast: a throw here is judged, not a test error
          return new Outcome("probe threw after " + (System.nanoTime() - t0) / 1_000_000L +
-                            " ms: " + ex.getMessage(), env.getMetrics().getCreations() > c0,
-                            false, threw, unexpectedThrow, false, 0, Set.of());
+                            " ms: " + ex.getMessage(), discarded(env, c0, s0),
+                            false, threw, unexpectedThrow, false, 0, Set.of(), form);
       }
 
-      boolean discarded = env.getMetrics().getCreations() > c0;
+      boolean discarded = discarded(env, c0, s0);
       String r2 = probe(ref, probe, false);
 
       Set<String> leftovers = new HashSet<>(slotLeftovers);
-      leftovers.addAll(RelScriptGenerator.leftovers(blocks));
-      // the engine declares a script's var/function globals after its body (its declaration
-      // hoist), so a script that throws or times out leaves no leftovers
+      int foreign = blocks.stream().mapToInt(Block::foreign).sum();
+
+      // A non-configurable defineProperty leftover is made when its block runs, before the
+      // generator's final throw or loop. Where a declared var/function global comes from
+      // depends on the compiled form. A plain with(__scope__) script declares them all before
+      // it runs, and a piece script (#77249) declares each piece's before that piece runs;
+      // the generator's throw or loop is always the last piece, so every block before it has
+      // declared its leftovers, thrown or not. The eval wrapper declares none: its #75596
+      // hoist copies each declared name that is not undefined to the global after the body,
+      // as a configurable foreign key (so none after a throw or a timeout). After an
+      // unexpected throw the blocks after it never ran: their leftovers may or may not be
+      // there (and the slot need not be discarded).
+      for(Block b : blocks) {
+         if(unexpectedThrow || !RelScriptGenerator.declares(b) ||
+            declaresBeforeRunning(form))
+         {
+            leftovers.addAll(b.leftovers());
+         }
+         else if(!threw && RelScriptGenerator.declaresDefined(b)) {
+            foreign += b.leftovers().size();
+         }
+      }
+
       boolean expectDiscard = !unexpectedThrow &&
          (blocks.stream().anyMatch(b -> b.category() == Category.DISCARDS_SLOT) ||
-          blocks.stream().mapToInt(Block::foreign).sum() > PoolConfig.MAX_FOREIGN_DELETES ||
-          !threw && leftovers.size() > PoolConfig.defaults().cleanThreshold());
+          foreign > PoolConfig.MAX_FOREIGN_DELETES ||
+          leftovers.size() > PoolConfig.defaults().cleanThreshold());
       Set<String> allowed = discarded ? Set.of() : RelScriptGenerator.patched(blocks);
       Map<String, String> m1 = parse(r1), m2 = parse(r2);
       Set<String> bad = new TreeSet<>();
@@ -343,6 +383,14 @@ class RelCleanFuzzTest {
 
       for(String k : keys) {
          String v1 = m1.get(k), v2 = m2.get(k);
+         String pristine = RelScriptGenerator.hostPristine(k);
+
+         // a shared host object is one Java object for every context of the JVM (#5885), so
+         // a write that reached it would show on the reference env too: judge it absolutely
+         if(pristine != null && !pristine.equals(v2)) {
+            bad.add(k + ": pristine=" + pristine + " fresh=" + v2 + " pooled=" + v1);
+            continue;
+         }
 
          if(Objects.equals(v1, v2)) {
             continue;
@@ -370,7 +418,7 @@ class RelCleanFuzzTest {
       }
 
       return new Outcome(violation, discarded, expectDiscard, threw, unexpectedThrow,
-                         !drift.isEmpty(), leftoverDiffs, observed);
+                         !drift.isEmpty(), leftoverDiffs, observed, form);
    }
 
    /**
@@ -405,6 +453,12 @@ class RelCleanFuzzTest {
             PROBE_RETRIES.incrementAndGet();
          }
       }
+   }
+
+   // whether the claims since (c0 creations, s0 contexts) closed a context: a creation that did
+   // not add one replaced a closed one (a claim that skips an exclusive home adds one)
+   private static boolean discarded(WorksheetScriptEnv env, long c0, int s0) {
+      return env.getMetrics().getCreations() - c0 > env.getMetrics().getSize() - s0;
    }
 
    // a leftover the clean left on purpose: declared by this slot's polluters, still declared
@@ -443,6 +497,43 @@ class RelCleanFuzzTest {
       }
    }
 
+   /**
+    * The outcome of these blocks on fresh envs.
+    */
+   private static Outcome outcomeOnFresh(List<Block> blocks, String probe)
+      throws Exception
+   {
+      WorksheetScriptEnv env = newEnv();
+      WorksheetScriptEnv ref = newEnv();
+
+      try {
+         return check(env, ref, blocks, RelScriptGenerator.combine(blocks), probe,
+                      new HashSet<>());
+      }
+      finally {
+         env.retire();
+         ref.retire();
+      }
+   }
+
+   /**
+    * The compiled form of a script: piece (a this-free split body run piece by piece,
+    * #77249), wrapper (the direct-eval wrapper) or plain (one with(__scope__) script).
+    */
+   static String form(Object script) {
+      if(script.getClass().getSimpleName().equals("PieceScript")) {
+         return "piece";
+      }
+
+      return script instanceof org.graalvm.polyglot.Source src &&
+         src.getCharacters().toString().startsWith("(function") ? "wrapper" : "plain";
+   }
+
+   // whether a script of this form declares its top-level vars before its body runs
+   private static boolean declaresBeforeRunning(String form) {
+      return "piece".equals(form) || "plain".equals(form);
+   }
+
    static List<Block> shrink(List<Block> blocks, String probe) throws Exception {
       List<Block> current = new ArrayList<>(blocks);
       boolean progress = true;
@@ -472,7 +563,7 @@ class RelCleanFuzzTest {
       return env;
    }
 
-   private static void setTimeout(String seconds) throws Exception {
+   static void setTimeout(String seconds) throws Exception {
       SreeEnv.setProperty("script.execution.timeout", seconds);
       refreshTimeout();
    }
@@ -485,8 +576,12 @@ class RelCleanFuzzTest {
 
    record Outcome(String violation, boolean discarded, boolean expectDiscard, boolean threw,
                   boolean unexpectedThrow, boolean drift, int leftoverDiffs,
-                  Set<String> observedLeftovers)
+                  Set<String> observedLeftovers, String form)
    {
+   }
+
+   private static boolean unexpectedDiscard(Outcome o) {
+      return o.discarded() && !o.expectDiscard();
    }
 
    static final class Stats {
@@ -503,6 +598,8 @@ class RelCleanFuzzTest {
             blocks.forEach(b -> unexpectedDiscardKinds.merge(b.kind().split(" ")[0], 1,
                                                              Integer::sum));
             unexpectedDiscards++;
+            // a polluter that ran to its end: the model knows everything it left
+            unexplainedDiscards += o.unexpectedThrow() ? 0 : 1;
          }
 
          blocks.forEach(b -> kinds.merge(b.kind().split(" ")[0], 1, Integer::sum));
@@ -536,14 +633,65 @@ class RelCleanFuzzTest {
          System.out.println("[rel-fuzz] VIOLATION " + sb);
       }
 
+      /**
+       * Record an unexpected discard: the polluter's compiled form and, reproduced on fresh
+       * envs, its minimal block set (the first few only; each shrink costs fresh envs).
+       */
+      void sampleUnexpectedDiscard(long seed, List<Block> blocks, String probe, String form)
+         throws Exception
+      {
+         unexpectedDiscardForms.merge(String.valueOf(form), 1, Integer::sum);
+
+         if(unexpectedDiscardSamples.size() >= 12) {
+            return;
+         }
+
+         StringBuilder sb = new StringBuilder("seed ").append(seed).append(" form=").append(form)
+            .append(" kinds=").append(blocks.stream().map(Block::kind).toList());
+
+         if(unexpectedDiscard(outcomeOnFresh(blocks, probe))) {
+            List<Block> current = new ArrayList<>(blocks);
+            boolean progress = true;
+
+            while(progress && current.size() > 1) {
+               progress = false;
+
+               for(int i = 0; i < current.size(); i++) {
+                  List<Block> fewer = new ArrayList<>(current);
+                  fewer.remove(i);
+
+                  if(unexpectedDiscard(outcomeOnFresh(fewer, probe))) {
+                     current = fewer;
+                     progress = true;
+                     break;
+                  }
+               }
+            }
+
+            String min = RelScriptGenerator.combine(current).source().replace('\n', ' ');
+            sb.append(" minimal(fresh, form=").append(outcomeOnFresh(current, probe).form())
+               .append(") ")
+               .append(current.stream().map(Block::kind).toList()).append(": ")
+               .append(min.length() > 300 ? min.substring(0, 300) + "..." : min);
+         }
+         else {
+            sb.append(" (not reproduced on a fresh env: needs the slot's earlier leftovers)");
+         }
+
+         unexpectedDiscardSamples.add(sb.toString());
+         System.out.println("[rel-fuzz] UNEXPECTED-DISCARD " + sb);
+      }
+
       void print(String mode) {
          System.out.println("[rel-fuzz] " + mode + ": seeds=" + seeds + " ms=" + millis +
             " categories=" + byCategory + " discards=" + discards + " expectedDiscards=" +
-            expectedDiscards + " unexpectedDiscards=" + unexpectedDiscards + " " +
-            unexpectedDiscardKinds + " threw=" + threw +
+            expectedDiscards + " unexpectedDiscards=" + unexpectedDiscards + " (unexplained " +
+            unexplainedDiscards + ") " +
+            unexpectedDiscardKinds + " forms=" + unexpectedDiscardForms + " threw=" + threw +
             " (unexpected " + unexpectedThrows + ") driftSeen=" + driftSeen +
             " leftoverDiffs=" + leftoverDiffs + " violations=" + violations +
-            " paranoiaViolations=" + paranoiaViolations + " refCreations=" + refCreations +
+            " paranoiaViolations=" + paranoiaViolations + " verifies=" + paranoiaVerifies +
+            " inconclusive=" + paranoiaInconclusive + " refCreations=" + refCreations +
             " probes=" + probes +
             " probeRetries=" + probeRetries + " maxProbeMs=" + maxProbeMs +
             "\n[rel-fuzz] " + mode + " block kinds: " + kinds);
@@ -555,6 +703,12 @@ class RelCleanFuzzTest {
          assertEquals(EnumSet.allOf(Category.class), byCategory.keySet(),
                       "categories seen " + byCategory);
          assertEquals(0, violations, () -> String.join("\n", reports));
+         // round 2: the leftover model follows each compiled form, so a polluter that ran to
+         // its end is discarded exactly when the model says (after an unexpected throw the
+         // blocks after it never ran, and a discard is only conservative)
+         assertEquals(0, unexplainedDiscards,
+                      () -> "unexpected discards:\n" +
+                         String.join("\n", unexpectedDiscardSamples));
          // a slow probe is rare; many would mean the retry hides something
          assertTrue(probeRetries * 100L <= probes, probeRetries + " of " + probes +
             " probes were retried");
@@ -566,18 +720,20 @@ class RelCleanFuzzTest {
       final Map<String, Integer> kinds = new TreeMap<>();
       final Map<String, Integer> unexpectedDiscardKinds = new TreeMap<>();
       final Map<String, Integer> paranoiaKinds = new TreeMap<>();
+      final Map<String, Integer> unexpectedDiscardForms = new TreeMap<>();
+      final List<String> unexpectedDiscardSamples = new ArrayList<>();
       final List<String> reports = new ArrayList<>();
       long seeds, millis, refCreations, maxProbeMs;
       int probes, probeRetries;
-      int discards, expectedDiscards, unexpectedDiscards, threw, unexpectedThrows, driftSeen,
-         leftoverDiffs, violations;
-      long paranoiaViolations;
+      int discards, expectedDiscards, unexpectedDiscards, unexplainedDiscards, threw,
+         unexpectedThrows, driftSeen, leftoverDiffs, violations;
+      long paranoiaViolations, paranoiaVerifies, paranoiaInconclusive;
    }
 
    private static final boolean LONG = Boolean.getBoolean("rel.long");
    // the script timeout of a loop block, and of everything else
    private static final String LOOP_TIMEOUT_SECONDS = "1";
-   private static final String TIMEOUT_SECONDS = "30";
+   static final String TIMEOUT_SECONDS = "30";
    private static final java.util.concurrent.atomic.AtomicInteger PROBE_RETRIES =
       new java.util.concurrent.atomic.AtomicInteger();
    private static final java.util.concurrent.atomic.AtomicInteger PROBES =
