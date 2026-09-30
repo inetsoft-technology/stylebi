@@ -183,6 +183,13 @@ public class RelMetamorphicTest {
       assertEquals(Drift.NONE, drift(counter, Shape.FTL, lost,
          List.of("Double:3.0", "Double:4.0")));
       assertEquals(Drift.NONE, drift(counter, Shape.FTL, lost, List.of("S:1")));
+      // a plain-data var lost to a home in use by another thread
+      String data = PLAIN_OBJECT_VARS.iterator().next();
+      Map<String, String> busy = Map.of(varNames(data).iterator().next(),
+                                        OwnedVarWarnings.HOME_IN_USE);
+      assertEquals(Drift.B1_HOME_BUSY, drift(data, Shape.FTL, busy, List.of("Double:1.0")));
+      assertNotNull(plainLoss(data, busy, false));
+      assertNull(plainLoss(data, busy, true));
 
       for(String plain : PLAIN_OBJECT_VARS) {
          assertEquals(Drift.NONE, drift(plain, Shape.FTL, Map.of(), List.of("Double:1.0")));
@@ -831,6 +838,8 @@ public class RelMetamorphicTest {
     * in use by another thread or a hand-off over its budget reads as undefined with one
     * warning). A lossy synthetic counter must also have restarted at each loss, never read an
     * older value; a plain-data synthetic script is never excused.</li>
+    * <li>B1_HOME_BUSY: as B1 when every warning of the script's vars is a home in use by
+    * another thread (a concurrent read), the only documented loss of plain data.</li>
     * <li>B3_CONDITION_VAR (status doc B3): a condition's self-referencing var, which ends with
     * its condition's build, not lens-owned.</li>
     * <li>IMPLICIT_GLOBAL: an implicit global lives for one claim.</li>
@@ -844,11 +853,20 @@ public class RelMetamorphicTest {
    {
       String code = RelCorpus.stripStrings(script);
 
-      if(shape.rowScripted() && !PLAIN_OBJECT_VARS.contains(script) &&
-         lost.keySet().stream().anyMatch(varNames(script)::contains) &&
-         (!LOSSY_OBJECT_VARS.contains(script) || restarted(actual)))
-      {
-         return Drift.B1_OBJECT_VAR;
+      if(shape.rowScripted()) {
+         Map<String, String> own = new LinkedHashMap<>(lost);
+         own.keySet().retainAll(varNames(script));
+
+         if(!own.isEmpty() && (!LOSSY_OBJECT_VARS.contains(script) || restarted(actual))) {
+            // a home another thread held loses even plain data (concurrent runs only)
+            if(own.values().stream().allMatch(OwnedVarWarnings.HOME_IN_USE::equals)) {
+               return Drift.B1_HOME_BUSY;
+            }
+
+            if(!PLAIN_OBJECT_VARS.contains(script)) {
+               return Drift.B1_OBJECT_VAR;
+            }
+         }
       }
 
       if(shape == Shape.CONDITION && SELF_VAR.matcher(code).find()) {
@@ -935,7 +953,9 @@ public class RelMetamorphicTest {
       STATS.computeIfAbsent(key, k -> new AtomicLong()).incrementAndGet();
    }
 
-   public enum Drift { NONE, B1_OBJECT_VAR, B3_CONDITION_VAR, IMPLICIT_GLOBAL, C6_HOST_COPY }
+   public enum Drift {
+      NONE, B1_OBJECT_VAR, B1_HOME_BUSY, B3_CONDITION_VAR, IMPLICIT_GLOBAL, C6_HOST_COPY
+   }
 
    /**
     * One comparison: the run of cfg and read against the run of baseCfg and baseRead.

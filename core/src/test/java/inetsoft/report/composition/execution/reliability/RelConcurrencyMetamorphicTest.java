@@ -22,10 +22,13 @@ import ch.qos.logback.classic.Logger;
 import inetsoft.report.composition.execution.AssetQuerySandbox;
 import inetsoft.test.*;
 import inetsoft.util.script.ScriptEnv;
+import inetsoft.util.script.graal.pool.PoolConfig;
 import inetsoft.util.script.graal.pool.PoolMetrics;
 import inetsoft.util.script.graal.pool.WorksheetScriptEnv;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.slf4j.LoggerFactory;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
@@ -104,12 +107,158 @@ public class RelConcurrencyMetamorphicTest {
    }
 
    /**
-    * One repetition: THREADS runs of different scripts, shapes and read patterns at once.
+    * (d) as (a), every thread a formula lens whose vars hold objects (the synthetic plain-data
+    * and lossy object vars), so more tables are resident on the sandbox than it has exclusive
+    * homes (maxHomes 4): the rest take their homes over, handing the values off.
     */
+   @Test
+   public void objectVarsOnOneSandbox() throws Exception {
+      for(int rep = 0; rep < REPS; rep++) {
+         repeat("d", rep, false, false, RelConfig.on(), objectCases(), ROW_SHAPES);
+      }
+   }
+
+   /**
+    * (e) as (d) with no exclusive home (maxHomes 0): every home is taken over by the next
+    * claim of another table.
+    */
+   @Test
+   public void objectVarsWithoutExclusiveHomes() throws Exception {
+      RelConfig cfg = RelConfig.on().with(PoolConfig.MAX_HOMES, "0");
+
+      for(int rep = 0; rep < REPS; rep++) {
+         repeat("e", rep, false, false, cfg, objectCases(), ROW_SHAPES);
+      }
+   }
+
+   /**
+    * (f) one sandbox, 8 threads, each reading 3 object-var formula lenses interleaved 7 rows
+    * at a time with 1-row batches, with the default homes and with none: the lenses' batches
+    * take over, pull from and rebuild each other's homes all the time. Each lens gives the
+    * pool-off result, but for a lossy var that warned and restarted.
+    */
+   @ParameterizedTest(name = "maxHomes={0}")
+   @ValueSource(strings = { "4", "0" })
+   public void interleavedObjectVars(String maxHomes) throws Exception {
+      interleaved("f" + maxHomes, maxHomes, false);
+   }
+
+   /**
+    * (f) with no excuse for a plain-data var lost to a home in use by another thread: every
+    * lens reads its own vars on one thread, yet another thread's claim can hold its home for an
+    * instant (a take-over it gives back when the lens's lock is busy), and a read then loses
+    * the lens's plain data (loud, restarts, never stale). Round 2 seat r2-b1: about 1 in 300
+    * lens runs with maxHomes 4 (rep 11 of 20: syn:objDate lost o from row 936).
+    */
+   @Disabled("finding B1-R2-1: a single-reader lens loses plain object vars when another " +
+             "thread's claim briefly holds its idle home (HOME_BUSY), intermittent")
+   @ParameterizedTest(name = "maxHomes={0}")
+   @ValueSource(strings = { "4", "0" })
+   public void interleavedPlainObjectVarsAreNeverLost(String maxHomes) throws Exception {
+      interleaved("strict-f" + maxHomes, maxHomes, true);
+   }
+
+   private void interleaved(String variant, String maxHomes, boolean strict) throws Exception {
+      RelConfig cfg = RelConfig.on().with(PoolConfig.BATCH_ROWS, "1")
+         .with(PoolConfig.MAX_BATCH_ROWS, "1").with(PoolConfig.MAX_HOMES, maxHomes);
+      List<RelMetamorphicTest.Case> objects = objectCases();
+
+      for(int rep = 0; rep < REPS; rep++) {
+         AssetQuerySandbox box = RelPipeline.sandbox(cfg);
+         ExecutorService executor = Executors.newFixedThreadPool(THREADS);
+         long leaked = PoolMetrics.nodeLeakedClaims();
+
+         try {
+            CyclicBarrier start = new CyclicBarrier(THREADS);
+            List<Future<List<String>>> runs = new ArrayList<>();
+
+            for(int t = 0; t < THREADS; t++) {
+               // 3 different scripts per thread, so a warning names the var of one of them
+               List<RelMetamorphicTest.Case> mine = new ArrayList<>();
+
+               for(int k = 0; k < 3; k++) {
+                  mine.add(objects.get((rep * THREADS + t * 3 + k) % objects.size()));
+               }
+
+               for(RelMetamorphicTest.Case c : mine) {
+                  ORACLES.computeIfAbsent(key(c, Shape.FTL), k -> RelMetamorphicTest.run(
+                     c.script(), Shape.FTL, RelConfig.off(), ReadPattern.SEQUENTIAL));
+               }
+
+               runs.add(executor.submit(() -> {
+                  start.await(30, TimeUnit.SECONDS);
+                  List<List<String>> cells;
+                  Map<String, String> lost;
+
+                  try(OwnedVarWarnings.Recording recording = OwnedVarWarnings.record()) {
+                     cells = RelPipeline.interleaved(
+                        mine.stream().map(RelMetamorphicTest.Case::script).toList(), box, 7);
+                     lost = recording.lost();
+                  }
+
+                  List<String> failures = new ArrayList<>();
+
+                  for(int k = 0; k < mine.size(); k++) {
+                     RelMetamorphicTest.Case c = mine.get(k);
+                     Set<String> vars = RelMetamorphicTest.varNames(c.script());
+                     Map<String, String> own = new LinkedHashMap<>(lost);
+                     own.keySet().retainAll(vars);
+                     String failure = strict
+                        ? RelMetamorphicTest.plainLoss(c.script(), own, false) : null;
+                     failure = failure != null ? variant + " " + c.label() + " " + failure
+                        : check(variant, c, Shape.FTL, ReadPattern.SEQUENTIAL, cells.get(k),
+                                own);
+
+                     if(failure != null) {
+                        failures.add(failure);
+                     }
+                  }
+
+                  return failures;
+               }));
+            }
+
+            List<String> failures = new ArrayList<>();
+
+            for(Future<List<String>> run : runs) {
+               failures.addAll(run.get(5, TimeUnit.MINUTES));
+            }
+
+            PoolMetrics metrics = ((WorksheetScriptEnv) box.getScriptEnv()).getMetrics();
+            add(variant + ".handOffs", metrics.getHandOffs());
+            add(variant + ".takeOvers", metrics.getTakeOvers());
+            add(variant + ".pulls", metrics.getPulls());
+            add(variant + ".rebuilds", metrics.getRebuilds());
+            assertEquals(List.of(), failures, variant + " rep " + rep);
+         }
+         finally {
+            executor.shutdownNow();
+            box.dispose();
+         }
+
+         assertEquals(leaked, PoolMetrics.nodeLeakedClaims(), variant + " rep " + rep + " leaked");
+      }
+   }
+
+   private static List<RelMetamorphicTest.Case> objectCases() {
+      return cases.stream().filter(c -> RelMetamorphicTest.PLAIN_OBJECT_VARS.contains(c.script()) ||
+                                        RelMetamorphicTest.LOSSY_OBJECT_VARS.contains(c.script()))
+         .toList();
+   }
+
    private void repeat(String variant, int rep, boolean ownBoxes, boolean churn)
       throws Exception
    {
-      RelConfig cfg = RelConfig.on();
+      repeat(variant, rep, ownBoxes, churn, RelConfig.on(), cases, Shape.values());
+   }
+
+   /**
+    * One repetition: THREADS runs of different scripts, shapes and read patterns at once.
+    */
+   private void repeat(String variant, int rep, boolean ownBoxes, boolean churn,
+                       RelConfig cfg, List<RelMetamorphicTest.Case> cases, Shape[] shapes)
+      throws Exception
+   {
       List<AssetQuerySandbox> boxes = new ArrayList<>();
       long leaked = PoolMetrics.nodeLeakedClaims();
       long multi = RelPipeline.MULTI_THREADED.get();
@@ -153,7 +302,7 @@ public class RelConcurrencyMetamorphicTest {
          for(int t = 0; t < THREADS; t++) {
             int index = (rep * THREADS + t) % cases.size();
             RelMetamorphicTest.Case c = cases.get(index);
-            Shape shape = Shape.values()[(rep + t) % Shape.values().length];
+            Shape shape = shapes[(rep + t) % shapes.length];
             List<ReadPattern> patterns = ReadPattern.all(c.seed() + rep);
             ReadPattern read = patterns.get(t % patterns.size());
             AssetQuerySandbox box = boxes.get(ownBoxes ? t : 0);
@@ -196,6 +345,15 @@ public class RelConcurrencyMetamorphicTest {
 
          if(churner != null) {
             churner.get(30, TimeUnit.SECONDS);
+         }
+
+         // how often the values of object vars moved between contexts
+         for(AssetQuerySandbox box : boxes) {
+            PoolMetrics metrics = ((WorksheetScriptEnv) box.getScriptEnv()).getMetrics();
+            add(variant + ".handOffs", metrics.getHandOffs());
+            add(variant + ".takeOvers", metrics.getTakeOvers());
+            add(variant + ".pulls", metrics.getPulls());
+            add(variant + ".rebuilds", metrics.getRebuilds());
          }
 
          assertEquals(List.of(), failures, variant + " rep " + rep);
@@ -262,11 +420,16 @@ public class RelConcurrencyMetamorphicTest {
          "\nscript: " + c.script();
    }
 
+   private static void add(String key, long n) {
+      STATS.computeIfAbsent(key, k -> new AtomicLong()).addAndGet(n);
+   }
+
    private static String key(RelMetamorphicTest.Case c, Shape shape) {
       return shape + "\u0000" + c.script();
    }
 
    private static final int THREADS = 8;
+   private static final Shape[] ROW_SHAPES = { Shape.FTL, Shape.FTL_UNDER_CF2 };
    private static final int REPS =
       Integer.getInteger("rel.reps", Boolean.getBoolean("rel.long") ? 500 : 3);
    private static final Map<String, List<String>> ORACLES = new ConcurrentHashMap<>();

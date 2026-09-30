@@ -264,6 +264,47 @@ public final class RelPipeline {
    }
 
    /**
+    * Read several formula lenses over the standard table in one sandbox, interleaved:
+    * {@code step} rows of each in turn, so their batches claim contexts one after the other
+    * and take over each other's idle homes (B1 residual hand-offs). For scripts that do not
+    * fail: a failed row stops the read.
+    *
+    * @return the cells of each lens, as {@link #run} gives them for a sequential FTL read.
+    */
+   public static List<List<String>> interleaved(List<String> formulas, AssetQuerySandbox box,
+                                                int step)
+   {
+      List<FormulaTableLens> lenses = new ArrayList<>();
+      List<List<String>> cells = new ArrayList<>();
+
+      for(String formula : formulas) {
+         TableLens base = baseTable();
+         lenses.add(new FormulaTableLens(base, new String[] { COLUMN },
+            new String[] { formula }, box.getScriptEnv(), box.getScope()));
+         cells.add(new ArrayList<>());
+      }
+
+      int fcol = baseTable().getColCount();
+
+      for(int from = 1; from <= ROWS; from += step) {
+         for(int i = 0; i < lenses.size(); i++) {
+            for(int r = from; r < from + step && r <= ROWS; r++) {
+               lenses.get(i).moreRows(r);
+               cells.get(i).add(str(lenses.get(i).getObject(r, fcol)));
+            }
+         }
+      }
+
+      for(int i = 0; i < lenses.size(); i++) {
+         if(lenses.get(i).moreRows(ROWS + 1)) {
+            cells.get(i).add("extra row " + (ROWS + 1));
+         }
+      }
+
+      return cells;
+   }
+
+   /**
     * Make row {@code r} of {@code table} available. A formula error thrown on the way is
     * recorded against the failed row of the formula lens (the last row it added) and the
     * read resumed, as a reader that skips a failed row would.
