@@ -725,6 +725,12 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
             selection.setExpression(selection.getColumnCount() - 1,
                "true".equals(Tool.getValue(child)));
          }
+
+         Element quotedNode = Tool.getChildNodeByTagName(column, "quoted");
+
+         if(quotedNode != null) {
+            selection.setQuoted(columnName, "true".equals(Tool.getValue(quotedNode)));
+         }
       }
 
       nlist = Tool.getChildNodesByTagName(node, "where");
@@ -1026,6 +1032,11 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
          writer.println("<description><![CDATA[" + (desc == null ? "" : desc) +
                         "]]></description>");
          writer.println("<isExp><![CDATA[" + isExp + "]]></isExp>");
+
+         if(selection.isQuoted(column)) {
+            writer.println("<quoted><![CDATA[true]]></quoted>");
+         }
+
          writer.println("</column>");
       }
 

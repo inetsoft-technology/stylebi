@@ -65,6 +65,7 @@ public class JDBCSelection extends XSelection {
          if(select instanceof JDBCSelection) {
             setTable(path, ((JDBCSelection) select).getTable(path));
             setDescription(path, select.getDescription(path));
+            setQuoted(path, ((JDBCSelection) select).isQuoted(path));
          }
       }
    }
@@ -128,6 +129,8 @@ public class JDBCSelection extends XSelection {
       if(tables) {
          tablemap.clear();
       }
+
+      quoted.clear();
    }
 
    /**
@@ -138,6 +141,7 @@ public class JDBCSelection extends XSelection {
    public boolean removeColumn(String path) {
       boolean result = super.removeColumn(path);
       tablemap.remove(path);
+      quoted.remove(path);
 
       return result;
    }
@@ -369,6 +373,31 @@ public class JDBCSelection extends XSelection {
    }
 
    /**
+    * Check if a column was written as a quoted identifier (e.g. "x y") in the parsed SQL.
+    * The quotes are not part of the column path, so they are restored when the SQL is
+    * generated.
+    * @param column the specified column.
+    * @return <tt>true</tt> if quoted, <tt>false</tt> otherwise.
+    */
+   public boolean isQuoted(String column) {
+      return quoted.contains(column);
+   }
+
+   /**
+    * Set whether a column was written as a quoted identifier.
+    * @param column the specified column.
+    * @param quoted <tt>true</tt> if quoted, <tt>false</tt> otherwise.
+    */
+   public void setQuoted(String column, boolean quoted) {
+      if(quoted) {
+         this.quoted.add(column);
+      }
+      else {
+         this.quoted.remove(column);
+      }
+   }
+
+   /**
     * Get the string representation.
     */
    public String toString() {
@@ -397,6 +426,7 @@ public class JDBCSelection extends XSelection {
       select.newToOldAlias = new HashMap<>(newToOldAlias);
       select.oldToNewAlias = new HashMap<>(oldToNewAlias);
       select.aggregates = (HashSet) aggregates.clone();
+      select.quoted = new HashSet<>(quoted);
 
       return select;
    }
@@ -407,12 +437,13 @@ public class JDBCSelection extends XSelection {
       if(o == null || getClass() != o.getClass()) return false;
       if(!super.equals(o)) return false;
       JDBCSelection that = (JDBCSelection) o;
-      return Objects.equals(tablemap, that.tablemap) && Objects.equals(aggregates, that.aggregates);
+      return Objects.equals(tablemap, that.tablemap) && Objects.equals(aggregates, that.aggregates) &&
+         Objects.equals(quoted, that.quoted);
    }
 
    @Override
    public int hashCode() {
-      return Objects.hash(super.hashCode(), tablemap, aggregates);
+      return Objects.hash(super.hashCode(), tablemap, aggregates, quoted);
    }
 
    private HashMap<String, String> tablemap = new HashMap(); // path -> table (String)
@@ -421,5 +452,6 @@ public class JDBCSelection extends XSelection {
    // alias -> valias, generated in this query or base/sub queries
    private Map<String, String> oldToNewAlias = new HashMap<>();
    private HashSet<String> aggregates = new HashSet<>(); // aggregates
+   private HashSet<String> quoted = new HashSet<>(); // columns written as quoted identifiers
    private boolean plan = false; // plan flag
 }

@@ -1395,7 +1395,14 @@ public class SQLHelper implements KeywordProvider {
 
          String ocolumn = xselect.getOriginalColumn(xIdx);
 
-         if(uniformSql.isTableColumn(column) && subalias == null && !expr) {
+         // a quoted identifier (e.g. "x y") parsed from the sql is stored without its
+         // quotes, restore them so the generated sql refers to the same column
+         if(!expr && table == null && subalias == null &&
+            ((JDBCSelection) xselect).isQuoted(xselect.getColumn(xIdx)))
+         {
+            column = getQuote() + column + getQuote();
+         }
+         else if(uniformSql.isTableColumn(column) && subalias == null && !expr) {
             // @by larryl, if this is a table column and the original column is
             // set, we should use the real column otherwise the flags to
             // quoteColumnAlias is not accurate

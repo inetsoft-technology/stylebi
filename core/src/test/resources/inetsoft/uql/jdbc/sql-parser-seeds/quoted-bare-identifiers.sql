@@ -1,0 +1,1 @@
+select "$t", "Schemsel.1", "MixedCase" from t
