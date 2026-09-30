@@ -129,6 +129,23 @@ class ViewsheetScopePrincipalTest {
    }
 
    /**
+    * Bug #77361: growing the allow-list must never expose a setter or a session getter.
+    * Checks both the enumerated members and direct lookup.
+    */
+   @Test
+   void allowListExposesNoSetterOrSessionGetter() throws Exception {
+      assertEquals("none", run(
+         "var p = parameter.__principal__;" +
+         "var bad = Object.keys(p).filter(function(k) {" +
+         "  return /^set/.test(k) || ['getUser', 'getSession', 'getSessionID', 'getSecureID']" +
+         "    .indexOf(k) >= 0; });" +
+         "['getUser', 'getSession', 'getSessionID', 'getSecureID', 'setOrgId', 'setGroups'," +
+         " 'setRoles', 'setProperty', 'setParameter', 'setName'].forEach(function(k) {" +
+         "  if(typeof p[k] != 'undefined') { bad.push(k); } });" +
+         "bad.length ? bad.join(',') : 'none'"));
+   }
+
+   /**
     * Bug #77256: VPM evaluates {@code groups} from the session principal. A viewsheet
     * script must not be able to forge a group that VPM then trusts.
     */
