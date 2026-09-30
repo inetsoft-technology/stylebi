@@ -59,6 +59,37 @@ public class MessageFormat extends Format {
             }
          }
       }
+
+      checkChoiceFormats(fmts, fmt.getLocale());
+   }
+
+   /**
+    * Reject choice formats that java.text.MessageFormat accepts but that fail every time they
+    * are used: a choice with no limits (e.g. {0,choice,}), and a choice string that contains
+    * '{' but is not a valid message pattern. The JDK parses such a choice string only when
+    * the value selects it at format time, so parse it here the same way.
+    */
+   private static void checkChoiceFormats(Format[] fmts, Locale locale) {
+      for(Format format : fmts) {
+         if(!(format instanceof ChoiceFormat)) {
+            continue;
+         }
+
+         ChoiceFormat choice = (ChoiceFormat) format;
+
+         if(choice.getLimits().length == 0) {
+            throw new IllegalArgumentException(
+               "Choice pattern has no choices: " + choice.toPattern());
+         }
+
+         for(Object text : choice.getFormats()) {
+            String str = (String) text;
+
+            if(str.indexOf('{') >= 0) {
+               checkChoiceFormats(new java.text.MessageFormat(str, locale).getFormats(), locale);
+            }
+         }
+      }
    }
 
    /**
