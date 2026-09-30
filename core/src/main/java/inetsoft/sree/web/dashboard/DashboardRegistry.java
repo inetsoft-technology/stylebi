@@ -479,17 +479,41 @@ public class DashboardRegistry {
    /**
     * Re-load the dashboards after a change of the file. The path is read under the lock, because
     * the registry may have been moved to another org (modifyOrgId) while the event waited for it.
+    *
+    * @return true if the cached dashboards are now the ones of the file, false if the file could
+    *         not be read or parsed, or this registry has been detached by clear().
     */
-   private void reload(DashboardRegistry globalRegistry) {
+   private boolean reload(DashboardRegistry globalRegistry) {
       boolean ported;
+      boolean synced;
 
       synchronized(this) {
          ported = loadDashboard(getPath(), globalRegistry, true);
+         synced = ported || !detached && syncedDigest != null;
       }
 
       if(ported) {
          savePorted(globalRegistry);
       }
+
+      return synced;
+   }
+
+   /**
+    * Re-loads the dashboards from the registry file now, if the file has changed since this
+    * registry last saved or loaded it, instead of waiting for the change notification, which
+    * reaches this node some time after another node wrote the file (Bug #77299). The dashboard
+    * manager calls it, holding its store lock, when a selected dashboard is not in this node's
+    * cached copy. It must not be called while holding a registry's monitor or the cluster lock
+    * of a registry file (see the lock order in the class comment).
+    *
+    * @return true if the cached dashboards are now the ones of the file.
+    */
+   boolean syncWithFile() {
+      // resolved before this registry is locked, since it may lock the registry manager
+      DashboardRegistry globalRegistry = isGlobal() ? null :
+         DashboardRegistryManager.getInstance().getGlobalForPort(getOrgID());
+      return reload(globalRegistry);
    }
 
    /**

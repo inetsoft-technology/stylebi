@@ -243,9 +243,10 @@ class DashboardClusterConcurrencyTest {
          node2.putDashboard("y", newVsDashboard());
          manager.addDashboard(identity, "y");
 
-         // the tab model on node1, before node1 has loaded y
-         assertFalse(Arrays.asList(manager.getDashboards(identity)).contains("y"),
-                     "precondition: node1's cached copy is stale");
+         // the tab model on node1, before the notification has reloaded node1's cached copy,
+         // loads the file when a selected dashboard isn't in the cached copy (Bug #77299)
+         assertTrue(Arrays.asList(manager.getDashboards(identity)).contains("y"),
+                    "the dashboard another node created and selected must be listed");
       }
 
       assertTrue(store.get(key(identity)).getDashboards().contains("y"),
@@ -254,6 +255,114 @@ class DashboardClusterConcurrencyTest {
       fireListener(node1);
       assertTrue(Arrays.asList(manager.getDashboards(identity)).contains("y"),
                  "the dashboard is listed once node1 has loaded it");
+   }
+
+   // ── Bug #77299: a dashboard renamed on another node is listed under one of its names ──
+
+   @Test
+   void getDashboards_whileRenamedOnAnotherNode_listsTheNewName() throws Exception {
+      DashboardManager manager = newManager(keyValueStorageManager);
+      Identity identity = new DefaultIdentity(user, Identity.USER);
+      KeyValueStorage<DashboardManager.DashboardData> store = store(identity);
+      node1.putDashboard("s1", newVsDashboard());
+      fireListener(node2);
+      manager.addDashboard(identity, "s1");
+
+      synchronized(node1) {
+         // node2 renames s1, and the notification hasn't reloaded node1's cached copy yet
+         node2.renameDashboard("s1", "s1r");
+         assertNull(node1.getDashboard("s1r"), "precondition: node1's cached copy is stale");
+
+         // the tab model on node1
+         assertEquals(List.of("s1r"), Arrays.asList(manager.getDashboards(identity)),
+                      "the dashboard being renamed must be listed under one of its names");
+      }
+
+      assertEquals(List.of("s1r"), store.get(key(identity)).getDashboards());
+   }
+
+   @Test
+   void getDashboards_readBeforeRenameOnAnotherNode_listsTheNewName() throws Exception {
+      Identity identity = new DefaultIdentity(user, Identity.USER);
+      Park park = new Park("reader");
+      KeyValueStorageManager storages = mock(KeyValueStorageManager.class);
+      when(storages.getStorage(anyString(), any(LoadKeyValueTask.class))).thenAnswer(inv -> {
+         KeyValueStorage<DashboardManager.DashboardData> real =
+            keyValueStorageManager.getStorage(inv.getArgument(0), inv.getArgument(1));
+         return parkAfterGet(real, park);
+      });
+      DashboardManager manager = newManager(storages);
+      KeyValueStorage<DashboardManager.DashboardData> store = store(identity);
+      node1.putDashboard("s1", newVsDashboard());
+      fireListener(node2);
+      manager.addDashboard(identity, "s1");
+      park.armed = true;
+
+      // node1 reads the stored selection [s1], then node2 renames s1 and node1's cached copy
+      // is reloaded before node1 looks the stored names up in it
+      String[][] result = new String[1][];
+      Thread reader = start("reader", () -> result[0] = manager.getDashboards(identity, false));
+      park.awaitParked();
+      node2.renameDashboard("s1", "s1r");
+      fireListener(node1);
+      assertNotNull(node1.getDashboard("s1r"), "precondition: node1 loaded the rename");
+      park.release();
+      assertCompletes(reader);
+
+      assertEquals(List.of("s1r"), Arrays.asList(result[0]),
+                   "the dashboard being renamed must be listed under one of its names");
+      assertEquals(List.of("s1r"), store.get(key(identity)).getDashboards());
+   }
+
+   @Test
+   void getDashboards_whileGlobalRenamedOnAnotherNode_keepsTheSelection() throws Exception {
+      DashboardManager manager = newManager(keyValueStorageManager);
+      Identity identity = new DefaultIdentity(user, Identity.USER);
+      KeyValueStorage<DashboardManager.DashboardData> store = store(identity);
+      DashboardRegistry global1 = dashboardRegistryManager.getRegistry();
+      cleanups.add(() -> {
+         try {
+            global1.removeEntry("g77299__GLOBAL");
+            global1.removeEntry("h77299__GLOBAL");
+         }
+         catch(Exception e) {
+            throw new RuntimeException(e);
+         }
+      });
+      global1.putDashboard("g77299__GLOBAL", newVsDashboard());
+      DashboardRegistry global2 = new DashboardRegistry(global1.getOrgID(), eventPublisher,
+                                                        securityEngine);
+      global2.loadDashboard(null);
+      cleanups.add(global2::clear);
+      assertNotNull(global2.getDashboard("g77299__GLOBAL"), "precondition: global2 loaded it");
+      manager.setDashboards(identity, new String[] { "g77299__GLOBAL" });
+
+      synchronized(global1) {
+         // another node renames the global dashboard, and the notification hasn't reloaded
+         // this node's cached global registry yet
+         global2.renameDashboard("g77299__GLOBAL", "h77299__GLOBAL");
+         assertNull(global1.getDashboard("h77299__GLOBAL"),
+                    "precondition: the cached global registry is stale");
+
+         assertEquals(List.of("h77299__GLOBAL"),
+                      Arrays.asList(manager.getDashboards(identity)),
+                      "the renamed global dashboard must be listed");
+      }
+
+      assertEquals(List.of("h77299__GLOBAL"), store.get(key(identity)).getDashboards(),
+                   "a stale cached global registry must not remove the stored selection");
+   }
+
+   @Test
+   void getDashboards_withRemovedDashboard_removesItFromTheSelection() throws Exception {
+      DashboardManager manager = newManager(keyValueStorageManager);
+      Identity identity = new DefaultIdentity(user, Identity.USER);
+      KeyValueStorage<DashboardManager.DashboardData> store = store(identity);
+      manager.setDashboards(identity, new String[] { "seed", "gone" });
+
+      assertEquals(List.of("seed"), Arrays.asList(manager.getDashboards(identity)));
+      assertEquals(List.of("seed"), store.get(key(identity)).getDashboards(),
+                   "a name that isn't in the registry files is removed from the selection");
    }
 
    // ── the selection record read-modify-write is atomic across nodes ──
