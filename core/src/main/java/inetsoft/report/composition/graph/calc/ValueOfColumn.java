@@ -631,25 +631,20 @@ public class ValueOfColumn extends AbstractColumn {
     * @return
     */
    private Date getPreQuarterSameWeek(Date date) {
-      long weekIndexOfQuarter = getWeekIndexOfQuarter(date);
+      int weekStart = Tool.getFirstDayOfWeek();
       Calendar calendar = jcalendars.get();
-      calendar.setFirstDayOfWeek(Tool.getFirstDayOfWeek());
+      calendar.setFirstDayOfWeek(weekStart);
       calendar.setTime(date);
-      calendar.add(Calendar.MONTH, -3);
-      Date firstWeekOfQuarter = DateComparisonUtil.getQuarterFirstWeek(calendar.getTime(),
-                                                                       Tool.getFirstDayOfWeek());
+      int weekOfQuarter = DateComparisonUtil.getWeekOfQuarter(calendar, weekStart);
 
-      return new Date(firstWeekOfQuarter.getTime() +
-                         (weekIndexOfQuarter - 1) * 7 * 24 * 60 * 60 * 1000);
-   }
+      // the week just before this quarter's first full week always belongs to the previous
+      // quarter. subtracting 3 months from the date instead can land in a week of the quarter
+      // before that (e.g. 2021-10-03 - 3 months = 2021-07-03, which is in the week of 06-27).
+      calendar.setTime(DateComparisonUtil.getQuarterFirstWeek(date, weekStart));
+      calendar.add(Calendar.DATE, -7);
+      DateComparisonUtil.setWeekOfQuarter(weekOfQuarter, calendar, weekStart);
 
-   private long getWeekIndexOfQuarter(Date date) {
-      Date firstWeekOfQuarter = DateComparisonUtil.getQuarterFirstWeek(date,
-                                                                       Tool.getFirstDayOfWeek());
-      long differenceInMillis = date.getTime() - firstWeekOfQuarter.getTime();
-      long differenceInWeeks = differenceInMillis / (7 * 24 * 60 * 60 * 1000);
-
-      return 1 + differenceInWeeks;
+      return calendar.getTime();
    }
 
    private Date getPreMonthSameWeek(Date date) {
