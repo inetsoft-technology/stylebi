@@ -189,6 +189,54 @@ class PrintLayoutCardTopTest {
                    fixture.bounds(elements.get(2)));
    }
 
+   @Test
+   void aZeroTopInsetKeepsTheTableBelowTheCardTopBorder() throws Exception {
+      PrintLayoutConverterFixture fixture = new PrintLayoutConverterFixture().inset(0, 16, 16, 16);
+      fixture.info.setTitleVisibleValue(false);
+      List<ReportElement> elements = fixture.addTable();
+      int titleH = fixture.info.getTitleHeight();
+
+      // the box is the THIN border alone, and the table starts under it, not on it
+      assertEquals(new Rectangle(20, 10, 400, 1), fixture.bounds(cardTop(elements)));
+      assertEquals(new Rectangle(20, 11, 400, 250 - 1 - titleH),
+                   fixture.bounds(table(elements)));
+   }
+
+   @Test
+   void aZeroTopInsetOnABorderlessCardStartsTheTableAtTheCardTop() throws Exception {
+      PrintLayoutConverterFixture fixture = new PrintLayoutConverterFixture().inset(0, 16, 16, 16);
+      fixture.info.getFormat().getUserDefinedFormat().setBorders(new Insets(NONE, NONE, NONE, NONE));
+      fixture.info.setTitleVisibleValue(false);
+      List<ReportElement> elements = fixture.addTable();
+      int titleH = fixture.info.getTitleHeight();
+
+      // no border and no lane, so there is nothing above the card to climb into
+      assertEquals(new Rectangle(20, 10, 400, 250 - titleH), fixture.bounds(table(elements)));
+   }
+
+   @Test
+   void aZeroTopInsetStillJoinsAVisibleTitle() throws Exception {
+      PrintLayoutConverterFixture fixture = new PrintLayoutConverterFixture().inset(0, 16, 16, 16);
+      List<ReportElement> elements = fixture.addTable();
+      int titleH = fixture.info.getTitleHeight();
+
+      assertEquals(new Rectangle(20, 10, 400, 1 + titleH), fixture.bounds(elements.get(0)));
+      assertEquals(new Rectangle(37, 11, 367, titleH), fixture.bounds(elements.get(1)));
+      // the lane absorbs the overlap, so the join is unchanged
+      assertEquals(new Rectangle(20, 10 + titleH, 400, 250 - 1 - titleH),
+                   fixture.bounds(table(elements)));
+   }
+
+   private static ReportElement table(List<ReportElement> elements) {
+      return elements.stream().filter(e -> e instanceof TableElementDef)
+         .findFirst().orElseThrow();
+   }
+
+   private static ReportElement cardTop(List<ReportElement> elements) {
+      return elements.stream().filter(e -> e instanceof TextBoxElementDef)
+         .findFirst().orElseThrow();
+   }
+
    private static final int THICK = StyleConstants.THICK_LINE;
    private static final int THIN = StyleConstants.THIN_LINE;
    private static final int NONE = StyleConstants.NO_BORDER;
