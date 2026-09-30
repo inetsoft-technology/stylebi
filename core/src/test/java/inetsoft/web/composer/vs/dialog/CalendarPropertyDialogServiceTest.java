@@ -173,6 +173,21 @@ class CalendarPropertyDialogServiceTest {
       assertEquals(280, live.getPixelSize().height);
    }
 
+   @Test
+   void reporterCalendarTab1GeometryUnchangedOnOk() throws Exception {
+      // calendartab1 (Bug #77371): Calendar1 300x300 at (98,242), title 36, bottom tabs at
+      // y=542. OK without changes, then OK again with title height 60.
+      for(int titleHeight : new int[] { 36, 60 }) {
+         CalendarVSAssemblyInfo result =
+            save(CalendarVSAssemblyInfo.CALENDAR_SHOW_TYPE, 36, new Point(98, 242), 542,
+                 CalendarVSAssemblyInfo.CALENDAR_SHOW_TYPE, titleHeight,
+                 new Dimension(300, 300), new Dimension(300, 300));
+         assertEquals(new Dimension(300, 300), result.getPixelSize(), "title " + titleHeight);
+         assertEquals(new Point(98, 242), result.getPixelOffset(), "title " + titleHeight);
+         Mockito.clearInvocations(vsObjectPropertyService);
+      }
+   }
+
    private CalendarVSAssemblyInfo save(int oldShowType, boolean bottomTabs, int newShowType,
                                        int newTitleHeight) throws Exception
    {
@@ -192,6 +207,38 @@ class CalendarPropertyDialogServiceTest {
       info.setTitleHeightValue(20);
       info.setPixelOffset(new Point(50, 300));
       info.setPixelSize(size);
+      return save(info, bottomTabs, 420, newShowType, newTitleHeight, dialogSize);
+   }
+
+   /**
+    * Save with the real size and position panes applied (dialog shows the current values).
+    */
+   private CalendarVSAssemblyInfo save(int oldShowType, int oldTitleHeight, Point pos,
+                                       int tabTop, int newShowType, int newTitleHeight,
+                                       Dimension size, Dimension dialogSize) throws Exception
+   {
+      CalendarVSAssemblyInfo info = new CalendarVSAssemblyInfo();
+      info.setShowTypeValue(oldShowType);
+      info.setTitleHeightValue(oldTitleHeight);
+      info.setPixelOffset(pos);
+      info.setPixelSize(size);
+
+      doCallRealMethod().when(dialogService)
+         .setAssemblyPosition(any(), any(SizePositionPaneModel.class));
+      given(calendarPropertyDialogModel.getCalendarGeneralPaneModel()
+               .getSizePositionPaneModel().getLeft())
+         .willReturn(pos.x);
+      given(calendarPropertyDialogModel.getCalendarGeneralPaneModel()
+               .getSizePositionPaneModel().getTop())
+         .willReturn(pos.y);
+
+      return save(info, true, tabTop, newShowType, newTitleHeight, dialogSize);
+   }
+
+   private CalendarVSAssemblyInfo save(CalendarVSAssemblyInfo info, boolean bottomTabs,
+                                       int tabTop, int newShowType, int newTitleHeight,
+                                       Dimension dialogSize) throws Exception
+   {
 
       if(dialogSize != null) {
          doCallRealMethod().when(dialogService)
@@ -207,7 +254,7 @@ class CalendarPropertyDialogServiceTest {
 
       TabVSAssemblyInfo tabInfo = new TabVSAssemblyInfo();
       tabInfo.setBottomTabsValue(bottomTabs);
-      tabInfo.setPixelOffset(new Point(0, 420));
+      tabInfo.setPixelOffset(new Point(0, tabTop));
 
       TabVSAssembly tabAssembly = Mockito.mock(TabVSAssembly.class);
       when(tabAssembly.getVSAssemblyInfo()).thenReturn(tabInfo);
