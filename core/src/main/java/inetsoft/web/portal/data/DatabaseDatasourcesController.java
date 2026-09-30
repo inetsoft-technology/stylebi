@@ -199,6 +199,11 @@ public class DatabaseDatasourcesController {
    /**
     * add a new data source folder.
     */
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    @PostMapping("/api/portal/data/database/dataModelFolder")
    public void addDataModelFolder(
       @RequestBody @PermissionPath("parentPath()") AddFolderRequest request, Principal principal)
@@ -217,6 +222,11 @@ public class DatabaseDatasourcesController {
    /**
     * Check outer dependencies for logical models under the target folder;
     */
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    @PostMapping("/api/data/database/dataModelFolder/checkOuterDependencies")
    public StringWrapper checkOuterDependencies(@RequestBody CheckDependenciesEvent event)
       throws Exception
@@ -232,6 +242,11 @@ public class DatabaseDatasourcesController {
    /**
     * Delete a new data source folder.
     */
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    @DeleteMapping("/api/portal/data/database/dataModelFolder")
    public void deleteDataModelFolder(@RequestParam("databasePath") String databasePath,
                                               @RequestParam("folderName") String folderName,
@@ -244,6 +259,11 @@ public class DatabaseDatasourcesController {
    /**
     * Rename a new data source folder.
     */
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    @PutMapping("/api/portal/data/database/dataModelFolder")
    public void renameDataModelFolder(@RequestBody RenameFolderRequest request, Principal principal)
       throws Exception
@@ -270,6 +290,11 @@ public class DatabaseDatasourcesController {
    /**
     * Rename a new data source folder.
     */
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    @GetMapping("/api/portal/data/database/dataModelFolder/duplicateCheck")
    public boolean dataModelFolderDuplicateCheck(@RequestParam("databasePath") String databasePath,
                                                 @RequestParam("name") String folderName)

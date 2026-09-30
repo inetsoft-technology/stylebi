@@ -688,6 +688,12 @@ public class DatabaseModelBrowserService {
          throw new FileNotFoundException(databasePath + "/" + oldName);
       }
 
+      // the data model browser offers rename only on a folder that is editable and deletable,
+      // and the rename moves the folder's permission to the new path, as creating it would
+      checkFolderPermission(databasePath, oldName, ResourceAction.WRITE, principal);
+      checkFolderPermission(databasePath, oldName, ResourceAction.DELETE, principal);
+      checkFolderPermission(databasePath, folderName, ResourceAction.WRITE, principal);
+
       ActionRecord actionRecord = null;
       String auditOldPath = databasePath + "/" + oldName;
       String auditPath = databasePath + "/" + folderName;
@@ -821,6 +827,18 @@ public class DatabaseModelBrowserService {
             actionRecord.setActionTimestamp(actionTimestamp);
             Audit.getInstance().auditAction(actionRecord, principal);
          }
+      }
+   }
+
+   private void checkFolderPermission(String databasePath, String folderName,
+                                      ResourceAction action, Principal principal)
+      throws SecurityException
+   {
+      String path = databasePath + "/" + folderName;
+
+      if(!securityEngine.checkPermission(principal, ResourceType.DATA_MODEL_FOLDER, path, action)) {
+         throw new SecurityException(
+            "Unauthorized access to resource \"" + path + "\" by user " + principal);
       }
    }
 

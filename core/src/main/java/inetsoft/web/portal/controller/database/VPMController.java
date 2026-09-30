@@ -216,12 +216,8 @@ public class VPMController {
          throw new FileNotFoundException(database);
       }
 
-      if(!dataSourceService.checkPermission(database, ResourceAction.READ, principal)) {
-         throw new SecurityException(
-            "Unauthorized access to resource \"" + database + "\" by user " +
-               principal);
-      }
-
+      // the Data tab lists and edits VPMs only with WRITE on the data source
+      checkVpmPermission(database, principal);
       VirtualPrivateModel vpm = dataModel.getVirtualPrivateModel(name);
 
       if(vpm == null) {
@@ -352,9 +348,11 @@ public class VPMController {
    ))
    @PostMapping("/api/data/vpm/physicalModel/tablePath/**")
    public String getTablePath(@RemainingPath String database,
-                              @RequestBody StringWrapper tableNameWrapper)
+                              @RequestBody StringWrapper tableNameWrapper,
+                              Principal principal)
       throws Exception
    {
+      checkVpmPermission(database, principal);
       String tableName = tableNameWrapper.getBody();
       XDataModel dataModel = repository.getDataModel(database);
       XNode node;
@@ -614,6 +612,17 @@ public class VPMController {
       repository.updateDataModel(dataModel);
    }
 
+   /**
+    * VPM editor reads need the permission the Data tab requires to list and edit VPMs:
+    * WRITE on the data source.
+    */
+   private void checkVpmPermission(String database, Principal principal) throws Exception {
+      if(!dataSourceService.checkPermission(database, ResourceAction.WRITE, principal)) {
+         throw new SecurityException(
+            "Unauthorized access to resource \"" + database + "\" by user " + principal);
+      }
+   }
+
    private void removeVPM(XDataModel dataModel, String database, String name, Principal principal)
       throws Exception
    {
@@ -700,8 +709,9 @@ public class VPMController {
       actions = ResourceAction.ACCESS
    ))
    @PostMapping(value = "/api/data/vpm/test")
-   public String test(@RequestBody VpmTestEvent event) throws Exception {
+   public String test(@RequestBody VpmTestEvent event, Principal principal) throws Exception {
       String database = event.getDatabase();
+      checkVpmPermission(database, principal);
       String type = event.getType();
       String name = event.getName();
       VPMDefinition vpModel = event.getVpm();
@@ -876,6 +886,15 @@ public class VPMController {
    {
       List<DatabaseTreeNode> nodes = new ArrayList<>();
       String parentPath = pnode.getPath();
+      String type = pnode.getType();
+
+      // getAlias() reads the data model of the node's database whatever the node path is
+      if(DatabaseTreeNodeType.ALIAS_TABLE_FOLDER.equals(type) ||
+         DatabaseTreeNodeType.PHYSICAL_MODEL.equals(type) ||
+         DatabaseTreeNodeType.ALIAS_TABLE.equals(type))
+      {
+         checkVpmPermission(pnode.getDatabase(), principal);
+      }
 
       if(!databaseTreeService.isAliasNode(parentPath)) {
          nodes =

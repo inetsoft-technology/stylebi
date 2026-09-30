@@ -97,6 +97,7 @@ public class PhysicalGraphModelService {
       XDataModel dataModel = modelService.getDataModel(dataSource, modelName);
       RuntimePartitionService.RuntimeXPartition rPartition
          = this.partitionService.getRuntimePartition(runtimeId);
+      RuntimePartitionService.checkDataSource(rPartition, dataSource);
       XPartition partition = rPartition.getPartition();
 
       PhysicalModelDefinition pmModel = modelService.createModel(

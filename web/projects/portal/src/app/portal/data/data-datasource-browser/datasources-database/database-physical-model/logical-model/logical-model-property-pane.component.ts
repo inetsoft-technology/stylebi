@@ -670,6 +670,8 @@ export class LogicalModelPropertyPane implements OnInit, OnDestroy {
       dialog.databaseName = this.databaseName;
       dialog.physicalModelName = this.physicalModelName;
       dialog.additional = this.additional;
+      dialog.logicalModelName = this.originalName;
+      dialog.logicalModelParent = this.parent;
 
       if(!!this._editingEle && this._editingEle.entity != -1) {
          dialog.parent = this._editingEle.entity;
