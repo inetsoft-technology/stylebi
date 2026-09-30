@@ -258,6 +258,21 @@ class IdentityThemeServiceTest {
       assertTrue(y.getUsers().isEmpty());
    }
 
+   // Bug #77304: the reserved default theme id selects the default theme like an empty string,
+   // so it removes the user from the previously selected theme instead of being ignored
+   @Test
+   void updateUserTheme_defaultThemeId_clearsPreviousAssignment() {
+      CustomTheme x = theme("x", HOST_ORG);
+      x.getUsers().add("bob");
+      CustomTheme y = theme("y", HOST_ORG);
+      when(manager.getCustomThemes()).thenReturn(new HashSet<>(Set.of(x, y)));
+
+      service.updateUserTheme("bob", "bob", HOST_ORG, CustomTheme.DEFAULT_THEME_ID);
+
+      assertTrue(x.getUsers().isEmpty(), "the default theme id must clear the user's theme");
+      assertTrue(y.getUsers().isEmpty());
+   }
+
    // Issue #77056: a global theme's bare user entry refers to the default organization's user,
    // so it must not be shown as the theme of another organization's same-named user
    @Test

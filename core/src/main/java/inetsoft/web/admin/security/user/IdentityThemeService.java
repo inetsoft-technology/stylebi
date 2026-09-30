@@ -187,7 +187,8 @@ public class IdentityThemeService {
     * @param oldName the old user name.
     * @param name    the new user name.
     * @param orgID   the organization of the user.
-    * @param ntheme  the ID of the selected theme, an empty string for the default theme, or
+    * @param ntheme  the ID of the selected theme, an empty string or
+    *                {@link CustomTheme#DEFAULT_THEME_ID} for the default theme, or
     *                <tt>null</tt> to only rename the user. A theme that cannot be assigned to
     *                the user's organization is ignored.
     */
@@ -197,9 +198,10 @@ public class IdentityThemeService {
       }
 
       customThemesManager.updateCustomThemes(themes -> {
-         String selected = ntheme;
+         // the default theme id selects the default theme like an empty string
+         String selected = CustomTheme.isReservedId(ntheme) ? "" : ntheme;
 
-         if(!Tool.isEmptyString(ntheme) && themes.stream().noneMatch(
+         if(!Tool.isEmptyString(selected) && themes.stream().noneMatch(
             theme -> ntheme.equals(theme.getId()) && theme.isIdentityOrganization(orgID)))
          {
             LOG.warn("Ignoring theme {} for user {} because it cannot be assigned to organization {}",

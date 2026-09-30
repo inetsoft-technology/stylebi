@@ -173,6 +173,17 @@ class OrgThemeEligibilityTest {
    }
 
    @Test
+   void defaultTheme_clearsToDefault() throws Exception {
+      // Bug #77304: the reserved default theme id (REST/Shell "theme":"default") clears the
+      // org default like an empty theme instead of being ignored as an unknown theme
+      updateTheme(CustomTheme.DEFAULT_THEME_ID);
+
+      assertNull(storedTheme(), "the default theme id must clear the org default");
+      assertFalse(themeById(CURRENT_THEME).getOrganizations().contains(EDITED_ORG_ID));
+      verify(themesManager).setOrgSelectedTheme("default", EDITED_ORG_ID);
+   }
+
+   @Test
    void nullTheme_clearsToDefault() throws Exception {
       updateTheme(null);
 
