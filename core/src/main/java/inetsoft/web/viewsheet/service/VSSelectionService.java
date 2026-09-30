@@ -29,11 +29,14 @@ import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.uql.viewsheet.internal.VSUtil;
+import inetsoft.util.CancelledException;
 import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
 import inetsoft.web.viewsheet.command.MessageCommand;
 import inetsoft.web.viewsheet.event.*;
 import org.apache.commons.lang3.StringUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
@@ -827,8 +830,8 @@ public class VSSelectionService {
    /**
     * Execute selection value.
     */
-   private void executeSelection(SelectionVSAssembly assembly, int hint, Context context,
-                                 String eventSource)
+   void executeSelection(SelectionVSAssembly assembly, int hint, Context context,
+                         String eventSource)
       throws Exception
    {
       final RuntimeViewsheet rvs = context.rvs();
@@ -858,36 +861,44 @@ public class VSSelectionService {
          return;
       }
 
-      coreLifecycleService.execute(rvs, assembly.getName(), linkUri, clist, dispatcher,
-                                   true);
+      try {
+         coreLifecycleService.execute(rvs, assembly.getName(), linkUri, clist, dispatcher,
+                                      true);
 
-      Viewsheet viewsheet = rvs.getViewsheet();
+         Viewsheet viewsheet = rvs.getViewsheet();
 
-      if(viewsheet == null) {
-         return;
-      }
+         if(viewsheet == null) {
+            return;
+         }
 
-      // Bug #59654, reapply scale to vs assemblies after changing a selection value
-      if(viewsheet.getViewsheetInfo().isScaleToScreen() &&
-         (rvs.isPreview() || rvs.isViewer()))
-      {
-         Object scaleSize = rvs.getProperty("viewsheet.appliedScale");
-
-         if(scaleSize instanceof Dimension && ((Dimension) scaleSize).width > 0 &&
-            ((Dimension) scaleSize).height > 0)
+         // Bug #59654, reapply scale to vs assemblies after changing a selection value
+         if(viewsheet.getViewsheetInfo().isScaleToScreen() &&
+            (rvs.isPreview() || rvs.isViewer()))
          {
-            this.coreLifecycleService.refreshViewsheet(rvs, rvs.getID(), linkUri,
-                                                       ((Dimension) scaleSize).width,
-                                                       ((Dimension) scaleSize).height,
-                                                       false, null, dispatcher,
-                                                       false, false, false, clist);
+            Object scaleSize = rvs.getProperty("viewsheet.appliedScale");
+
+            if(scaleSize instanceof Dimension && ((Dimension) scaleSize).width > 0 &&
+               ((Dimension) scaleSize).height > 0)
+            {
+               this.coreLifecycleService.refreshViewsheet(rvs, rvs.getID(), linkUri,
+                                                          ((Dimension) scaleSize).width,
+                                                          ((Dimension) scaleSize).height,
+                                                          false, null, dispatcher,
+                                                          false, false, false, clist);
+            }
+         }
+
+         List<VSAssembly> tassemblies = VSUtil.getSharedVSAssemblies(viewsheet, assembly);
+
+         for(VSAssembly tassembly : tassemblies) {
+            coreLifecycleService.refreshVSObject(tassembly, rvs, null, box.get(), dispatcher);
          }
       }
-
-      List<VSAssembly> tassemblies = VSUtil.getSharedVSAssemblies(viewsheet, assembly);
-
-      for(VSAssembly tassembly : tassemblies) {
-         coreLifecycleService.refreshVSObject(tassembly, rvs, null, box.get(), dispatcher);
+      catch(CancelledException e) {
+         // the data fetch releases the sandbox locks, so a newer request on this viewsheet
+         // (e.g. rapid selection toggling) can cancel this query. That request refreshes the
+         // same assemblies with the latest state, so drop this one quietly
+         LOG.debug("Selection on {} superseded, query cancelled", assembly.getAbsoluteName(), e);
       }
    }
 
@@ -1741,4 +1752,5 @@ public class VSSelectionService {
    private final ViewsheetService viewsheetService;
    private final MaxModeAssemblyService maxModeAssemblyService;
    private final SharedFilterService sharedFilterService;
+   private static final Logger LOG = LoggerFactory.getLogger(VSSelectionService.class);
 }
