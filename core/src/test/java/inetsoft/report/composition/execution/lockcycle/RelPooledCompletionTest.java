@@ -52,11 +52,15 @@ import static inetsoft.report.composition.execution.lockcycle.LockCycleHarness.*
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Pool-on counterparts (Testing #77123, reliability scenario A1) of the lock-stall cases pinned
- * to pool off: StallWatchdogCycleTest's monitor-first and script-join-key cycles,
- * FormulaLensLockStallTest.formulaScriptStallReachesTheReader and
- * GuestReaderCycleTest.pastCompletedMapReaderAfterInvalidate. Each builds the same shape on
- * pooled contexts, with the lock-stall watchdog in fail mode at 2000 ms, and asserts that every
+ * Pool-on counterparts (Testing #77123, reliability scenario A1) of lock-stall cases that
+ * assert a pool-off cycle: StallWatchdogCycleTest's monitor-first and script-join-key cycles
+ * (pool off only), FormulaLensLockStallTest.formulaScriptStallReachesTheReader and
+ * GuestReaderCycleTest.pastCompletedMapReaderAfterInvalidate. The last two have their own
+ * pool-on branch since #5933, run with {@code -Dlockcycle.pool=true}; the counterparts here run
+ * pooled in the default build too and add the overlap evidence (no registered wait of the
+ * reader, a script run on another context while the guest's claim stays open, a thread holding
+ * a claimed context). Each builds the same shape on pooled contexts, with the lock-stall
+ * watchdog in fail mode at 2000 ms and {@code failOnTimeout}, and asserts that every
  * thread completes with the rows of a control pipeline and that no stall or wait-for cycle is
  * reported: with pooled contexts no thread waits for another thread's engine lock, so the cycle
  * class these cases pin down cannot form. They always run pooled, whatever
@@ -71,7 +75,10 @@ public class RelPooledCompletionTest {
    @BeforeEach
    public void setUp() {
       StallTestSupport.resetGlobalStallState();
-      StallPolicy.setOverride(new StallPolicy(StallPolicy.Mode.FAIL, 2000, 500, dumpDir));
+      // failOnTimeout: the strict rule, any wait without progress for 2 s fails the case, not
+      // only a confirmed cycle (the default rule), so a false stall cannot pass as completion
+      StallPolicy.setOverride(new StallPolicy(StallPolicy.Mode.FAIL, 2000, 500, dumpDir,
+                                              StallPolicy.DEFAULT_MAX_DUMPS, true));
       // pooled whatever -Dlockcycle.pool says, so the default build runs these cases
       harness = new LockCycleHarness(true);
    }
@@ -99,8 +106,8 @@ public class RelPooledCompletionTest {
    }
 
    /**
-    * StallWatchdogCycleTest.monitorFirstLensAlertModeTurnsHealthDown, pooled, in the shipped
-    * alert mode. Pool off the cycle forms once the gate lets T1 go on to wait for the engine
+    * StallWatchdogCycleTest.monitorFirstLensAlertModeTurnsHealthDown, pooled, in alert mode
+    * (the shipped mode before Feature #77123 made fail the default). Pool off the cycle forms once the gate lets T1 go on to wait for the engine
     * lock T2 holds, and alert mode never releases either side of it, so neither thread ever
     * completes. The evidence here is that both complete in alert mode, with every row, after
     * T2 was seen BLOCKED on the lens monitor T1 holds; a scan afterwards reports no stall or
@@ -108,7 +115,8 @@ public class RelPooledCompletionTest {
     */
    @Test
    public void monitorFirstLensAlertModeCompletesPooled() {
-      StallPolicy.setOverride(new StallPolicy(StallPolicy.Mode.ALERT, 2000, 500, dumpDir));
+      StallPolicy.setOverride(new StallPolicy(StallPolicy.Mode.ALERT, 2000, 500, dumpDir,
+                                              StallPolicy.DEFAULT_MAX_DUMPS, false));
       assertTimeoutPreemptively(CAP, () -> {
          Started<?>[] threads = monitorFirst(MonitorKind.SORT, (t1, t2) -> {});
          assertNoCycleOf(threads[0].thread, threads[1].thread);

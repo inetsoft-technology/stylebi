@@ -29,7 +29,6 @@ import inetsoft.report.lens.*;
 import inetsoft.test.*;
 import inetsoft.util.stall.*;
 import org.junit.jupiter.api.*;
-import org.junit.jupiter.api.condition.DisabledIfSystemProperty;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -104,12 +103,11 @@ public class StallWatchdogCycleTest {
     * cannot be computed ahead.
     */
    @Test
-   @DisabledIfSystemProperty(named = "lockcycle.pool", matches = "true",
-      disabledReason = "pool-off only: the JoinThreads' exec() of the join key must wait for " +
-         "the engine lock the holder holds; pooled, each exec() claims its own context, so the " +
-         "join completes and nothing stalls (RelPooledCompletionTest.hashJoinExecKeyCompletesPooled)")
    public void hashJoinExecKeyFailsInsteadOfHanging() throws Exception {
-      assumeFalse(POOL, POOL_OFF_CYCLE);
+      assumeFalse(POOL, "pool off only: the JoinThreads' exec() of the join key must wait for " +
+                  "the engine lock the holder holds; pooled, each exec() claims its own " +
+                  "context, so the join completes and nothing stalls " +
+                  "(RelPooledCompletionTest.hashJoinExecKeyCompletesPooled)");
       harness.forceHashJoin();
       Sandbox s = harness.sandbox();
       Future<TableLens> built = harness.submit(() -> {
@@ -141,10 +139,8 @@ public class StallWatchdogCycleTest {
     */
    @ParameterizedTest
    @EnumSource(value = MonitorKind.class, names = "MAX_ROWS", mode = EnumSource.Mode.EXCLUDE)
-   @DisabledIfSystemProperty(named = "lockcycle.pool", matches = "true",
-      disabledReason = MONITOR_FIRST_POOL_OFF)
    public void monitorFirstLensFailsOneReader(MonitorKind kind) throws Exception {
-      assumeFalse(POOL, POOL_OFF_CYCLE);
+      assumeFalse(POOL, MONITOR_FIRST_POOL_OFF);
       Gate gate = harness.gate();
       Sandbox control = harness.control();
       TableLens controlLens = harness.track(build(kind, control, gate));
@@ -218,11 +214,10 @@ public class StallWatchdogCycleTest {
     * class's {@code preexisting}).
     */
    @Test
-   @DisabledIfSystemProperty(named = "lockcycle.pool", matches = "true",
-      disabledReason = MONITOR_FIRST_POOL_OFF)
    public void monitorFirstLensAlertModeTurnsHealthDown() throws Exception {
-      assumeFalse(POOL, POOL_OFF_CYCLE);
-      StallPolicy.setOverride(new StallPolicy(StallPolicy.Mode.ALERT, 2000, 500, dumpDir));
+      assumeFalse(POOL, MONITOR_FIRST_POOL_OFF);
+      StallPolicy.setOverride(new StallPolicy(StallPolicy.Mode.ALERT, 2000, 500, dumpDir,
+                                              StallPolicy.DEFAULT_MAX_DUMPS, false));
       Gate gate = harness.gate();
       Sandbox s = harness.sandbox();
       TableLens lens = harness.track(build(MonitorKind.SORT, s, gate));
@@ -277,14 +272,14 @@ public class StallWatchdogCycleTest {
     * both modes by RelSlowSummaryCreditTest.
     */
    @Test
-   @DisabledIfSystemProperty(named = "lockcycle.pool", matches = "true",
-      disabledReason = "pool-off only: it asserts the holder lends the engine lock to the " +
-         "summary worker; a pooled condition filter holds no engine lock to lend " +
-         "(RelSlowSummaryCreditTest covers the pooled slow summary)")
    public void slowProgressingSummaryUnderLockCompletes() throws Exception {
       assumeFalse(POOL, "pool off only: the holder lends the engine lock to the summary " +
-                  "worker, which pool mode never does");
-      StallPolicy.setOverride(new StallPolicy(StallPolicy.Mode.FAIL, 8000, 500, dumpDir));
+                  "worker, which pool mode never does (RelSlowSummaryCreditTest covers the " +
+                  "pooled slow summary)");
+      // failOnTimeout: the strict rule, a pipeline that earns no progress credit for 8 s fails
+      // even without a confirmed cycle
+      StallPolicy.setOverride(new StallPolicy(StallPolicy.Mode.FAIL, 8000, 500, dumpDir,
+                                              StallPolicy.DEFAULT_MAX_DUMPS, true));
       Sandbox control = harness.control();
       List<List<Object>> expected = harness.await(harness.submit(
          () -> drain(cf2(summary(control, new StallTestSupport.SlowTable(10, 0)), null))),
@@ -438,13 +433,10 @@ public class StallWatchdogCycleTest {
    }
 
    private static final String MONITOR_FIRST_POOL_OFF =
-      "pool-off only: the R2 cycle needs T2 to hold the engine lock while BLOCKED on the lens " +
+      "pool off only: the R2 cycle needs T2 to hold the engine lock while BLOCKED on the lens " +
       "monitor; a pooled condition filter takes no engine lock, so the cycle cannot form " +
       "(RelPooledCompletionTest.monitorFirstLens*Pooled)";
    private static final int ROWS = 120;
-   private static final String POOL_OFF_CYCLE =
-      "pool off only: the case builds a cycle that pooled worksheet script contexts do not " +
-      "form, so there is no stall to fail";
    @TempDir
    File dumpDir;
    private LockCycleHarness harness;
