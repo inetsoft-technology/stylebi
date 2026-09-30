@@ -22,12 +22,15 @@ import inetsoft.graph.data.DataSet;
 import inetsoft.graph.data.DefaultDataSet;
 import inetsoft.graph.element.GraphtDataSelector;
 import inetsoft.report.TableDataPath;
+import inetsoft.report.TableLens;
 import inetsoft.report.internal.table.TableFormat;
 import inetsoft.report.lens.DataSetTable;
+import inetsoft.report.lens.DefaultTableLens;
 import inetsoft.test.*;
 import inetsoft.uql.XTable;
-import inetsoft.uql.viewsheet.internal.DateComparisonFormat;
-import inetsoft.uql.viewsheet.internal.DateComparisonInfo;
+import inetsoft.uql.viewsheet.*;
+import inetsoft.uql.viewsheet.graph.VSChartInfo;
+import inetsoft.uql.viewsheet.internal.*;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -37,9 +40,11 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.awt.*;
+import java.lang.reflect.Method;
 import java.util.Map;
 
 import static inetsoft.test.XTableUtil.date;
+import static org.mockito.Mockito.*;
 
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
@@ -82,5 +87,65 @@ public class VSChartShowDataServiceTest {
          (VSChartShowDataService.DcFormatTableLens) deserializedTable;
       Map<TableDataPath, TableFormat> deserializedFormatMap = deserializedTable2.getFormatMap();
       Assertions.assertEquals(formatMap, deserializedFormatMap);
+   }
+
+   // Bug #77366, a chart sharing another assembly's date comparison must hide the first
+   // period using the shared dc, not the stale dc stored on the chart itself.
+   @Test
+   public void testHideFirstPeriodUsesSharedDateComparison() throws Exception {
+      DateComparisonInfo ownDc = mockStdPeriodDc(date("2024-01-01"));
+      DateComparisonInfo sharedDc = mockStdPeriodDc(date("2019-01-01"));
+
+      VSChartInfo chartInfo = mock(VSChartInfo.class);
+      when(chartInfo.isAppliedDateComparison()).thenReturn(true);
+
+      VSDataRef dcRef = mock(VSDataRef.class);
+      when(dcRef.getFullName()).thenReturn("Year(Date)");
+
+      ChartVSAssemblyInfo info = mock(ChartVSAssemblyInfo.class);
+      when(info.getVSChartInfo()).thenReturn(chartInfo);
+      when(info.isDateComparisonEnabled()).thenReturn(true);
+      when(info.getComparisonShareFrom()).thenReturn("Crosstab1");
+      when(info.getDateComparisonInfo()).thenReturn(ownDc);
+      when(info.getDateComparisonRef()).thenReturn(dcRef);
+
+      CrosstabVSAssemblyInfo crosstabInfo = mock(CrosstabVSAssemblyInfo.class);
+      when(crosstabInfo.getDateComparisonInfo()).thenReturn(sharedDc);
+      CrosstabVSAssembly crosstab = mock(CrosstabVSAssembly.class);
+      when(crosstab.getVSAssemblyInfo()).thenReturn(crosstabInfo);
+
+      Viewsheet vs = mock(Viewsheet.class);
+      when(vs.getAssembly("Crosstab1")).thenReturn(crosstab);
+
+      ChartVSAssembly chart = mock(ChartVSAssembly.class);
+      when(chart.getVSAssemblyInfo()).thenReturn(info);
+      when(chart.getViewsheet()).thenReturn(vs);
+
+      TableLens table = new DefaultTableLens(new Object[][] {
+         { "Year(Date)", "Sum(Quantity)" },
+         { date("2018-01-01"), 10 },
+         { date("2019-01-01"), 20 },
+         { date("2020-01-01"), 30 },
+         { date("2021-01-01"), 40 },
+      });
+
+      VSChartShowDataService service = new VSChartShowDataService(null, null, null, null);
+      Method method = VSChartShowDataService.class.getDeclaredMethod(
+         "hideFirstPeriod", DataVSAssembly.class, TableLens.class);
+      method.setAccessible(true);
+      TableLens result = (TableLens) method.invoke(service, chart, table);
+
+      // header + 2019..2021, only the extra 2018 period queried for comparison is hidden
+      Assertions.assertEquals(4, result.getRowCount());
+      Assertions.assertEquals(date("2019-01-01"), result.getObject(1, 0));
+      Assertions.assertEquals(date("2021-01-01"), result.getObject(3, 0));
+   }
+
+   private static DateComparisonInfo mockStdPeriodDc(java.util.Date startDate) {
+      DateComparisonInfo dc = mock(DateComparisonInfo.class);
+      when(dc.isStdPeriod()).thenReturn(true);
+      when(dc.isValueOnly()).thenReturn(false);
+      when(dc.getStartDate()).thenReturn(startDate);
+      return dc;
    }
 }
