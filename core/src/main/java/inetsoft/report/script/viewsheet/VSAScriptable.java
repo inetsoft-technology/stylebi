@@ -475,6 +475,9 @@ public class VSAScriptable
 
       if(box.isRuntime()) {
          setPosition(info, p);
+         // only the targeted assembly is marked, children moved along with a container
+         // keep their design-relative placement (e.g. stay flush with a bottom tab bar)
+         info.setPositionByScript(true);
       }
    }
 
