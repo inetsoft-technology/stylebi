@@ -380,7 +380,16 @@ public class DataSpace implements AutoCloseable {
    public boolean rename(String opath, String npath) {
       String oldPath = sanitizePathComponent(opath);
       String newPath = sanitizePathComponent(npath);
-      return renameRecursively(oldPath, newPath);
+
+      if(!canMoveTo(oldPath, newPath)) {
+         return false;
+      }
+
+      boolean result = renameRecursively(oldPath, newPath);
+      // created after the move so that a rename into its own subtree, which removes the old
+      // folder marker, still leaves the ancestors of the new path as directories
+      makeMissingAncestors(newPath, result);
+      return result;
    }
 
    private boolean renameRecursively(String oldPath, String newPath) {
@@ -440,7 +449,71 @@ public class DataSpace implements AutoCloseable {
    public boolean copy(String opath, String npath) {
       String oldPath = sanitizePathComponent(opath);
       String newPath = sanitizePathComponent(npath);
-      return copyRecursively(oldPath, newPath);
+
+      if(!canMoveTo(oldPath, newPath)) {
+         return false;
+      }
+
+      boolean result = copyRecursively(oldPath, newPath);
+      makeMissingAncestors(newPath, result);
+      return result;
+   }
+
+   /**
+    * Determines if a file or folder can be renamed or copied to a new path. The source must
+    * exist and no ancestor of the new path may be a file.
+    */
+   private boolean canMoveTo(String oldPath, String newPath) {
+      if(oldPath == null || newPath == null || !isDirectory(oldPath) && !storage().exists(oldPath)) {
+         return false;
+      }
+
+      String parent = getParentPath(newPath);
+
+      while(parent != null) {
+         if(storage().exists(parent) && !storage().isDirectory(parent)) {
+            LOG.warn("Cannot move {} to {}, {} is a file", oldPath, newPath, parent);
+            return false;
+         }
+
+         parent = getParentPath(parent);
+      }
+
+      return true;
+   }
+
+   /**
+    * Creates the directory markers for the ancestors of a renamed or copied path that do not
+    * exist. Without a marker, a folder is not listed and is not treated as a directory, so
+    * deleting it leaves its children behind.
+    *
+    * @param newPath the target path.
+    * @param moved   {@code true} if the rename or copy succeeded.
+    */
+   private void makeMissingAncestors(String newPath, boolean moved) {
+      String parent = getParentPath(newPath);
+
+      if(parent == null) {
+         return;
+      }
+
+      // a partially failed move may still have moved some descendants to the new path
+      if(!moved && !storage().exists(newPath) &&
+         storage().paths().noneMatch(p -> p.startsWith(newPath + "/")))
+      {
+         return;
+      }
+
+      int end = 0;
+
+      while((end = newPath.indexOf('/', end + 1)) > 0) {
+         String ancestor = newPath.substring(0, end);
+
+         // never replace an existing key, a directory marker over a file orphans its content
+         if(!storage().exists(ancestor)) {
+            makeDirectory(ancestor);
+         }
+      }
    }
 
    private boolean copyRecursively(String oldPath, String newPath) {
