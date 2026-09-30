@@ -348,4 +348,71 @@ class ConnectionVariablesPermissionTest {
          RID, cubeData(ALLOWED + "/" + CUBE), null, principal));
       verify(repository).connect(same(session), eq(":" + ALLOWED), any());
    }
+
+   // ---- legit round trip for a source inside a data source folder ----
+
+   private static final String FOLDER_SOURCE = "Folder/DS_F";
+
+   private void addFolderSource() throws Exception {
+      JDBCDataSource folderSource = jdbc(FOLDER_SOURCE);
+      when(repository.getDataSource(FOLDER_SOURCE)).thenReturn(folderSource);
+      when(repository.getConnectionParameters(any(), eq(":" + FOLDER_SOURCE)))
+         .thenReturn(new UserVariable[] {
+            variable(XUtil.DB_USER_PREFIX + FOLDER_SOURCE),
+            variable(XUtil.DB_PASSWORD_PREFIX + FOLDER_SOURCE) });
+      // READ on the folder source itself only; nothing on "Folder" or the root folder
+      grantRead(ALLOWED, FOLDER_SOURCE);
+   }
+
+   @Test
+   void legitDataSourceNodeInFolderPromptsAndItsVariablesAreAccepted() throws Exception {
+      // the worksheet asset tree data source node (isDataSource arm of getNodes0), as the
+      // asset engine lists it: path and prefix are the data source full name
+      addFolderSource();
+      AssetEntry entry = new AssetEntry(AssetRepository.QUERY_SCOPE, AssetEntry.Type.DATA_SOURCE,
+                                        FOLDER_SOURCE, null);
+      entry.setProperty("prefix", FOLDER_SOURCE);
+
+      LoadAssetTreeNodesValidator result = assertDoesNotThrow(() -> expand(entry));
+
+      assertNotNull(result.parameters());
+      assertEquals(2, result.parameters().size());
+
+      // the UI sends back exactly the prompted names; set-connection-variables must accept them
+      List<VariableAssemblyModelInfo> answers = new ArrayList<>();
+
+      for(VariableAssemblyModelInfo prompted : result.parameters()) {
+         answers.add(info(prompted.getName(),
+                          prompted.getName().startsWith(XUtil.DB_USER_PREFIX) ? "u" : "p"));
+      }
+
+      assertDoesNotThrow(() -> treeController.setConnectionVariables(
+         CollectParametersOverEvent.builder().variables(answers).build(), principal));
+      verify(repository).testDataSource(same(session), argThat(ds -> ds != null &&
+         FOLDER_SOURCE.equals(ds.getFullName())), any());
+      verify(repository).connect(same(session), eq(":" + FOLDER_SOURCE), any());
+      assertEquals("u", principal.getProperty(XUtil.DB_USER_PREFIX + FOLDER_SOURCE));
+   }
+
+   @Test
+   void legitCubeDataInFolderSourceWithReadOnSourceOnlyUnchanged() throws Exception {
+      // viewsheet cube node data is CUBE_VS + "<ds full name>/<cube>"; the source is split at
+      // the last "/", so a folder source must be checked as "Folder/DS_F", not "Folder"
+      addFolderSource();
+
+      LoadAssetTreeNodesValidator result = assertDoesNotThrow(() ->
+         treeService.getConnectionParameters(RID, cubeData(FOLDER_SOURCE + "/" + CUBE), null,
+                                             principal));
+
+      assertNull(result);
+      verify(repository).getDataSource(FOLDER_SOURCE);
+   }
+
+   @Test
+   void cubeDataInUnreadableFolderSourceDenied() throws Exception {
+      // READ on a same-named source outside the folder must not open Folder/DS_OK
+      assertDenied(() -> treeService.getConnectionParameters(
+         RID, cubeData("Folder/" + ALLOWED + "/" + CUBE), null, principal));
+      verifyNoSourceOperation();
+   }
 }
