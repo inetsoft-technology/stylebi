@@ -301,6 +301,16 @@ public class CalendarPropertyDialogService {
                   info.setPixelSize(size);
                }
 
+               // the title is drawn inside the calendar height, grow the calendar
+               // when the title leaves no room for the body so it does not render
+               // past its height and cover the tabs
+               int fitHeight = info.fitCalendarHeightToTitle(size.height);
+
+               if(fitHeight != size.height) {
+                  size = new Dimension(size.width, fitHeight);
+                  info.setPixelSize(size);
+               }
+
                info.setPixelOffset(new Point(x, tabTop - size.height));
             }
          }

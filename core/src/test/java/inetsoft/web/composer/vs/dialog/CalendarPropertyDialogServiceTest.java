@@ -284,6 +284,84 @@ class CalendarPropertyDialogServiceTest {
       Mockito.clearInvocations(vsObjectPropertyService);
    }
 
+   // Bug #77372: calendar show type, title set taller than the calendar height (calendartab1)
+   @Test
+   void bottomTabsCalendarGrowsWhenTitleTallerThanHeight() throws Exception {
+      CalendarVSAssemblyInfo result =
+         save(CalendarVSAssemblyInfo.CALENDAR_SHOW_TYPE, 36, new Point(98, 242), 542,
+              CalendarVSAssemblyInfo.CALENDAR_SHOW_TYPE, 310,
+              new Dimension(300, 300), new Dimension(300, 300));
+      // height = title(310) + body(144), bottom edge flush with the tab top
+      assertEquals(new Dimension(300, 454), result.getPixelSize());
+      assertEquals(new Point(98, 88), result.getPixelOffset());
+      assertSizeKeptOnWrite(result, new Dimension(300, 454));
+   }
+
+   @Test
+   void bottomTabsCalendarKeepsHeightOnTitleOnlyChange() throws Exception {
+      CalendarVSAssemblyInfo result =
+         save(CalendarVSAssemblyInfo.CALENDAR_SHOW_TYPE, 36, new Point(98, 242), 542,
+              CalendarVSAssemblyInfo.CALENDAR_SHOW_TYPE, 50,
+              new Dimension(300, 300), new Dimension(300, 300));
+      // show type unchanged, the height must not be reset to the default calendar height
+      assertEquals(new Dimension(300, 300), result.getPixelSize());
+      assertEquals(new Point(98, 242), result.getPixelOffset());
+      assertSizeKeptOnWrite(result, new Dimension(300, 300));
+   }
+
+   @Test
+   void bottomTabsSwitchToCalendarGrowsWhenTitleTallerThanDefaultHeight() throws Exception {
+      CalendarVSAssemblyInfo result =
+         save(CalendarVSAssemblyInfo.DROPDOWN_SHOW_TYPE, 20, new Point(98, 300), 542,
+              CalendarVSAssemblyInfo.CALENDAR_SHOW_TYPE, 310,
+              new Dimension(300, 20), new Dimension(300, 20));
+      assertEquals(new Dimension(300, 454), result.getPixelSize());
+      assertEquals(new Point(98, 88), result.getPixelOffset());
+      assertSizeKeptOnWrite(result, new Dimension(300, 454));
+   }
+
+   @Test
+   void bottomTabsCalendarGrowsWhenTitleEqualsHeight() throws Exception {
+      // a title exactly as tall as the calendar leaves no room for the body
+      CalendarVSAssemblyInfo result =
+         save(CalendarVSAssemblyInfo.CALENDAR_SHOW_TYPE, 36, new Point(98, 242), 542,
+              CalendarVSAssemblyInfo.CALENDAR_SHOW_TYPE, 300,
+              new Dimension(300, 300), new Dimension(300, 300));
+      assertEquals(new Dimension(300, 300 + CalendarVSAssemblyInfo.CALENDAR_BODY_HEIGHT),
+                   result.getPixelSize());
+      assertEquals(new Point(98, 542 - 300 - CalendarVSAssemblyInfo.CALENDAR_BODY_HEIGHT),
+                   result.getPixelOffset());
+   }
+
+   @Test
+   void bottomTabsCalendarKeepsHeightWhenTitleTallerThanDefaultButShorterThanHeight()
+      throws Exception
+   {
+      // the floor compares against the current height, not DEFAULT_CALENDAR_HEIGHT
+      CalendarVSAssemblyInfo result =
+         save(CalendarVSAssemblyInfo.CALENDAR_SHOW_TYPE, 36, new Point(98, 242), 542,
+              CalendarVSAssemblyInfo.CALENDAR_SHOW_TYPE, 250,
+              new Dimension(300, 300), new Dimension(300, 300));
+      assertEquals(new Dimension(300, 300), result.getPixelSize());
+      assertEquals(new Point(98, 242), result.getPixelOffset());
+   }
+
+   /**
+    * The saved info is copied into the live assembly, and writeXML() of either one runs
+    * fixCalendarSize(), which may change the pixel size. Make sure the saved size sticks.
+    */
+   private void assertSizeKeptOnWrite(CalendarVSAssemblyInfo result, Dimension expected) {
+      // the deep-stubbed data pane yields null additional tables, which copyInfo() rejects
+      result.setAdditionalTableNames(new ArrayList<>());
+      CalendarVSAssemblyInfo live = (CalendarVSAssemblyInfo) originalInfo.clone();
+      live.copyInfo(result);
+      live.writeXML(new PrintWriter(new StringWriter()));
+      assertEquals(expected, live.getPixelSize());
+
+      result.writeXML(new PrintWriter(new StringWriter()));
+      assertEquals(expected, result.getPixelSize());
+   }
+
    private CalendarVSAssemblyInfo save(int oldShowType, boolean bottomTabs, int newShowType,
                                        int newTitleHeight) throws Exception
    {
@@ -335,6 +413,7 @@ class CalendarPropertyDialogServiceTest {
                                        int tabTop, int newShowType, int newTitleHeight,
                                        Dimension dialogSize) throws Exception
    {
+      originalInfo = (CalendarVSAssemblyInfo) info.clone();
 
       if(dialogSize != null) {
          doCallRealMethod().when(dialogService)
@@ -402,4 +481,7 @@ class CalendarPropertyDialogServiceTest {
    private CalendarPropertyDialogModel calendarPropertyDialogModel;
 
    private CalendarPropertyDialogService service;
+   // clone of the info passed to the last save(...), before the dialog was applied; it
+   // stands in for the live assembly info in assertSizeKeptOnWrite()
+   private CalendarVSAssemblyInfo originalInfo;
 }
