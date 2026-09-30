@@ -188,6 +188,102 @@ class CalendarPropertyDialogServiceTest {
       }
    }
 
+   @Test
+   void resizeAfterDropdownToCalendarKeptOnWriteXMLAndOk() throws Exception {
+      // Bug #77373: Dropdown -> Calendar with title height 60 in bottom tabs (y=402)
+      CalendarVSAssemblyInfo live = switchDropdownToCalendar();
+      assertEquals(new Dimension(210, CalendarVSAssemblyInfo.DEFAULT_CALENDAR_HEIGHT),
+                   live.getPixelSize());
+      assertEquals(new Point(50, 240), live.getPixelOffset());
+
+      // drag the top-left handle: Top 240 -> 160, height 162 -> 242, width 210 -> 260
+      live.setPixelOffset(new Point(50, 160));
+      live.setPixelSize(new Dimension(260, 242));
+
+      // cache write-back and save serialize the live info
+      live.writeXML(new PrintWriter(new StringWriter()));
+      live.writeXML(new PrintWriter(new StringWriter()));
+      assertEquals(new Dimension(260, 242), live.getPixelSize());
+      assertEquals(new Point(50, 160), live.getPixelOffset());
+
+      // OK in the dialog without changes keeps the resized size (Bug #77371)
+      apply(live, CalendarVSAssemblyInfo.CALENDAR_SHOW_TYPE, 60, new Dimension(260, 242));
+      live.writeXML(new PrintWriter(new StringWriter()));
+      assertEquals(new Dimension(260, 242), live.getPixelSize());
+      assertEquals(new Point(50, 160), live.getPixelOffset());
+   }
+
+   @Test
+   void dropdownResizeAfterCalendarToDropdownKeptOnWriteXML() throws Exception {
+      // Bug #77373: Dropdown -> Calendar, resize, then Calendar -> Dropdown
+      CalendarVSAssemblyInfo live = switchDropdownToCalendar();
+      live.setPixelOffset(new Point(50, 160));
+      live.setPixelSize(new Dimension(260, 242));
+      live.writeXML(new PrintWriter(new StringWriter()));
+
+      apply(live, CalendarVSAssemblyInfo.DROPDOWN_SHOW_TYPE, 60, new Dimension(260, 18));
+      assertEquals(new Point(50, 402 - 60), live.getPixelOffset());
+
+      // resize the dropdown, then serialize: must not revert to width x 18
+      live.setPixelSize(new Dimension(300, 60));
+      live.writeXML(new PrintWriter(new StringWriter()));
+      assertEquals(new Dimension(300, 60), live.getPixelSize());
+   }
+
+   @Test
+   void resizeOfNeverSwitchedCalendarKeptOnWriteXML() throws Exception {
+      // control: a calendar that never went through Dropdown -> Calendar
+      CalendarVSAssemblyInfo live = liveCalendar(CalendarVSAssemblyInfo.CALENDAR_SHOW_TYPE,
+                                                 new Point(50, 240), new Dimension(210, 162));
+      apply(live, CalendarVSAssemblyInfo.CALENDAR_SHOW_TYPE, 60, null);
+      assertEquals(new Point(50, 240), live.getPixelOffset());
+
+      live.setPixelOffset(new Point(50, 160));
+      live.setPixelSize(new Dimension(260, 242));
+      live.writeXML(new PrintWriter(new StringWriter()));
+      assertEquals(new Dimension(260, 242), live.getPixelSize());
+      assertEquals(new Point(50, 160), live.getPixelOffset());
+   }
+
+   /**
+    * The reporter's steps on one live info: a Calendar in bottom tabs at y=402 is switched to
+    * Dropdown, its title height is changed 36 -> 60, then it is switched back to Calendar.
+    */
+   private CalendarVSAssemblyInfo switchDropdownToCalendar() throws Exception {
+      CalendarVSAssemblyInfo live = liveCalendar(CalendarVSAssemblyInfo.CALENDAR_SHOW_TYPE,
+                                                 new Point(50, 240), new Dimension(210, 162));
+      apply(live, CalendarVSAssemblyInfo.DROPDOWN_SHOW_TYPE, 36, new Dimension(210, 18));
+      assertEquals(new Point(50, 402 - 36), live.getPixelOffset());
+      apply(live, CalendarVSAssemblyInfo.DROPDOWN_SHOW_TYPE, 60, new Dimension(210, 18));
+      assertEquals(new Point(50, 402 - 60), live.getPixelOffset());
+      apply(live, CalendarVSAssemblyInfo.CALENDAR_SHOW_TYPE, 60, new Dimension(210, 18));
+      return live;
+   }
+
+   private static CalendarVSAssemblyInfo liveCalendar(int showType, Point pos, Dimension size) {
+      CalendarVSAssemblyInfo live = new CalendarVSAssemblyInfo();
+      live.setShowTypeValue(showType);
+      live.setTitleHeightValue(36);
+      live.setPixelOffset(pos);
+      live.setPixelSize(size);
+      live.setAdditionalTableNames(new ArrayList<>());
+      return live;
+   }
+
+   /**
+    * Apply the dialog to the live info the way AbstractVSAssembly.setVSAssemblyInfo does.
+    */
+   private void apply(CalendarVSAssemblyInfo live, int newShowType, int newTitleHeight,
+                      Dimension dialogSize) throws Exception
+   {
+      CalendarVSAssemblyInfo result =
+         save(live, true, 402, newShowType, newTitleHeight, dialogSize);
+      // the mocked data pane leaves the additional table list unset
+      result.setAdditionalTableNames(new ArrayList<>());
+      live.copyInfo(result);
+      Mockito.clearInvocations(vsObjectPropertyService);
+   }
+
    private CalendarVSAssemblyInfo save(int oldShowType, boolean bottomTabs, int newShowType,
                                        int newTitleHeight) throws Exception
    {
