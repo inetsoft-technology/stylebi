@@ -1,0 +1,2 @@
+MessageFormat
+{0} is {1,number,#.##} on {2,date,short}

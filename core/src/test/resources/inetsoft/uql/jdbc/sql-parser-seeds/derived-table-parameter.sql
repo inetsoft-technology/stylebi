@@ -1,0 +1,1 @@
+select * from (select id, max(ts) m from events group by id) sub where sub.m > ?

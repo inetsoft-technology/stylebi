@@ -1,0 +1,1 @@
+select distinct c.name from customers c left outer join orders o on c.id = o.cust_id where o.id is null

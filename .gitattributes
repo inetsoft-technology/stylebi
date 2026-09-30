@@ -1,2 +1,4 @@
 *.sh	text eol=lf
 
+# Fuzz/seed corpora are exact bytes (line endings matter)
+core/src/test/resources/**/*-seeds/** -text

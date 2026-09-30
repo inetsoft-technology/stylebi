@@ -1,0 +1,1 @@
+select case when a > 0 then 'pos' when a < 0 then 'neg' else 'zero' end as sgn from t
