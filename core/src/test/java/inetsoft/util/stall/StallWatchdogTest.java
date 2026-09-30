@@ -53,7 +53,8 @@ public class StallWatchdogTest {
    @BeforeEach
    public void setUp() {
       StallTestSupport.resetGlobalStallState();
-      policy = new StallPolicy(StallPolicy.Mode.FAIL, 1000, 500, dumpDir);
+      policy = new StallPolicy(StallPolicy.Mode.FAIL, 1000, 500, dumpDir,
+                               StallPolicy.DEFAULT_MAX_DUMPS, true);
       dumper = new StallDumper(now::get, () -> dumpDir, 60000);
       registry = new WaitRegistry(now::get, () -> policy, dumper);
       watchdog = new StallWatchdog(registry, () -> deadlocked);
@@ -126,7 +127,8 @@ public class StallWatchdogTest {
 
    @Test
    public void alertModeStallIsNeverUnreleasedWhileFailModeIs() {
-      policy = new StallPolicy(StallPolicy.Mode.ALERT, 1000, 500, dumpDir);
+      policy = new StallPolicy(StallPolicy.Mode.ALERT, 1000, 500, dumpDir,
+                               StallPolicy.DEFAULT_MAX_DUMPS, false);
       // never checked by its waiter, so it becomes overdue
       WaitRecord alert = runOnOtherThread(() -> registry.open("alert.site", () -> 0, NONE));
       // tripped by its waiter and still registered: an alert wait goes on by design
@@ -136,7 +138,8 @@ public class StallWatchdogTest {
       assertTrue(alertTripped.isTripped());
 
       // the mode changes mid-episode: each record keeps the mode it was opened with
-      policy = new StallPolicy(StallPolicy.Mode.FAIL, 1000, 500, dumpDir);
+      policy = new StallPolicy(StallPolicy.Mode.FAIL, 1000, 500, dumpDir,
+                               StallPolicy.DEFAULT_MAX_DUMPS, true);
       WaitRecord fail = runOnOtherThread(() -> registry.open("fail.site", () -> 0, NONE));
       assertEquals(StallPolicy.Mode.ALERT, alert.getMode());
       assertEquals(StallPolicy.Mode.FAIL, fail.getMode());
@@ -165,7 +168,8 @@ public class StallWatchdogTest {
 
    @Test
    public void offModeWaitIsNeverUnreleased() {
-      policy = new StallPolicy(StallPolicy.Mode.OFF, 1000, 500, dumpDir);
+      policy = new StallPolicy(StallPolicy.Mode.OFF, 1000, 500, dumpDir,
+                               StallPolicy.DEFAULT_MAX_DUMPS, false);
       WaitRecord record = registry.open("off.site", () -> 0, NONE);
       assertSame(WaitRecord.NOOP, record);
       assertEquals(StallPolicy.Mode.OFF, record.getMode());
@@ -194,7 +198,8 @@ public class StallWatchdogTest {
 
    @Test
    public void offModeReportsNothing() {
-      policy = new StallPolicy(StallPolicy.Mode.OFF, 1000, 500, dumpDir);
+      policy = new StallPolicy(StallPolicy.Mode.OFF, 1000, 500, dumpDir,
+                               StallPolicy.DEFAULT_MAX_DUMPS, false);
       deadlocked = new long[] { 1, 2 };
       watchdog.scan();
       assertNull(watchdog.getUnreleasedStall());
@@ -205,7 +210,8 @@ public class StallWatchdogTest {
    public void beginStartsTheGlobalWatchdog() {
       StallWatchdog.resetForTest();
       assertTrue(findWatchdogThread().isEmpty(), "reset stops the watchdog thread");
-      StallPolicy.setOverride(new StallPolicy(StallPolicy.Mode.FAIL, 300000, 30000, dumpDir));
+      StallPolicy.setOverride(new StallPolicy(StallPolicy.Mode.FAIL, 300000, 30000, dumpDir,
+                                              StallPolicy.DEFAULT_MAX_DUMPS, false));
 
       try(WaitRecord ignored = WaitRegistry.begin("site", () -> 0)) {
          Thread thread = findWatchdogThread().orElse(null);
@@ -226,7 +232,8 @@ public class StallWatchdogTest {
       StallWatchdog.threadFactory = r -> {
          throw new OutOfMemoryError("unable to create native thread");
       };
-      StallPolicy.setOverride(new StallPolicy(StallPolicy.Mode.FAIL, 300000, 30000, dumpDir));
+      StallPolicy.setOverride(new StallPolicy(StallPolicy.Mode.FAIL, 300000, 30000, dumpDir,
+                                              StallPolicy.DEFAULT_MAX_DUMPS, false));
 
       try {
          try(WaitRecord record = WaitRegistry.begin("site", () -> 0)) {
@@ -803,7 +810,8 @@ public class StallWatchdogTest {
 
    @Test
    public void offModeSkipsProbes() {
-      policy = new StallPolicy(StallPolicy.Mode.OFF, 1000, 500, dumpDir);
+      policy = new StallPolicy(StallPolicy.Mode.OFF, 1000, 500, dumpDir,
+                               StallPolicy.DEFAULT_MAX_DUMPS, false);
       watchdog.add(() -> List.of(new StallProbe.Finding("k", "signal", true)));
       watchdog.scan();
 
@@ -826,7 +834,8 @@ public class StallWatchdogTest {
     */
    @Test
    public void alertModeWaitForCycleIsUnreleasedWhenStalledOnTwoScans() throws Exception {
-      policy = new StallPolicy(StallPolicy.Mode.ALERT, 1000, 500, dumpDir);
+      policy = new StallPolicy(StallPolicy.Mode.ALERT, 1000, 500, dumpDir,
+                               StallPolicy.DEFAULT_MAX_DUMPS, false);
       Object monitor = new Object();
       AtomicReference<Thread> t2 = new AtomicReference<>();
       CountDownLatch done = new CountDownLatch(1);
@@ -917,7 +926,8 @@ public class StallWatchdogTest {
     */
    @Test
    public void alertModeChainWithoutACycleIsNotUnreleased() throws Exception {
-      policy = new StallPolicy(StallPolicy.Mode.ALERT, 1000, 500, dumpDir);
+      policy = new StallPolicy(StallPolicy.Mode.ALERT, 1000, 500, dumpDir,
+                               StallPolicy.DEFAULT_MAX_DUMPS, false);
       Object t3Monitor = new Object();
       AtomicReference<Thread> t2 = new AtomicReference<>();
       holding("chain-t3", t3Monitor);
@@ -940,7 +950,8 @@ public class StallWatchdogTest {
     */
    @Test
    public void lentLockWaiterWithAHealthyBorrowerIsNotUnreleased() throws Exception {
-      policy = new StallPolicy(StallPolicy.Mode.ALERT, 1000, 500, dumpDir);
+      policy = new StallPolicy(StallPolicy.Mode.ALERT, 1000, 500, dumpDir,
+                               StallPolicy.DEFAULT_MAX_DUMPS, false);
       Object monitor = new Object();
       AtomicReference<Thread> lender = new AtomicReference<>();
       AtomicReference<Thread> borrower = new AtomicReference<>();
@@ -1004,7 +1015,8 @@ public class StallWatchdogTest {
     */
    @Test
    public void cycleSeenOnOneScanOnlyIsNotUnreleased() throws Exception {
-      policy = new StallPolicy(StallPolicy.Mode.ALERT, 1000, 500, dumpDir);
+      policy = new StallPolicy(StallPolicy.Mode.ALERT, 1000, 500, dumpDir,
+                               StallPolicy.DEFAULT_MAX_DUMPS, false);
       Object monitor = new Object();
       AtomicReference<Thread> t2 = new AtomicReference<>();
       CountDownLatch leave = new CountDownLatch(1);
