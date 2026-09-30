@@ -266,6 +266,49 @@ private List getOuterJoins(UniformSQL sql, XFilterNode cond, Token tok)
                                getFilename(), tok.getLine(), tok.getColumn());
 }
 
+/**
+ * Check that each join of an outer join ON condition is between the table
+ * being joined (the from clause tables added from rstart to rend) and a table
+ * that was already in the from clause before it, and put the earlier table
+ * first so the outer join op applies to the right side. A join between any
+ * other tables can't be represented, since it would leave the joined table
+ * without a join.
+ */
+private void orientOuterJoins(UniformSQL sql, List joins, int rstart, int rend,
+                              XFilterNode cond, Token tok)
+   throws SemanticException
+{
+   for(int i = 0; i < joins.size(); i++) {
+      XJoin join = (XJoin) joins.get(i);
+      int index1 = getJoinTableIndex(sql, join.getTable1(sql));
+      int index2 = getJoinTableIndex(sql, join.getTable2(sql));
+
+      if(index2 >= rstart && index2 < rend && index1 >= 0 && index1 < rstart) {
+         continue;
+      }
+
+      if(index1 >= rstart && index1 < rend && index2 >= 0 && index2 < rstart) {
+         XExpression exp1 = join.getExpression1();
+         XExpression exp2 = join.getExpression2();
+         join.setExpression1(exp2);
+         join.setExpression2(exp1);
+         continue;
+      }
+
+      throw new SemanticException("Unsupported outer join condition: " + cond,
+                                  getFilename(), tok.getLine(), tok.getColumn());
+   }
+}
+
+/**
+ * Get the index of the from clause table that the table of a join column
+ * (XJoin.getTable1/getTable2) refers to, or -1 if it isn't a known table, such
+ * as the empty table of an unqualified column.
+ */
+private int getJoinTableIndex(UniformSQL sql, String table) {
+   return table == null || table.length() == 0 ? -1 : sql.getTableIndex(table);
+}
+
 private boolean collectOuterJoins(XFilterNode node, List joins) {
    if(node instanceof XJoin) {
       joins.add(node);
@@ -2718,7 +2761,8 @@ qualified_join [UniformSQL sql] returns [XExpression exp = null]
         ;
 
 sub_qualified_join [UniformSQL sql] returns [String str = ""]
-        { String tbl2=""; String tmp; String op = ""; String table = ""; XExpression exp = null; {checkStatus();}}
+        { int rstart = sql == null ? 0 : sql.getTableCount(); int rend = 0;
+          String tmp; String op = ""; String table = ""; XExpression exp = null; {checkStatus();}}
         :
         (
          (
@@ -2732,12 +2776,11 @@ sub_qualified_join [UniformSQL sql] returns [String str = ""]
         (
           ((joined_table)=>
             (exp = joined_table_2[sql] {str += exp.toString();})
-            |(table = table_ref_nojoin[sql, op] {str += " " + table;
-                                                 tbl2 = table;
-                                                 tbl2 = tbl2.trim();})
+            |(table = table_ref_nojoin[sql, op] {str += " " + table;})
           )
-          ( (join_spec[null, "", ""])=>
-            tmp = join_spec[sql, op, tbl2] {str += " " + tmp;}
+          {rend = sql == null ? 0 : sql.getTableCount();}
+          ( (join_spec[null, "", 0, 0])=>
+            tmp = join_spec[sql, op, rstart, rend] {str += " " + tmp;}
             ((sub_qualified_join[sql])=> tmp = sub_qualified_join[sql] {str += " " + tmp;})?
           )?
         )
@@ -2766,14 +2809,14 @@ outer_join_type returns [String ojt = ""]
         | c:FULL {ojt = c.getText();}
         ;
 
-join_spec [UniformSQL sql, String op, String tbl2] returns [String js = ""]
+join_spec [UniformSQL sql, String op, int rstart, int rend] returns [String js = ""]
         {checkStatus();}
         :
-        js = join_condition[sql, op, tbl2]
+        js = join_condition[sql, op, rstart, rend]
         | js = named_columns_join[sql]
         ;
 
-join_condition [UniformSQL sql, String op, String tbl2] returns [String jc = ""]
+join_condition [UniformSQL sql, String op, int rstart, int rend] returns [String jc = ""]
         {XFilterNode tmp; {checkStatus();}}
         :
         a:ON tmp = search_condition
@@ -2799,20 +2842,10 @@ join_condition [UniformSQL sql, String op, String tbl2] returns [String jc = ""]
 
            if(outerType != null) {
               List joins = getOuterJoins(sql, tmp, a);
+              orientOuterJoins(sql, joins, rstart, rend, tmp, a);
 
               for(int i = 0; i < joins.size(); i++) {
                  XJoin join = (XJoin) joins.get(i);
-                 String op1 = getTableOp(sql, join.getTable1(sql));
-
-                 if(op1 != null && op1.length() >= outerType.length() &&
-                    op1.substring(0, outerType.length()).equalsIgnoreCase(outerType))
-                 {
-                    XExpression exp1 = join.getExpression1();
-                    XExpression exp2 = join.getExpression2();
-                    join.setExpression1(exp2);
-                    join.setExpression2(exp1);
-                 }
-
                  join.setOp(outerOp);
               }
            }
