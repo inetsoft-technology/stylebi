@@ -57,7 +57,7 @@ class PrintLayoutCardTopTest {
       TableElementDef table = (TableElementDef) elements.get(2);
 
       // the lane starts below the THIN top border
-      assertEquals(new Rectangle(20, 10, 400, 1 + 16 + titleH), fixture.bounds(top));
+      assertEquals(new Rectangle(20, 10, 400, 1 + 16 + titleH - 1), fixture.bounds(top));
       assertEquals(new Insets(THIN, THIN, NONE, THIN), top.getBorders());
       assertEquals(Color.YELLOW, top.getBackground());
       assertEquals(new Rectangle(37, 27, 367, titleH), fixture.bounds(title));
@@ -105,7 +105,7 @@ class PrintLayoutCardTopTest {
       TextBoxElementDef top = (TextBoxElementDef) elements.get(0);
 
       assertEquals(2, elements.size(), "no title box");
-      assertEquals(new Rectangle(20, 10, 400, 1 + 16), fixture.bounds(top));
+      assertEquals(new Rectangle(20, 10, 400, 16), fixture.bounds(top));
       assertEquals(new Insets(THIN, THIN, NONE, THIN), top.getBorders(),
                    "a padded card keeps its top border with the title hidden");
       // the hidden-title height still comes off, as it did before the inset
@@ -143,7 +143,7 @@ class PrintLayoutCardTopTest {
       List<ReportElement> elements = fixture.addTable();
       int titleH = fixture.info.getTitleHeight();
 
-      assertEquals(new Rectangle(20, 10, 400, 1 + 8 + titleH), fixture.bounds(elements.get(0)));
+      assertEquals(new Rectangle(20, 10, 400, 1 + 8 + titleH - 1), fixture.bounds(elements.get(0)));
       assertEquals(new Rectangle(45, 19, 375, titleH), fixture.bounds(elements.get(1)));
       assertEquals(new Insets(0, 24, 4, 0), ((TableElementDef) elements.get(2)).getCardInset());
    }
@@ -183,7 +183,7 @@ class PrintLayoutCardTopTest {
       int titleH = fixture.info.getTitleHeight();
 
       // bt = bl = 3, so the lane starts at 3 + 16 and the title at x + 3 + 16, W - 19 - 16 wide
-      assertEquals(new Rectangle(20, 10, 400, 3 + 16 + titleH), fixture.bounds(elements.get(0)));
+      assertEquals(new Rectangle(20, 10, 400, 3 + 16 + titleH - 1), fixture.bounds(elements.get(0)));
       assertEquals(new Rectangle(39, 29, 365, titleH), fixture.bounds(elements.get(1)));
       assertEquals(new Rectangle(20, 10 + 3 + 16 + titleH - 1, 400, 250 - 3 - 16 - titleH),
                    fixture.bounds(elements.get(2)));
@@ -220,7 +220,7 @@ class PrintLayoutCardTopTest {
       List<ReportElement> elements = fixture.addTable();
       int titleH = fixture.info.getTitleHeight();
 
-      assertEquals(new Rectangle(20, 10, 400, 1 + titleH), fixture.bounds(elements.get(0)));
+      assertEquals(new Rectangle(20, 10, 400, titleH), fixture.bounds(elements.get(0)));
       assertEquals(new Rectangle(37, 11, 367, titleH), fixture.bounds(elements.get(1)));
       // the lane absorbs the overlap, so the join is unchanged
       assertEquals(new Rectangle(20, 10 + titleH, 400, 250 - 1 - titleH),
@@ -260,6 +260,49 @@ class PrintLayoutCardTopTest {
       // the case the defect is about: two of these stacked read darker than the card
       assertEquals(128, top.getBackground().getAlpha(), "the card is genuinely translucent");
       assertNull(title.getBackground());
+   }
+
+   @Test
+   void theCardTopBoxEndsExactlyWhereTheTableBegins() throws Exception {
+      assertLaneJoins("a padded card with a title",
+                      new PrintLayoutConverterFixture().inset(16, 16, 16, 16));
+
+      PrintLayoutConverterFixture hidden =
+         new PrintLayoutConverterFixture().inset(16, 16, 16, 16);
+      hidden.info.setTitleVisibleValue(false);
+      assertLaneJoins("a padded card with the title hidden", hidden);
+
+      assertLaneJoins("a zero top inset with a title",
+                      new PrintLayoutConverterFixture().inset(0, 16, 16, 16));
+
+      PrintLayoutConverterFixture zeroHidden =
+         new PrintLayoutConverterFixture().inset(0, 16, 16, 16);
+      zeroHidden.info.setTitleVisibleValue(false);
+      assertLaneJoins("a zero top inset with the title hidden", zeroHidden);
+
+      PrintLayoutConverterFixture borderless =
+         new PrintLayoutConverterFixture().inset(16, 16, 16, 16);
+      borderless.info.getFormat().getUserDefinedFormat()
+         .setBorders(new Insets(NONE, NONE, NONE, NONE));
+      assertLaneJoins("a borderless card", borderless);
+
+      PrintLayoutConverterFixture thick =
+         new PrintLayoutConverterFixture().inset(16, 16, 16, 16);
+      thick.info.getFormat().getUserDefinedFormat()
+         .setBorders(new Insets(THICK, THICK, THICK, THICK));
+      assertLaneJoins("a thick object border", thick);
+   }
+
+   private static void assertLaneJoins(String label, PrintLayoutConverterFixture fixture)
+      throws Exception
+   {
+      List<ReportElement> elements = fixture.addTable();
+      Rectangle lane = fixture.bounds(cardTop(elements));
+      Rectangle grid = fixture.bounds(table(elements));
+
+      assertEquals(lane.y + lane.height, grid.y,
+         label + ": the lane's last line is the table's first, so neither a gap between "
+            + "their side borders nor two card fills stacked on one line");
    }
 
    private static ReportElement table(List<ReportElement> elements) {

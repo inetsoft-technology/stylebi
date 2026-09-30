@@ -1514,7 +1514,13 @@ public class VsToReportConverter {
       int laneH = info.isTitleVisible() ? titleH : 0;
       Insets bw = getCardBorderWidths(info);
       int laneY = bw.top + inset.top;
-      Rectangle topBounds = new Rectangle(bounds.x, bounds.y, bounds.width, laneY + laneH);
+      // the one line where the lane ends and the table begins. Shared rather than computed
+      // twice: if the table started lower the side borders would break, and if the lane
+      // reached further down the two fills would overlap and a translucent card would read
+      // darker along that line. Never above the inside of the top border, which is the whole
+      // lane when the title is hidden over a zero top inset.
+      int laneBottom = Math.max(bw.top, laneY + laneH - JOIN_OVERLAP);
+      Rectangle topBounds = new Rectangle(bounds.x, bounds.y, bounds.width, laneBottom);
       // built directly, not through addTextBoxElement0: that path's applyFormat call would
       // rewrite the object's live border Insets in place (isTitle = false there)
       TextBoxElementDef top = new TextBoxElementDef(report, new DefaultTextLens(""));
@@ -1534,12 +1540,7 @@ public class VsToReportConverter {
             top.getBackground());
       }
 
-      // 1px up so the sides join, as the table joins its title without an inset, but never
-      // above the inside of the top border: a hidden title over a zero top inset leaves no
-      // lane to climb into, and the overlap would take the border band itself
-      int y = bounds.y + Math.max(bw.top, laneY + laneH - 1);
-
-      return new Rectangle(bounds.x, y, bounds.width,
+      return new Rectangle(bounds.x, bounds.y + laneBottom, bounds.width,
                            Math.max(0, bounds.height - laneY - titleH));
    }
 
@@ -3455,6 +3456,10 @@ public class VsToReportConverter {
    private SectionElementDef headerSection = null; // section of header.
    private SectionElementDef footerSection = null; // section of footer.
    private static HashMap<String, PrintLayout> tempLayouts = new HashMap<>();
+   // stacked card elements meet on one shared line instead of each claiming its own, so
+   // their side borders join with no hairline gap between them. createTitle pulls the table
+   // onto the title's last line by the same amount, for the same reason.
+   private static final int JOIN_OVERLAP = 1;
    private static double INCH_MM = 25.4;
    private static double INCH_POINT = 72;
    private static final Logger LOG =
