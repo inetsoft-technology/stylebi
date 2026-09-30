@@ -25,12 +25,14 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import java.text.ParsePosition;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.Date;
 import java.util.Locale;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
@@ -89,5 +91,50 @@ public class ExtendedDateFormatTest {
       final Date actual = format.parse("2020-02", null);
 
       assertEquals(expected, actual);
+   }
+
+   @Test
+   public void parsePositionUsesLocale() {
+      final ExtendedDateFormat format = new ExtendedDateFormat("hh:mm a", Locale.JAPAN);
+      final Date expected = Date.from(LocalDateTime.of(1970, 1, 1, 19, 0)
+                                         .atZone(ZoneId.systemDefault()).toInstant());
+      final String text = format.format(expected);
+      final ParsePosition pos = new ParsePosition(0);
+
+      assertEquals(expected, format.parseObject(text, pos));
+      assertEquals(text.length(), pos.getIndex());
+   }
+
+   @Test
+   public void parsePositionMonthName() {
+      final ExtendedDateFormat format = new ExtendedDateFormat("MMMM d, yyyy", Locale.GERMANY);
+      final Date expected = Date.from(LocalDateTime.of(2020, 12, 31, 0, 0)
+                                         .atZone(ZoneId.systemDefault()).toInstant());
+      final String text = format.format(expected);
+      final ParsePosition pos = new ParsePosition(0);
+
+      assertEquals(expected, format.parse(text, pos));
+      assertEquals(text.length(), pos.getIndex());
+   }
+
+   @Test
+   public void parsePositionStartsAtIndex() {
+      final ExtendedDateFormat format = new ExtendedDateFormat(Tool.DEFAULT_DATE_PATTERN);
+      final Date expected = Date.from(LocalDateTime.of(2011, 1, 2, 0, 0)
+                                         .atZone(ZoneId.systemDefault()).toInstant());
+      final ParsePosition pos = new ParsePosition(5);
+
+      assertEquals(expected, format.parse("XXXX 2011-01-02 tail", pos));
+      assertEquals(15, pos.getIndex());
+   }
+
+   @Test
+   public void parsePositionFailureReturnsNull() {
+      final ExtendedDateFormat format = new ExtendedDateFormat("QQQ yyyy", Locale.US);
+      final ParsePosition pos = new ParsePosition(0);
+
+      assertNull(format.parseObject("4th 2020", pos));
+      assertEquals(0, pos.getIndex());
+      assertEquals(0, pos.getErrorIndex());
    }
 }
