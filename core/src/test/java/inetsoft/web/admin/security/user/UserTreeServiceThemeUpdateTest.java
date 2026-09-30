@@ -364,6 +364,39 @@ class UserTreeServiceThemeUpdateTest {
          "another organization's theme cannot be selected");
    }
 
+   // the reported case: single-tenant, a group and a role of the default organization are
+   // assigned a theme without an organization, and the editor reads the theme back
+   @Test
+   void editGroupAndRole_singleTenantGlobalTheme_assignedAndReadBack() throws Exception {
+      String hostOrg = Organization.getDefaultOrganizationID();
+      when(orgManager.getCurrentOrgID()).thenReturn(hostOrg);
+      when(principal.getName()).thenReturn(new IdentityID("admin", hostOrg).convertToKey());
+      when(securityEngine.getSecurityProvider().getOrganization(hostOrg))
+         .thenReturn(new FSOrganization(hostOrg));
+      CustomTheme globalTheme = theme("globalTheme", null);
+      globalTheme.getRoles().clear();
+      UserTreeService saveService = themeUpdateService(globalTheme);
+      IdentityID group = new IdentityID("sales", hostOrg);
+      IdentityID role = new IdentityID("viewer", hostOrg);
+      when(provider.getGroup(group)).thenReturn(new FSGroup(group));
+      when(provider.getRole(role)).thenReturn(new FSRole(role));
+
+      saveService.editGroup("Primary", group, EditGroupPaneModel.builder()
+         .name("sales").oldName("sales").organization(hostOrg).theme("globalTheme").build(),
+                            principal);
+      saveService.editRole(roleModel("viewer", "viewer", hostOrg, "globalTheme"), "Primary",
+                           principal);
+
+      assertEquals(List.of("sales"), globalTheme.getGroups());
+      assertEquals(List.of("viewer"), globalTheme.getRoles());
+
+      CustomThemesManager readManager = mock(CustomThemesManager.class);
+      when(readManager.getCustomThemes()).thenReturn(Set.of(globalTheme));
+      IdentityThemeService readService = new IdentityThemeService(readManager);
+      assertEquals("globalTheme", readService.getTheme(group, CustomTheme::getGroups));
+      assertEquals("globalTheme", readService.getTheme(role, CustomTheme::getRoles));
+   }
+
    private UserTreeService themeUpdateService(CustomTheme... themes) throws Exception {
       CustomThemesManager themesManager = mock(CustomThemesManager.class);
       CustomThemesManagerMocks.applyUpdates(themesManager);
