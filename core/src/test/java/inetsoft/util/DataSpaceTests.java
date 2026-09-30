@@ -17,6 +17,7 @@
  */
 package inetsoft.util;
 
+import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.test.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.Tag;
@@ -30,10 +31,14 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.io.IOException;
+import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.NotDirectoryException;
 import java.security.MessageDigest;
 import java.util.Arrays;
 import java.util.HexFormat;
+import java.util.Map;
+import java.util.Set;
 import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -362,6 +367,52 @@ class DataSpaceTests {
          assertEquals(digest, space.getDigest(root, "sibling.txt"), "the existing folder must be kept");
       }
       finally {
+         deleteQuietly(space, root);
+      }
+   }
+
+   /**
+    * Bug #77389: a transaction write under a file nested in a folder must fail with a
+    * NotDirectoryException naming the file, and must not leave a reference to the file's
+    * content behind, so deleting the file releases it.
+    */
+   @Test
+   void shouldRejectTransactionWriteUnderNestedFileWithoutOrphaningContent() throws Exception {
+      DataSpace space = DataSpace.getDataSpace();
+      String root = "test77389-tx";
+      String file = root + "/file.txt";
+      byte[] content = "test77389-tx-unique-content".getBytes(StandardCharsets.UTF_8);
+      Map<String, Set<String>> refs =
+         Cluster.getInstance().getReplicatedMap("inetsoft.storage.kv.dataSpaceRefs");
+
+      try {
+         space.withOutputStream(root, "file.txt", out -> out.write(content));
+         String digest = space.getDigest(null, file);
+         assertEquals(Set.of(file), refs.get(digest));
+
+         NotDirectoryException e = assertThrows(NotDirectoryException.class, () -> {
+            try(DataSpace.Transaction tx = space.beginTransaction();
+                OutputStream out = tx.newStream(file + "/x", "b.txt"))
+            {
+               out.write(2);
+               tx.commit();
+            }
+         });
+
+         assertEquals(file, e.getFile());
+         assertTrue(space.isDirectory(root));
+         assertFalse(space.isDirectory(file));
+         assertEquals(digest, space.getDigest(null, file));
+         assertFalse(space.exists(null, file + "/x"));
+         assertFalse(space.exists(file + "/x", "b.txt"));
+         assertEquals(Set.of(file), refs.get(digest));
+
+         space.delete(null, file);
+         assertNull(refs.get(digest), "deleting the file must release its content");
+      }
+      finally {
+         deleteQuietly(space, file + "/x/b.txt");
+         deleteQuietly(space, file + "/x");
          deleteQuietly(space, root);
       }
    }
