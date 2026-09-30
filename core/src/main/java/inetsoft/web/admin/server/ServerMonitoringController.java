@@ -532,6 +532,13 @@ public class ServerMonitoringController {
       }
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "monitoring/summary",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @DeniedMultiTenancyOrgUser
    @GetMapping("/em/monitoring/server/summary")
    public ServerSummaryModel getServerSummaryModel(
