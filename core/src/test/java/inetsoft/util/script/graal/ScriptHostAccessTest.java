@@ -265,6 +265,19 @@ class ScriptHostAccessTest {
       }
    }
 
+   /**
+    * JavaScriptEngine's statics hand out and replace the raw executing scope, the
+    * way FormulaContext's do, so neither may be looked up by name. (#77348)
+    */
+   @Test void scriptEngineInternalsNotLoadable() {
+      try(Context ctx = newContext()) {
+         assertThrows(PolyglotException.class,
+            () -> ctx.eval("js", "Java.type('inetsoft.util.script.JavaScriptEngine')"));
+         assertThrows(PolyglotException.class,
+            () -> ctx.eval("js", "Java.type('inetsoft.util.script.FormulaContext')"));
+      }
+   }
+
    public static class ExternalizableBean implements java.io.Externalizable {
       public String getValue() { return "v"; }
       public int getRowCount() { return 1; }

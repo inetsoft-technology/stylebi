@@ -116,7 +116,10 @@ public final class ScriptHostAccess {
       // its statics hand out the raw executing ScriptScope (bypassing ScopeProxy
       // and the read-only principal view) and the thread's restricted flag that
       // gates runQuery from the web. Internal plumbing, never script API. (#77348)
-      "inetsoft.util.script.FormulaContext"
+      "inetsoft.util.script.FormulaContext",
+      // same for getExecScriptable()/pushExecScriptable(); its script-facing
+      // functions are bound as globals, not looked up by name (#77348)
+      "inetsoft.util.script.JavaScriptEngine"
    );
 
    // Tier 1: curated exact-match safe classes. Finalized by audit in Task 6.4,
@@ -219,6 +222,8 @@ public final class ScriptHostAccess {
                   // readExternal resets an object's whole state; only the
                   // interface-declared methods, not every Externalizable class
                   .denyAccess(java.io.Externalizable.class, false)
+                  // DestinationUserNameProviderPrincipal is a Principal, but Graal
+                  // reports getDestinationUserName() as declared by this interface
                   .denyAccess(org.springframework.messaging.simp.user
                                  .DestinationUserNameProvider.class, false)
                   // the principal's user identity holder
@@ -232,6 +237,16 @@ public final class ScriptHostAccess {
                   // the engine (static WorksheetEngine.getWorksheetService(),
                   // ViewsheetEngine), which hands out every user's sheets on the node
                   .denyAccess(inetsoft.report.composition.WorksheetService.class)
+                  // XUtil.getXIdentityFinder() resolves every user's roles, groups
+                  // and org, and its getters return the live arrays
+                  .denyAccess(inetsoft.uql.util.XIdentityFinder.class)
+                  // XUtil.getSecurityProvider(), and the interfaces its providers'
+                  // configuration and cache methods are declared by
+                  .denyAccess(inetsoft.sree.security.AuthenticationProvider.class)
+                  .denyAccess(inetsoft.sree.security.AuthorizationProvider.class)
+                  .denyAccess(inetsoft.sree.security.JsonConfigurableProvider.class)
+                  .denyAccess(inetsoft.sree.security.CachableProvider.class)
+                  .denyAccess(inetsoft.sree.security.AuthenticationChangeListener.class, false)
                   // legacy convenience: scripts pass JS numbers to Java APIs.
                   // The range check matters: Double::intValue narrows by Java
                   // cast, which CLAMPS anything past the int range to

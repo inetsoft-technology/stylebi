@@ -1185,7 +1185,7 @@ public final class XUtil {
 
       if(Identity.UNKNOWN_USER.equals(userID.name)) {
          if(user instanceof XPrincipal) {
-            return ((XPrincipal) user).getRoles();
+            return copyRoles(((XPrincipal) user).getRoles());
          }
          else {
             return new IdentityID[0];
@@ -1210,7 +1210,28 @@ public final class XUtil {
          }
       }
 
-      return userRoles;
+      return copyRoles(userRoles);
+   }
+
+   /**
+    * Copies the array and each IdentityID in it. The finder can return the
+    * principal's live roles array, and the provider its cached identities, and
+    * scripts can call this method, so they must not get the live objects back
+    * to mutate in place (Bug #77348), the way getUserGroups copies its result.
+    */
+   private static IdentityID[] copyRoles(IdentityID[] roles) {
+      if(roles == null) {
+         return null;
+      }
+
+      IdentityID[] result = new IdentityID[roles.length];
+
+      for(int i = 0; i < roles.length; i++) {
+         result[i] = roles[i] == null ? null :
+            new IdentityID(roles[i].getName(), roles[i].getOrgID());
+      }
+
+      return result;
    }
 
    /**
@@ -3232,6 +3253,12 @@ public final class XUtil {
     * @param finder the identity finder.
     */
    public static void setXIdentityFinder(XIdentityFinder finder) {
+      // a script can reach this static, and a null finder would reset every
+      // user's role, group and org resolution on the node (Bug #77348)
+      if(finder == null && JavaScriptEngine.isScriptThread()) {
+         throw new java.lang.SecurityException("The identity finder cannot be removed by a script");
+      }
+
       IDENTITY_LOCK.lock();
 
       try {

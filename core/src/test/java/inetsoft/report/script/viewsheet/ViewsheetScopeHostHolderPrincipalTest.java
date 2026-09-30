@@ -225,6 +225,76 @@ class ViewsheetScopeHostHolderPrincipalTest {
    }
 
    /**
+    * Route 6: XUtil's role helpers and its identity finder return the principal's
+    * roles and groups, and must not hand back the live arrays or IdentityIDs.
+    */
+   @Test
+   void xutilIdentityHelpersCannotMutateSessionPrincipal() throws Exception {
+      ThreadContext.setContextPrincipal(viewer);
+
+      run("var p = new (Java.type('inetsoft.uql.VariableTable'))().get('__principal__');" +
+          "var X = Java.type('inetsoft.uql.util.XUtil');" +
+          "function poison(r) {" +
+          "  for(var i = 0; i < r.length; i++) {" +
+          "    try { r[i].setName('Administrator'); r[i].setOrgID('host-org'); } catch(e) {}" +
+          "    try { r[i] = null; } catch(e) {}" +
+          "  }" +
+          "}" +
+          "try { poison(X.getUserRoles(p, true)); } catch(e) {}" +
+          "try { poison(X.getUserRoles(p)); } catch(e) {}" +
+          "try { X.getUserGroups(p, true)[0] = 'Admins'; } catch(e) {}" +
+          "try { var f = X.getXIdentityFinder(); poison(f.getUserRoles(p));" +
+          "  f.getUserGroups(p)[0] = 'Admins'; } catch(e) {}");
+
+      assertArrayEquals(new IdentityID[] { new IdentityID("Everyone", "orgA") },
+                        viewer.getRoles());
+      assertArrayEquals(new String[] { "g1" }, viewer.getGroups());
+      assertViewerUnchanged();
+
+      // what the script got back was a copy, not the live roles
+      IdentityID[] roles = inetsoft.uql.util.XUtil.getUserRoles(viewer, true);
+      assertEquals(1, roles.length);
+      assertEquals(viewer.getRoles()[0], roles[0]);
+      assertNotSame(viewer.getRoles(), roles);
+      assertNotSame(viewer.getRoles()[0], roles[0]);
+   }
+
+   /** Route 6: a script must not reset the node's identity finder. */
+   @Test
+   void xutilIdentityFinderCannotBeRemoved() throws Exception {
+      Object finder = inetsoft.uql.util.XUtil.getXIdentityFinder();
+
+      run("Java.type('inetsoft.uql.util.XUtil').setXIdentityFinder(null)");
+
+      assertSame(finder, inetsoft.uql.util.XUtil.getXIdentityFinder());
+   }
+
+   /**
+    * Route 6: the identity finder and the security providers (XUtil.getXIdentityFinder,
+    * XUtil.getSecurityProvider) resolve and store every user's identity, so a script
+    * that reaches one must see no members, including those declared by the providers'
+    * other interfaces.
+    */
+   @Test
+   void identityFinderAndSecurityProvidersExposeNoMembers() throws Exception {
+      Object[] objects = {
+         new SRIdentityFinder(),
+         new VirtualAuthenticationProvider(),
+         new VirtualAuthorizationProvider()
+      };
+      VariableTable vars = (VariableTable) viewsheetScope.getVariableScriptable().unwrap();
+
+      for(Object o : objects) {
+         vars.put("probe", o);
+         assertEquals("[]", run("JSON.stringify(Object.keys(parameter.probe))"),
+                      o.getClass().getName());
+         assertEquals("undefined|undefined|undefined", run(
+            "typeof parameter.probe.getUserRoles + '|' + typeof parameter.probe.clearCache" +
+            " + '|' + typeof parameter.probe.readConfiguration"), o.getClass().getName());
+      }
+   }
+
+   /**
     * Guard: a raw principal a script reaches through any host path must expose no
     * members at all, so an interface added to a principal class later cannot reopen a
     * mutator (the way LogPrincipal.getClientUserID did).
@@ -244,6 +314,11 @@ class ViewsheetScopeHostHolderPrincipalTest {
          assertEquals("[]", run(
             "JSON.stringify(Object.keys(" +
             "new (Java.type('inetsoft.uql.VariableTable'))().get('__principal__')))"),
+            p.getClass().getName());
+         // readExternal would reset the whole principal from a stream
+         assertEquals("undefined|undefined", run(
+            "var p = new (Java.type('inetsoft.uql.VariableTable'))().get('__principal__');" +
+            "typeof p.readExternal + '|' + typeof p.writeExternal"),
             p.getClass().getName());
       }
    }
