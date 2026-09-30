@@ -1125,6 +1125,10 @@ public class CoreTool {
                return null;
             }
          case CODE_ARRAY:
+            if(val.startsWith("^")) {
+               return parseEscapedArray(val);
+            }
+
             String[] vals = split(val, '^');
             Object[] res = new Object[vals.length];
 
@@ -1333,12 +1337,23 @@ public class CoreTool {
          return String.valueOf(val);
       }
       else if(val instanceof Object[]) {
-         StringBuilder buffer = new StringBuilder();
          Object[] vals = (Object[]) val;
+         String[] items = new String[vals.length];
+         boolean escape = false;
 
          for(int i = 0; i < vals.length; i++) {
-            buffer.append(i != 0 ? "^" : "").append(getDataType(vals[i])).append("~")
-               .append(getDataString(vals[i], true, strictNull));
+            items[i] = String.valueOf(getDataString(vals[i], true, strictNull));
+            escape = escape || items[i].indexOf('^') >= 0 || items[i].indexOf('~') >= 0;
+         }
+
+         // values containing the delimiters are written in the escaped form, marked by a
+         // leading '^' which the legacy form never starts with, so other arrays keep the
+         // exact legacy format
+         StringBuilder buffer = new StringBuilder();
+
+         for(int i = 0; i < vals.length; i++) {
+            buffer.append(i != 0 || escape ? "^" : "").append(getDataType(vals[i])).append("~")
+               .append(escape ? escapeArrayItem(items[i]) : items[i]);
          }
 
          return buffer.toString();
@@ -1349,6 +1364,75 @@ public class CoreTool {
       else {
          return val.toString();
       }
+   }
+
+   /**
+    * Escape the array delimiters in the data string of an array item.
+    */
+   private static String escapeArrayItem(String item) {
+      StringBuilder buffer = new StringBuilder(item.length() + 8);
+
+      for(int i = 0; i < item.length(); i++) {
+         char c = item.charAt(i);
+
+         if(c == '\\' || c == '^' || c == '~') {
+            buffer.append('\\');
+         }
+
+         buffer.append(c);
+      }
+
+      return buffer.toString();
+   }
+
+   /**
+    * Parse an array data string written in the escaped form, i.e. a leading '^' followed by
+    * type~value items separated by '^', with '\', '^' and '~' in values escaped by '\'.
+    */
+   private static Object[] parseEscapedArray(String val) {
+      List<Object> res = new ArrayList<>();
+      StringBuilder type = new StringBuilder();
+      StringBuilder value = null;
+      int i = 1;
+
+      while(true) {
+         char c = i < val.length() ? val.charAt(i) : '^';
+
+         if(c == '\\' && i + 1 < val.length()) {
+            (value == null ? type : value).append(val.charAt(++i));
+         }
+         else if(c == '^') {
+            Object item = null;
+
+            // an item without a type separator is null, same as in the legacy form
+            if(value != null) {
+               try {
+                  item = getData(type.toString(), value.toString());
+               }
+               catch(Exception ignore) {
+               }
+            }
+
+            res.add(item);
+
+            if(i >= val.length()) {
+               break;
+            }
+
+            type.setLength(0);
+            value = null;
+         }
+         else if(c == '~' && value == null) {
+            value = new StringBuilder();
+         }
+         else {
+            (value == null ? type : value).append(c);
+         }
+
+         i++;
+      }
+
+      return res.toArray();
    }
 
    /**
