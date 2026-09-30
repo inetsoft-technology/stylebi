@@ -53,7 +53,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * between them, dispose), some runs on 2 long-lived sandboxes shared by all workers and reset
  * now and then by another thread, a fifth of the short-lived sandboxes with a non-default
  * batch configuration. Scripts are the synthetic set, every {@code -Drel.soak.step}-th (3)
- * corpus script, and 1% of the time a script whose row 600 loops until the 2 s script
+ * corpus script, and 1% ({@code -Drel.soak.timeoutPercent}) of the time a script whose row 600 loops until the 2 s script
  * timeout interrupts it. Every result is compared with the pool-off sequential oracle of its
  * (script, shape), all computed before the soak starts, and differences are classified as in
  * {@link RelMetamorphicTest}.
@@ -352,7 +352,7 @@ public class RelSoakTest {
    private static Work pick(Random random, List<RelMetamorphicTest.Case> normal,
                             List<RelMetamorphicTest.Case> timeouts)
    {
-      RelMetamorphicTest.Case c = random.nextInt(100) == 0
+      RelMetamorphicTest.Case c = random.nextInt(100) < TIMEOUT_PERCENT
          ? timeouts.get(random.nextInt(timeouts.size()))
          : normal.get(random.nextInt(normal.size()));
       Shape shape = Shape.values()[random.nextInt(Shape.values().length)];
@@ -791,6 +791,8 @@ public class RelSoakTest {
    private static final int STEP = Integer.getInteger("rel.soak.step", 3);
    private static final int LONG_LIVED = 2;
    private static final int LONG_LIVED_PERCENT = 30;
+   /** percent of picks that are a timeout script (1 by default) */
+   private static final int TIMEOUT_PERCENT = Integer.getInteger("rel.soak.timeoutPercent", 1);
    private static final int MAX_EXAMPLES = 40;
    private static final long SEED = Long.getLong("rel.seed", 77123L);
    private static final AtomicInteger THREAD_IDS = new AtomicInteger();
