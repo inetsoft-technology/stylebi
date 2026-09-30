@@ -24,6 +24,7 @@ import inetsoft.sree.security.*;
 import inetsoft.sree.security.SecurityException;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.util.Identity;
+import inetsoft.util.MessageException;
 import inetsoft.web.admin.schedule.model.*;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -648,6 +649,23 @@ class ScheduleTaskServiceOwnershipTest {
    }
 
    @Test
+   void saveTask_orgAdminRenamesAndAddsActionToSiteAdminTask_isRefusedWithoutRename()
+      throws Exception
+   {
+      ScheduleTask stored = siteAdminTask(true);
+      asOrgAdminWithAdminOnEveryUser();
+      ScheduleTaskEditorModel model = ScheduleTaskEditorModel.builder()
+         .from(contentModel(options("admin", null), List.of("child", "other"), List.of(90)))
+         .taskName("Renamed")
+         .build();
+
+      assertContentRefused(model, true);
+      assertEquals("Task1", stored.getName());
+      assertEquals(1, stored.getActionCount());
+      assertEquals("child", ((BatchAction) stored.getAction(0)).getTaskId());
+   }
+
+   @Test
    void saveTask_orgAdminRenamesSiteAdminTask_isAllowed() throws Exception {
       siteAdminTask(true);
       asOrgAdminWithAdminOnEveryUser();
@@ -747,7 +765,7 @@ class ScheduleTaskServiceOwnershipTest {
     * A stored task owned by MISSING_OWNER without an execute-as identity, with an action that
     * runs task "child" and a condition at 1:30.
     */
-   private void siteAdminTask(boolean runsAsSiteAdmin) throws Exception {
+   private ScheduleTask siteAdminTask(boolean runsAsSiteAdmin) throws Exception {
       ScheduleTask existing = storedTask(MISSING_OWNER, null);
       existing.addAction(batchAction("child"));
       existing.addCondition(TimeCondition.at(1, 30, 0));
@@ -782,6 +800,8 @@ class ScheduleTaskServiceOwnershipTest {
 
             return null;
          });
+
+      return existing;
    }
 
    private void runsAsSiteAdmin(IdentityID owner) {
@@ -801,9 +821,11 @@ class ScheduleTaskServiceOwnershipTest {
    private void assertContentRefused(ScheduleTaskEditorModel model, boolean em)
       throws Exception
    {
-      SecurityException e = assertThrows(
-         SecurityException.class, () -> service.saveTask(model, "", principal, em));
+      MessageException e = assertThrows(
+         MessageException.class, () -> service.saveTask(model, "", principal, em));
       assertTrue(e.getMessage().contains("Execute As"), e.getMessage());
+      // refused before anything is written, a rename included
+      verify(scheduleService, never()).updateTaskName(any(), any(), any(), any());
       verify(scheduleService, never()).saveTask(any(), any(), any());
    }
 
@@ -815,12 +837,15 @@ class ScheduleTaskServiceOwnershipTest {
    }
 
    private ScheduleActionModel actionModel(String taskId) {
-      return actionModels.computeIfAbsent(taskId, k -> mock(ScheduleActionModel.class));
+      return actionModels.computeIfAbsent(taskId, k -> BatchActionModel.builder()
+         .taskName(k).actionType("BatchAction").build());
    }
 
    private ScheduleConditionModel conditionModel(int minutes) {
-      return conditionModels.computeIfAbsent(String.valueOf(minutes),
-                                             k -> mock(ScheduleConditionModel.class));
+      // the models are compared on their JSON, a completion condition model names the time
+      return conditionModels.computeIfAbsent(String.valueOf(minutes), k ->
+         CompletionConditionModel.builder().taskName(k).conditionType("CompletionCondition")
+            .build());
    }
 
    private TimeCondition timeCondition(ScheduleConditionModel model) {

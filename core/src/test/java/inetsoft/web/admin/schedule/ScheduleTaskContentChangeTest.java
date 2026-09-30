@@ -18,8 +18,10 @@
 package inetsoft.web.admin.schedule;
 
 import inetsoft.sree.schedule.*;
+import inetsoft.sree.security.IdentityID;
 import inetsoft.test.*;
 import inetsoft.uql.viewsheet.FileFormatInfo;
+import inetsoft.uql.viewsheet.VSBookmarkInfo;
 import inetsoft.web.admin.deploy.DeployService;
 import inetsoft.web.admin.schedule.model.*;
 import org.junit.jupiter.api.*;
@@ -29,6 +31,7 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.security.Principal;
+import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -101,6 +104,80 @@ class ScheduleTaskContentChangeTest {
       saved.addAction(resaved(stored).getAction(0));
 
       assertTrue(addsOrChangesContent(stored, saved));
+   }
+
+   // review r1: models with parameters (DynamicValueModel has no equals, the embedded
+   // parameters of a batch action are a two-dimensional array) are compared on their content
+
+   @Test
+   void parameterizedItemsSentBackUnchanged_areNotAChange() throws Exception {
+      ScheduleTask stored = parameterizedTask();
+
+      assertFalse(addsOrChangesContent(stored, resaved(stored)));
+   }
+
+   @Test
+   void parameterizedItemsRemoved_areNotAChange() throws Exception {
+      ScheduleTask stored = parameterizedTask();
+      ScheduleTask saved = resaved(stored);
+      saved.removeAction(1);
+      saved.removeCondition(0);
+
+      assertFalse(addsOrChangesContent(stored, saved));
+   }
+
+   @Test
+   void changedViewsheetParameter_isAChange() throws Exception {
+      ScheduleTask stored = parameterizedTask();
+      ScheduleTask saved = resaved(stored);
+      ((ViewsheetAction) saved.getAction(0)).getViewsheetRequest().setParameter("state", "NY");
+
+      assertTrue(addsOrChangesContent(stored, saved));
+   }
+
+   @Test
+   void changedEmbeddedBatchParameter_isAChange() throws Exception {
+      ScheduleTask stored = parameterizedTask();
+      ScheduleTask saved = resaved(stored);
+      BatchAction batch = (BatchAction) saved.getAction(1);
+      List<Map<String, Object>> embedded = new ArrayList<>();
+      embedded.add(new LinkedHashMap<>(Map.of("region", "East")));
+      embedded.add(new LinkedHashMap<>(Map.of("region", "South")));
+      batch.setEmbeddedParameters(embedded);
+
+      assertTrue(addsOrChangesContent(stored, saved));
+   }
+
+   /**
+    * A stored task with a viewsheet action with parameters (one an array) and a bookmark, a
+    * batch action with query and embedded parameters, and a condition with a time range.
+    */
+   private static ScheduleTask parameterizedTask() {
+      ViewsheetAction viewsheet = new ViewsheetAction();
+      viewsheet.setViewsheet("1^128^__NULL__^Examples/Census^org1");
+      viewsheet.setEmails("a@example.com");
+      viewsheet.getViewsheetRequest().setParameter("state", "NJ");
+      viewsheet.getViewsheetRequest().setParameter("years", new String[] { "2020", "2021" });
+      viewsheet.setBookmarks(new String[] { "bm1" });
+      viewsheet.setBookmarkTypes(new int[] { VSBookmarkInfo.ALLSHARE });
+      viewsheet.setBookmarkUsers(new IdentityID[] { new IdentityID("oa", "org1") });
+
+      BatchAction batch = new BatchAction();
+      batch.setTaskId("oa~;~org1:child");
+      batch.setQueryParameters(new LinkedHashMap<>(Map.of("limit", "10")));
+      List<Map<String, Object>> embedded = new ArrayList<>();
+      embedded.add(new LinkedHashMap<>(Map.of("region", "East")));
+      embedded.add(new LinkedHashMap<>(Map.of("region", "West")));
+      batch.setEmbeddedParameters(embedded);
+
+      TimeCondition condition = TimeCondition.at(1, 30, 0);
+      condition.setTimeRange(new TimeRange("night", "01:00:00", "02:00:00", false));
+
+      ScheduleTask task = new ScheduleTask("Task1");
+      task.addAction(viewsheet);
+      task.addAction(batch);
+      task.addCondition(condition);
+      return task;
    }
 
    /**

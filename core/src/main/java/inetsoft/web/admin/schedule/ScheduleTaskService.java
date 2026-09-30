@@ -17,6 +17,9 @@
  */
 package inetsoft.web.admin.schedule;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.NullNode;
 import inetsoft.report.io.Builder;
 import inetsoft.report.io.ExportType;
 import inetsoft.sree.*;
@@ -36,6 +39,7 @@ import inetsoft.util.audit.ActionRecord;
 import inetsoft.util.audit.Audit;
 import inetsoft.util.dep.ScheduleTaskAsset;
 import inetsoft.util.dep.XAsset;
+import inetsoft.util.log.LogLevel;
 import inetsoft.web.RecycleUtils;
 import inetsoft.web.admin.content.repository.model.ExportFormatModel;
 import inetsoft.web.admin.general.model.model.SMTPAuthType;
@@ -572,6 +576,8 @@ public class ScheduleTaskService {
          }
 
          checkTaskIdentityPermission(model.options(), existingTask, principal);
+         checkContentChangeAllowed(model, existingTask, owner, taskName, linkURI, catalog,
+                                   principal, em);
          taskName = scheduleService.updateTaskName(oldTaskName, taskName, owner, principal);
          task = scheduleManager.getScheduleTask(taskName) == null ? null :
             scheduleManager.getScheduleTask(taskName).clone();
@@ -596,7 +602,52 @@ public class ScheduleTaskService {
       // Snapshot the server-side task before applying client changes so that sanitizeConditions
       // and sanitizeAction can restore any fields the principal is not permitted to change.
       ScheduleTask originalTask = task.clone();
+      Set<TimeRange> ranges = applyContent(model, task, originalTask, taskName, oldTaskName,
+                                           internalTask, linkURI, catalog, principal);
 
+      // Update Options
+      if(model.options() != null) {
+         setTaskOptions(model.options(), task, principal);
+      }
+
+      // Save task
+      scheduleService.saveTask(saveTaskId != null ? saveTaskId : taskName, task, principal);
+
+      // Balance tasks after saving
+      if(!ranges.isEmpty()) {
+         TaskBalancer balancer = new TaskBalancer();
+
+         for(TimeRange range : ranges) {
+            balancer.updateTask(task, range);
+         }
+      }
+
+      return getDialogModel(taskName, principal, em);
+      }
+      finally {
+         if(!Tool.isEmptyString(orgId)) {
+            OrganizationContextHolder.setCurrentOrgId(originalOrg);
+         }
+      }
+   }
+
+   /**
+    * Applies the conditions and actions of the editor model to a task.
+    *
+    * @param task         the task to change.
+    * @param originalTask the stored task, used to restore the fields the principal may not
+    *                     change.
+    * @param taskName     the name the task is saved with.
+    * @param oldTaskName  the name the task was stored with.
+    *
+    * @return the time ranges of the conditions, to balance the tasks after the save.
+    */
+   private Set<TimeRange> applyContent(ScheduleTaskEditorModel model, ScheduleTask task,
+                                       ScheduleTask originalTask, String taskName,
+                                       String oldTaskName, boolean internalTask, String linkURI,
+                                       Catalog catalog, Principal principal)
+      throws Exception
+   {
       Set<TimeRange> ranges = new HashSet<>();
 
       for(int i = 0; i < model.conditions().size(); i++) {
@@ -661,38 +712,45 @@ public class ScheduleTaskService {
          }
       }
 
-      // Update Options
-      if(model.options() != null) {
-         setTaskOptions(model.options(), task, principal);
+      return ranges;
+   }
+
+   /**
+    * Bug #77405, a task that still runs with the roles of a site admin after the save (with the
+    * owner and execute-as identity that the save stores) runs its actions with those roles, so
+    * only a site admin may add or change them. This is decided before anything is written
+    * (updateTaskName saves a rename), on the conditions and actions the save would store,
+    * before the task options are applied (setTaskOptions drops the bookmarks the execute-as
+    * identity can't use, which the caller didn't change).
+    *
+    * @param existingTask the stored task.
+    * @param owner        the owner the client sent, null if it is not changed.
+    * @param taskName     the name the task is saved with.
+    */
+   private void checkContentChangeAllowed(ScheduleTaskEditorModel model,
+                                          ScheduleTask existingTask, IdentityID owner,
+                                          String taskName, String linkURI, Catalog catalog,
+                                          Principal principal, boolean em)
+      throws Exception
+   {
+      TaskOptionsPaneModel options = model.options();
+      IdentityID newOwner = owner != null ? owner : existingTask.getOwner();
+      Identity newIdentity = options == null ? existingTask.getIdentity() :
+         getNewIdentity(options, existingTask.getIdentity(), principal);
+
+      if(identityChecker.isContentChangeAllowed(newOwner, newIdentity, principal)) {
+         return;
       }
 
-      // Bug #77405, a task that still runs with the roles of a site admin after the save (with
-      // the owner and execute-as identity it is stored with) runs its actions with those roles,
-      // only a site admin may add or change them
-      if(!identityChecker.isContentChangeAllowed(task.getOwner(), task.getIdentity(), principal) &&
-         addsOrChangesContent(originalTask, task, linkURI, principal, em))
-      {
-         throw new SecurityException(catalog.getString("em.scheduler.siteAdminTaskContent"));
-      }
+      ScheduleTask candidate = existingTask.clone();
+      // the rename of a backup action of the task itself is not a change by the caller
+      applyContent(model, candidate, existingTask.clone(), taskName, taskName, false, linkURI,
+                   catalog, principal);
 
-      // Save task
-      scheduleService.saveTask(saveTaskId != null ? saveTaskId : taskName, task, principal);
-
-      // Balance tasks after saving
-      if(!ranges.isEmpty()) {
-         TaskBalancer balancer = new TaskBalancer();
-
-         for(TimeRange range : ranges) {
-            balancer.updateTask(task, range);
-         }
-      }
-
-      return getDialogModel(taskName, principal, em);
-      }
-      finally {
-         if(!Tool.isEmptyString(orgId)) {
-            OrganizationContextHolder.setCurrentOrgId(originalOrg);
-         }
+      if(addsOrChangesContent(existingTask, candidate, linkURI, principal, em)) {
+         // a message exception, the EM and portal show the message of the refusal
+         throw new MessageException(
+            catalog.getString("em.scheduler.siteAdminTaskContent"), LogLevel.WARN, false);
       }
    }
 
@@ -710,25 +768,36 @@ public class ScheduleTaskService {
                                         Principal principal, boolean em)
       throws Exception
    {
-      List<ScheduleConditionModel> storedConditions = new ArrayList<>();
-      List<ScheduleActionModel> storedActions = new ArrayList<>();
+      List<JsonNode> storedConditions = new ArrayList<>();
+      List<JsonNode> storedActions = new ArrayList<>();
 
       for(int i = 0; i < stored.getConditionCount(); i++) {
-         storedConditions.add(getResavedConditionModel(stored.getCondition(i), principal));
+         storedConditions.add(
+            toTree(getResavedConditionModel(stored.getCondition(i), principal)));
       }
 
       for(int i = 0; i < stored.getActionCount(); i++) {
-         storedActions.add(getResavedActionModel(stored.getAction(i), linkURI, principal, em));
+         storedActions.add(toTree(getResavedActionModel(stored.getAction(i), linkURI, principal,
+                                                        em)));
       }
 
-      List<ScheduleConditionModel> conditions = task.getConditionStream()
-         .map(c -> scheduleConditionService.getConditionModel(c, principal)).toList();
-      List<ScheduleActionModel> actions = task.getActionStream()
-         .map(a -> scheduleService.getActionModel(a, principal, em)).toList();
+      List<JsonNode> conditions = task.getConditionStream()
+         .map(c -> toTree(scheduleConditionService.getConditionModel(c, principal))).toList();
+      List<JsonNode> actions = task.getActionStream()
+         .map(a -> toTree(scheduleService.getActionModel(a, principal, em))).toList();
 
       return !ScheduleTaskIdentityChecker.isKeptOrRemoved(storedConditions, conditions,
                                                           Objects::equals) ||
          !ScheduleTaskIdentityChecker.isKeptOrRemoved(storedActions, actions, Objects::equals);
+   }
+
+   /**
+    * Gets the JSON the editor gets for a model. The models are compared on it, the model
+    * classes don't all compare their contents (DynamicValueModel has no equals, the embedded
+    * parameters of a batch action are a two-dimensional array).
+    */
+   private static JsonNode toTree(Object model) {
+      return model == null ? NullNode.getInstance() : CONTENT_MAPPER.valueToTree(model);
    }
 
    /**
@@ -1749,6 +1818,7 @@ public class ScheduleTaskService {
    private final SecurityEngine securityEngine;
    private final ScheduleTaskIdentityChecker identityChecker;
 
+   private static final ObjectMapper CONTENT_MAPPER = new ObjectMapper();
    private static final Logger LOG =
       LoggerFactory.getLogger(ScheduleTaskService.class);
 }
