@@ -20,6 +20,7 @@ package inetsoft.web.admin.schedule;
 import inetsoft.sree.schedule.*;
 import inetsoft.sree.security.*;
 import inetsoft.test.*;
+import inetsoft.util.Catalog;
 import inetsoft.util.ThreadContext;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -38,10 +39,10 @@ import static org.mockito.Mockito.*;
 /**
  * Bug #77358: JMX ScheduleMonitorMBean.runTask/stopTask go through
  * SchedulerMonitoringService with no context principal, so the REAL ScheduleManager looks the
- * name up in host-org. Its legacy ':' fallback resolves another org's job id
- * ("bob~;~orgB:Nightly") to host-org's bare-id internal task "Nightly"; the quartz job that is
- * run/stopped must be that resolved "Nightly", and another org's task that host-org cannot
- * resolve (here a disabled one) must be refused, never forwarded to the scheduler.
+ * name up in host-org. A legacy owner-prefixed name that the ':' fallback resolves to
+ * host-org's bare-id internal task "Nightly" must run/stop that resolved "Nightly", and another
+ * org's job id ("bob~;~orgB:Nightly", which the fallback rejects since #77356, or one host-org
+ * cannot resolve at all) must be refused, never forwarded to the scheduler.
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class, IntegrationTestConfiguration.class },
@@ -105,14 +106,36 @@ class SchedulerMonitoringServiceLegacyFallbackTest {
    }
 
    @Test
-   void runAndStop_otherOrgJobId_actOnlyOnFallbackResolvedHostTask() throws Exception {
-      service.runTask(VICTIM_JOB);
-      service.stopTask(VICTIM_JOB);
+   void runAndStop_otherOrgJobId_refusedWithoutSchedulerCall() throws Exception {
+      // since #77356 the legacy fallback no longer resolves another org's owner prefix to a
+      // host-org task, so the other org's job id must be refused, never forwarded to quartz
+      String notFound = Catalog.getCatalog().getString("scheduleManager.taskNotFound");
 
-      verify(scheduleClient).runNow(LEGACY_NAME);
-      verify(scheduleClient).stopNow(LEGACY_NAME);
-      verify(scheduleClient, never()).runNow(VICTIM_JOB);
-      verify(scheduleClient, never()).stopNow(VICTIM_JOB);
+      assertEquals(notFound,
+                   assertThrows(Exception.class, () -> service.runTask(VICTIM_JOB)).getMessage());
+      assertEquals(notFound,
+                   assertThrows(Exception.class, () -> service.stopTask(VICTIM_JOB)).getMessage());
+
+      verify(scheduleClient, never()).runNow(anyString());
+      verify(scheduleClient, never()).stopNow(anyString());
+   }
+
+   @Test
+   void runAndStop_legacyPrefixedHostName_actOnResolvedBareId() throws Exception {
+      // legacy prefixes that still resolve after #77356: a host-org owner key and a pre-13.1
+      // owner name without an organization
+      String hostPrefixed = new IdentityID("admin", hostOrg).convertToKey() + ":" + LEGACY_NAME;
+      String noOrgPrefixed = "admin:" + LEGACY_NAME;
+
+      for(String name : new String[] { hostPrefixed, noOrgPrefixed }) {
+         service.runTask(name);
+         service.stopTask(name);
+         verify(scheduleClient, never()).runNow(name);
+         verify(scheduleClient, never()).stopNow(name);
+      }
+
+      verify(scheduleClient, times(2)).runNow(LEGACY_NAME);
+      verify(scheduleClient, times(2)).stopNow(LEGACY_NAME);
    }
 
    @Test

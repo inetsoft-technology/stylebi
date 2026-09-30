@@ -40,6 +40,11 @@ import static org.mockito.Mockito.*;
  * scheduleClient.runNow()/stopNow(), even when the lookup found nothing or resolved (via the
  * legacy ':' fallback) to a different task. They must run/stop the resolved task id and refuse
  * with "task not found" when the lookup returns null, as ScheduleService does after #77262.
+ * <p>
+ * ScheduleManager is mocked: these tests pin the service's contract (act only on whatever task
+ * the lookup returns, by its id). Since #77356 the real legacy fallback no longer resolves
+ * another org's prefix such as RAW_NAME; that path is covered against the real ScheduleManager
+ * by SchedulerMonitoringServiceLegacyFallbackTest.
  */
 @Tag("core")
 @ExtendWith(MockitoExtension.class)
