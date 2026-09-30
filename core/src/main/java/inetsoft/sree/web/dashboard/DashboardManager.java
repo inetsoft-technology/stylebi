@@ -80,15 +80,25 @@ public class DashboardManager implements AutoCloseable {
    }
 
    /**
-    * Runs an action while holding this manager's lock. A dashboard registry renames or removes
-    * a dashboard through this, so that the change to the stored selections and the change to the
-    * registry are atomic with respect to getDashboards(), which prunes the selected names that are
-    * not in the registries. The lock order is this manager, then the store lock (getStoreLock()),
-    * then DashboardRegistryManager, then the user registry, then the global registry (see
+    * Runs an action while holding this manager's lock and the store lock of the cluster
+    * (getStoreLock()). A dashboard registry renames or removes a dashboard through this, so that
+    * the change to the stored selections and the change to the registry file are atomic with
+    * respect to getDashboards(), which leaves out the selected names that are not in the
+    * registries, and which re-reads both under the store lock before it removes such a name
+    * (Bug #77299). The lock order is this manager, then the store lock, then
+    * DashboardRegistryManager, then the user registry, then the global registry (see
     * DashboardRegistry for the registry file locks).
     */
    synchronized void runLocked(Runnable action) {
-      action.run();
+      Lock storeLock = getStoreLock();
+      storeLock.lock();
+
+      try {
+         action.run();
+      }
+      finally {
+         storeLock.unlock();
+      }
    }
 
    /**
@@ -145,7 +155,6 @@ public class DashboardManager implements AutoCloseable {
       }
 
       List<String> values = data.getDashboards();
-      List<String> list = new ArrayList<>();
       DashboardRegistry uregistry = null;
       DashboardRegistry gregistry = dashboardRegistryManager.getRegistry();
 
@@ -153,10 +162,29 @@ public class DashboardManager implements AutoCloseable {
          uregistry = dashboardRegistryManager.getRegistry(identity.getIdentityID());
       }
 
-      // The names that are not in the registries are left out, but not removed from the stored
-      // record. The registries are this node's cached copies, which may not have loaded a
-      // dashboard that another node has just created and selected (Bug #77272). A dashboard
-      // that is really removed is removed from the records by removeDashboard(String).
+      // The names that are not in the registries are left out. The registries are this node's
+      // cached copies, which may not have loaded a dashboard that another node has just created
+      // and selected (Bug #77272), or renamed (Bug #77299), so the stored record and the
+      // registry files are then read again, see getRegisteredFromFiles().
+      List<String> list = getRegistered(identity, values, uregistry, gregistry);
+
+      if(list.size() < values.size()) {
+         list = getRegisteredFromFiles(identity, sync, uregistry, gregistry);
+      }
+
+      return list.toArray(new String[0]);
+   }
+
+   /**
+    * Gets the selected names that are in the cached registries. The names of an identity that
+    * is not a user are all kept.
+    */
+   private static List<String> getRegistered(Identity identity, List<String> values,
+                                             DashboardRegistry uregistry,
+                                             DashboardRegistry gregistry)
+   {
+      List<String> list = new ArrayList<>();
+
       for(String dashboard : values) {
          if((uregistry != null && uregistry.getDashboard(dashboard) != null) ||
             identity.getType() != Identity.USER || gregistry.getDashboard(dashboard) != null)
@@ -165,7 +193,95 @@ public class DashboardManager implements AutoCloseable {
          }
       }
 
-      return list.toArray(new String[0]);
+      return list;
+   }
+
+   /**
+    * Gets the selected names of an identity that are in the registries, after a selected name was
+    * not found in this node's cached registries (Bug #77299). Holding the store lock, it reads the
+    * stored record again and loads the registries from their files, and then leaves out the names
+    * that are still not in them. A registry renames or removes a dashboard holding the store lock
+    * across the change of the records and of its file (runLocked()), and a dashboard is created
+    * in the registry file before it is selected, so a name that is still missing from an existing
+    * registry file is really gone. It is then removed from the stored record if <i>prune</i> is
+    * set, so that the next read doesn't read the files again. The stored record isn't changed if
+    * a registry file couldn't be read, and a name isn't removed if the file of the registry it
+    * belongs to doesn't exist: a user rename and an organization copy store the selections before
+    * they write the registry files (see isGone()).
+    *
+    * @param prune true to remove the names that are really gone from the stored record. It must
+    *              be false when the caller changes the record after this call from a copy that
+    *              it read before.
+    */
+   private List<String> getRegisteredFromFiles(Identity identity, boolean prune,
+                                               DashboardRegistry uregistry,
+                                               DashboardRegistry gregistry)
+   {
+      Lock storeLock = getStoreLock();
+      storeLock.lock();
+
+      try {
+         DashboardData data = getDashboardStorage().get(getIdentityKey(identity));
+
+         if(data == null) {
+            return new ArrayList<>();
+         }
+
+         List<String> values = data.getDashboards();
+         boolean synced = syncRegistries(uregistry, gregistry);
+         List<String> list = getRegistered(identity, values, uregistry, gregistry);
+
+         if(prune && synced && list.size() < values.size()) {
+            List<String> kept = new ArrayList<>();
+
+            for(String dashboard : values) {
+               if(list.contains(dashboard) || !isGone(dashboard, uregistry, gregistry)) {
+                  kept.add(dashboard);
+               }
+            }
+
+            if(kept.size() < values.size()) {
+               setDashboards(identity, kept.toArray(new String[0]));
+            }
+         }
+
+         return list;
+      }
+      finally {
+         storeLock.unlock();
+      }
+   }
+
+   /**
+    * Checks if a selected name that is not in the registries, which have just been loaded from
+    * their files, is really gone: the file of the registry it belongs to (the global registry for
+    * a global dashboard, else the user registry) exists. A file that doesn't exist may be one
+    * that is still to be written (Bug #77299).
+    */
+   private static boolean isGone(String dashboard, DashboardRegistry uregistry,
+                                 DashboardRegistry gregistry)
+   {
+      DashboardRegistry owner = dashboard.contains("__GLOBAL") ? gregistry : uregistry;
+      return owner != null && owner.isFileLoaded();
+   }
+
+   /**
+    * Loads registries from their files if they have changed since the registries last loaded
+    * them (Bug #77299). It is called holding the store lock, which is taken before the registry
+    * locks.
+    *
+    * @return true if all the registries now hold what their files hold.
+    */
+   private static boolean syncRegistries(DashboardRegistry... registries) {
+      boolean synced = true;
+
+      for(DashboardRegistry registry : registries) {
+         if(registry != null && !registry.syncWithFile()) {
+            synced = false;
+         }
+      }
+
+      return synced;
    }
 
    /**
@@ -187,14 +303,24 @@ public class DashboardManager implements AutoCloseable {
 
          List<String> list = new ArrayList<>();
          List<String> added = new ArrayList<>();
+         List<String> stored = values == null ? new ArrayList<>() : new ArrayList<>(values);
+         boolean pruned = false;
          DashboardRegistry registry = dashboardRegistryManager.getRegistry();
 
-         // the names that are not in this node's cached registry are left out, but not removed
-         // from the stored record, see getDashboards(Identity, boolean)
+         // the names that are not in this node's cached registry are left out. The registry is
+         // then loaded from its file, and the names that are still not in an existing file are
+         // really gone and are removed from the stored record, see getRegisteredFromFiles()
+         // (Bug #77299)
          if(values != null) {
-            for(String dashboard : values) {
-               if(registry.getDashboard(dashboard) != null) {
-                  list.add(dashboard);
+            list = getDeselectedRegistered(values, registry);
+
+            if(list.size() < values.size()) {
+               boolean synced = syncRegistries(registry);
+               list = getDeselectedRegistered(values, registry);
+
+               if(synced && registry.isFileLoaded() && list.size() < values.size()) {
+                  stored = new ArrayList<>(list);
+                  pruned = true;
                }
             }
          }
@@ -217,11 +343,12 @@ public class DashboardManager implements AutoCloseable {
             }
          }
 
-         if(!added.isEmpty()) {
-            // only the added names are stored, on top of the stored record
-            List<String> stored = values == null ? new ArrayList<>() : new ArrayList<>(values);
-            added.stream().filter(d -> !stored.contains(d)).forEach(stored::add);
-            setDeselectedDashboards(identity, stored.toArray(new String[0]));
+         if(!added.isEmpty() || pruned) {
+            // only the added names are stored, on top of the stored record without the names
+            // that are really gone
+            List<String> nstored = stored;
+            added.stream().filter(d -> !nstored.contains(d)).forEach(nstored::add);
+            setDeselectedDashboards(identity, nstored.toArray(new String[0]));
          }
 
          return list.toArray(new String[0]);
@@ -229,6 +356,23 @@ public class DashboardManager implements AutoCloseable {
       finally {
          storeLock.unlock();
       }
+   }
+
+   /**
+    * Gets the deselected names that are in the cached global registry.
+    */
+   private static List<String> getDeselectedRegistered(List<String> values,
+                                                       DashboardRegistry registry)
+   {
+      List<String> list = new ArrayList<>();
+
+      for(String dashboard : values) {
+         if(registry.getDashboard(dashboard) != null) {
+            list.add(dashboard);
+         }
+      }
+
+      return list;
    }
 
    /**
@@ -852,10 +996,13 @@ public class DashboardManager implements AutoCloseable {
             List<String> selected = syncUserDashboards(identity, pair.getValue().getDashboards());
 
             if(selected != null) {
+               // read again, the sync may have stored the deselected names (Bug #77299)
+               DashboardData current = getDashboardStorage().get(pair.getKey());
+               current = current == null ? pair.getValue() : current;
                DashboardData changed = new DashboardData();
                changed.setDashboards(selected);
-               changed.setDeselected(pair.getValue().getDeselected());
-               changed.setUserChanged(pair.getValue().isUserChanged());
+               changed.setDeselected(current.getDeselected());
+               changed.setUserChanged(current.isUserChanged());
                map.put(pair.getKey(), changed);
             }
          }
@@ -884,9 +1031,11 @@ public class DashboardManager implements AutoCloseable {
             nselected = new ArrayList<>();
          }
 
-         data.setDashboards(nselected);
-
          if(!Tool.equals(selected, nselected)) {
+            // read again, the sync may have stored the deselected names (Bug #77299)
+            DashboardData current = dashboardStorage.get(getIdentityKey(user));
+            data = current == null ? data : current;
+            data.setDashboards(nselected);
             dashboardStorage.put(getIdentityKey(user), data).get(10L, TimeUnit.SECONDS);
          }
       }
@@ -924,6 +1073,23 @@ public class DashboardManager implements AutoCloseable {
 
          if(!found) {
             removed.add(name);
+         }
+      }
+
+      // A global dashboard that another node has just renamed is not in this node's cached
+      // global registry yet. The removed names are stored, so a name is only removed if it is
+      // still not in the registries once they are loaded from their files, and none is removed
+      // if a file couldn't be read or the global registry file doesn't exist, see
+      // getRegisteredFromFiles() (Bug #77299).
+      if(!removed.isEmpty()) {
+         DashboardRegistry greg = dashboardRegistryManager.getRegistry();
+
+         if(syncRegistries(reg, greg) && greg.isFileLoaded()) {
+            removed.removeIf(name -> reg != null && reg.getDashboard(name) != null ||
+               greg.getDashboard(name) != null);
+         }
+         else {
+            removed.clear();
          }
       }
 

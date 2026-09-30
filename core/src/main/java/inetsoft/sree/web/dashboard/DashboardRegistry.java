@@ -479,17 +479,62 @@ public class DashboardRegistry {
    /**
     * Re-load the dashboards after a change of the file. The path is read under the lock, because
     * the registry may have been moved to another org (modifyOrgId) while the event waited for it.
+    *
+    * @return true if the cached dashboards are now the ones of the file, false if the file could
+    *         not be read or parsed, or this registry has been detached by clear().
     */
-   private void reload(DashboardRegistry globalRegistry) {
+   private boolean reload(DashboardRegistry globalRegistry) {
       boolean ported;
+      boolean synced;
 
       synchronized(this) {
          ported = loadDashboard(getPath(), globalRegistry, true);
+         synced = ported || !detached && syncedDigest != null;
       }
 
       if(ported) {
          savePorted(globalRegistry);
       }
+
+      return synced;
+   }
+
+   /**
+    * Re-loads the dashboards from the registry file now, if the file has changed since this
+    * registry last saved or loaded it, instead of waiting for the change notification, which
+    * reaches this node some time after another node wrote the file (Bug #77299). The dashboard
+    * manager calls it, holding its store lock, when a selected dashboard is not in this node's
+    * cached copy. It must not be called while holding a registry's monitor or the cluster lock
+    * of a registry file (see the lock order in the class comment).
+    *
+    * <p>After a failed read or parse the file is not read again for a few seconds, so that a
+    * broken file doesn't make every read of the selections read it again and log the error.
+    *
+    * @return true if the cached dashboards are now the ones of the file.
+    */
+   boolean syncWithFile() {
+      long failedAt = syncFailedAt;
+
+      if(failedAt != 0L && System.currentTimeMillis() - failedAt < SYNC_RETRY_DELAY) {
+         return false;
+      }
+
+      // resolved before this registry is locked, since it may lock the registry manager
+      DashboardRegistry globalRegistry = isGlobal() ? null :
+         DashboardRegistryManager.getInstance().getGlobalForPort(getOrgID());
+      boolean synced = reload(globalRegistry);
+      syncFailedAt = synced || detached ? 0L : System.currentTimeMillis();
+      return synced;
+   }
+
+   /**
+    * Checks if the cached dashboards were loaded from, or saved to, a registry file that exists.
+    * A registry whose file doesn't exist may be one whose file is still to be written, e.g. by a
+    * user rename or an organization copy, which change the stored selections first, so a name
+    * missing from it is not known to be gone (Bug #77299).
+    */
+   synchronized boolean isFileLoaded() {
+      return syncedDigest != null && !ABSENT_DIGEST.equals(syncedDigest);
    }
 
    /**
@@ -778,6 +823,8 @@ public class DashboardRegistry {
     * or parse failure). Guarded by this instance's monitor.
     */
    private String syncedDigest;
+   // the time of the last failed syncWithFile(), or 0
+   private volatile long syncFailedAt;
 
    /**
     * Reloads the registry when its file changes (Bug #77103).
@@ -829,6 +876,8 @@ public class DashboardRegistry {
     * Digest sentinel for "the registry file does not exist".
     */
    private static final String ABSENT_DIGEST = "<absent>";
+   // the time a failed syncWithFile() is not retried for, in milliseconds
+   private static final long SYNC_RETRY_DELAY = 5000L;
 
    private static final String FILE_NAME = "dashboard-registry.xml";
    // the prefix of the cluster lock name of a registry file, see update()
