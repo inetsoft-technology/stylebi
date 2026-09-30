@@ -570,7 +570,8 @@ final class RelScriptGenerator {
    // overwrites of shared host members the host boundary ignores or refuses
    private static final String[] HOST_OVERWRITES = {
       "CALC.sum = 42", "delete CALC.sum", "CALC.sum = function() { return 42; }",
-      "StyleConstant.PORTRAIT = 99", "delete StyleConstant.PORTRAIT", "Chart.PORTRAIT = 99"
+      "StyleConstant.PORTRAIT = 99", "delete StyleConstant.PORTRAIT", "Chart.PORTRAIT = 99",
+      "Chart.CHART_BAR = 99", "delete Chart.CHART_BAR"
    };
    // probe host entries read on every probe, and their expressions
    private static final Map<String, String> HOST_READS = new LinkedHashMap<>();
@@ -580,9 +581,14 @@ final class RelScriptGenerator {
       HOST_READS.put("CALC.sum", "typeof CALC.sum");
       HOST_READS.put("CALC.sum()", "CALC.sum([1, 2, 3])");
       HOST_READS.put("StyleConstant.PORTRAIT", "StyleConstant.PORTRAIT");
+      // not a Chart constant: an overwrite must not add it
+      HOST_READS.put("Chart.PORTRAIT", "Chart.PORTRAIT");
+      HOST_READS.put("Chart.CHART_BAR", "Chart.CHART_BAR");
       HOST_PRISTINE.put("CALC.sum", "function");
       HOST_PRISTINE.put("CALC.sum()", "6");
       HOST_PRISTINE.put("StyleConstant.PORTRAIT", "1");
+      HOST_PRISTINE.put("Chart.PORTRAIT", "undefined");
+      HOST_PRISTINE.put("Chart.CHART_BAR", "1");
    }
 
    private static final String[] VALUES = {

@@ -41,7 +41,12 @@ class PoolParanoiaTest {
       // every 100th violation is logged; one comes from this class's planted defect
       if(Boolean.getBoolean(PoolParanoia.PROPERTY)) {
          Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-            String line = "[pool-paranoia] violations=" + PoolParanoia.violations() +
+            // the file is appended across runs and forks: the pid and the JVM's start time
+            // tell a run's line from an older one
+            String line = "[pool-paranoia] pid=" + ProcessHandle.current().pid() +
+               " jvmStart=" + java.time.Instant.ofEpochMilli(
+                  java.lang.management.ManagementFactory.getRuntimeMXBean().getStartTime()) +
+               " violations=" + PoolParanoia.violations() +
                " inconclusive=" + PoolParanoia.inconclusive() + " verifies=" +
                PoolParanoia.VERIFIES.get();
             System.out.println(line);

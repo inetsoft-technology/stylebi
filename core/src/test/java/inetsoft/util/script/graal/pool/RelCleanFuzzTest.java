@@ -297,7 +297,10 @@ class RelCleanFuzzTest {
    {
       long c0 = env.getMetrics().getCreations();
       int s0 = env.getMetrics().getSize();
+      long e0 = env.getMetrics().getEvictions();
       boolean threw = false, unexpectedThrow = false;
+      // stays null if the compile throws: always an unexpected throw, which excuses every
+      // leftover and expects no discard, so its form never matters
       String form = null;
 
       boolean loops = "loop".equals(blocks.get(blocks.size() - 1).kind());
@@ -337,11 +340,11 @@ class RelCleanFuzzTest {
       catch(Exception ex) {
          // the probe is read-only and fast: a throw here is judged, not a test error
          return new Outcome("probe threw after " + (System.nanoTime() - t0) / 1_000_000L +
-                            " ms: " + ex.getMessage(), discarded(env, c0, s0),
+                            " ms: " + ex.getMessage(), discarded(env, c0, s0, e0),
                             false, threw, unexpectedThrow, false, 0, Set.of(), form);
       }
 
-      boolean discarded = discarded(env, c0, s0);
+      boolean discarded = discarded(env, c0, s0, e0);
       String r2 = probe(ref, probe, false);
 
       Set<String> leftovers = new HashSet<>(slotLeftovers);
@@ -455,10 +458,13 @@ class RelCleanFuzzTest {
       }
    }
 
-   // whether the claims since (c0 creations, s0 contexts) closed a context: a creation that did
-   // not add one replaced a closed one (a claim that skips an exclusive home adds one)
-   private static boolean discarded(WorksheetScriptEnv env, long c0, int s0) {
-      return env.getMetrics().getCreations() - c0 > env.getMetrics().getSize() - s0;
+   // whether the claims since (c0 creations, s0 contexts, e0 evictions) closed a context: a
+   // creation that did not add one replaced a closed one (a claim that skips an exclusive home
+   // adds one), unless the idle evictor closed one meanwhile. Meaningful only while no other
+   // thread claims the env: every caller runs its polluters and probes on one thread.
+   private static boolean discarded(WorksheetScriptEnv env, long c0, int s0, long e0) {
+      PoolMetrics m = env.getMetrics();
+      return m.getCreations() - c0 > m.getSize() - s0 + (m.getEvictions() - e0);
    }
 
    // a leftover the clean left on purpose: declared by this slot's polluters, still declared

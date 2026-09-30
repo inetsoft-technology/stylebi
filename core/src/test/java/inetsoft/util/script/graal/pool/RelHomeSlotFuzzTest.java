@@ -52,10 +52,14 @@ import static org.junit.jupiter.api.Assertions.*;
  * fuzz's polluters and probes run on the same sandbox's env between those batches.
  * <ul>
  *    <li>exclusive (maxHomes default): the other claims skip the idle home, so the polluters
- *    run on another context; the table's values are exact and nothing is handed off except
- *    when a retire closes the home;</li>
- *    <li>soft (maxHomes 0): every polluter claim takes the home over after the table handed
- *    its values off, so the polluter, its clean and the probe run on the table's context.</li>
+ *    and probes run on another context and never on the home; the table's values are exact and
+ *    nothing is handed off except when a retire closes the home. The home's own cleanliness
+ *    then rests on paranoia's verify, which (paranoid cases) must have run at the release of
+ *    each of the table's batches;</li>
+ *    <li>soft (maxHomes 0): the first polluter claim after each table batch takes the home
+ *    over after the table handed its values off (exactly one take-over per batch), so that
+ *    polluter, its clean and its probe run on the table's context, which the probe proves by
+ *    seeing the table's formula vars as cleaned leftovers.</li>
  * </ul>
  * The table's values live host side (the table's scope holds the guest values; see
  * {@code TableRowScope.enrollHome}), never on the global, so the probe must see exactly what a
@@ -63,8 +67,9 @@ import static org.junit.jupiter.api.Assertions.*;
  * vars (the spec §14.1 leftover shape: undefined, non-configurable). No other allowance is made
  * for a home, and paranoia runs its usual verify. Every row the table reads either continues
  * each var's count or restarts it with a warning naming the var (a lost value reads as
- * undefined); a silent wrong count is a failure. Losses are asserted 0 when the polluters never
- * ran on the home.
+ * undefined); a silent wrong count is a failure. Plain objects and arrays survive a hand-off, so
+ * losses are asserted 0 in both modes, as are discards the clean fuzz's model does not
+ * explain.
  *
  * <p>Seeds: {@code -Drel.fuzz.seed} (base), {@code -Drel.home.chunks} (table batches, 3 seeds
  * each; default 24, {@code -Drel.long=true} 700).
@@ -128,34 +133,38 @@ class RelHomeSlotFuzzTest {
 
       PoolParanoia.forced = paranoid;
       long offset = (soft ? 1_000_000L : 0L) + (paranoid ? 2_000_000L : 0L);
-      Result r = fuzzAroundAHome(soft, Long.getLong("rel.fuzz.seed", 77123L) + 9_000_000L + offset,
+      Result r = fuzzAroundAHome(soft, paranoid, Long.getLong("rel.fuzz.seed", 77123L) + 9_000_000L + offset,
                                  Integer.getInteger("rel.home.chunks", LONG ? 700 : 24));
       System.out.println("[rel-home] " + mode + " paranoid=" + paranoid + ": " + r);
 
       assertEquals(0, r.violations, () -> String.join("\n", r.reports));
       assertEquals(0, r.silentMismatches, () -> String.join("\n", r.reports));
       assertEquals(0, r.paranoiaViolations, "paranoia accepts every cleaned home");
-
-      if(paranoid) {
-         // the check ran at every release, the table's batch ends on its home included
-         assertTrue(r.paranoiaVerifies >= r.seeds + r.homeBatches, "verifies " + r.paranoiaVerifies);
-      }
+      assertEquals(0, r.losses, () -> "no value is lost: " + r.warnings);
+      assertEquals(0, r.unexplainedDiscards, () -> String.join("\n", r.reports));
       assertEquals(1, r.refCreations, "the reference env's context was never replaced");
       assertTrue(r.homeBatches > 0, "the table ran batches on its home");
 
+      if(paranoid) {
+         // the check ran at the release of each table batch, on its home
+         assertEquals(0, r.unverifiedBatches, "table batches whose release was not verified");
+      }
+
       if(soft) {
-         // the first polluter claim after a batch takes the table's home over after a
-         // hand-off (a retire in between closes the home instead)
-         assertTrue(r.takeOvers >= r.homeBatches / 2, "take-overs " + r.takeOvers);
-         assertTrue(r.probedOnHome > 0, "a probe ran on the table's context");
+         // the first polluter claim after each batch took the home over after a hand-off,
+         // and its probe ran on the table's context
+         assertEquals(r.homeBatches, r.takeOvers, "one take-over per table batch");
+         assertEquals(0, r.takeOverMisses, () -> String.join("\n", r.reports));
+         assertEquals(0, r.homeIdentityMisses, () -> String.join("\n", r.reports));
       }
       else {
          assertEquals(0, r.takeOvers, "an exclusive home is never taken over");
-         assertEquals(0, r.losses, () -> "no value is lost: " + r.warnings);
       }
    }
 
-   private Result fuzzAroundAHome(boolean soft, long base, int chunks) throws Exception {
+   private Result fuzzAroundAHome(boolean soft, boolean paranoid, long base, int chunks)
+      throws Exception
+   {
       Result result = new Result();
       AssetQuerySandbox box = poolBox(true);
       WorksheetScriptEnv w = (WorksheetScriptEnv) box.getScriptEnv();
@@ -189,6 +198,7 @@ class RelHomeSlotFuzzTest {
       for(int chunk = 0; chunk < chunks; chunk++) {
          int warns0 = appender.list.size();
          long cleans0 = w.getMetrics().getCleans();
+         long verifies1 = PoolParanoia.VERIFIES.get();
 
          for(int row = chunk * BATCH + 1; row <= (chunk + 1) * BATCH; row++) {
             assertTrue(t.moreRows(row), "row " + row);
@@ -218,7 +228,13 @@ class RelHomeSlotFuzzTest {
             }
          }
 
-         result.homeBatches += w.getMetrics().getCleans() > cleans0 ? 1 : 0;
+         // only the table's claims ran while it read the rows: one batch, on its home
+         boolean batch = w.getMetrics().getCleans() > cleans0;
+         result.homeBatches += batch ? 1 : 0;
+
+         if(batch && paranoid && PoolParanoia.VERIFIES.get() == verifies1) {
+            result.unverifiedBatches++;
+         }
 
          if(soft) {
             // the batch ran on the context the next polluter takes over: its formula vars
@@ -228,7 +244,25 @@ class RelHomeSlotFuzzTest {
          result.warnings.addAll(warnings(warns0));
 
          for(int k = 0; k < SEEDS_PER_CHUNK; k++, seed++) {
-            fuzzOne(w, ref, seed, soft, slotLeftovers, result);
+            long takeOvers1 = metric(w, "TakeOvers");
+            Outcome o = fuzzOne(w, ref, seed, soft, slotLeftovers, result);
+            long took = metric(w, "TakeOvers") - takeOvers1;
+            boolean first = k == 0 && batch;
+
+            if(soft && took != (first ? 1 : 0)) {
+               result.takeOverMisses++;
+               result.reports.add("seed " + seed + " (chunk " + chunk + ", seed " + k +
+                                  ") took over " + took + " homes");
+            }
+
+            // the probe ran on the table's context: it saw the table's vars as leftovers
+            if(soft && first && !o.discarded() &&
+               !o.observedLeftovers().containsAll(TABLE_VARS))
+            {
+               result.homeIdentityMisses++;
+               result.reports.add("seed " + seed + " (chunk " + chunk + "): the probe after " +
+                                  "the take-over did not see " + TABLE_VARS + " as leftovers");
+            }
          }
       }
 
@@ -241,8 +275,8 @@ class RelHomeSlotFuzzTest {
    }
 
    // one polluter and probe of the clean fuzz, judged by its oracle, between two batches
-   private static void fuzzOne(WorksheetScriptEnv w, WorksheetScriptEnv ref, long seed,
-                               boolean soft, Set<String> slotLeftovers, Result result)
+   private static Outcome fuzzOne(WorksheetScriptEnv w, WorksheetScriptEnv ref, long seed,
+                                  boolean soft, Set<String> slotLeftovers, Result result)
       throws Exception
    {
       RelScriptGenerator gen = new RelScriptGenerator(seed).avoid(new HashSet<>(slotLeftovers));
@@ -253,6 +287,14 @@ class RelHomeSlotFuzzTest {
       result.seeds++;
       result.probedOnHome += soft && o.observedLeftovers().stream()
          .anyMatch(TABLE_VARS::contains) ? 1 : 0;
+      result.discards += o.discarded() ? 1 : 0;
+
+      // as in the clean fuzz: a polluter that ran to its end is discarded only as modelled
+      if(o.discarded() && !o.expectDiscard() && !o.unexpectedThrow()) {
+         result.unexplainedDiscards++;
+         result.reports.add("seed " + seed + ": unexplained discard, form " + o.form() +
+                            ": " + p.source().replace('\n', ' '));
+      }
 
       if(o.violation() != null) {
          result.violations++;
@@ -279,6 +321,8 @@ class RelHomeSlotFuzzTest {
          slotLeftovers.clear();
          run(w, "1");
       }
+
+      return o;
    }
 
    private List<String> warnings(int from) {
@@ -308,15 +352,19 @@ class RelHomeSlotFuzzTest {
       @Override
       public String toString() {
          return "seeds=" + seeds + " violations=" + violations + " silentMismatches=" +
-            silentMismatches + " losses=" + losses + " homeBatches=" + homeBatches +
-            " takeOvers=" + takeOvers + " probedOnHome=" + probedOnHome +
+            silentMismatches + " losses=" + losses + " discards=" + discards +
+            " (unexplained " + unexplainedDiscards + ") homeBatches=" + homeBatches +
+            " unverifiedBatches=" + unverifiedBatches + " takeOvers=" + takeOvers +
+            " takeOverMisses=" + takeOverMisses + " homeIdentityMisses=" + homeIdentityMisses +
+            " probedOnHome=" + probedOnHome +
             " paranoiaViolations=" + paranoiaViolations + " verifies=" + paranoiaVerifies +
             " inconclusive=" + paranoiaInconclusive + " refCreations=" + refCreations +
             (warnings.isEmpty() ? "" : " warnings=" + warnings.size() + " first=" +
                warnings.get(0));
       }
 
-      int seeds, violations, silentMismatches, losses, homeBatches, probedOnHome;
+      int seeds, violations, silentMismatches, losses, homeBatches, probedOnHome, discards,
+         unexplainedDiscards, unverifiedBatches, takeOverMisses, homeIdentityMisses;
       long takeOvers, paranoiaViolations, paranoiaVerifies, paranoiaInconclusive, refCreations;
       final List<String> reports = new ArrayList<>();
       final List<String> warnings = new ArrayList<>();
