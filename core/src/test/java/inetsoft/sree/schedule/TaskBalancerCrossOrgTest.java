@@ -126,18 +126,101 @@ class TaskBalancerCrossOrgTest {
       assertNotNull(load(ORG_B, key(task.getTaskId(), ORG_B)));
    }
 
+   @Test
+   void balanceTasks_hostOrgTask_staysInHostOrg() throws Exception {
+      TimeRange range = getRangeNotContainingNow();
+      ScheduleTask task = newRangeTask("tbHost", new IdentityID("admin", HOST), range);
+      String key = put(task, HOST);
+      hostKeys.add(key);
+
+      new TaskBalancer().balanceTasks(range);
+
+      assertBalanced(load(HOST, key));
+      assertNull(scheduleManager.getScheduleTask(task.getTaskId(), ORG_A));
+      assertNull(scheduleManager.getScheduleTask(task.getTaskId(), ORG_B));
+   }
+
+   @Test
+   void balanceTasks_internalTask_isSavedInHostOrg() throws Exception {
+      // an internal task is saved through the internal (host organization) save
+      String name = InternalScheduledTaskService.UPDATE_ASSETS_DEPENDENCIES;
+      String key = key(name, HOST);
+      ScheduleTaskMap hostMap = scheduleManager.getOrgTaskMap(HOST);
+      hostMap.clearCache();
+      ScheduleTask original = hostMap.containsKey(key, HOST) ? hostMap.get(key) : null;
+      TimeRange range = getRangeNotContainingNow();
+      ScheduleTask task = new ScheduleTask(name, ScheduleTask.Type.INTERNAL_TASK);
+      task.setOwner(new IdentityID(XPrincipal.SYSTEM, HOST));
+      TimeCondition condition = TimeCondition.at(range.getStartTime().getHour(), 3, 33);
+      condition.setTimeRange(range);
+      task.addCondition(condition);
+      put(task, HOST);
+
+      try {
+         new TaskBalancer().balanceTasks(range);
+
+         assertBalanced(load(HOST, key));
+         // getScheduleTask() always reads an internal task from the host organization
+         for(String org : new String[] { ORG_A, ORG_B }) {
+            assertFalse(scheduleManager.getOrgTaskMap(org).containsKey(key(name, org), org), org);
+         }
+      }
+      finally {
+         if(original != null) {
+            hostMap.put(key, original, HOST);
+         }
+         else {
+            hostMap.remove(key);
+         }
+      }
+   }
+
+   @Test
+   void balanceTasks_taskNotSaved_otherTasksAreSaved() throws Exception {
+      // the first balanced task that is saved fails, whichever it is, the other is still saved
+      TimeRange range = getRangeNotContainingNow();
+      ScheduleTask a = new FailingOnceTask("tbFailA");
+      ScheduleTask b = new FailingOnceTask("tbFailB");
+      String keyA = put(initRangeTask(a, new IdentityID("alice", ORG_A), range), ORG_A);
+      String keyB = put(initRangeTask(b, BOB, range), ORG_B);
+      hostKeys.add(key(a.getTaskId(), HOST));
+      hostKeys.add(key(b.getTaskId(), HOST));
+      FailingOnceTask.FAIL.set(true);
+
+      try {
+         new TaskBalancer().balanceTasks(range);
+      }
+      finally {
+         FailingOnceTask.FAIL.set(false);
+      }
+
+      int balanced = (isBalanced(load(ORG_A, keyA)) ? 1 : 0) +
+         (isBalanced(load(ORG_B, keyB)) ? 1 : 0);
+      assertEquals(1, balanced);
+   }
+
    // ---- helpers ----
 
    // a task with a time condition in a time range, with a start time that the balancer changes
    // (it only assigns times on 5 minute boundaries)
    private static ScheduleTask newRangeTask(String name, IdentityID owner, TimeRange range) {
-      ScheduleTask task = new ScheduleTask(name);
+      return initRangeTask(new ScheduleTask(name), owner, range);
+   }
+
+   private static ScheduleTask initRangeTask(ScheduleTask task, IdentityID owner,
+                                             TimeRange range)
+   {
       task.setOwner(owner);
       LocalTime start = range.getStartTime();
       TimeCondition condition = TimeCondition.at(start.getHour(), 3, 33);
       condition.setTimeRange(range);
       task.addCondition(condition);
       return task;
+   }
+
+   private static boolean isBalanced(ScheduleTask stored) {
+      TimeCondition condition = (TimeCondition) stored.getCondition(0);
+      return condition.getSecond() == 0 && condition.getMinute() % 5 == 0;
    }
 
    private static void assertBalanced(ScheduleTask stored) {
@@ -195,5 +278,29 @@ class TaskBalancerCrossOrgTest {
                                               Tool.getSecureRandom().nextLong());
       principal.setIgnoreLogin(true);
       return principal;
+   }
+   /**
+    * A task that fails the first save after {@link #FAIL} is set. It's stored with its class, so
+    * the balancer gets instances of it.
+    */
+   public static class FailingOnceTask extends ScheduleTask {
+      public FailingOnceTask() {
+      }
+
+      FailingOnceTask(String name) {
+         super(name);
+      }
+
+      @Override
+      public void setLastModified(long lastModified) {
+         if(FAIL.compareAndSet(true, false)) {
+            throw new IllegalStateException("save failed: " + getTaskId());
+         }
+
+         super.setLastModified(lastModified);
+      }
+
+      static final java.util.concurrent.atomic.AtomicBoolean FAIL =
+         new java.util.concurrent.atomic.AtomicBoolean();
    }
 }
