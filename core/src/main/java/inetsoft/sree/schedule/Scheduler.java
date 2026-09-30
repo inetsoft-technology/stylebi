@@ -545,7 +545,7 @@ public class Scheduler {
          factory.createScheduler(
             "inetsoft", "AUTO",
             new SimpleThreadPool(maxThread, Thread.NORM_PRIORITY), jobStore,
-            null, 0, 20000, -1);
+            null, 0, IDLE_WAIT_TIME, -1);
          scheduler = factory.getScheduler("inetsoft");
          scheduler.getListenerManager().addJobListener(
             new JobCompletionListener("TaskCompletionListener"));
@@ -892,13 +892,24 @@ public class Scheduler {
     * @param trigger is abstractConditionTrigger.
     * @param task    is scheduleTask.
     */
-   private void setStartAndEndTime(Long next, AbstractConditionTrigger<?, ?> trigger,
-                                   ScheduleTask task)
+   static void setStartAndEndTime(Long next, AbstractConditionTrigger<?, ?> trigger,
+                                  ScheduleTask task)
    {
       Date time = new Date(next);
       Date startDate = getDate(time, task.getStartDate(), task.getTimeZone());
       Date endDate = task.getEndDate() != null ? getDate(time, task.getEndDate(), task.getTimeZone()) : null;
       startDate = time.getTime() > startDate.getTime() ? time : startDate;
+
+      // the end time is the stop-on date at the time of day of this fire, so when the stop-on
+      // date is the day of this fire the end time is not (or barely) after the fire and the
+      // trigger would never be acquired. the fire on the stop-on day is allowed, so make sure
+      // the end time is far enough after it to be acquired by the scheduler thread
+      if(endDate != null && !isBeforeDay(task.getEndDate(), startDate, task.getTimeZone()) &&
+         endDate.getTime() < startDate.getTime() + STOP_ON_DAY_FIRE_MARGIN)
+      {
+         endDate = new Date(startDate.getTime() + STOP_ON_DAY_FIRE_MARGIN);
+      }
+
       trigger.setStartTime(startDate);
       trigger.setEndTime(endDate);
       trigger.setMisfireInstruction(
@@ -933,6 +944,28 @@ public class Scheduler {
       }
 
       return time;
+   }
+
+   /**
+    * Check if the day of a date is before the day of another date in the task time zone.
+    */
+   private static boolean isBeforeDay(Date date, Date other, String timeZone) {
+      Calendar cal1 = Calendar.getInstance();
+      Calendar cal2 = Calendar.getInstance();
+
+      if(timeZone != null) {
+         cal1.setTimeZone(TimeZone.getTimeZone(timeZone));
+         cal2.setTimeZone(TimeZone.getTimeZone(timeZone));
+      }
+
+      cal1.setTime(date);
+      cal2.setTime(other);
+
+      if(cal1.get(Calendar.YEAR) != cal2.get(Calendar.YEAR)) {
+         return cal1.get(Calendar.YEAR) < cal2.get(Calendar.YEAR);
+      }
+
+      return cal1.get(Calendar.DAY_OF_YEAR) < cal2.get(Calendar.DAY_OF_YEAR);
    }
 
    /**
@@ -998,6 +1031,11 @@ public class Scheduler {
    private List<MessageListener> listeners;
 
    private static Scheduler INSTANCE;
+   // how far ahead the scheduler thread acquires triggers
+   private static final long IDLE_WAIT_TIME = 20000L;
+   // the minimum time between a fire on the stop-on day and the trigger end time, must be longer
+   // than IDLE_WAIT_TIME so the trigger is not filtered out when it is acquired ahead of the fire
+   static final long STOP_ON_DAY_FIRE_MARGIN = TimeUnit.MINUTES.toMillis(1);
    private static final Logger LOG = LoggerFactory.getLogger(Scheduler.class);
    private static final Logger SCHEDULE_TEST_LOG =
       LoggerFactory.getLogger("inetsoft.scheduler_test");
