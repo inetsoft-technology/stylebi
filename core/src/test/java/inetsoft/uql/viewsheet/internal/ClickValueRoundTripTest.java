@@ -31,6 +31,7 @@ import org.w3c.dom.Element;
 import java.io.*;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
+import java.util.regex.Matcher;
 import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -100,6 +101,22 @@ class ClickValueRoundTripTest {
       }
    }
 
+   @ParameterizedTest(name = "{0}")
+   @MethodSource("cases")
+   void aVariableOrScriptValueIsKept(String name, Supplier<VSAssemblyInfo> factory,
+                                     String attr, Predicate<VSAssemblyInfo> onClick)
+      throws Exception
+   {
+      for(String value : new String[] { "$(clickVar)", "=true" }) {
+         String xml = withAttr(write(factory.get()), attr, value);
+
+         for(int i = 0; i < 2; i++) {
+            xml = write(parse(factory, xml));
+            assertTrue(xml.contains(" " + attr + "=\"" + value + "\""), "pass " + i + ": " + xml);
+         }
+      }
+   }
+
    private static void assertFalseAfterReloads(Supplier<VSAssemblyInfo> factory, String xml,
                                                String attr, Predicate<VSAssemblyInfo> onClick)
       throws Exception
@@ -117,7 +134,8 @@ class ClickValueRoundTripTest {
     */
    private static String withAttr(String xml, String attr, String value) {
       String replacement = value == null ? "" : " " + attr + "=\"" + value + "\"";
-      String result = xml.replaceFirst(" " + attr + "=\"[^\"]*\"", replacement);
+      String result = xml.replaceFirst(" " + attr + "=\"[^\"]*\"",
+                                      Matcher.quoteReplacement(replacement));
       assertNotEquals(value == null, result.contains(" " + attr + "="), result);
       return result;
    }
