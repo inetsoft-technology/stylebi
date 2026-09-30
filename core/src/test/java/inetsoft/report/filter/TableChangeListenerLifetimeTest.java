@@ -138,6 +138,79 @@ public class TableChangeListenerLifetimeTest {
       assertEquals(CHANGED_VALUE - 1, firstValue(sort), "the listener added again got no event");
    }
 
+   /**
+    * A listener serialized with its filter still invalidates that filter after it is read back
+    * and a gc has run, and a listener serialized without its filter does not keep it alive.
+    */
+   @Test
+   public void listenerKeepsItsFilterAcrossSerialization() throws Exception {
+      SortFilter sort = sort(new DefaultTableLens(data()));
+      assertEquals(5, firstValue(sort));
+      Object[] copy = (Object[]) roundTrip(new Object[] { new DefaultTableChangeListener(sort), sort });
+      DefaultTableChangeListener listener = (DefaultTableChangeListener) copy[0];
+      SortFilter sortCopy = (SortFilter) copy[1];
+
+      gc();
+      assertSame(sortCopy, listener.getTarget(), "the listener lost its filter after it was read");
+
+      // stop the base's own events, so only the deserialized listener can invalidate the filter
+      DefaultTableLens baseCopy = (DefaultTableLens) sortCopy.getTable();
+      assertEquals(5, firstValue(sortCopy));
+      baseCopy.removeChangeListener(new DefaultTableChangeListener(sortCopy));
+      baseCopy.setObject(1, VALUE_COL, CHANGED_VALUE);
+      assertEquals(5, firstValue(sortCopy));
+      listener.tableChanged(null);
+      assertEquals(CHANGED_VALUE, firstValue(sortCopy), "the deserialized listener did not invalidate");
+
+      WeakReference<Object> alone = droppedTarget(roundTrip(new DefaultTableChangeListener(sort)));
+
+      for(int i = 0; i < MAX_GC_ROUNDS && alone.get() != null; i++) {
+         gc();
+      }
+
+      assertNull(alone.get(), "a listener read back without its filter keeps the filter alive");
+   }
+
+   /**
+    * A filter over a set table, which keeps its own listener list and serializes it, still gets
+    * the set table's change events after both are read back and a gc has run.
+    */
+   @Test
+   public void filterOverSetTableFollowsChangeAfterSerialization() throws Exception {
+      DefaultTableLens left = new DefaultTableLens(data());
+      SortFilter sort = sort(new UnionTableLens(left, new DefaultTableLens(data())));
+      assertEquals(5, firstValue(sort));
+      SortFilter sortCopy = (SortFilter) roundTrip(sort);
+      UnionTableLens unionCopy = (UnionTableLens) sortCopy.getTable();
+      DefaultTableLens leftCopy = (DefaultTableLens) unionCopy.getTables()[0];
+      assertEquals(5, firstValue(sortCopy));
+
+      gc();
+      leftCopy.setObject(1, VALUE_COL, CHANGED_VALUE);
+      unionCopy.invalidate();
+
+      assertEquals(CHANGED_VALUE, firstValue(sortCopy), "the deserialized filter got no event");
+   }
+
+   private static Object roundTrip(Object value) throws Exception {
+      java.io.ByteArrayOutputStream bytes = new java.io.ByteArrayOutputStream();
+
+      try(java.io.ObjectOutputStream out = new java.io.ObjectOutputStream(bytes)) {
+         out.writeObject(value);
+      }
+
+      try(java.io.ObjectInputStream in = new java.io.ObjectInputStream(
+         new java.io.ByteArrayInputStream(bytes.toByteArray())))
+      {
+         return in.readObject();
+      }
+   }
+
+   // in its own frame, so no local variable keeps the filter reachable
+   private static WeakReference<Object> droppedTarget(Object listener) {
+      return new WeakReference<>(((DefaultTableChangeListener) listener).getTarget());
+   }
+
    // in its own frame, so no local variable keeps the filter reachable
    private static WeakReference<SortFilter> droppedSort(DefaultTableLens base) {
       SortFilter sort = sort(base);
