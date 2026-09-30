@@ -352,10 +352,12 @@ public class LogicalModelService {
             dataSource + "/" + name, model.getName(), principal));
       }
 
-      // saving with a different folder moves the model, which needs WRITE in the target folder
+      // saving with a different folder moves the model, which needs DELETE on the model and
+      // WRITE in the target folder, as moving it in the data model browser does
       String targetFolder = Tool.isEmptyString(model.getFolder()) ? null : model.getFolder();
 
       if(!isExtended && !Tool.equals(storedModel.getFolder(), targetFolder)) {
+         validatePermission(dataSource, storedModel, ResourceAction.DELETE, principal);
          validatePermission(dataSource, targetFolder, null, model.getName(),
             model.getConnection(), ResourceAction.WRITE, principal);
       }

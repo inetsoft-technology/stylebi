@@ -106,6 +106,25 @@ describe("LogicalModelExpressionEditorComponent - single pass", () => {
       });
    });
 
+   describe("Group 1b - fields request", () => {
+      // Bug #77402: the server grants the fields tree on READ of the logical model named in
+      // the request, so a user whose only right is a per-model grant needs the name sent.
+      it("should send the logical model name and parent when loading the fields tree", () => {
+         const comp = createEditor();
+         comp.databaseName = "Orders";
+         comp.physicalModelName = "Model";
+         comp.logicalModelName = "LM1";
+         comp.logicalModelParent = "BaseLM";
+
+         comp.ngOnInit();
+
+         const req = http.expectOne(FIELDS_URI);
+         expect(req.request.body.logicalName).toBe("LM1");
+         expect(req.request.body.parent).toBe("BaseLM");
+         req.flush({ label: "server-root", children: [] });
+      });
+   });
+
    describe("Group 2 - apply", () => {
       it("should copy valid form values onto the attribute and clear invalidSQL on empty response", () => {
          const comp = createEditor();

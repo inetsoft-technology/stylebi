@@ -241,11 +241,10 @@ public class PhysicalModelManagerService {
          DataSourceRegistry.IGNORE_GLOBAL_SHARE.remove();
       }
 
-      getRuntimePartition(model.getId()).ifPresent(
-         p -> {
-            createAndSaveModel(dataModel, p, path, parent, isExtended, principal);
-            runtimePartitionService.saveRuntimePartition(p);
-         });
+      RuntimePartitionService.RuntimeXPartition p = getRuntimeToSave(
+         dataSource, model.getId(), model.getName(), folder, !isExtended, principal);
+      createAndSaveModel(dataModel, p, path, parent, isExtended, principal);
+      runtimePartitionService.saveRuntimePartition(p);
    }
 
    private void createAndSaveModel(XDataModel dataModel,
@@ -354,6 +353,9 @@ public class PhysicalModelManagerService {
                (model == null ? null : model.getName()) + "\" by user " + principal);
       }
 
+      RuntimePartitionService.RuntimeXPartition p = getRuntimeToSave(
+         dsName, model.getId(), name, storedPartition.getFolder(), !isExtended, principal);
+
       for(PhysicalTableModel table: model.getTables()) {
          if(!Tool.equals(table.getOldAlias(), table.getAlias())) {
             for(String logicalModelName : dataModel.getLogicalModelNames()) {
@@ -373,10 +375,53 @@ public class PhysicalModelManagerService {
          AssetEntry.Type.PARTITION;
       AssetEntry entry = dataSourceService.getModelAssetEntry(
          new AssetEntry(AssetRepository.QUERY_SCOPE, entryType, path, null));
-      getRuntimePartition(model.getId()).ifPresent(p -> {
-         updateAndSaveModel(dataModel, p, parent, name, entry, isExtended);
-         runtimePartitionService.saveRuntimePartition(p);
-      });
+      updateAndSaveModel(dataModel, p, parent, name, entry, isExtended);
+      runtimePartitionService.saveRuntimePartition(p);
+   }
+
+   /**
+    * Gets the runtime whose partition a save writes, and checks that it is the view the save
+    * was permission-checked for. The partition is stored under its own name and folder, which
+    * come from whoever created the runtime, not from the save request.
+    *
+    * @param dataSource    the name of the parent data source.
+    * @param runtimeId     the runtime identifier from the definition.
+    * @param name          the view name the save checked.
+    * @param checkedFolder the folder the save checked WRITE on ({@code null} for the root).
+    * @param checkFolder   {@code false} for an extended view, which is stored under its base
+    *                      view whatever its own folder is.
+    * @param principal     a principal that identifies the remote user.
+    */
+   private RuntimePartitionService.RuntimeXPartition getRuntimeToSave(
+      String dataSource, String runtimeId, String name, String checkedFolder,
+      boolean checkFolder, Principal principal)
+      throws Exception
+   {
+      RuntimePartitionService.RuntimeXPartition runtime =
+         getRuntimePartition(runtimeId).orElse(null);
+
+      if(runtime == null || runtime.getPartition() == null) {
+         throw new FileNotFoundException(
+            "The physical view runtime \"" + runtimeId + "\" does not exist");
+      }
+
+      RuntimePartitionService.checkDataSource(runtime, dataSource);
+      XPartition partition = runtime.getPartition();
+
+      if(!Tool.equals(name, partition.getName())) {
+         throw new SecurityException(
+            "Physical view \"" + dataSource + "/" + name + "\" cannot be saved from a runtime of \"" +
+               partition.getName() + "\" by user " + principal);
+      }
+
+      // a runtime in another folder moves the view there, which needs WRITE on that folder
+      String folder = Tool.isEmptyString(checkedFolder) ? null : checkedFolder;
+
+      if(checkFolder && !Tool.equals(folder, partition.getFolder())) {
+         checkWritePermission(dataSource, partition, principal);
+      }
+
+      return runtime;
    }
 
    private void renameAttribute(XLogicalModel logicalModel, PhysicalTableModel table) {

@@ -175,14 +175,17 @@ public class RuntimePartitionService {
     * @param runtimePartition the runtime, or {@code null} if it does not exist.
     * @param dataSource       the data source named in the request.
     *
+    * @throws java.io.FileNotFoundException if the runtime does not exist.
     * @throws inetsoft.sree.security.SecurityException if the names differ.
     */
    public static void checkDataSource(RuntimeXPartition runtimePartition, String dataSource)
-      throws inetsoft.sree.security.SecurityException
+      throws java.io.FileNotFoundException, inetsoft.sree.security.SecurityException
    {
-      if(runtimePartition != null &&
-         !Objects.equals(runtimePartition.getDataSource(), dataSource))
-      {
+      if(runtimePartition == null) {
+         throw new java.io.FileNotFoundException("The physical view runtime does not exist");
+      }
+
+      if(!Objects.equals(runtimePartition.getDataSource(), dataSource)) {
          throw new inetsoft.sree.security.SecurityException(
             "Data source \"" + dataSource + "\" does not match the open physical view");
       }

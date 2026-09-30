@@ -35,6 +35,7 @@ import inetsoft.web.portal.data.DatabaseDatasourcesController;
 import inetsoft.web.portal.data.DatasourcesService;
 import inetsoft.web.portal.model.database.*;
 import inetsoft.web.portal.model.database.events.*;
+import inetsoft.web.portal.service.database.PhysicalGraphService;
 import inetsoft.web.security.RequiredPermission;
 import inetsoft.web.security.Secured;
 import org.junit.jupiter.api.*;
@@ -225,6 +226,17 @@ class ModelEditorPermissionTest {
    }
 
    @Test
+   void graphModel_missingRuntime_isNotFound() throws Exception {
+      PhysicalModelService physical = mock(PhysicalModelService.class);
+      PhysicalGraphModelController controller = new PhysicalGraphModelController(
+         mock(RuntimePartitionService.class), physical, null, null);
+
+      assertThrows(FileNotFoundException.class,
+                   () -> controller.physicalGraphModel(graphEvent(DS)));
+      verify(physical, never()).createModel(any(), any(), any(), anyBoolean());
+   }
+
+   @Test
    void graphModel_runtimeSource_reachesModel() throws Exception {
       RuntimePartitionService runtimes = runtimes("rt", DS);
       PhysicalModelService physical = mock(PhysicalModelService.class);
@@ -312,8 +324,81 @@ class ModelEditorPermissionTest {
       doThrow(new IllegalStateException("reached")).when(dataSourceService)
          .getModelAssetEntry(any());
 
-      assertReached(() -> manager(mock(RuntimePartitionService.class))
-         .updateAndSaveModel(DS, null, null, VIEW, viewDefinition(VIEW), principal));
+      assertReached(() -> manager(runtimes("rt", DS))
+         .updateAndSaveModel(DS, null, null, VIEW, viewDefinition(VIEW, "rt"), principal));
+   }
+
+   // review r1 I1 / verify F1: the save writes the runtime's partition, under its own name
+   @Test
+   void saveView_runtimeOfAnotherView_isDenied() throws Exception {
+      storedView(FOLDER);
+      grant(ResourceType.DATA_MODEL_FOLDER, DS + "/" + FOLDER, ResourceAction.WRITE);
+      when(dataModel.getLogicalModelNames()).thenReturn(new String[0]);
+      RuntimePartitionService runtimes = runtimes("rt", DS, "Secret", FOLDER);
+
+      assertDenied(() -> manager(runtimes)
+         .updateAndSaveModel(DS, FOLDER, null, VIEW, viewDefinition(VIEW, "rt"), principal));
+      verify(dataSourceService, never()).getModelAssetEntry(any());
+      verify(dataModel, never()).addPartition(any());
+      verify(repository, never()).updateDataModel(any());
+   }
+
+   @Test
+   void saveView_runtimeMovedToUnwritableFolder_isDenied() throws Exception {
+      storedView(FOLDER);
+      grant(ResourceType.DATA_MODEL_FOLDER, DS + "/" + FOLDER, ResourceAction.WRITE);
+      RuntimePartitionService runtimes = runtimes("rt", DS, VIEW, "G");
+
+      assertDenied(() -> manager(runtimes)
+         .updateAndSaveModel(DS, FOLDER, null, VIEW, viewDefinition(VIEW, "rt"), principal));
+      verify(dataModel, never()).addPartition(any());
+      verify(repository, never()).updateDataModel(any());
+   }
+
+   @Test
+   void saveView_runtimeOfAnotherSource_isDenied() throws Exception {
+      storedView(null);
+      grantSourceReadWrite(DS);
+
+      assertDenied(() -> manager(runtimes("rt", OTHER_DS))
+         .updateAndSaveModel(DS, null, null, VIEW, viewDefinition(VIEW, "rt"), principal));
+      verify(repository, never()).updateDataModel(any());
+   }
+
+   @Test
+   void saveView_missingRuntime_isNotFound() throws Exception {
+      storedView(null);
+      grantSourceReadWrite(DS);
+
+      assertThrows(FileNotFoundException.class, () -> manager(mock(RuntimePartitionService.class))
+         .updateAndSaveModel(DS, null, null, VIEW, viewDefinition(VIEW, "rt"), principal));
+      verify(repository, never()).updateDataModel(any());
+   }
+
+   // review r1 "same bug, other site": #36 create-and-save writes the runtime's partition too
+   @Test
+   void createView_runtimeOfAnotherView_isDenied() throws Exception {
+      grant(ResourceType.DATA_MODEL_FOLDER, DS + "/" + FOLDER, ResourceAction.WRITE);
+      RuntimePartitionService runtimes = runtimes("rt", DS, "Secret", FOLDER);
+      PhysicalModelDefinition model = viewDefinition("Unused", "rt");
+      model.setFolder(FOLDER);
+
+      assertDenied(() -> manager(runtimes).createAndSaveModel(DS, FOLDER, null, model, principal));
+      verify(dataModel, never()).addPartition(any());
+      verify(repository, never()).updateDataModel(any());
+   }
+
+   @Test
+   void createView_authorized_saves() throws Exception {
+      grant(ResourceType.DATA_MODEL_FOLDER, DS + "/" + FOLDER, ResourceAction.WRITE);
+      RuntimePartitionService runtimes = runtimes("rt", DS, "NewView", FOLDER);
+      PhysicalModelDefinition model = viewDefinition("NewView", "rt");
+      model.setFolder(FOLDER);
+      doThrow(new IllegalStateException("reached")).when(dataSourceService)
+         .getModelAssetEntry(any());
+
+      assertReached(() -> manager(runtimes).createAndSaveModel(DS, FOLDER, null, model, principal));
+      verify(dataModel).addPartition(argThat(p -> "NewView".equals(p.getName())));
    }
 
    @Test
@@ -355,6 +440,18 @@ class ModelEditorPermissionTest {
    void updateLogicalModel_moveToUnwritableFolder_isDenied() throws Exception {
       storedLogicalModel(null);
       lmGrants.add(DS + "/" + LM + ":WRITE");
+
+      assertDenied(() -> logicalModelService()
+         .updateModel(DS, FOLDER, LM, lmDefinition(LM, FOLDER), null, principal));
+      verify(repository, never()).updateDataModel(any());
+      verify(dataModel, never()).addLogicalModel(any());
+   }
+
+   @Test
+   void updateLogicalModel_moveWithoutDelete_isDenied() throws Exception {
+      storedLogicalModel(null);
+      lmGrants.add(DS + "/" + LM + ":WRITE");
+      lmGrants.add(DS + "/" + FOLDER + "/" + LM + ":WRITE");
 
       assertDenied(() -> logicalModelService()
          .updateModel(DS, FOLDER, LM, lmDefinition(LM, FOLDER), null, principal));
@@ -503,6 +600,24 @@ class ModelEditorPermissionTest {
    }
 
    @Test
+   void vpmHiddenColumnTree_physicalModelAndAliasTableNodesOfUnwritableSource_areDenied()
+      throws Exception
+   {
+      grantSourceReadWrite(DS);
+      DatabaseTreeService tree = mock(DatabaseTreeService.class);
+
+      for(String type : new String[] { DatabaseTreeNodeType.PHYSICAL_MODEL,
+                                       DatabaseTreeNodeType.ALIAS_TABLE })
+      {
+         DatabaseTreeNode node = aliasNode(OTHER_DS, DS + "/T");
+         node.setType(type);
+         assertDenied(() -> vpmController(tree).getAvailableTreeNodes(node, principal));
+      }
+
+      verify(tree, never()).getAlias(any());
+   }
+
+   @Test
    void vpmHiddenColumnTree_aliasNodeOfWritableSource_isAllowed() throws Exception {
       grantSourceReadWrite(DS);
       DatabaseTreeService tree = mock(DatabaseTreeService.class);
@@ -608,8 +723,13 @@ class ModelEditorPermissionTest {
    }
 
    private static PhysicalModelDefinition viewDefinition(String name) {
+      return viewDefinition(name, null);
+   }
+
+   private static PhysicalModelDefinition viewDefinition(String name, String runtimeId) {
       PhysicalModelDefinition model = new PhysicalModelDefinition();
       model.setName(name);
+      model.setId(runtimeId);
       return model;
    }
 
@@ -663,8 +783,15 @@ class ModelEditorPermissionTest {
    }
 
    private static RuntimePartitionService runtimes(String id, String ds) {
+      return runtimes(id, ds, VIEW, null);
+   }
+
+   private static RuntimePartitionService runtimes(String id, String ds, String name,
+                                                   String folder)
+   {
       RuntimePartitionService runtimes = mock(RuntimePartitionService.class);
-      XPartition partition = new XPartition(VIEW);
+      XPartition partition = new XPartition(name);
+      partition.setFolder(folder);
       when(runtimes.getRuntimePartition(id))
          .thenReturn(new RuntimePartitionService.RuntimeXPartition(partition, id, ds));
       when(runtimes.getPartition(id)).thenReturn(partition);
@@ -684,7 +811,7 @@ class ModelEditorPermissionTest {
                                                PhysicalModelService physical)
    {
       return new PhysicalModelManagerService(
-         dataSourceService, physical, runtimes, null, repository, null,
+         dataSourceService, physical, runtimes, mock(PhysicalGraphService.class), repository, null,
          mock(DependencyHandler.class), mock(RenameTransformHandler.class));
    }
 
