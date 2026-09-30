@@ -17,6 +17,7 @@
  */
 package inetsoft.web.admin.schedule;
 
+import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.schedule.*;
 import inetsoft.sree.security.*;
 import inetsoft.uql.XPrincipal;
@@ -34,7 +35,7 @@ import java.util.function.Supplier;
 /**
  * Decides which owner and execute-as identity a caller may store in a schedule task. A task
  * whose owner doesn't exist runs with the roles of a site admin of the same name in another
- * organization (SUtil.getScheduleTaskOwnerPrincipal, Bug #73978), so every path that stores
+ * organization (SUtil.getScheduleTaskOwnerPrincipal, Epic 70095), so every path that stores
  * an owner or execute-as identity sent by the client (the task editor, the schedule task
  * import, the deploy import and the public schedule API) uses this check. A site admin, or any
  * caller when security is disabled, may store any identity. Any other caller may only store:
@@ -42,7 +43,9 @@ import java.util.function.Supplier;
  *    <li>an owner that is the caller, or an existing user of the caller's current
  *    organization the caller has SECURITY_USER ADMIN on. The system and anonymous users are
  *    refused. A user that doesn't exist is refused even though the ADMIN check allows it
- *    (Bug #66393, an SSO user that isn't in the provider);</li>
+ *    (Bug #66393, an SSO user that isn't in the provider). The caller itself is refused when
+ *    it doesn't exist and has the name of a site admin of another organization (Bug #77309,
+ *    {@link #isNewTaskOwnerAllowed});</li>
  *    <li>an execute-as user or group the task editor offers the caller
  *    (ScheduleTaskService.getExecuteAsUsers/getExecuteAsGroups): the caller, the owner, or an
  *    existing user or group of the current organization the caller administers. A role is
@@ -94,8 +97,23 @@ public class ScheduleTaskIdentityChecker {
       return owner != null && owner.getOrgID() != null && owner.getOrgID().equals(orgID) &&
          !XPrincipal.SYSTEM.equals(owner.getName()) &&
          !XPrincipal.ANONYMOUS.equals(owner.getName()) &&
-         (owner.equals(caller) ||
+         (owner.equals(caller) && !runsAsSiteAdmin(owner) ||
             getProvider().getUser(owner) != null && isAdmin(principal, owner));
+   }
+
+   /**
+    * Bug #77309, determines if the caller may create a task owned by a user. A task whose owner
+    * doesn't exist runs with the roles of a site admin of the same name in another organization
+    * (SUtil.getScheduleTaskOwnerPrincipal), so only a site admin, or any caller when security is
+    * disabled, may create a task with such an owner (a site admin creating a task in an
+    * organization without an admin, SUtil.getOwnerForNewTask). Any other caller is refused, e.g.
+    * an SSO user that isn't in the provider and has the name of a site admin.
+    *
+    * @param owner     the owner of the new task.
+    * @param principal the caller.
+    */
+   public boolean isNewTaskOwnerAllowed(IdentityID owner, Principal principal) {
+      return isUnrestricted(principal) || !runsAsSiteAdmin(owner);
    }
 
    /**
@@ -153,7 +171,7 @@ public class ScheduleTaskIdentityChecker {
    /**
     * Determines if a task runs as its owner with an execute-as identity. A task with no
     * execute-as identity runs as its owner (SUtil.getScheduleTaskOwnerPrincipal), with the roles
-    * of a site admin of the same name when the owner doesn't exist (Bug #73978).
+    * of a site admin of the same name when the owner doesn't exist (Epic 70095).
     *
     * @param identity the execute-as identity, may be null.
     * @param owner    the owner of the task.
@@ -347,6 +365,13 @@ public class ScheduleTaskIdentityChecker {
       }
 
       return names;
+   }
+
+   /**
+    * Determines if a task owned by a user runs with the roles of a site admin of the same name.
+    */
+   private boolean runsAsSiteAdmin(IdentityID owner) {
+      return SUtil.getSameNameSiteAdmin(getProvider(), owner) != null;
    }
 
    private boolean isAdmin(Principal principal, IdentityID user) {
