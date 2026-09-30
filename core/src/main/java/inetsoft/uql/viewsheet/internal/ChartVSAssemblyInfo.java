@@ -1281,9 +1281,18 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
       writer.print(" tipOption=\"" + getTipOption() + "\"");
       writer.print(" tipOptionValue=\"" + getTipOptionValue() + "\"");
       writer.print(" flyClick=\"" + isFlyOnClick() + "\"");
-      writer.print(" flyClickValue=\"" + getFlyOnClickValue() + "\"");
+
+      // an unset value must not be written as the literal "null", which reloads as true
+      if(getFlyOnClickValue() != null) {
+         writer.print(" flyClickValue=\"" + getFlyOnClickValue() + "\"");
+      }
+
       writer.print(" tipClick=\"" + isTipOnClick() + "\"");
-      writer.print(" tipClickValue=\"" + getTipOnClickValue() + "\"");
+
+      if(getTipOnClickValue() != null) {
+         writer.print(" tipClickValue=\"" + getTipOnClickValue() + "\"");
+      }
+
       writer.print(" summarySortCol=\"" + getSummarySortCol() + "\"");
       writer.print(" summarySortVal=\"" + getSummarySortValValue() + "\"");
 
@@ -1310,8 +1319,19 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
       String prop = getAttributeStr(element, "tipOption", "" + TOOLTIP_OPTION);
       setTipOptionValue(Integer.parseInt(prop));
 
-      setFlyOnClickValue(Tool.getAttribute(element, "flyClickValue"));
-      setTipOnClickValue(Tool.getAttribute(element, "tipClickValue"));
+      // a missing value keeps the default, and "null" was written for an unset value
+      // by older versions, so it is treated the same (Bug #77413)
+      prop = Tool.getAttribute(element, "flyClickValue");
+
+      if(prop != null && !"null".equals(prop)) {
+         setFlyOnClickValue(prop);
+      }
+
+      prop = Tool.getAttribute(element, "tipClickValue");
+
+      if(prop != null && !"null".equals(prop)) {
+         setTipOnClickValue(prop);
+      }
 
       prop = getAttributeStr(element, "summarySortCol", "-1");
       setSummarySortColValue(Integer.parseInt(prop));
