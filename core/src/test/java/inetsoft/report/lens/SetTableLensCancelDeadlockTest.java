@@ -19,7 +19,10 @@
 package inetsoft.report.lens;
 
 import inetsoft.report.TableLens;
+import inetsoft.report.composition.execution.TableFilter2;
 import inetsoft.report.filter.ColumnMapFilter;
+import inetsoft.report.internal.Util;
+import inetsoft.report.internal.table.CancellableTableLens;
 import inetsoft.report.internal.table.MergedRow;
 import inetsoft.report.internal.table.MergedTable;
 import inetsoft.test.*;
@@ -118,6 +121,24 @@ public class SetTableLensCancelDeadlockTest {
       runBlockedOnMerge(lens, filter::cancel, "ColumnMapFilter.cancel()");
 
       assertCancelledPrefix(lens);
+   }
+
+   /**
+    * The worksheet Stop button (WSQueryService.stopQuery) cancels the outermost cancellable
+    * table of the sandbox's table, a TableFilter2 over the query's filters, which forwards
+    * the cancel down to the lens.
+    */
+   @Test
+   public void worksheetStopCancelDuringMergeReturns() throws Exception {
+      GatedMinus lens = parkedMinus();
+      TableLens top = new TableFilter2(new ColumnMapFilter(lens, new int[] { 0, 1 }));
+      CancellableTableLens cancelTable = (CancellableTableLens) Util.getNestedTable(
+         top, CancellableTableLens.class);
+      assertInstanceOf(TableFilter2.class, cancelTable);
+      runBlockedOnMerge(lens, cancelTable::cancel, "TableFilter2.cancel()");
+
+      assertCancelledPrefix(lens);
+      assertTrue(cancelTable.isCancelled());
    }
 
    /**
