@@ -52,6 +52,10 @@ final class Slot {
     * as on the plain engine. Any other throw during init (only a JVM error or a broken Context
     * in practice) fails the creation on purpose: the engine is closed, no slot is counted and
     * the throw reaches the caller, so a half-initialised context is never pooled.
+    * <p>
+    * A caller's cancel is kept (Testing #77123): the interrupt flag set before the creation is
+    * cleared while it runs, so Graal does not stop the creation on it, and set again after; a
+    * cancel that lands during the creation fails it and is re-asserted.
     *
     * @return the new slot, locked by the calling thread.
     */
@@ -59,6 +63,7 @@ final class Slot {
                       Map<Object, Integer> errorCounts, PoolMetrics metrics) throws Exception
    {
       WsEngine engine = new WsEngine(snapshot, errorCounts);
+      boolean cancelled = Thread.interrupted();
 
       try {
          engine.setSQL(sql);
@@ -76,7 +81,13 @@ final class Slot {
       }
       catch(Throwable ex) {
          closeQuietly(engine);
+         ScriptTimeoutGuard.keepCancel(ex, null);
          throw ex;
+      }
+      finally {
+         if(cancelled) {
+            Thread.currentThread().interrupt();
+         }
       }
    }
 
@@ -180,8 +191,26 @@ final class Slot {
 
    /**
     * Bring the context back to its baseline (spec §4.4). Owner only.
+    * <p>
+    * A caller's cancel is kept (Testing #77123): a cancel that landed during the batch after
+    * its last guest safepoint would otherwise stop the clean's JS, which clears the flag. The
+    * flag is cleared while the clean runs and set again after; a cancel that lands during the
+    * clean fails it and is re-asserted, unless the clean's own timeout interrupted it.
     */
    CleanHelper.Result clean() {
+      boolean cancelled = Thread.interrupted();
+
+      try {
+         return clean0();
+      }
+      finally {
+         if(cancelled) {
+            Thread.currentThread().interrupt();
+         }
+      }
+   }
+
+   private CleanHelper.Result clean0() {
       metrics.cleaned();
       ScriptTimeoutGuard.Guard guard;
       CleanHelper.Result result;
@@ -204,6 +233,7 @@ final class Slot {
          }
       }
       catch(RuntimeException ex) {
+         ScriptTimeoutGuard.keepCancel(ex, guard);
          LOG.debug("Failed to clean a worksheet script context", ex);
          return CleanHelper.Result.FAILED;
       }

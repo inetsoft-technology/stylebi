@@ -155,6 +155,11 @@ public class GraalJavaScriptEngine implements AutoCloseable {
 
    public void init(Map<String, Object> vars) throws Exception {
       lock.lock();
+      // Testing #77123: a caller's cancel (the thread's interrupt flag) is kept, but it must not
+      // stop the init: Graal would raise it at the init's first guest safepoint and clear it,
+      // and the catches below would swallow it, leaving a half-built engine for its life.
+      // Clear it while the init runs and set it again after
+      boolean cancelled = Thread.interrupted();
 
       try {
          if(context != null) {
@@ -183,6 +188,10 @@ public class GraalJavaScriptEngine implements AutoCloseable {
          installHostGlobals();
       }
       finally {
+         if(cancelled) {
+            Thread.currentThread().interrupt();
+         }
+
          lock.unlock();
       }
    }
@@ -198,26 +207,53 @@ public class GraalJavaScriptEngine implements AutoCloseable {
     * a global the engine itself defined. Taken after {@link #initScope}, so
     * script-created globals (the stale values the reset exists to clear) are
     * never in it. Caller holds {@code lock}.
+    * <p>
+    * A cancel that lands while it runs would leave the engine without the set for its life,
+    * so the install is retried without the interrupt flag, which is set again after
+    * (Testing #77123).
     */
    private void installHostGlobals() {
-      hostGlobalNames.clear();
-      hostGlobals = null;
+      boolean cancelled = false;
 
       try {
-         context.eval(Source.newBuilder("js",
-            "(function(g){var h=Object.create(null),k=Object.getOwnPropertyNames(g);" +
-            "for(var i=0;i<k.length;i++){h[k[i]]=true;}h['" + HOST_GLOBALS_VAR + "']=true;" +
-            "Object.defineProperty(g,'" + HOST_GLOBALS_VAR +
-            "',{value:h,writable:false,enumerable:false,configurable:true});})(globalThis)",
-            "<host-globals>").buildLiteral());
-         Value names = context.getBindings("js").getMember(HOST_GLOBALS_VAR);
-         hostGlobalNames.addAll(names.getMemberKeys());
-         hostGlobals = names;
+         for(int attempt = 1; ; attempt++) {
+            try {
+               installHostGlobals0();
+               return;
+            }
+            catch(PolyglotException ex) {
+               if(attempt < 3 && ScriptTimeoutGuard.isCancel(ex, null)) {
+                  cancelled = true;
+                  Thread.interrupted();
+                  continue;
+               }
+
+               ScriptTimeoutGuard.keepCancel(ex, null);
+               // without the set every reset is skipped (the emitted guard checks it)
+               LOG.warn("Failed to install the host global names", ex);
+               return;
+            }
+         }
       }
-      catch(PolyglotException ex) {
-         // without the set every reset is skipped (the emitted guard checks it)
-         LOG.warn("Failed to install the host global names", ex);
+      finally {
+         if(cancelled) {
+            Thread.currentThread().interrupt();
+         }
       }
+   }
+
+   private void installHostGlobals0() {
+      hostGlobalNames.clear();
+      hostGlobals = null;
+      context.eval(Source.newBuilder("js",
+         "(function(g){var h=Object.create(null),k=Object.getOwnPropertyNames(g);" +
+         "for(var i=0;i<k.length;i++){h[k[i]]=true;}h['" + HOST_GLOBALS_VAR + "']=true;" +
+         "Object.defineProperty(g,'" + HOST_GLOBALS_VAR +
+         "',{value:h,writable:false,enumerable:false,configurable:true});})(globalThis)",
+         "<host-globals>").buildLiteral());
+      Value names = context.getBindings("js").getMember(HOST_GLOBALS_VAR);
+      hostGlobalNames.addAll(names.getMemberKeys());
+      hostGlobals = names;
    }
 
    /**

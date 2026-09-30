@@ -416,6 +416,75 @@ class ScriptTimeoutGuardTest {
    }
 
    /**
+    * Testing #77123 (CX1/CX2): an eval that the thread's own interrupt flag stopped is a
+    * caller's cancel, which keepCancel re-asserts, since Graal cleared the flag.
+    */
+   @Test void anInterruptOfTheThreadIsACancel() {
+      Thread.interrupted();
+
+      try(Context ctx = Context.newBuilder("js").build()) {
+         Thread.currentThread().interrupt();
+         PolyglotException ex = assertThrows(PolyglotException.class,
+            () -> ctx.eval("js", "for(var i = 0; i < 1e9; i++) {} 1"));
+         assertTrue(ex.isInterrupted(), String.valueOf(ex));
+         assertFalse(Thread.currentThread().isInterrupted(), "Graal no longer clears the flag");
+         assertTrue(ScriptTimeoutGuard.isCancel(ex, null));
+         assertTrue(ScriptTimeoutGuard.isCancel(new RuntimeException(ex), null), "a cause");
+         assertTrue(ScriptTimeoutGuard.keepCancel(ex, null));
+         assertTrue(Thread.interrupted(), "keepCancel did not re-assert the flag");
+      }
+      finally {
+         Thread.interrupted();
+      }
+   }
+
+   /**
+    * Testing #77123: an eval stopped by its own guard's timeout, or by the timeout of a guard
+    * still open on the thread, is not a cancel; keepCancel leaves the thread uninterrupted.
+    */
+   @Test void anInterruptOfATimeoutGuardIsNotACancel() {
+      Thread.interrupted();
+
+      try(Context ctx = Context.newBuilder("js").build();
+          Context outer = Context.newBuilder("js").build())
+      {
+         ScriptTimeoutGuard guard = new ScriptTimeoutGuard();
+         ScriptTimeoutGuard.Guard own = guard.guard(ctx, Duration.ofMillis(50));
+         PolyglotException ex;
+
+         try(own) {
+            ex = assertThrows(PolyglotException.class, () -> ctx.eval("js", "while(true){}"));
+         }
+
+         assertTrue(own.interruptFired());
+         assertTrue(ex.isInterrupted(), String.valueOf(ex));
+         assertFalse(ScriptTimeoutGuard.isCancel(ex, own));
+         assertFalse(ScriptTimeoutGuard.keepCancel(ex, own));
+         assertFalse(Thread.currentThread().isInterrupted());
+
+         // the same exception inside an open guard of the thread that fired
+         try(var open = guard.guard(outer, Duration.ofMillis(50))) {
+            long end = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+
+            while(!open.interruptFired() && System.nanoTime() - end < 0) {
+               Thread.onSpinWait();
+            }
+
+            assertTrue(open.interruptFired());
+            assertFalse(ScriptTimeoutGuard.isCancel(ex, null));
+         }
+
+         // once that guard is closed, the thread has no fired guard open
+         assertTrue(ScriptTimeoutGuard.isCancel(ex, null));
+         assertFalse(ScriptTimeoutGuard.isCancel(new RuntimeException("x"), null));
+         assertFalse(new ScriptTimeoutGuard().guard(ctx, Duration.ZERO).interruptFired());
+      }
+      finally {
+         Thread.interrupted();
+      }
+   }
+
+   /**
     * A host callback that signals entry, optionally runs {@code atEntry}, then busy-spins for
     * 3 s ignoring interrupts, longer than ctx.interrupt's 2 s bound, so the interrupt (held
     * until entry by the hook) times out while the exec is still in the Context.
