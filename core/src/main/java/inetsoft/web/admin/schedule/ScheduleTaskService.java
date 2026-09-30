@@ -127,6 +127,13 @@ public class ScheduleTaskService {
       Catalog catalog = Catalog.getCatalog(principal);
       IdentityID currentUser = IdentityID.getIdentityIDFromKey(principal.getName());
       IdentityID owner = SUtil.getOwnerForNewTask(currentUser);
+
+      if(!identityChecker.isNewTaskOwnerAllowed(owner, principal)) {
+         throw new inetsoft.sree.security.SecurityException(String.format(
+            "Unauthorized creation of a task owned by \"%s\" by %s, the owner doesn't exist " +
+            "and has the name of a site admin", owner, principal));
+      }
+
       String taskId = (owner != null ? owner.convertToKey() : principal.getName()) + ":" +
          catalog.getString("newTaskName");
       ScheduleCondition condition;

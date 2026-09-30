@@ -36,6 +36,7 @@ import inetsoft.uql.util.*;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.ViewsheetInfo;
 import inetsoft.util.*;
+import inetsoft.web.admin.schedule.ScheduleTaskIdentityChecker;
 import jakarta.annotation.PreDestroy;
 import org.awaitility.Awaitility;
 import org.slf4j.Logger;
@@ -588,6 +589,17 @@ public class MVSupportService {
       }
 
       IdentityID owner = SUtil.getOwnerForNewTask(user);
+
+      // Bug #77309, the task runs as its owner, with the roles of a site admin of the same name
+      // when the owner doesn't exist
+      if(!new ScheduleTaskIdentityChecker(securityEngine)
+         .isNewTaskOwnerAllowed(owner, principal))
+      {
+         throw new inetsoft.sree.security.SecurityException(String.format(
+            "Unauthorized creation of a materialized view task owned by \"%s\" by %s, the " +
+            "owner doesn't exist and has the name of a site admin", owner, principal));
+      }
+
       task.setOwner(owner);
       // Bug #74338: set path to "/" so the task is treated as a root-level task in
       // getScheduleTasks(); without it path is null which produces "null/<taskId>" and

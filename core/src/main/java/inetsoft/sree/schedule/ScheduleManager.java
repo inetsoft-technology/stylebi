@@ -986,6 +986,17 @@ public class ScheduleManager {
             user = SUtil.getOwnerForNewTask(user, orgID);
          }
 
+         // Bug #77309, the caller becomes the owner of the task, a task whose owner doesn't
+         // exist runs with the roles of a site admin of the same name in another organization
+         if(!trusted && getSecurityEngine().isSecurityEnabled() &&
+            !OrganizationManager.getInstance().isSiteAdmin(principal) &&
+            SUtil.getSameNameSiteAdmin(getSecurityEngine().getSecurityProvider(), user) != null)
+         {
+            throw new inetsoft.sree.security.SecurityException(String.format(
+               "Unauthorized creation of a task owned by \"%s\" by %s, the owner doesn't " +
+               "exist and has the name of a site admin", user, principal));
+         }
+
          task.setOwner(user);
          taskId = task.getTaskId();
       }

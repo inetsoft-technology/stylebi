@@ -905,45 +905,71 @@ public class SUtil {
 
       // If the user does not exist in the specified org, check whether the name belongs to a
       // site admin in a different org
-      if(owner != null && owner.orgID != null &&
-         !XPrincipal.ANONYMOUS.equals(owner.name) && !XPrincipal.SYSTEM.equals(owner.name))
-      {
-         try {
-            SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
+      try {
+         SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
+         IdentityID siteAdminId = getSameNameSiteAdmin(provider, owner);
+         User siteAdmin = siteAdminId == null ? null : provider.getUser(siteAdminId);
 
-            if(provider.getUser(owner) == null) {
-               for(IdentityID candidateId : provider.getUsers()) {
-                  if(candidateId.name.equals(owner.name) && !owner.orgID.equals(candidateId.orgID)) {
-                     User candidate = provider.getUser(candidateId);
-
-                     if(candidate != null && OrganizationManager.getInstance().isSiteAdmin(candidateId)) {
-                        // Create a principal with the site admin's roles but the originally-
-                        // requested org as context so org-scoped lookups (task map, assets)
-                        // continue to use the correct org.
-                        // Bug #77281, the owner is in another organization than the site admin
-                        // whose roles it gets, log it so that a task whose owner was forged
-                        // before the owner was checked on every write path can be found
-                        LOG.warn("Schedule task owner {} does not exist, running it with the " +
-                                 "roles of the site admin {} of organization {}",
-                                 owner, candidateId, candidateId.orgID);
-                        principal = new SRPrincipal(
-                           new ClientInfo(owner, addr, null, null),
-                           candidate.getRoles(), new String[0], owner.orgID,
-                           getRandom().nextLong(), candidate.getAlias());
-                        principal.setIgnoreLogin(true);
-                        setAdditionalDatasource(principal);
-                        break;
-                     }
-                  }
-               }
-            }
+         if(siteAdmin != null) {
+            // Create a principal with the site admin's roles but the originally-
+            // requested org as context so org-scoped lookups (task map, assets)
+            // continue to use the correct org.
+            // Bug #77281, the owner is in another organization than the site admin
+            // whose roles it gets, log it so that a task whose owner was forged
+            // before the owner was checked on every write path can be found
+            LOG.warn("Schedule task owner {} does not exist, running it with the " +
+                     "roles of the site admin {} of organization {}",
+                     owner, siteAdminId, siteAdminId.orgID);
+            principal = new SRPrincipal(
+               new ClientInfo(owner, addr, null, null),
+               siteAdmin.getRoles(), new String[0], owner.orgID,
+               getRandom().nextLong(), siteAdmin.getAlias());
+            principal.setIgnoreLogin(true);
+            setAdditionalDatasource(principal);
          }
-         catch(Exception e) {
-            LOG.warn("Failed to find cross-org site admin principal for {}", owner, e);
-         }
+      }
+      catch(Exception e) {
+         LOG.warn("Failed to find cross-org site admin principal for {}", owner, e);
       }
 
       return principal;
+   }
+
+   /**
+    * Bug #77309, gets the site admin whose roles a schedule task owned by a user runs with in
+    * {@link #getScheduleTaskOwnerPrincipal}: a site admin of the same name in another
+    * organization, when the owner is not a user. Every check of who may store such an owner
+    * uses this method, so that it can't differ from the roles the task runs with.
+    *
+    * @param provider the security provider.
+    * @param owner    the task owner.
+    *
+    * @return the site admin, or {@code null} if a task owned by the user runs with the roles of
+    *         the user itself.
+    */
+   public static IdentityID getSameNameSiteAdmin(SecurityProvider provider, IdentityID owner) {
+      if(owner == null || owner.orgID == null || XPrincipal.ANONYMOUS.equals(owner.name) ||
+         XPrincipal.SYSTEM.equals(owner.name) || provider.getUser(owner) != null)
+      {
+         return null;
+      }
+
+      IdentityID[] users = provider.getUsers();
+
+      if(users == null) {
+         return null;
+      }
+
+      for(IdentityID candidateId : users) {
+         if(candidateId.name.equals(owner.name) && !owner.orgID.equals(candidateId.orgID) &&
+            provider.getUser(candidateId) != null &&
+            OrganizationManager.getInstance().isSiteAdmin(candidateId))
+         {
+            return candidateId;
+         }
+      }
+
+      return null;
    }
 
    /**
