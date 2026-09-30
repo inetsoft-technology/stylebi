@@ -1,0 +1,1 @@
+select * from a left outer join b on b.id is null
