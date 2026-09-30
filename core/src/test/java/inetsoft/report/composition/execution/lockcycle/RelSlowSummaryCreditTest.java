@@ -73,10 +73,18 @@ import static org.junit.jupiter.api.Assertions.*;
  *
  * <p>The original F2 shape, a summary over a filtered formula lens, is characterised on its
  * own: pooled it still starts a worker, whose formula lens pre-loads the rest of its base in
- * one read, so it false-stalls with the pool on only
+ * one read (#5857), so it false-stalls with the pool on only
  * ({@code knownPoolOnW2FormulaBaseReadStalls}); pool off it computes inline and completes
- * ({@code f2FormulaBaseComputesInlinePoolOff}). Those two run in the mode they name, whatever
+ * ({@code f2FormulaBaseComputesInlinePoolOff}). Those run in the mode they name, whatever
  * {@code -Dlockcycle.pool} says.
+ *
+ * <p>Every case pins its stall rule. The completion cases and the two W2 characterisations
+ * run in fail mode with {@code stall.watchdog.failOnTimeout=true}, the strict opt-in rule that
+ * fails a wait on the timeout alone: completion there proves the credit, and the W2 false
+ * stalls exist only there. Under the shipped fail rule (Feature #77123: fail only a confirmed
+ * wait-for cycle or JVM deadlock) the same W2 reads are reported as a stall, with a thread
+ * dump, and complete ({@code w2SleepingUnregisteredReadOnlyAlertsUnderTheDefaultRule},
+ * {@code poolOnW2FormulaBaseReadOnlyAlertsUnderTheDefaultRule}).
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class, LibManagerTestConfiguration.class, PluginsTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
@@ -98,8 +106,8 @@ public class RelSlowSummaryCreditTest {
 
    /**
     * Characterises the known limitation W2 of the merge brief (a slow producer behind an
-    * unregistered wait), it is not a behaviour to keep: a fix of W2 should turn this into a
-    * completion test. The worker's first base read sleeps 18 s, outside any registered wait,
+    * unregistered wait) under the opt-in {@code failOnTimeout} rule, it is not a behaviour to
+    * keep: a fix of W2 should turn this into a completion test. The worker's first base read sleeps 18 s, outside any registered wait,
     * far over the 8 s limit, so the stall always fires first (the holder fails at about 8 s and
     * does not wait for the worker): failed as a stall with the pool on or off, because the watchdog cannot
     * tell this worker from a hung one. The holder starts once the worker is inside the base: a
@@ -108,7 +116,7 @@ public class RelSlowSummaryCreditTest {
     */
    @Test
    public void knownW2SleepingUnregisteredReadStallsInBothModes() throws Exception {
-      policy(8000);
+      policy(8000, true);
       Sandbox s = harness.sandbox();
       AtomicInteger paid = new AtomicInteger();
       PerRowTable base = new PerRowTable(ROWS, () -> sleep(paid.getAndIncrement() == 0 ? W2_READ_MILLIS : 0));
@@ -131,7 +139,7 @@ public class RelSlowSummaryCreditTest {
     */
    @Test
    public void sleepingPerRowBaseCompletesInBothModes() throws Exception {
-      policy(8000);
+      policy(8000, true);
       List<List<Object>> expected = expected();
       Sandbox s = harness.sandbox();
       PerRowTable base = new PerRowTable(ROWS, () -> sleep(1000));
@@ -151,9 +159,11 @@ public class RelSlowSummaryCreditTest {
     * SummaryFilter over a formula lens still starts a worker (ChainScriptLock has no lock in
     * pool mode), and the formula lens pre-loads its base in one read before it computes a
     * batch, so the worker's progress does not move for all of those rows and the holder
-    * fails as a stall in FAIL mode. Characterises a pool-specific case of the known W2
-    * limitation (FAIL mode is opt-in; the default ALERT mode only alerts): pool off the same
-    * shape starts no worker since #77223 and completes, see
+    * fails as a stall in fail mode with {@code failOnTimeout}. Characterises a pool-specific
+    * case of the known W2 limitation, reachable only with the opt-in
+    * {@code stall.watchdog.failOnTimeout=true} (the shipped fail rule and alert mode only
+    * report it, see {@link #poolOnW2FormulaBaseReadOnlyAlertsUnderTheDefaultRule}): pool off
+    * the same shape starts no worker since #77223 and completes, see
     * {@link #f2FormulaBaseComputesInlinePoolOff}. A W2 fix should turn this into a completion
     * test.
     */
@@ -161,7 +171,7 @@ public class RelSlowSummaryCreditTest {
    public void knownPoolOnW2FormulaBaseReadStalls() throws Exception {
       harness.close();
       harness = new LockCycleHarness(true);
-      policy(8000);
+      policy(8000, true);
       Sandbox s = harness.sandbox();
       PerRowTable base = new PerRowTable(ROWS, () -> sleep(F2_ROW_MILLIS));
       SummaryFilter summary = f2Summary(s, base);
@@ -189,7 +199,7 @@ public class RelSlowSummaryCreditTest {
    public void f2FormulaBaseComputesInlinePoolOff() throws Exception {
       harness.close();
       harness = new LockCycleHarness(false);
-      policy(8000);
+      policy(8000, true);
       Sandbox control = harness.control();
       List<List<Object>> expected = harness.await(harness.submit(
          () -> drain(cf2(f2Summary(control, new DefaultTableLens(StallTestSupport.data(ROWS))),
@@ -206,12 +216,68 @@ public class RelSlowSummaryCreditTest {
    }
 
    /**
+    * {@link #knownW2SleepingUnregisteredReadStallsInBothModes} under the shipped fail rule
+    * (Feature #77123, no {@code failOnTimeout}): the worker's 18 s read in no registered wait
+    * is still a stall the watchdog cannot credit, so it is reported with a thread dump, but it
+    * is no wait-for cycle, so nothing fails and the holder completes with every row, with the
+    * pool on or off.
+    */
+   @Test
+   public void w2SleepingUnregisteredReadOnlyAlertsUnderTheDefaultRule() throws Exception {
+      policy(8000, false);
+      List<List<Object>> expected = expected();
+      Sandbox s = harness.sandbox();
+      AtomicInteger paid = new AtomicInteger();
+      PerRowTable base = new PerRowTable(ROWS, () -> sleep(paid.getAndIncrement() == 0 ? W2_READ_MILLIS : 0));
+      SummaryFilter summary = summary(s, base);
+      TableLens outer = harness.track(cf2(summary, s.box));
+      harness.await(harness.submit(() -> summary.getRowCount()), ACTIVE_CAP, "getRowCount");
+      assertTrue(base.paying.await(ACTIVE_CAP, TimeUnit.SECONDS), "the worker never read the base");
+      assertTrue(base.firstByWorker, "the base was read by a harness thread, not the worker");
+
+      assertEquals(expected, harness.await(harness.submit(() -> drain(outer)), 2 * ACTIVE_CAP,
+                                           "holder behind the W2 read"));
+      assertTrue(stallDumps() > 0, "the W2 read was not reported as a stall");
+   }
+
+   /**
+    * {@link #knownPoolOnW2FormulaBaseReadStalls} under the shipped fail rule (Feature #77123,
+    * no {@code failOnTimeout}): the pooled worker's one long base read is reported with a
+    * thread dump, but it is no wait-for cycle, so nothing fails and the holder completes with
+    * every row.
+    */
+   @Test
+   public void poolOnW2FormulaBaseReadOnlyAlertsUnderTheDefaultRule() throws Exception {
+      harness.close();
+      harness = new LockCycleHarness(true);
+      policy(8000, false);
+      Sandbox control = harness.control();
+      List<List<Object>> expected = harness.await(harness.submit(
+         () -> drain(cf2(f2Summary(control, new DefaultTableLens(StallTestSupport.data(ROWS))),
+                         null))), ACTIVE_CAP, "control pipeline");
+      Sandbox s = harness.sandbox();
+      PerRowTable base = new PerRowTable(ROWS, () -> sleep(F2_ROW_MILLIS));
+      SummaryFilter summary = f2Summary(s, base);
+      TableLens outer = harness.track(cf2(summary, s.box));
+      harness.await(harness.submit(() -> summary.getRowCount()), ACTIVE_CAP, "getRowCount");
+      assertTrue(base.paying.await(ACTIVE_CAP, TimeUnit.SECONDS), "the worker never read the base");
+      assertTrue(base.firstByWorker, "the base was read by a harness thread, not the worker");
+
+      assertEquals(expected, harness.await(harness.submit(() -> drain(outer)), 2 * ACTIVE_CAP,
+                                           "holder behind the pooled formula base read"));
+      // the read pattern of the failOnTimeout case, so the stall condition was there
+      assertTrue(base.maxRowsPerCall() * F2_ROW_MILLIS > 8000,
+                 "no base read cost more than the limit, rows paid per read: " + base.calls);
+      assertTrue(stallDumps() > 0, "the long base read was not reported as a stall");
+   }
+
+   /**
     * A per-row cost spent running (RUNNABLE), over the 8 s limit: the worker is credited while
     * it runs, so the holder completes with the pool on or off.
     */
    @Test
    public void runningBaseCompletesInBothModes() throws Exception {
-      policy(8000);
+      policy(8000, true);
       List<List<Object>> expected = expected();
       Sandbox s = harness.sandbox();
       SummaryFilter summary = summary(s, new PerRowTable(ROWS, () -> spin(1000)));
@@ -229,7 +295,7 @@ public class RelSlowSummaryCreditTest {
     */
    @Test
    public void producerFedBaseCompletesInBothModes() throws Exception {
-      policy(8000);
+      policy(8000, true);
       List<List<Object>> expected = expected();
       XSwappableTable rows = new XSwappableTable(2, false);
       Object[][] data = StallTestSupport.data(ROWS);
@@ -269,9 +335,25 @@ public class RelSlowSummaryCreditTest {
          ACTIVE_CAP, "control pipeline");
    }
 
-   private void policy(long noProgressMillis) {
+   /**
+    * Fail mode at {@code noProgressMillis}.
+    *
+    * @param failOnTimeout fail a stall on the timeout alone (the opt-in
+    *                      {@code stall.watchdog.failOnTimeout}), or only a confirmed wait-for
+    *                      cycle (the shipped rule, Feature #77123).
+    */
+   private void policy(long noProgressMillis, boolean failOnTimeout) {
       StallPolicy.setOverride(new StallPolicy(StallPolicy.Mode.FAIL, noProgressMillis, 500,
-                                              dumpDir));
+                                              dumpDir, StallPolicy.DEFAULT_MAX_DUMPS,
+                                              failOnTimeout));
+   }
+
+   /**
+    * The thread dumps the watchdog wrote for a stall of this test.
+    */
+   private int stallDumps() {
+      File[] dumps = dumpDir.listFiles((dir, name) -> name.startsWith("stall-dump-"));
+      return dumps == null ? 0 : dumps.length;
    }
 
    /**
