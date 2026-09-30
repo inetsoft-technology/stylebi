@@ -224,6 +224,7 @@ public class GuestReaderCycleTest {
          Map<String, Integer> bad = new TreeMap<>();
          Random random = new Random(1);
          long end = System.currentTimeMillis() + 3000;
+         int reads = 0;
 
          try {
             while(System.currentTimeMillis() < end) {
@@ -231,6 +232,7 @@ public class GuestReaderCycleTest {
 
                try {
                   Object value = cf.getObject(r, 1);
+                  reads++;
 
                   if(!Integer.valueOf(r % 30).equals(value)) {
                      bad.merge("wrong value " + value, 1, Integer::sum);
@@ -245,6 +247,7 @@ public class GuestReaderCycleTest {
             stop.set(true);
          }
 
+         assertTrue(reads > 0, "the reader never read a row during the invalidate storm");
          return bad;
       });
 
@@ -451,7 +454,8 @@ public class GuestReaderCycleTest {
     * of a completed filtered formula table, runs no script, so it is answered without E while
     * a guest holds E. Once the base has grown and the formula lens (and with it the filter)
     * is invalidated, the same question must go through E and find the new rows: an end
-    * answered from the old map would stop a reader with too few rows.
+    * answered from the old map would stop a reader with too few rows. With the pool on there
+    * is no E: the reset map is answered from the new rows without waiting for the guest.
     */
    @Test
    public void pastCompletedMapReaderAfterInvalidate() throws Exception {
@@ -479,10 +483,22 @@ public class GuestReaderCycleTest {
          formula.invalidate();
          ((AbstractConditionFilter) cf).invalidate();
          reader = harness.start(() -> cf.moreRows(end));
-         awaitParked(reader, ACTIVE_CAP);
-         assertFalse(reader.future.isDone(), "the reset map was answered without the engine lock");
-         assertTrue(awaitWaitingOnLock(reader.thread, ACTIVE_CAP),
-                    "the reader of the reset map is not waiting for the engine lock");
+
+         if(POOL) {
+            // pool mode has no sandbox-wide engine lock: the reset map is repopulated on
+            // another context while the guest holds its claim, and must see the grown base
+            // (no stale end answered from the old completed map)
+            assertTrue(harness.await(reader.future, ACTIVE_CAP, "the reader of the reset map"),
+                       "the reset map was answered from the old end");
+            assertFalse(guest.isDone(), "the guest let go before the reader finished");
+         }
+         else {
+            awaitParked(reader, ACTIVE_CAP);
+            assertFalse(reader.future.isDone(),
+                        "the reset map was answered without the engine lock");
+            assertTrue(awaitWaitingOnLock(reader.thread, ACTIVE_CAP),
+                       "the reader of the reset map is not waiting for the engine lock");
+         }
       }
       finally {
          go.countDown();
