@@ -570,6 +570,25 @@ public class SRPrincipal extends XPrincipal implements Serializable, LogPrincipa
       return null;
    }
 
+   @Override
+   protected void detachState() {
+      super.detachState();
+
+      if(client != null) {
+         IdentityID user = client.getUserIdentity();
+         IdentityID loginUser = client.getLoginUserID();
+         ClientInfo copy = new ClientInfo(copyIdentity(user), client.getIPAddress(),
+                                          client.getSession(), client.getLocale());
+         // getLoginUserID() falls back to the user when no login user is set
+         copy.setLoginUserName(loginUser == user ? null : copyIdentity(loginUser));
+         client = copy;
+      }
+
+      age = age == null ? null : (Date) age.clone();
+      // the copy must not reach the live HTTP session
+      sref = null;
+   }
+
    /**
     * Get the host this principal object is created.
     */
