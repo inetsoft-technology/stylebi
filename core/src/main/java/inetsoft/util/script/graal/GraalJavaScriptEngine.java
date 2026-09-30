@@ -913,11 +913,22 @@ public class GraalJavaScriptEngine implements AutoCloseable {
       // after the brace), so a runtime error on body line N reports line N. The
       // closing brace stays on its own line so a trailing // comment cannot
       // swallow it.
+      //
+      // Bug #77321: the #77181 reset skips a name the engine itself defines (a
+      // lower-case CALC function such as `value`/`count`, a JS builtin, a put()
+      // name), so for such a name the rewritten var *is* that global: it keeps
+      // the previous run's value and an assignment replaces the engine global.
+      // A script with a reset name is therefore a PlainScript, which exec runs as
+      // a native block `let` inside the with (buildPlainScript) on a Context
+      // where one of its names is a host global.
       if(!THIS_REF.matcher(body).find()) {
-         return Source.newBuilder("js",
-            buildLexicalReset(collectInitializerlessLexicalNames(lexicalBody)) +
-               "with(__scope__){" + body + "\n}", "<cmd>")
+         Set<String> resetNames = collectInitializerlessLexicalNames(lexicalBody);
+         Source plain = Source.newBuilder("js",
+            buildLexicalReset(resetNames) + "with(__scope__){" + body + "\n}", "<cmd>")
             .buildLiteral();
+
+         return resetNames.isEmpty() ? plain :
+            buildPlainScript(plain, body, lexicalBody, resetNames);
       }
 
       // Bug #75596: top-level `var`/`function` declarations must persist across
@@ -939,11 +950,184 @@ public class GraalJavaScriptEngine implements AutoCloseable {
       // never be skipped by an early return here — the eval throws before the
       // hoist statement would matter either way, and that throw is pre-existing
       // behavior unrelated to this fix.
+      return buildEvalWrapper(body);
+   }
+
+   /**
+    * The single-eval wrapper of {@link #compile} for a single-piece body: the body
+    * runs as a direct eval inside a function whose {@code this} is the scope
+    * (#75550), keeping its completion value, and its top-level declarations are
+    * copied to the global afterwards (#75596).
+    */
+   private static Source buildEvalWrapper(String body) {
       String hoist = buildDeclarationHoist(body);
       return Source.newBuilder("js",
          "(function(){with(__scope__){var " + RESULT_VAR + "=eval(" + toJsStringLiteral(body) +
             ");" + hoist + "return " + RESULT_VAR + ";}}).call(__scope__)", "<cmd>")
          .buildLiteral();
+   }
+
+   /**
+    * Bug #77321: compile a this-free single-piece body that has initializer-less
+    * top-level {@code let}/{@code const} names (the #77181 reset names) to a
+    * {@link PlainScript}. Besides the plain Source it keeps a second Source for a
+    * Context on which one of those names is a global the engine defines (a
+    * lower-case CALC function such as {@code value}, {@code count}, {@code sum} or
+    * {@code year}, a global function, a JS builtin, a {@code put()} or pooled env
+    * name). There the #77181 reset skips the name, so the rewritten {@code var} is
+    * that global: a run reads the engine function or the previous run's value, and
+    * an assignment replaces the engine global for every later script. The second
+    * Source keeps each top-level declaration that has an initializer-less name a native
+    * {@code let} inside the {@code with} block ({@code const} is written as
+    * {@code let  }, a native {@code const} needs an initializer and forbids a later
+    * assignment), the pre-#76980 shape: the name starts undefined on every run and
+    * the engine global is never read or written.
+    *
+    * <p>Behavior changes, only for a script run as the second Source:
+    * <ul>
+    *   <li>a read of the name before its declaration throws a TDZ
+    *       {@code ReferenceError}, where it read the engine global;</li>
+    *   <li>a function declared in the body closes over the block {@code let}, not
+    *       the global, and a later script does not see the name (#76980 cross-script
+    *       visibility), as before #76980;</li>
+    *   <li>every declaration with an initializer-less name is kept a native
+    *       {@code let}, not only the colliding one, so a non-colliding name of the
+    *       same body ({@code total} in {@code let value; let total;}, the {@code x}
+    *       of {@code let x = 1, value;}) is block scoped as well; a declaration
+    *       with initializers only stays a {@code var}.</li>
+    * </ul>
+    *
+    * <p>Scope limits: a colliding name declared with an initializer
+    * ({@code let count = a * 2}) still replaces the engine global, as the #76980
+    * rewrite intends for a shared onInit declaration; the {@code this} and
+    * multi-piece paths are unchanged (#77331 runs a colliding {@link PieceScript} as
+    * the eval wrapper, whose #75596 hoist still copies the value to the global).
+    *
+    * <p>The second Source is parse-checked here, as it runs: a body that also
+    * declares the name with {@code var}, a second {@code let} or a function
+    * ({@code let value; var value;}) is an "already declared" early error in a
+    * block. Then the eval wrapper ({@link #buildEvalWrapper}) is used instead, whose
+    * vars are fresh locals of the wrapper function on every run, never the leaking
+    * plain Source. The body stays on the first line (Bug #77322) and nothing is
+    * added before the {@code with}, so error line numbers do not move.
+    */
+   private Object buildPlainScript(Source plain, String body, String lexicalBody,
+                                   Set<String> resetNames)
+   {
+      Source colliding = Source.newBuilder("js",
+         "with(__scope__){" + keepInitializerlessLexicalDeclarations(lexicalBody) + "\n}",
+         "<cmd>").buildLiteral();
+
+      if(!sourcesAllParse(new Source[] { colliding })) {
+         colliding = buildEvalWrapper(body);
+      }
+
+      return new PlainScript(plain, colliding, body, resetNames);
+   }
+
+   /**
+    * Bug #77321: {@link #rewriteTopLevelLexicalDeclarations} for the second Source
+    * of a {@link PlainScript}: a top-level declaration that has an initializer-less
+    * name (the names of {@link #collectInitializerlessLexicalNames}) stays a native
+    * {@code let} ({@code const} -> {@code let  }), every other one is rewritten to
+    * {@code var}. Offsets are kept, as in the rewrite.
+    */
+   private static String keepInitializerlessLexicalDeclarations(String body) {
+      List<Integer> decls = new ArrayList<>();
+      scanTopLevel(body, null, decls);
+      StringBuilder sb = new StringBuilder(body);
+
+      for(int pos : decls) {
+         boolean isConst = body.startsWith("const", pos);
+         int len = isConst ? 5 : 3;
+         Set<String> names = new LinkedHashSet<>();
+         collectDeclaratorNames(body, pos + len, names);
+
+         if(!names.isEmpty()) {
+            if(isConst) {
+               sb.replace(pos, pos + len, "let  ");
+            }
+         }
+         else {
+            sb.replace(pos, pos + len, len == 5 ? "var  " : "var");
+         }
+      }
+
+      return sb.toString();
+   }
+
+   /**
+    * Bug #77321: the compiled form of a this-free single-piece body with #77181
+    * reset names, see {@link #buildPlainScript}. {@link #exec} runs {@code plain} (the
+    * #77181 Source) on a Context whose host globals include none of the names, and
+    * {@code colliding} (a native {@code let} Source, or the eval wrapper) otherwise,
+    * decided per exec like {@link PieceScript#collidesWith} (#77331), since the
+    * compiled script is shared by engines whose host globals differ. Holds Sources
+    * only, so it is free of any Context, and it is equal by content, like a Source.
+    */
+   static final class PlainScript {
+      PlainScript(Source plain, Source colliding, String text, Set<String> resetNames) {
+         this.plain = plain;
+         this.colliding = colliding;
+         this.text = text;
+         this.resetNames = resetNames.toArray(new String[0]);
+      }
+
+      /**
+       * The Source to run on a Context whose host globals are {@code hostNames}
+       * ({@code null} if it has none, so the #77181 reset is skipped altogether).
+       */
+      Source source(Set<String> hostNames) {
+         return collides(resetNames, hostNames) ? colliding : plain;
+      }
+
+      Source plain() {
+         return plain;
+      }
+
+      Source colliding() {
+         return colliding;
+      }
+
+      @Override
+      public boolean equals(Object obj) {
+         return obj instanceof PlainScript other && plain.equals(other.plain) &&
+            colliding.equals(other.colliding);
+      }
+
+      @Override
+      public int hashCode() {
+         return plain.hashCode() * 31 + colliding.hashCode();
+      }
+
+      @Override
+      public String toString() {
+         return text;
+      }
+
+      private final Source plain;
+      private final Source colliding;
+      private final String text;
+      private final String[] resetNames;
+   }
+
+   /**
+    * Whether the #77181 reset skips one of {@code names} on a Context whose host
+    * globals are {@code hostNames} ({@code null} if it has none, so the reset is
+    * skipped altogether).
+    */
+   private static boolean collides(String[] names, Set<String> hostNames) {
+      if(hostNames == null) {
+         return names.length > 0;
+      }
+
+      for(String name : names) {
+         if(hostNames.contains(name)) {
+            return true;
+         }
+      }
+
+      return false;
    }
 
    /**
@@ -1145,17 +1329,7 @@ public class GraalJavaScriptEngine implements AutoCloseable {
        * global the engine defines or of the previous run (Bug #77331).
        */
       boolean collidesWith(Set<String> hostNames) {
-         if(hostNames == null) {
-            return resetNames.length > 0;
-         }
-
-         for(String name : resetNames) {
-            if(hostNames.contains(name)) {
-               return true;
-            }
-         }
-
-         return false;
+         return collides(resetNames, hostNames);
       }
 
       /**
@@ -1333,9 +1507,9 @@ public class GraalJavaScriptEngine implements AutoCloseable {
     *       leaves {@code total} undefined for scripts after it), as
     *       {@code let total = 1} already overwrote it. A global the engine
     *       itself defines (JS builtins, init-installed globals, {@link #put}
-    *       names) is never reset: for such a name the declaration keeps its
-    *       pre-#77181 behavior, a value assigned to it persists to later runs,
-    *       as the assignment itself already replaces the engine's global. A
+    *       names) is never reset; on a Context where a single-piece body declares
+    *       such a name, the body instead runs with that declaration kept a native
+    *       block {@code let} (Bug #77321, see {@link #buildPlainScript}). A
     *       declaration after which the name list cannot be read with certainty
     *       (see {@link #collectInitializerlessLexicalNames}) is not reset
     *       either.</li>
@@ -2231,6 +2405,8 @@ public class GraalJavaScriptEngine implements AutoCloseable {
                }
 
                Value result = script instanceof PieceScript pieces ? evalPieces(pieces)
+                  : script instanceof PlainScript plain ?
+                     context.eval(plain.source(hostGlobals != null ? hostGlobalNames : null))
                   : context.eval((Source) script);
                return ScriptValueConverter.toHostResult(result);
             }
