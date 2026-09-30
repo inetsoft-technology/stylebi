@@ -64,6 +64,7 @@ public class RelConcurrencyMetamorphicTest {
       Logger logger = (Logger) LoggerFactory.getLogger("inetsoft");
       savedLevel = logger.getLevel();
       logger.setLevel(Level.ERROR);
+      OwnedVarWarnings.install();
 
       // the synthetic set and every 20th corpus script
       cases = RelMetamorphicTest.cases(20).toList();
@@ -76,6 +77,8 @@ public class RelConcurrencyMetamorphicTest {
                                             REPS + ", cases=" + cases.size() + ")\n");
       STATS.forEach((k, v) -> str.append("  ").append(k).append(" = ").append(v).append('\n'));
       DRIFTS.forEach(d -> str.append("  drift: ").append(d).append('\n'));
+      str.append("  unattributed owned-var warnings = ").append(OwnedVarWarnings.unattributed())
+         .append('\n');
       System.out.println(str);
    }
 
@@ -161,15 +164,21 @@ public class RelConcurrencyMetamorphicTest {
             runs.add(executor.submit(() -> {
                start.await(30, TimeUnit.SECONDS);
                List<String> actual;
+               Map<String, String> lost;
 
-               try {
-                  actual = RelPipeline.run(c.script(), shape, box, read);
-               }
-               catch(Exception ex) {
-                  actual = List.of("RUN-" + RelPipeline.error(ex));
+               // the loss warnings of the lens this thread reads
+               try(OwnedVarWarnings.Recording recording = OwnedVarWarnings.record()) {
+                  try {
+                     actual = RelPipeline.run(c.script(), shape, box, read);
+                  }
+                  catch(Exception ex) {
+                     actual = List.of("RUN-" + RelPipeline.error(ex));
+                  }
+
+                  lost = recording.lost();
                }
 
-               return check(variant, c, shape, read, actual);
+               return check(variant, c, shape, read, actual, lost);
             }));
          }
 
@@ -206,7 +215,7 @@ public class RelConcurrencyMetamorphicTest {
     * @return {@code null} if the run gives the oracle or a classified drift, else the failure.
     */
    private static String check(String variant, RelMetamorphicTest.Case c, Shape shape,
-                               ReadPattern read, List<String> actual)
+                               ReadPattern read, List<String> actual, Map<String, String> lost)
    {
       List<String> expected = RelMetamorphicTest.comparable(ORACLES.get(key(c, shape)),
                                                             c.script());
@@ -216,12 +225,29 @@ public class RelConcurrencyMetamorphicTest {
          RelMetamorphicTest.kind(shape, ORACLES.get(key(c, shape))), k -> new AtomicLong())
          .incrementAndGet();
 
+      if(!lost.isEmpty()) {
+         STATS.computeIfAbsent(variant + ".warned." + shape, k -> new AtomicLong())
+            .incrementAndGet();
+         DRIFTS.add(variant + " warned " + c.label() + " " + shape + " " + read + ": " + lost);
+      }
+
+      // a plain-data object var is kept: its loss is a finding, but for a home in use by
+      // another thread
+      String plainLoss = RelMetamorphicTest.plainLoss(c.script(), lost, true);
+
+      if(plainLoss != null) {
+         STATS.computeIfAbsent(variant + ".unknown", k -> new AtomicLong()).incrementAndGet();
+         return variant + " " + c.label() + " " + shape + " " + read + " " + plainLoss +
+            "\nscript: " + c.script();
+      }
+
       if(expected.equals(actual)) {
          return null;
       }
 
       String diff = RelMetamorphicTest.diff(expected, actual);
-      RelMetamorphicTest.Drift drift = RelMetamorphicTest.drift(expected, actual, c.script());
+      RelMetamorphicTest.Drift drift =
+         RelMetamorphicTest.drift(expected, actual, c.script(), shape, lost);
 
       if(drift != RelMetamorphicTest.Drift.NONE) {
          STATS.computeIfAbsent(variant + ".drift." + drift, k -> new AtomicLong())
