@@ -431,4 +431,92 @@ class ViewsheetBaseSourcePermissionTest {
       verifyNoSourceChecked();
       verify(viewsheet).setBaseEntry(null);
    }
+
+   // ---- A1 with the entry the real client sends ----
+
+   /**
+    * The dialogs send back the base entry the server put in their model, after a stored
+    * viewsheet parsed it from XML and the client round-tripped it through the AssetEntry
+    * JSON serializer and deserializer. That entry must still be recognized as unchanged, so an
+    * author who cannot read the base source of an existing viewsheet can re-save it.
+    */
+   private static AssetEntry storedAndClientRoundTripped(AssetEntry entry) throws Exception {
+      java.io.StringWriter xml = new java.io.StringWriter();
+      java.io.PrintWriter writer = new java.io.PrintWriter(xml);
+      entry.writeXML(writer);
+      writer.flush();
+      AssetEntry stored = new AssetEntry();
+      stored.parseXML(inetsoft.util.Tool.parseXML(new java.io.StringReader(xml.toString()))
+                         .getDocumentElement());
+
+      com.fasterxml.jackson.databind.ObjectMapper mapper =
+         new com.fasterxml.jackson.databind.ObjectMapper();
+      String json = mapper.writeValueAsString(stored);
+      AssetEntry client = mapper.readValue(json, AssetEntry.class);
+      // the options pane rewrites the description before the dialog is sent
+      client.setProperty("_description_", "rewritten by the client");
+      return client;
+   }
+
+   private static AssetEntry folderedModelEntry() {
+      AssetEntry entry = new AssetEntry(
+         AssetRepository.QUERY_SCOPE, AssetEntry.Type.LOGIC_MODEL,
+         DENIED + "/" + MODEL_FOLDER + "/" + MODEL, null);
+      entry.setProperty("prefix", DENIED);
+      entry.setProperty("source", MODEL);
+      entry.setProperty("type", SourceInfo.MODEL + "");
+      entry.setProperty("folder_description", MODEL_FOLDER);
+      return entry;
+   }
+
+   private void denyEverySource() throws Exception {
+      grantRead();
+      grantModelRead(false);
+      grantPhysicalAccess(false);
+      doThrow(new MessageException("denied")).when(assetRepository)
+         .checkAssetPermission(any(), any(), any());
+   }
+
+   @Test
+   void aRoundTrippedUnchangedModelSavesWithoutCheck() throws Exception {
+      denyEverySource();
+      AssetEntry server = folderedModelEntry();
+      when(viewsheet.getBaseEntry()).thenReturn(server);
+      AssetEntry client = storedAndClientRoundTripped(server);
+      assertNotSame(server, client);
+      assertEquals(server, client);
+
+      save(saveModel(client));
+      verifyNoSourceChecked();
+      verify(viewsheet).setBaseEntry(same(server));
+      verify(viewsheetService).setViewsheet(same(viewsheet), any(), same(principal),
+                                            anyBoolean(), anyBoolean());
+   }
+
+   @Test
+   void aRoundTrippedUnchangedUserWorksheetSavesWithoutCheck() throws Exception {
+      denyEverySource();
+      AssetEntry server = new AssetEntry(
+         AssetRepository.USER_SCOPE, AssetEntry.Type.WORKSHEET, "My Folder/WS1",
+         IdentityID.getIdentityIDFromKey(principal.getName()));
+      when(viewsheet.getBaseEntry()).thenReturn(server);
+      AssetEntry client = storedAndClientRoundTripped(server);
+      assertEquals(server, client);
+
+      save(saveModel(client));
+      verifyNoSourceChecked();
+      verify(viewsheet).setBaseEntry(same(server));
+   }
+
+   @Test
+   void aRoundTrippedUnchangedModelAppliesPropertiesWithoutCheck() throws Exception {
+      denyEverySource();
+      AssetEntry server = folderedModelEntry();
+      when(viewsheet.getBaseEntry()).thenReturn(server);
+
+      setViewsheetInfo(propertyModel(storedAndClientRoundTripped(server)));
+      verifyNoSourceChecked();
+      verify(viewsheet, never()).setBaseEntry(any());
+      assertEquals("changed", viewsheet.getViewsheetInfo().getDescription());
+   }
 }
