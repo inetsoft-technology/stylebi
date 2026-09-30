@@ -398,8 +398,9 @@ public final class OwnedValueCodec {
     *         holds that is not kept (a function, a class instance, a Proxy, an accessor...);
     *         a refusal loses the root it was found in and every root that shares an object
     *         with that root, each with its own kind (A3), and no other root. Past the time
-    *         bound every root is lost, and so it is past the entry cap while the lost roots
-    *         are checked for shared objects.
+    *         bound every root is lost, and so it is past the marking budget
+    *         ({@link #MARK_FACTOR} times the entry cap) while the lost roots are checked for
+    *         shared objects.
     */
    public Object[] snapshotTree(List<Value> roots) {
       Object[] nodes = new Object[roots.size()];
@@ -443,7 +444,8 @@ public final class OwnedValueCodec {
                 slot.engine().guard(Duration.ofMillis(config.handOffMillis() + 1000)))
          {
             text = snap.execute(ProxyArray.fromList(new ArrayList<Object>(roots)),
-                                config.handOffEntries(), config.handOffMillis()).asString();
+                                config.handOffEntries(), config.handOffMillis(),
+                                markBudget(config.handOffEntries())).asString();
          }
 
          Tree tree = new Tree(text, kept);
@@ -469,6 +471,13 @@ public final class OwnedValueCodec {
       }
 
       return nodes;
+   }
+
+   /**
+    * @return the marking budget of a hand-off whose entry cap is {@code entries}.
+    */
+   public static int markBudget(int entries) {
+      return (int) Math.min(Integer.MAX_VALUE, (long) MARK_FACTOR * entries);
    }
 
    // the roots of a tree, built once in this (executing) context; bounded by the cloner's time
@@ -535,6 +544,12 @@ public final class OwnedValueCodec {
    static final ThreadLocal<List<Object>> KEEP_IN = new ThreadLocal<>();
    static final ThreadLocal<Map<Integer, String>> FAILS = new ThreadLocal<>();
    static final ThreadLocal<Map<Integer, String>> DROPS = new ThreadLocal<>();
+
+   /**
+    * The marking budget of a hand-off (the objects walked to check the lost roots for
+    * shared objects), in entry caps: past it every root is lost.
+    */
+   public static final int MARK_FACTOR = 4;
 
    /** A Date: its time value (NaN for an Invalid Date) and what a rebuild drops, if any. */
    public static final class DateNode {

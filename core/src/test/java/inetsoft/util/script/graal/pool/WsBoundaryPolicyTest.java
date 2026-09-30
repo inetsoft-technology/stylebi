@@ -79,6 +79,8 @@ class WsBoundaryPolicyTest {
                                         "every var of the table that holds a Date",
                                         "each var sharing an object with it",
                                         "through a closure, a getter or a WeakMap",
+                                        // follow-up: the marking budget
+                                        "four times the cap",
                                         // context-pool regression D1, the pool-off first batch
                                         "evaluates what pool off would", "2N + 10",
                                         "undeclared", "class-valued var",

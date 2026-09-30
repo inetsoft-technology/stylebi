@@ -61,6 +61,8 @@
       charCode = call.bind(String.prototype.charCodeAt), join = call.bind(AP.join),
       SYM = 'symbol', STOP = freeze(create(null));
    const PROTO_KEY = '__proto__';
+   // the most objects one host call classifies while the lost roots are marked
+   const MARK_SLICE = 2048;
 
    // the prototypes of builtin classes, to name a value that is not kept
    const NAMED = new M();
@@ -159,16 +161,17 @@
    // but not entered, as the host tells them apart without a trap: a lost var's init creates
    // a new host object, so a kept alias to the old one would split; a typed array or DataView
    // is marked but not entered, its elements are primitives; the entries of a Map or Set are
-   // marked, with the intrinsic forEach). Marking counts against the entry cap and the time
-   // bound: past either every root is lost, as sharing can no longer be checked.
+   // marked, with the intrinsic forEach). Marking counts against its own budget (maxMarks,
+   // a multiple of the entry cap) and the time bound: past either every root is lost, as
+   // sharing can no longer be checked.
    // An alias only through a closure, a getter, a WeakMap or WeakSet, a Map or Set of a
    // subclass or a typed array's named property is not seen.
-   function snap(roots, maxEntries, maxMillis) {
+   function snap(roots, maxEntries, maxMillis, maxMarks) {
       const put = putter(protoClean());
       const deadline = now() + maxMillis;
       const TIME = 'a value that took longer than ' + maxMillis + ' ms to save';
       const MARKS = 'a value that could not be checked for an object shared with a ' +
-         'variable whose value is not kept, which has more than ' + maxEntries + ' entries';
+         'variable whose value is not kept, which has more than ' + maxMarks + ' entries';
       const rl = roots.length;
       // why each root is lost, or undefined while it is kept (no hole: never read through
       // the prototype)
@@ -478,12 +481,13 @@
          return x !== null && (typeof x === 'object' || typeof x === 'function');
       }
 
-      // n more entries walked to mark the lost roots, against the entry cap of the hand-off
+      // n more entries walked to mark the lost roots, against the marking budget of the
+      // hand-off
       function markTick(n) {
          marks += n;
          steps += n;
 
-         if(marks > maxEntries) {
+         if(marks > maxMarks) {
             stopHard(MARKS);
          }
 
@@ -504,13 +508,30 @@
          let fl = 1;
 
          while(fl > 0) {
-            const kinds = host(front);
             const next = [];
             let nl = 0;
+            // the kinds of the slice of front that starts at kb and has kl objects
+            let kinds = '', kb = 0, kl = 0;
 
             for(let k = 0; k < fl; k++) {
+               // the host classifies the front in slices, so the time bound is checked
+               // between them
+               if(k - kb >= kl) {
+                  const end = fl - k > MARK_SLICE ? k + MARK_SLICE : fl;
+                  const slice = [];
+
+                  for(let q = k; q < end; q++) {
+                     put(slice, q - k, front[q]);
+                  }
+
+                  kinds = host(slice);
+                  kb = k;
+                  kl = end - k;
+                  checkTime();
+               }
+
                const o = front[k];
-               const h = charCode(kinds, k) - 48;
+               const h = charCode(kinds, k - kb) - 48;
 
                if(mget(tainted, o) !== undefined) {
                   continue;
@@ -533,7 +554,7 @@
                if(isArray(o)) {
                   const len = gOPD(o, 'length').value;
 
-                  if(marks + len > maxEntries) {
+                  if(marks + len > maxMarks) {
                      stopHard(MARKS);
                   }
                }
