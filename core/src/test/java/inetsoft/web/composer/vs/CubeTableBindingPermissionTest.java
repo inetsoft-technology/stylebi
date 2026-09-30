@@ -46,6 +46,8 @@ import inetsoft.web.composer.ws.dialog.GroupingAssemblyDialogService;
 import inetsoft.web.portal.controller.database.*;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import inetsoft.web.viewsheet.service.VSOutputService;
+import inetsoft.web.vswizard.handler.VSWizardBindingHandler;
+import inetsoft.web.vswizard.model.recommender.VSTemporaryInfo;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.function.Executable;
@@ -75,6 +77,7 @@ import static org.mockito.Mockito.*;
  *    <li>O /vs/dataOutput/table/columns</li>
  *    <li>C VS condition dialog browse-data</li>
  *    <li>G worksheet grouping dialog onlyFor</li>
+ *    <li>W VSWizardBindingHandler.changeSource (the VS wizard refresh-fields endpoint)</li>
  * </ul>
  */
 @ExtendWith(SpringExtension.class)
@@ -424,6 +427,50 @@ class CubeTableBindingPermissionTest {
             any(), eq(new SourceInfo(SourceInfo.MODEL, DENIED, MODEL)), any(), eq(principal)));
       }
 
+      verifyNothingChecked();
+   }
+
+   // ---- W: VSWizardBindingHandler.changeSource ----
+
+   private VSWizardBindingHandler wizardHandler() {
+      return new VSWizardBindingHandler(null, null, null, null, null, null, null, null, null,
+                                        null, null, null, null, queryManager);
+   }
+
+   private static VSTemporaryInfo temporaryInfo(ChartVSAssembly tempChart) {
+      VSTemporaryInfo info = mock(VSTemporaryInfo.class);
+      when(info.getTempChart()).thenReturn(tempChart);
+      return info;
+   }
+
+   @Test
+   void wDeniedNewCubeLeavesTempChartUnchanged() throws Throwable {
+      ChartVSAssembly tempChart = chart(OTHER_TABLE);
+      SourceInfo oldSource = tempChart.getSourceInfo();
+      withCube(true, false, () -> assertThrows(java.lang.SecurityException.class,
+         () -> wizardHandler().changeSource(new SourceInfo(SourceInfo.ASSET, null, CUBE_TABLE),
+                                            oldSource, temporaryInfo(tempChart), null, principal)));
+      verifyCubeChecked();
+      assertEquals(OTHER_TABLE, tempChart.getSourceInfo().getSource());
+   }
+
+   @Test
+   void wFirstBoundCubeDeniedWithoutDataSourceRead() throws Throwable {
+      ChartVSAssembly tempChart = chart(null);
+      withCube(false, true, () -> assertThrows(java.lang.SecurityException.class,
+         () -> wizardHandler().changeSource(new SourceInfo(SourceInfo.ASSET, null, CUBE_TABLE),
+                                            null, temporaryInfo(tempChart), null, principal)));
+      assertNull(tempChart.getSourceInfo());
+   }
+
+   @Test
+   void wUnchangedCubeSourceNotChecked() throws Throwable {
+      ChartVSAssembly tempChart = chart(CUBE_TABLE);
+      SourceInfo oldSource = tempChart.getSourceInfo();
+      withCube(false, false, () -> assertFalse(wizardHandler().changeSource(
+         new SourceInfo(SourceInfo.ASSET, null, CUBE_TABLE), oldSource,
+         temporaryInfo(tempChart), null, principal)));
+      assertSame(oldSource, tempChart.getSourceInfo());
       verifyNothingChecked();
    }
 }
