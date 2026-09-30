@@ -5074,7 +5074,7 @@ public final class VSUtil {
 
       if(style == null) {
          try {
-            style = (TableStyle) Class.forName(name).newInstance();
+            style = (TableStyle) Tool.loadSubclass(name, TableStyle.class).newInstance();
          }
          catch(Exception ex) {
             LOG.debug(

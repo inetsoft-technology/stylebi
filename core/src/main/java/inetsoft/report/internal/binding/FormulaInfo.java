@@ -116,8 +116,8 @@ public class FormulaInfo implements Serializable, XMLSerializable, Cloneable {
          Element ref = Tool.getChildNodeByTagName(fnode, "dataRef");
 
          if(ref != null) {
-            field = (FormulaField) Class.forName(
-               Tool.getAttribute(ref, "class")).newInstance();
+            field = (FormulaField) Tool.loadSubclass(
+               Tool.getAttribute(ref, "class"), FormulaField.class).newInstance();
             field.parseXML(ref);
          }
       }

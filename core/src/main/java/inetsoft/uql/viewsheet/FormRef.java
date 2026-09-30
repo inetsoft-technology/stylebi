@@ -104,7 +104,7 @@ public class FormRef extends ColumnRef {
     */
    private ColumnOption createColumnOption(Element elem) throws Exception {
       String name = Tool.getAttribute(elem, "class");
-      ColumnOption opt = (ColumnOption) Class.forName(name).newInstance();
+      ColumnOption opt = (ColumnOption) Tool.loadSubclass(name, ColumnOption.class).newInstance();
       opt.parseXML(elem);
 
       return opt;

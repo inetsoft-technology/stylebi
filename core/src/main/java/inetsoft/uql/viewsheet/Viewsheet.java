@@ -2319,7 +2319,8 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
             vass.parseState(clist.get(name));
          }
          else {
-            VSAssembly nvass = (VSAssembly) Class.forName(className).getConstructor().newInstance();
+            VSAssembly nvass = (VSAssembly) Tool.loadSubclass(className, VSAssembly.class)
+               .getConstructor().newInstance();
 
             if(vass instanceof DataVSAssembly && nvass instanceof DataVSAssembly) {
                ((DataVSAssembly) nvass).setSourceInfo(((DataVSAssembly) vass).getSourceInfo());
