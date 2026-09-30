@@ -28,6 +28,7 @@ import org.springframework.stereotype.Service;
 import java.security.Principal;
 import java.util.*;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 @Service
@@ -193,6 +194,48 @@ public class IdentityThemeService {
     *                the user's organization is ignored.
     */
    public void updateUserTheme(String oldName, String name, String orgID, String ntheme) {
+      updateIdentityTheme(oldName, name, orgID, ntheme, CustomTheme::getUsers, theme -> true,
+                          "user");
+   }
+
+   /**
+    * Renames a group or role in the themes that can refer to it and assigns it to the selected
+    * theme, with the same rules as {@link #updateUserTheme(String, String, String, String)}.
+    * Only the themes of the identity's organization are changed, see
+    * {@link CustomTheme#isIdentityOrganization(String)}.
+    *
+    * @param oldName the old identity name.
+    * @param name    the new identity name.
+    * @param orgID   the organization of the identity, or <tt>null</tt> for a global identity
+    *                (e.g. a global role). A global identity is renamed in the themes of every
+    *                organization, but its theme is only selected among the themes that the
+    *                current organization can use, so selecting a theme does not remove the
+    *                identity from another organization's theme.
+    * @param ntheme  the ID of the selected theme, an empty string or
+    *                {@link CustomTheme#DEFAULT_THEME_ID} for the default theme, or
+    *                <tt>null</tt> to only rename the identity. A theme that cannot be assigned to
+    *                the identity's organization is ignored.
+    * @param fn      the function that gets the identity list of a theme.
+    */
+   public void updateIdentityTheme(String oldName, String name, String orgID, String ntheme,
+                                   Function<CustomTheme, List<String>> fn)
+   {
+      Predicate<CustomTheme> selectable = theme -> true;
+
+      if(orgID == null) {
+         String currentOrgID = OrganizationManager.getInstance().getCurrentOrgID();
+         // same rule as getThemes(), the themes that can be selected in the current organization
+         selectable = theme -> Tool.isEmptyString(theme.getOrgID()) ||
+            Tool.equals(theme.getOrgID(), currentOrgID);
+      }
+
+      updateIdentityTheme(oldName, name, orgID, ntheme, fn, selectable, "identity");
+   }
+
+   private void updateIdentityTheme(String oldName, String name, String orgID, String ntheme,
+                                    Function<CustomTheme, List<String>> fn,
+                                    Predicate<CustomTheme> selectable, String type)
+   {
       if(oldName == null || name == null) {
          return;
       }
@@ -202,10 +245,11 @@ public class IdentityThemeService {
          String selected = CustomTheme.isReservedId(ntheme) ? "" : ntheme;
 
          if(!Tool.isEmptyString(selected) && themes.stream().noneMatch(
-            theme -> ntheme.equals(theme.getId()) && theme.isIdentityOrganization(orgID)))
+            theme -> ntheme.equals(theme.getId()) && theme.isIdentityOrganization(orgID) &&
+               selectable.test(theme)))
          {
-            LOG.warn("Ignoring theme {} for user {} because it cannot be assigned to organization {}",
-                     ntheme, name, orgID);
+            LOG.warn("Ignoring theme {} for {} {} because it cannot be assigned to organization {}",
+                     ntheme, type, name, orgID);
             selected = null;
          }
 
@@ -216,18 +260,19 @@ public class IdentityThemeService {
                continue;
             }
 
-            List<String> users = theme.getUsers();
-            boolean renamed = !oldName.equals(name) && users.contains(oldName);
-            boolean assigned = selected == null ?
-               users.contains(oldName) || users.contains(name) : selected.equals(theme.getId());
+            List<String> identities = fn.apply(theme);
+            boolean renamed = !oldName.equals(name) && identities.contains(oldName);
+            boolean assigned = selected == null || !selectable.test(theme) ?
+               identities.contains(oldName) || identities.contains(name) :
+               selected.equals(theme.getId());
 
-            // a user is assigned to at most one theme, so selecting a theme (or the default
-            // theme) removes the user from the theme that was previously selected
-            if(renamed || assigned != users.contains(name)) {
-               users.removeIf(user -> user.equals(oldName) || user.equals(name));
+            // an identity is assigned to at most one theme, so selecting a theme (or the default
+            // theme) removes the identity from the theme that was previously selected
+            if(renamed || assigned != identities.contains(name)) {
+               identities.removeIf(identity -> identity.equals(oldName) || identity.equals(name));
 
                if(assigned) {
-                  users.add(name);
+                  identities.add(name);
                }
 
                changed = true;

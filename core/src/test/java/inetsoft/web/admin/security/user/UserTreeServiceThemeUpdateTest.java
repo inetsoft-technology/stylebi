@@ -21,6 +21,8 @@ package inetsoft.web.admin.security.user;
  * Issue #77056: the EM user/group/role editors changed the theme assignments before the identity
  * edit was validated, so a rename rejected by setIdentity() (e.g. a duplicate name) or an edit of
  * a user that does not exist still rewrote the themes.
+ *
+ * Issue #77370: the EM group/role editors never assigned the selected theme.
  */
 
 import inetsoft.sree.internal.DataCycleManager;
@@ -228,6 +230,166 @@ class UserTreeServiceThemeUpdateTest {
 
       assertEquals(List.of("sales"), aTheme.getGroups());
       assertEquals(List.of("sales"), bTheme.getGroups());
+   }
+
+   // #77370: a group or role save assigned no theme, it only renamed the existing entries
+   @Test
+   void editGroup_themeSelected_groupAssignedToSelectedThemeOnly() throws Exception {
+      CustomTheme aTheme = theme("aTheme", ORG);
+      CustomTheme bTheme = theme("bTheme", ORG);
+      bTheme.getGroups().add("sales");
+      UserTreeService saveService = themeUpdateService(aTheme, bTheme);
+      IdentityID pathGroup = new IdentityID("sales", ORG);
+      when(provider.getGroup(pathGroup)).thenReturn(new FSGroup(pathGroup));
+
+      saveService.editGroup("Primary", pathGroup, groupModel("sales", "sales", "aTheme"),
+                            principal);
+
+      assertEquals(List.of("sales"), aTheme.getGroups());
+      assertEquals(List.of(), bTheme.getGroups(), "a group is assigned to at most one theme");
+   }
+
+   @Test
+   void editGroup_renamedAndThemeSelected_newNameAssignedToSelectedTheme() throws Exception {
+      CustomTheme aTheme = theme("aTheme", ORG);
+      CustomTheme bTheme = theme("bTheme", ORG);
+      bTheme.getGroups().add("sales");
+      UserTreeService saveService = themeUpdateService(aTheme, bTheme);
+      IdentityID pathGroup = new IdentityID("sales", ORG);
+      when(provider.getGroup(pathGroup)).thenReturn(new FSGroup(pathGroup));
+
+      saveService.editGroup("Primary", pathGroup, groupModel("sales", "sales2", "aTheme"),
+                            principal);
+
+      assertEquals(List.of("sales2"), aTheme.getGroups());
+      assertEquals(List.of(), bTheme.getGroups());
+   }
+
+   @Test
+   void editGroup_defaultThemeSelected_groupRemovedFromPreviousTheme() throws Exception {
+      CustomTheme aTheme = theme("aTheme", ORG);
+      aTheme.getGroups().add("sales");
+      UserTreeService saveService = themeUpdateService(aTheme);
+      IdentityID pathGroup = new IdentityID("sales", ORG);
+      when(provider.getGroup(pathGroup)).thenReturn(new FSGroup(pathGroup));
+
+      saveService.editGroup("Primary", pathGroup, groupModel("sales", "sales", ""), principal);
+
+      assertEquals(List.of(), aTheme.getGroups());
+   }
+
+   @Test
+   void editGroup_otherOrgThemeSelected_ignoredAndCurrentThemeKept() throws Exception {
+      CustomTheme aTheme = theme("aTheme", ORG);
+      aTheme.getGroups().add("sales");
+      CustomTheme bTheme = theme("bTheme", "organizationB");
+      UserTreeService saveService = themeUpdateService(aTheme, bTheme);
+      IdentityID pathGroup = new IdentityID("sales", ORG);
+      when(provider.getGroup(pathGroup)).thenReturn(new FSGroup(pathGroup));
+
+      saveService.editGroup("Primary", pathGroup, groupModel("sales", "sales", "bTheme"),
+                            principal);
+
+      assertEquals(List.of("sales"), aTheme.getGroups());
+      assertEquals(List.of(), bTheme.getGroups());
+   }
+
+   @Test
+   void editRole_themeSelected_roleAssignedToSelectedThemeOnly() throws Exception {
+      CustomTheme aTheme = theme("aTheme", ORG);
+      aTheme.getRoles().clear();
+      CustomTheme bTheme = theme("bTheme", ORG);
+      bTheme.getRoles().add("viewer");
+      UserTreeService saveService = themeUpdateService(aTheme, bTheme);
+      when(provider.getRole(new IdentityID("viewer", ORG))).thenReturn(new FSRole(
+         new IdentityID("viewer", ORG)));
+
+      saveService.editRole(roleModel("viewer", "viewer", ORG, "aTheme"), "Primary", principal);
+
+      assertEquals(List.of("viewer"), aTheme.getRoles());
+      assertEquals(List.of("designer"), bTheme.getRoles());
+   }
+
+   @Test
+   void editRole_renamedAndThemeSelected_newNameAssignedToSelectedTheme() throws Exception {
+      CustomTheme aTheme = theme("aTheme", ORG);
+      aTheme.getRoles().clear();
+      CustomTheme bTheme = theme("bTheme", ORG);
+      UserTreeService saveService = themeUpdateService(aTheme, bTheme);
+      when(provider.getRole(new IdentityID("designer", ORG))).thenReturn(new FSRole(
+         new IdentityID("designer", ORG)));
+
+      saveService.editRole(roleModel("designer", "lead", ORG, "aTheme"), "Primary", principal);
+
+      assertEquals(List.of("lead"), aTheme.getRoles());
+      assertEquals(List.of(), bTheme.getRoles());
+   }
+
+   @Test
+   void editRole_defaultThemeIdSelected_roleRemovedFromPreviousTheme() throws Exception {
+      CustomTheme aTheme = theme("aTheme", ORG);
+      UserTreeService saveService = themeUpdateService(aTheme);
+      when(provider.getRole(new IdentityID("designer", ORG))).thenReturn(new FSRole(
+         new IdentityID("designer", ORG)));
+
+      saveService.editRole(roleModel("designer", "designer", ORG, CustomTheme.DEFAULT_THEME_ID),
+                           "Primary", principal);
+
+      assertEquals(List.of(), aTheme.getRoles());
+   }
+
+   // a global role's theme is selected among the themes of the current organization, so the
+   // selection does not take the role out of another organization's theme
+   @Test
+   void editRole_globalRoleThemeSelected_otherOrgThemeKept() throws Exception {
+      CustomTheme aTheme = theme("aTheme", ORG);
+      aTheme.getRoles().clear();
+      CustomTheme globalTheme = theme("globalTheme", null);
+      CustomTheme bTheme = theme("bTheme", "organizationB");
+      UserTreeService saveService = themeUpdateService(aTheme, globalTheme, bTheme);
+      when(provider.getRole(new IdentityID("designer", null))).thenReturn(new FSRole(
+         new IdentityID("designer", null)));
+
+      saveService.editRole(roleModel("designer", "designer", null, "aTheme"), "Primary",
+                           principal);
+
+      assertEquals(List.of("designer"), aTheme.getRoles());
+      assertEquals(List.of(), globalTheme.getRoles());
+      assertEquals(List.of("designer"), bTheme.getRoles(), "org B's theme must be kept");
+
+      saveService.editRole(roleModel("designer", "designer", null, "bTheme"), "Primary",
+                           principal);
+
+      assertEquals(List.of("designer"), aTheme.getRoles(),
+         "another organization's theme cannot be selected");
+   }
+
+   private UserTreeService themeUpdateService(CustomTheme... themes) throws Exception {
+      CustomThemesManager themesManager = mock(CustomThemesManager.class);
+      CustomThemesManagerMocks.applyUpdates(themesManager);
+      when(themesManager.getCustomThemes()).thenReturn(new HashSet<>(Set.of(themes)));
+      XRepository repository = mock(XRepository.class);
+      when(repository.getDataSourceFullNames(any())).thenReturn(new String[0]);
+      doNothing().when(identityService).setIdentity(any(), any(), any(), any());
+      return new UserTreeService(
+         providerService, systemAdminService, identityService, null, securityEngine,
+         new IdentityThemeService(themesManager), null, null, mock(DataCycleManager.class), null,
+         null, mock(IndexedStorage.class), null, null, repository, null, null);
+   }
+
+   private static EditGroupPaneModel groupModel(String oldName, String name, String theme) {
+      return EditGroupPaneModel.builder()
+         .name(name)
+         .oldName(oldName)
+         .organization(ORG)
+         .theme(theme)
+         .build();
+   }
+
+   private static EditRolePaneModel roleModel(String oldName, String name, String orgID,
+                                              String theme)
+   {
+      return EditRolePaneModel.builder().from(roleModel(oldName, name, orgID)).theme(theme).build();
    }
 
    private UserTreeService groupRenameService(CustomTheme... themes) throws Exception {
