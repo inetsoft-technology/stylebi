@@ -449,11 +449,24 @@ public class ColumnTypeFilter extends AbstractTableLens
          return table.getObject(r, c);
       }
 
+      // read the cache once, invalidate() may clear it at any time. publish it before the
+      // base read, so a value read before a base change only lands in a discarded cache
+      // (bug #77397)
+      SparseMatrix cellValues = this.cellValues;
+
       if(cellValues == null) {
          cellValues = new SparseMatrix();
+         this.cellValues = cellValues;
       }
 
-      Object val = cellValues.get(r, c);
+      Object val;
+
+      // a SparseMatrix is not safe for a concurrent get and set, a reader could get the
+      // value of another cell. lock the matrix, not this filter, so invalidate() stays
+      // lock-free, and never hold it while reading the base (bug #77397)
+      synchronized(cellValues) {
+         val = cellValues.get(r, c);
+      }
 
       if(val != SparseMatrix.NULL) {
          return val;
@@ -465,7 +478,9 @@ public class ColumnTypeFilter extends AbstractTableLens
          val = Tool.getData(types[c], val);
       }
 
-      cellValues.set(r, c, val);
+      synchronized(cellValues) {
+         cellValues.set(r, c, val);
+      }
 
       return val;
    }
@@ -660,5 +675,5 @@ public class ColumnTypeFilter extends AbstractTableLens
    private TableLens table;
    private String[] types;
    private String[] identifiers;
-   private transient SparseMatrix cellValues;
+   private transient volatile SparseMatrix cellValues;
 }

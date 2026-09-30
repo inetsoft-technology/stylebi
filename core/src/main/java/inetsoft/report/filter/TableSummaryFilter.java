@@ -659,12 +659,20 @@ public class TableSummaryFilter extends AbstractTableLens
          table.setObject(r, c, v);
       }
       else {
+         // read the summary once, invalidate() may clear it at any time. no summary (e.g. a
+         // row past the summary row before it is built) drops the value, as getObject()
+         // reads null there (bug #77397)
+         Object[] sum = this.sum;
+
          if(sum == null) {
             moreRows(r);
+            sum = this.sum;
          }
 
-         sum[c] = v;
-         fireChangeEvent();
+         if(sum != null) {
+            sum[c] = v;
+            fireChangeEvent();
+         }
       }
    }
 

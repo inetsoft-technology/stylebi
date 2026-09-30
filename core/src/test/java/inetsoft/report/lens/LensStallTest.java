@@ -287,8 +287,8 @@ public class LensStallTest {
       }
 
       @Override
-      protected MergedTable.Visitor getVisitor() {
-         MergedTable.Visitor visitor = super.getVisitor();
+      protected MergedTable.Visitor getVisitor(Pass pass) {
+         MergedTable.Visitor visitor = super.getVisitor(pass);
          return row -> {
             hook.run();
             visitor.visit(row);

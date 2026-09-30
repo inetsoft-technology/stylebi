@@ -187,11 +187,9 @@ public class SelfJoinTableLens extends AbstractTableLens implements TableFilter,
     */
    @Override
    public synchronized void invalidate() {
-      if(rows != null) {
-         rows.dispose();
-         rows = null;
-      }
-
+      // don't dispose the rows, a lock-free reader may still hold them. the superseded
+      // worker detects the new pass by identity instead (bug #77397)
+      rows = null;
       completed = false;
       stallFailure = null;
       scannedRows = 0;
@@ -254,6 +252,7 @@ public class SelfJoinTableLens extends AbstractTableLens implements TableFilter,
    private void join(XSwappableIntList rows2) {
       SelfJoinOperator[] ops = new SelfJoinOperator[oplist.size()];
       oplist.toArray(ops);
+      LockStallException stall = null;
 
       try {
          OUTER:
@@ -267,7 +266,9 @@ public class SelfJoinTableLens extends AbstractTableLens implements TableFilter,
             }
 
             synchronized(SelfJoinTableLens.this) {
-               if(rows2.isDisposed()) {
+               // superseded by invalidate() (or disposed), never add to the next pass's rows
+               // (bug #77397)
+               if(rows != rows2) {
                   return;
                }
 
@@ -286,21 +287,22 @@ public class SelfJoinTableLens extends AbstractTableLens implements TableFilter,
       catch(LockStallException ex) {
          // logged by the wait site; the readers rethrow it rather than take the rows so far
          // for the whole table (bug #76967)
-         stallFailure = ex;
+         stall = ex;
       }
       catch(Exception ex) {
          // a stall may reach the worker wrapped by the base table (bug #76967)
-         LockStallException stall = LockStallException.find(ex);
-
-         if(stall != null) {
-            stallFailure = stall;
-         }
-
+         stall = LockStallException.find(ex);
          LOG.error("Failed to validate table rows", ex);
       }
 
+      // complete (or fail) only this pass's own rows. a superseded pass must neither end
+      // the next pass early nor fail it with its stale stall (bug #77397)
       synchronized(SelfJoinTableLens.this) {
-         if(!rows2.isDisposed()) {
+         if(rows == rows2) {
+            if(stall != null) {
+               stallFailure = stall;
+            }
+
             completed = true;
             rows2.complete();
 
@@ -844,11 +846,30 @@ public class SelfJoinTableLens extends AbstractTableLens implements TableFilter,
          return r;
       }
 
-      if(!moreRows(r)) {
-         return -1;
-      }
+      // the rows are read once for both the count check and the read, and read again if
+      // moreRows() returned for new rows: invalidate() may publish them at any time, which
+      // don't hold the row yet (bug #77397, as DistinctTableLens bug #77333). no rows before
+      // and after a moreRows() that found the row means they were cleared again since
+      for(int retry = 0; ; retry++) {
+         XSwappableIntList rows = this.rows;
+         boolean more = moreRows(r);
 
-      return rows.get(r);
+         if(this.rows != rows || rows == null && more) {
+            if(retry < MAX_READ_RETRIES) {
+               continue;
+            }
+
+            LOG.warn("Self join row {} read from replaced rows: the table was invalidated {} " +
+                     "times while the row was found", r, MAX_READ_RETRIES);
+         }
+
+         // disposed or no such row
+         if(rows == null || r >= rows.size()) {
+            return -1;
+         }
+
+         return rows.get(r);
+      }
    }
 
    /**
@@ -940,7 +961,7 @@ public class SelfJoinTableLens extends AbstractTableLens implements TableFilter,
       return type != null ? type : table == null ? null : table.getReportType();
    }
 
-   private XSwappableIntList rows;// rows
+   private volatile XSwappableIntList rows;// rows
    private List oplist;           // operator list
    private TableLens table;       // base table
    private boolean completed;     // completed flag
@@ -953,6 +974,9 @@ public class SelfJoinTableLens extends AbstractTableLens implements TableFilter,
    // the base row the worker has reached, and the stall it failed with (bug #76967)
    private transient volatile int scannedRows;
    private transient volatile LockStallException stallFailure;
+
+   // retries of a read whose rows were replaced by a concurrent invalidate() (bug #77397)
+   private static final int MAX_READ_RETRIES = 100;
 
    private static final Logger LOG =
       LoggerFactory.getLogger(SelfJoinTableLens.class);

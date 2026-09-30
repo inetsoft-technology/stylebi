@@ -209,7 +209,13 @@ public class UnionTableLens extends SetTableLens {
 
    @Override
    public void invalidate() {
-      rowCounts = null;
+      // reset both under the monitor moreRows0() computes and writes rowCnt with, a stale
+      // rowCnt reports rows past the end of a shrunk base (bug #77397)
+      synchronized(this) {
+         rowCounts = null;
+         rowCnt = 0;
+      }
+
       super.invalidate();
    }
 
@@ -232,7 +238,7 @@ public class UnionTableLens extends SetTableLens {
     * @return the merged table visitor.
     */
    @Override
-   protected MergedTable.Visitor getVisitor() {
+   protected MergedTable.Visitor getVisitor(Pass pass) {
       return null;
    }
 

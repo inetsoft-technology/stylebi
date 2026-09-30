@@ -47,8 +47,8 @@ public class MinusTableLens extends SetTableLens {
     * @return the merged table visitor.
     */
    @Override
-   protected MergedTable.Visitor getVisitor() {
-      return new Visitor();
+   protected MergedTable.Visitor getVisitor(Pass pass) {
+      return new Visitor(pass);
    }
 
    /**
@@ -64,6 +64,12 @@ public class MinusTableLens extends SetTableLens {
     * Merged row visitor.
     */
    private class Visitor implements MergedTable.Visitor {
+      Visitor(Pass pass) {
+         this.pass = pass;
+      }
+
+      private final Pass pass;
+
       @Override
       public void visit(MergedRow val) throws Exception {
          boolean matched = true;
@@ -82,13 +88,9 @@ public class MinusTableLens extends SetTableLens {
          if(!matched) {
             Row row = new Row(0, val.getRows(0)[0]);
             
-            if(!isSetRowsInitialized()) {
-               throw new InterruptedException("I am interrupted!");
-            }
+            pass.add(row);
 
-            addSetRow(row);
-
-            if(getSetRowCount() % 20 == 0) {
+            if(pass.size() % 20 == 0) {
                synchronized(MinusTableLens.this) {
                   // notify waiting consumers
                   MinusTableLens.this.notifyAll();

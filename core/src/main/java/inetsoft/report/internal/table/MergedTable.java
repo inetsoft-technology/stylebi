@@ -180,24 +180,34 @@ public class MergedTable {
          return;
       }
 
-      btree.accept(new BTreeFile.Visitor() {
-         @Override
-         public void visit(BTreeFile.Key key) throws Exception {
-            BTreeFile.Value value;
+      // check inside the btree monitor that dispose() closes the btree with, so a queued
+      // worker never reopens (re-creates) the file of a closed btree (bug #77397)
+      synchronized(btree) {
+         if(disposed) {
+            return;
+         }
 
-            synchronized(MergedTable.this) {
-               if(disposed) {
-                  return;
+         btree.accept(new BTreeFile.Visitor() {
+            @Override
+            public void visit(BTreeFile.Key key) throws Exception {
+               BTreeFile.Value value;
+
+               synchronized(MergedTable.this) {
+                  if(disposed) {
+                     // unwind the traversal, it releases the btree monitor that dispose()
+                     // waits for (bug #77397)
+                     throw new InterruptedException("merged table disposed");
+                  }
+
+                  value = btree.getRecord(key);
                }
 
-               value = btree.getRecord(key);
+               for(MergedRow rvalue : parseValue(value)) {
+                  visitor.visit(rvalue);
+               }
             }
-
-            for(MergedRow rvalue : parseValue(value)) {
-               visitor.visit(rvalue);
-            }
-         }
-      });
+         });
+      }
    }
    
    private MergedRow[] parseValue(BTreeFile.Value value) {
@@ -240,12 +250,16 @@ public class MergedTable {
    /**
     * Dispose the merged table.
     */
-   public final synchronized void dispose() {
-      if(disposed) {
-         return;
-      }
+   public final void dispose() {
+      // never close the btree while holding this monitor: a visitor holds the btree monitor
+      // for the whole traversal and takes this one per key (bug #77397)
+      synchronized(this) {
+         if(disposed) {
+            return;
+         }
 
-      disposed = true;
+         disposed = true;
+      }
 
       try {
          btree.close();
@@ -282,7 +296,7 @@ public class MergedTable {
 
    private File file;
    private BTreeFile btree;
-   private boolean disposed;
+   private volatile boolean disposed;
    private XTable[] tables;
 
    private static final Logger LOG =
