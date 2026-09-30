@@ -85,6 +85,11 @@ class UniformSQLOuterJoinConditionTest {
       for(XJoin join : sql.getJoins()) {
          assertTrue(join.isOuterJoin(), join.toString());
       }
+
+      String generated = normalize(sql.getSQLString());
+      assertTrue(generated.contains("(a LEFT OUTER JOIN b ON a.id = b.id ) " +
+                                    "LEFT OUTER JOIN c ON a.id = c.id AND a.k = c.k"), generated);
+      assertEquals(generated, normalize(parse(generated).getSQLString()));
    }
 
    @ParameterizedTest
@@ -106,8 +111,11 @@ class UniformSQLOuterJoinConditionTest {
       "select * from a left join b on a.id = b.id and 1 = 1",
       "select * from a left join b on not (a.id = b.id and a.k = b.k)",
       "select * from a left join b on (a.id = b.id) is true",
-      // joins between different pairs of tables
+      // joins between different pairs of tables, or between unknown tables
       "select * from a left join b on a.id = b.id left join c on c.id = a.id and c.k = b.k",
+      "select * from a left join b on id = bid and k = bk",
+      "select * from a right join b on id = bid and k = bk",
+      "select * from a full outer join b on a.id = b.id and k = bk",
       // chained, nested and subquery positions
       "select * from a left join b on a.id = b.id left join c on c.x is null",
       "select * from a left join (b left join c on 1 = 1) on a.id = b.id",
@@ -115,7 +123,8 @@ class UniformSQLOuterJoinConditionTest {
       "select * from a where exists (select 1 from b left join c on 1 = 1)"
    })
    void unsupportedOuterJoinConditionFailsCleanly(String text) {
-      assertThrows(RecognitionException.class, () -> parse(text));
+      RecognitionException ex = assertThrows(RecognitionException.class, () -> parse(text));
+      assertTrue(ex.getMessage().contains("Unsupported outer join condition"), ex.getMessage());
 
       UniformSQL sql = new UniformSQL();
       new SQLProcessor(sql).parse(text);

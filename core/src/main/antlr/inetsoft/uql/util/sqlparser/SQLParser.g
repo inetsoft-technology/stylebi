@@ -243,7 +243,13 @@ private List getOuterJoins(UniformSQL sql, XFilterNode cond, Token tok)
          tables2.add(join.getTable1(sql));
          tables2.add(join.getTable2(sql));
 
-         if(tables == null) {
+         // several joins must all name the same two tables
+         if(joins.size() > 1 && (tables2.size() != 2 || tables2.contains(null) ||
+            tables2.contains("")))
+         {
+            sameTables = false;
+         }
+         else if(tables == null) {
             tables = tables2;
          }
          else {
