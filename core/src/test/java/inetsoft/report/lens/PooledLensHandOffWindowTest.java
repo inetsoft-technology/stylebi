@@ -277,7 +277,8 @@ class PooledLensHandOffWindowTest {
     * The claim must not keep the table's home for itself: on main it held it for its whole
     * claim, so the table's next batch missed its home, its pull failed, and row 201 read 1 with
     * one warning "... another thread is using". The claim now gives the new home back and
-    * takes another context.
+    * takes it as a home: a hard home is left to the table and the claim takes another context,
+    * a soft one (maxHomes 0) is taken over through the hand-off.
     */
    @ParameterizedTest(name = "maxHomes {0}")
    @ValueSource(strings = { "default", "0" })
@@ -296,12 +297,21 @@ class PooledLensHandOffWindowTest {
       w.init();
 
       Thread[] claimThread = new Thread[1];
+      Object[] newHome = new Object[1];
+      AtomicInteger tookOver = new AtomicInteger();
       CountDownLatch checked = new CountDownLatch(1);
       CountDownLatch resume = new CountDownLatch(1);
       CountDownLatch claimed = new CountDownLatch(1);
       CountDownLatch done = new CountDownLatch(1);
+      // the claim's take-over of the new home: the fall-through, not only the give-back
+      setHook(w, slot -> {
+         if(Thread.currentThread() == claimThread[0] && slot == newHome[0]) {
+            tookOver.incrementAndGet();
+         }
+      });
       setField(w, "plainTakeHook", (Consumer<?>) slot -> {
          if(Thread.currentThread() == claimThread[0] && checked.getCount() > 0) {
+            newHome[0] = slot;
             checked.countDown();
 
             try {
@@ -361,6 +371,9 @@ class PooledLensHandOffWindowTest {
       assertTrue(bad.isEmpty() && warns.isEmpty(), () -> "maxHomes " + maxHomes + ": " +
          bad.size() + " wrong rows, first " + bad.subList(0, Math.min(5, bad.size())) + "; " +
          warns);
+      // a soft home (maxHomes 0) is taken over through the hand-off; a hard one is left alone
+      assertEquals(maxHomes.equals("0") ? 1 : 0, tookOver.get(),
+                   "maxHomes " + maxHomes + ": take-overs of the new home by the claim");
    }
 
    private static boolean waitsForLensLock(Thread thread) {
