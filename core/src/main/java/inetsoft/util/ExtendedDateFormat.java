@@ -541,7 +541,11 @@ public class ExtendedDateFormat extends SimpleDateFormat {
 
    @Override
    public Date parse(String str, ParsePosition pos) {
-      if(!formatterError) {
+      // pos is null only for the java.time attempt made by parse(String) and
+      // parseObject(String), which catch its exceptions and fall back. Callers passing
+      // a ParsePosition get the Format contract (locale, parse position, error index and
+      // null on failure) from SimpleDateFormat
+      if(!formatterError && pos == null) {
          String pattern = toPattern();
          TimeZone zone = getTimeZone();
          String key = pattern + ":" + zone.getID();
