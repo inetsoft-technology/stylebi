@@ -555,4 +555,44 @@ class PermissionTest {
       assertTrue(perm.getGrants(ResourceAction.READ, Identity.USER, ORG_A).isEmpty(),
                  "alice from orgB must not appear when filtering grants for orgA");
    }
+
+   // ── equals/hashCode (Bug #77382) ──────────────────────────────────────────
+
+   // Two Permissions written identically through the setXGrantsForOrg path (the shape
+   // IdentityService.setIdentityPermissions produces) must be equal with equal hash codes
+   @Test
+   void equals_identicallyBuiltViaGrantsForOrg_equalWithSameHashCode() {
+      Permission first = buildViaGrantsForOrg();
+      Permission second = buildViaGrantsForOrg();
+
+      assertEquals(first, second);
+      assertEquals(first.hashCode(), second.hashCode());
+   }
+
+   private static Permission buildViaGrantsForOrg() {
+      Permission perm = new Permission();
+      perm.setUserGrantsForOrg(ResourceAction.ADMIN, Set.of("alice"), ORG_A);
+      perm.setGroupGrantsForOrg(ResourceAction.ADMIN, Set.of(), ORG_A);
+      perm.setRoleGrantsForOrg(ResourceAction.ADMIN, Set.of("r1"), ORG_A);
+      perm.setOrganizationGrantsForOrg(ResourceAction.ADMIN, Set.of(), ORG_A);
+      return perm;
+   }
+
+   // DashboardManager.LoadDashboardsTask.validate pattern: re-adding an identity that is already
+   // granted must not create a duplicate grant, no matter how many times it runs
+   @Test
+   void setGrants_reAddingExistingIdentity_keepsSingleGrant() {
+      Permission perm = new Permission();
+      perm.setGrants(ResourceAction.ACCESS, Identity.USER,
+                     Set.of(new Permission.PermissionIdentity("bob", ORG_A)));
+
+      for(int i = 0; i < 3; i++) {
+         Set<Permission.PermissionIdentity> grants =
+            perm.getGrants(ResourceAction.ACCESS, Identity.USER, ORG_A);
+         grants.add(new Permission.PermissionIdentity("bob", ORG_A));
+         perm.setGrants(ResourceAction.ACCESS, Identity.USER, grants);
+      }
+
+      assertEquals(1, perm.getGrants(ResourceAction.ACCESS, Identity.USER, null).size());
+   }
 }
