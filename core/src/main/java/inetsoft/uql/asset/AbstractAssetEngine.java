@@ -1349,8 +1349,7 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
                continue;
             }
 
-            String resource = folder != null && !folder.equals("")
-               ? "__^" + folder + "^" + lmodel + "::" + source : lmodel + "::" + source;
+            String resource = XUtil.getLogicalModelResourceName(source, folder, lmodel);
 
             if(checkQueryPermission(resource, user)) {
                String path = folder != null && !folder.equals("") ?

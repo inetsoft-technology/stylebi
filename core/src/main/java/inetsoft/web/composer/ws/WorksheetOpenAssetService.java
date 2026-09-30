@@ -38,6 +38,7 @@ import inetsoft.util.Tool;
 import inetsoft.web.composer.ws.assembly.WorksheetEventUtil;
 import inetsoft.web.composer.ws.event.OpenAssetEvent;
 import inetsoft.web.composer.ws.event.OpenAssetEventValidator;
+import inetsoft.web.portal.controller.database.QueryManagerService;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -52,9 +53,11 @@ import java.util.List;
 public class WorksheetOpenAssetService extends WorksheetControllerService {
 
    public WorksheetOpenAssetService(ViewsheetService viewsheetService,
-                                    DataSourceRegistry dataSourceRegistry)
+                                    DataSourceRegistry dataSourceRegistry,
+                                    QueryManagerService queryManagerService)
    {
       super(viewsheetService, dataSourceRegistry);
+      this.queryManagerService = queryManagerService;
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
@@ -412,6 +415,9 @@ public class WorksheetOpenAssetService extends WorksheetControllerService {
       entry = list.get(0);
       SourceInfo sinfo = new SourceInfo(
          Integer.parseInt(type), prefix, source);
+      // the source is built from the client's entry properties and nothing downstream checks
+      // it, so check it before its model is resolved or its table is created (Bug #77400)
+      queryManagerService.checkSourceReadPermission(sinfo, principal);
       sinfo.setProperty(SourceInfo.QUERY_FOLDER, folderDesc);
       String name = source;
 
@@ -557,4 +563,5 @@ public class WorksheetOpenAssetService extends WorksheetControllerService {
       return engine.getEntries(entry, principal, null);
    }
 
+   private final QueryManagerService queryManagerService;
 }
