@@ -2235,6 +2235,8 @@ public class CrossTabFilter extends AbstractTableLens
       // rather than publish data that misses the change (bug #77365)
       generation++;
       published = null;
+      // the descriptor's meta info cache, not scratch of the pass
+      mmap.clear();
       formulas.clear();
 
       fireChangeEvent();
