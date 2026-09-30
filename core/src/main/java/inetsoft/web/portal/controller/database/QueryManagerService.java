@@ -1361,8 +1361,8 @@ public class QueryManagerService {
     * asset engine resolves the children of such an entry from the data source in its prefix
     * without checking it, so the prefix is required and must be readable. Only the root and
     * data source folders are exempt, because the engine lists their data sources READ-filtered
-    * (Bug #77163). A logical model or entity also requires READ on the logical model
-    * (Bug #77189).
+    * (Bug #77163). A logical model or entity also requires READ on the logical model, and a
+    * physical folder or table requires PHYSICAL_TABLE ACCESS (Bug #77189).
     *
     * @throws java.lang.SecurityException if the prefix is missing, if READ is not granted, or
     *                                     if the check itself fails.
@@ -1373,6 +1373,7 @@ public class QueryManagerService {
       {
          checkDataSourceReadPermission(entry.getProperty("prefix"), principal);
          checkModelEntryReadPermission(entry, principal);
+         checkPhysicalEntryAccess(entry, principal);
       }
    }
 
@@ -1409,6 +1410,15 @@ public class QueryManagerService {
          checkModelEntryReadPermission(entry, principal);
       }
 
+      checkPhysicalEntryAccess(entry, principal);
+   }
+
+   /**
+    * A physical folder or table entry requires the same PHYSICAL_TABLE ACCESS that listing the
+    * physical tables of a data source does, which the asset engine checks only at the data
+    * source level (Bug #77189).
+    */
+   private void checkPhysicalEntryAccess(AssetEntry entry, Principal principal) {
       if(entry.isPhysicalFolder() || entry.isPhysicalTable()) {
          boolean allowed;
 
