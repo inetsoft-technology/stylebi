@@ -230,6 +230,82 @@ class UserTreeServiceThemeUpdateTest {
       assertEquals(List.of("sales"), bTheme.getGroups());
    }
 
+   // Bug #77352: EM group Apply assigns the theme selected in the group editor
+   @Test
+   void editGroup_selectTheme_assignsGroup() throws Exception {
+      CustomTheme aTheme = theme("aTheme", ORG);
+      UserTreeService renameService = groupRenameService(aTheme);
+      IdentityID pathGroup = new IdentityID("sales", ORG);
+      when(provider.getGroup(pathGroup)).thenReturn(new FSGroup(pathGroup));
+      EditGroupPaneModel model = EditGroupPaneModel.builder()
+         .name("sales")
+         .oldName("sales")
+         .organization(ORG)
+         .theme("aTheme")
+         .build();
+
+      renameService.editGroup("Primary", pathGroup, model, principal);
+
+      assertEquals(List.of("sales"), aTheme.getGroups());
+
+      renameService.editGroup("Primary", pathGroup,
+                              EditGroupPaneModel.builder().from(model).theme("").build(),
+                              principal);
+
+      assertTrue(aTheme.getGroups().isEmpty(), "the default theme clears the assignment");
+
+      renameService.editGroup("Primary", pathGroup, model, principal);
+      renameService.editGroup(
+         "Primary", pathGroup,
+         EditGroupPaneModel.builder().from(model).theme(CustomTheme.DEFAULT_THEME_ID).build(),
+         principal);
+
+      assertTrue(aTheme.getGroups().isEmpty(), "the default theme id clears the assignment");
+   }
+
+   // Bug #77352: EM role Apply assigns the theme selected in the role editor
+   @Test
+   void editRole_selectTheme_assignsRole() throws Exception {
+      CustomTheme aTheme = theme("aTheme", ORG);
+      aTheme.getRoles().clear();
+      UserTreeService renameService = groupRenameService(aTheme);
+      when(provider.getRole(new IdentityID("designer", ORG))).thenReturn(new FSRole(
+         new IdentityID("designer", ORG)));
+
+      renameService.editRole(
+         EditRolePaneModel.builder().from(roleModel("designer", "designer", ORG))
+            .theme("aTheme").build(), "Primary", principal);
+
+      assertEquals(List.of("designer"), aTheme.getRoles());
+
+      renameService.editRole(
+         EditRolePaneModel.builder().from(roleModel("designer", "designer", ORG))
+            .theme(CustomTheme.DEFAULT_THEME_ID).build(), "Primary", principal);
+
+      assertTrue(aTheme.getRoles().isEmpty(), "the default theme id clears the assignment");
+   }
+
+   // Bug #77352: in single-tenant mode the EM role editor shows the theme selector for the
+   // built-in global Administrator role, so its selection must be assigned too
+   @Test
+   void editRole_singleTenantGlobalAdministratorRole_assignsTheme() throws Exception {
+      CustomTheme x = theme("x", null);
+      x.getRoles().clear();
+      CustomTheme y = theme("y", null);
+      y.getRoles().clear();
+      y.getRoles().add("Administrator");
+      UserTreeService renameService = groupRenameService(x, y);
+      when(provider.getRole(new IdentityID("Administrator", null))).thenReturn(new FSRole(
+         new IdentityID("Administrator", null)));
+
+      renameService.editRole(
+         EditRolePaneModel.builder().from(roleModel("Administrator", "Administrator", null))
+            .theme("x").build(), "Primary", principal);
+
+      assertEquals(List.of("Administrator"), x.getRoles());
+      assertTrue(y.getRoles().isEmpty());
+   }
+
    private UserTreeService groupRenameService(CustomTheme... themes) throws Exception {
       CustomThemesManager themesManager = mock(CustomThemesManager.class);
       CustomThemesManagerMocks.applyUpdates(themesManager);
