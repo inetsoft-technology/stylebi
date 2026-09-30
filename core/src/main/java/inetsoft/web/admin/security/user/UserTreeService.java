@@ -969,7 +969,9 @@ public class UserTreeService {
                final String orgKey = prefix + i;
                boolean found = Arrays.stream(getSecurityProvider().getOrganizationIDs()).anyMatch(o -> o.equalsIgnoreCase(orgKey)) ||
                   Arrays.stream(getSecurityProvider().getOrganizationNames()).anyMatch(o -> o.equalsIgnoreCase(orgKey)) ||
-                  getSecurityProvider().getOrgNameFromID(orgKey) != null;
+                  getSecurityProvider().getOrgNameFromID(orgKey) != null ||
+                  // skip ids whose data space paths exist, they are not this org's own files
+                  OrganizationIdRules.hasDataSpacePaths(orgKey);
 
                if(!found) {
                   newOrgKey = new IdentityID(orgKey, orgKey);

@@ -18,6 +18,7 @@
 package inetsoft.util;
 
 import inetsoft.sree.security.Organization;
+import inetsoft.sree.security.OrgScopedPaths;
 import inetsoft.storage.*;
 import jakarta.annotation.PreDestroy;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -418,11 +419,16 @@ public class DataSpace implements AutoCloseable {
     * @return String[] containing org scoped paths
     */
    public String[] getOrgScopedPaths(Organization oorg) {
-      return storage().paths().filter(p -> p.equals("portal/" + oorg.getId()) ||
-         p.startsWith("portal/" + oorg.getId() + "/") || p.startsWith(oorg.getId() + "__") ||
-         p.equals(oorg.getId()) || p.startsWith(oorg.getId() + "/") ||
-         p.startsWith("sreeUserData/") && p.endsWith("_" + oorg.getId() + ".xml"))
+      return storage().paths().filter(p -> OrgScopedPaths.isOrgScopedPath(p, oorg.getId()))
          .toArray(String[]::new);
+   }
+
+   /**
+    * Determines if the data space contains any path that an organization with the id would own,
+    * i.e. that {@link #getOrgScopedPaths} would return for it.
+    */
+   public boolean hasOrgScopedPaths(String orgId) {
+      return storage().paths().anyMatch(p -> OrgScopedPaths.isOrgScopedPath(p, orgId));
    }
 
    /**

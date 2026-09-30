@@ -532,7 +532,7 @@ public abstract class AbstractEditableAuthenticationProvider
                   }
                   else {
                      String oldJarPath = clone.getJarPath();
-                     String newJarPath = oldJarPath.replace(fromOrgId, toOrgId);
+                     String newJarPath = OrgScopedPaths.rewrite(oldJarPath, fromOrgId, toOrgId);
 
                      // The org's data space folder (including its theme jar) is expected
                      // to have already been relocated by the earlier copyDataSpace() call.
@@ -668,7 +668,7 @@ public abstract class AbstractEditableAuthenticationProvider
       List<String> failedRenames = new ArrayList<>();
 
       for(String path : paths) {
-         String newPath = path.replace(fromOrgId, toOrgId);
+         String newPath = OrgScopedPaths.rewrite(path, fromOrgId, toOrgId);
 
          if(replace) {
             if(!dataspace.rename(path, newPath)) {
