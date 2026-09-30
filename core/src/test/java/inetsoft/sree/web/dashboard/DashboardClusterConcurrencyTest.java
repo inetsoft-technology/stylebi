@@ -104,6 +104,7 @@ class DashboardClusterConcurrencyTest {
       builder = SecurityTestDataBuilder.create()
          .addOrg("Dash77272", orgId)
          .addUser("erin", orgId, "password")
+         .addUser("frank", orgId, "password")
          .setup();
       user = new IdentityID("erin", orgId);
       node1 = dashboardRegistryManager.getRegistry(user);
@@ -363,6 +364,107 @@ class DashboardClusterConcurrencyTest {
       assertEquals(List.of("seed"), Arrays.asList(manager.getDashboards(identity)));
       assertEquals(List.of("seed"), store.get(key(identity)).getDashboards(),
                    "a name that isn't in the registry files is removed from the selection");
+   }
+
+   @Test
+   void getDashboards_withoutRegistryFile_keepsTheSelection() throws Exception {
+      // a user rename stores the renamed user's selections before it moves the registry file
+      IdentityID frank = new IdentityID("frank", user.orgID);
+      DashboardManager manager = newManager(keyValueStorageManager);
+      Identity identity = new DefaultIdentity(frank, Identity.USER);
+      KeyValueStorage<DashboardManager.DashboardData> store = store(identity);
+      cleanups.add(() -> dashboardRegistryManager.clear(frank));
+      manager.setDashboards(identity, new String[] { "mine" });
+
+      assertEquals(List.of(), Arrays.asList(manager.getDashboards(identity)));
+      assertFalse(dashboardRegistryManager.getRegistry(frank).isFileLoaded(),
+                  "precondition: the registry file doesn't exist");
+      assertEquals(List.of("mine"), store.get(key(identity)).getDashboards(),
+                   "a name must not be removed because its registry file doesn't exist yet");
+   }
+
+   @Test
+   void getDashboards_whileRenameOnAnotherNodeIsBetweenItsSteps_waitsForTheRename()
+      throws Exception
+   {
+      DashboardManager manager = newManager(keyValueStorageManager);
+      Identity identity = new DefaultIdentity(user, Identity.USER);
+      KeyValueStorage<DashboardManager.DashboardData> store = store(identity);
+      node1.putDashboard("s1", newVsDashboard());
+      CountDownLatch parked = new CountDownLatch(1);
+      CountDownLatch release = new CountDownLatch(1);
+      // node2 parks after it has renamed the stored selection, before it renames the file
+      DashboardRegistry parkingNode = new DashboardRegistry.UserDashboardRegistry(
+         user, user.orgID, eventPublisher, securityEngine)
+      {
+         @Override
+         boolean renameEntry(String oname, String name) throws Exception {
+            parked.countDown();
+            await(release);
+            return super.renameEntry(oname, name);
+         }
+      };
+      parkingNode.loadDashboard(null);
+      cleanups.add(parkingNode::clear);
+      manager.addDashboard(identity, "s1");
+
+      Thread writer = start("writer", () -> parkingNode.renameDashboard("s1", "s1r"));
+      await(parked);
+      assertEquals(List.of("s1r"), store.get(key(identity)).getDashboards(),
+                   "precondition: the stored selection is renamed, the file is not");
+
+      String[][] result = new String[1][];
+      CountDownLatch read = new CountDownLatch(1);
+      Thread reader = start("reader", () -> {
+         result[0] = manager.getDashboards(identity);
+         read.countDown();
+      });
+      // the reader must wait for the rename, which holds the store lock across both steps
+      awaitLatchOrWaitingOn(read, reader, writer);
+      release.countDown();
+      assertCompletes(writer, reader);
+
+      assertEquals(List.of("s1r"), Arrays.asList(result[0]),
+                   "the dashboard being renamed must be listed under one of its names");
+      assertEquals(List.of("s1r"), store.get(key(identity)).getDashboards(),
+                   "a rename in progress must not remove the stored selection");
+   }
+
+   @Test
+   void getDeselectedDashboards_whileGlobalRenamedOnAnotherNode_listsTheNewName()
+      throws Exception
+   {
+      DashboardManager manager = newManager(keyValueStorageManager);
+      Identity identity = new DefaultIdentity(user, Identity.USER);
+      KeyValueStorage<DashboardManager.DashboardData> store = store(identity);
+      DashboardRegistry global1 = dashboardRegistryManager.getRegistry();
+      cleanups.add(() -> {
+         try {
+            global1.removeEntry("gd77299__GLOBAL");
+            global1.removeEntry("hd77299__GLOBAL");
+         }
+         catch(Exception e) {
+            throw new RuntimeException(e);
+         }
+      });
+      global1.putDashboard("gd77299__GLOBAL", newVsDashboard());
+      DashboardRegistry global2 = new DashboardRegistry(global1.getOrgID(), eventPublisher,
+                                                        securityEngine);
+      global2.loadDashboard(null);
+      cleanups.add(global2::clear);
+      manager.setDeselectedDashboards(identity, new String[] { "gd77299__GLOBAL" });
+
+      synchronized(global1) {
+         global2.renameDashboard("gd77299__GLOBAL", "hd77299__GLOBAL");
+         assertNull(global1.getDashboard("hd77299__GLOBAL"),
+                    "precondition: the cached global registry is stale");
+
+         assertEquals(List.of("hd77299__GLOBAL"),
+                      Arrays.asList(manager.getDeselectedDashboards(identity)),
+                      "the renamed deselected global dashboard must be listed");
+      }
+
+      assertEquals(List.of("hd77299__GLOBAL"), store.get(key(identity)).getDeselected());
    }
 
    // ── the selection record read-modify-write is atomic across nodes ──
