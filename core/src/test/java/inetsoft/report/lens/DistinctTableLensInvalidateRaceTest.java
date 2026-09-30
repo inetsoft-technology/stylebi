@@ -20,6 +20,7 @@ package inetsoft.report.lens;
 
 import inetsoft.report.TableLens;
 import inetsoft.test.*;
+import inetsoft.util.ThreadPool;
 import inetsoft.util.script.JavaScriptEngine;
 import inetsoft.util.script.LendableReentrantLock;
 import inetsoft.util.stall.StallPolicy;
@@ -33,6 +34,8 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.io.File;
+import java.lang.reflect.Field;
+import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -67,8 +70,19 @@ public class DistinctTableLensInvalidateRaceTest {
 
    @Test
    public void readsDuringInvalidateReturnDistinctRow() throws Exception {
-      DistinctTableLens lens = new DistinctTableLens(new DefaultTableLens(data(ROWS)),
-                                                     new int[] { 0 });
+      readsDuringInvalidate(new int[] { 0 });
+   }
+
+   /**
+    * As readsDuringInvalidateReturnDistinctRow, with the distinct rows found by sorting.
+    */
+   @Test
+   public void readsDuringInvalidateReturnSortedDistinctRow() throws Exception {
+      readsDuringInvalidate(new int[] { 0, 1 });
+   }
+
+   private void readsDuringInvalidate(int[] cols) throws Exception {
+      DistinctTableLens lens = new DistinctTableLens(new DefaultTableLens(data(ROWS)), cols);
       assertTrue(lens.moreRows(ROWS));
 
       AtomicBoolean done = new AtomicBoolean();
@@ -190,6 +204,152 @@ public class DistinctTableLensInvalidateRaceTest {
          FREE.remove();
          base.open();
       }
+   }
+
+   /**
+    * A lens read to the end, also after invalidate(), serializes with its rows.
+    */
+   @Test
+   public void serializesRowsOfCurrentPass() throws Exception {
+      DistinctTableLens lens = new DistinctTableLens(new DefaultTableLens(data(ROWS)),
+                                                     new int[] { 0 });
+      List<List<Object>> expected = drain(lens);
+      lens.invalidate();
+      assertFalse(lens.moreRows(TableLens.EOT));
+
+      TableLens copy = (TableLens) TestSerializeUtils.serializeAndDeserialize(lens);
+      assertTrue(expected.equals(drain(copy)), "rows after the round trip");
+      assertEquals(expected.size(), copy.getRowCount());
+   }
+
+   /**
+    * A pass that is cancelled and then invalidated ends, with none of its rows in the next
+    * pass. The cancel stays on the lens, so the next pass may end early too.
+    */
+   @Test
+   public void cancelledPassThenInvalidateEnds() throws Exception {
+      GatedTable base = new GatedTable(ROWS, GATE_ROW, null);
+      DistinctTableLens lens = new DistinctTableLens(base, new int[] { 0 });
+      FREE.set(true);
+
+      try {
+         Future<Boolean> first = CompletableFuture.supplyAsync(() -> lens.moreRows(1));
+         base.awaitParked(CAP_SECONDS);
+         lens.cancel();
+         lens.invalidate();
+         base.open();
+         first.get(CAP_SECONDS, TimeUnit.SECONDS);
+
+         assertTimeoutPreemptively(Duration.ofSeconds(CAP_SECONDS),
+                                   () -> lens.moreRows(TableLens.EOT));
+         awaitIdle();
+         assertPrefixOfFresh(drain(lens));
+      }
+      finally {
+         FREE.remove();
+         base.open();
+      }
+   }
+
+   /**
+    * A reader waiting for rows returns once the lens is disposed and its worker ends.
+    */
+   @Test
+   public void readerWaitingOnDisposedLensReturns() throws Exception {
+      GatedTable base = new GatedTable(ROWS, GATE_ROW, null);
+      DistinctTableLens lens = new DistinctTableLens(base, new int[] { 0 });
+      ExecutorService pool = freePool();
+
+      try {
+         Future<Boolean> reader = pool.submit(() -> lens.moreRows(TableLens.EOT));
+         base.awaitParked(CAP_SECONDS);
+         lens.dispose();
+         base.open();
+
+         assertFalse(reader.get(CAP_SECONDS, TimeUnit.SECONDS));
+         awaitIdle();
+         assertNull(StallWatchdog.getUnreleasedStallReason());
+      }
+      finally {
+         base.open();
+         pool.shutdownNow();
+      }
+   }
+
+   /**
+    * invalidate() between validate() and the start of the worker: the worker still works on
+    * the rows validate() found, which invalidate() replaced, so it adds nothing to the next
+    * pass. The on-demand pool is kept busy to hold the worker in its queue.
+    */
+   @Test
+   public void workerQueuedBeforeInvalidateDoesNotAddRowsToNextPass() throws Exception {
+      List<List<Object>> expected = drain(new DistinctTableLens(new DefaultTableLens(data(ROWS)),
+                                                                new int[] { 0 }));
+      DistinctTableLens lens = new DistinctTableLens(new DefaultTableLens(data(ROWS)),
+                                                     new int[] { 0 });
+      Field poolField = ThreadPool.class.getDeclaredField("onDemandPool");
+      poolField.setAccessible(true);
+      ThreadPool onDemand = (ThreadPool) poolField.get(null);
+      Field threadsField = ThreadPool.class.getDeclaredField("threads");
+      threadsField.setAccessible(true);
+      List<?> threads = (List<?>) threadsField.get(onDemand);
+      int soft = onDemand.getSoftLimit();
+      int hard = onDemand.getHardLimit();
+      CountDownLatch release = new CountDownLatch(1);
+      AtomicLong busy = new AtomicLong();
+
+      try {
+         // no new thread, and every thread busy: the worker waits in the queue
+         int limit = Math.max(1, threads.size());
+         onDemand.resize(limit, limit);
+         long deadline = System.currentTimeMillis() + TimeUnit.SECONDS.toMillis(CAP_SECONDS);
+
+         while(threads.isEmpty() || busy.get() < threads.size()) {
+            assertTrue(System.currentTimeMillis() < deadline, "the on-demand pool is not busy");
+
+            if(onDemand.getPendingCount() == 0) {
+               ThreadPool.addOnDemand(() -> {
+                  busy.incrementAndGet();
+
+                  try {
+                     release.await(CAP_SECONDS, TimeUnit.SECONDS);
+                  }
+                  catch(InterruptedException ex) {
+                     Thread.currentThread().interrupt();
+                  }
+               });
+            }
+
+            Thread.sleep(10);
+         }
+
+         int pending = onDemand.getPendingCount();
+         Future<Boolean> first = CompletableFuture.supplyAsync(() -> lens.moreRows(1));
+         awaitTrue(() -> onDemand.getPendingCount() > pending, "the worker is queued");
+         lens.invalidate();
+         release.countDown();
+
+         assertTrue(first.get(CAP_SECONDS, TimeUnit.SECONDS));
+         lens.moreRows(TableLens.EOT);
+         awaitIdle();
+         List<List<Object>> actual = drain(lens);
+         assertTrue(expected.equals(actual),
+                    "rows=" + actual.size() + ", fresh=" + expected.size());
+      }
+      finally {
+         release.countDown();
+         onDemand.resize(soft, hard);
+      }
+   }
+
+   /**
+    * Fail unless {@code rows} are the header and the first distinct rows of a fresh lens.
+    */
+   private static void assertPrefixOfFresh(List<List<Object>> rows) {
+      List<List<Object>> fresh = drain(new DefaultTableLens(data(ROWS)));
+      assertTrue(rows.size() <= fresh.size() && fresh.subList(0, rows.size()).equals(rows),
+                 () -> "rows=" + rows.size() + ", starting " +
+                    rows.subList(0, Math.min(3, rows.size())));
    }
 
    /**
