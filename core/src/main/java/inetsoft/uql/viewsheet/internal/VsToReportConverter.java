@@ -1514,7 +1514,13 @@ public class VsToReportConverter {
       int laneH = info.isTitleVisible() ? titleH : 0;
       Insets bw = getCardBorderWidths(info);
       int laneY = bw.top + inset.top;
-      Rectangle topBounds = new Rectangle(bounds.x, bounds.y, bounds.width, laneY + laneH);
+      // the one line where the lane ends and the table begins. Shared rather than computed
+      // twice: if the table started lower the side borders would break, and if the lane
+      // reached further down the two fills would overlap and a translucent card would read
+      // darker along that line. Never above the inside of the top border, which is the whole
+      // lane when the title is hidden over a zero top inset.
+      int laneBottom = Math.max(bw.top, laneY + laneH - JOIN_OVERLAP);
+      Rectangle topBounds = new Rectangle(bounds.x, bounds.y, bounds.width, laneBottom);
       // built directly, not through addTextBoxElement0: that path's applyFormat call would
       // rewrite the object's live border Insets in place (isTitle = false there)
       TextBoxElementDef top = new TextBoxElementDef(report, new DefaultTextLens(""));
@@ -1530,15 +1536,11 @@ public class VsToReportConverter {
       if(info.isTitleVisible()) {
          int titleX = bw.left + inset.left;
          addCardTitle(assembly, new Rectangle(bounds.x + titleX, bounds.y + laneY,
-            Math.max(0, bounds.width - titleX - inset.right), titleH), sectionName);
+            Math.max(0, bounds.width - titleX - inset.right), titleH), sectionName,
+            top.getBackground());
       }
 
-      // 1px up so the sides join, as the table joins its title without an inset, but never
-      // above the inside of the top border: a hidden title over a zero top inset leaves no
-      // lane to climb into, and the overlap would take the border band itself
-      int y = bounds.y + Math.max(bw.top, laneY + laneH - 1);
-
-      return new Rectangle(bounds.x, y, bounds.width,
+      return new Rectangle(bounds.x, bounds.y + laneBottom, bounds.width,
                            Math.max(0, bounds.height - laneY - titleH));
    }
 
@@ -1555,7 +1557,7 @@ public class VsToReportConverter {
 
    // the title inside a padded table's card keeps its own format and borders, not the card's
    private void addCardTitle(TableDataVSAssembly assembly, Rectangle titleBounds,
-                             String sectionName)
+                             String sectionName, Color cardBackground)
    {
       TableDataVSAssemblyInfo info = (TableDataVSAssemblyInfo) assembly.getInfo();
       TextBoxElementDef textbox =
@@ -1564,6 +1566,13 @@ public class VsToReportConverter {
       VSCompositeFormat detailfmt = finfo == null ? null :
          finfo.getFormat(new TableDataPath(-1, TableDataPath.TITLE), false);
       applyFormat(textbox, info.getFormat(), detailfmt, info, true);
+
+      // the card-top box already filled the lane, so an identical second fill doubles a
+      // translucent background; a title that sets its own colour differs and keeps it
+      if(Tool.equals(textbox.getBackground(), cardBackground)) {
+         textbox.setBackground(null);
+      }
+
       Insets own = detailfmt == null ? null : detailfmt.getBorders();
       setBoxBorders(textbox, own == null ? new Insets(0, 0, 0, 0) : (Insets) own.clone());
       textbox.setZIndex(assembly.getZIndex());
@@ -3447,6 +3456,10 @@ public class VsToReportConverter {
    private SectionElementDef headerSection = null; // section of header.
    private SectionElementDef footerSection = null; // section of footer.
    private static HashMap<String, PrintLayout> tempLayouts = new HashMap<>();
+   // stacked card elements meet on one shared line instead of each claiming its own, so
+   // their side borders join with no hairline gap between them. createTitle pulls the table
+   // onto the title's last line by the same amount, for the same reason.
+   private static final int JOIN_OVERLAP = 1;
    private static double INCH_MM = 25.4;
    private static double INCH_POINT = 72;
    private static final Logger LOG =
