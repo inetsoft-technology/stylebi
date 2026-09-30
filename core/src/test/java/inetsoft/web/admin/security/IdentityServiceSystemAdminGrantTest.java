@@ -89,6 +89,10 @@ class IdentityServiceSystemAdminGrantTest {
          Role role = roles.get(inv.<IdentityID>getArgument(0));
          return role instanceof FSRole fs && fs.isSysAdmin();
       });
+      when(authc.isOrgAdministratorRole(any())).thenAnswer(inv -> {
+         Role role = roles.get(inv.<IdentityID>getArgument(0));
+         return role instanceof FSRole fs && fs.isOrgAdmin();
+      });
       doCallRealMethod().when(authc).getAllRoles(any());
       doCallRealMethod().when(authc).getAllGroups(any());
 
@@ -102,6 +106,9 @@ class IdentityServiceSystemAdminGrantTest {
       orgManager = mock(OrganizationManager.class);
       orgManagerStatic = mockStatic(OrganizationManager.class);
       orgManagerStatic.when(OrganizationManager::getInstance).thenReturn(orgManager);
+      // the "orgAdmin_" callers are organization administrators of ORG (Bug #77381)
+      when(orgManager.isOrgAdmin(principal)).thenReturn(true);
+      when(orgManager.getCurrentOrgID(principal)).thenReturn(ORG);
    }
 
    @AfterEach
@@ -144,6 +151,13 @@ class IdentityServiceSystemAdminGrantTest {
    }
 
    @Test
+   void nonOrgAdmin_addingOrgAdminRoleToUser_isRejected() {
+      // Bug #77381: the same edit by a caller that is not an organization administrator
+      when(orgManager.isOrgAdmin(principal)).thenReturn(false);
+      assertRejected(user(), userModel(List.of(DESIGNER, ORG_ADMIN_ROLE)), List.of(PLAIN_GROUP));
+   }
+
+   @Test
    void orgAdmin_addingAdministratorRoleToGroup_isRejected() {
       FSGroup group = new FSGroup(PLAIN_GROUP, null, new String[0], new IdentityID[] { DESIGNER });
       EditGroupPaneModel model = mock(EditGroupPaneModel.class);
@@ -176,6 +190,13 @@ class IdentityServiceSystemAdminGrantTest {
    @Test
    void orgAdmin_ordinaryRoleEdit_isAllowed() {
       assertAllowed(new FSRole(DESIGNER), roleModel(false, List.of(ORG_ADMIN_ROLE)), List.of());
+   }
+
+   @Test
+   void nonOrgAdmin_inheritingOrgAdminRoleOnRole_isRejected() {
+      // Bug #77381: the same edit by a caller that is not an organization administrator
+      when(orgManager.isOrgAdmin(principal)).thenReturn(false);
+      assertRejected(new FSRole(DESIGNER), roleModel(false, List.of(ORG_ADMIN_ROLE)), List.of());
    }
 
    @Test
