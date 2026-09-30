@@ -107,9 +107,9 @@ public class RelPooledCompletionTest {
 
    /**
     * StallWatchdogCycleTest.monitorFirstLensAlertModeTurnsHealthDown, pooled, in alert mode
-    * (the shipped mode before Feature #77123 made fail the default). Pool off the cycle forms once the gate lets T1 go on to wait for the engine
-    * lock T2 holds, and alert mode never releases either side of it, so neither thread ever
-    * completes. The evidence here is that both complete in alert mode, with every row, after
+    * (the shipped mode before Feature #77123 made fail the default). Pool off the cycle forms
+    * once the gate lets T1 go on to wait for the engine lock T2 holds, and alert mode never
+    * releases either side of it, so neither thread ever completes. The evidence here is that both complete in alert mode, with every row, after
     * T2 was seen BLOCKED on the lens monitor T1 holds; a scan afterwards reports no stall or
     * cycle of them and neither has a registered wait.
     */

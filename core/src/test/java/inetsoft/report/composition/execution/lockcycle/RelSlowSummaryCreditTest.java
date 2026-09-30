@@ -33,12 +33,18 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import java.io.BufferedReader;
 import java.io.File;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static inetsoft.report.composition.execution.lockcycle.LockCycleHarness.*;
 import static org.junit.jupiter.api.Assertions.*;
@@ -107,10 +113,11 @@ public class RelSlowSummaryCreditTest {
    /**
     * Characterises the known limitation W2 of the merge brief (a slow producer behind an
     * unregistered wait) under the opt-in {@code failOnTimeout} rule, it is not a behaviour to
-    * keep: a fix of W2 should turn this into a completion test. The worker's first base read sleeps 18 s, outside any registered wait,
-    * far over the 8 s limit, so the stall always fires first (the holder fails at about 8 s and
-    * does not wait for the worker): failed as a stall with the pool on or off, because the watchdog cannot
-    * tell this worker from a hung one. The holder starts once the worker is inside the base: a
+    * keep: a fix of W2 should turn this into a completion test. The worker's first base read
+    * sleeps 18 s, outside any registered wait, far over the 8 s limit, so the stall always
+    * fires first (the holder fails at about 8 s and does not wait for the worker): failed as a
+    * stall with the pool on or off, because the watchdog cannot tell this worker from a hung
+    * one. The holder starts once the worker is inside the base: a
     * holder that finds no worker running computes the summary itself, asleep in no wait at
     * all, and completes.
     */
@@ -235,9 +242,10 @@ public class RelSlowSummaryCreditTest {
       assertTrue(base.paying.await(ACTIVE_CAP, TimeUnit.SECONDS), "the worker never read the base");
       assertTrue(base.firstByWorker, "the base was read by a harness thread, not the worker");
 
-      assertEquals(expected, harness.await(harness.submit(() -> drain(outer)), 2 * ACTIVE_CAP,
-                                           "holder behind the W2 read"));
-      assertTrue(stallDumps() > 0, "the W2 read was not reported as a stall");
+      AtomicReference<String> holder = new AtomicReference<>();
+      assertEquals(expected, harness.await(harness.submit(() -> drainAs(holder, outer)),
+                                           2 * ACTIVE_CAP, "holder behind the W2 read"));
+      assertStallReportedFor(holder.get());
    }
 
    /**
@@ -263,12 +271,14 @@ public class RelSlowSummaryCreditTest {
       assertTrue(base.paying.await(ACTIVE_CAP, TimeUnit.SECONDS), "the worker never read the base");
       assertTrue(base.firstByWorker, "the base was read by a harness thread, not the worker");
 
-      assertEquals(expected, harness.await(harness.submit(() -> drain(outer)), 2 * ACTIVE_CAP,
+      AtomicReference<String> holder = new AtomicReference<>();
+      assertEquals(expected, harness.await(harness.submit(() -> drainAs(holder, outer)),
+                                           2 * ACTIVE_CAP,
                                            "holder behind the pooled formula base read"));
       // the read pattern of the failOnTimeout case, so the stall condition was there
       assertTrue(base.maxRowsPerCall() * F2_ROW_MILLIS > 8000,
                  "no base read cost more than the limit, rows paid per read: " + base.calls);
-      assertTrue(stallDumps() > 0, "the long base read was not reported as a stall");
+      assertStallReportedFor(holder.get());
    }
 
    /**
@@ -349,11 +359,37 @@ public class RelSlowSummaryCreditTest {
    }
 
    /**
-    * The thread dumps the watchdog wrote for a stall of this test.
+    * Drain {@code table}, recording the name of the draining thread first.
     */
-   private int stallDumps() {
+   private static List<List<Object>> drainAs(AtomicReference<String> thread, TableLens table) {
+      thread.set(Thread.currentThread().getName());
+      return drain(table);
+   }
+
+   /**
+    * Assert that a thread dump in this test's dump directory reports a stall of a wait of
+    * {@code thread}, by the head the watchdog writes for it ({@code WaitRecord.describe}), so a
+    * dump of another thread's wait (e.g. a wait an earlier class left registered) is no match.
+    */
+   private void assertStallReportedFor(String thread) throws IOException {
+      assertNotNull(thread, "the holder never ran");
+      String head = " on thread \"" + thread + "\", no progress for ";
       File[] dumps = dumpDir.listFiles((dir, name) -> name.startsWith("stall-dump-"));
-      return dumps == null ? 0 : dumps.length;
+      List<String> heads = new ArrayList<>();
+
+      for(File dump : dumps == null ? new File[0] : dumps) {
+         try(BufferedReader in = Files.newBufferedReader(dump.toPath(), StandardCharsets.UTF_8)) {
+            String first = in.readLine();
+
+            if(first != null && first.contains(head)) {
+               return;
+            }
+
+            heads.add(first);
+         }
+      }
+
+      fail("no stall of the holder " + thread + " was reported, dump heads: " + heads);
    }
 
    /**

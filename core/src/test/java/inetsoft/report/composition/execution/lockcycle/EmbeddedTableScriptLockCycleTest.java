@@ -60,8 +60,9 @@ import static org.mockito.Mockito.when;
  * the default configuration (the pool removes the shared execution lock entirely, per
  * {@code WorksheetScriptEnv.getExecutionLock()}); this suite still runs pool off unless
  * {@code -Dlockcycle.pool=true}, since {@code script.ws.contextPool=false} remains a supported,
- * documented configuration and the deadlock is real and permanent (under the default
- * {@code stall.watchdog.mode=alert}) for anyone running it. Unlike
+ * documented configuration and the deadlock is real for anyone running it: it never resolves
+ * by itself, {@code stall.watchdog.mode=alert} only reports it, and the default fail mode
+ * (Feature #77123) can only break it by failing one of the two queries. Unlike
  * {@link SubQueryConditionWorksheetCycleTest}, this needs no
  * sub-query, {@code Distinct}, or async worker: table A has its own plain JavaScript expression
  * column, which alone forces {@code AssetQuery}'s type probe
