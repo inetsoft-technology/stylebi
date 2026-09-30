@@ -709,7 +709,8 @@ public class UserTreeService {
          model.permittedIdentities(), Identity.GROUP, oldID, newID);
       identityService.setIdentity(oldGroup, model, provider, principal);
       // scope by the permission-checked group from the path, not the organization in the body
-      themeService.updateTheme(group.name, model.name(), group.orgID, CustomTheme::getGroups);
+      themeService.updateIdentityTheme(group.name, model.name(), group.orgID, model.theme(),
+                                       CustomTheme::getGroups, principal);
       identityService.setIdentityPermissions(oldID, newID, ResourceType.SECURITY_GROUP,
                                              principal, permittedIdentities, groupOrgID);
 
@@ -1801,8 +1802,8 @@ public class UserTreeService {
       }
 
       identityService.setIdentity(oldRole, model, provider, principal);
-      themeService.updateTheme(model.oldName(), model.name(), model.organization(),
-                               CustomTheme::getRoles);
+      themeService.updateIdentityTheme(model.oldName(), model.name(), model.organization(),
+                                       model.theme(), CustomTheme::getRoles, principal);
       migrateRoleRename(oldID, new IdentityID(model.name(), model.organization()));
    }
 

@@ -17,9 +17,11 @@
  */
 package inetsoft.web.admin.security.user;
 
+import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.portal.CustomTheme;
 import inetsoft.sree.portal.CustomThemesManager;
 import inetsoft.sree.security.*;
+import inetsoft.util.ThreadContext;
 import inetsoft.util.Tool;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -28,6 +30,7 @@ import org.springframework.stereotype.Service;
 import java.security.Principal;
 import java.util.*;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 @Service
@@ -193,7 +196,62 @@ public class IdentityThemeService {
     *                the user's organization is ignored.
     */
    public void updateUserTheme(String oldName, String name, String orgID, String ntheme) {
-      if(oldName == null || name == null) {
+      updateIdentityTheme(oldName, name, orgID, ntheme, CustomTheme::getUsers,
+                          theme -> theme.isIdentityOrganization(orgID));
+   }
+
+   /**
+    * Renames a user, group or role in the themes that can refer to it and assigns the identity
+    * to the selected theme. Only the themes of the identity's organization are changed, see
+    * {@link CustomTheme#isIdentityOrganization(String)}.
+    * <p>
+    * A global role (<tt>null</tt> organization) is renamed in the themes of every organization,
+    * like {@link #updateTheme(String, String, String, Function)}, but is only assigned to, or
+    * removed from, the themes of the current organization and, for a site administrator or in
+    * single-tenant mode, the global themes. Otherwise editing a global role in one organization
+    * would change the theme of the role's users in every other organization.
+    *
+    * @param oldName   the old identity name.
+    * @param name      the new identity name.
+    * @param orgID     the organization of the identity, or <tt>null</tt> for a global role.
+    * @param ntheme    the ID of the selected theme, an empty string or
+    *                  {@link CustomTheme#DEFAULT_THEME_ID} for the default theme, or
+    *                  <tt>null</tt> to only rename the identity. A theme that cannot be assigned
+    *                  to the identity is ignored.
+    * @param fn        the function that gets the identity list of a theme.
+    * @param principal the user that edits the identity.
+    */
+   public void updateIdentityTheme(String oldName, String name, String orgID, String ntheme,
+                                   Function<CustomTheme, List<String>> fn, Principal principal)
+   {
+      Predicate<CustomTheme> assignable;
+
+      if(orgID == null) {
+         OrganizationManager orgManager = OrganizationManager.getInstance();
+         // keep the case of the organization ID, which the no-argument getter lower-cases
+         String currentOrgID = orgManager.getCurrentOrgID(
+            principal != null ? principal : ThreadContext.getContextPrincipal());
+         boolean globalThemes = !SUtil.isMultiTenant() || orgManager.isSiteAdmin(principal);
+         assignable = theme -> Tool.isEmptyString(theme.getOrgID()) ?
+            globalThemes : theme.getOrgID().equals(currentOrgID);
+      }
+      else {
+         assignable = theme -> theme.isIdentityOrganization(orgID);
+      }
+
+      updateIdentityTheme(oldName, name, orgID, ntheme, fn, assignable);
+   }
+
+   /**
+    * @param assignable the themes that the identity may be assigned to or removed from, a
+    *                   subset of the themes that can refer to the identity.
+    */
+   private void updateIdentityTheme(String oldName, String name, String orgID, String ntheme,
+                                    Function<CustomTheme, List<String>> fn,
+                                    Predicate<CustomTheme> assignable)
+   {
+      // nothing to rename or select, so skip the themes lock and read
+      if(oldName == null || name == null || ntheme == null && oldName.equals(name)) {
          return;
       }
 
@@ -202,9 +260,10 @@ public class IdentityThemeService {
          String selected = CustomTheme.isReservedId(ntheme) ? "" : ntheme;
 
          if(!Tool.isEmptyString(selected) && themes.stream().noneMatch(
-            theme -> ntheme.equals(theme.getId()) && theme.isIdentityOrganization(orgID)))
+            theme -> ntheme.equals(theme.getId()) && theme.isIdentityOrganization(orgID) &&
+               assignable.test(theme)))
          {
-            LOG.warn("Ignoring theme {} for user {} because it cannot be assigned to organization {}",
+            LOG.warn("Ignoring theme {} for {} because it cannot be assigned to organization {}",
                      ntheme, name, orgID);
             selected = null;
          }
@@ -216,18 +275,19 @@ public class IdentityThemeService {
                continue;
             }
 
-            List<String> users = theme.getUsers();
-            boolean renamed = !oldName.equals(name) && users.contains(oldName);
-            boolean assigned = selected == null ?
-               users.contains(oldName) || users.contains(name) : selected.equals(theme.getId());
+            List<String> identities = fn.apply(theme);
+            boolean renamed = !oldName.equals(name) && identities.contains(oldName);
+            boolean assigned = selected == null || !assignable.test(theme) ?
+               identities.contains(oldName) || identities.contains(name) :
+               selected.equals(theme.getId());
 
-            // a user is assigned to at most one theme, so selecting a theme (or the default
-            // theme) removes the user from the theme that was previously selected
-            if(renamed || assigned != users.contains(name)) {
-               users.removeIf(user -> user.equals(oldName) || user.equals(name));
+            // an identity is assigned to at most one theme, so selecting a theme (or the default
+            // theme) removes the identity from the theme that was previously selected
+            if(renamed || assigned != identities.contains(name)) {
+               identities.removeIf(identity -> identity.equals(oldName) || identity.equals(name));
 
                if(assigned) {
-                  users.add(name);
+                  identities.add(name);
                }
 
                changed = true;
