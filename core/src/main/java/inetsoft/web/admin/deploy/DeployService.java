@@ -719,25 +719,6 @@ public class DeployService {
    }
 
    /**
-    * Import assets by DeployManagerService.
-    *
-    * @param data    the jar file is provided as a btye array.
-    * @param replace indicates if existing assets should be overwritten.
-    */
-   public void importAssets(byte[] data, boolean replace) throws Exception {
-      try {
-         AnalyticRepository repository = SUtil.getRepletRepository();
-
-         if(repository.isWrapperFor(RepletEngine.class)) {
-            repository.unwrap(RepletEngine.class).importAssets(data, replace);
-         }
-      }
-      catch(Exception e) {
-         throw new Exception(e.getMessage());
-      }
-   }
-
-   /**
     * Get the export path array, it has merged the includes and excludes.
     */
    private List<String> getExportPaths(List<String> includePatterns, List<String> excludePatterns) {

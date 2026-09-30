@@ -203,9 +203,7 @@ public class SreeHomeExtension implements BeforeAllCallback, AfterAllCallback {
                new IdentityID(XPrincipal.SYSTEM, OrganizationManager.getInstance().getCurrentOrgID()), null, false);
             testPrincipal.setOrgId(Organization.getDefaultOrganizationID());
             ThreadContext.setPrincipal(testPrincipal);
-            ByteArrayOutputStream buffer = new ByteArrayOutputStream();
-            Tool.copyTo(input, buffer);
-            repository.unwrap(RepletEngine.class).importAssets(buffer.toByteArray(), true);
+            TestAssetImporter.importAssets(input, true);
          }
          finally {
             ThreadContext.setPrincipal(oldPrincipal);
