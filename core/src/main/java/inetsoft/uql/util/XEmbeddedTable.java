@@ -1365,7 +1365,7 @@ public class XEmbeddedTable
       }
 
       writer.print(" row=\"" + xtable.getRowCount() +
-                   "\" col=\"" + types.length + "\"" +
+                   "\" col=\"" + types.length +
                    "\" strictNull=\"true\"");
    }
 
