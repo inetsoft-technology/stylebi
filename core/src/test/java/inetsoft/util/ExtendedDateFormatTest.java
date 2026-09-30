@@ -271,6 +271,26 @@ public class ExtendedDateFormatTest {
       assertEquals(1, results.size(), results::toString);
    }
 
+   // Bug #77441: CoreTool.parseDate() uses a process wide FormatCache, so one failed parse
+   // anywhere in the server must not change what later callers get, including epoch millis
+   @Test
+   public void coreToolParseDateAgreesAfterFailedParse() {
+      parseDateResult("2011-01-02 10:01:02");
+      final Set<Object> results = new HashSet<>();
+      final Set<Object> epochResults = new HashSet<>();
+
+      for(int i = 0; i < 512; i++) {
+         results.add(parseDateResult("2011-02-30"));
+      }
+
+      for(int i = 0; i < 512; i++) {
+         epochResults.add(parseDateResult("1300000000000"));
+      }
+
+      assertEquals(1, results.size(), results::toString);
+      assertEquals(Set.of(new Date(1300000000000L)), epochResults);
+   }
+
    // Bug #77441: a clone of a format that already failed a parse behaves like a fresh format
    @Test
    public void cloneOfFailedFormatMatchesFresh() {
@@ -307,6 +327,15 @@ public class ExtendedDateFormatTest {
    private static Object parseResult(ExtendedDateFormat format, String text) {
       try {
          return format.parseObject(text);
+      }
+      catch(ParseException ex) {
+         return ParseException.class;
+      }
+   }
+
+   private static Object parseDateResult(String text) {
+      try {
+         return CoreTool.parseDate(text, null);
       }
       catch(ParseException ex) {
          return ParseException.class;
