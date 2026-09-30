@@ -194,6 +194,40 @@ class ScheduleTaskOwnerOrgReplaceTest {
    }
 
    @Test
+   void emOwnerChange_storedForeignOwnerTaskToOwnOrgOwner_isSavedUnderNewId() throws Exception {
+      // the EM owner change of a stored foreign-owner task to an owner of its organization
+      // renames it to the new owner's id, the check is done with the owner it's saved with
+      withContextPrincipal(siteAdminInB);
+      String newId = BOB.convertToKey() + ":Report";
+
+      ReflectionTestUtils.invokeMethod(service, "renameTask", FOREIGN_JOB, newId, BOB,
+                                       siteAdminInB);
+
+      assertNull(stored(FOREIGN_JOB));
+      ScheduleTask saved = scheduleManager.getScheduleTask(newId, ORG_B);
+      assertNotNull(saved, "the task is saved under the new owner's id");
+      assertEquals(BOB, saved.getOwner());
+      assertEquals(newId, saved.getTaskId());
+   }
+
+   @Test
+   void emOwnerChange_ownOrgTaskToForeignOwner_isRefusedAndKept() throws Exception {
+      // a new owner of another organization is still refused before the task is removed, and
+      // the stored task is not changed
+      withContextPrincipal(siteAdminInB);
+      String newId = SADM.convertToKey() + ":Nightly";
+
+      assertThrows(Exception.class, () -> ReflectionTestUtils.invokeMethod(
+         service, "renameTask", OWN_JOB, newId, SADM, siteAdminInB));
+
+      verify(scheduleClient, never()).taskRemoved(anyString());
+      ScheduleTask kept = stored(OWN_JOB);
+      assertNotNull(kept, "the original task is kept");
+      assertEquals(BOB, kept.getOwner());
+      assertNull(scheduleManager.getScheduleTask(newId, ORG_B));
+   }
+
+   @Test
    void emRename_ownOrgTask_isRenamed() throws Exception {
       withContextPrincipal(dave);
       String newId = BOB.convertToKey() + ":Renamed";

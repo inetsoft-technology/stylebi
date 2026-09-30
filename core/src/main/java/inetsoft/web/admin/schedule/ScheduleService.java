@@ -384,6 +384,13 @@ public class ScheduleService {
             "em.schedule.task.renameDependency", oldId));
       }
 
+      // Bug #77359, the task is renamed for an owner change, check and save it with the new
+      // owner. Change a copy, the stored task is cached and is kept if the check refuses.
+      if(owner != null && !owner.equals(currTask.getOwner())) {
+         currTask = currTask.clone();
+         currTask.setOwner(owner);
+      }
+
       // Bug #77359, check the owner organization before the task is removed, a renamed task
       // whose owner is in another organization is refused by setScheduleTask() and would be lost
       scheduleManager.checkReplaceOwnerOrganization(oldId, newId, currTask, principal);
