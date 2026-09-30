@@ -60,21 +60,43 @@ class WsBoundaryPolicyTest {
                                         // Testing #77123, the table-owned formula var
                                         "belongs to its table", "var r; if(c)",
                                         "try/catch", "Use let", "logs one warning",
-                                        "kept only within one batch",
                                         "count the row twice",
                                         // Testing #77123 B1 residual, a Date var is kept
-                                        "string, boolean or Date", "rebuilt from its time value",
-                                        "array-, function- or object-valued var",
+                                        "rebuilt from its time value",
+                                        // B1 residual part 2, arrays and objects are kept,
+                                        // functions and Intl are not
+                                        "Date, array or plain object",
+                                        "function- or class-valued var", "hand-off",
+                                        "an Intl formatter", ".handOffMillis (5000)",
+                                        ".handOffEntries (200000)", ".maxHomes (4)",
+                                        // round 2: the two concurrent losses, A3 aliases
+                                        "never waits for another thread's",
+                                        "a context the two", "reads an older value",
+                                        "var holding an object it shares with such a value",
+                                        ".maxHomesPerNode (128)",
+                                        // round 3: what each bound loses, Date-only tables
+                                        "hold only Dates keeps them",
+                                        "every var of the table that holds a Date",
+                                        "each var sharing an object with it",
+                                        "through a closure, a getter or a WeakMap",
+                                        // follow-up: the marking budget
+                                        "four times the cap",
                                         // context-pool regression D1, the pool-off first batch
                                         "evaluates what pool off would", "2N + 10",
-                                        "undeclared", "object-valued var",
+                                        "undeclared", "class-valued var",
                                         "turns script batching off",
                                         // Feature #77123, the pool is on by default
                                         "on by default", "Turning it off",
                                         "script.ws.contextPool=false in sree.properties",
                                         "unset or blank value keeps", "can occur",
                                         // Bug #77016, pool-off hangs + stall FAIL pairing
-                                        "#77016", "stall.watchdog.mode=fail" })
+                                        "#77016", "stall.watchdog.mode=fail",
+                                        // Feature #77123, fail is the watchdog default
+                                        "defaults to fail", "stall.watchdog.failOnTimeout=true",
+                                        "stall.watchdog.mode=alert", "only logged and goes on",
+                                        "the next query of the cycle",
+                                        "tryLock(timeout), is never part of a cycle",
+                                        "while(!tryLock(t))" })
       {
          assertTrue(note.contains(topic), "release note misses: " + topic);
       }

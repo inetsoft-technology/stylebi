@@ -4222,6 +4222,144 @@ public abstract class AbstractVSExporter implements VSExporter {
       return new Dimension(maxW, maxH);
    }
 
+   /**
+    * Adjust the export page size so the drop shadow of a shape at the right or
+    * bottom edge of the content is not cut off. The shape writers draw the
+    * shadow outside the assembly's own bounds (ShapeShadowUtil.expandForShadow),
+    * while Viewsheet.getPreferredSize() only covers the assembly bounds.
+    * Only the far edges can grow; a shadow bleeding above/left of the origin
+    * cannot be represented by a page size. The filtering mirrors
+    * Viewsheet.getPreferredBounds(). Shapes inside an embedded viewsheet are not
+    * visited (the loop is not recursive, like adjustSizeForInputLabels).
+    *
+    * @param includeAnnotation whether annotation shapes are considered, matching
+    *                          the flag the caller passed to getPreferredSize.
+    */
+   public static Dimension adjustSizeForShapeShadows(Viewsheet vs, Dimension size,
+                                                     boolean includeAnnotation)
+   {
+      int maxW = size.width;
+      int maxH = size.height;
+
+      for(Assembly assembly : vs.getAssemblies(false, false, true, false, true)) {
+         if(!(assembly instanceof VSAssembly vsAssembly) || !vsAssembly.isVisible()) {
+            continue;
+         }
+
+         VSAssemblyInfo info = vsAssembly.getVSAssemblyInfo();
+
+         if(!ShapeShadowUtil.isShapeShadow(info)) {
+            continue;
+         }
+
+         if(!includeAnnotation && vsAssembly instanceof AnnotationRectangleVSAssembly) {
+            continue;
+         }
+
+         String name = vsAssembly.getAbsoluteName();
+
+         if(VSUtil.isPopComponent(name, vs) || VSUtil.isTipView(name, vs)) {
+            continue;
+         }
+
+         if(vs.isEmbedded() && !isAssemblyPrimary(vsAssembly)) {
+            continue;
+         }
+
+         if(vsAssembly.getContainer() instanceof CurrentSelectionVSAssembly) {
+            continue;
+         }
+
+         Dimension asmSize = info.getLayoutSize();
+         Point pos = info.getLayoutPosition();
+
+         if(asmSize == null) {
+            asmSize = vs.getPixelSize(info);
+         }
+
+         if(pos == null) {
+            pos = vs.getPixelPosition(info);
+         }
+
+         // skip off-screen assemblies, like Viewsheet.getPreferredBounds()
+         if(pos.y < 0 && -pos.y > asmSize.height || pos.x < 0 && -pos.x > asmSize.width) {
+            continue;
+         }
+
+         Rectangle2D shadow = expandForShadowInk(
+            new Rectangle2D.Double(pos.x, pos.y, asmSize.width, asmSize.height), info, 1);
+
+         maxW = Math.max(maxW, (int) Math.ceil(shadow.getMaxX()));
+         maxH = Math.max(maxH, (int) Math.ceil(shadow.getMaxY()));
+      }
+
+      return maxW == size.width && maxH == size.height ? size : new Dimension(maxW, maxH);
+   }
+
+   /**
+    * Grow the bounds of a shape by the part of its drop shadow that can
+    * actually hold ink, as opposed to ShapeShadowUtil.expandForShadow which
+    * returns the whole (partly empty) image rectangle the writers draw into.
+    * The blur is a gaussian kernel of exactly blurRadius on each side
+    * (ShapeShadowUtil.getGaussianBlurFilter), so the offset shadow copy never
+    * reaches further than offset + radius past the shape on the shadow side and
+    * radius - offset on the opposite side. Returns the bounds unchanged for
+    * anything that is not a shape drawing a shadow.
+    *
+    * @param scale the coordinate scale applied to the bounds.
+    */
+   public static Rectangle2D expandForShadowInk(Rectangle2D bounds, VSAssemblyInfo info,
+                                                double scale)
+   {
+      if(bounds == null || !ShapeShadowUtil.isShapeShadow(info)) {
+         return bounds;
+      }
+
+      Insets ink = getShadowInkInsets(info);
+
+      return new Rectangle2D.Double(
+         bounds.getX() - ink.left * scale,
+         bounds.getY() - ink.top * scale,
+         bounds.getWidth() + (ink.left + ink.right) * scale,
+         bounds.getHeight() + (ink.top + ink.bottom) * scale);
+   }
+
+   /**
+    * Get how far, in unscaled destination pixels, the shadow ink of a shape can
+    * reach past each side of it. Never more than ShapeShadowUtil.getShadowInsets,
+    * which is the extent of the image actually drawn.
+    */
+   static Insets getShadowInkInsets(VSAssemblyInfo info) {
+      ShapeShadow shadow = ShapeShadowUtil.isShapeShadow(info) ?
+         ((ShapeVSAssemblyInfo) info).getShadowInfo() : null;
+
+      if(shadow == null) {
+         return new Insets(0, 0, 0, 0);
+      }
+
+      Insets full = ShapeShadowUtil.getShadowInsets(info);
+      // the shadow layer is built with the scaled insets and then mapped onto the
+      // unscaled destination (VSShape/VSFloatable), so an ink extent measured in the
+      // layer stretches by full / scaled
+      Insets scaled = ShapeShadowUtil.getScaledShadowInsets(info);
+      int radius = shadow.getBlurRadius();
+      int offX = shadow.getOffsetX();
+      int offY = shadow.getOffsetY();
+
+      return new Insets(inkExtent(radius - offY, full.top, scaled.top),
+                        inkExtent(radius - offX, full.left, scaled.left),
+                        inkExtent(radius + offY, full.bottom, scaled.bottom),
+                        inkExtent(radius + offX, full.right, scaled.right));
+   }
+
+   private static int inkExtent(int ink, int full, int scaled) {
+      if(ink <= 0 || full <= 0 || scaled <= 0) {
+         return 0;
+      }
+
+      return Math.min(full, (int) Math.ceil(ink * (double) full / scaled));
+   }
+
    private static boolean isAssemblyPrimary(VSAssembly assembly) {
       if(!assembly.isPrimary()) {
          return false;

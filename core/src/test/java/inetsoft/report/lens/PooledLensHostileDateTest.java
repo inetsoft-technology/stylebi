@@ -24,6 +24,7 @@ import ch.qos.logback.core.read.ListAppender;
 import inetsoft.report.TableLens;
 import inetsoft.report.composition.execution.AssetQuerySandbox;
 import inetsoft.report.script.TableRowScope;
+import inetsoft.sree.SreeEnv;
 import inetsoft.test.*;
 import inetsoft.util.script.graal.pool.*;
 import org.graalvm.polyglot.Context;
@@ -66,9 +67,6 @@ class PooledLensHostileDateTest {
       "Date.prototype.toJSON = L; Object.prototype.toString = L; " +
       "Function.prototype.call = L; Function.prototype.bind = L; Function.prototype.apply = L; " +
       "})(); ";
-   // witness: an array restarts on another context, with one warning ("holds an array")
-   static final String WITNESS = "var w = w || []; w.push(1); ";
-
    static String formula(String what) {
       return switch(what) {
          case "ctorData" -> "var d = d || (function() { var x = new Date(0); " +
@@ -81,8 +79,8 @@ class PooledLensHostileDateTest {
          case "nullProto" -> "var d = d || Object.setPrototypeOf(new Date(0), null); " +
             "Math.round(Date.prototype.setUTCHours.call(d, " +
             "Date.prototype.getUTCHours.call(d) + 1) / 3600000)";
-         case "loopEverything" -> LOOP_EVERYTHING + WITNESS + "var d = d || new Date(0); " + HOURS;
-         case "loopEverythingInvalid" -> LOOP_EVERYTHING + WITNESS + "var made = made || 0; " +
+         case "loopEverything" -> LOOP_EVERYTHING + "var d = d || new Date(0); " + HOURS;
+         case "loopEverythingInvalid" -> LOOP_EVERYTHING + "var made = made || 0; " +
             "var d = d || (made++, new Date(NaN)); var k = (k || 0) + 1; " +
             "made == 1 && d instanceof Date && isNaN(d.getUTCHours()) ? k : -made";
          case "foreignRealm" -> "var d = d || realm.date(); var k = (k || 0) + 1; " +
@@ -113,6 +111,7 @@ class PooledLensHostileDateTest {
    @AfterEach
    void retire() {
       logger.detachAppender(appender);
+      SreeEnv.remove(MAX_HOMES);
 
       for(WorksheetScriptEnv env : envs) {
          env.retire();
@@ -147,15 +146,20 @@ class PooledLensHostileDateTest {
 
       assertTrue(bad.isEmpty(), () -> what + ": " + bad.size() + " wrong rows, first " +
          bad.subList(0, Math.min(5, bad.size())));
+      // a Date-only table: no home, the batch-end Date path; its Dates were read on another
+      // context (the crossing witness, which keeps the table Date-only)
+      assertEquals(0, PoolTestSupport.homes(lastEnv), "a Date-only table has no home");
+      assertTrue(PoolTestSupport.metric(lastEnv, "CrossReads") > 0,
+                 "no batch read the Date on another context");
       List<String> warns = warnings();
-      assertEquals(1, warns.size(), () -> "one warning: " + warns);
 
       if(what.startsWith("loopEverything")) {
-         // the batches crossed (the array witness restarted), and the Date itself is silent
-         assertTrue(warns.get(0).contains("\"w\" holds an array"), warns.get(0));
+         // the Date itself is silent
+         assertTrue(warns.isEmpty(), () -> "no warning: " + warns);
       }
       else {
          // the Date was rebuilt on the other context as a plain Date, with the one warning
+         assertEquals(1, warns.size(), () -> "one warning: " + warns);
          assertTrue(warns.get(0).contains("\"d\" holds a Date"), warns.get(0));
       }
    }
@@ -171,6 +175,9 @@ class PooledLensHostileDateTest {
          "Object.getPrototypeOf(o) === Date.prototype && !Object.getOwnPropertyNames(o).length " +
          "? made : -1";
       double[][] v = new double[1][];
+      // no Date: the table keeps the object on a home, which the other thread's claim takes
+      // over after a hand-off, so the table's next batch really runs on another context
+      SreeEnv.setProperty(MAX_HOMES, "0");
       assertTimeoutPreemptively(Duration.ofSeconds(90), () -> {
          v[0] = crossSlot(f);
       });
@@ -192,6 +199,7 @@ class PooledLensHostileDateTest {
       AssetQuerySandbox box = PoolTestSupport.poolBox(true);
       WorksheetScriptEnv w = (WorksheetScriptEnv) box.getScriptEnv();
       envs.add(w);
+      lastEnv = w;
       w.put("realm", realm);
       TableLens t = make(box, base(ROWS), formula, "T");
       double[] v = new double[ROWS + 1];
@@ -213,9 +221,11 @@ class PooledLensHostileDateTest {
          .map(ILoggingEvent::getFormattedMessage).toList();
    }
 
+   private static final String MAX_HOMES = "script.ws.contextPool.maxHomes";
    private static final int ROWS = 1200;
    private final Realm realm = new Realm();
    private final List<WorksheetScriptEnv> envs = new ArrayList<>();
+   private WorksheetScriptEnv lastEnv;
    private Logger logger;
    private ListAppender<ILoggingEvent> appender;
 }

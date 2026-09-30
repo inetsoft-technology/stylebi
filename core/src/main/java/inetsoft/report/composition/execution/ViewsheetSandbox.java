@@ -140,6 +140,9 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       this.nolimit = new HashSet<>();
       this.qmgrs = new ConcurrentHashMap<>();
       this.flyoverLocks = new ConcurrentHashMap<>();
+      this.flyoverRequests = new ConcurrentHashMap<>();
+      this.flyoverRunning = new ConcurrentHashMap<>();
+      this.flyoverCancelled = ConcurrentHashMap.newKeySet();
       this.dmap = new DataMap();
       this.dKeyMap = new DataMap();
       this.fmap = new HashMap<>();
@@ -617,6 +620,99 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
     */
    public Object getFlyoverLock(String name) {
       return flyoverLocks.computeIfAbsent(name, k -> new Object());
+   }
+
+   /**
+    * Register a new flyover request from the source assembly against the target assembly,
+    * making it the latest request for that target. This is called before the request waits
+    * for the target's flyover lock (see {@link #getFlyoverLock(String)}), which an earlier
+    * request holds for its whole execution. If a request is running against the target (see
+    * {@link #beginFlyoverRequest(String, FlyoverRequest)}) and has a different source or
+    * different conditions, its query is obsolete and is cancelled here, and the
+    * target is marked so that the next request that actually runs against it re-executes it
+    * (see {@link #clearFlyoverCancelled(String)}). A request still waiting for the lock is
+    * superseded and does not run against the target.
+    *
+    * @param name       the absolute name of the flyover target assembly.
+    * @param source     the absolute name of the assembly the flyover comes from.
+    * @param conditions the flyover conditions of the request.
+    *
+    * @return the new request.
+    */
+   public FlyoverRequest startFlyoverRequest(String name, String source, String conditions) {
+      // registration and cancel are atomic, so a cancel on behalf of an older request can
+      // never run after a newer request is registered and cancel the newer request's query
+      synchronized(flyoverRequests) {
+         FlyoverRequest request = new FlyoverRequest(source, conditions);
+         flyoverRequests.put(name, request);
+         // only cancel while a request is running, the target's flyover lock then guarantees
+         // that no other flyover (e.g. a table/crosstab flyover) is running on it
+         FlyoverRequest running = flyoverRunning.get(name);
+
+         if(running != null && (!Tool.equals(running.source, source) ||
+            !Tool.equals(running.conditions, conditions)))
+         {
+            flyoverCancelled.add(name);
+            getQueryManager(name).cancel();
+         }
+
+         return request;
+      }
+   }
+
+   /**
+    * Mark the request as running against the target. Called while holding the target's
+    * flyover lock, before applying the request's conditions.
+    *
+    * @return <tt>true</tt> if the request is still the latest one registered for the target
+    *         and should run, <tt>false</tt> if it has been superseded by a newer request.
+    */
+   public boolean beginFlyoverRequest(String name, FlyoverRequest request) {
+      synchronized(flyoverRequests) {
+         if(request == null || flyoverRequests.get(name) != request) {
+            return false;
+         }
+
+         flyoverRunning.put(name, request);
+         return true;
+      }
+   }
+
+   /**
+    * Mark the request started by {@link #beginFlyoverRequest(String, FlyoverRequest)} as
+    * finished.
+    */
+   public void endFlyoverRequest(String name, FlyoverRequest request) {
+      synchronized(flyoverRequests) {
+         flyoverRunning.remove(name, request);
+      }
+   }
+
+   /**
+    * Clear the flag set when {@link #startFlyoverRequest(String, String, String)} cancelled the
+    * target's query. Called while holding the target's flyover lock before applying the
+    * conditions, the target must be re-executed even if its conditions are unchanged when this
+    * returns <tt>true</tt>, since the conditions may have been applied by a request whose query
+    * was cancelled.
+    *
+    * @return <tt>true</tt> if the target's query was cancelled since the last call.
+    */
+   public boolean clearFlyoverCancelled(String name) {
+      return flyoverCancelled.remove(name);
+   }
+
+   /**
+    * A flyover request registered by {@link #startFlyoverRequest(String, String, String)}.
+    * Requests are compared by identity.
+    */
+   public static final class FlyoverRequest {
+      private FlyoverRequest(String source, String conditions) {
+         this.source = source;
+         this.conditions = conditions;
+      }
+
+      private final String source;
+      private final String conditions;
    }
 
    /**
@@ -5207,8 +5303,10 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
          executeScript(assembly);
 
          // reposition input child in bottom-tab container after script may
-         // have changed label properties (visible, position, gap, font)
+         // have changed label properties (visible, position, gap, font).
+         // a position explicitly set by script is kept as is (Bug #77369)
          if(assembly instanceof InputVSAssembly &&
+            !assembly.getVSAssemblyInfo().isPositionByScript() &&
             assembly.getContainer() instanceof TabVSAssembly tabContainer)
          {
             TabVSAssemblyInfo tabInfo =
@@ -8581,6 +8679,9 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
    private final Set<String> nolimit; // tables to ignore time limit
    private final Map<String, QueryManager> qmgrs; // specific query manager for each assembly
    private final Map<String, Object> flyoverLocks; // per-assembly lock for flyover coordination
+   private final Map<String, FlyoverRequest> flyoverRequests; // latest flyover request per assembly
+   private final Map<String, FlyoverRequest> flyoverRunning; // running flyover request per assembly
+   private final Set<String> flyoverCancelled; // assemblies whose flyover query was cancelled
    private long selectionTS; // selection timestamp
    private long touchTS = -1; // touch timestamp of data changes
    private long execTS = -1; // last execution time

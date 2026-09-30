@@ -169,4 +169,27 @@ describe("EditJoinTableComponent - stable track key for @for (Bug #77013)", () =
 
       expectRegistrationsMatchRenderedColumns();
    });
+
+   it("highlights only the joined columns after a refresh replaces the column objects", () => {
+      // Graph refresh (e.g. after removing/adding a join) delivers new
+      // GraphColumnInfo objects with the same ids; @for reuses the rows.
+      const oldRegistrations = new Map(thumbnailService.registrations);
+      comp.table = makeTable("orders", [
+         makeColumn("customer_id", "orders"),
+         makeColumn("region_id", "orders"),
+      ]);
+      fixture.detectChanges();
+
+      expectRegistrationsMatchRenderedColumns();
+
+      // Even a pair built from the previous objects must resolve by id.
+      const [firstId] = Array.from(oldRegistrations.keys());
+      thumbnailService.focusColumnPairSubject.next([oldRegistrations.get(firstId)]);
+      fixture.detectChanges();
+
+      const [first, second] = columnRows();
+      expect(first.nativeElement.classList).toContain("schema-column-highlight");
+      expect(second.nativeElement.classList).toContain("schema-column-ignore");
+      expect(second.nativeElement.classList).not.toContain("schema-column-highlight");
+   });
 });

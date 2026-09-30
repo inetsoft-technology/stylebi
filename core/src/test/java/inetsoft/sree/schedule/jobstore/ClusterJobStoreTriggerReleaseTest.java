@@ -62,6 +62,11 @@ import static org.mockito.Mockito.*;
  * must be released by another node's next acquire pass, but never while its run may still be
  * executing, and never because another live node shares its member name.
  *
+ * <p>Bug #77202: a job disallows concurrent execution across all of its triggers and all nodes.
+ * A condition that comes due while another condition's run is in flight fires once when that run
+ * completes, or as soon as the run is no longer honoured: its node left the cluster or the task
+ * timeout passed, so a run that never completes delays the other conditions but never stops them.
+ *
  * <p>Two real Quartz schedulers built like {@code Scheduler.initialize0()} share one cluster whose
  * replicated maps keep and hand out serialized copies, like Ignite's. Timings are the production
  * ones scaled by 1/10 (acquire horizon 2 s, misfire threshold 0.5 s).
@@ -87,6 +92,7 @@ class ClusterJobStoreTriggerReleaseTest {
       }
 
       RECORDERS.remove(recorderId);
+      taskTimeout = DEFAULT_TIMEOUT;
       ConfigurationContext.getContext().setApplicationContext(savedAppContext);
       // storing the job sets the task owner as the thread's principal
       ThreadContext.setContextPrincipal(savedPrincipal);
@@ -117,15 +123,19 @@ class ClusterJobStoreTriggerReleaseTest {
    }
 
    /**
-    * A run that never completes (its node died or was scaled in) stands in here as a run that
-    * hangs until the test ends. The task's run-once condition must still fire at its time, and
-    * its completion must release the hung run's recurring trigger, as before the fix.
+    * Bug #77202: a run that never completes (a hung action) keeps the task's run-once condition
+    * from firing only until the task timeout, after which that condition fires once. The hung
+    * run's own recurring trigger is released at the timeout too, not by the other condition's
+    * completion (before #77202 it was, and then fired on top of its own run), and it fires only
+    * after the run-once condition's run, since its run-once fire time is older. One node, so the
+    * two released triggers are acquired in fire time order.
     */
    @Test
    void runThatNeverCompletesDoesNotStopTheOtherConditions() throws Exception {
-      startSchedulers("node-A", "node-B");
+      taskTimeout = "6000";
+      startSchedulers("node-A");
       long start = (System.currentTimeMillis() / 1000 + 2) * 1000;
-      long runOnce = start + 3000;
+      long runOnce = start + 1000;
       JobDetail job = createJob();
 
       IntervalTrigger recurring = recurringTrigger(job, 1, start);
@@ -138,18 +148,303 @@ class ClusterJobStoreTriggerReleaseTest {
       triggers.add(atTrigger);
       schedulers.get(0).scheduleJob(job, triggers, true);
 
-      Thread.sleep(runOnce + 500 + MAX_IDLE + 1000 - System.currentTimeMillis());
+      Execution hung = awaitFirstExecution();
+      Thread.sleep(Math.max(0, hung.start + 6000 - 500 - System.currentTimeMillis()));
+      assertEquals(1, executions().size(),
+                   "a condition fired during the run before the task timeout:" +
+                      trace(executions()));
+
+      Thread.sleep(hung.start + 6000 + 500 + MAX_IDLE + 1000 - System.currentTimeMillis());
 
       List<Execution> executions = executions();
       String trace = trace(executions);
-      Map<String, Long> perTrigger = executions.stream()
-         .collect(Collectors.groupingBy(e -> e.trigger, TreeMap::new, Collectors.counting()));
+      List<Execution> ats = runsOf(executions, atTrigger);
+      List<Execution> recurringRuns = runsOf(executions, recurring);
 
-      assertEquals(1L, perTrigger.getOrDefault(atTrigger.getName(), 0L),
-                   "run-once condition did not fire once:" + trace);
-      assertTrue(perTrigger.getOrDefault(recurring.getName(), 0L) >= 2,
-                 "hung run's recurring trigger was never released:" + trace);
+      assertEquals(1, ats.size(), "run-once condition did not fire once:" + trace);
+      assertTrue(ats.get(0).start >= hung.start + 6000 - SLACK,
+                 "run-once condition fired before the task timeout:" + trace);
+      assertEquals(2, recurringRuns.size(),
+                   "hung run's recurring trigger was not released once at the timeout:" + trace);
+      assertTrue(recurringRuns.get(1).start >= ats.get(0).end,
+                 "recurring trigger ran on top of the run-once condition's run:" + trace);
       assertDistinctFireTimes(executions, trace);
+   }
+
+   /**
+    * Bug #77202: a lone recurring trigger whose run hangs past the task timeout on a live node is
+    * released at the timeout, and not before, since no other run's completion releases it.
+    */
+   @Test
+   void hungRunsOwnTriggerIsReleasedAtTheTaskTimeout() throws Exception {
+      taskTimeout = "5000";
+      startSchedulers(1, "node-A", "node-B");
+      scheduleHungRecurringTrigger(SlowTaskJob.class);
+      Execution hung = awaitFirstExecution();
+
+      Thread.sleep(Math.max(0, hung.start + 5000 - 500 - System.currentTimeMillis()));
+      assertEquals(1, executions().size(),
+                   "released before the task timeout:" + trace(executions()));
+
+      await().atMost(Duration.ofMillis(500 + MAX_IDLE + 1000))
+         .until(() -> recorder().executions.size() >= 2);
+
+      List<Execution> executions = executions();
+      String trace = trace(executions);
+      assertTrue(executions.get(1).start >= hung.start + 5000 - SLACK,
+                 "released before the task timeout:" + trace);
+      assertDistinctFireTimes(executions, trace);
+   }
+
+   /**
+    * Bug #77202: a refused fire keeps Quartz's results paired with its triggers by index (a result
+    * without a bundle), and leaves the trigger waiting with its fire time.
+    */
+   @Test
+   void refusedFireReturnsAnEmptyResultAndKeepsTheTrigger() throws Exception {
+      cluster = new IgniteLikeCluster();
+      installContext(cluster);
+      cluster.nodeIds.add("node-A");
+      StoppingJobStore store = new StoppingJobStore("node-A", "node-A");
+      store.initialize(null, mock(org.quartz.spi.SchedulerSignaler.class));
+      long time = System.currentTimeMillis() + TimeUnit.HOURS.toMillis(1);
+      JobDetail job = createJob();
+      TimeConditionTriggerImpl trigger = runOnceTrigger(job, 2, time, 500);
+      store.storeJobAndTrigger(job, trigger);
+
+      DistributedMap<TriggerKey, TriggerWrapper> triggersByKey =
+         cluster.getReplicatedMap("jobstore.triggersByKey");
+      OperableTrigger acquired =
+         (OperableTrigger) triggersByKey.get(trigger.getKey()).trigger.clone();
+      acquired.setFireInstanceId("store-A-2");
+      triggersByKey.put(trigger.getKey(), TriggerWrapper.newOwnedTriggerWrapper(
+         acquired, TriggerState.ACQUIRED, "node-A", "node-A", "store-A-"));
+      DistributedMap<JobKey, RunningJob> runningJobs =
+         cluster.getReplicatedMap("jobstore.runningJobs");
+      runningJobs.put(job.getKey(), new RunningJob(
+         "store-A-1", TriggerKey.triggerKey("other", "ClusterJobStoreTriggerReleaseTest"),
+         "node-A", "node-A", System.currentTimeMillis()));
+
+      List<org.quartz.spi.TriggerFiredResult> results =
+         store.triggersFired(Collections.singletonList(acquired));
+      TriggerWrapper stored = triggersByKey.get(trigger.getKey());
+
+      assertEquals(1, results.size(), "results not paired with the triggers");
+      assertNull(results.get(0).getTriggerFiredBundle(), "refused fire returned a bundle");
+      assertEquals(TriggerState.WAITING, stored.getState(), "refused trigger: " + stored);
+      assertEquals(time, stored.getNextFireTime(), "refused trigger lost its fire time");
+      assertEquals("store-A-1", runningJobs.get(job.getKey()).getFireInstanceId(),
+                   "refused fire replaced the running record");
+   }
+
+   /**
+    * Bug #77202: a condition that comes due while another condition's run is in flight does not
+    * start a second run of the task on either node; it fires once, as soon as that run completes.
+    */
+   @Test
+   void conditionDueDuringARunFiresOnceAfterTheRunCompletes() throws Exception {
+      startSchedulers("node-A", "node-B");
+      long t1 = (System.currentTimeMillis() / 1000 + 2) * 1000;
+      JobDetail job = createJob();
+      TimeConditionTriggerImpl trigger1 = runOnceTrigger(job, 1, t1, 5000);
+      TimeConditionTriggerImpl trigger2 = runOnceTrigger(job, 2, t1 + 1500, 500);
+      Set<Trigger> triggers = new HashSet<>();
+      triggers.add(trigger1);
+      triggers.add(trigger2);
+      schedulers.get(0).scheduleJob(job, triggers, true);
+
+      Thread.sleep(t1 + 5000 + 500 + MAX_IDLE + 1000 - System.currentTimeMillis());
+
+      List<Execution> executions = executions();
+      String trace = trace(executions);
+      Execution run1 = runsOf(executions, trigger1).get(0);
+      List<Execution> runs2 = runsOf(executions, trigger2);
+
+      assertEquals(1, recorder().maxRunning.get(), "runs overlapped:" + trace);
+      assertEquals(1, runs2.size(), "condition 2 did not fire exactly once:" + trace);
+      assertTrue(runs2.get(0).start >= run1.end, "condition 2 ran before run 1 ended:" + trace);
+      assertTrue(runs2.get(0).start - run1.end <= MAX_IDLE,
+                 "condition 2 was not fired when run 1 completed:" + trace);
+   }
+
+   /**
+    * Bug #77202: the node running the task dies mid-run and leaves the cluster while another
+    * condition is held back by that run. The condition must be released and fire once, on the
+    * surviving node, without waiting for the task timeout.
+    */
+   @Test
+   void conditionHeldBackByARunOfADeadNodeFiresOnceOnAnotherNode() throws Exception {
+      startSchedulers(1, "node-A", "node-B");
+      long t1 = (System.currentTimeMillis() / 1000 + 2) * 1000;
+      long t2 = t1 + 1500;
+      JobDetail job = createJob();
+      TimeConditionTriggerImpl trigger1 = runOnceTrigger(job, 1, t1, 0);
+      trigger1.getJobDataMap().put(HANG_KEY, true);
+      TimeConditionTriggerImpl trigger2 = runOnceTrigger(job, 2, t2, 500);
+      Set<Trigger> triggers = new HashSet<>();
+      triggers.add(trigger1);
+      triggers.add(trigger2);
+      schedulers.get(0).scheduleJob(job, triggers, true);
+
+      String runner = awaitFirstRun();
+      Thread.sleep(t2 + MAX_IDLE - System.currentTimeMillis());
+      assertEquals(1, executions().size(),
+                   "condition 2 started during the run:" + trace(executions()));
+
+      long killed = System.currentTimeMillis();
+      killNode(runner, true);
+      await().atMost(Duration.ofMillis(MAX_IDLE + 1000))
+         .until(() -> recorder().executions.size() >= 2);
+      Thread.sleep(MAX_IDLE);
+
+      List<Execution> executions = executions();
+      String trace = trace(executions);
+      List<Execution> runs2 = runsOf(executions, trigger2);
+      assertEquals(1, runs2.size(), "condition 2 did not fire exactly once:" + trace);
+      assertNotEquals(runner, runs2.get(0).schedulerId, "fired on the dead node:" + trace);
+      assertTrue(runs2.get(0).start >= killed, "fired before the node died:" + trace);
+   }
+
+   /**
+    * Bug #77202: a run that outlasts the task timeout on a live node (ScheduleTask cancels a run
+    * at the timeout, so it can only be hung) no longer holds back the task's other conditions:
+    * the held-back condition fires once after the timeout, and not before.
+    */
+   @Test
+   void conditionHeldBackByARunPastTheTaskTimeoutFiresOnce() throws Exception {
+      taskTimeout = "5000";
+      startSchedulers(1, "node-A", "node-B");
+      long t1 = (System.currentTimeMillis() / 1000 + 2) * 1000;
+      JobDetail job = createJob();
+      TimeConditionTriggerImpl trigger1 = runOnceTrigger(job, 1, t1, 0);
+      trigger1.getJobDataMap().put(HANG_KEY, true);
+      TimeConditionTriggerImpl trigger2 = runOnceTrigger(job, 2, t1 + 1000, 500);
+      Set<Trigger> triggers = new HashSet<>();
+      triggers.add(trigger1);
+      triggers.add(trigger2);
+      schedulers.get(0).scheduleJob(job, triggers, true);
+
+      Execution run1 = awaitFirstExecution();
+      Thread.sleep(Math.max(0, run1.start + 5000 - 500 - System.currentTimeMillis()));
+      assertEquals(1, executions().size(),
+                   "condition 2 started before the task timeout:" + trace(executions()));
+
+      await().atMost(Duration.ofMillis(500 + MAX_IDLE + 1000))
+         .until(() -> recorder().executions.size() >= 2);
+      Thread.sleep(MAX_IDLE);
+
+      List<Execution> executions = executions();
+      String trace = trace(executions);
+      List<Execution> runs2 = runsOf(executions, trigger2);
+      assertEquals(1, runs2.size(), "condition 2 did not fire exactly once:" + trace);
+      assertTrue(runs2.get(0).start >= run1.start + 5000 - SLACK,
+                 "condition 2 fired before the task timeout:" + trace);
+   }
+
+   /**
+    * Bug #77202: Scheduler.addTask deletes and re-adds the task's job whenever the task is edited.
+    * An edit during a run must not let another condition start a second run.
+    */
+   @Test
+   void editingTheTaskDuringARunKeepsItsOtherConditionsWaiting() throws Exception {
+      startSchedulers("node-A", "node-B");
+      long t1 = (System.currentTimeMillis() / 1000 + 2) * 1000;
+      long t2 = t1 + 2500;
+      JobDetail job = createJob();
+      TimeConditionTriggerImpl trigger1 = runOnceTrigger(job, 1, t1, 5000);
+      Set<Trigger> triggers = new HashSet<>();
+      triggers.add(trigger1);
+      triggers.add(runOnceTrigger(job, 2, t2, 500));
+      schedulers.get(0).scheduleJob(job, triggers, true);
+
+      awaitFirstRun();
+      schedulers.get(0).deleteJob(job.getKey());
+      TimeConditionTriggerImpl trigger2 = runOnceTrigger(job, 2, t2, 500);
+      schedulers.get(0).scheduleJob(job, Collections.singleton(trigger2), true);
+
+      Thread.sleep(t1 + 5000 + 500 + MAX_IDLE + 1000 - System.currentTimeMillis());
+
+      List<Execution> executions = executions();
+      String trace = trace(executions);
+      Execution run1 = runsOf(executions, trigger1).get(0);
+      List<Execution> runs2 = runsOf(executions, trigger2);
+
+      assertEquals(1, recorder().maxRunning.get(), "runs overlapped:" + trace);
+      assertEquals(1, runs2.size(), "condition 2 did not fire exactly once:" + trace);
+      assertTrue(runs2.get(0).start >= run1.end, "condition 2 ran before run 1 ended:" + trace);
+   }
+
+   /**
+    * Bug #77202: the rule deciding if a job's run still holds back its other triggers.
+    */
+   @Test
+   void runIsHonouredOnlyWhileItMayStillBeExecuting() {
+      RunningJob run = new RunningJob(
+         "fire-1", TriggerKey.triggerKey("t", "ClusterJobStoreTriggerReleaseTest"), "id-A",
+         "172.18.0.3:5701", 1000);
+      Set<String> both = Set.of("id-A", "id-B");
+      Set<String> onlyB = Set.of("id-B");
+
+      assertTrue(ClusterJobStore.isRunning(run, both, false, 500, 1499), "owner in the cluster");
+      assertFalse(ClusterJobStore.isRunning(run, both, false, 500, 1500), "past the bound");
+      assertFalse(ClusterJobStore.isRunning(run, onlyB, false, 500, 1000),
+                  "owner left the cluster");
+      assertTrue(ClusterJobStore.isRunning(run, onlyB, true, 500, 1499),
+                 "a cloud run outlives its owner");
+      assertFalse(ClusterJobStore.isRunning(run, onlyB, true, 500, 1500),
+                  "a cloud run past the bound");
+      assertTrue(ClusterJobStore.isRunning(run, null, false, 500, 1499), "topology unknown");
+      assertFalse(ClusterJobStore.isRunning(run, null, false, 500, 1500),
+                  "topology unknown, past the bound");
+      assertFalse(ClusterJobStore.isRunning(null, both, false, 500, 1000), "no run");
+
+      OperableTrigger trigger = (OperableTrigger) TriggerBuilder.newTrigger()
+         .withIdentity("stale-rule", "ClusterJobStoreTriggerReleaseTest")
+         .forJob("stale-rule-job", "ClusterJobStoreTriggerReleaseTest")
+         .build();
+      TriggerWrapper blocked = TriggerWrapper.newOwnedTriggerWrapper(
+         trigger, TriggerState.BLOCKED, "id-A", "172.18.0.3:5701", "store-1-");
+      long since = blocked.getOwnedSince();
+      assertFalse(ClusterJobStore.isStale(blocked, 500, since + 499), "within the bound");
+      assertTrue(ClusterJobStore.isStale(blocked, 500, since + 500), "past the bound");
+      assertFalse(ClusterJobStore.isStale(
+         TriggerWrapper.newTriggerWrapper(blocked, TriggerState.BLOCKED), 500, since + 500),
+                  "no recorded owner (error state)");
+   }
+
+   /**
+    * Bug #77202: a run is honoured for the effective task timeout, a cloud runner job's for the
+    * timeout plus the 5-minute launch margin, also when its node left.
+    */
+   @Test
+   void runIsHonouredForTheTaskTimeout() throws Exception {
+      taskTimeout = "0";
+      startSchedulers(1, "node-A");
+      ClusterJobStore store = stores.get("node-A");
+      long start = (System.currentTimeMillis() / 1000 + 3600) * 1000;
+      JobDetail localJob = createJob(SlowTaskJob.class);
+      schedulers.get(0).scheduleJob(
+         localJob, Collections.singleton(recurringTrigger(localJob, 1, start)), true);
+      JobKey cloudKey =
+         JobKey.jobKey("task-77202-cloud", inetsoft.sree.schedule.Scheduler.GROUP_NAME);
+      JobDetail cloudJob = JobBuilder.newJob(SlowCloudJob.class).withIdentity(cloudKey)
+         .storeDurably(true).usingJobData(localJob.getJobDataMap()).build();
+      schedulers.get(0).addJob(cloudJob, true);
+
+      // a timeout that is not positive falls back to the default
+      long timeout = ScheduleTask.DEFAULT_TASK_TIMEOUT;
+      long margin = TimeUnit.MINUTES.toMillis(5);
+      RunningJob run = new RunningJob(
+         "fire-1", TriggerKey.triggerKey("t", "ClusterJobStoreTriggerReleaseTest"), "node-A",
+         "node-A", 1000);
+      Set<String> live = Set.of("node-A");
+      Set<String> gone = Set.of("node-B");
+
+      assertTrue(store.isRunning(localJob.getKey(), run, live, 1000 + timeout - 1), "local");
+      assertFalse(store.isRunning(localJob.getKey(), run, live, 1000 + timeout), "local stale");
+      assertFalse(store.isRunning(localJob.getKey(), run, gone, 1000), "local owner gone");
+      assertTrue(store.isRunning(cloudKey, run, gone, 1000 + timeout + margin - 1), "cloud");
+      assertFalse(store.isRunning(cloudKey, run, gone, 1000 + timeout + margin), "cloud stale");
    }
 
    /**
@@ -173,36 +468,37 @@ class ClusterJobStoreTriggerReleaseTest {
    }
 
    private void runTriggerHeldByNodeThatGoesAway(boolean dies) throws Exception {
-      // one worker per node, so the node running run 1 cannot acquire trigger 2 itself before
-      // run 1 ends and trigger 2 can only be held by the other node
-      startSchedulers(1, "node-A", "node-B");
-      long t1 = (System.currentTimeMillis() / 1000 + 3) * 1000;
-      long t2 = t1 + GAP;
+      // Bug #77202, no node acquires trigger 2 while run 1 is in flight, so the other node must
+      // acquire it before run 1 starts: node-A alone takes trigger 1 (inside its acquire horizon
+      // when scheduled), then node-B joins and takes trigger 2 as soon as it is inside its horizon.
+      // One worker per node, so node-A cannot also hold trigger 2.
+      startSchedulers(1, "node-A");
+      String runner = "node-A";
+      // inside the acquire horizon, so node-A acquires it as soon as it is scheduled
+      long t1 = System.currentTimeMillis() + IDLE_WAIT - 100;
+      long t2 = t1 + 1500;
       JobDetail job = createJob();
-      TimeConditionTriggerImpl trigger1 = runOnceTrigger(job, 1, t1, GAP - 700);
+      TimeConditionTriggerImpl trigger1 = runOnceTrigger(job, 1, t1, 800);
       TimeConditionTriggerImpl trigger2 = runOnceTrigger(job, 2, t2, 500);
       Set<Trigger> triggers = new HashSet<>();
       triggers.add(trigger1);
       triggers.add(trigger2);
       schedulers.get(0).scheduleJob(job, triggers, true);
 
-      await().atMost(Duration.ofMillis(t2 - System.currentTimeMillis()))
-         .until(() -> !recorder().executions.isEmpty());
-      String runner = recorder().executions.peek().schedulerId;
-      org.quartz.Scheduler other = schedulers.stream()
-         .filter(s -> !runner.equals(instanceId(s)))
-         .findFirst().orElseThrow();
+      await().atMost(Duration.ofMillis(Math.max(0, t1 - 600 - System.currentTimeMillis())))
+         .until(() -> storedTrigger(trigger1).getState() == TriggerState.ACQUIRED);
+      org.quartz.Scheduler other = startScheduler("node-B", "node-B", "node-B", 1);
 
-      // wake the other node's scheduler thread for an ordinary acquire pass while trigger 2 is
-      // inside its acquire horizon and run 1 is still running (an unknown key changes nothing)
-      Thread.sleep(Math.max(0, t2 - 1500 - System.currentTimeMillis()));
+      // wake the other node's scheduler thread for an ordinary acquire pass once trigger 2 is
+      // inside its acquire horizon (an unknown key changes nothing)
+      Thread.sleep(Math.max(0, t2 - 1950 - System.currentTimeMillis()));
       other.resumeTrigger(TriggerKey.triggerKey("wake-up", "ClusterJobStoreTriggerReleaseTest"));
-      Thread.sleep(Math.max(0, t2 - 1200 - System.currentTimeMillis()));
+      await().atMost(Duration.ofMillis(Math.max(0, t1 - 150 - System.currentTimeMillis())))
+         .until(() -> storedTrigger(trigger2).getState() == TriggerState.ACQUIRED);
 
-      DistributedMap<TriggerKey, TriggerWrapper> triggersByKey =
-         cluster.getReplicatedMap("jobstore.triggersByKey");
-      TriggerWrapper held = triggersByKey.get(trigger2.getKey());
+      TriggerWrapper held = storedTrigger(trigger2);
       assertEquals(TriggerState.ACQUIRED, held.getState(), "trigger 2 not held: " + held);
+      assertEquals("node-B", held.getOwnerNode(), "trigger 2 not held by node-B: " + held);
 
       StoppingJobStore otherStore = stores.get(instanceId(other));
       otherStore.stopping = true;
@@ -503,9 +799,19 @@ class ClusterJobStoreTriggerReleaseTest {
    }
 
    private String awaitFirstRun() {
+      return awaitFirstExecution().schedulerId;
+   }
+
+   private Execution awaitFirstExecution() {
       await().atMost(Duration.ofMillis(INTERVAL + MAX_IDLE))
          .until(() -> !recorder().executions.isEmpty());
-      return recorder().executions.peek().schedulerId;
+      return recorder().executions.peek();
+   }
+
+   private static List<Execution> runsOf(List<Execution> executions, Trigger trigger) {
+      return executions.stream()
+         .filter(e -> e.trigger.equals(trigger.getKey().getName()))
+         .collect(Collectors.toList());
    }
 
    /**
@@ -672,6 +978,8 @@ class ClusterJobStoreTriggerReleaseTest {
          .thenReturn("localhost");
       when(properties.getProperty(any(String.class), any(String.class), anyBoolean()))
          .thenAnswer(inv -> inv.getArgument(1));
+      when(properties.getProperty(eq("schedule.task.timeout"), anyBoolean()))
+         .thenAnswer(inv -> taskTimeout);
 
       LicenseManager licenseManager = mock(LicenseManager.class);
       when(licenseManager.getAvailableCpuCount()).thenReturn(2);
@@ -931,7 +1239,6 @@ class ClusterJobStoreTriggerReleaseTest {
    private static final long IDLE_WAIT = 2000;
    private static final long MISFIRE_THRESHOLD = 500;
    private static final long INTERVAL = 2000;
-   private static final long GAP = 6000;
    private static final long DURATION = INTERVAL + 1500;
    private static final long OBSERVATION = 15000;
    // a released trigger is past due, so it fires as soon as the completing node is signalled;
@@ -940,6 +1247,12 @@ class ClusterJobStoreTriggerReleaseTest {
    private static final String RECORDER_KEY = "test.recorder";
    private static final String DURATION_KEY = "test.duration";
    private static final String HANG_KEY = "test.hang";
+   private static final String DEFAULT_TIMEOUT = "600000";
+   // the store stamps a run's start before the job starts, so the release is measured from a
+   // moment that can be this much earlier than the recorded start of the run
+   private static final long SLACK = 500;
+   // schedule.task.timeout as the stores read it
+   private static volatile String taskTimeout = DEFAULT_TIMEOUT;
    private static final IdentityID OWNER = new IdentityID("scheduler-test", "host");
    private static final Map<String, Recorder> RECORDERS = new ConcurrentHashMap<>();
 

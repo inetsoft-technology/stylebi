@@ -401,6 +401,11 @@ public class FileAuthorizationProvider extends AbstractAuthorizationProvider {
 
          map.put(getResourceKey(ResourceType.DASHBOARD, "*", orgID), perm);
 
+         // the schedule time ranges need their own permission, sharing the dashboard one would
+         // put the time range grants on DASHBOARD * and the dashboard grants on the time ranges
+         perm = new Permission();
+         perm.setOrgEditedGrantAll(edited);
+
          if(Organization.getDefaultOrganizationID().equals(orgID)) {
             perm.setRoleGrantsForOrg(ResourceAction.ACCESS, Collections.singleton("Advanced"), orgID);
          }

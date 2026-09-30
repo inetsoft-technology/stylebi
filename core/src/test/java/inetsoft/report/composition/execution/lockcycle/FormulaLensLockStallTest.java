@@ -47,7 +47,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * The formula lens lock is bounded by the lock-stall watchdog (bug #76967): a lens-lock
  * waiter whose owner is blocked on a monitor the waiter holds fails with a stall and lets
  * go, and the owner then completes; a waiter behind a slowly progressing batch completes.
- * Pool off (the harness default); the pool-on batch hold is the same lock.
+ * Pool off (the harness default); the pool-on batch hold is the same lock, and a formula
+ * script never waits for a held context there (see {@link #formulaScriptStallReachesTheReader}).
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class, LibManagerTestConfiguration.class, PluginsTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
@@ -58,7 +59,10 @@ public class FormulaLensLockStallTest {
    @BeforeEach
    public void setUp() {
       StallTestSupport.resetGlobalStallState();
-      StallPolicy.setOverride(new StallPolicy(StallPolicy.Mode.FAIL, 1000, 200, dumpDir));
+      // failOnTimeout: the stall cases wait for a lock a stuck thread holds, which is no
+      // wait-for cycle, so the shipped rule (fail only a confirmed cycle) would only report them
+      StallPolicy.setOverride(new StallPolicy(StallPolicy.Mode.FAIL, 1000, 200, dumpDir,
+                                              StallPolicy.DEFAULT_MAX_DUMPS, true));
       harness = new LockCycleHarness();
    }
 
@@ -194,6 +198,8 @@ public class FormulaLensLockStallTest {
     * The formula's script waits for an engine lock held by a stuck thread: the lens reader
     * gets the stall itself, not a formula error, a null cell or the end of the table, and the
     * half-computed row is not kept, so a read after the holder let go sees every value.
+    * With the pool on, a held context is never waited for: the reader gets every value while
+    * the holder is stuck.
     */
    @Test
    public void formulaScriptStallReachesTheReader() throws Exception {
@@ -216,6 +222,24 @@ public class FormulaLensLockStallTest {
          }
       });
       assertTrue(held.await(10, TimeUnit.SECONDS), "the holder never took the engine lock");
+
+      if(POOL) {
+         // pool mode never waits for a context (spec I6): the primary's lock is skipped with
+         // tryLock and the formula runs on another slot, so there is no stall to report and
+         // the reader must get every value while the holder is still stuck
+         try {
+            assertEquals(expected, harness.await(harness.submit(() -> drain(lens)), ACTIVE_CAP,
+                                                 "reader while the primary is held"),
+                         "a held primary context must not block or change the formula");
+            assertFalse(holder.isDone(), "the holder let go before the reader finished");
+         }
+         finally {
+            release.countDown();
+         }
+
+         assertTrue(harness.await(holder, ACTIVE_CAP, "holder"));
+         return;
+      }
 
       Throwable failure =
          StallTestSupport.failureOf(harness.submit(() -> drain(lens)), ACTIVE_CAP);
@@ -427,7 +451,8 @@ public class FormulaLensLockStallTest {
     */
    @Test
    public void alertModeEndOfTableReadCompletesTheLens() throws Exception {
-      StallPolicy.setOverride(new StallPolicy(StallPolicy.Mode.ALERT, 1000, 200, dumpDir));
+      StallPolicy.setOverride(new StallPolicy(StallPolicy.Mode.ALERT, 1000, 200, dumpDir,
+                                              StallPolicy.DEFAULT_MAX_DUMPS, false));
       final int n = 40;
       Sandbox s = harness.control();
       List<List<Object>> expected = harness.await(
@@ -550,7 +575,8 @@ public class FormulaLensLockStallTest {
     */
    @Test
    public void alertModeTableArrayColumnReadCompletes() throws Exception {
-      StallPolicy.setOverride(new StallPolicy(StallPolicy.Mode.ALERT, 1000, 200, dumpDir));
+      StallPolicy.setOverride(new StallPolicy(StallPolicy.Mode.ALERT, 1000, 200, dumpDir,
+                                              StallPolicy.DEFAULT_MAX_DUMPS, false));
       Sandbox s = harness.control();
       Sandbox s2 = harness.control();
       FormulaTableLens t2 = harness.track(s2.formula(new DefaultTableLens(rows(20))));

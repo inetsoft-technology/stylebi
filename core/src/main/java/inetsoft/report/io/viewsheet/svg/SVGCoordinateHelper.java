@@ -114,6 +114,7 @@ public class SVGCoordinateHelper extends CoordinateHelper {
       if(!sheet.isEmbedded()) {
          Dimension size = AbstractVSExporter.adjustSizeForInputLabels(
             sheet, sheet.getPreferredSize(false, true));
+         size = AbstractVSExporter.adjustSizeForShapeShadows(sheet, size, true);
          boolean adjustPaddingLeft = svgBounds.width < size.width;
          svgBounds.width = Math.max(svgBounds.width, size.width);
          svgBounds.height = Math.max(svgBounds.height, size.height);
@@ -127,6 +128,12 @@ public class SVGCoordinateHelper extends CoordinateHelper {
 
             if(info != null) {
                Rectangle2D rect = getBounds(info);
+
+               // a shape shadow's blur also bleeds up/left (on every side), so keep
+               // its ink inside the crop. hidden shapes are not drawn.
+               if(((VSAssembly) assembly).isVisible()) {
+                  rect = AbstractVSExporter.expandForShadowInk(rect, info, getScale());
+               }
 
                top = (int) Math.min(top, Math.max(0, rect.getY()));
                left = (int) Math.min(left, Math.max(0, rect.getX()));

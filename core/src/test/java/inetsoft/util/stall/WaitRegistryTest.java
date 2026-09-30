@@ -45,7 +45,8 @@ public class WaitRegistryTest {
    @BeforeEach
    public void setUp() {
       StallTestSupport.resetGlobalStallState();
-      policy = new StallPolicy(StallPolicy.Mode.FAIL, 1000, 500, dumpDir);
+      policy = new StallPolicy(StallPolicy.Mode.FAIL, 1000, 500, dumpDir,
+                               StallPolicy.DEFAULT_MAX_DUMPS, true);
       dumper = new StallDumper(now::get, () -> dumpDir, 60000);
       registry = new WaitRegistry(now::get, () -> policy, dumper);
    }
@@ -123,7 +124,8 @@ public class WaitRegistryTest {
 
    @Test
    public void alertModeFlagsOncePerEpisode() {
-      policy = new StallPolicy(StallPolicy.Mode.ALERT, 1000, 500, dumpDir);
+      policy = new StallPolicy(StallPolicy.Mode.ALERT, 1000, 500, dumpDir,
+                               StallPolicy.DEFAULT_MAX_DUMPS, false);
       AtomicLong rows = new AtomicLong();
       WaitRecord record = registry.open("site", rows::get, NONE);
 
@@ -149,7 +151,8 @@ public class WaitRegistryTest {
 
    @Test
    public void offModeRegistersNothing() {
-      policy = new StallPolicy(StallPolicy.Mode.OFF, 1000, 500, dumpDir);
+      policy = new StallPolicy(StallPolicy.Mode.OFF, 1000, 500, dumpDir,
+                               StallPolicy.DEFAULT_MAX_DUMPS, false);
       WaitRecord record = registry.open("site", () -> 0, NONE);
 
       assertSame(WaitRecord.NOOP, record);
@@ -168,7 +171,8 @@ public class WaitRegistryTest {
       assertEquals(50, record.waitMillis(50));
       record.close();
 
-      policy = new StallPolicy(StallPolicy.Mode.FAIL, 300000, 30000, dumpDir);
+      policy = new StallPolicy(StallPolicy.Mode.FAIL, 300000, 30000, dumpDir,
+                               StallPolicy.DEFAULT_MAX_DUMPS, false);
       WaitRecord prod = registry.open("site", () -> 0, NONE);
       assertEquals(10000, prod.waitMillis(10000), "production timeouts are unchanged");
       prod.close();

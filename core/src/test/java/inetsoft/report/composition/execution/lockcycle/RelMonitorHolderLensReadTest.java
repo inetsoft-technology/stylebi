@@ -42,10 +42,14 @@ import static org.junit.jupiter.api.Assertions.*;
 /**
  * Reliability probe (bug #77123, seat conc): FormulaLensLockStallTest's FTL_R2 shape, a
  * thread that holds a base table's monitor and reads the formula lens while the lens owner
- * is reading that base, under the production default stall policy (ALERT, 30 s) instead of
- * the suite's FAIL/1 s. Pool off, the owner loads its base rows before it takes the lens lock
- * (#5576), so both complete; pool on it deadlocked (finding F1) until the pooled batch loaded
- * its base rows before the lens lock too. Run it both ways:
+ * is reading that base, under the shipped stall rule (fail mode, which since Feature #77123
+ * fails a wait only once the watchdog confirms a wait-for cycle or a JVM deadlock, never on
+ * the timeout alone) with a 30 s limit, instead of the suite's FAIL/1 s with failOnTimeout. A
+ * slow but live read is therefore never failed here, while a return of the F1 deadlock fails
+ * one of the two with a LockStallException (a confirmed cycle) rather than hanging. Pool off,
+ * the owner loads its base rows before it takes the lens lock (#5576), so both complete; pool
+ * on it deadlocked (finding F1) until the pooled batch loaded its base rows before the lens
+ * lock too (#5857). Run it both ways:
  * <pre>
  * ./mvnw -o test -pl core -Dtest=RelMonitorHolderLensReadTest
  * ./mvnw -o test -pl core -Dtest=RelMonitorHolderLensReadTest -Dlockcycle.pool=true
@@ -60,7 +64,8 @@ public class RelMonitorHolderLensReadTest {
    @BeforeEach
    public void setUp() {
       StallTestSupport.resetGlobalStallState();
-      StallPolicy.setOverride(new StallPolicy(StallPolicy.Mode.ALERT, 30000, 500, dumpDir));
+      StallPolicy.setOverride(new StallPolicy(StallPolicy.Mode.FAIL, 30000, 500, dumpDir,
+                                              StallPolicy.DEFAULT_MAX_DUMPS, false));
       harness = new LockCycleHarness();
    }
 
@@ -79,7 +84,7 @@ public class RelMonitorHolderLensReadTest {
    @Test
    public void poolOffMonitorHolderReadingTheLensAndTheLensOwnerBothComplete() throws Exception {
       Assumptions.assumeFalse(POOL, "the harness env is pooled with -Dlockcycle.pool=true");
-      // about a minute (a 4-configuration Spring context and the ALERT policy), so not in CI
+      // about a minute (a 4-configuration Spring context and the 30 s limit), so not in CI
       Assumptions.assumeTrue(Boolean.getBoolean("rel.long"), "long: -Drel.long=true");
       monitorHolderReadingTheLensAndTheLensOwnerBothComplete(false, 40, 5, 30);
    }
@@ -87,8 +92,8 @@ public class RelMonitorHolderLensReadTest {
    /**
     * Finding F1 (seat conc): pool on, the lens owner held the formula lens lock (its batch)
     * while it read the base, so it blocked on the base monitor the reader holds, and the
-    * reader waited for the lens lock: a JVM-detected deadlock that the default ALERT policy
-    * reports but never breaks (FAIL mode breaks it with a LockStallException for the reader).
+    * reader waited for the lens lock: a JVM-detected deadlock that ALERT mode reports but never
+    * breaks, and the shipped fail rule breaks with a LockStallException for one victim.
     * The lens runs on a pooled env whatever -Dlockcycle.pool says.
     */
    @Test
@@ -139,7 +144,7 @@ public class RelMonitorHolderLensReadTest {
       assertTrue(waiterHasMonitor.await(10, TimeUnit.SECONDS));
       Future<List<List<Object>>> owner = harness.submit(() -> drain(lens));
 
-      // 60 s: well past the ALERT policy's 30 s, so a watchdog break would show
+      // 60 s: well past the 30 s limit, so a watchdog break (a confirmed cycle) would show
       assertEquals("completed", harness.await(waiter, 60, "monitor holder (pool=" + pool + ")"));
       assertEquals(expected, harness.await(owner, 60, "lens owner (pool=" + pool + ")"));
    }

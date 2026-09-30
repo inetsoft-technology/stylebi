@@ -525,7 +525,9 @@ public class VSChartShowDataService extends VSChartControllerService<VSChartShow
       if(DateComparisonUtil.appliedDateComparison(data.getVSAssemblyInfo())) {
          DateCompareAbleAssemblyInfo dcAssemblyInfo =
             (DateCompareAbleAssemblyInfo) data.getVSAssemblyInfo();
-         DateComparisonInfo dcInfo = dcAssemblyInfo.getDateComparisonInfo();
+         // use the applied (possibly shared) dc, same as the chart rendering
+         DateComparisonInfo dcInfo =
+            DateComparisonUtil.getDateComparison(dcAssemblyInfo, data.getViewsheet());
 
          if(dcInfo != null && dcInfo.isStdPeriod() && !dcInfo.isValueOnly()) {
             Date startDate = dcInfo.getStartDate();

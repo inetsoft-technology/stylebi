@@ -20,12 +20,15 @@ package inetsoft.util.script.graal.pool;
 import inetsoft.report.composition.execution.AssetQuerySandbox;
 import inetsoft.util.script.ScriptEnv;
 import inetsoft.util.script.graal.ScriptScope;
+import org.graalvm.polyglot.Value;
 import org.mockito.Mockito;
 
+import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.util.*;
 import java.util.concurrent.*;
 
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
 /**
@@ -131,9 +134,170 @@ public final class PoolTestSupport {
       field.set(null, fault);
    }
 
+   /**
+    * A counter of the env's pool metrics by name ({@code "HandOffs"} reads getHandOffs()), or
+    * -1 if this build has no such counter (Testing #77123, B1 residual part 2: read by
+    * reflection so the tests also run, and fail, on a build without it).
+    */
+   public static long metric(WorksheetScriptEnv env, String name) {
+      try {
+         return ((Number) PoolMetrics.class.getMethod("get" + name).invoke(env.getMetrics()))
+            .longValue();
+      }
+      catch(ReflectiveOperationException ex) {
+         return -1;
+      }
+   }
+
+   /**
+    * Hand off every idle home of the env's pool now, as a take-over or expiry would.
+    *
+    * @return the homes handed off, or -1 if this build has no homes.
+    */
+   public static int handOffIdleHomes(WorksheetScriptEnv env) {
+      return (int) poolCall(env, "handOffIdleHomes", -1);
+   }
+
+   /**
+    * @return the homes of the env's pool (slots formula tables' objects live on), or -1.
+    */
+   public static int homes(WorksheetScriptEnv env) {
+      return (int) poolCall(env, "homes", -1);
+   }
+
+   /**
+    * @return the exclusive homes of the env's pool, or -1.
+    */
+   public static int exclusiveHomes(WorksheetScriptEnv env) {
+      return (int) poolCall(env, "exclusiveHomes", -1);
+   }
+
+   /**
+    * Run the env's evictor as if the clock read {@code now}.
+    */
+   public static void evictIdle(WorksheetScriptEnv env, long now) {
+      env.pool().evictIdle(now);
+   }
+
+   /**
+    * @return the exclusive homes of this node, or -1.
+    */
+   public static int nodeHomes() {
+      try {
+         return ((Number) PoolMetrics.class.getMethod("nodeHomes").invoke(null)).intValue();
+      }
+      catch(ReflectiveOperationException ex) {
+         return -1;
+      }
+   }
+
+   private static Object poolCall(WorksheetScriptEnv env, String method, Object missing) {
+      try {
+         java.lang.reflect.Method m = SlotPool.class.getDeclaredMethod(method);
+         m.setAccessible(true);
+         return m.invoke(env.pool());
+      }
+      catch(NoSuchMethodException ex) {
+         return missing;
+      }
+      catch(ReflectiveOperationException ex) {
+         throw new IllegalStateException(ex);
+      }
+   }
+
+   /**
+    * A host object a formula calls from getters, traps and setters that must never run: it
+    * counts the calls.
+    */
+   public static final class Probe {
+      public void hit() {
+         hits.incrementAndGet();
+      }
+
+      public int hits() {
+         return hits.get();
+      }
+
+      private final java.util.concurrent.atomic.AtomicInteger hits =
+         new java.util.concurrent.atomic.AtomicInteger();
+   }
+
+   /**
+    * Swap the slot's clean helper for one whose clean is {@code factory} (a guest function
+    * source, applied to {@code args}), keeping its other handles. Caller holds the slot. The
+    * one place that builds a CleanHelper reflectively (final review I2): a change to its
+    * handles or constructor is fixed here.
+    */
+   static void injectClean(Slot slot, String factory, Object... args) throws Exception {
+      Field field = Slot.class.getDeclaredField("cleaner");
+      field.setAccessible(true);
+      CleanHelper real = (CleanHelper) field.get(slot);
+      Value clean = slot.engine().context().eval("js", factory);
+
+      if(args.length > 0) {
+         clean = clean.execute(args);
+      }
+
+      Field expect = CleanHelper.class.getDeclaredField("expect");
+      Field forget = CleanHelper.class.getDeclaredField("forget");
+      Field verify = CleanHelper.class.getDeclaredField("verify");
+      expect.setAccessible(true);
+      forget.setAccessible(true);
+      verify.setAccessible(true);
+      Constructor<CleanHelper> ctor = CleanHelper.class.getDeclaredConstructor(
+         Value.class, Value.class, Value.class, Value.class);
+      ctor.setAccessible(true);
+      field.set(slot, ctor.newInstance(clean, expect.get(real), forget.get(real),
+                                       verify.get(real)));
+   }
+
    @FunctionalInterface
    public interface ThrowingRunnable {
       void run() throws Exception;
+   }
+
+   /**
+    * @return the context this thread's claim on {@code env} holds now, or {@code null}; for
+    * {@link #holdElsewhere}.
+    */
+   public static Object currentSlot(WorksheetScriptEnv env) {
+      SlotClaim claim = SlotClaim.current(env.pool());
+      return claim == null ? null : claim.peekSlot();
+   }
+
+   /**
+    * Hold {@code slot} (from {@link #currentSlot}, idle now) on {@code executor}'s thread, as
+    * the pool's evictor or a take-over does for a moment, until the returned task is run.
+    */
+   public static Runnable holdElsewhere(Object slot, ExecutorService executor) throws Exception {
+      Slot held = (Slot) slot;
+      assertTrue(executor.submit(held::tryAcquire).get(10, TimeUnit.SECONDS), "not idle");
+      return () -> {
+         try {
+            executor.submit(held::release).get(10, TimeUnit.SECONDS);
+         }
+         catch(Exception ex) {
+            throw new IllegalStateException(ex);
+         }
+      };
+   }
+
+   /**
+    * A host object a script fires once: its task runs at the first {@link #fire} only.
+    */
+   public static final class Hook {
+      public boolean fire() {
+         Runnable run = task;
+         task = null;
+
+         if(run != null) {
+            run.run();
+         }
+
+         return true;
+      }
+
+      public volatile Runnable task;
    }
 
    /**

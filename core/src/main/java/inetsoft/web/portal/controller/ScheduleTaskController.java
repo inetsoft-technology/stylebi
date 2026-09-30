@@ -22,6 +22,7 @@ import inetsoft.sree.schedule.ScheduleTask;
 import inetsoft.sree.security.SecurityException;
 import inetsoft.sree.security.*;
 import inetsoft.uql.asset.AssetEntry;
+import inetsoft.uql.asset.AssetRepository;
 import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
 import inetsoft.web.admin.schedule.ScheduleTaskFolderService;
@@ -81,6 +82,15 @@ public class ScheduleTaskController {
       throws Exception
    {
       AssetEntry parentEntry = model.getParentEntry();
+
+      // Bug #77379, the organization of the client's folder entry isn't trusted, the task is
+      // created in a folder of the user's organization
+      if(parentEntry != null) {
+         parentEntry = new AssetEntry(AssetRepository.GLOBAL_SCOPE,
+                                      AssetEntry.Type.SCHEDULE_TASK_FOLDER,
+                                      parentEntry.getPath(), null);
+         model.setParentEntry(parentEntry);
+      }
 
       if(parentEntry != null && !scheduleTaskFolderService.checkFolderPermission(
          parentEntry.getPath(), principal, ResourceAction.READ))

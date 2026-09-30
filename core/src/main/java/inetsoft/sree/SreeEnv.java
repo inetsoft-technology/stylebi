@@ -76,6 +76,16 @@ public class SreeEnv {
    }
 
    /**
+    * Gets the value of a property from the environment variables, system properties and
+    * built-in defaults only, never from the key-value storage.
+    *
+    * @see PropertiesEngine#getPropertyFromNonStorageSources(String)
+    */
+   public static String getPropertyFromNonStorageSources(String name) {
+      return PropertiesEngine.getInstance().getPropertyFromNonStorageSources(name);
+   }
+
+   /**
     * Adds a listener that is notified when the named property is changed in shared storage,
     * including changes made by another cluster node. Use this to invalidate values that are
     * cached in a field for the lifetime of the JVM.

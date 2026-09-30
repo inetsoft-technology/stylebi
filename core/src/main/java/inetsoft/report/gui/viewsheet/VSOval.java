@@ -79,6 +79,16 @@ public class VSOval extends VSShape {
 
       ((Graphics2D) g).setPaint(color);
       Dimension size = getShapePixelSize();
-      g.fillOval(0, 0, size.width - 1, size.height - 1);
+      int style = getLineStyle();
+      int gap = 0;
+
+      // fill the same ellipse paintShape() strokes. a thick border is inset, so a fill
+      // on the box edge pokes out of it (a light ring over a shadow). the double line's
+      // outer ring is on the box edge; no border and fractional widths keep gap 0
+      if(style != StyleConstants.DOUBLE_LINE) {
+         gap = Math.max((int) GTool.getLineWidth(style) - 1, 0);
+      }
+
+      g.fillOval(gap, gap, size.width - 1 - 2 * gap, size.height - 1 - 2 * gap);
    }
 }

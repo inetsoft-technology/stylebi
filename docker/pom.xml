@@ -37,6 +37,18 @@
     <inetsoft.docker.repository>ghcr.io/inetsoft-technology</inetsoft.docker.repository>
   </properties>
 
+  <dependencyManagement>
+    <dependencies>
+      <dependency>
+        <groupId>com.inetsoft.stylebi</groupId>
+        <artifactId>inetsoft-stylebi-bom</artifactId>
+        <version>${project.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+    </dependencies>
+  </dependencyManagement>
+
   <dependencies>
     <dependency>
       <groupId>com.inetsoft.stylebi</groupId>
@@ -378,7 +390,7 @@
         </dependencies>
         <configuration>
           <from>
-            <image>ghcr.io/inetsoft-technology/java:21.0.8_9</image>
+            <image>ghcr.io/inetsoft-technology/java:21.0.12_8</image>
           </from>
           <to>
             <image>${inetsoft.docker.repository}/stylebi-community</image>

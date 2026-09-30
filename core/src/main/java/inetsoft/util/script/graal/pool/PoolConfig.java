@@ -41,10 +41,34 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * @param maxBatchRows        the most rows one batch reads ahead: under sequential access a
  *                            lens's batches double from the pool-off look-ahead up to this
  *                            (spec §14.14). Never below batchRows.
+ * @param maxHomes            the most exclusive homes of one sandbox: idle contexts reserved
+ *                            for the formula tables whose vars hold arrays or objects living on
+ *                            them (Testing #77123, B1 residual part 2), so up to this many
+ *                            tables of a sandbox keep one each. Past it a home is soft:
+ *                            another claim takes it over after saving its values.
+ * @param maxHomesPerNode     the most exclusive homes of the node, which bounds the memory
+ *                            they retain (about 0.16 MB per context).
+ * @param handOffMillis       the time bound of one hand-off snapshot or rebuild of such values,
+ *                            not the script timeout; past it the values are lost with a warning.
+ * @param handOffEntries      the most array elements and object properties one hand-off saves.
  */
 public record PoolConfig(long idleMillis, int cleanThreshold, int warnSlotsPerSandbox,
-                         int warnSlotsPerNode, int batchRows, int maxBatchRows)
+                         int warnSlotsPerNode, int batchRows, int maxBatchRows, int maxHomes,
+                         int maxHomesPerNode, long handOffMillis, int handOffEntries)
 {
+   public PoolConfig(long idleMillis, int cleanThreshold, int warnSlotsPerSandbox,
+                     int warnSlotsPerNode, int batchRows, int maxBatchRows)
+   {
+      this(idleMillis, cleanThreshold, warnSlotsPerSandbox, warnSlotsPerNode, batchRows,
+           maxBatchRows, DEFAULT_MAX_HOMES, DEFAULT_MAX_HOMES_PER_NODE,
+           DEFAULT_HAND_OFF_MILLIS, DEFAULT_HAND_OFF_ENTRIES);
+   }
+
+   public static final int DEFAULT_MAX_HOMES = 4;
+   public static final int DEFAULT_MAX_HOMES_PER_NODE = 128;
+   public static final long DEFAULT_HAND_OFF_MILLIS = 5000L;
+   public static final int DEFAULT_HAND_OFF_ENTRIES = 200_000;
+
    public static final String ENABLED = "script.ws.contextPool";
    public static final String IDLE_MILLIS = "script.ws.contextPool.idleMillis";
    public static final String CLEAN_THRESHOLD = "script.ws.contextPool.cleanThreshold";
@@ -52,6 +76,10 @@ public record PoolConfig(long idleMillis, int cleanThreshold, int warnSlotsPerSa
    public static final String WARN_SLOTS_PER_NODE = "script.ws.contextPool.warnSlotsPerNode";
    public static final String BATCH_ROWS = "script.ws.contextPool.batchRows";
    public static final String MAX_BATCH_ROWS = "script.ws.contextPool.maxBatchRows";
+   public static final String MAX_HOMES = "script.ws.contextPool.maxHomes";
+   public static final String MAX_HOMES_PER_NODE = "script.ws.contextPool.maxHomesPerNode";
+   public static final String HAND_OFF_MILLIS = "script.ws.contextPool.handOffMillis";
+   public static final String HAND_OFF_ENTRIES = "script.ws.contextPool.handOffEntries";
 
    /**
     * A claim that leaves more configurable foreign globals than this closes its context
@@ -95,7 +123,7 @@ public record PoolConfig(long idleMillis, int cleanThreshold, int warnSlotsPerSa
          else if(OFF_LOGGED.compareAndSet(false, true)) {
             LOG.info("{}=false: the worksheet script context pool is off, so the engine-lock " +
                         "hangs of Bug #77016 can occur; see the release note (Turning it off) and " +
-                        "pair it with stall.watchdog.mode=fail.", ENABLED);
+                        "keep stall.watchdog.mode=fail (the default).", ENABLED);
          }
 
          return false;
@@ -127,7 +155,11 @@ public record PoolConfig(long idleMillis, int cleanThreshold, int warnSlotsPerSa
          (int) longProperty(WARN_SLOTS_PER_SANDBOX, def.warnSlotsPerSandbox()),
          (int) longProperty(WARN_SLOTS_PER_NODE, def.warnSlotsPerNode()),
          batchRows,
-         Math.max(batchRows, (int) longProperty(MAX_BATCH_ROWS, def.maxBatchRows())));
+         Math.max(batchRows, (int) longProperty(MAX_BATCH_ROWS, def.maxBatchRows())),
+         (int) Math.max(0, longProperty(MAX_HOMES, def.maxHomes())),
+         (int) Math.max(0, longProperty(MAX_HOMES_PER_NODE, def.maxHomesPerNode())),
+         Math.max(1, longProperty(HAND_OFF_MILLIS, def.handOffMillis())),
+         (int) Math.max(1, longProperty(HAND_OFF_ENTRIES, def.handOffEntries())));
    }
 
    private static long longProperty(String name, long def) {

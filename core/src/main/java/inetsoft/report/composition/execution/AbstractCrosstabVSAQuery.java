@@ -85,7 +85,7 @@ public abstract class AbstractCrosstabVSAQuery extends CubeVSAQuery
       for_bindable = true;
 
       try {
-         return getTableAssembly(false, false, null);
+         return getTableAssembly(false, false, null, null);
       }
       catch(Exception ex) {
          LOG.warn("create crosstab table assembly error", ex);
@@ -125,10 +125,13 @@ public abstract class AbstractCrosstabVSAQuery extends CubeVSAQuery
     * @param analysis true if for analysis, false for runtime.
     * @param post true if aggregation is done in post processing.
     * @param sources the pre-gathered inputs that execute other assemblies, or null.
+    * @param snapshot the crosstab info the caller holds the monitor of, or null for the live
+    *                 one.
     * @return the created base plain table assembly.
     */
    private TableAssembly createBaseTableAssembly(boolean analysis, boolean post,
-                                                 BaseTableSources sources)
+                                                 BaseTableSources sources,
+                                                 VSCrosstabInfo snapshot)
       throws Exception
    {
       CrosstabDataVSAssembly cassembly = (CrosstabDataVSAssembly) getAssembly();
@@ -169,13 +172,17 @@ public abstract class AbstractCrosstabVSAQuery extends CubeVSAQuery
          }
       }
 
-      sinfo = (SourceInfo) ((DataVSAssembly) cassembly).getSourceInfo().clone();
-      VSCrosstabInfo cinfo = cassembly.getVSCrosstabInfo();
+      sinfoOwner = ((DataVSAssembly) cassembly).getSourceInfo();
+      sinfo = sinfoOwner == null ? null : (SourceInfo) sinfoOwner.clone();
+      VSCrosstabInfo cinfo = snapshot != null ? snapshot : cassembly.getVSCrosstabInfo();
       ColumnSelection columns = table.getColumnSelection(false);
 
       if(cinfo == null) {
          return null;
       }
+
+      // the object whose runtime refs this rewrites, which dispose() restores (77156)
+      preparedInfo = cinfo;
 
       XCube cube = cassembly.getXCube();
       DataRef[] aggrs2 = cinfo.getRuntimeAggregates();
@@ -343,74 +350,130 @@ public abstract class AbstractCrosstabVSAQuery extends CubeVSAQuery
       try {
          aggrs = null;
          sinfo = null;
+         sinfoOwner = null;
+         preparedInfo = null;
 
          CrosstabDataVSAssembly cassembly = (CrosstabDataVSAssembly) getAssembly();
-         SourceInfo source = ((DataVSAssembly) cassembly).getSourceInfo();
-
-         if(source == null || source.isEmpty()) {
-            return null;
-         }
-
-         ConditionList details = !isDetail() ? null :
-            ((CrosstabVSAssembly) cassembly).getDetailConditionList();
-         VSCrosstabInfo cinfo = cassembly.getVSCrosstabInfo();
-
-         if(cinfo == null) {
-            return null;
-         }
-
-         VSCrosstabInfo oldInfo = (VSCrosstabInfo) cinfo.clone();
-         CrosstabTree ctree = cassembly.getCrosstabTree();
-         boolean postDrill = ctree != null && !isCubeDrill() && ctree.isDrilled();
-
-         // don't apply max rows or the result could shift when a level
-         // is expanded
-         if(ctree != null && ctree.isDrilled() && isCubeDrill()) {
-            box.getVariableTable().put(XQuery.HINT_IGNORE_MAX_ROWS, "true");
-         }
-
+         AggregateInfo groupInfo0 = groupInfo;
+         ConditionList details;
+         VSCrosstabInfo cinfo;
+         VSCrosstabInfo oldInfo;
+         CrosstabTree ctree;
+         boolean postDrill;
          TableLens base;
          TableAssembly baseTable;
          DataRef[] rheaders;
          DataRef[] cheaders;
          DataRef[] aggregates;
 
-         // Keep the data fetch out of the cinfo monitor. getTableLens() releases and
-         // re-acquires the sandbox lock around the asset cache fetch (76233), so holding
-         // monitor(cinfo) across it inverted the order every write path takes -- sandbox
-         // lock first, then the crosstab info -- and deadlocked the whole viewsheet against
-         // ViewsheetSandbox.updateAssembly() -> VSCrosstabInfo.update(). (76549)
-         //
-         // The monitor still covers the prepare phase, which is what rewrites the runtime
-         // refs and what the reads below must be consistent with. Prepare must not execute
-         // another assembly: ViewsheetSandbox.doExecuteData() releases the sandbox lock and
-         // competes for the write lock again, so the counterpart can be any writer that
-         // subsequently needs this monitor -- not only a second crosstab query.
-         // Prepare used to do that in two places, and both are now gathered here, before
-         // the monitor, and handed to prepare, which only builds the table from them (77030):
-         //   - a crosstab bound to another VS assembly (SourceInfo.VS_ASSEMBLY) fetched that
-         //     assembly's data in VSAQuery.createAssemblyTable() -> box.getTableData();
-         //   - for any source type, setSharedCondition(box.getBrushingChart(..), ..) ran
-         //     box.updateAssembly(chart), whose refreshMetaData() can fetch the same source
-         //     on a cache miss, and whose dynamic values take the script engine lock.
-         // Do not rely on the data cache instead: a concurrent reset can clear it in between.
-         //
-         // Narrowing does widen one race: a concurrent prepare for the same crosstab can now
-         // run while this thread's query is in flight, and prepare mutates shared state (the
-         // bound table it registers in box.getWorksheet() under a deterministic name, and the
-         // VSDimensionRefs it re-ranks). ChartVSAQuery handles the equivalent exposure by
-         // querying a private table clone; the crosstab path does not do that yet.
-         // getTableAssembly() builds nothing for a cube source
-         BaseTableSources sources = source.getType() == SourceInfo.CUBE ?
-            null : prepareBaseTableSources();
+         // A binding edit replaces the source info and the crosstab info without the sandbox
+         // lock (VSAssemblyInfoHandler.apply -> setVSAssemblyInfo), so the read lock held here
+         // does not freeze the binding. Each attempt takes one snapshot of both, gathers and
+         // prepares from it, and redoes the attempt if the binding changed before prepare
+         // finished, so the prepared table is never built from one binding for another, and
+         // prepare never has to execute a source it was not gathered for. (77156)
+         for(int attempt = 1; ; attempt++) {
+            SourceInfo liveSource = ((DataVSAssembly) cassembly).getSourceInfo();
 
-         synchronized(cinfo) {
-            baseTable = prepareAssetBaseTable(postDrill, sources);
+            if(liveSource == null || liveSource.isEmpty()) {
+               return null;
+            }
 
-            // read after prepare -- getTableAssembly() rewrites these
-            aggregates = cinfo.getRuntimeAggregates();
-            rheaders = cinfo.getRuntimeRowHeaders();
-            cheaders = cinfo.getRuntimeColHeaders();
+            SourceInfo source = (SourceInfo) liveSource.clone();
+            details = !isDetail() ? null :
+               ((CrosstabVSAssembly) cassembly).getDetailConditionList();
+            cinfo = cassembly.getVSCrosstabInfo();
+
+            if(cinfo == null) {
+               return null;
+            }
+
+            oldInfo = (VSCrosstabInfo) cinfo.clone();
+            ctree = cassembly.getCrosstabTree();
+            postDrill = ctree != null && !isCubeDrill() && ctree.isDrilled();
+
+            // don't apply max rows or the result could shift when a level
+            // is expanded
+            if(ctree != null && ctree.isDrilled() && isCubeDrill()) {
+               box.getVariableTable().put(XQuery.HINT_IGNORE_MAX_ROWS, "true");
+            }
+
+            // Keep the data fetch out of the cinfo monitor. getTableLens() releases and
+            // re-acquires the sandbox lock around the asset cache fetch (76233), so holding
+            // monitor(cinfo) across it inverted the order every write path takes -- sandbox
+            // lock first, then the crosstab info -- and deadlocked the whole viewsheet against
+            // ViewsheetSandbox.updateAssembly() -> VSCrosstabInfo.update(). (76549)
+            //
+            // The monitor still covers the prepare phase, which is what rewrites the runtime
+            // refs and what the reads below must be consistent with. Prepare must not execute
+            // another assembly: ViewsheetSandbox.doExecuteData() releases the sandbox lock and
+            // competes for the write lock again, so the counterpart can be any writer that
+            // subsequently needs this monitor -- not only a second crosstab query.
+            // Prepare used to do that in two places, and both are now gathered here, before
+            // the monitor, and handed to prepare, which only builds the table from them (77030):
+            //   - a crosstab bound to another VS assembly (SourceInfo.VS_ASSEMBLY) fetched that
+            //     assembly's data in VSAQuery.createAssemblyTable() -> box.getTableData();
+            //   - for any source type, setSharedCondition(box.getBrushingChart(..), ..) ran
+            //     box.updateAssembly(chart), whose refreshMetaData() can fetch the same source
+            //     on a cache miss, and whose dynamic values take the script engine lock.
+            // Do not rely on the data cache instead: a concurrent reset can clear it in between.
+            //
+            // Narrowing does widen one race: a concurrent prepare for the same crosstab can now
+            // run while this thread's query is in flight, and prepare mutates shared state (the
+            // bound table it registers in box.getWorksheet() under a deterministic name, and the
+            // VSDimensionRefs it re-ranks). ChartVSAQuery handles the equivalent exposure by
+            // querying a private table clone; the crosstab path does not do that yet.
+            //
+            // The sources are gathered for the snapshot and always handed to prepare, even for
+            // a cube source (getTableAssembly() builds nothing for it), so prepare never falls
+            // back to gathering them itself inside the monitor. (77156)
+            BaseTableSources sources = source.getType() == SourceInfo.CUBE ?
+               new BaseTableSources(source, null, null) : prepareBaseTableSources(source);
+            boolean last = attempt >= MAX_PREPARE_ATTEMPTS;
+
+            synchronized(cinfo) {
+               if(last || !isBindingChanged(cassembly, source, cinfo)) {
+                  baseTable = prepareAssetBaseTable(postDrill, sources, cinfo);
+
+                  // read after prepare -- getTableAssembly() rewrites these
+                  aggregates = cinfo.getRuntimeAggregates();
+                  rheaders = cinfo.getRuntimeRowHeaders();
+                  cheaders = cinfo.getRuntimeColHeaders();
+
+                  if(!isBindingChanged(cassembly, source, cinfo)) {
+                     break;
+                  }
+
+                  if(last) {
+                     // out of attempts, the binding kept changing: answer from this
+                     // snapshot, which is consistent in itself; the edit re-executes anyway.
+                     // A few peripheral reads in prepare (isCubeSource() and the AOA check
+                     // in pushDownAggregate(), getXCube(), the cube hierarchy, the detail
+                     // conditions' group values) still see the live binding, so on this path
+                     // they can follow the newer edit; they execute nothing.
+                     LOG.debug("Crosstab {} binding kept changing during prepare, answering " +
+                        "from the snapshot of attempt {}/{}", vname, attempt,
+                        MAX_PREPARE_ATTEMPTS);
+                     break;
+                  }
+
+                  LOG.debug("Crosstab {} binding changed during prepare, redoing attempt {}/{}",
+                     vname, attempt, MAX_PREPARE_ATTEMPTS);
+
+                  // undo this prepare's runtime ref rewrite, cinfo may still be the live one;
+                  // the source info is the edit's, leave it alone
+                  sinfo = null;
+                  dispose();
+                  resetPrepare();
+               }
+               else {
+                  LOG.debug("Crosstab {} binding changed before prepare, redoing attempt {}/{}",
+                     vname, attempt, MAX_PREPARE_ATTEMPTS);
+               }
+            }
+
+            groupInfo = groupInfo0;
+            aggrs = null;
          }
 
          base = executeAssetBaseTable(baseTable, cinfo);
@@ -1181,21 +1244,25 @@ public abstract class AbstractCrosstabVSAQuery extends CubeVSAQuery
     * @param post true if aggregation is post processed.
     * runtime.
     * @param sources the pre-gathered inputs that execute other assemblies, or null.
+    * @param snapshot the crosstab info the caller holds the monitor of, or null for the live
+    *                 one.
     */
    private TableAssembly getTableAssembly(boolean analysis, boolean post,
-                                          BaseTableSources sources)
+                                          BaseTableSources sources, VSCrosstabInfo snapshot)
          throws Exception
    {
       try {
          CrosstabDataVSAssembly cassembly = (CrosstabDataVSAssembly) getAssembly();
-         SourceInfo source = ((DataVSAssembly) cassembly).getSourceInfo();
+         // the snapshot the sources were gathered for, not a re-read (77156)
+         SourceInfo source = sources != null ? sources.sourceInfo() :
+            ((DataVSAssembly) cassembly).getSourceInfo();
 
          if(source == null || source.isEmpty() || source.getType() == SourceInfo.CUBE) {
             return null;
          }
 
-         TableAssembly table = createBaseTableAssembly(analysis, post, sources);
-         VSCrosstabInfo cinfo = cassembly.getVSCrosstabInfo();
+         TableAssembly table = createBaseTableAssembly(analysis, post, sources, snapshot);
+         VSCrosstabInfo cinfo = snapshot != null ? snapshot : cassembly.getVSCrosstabInfo();
 
          if(table != null) {
             ColumnSelection cols = table.getColumnSelection();
@@ -1257,15 +1324,17 @@ public abstract class AbstractCrosstabVSAQuery extends CubeVSAQuery
     *
     * @param post true if the aggregate is done in post processingj
     * @param sources the inputs that execute other assemblies, gathered before entering the
-    *                monitor (77030), or null.
+    *                monitor (77030), for the snapshot of the source info to build from (77156).
+    * @param cinfo the crosstab info whose monitor the caller holds, the snapshot to prepare,
+    *              not a re-read that a concurrent binding edit may have replaced. (77156)
     * @return the prepared base table assembly, or null if there is nothing to execute.
     */
-   private TableAssembly prepareAssetBaseTable(boolean post, BaseTableSources sources)
+   private TableAssembly prepareAssetBaseTable(boolean post, BaseTableSources sources,
+                                               VSCrosstabInfo cinfo)
       throws Exception
    {
       CrosstabDataVSAssembly cassembly = (CrosstabDataVSAssembly) getAssembly();
-      VSCrosstabInfo cinfo = cassembly.getVSCrosstabInfo();
-      TableAssembly table = getTableAssembly(false, post, sources);
+      TableAssembly table = getTableAssembly(false, post, sources, cinfo);
 
       if(table == null || cinfo == null) {
          return null;
@@ -2287,6 +2356,30 @@ public abstract class AbstractCrosstabVSAQuery extends CubeVSAQuery
    }
 
    /**
+    * Check if a binding edit replaced the source info or the crosstab info since the snapshot
+    * an attempt of {@link #getTableLens0()} gathers and prepares from. (77156)
+    */
+   private static boolean isBindingChanged(CrosstabDataVSAssembly cassembly, SourceInfo source,
+                                           VSCrosstabInfo cinfo)
+   {
+      return !source.equals(((DataVSAssembly) cassembly).getSourceInfo()) ||
+         cassembly.getVSCrosstabInfo() != cinfo;
+   }
+
+   /**
+    * Forget what a prepare attempt recorded for {@link #dispose()}, after disposing it, so
+    * the next attempt starts clean. (77156)
+    */
+   private void resetPrepare() {
+      oaggrs = null;
+      sinfo = null;
+      sinfoOwner = null;
+      preparedInfo = null;
+      appended = false;
+      nrheaders = null;
+   }
+
+   /**
     * Dispose the viewsheet query. The temporary worksheet assemblies will be
     * removed, and the stored data will be removed as well in the asset query
     * box.
@@ -2299,13 +2392,17 @@ public abstract class AbstractCrosstabVSAQuery extends CubeVSAQuery
          return;
       }
 
-      VSCrosstabInfo cinfo = cassembly.getVSCrosstabInfo();
+      // restore the crosstab info prepare rewrote, which a concurrent binding edit may have
+      // replaced since (77156)
+      VSCrosstabInfo cinfo = preparedInfo != null ? preparedInfo : cassembly.getVSCrosstabInfo();
 
       if(oaggrs != null) {
          cinfo.setRuntimeAggregates(oaggrs);
       }
 
-      if(sinfo != null) {
+      // only if it is still the source info the clone was taken of: a binding edit replaces
+      // it without the sandbox lock, and restoring the clone would revert that edit (77156)
+      if(sinfo != null && ((DataVSAssembly) cassembly).getSourceInfo() == sinfoOwner) {
          ((DataVSAssembly) cassembly).setSourceInfo(sinfo);
       }
 
@@ -2404,6 +2501,8 @@ public abstract class AbstractCrosstabVSAQuery extends CubeVSAQuery
       this.pushDown = pushDown;
    }
 
+   // attempts of getTableLens0() to prepare from a binding a concurrent edit left unchanged
+   private static final int MAX_PREPARE_ATTEMPTS = 3;
    private static final Logger LOG =
       LoggerFactory.getLogger(AbstractCrosstabVSAQuery.class);
    private boolean appended = false;
@@ -2411,6 +2510,8 @@ public abstract class AbstractCrosstabVSAQuery extends CubeVSAQuery
    private DataRef[] aggrs = null;
    private DataRef[] oaggrs = null;
    private SourceInfo sinfo = null;
+   private SourceInfo sinfoOwner = null; // the source info sinfo is a clone of
+   private VSCrosstabInfo preparedInfo = null; // the crosstab info prepare rewrote
    private AggregateInfo groupInfo = null;
    private List<ColumnRef> aggalias = null;
    private boolean pushDown = false;

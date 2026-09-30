@@ -17,7 +17,7 @@
  */
 import {
    AfterViewInit, ChangeDetectorRef, Component, ElementRef, HostBinding,
-   Input, OnDestroy, OnInit
+   Input, OnChanges, OnDestroy, OnInit, SimpleChanges
 } from "@angular/core";
 import { Subscription } from "rxjs";
 import { AssetUtil } from "../../../../../binding/util/asset-util";
@@ -33,7 +33,7 @@ import { JoinThumbnailService } from "./join-thumbnail.service";
     styleUrls: ["edit-join-table-column.component.scss"],
     standalone: true
 })
-export class EditJoinTableColumnComponent implements OnInit, AfterViewInit, OnDestroy {
+export class EditJoinTableColumnComponent implements OnChanges, OnInit, AfterViewInit, OnDestroy {
    @Input() column: GraphColumnInfo;
    private jsp: JSPlumb.JSPlumbInstance;
    private connSub: Subscription;
@@ -52,7 +52,7 @@ export class EditJoinTableColumnComponent implements OnInit, AfterViewInit, OnDe
             if(column == null) {
                this.compatibility = undefined;
             }
-            else if(column != this.column &&
+            else if(column.id !== this.column.id &&
                column.table === this.column.table)
             {
                this.compatibility = false;
@@ -71,11 +71,25 @@ export class EditJoinTableColumnComponent implements OnInit, AfterViewInit, OnDe
                this.highlighted = undefined;
             }
             else {
-               this.highlighted = columns.indexOf(this.column) !== -1;
+               // Compare by id: after a graph refresh the service may still hold the
+               // previous GraphColumnInfo objects for the same columns.
+               this.highlighted = columns.some((col) => col?.id === this.column?.id);
             }
 
             this.cd.markForCheck();
       });
+   }
+
+   ngOnChanges(changes: SimpleChanges): void {
+      const change = changes.column;
+
+      // The component is reused (tracked by id) when the graph refreshes with new
+      // column objects, so keep the service registration pointing at the current one.
+      if(change && !change.firstChange && this.hostRef.nativeElement.id) {
+         this.thumbnailService.unregisterColumn(change.previousValue,
+            this.hostRef.nativeElement.id);
+         this.thumbnailService.registerColumn(this.column, this.hostRef.nativeElement.id);
+      }
    }
 
    ngOnInit(): void {

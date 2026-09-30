@@ -248,6 +248,17 @@ public class ResourcePermissionService {
       return !SUtil.isMultiTenant() || OrganizationManager.getInstance().isSiteAdmin(principal);
    }
 
+   /**
+    * Determines if the principal may change permission.andCondition. The property decides how
+    * every permission check in the organization is evaluated, so only a site admin or an org
+    * admin may change it, not a user who is only an admin of the saved resource.
+    */
+   private boolean canSetAndCondition(Principal principal) {
+      OrganizationManager orgManager = OrganizationManager.getInstance();
+      return principal != null &&
+         (orgManager.isSiteAdmin(principal) || orgManager.isOrgAdmin(principal));
+   }
+
    @Audited(
       actionName = ActionRecord.ACTION_NAME_EDIT,
       objectType = ActionRecord.OBJECT_TYPE_OBJECTPERMISSION
@@ -362,7 +373,14 @@ public class ResourcePermissionService {
       }
 
       String resourcePath = getPermissionResourcePath(path, resourceType, tableStyleFolder, libManagerProvider, dataSourceRegistry);
-      SreeEnv.setProperty("permission.andCondition", String.valueOf(tableModel.requiresBoth()), true);
+
+      // permission.andCondition applies to the whole organization, keep the current value when
+      // the caller is not a site or org admin. SreeEnv.save() also persists the
+      // security.*.everyone writes above, so it runs either way.
+      if(canSetAndCondition(principal)) {
+         SreeEnv.setProperty("permission.andCondition", String.valueOf(tableModel.requiresBoth()), true);
+      }
+
       SreeEnv.save();
 
       Permission permission = provider.getPermission(resourceType, resourcePath);

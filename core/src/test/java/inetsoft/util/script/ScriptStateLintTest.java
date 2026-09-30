@@ -443,17 +443,25 @@ class ScriptStateLintTest {
     */
    static Stream<Arguments> objectValues() {
       return Stream.of(
-         Arguments.of("var a = a || []; a.push(1); a.length", true),
-         Arguments.of("var o = o || {}; o.n = 1; o", true),
+         // arrays and plain objects are kept across pooled contexts (B1 residual part 2)
+         Arguments.of("var a = a || []; a.push(1); a.length", false),
+         Arguments.of("var o = o || {}; o.n = 1; o", false),
+         // the same made with new (review round 2 L5)
+         Arguments.of("var na = na || new Array(); na.push(1); na.length", false),
+         Arguments.of("var no = no || new Object(); no.n = 1; no", false),
+         Arguments.of("var nx = nx || new Array.Foo(); nx", true),
          // a Date is kept across pooled batches (Testing #77123, B1 residual)
          Arguments.of("var d; if(!d) { d = new Date(); } d", false),
          Arguments.of("var d2 = d2 || new Date(0); d2.setTime(d2.getTime() + 1); d2", false),
          Arguments.of("var m = m || new Map(); m.set(1, 1); m", true),
-         Arguments.of("var e = e || [new Date(0)]; e", true),
+         Arguments.of("var e = e || [new Date(0)]; e", false),
+         Arguments.of("var k = k || new (class { })(); k", true),
+         Arguments.of("var n = n || new Intl.NumberFormat(); n", true),
          Arguments.of("var q = q || new Date.Foo(); q", true),
          Arguments.of("var f = f || function(x) { return x; }; f(1)", true),
          Arguments.of("var g = g || (x => x); g(1)", true),
-         Arguments.of("var c; c ||= []; c", true),
+         Arguments.of("var c; c ||= []; c", false),
+         Arguments.of("var h; h ||= function() {}; h", true),
          Arguments.of("var acc = (acc || 0) + field['x']; acc", false),
          Arguments.of("var s = (s || '') + field['a'][0]; s", false),
          Arguments.of("var m = Math.max(m || 0, field['x']); m", false),
@@ -479,7 +487,7 @@ class ScriptStateLintTest {
    void ownedVarsOfAColumn() {
       DefaultTableLens tbl = new DefaultTableLens(new Object[][] { { "x" }, { 1 } });
       String acc = "var acc = (acc || 0) + field['x']; acc";
-      String list = "var list = list || []; list.push(field['x']); list.length";
+      String list = "var list = list || new Map(); list.set(field['x'], 1); list.size";
 
       ScriptStateLint.checkColumn(acc, new Object(), tbl, 1, "C", "T", null, Set.of("acc"), false);
       ScriptStateLint.checkColumn(acc, new Object(), tbl, 1, "C", "T", null, Set.of("acc"), true);
@@ -491,9 +499,10 @@ class ScriptStateLintTest {
                                   true);
       assertEquals(1, warnings().size());
       String msg = warnings().get(0).getFormattedMessage();
-      assertTrue(msg.contains("assigns it an array, object or function"), msg);
-      assertTrue(msg.contains("kept only within one batch"), msg);
-      assertTrue(msg.contains("A number, string, boolean or Date is always kept"), msg);
+      assertTrue(msg.contains("assigns it a function or an object made with new"), msg);
+      assertTrue(msg.contains("kept only while the table stays on one script context"), msg);
+      assertTrue(msg.contains("A number, string, boolean, Date, array or plain object is " +
+                              "always kept"), msg);
       assertFalse(msg.contains("not reset between tables"), msg);
 
       String notOwned = "var k = (k || 0) + 1; k";

@@ -18,6 +18,7 @@
 package inetsoft.web.admin.security.action;
 
 import inetsoft.sree.security.*;
+import inetsoft.uql.util.Identity;
 import inetsoft.util.*;
 import inetsoft.web.admin.content.repository.ResourcePermissionService;
 import inetsoft.web.admin.security.ResourcePermissionModel;
@@ -134,6 +135,24 @@ public class ActionPermissionController {
             ":" + path + " by user " + principal);
       }
 
+      OrganizationManager orgManager = OrganizationManager.getInstance();
+
+      // Bug #77362, a caller who is neither a site admin nor an org admin (e.g. a user who only
+      // holds ACCESS on settings/security/actions) may only hand out what they already hold
+      if(!orgManager.isSiteAdmin(principal) && !orgManager.isOrgAdmin(principal)) {
+         // the same stored permission setResourcePermissions() starts from
+         Permission stored = securityEngine.getSecurityProvider().getPermission(type, path);
+         permissions = keepUnadministeredGrants(permissions, node, stored);
+
+         if(isGrantOrUseParentChange(permissions, stored, currOrgID) &&
+            !holdsNodeActions(node, principal))
+         {
+            throw new java.lang.SecurityException(
+               "Unauthorized grant of action permission " + typeName + ":" + path +
+               " not held by user " + principal);
+         }
+      }
+
       permissionService
          .setResourcePermissions(path, type, getActionObjectName(typeName, path), permissions, principal);
       return getPermissions(typeName, path, isGrant, principal);
@@ -175,6 +194,84 @@ public class ActionPermissionController {
 
       throw new java.lang.SecurityException(
          "Unauthorized access to action permission " + type + ":" + path + " by user " + principal);
+   }
+
+   /**
+    * A model without permissions makes setResourcePermissions() clear the grants of every
+    * identity in the org. Replaces it with an empty permission list over the node's actions, so
+    * that only the grants of identities the caller administers are cleared, the same as a save of
+    * an emptied table.
+    */
+   private ResourcePermissionModel keepUnadministeredGrants(ResourcePermissionModel permissions,
+                                                            ActionTreeNode node, Permission stored)
+   {
+      if(permissions.permissions() != null || stored == null) {
+         return permissions;
+      }
+
+      return ResourcePermissionModel.builder()
+         .from(permissions)
+         .permissions(Collections.emptyList())
+         .displayActions(node.actions())
+         .build();
+   }
+
+   /**
+    * Checks if the save would grant an action to an identity that does not hold it in the stored
+    * permission, or would switch "use parent permissions" on or off. Removing grants and saving
+    * the stored state unchanged are not changes.
+    */
+   private boolean isGrantOrUseParentChange(ResourcePermissionModel permissions, Permission stored,
+                                            String orgID)
+   {
+      if(permissions.permissions() == null) {
+         // nothing is stored, so setResourcePermissions() writes nothing
+         return false;
+      }
+
+      boolean storedEdited = stored != null && stored.hasOrgEditedGrantAll(orgID);
+
+      if(storedEdited != permissions.hasOrgEdited()) {
+         return true;
+      }
+
+      for(ResourcePermissionTableModel row : permissions.permissions()) {
+         IdentityID identity = row.identityID();
+
+         // global role rows are only written by a site admin
+         if(identity == null || (row.type() == Identity.Type.ROLE && identity.orgID == null)) {
+            continue;
+         }
+
+         for(ResourceAction action : row.actions()) {
+            if(!permissions.displayActions().contains(action)) {
+               continue;
+            }
+
+            boolean granted = stored != null && stored
+               .getOrgScopedGrants(action, row.type().code(), orgID).stream()
+               .anyMatch(id -> identity.name.equals(id.name) &&
+                  (row.type() != Identity.Type.ROLE || id.orgID != null));
+
+            if(!granted) {
+               return true;
+            }
+         }
+      }
+
+      return false;
+   }
+
+   private boolean holdsNodeActions(ActionTreeNode node, Principal principal)
+      throws inetsoft.sree.security.SecurityException
+   {
+      for(ResourceAction action : node.actions()) {
+         if(!securityEngine.checkPermission(principal, node.type(), node.resource(), action)) {
+            return false;
+         }
+      }
+
+      return true;
    }
 
    private String getActionObjectName(String typeName, String path) {

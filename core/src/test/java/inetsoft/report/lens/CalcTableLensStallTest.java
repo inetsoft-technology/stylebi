@@ -57,7 +57,8 @@ public class CalcTableLensStallTest {
    @BeforeEach
    public void setUp() {
       resetGlobalStallState();
-      StallPolicy.setOverride(new StallPolicy(StallPolicy.Mode.FAIL, 1000, 200, dumpDir));
+      StallPolicy.setOverride(new StallPolicy(StallPolicy.Mode.FAIL, 1000, 200, dumpDir,
+                                              StallPolicy.DEFAULT_MAX_DUMPS, true));
       pool = readerPool();
    }
 
@@ -182,7 +183,8 @@ public class CalcTableLensStallTest {
     */
    @Test
    public void alertModeNamedCellReferenceWaitsAndCompletes() throws Exception {
-      StallPolicy.setOverride(new StallPolicy(StallPolicy.Mode.ALERT, 1000, 200, dumpDir));
+      StallPolicy.setOverride(new StallPolicy(StallPolicy.Mode.ALERT, 1000, 200, dumpDir,
+                                              StallPolicy.DEFAULT_MAX_DUMPS, false));
       gated = new GatedTable(30);
       RuntimeCalcTableLens runtime = referencingCalcTable(summary(gated));
       int dumps = WaitRegistry.global().getDumper().getDumpCount();

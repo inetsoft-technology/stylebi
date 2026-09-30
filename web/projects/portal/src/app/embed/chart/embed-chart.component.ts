@@ -160,6 +160,7 @@ export class EmbedChartComponent extends CommandProcessor implements OnInit, OnD
    private subscriptions: Subscription = new Subscription();
    private _runtimeId: string;
    private serverUpdateIntervalId: any;
+   private openTimer: ReturnType<typeof setTimeout> | null = null;
    private updateEnabled: boolean;
    private touchInterval: number;
    variableValuesFunction: (objName: string) => string[] =
@@ -323,6 +324,7 @@ export class EmbedChartComponent extends CommandProcessor implements OnInit, OnD
    }
 
    ngOnDestroy() {
+      this.cancelPendingOpen();
       this.dialogService.ngOnDestroy();
       this.clearServerUpdateInterval();
 
@@ -510,7 +512,12 @@ export class EmbedChartComponent extends CommandProcessor implements OnInit, OnD
       }
       else if(this.assetId) {
          this.subscriptions.add(this.viewsheetClient.whenConnected()
-            .subscribe(() => setTimeout(() => this.openViewsheet0(), 0)));
+            .subscribe(() => {
+               this.openTimer = setTimeout(() => {
+                  this.openTimer = null;
+                  this.openViewsheet0();
+               }, 0);
+            }));
          this.subscriptions.add(this.viewsheetClient.connectionError().subscribe((error) => {
             this.timeoutError = !!error;
             // Not a command, so not covered by the CD_TICK_COMMAND_TYPES check above (bug
@@ -566,18 +573,31 @@ export class EmbedChartComponent extends CommandProcessor implements OnInit, OnD
          }
       }
 
-      this.viewsheetClient.sendEvent(OPEN_VS_URI, event);
+      this.viewsheetClient.sendOpenEvent(OPEN_VS_URI, event);
+   }
+
+   /**
+    * Bug #77292: an open scheduled but not sent yet must never be sent once the element is
+    * removed, it would open a viewsheet that nothing closes.
+    */
+   private cancelPendingOpen(): void {
+      if(this.openTimer != null) {
+         clearTimeout(this.openTimer);
+         this.openTimer = null;
+      }
    }
 
    private beforeDestroy(): void {
+      this.cancelPendingOpen();
       this.closeViewsheetOnServer();
    }
 
    /**
-    * Close the viewsheet on the server side.
+    * Close the viewsheet on the server side. If the element is removed while the open is in
+    * flight, the close is deferred until the runtime id arrives (bug #77292).
     */
    private closeViewsheetOnServer(): void {
-      this.viewsheetClient.sendEvent(CLOSE_VIEWSHEET_SOCKET_URI);
+      this.viewsheetClient.closeWhenRuntimeIdKnown(CLOSE_VIEWSHEET_SOCKET_URI);
    }
 
    private updateVSInfo(linkUri: string = null) {

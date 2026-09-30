@@ -98,33 +98,43 @@ public class VSCheckFormDataService {
             return false;
          }
 
-         Assembly[] assemblies = viewsheet.getAssemblies();
-
-         int added = 0;
-         int changed = 0;
-         int deleted = 0;
-
-         // Go through each table,
-         for(int i = 0; i < assemblies.length; i++) {
-            String assemblyName = assemblies[i].getAbsoluteName();
-            FormTableLens lens = box.get().getFormTableLens(assemblyName);
-
-            // could be cancelled
-            if(lens != null) {
-               // and accumulate the writeback edits which are pending,
-               added += lens.rows(FormTableRow.ADDED).length;
-               changed += lens.rows(FormTableRow.CHANGED).length;
-               deleted += lens.rows(FormTableRow.DELETED).length;
-            }
-         }
-
-         return added != 0 || changed != 0 || deleted != 0;
+         return hasPendingFormEdits(viewsheet, box.get());
       }
       catch(ExpiredSheetException ex) {
          return false;
       }
    }
 
+   /**
+    * Check if any form table in the viewsheet has edits (added, changed or deleted rows)
+    * that have not been submitted or written back yet.
+    */
+   static boolean hasPendingFormEdits(Viewsheet viewsheet, ViewsheetSandbox box)
+      throws Exception
+   {
+      // include the form tables in embedded viewsheets
+      Assembly[] assemblies = viewsheet.getAssemblies(true);
+
+      int added = 0;
+      int changed = 0;
+      int deleted = 0;
+
+      // Go through each table,
+      for(int i = 0; i < assemblies.length; i++) {
+         String assemblyName = assemblies[i].getAbsoluteName();
+         FormTableLens lens = box.getFormTableLens(assemblyName);
+
+         // could be cancelled
+         if(lens != null) {
+            // and accumulate the writeback edits which are pending,
+            added += lens.rows(FormTableRow.ADDED).length;
+            changed += lens.rows(FormTableRow.CHANGED).length;
+            deleted += lens.rows(FormTableRow.DELETED).length;
+         }
+      }
+
+      return added != 0 || changed != 0 || deleted != 0;
+   }
 
    private ViewsheetService viewsheetService;
 }

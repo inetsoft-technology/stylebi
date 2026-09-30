@@ -103,25 +103,7 @@ public class EarlyLoadedProperties {
       }
 
       try {
-         Map<String, String> defaults = new HashMap<>();
-
-         for(String key : defaultProperties.stringPropertyNames()) {
-            defaults.put(key.toLowerCase(), key);
-         }
-
-         for(Map.Entry<String, String> e : System.getenv().entrySet()) {
-            String key = e.getKey().toLowerCase();
-
-            if(key.startsWith("inetsoft_") &&
-               !key.equals("inetsoft_master_password") &&
-               !key.equals("inetsoft_master_salt") &&
-               !key.equals("inetsoft_admin_password"))
-            {
-               String name = key.substring(9).replace('_', '.');
-               name = defaults.getOrDefault(name, name);
-               base.setProperty(name, e.getValue());
-            }
-         }
+         base.putAll(mapEnvironment(System.getenv(), defaultProperties));
       }
       catch(Exception ignore) {
       }
@@ -139,6 +121,72 @@ public class EarlyLoadedProperties {
       }
 
       return new DefaultProperties(base, defaultProperties);
+   }
+
+   /**
+    * Gets the value of a property supplied by an {@code INETSOFT_*} environment variable, mapped
+    * to a property name the same way the early-loaded properties are built. Unlike
+    * {@link #getProperty(String)}, this never returns a value loaded from the key-value storage.
+    * The environment is read once, since it cannot change while the JVM runs (Bug #77323).
+    *
+    * @param name the property name, with the case rules of {@link PropertiesEngine} applied.
+    *
+    * @return the property value, or {@code null} if no environment variable supplies it.
+    */
+   public static String getEnvironmentProperty(String name) {
+      return name == null ? null : EnvironmentHolder.PROPERTIES.get(name);
+   }
+
+   /**
+    * Maps the {@code INETSOFT_*} environment variables to property names: the name is
+    * lowercased, the {@code inetsoft_} prefix is removed, underscores become dots, and the name
+    * of a matching built-in default is used. The master password, master salt and admin password
+    * variables are skipped.
+    *
+    * @param env               the environment variables.
+    * @param defaultProperties the built-in default properties.
+    *
+    * @return the property values keyed by property name.
+    */
+   static Map<String, String> mapEnvironment(Map<String, String> env,
+                                             Properties defaultProperties)
+   {
+      Map<String, String> defaults = new HashMap<>();
+
+      for(String key : defaultProperties.stringPropertyNames()) {
+         defaults.put(key.toLowerCase(), key);
+      }
+
+      Map<String, String> properties = new LinkedHashMap<>();
+
+      for(Map.Entry<String, String> e : env.entrySet()) {
+         String key = e.getKey().toLowerCase();
+
+         if(key.startsWith("inetsoft_") &&
+            !key.equals("inetsoft_master_password") &&
+            !key.equals("inetsoft_master_salt") &&
+            !key.equals("inetsoft_admin_password"))
+         {
+            String name = key.substring(9).replace('_', '.');
+            name = defaults.getOrDefault(name, name);
+            properties.put(name, e.getValue());
+         }
+      }
+
+      return properties;
+   }
+
+   private static final class EnvironmentHolder {
+      private static final Map<String, String> PROPERTIES = loadEnvironment();
+
+      private static Map<String, String> loadEnvironment() {
+         try {
+            return Map.copyOf(mapEnvironment(System.getenv(), loadDefaults()));
+         }
+         catch(Exception ignore) {
+            return Map.of();
+         }
+      }
    }
 
    private static Properties loadDefaults() {

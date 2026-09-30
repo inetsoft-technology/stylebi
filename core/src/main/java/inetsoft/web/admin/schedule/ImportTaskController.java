@@ -143,6 +143,16 @@ public class ImportTaskController {
       session.removeAttribute(INFO_ATTR);
       List<TimeRange> timeRanges = (List<TimeRange>) session.getAttribute(TIME_RANGES_ATTR);
       session.removeAttribute(TIME_RANGES_ATTR);
+
+      // Bug #77360, no uploaded task file in the session (never uploaded, or already imported)
+      if(tasklist == null) {
+         LOG.warn("No uploaded task file found in the session, the tasks are not imported");
+         return ImportTaskResponse.builder()
+            .failedTasks(selectedTasks == null ? new ArrayList<>() : new ArrayList<>(selectedTasks))
+            .failed(true)
+            .build();
+      }
+
       applyTimeRanges(timeRanges, principal);
 
       for(int i=0; i < tasklist.size(); i++) {
@@ -179,12 +189,14 @@ public class ImportTaskController {
          if(selectedTasks.contains(taskId) && (!taskExists || overwriting)) {
             updateTaskInfo(task, linkURI);
             scheduleManager.setScheduleTask(taskId, task, principal);
-         }
 
-         if(path != null &&
-            scheduleTaskFolderService.checkFolderExists(path))
-         {
-            moveTask(task, path, principal);
+            // Bug #77350, only a task imported here is moved from the root folder, where
+            // setScheduleTask put it, to its folder in the xml
+            if(path != null &&
+               scheduleTaskFolderService.checkFolderExists(path))
+            {
+               moveTask(task, path, principal);
+            }
          }
       }
 
@@ -281,15 +293,20 @@ public class ImportTaskController {
    }
 
    private void moveTask(ScheduleTask task, String path, Principal principal) throws Exception {
+      String taskId = task.getTaskId();
+      // Bug #77350, internal tasks are never moved into a folder, and the removable flag of
+      // the xml isn't trusted for them
+      boolean internal = task.getType() == ScheduleTask.Type.INTERNAL_TASK ||
+         ScheduleManager.isInternalTask(taskId);
       ScheduleTaskModel model = ScheduleTaskModel.builder()
-         .name(task.getTaskId())
+         .name(taskId)
          .owner(task.getOwner())
          .ownerAlias(SUtil.getUserAlias(task.getOwner()))
          .path("/")
          .label("")
          .description("")
          .editable(true)
-         .removable(true)
+         .removable(task.isRemovable() && !internal)
          .enabled(true)
          .schedule("")
          .build();

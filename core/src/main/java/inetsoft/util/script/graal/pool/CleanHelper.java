@@ -22,6 +22,8 @@ import org.graalvm.polyglot.Source;
 import org.graalvm.polyglot.Value;
 
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * The guest-side clean helper of a pooled worksheet context (bug #76960, spec §4.2 step 3,
@@ -66,10 +68,11 @@ final class CleanHelper {
       }
    }
 
-   private CleanHelper(Value clean, Value expect, Value forget) {
+   private CleanHelper(Value clean, Value expect, Value forget, Value verify) {
       this.clean = clean;
       this.expect = expect;
       this.forget = forget;
+      this.verify = verify;
    }
 
    /**
@@ -82,11 +85,15 @@ final class CleanHelper {
       Value handles = context.eval(
          Source.newBuilder("js", SOURCE, "<ws-clean>").buildLiteral());
       return new CleanHelper(handles.getMember("clean"), handles.getMember("expect"),
-                             handles.getMember("forget"));
+                             handles.getMember("forget"), handles.getMember("verify"));
    }
 
-   Result run() {
-      Value r = clean.execute();
+   /**
+    * @param maxDeletes the most configurable foreign keys this clean deletes; above it, it
+    *                   deletes none and reports {@link Result#tooMany()}.
+    */
+   Result run(int maxDeletes) {
+      Value r = clean.execute(maxDeletes);
       return new Result(r.getMember("leftovers").asInt(), r.getMember("failed").asBoolean(),
                         r.getMember("restored").asInt(), r.getMember("removed").asInt(),
                         r.getMember("tooMany").asBoolean());
@@ -106,9 +113,29 @@ final class CleanHelper {
       forget.execute(name);
    }
 
+   /**
+    * Compare the global with the expected table after a clean, without changing anything
+    * (the paranoid check, {@link PoolParanoia}). A non-configurable foreign key holding
+    * undefined is a leftover the clean left on purpose and is not reported.
+    *
+    * @return the mismatches: {@code extra:k}, {@code missing:k} and {@code changed:k} per key,
+    * plus {@code <prototype>} and {@code <non-extensible>} for the global itself.
+    */
+   List<String> verify() {
+      Value r = verify.execute();
+      List<String> keys = new ArrayList<>((int) r.getArraySize());
+
+      for(long i = 0; i < r.getArraySize(); i++) {
+         keys.add(r.getArrayElement(i).asString());
+      }
+
+      return keys;
+   }
+
    private final Value clean;
    private final Value expect;
    private final Value forget;
+   private final Value verify;
 
    private static final String SOURCE = """
       (function () {
@@ -120,6 +147,7 @@ final class CleanHelper {
          const delProp = Reflect.deleteProperty;
          const setProto = Reflect.setPrototypeOf;
          const getProto = Reflect.getPrototypeOf;
+         const str = String;
          const is = Object.is;
          const isExt = Object.isExtensible;
          const hasOwn = Object.hasOwn;
@@ -128,6 +156,8 @@ final class CleanHelper {
          // non-writable, so this is the prototype of every descriptor gopd returns, for good
          const OP = Object.prototype;
          const MAX_DELETES = %MAX_DELETES%;
+         // the cap of the running clean: MAX_DELETES, or more at a query build's release
+         let maxDeletes = MAX_DELETES;
 
          function copyDesc(d) {
             const o = create(null);
@@ -161,7 +191,9 @@ final class CleanHelper {
 
          const expected = create(null);
          const known = create(null);
-         const expKeys = create(null);
+         // appended in remember() only and read below nexp only: a dense prototype-less array, not a
+         // dictionary keyed by index strings (one string + entry per baseline key per context)
+         const expKeys = arr();
          let nexp = 0;
 
          // The layout: the global's own keys, in ownKeys order, right after the last clean that
@@ -289,7 +321,7 @@ final class CleanHelper {
                }
             }
 
-            if(nforeign > MAX_DELETES) {
+            if(nforeign > maxDeletes) {
                tooMany = true;
             }
             else {
@@ -363,7 +395,8 @@ final class CleanHelper {
             return r;
          }
 
-         function clean() {
+         function clean(max) {
+            maxDeletes = typeof max === 'number' && max >= 0 ? max : MAX_DELETES;
             let extFailed = false;
             try { if(!isExt(G)) extFailed = true; } catch(e) { extFailed = true; }
 
@@ -435,7 +468,7 @@ final class CleanHelper {
                }
             }
 
-            if(nforeign > MAX_DELETES) {
+            if(nforeign > maxDeletes) {
                tooMany = true;
             }
             else {
@@ -476,12 +509,50 @@ final class CleanHelper {
             expected[k] = undefined;
          }
 
+         // Read-only: reports what differs from the expected table, changes nothing.
+         function verify() {
+            const bad = arr();
+            let nb = 0;
+            try { if(!isExt(G)) bad[nb++] = '<non-extensible>'; }
+            catch(ex) { bad[nb++] = '<non-extensible>'; }
+            try { if(getProto(G) !== baseProto) bad[nb++] = '<prototype>'; }
+            catch(ex) { bad[nb++] = '<prototype>'; }
+            const keys = ownKeys(G);
+            const seen = create(null);
+            for(let i = 0; i < keys.length; i++) {
+               const k = keys[i];
+               try {
+                  seen[k] = true;
+                  const d = gopd(G, k);
+                  const e = expected[k];
+                  if(d === undefined) {
+                     // gone meanwhile
+                  }
+                  else if(e !== undefined) {
+                     if(!same(e, d)) bad[nb++] = 'changed:' + str(k);
+                  }
+                  else if(!(hasOwn(d, 'value') && d.value === undefined && !d.configurable)) {
+                     bad[nb++] = 'extra:' + str(k);
+                  }
+               }
+               catch(ex) {
+                  bad[nb++] = 'error:' + str(k);
+               }
+            }
+            for(let i = 0; i < nexp; i++) {
+               const k = expKeys[i];
+               if(expected[k] !== undefined && seen[k] !== true) bad[nb++] = 'missing:' + str(k);
+            }
+            return bad;
+         }
+
          // the handles go to the host only, as this eval's result; nothing on the global
          // refers to them, so guest code can never reach expect/forget/clean
          const handles = create(null);
          handles.clean = clean;
          handles.expect = expect;
          handles.forget = forget;
+         handles.verify = verify;
          const baseProto = getProto(G);
 
          const base = ownKeys(G);

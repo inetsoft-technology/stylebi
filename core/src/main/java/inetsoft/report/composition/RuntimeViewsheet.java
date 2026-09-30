@@ -334,18 +334,7 @@ public class RuntimeViewsheet extends RuntimeSheet {
          return;
       }
 
-      if(isAnonymous()) {
-         VSBookmark bookmark = getVSBookmark(XPrincipal.ANONYMOUS);
-
-         if(bookmark != null &&
-            !bookmark.containsBookmark(VSBookmark.HOME_BOOKMARK))
-         {
-            bookmark.addHomeBookmark(vs, isRuntime());
-         }
-
-         return;
-      }
-
+      // guests and security-off users (principal anonymous~;~org) intentionally take the named-user path
       // open a viewsheet?
       if((entry.getScope() == AssetRepository.GLOBAL_SCOPE ||
           entry.getScope() == AssetRepository.USER_SCOPE) &&
@@ -427,7 +416,7 @@ public class RuntimeViewsheet extends RuntimeSheet {
       updateVSBookmark(isRuntime());
 
       // go to the default bookmark state for runtime only
-      if(!isUpdate && isRuntime() && !isAnonymous() && vs != null && user != null) {
+      if(!isUpdate && isRuntime() && vs != null && user != null) {
          Viewsheet ovs = vs;
          vs = gotoDefaultBookmark(vs);
          resetViewsheet(vs, ovs);
@@ -515,13 +504,6 @@ public class RuntimeViewsheet extends RuntimeSheet {
       }
 
       return vs;
-   }
-
-   /**
-    * Check if is anonymous user.
-    */
-   private boolean isAnonymous() {
-      return user != null && XPrincipal.ANONYMOUS.equals(getUserName());
    }
 
    /**

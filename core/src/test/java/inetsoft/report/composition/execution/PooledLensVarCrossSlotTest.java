@@ -24,6 +24,7 @@ import ch.qos.logback.core.read.ListAppender;
 import inetsoft.report.TableLens;
 import inetsoft.report.lens.DefaultTableLens;
 import inetsoft.report.script.TableRowScope;
+import inetsoft.sree.SreeEnv;
 import inetsoft.test.*;
 import inetsoft.util.script.graal.pool.PoolTestSupport;
 import inetsoft.util.script.graal.pool.WorksheetScriptEnv;
@@ -40,10 +41,12 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * A formula table's var across pooled batches that run on different contexts (Testing
- * #77123): a primitive var is kept, whichever context a batch runs on; a script object
- * created on another context cannot be used there, so it reads as undefined with one WARN,
- * no worse than the per-batch reset the pool had before, and never as a live reference to
- * the other context (which failed with a TypeError or a multi-threaded access error).
+ * #77123): a primitive var is kept, whichever context a batch runs on; an array or object is
+ * saved at a hand-off and rebuilt there (B1 residual part 2); a function cannot be, so it reads
+ * as undefined with one WARN, and never as a live reference to the other context (which failed
+ * with a TypeError or a multi-threaded access error). The env has no exclusive home, so the
+ * other thread's claim takes over the table's home after a hand-off and the table's next batch
+ * really runs on another context.
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class, LibManagerTestConfiguration.class, PluginsTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
@@ -53,6 +56,7 @@ import static org.junit.jupiter.api.Assertions.*;
 class PooledLensVarCrossSlotTest {
    @BeforeEach
    void setUp() throws Exception {
+      SreeEnv.setProperty(MAX_HOMES, "0");
       box = PoolTestSupport.poolBox(true);
       env = (WorksheetScriptEnv) box.getScriptEnv();
       logger = (Logger) LoggerFactory.getLogger(TableRowScope.class);
@@ -64,6 +68,7 @@ class PooledLensVarCrossSlotTest {
    @AfterEach
    void tearDown() {
       logger.detachAppender(appender);
+      SreeEnv.remove(MAX_HOMES);
       env.retire();
    }
 
@@ -85,19 +90,34 @@ class PooledLensVarCrossSlotTest {
    }
 
    @Test
-   void anObjectVarOfAnotherContextReadsAsUndefinedWithOneWarning() throws Exception {
+   void anArrayVarIsKeptOnAnotherContext() throws Exception {
       TableLens t = make("var a = a || []; a.push(1); a.length");
       double[] v = new double[ROWS + 1];
       read(t, v, 1, 200);
-
-      // the whole batch on another context: the array of the first context is not used
-      // there, the formula starts a new one, which is then kept within that batch
+      // the other thread's claim takes the home over after a hand-off: the next batch runs
+      // on another context, which rebuilds the array
       PoolTestSupport.whileHeldElsewhere(env, () -> read(t, v, 201, 600));
-      // the batches that computed rows 1..first ran on this thread's context, a sequential
-      // read's batches doubling from the pool-off look-ahead, so first is past 200
+      read(t, v, 601, ROWS);
+
+      for(int r = 1; r <= ROWS; r++) {
+         assertEquals(r, v[r], "row " + r);
+      }
+
+      assertTrue(PoolTestSupport.metric(env, "Rebuilds") >= 1, "a batch ran on another context");
+      assertTrue(warnings().isEmpty(), "no warning for an array: " + warnings());
+   }
+
+   @Test
+   void aFunctionVarOfAnotherContextReadsAsUndefinedWithOneWarning() throws Exception {
+      // a counter closure restarts on another context: the rows after the crossing count again
+      TableLens t = make("var f = f || (function() { var n = 0; " +
+                         "return function() { return ++n; }; })(); f()");
+      double[] v = new double[ROWS + 1];
+      read(t, v, 1, 200);
+      PoolTestSupport.whileHeldElsewhere(env, () -> read(t, v, 201, 600));
       int first = 200;
 
-      while(v[first + 1] != 1.0) {
+      while(first < 600 && v[first + 1] != 1.0) {
          first++;
       }
 
@@ -113,7 +133,7 @@ class PooledLensVarCrossSlotTest {
 
       List<ILoggingEvent> warns = warnings();
       assertEquals(1, warns.size(), "one warning: " + warns);
-      assertTrue(warns.get(0).getFormattedMessage().contains("\"a\" holds an array"),
+      assertTrue(warns.get(0).getFormattedMessage().contains("\"f\" holds a function"),
                  warns.get(0).getFormattedMessage());
    }
 
@@ -157,6 +177,7 @@ class PooledLensVarCrossSlotTest {
       return appender.list.stream().filter(e -> e.getLevel() == Level.WARN).toList();
    }
 
+   private static final String MAX_HOMES = "script.ws.contextPool.maxHomes";
    private static final int ROWS = 1200;
    private AssetQuerySandbox box;
    private WorksheetScriptEnv env;

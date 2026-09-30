@@ -3092,15 +3092,25 @@ public class SUtil {
     * initialized, transient backend hiccup), so a storage blip degrades to the old staleness
     * window instead of throwing out of a permission check exercised on every folder listing and
     * viewsheet open.
+    * <p>
+    * A property that is not stored falls back to the sources that never hold stored values: an
+    * {@code INETSOFT_*} environment variable, a system property, or the built-in default, so a
+    * value supplied by {@code -D} or the environment is honored as it is by the cached read. The
+    * cached read is not used for that, because it can still hold a value another node already
+    * removed from the storage (Bug #77323).
     */
    private static String getPropertyBypassingCache(String name) {
+      String value;
+
       try {
-         return SreeEnv.getPropertyFromStorage(name);
+         value = SreeEnv.getPropertyFromStorage(name);
       }
       catch(Exception ex) {
          LOG.debug("Falling back to cached property value for {}", name, ex);
          return SreeEnv.getProperty(name, "false");
       }
+
+      return value != null ? value : SreeEnv.getPropertyFromNonStorageSources(name);
    }
 
    public static boolean isSharedDefaultOrgDashboard(AssetEntry entry) {
@@ -3259,6 +3269,21 @@ public class SUtil {
       else {
          currOrgId = organizationManager.getCurrentOrgID();
       }
+
+      return getOwnerForNewTask(user, currOrgId);
+   }
+
+   /**
+    * Gets the owner of a new task of an organization, the user itself if it's in the
+    * organization, otherwise an admin of the organization, or the user's name in the
+    * organization if the organization has no admin (a site admin owning a task of another
+    * organization, see {@link #getScheduleTaskOwnerPrincipal}).
+    *
+    * @param user      the user creating the task.
+    * @param currOrgId the id of the organization the task is stored in.
+    */
+   public static IdentityID getOwnerForNewTask(IdentityID user, String currOrgId) {
+      OrganizationManager organizationManager = OrganizationManager.getInstance();
 
       if(user != null && !Tool.equals(user.getOrgID(), currOrgId)) {
          SecurityEngine security = SecurityEngine.getSecurity();
@@ -3703,7 +3728,7 @@ public class SUtil {
 
       return securityEnabled &&
          "true".equals(SreeEnv.getProperty("enable.changePassword")) &&
-         !"anonymous".equals(principal.getName()) &&
+         !XPrincipal.isAnonymous(principal) &&
          userExistsInEditableSecurityProvider(principal) && SUtil.isInternalUser(principal);
    }
 

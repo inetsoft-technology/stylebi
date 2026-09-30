@@ -59,13 +59,14 @@ class RepletRegistryLocalChangesTest {
       orgId = "test76977_" + info.getTestMethod().orElseThrow().getName().toLowerCase();
       space = DataSpace.getDataSpace();
       space.addChangeListener(null, orgId + "/repository.xml", repositoryWatch);
+      boolean newFolder = !space.isDirectory(orgId);
       RepletRegistry seed = new RepletRegistry(orgId);
       seed.addFolder(A);
       seed.setFolderAlias(A, "seed");
       seed.save();
       seed.shutdown();
       // no late setup event may reach the two node registries
-      awaitRepositoryEvent();
+      awaitSeedEvents(newFolder);
       nodeA = new RepletRegistry(orgId);
       nodeB = new HookedRegistry(orgId);
    }
@@ -318,12 +319,28 @@ class RepletRegistryLocalChangesTest {
 
    /**
     * Waits until the next change event of repository.xml has been dispatched to every listener,
-    * the node registries included.
+    * the node registries included. Only the file's own events count (see {@link #repositoryWatch}),
+    * so the permit taken here is the one of the commit the test just made: that event is already
+    * being dispatched, and the barrier after it waits until it has been.
     */
    private void awaitRepositoryEvent() throws Exception {
       assertTrue(repositoryEvents.tryAcquire(TIMEOUT, TimeUnit.SECONDS),
                  "repository.xml change event was not delivered");
       awaitEventsDelivered();
+   }
+
+   /**
+    * Waits until every change event of the seed's save has been dispatched: the repository.xml
+    * event and, when the save created the org folder, the folder's event, which the DataSpace also
+    * delivers to the repository.xml listeners. Either one may arrive last.
+    */
+   private void awaitSeedEvents(boolean newFolder) throws Exception {
+      if(newFolder) {
+         assertTrue(folderEvents.tryAcquire(TIMEOUT, TimeUnit.SECONDS),
+                    "org folder change event was not delivered");
+      }
+
+      awaitRepositoryEvent();
    }
 
    /**
@@ -363,7 +380,10 @@ class RepletRegistryLocalChangesTest {
 
    /**
     * Waits until every change event already queued on the event thread has been dispatched to all
-    * listeners, by writing a marker file that is dispatched after them.
+    * listeners. Events are dispatched in order on one BlobStorageEvent thread, so a marker event
+    * written now is dispatched after them. An event that is still on its way to that thread (the
+    * storage hands each one to a thread pool first, which does not keep their order) is not
+    * covered, so this alone does not wait for a given commit, see {@link #awaitRepositoryEvent()}.
     */
    private void awaitEventsDelivered() throws Exception {
       CountDownLatch delivered = new CountDownLatch(1);
@@ -431,5 +451,18 @@ class RepletRegistryLocalChangesTest {
    private HookedRegistry nodeB;
    private Runnable releaseBlocker;
    private final Semaphore repositoryEvents = new Semaphore(0);
-   private final DataChangeListener repositoryWatch = e -> repositoryEvents.release();
+   private final Semaphore folderEvents = new Semaphore(0);
+   /**
+    * Counts the change events of {@code {orgId}/repository.xml} and of the org folder separately.
+    * The first write into a new folder also creates the folder, and the DataSpace delivers the
+    * folder's event (dir null, file orgId) to every listener below it, this one included.
+    */
+   private final DataChangeListener repositoryWatch = e -> {
+      if(orgId.equals(e.getDir()) && "repository.xml".equals(e.getFile())) {
+         repositoryEvents.release();
+      }
+      else if((e.getDir() == null || e.getDir().isEmpty()) && orgId.equals(e.getFile())) {
+         folderEvents.release();
+      }
+   };
 }

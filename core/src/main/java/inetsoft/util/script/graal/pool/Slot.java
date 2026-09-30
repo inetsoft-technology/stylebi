@@ -128,6 +128,36 @@ final class Slot {
    }
 
    /**
+    * Bring this slot, which a query build claim holds, up to the env's current variables
+    * before one of the build's scripts (G10 piece Q, amendment 2): the claim took it at the
+    * build's first script, so without this the build would not see a variable another thread
+    * set after that, which a checkout per script and the pool off both do. Owner only; never
+    * waits. A context the replay fails on is doomed, so its claim's release closes it.
+    */
+   void resync(EnvState.Snapshot state, boolean sql) {
+      if(state.version() > version) {
+         try {
+            replay(state.after(version), state.version());
+         }
+         catch(RuntimeException ex) {
+            doom();
+            throw ex;
+         }
+      }
+
+      engine.setSQL(sql);
+   }
+
+   /**
+    * Let the next clean delete up to {@code max} implicit globals before it reports too many
+    * (the release of a query build claim, G10 piece Q amendment 3); later cleans are back at
+    * {@link PoolConfig#MAX_FOREIGN_DELETES}. Owner only.
+    */
+   void allowDeletes(int max) {
+      maxDeletes = max;
+   }
+
+   /**
     * Set a variable on this context now, and expect it (spec N2, §14.2). Owner only.
     */
    void applyOwn(String name, Object value) {
@@ -155,6 +185,8 @@ final class Slot {
       metrics.cleaned();
       ScriptTimeoutGuard.Guard guard;
       CleanHelper.Result result;
+      int maxDeletes = this.maxDeletes;
+      this.maxDeletes = PoolConfig.MAX_FOREIGN_DELETES;
 
       try {
          guard = engine.guard(cleanTimeout);
@@ -165,7 +197,7 @@ final class Slot {
       }
 
       try(guard) {
-         result = cleaner.run();
+         result = cleaner.run(maxDeletes);
 
          if(result.removed() > 0) {
             engine.globalsCleaned();
@@ -191,6 +223,20 @@ final class Slot {
       return doomed;
    }
 
+   /**
+    * An interrupt could not stop an exec on this context, so a claimed interrupt may still
+    * land on it: doom it, and let a query build claim leave it at its next script (G10 piece
+    * Q, amendment 1).
+    */
+   void interruptLost() {
+      interruptLost = true;
+      doom();
+   }
+
+   boolean isInterruptLost() {
+      return interruptLost;
+   }
+
    boolean isClosed() {
       return closed;
    }
@@ -213,6 +259,67 @@ final class Slot {
 
    WsEngine engine() {
       return engine;
+   }
+
+   PoolMetrics metrics() {
+      return metrics;
+   }
+
+   /**
+    * @return the configuration of the pool this slot belongs to.
+    */
+   PoolConfig config() {
+      return config;
+   }
+
+   void setConfig(PoolConfig config) {
+      this.config = config;
+   }
+
+   /**
+    * @return whether {@code tenant} lives on this slot (Testing #77123, B1 residual part 2).
+    */
+   boolean hasTenant(SlotTenant tenant) {
+      synchronized(tenants) {
+         return tenants.containsKey(tenant);
+      }
+   }
+
+   /**
+    * @return the tenants living on this slot, a copy.
+    */
+   List<SlotTenant> tenants() {
+      synchronized(tenants) {
+         return new ArrayList<>(tenants.keySet());
+      }
+   }
+
+   boolean hasTenants() {
+      synchronized(tenants) {
+         return !tenants.isEmpty();
+      }
+   }
+
+   void addTenant(SlotTenant tenant) {
+      synchronized(tenants) {
+         tenants.put(tenant, Boolean.TRUE);
+      }
+   }
+
+   void removeTenant(SlotTenant tenant) {
+      synchronized(tenants) {
+         tenants.remove(tenant);
+      }
+   }
+
+   void clearTenants() {
+      synchronized(tenants) {
+         tenants.clear();
+      }
+   }
+
+   CleanHelper cleaner() {
+      return cleaner;
    }
 
    /**
@@ -269,11 +376,19 @@ final class Slot {
    private final CleanHelper cleaner;
    private final PoolMetrics metrics;
    private final Map<Object, Object> attachments = new WeakHashMap<>();
+   // the formula tables whose owned objects live on this context (B1 residual part 2), weakly
+   private final Map<SlotTenant, Boolean> tenants = new WeakHashMap<>();
+   // set while this is an exclusive home, which other claims skip while it is idle; it counts
+   // toward the node's homes until revoked or collected. Guarded by the pool's homes lock
+   Cleaner.Cleanable exclusiveHome;
+   private volatile PoolConfig config = PoolConfig.defaults();
    // the clean's timeout; only tests shorten it
    Duration cleanTimeout = CleanHelper.TIMEOUT;
    private Cleaner.Cleanable nodeCount; // set at creation, before the slot is shared
    private long version; // owner only
+   private int maxDeletes = PoolConfig.MAX_FOREIGN_DELETES; // owner only
    private volatile boolean doomed;
+   private volatile boolean interruptLost;
    private volatile boolean closed;
    private volatile long idleSince = System.currentTimeMillis();
 

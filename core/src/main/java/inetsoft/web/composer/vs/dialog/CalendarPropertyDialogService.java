@@ -265,6 +265,7 @@ public class CalendarPropertyDialogService {
       }
 
       int oMode = info.getViewModeValue();
+      int oldType = info.getShowTypeValue();
       int type = calendarAdvancedPaneModel.getShowType();
       int mode = calendarAdvancedPaneModel.getViewMode();
       info.setShowTypeValue(type);
@@ -291,20 +292,29 @@ public class CalendarPropertyDialogService {
                info.setPixelOffset(new Point(x, tabTop - info.getTitleHeight()));
             }
             else {
-               // set runtime value so fixCalendarSize() reads the correct show type
-               info.setShowType(CalendarVSAssemblyInfo.CALENDAR_SHOW_TYPE);
+               Dimension size = info.getPixelSize();
 
-               try {
-                  info.fixCalendarSize();
-                  Dimension size = info.getPixelSize();
-                  // fall back if no prior pixel size assigned
-                  int calendarHeight = size != null ? size.height :
-                     CalendarVSAssemblyInfo.DEFAULT_CALENDAR_HEIGHT;
-                  info.setPixelOffset(new Point(x, tabTop - calendarHeight));
+               // only apply the default calendar height when switching from dropdown, keep
+               // the current (user) height otherwise. set the size directly instead of
+               // setShowType() + fixCalendarSize(), which would leak the runtime show type
+               // flag into the assembly and reset later resizes on writeXML
+               if(oldType != type || size == null) {
+                  size = new Dimension(size != null ? size.width : 3 * 70,
+                                       CalendarVSAssemblyInfo.DEFAULT_CALENDAR_HEIGHT);
+                  info.setPixelSize(size);
                }
-               finally {
-                  info.setShowType(type);
+
+               // the title is drawn inside the calendar height, grow the calendar
+               // when the title leaves no room for the body so it does not render
+               // past its height and cover the tabs
+               int fitHeight = info.fitCalendarHeightToTitle(size.height);
+
+               if(fitHeight != size.height) {
+                  size = new Dimension(size.width, fitHeight);
+                  info.setPixelSize(size);
                }
+
+               info.setPixelOffset(new Point(x, tabTop - size.height));
             }
          }
       }

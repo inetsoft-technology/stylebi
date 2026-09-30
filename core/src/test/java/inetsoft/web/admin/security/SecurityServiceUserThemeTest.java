@@ -174,11 +174,11 @@ class SecurityServiceUserThemeTest {
    }
 
    @Test
-   void update_defaultLiteralId_ignoredAndKeepsAssignment() throws Exception {
-      // EM's "Default" option sends "", and GET never returns "default" for a user
+   void update_defaultLiteralId_clearsAssignment() throws Exception {
+      // Bug #77304: the reserved default theme id selects the default theme like ""
       themes.add(theme("t1", "org1", "u1"));
       update("u1", "u1", "org1", "default");
-      assertEquals(List.of("u1"), users("t1"));
+      assertTrue(users("t1").isEmpty());
    }
 
    @Test

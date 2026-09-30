@@ -71,6 +71,7 @@ public class RepositoryDashboardService {
    public RepositoryDashboardSettingsModel getSettings(String dashboardName, IdentityID owner,
                                                        Principal principal)
    {
+      checkOwnerOrg(owner, principal);
       DashboardRegistry registry = owner != null ? dashboardRegistryManager.getRegistry(owner) :
          dashboardRegistryManager.getRegistry();
       dashboardName = fixDashboardName(dashboardName, owner);
@@ -100,6 +101,14 @@ public class RepositoryDashboardService {
                            .build();
    }
 
+   /**
+    * Rejects a client-supplied dashboard owner from another organization unless the caller is a
+    * site administrator. See {@link RepositoryOwnerOrgCheck#checkOwnerOrg}.
+    */
+   private void checkOwnerOrg(IdentityID owner, Principal principal) {
+      RepositoryOwnerOrgCheck.checkOwnerOrg(owner, principal);
+   }
+
    private Identity effectiveIdentity(IdentityID owner, Principal principal) {
       if(!securityEngine.isSecurityEnabled()) {
          return new DefaultIdentity(XPrincipal.ANONYMOUS, Identity.USER);
@@ -125,6 +134,7 @@ public class RepositoryDashboardService {
          return null;
       }
 
+      checkOwnerOrg(owner, principal);
       IdentityID principalID = IdentityID.getIdentityIDFromKey(principal.getName());
 
       if((owner == null || !owner.equals(principalID)) &&
@@ -323,6 +333,8 @@ public class RepositoryDashboardService {
                                                  Principal principal)
       throws Exception
    {
+      checkOwnerOrg(parentInfo.getOwner(), principal);
+
       if(!securityProvider.checkPermission(principal, ResourceType.DASHBOARD, "/", ResourceAction.ADMIN)) {
          throw new MessageException(Catalog.getCatalog().getString(
             "em.common.security.no.permission", "/"));
@@ -403,6 +415,7 @@ public class RepositoryDashboardService {
    }
 
    public void delete(String path, IdentityID owner, Principal principal) throws Exception {
+      checkOwnerOrg(owner, principal);
       DashboardRegistry registry = dashboardRegistryManager.getRegistry(owner);
 
       if(owner != null && SUtil.isMyDashboard(path)) {

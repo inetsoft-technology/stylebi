@@ -98,6 +98,10 @@ public class RepositoryObjectService {
       ArrayList<TreeNodeInfo> autoSaveNodes = new ArrayList<>();
 
       for(TreeNodeInfo node : nodes) {
+         // checked for every node type before anything is deleted, so a batch that mixes an
+         // own-org node with a node owned by another organization is refused as a whole
+         RepositoryOwnerOrgCheck.checkOwnerOrg(node.owner(), principal);
+
          if(node.type() == RepositoryEntry.TRASHCAN) {
             trashNodes.add(node);
          }
@@ -688,6 +692,7 @@ public class RepositoryObjectService {
                          Principal principal)
       throws Exception
    {
+      RepositoryOwnerOrgCheck.checkOwnerOrg(parentInfo.getOwner(), principal);
       ActionRecord actionRecord = null;
 
       try {
@@ -930,6 +935,13 @@ public class RepositoryObjectService {
       }).toArray(String[]::new);
 
       IdentityID[] userFroms = source.stream().map(ContentRepositoryTreeNode::owner).toArray(IdentityID[]::new);
+      // the destination and every source owner select a per-owner registry
+      RepositoryOwnerOrgCheck.checkOwnerOrg(userTo, principal);
+
+      for(IdentityID userFrom : userFroms) {
+         RepositoryOwnerOrgCheck.checkOwnerOrg(userFrom, principal);
+      }
+
       String[] typeFroms = source.stream().map(ContentRepositoryTreeNode::type)
          .map(String::valueOf).toArray(String[]::new);
 

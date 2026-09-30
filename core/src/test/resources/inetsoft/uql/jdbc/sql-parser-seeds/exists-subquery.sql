@@ -1,0 +1,1 @@
+select * from t where exists (select 1 from u where u.id = t.id) and not t.flag = 1

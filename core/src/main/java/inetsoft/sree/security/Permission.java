@@ -1100,6 +1100,9 @@ public class Permission implements Serializable, Cloneable, XMLSerializable {
 
 
    public static class PermissionIdentity implements Serializable {
+      // pins the computed ID from before hashCode() was added, for mixed-version clusters
+      private static final long serialVersionUID = -5948321699001649918L;
+
       private final String name;
       private final String organizationID;
 

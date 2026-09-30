@@ -19,6 +19,7 @@ package inetsoft.sree.security;
 
 import inetsoft.sree.internal.SUtil;
 import inetsoft.util.Catalog;
+import inetsoft.util.DataSpace;
 import inetsoft.util.MessageException;
 import inetsoft.util.Tool;
 import inetsoft.util.config.*;
@@ -180,8 +181,27 @@ public final class OrganizationIdRules {
       return false;
    }
 
+   /**
+    * Determines if the data space already contains paths that an organization with the id would
+    * own (see {@link DataSpace#getOrgScopedPaths}). Such paths belong to someone else, and would
+    * be moved on rename and deleted with the organization. The comparison is case-sensitive, like
+    * the data space paths. Returns false if the data space is not available.
+    */
+   public static boolean hasDataSpacePaths(String id) {
+      try {
+         DataSpace dataSpace = DataSpace.getDataSpace();
+         return dataSpace != null && dataSpace.hasOrgScopedPaths(id);
+      }
+      catch(Exception e) {
+         LOG.debug("Failed to check the data space paths of organization id {}", id, e);
+         return false;
+      }
+   }
+
    private static void check(String id) throws MessageException {
-      if(!VALID_ID.matcher(id).matches() || isReserved(id)) {
+      if(!VALID_ID.matcher(id).matches() || isReserved(id) ||
+         DATASPACE_FOLDERS.contains(id.toLowerCase(Locale.ROOT)))
+      {
          throw new MessageException(
             Catalog.getCatalog().getString("em.security.reservedOrganizationID", id));
       }
@@ -191,6 +211,11 @@ public final class OrganizationIdRules {
       if(isSaveLocationFolder(id)) {
          throw new MessageException(
             Catalog.getCatalog().getString("em.security.saveLocationOrganizationID", id));
+      }
+
+      if(hasDataSpacePaths(id)) {
+         throw new MessageException(
+            Catalog.getCatalog().getString("em.security.dataSpaceOrganizationID", id));
       }
    }
 
@@ -247,6 +272,12 @@ public final class OrganizationIdRules {
    // top-level folders written by DataSpaceSettingsService, ServerMonitoringController (heap
    // dumps) and StatusDumpService
    private static final Set<String> SYSTEM_FOLDERS = Set.of("backup", "heapdump", "status");
+   // global data space folders that an org id would claim through the portal/<id> and <id>
+   // shapes of DataSpace.getOrgScopedPaths: the top-level portal, sreeUserData, fonts,
+   // web-assets and inetsoftdb, and the portal/shapes, portal/theme and portal/font folders.
+   // Not system folders of external storage, so kept apart from SYSTEM_FOLDERS
+   private static final Set<String> DATASPACE_FOLDERS = Set.of(
+      "portal", "sreeuserdata", "fonts", "web-assets", "inetsoftdb", "shapes", "theme", "font");
    // same as FormValidators.validOrgID in the EM
    private static final Pattern VALID_ID = Pattern.compile("^[a-zA-Z0-9-]+$");
    private static final Logger LOG = LoggerFactory.getLogger(OrganizationIdRules.class);

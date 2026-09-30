@@ -102,14 +102,16 @@ class FormulaTableLensStateLintTest {
    }
 
    /**
-    * With the pool on, an owned var that holds a script object is kept only within one batch
-    * (the P3 leftover), so its read-before-write still warns, once, naming the object; with
-    * the pool off it is kept for the table and does not warn.
+    * With the pool on, an owned var that holds a function or a class instance is kept only
+    * while its table stays on one context (the P3 leftover), so its read-before-write still
+    * warns, once, naming it; with the pool off it is kept for the table and does not warn.
+    * An array or plain object is kept across contexts (B1 residual part 2): see
+    * {@link #anArrayOrObjectAccumulatorDoesNotWarnWithThePoolOn}.
     */
    @ParameterizedTest
    @ValueSource(strings = {
-      "var list = list || []; list.push(field['x']); list.length",
-      "var seen = seen || {}; seen[field['x']] = 1; Object.keys(seen).length"
+      "var list = list || new Map(); list.set(field['x'], 1); list.size",
+      "var f = f || (function() { var n = 0; return function() { return ++n; }; })(); f()"
    })
    void ownedObjectAccumulatorWarnsOnlyWithThePoolOn(String text) {
       TabularSheet report = new TabularSheet(Mockito.mock(LibManagerProvider.class),
@@ -138,10 +140,30 @@ class FormulaTableLensStateLintTest {
       String msg = warns.get(0).getFormattedMessage();
       assertTrue(msg.contains("expression column \"Obj\" of table \"Query2\""), msg);
       assertTrue(msg.contains("rule R1"), msg);
-      assertTrue(msg.contains("assigns it an array, object or function"), msg);
-      assertTrue(msg.contains("kept only within one batch"), msg);
+      assertTrue(msg.contains("assigns it a function or an object made with new"), msg);
+      assertTrue(msg.contains("kept only while the table stays on one script context"), msg);
       assertFalse(msg.contains("not reset between tables"), msg);
       assertEquals(scripts + 1, ScriptStateLint.nodeStateHazardScripts());
+   }
+
+   /**
+    * An array or plain object in an owned var is kept across pooled contexts (Testing #77123,
+    * B1 residual part 2), so its read-before-write does not warn, pool off or on.
+    */
+   @ParameterizedTest
+   @ValueSource(strings = {
+      "var list = list || []; list.push(field['x']); list.length",
+      "var seen = seen || {}; seen[field['x']] = 1; Object.keys(seen).length"
+   })
+   void anArrayOrObjectAccumulatorDoesNotWarnWithThePoolOn(String text) {
+      String formula = unique(text);
+      ScriptEnv env = PoolTestSupport.env();
+      FormulaTableLens lens = new FormulaTableLens(table(ROWS), new String[] { "Obj" },
+                                                   new String[] { formula }, env,
+                                                   new PoolTestSupport.MapScope());
+      lens.setTableName("Query2");
+      readAll(lens);
+      assertEquals(0, warnings(formula).size(), () -> "pool on: " + appender.list);
    }
 
    /**

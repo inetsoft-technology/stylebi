@@ -19,12 +19,15 @@ package inetsoft.util.script;
 
 import inetsoft.util.stall.LockStallException;
 import inetsoft.util.stall.StallPolicy;
+import inetsoft.util.stall.WaitRecord;
 import inetsoft.util.stall.WaitRegistry;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.io.File;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.ReentrantLock;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -37,7 +40,8 @@ import static org.junit.jupiter.api.Assertions.*;
 public class LendableReentrantLockStallTest {
    @BeforeEach
    public void setUp() {
-      StallPolicy.setOverride(new StallPolicy(StallPolicy.Mode.FAIL, 1000, 200, dumpDir));
+      StallPolicy.setOverride(new StallPolicy(StallPolicy.Mode.FAIL, 1000, 200, dumpDir,
+                                              StallPolicy.DEFAULT_MAX_DUMPS, true));
    }
 
    @AfterEach
@@ -103,7 +107,8 @@ public class LendableReentrantLockStallTest {
 
    @Test
    public void offModeWaitsOn() throws Exception {
-      StallPolicy.setOverride(new StallPolicy(StallPolicy.Mode.OFF, 1000, 200, dumpDir));
+      StallPolicy.setOverride(new StallPolicy(StallPolicy.Mode.OFF, 1000, 200, dumpDir,
+                                              StallPolicy.DEFAULT_MAX_DUMPS, false));
       LendableReentrantLock lock = new LendableReentrantLock();
       Thread owner = holdUntilReleased(lock);
       FutureTask<Boolean> waiter = new FutureTask<>(() -> {
@@ -141,7 +146,8 @@ public class LendableReentrantLockStallTest {
     */
    @Test
    public void loanStillBypassesThreadsQueuedEarlier() throws Exception {
-      StallPolicy.setOverride(new StallPolicy(StallPolicy.Mode.FAIL, 60000, 200, dumpDir));
+      StallPolicy.setOverride(new StallPolicy(StallPolicy.Mode.FAIL, 60000, 200, dumpDir,
+                                              StallPolicy.DEFAULT_MAX_DUMPS, false));
       LendableReentrantLock lock = new LendableReentrantLock();
       LendableReentrantLock.Borrower borrower = new LendableReentrantLock.Borrower();
       CountDownLatch borrowerAcquired = new CountDownLatch(1);
@@ -295,6 +301,217 @@ public class LendableReentrantLockStallTest {
       }
 
       assertFalse(lock.isLocked());
+   }
+
+   /**
+    * Feature #77123, the false positive of failing on the timeout alone: the owner is healthy
+    * but polls a slow data source with sleeps (TIMED_WAITING, as some JDBC drivers do), so
+    * its waiter gets no credit and fails after noProgressMillis although the owner lets go
+    * of the lock later. This is fail with {@code stall.watchdog.failOnTimeout=true}, and fail
+    * before Feature #77123.
+    */
+   @Test
+   public void sleepPollingOwnerFailsTheWaiterOnTheTimeoutAlone() throws Exception {
+      StallPolicy.setOverride(new StallPolicy(StallPolicy.Mode.FAIL, 1000, 200, dumpDir, 20,
+                                              true));
+      LendableReentrantLock lock = new LendableReentrantLock();
+      FutureTask<Boolean> owner = sleepPollingOwner(lock, 4000);
+      FutureTask<Boolean> waiter = new FutureTask<>(() -> {
+         try {
+            lock.lock();
+            lock.unlock();
+            return true;
+         }
+         catch(LockStallException ex) {
+            return false;
+         }
+      });
+      startDaemon(waiter);
+
+      assertFalse(waiter.get(15, TimeUnit.SECONDS), "the timeout alone fails the waiter");
+      assertTrue(owner.get(15, TimeUnit.SECONDS), "although the owner was healthy");
+   }
+
+   /**
+    * Feature #77123: by default a fail-mode wait for a sleep-polling owner is only reported,
+    * no lock cycle being confirmed, and gets the lock once the owner lets go of it.
+    */
+   @Test
+   public void sleepPollingOwnerIsWaitedForByDefault() throws Exception {
+      StallPolicy.setOverride(new StallPolicy(StallPolicy.Mode.FAIL, 1000, 200, dumpDir, 20,
+                                              false));
+      LendableReentrantLock lock = new LendableReentrantLock();
+      FutureTask<Boolean> owner = sleepPollingOwner(lock, 4000);
+      FutureTask<Boolean> waiter = new FutureTask<>(() -> {
+         lock.lock();
+         lock.unlock();
+         return true;
+      });
+      startDaemon(waiter);
+
+      assertTrue(owner.get(15, TimeUnit.SECONDS));
+      assertTrue(waiter.get(15, TimeUnit.SECONDS), "an unconfirmed stall must not fail");
+      assertFalse(lock.isLocked());
+   }
+
+   /**
+    * Feature #77123: by default a real cycle still fails. The waiter holds a monitor and waits
+    * for the lock; the owner is BLOCKED on that monitor. The watchdog confirms the cycle, the
+    * waiter fails holding nothing of the lock and leaves the monitor, and the owner then
+    * finishes and frees the lock.
+    */
+   @Test
+   public void lockMonitorCycleFailsTheWaiterByDefault() throws Exception {
+      StallPolicy.setOverride(new StallPolicy(StallPolicy.Mode.FAIL, 1000, 200, dumpDir, 20,
+                                              false));
+      LendableReentrantLock lock = new LendableReentrantLock();
+      Object monitor = new Object();
+      CountDownLatch locked = new CountDownLatch(1);
+      CountDownLatch entered = new CountDownLatch(1);
+      FutureTask<Boolean> owner = new FutureTask<>(() -> {
+         lock.lock();
+
+         try {
+            locked.countDown();
+            assertTrue(entered.await(5, TimeUnit.SECONDS));
+
+            synchronized(monitor) {
+               return true;
+            }
+         }
+         finally {
+            lock.unlock();
+         }
+      });
+      FutureTask<String> waiter = new FutureTask<>(() -> {
+         synchronized(monitor) {
+            entered.countDown();
+
+            try {
+               lock.lock();
+               lock.unlock();
+               return "acquired";
+            }
+            catch(LockStallException ex) {
+               return ex.getSite() + ":" + lock.getHoldCount();
+            }
+         }
+      });
+      startDaemon(owner);
+      assertTrue(locked.await(5, TimeUnit.SECONDS));
+      startDaemon(waiter);
+
+      // the global watchdog may have read the default 30 s scan interval between two tests,
+      // when no policy override was set, and sleep that long before its next scan
+      assertEquals("LendableReentrantLock.lock:0", waiter.get(45, TimeUnit.SECONDS),
+                   "the confirmed cycle fails the waiter, holding nothing of the lock");
+      assertTrue(owner.get(10, TimeUnit.SECONDS), "the owner goes on once the cycle broke");
+      assertFalse(lock.isLocked());
+   }
+
+   /**
+    * Feature #77123 (review r2, liveness): the youngest wait of a cycle, the first victim,
+    * cannot reach its check, as it is parked without a timeout inside its registered wait for
+    * a lock the other member holds. Once it was confirmed for two wait slices, the other
+    * member becomes the victim and fails, which breaks the cycle; the first victim is never
+    * failed.
+    */
+   @Test
+   public void victimThatCannotCheckHandsTheRoleOn() throws Exception {
+      StallPolicy.setOverride(new StallPolicy(StallPolicy.Mode.FAIL, 1000, 200, dumpDir, 20,
+                                              false));
+      LendableReentrantLock lock = new LendableReentrantLock();
+      ReentrantLock other = new ReentrantLock();
+      CountDownLatch locked = new CountDownLatch(1);
+      CountDownLatch holding = new CountDownLatch(1);
+      AtomicReference<Thread> peer = new AtomicReference<>();
+      FutureTask<String> parked = new FutureTask<>(() -> {
+         lock.lock();
+
+         try {
+            locked.countDown();
+            assertTrue(holding.await(5, TimeUnit.SECONDS));
+            // the youngest wait of the cycle: opened after the peer's wait for the lock
+            Thread.sleep(300);
+
+            try(WaitRecord wait = WaitRegistry.begin("test.parkedVictim", () -> 0L,
+                                                     () -> new Thread[] { peer.get() }))
+            {
+               wait.checkStall();
+               // never checks again: an untimed park for the peer's lock
+               other.lockInterruptibly();
+               other.unlock();
+               return "acquired";
+            }
+            catch(LockStallException ex) {
+               return "failed";
+            }
+         }
+         finally {
+            lock.unlock();
+         }
+      });
+      FutureTask<String> waiter = new FutureTask<>(() -> {
+         peer.set(Thread.currentThread());
+         other.lock();
+
+         try {
+            holding.countDown();
+            lock.lock();
+            lock.unlock();
+            return "acquired";
+         }
+         catch(LockStallException ex) {
+            return "failed";
+         }
+         finally {
+            other.unlock();
+         }
+      });
+      Thread parkedThread = startDaemon(parked);
+      assertTrue(locked.await(5, TimeUnit.SECONDS));
+      startDaemon(waiter);
+
+      try {
+         // the global watchdog may have read the default 30 s scan interval between two tests,
+         // when no policy override was set, and sleep that long before its next scan
+         assertEquals("failed", waiter.get(45, TimeUnit.SECONDS),
+                      "the next member is the victim once the first cannot check");
+         assertEquals("acquired", parked.get(10, TimeUnit.SECONDS),
+                      "exactly one member fails, the cycle is broken");
+      }
+      finally {
+         parkedThread.interrupt();
+      }
+   }
+
+   /**
+    * Start an owner that holds {@code lock} for {@code millis}, sleeping in short polls.
+    */
+   private static FutureTask<Boolean> sleepPollingOwner(LendableReentrantLock lock, long millis)
+      throws InterruptedException
+   {
+      CountDownLatch locked = new CountDownLatch(1);
+      FutureTask<Boolean> owner = new FutureTask<>(() -> {
+         lock.lock();
+
+         try {
+            locked.countDown();
+            long end = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(millis);
+
+            while(System.nanoTime() < end) {
+               Thread.sleep(20);
+            }
+
+            return true;
+         }
+         finally {
+            lock.unlock();
+         }
+      });
+      startDaemon(owner);
+      assertTrue(locked.await(5, TimeUnit.SECONDS));
+      return owner;
    }
 
    private Thread holdUntilReleased(LendableReentrantLock lock) throws InterruptedException {
