@@ -444,7 +444,9 @@ class PooledLensObjectVarTest {
 
    /**
     * A6: a hand-off of a million-entry array stops at the entry cap: bounded, the var is lost
-    * with one warning, and a second reader waits no longer than the hand-off.
+    * with one warning, and a second reader waits no longer than the hand-off. The hand-off
+    * and the reader race for the idle home: if the reader takes it first, nothing is handed
+    * off (the array is kept, no warning), and the home is handed off once the reader is done.
     */
    @Test
    void aHandOffOverTheBudgetIsLostAndBounded() {
@@ -458,6 +460,8 @@ class PooledLensObjectVarTest {
          double[] v = new double[ROWS + 1];
          read(t, v, 1, 20);
          ExecutorService ex = Executors.newSingleThreadExecutor();
+         long budget = 5000; // the default hand-off time bound
+         int count;
 
          try {
             long t0 = System.nanoTime();
@@ -466,10 +470,10 @@ class PooledLensObjectVarTest {
             long r0 = System.nanoTime();
             read(t, v, 21, 40);
             long reader = (System.nanoTime() - r0) / 1_000_000;
-            handOff.get(60, TimeUnit.SECONDS);
+            count = handOff.get(60, TimeUnit.SECONDS);
             long handOffMs = (System.nanoTime() - t0) / 1_000_000;
-            System.out.println("B1OBJ 1M hand-off " + handOffMs + " ms, reader " + reader + " ms");
-            long budget = 5000; // the default hand-off time bound
+            System.out.println("B1OBJ 1M hand-off " + handOffMs + " ms (" + count +
+                               " homes), reader " + reader + " ms");
             assertTrue(handOffMs <= budget + 1000 + 2000, "hand-off " + handOffMs + " ms");
             assertTrue(reader <= budget + 1000 + 5000, "reader waited " + reader + " ms");
          }
@@ -481,7 +485,29 @@ class PooledLensObjectVarTest {
             assertEquals(1.0, v[r], "row " + r);
          }
 
-         assertEquals(2.0, v[40], "the lost array was started again");
+         // the last row read after the hand-off
+         int last = 40;
+
+         if(count == 0) {
+            // the reader took the home first: nothing was handed off, the array is kept
+            for(int r = 21; r <= 40; r++) {
+               assertEquals(1.0, v[r], "nothing was lost: row " + r);
+            }
+
+            assertTrue(warningTexts().isEmpty(), () -> "no warning: " + warningTexts());
+            long t1 = System.nanoTime();
+            assertEquals(1, PoolTestSupport.handOffIdleHomes(w), "the idle home is handed off");
+            long handOffMs = (System.nanoTime() - t1) / 1_000_000;
+            assertTrue(handOffMs <= budget + 1000 + 2000, "hand-off " + handOffMs + " ms");
+            // past the rows computed ahead of the hand-off (batches double)
+            last = 200;
+            read(t, v, 41, last);
+         }
+         else {
+            assertEquals(1, count, "one home");
+         }
+
+         assertEquals(2.0, v[last], "the lost array was started again");
          List<String> warns = warningTexts();
          assertEquals(1, warns.size(), () -> "one warning: " + warns);
          assertTrue(warns.get(0).contains("\"a\" holds a value with more than"), warns.get(0));

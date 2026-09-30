@@ -27,6 +27,7 @@ import inetsoft.report.script.TableRowScope;
 import inetsoft.sree.SreeEnv;
 import inetsoft.test.*;
 import inetsoft.util.script.ScriptSpan;
+import inetsoft.util.script.graal.pool.PoolConfig;
 import inetsoft.util.script.graal.pool.PoolTestSupport;
 import inetsoft.util.script.graal.pool.WorksheetScriptEnv;
 import org.junit.jupiter.api.*;
@@ -336,7 +337,7 @@ class PooledLensObjectHandOffTest {
     */
    @ParameterizedTest(name = "{0}")
    @ValueSource(strings = { "intoLost", "hostIntoLost", "hostMadeIntoLost", "mapIntoLost",
-                            "fnPropIntoLost", "lostInto", "rootAlias" })
+                            "fnPropIntoLost", "lostInto", "rootAlias", "hostInArrayIntoLost" })
    void anAliasIntoALostVarIsLostToo(String what) throws Exception {
       // each: (x === y ? 1 : -1) * (t.n * 10000 + count), where x and y must stay one object
       String f = "var t = t || {n: 0}; t.n++; " + switch(what) {
@@ -360,6 +361,10 @@ class PooledLensObjectHandOffTest {
          case "mapIntoLost" -> "var b = b || {f: function(x) { return x; }, " +
             "m: new Map([['k', {n: 0}]])}; var a = a || {x: b.m.get('k')}; " +
             "b.m.get('k').n++; (a.x === b.m.get('k') ? 1 : -1) * (t.n * 10000 + a.x.n)";
+         // the probe, a host object, as an array element of a and in b (array shape)
+         case "hostInArrayIntoLost" -> "var b = b || {h: probe, " +
+            "f: function(x) { return x; }}; var a = a || [probe, {n: 0}]; a[1].n++; " +
+            "(a[0] === b.h ? 1 : -1) * (t.n * 10000 + a[1].n)";
          // b, which holds a function, points into a
          case "lostInto" -> "var a = a || {y: {n: 0}}; " +
             "var b = b || {y: a.y, f: function(x) { return x; }}; a.y.n++; " +
@@ -526,9 +531,9 @@ class PooledLensObjectHandOffTest {
    }
 
    /**
-    * Round 3, R2: marking a lost var's objects counts against the entry cap. Past it, sharing
-    * cannot be checked, so every object var is lost, each with its own warning, and never
-    * read stale.
+    * Round 3, R2: marking a lost var's objects counts against the marking budget (four entry
+    * caps). Past it, sharing cannot be checked, so every object var is lost, each with its
+    * own warning, and never read stale.
     */
    @Test
    void markingPastTheEntryCapLosesEveryObjectVar() throws Exception {
@@ -536,7 +541,7 @@ class PooledLensObjectHandOffTest {
       AssetQuerySandbox box = box();
       WorksheetScriptEnv w = (WorksheetScriptEnv) box.getScriptEnv();
       TableLens t = make(box, base(ROWS), "var b = b || {f: function(x) { return x; }, " +
-         "a: (function() { var x = []; for(var i = 0; i < 150; i++) x[i] = i; return x; })()}; " +
+         "a: (function() { var x = []; for(var i = 0; i < 500; i++) x[i] = i; return x; })()}; " +
          "var c = c || {n: 0}; c.n++; var k = (k || 0) + 1; k * 10000 + c.n", "T");
       double[] v = new double[ROWS + 1];
       read(t, v, 1, 20);
@@ -564,6 +569,95 @@ class PooledLensObjectHandOffTest {
                  () -> "" + warns);
       assertTrue(warns.stream().anyMatch(x -> x.contains("\"c\" holds a value that could " +
          "not be checked")), () -> "" + warns);
+      assertTrue(warns.stream().anyMatch(x -> x.contains("more than " +
+         4 * 100 + " entries")), () -> "" + warns);
+   }
+
+   /**
+    * Follow-up of round 3 (over-loss b): a lost var whose graph is over the entry cap but
+    * within the marking budget (four entry caps) is marked, so an object var next to it that
+    * shares nothing with it is kept exactly; the lost var has its own warning. Lost for its
+    * size, or for a function next to a large array.
+    */
+   @ParameterizedTest(name = "{0}")
+   @ValueSource(strings = { "overTheCap", "functionAndLargeArray" })
+   void aNeighbourOfAVarOverTheEntryCapIsKept(String what) throws Exception {
+      SreeEnv.setProperty(HAND_OFF_ENTRIES, "100");
+      String big = "(function() { var x = []; for(var i = 0; i < 150; i++) x[i] = {v: i}; " +
+         "return x; })()";
+      String f = (what.equals("overTheCap") ? "var lk = lk || " + big + "; "
+         : "var lk = lk || {f: function(x) { return x; }, a: " + big + "}; ") +
+         "var c = c || {n: 0}; c.n++; c.n";
+      AssetQuerySandbox box = box();
+      WorksheetScriptEnv w = (WorksheetScriptEnv) box.getScriptEnv();
+      TableLens t = make(box, base(ROWS), f, "T");
+      double[] v = new double[ROWS + 1];
+      read(t, v, 1, 200);
+      PoolTestSupport.handOffIdleHomes(w);
+      read(t, v, 201, 600);
+      PoolTestSupport.handOffIdleHomes(w);
+      read(t, v, 601, ROWS);
+      assertAll(v, "c is kept");
+      List<String> warns = warningTexts();
+      assertEquals(1, warns.size(), () -> "one warning: " + warns);
+      assertTrue(warns.get(0).contains(what.equals("overTheCap")
+         ? "\"lk\" holds a value with more than 100 entries" : "\"lk\" holds a function"),
+         warns.get(0));
+   }
+
+   /**
+    * Follow-up of round 3 (over-loss b), at the default bounds: a lookup var over the entry
+    * cap (250k elements) is marked within the budget and the small var next to it is kept;
+    * one past the budget (a million elements) loses both, refused before its keys are
+    * listed. Each hand-off stays inside the time bound.
+    */
+   @ParameterizedTest(name = "{0}")
+   @ValueSource(ints = { 250_000, 1_000_000 })
+   void aLargeLookupVarIsMarkedWithinTheBudgetAndBounded(int size) {
+      assertTimeoutPreemptively(Duration.ofSeconds(120), () -> {
+         AssetQuerySandbox box = box();
+         WorksheetScriptEnv w = (WorksheetScriptEnv) box.getScriptEnv();
+         TableLens t = make(box, base(ROWS), "var lk = lk || (function() { var a = []; " +
+            "for(var i = 0; i < " + size + "; i++) a[i] = i; return a; })(); " +
+            "var s = s || {n: 0}; s.n++; var k = (k || 0) + 1; k * 10000 + s.n", "T");
+         double[] v = new double[ROWS + 1];
+         read(t, v, 1, 200);
+         long t0 = System.nanoTime();
+         PoolTestSupport.handOffIdleHomes(w);
+         long ms = (System.nanoTime() - t0) / 1_000_000;
+         read(t, v, 201, ROWS);
+         System.out.println("B1OBJ lookup " + size + " hand-off " + ms + " ms");
+         // the time bound (5000 ms) plus the guard's backstop, under load
+         assertTrue(ms < 6000, "hand-off " + ms + " ms");
+         int restart = 0;
+
+         for(int r = 1; r <= ROWS; r++) {
+            assertEquals(r, Math.floor(v[r] / 10000), "k is kept: row " + r);
+            double n = v[r] % 10000;
+
+            if(r > 1 && n != v[r - 1] % 10000 + 1) {
+               assertEquals(1, n, "s starts over: row " + r);
+               restart = restart == 0 ? r : restart;
+            }
+         }
+
+         List<String> warns = warningTexts();
+
+         // the marking budget: four entry caps
+         if(size < 4 * PoolConfig.DEFAULT_HAND_OFF_ENTRIES) {
+            assertEquals(0, restart, "s is kept");
+            assertEquals(1, warns.size(), () -> "one warning: " + warns);
+         }
+         else {
+            assertTrue(restart > 200, "s was lost at the hand-off: " + restart);
+            assertEquals(2, warns.size(), () -> "one warning per object var: " + warns);
+            assertTrue(warns.stream().anyMatch(x -> x.contains("\"s\" holds a value that " +
+               "could not be checked")), () -> "" + warns);
+         }
+
+         assertTrue(warns.stream().anyMatch(x -> x.contains("\"lk\" holds a value with " +
+            "more than")), () -> "" + warns);
+      });
    }
 
    /**
