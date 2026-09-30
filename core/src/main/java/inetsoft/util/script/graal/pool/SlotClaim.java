@@ -371,10 +371,13 @@ public final class SlotClaim implements ScriptSpan {
     * batch its home if still idle. Only builds that run batches of tables with object vars
     * pay this, one clean per such unit, as without a build. hasTenants is a leaf monitor.
     *
-    * Since cond-home (Testing #77123) a formula table no longer makes a build's slot a home:
-    * a resident table's batches run on claims of their own (acquireOwn), never adopted, and
-    * a batch that becomes resident on a claim that outlives it saves its objects as a tree.
-    * This stays as a backstop for any other enroller, at one hasTenants check per unit.
+    * Since cond-home (Testing #77123) this is the path of a table's batch that becomes
+    * resident at the build's top level ({@link #buildTop}): it enrolls the build's slot as its
+    * home, as a top-level batch without a build does, and this gives the home back at the
+    * batch end. A resident table's later batches run on claims of their own (acquireOwn),
+    * never adopted, and a batch that becomes resident nested deeper (a condition filter's
+    * population, another table's batch) saves its objects as a tree. One hasTenants check
+    * per unit.
     */
    private void giveBackHome() {
       Slot held = slot;
@@ -413,6 +416,16 @@ public final class SlotClaim implements ScriptSpan {
 
    int depth() {
       return depth;
+   }
+
+   /**
+    * @return {@code true} if this is a query build's claim at its top level plus one: a
+    *         script, batch or span the build runs directly, whose close (2 to 1) gives a
+    *         formula table's home back ({@link #giveBackHome}) exactly where a claim without a
+    *         build is released (Testing #77123, cond-home round 3).
+    */
+   boolean buildTop() {
+      return build && depth == 2;
    }
 
    SlotPool pool() {

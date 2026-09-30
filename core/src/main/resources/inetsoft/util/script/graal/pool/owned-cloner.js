@@ -169,6 +169,7 @@
    function snap(roots, maxEntries, maxMillis, maxMarks) {
       const put = putter(protoClean());
       const deadline = now() + maxMillis;
+      // OwnedValueCodec.isBudgetKind matches the start of TIME, MARKS and the entry cap's kind
       const TIME = 'a value that took longer than ' + maxMillis + ' ms to save';
       const MARKS = 'a value that could not be checked for an object shared with a ' +
          'variable whose value is not kept, which has more than ' + maxMarks + ' entries';

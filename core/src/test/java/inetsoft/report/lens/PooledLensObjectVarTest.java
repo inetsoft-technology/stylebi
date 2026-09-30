@@ -451,6 +451,45 @@ class PooledLensObjectVarTest {
    }
 
    /**
+    * Round 3 (Testing #77123, cond-home review finding 2): one thread, one outer span that ran
+    * a script and covers the whole read (a condition filter's population), and a var holding
+    * an object over the hand-off budget from row 1 (the entry cap, or the time bound). The
+    * table's first batch, nested in the outer span, cannot save that object as a tree, so its
+    * context stays the home and the table's later batches share the span, as before cond-home:
+    * every row exact, no warning. On 22b01b3a8 the first batch saved it and lost it to the
+    * budget: 989 of 1000 rows restarted, with one warning.
+    */
+   @ParameterizedTest(name = "{0}")
+   @ValueSource(strings = { "entries", "time" })
+   void anObjectOverTheBudgetStaysOnItsOuterSpan(String bound) throws Exception {
+      SreeEnv.setProperty(bound.equals("entries") ? HAND_OFF_ENTRIES : HAND_OFF_MILLIS,
+                          bound.equals("entries") ? "1000" : "1");
+      int keys = bound.equals("entries") ? 3000 : 50000;
+      int rows = 1000;
+      AssetQuerySandbox box = box();
+      WorksheetScriptEnv w = (WorksheetScriptEnv) box.getScriptEnv();
+      TableLens t = make(box, base(rows), "var m = m || (function() { var x = {cnt: 0}; " +
+         "for(var i = 0; i < " + keys + "; i++) x['k' + i] = i; return x; })(); " +
+         "m.cnt++; m.cnt", "T");
+      double[] v = new double[rows + 1];
+
+      try(ScriptSpan all = w.openSpan()) {
+         assertEquals(2, ((Number) w.exec(w.compile("1 + 1"), null, null, null)).intValue());
+
+         for(int s = 1; s <= rows; s += 100) {
+            try(ScriptSpan page = w.openSpan()) {
+               assertEquals(2, ((Number) w.exec(w.compile("1 + 1"), null, null, null))
+                  .intValue());
+               read(t, v, s, s + 99);
+            }
+         }
+      }
+
+      assertAll(v, "over the " + bound + " budget");
+      assertTrue(warnings().isEmpty(), () -> "no warning: " + warningTexts());
+   }
+
+   /**
     * A6: a hand-off of a million-entry array stops at the entry cap: bounded, the var is lost
     * with one warning, and a second reader waits no longer than the hand-off. The hand-off
     * and the reader race for the idle home: if the reader takes it first, nothing is handed

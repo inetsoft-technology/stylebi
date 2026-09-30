@@ -430,7 +430,7 @@ public class FormulaTableLens extends AbstractTableLens
          // batch of this table re-enters that batch's span, also below a batch of another
          // table nested in it (A -> B -> A): the objects live on its context
          own = senv != null && !inOwnBatch && tableRow != null &&
-            tableRow.batchRows == target && tableRow.thisScope.isResident();
+            tableRow.batchRows == target && tableRow.thisScope.takesOwnSpan();
          span = senv == null ? ScriptSpan.NONE : own ? senv.openOwnSpan()
             : inOwnBatch ? inOwnSpan.reenter() : senv.openSpan();
          ownBatch = inOwnBatch || own;

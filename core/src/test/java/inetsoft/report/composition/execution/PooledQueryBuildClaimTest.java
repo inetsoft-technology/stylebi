@@ -132,11 +132,11 @@ class PooledQueryBuildClaimTest {
    }
 
    /**
-    * With an object var (a resident table): the table's first batch, in the build, saves its
-    * objects as a tree, and each later batch runs on a claim of its own, which the build does
-    * not adopt and which is given back as the home at the batch end (Testing #77123,
-    * cond-home). The build keeps its one claim for its other scripts and never gives its
-    * slot back (no yield); the rows stay exact and match the pool off.
+    * With an object var (a resident table): the table's first batch, at the build's top
+    * level, makes the build's slot the home, and the build gives it back at that batch's end
+    * (one yield, G10 piece Q); each later batch runs on a claim of its own, which the build
+    * does not adopt and which is given back as the home at the batch end (Testing #77123,
+    * cond-home, round 3). The rows stay exact and match the pool off.
     */
    @Test
    void aBuildWithAnObjectVarTableRunsItsLaterBatchesOnClaimsOfTheirOwn() throws Exception {
@@ -149,7 +149,7 @@ class PooledQueryBuildClaimTest {
                          "full read " + env.getMetrics().getCheckouts() + ", cleans " +
                          env.getMetrics().getCleans());
 
-      assertEquals(0, env.getMetrics().getBuildYields(), "the build gave its slot back");
+      assertEquals(1, env.getMetrics().getBuildYields(), "the build gave its slot back once");
       assertTrue(env.getMetrics().getCheckouts() > build, "no batch took a claim of its own");
       assertEquals(ROWS, rows.size() - 1);
       assertRowsExact(rows);
@@ -170,9 +170,9 @@ class PooledQueryBuildClaimTest {
    }
 
    /**
-    * Residency (Testing #77123, cond-home): the table's first batch runs nested in the build's
-    * claim, which outlives it, so its array is saved as one tree there instead of staying on
-    * the build's context. Every later batch of the resident table takes a claim of its own,
+    * Residency (Testing #77123, cond-home): the table's first batch runs at the build's top
+    * level, so its slot becomes the home and the build gives it back at the batch end, with
+    * no tree (round 3: a tree there cost every build a second context). Every later batch of the resident table takes a claim of its own,
     * the idle home at its end: also in a later build whose first script is not a batch of
     * the table, it takes the home and needs no pull. Every row is exact throughout.
     */
@@ -185,7 +185,8 @@ class PooledQueryBuildClaimTest {
       AssetQuerySandbox box = sandbox(true, ws);
       WorksheetScriptEnv env = (WorksheetScriptEnv) box.getScriptEnv();
       TableLens t = box.getTableLens("A", AssetQuerySandbox.RUNTIME_MODE);
-      assertEquals(1, PoolTestSupport.metric(env, "HandOffs"), "one tree, at the first batch");
+      assertEquals(0, PoolTestSupport.metric(env, "HandOffs"), "no tree at the build's top");
+      assertEquals(1, env.getMetrics().getBuildYields(), "the home given back");
       int cid = col(t, "id");
       int cout = col(t, "out");
       readPages(t, cid, cout, 1, 1000);
@@ -207,11 +208,11 @@ class PooledQueryBuildClaimTest {
     * same lens. The batch at the build's top level ends the build's hold on its context, so
     * the home is idle and the other thread pulls the array: every row exact, as with the pool
     * off, and no second context (round 1: the build held the home, the other thread read the
-    * array as undefined, row 5001 = 3938). Also with the first batch nested in an outer span
-    * of the build (a condition filter, another table's batch). Since cond-home the first
-    * batch, nested in the build's claim, saves the array as a tree, and the other thread's
-    * batch runs on a claim of its own and rebuilds it: the build keeps its slot (no yield)
-    * and the other thread takes a second context.
+    * array as undefined, row 5001 = 3938). Also with the read in an outer span of the build
+    * (a condition filter, another table's batch). The lens's first batch runs at the build's
+    * top level, so the build gives its slot back as the home there (one yield); the other
+    * thread's batch runs on a claim of its own and takes the idle home (Testing #77123,
+    * cond-home, round 3).
     */
    @ParameterizedTest
    @ValueSource(booleans = { false, true })
@@ -248,7 +249,7 @@ class PooledQueryBuildClaimTest {
                assertEquals(5100.0, num(t.getObject(5100, cid)));
 
                if(box.getScriptEnv() instanceof WorksheetScriptEnv env) {
-                  assertEquals(0, env.getMetrics().getBuildYields(), "a yield");
+                  assertEquals(1, env.getMetrics().getBuildYields(), "yields");
                }
             }
 
