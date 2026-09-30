@@ -3589,7 +3589,8 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
       //reject if non site admin accessing another's private repo
       if(checkUserAsset && !OrganizationManager.getInstance().isSiteAdmin(user) && user != null &&
          entry.getScope() == AssetRepository.USER_SCOPE &&
-         !(user.getName().equals(entry.getUser().convertToKey())) )
+         !(user.getName().equals(entry.getUser().convertToKey())) &&
+         !isSecurityOffAnonymousOwned(entry))
       {
          return false;
       }
@@ -3605,6 +3606,7 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
       }
       else if(entry.getScope() == USER_SCOPE) {
          return (user.getName().equals(entry.getUser().convertToKey()) ||
+            isSecurityOffAnonymousOwned(entry) ||
             checkPermission(user, ResourceType.SECURITY_USER, entry.getUser(), EnumSet.of(ResourceAction.ADMIN))) &&
             checkPermission(user, ResourceType.MY_DASHBOARDS, "*", EnumSet.of(ResourceAction.READ));
       }
@@ -4419,7 +4421,13 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
       if(entry.getScope() == USER_SCOPE && !ignoreUserName &&
          !Tool.equals(entry.getUser(), user))
       {
-         return null;
+         // with security off, an anonymous-owned viewsheet's bookmarks are shared by every
+         // caller and stay under the stored owner, which clearVSBookmark removes (Bug #77357)
+         if(user == null || !isSecurityOffAnonymousOwned(entry)) {
+            return null;
+         }
+
+         user = entry.getUser();
       }
 
       String bookmarkId = entry.getProperty("__bookmark_id__");
@@ -4432,6 +4440,18 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
       }
 
       return new AssetEntry(USER_SCOPE, AssetEntry.Type.VIEWSHEET_BOOKMARK, bookmarkId, user, orgID);
+   }
+
+   /**
+    * Check if a user-scope viewsheet is owned by anonymous while security is off. Since
+    * Bug #74247 composed dashboards created with security off are owned by anonymous with a null
+    * org, which no principal matches, and every security-off principal is the anonymous user or
+    * the virtual admin. Such a viewsheet is treated as owned by the caller (Bug #77357).
+    */
+   private static boolean isSecurityOffAnonymousOwned(AssetEntry entry) {
+      return entry.getScope() == USER_SCOPE && entry.getType() == AssetEntry.Type.VIEWSHEET &&
+         entry.getUser() != null && XPrincipal.ANONYMOUS.equals(entry.getUser().getName()) &&
+         !SecurityEngine.getSecurity().isSecurityEnabled();
    }
 
    /**
