@@ -364,7 +364,10 @@ public class ScheduleTaskAsset extends AbstractXAsset {
                                      IndexedStorage indexedStorage) throws Exception
    {
       String path = Tool.getAttribute(folderElem, "path");
-      IdentityID owner = IdentityID.getIdentityIDFromKey(Tool.getAttribute(folderElem, "owner"));
+      // Bug #77406, the folder owner of the file isn't checked for an importer that isn't a site
+      // admin, a new folder gets no owner like a folder created in the UI
+      IdentityID owner = restrictedImporter != null ? null :
+         IdentityID.getIdentityIDFromKey(Tool.getAttribute(folderElem, "owner"));
 
       AssetEntry folderEntry = new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.SCHEDULE_TASK_FOLDER,
                                               path, null);
