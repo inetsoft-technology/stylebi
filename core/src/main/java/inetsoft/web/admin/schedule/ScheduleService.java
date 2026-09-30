@@ -512,6 +512,19 @@ public class ScheduleService {
    }
 
    /**
+    * Checks if a stored task is shared with the user by the group of its owner.
+    */
+   public boolean isGroupShareTask(ScheduleTask task, Principal principal) {
+      RepletEngine engine = SUtil.getRepletEngine(analyticRepository);
+
+      if(engine == null || task == null) {
+         return false;
+      }
+
+      return engine.taskHasShareGroupPermission(task.getOwner(), principal);
+   }
+
+   /**
     * Gets the schedule tasks for the specified user.
     */
    public Vector<ScheduleTask> getScheduleTasks(String selectString, String filter, boolean loadInternal,

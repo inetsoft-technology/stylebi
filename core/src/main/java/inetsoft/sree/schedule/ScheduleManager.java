@@ -1004,6 +1004,16 @@ public class ScheduleManager {
          action = ScheduleTaskMessage.Action.ADDED;
       }
 
+      // Bug #77379, the parent folder entry may come from the client or be created in another
+      // organization than the one the task is stored in (e.g. by a thread without a context
+      // principal). The folder is written in the organization of its entry, so keep it in the
+      // organization the task is stored in. The organization id of a default entry is lower case.
+      if(parent != null && orgID != null && !orgID.equalsIgnoreCase(parent.getOrgID())) {
+         parent = new AssetEntry(AssetRepository.GLOBAL_SCOPE,
+                                 AssetEntry.Type.SCHEDULE_TASK_FOLDER, parent.getPath(), null,
+                                 orgID);
+      }
+
       getOrgTaskMap(orgID).put(getTaskIdentifier(taskId, orgID), task, parent, orgID);
       dependencyHandler.updateTaskDependencies(task, true);
       scheduleClient.taskAdded(task);

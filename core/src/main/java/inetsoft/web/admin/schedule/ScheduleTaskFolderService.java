@@ -357,25 +357,23 @@ public class ScheduleTaskFolderService {
       }
 
       for(ScheduleTaskModel taskModel : taskModels) {
-         // should not move the data cycle task.
-         if(taskModel != null && !taskModel.removable()) {
+         // Bug #77379, the client's task model isn't trusted, the stored task decides whether
+         // the task can be moved (e.g. not a data cycle or an internal task) and where it is
+         // moved from. The task is resolved before any folder is changed, so no entry is added
+         // to the target folder for a task that doesn't exist.
+         ScheduleTask task = getMovableTask(taskModel);
+
+         if(task == null) {
             continue;
          }
 
-         String taskName = taskModel.name();
-
-         if(taskModel.owner() != null && !taskModel.owner().name.equals(XPrincipal.SYSTEM) &&
-            !taskModel.name().startsWith(taskModel.owner().name))
-         {
-            taskName = taskModel.owner().convertToKey() + ":" + taskModel.name();
-         }
-
+         String taskName = getTaskName(taskModel);
          AssetEntry taskEntry
             = new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.SCHEDULE_TASK,
-                             "/" + taskName, null);
+                             "/" + task.getTaskId(), null);
          AssetEntry parentEntry =
             new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.SCHEDULE_TASK_FOLDER,
-               Tool.isEmptyString(taskModel.path()) ? "/" : taskModel.path(), null);
+               getTaskFolderPath(task), null);
          moveTask(targetEntry, parentEntry, taskEntry, principal);
          Timestamp actionTimestamp = new Timestamp(System.currentTimeMillis());
          ActionRecord actionRecord = new ActionRecord(SUtil.getUserName(principal), ActionRecord.ACTION_NAME_MOVE,
@@ -383,6 +381,53 @@ public class ScheduleTaskFolderService {
             ActionRecord.ACTION_STATUS_SUCCESS, "Target Entry: " + targetEntry.getPath());
          Audit.getInstance().auditAction(actionRecord, principal);
       }
+   }
+
+   /**
+    * Gets the stored task that a task model of a move request refers to, if the task can be
+    * moved into another folder. The removable flag of the model is ignored, it's taken from the
+    * stored task.
+    *
+    * @param taskModel the task model sent by the client.
+    *
+    * @return the stored task or {@code null} if it doesn't exist, has no owner or is a data
+    *         cycle, internal or non-removable task.
+    */
+   public ScheduleTask getMovableTask(ScheduleTaskModel taskModel) {
+      if(taskModel == null || taskModel.name() == null) {
+         return null;
+      }
+
+      ScheduleTask task = scheduleManager.getScheduleTask(getTaskName(taskModel));
+
+      if(task == null || task.getOwner() == null || !task.isRemovable() ||
+         task.getType() == ScheduleTask.Type.CYCLE_TASK ||
+         task.getType() == ScheduleTask.Type.INTERNAL_TASK ||
+         ScheduleManager.isInternalTask(task.getTaskId()))
+      {
+         return null;
+      }
+
+      return task;
+   }
+
+   /**
+    * Gets the path of the folder a stored task is in.
+    */
+   public static String getTaskFolderPath(ScheduleTask task) {
+      return Tool.isEmptyString(task.getPath()) ? "/" : task.getPath();
+   }
+
+   private static String getTaskName(ScheduleTaskModel taskModel) {
+      String taskName = taskModel.name();
+
+      if(taskModel.owner() != null && !taskModel.owner().name.equals(XPrincipal.SYSTEM) &&
+         !taskModel.name().startsWith(taskModel.owner().name))
+      {
+         taskName = taskModel.owner().convertToKey() + ":" + taskModel.name();
+      }
+
+      return taskName;
    }
 
    /**
