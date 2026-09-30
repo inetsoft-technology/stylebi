@@ -20,6 +20,7 @@ package inetsoft.report.script.viewsheet;
 
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
+import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.sree.security.SRPrincipal;
 import inetsoft.test.*;
@@ -180,6 +181,78 @@ class ViewsheetScopePrincipalTest {
                    run("parameter.__principal__.getIdentityID().getName()"));
       assertEquals(user.toString(), run("'' + parameter.__principal__"));
       assertEquals(true, run("parameter.__principal__ != null"));
+   }
+
+   /**
+    * Bug #77361: {@code getHost()} and {@code getParameterTS(name)} were callable from
+    * script in released builds (the session principal class was on the Rhino
+    * allow-list) and are harmless read-only values, so they stay readable.
+    */
+   @Test
+   void scriptCanReadHostAndParameterTimestamp() throws Exception {
+      assertInstanceOf(SRPrincipal.class, user);
+      user.setParameter("tsProbe", "value");
+      long ts = user.getParameterTS("tsProbe");
+      assertNotEquals(0L, ts);
+
+      assertEquals("function", run("typeof parameter.__principal__.getHost"));
+      assertEquals(((SRPrincipal) user).getHost(), run("parameter.__principal__.getHost()"));
+      assertEquals("function", run("typeof parameter.__principal__.getParameterTS"));
+      assertEquals(String.valueOf(ts),
+                   run("'' + parameter.__principal__.getParameterTS('tsProbe')"));
+   }
+
+   @Test
+   void parameterTimestampOfMissingOrNullNameIsZero() throws Exception {
+      assertEquals("0", run("'' + parameter.__principal__.getParameterTS('noSuchParam')"));
+      assertEquals("0", run("'' + parameter.__principal__.getParameterTS(null)"));
+      assertEquals("0", run("'' + parameter.__principal__.getParameterTS()"));
+   }
+
+   /**
+    * Bug #77361: the proxy must not be unwrapped when a script passes it to a raw host
+    * method. {@code VpmScope.setUser(Principal)}/{@code getUser()} would hand the live
+    * principal back to the script, whose setters would then change the session
+    * identity (reopening Bug #77255/#77256).
+    */
+   @Test
+   void scriptCannotGetRawPrincipalBackThroughVpmScope() throws Exception {
+      assertPrincipalUnchangedBy(
+         "var s = new (Java.type('inetsoft.uql.script.VpmScope'))();" +
+         "s.setUser(parameter.__principal__);" +
+         "var raw = s.getUser();");
+   }
+
+   /**
+    * Bug #77361: same boundary for an {@code XPrincipal}-typed round trip.
+    * {@code AssetQuerySandbox.setVPMUser(XPrincipal)} also mutates the principal it
+    * is given (sets the {@code composer_vpm_user} property).
+    */
+   @Test
+   void scriptCannotGetRawPrincipalBackThroughAssetQuerySandbox() throws Exception {
+      assertPrincipalUnchangedBy(
+         "var ws = new (Java.type('inetsoft.uql.asset.Worksheet'))();" +
+         "var s = new (Java.type('inetsoft.report.composition.execution.AssetQuerySandbox'))(ws);" +
+         "s.setVPMUser(parameter.__principal__);" +
+         "var raw = s.getVPMUser();");
+   }
+
+   // Runs a script that tries to obtain the raw principal as "raw" and then mutate it,
+   // and asserts on the principal's state rather than on any error text.
+   private void assertPrincipalUnchangedBy(String obtainRaw) throws Exception {
+      user.setGroups(new String[] { "g1" });
+      String orgBefore = user.getOrgId();
+      String vpmBefore = user.getProperty(SUtil.VPM_USER);
+
+      Object result = run(obtainRaw +
+          "try { raw.setOrgId('PROBE_SENTINEL_ORG'); } catch(e) {}" +
+          "try { raw.setGroups(['vpmbypass']); } catch(e) {}" +
+          "try { raw.setProperty('" + SUtil.VPM_USER + "', 'PROBE'); } catch(e) {}" +
+          "'done'");
+
+      assertEquals(orgBefore, user.getOrgId(), "script result: " + result);
+      assertArrayEquals(new String[] { "g1" }, user.getGroups(), "script result: " + result);
+      assertEquals(vpmBefore, user.getProperty(SUtil.VPM_USER), "script result: " + result);
    }
 
    private Object run(String script) throws Exception {
