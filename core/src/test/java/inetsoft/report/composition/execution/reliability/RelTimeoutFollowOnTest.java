@@ -190,14 +190,13 @@ class RelTimeoutFollowOnTest {
    }
 
    /**
-    * Finding (pool independent, the base engine): with the pool off, a thread interrupted
-    * before its sandbox creates the env loses the interrupt in the env's init, where
-    * GraalJavaScriptEngine.installHostGlobals catches Graal's "Thread was interrupted." and only
-    * logs it (which also leaves that engine without its host global names, bug #77181); the
-    * run then computes every row as if there had been no cancel.
+    * Finding R2-R1-F1 (pool independent, the base engine), fixed by #5963: with the pool off,
+    * a thread interrupted before its sandbox creates the env lost the interrupt in the env's
+    * init, where GraalJavaScriptEngine.installHostGlobals caught Graal's "Thread was
+    * interrupted." and only logged it (which also left that engine without its host global
+    * names, bug #77181); the run then computed every row as if there had been no cancel.
     */
    @Test
-   @Disabled("finding R2-R1-F1: pool off, a cancel before the env's init is swallowed by installHostGlobals")
    void aCancelBeforeThePoolOffRunIsObserved() throws Exception {
       onWorker(() -> {
          Thread.currentThread().interrupt();
@@ -212,13 +211,13 @@ class RelTimeoutFollowOnTest {
    }
 
    /**
-    * Finding (pool on only): a cancel that lands during a pooled batch after the batch's last
-    * guest safepoint reaches the batch-end clean, where Graal raises "Thread was interrupted."
-    * (clearing the flag) and Slot.clean() logs it at debug level and discards the context. The
-    * run's rows are all computed and the cancel is gone; with the pool off the flag is kept.
+    * Finding R2-R1-F2 (pool on only), fixed by #5963: a cancel that lands during a pooled
+    * batch after the batch's last guest safepoint reaches the batch-end clean, where Graal
+    * raises "Thread was interrupted." (clearing the flag); Slot.clean() logged it at debug
+    * level and discarded the context, so the run's rows were all computed and the cancel was
+    * gone. With the pool off the flag is kept.
     */
    @Test
-   @Disabled("finding R2-R1-F2: pool on, the batch-end clean swallows a cancel that landed during the batch")
    void aCancelDuringThePooledRunIsObserved() throws Exception {
       cancelDuringTheRun(true);
    }
