@@ -33,10 +33,11 @@ import java.awt.*;
 import java.awt.geom.Point2D;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Tests for bottom-tab child geometry in the scale-to-screen path
- * ({@code VSEventUtil.applyTabScale}).
+ * Tests for tab child geometry in the scale-to-screen path: {@code VSEventUtil.applyTabScale}
+ * and the list-input overlap rescale in {@code VSEventUtil.handleOverlapping}.
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class },
@@ -96,6 +97,205 @@ class VSEventUtilTabScaleTest {
                    "gauge must end flush with the tab bar");
    }
 
+   /**
+    * Bug #76407: at runtime the unselected sibling isn't hidden -- tab selection is
+    * resolved by Viewsheet.isVisible(assembly, mode), not assembly.isVisible() -- and it
+    * shares the radio button's area. When the radio button precedes it in the viewsheet,
+    * handleOverlapping used to rescale the radio button generically (vertical scale =
+    * scaleRatio.x), overriding applyTabScale and overlapping the bottom tab bar.
+    */
+   @Test
+   void unselectedSiblingDoesNotRescaleBottomTabChild() throws Exception {
+      Viewsheet vs = createRuntimeTabViewsheet(true);
+      applyScale(vs, 3.97, 2.16);
+
+      assertEquals(RADIO_HEIGHT, scaledSize(vs, "RadioButton1").height,
+                   "tab child must keep the height applyTabScale gave it");
+      assertEquals(scaledTop(vs, "Tab1"),
+                   scaledTop(vs, "RadioButton1") + RADIO_HEIGHT,
+                   "radio button must end flush with the tab bar");
+   }
+
+   /**
+    * Top-tabs counterpart of {@link #unselectedSiblingDoesNotRescaleBottomTabChild}.
+    */
+   @Test
+   void unselectedSiblingDoesNotRescaleTopTabChild() throws Exception {
+      Viewsheet vs = createRuntimeTabViewsheet(false);
+      applyScale(vs, 3.97, 2.16);
+
+      assertEquals(RADIO_HEIGHT, scaledSize(vs, "RadioButton1").height,
+                   "tab child must keep the height applyTabScale gave it");
+      assertEquals(scaledTop(vs, "Tab1") + TAB_HEIGHT, scaledTop(vs, "RadioButton1"),
+                   "radio button must start flush below the tab bar");
+   }
+
+   /**
+    * Inputs in the same tab page are shown together, so a real overlap between them
+    * still gets the overlap rescale (#57656); only pages of one tab are exempt.
+    */
+   @Test
+   void overlappingListInputsInSameTabPageStillRescale() throws Exception {
+      Viewsheet vs = new Viewsheet();
+      vs.getViewsheetInfo().setScaleToScreen(true);
+
+      RadioButtonVSAssembly radioA = new RadioButtonVSAssembly(vs, "RadioButtonA");
+      radioA.setPixelOffset(new Point(160, 290));
+      radioA.setPixelSize(new Dimension(200, RADIO_HEIGHT));
+
+      RadioButtonVSAssembly radioB = new RadioButtonVSAssembly(vs, "RadioButtonB");
+      radioB.setPixelOffset(new Point(160, 304));
+      radioB.setPixelSize(new Dimension(200, RADIO_HEIGHT));
+
+      GroupContainerVSAssembly group = new GroupContainerVSAssembly(vs, "Group1");
+      group.setPixelOffset(new Point(160, 290));
+      group.setPixelSize(new Dimension(200, 54));
+
+      TabVSAssembly tab = new TabVSAssembly(vs, "Tab1");
+      tab.setPixelOffset(new Point(160, 344));
+      tab.setPixelSize(new Dimension(200, TAB_HEIGHT));
+      ((TabVSAssemblyInfo) tab.getInfo()).setBottomTabsValue(true);
+
+      vs.addAssembly(radioA);
+      vs.addAssembly(radioB);
+      vs.addAssembly(group);
+      vs.addAssembly(tab);
+      group.setAssemblies(new String[]{ "RadioButtonA", "RadioButtonB" });
+      tab.setAssemblies(new String[]{ "Group1" });
+      ((TabVSAssemblyInfo) tab.getInfo()).setSelectedValue("Group1");
+
+      applyScale(vs, 3.97, 2.16);
+
+      // without the overlap rescale a nested input is its natural height plus the
+      // tab bar slack (Bug #20141)
+      int unscaled = (int) Math.floor(RADIO_HEIGHT + (TAB_HEIGHT * 2.16 - TAB_HEIGHT));
+      assertTrue(scaledSize(vs, "RadioButtonA").height > unscaled,
+                 "overlapping input in the same page must still be rescaled");
+      assertTrue(scaledSize(vs, "RadioButtonB").height > unscaled,
+                 "overlapping input in the same page must still be rescaled");
+   }
+
+   /**
+    * Bug #76407: a radio button inside a group that is itself a tab child must not be
+    * inflated because it overlaps the group's unselected sibling tab.
+    */
+   @Test
+   void unselectedSiblingDoesNotRescaleListInputNestedInTabChild() throws Exception {
+      Viewsheet vs = new Viewsheet();
+      vs.getViewsheetInfo().setScaleToScreen(true);
+
+      RadioButtonVSAssembly radio = new RadioButtonVSAssembly(vs, "RadioButton1");
+      radio.setPixelOffset(new Point(160, 304));
+      radio.setPixelSize(new Dimension(200, RADIO_HEIGHT));
+
+      GroupContainerVSAssembly group = new GroupContainerVSAssembly(vs, "Group1");
+      group.setPixelOffset(new Point(160, 304));
+      group.setPixelSize(new Dimension(200, RADIO_HEIGHT));
+
+      GaugeVSAssembly gauge = new GaugeVSAssembly(vs, "Gauge1");
+      gauge.setPixelOffset(new Point(160, 204));
+      gauge.setPixelSize(new Dimension(140, GAUGE_HEIGHT));
+
+      TabVSAssembly tab = new TabVSAssembly(vs, "Tab1");
+      tab.setPixelOffset(new Point(160, 344));
+      tab.setPixelSize(new Dimension(200, TAB_HEIGHT));
+      ((TabVSAssemblyInfo) tab.getInfo()).setBottomTabsValue(true);
+
+      vs.addAssembly(radio);
+      vs.addAssembly(group);
+      vs.addAssembly(gauge);
+      vs.addAssembly(tab);
+      group.setAssemblies(new String[]{ "RadioButton1" });
+      tab.setAssemblies(new String[]{ "Group1", "Gauge1" });
+      ((TabVSAssemblyInfo) tab.getInfo()).setSelectedValue("Group1");
+
+      applyScale(vs, 3.97, 2.16);
+
+      // a child nested below a tab child still absorbs the tab bar slack (Bug #20141),
+      // but must not get the overlap rescale's vertical scaleRatio.x
+      int expected = (int) Math.floor(RADIO_HEIGHT + (TAB_HEIGHT * 2.16 - TAB_HEIGHT));
+      assertEquals(expected, scaledSize(vs, "RadioButton1").height,
+                   "nested tab child must not be rescaled for the overlap");
+   }
+
+   /**
+    * Bug #76407, top tabs: an input in a group page sits flush under the tab bar. The tab
+    * is its grandparent, not its direct container, and touching edges count as an overlap,
+    * so it must be excluded as an ancestor or the input is rescaled over the tab bar.
+    */
+   @Test
+   void tabAncestorDoesNotRescaleListInputNestedInTopTabPage() throws Exception {
+      Viewsheet vs = new Viewsheet();
+      vs.getViewsheetInfo().setScaleToScreen(true);
+
+      RadioButtonVSAssembly radio = new RadioButtonVSAssembly(vs, "RadioButton1");
+      radio.setPixelOffset(new Point(160, 344 + TAB_HEIGHT));
+      radio.setPixelSize(new Dimension(200, RADIO_HEIGHT));
+
+      GroupContainerVSAssembly group = new GroupContainerVSAssembly(vs, "Group1");
+      group.setPixelOffset(new Point(160, 344 + TAB_HEIGHT));
+      group.setPixelSize(new Dimension(200, RADIO_HEIGHT));
+
+      TabVSAssembly tab = new TabVSAssembly(vs, "Tab1");
+      tab.setPixelOffset(new Point(160, 344));
+      tab.setPixelSize(new Dimension(200, TAB_HEIGHT));
+
+      vs.addAssembly(radio);
+      vs.addAssembly(group);
+      vs.addAssembly(tab);
+      group.setAssemblies(new String[]{ "RadioButton1" });
+      tab.setAssemblies(new String[]{ "Group1" });
+      ((TabVSAssemblyInfo) tab.getInfo()).setSelectedValue("Group1");
+
+      applyScale(vs, 3.97, 2.16);
+
+      int expected = (int) Math.floor(RADIO_HEIGHT + (TAB_HEIGHT * 2.16 - TAB_HEIGHT));
+      assertEquals(expected, scaledSize(vs, "RadioButton1").height,
+                   "nested input must not be rescaled against its own tab");
+   }
+
+   /**
+    * Inputs in two different tabs can both be shown, so a real overlap between them
+    * still gets the overlap rescale; only pages of one tab are exempt.
+    */
+   @Test
+   void overlappingListInputsInDifferentTabsStillRescale() throws Exception {
+      Viewsheet vs = new Viewsheet();
+      vs.getViewsheetInfo().setScaleToScreen(true);
+
+      RadioButtonVSAssembly radioA = new RadioButtonVSAssembly(vs, "RadioButtonA");
+      radioA.setPixelOffset(new Point(160, 304));
+      radioA.setPixelSize(new Dimension(200, RADIO_HEIGHT));
+
+      RadioButtonVSAssembly radioB = new RadioButtonVSAssembly(vs, "RadioButtonB");
+      radioB.setPixelOffset(new Point(260, 304));
+      radioB.setPixelSize(new Dimension(200, RADIO_HEIGHT));
+
+      TabVSAssembly tabA = new TabVSAssembly(vs, "TabA");
+      tabA.setPixelOffset(new Point(160, 344));
+      tabA.setPixelSize(new Dimension(200, TAB_HEIGHT));
+      ((TabVSAssemblyInfo) tabA.getInfo()).setBottomTabsValue(true);
+
+      TabVSAssembly tabB = new TabVSAssembly(vs, "TabB");
+      tabB.setPixelOffset(new Point(260, 344));
+      tabB.setPixelSize(new Dimension(200, TAB_HEIGHT));
+      ((TabVSAssemblyInfo) tabB.getInfo()).setBottomTabsValue(true);
+
+      vs.addAssembly(radioA);
+      vs.addAssembly(radioB);
+      vs.addAssembly(tabA);
+      vs.addAssembly(tabB);
+      tabA.setAssemblies(new String[]{ "RadioButtonA" });
+      tabB.setAssemblies(new String[]{ "RadioButtonB" });
+
+      applyScale(vs, 3.97, 2.16);
+
+      assertTrue(scaledSize(vs, "RadioButtonA").height > RADIO_HEIGHT,
+                 "overlapping input in another tab must still be rescaled");
+      assertTrue(scaledSize(vs, "RadioButtonB").height > RADIO_HEIGHT,
+                 "overlapping input in another tab must still be rescaled");
+   }
+
    private void applyScale(Viewsheet vs, double rx, double ry) throws Exception {
       ViewsheetSandbox box = Mockito.mock(ViewsheetSandbox.class);
       VSEventUtil.applyScale(vs, new Point2D.Double(rx, ry), true, null, 375, 667, box);
@@ -132,6 +332,39 @@ class VSEventUtilTabScaleTest {
       ((VSAssembly) vs.getAssembly(hidden)).getVSAssemblyInfo().setVisible("hide");
 
       return vs;
+   }
+
+   /**
+    * Runtime shape of the reported asset: RadioButton1 is the selected tab and precedes
+    * Gauge1 in the viewsheet, and the unselected Gauge1 is not explicitly hidden.
+    */
+   private Viewsheet createRuntimeTabViewsheet(boolean bottomTabs) {
+      Viewsheet vs = new Viewsheet();
+      addRuntimeTab(vs, bottomTabs);
+      return vs;
+   }
+
+   private void addRuntimeTab(Viewsheet vs, boolean bottomTabs) {
+      vs.getViewsheetInfo().setScaleToScreen(true);
+
+      RadioButtonVSAssembly radio = new RadioButtonVSAssembly(vs, "RadioButton1");
+      radio.setPixelOffset(new Point(160, bottomTabs ? 304 : 344 + TAB_HEIGHT));
+      radio.setPixelSize(new Dimension(200, RADIO_HEIGHT));
+
+      GaugeVSAssembly gauge = new GaugeVSAssembly(vs, "Gauge1");
+      gauge.setPixelOffset(new Point(160, bottomTabs ? 204 : 344 + TAB_HEIGHT));
+      gauge.setPixelSize(new Dimension(140, GAUGE_HEIGHT));
+
+      TabVSAssembly tab = new TabVSAssembly(vs, "Tab1");
+      tab.setPixelOffset(new Point(160, 344));
+      tab.setPixelSize(new Dimension(200, TAB_HEIGHT));
+      ((TabVSAssemblyInfo) tab.getInfo()).setBottomTabsValue(bottomTabs);
+
+      vs.addAssembly(radio);
+      vs.addAssembly(gauge);
+      vs.addAssembly(tab);
+      tab.setAssemblies(new String[]{ "RadioButton1", "Gauge1" });
+      ((TabVSAssemblyInfo) tab.getInfo()).setSelectedValue("RadioButton1");
    }
 
    private int scaledTop(Viewsheet vs, String name) {
