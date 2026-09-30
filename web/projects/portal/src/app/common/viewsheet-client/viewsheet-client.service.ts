@@ -57,10 +57,10 @@ export class ViewsheetClientService implements OnDestroy {
    private _destroyDelayTime: number = 0;
    private commandsSubscription: Subscription;
    // Bug #77292: state used only by sendOpenEvent() / closeWhenRuntimeIdKnown()
-   private openMessage: ViewsheetEventMessage;
+   private openMessage: ViewsheetEventMessage | null = null;
    private openSent: boolean = false;
-   private receivedRuntimeId: string;
-   private deferredCloseDestination: string;
+   private receivedRuntimeId: string | null = null;
+   private deferredCloseDestination: string | null = null;
 
    /**
     * The maximum time a close deferred by closeWhenRuntimeIdKnown() keeps the connection
@@ -145,6 +145,13 @@ export class ViewsheetClientService implements OnDestroy {
             if(this.openMessage && headers["commandType"] === "SetRuntimeIdCommand") {
                this.receivedRuntimeId = this.getRuntimeId(message.frame.body);
             }
+            // the open failed before a runtime id was sent, so there is nothing to wait for and
+            // a later removal must not defer the close
+            else if(this.openMessage && headers["commandType"] === "EmbedErrorCommand" &&
+                    headers["inetsoftClientId"] === this._clientId)
+            {
+               this.openSent = false;
+            }
 
             this.processCommand(headers, message);
          }
@@ -212,6 +219,9 @@ export class ViewsheetClientService implements OnDestroy {
    }
 
    private doDestroy(): void {
+      // Bug #77292: beforeDestroy must run before commandSubject and eventSubject are completed
+      // below. closeWhenRuntimeIdKnown() called from it decides whether to defer the close,
+      // and the deferral in the connection block relies on that decision.
       if(this._beforeDestroy) {
          this._beforeDestroy();
          this._beforeDestroy = null;
@@ -315,6 +325,16 @@ export class ViewsheetClientService implements OnDestroy {
     *   released. The connection is also released without a close on EmbedErrorCommand, on a
     *   socket disconnect or reconnect error, or after DEFERRED_CLOSE_TIMEOUT. No other event is
     *   sent after destroy and no command is delivered to the destroyed subscribers.
+    * - If the server never replies to the open at all, the connection is held for up to
+    *   DEFERRED_CLOSE_TIMEOUT and then released without a close. The server heartbeat reaper
+    *   is the backstop for that sheet.
+    *
+    * The runtime id normally reaches _runtimeId through processSetRuntimeIdCommand(). With a
+    * non-websocket transport that command may still be queued in commandSubject when this is
+    * called, so the id recorded from the raw frame (receivedRuntimeId) is copied to _runtimeId
+    * first. receivedRuntimeId is only recorded after sendOpenEvent() sets openMessage, so
+    * services that do not opt in are unaffected. When the close is deferred, deferClose() sets
+    * _runtimeId itself from the SetRuntimeIdCommand before sending the close.
     *
     * @param destination the destination for the close event.
     */
@@ -334,7 +354,7 @@ export class ViewsheetClientService implements OnDestroy {
    private deferClose(connection: StompClientConnection, destination: string): void {
       const subscriptions = new Subscription();
       let released = false;
-      let timer: any = null;
+      let timer: ReturnType<typeof setTimeout> | null = null;
 
       const release = () => {
          if(!released) {
@@ -381,8 +401,12 @@ export class ViewsheetClientService implements OnDestroy {
       subscriptions.add(this.client.whenDisconnected().subscribe(() => release()));
       subscriptions.add(this.client.reconnectError().subscribe(() => release()));
 
+      // The subjects above do not emit synchronously in production, but a test double may, in
+      // which case release() already ran and no timer is needed. The timer runs outside the
+      // Angular zone so a pending deferral does not keep the zone unstable.
       if(!released) {
-         timer = setTimeout(release, ViewsheetClientService.DEFERRED_CLOSE_TIMEOUT);
+         timer = this.zone.runOutsideAngular(
+            () => setTimeout(release, ViewsheetClientService.DEFERRED_CLOSE_TIMEOUT));
       }
    }
 

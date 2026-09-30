@@ -137,7 +137,7 @@ export class EmbedChartComponent extends CommandProcessor implements OnInit, OnD
    private subscriptions: Subscription = new Subscription();
    private _runtimeId: string;
    private serverUpdateIntervalId: any;
-   private openTimer: any = null;
+   private openTimer: ReturnType<typeof setTimeout> | null = null;
    private updateEnabled: boolean;
    private touchInterval: number;
    variableValuesFunction: (objName: string) => string[] =

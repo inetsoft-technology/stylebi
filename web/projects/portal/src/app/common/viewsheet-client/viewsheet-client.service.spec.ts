@@ -321,6 +321,49 @@ describe("ViewsheetClientService deferred close", () => {
       expect(connection.disconnects).toBe(1);
    });
 
+   it("does not defer when EmbedErrorCommand arrived before destroy", () => {
+      vi.useFakeTimers();
+      connectWith(new FakeConnection());
+      service.sendOpenEvent(OPEN, {} as any);
+
+      command("EmbedErrorCommand", {message: "failed"});
+      service.ngOnDestroy();
+
+      // released at once, not after the timeout
+      expect(connection.disconnects).toBe(1);
+      expect(connection.sentTo(CLOSE).length).toBe(0);
+      expect(connection.listeners.length).toBe(0);
+      vi.advanceTimersByTime(ViewsheetClientService.DEFERRED_CLOSE_TIMEOUT);
+      expect(connection.disconnects).toBe(1);
+   });
+
+   it("still defers when only another client's EmbedErrorCommand arrived before destroy", () => {
+      connectWith(new FakeConnection());
+      service.sendOpenEvent(OPEN, {} as any);
+
+      command("EmbedErrorCommand", {message: "failed"}, "another-client");
+      service.ngOnDestroy();
+
+      expect(connection.disconnects).toBe(0);
+      command("SetRuntimeIdCommand", {runtimeId: RID});
+      expect(connection.sentTo(CLOSE)[0].headers.sheetRuntimeId).toBe(RID);
+      expect(connection.disconnects).toBe(1);
+   });
+
+   it("starts the deferred close timer outside the Angular zone", () => {
+      const zone = makeZone();
+      service = new ViewsheetClientService(stomp, zone);
+      service.beforeDestroy = () => service.closeWhenRuntimeIdKnown(CLOSE);
+      connectWith(new FakeConnection());
+      service.sendOpenEvent(OPEN, {} as any);
+
+      service.ngOnDestroy();
+
+      expect(zone.runOutsideAngular).toHaveBeenCalledTimes(1);
+      disconnected$.next();
+      expect(connection.disconnects).toBe(1);
+   });
+
    it("releases the connection without a close when the socket disconnects", () => {
       connectWith(new FakeConnection());
       service.sendOpenEvent(OPEN, {} as any);
