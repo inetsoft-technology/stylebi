@@ -35,6 +35,7 @@ import inetsoft.util.Tool;
 import inetsoft.web.RecycleUtils;
 import inetsoft.web.composer.model.*;
 import inetsoft.web.composer.ws.assembly.VariableAssemblyModelInfo;
+import inetsoft.web.portal.controller.database.QueryManagerService;
 import inetsoft.web.viewsheet.command.MessageCommand;
 import inetsoft.web.viewsheet.event.CollectParametersOverEvent;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -61,13 +62,15 @@ public class AssetTreeController {
                               AssetTreeServiceProxy assetTreeServiceProxy,
                               SecurityEngine securityEngine,
                               LibManagerProvider libManagerProvider,
-                              XRepository xRepository)
+                              XRepository xRepository,
+                              QueryManagerService queryManagerService)
    {
       this.assetRepository = assetRepository;
       this.assetTreeServiceProxy = assetTreeServiceProxy;
       this.securityEngine = securityEngine;
       this.libManagerProvider = libManagerProvider;
       this.xRepository = xRepository;
+      this.queryManagerService = queryManagerService;
    }
 
    @PostMapping("/api/vs/bindingtree/getConnectionParameters")
@@ -134,6 +137,10 @@ public class AssetTreeController {
       Catalog catalog = Catalog.getCatalog(principal);
       IdentityID user = principal == null ? null : IdentityID.getIdentityIDFromKey(principal.getName());
       AssetEntry expandedEntry = event.targetEntry();
+      // Bug #77189, the asset engine resolves the children of a query-scope entry from its
+      // client-supplied prefix without checking it. This runs for every recursive expansion too,
+      // since the expanded descendants are the client's entries.
+      queryManagerService.checkAssetTreeEntryPermission(expandedEntry, principal);
       AssetEntry.Selector assetSelector = physical ?
          new AssetEntry.Selector(AssetEntry.Type.FOLDER, AssetEntry.Type.WORKSHEET,
                                  AssetEntry.Type.VIEWSHEET, AssetEntry.Type.DATA,
@@ -1070,6 +1077,7 @@ public class AssetTreeController {
    private final SecurityEngine securityEngine;
    private final LibManagerProvider libManagerProvider;
    private final XRepository xRepository;
+   private final QueryManagerService queryManagerService;
    private static final String TABLE_STYLE = "Table Style";
    private static final String SCRIPT = "Script Function";
    private static final Catalog catalog = Catalog.getCatalog();

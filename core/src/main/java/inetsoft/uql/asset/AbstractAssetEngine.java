@@ -622,7 +622,11 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
          return new AssetEntry[0];
       }
 
-      boolean portalData = "true".equals(entry.getProperty(XUtil.PORTAL_DATA));
+      // Bug #77189, the portal_data and ignoreVpm properties are client controlled on any
+      // request body entry, so they are honored only in a server-side portal data listing.
+      boolean portalListing = PORTAL_DATA_LISTING.get();
+      boolean portalData = portalListing &&
+         "true".equals(entry.getProperty(XUtil.PORTAL_DATA));
 
       // check physical table permission
       if(!portalData && entry.getType() == AssetEntry.Type.DATA_SOURCE) {
@@ -655,6 +659,13 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
             !XUtil.OUTER_MOSE_LAYER_DATABASE.equals(additional) && portalData &&
             !Tool.equals(additional, xds.getName()))
          {
+            // Bug #77189, the same additional connection permission as the data source tree.
+            if(!"(Default Connection)".equals(additional) &&
+               !checkDataSourcePermission(source + "::" + additional, user))
+            {
+               return new AssetEntry[0];
+            }
+
             xds = ((JDBCDataSource) xds).getDataSource(additional);
 
             if(entry.isDataSource()) {
@@ -748,7 +759,7 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
             }
 
             String folderDesc = entry.getProperty("folder_description");
-            boolean loadAllCols = "true".equals(entry.getProperty("ignoreVpm"));
+            boolean loadAllCols = portalListing && "true".equals(entry.getProperty("ignoreVpm"));
             String[] cnames = getSortedChildren(node);
             BiFunction<String, String, Boolean> hiddens = null;
 
@@ -4751,7 +4762,35 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
       fireEvent(Viewsheet.VIEWSHEET_ASSET, AssetChangeEvent.ASSET_MODIFIED, root, null, true, null, "");
    }
 
+   /**
+    * Lists the sub entries of a server-built entry for the portal data tab (physical view and
+    * VPM trees). Only within this call are the entry's portal_data and ignoreVpm properties
+    * honored (Bug #77189).
+    */
+   public static AssetEntry[] getPortalDataEntries(AssetRepository repository, AssetEntry entry,
+                                                   Principal user, ResourceAction permission,
+                                                   AssetEntry.Selector selector)
+      throws Exception
+   {
+      boolean old = PORTAL_DATA_LISTING.get();
+      PORTAL_DATA_LISTING.set(true);
+
+      try {
+         return repository.getEntries(entry, user, permission, selector);
+      }
+      finally {
+         if(old) {
+            PORTAL_DATA_LISTING.set(true);
+         }
+         else {
+            PORTAL_DATA_LISTING.remove();
+         }
+      }
+   }
+
    public static final ThreadLocal<String> LOCAL = new ThreadLocal<>();
+   private static final ThreadLocal<Boolean> PORTAL_DATA_LISTING =
+      ThreadLocal.withInitial(() -> Boolean.FALSE);
    private final LibManagerProvider libManagerProvider;
    private final Cluster cluster;
    protected int[] scopes; // supported scopes

@@ -90,8 +90,8 @@ public class DatabaseModelUtil {
       while(!path.isEmpty()) {
          addAdditionalProperties(resultEntry, additional);
          AssetEntry targetEntry = path.removeFirst();
-         AssetEntry[] entries = repository.getEntries(
-            resultEntry, principal, ResourceAction.READ, new AssetEntry.Selector(
+         AssetEntry[] entries = AbstractAssetEngine.getPortalDataEntries(
+            repository, resultEntry, principal, ResourceAction.READ, new AssetEntry.Selector(
                AssetEntry.Type.DATA, AssetEntry.Type.PHYSICAL,
                AssetEntry.Type.FOLDER));
          boolean found = false;
