@@ -2290,8 +2290,12 @@ derived_column [JDBCSelection selection, UniformSQL sql]
         exp = value_exp
         {
            tmp = exp.toString();
+           // a bare quoted identifier ("x y"), stored without its quotes
+           boolean quotedField = exp.getType().equals(XExpression.FIELD) &&
+              exp.getQuote() != XExpression.QUOTE_NONE;
 
-           if(sql.getDataSource() != null &&
+           // quoted names are case-sensitive, don't convert them to uppercase
+           if(!quotedField && sql.getDataSource() != null &&
               sql.getDataSource().getDatabaseType() == JDBCDataSource.JDBC_ORACLE &&
               exp.getType().equals(XExpression.FIELD))
        {
@@ -2317,6 +2321,10 @@ derived_column [JDBCSelection selection, UniformSQL sql]
            }
 
            selection.addColumn(tmp);
+
+           if(quotedField) {
+              selection.setQuoted(tmp, true);
+           }
         }
 
         (//(as_clause)=>        //remove the prediction if don't use subquery_select_list
