@@ -954,6 +954,46 @@ public class SUtil {
    }
 
    /**
+    * Bug #77452, gets the principal a schedule task runs its actions with: the principal of its
+    * execute-as identity, or the principal of its owner
+    * ({@link #getScheduleTaskOwnerPrincipal}) when the task has no execute-as identity or
+    * security is disabled. Every path that runs a task's actions (the scheduler job, the cluster
+    * job store and the batch action child tasks) uses this method, so that the principal a
+    * task's content runs with only depends on that task. Internal tasks are not handled here,
+    * the callers decide if such a task gets a principal.
+    * <p>
+    * Bug #77168, a non-null identity may be an unresolved placeholder kept by
+    * ScheduleTask.parseXML (Bug #77120/#77168); with security disabled that placeholder can
+    * never be resolved to a real principal, so the owner is used instead.
+    *
+    * @param task      the schedule task.
+    * @param addr      the remote address of the principal.
+    * @param fireEvent {@code true} to fire the login event.
+    *
+    * @return the principal.
+    */
+   public static SRPrincipal getScheduleTaskRunPrincipal(ScheduleTask task, String addr,
+                                                         boolean fireEvent)
+   {
+      Identity identity = task.getIdentity();
+      boolean securityEnabled;
+
+      try {
+         securityEnabled = SecurityEngine.getSecurity().isSecurityEnabled();
+      }
+      catch(Exception ex) {
+         LOG.debug("Failed to check whether security is enabled", ex);
+         securityEnabled = false;
+      }
+
+      if(identity == null || !securityEnabled) {
+         return getScheduleTaskOwnerPrincipal(task.getOwner(), addr, fireEvent);
+      }
+
+      return getPrincipal(identity, addr, fireEvent);
+   }
+
+   /**
     * Bug #77452, gets the roles that a schedule task owned by a missing user that has the name of
     * a site admin runs with (see {@link #getScheduleTaskOwnerPrincipal}): the organization
     * administrator roles that have no organization or are in the specified organization. A role

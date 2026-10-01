@@ -247,11 +247,10 @@ class ScheduleTaskSiteAdminNameOwnerTest {
             .getRoles()), "an existing owner runs with its own roles");
    }
 
-   // Bug #77452 path (a): a batch action lends the principal of its task to the child task it
+   // Bug #77452 path (a): a batch action lent the principal of its task to the child task it
    // runs. The child of a task owned by a missing user named like a site admin must not get a
-   // site admin's principal. The child is owned by a plain user, who could change what it runs.
-   // Whether the child should run as its own owner instead is a separate decision, so this only
-   // asserts that the lent principal is not a site admin.
+   // site admin's principal, nor the parent's org admin roles. The child is owned by a plain
+   // user, who could change what it runs, so it runs as that user.
    @Test
    void batchChild_ofTaskOwnedLikeSiteAdmin_isNotRunAsSiteAdmin() throws Throwable {
       String childName = "SanoBatchChild";
@@ -279,6 +278,7 @@ class ScheduleTaskSiteAdminNameOwnerTest {
       }).when(childRun).run(any());
 
       SRPrincipal parent = SUtil.getScheduleTaskOwnerPrincipal(SADM_IN_B, null, false);
+      assertTrue(OrganizationManager.getInstance().isOrgAdmin(parent), "test setup: org admin");
       // as ScheduleTask.doRun, the current org of the action is the owner's org
       ThreadContext.setContextPrincipal(parent);
 
@@ -288,8 +288,16 @@ class ScheduleTaskSiteAdminNameOwnerTest {
          batch.run(parent);
       }
 
+      assertSame(parent, ThreadContext.getContextPrincipal(), "context principal restored");
       java.security.Principal principal = received.get();
       assertNotNull(principal, "the child task was found and run");
+      assertNotSame(parent, principal, "not the parent's principal");
+      assertEquals(new IdentityID("carol", ORG_B),
+                   IdentityID.getIdentityIDFromKey(principal.getName()), "the child's owner");
+      assertEquals(List.of(new IdentityID(SCHEDULE_ROLE, ORG_B)),
+                   Arrays.asList(((SRPrincipal) principal).getRoles()), "the owner's roles");
+      assertFalse(OrganizationManager.getInstance().isOrgAdmin(principal),
+                  "the child doesn't run as an org admin");
       assertFalse(OrganizationManager.getInstance().isSiteAdmin(principal),
                   "the child doesn't run as a site admin");
       assertFalse(Arrays.stream(((inetsoft.uql.XPrincipal) principal).getAllRoles(securityProvider))
@@ -301,6 +309,128 @@ class ScheduleTaskSiteAdminNameOwnerTest {
       assertFalse(securityProvider.checkPermission(
          principal, ResourceType.EM_COMPONENT, "settings/general", ResourceAction.ACCESS),
                   "no site admin EM component");
+   }
+
+   // Bug #77452 Option 1: a child task that runs as a plain user (execute-as) gets that user's
+   // principal, not the org admin principal of the task that holds the batch action. The child
+   // task is run for real, the principal is recorded by a schedule task listener.
+   @Test
+   void batchChild_withExecuteAsUser_runsAsThatUserNotAsParent() throws Throwable {
+      IdentityID carol = new IdentityID("carol", ORG_B);
+      ScheduleTask child = registerTask("SanoBatchExecAs", carol, null);
+      child.setIdentity(new User(carol));
+      SRPrincipal parent = SUtil.getScheduleTaskOwnerPrincipal(SADM_IN_B, null, false);
+      assertTrue(OrganizationManager.getInstance().isOrgAdmin(parent), "test setup: org admin");
+
+      List<RecordingListener.Run> runs = runBatch(child, parent);
+
+      assertEquals(1, runs.size(), "the child ran once");
+      java.security.Principal principal = runs.get(0).principal();
+      assertEquals("SanoBatchExecAs", runs.get(0).task());
+      assertNotSame(parent, principal);
+      assertEquals(carol, IdentityID.getIdentityIDFromKey(principal.getName()));
+      assertTrue(Arrays.asList(((inetsoft.uql.XPrincipal) principal).getRoles())
+                    .contains(new IdentityID(SCHEDULE_ROLE, ORG_B)), "carol's role");
+      assertFalse(OrganizationManager.getInstance().isOrgAdmin(principal), "not org admin");
+      assertFalse(OrganizationManager.getInstance().isSiteAdmin(principal), "not site admin");
+      assertSame(principal, runs.get(0).contextPrincipal(),
+                 "the child's principal is the context principal while it runs");
+   }
+
+   // Bug #77452 Option 1: each level of nested batch actions runs its child with that child's
+   // own principal. parent (org admin) -> batch -> mid (carol, holds a batch) -> leaf (owned by
+   // zed, a missing user with no site admin of the same name, so no roles). The mid task's
+   // batch action runs in the schedule thread pool.
+   @Test
+   void nestedBatchChild_runsWithItsOwnPrincipal() throws Throwable {
+      IdentityID carol = new IdentityID("carol", ORG_B);
+      ScheduleTask leaf = registerTask("SanoBatchLeaf", ZED_IN_B, null);
+      BatchAction leafBatch = new BatchAction();
+      leafBatch.setTaskId(leaf.getTaskId());
+      leafBatch.setEmbeddedParameters(List.of(Map.of("p", "v")));
+      ScheduleTask mid = registerTask("SanoBatchMid", carol, leafBatch);
+      SRPrincipal parent = SUtil.getScheduleTaskOwnerPrincipal(SADM_IN_B, null, false);
+
+      List<RecordingListener.Run> runs = runBatch(mid, parent);
+
+      assertEquals(List.of("SanoBatchMid", "SanoBatchLeaf"),
+                   runs.stream().map(RecordingListener.Run::task).toList(), "both levels ran");
+      assertEquals(carol, IdentityID.getIdentityIDFromKey(runs.get(0).principal().getName()),
+                   "the mid task runs as its owner");
+      java.security.Principal principal = runs.get(1).principal();
+      assertEquals(ZED_IN_B, IdentityID.getIdentityIDFromKey(principal.getName()),
+                   "the leaf runs as its owner, not as the mid task's or the parent's");
+      assertEquals(0, ((inetsoft.uql.XPrincipal) principal).getRoles().length, "no roles");
+      assertFalse(OrganizationManager.getInstance().isOrgAdmin(principal), "not org admin");
+      assertSame(principal, runs.get(1).contextPrincipal(), "the leaf's context principal");
+   }
+
+   private ScheduleTask registerTask(String name, IdentityID owner, ScheduleAction action) {
+      ScheduleTask task = new ScheduleTask(name);
+      task.setOwner(owner);
+      task.addCondition(TimeCondition.at(1, 30, 0));
+
+      if(action != null) {
+         task.addAction(action);
+      }
+
+      taskNames.add(name);
+      String key = ReflectionTestUtils.invokeMethod(
+         scheduleManager, "getTaskIdentifier", task.getTaskId(), ORG_B);
+      @SuppressWarnings("unchecked")
+      Map<String, ScheduleTask> map =
+         (Map<String, ScheduleTask>) (Object) scheduleManager.getOrgTaskMap(ORG_B);
+      map.put(key, task);
+      return task;
+   }
+
+   /**
+    * Runs a batch action for the child task with the parent principal, and returns the runs of
+    * the tasks it started, as seen by a schedule task listener (ScheduleTask.doRun).
+    */
+   private List<RecordingListener.Run> runBatch(ScheduleTask child, SRPrincipal parent)
+      throws Throwable
+   {
+      BatchAction batch = new BatchAction();
+      batch.setTaskId(child.getTaskId());
+      batch.setEmbeddedParameters(List.of(Map.of("p", "v")));
+      RecordingListener.RUNS.clear();
+      String listener = inetsoft.sree.SreeEnv.getProperty("schedule.task.listener");
+      inetsoft.sree.SreeEnv.setProperty("schedule.task.listener",
+                                        RecordingListener.class.getName());
+      // as ScheduleTask.doRun, the context principal of the action is the parent's
+      ThreadContext.setContextPrincipal(parent);
+
+      try {
+         batch.run(parent);
+      }
+      finally {
+         inetsoft.sree.SreeEnv.setProperty("schedule.task.listener", listener);
+      }
+
+      assertSame(parent, ThreadContext.getContextPrincipal(), "context principal restored");
+      return new ArrayList<>(RecordingListener.RUNS);
+   }
+
+   /** Records the principal each schedule task is started with. */
+   public static final class RecordingListener implements TaskListener {
+      record Run(String task, java.security.Principal principal,
+                 java.security.Principal contextPrincipal)
+      {
+      }
+
+      @Override
+      public void taskStarted(ScheduleTask task, java.security.Principal user) {
+         RUNS.add(new Run(task.getName(), user, ThreadContext.getContextPrincipal()));
+      }
+
+      @Override
+      public void taskCompleted(ScheduleTask task, java.security.Principal user,
+                                List<Throwable> exceptions)
+      {
+      }
+
+      static final List<Run> RUNS = Collections.synchronizedList(new ArrayList<>());
    }
 
    // --- ScheduleTaskIdentityChecker -------------------------------------------------------------
