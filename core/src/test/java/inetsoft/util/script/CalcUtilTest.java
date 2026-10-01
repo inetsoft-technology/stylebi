@@ -30,6 +30,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.time.temporal.ChronoUnit;
 import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -318,6 +319,31 @@ public class CalcUtilTest {
                                                   toDate("2024-01-01T00:00:00")));
          assertEquals(45291, CalcTextData.value("1/1/2024"));
       });
+   }
+
+   // Bug #77450, every day from 1950 to 2050 counts the same as java.time, and CALC.value is
+   // not shifted in other zones where the 1899 serial start is in local mean time
+   @Test
+   void serialDaysMatchJavaTimeForModernDates() {
+      for(String zone : new String[] { "Europe/Warsaw", "Africa/Cairo", "Australia/Lord_Howe",
+                                       "Pacific/Apia" })
+      {
+         runInZone(zone, () -> {
+            ZoneId zoneId = ZoneId.systemDefault();
+            LocalDateTime start = LocalDateTime.of(1950, 1, 1, 23, 30);
+            Date startDate = Date.from(start.atZone(zoneId).toInstant());
+
+            for(LocalDateTime day = start; day.getYear() <= 2050; day = day.plusDays(1)) {
+               Date date = Date.from(day.atZone(zoneId).toInstant());
+               long expected = ChronoUnit.DAYS.between(
+                  start.toLocalDate(), date.toInstant().atZone(zoneId).toLocalDate());
+               assertEquals(expected, CalcUtil.getSerialDays(startDate, date), zone + " " + day);
+            }
+
+            assertEquals(45291, CalcTextData.value("1/1/2024"), zone);
+            assertEquals(1, CalcTextData.value("1/1/1900"), zone);
+         });
+      }
    }
 
    static Date hybridDate(int year, int month, int day) {
