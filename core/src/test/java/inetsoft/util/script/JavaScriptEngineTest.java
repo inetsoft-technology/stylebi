@@ -82,6 +82,40 @@ class JavaScriptEngineTest {
       assertEquals(5, S);
    }
 
+   // Bug #77450, America/New_York is -4:56:02 in java.time before 1883 vs -5:00 in java.util
+   @Test
+   void dateDiffDaysBefore1901() {
+      java.util.Date d1 = CalcUtilTest.hybridDate(1882, 6, 1);
+      java.util.Date d2 = CalcUtilTest.hybridDate(2024, 1, 1);
+      assertEquals(51713, JavaScriptEngine.dateDiff("d", d1, d2));
+      assertEquals(51713, JavaScriptEngine.dateDiff("y", d1, d2));
+      assertEquals(7387, JavaScriptEngine.dateDiff("ww", d1, d2));
+      assertEquals(-51713, JavaScriptEngine.dateDiff("d", d2, d1));
+      // hours count the instant time line
+      assertEquals(1241112, JavaScriptEngine.dateDiff("h", d1, d2));
+      // across the 1582 Gregorian cutover and a Julian-only leap day
+      assertEquals(36515, JavaScriptEngine.dateDiff("d", CalcUtilTest.hybridDate(1500, 3, 1),
+                                                    CalcUtilTest.hybridDate(1600, 3, 1)));
+      assertEquals(1, JavaScriptEngine.dateDiff("d", CalcUtilTest.hybridDate(1300, 2, 29),
+                                                CalcUtilTest.hybridDate(1300, 3, 1)));
+   }
+
+   @Test
+   void dateDiffDaysKeepsTimeOfDay() {
+      // 23:00 to 01:00 the next day is less than one day
+      assertEquals(0, JavaScriptEngine.dateDiff("d", toDate("2021-03-13T23:00"),
+                                                toDate("2021-03-14T01:00")));
+      // across DST, 24 wall-clock hours are one day
+      assertEquals(1, JavaScriptEngine.dateDiff("d", toDate("2021-03-13T12:00"),
+                                                toDate("2021-03-14T12:00")));
+      assertEquals(0, JavaScriptEngine.dateDiff("d", toDate("2021-03-13T12:00"),
+                                                toDate("2021-03-14T11:59")));
+      assertEquals(0, JavaScriptEngine.dateDiff("d", toDate("2021-03-14T11:59"),
+                                                toDate("2021-03-13T12:00")));
+      assertEquals(1, JavaScriptEngine.dateDiff("ww", toDate("2021-03-07T12:00"),
+                                                toDate("2021-03-14T12:00")));
+   }
+
    @Test
    void DSTBoundaryIs23HourDiff() {
       java.util.Date d1 = toDate("2021-03-13T12:00");

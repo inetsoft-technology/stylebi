@@ -52,7 +52,6 @@ import java.security.Principal;
 import java.sql.*;
 import java.text.*;
 import java.time.LocalDate;
-import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.Date;
 import java.util.List;
@@ -4046,13 +4045,11 @@ public final class XUtil {
                            if(dateFormat != null && obj instanceof Date) {
                               DateTimeFormatter formatter = DateTimeFormatter.ofPattern(dateFormat);
 
-                              if (obj instanceof java.sql.Date) {
-                                 varValue = ((java.sql.Date) obj).toLocalDate().format(formatter);
-                              } else {
-                                 LocalDate localDate = ((Date) obj).toInstant().
-                                    atZone(ZoneId.systemDefault()).toLocalDate();
-                                 varValue = localDate.format(formatter);
-                              }
+                              // java.sql.Date.toLocalDate() reads the date as SimpleDateFormat
+                              // does, java.time would shift dates before 1901 (bug #77450)
+                              LocalDate localDate =
+                                 new java.sql.Date(((Date) obj).getTime()).toLocalDate();
+                              varValue = localDate.format(formatter);
                            }
                         }
                         catch(Exception e) {

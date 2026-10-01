@@ -62,6 +62,18 @@ public class CalcDateTimeTest {
       }
    }
 
+   // Bug #77450, java.time reads dates before 1901 in local mean time
+   @Test
+   void datevalueBefore1901InKolkata() {
+      CalcUtilTest.runInZone("Asia/Kolkata", () -> {
+         Date d1882 = CalcUtilTest.hybridDate(1882, 6, 1);
+         assertEquals(-6422, CalcDateTime.datevalue(d1882));
+         assertEquals(-6422, CalcDateTime.datevalue(new java.sql.Date(d1882.getTime())));
+         assertEquals(1, CalcDateTime.datevalue(CalcUtilTest.hybridDate(1900, 1, 1)));
+         assertEquals(45199, CalcDateTime.datevalue(CalcUtilTest.hybridDate(2023, 10, 1)));
+      });
+   }
+
    @Test
    public void testDay() {
       // Test Case 1: Valid date
