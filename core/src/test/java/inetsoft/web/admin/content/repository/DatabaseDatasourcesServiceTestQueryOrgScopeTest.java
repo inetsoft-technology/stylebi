@@ -185,6 +185,31 @@ class DatabaseDatasourcesServiceTestQueryOrgScopeTest {
    }
 
    @Test
+   void siteAdminSwitchedIntoOrgUsesTheSwitchedOrgKey() throws Exception {
+      SreeEnv.setProperty(KEY, "SELECT LEGACY");
+      asOrg("orga");
+      saveTestQuery(DS, DS, "SELECT A");
+
+      asSwitchedSiteAdmin("orgb");
+      assertNull(editorTestQuery(), "the switched site admin reads another org's test query");
+      saveTestQuery(DS, DS, "SELECT B");
+      assertEquals("SELECT B", SreeEnv.getProperty(orgKey("orgb"), false, false));
+      assertNull(SreeEnv.getProperty(orgKey(HOST), false, false));
+      assertEquals("SELECT B", editorTestQuery());
+
+      asOrg("orgb");
+      assertEquals("SELECT B", editorTestQuery());
+
+      asSwitchedSiteAdmin("orgb");
+      deleteDataSource();
+      assertNull(SreeEnv.getProperty(orgKey("orgb"), false, false));
+      assertEquals("SELECT LEGACY", globalValue(), "the switched site admin removed the global key");
+
+      asOrg("orga");
+      assertEquals("SELECT A", editorTestQuery());
+   }
+
+   @Test
    void renameMovesTheOrgKey() throws Exception {
       String renamedKey = "inetsoft.org.orga.inetsoft.uql.jdbc.pool.renamed.connectionTestQuery";
 
@@ -250,6 +275,15 @@ class DatabaseDatasourcesServiceTestQueryOrgScopeTest {
       ThreadContext.setContextPrincipal(
          new SRPrincipal(new IdentityID("admin", org), new IdentityID[0], new String[0], org,
                          Tool.getSecureRandom().nextLong()));
+   }
+
+   // a host organization site admin that switched into another organization in the EM
+   private void asSwitchedSiteAdmin(String org) {
+      SRPrincipal principal = new SRPrincipal(
+         new IdentityID("admin", HOST), new IdentityID[0], new String[0], HOST,
+         Tool.getSecureRandom().nextLong());
+      principal.setProperty("curr_org_id", org);
+      ThreadContext.setContextPrincipal(principal);
    }
 
    private void saveTestQuery(String oldSource, String newSource, String query) throws Exception {
