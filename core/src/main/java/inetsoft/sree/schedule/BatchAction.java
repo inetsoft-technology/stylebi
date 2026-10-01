@@ -89,7 +89,7 @@ public class BatchAction extends AbstractAction {
 
    /**
     * Gets the principal the child task runs with, the same as ScheduleTaskJob: none for an
-    * internal task, otherwise its execute-as identity or its owner.
+    * internal task, otherwise its execute-as identity or its owner, with the locale of the task.
     */
    private Principal getChildPrincipal(ScheduleTask task) {
       if(ScheduleManager.isInternalTask(task.getTaskId())) {
@@ -105,6 +105,8 @@ public class BatchAction extends AbstractAction {
             ", the task was not run");
       }
 
+      // the child runs with its own locale, the same as when it is run (SUtil.runTask)
+      SUtil.applyScheduleTaskLocale(childPrincipal, task.getLocale());
       return childPrincipal;
    }
 

@@ -57,7 +57,8 @@ import static org.mockito.Mockito.*;
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class, IntegrationTestConfiguration.class,
-                                  SecurityEngineDispatchConfiguration.class },
+                                  SecurityEngineDispatchConfiguration.class,
+                                  ScheduleTaskSiteAdminNameOwnerTest.LocaleConfiguration.class },
                       initializers = ConfigurationContextInitializer.class)
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @SreeHome
@@ -312,13 +313,14 @@ class ScheduleTaskSiteAdminNameOwnerTest {
    }
 
    // Bug #77452 Option 1: a child task that runs as a plain user (execute-as) gets that user's
-   // principal, not the org admin principal of the task that holds the batch action. The child
-   // task is run for real, the principal is recorded by a schedule task listener.
+   // principal, not the org admin principal of the task that holds the batch action, nor the
+   // principal of its owner (zed, no roles). The child task is run for real, the principal is
+   // recorded by a schedule task listener.
    @Test
    void batchChild_withExecuteAsUser_runsAsThatUserNotAsParent() throws Throwable {
       IdentityID carol = new IdentityID("carol", ORG_B);
-      ScheduleTask child = registerTask("SanoBatchExecAs", carol, null);
-      child.setIdentity(new User(carol));
+      ScheduleTask child = registerTask("SanoBatchExecAs", ZED_IN_B, null,
+                                        task -> task.setIdentity(new User(carol)));
       SRPrincipal parent = SUtil.getScheduleTaskOwnerPrincipal(SADM_IN_B, null, false);
       assertTrue(OrganizationManager.getInstance().isOrgAdmin(parent), "test setup: org admin");
 
@@ -335,6 +337,34 @@ class ScheduleTaskSiteAdminNameOwnerTest {
       assertFalse(OrganizationManager.getInstance().isSiteAdmin(principal), "not site admin");
       assertSame(principal, runs.get(0).contextPrincipal(),
                  "the child's principal is the context principal while it runs");
+   }
+
+   // Bug #77452 Option 1: a batch child runs with its own task locale, as when it is run directly
+   // (SUtil.runTask), not with the locale of the task that holds the batch action.
+   @Test
+   void batchChild_runsWithItsOwnTaskLocale() throws Throwable {
+      String available = inetsoft.sree.SreeEnv.getProperty("locale.available");
+      inetsoft.sree.SreeEnv.setProperty("locale.available", "de_DE:fr_FR");
+
+      try {
+         ScheduleTask child = registerTask("SanoBatchLocale", new IdentityID("carol", ORG_B),
+                                           null, task -> task.setLocale("de_DE"));
+         SRPrincipal parent = SUtil.getScheduleTaskOwnerPrincipal(SADM_IN_B, null, false);
+         // the parent task runs with its own locale (SUtil.runTask)
+         SUtil.applyScheduleTaskLocale(parent, "fr_FR");
+         assertEquals("fr_FR", parent.getProperty(SRPrincipal.LOCALE), "test setup");
+
+         List<RecordingListener.Run> runs = runBatch(child, parent);
+
+         assertEquals(1, runs.size(), "the child ran once");
+         assertEquals("de_DE", ((SRPrincipal) runs.get(0).principal())
+            .getProperty(SRPrincipal.LOCALE), "the child task's locale");
+         assertEquals("fr_FR", parent.getProperty(SRPrincipal.LOCALE),
+                      "the parent's locale is unchanged");
+      }
+      finally {
+         inetsoft.sree.SreeEnv.setProperty("locale.available", available);
+      }
    }
 
    // Bug #77452 Option 1: each level of nested batch actions runs its child with that child's
@@ -366,6 +396,15 @@ class ScheduleTaskSiteAdminNameOwnerTest {
    }
 
    private ScheduleTask registerTask(String name, IdentityID owner, ScheduleAction action) {
+      return registerTask(name, owner, action, task -> { });
+   }
+
+   /**
+    * Stores a task in the org task map, the setup is applied before it is stored.
+    */
+   private ScheduleTask registerTask(String name, IdentityID owner, ScheduleAction action,
+                                     java.util.function.Consumer<ScheduleTask> setup)
+   {
       ScheduleTask task = new ScheduleTask(name);
       task.setOwner(owner);
       task.addCondition(TimeCondition.at(1, 30, 0));
@@ -373,6 +412,8 @@ class ScheduleTaskSiteAdminNameOwnerTest {
       if(action != null) {
          task.addAction(action);
       }
+
+      setup.accept(task);
 
       taskNames.add(name);
       String key = ReflectionTestUtils.invokeMethod(
@@ -555,6 +596,18 @@ class ScheduleTaskSiteAdminNameOwnerTest {
       }
 
       return principal;
+   }
+
+   /**
+    * The locale service the schedule task run uses (SUtil.applyScheduleTaskLocale), not in
+    * BaseTestConfiguration.
+    */
+   @org.springframework.context.annotation.Configuration
+   static class LocaleConfiguration {
+      @org.springframework.context.annotation.Bean
+      LocaleService localeService(SecurityEngine securityEngine) {
+         return new LocaleService(securityEngine);
+      }
    }
 
    private FileAuthenticationProvider provider() {

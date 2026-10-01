@@ -106,7 +106,8 @@ public class ScheduleTaskIdentityChecker {
 
    /**
     * Bug #77309, determines if the caller may create a task owned by a user. A task whose owner
-    * doesn't exist runs with the roles of a site admin of the same name in another organization
+    * doesn't exist and has the name of a site admin in another organization runs with elevated
+    * roles, the org admin roles of its organization since Bug #77452
     * (SUtil.getScheduleTaskOwnerPrincipal), so only a site admin, or any caller when security is
     * disabled, may create a task with such an owner (a site admin creating a task in an
     * organization without an admin, SUtil.getOwnerForNewTask). Any other caller is refused, e.g.
@@ -173,8 +174,9 @@ public class ScheduleTaskIdentityChecker {
 
    /**
     * Determines if a task runs as its owner with an execute-as identity. A task with no
-    * execute-as identity runs as its owner (SUtil.getScheduleTaskOwnerPrincipal), with the roles
-    * of a site admin of the same name when the owner doesn't exist (Epic 70095).
+    * execute-as identity runs as its owner (SUtil.getScheduleTaskOwnerPrincipal), with elevated
+    * roles when the owner doesn't exist and has the name of a site admin (Epic 70095; the org
+    * admin roles of its organization since Bug #77452).
     *
     * @param identity the execute-as identity, may be null.
     * @param owner    the owner of the task.
@@ -239,11 +241,11 @@ public class ScheduleTaskIdentityChecker {
    /**
     * Bug #77405, determines if the caller may add or change the actions or conditions of a
     * task that is stored with an owner and execute-as identity. The actions of a task that runs
-    * with the roles of a site admin ({@link #runsWithSiteAdminRoles}) run with those roles, so
+    * with elevated roles ({@link #runsWithSiteAdminRoles}) run with those roles, so
     * only a site admin, or any caller when security is disabled, may add or change them. Any
     * other caller may still rename the task, change its other options and remove its actions
     * and conditions, or add and change them in a save that gives the task an execute-as
-    * identity or an owner that exists, so it no longer runs with the site admin's roles.
+    * identity or an owner that exists, so it no longer runs with the elevated roles.
     *
     * @param owner     the owner the task is stored with.
     * @param identity  the execute-as identity the task is stored with, may be null.
@@ -439,7 +441,8 @@ public class ScheduleTaskIdentityChecker {
    }
 
    /**
-    * Determines if a task owned by a user runs with the roles of a site admin of the same name.
+    * Determines if a task owned by a user runs with the elevated roles given because of a site
+    * admin of the same name (the org admin roles of its organization since Bug #77452).
     */
    private boolean runsAsSiteAdmin(IdentityID owner) {
       return SUtil.getSameNameSiteAdmin(getProvider(), owner) != null;

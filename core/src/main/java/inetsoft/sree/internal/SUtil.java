@@ -1407,8 +1407,7 @@ public class SUtil {
 
       if(principal instanceof SRPrincipal) {
          SRPrincipal srp = (SRPrincipal) principal;
-         locale = LocaleService.getInstance().getLocale(locale, principal);
-         srp.setProperty(SRPrincipal.LOCALE, locale);
+         applyScheduleTaskLocale(srp, locale);
          srp.setIgnoreLogin(true);
          userID = SUtil.getUserID(srp.getClientUserID(), userID);
       }
@@ -1429,6 +1428,22 @@ public class SUtil {
       }
 
       return sessionRecord;
+   }
+
+   /**
+    * Sets the locale a schedule task runs with on the principal it runs with: the locale of the
+    * task, resolved for the user ({@link LocaleService#getLocale(String, Principal)}). Used by
+    * {@link #runTask} and, Bug #77452, by the child task of a batch action, so that the child
+    * runs with its own locale as when it is run directly.
+    *
+    * @param principal the principal the task runs with.
+    * @param locale    the locale of the task, see {@link ScheduleTask#getLocale()}.
+    */
+   public static void applyScheduleTaskLocale(Principal principal, String locale) {
+      if(principal instanceof SRPrincipal) {
+         ((SRPrincipal) principal).setProperty(
+            SRPrincipal.LOCALE, LocaleService.getInstance().getLocale(locale, principal));
+      }
    }
 
    /**
