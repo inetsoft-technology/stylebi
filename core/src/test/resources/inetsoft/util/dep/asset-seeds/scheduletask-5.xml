@@ -1,0 +1,13 @@
+<ScheduleTask><Task name="FuzzSeed-5" owner="admin~;~host-org" enabled="true" editable="true" removable="true" delNotRun="false" durable="false" path="/" lastModified="1790803519634" type="NORMAL_TASK">
+<Condition type="TimeCondition" timeType="8" timezone="-18000000:America/New_York" timeZoneLabel="Eastern Daylight Time (local time zone)" hour="1" minute="30" second="0" hour_end="23" minute_end="30" second_end="0" daysOfWeek="4" hourlyInterval="2.0"></Condition><Action type="Batch" class="inetsoft.sree.schedule.BatchAction" taskId="admin~;~host-org:FuzzSeed-1" >
+<queryParameters>
+</queryParameters>
+<embeddedParameters>
+<map>
+<entry>
+<key><![CDATA[region]]></key><dynamicParameterValue><value><![CDATA[East]]></value><type><![CDATA[VALUE]]></type><valueType><![CDATA[string]]></valueType></dynamicParameterValue></entry>
+</map>
+</embeddedParameters>
+</Action>
+</Task>
+</ScheduleTask>

@@ -27,52 +27,28 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
-import java.nio.file.*;
-import java.util.*;
 import java.util.stream.Stream;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipInputStream;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Replays the viewsheets, worksheets and manifest of the example bundle that a new server
- * imports ({@code community-examples/examples.zip}) against {@link ImportedAssetProperties}.
- * The enterprise fuzzer starts from the same entries.
+ * Replays asset entry XML that is not in the bundled example zip (so
+ * {@code ExampleAssetsSeedTest} cannot cover it) against {@link ImportedAssetProperties}: real
+ * schedule tasks exported from a server. The enterprise fuzzer uses the same seeds.
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class, IntegrationTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @SreeHome
 @Tag("core")
-class ExampleAssetsSeedTest {
+class AssetSeedTest {
    @ParameterizedTest(name = "{0}")
-   @MethodSource("entries")
-   void exampleSurvivesSaveAndReload(String name, byte[] content) throws Exception {
-      assertTrue(ImportedAssetProperties.check(content, true), name + " was not checked");
+   @MethodSource("seeds")
+   void assetRoundTrips(String name, byte[] seed) throws Exception {
+      assertTrue(ImportedAssetProperties.check(seed, true), name + " was not checked");
    }
 
-   static Stream<Arguments> entries() throws Exception {
-      // core/target/test-classes -> community/community-examples/examples.zip
-      Path classes = Path.of(ExampleAssetsSeedTest.class.getResource("/").toURI());
-      Path zip = classes.resolve("../../../community-examples/examples.zip").normalize();
-      List<Arguments> entries = new ArrayList<>();
-
-      try(ZipInputStream in = new ZipInputStream(Files.newInputStream(zip))) {
-         for(ZipEntry entry; (entry = in.getNextEntry()) != null; ) {
-            String name = entry.getName();
-
-            if(name.startsWith("VIEWSHEET_") || name.startsWith("WORKSHEET_") ||
-               name.startsWith("XPARTITION_") || name.startsWith("XLOGICALMODEL_") ||
-               name.startsWith("DEVICE_") || name.startsWith("DASHBOARD_") ||
-               name.equals("JarFileInfo.xml"))
-            {
-               entries.add(Arguments.of(name, in.readAllBytes()));
-            }
-         }
-      }
-
-      entries.sort(Comparator.comparing(a -> (String) a.get()[0]));
-      return entries.stream();
+   static Stream<Arguments> seeds() throws Exception {
+      return SeedCorpus.load(AssetSeedTest.class, "asset-seeds");
    }
 }
