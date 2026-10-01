@@ -119,6 +119,18 @@ class JDBCQueryCacheNormalizerSortedSqlTest {
       }
    }
 
+   // XSessionManager.finalize() calls tearDown(), which closes the data service. Tear the
+   // sessions down here, while their mock data service is alive, so a later finalizer does
+   // not call into a garbage collected mock on the Finalizer thread during another test.
+   @AfterEach
+   void tearDownSessions() {
+      for(XSessionManager session : sessions) {
+         session.tearDown();
+      }
+
+      sessions.clear();
+   }
+
    @BeforeEach
    void createTables() throws Exception {
       try(Connection conn = derby().getConnection(); Statement stmt = conn.createStatement()) {
@@ -444,6 +456,7 @@ class JDBCQueryCacheNormalizerSortedSqlTest {
          dataService, ConfigurationContext.getContext().getSpringBean(XSessionService.class),
          null);
       session.setCacheData(cache);
+      sessions.add(session);
       return session;
    }
 
@@ -606,5 +619,6 @@ class JDBCQueryCacheNormalizerSortedSqlTest {
    private static final Principal USER = new XPrincipal(new IdentityID("bug77485", "host-org"));
    private static final ThreadLocal<String> executed = new ThreadLocal<>();
    private static final ThreadLocal<Run> currentRun = new ThreadLocal<>();
+   private static final List<XSessionManager> sessions = new ArrayList<>();
    private static Object oldVpmProcessor;
 }
