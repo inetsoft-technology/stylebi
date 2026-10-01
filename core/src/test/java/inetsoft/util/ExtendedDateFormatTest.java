@@ -261,6 +261,28 @@ public class ExtendedDateFormatTest {
       }
    }
 
+   // Bug #77443: a daylight saving overlap takes the earlier offset of the format's zone, the
+   // same choice made when the format's zone is the default (see post1900DateUsesJavaTime)
+   @Test
+   public void parseUsesZoneOfFormatInDaylightSavingOverlap() throws Exception {
+      final TimeZone oldZone = TimeZone.getDefault();
+
+      try {
+         TimeZone.setDefault(TimeZone.getTimeZone("America/Los_Angeles"));
+         final ExtendedDateFormat format = new ExtendedDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US);
+         format.setTimeZone(TimeZone.getTimeZone("America/New_York"));
+         final Date daylight = Date.from(Instant.parse("2024-11-03T05:30:00Z"));
+         final String text = format.format(daylight);
+
+         assertEquals("2024-11-03 01:30:00", text);
+         assertEquals(daylight, format.parse(text));
+         assertEquals(daylight, format.parseObject(text));
+      }
+      finally {
+         TimeZone.setDefault(oldZone);
+      }
+   }
+
    // Bug #77441: an input java.time rejects must not switch the instance to SimpleDateFormat
    // for later inputs. results are compared with a fresh instance instead of fixed values
    // because the java.time answers for invalid days and zones are owned by other fixes
