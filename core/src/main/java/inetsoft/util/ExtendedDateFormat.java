@@ -597,7 +597,7 @@ public class ExtendedDateFormat extends SimpleDateFormat {
          // the same calendar and zone as format(). SimpleDateFormat is tried first because
          // the SMART resolver has already clamped a Julian leap day such as 1500-02-29
          if(year < 1901) {
-            Date date = super.parse(str, new ParsePosition(0));
+            Date date = parseKeepZone(str, new ParsePosition(0));
 
             if(date != null) {
                return date;
@@ -618,7 +618,25 @@ public class ExtendedDateFormat extends SimpleDateFormat {
          }
       }
 
-      return super.parse(str, pos);
+      return parseKeepZone(str, pos);
+   }
+
+   /**
+    * Parse with SimpleDateFormat without changing the zone of this format. SimpleDateFormat
+    * sets the zone from a parsed zone name (pattern z), which would make every later
+    * format() of this (often cached and shared) instance use the zone parsed last.
+    */
+   private Date parseKeepZone(String str, ParsePosition pos) {
+      TimeZone zone = getTimeZone();
+
+      try {
+         return super.parse(str, pos);
+      }
+      finally {
+         if(!zone.equals(getTimeZone())) {
+            setTimeZone(zone);
+         }
+      }
    }
 
    /**

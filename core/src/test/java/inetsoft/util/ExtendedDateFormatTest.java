@@ -501,4 +501,47 @@ public class ExtendedDateFormatTest {
          TimeZone.setDefault(oldZone);
       }
    }
+
+   // Bug #77465: SimpleDateFormat sets the zone of the format from a parsed zone name. a
+   // shared or cached format must keep its zone, otherwise every later format() prints in
+   // the zone of whatever was parsed last
+   @ParameterizedTest(name = "{0} {1}")
+   @CsvSource(delimiter = '|', value = {
+      "America/New_York | 2011-03-10 14:05 PST",
+      "America/New_York | 2011-03-10 14:05 PST tail",
+      "America/New_York | 1850-01-01 12:00 PST",
+      "America/New_York | 2011-03-10 14:05 GMT+05:30",
+      "Asia/Tokyo | 2011-03-10 14:05 PST"
+   })
+   public void parseKeepsZoneOfFormat(String zoneId, String text) throws Exception {
+      final TimeZone oldZone = TimeZone.getDefault();
+
+      try {
+         TimeZone.setDefault(TimeZone.getTimeZone("America/New_York"));
+         final String pattern = "yyyy-MM-dd HH:mm z";
+         final TimeZone zone = TimeZone.getTimeZone(zoneId);
+         final Date other = Date.from(Instant.parse("2011-07-01T12:00:00Z"));
+         final ExtendedDateFormat fresh = new ExtendedDateFormat(pattern, Locale.US);
+         fresh.setTimeZone(zone);
+         final String expected = fresh.format(other);
+         final List<ThrowingFunction> parsers = List.of(
+            f -> f.parse(text), f -> f.parseObject(text), f -> f.parse(text, new ParsePosition(0)));
+
+         for(ThrowingFunction parser : parsers) {
+            final ExtendedDateFormat format = new ExtendedDateFormat(pattern, Locale.US);
+            format.setTimeZone(zone);
+
+            assertNotNull(parser.apply(format));
+            assertEquals(zoneId, format.getTimeZone().getID());
+            assertEquals(expected, format.format(other));
+         }
+      }
+      finally {
+         TimeZone.setDefault(oldZone);
+      }
+   }
+
+   private interface ThrowingFunction {
+      Object apply(ExtendedDateFormat format) throws Exception;
+   }
 }
