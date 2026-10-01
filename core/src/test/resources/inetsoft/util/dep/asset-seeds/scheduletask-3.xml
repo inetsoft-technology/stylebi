@@ -1,0 +1,17 @@
+<ScheduleTask><Task name="FuzzSeed-3" owner="admin~;~host-org" enabled="true" editable="true" removable="true" delNotRun="false" durable="false" path="/" lastModified="1790803175340" type="NORMAL_TASK">
+<Condition type="Completion" task="admin~;~host-org:FuzzSeed-1"/>
+<Action type="Viewsheet" viewsheet="1^128^__NULL__^VPMBypassRepro^host-org" bookmarkReadOnly="false">
+<MailTo  email="chain@example.com" from="reportserver@example.com" ccAddresses="" bccAddresses="" format="CSV" compressFile="true" matched="true" expandSelections="false" onlyDataComponents="false" exportAllTabbedTables="false" useCredential="false" messageHtml="true" attachmentName="VPMBypassRepro" subject="">
+<message><![CDATA[]]></message>
+<CSVConfig delimiter="," quote="" keepHeader="true" tabDelimited="false">
+</CSVConfig></MailTo>
+<Bookmark name="(Home)" type="1" user="admin~;~host-org"/>
+<LinkURI uri="http://localhost:8080/sree/"></LinkURI>
+<Notify email="" onError="false" link="false"/>
+<Deliver deliverLink="false"/>
+<SaveToServer match="true" expandSelections="false" saveExportAllTabbedTables="false" onlyDataComponents="false"/>
+<Request>
+</Request>
+</Action>
+</Task>
+</ScheduleTask>

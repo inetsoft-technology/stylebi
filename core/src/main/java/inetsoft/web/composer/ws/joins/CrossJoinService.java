@@ -67,6 +67,7 @@ public class CrossJoinService extends WorksheetControllerService {
       final RuntimeSheet sheet = getWorksheetEngine().getSheet(runtimeId, principal);
 
       if(sheet instanceof RuntimeWorksheet) {
+         checkCubeTableReadPermission(principal, tableName);
          refreshWorksheet(principal, dispatcher, (RuntimeWorksheet) sheet, tableName);
       }
       else {
@@ -83,6 +84,7 @@ public class CrossJoinService extends WorksheetControllerService {
    {
       RuntimeWorksheet rws = super.getWorksheetEngine()
          .getWorksheet(runtimeId, principal);
+      checkCubeTableReadPermission(principal, event.getTableNames());
       final CrossJoinMetaInfo joinInfo = process(rws, event.getTableNames(), false);
 
       if(joinInfo == null || joinInfo.joinTable == null) {

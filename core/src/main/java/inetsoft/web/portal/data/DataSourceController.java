@@ -115,15 +115,21 @@ public class DataSourceController {
     * @return the dependencies exception string
     */
    @PostMapping("api/data/datasources/browser/folder/checkOuterDependencies")
-   public StringWrapper checkDsFolderOuterDependencies(@RequestBody CheckDependenciesEvent event) {
+   public StringWrapper checkDsFolderOuterDependencies(@RequestBody CheckDependenciesEvent event,
+                                                       Principal principal)
+      throws SecurityException
+   {
       String path = event == null ? null : event.getDatasourceFolderPath();
 
       if(path == null) {
          return null;
       }
 
+      // only the folder delete asks for this, so require the permission the delete needs
+      checkDeletePermission(ResourceType.DATA_SOURCE_FOLDER, path, principal);
+
       try {
-         datasourcesService.checkDataSourceFolderOuterDependencies(path);
+         datasourcesService.checkDataSourceFolderOuterDependencies(path, principal);
       }
       catch(Exception ex) {
          StringWrapper wrapper = new StringWrapper();
@@ -362,6 +368,8 @@ public class DataSourceController {
    public void deleteDataSources(@RequestBody SelectedDataSourcesRequest request,
                                  Principal principal) throws Exception
    {
+      // check every item before deleting any, so a denied item doesn't leave a partial delete
+      checkDeletePermission(request, principal);
 
       for (SelectedDataSourceItem d : request.dataSources()) {
          DatabaseDefinition databaseDefinition = new DatabaseDefinition();
@@ -381,7 +389,13 @@ public class DataSourceController {
     * @return the dependencies exception string
     */
    @PostMapping("api/data/datasources/checkOuterDependencies/selected")
-   public StringWrapper checkDsOuterDependenciesSelected(@RequestBody SelectedDataSourcesRequest request) {
+   public StringWrapper checkDsOuterDependenciesSelected(@RequestBody SelectedDataSourcesRequest request,
+                                                         Principal principal)
+      throws SecurityException
+   {
+      // only the selected delete asks for this, so require the permission the delete needs
+      checkDeletePermission(request, principal);
+
       String dependencies = "";
 
       for(SelectedDataSourceItem f : request.folders()) {
@@ -392,7 +406,7 @@ public class DataSourceController {
          }
 
          try {
-            datasourcesService.checkDataSourceFolderOuterDependencies(path);
+            datasourcesService.checkDataSourceFolderOuterDependencies(path, principal);
          }
          catch(Exception ex) {
             dependencies += "\n"+ex.getMessage();
@@ -400,7 +414,7 @@ public class DataSourceController {
       }
 
       for(SelectedDataSourceItem d : request.dataSources()) {
-         String dataSource = d.name();
+         String dataSource = d.path();
 
          if(dataSource == null) {
             continue;
@@ -428,12 +442,19 @@ public class DataSourceController {
     * @return the dependencies exception string
     */
    @PostMapping("api/data/datasources/checkOuterDependencies")
-   public StringWrapper checkOuterDependencies(@RequestBody CheckDependenciesEvent event) {
+   public StringWrapper checkOuterDependencies(@RequestBody CheckDependenciesEvent event,
+                                               Principal principal)
+      throws SecurityException
+   {
+      // the full path of the data source
       String dataSource = event == null ? null : event.getDatabaseName();
 
       if(dataSource == null) {
          return null;
       }
+
+      // only the data source delete asks for this, so require the permission the delete needs
+      checkDeletePermission(ResourceType.DATA_SOURCE, dataSource, principal);
 
       try {
          datasourcesService.checkDataSourceOuterDependencies(dataSource);
@@ -445,6 +466,32 @@ public class DataSourceController {
       }
 
       return null;
+   }
+
+   /**
+    * Checks the DELETE permission on every selected data source and folder.
+    */
+   private void checkDeletePermission(SelectedDataSourcesRequest request, Principal principal)
+      throws SecurityException
+   {
+      for(SelectedDataSourceItem d : request.dataSources()) {
+         checkDeletePermission(ResourceType.DATA_SOURCE, d.path(), principal);
+      }
+
+      for(SelectedDataSourceItem f : request.folders()) {
+         checkDeletePermission(ResourceType.DATA_SOURCE_FOLDER, f.path(), principal);
+      }
+   }
+
+   private void checkDeletePermission(ResourceType type, String path, Principal principal)
+      throws SecurityException
+   {
+      if(path == null ||
+         !securityEngine.checkPermission(principal, type, path, ResourceAction.DELETE))
+      {
+         throw new SecurityException(
+            "Unauthorized access to resource \"" + path + "\" by user " + principal);
+      }
    }
 
    /**

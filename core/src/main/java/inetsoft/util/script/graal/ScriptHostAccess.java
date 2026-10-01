@@ -73,7 +73,61 @@ public final class ScriptHostAccess {
       // Java.type('org.graalvm.polyglot.Context'), enabling sandbox escape via
       // Context.create().eval(unrestricted script).
       "org.graalvm",
-      "com.oracle"
+      "com.oracle",
+      // Bug #77466: JDK packages under the java.awt allowance whose classes load
+      // a class named by a string and hand it out
+      "java.awt.datatransfer",
+      "java.awt.dnd",
+      // Bug #77466: library packages that load, construct or call classes and
+      // members named by strings, evaluate expressions, or reach files, the
+      // network or the cluster. Blocked even when javascript.java.com_org is on
+      // or javascript.java.packages names them. Not exhaustive: the set of such
+      // libraries is open-ended, which is why com_org is off by default.
+      "org.springframework",
+      "org.apache.commons.lang3.reflect",
+      "org.apache.commons.lang3.builder",
+      "org.apache.commons.beanutils",
+      "org.apache.commons.collections",
+      "org.apache.commons.collections4",
+      "org.apache.commons.text",
+      "org.apache.commons.io",
+      "org.apache.commons.net",
+      "org.apache.commons.fileupload",
+      "org.codehaus.groovy",
+      "org.apache.groovy",
+      "org.apache.ignite",
+      "org.apache.logging",
+      "org.apache.ivy",
+      "org.apache.avro",
+      "org.apache.lucene",
+      "org.apache.derby",
+      "org.apache.hc",
+      "org.apache.http",
+      "org.hsqldb",
+      "org.postgresql",
+      "org.eclipse",
+      "org.hibernate",
+      "org.jboss",
+      "org.aspectj",
+      "org.objenesis",
+      "org.objectweb",
+      "org.yaml",
+      "org.thymeleaf",
+      "org.quartz",
+      "org.liquibase",
+      "org.jdbi",
+      "org.jsoup",
+      "org.mockito",
+      "org.testcontainers",
+      "com.fasterxml",
+      "com.esotericsoftware",
+      "com.google.common.reflect",
+      "com.google.inject",
+      "com.github.jknack",
+      "com.github.spullara",
+      "com.github.dockerjava",
+      "com.jcraft",
+      "com.zaxxer"
    );
 
    // Specific dangerous classes that are blocked by exact name.
@@ -119,7 +173,11 @@ public final class ScriptHostAccess {
       "inetsoft.util.script.FormulaContext",
       // same for getExecScriptable()/pushExecScriptable(); its script-facing
       // functions are bound as globals, not looked up by name (#77348)
-      "inetsoft.util.script.JavaScriptEngine"
+      "inetsoft.util.script.JavaScriptEngine",
+      // Bug #77466: resolve class names to classes, or rebuild objects from bytes;
+      // the rest of the package is plain string and value helpers
+      "org.apache.commons.lang3.ClassUtils",
+      "org.apache.commons.lang3.SerializationUtils"
    );
 
    // Tier 1: curated exact-match safe classes. Finalized by audit in Task 6.4,
@@ -449,11 +507,15 @@ public final class ScriptHostAccess {
       try {
          String customPkgProp = SreeEnv.getProperty("javascript.java.packages", "");
          customPkgs = customPkgProp.isEmpty() ? new String[0] : customPkgProp.split(",");
-         comOrg = !"false".equals(SreeEnv.getProperty("javascript.java.com_org", "true"));
+         // Bug #77466: off unless an operator turns it on. Any class under com./org.
+         // on the server class path would otherwise be visible, including library
+         // helpers that reach classes and members the filter refuses
+         comOrg = "true".equalsIgnoreCase(
+            SreeEnv.getProperty("javascript.java.com_org", "false").trim());
       }
       catch(Exception ignore) {
          customPkgs = new String[0];
-         comOrg = true;
+         comOrg = false;
       }
 
       final String[] customPkgsF = customPkgs;

@@ -1593,6 +1593,11 @@ public class SQLHelper implements KeywordProvider {
    }
 
    private String quoteExpressionColumn0(String column, String exp) {
+      // an empty column matches at every index, so the search below would never end
+      if(column == null || column.isEmpty()) {
+         return exp;
+      }
+
       int idx = 0;
       int s;
 

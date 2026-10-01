@@ -64,6 +64,7 @@ public class ColumnTypeDialogService extends WorksheetControllerService {
       String name = event.tableName();
       String type = event.dataType();
       String format_spec = event.formatSpec();
+      checkCubeTableReadPermission(principal, name);
       TableAssembly table = (TableAssembly) ws.getAssembly(name);
 
       if(table != null) {
@@ -187,6 +188,7 @@ public class ColumnTypeDialogService extends WorksheetControllerService {
       RuntimeWorksheet rws = super.getRuntimeWorksheet(runtimeId, principal);
       Worksheet ws = rws.getWorksheet();
       String name = event.tableName();
+      checkCubeTableReadPermission(principal, name);
       TableAssembly table = (TableAssembly) ws.getAssembly(name);
 
       if(table != null) {
