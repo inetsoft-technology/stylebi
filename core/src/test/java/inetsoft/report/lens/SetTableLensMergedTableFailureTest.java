@@ -21,6 +21,7 @@ package inetsoft.report.lens;
 import inetsoft.report.TableLens;
 import inetsoft.report.internal.table.MergedTable;
 import inetsoft.test.*;
+import inetsoft.util.Catalog;
 import inetsoft.util.FileSystemService;
 import inetsoft.util.script.JavaScriptEngine;
 import inetsoft.util.script.LendableReentrantLock;
@@ -32,6 +33,9 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 import java.io.File;
 import java.io.IOException;
 import java.lang.reflect.Field;
+import java.nio.file.Files;
+import java.nio.file.attribute.PosixFilePermission;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -87,6 +91,124 @@ public class SetTableLensMergedTableFailureTest {
       SetTableLens.SetOperationException ex =
          assertThrows(SetTableLens.SetOperationException.class, lens::getRowCount);
       assertInstanceOf(IOException.class, ex.getCause());
+      // the message is shown to the user, it is localized and never exposes the cause
+      assertEquals(Catalog.getCatalog().getString("common.table.getDataFailed"), ex.getMessage());
+      assertFalse(ex.getMessage().contains("temp file"), ex.getMessage());
+   }
+
+   /**
+    * A base failing to report its header row count fails the read too, it is never an
+    * empty table, and the merged table created for the pass is disposed.
+    */
+   @Test
+   public void headerRowCountFailureThrowsAndRecovers() {
+      AtomicBoolean fail = new AtomicBoolean(true);
+      DefaultTableLens left = new DefaultTableLens(data(5)) {
+         @Override
+         public int getHeaderRowCount() {
+            if(fail.get()) {
+               throw new IllegalStateException("base failed");
+            }
+
+            return super.getHeaderRowCount();
+         }
+      };
+      FailingMinus lens = new FailingMinus(left, new DefaultTableLens(data(0)));
+      lens.control().retryDelay = 0;
+
+      assertThrows(SetTableLens.SetOperationException.class, () -> lens.moreRows(0));
+      assertTrue(lens.control().last.isDisposed(), "the failed merged table is disposed");
+
+      fail.set(false);
+      assertFalse(lens.moreRows(TableLens.EOT));
+      assertEquals(6, lens.getRowCount());
+   }
+
+   /**
+    * A first read while dispose() is disposing the bases (outside of the lens monitor) is an
+    * empty table, it never merges the bases being disposed.
+    */
+   @Test
+   public void readDuringDisposeIsEmpty() {
+      FailingMinus[] holder = new FailingMinus[1];
+      Boolean[] more = new Boolean[1];
+      DefaultTableLens left = new DefaultTableLens(data(5)) {
+         @Override
+         public void dispose() {
+            more[0] = holder[0].moreRows(0);
+            super.dispose();
+         }
+      };
+      FailingMinus lens = new FailingMinus(left, new DefaultTableLens(data(0)));
+      holder[0] = lens;
+
+      lens.dispose();
+
+      assertEquals(Boolean.FALSE, more[0]);
+      assertEquals(0, lens.control().creates.get());
+   }
+
+   /**
+    * A failing pass superseded by invalidate() leaves the next pass alone, the next pass
+    * returns all the rows.
+    */
+   @Test
+   public void supersededWorkerFailureLeavesNextPass() {
+      MinusTableLens[] holder = new MinusTableLens[1];
+      AtomicInteger passes = new AtomicInteger();
+      MinusTableLens lens = new MinusTableLens(new DefaultTableLens(data(10)),
+                                               new DefaultTableLens(data(0)))
+      {
+         @Override
+         protected MergedTable.Visitor getVisitor(Pass pass) {
+            MergedTable.Visitor visitor = super.getVisitor(pass);
+            boolean first = passes.incrementAndGet() == 1;
+            AtomicInteger visited = new AtomicInteger();
+
+            return row -> {
+               if(first && visited.incrementAndGet() > 3) {
+                  holder[0].invalidate();
+                  throw new IllegalStateException("visitor failed");
+               }
+
+               visitor.visit(row);
+            };
+         }
+      };
+      holder[0] = lens;
+
+      assertFalse(assertDoesNotThrow(() -> lens.moreRows(TableLens.EOT)));
+      assertEquals(11, assertDoesNotThrow(lens::getRowCount));
+      assertEquals(2, passes.get());
+   }
+
+   /**
+    * The cancelled flag outlives a cancel(), a pass started after it that fails is still a
+    * failed merge, not a cancelled one.
+    */
+   @Test
+   public void failureAfterEarlierCancelThrows() {
+      MinusTableLens lens = new MinusTableLens(new DefaultTableLens(data(10)),
+                                               new DefaultTableLens(data(0)))
+      {
+         @Override
+         protected MergedTable.Visitor getVisitor(Pass pass) {
+            MergedTable.Visitor visitor = super.getVisitor(pass);
+            AtomicInteger visited = new AtomicInteger();
+
+            return row -> {
+               if(visited.incrementAndGet() > 3) {
+                  throw new IllegalStateException("visitor failed");
+               }
+
+               visitor.visit(row);
+            };
+         }
+      };
+
+      lens.cancel();
+      assertTrue(lens.isCancelled());
+      assertThrows(SetTableLens.SetOperationException.class, () -> lens.moreRows(TableLens.EOT));
    }
 
    @Test
@@ -277,6 +399,7 @@ public class SetTableLensMergedTableFailureTest {
    public void mergedTableWithoutTempFileThrowsIOException() throws Exception {
       File cache = new File(FileSystemService.getInstance().getCacheDirectory());
       assertTrue(cache.isDirectory());
+      Set<PosixFilePermission> perms = Files.getPosixFilePermissions(cache.toPath());
       assertTrue(cache.setWritable(false, false));
 
       try {
@@ -293,7 +416,8 @@ public class SetTableLensMergedTableFailureTest {
          assertThrows(SetTableLens.SetOperationException.class, () -> lens.moreRows(0));
       }
       finally {
-         assertTrue(cache.setWritable(true));
+         // restore the original mode, without an assert that could skip it
+         Files.setPosixFilePermissions(cache.toPath(), perms);
       }
    }
 
