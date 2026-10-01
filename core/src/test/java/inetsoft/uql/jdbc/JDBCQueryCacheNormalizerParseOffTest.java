@@ -223,6 +223,39 @@ class JDBCQueryCacheNormalizerParseOffTest {
    }
 
    @Test
+   void staleSelectionWithExtraColumnsRuns() throws Exception {
+      // the selection has more entries than the sql returns
+      String text = "select a.y from a where a.x > 1 order by a.x";
+      Result result = execute(saved(text, "Z", "Y", "X"), true);
+
+      assertNull(result.error, result.error);
+      assertEquals(List.of(text), result.sent);
+      assertEquals("Y | b | c", result.rows);
+   }
+
+   @Test
+   void sameSqlSharesTheCacheKeyAcrossSelectionOrders() throws Exception {
+      Result first = execute(saved(SQL, "X", "Y"), true);
+      Result second = execute(saved(SQL, "Y", "X"), true);
+
+      assertNull(first.error, first.error);
+      assertNull(second.error, second.error);
+      assertNotNull(first.key);
+      assertEquals(first.key, second.key);
+   }
+
+   @Test
+   void differentSqlWithTheSameSelectionDoesNotShareTheCacheKey() throws Exception {
+      // before the fix both ran as "select X, Y" under one key
+      Result first = execute(saved(SQL, "X", "Y"), true);
+      Result second = execute(saved("select a.y, a.x from a where a.x > 1 order by a.x", "X", "Y"), true);
+
+      assertNull(first.error, first.error);
+      assertNull(second.error, second.error);
+      assertNotEquals(first.key, second.key);
+   }
+
+   @Test
    void withoutCacheNormalizerRunsAsBefore() throws Exception {
       Result result = execute(saved(SQL, "X", "Y"), false);
 
@@ -235,6 +268,7 @@ class JDBCQueryCacheNormalizerParseOffTest {
       List<String> sent;
       String rows;
       String error;
+      String key;
    }
 
    /** what SQLBoundQuery, XSessionManager.getXNodeTableLens and JDBCHandler.execute do */
@@ -303,6 +337,8 @@ class JDBCQueryCacheNormalizerParseOffTest {
          result.error = e.toString();
       }
 
+      // the data cache key, built from the sql actually sent
+      result.key = visitor != null ? visitor.getCacheKey() : null;
       result.sent = new ArrayList<>(SENT);
       return result;
    }
