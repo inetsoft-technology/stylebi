@@ -668,7 +668,7 @@ public class ResourcePermissionService {
       }
    }
 
-   boolean isIdentityAuthorized(IdentityID identity, Identity.Type type, Principal principal) {
+   public boolean isIdentityAuthorized(IdentityID identity, Identity.Type type, Principal principal) {
       final ResourceType resourceType;
       Principal oprincipal = ThreadContext.getContextPrincipal();
 

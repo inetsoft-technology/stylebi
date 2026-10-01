@@ -1497,9 +1497,12 @@ public class QueryManagerService {
          String folder = logicalModel.getFolder();
          // the stored form of the logical model permission (Bug #77400)
          String resource = XUtil.getLogicalModelResourceName(dataSource, folder, lmodel);
+         // a model in the root folder has no data model folder, its parent is the data source
+         boolean root = Tool.isEmptyString(folder);
+         ResourceType parentType = root ? ResourceType.DATA_SOURCE : ResourceType.DATA_MODEL_FOLDER;
+         String parent = root ? dataSource : dataSource + "/" + folder;
          allowed = securityEngine != null &&
-            securityEngine.checkPermission(principal, ResourceType.DATA_MODEL_FOLDER,
-                                           dataSource + "/" + folder, ResourceAction.READ) &&
+            securityEngine.checkPermission(principal, parentType, parent, ResourceAction.READ) &&
             securityEngine.checkPermission(principal, ResourceType.QUERY, resource,
                                            ResourceAction.READ);
       }

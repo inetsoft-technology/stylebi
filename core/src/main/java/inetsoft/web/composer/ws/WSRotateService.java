@@ -50,6 +50,7 @@ public class WSRotateService extends WorksheetControllerService{
                                  Principal principal, CommandDispatcher commandDispatcher) throws Exception
    {
       RuntimeWorksheet rws = super.getRuntimeWorksheet(runtimeId, principal);
+      checkCubeTableReadPermission(principal, event.getAssemblyName());
       WSAssembly assembly = (WSAssembly) rws.getWorksheet()
          .getAssembly(event.getAssemblyName());
 

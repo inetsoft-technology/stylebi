@@ -1852,6 +1852,19 @@ public class Common extends Util {
     * Create a format from the format specification.
     */
    public static Format getFormat(String format, String format_spec) {
+      try {
+         return createFormat(format, format_spec);
+      }
+      catch(IllegalArgumentException ex) {
+         // a malformed spec drops this format instead of failing the whole parse of the
+         // containing sheet
+         LOG.warn("Failed to create format \"{}\" for specification \"{}\": {}",
+                  format, format_spec, ex.getMessage());
+         return null;
+      }
+   }
+
+   private static Format createFormat(String format, String format_spec) {
       if(format.equals(SIMPLEDATEFORMAT) || format.equals("SimpleDateFormat") ||
          format.equals(DATEFORMAT) || format.equals("DateFormat"))
       {

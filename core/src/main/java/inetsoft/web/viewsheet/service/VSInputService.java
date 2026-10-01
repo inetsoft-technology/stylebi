@@ -1375,8 +1375,13 @@ public class VSInputService {
                                                 Principal principal) throws Exception
    {
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
-      ColumnSelection selection = vsColumnHandler.getTableColumns(rvs,Tool.byteDecode(table),
-                                                                  true, principal);
+      table = Tool.byteDecode(table);
+      // a cube table is resolved from its data source without a permission check, so a cube
+      // that no assembly of the viewsheet is bound to is checked before its columns are
+      // listed (Bug #77462)
+      queryManagerService.checkNewCubeTablesReadPermission(
+         Collections.singletonList(table), VSUtil.getBoundTables(rvs.getViewsheet()), principal);
+      ColumnSelection selection = vsColumnHandler.getTableColumns(rvs, table, true, principal);
       String[] columnList = new String[selection.getAttributeCount()];
       String[] descriptionList = new String[selection.getAttributeCount()];
 

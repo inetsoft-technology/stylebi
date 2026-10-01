@@ -53,10 +53,12 @@ public class ReorderSubtableService extends WorksheetControllerService {
                                 Principal principal, CommandDispatcher commandDispatcher) throws Exception
    {
       final RuntimeWorksheet rws = getRuntimeWorksheet(runtimeId, principal);
+      checkCubeTableReadPermission(principal, event.parentTable());
       final CompositeTableAssembly table =
          (CompositeTableAssembly) rws.getWorksheet().getAssembly(event.parentTable());
       final String[] subtables = event.subtables();
 
+      checkCubeTableReadPermission(principal, subtables);
       if(table instanceof AbstractJoinTableAssembly) {
          updateOperators(table, subtables);
       }
@@ -96,6 +98,7 @@ public class ReorderSubtableService extends WorksheetControllerService {
    {
       final RuntimeWorksheet rws = getRuntimeWorksheet(runtimeId, principal);
       final Worksheet ws = rws.getWorksheet();
+      checkCubeTableReadPermission(principal, event.mergeTableName(), event.newTableName());
       final MergeJoinTableAssembly mergeTable =
          (MergeJoinTableAssembly) ws.getAssembly(event.mergeTableName());
       final TableAssembly newTable = (TableAssembly) ws.getAssembly(event.newTableName());
