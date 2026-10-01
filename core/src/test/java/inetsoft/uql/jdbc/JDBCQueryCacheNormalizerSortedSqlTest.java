@@ -338,6 +338,50 @@ class JDBCQueryCacheNormalizerSortedSqlTest {
       assertSelectOrder(fifth.table);
    }
 
+   // Bug #59595 path: VPM hidden columns build the normalizer on a clone, so the query that
+   // reaches JDBCHandler still has its sql string. JDBCHandler clears it, the sql is
+   // regenerated sorted, and the inverse map must still be applied.
+   @Test
+   void normalizerOnCloneWithKeptSqlStringIsRegeneratedSortedAndRestored() throws Exception {
+      Run run = run(newSession(false), parsed(SQL), usql -> usql.sqlstring = SQL);
+
+      assertTrue(norm(run.executedSql).startsWith("select t.a, t.b"), run.executedSql);
+      assertSelectOrder(run.table);
+   }
+
+   // a cache hit of a lossy query that VPM conditions regenerate keeps the select order, and so
+   // does a cache hit of a map-less query that VPM conditions regenerate (unsorted)
+   @Test
+   void cacheHitOfRegeneratedQueriesKeepsSelectOrder() throws Exception {
+      XSessionManager session = newSession(true);
+
+      for(int i = 0; i < 2; i++) {
+         UniformSQL lossy = parsed(SQL);
+         lossy.setLossy(true);
+         Run run = run(session, lossy, UniformSQL::clearSQLString);
+         // a cache hit executes nothing, so the sql is only checked on the first run
+         assertTrue(i == 1 || norm(run.executedSql).startsWith("select t.a, t.b"),
+                    run.executedSql);
+         assertEquals(2, rowCount(run.table), "header plus one row, a hit on the second run");
+         assertSelectOrder(run.table);
+
+         UniformSQL noMap = parsed(SQL);
+         noMap.setSQLString(SQL + " fetch first 5 rows only", false);
+         run = run(session, noMap, UniformSQL::clearSQLString);
+         // a sorted regeneration would share the lossy query's cache entry and execute nothing
+         assertTrue(i == 1 || String.valueOf(norm(run.executedSql)).startsWith("select t.b, t.a"),
+                    "map-less query must run unsorted, executed: " + run.executedSql);
+         assertEquals(2, rowCount(run.table), "header plus one row, a hit on the second run");
+         assertSelectOrder(run.table);
+
+         if(i == 0) {
+            try(Connection conn = derby().getConnection(); Statement stmt = conn.createStatement()) {
+               stmt.executeUpdate("insert into T values (1, 'y')");
+            }
+         }
+      }
+   }
+
    private static String norm(String sql) {
       return sql == null ? null : sql.replaceAll("\\s+", " ").trim().toLowerCase();
    }
