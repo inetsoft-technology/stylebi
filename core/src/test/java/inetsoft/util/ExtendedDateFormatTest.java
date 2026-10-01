@@ -471,4 +471,34 @@ public class ExtendedDateFormatTest {
          TimeZone.setDefault(oldZone);
       }
    }
+
+   // Bug #77465: the zone field check follows applyPattern() on the same instance, and a
+   // lowercase z inside a quoted literal is not a zone field
+   @Test
+   public void zoneFieldFollowsApplyPattern() throws Exception {
+      final TimeZone oldZone = TimeZone.getDefault();
+
+      try {
+         TimeZone.setDefault(TimeZone.getTimeZone("America/Los_Angeles"));
+         final String plain = "yyyy-MM-dd 'zone z' HH:mm";
+         final String zoned = "yyyy-MM-dd HH:mm Z";
+         final ExtendedDateFormat format = new ExtendedDateFormat(plain, Locale.US);
+         final Date plainDate =
+            new SimpleDateFormat(plain, Locale.US).parse("2025-01-01 zone z 12:00");
+
+         assertEquals(plainDate, format.parse("2025-01-01 zone z 12:00", null));
+
+         format.applyPattern(zoned);
+         assertEquals(Date.from(Instant.parse("2025-01-01T12:00:00Z")),
+                      format.parse("2025-01-01 12:00 +0000"));
+         assertThrows(IllegalArgumentException.class,
+                      () -> format.parse("2025-01-01 12:00 +0000", null));
+
+         format.applyPattern(plain);
+         assertEquals(plainDate, format.parse("2025-01-01 zone z 12:00", null));
+      }
+      finally {
+         TimeZone.setDefault(oldZone);
+      }
+   }
 }
