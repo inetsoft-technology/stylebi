@@ -23,18 +23,23 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
+
+import java.util.ArrayList;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Bug #77434, UniformSQL keeps parsed joins only as XJoins without their order or
  * nesting, and the regenerated from clause picks its own join order. A join group on
- * the right side of an outer join, and a RIGHT or FULL join mixed with an inner or
- * cross join (from a join keyword or a where clause column join), can't be
- * regenerated with the same results, so they fail the parse and keep the original sql.
+ * the right side of an outer join can't be regenerated with the same results, and a
+ * RIGHT or FULL join mixed with an inner or cross join (from a join keyword or a where
+ * clause column join) can only be when the generated sql has the same joins. The
+ * other queries fail the parse and keep the original sql.
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
@@ -63,8 +68,13 @@ class UniformSQLNestedJoinTest {
       "select * from a left join (b left join c on b.id = c.id) on a.id = b.id",
       "select * from a left join (b left join c on b.id = c.id) on a.id = c.id",
       "select * from a left join (b left join c on b.id = c.id) on b.id = a.id",
+      "select * from a right join (b left join c on c.id = b.id) on c.id = a.id",
+      "select * from a left join b left join c on c.id = b.id on b.id = a.id",
       "select * from (a left join b on a.id = b.id) left join (c left join d on d.id = c.id) " +
          "on c.id = a.id",
+      "select * from a left join (b right join c on b.id = c.id) on a.id = b.id",
+      "select * from a left join b on a.id = b.id left join (c left join d on c.id = d.id) " +
+         "on b.id = d.id",
       // later positions
       "select * from a left join b on a.id = b.id left join (c join d on c.id = d.id) " +
          "on b.id = c.id",
@@ -96,10 +106,37 @@ class UniformSQLNestedJoinTest {
       "select * from a right join b on a.id = b.id join c on a.id = c.id",
       "select * from a full join b on a.id = b.id join c on a.id = c.id",
       "select * from a right join b on a.id = b.id join c on b.id = c.id join d on d.id = a.id",
-      // cross and USING inner joins
+      // cross joins
       "select * from (a cross join b) right join c on b.id = c.id",
-      "select * from a join b using (id) right join c on b.id = c.id",
-      // shapes that are generated correctly today, refused by the same rule
+      // inner joins from where clause column joins, across comma-listed tables
+      "select * from a right join b on a.id = b.id, c where a.id = c.id",
+      "select * from a, b right join c on b.id = c.id where a.id = b.id",
+      "select * from a right join b on a.id = b.id, c, d where a.id = c.id and c.id = d.id",
+      "select * from a right join b on a.id = b.id, c join d on c.id = d.id where a.id = d.id",
+      // a where clause column join is folded into the outer join ON, also under OR and NOT
+      "select * from a right join b on a.id = b.id where a.id = b.k",
+      "select * from a right join b on a.id = b.id where a.id = b.id or a.k = 1",
+      "select * from a right join b on a.id = b.id where b.k = 1 and not (a.id = b.k)",
+      "select * from a right join b on a.id = b.id right join c on b.id = c.id where a.k = b.k",
+      // a subquery in the inner ON doesn't hide the inner join
+      "select * from a join b on a.id = b.id and b.k in (select c.k from c) " +
+         "join e on a.id = e.id right join d on b.id = d.id",
+      "select * from a join b on b.k in (select c.k from c) right join d on b.id = d.id",
+      // subqueries
+      "select * from x where exists (select 1 from b join c on b.id = c.id " +
+         "join d on b.id = d.id right join e on c.id = e.id)",
+      "select * from (select a.id from a right join b on a.id = b.id, c " +
+         "where a.id = c.id) t",
+      "select a.id from a where exists (select 1 from b right join c on b.id = c.id " +
+         "where c.id = a.id)"
+   })
+   void rightJoinWithInnerJoinFailsCleanly(String text) {
+      assertRefused(text, "Unsupported RIGHT or FULL join");
+   }
+
+   @ParameterizedTest
+   @ValueSource(strings = {
+      // the generated sql has the same joins
       "select * from a join b on a.id = b.id right join c on b.id = c.id",
       "select * from a join b on a.id = b.id right join c on a.id = c.id",
       "select * from a inner join b on a.id = b.id full join c on b.id = c.id",
@@ -108,28 +145,34 @@ class UniformSQLNestedJoinTest {
       "select * from a right join b on a.id = b.id join c on b.id = c.id",
       "select * from a join b on a.id = b.id join d on b.id = d.id right join c on a.id = c.id",
       "select * from (b join c on b.id = c.id) right join a on a.id = b.id",
-      // inner joins from where clause column joins, across comma-listed tables
-      "select * from a right join b on a.id = b.id, c where a.id = c.id",
-      "select * from a, b right join c on b.id = c.id where a.id = b.id",
-      "select * from a right join b on a.id = b.id, c, d where a.id = c.id and c.id = d.id",
-      "select * from a right join b on a.id = b.id, c join d on c.id = d.id where a.id = d.id",
-      "select * from a right join b on a.id = b.id where a.id = b.k",
+      "select * from a join b using (id) right join c on b.id = c.id",
+      // a top level inner join is the same as a where clause join
       "select * from a right join b on a.id = b.id, c where b.id = c.id",
       "select * from a full join b on a.id = b.id, c where b.id = c.id",
-      // an inner join keyword in another comma-listed table
       "select * from a right join b on a.id = b.id, c join d on c.id = d.id",
       "select * from a join b on a.id = b.id, c right join d on c.id = d.id",
-      // a subquery in the inner ON doesn't hide the inner join
-      "select * from a join b on a.id = b.id and b.k in (select c.k from c) " +
-         "right join d on b.id = d.id",
+      // sql generated for query editor joins
+      "select * from (a RIGHT OUTER JOIN b ON a.id = b.id ) INNER JOIN c ON b.id = c.id",
+      "select * from ((b INNER JOIN c ON b.id = c.id ) RIGHT OUTER JOIN a ON a.id = b.id ) " +
+         "LEFT OUTER JOIN d ON a.id = d.id",
       // subqueries
       "select * from x where exists (select 1 from b join c on b.id = c.id " +
          "right join d on c.id = d.id)",
-      "select * from (select a.id from a right join b on a.id = b.id, c " +
-         "where a.id = c.id) t"
+      "select * from a right join b on a.id = b.id where exists " +
+         "(select 1 from c join d on c.id = d.id where c.id = a.id)",
+      "select * from a right join b on a.id = b.id where b.id in " +
+         "(select c.id from c join d on c.id = d.id)",
+      "select * from (select a.id, b.k from a right join b on a.id = b.id) t join c on t.id = c.id",
+      "select (select count(*) from c join d on c.id = d.id) as n from a right join b on a.id = b.id"
    })
-   void rightJoinWithInnerJoinFailsCleanly(String text) {
-      assertRefused(text, "Unsupported RIGHT or FULL join");
+   void rightJoinWithSameGeneratedJoinsParses(String text) throws Exception {
+      UniformSQL sql = parse(text);
+      assertEquals(UniformSQL.PARSE_SUCCESS, sql.getParseResult());
+
+      String generated = normalize(sql.getSQLString());
+      UniformSQL reparsed = parse(generated);
+      assertEquals(UniformSQL.PARSE_SUCCESS, reparsed.getParseResult(), generated);
+      assertEquals(sortJoinColumns(generated), sortJoinColumns(normalize(reparsed.getSQLString())));
    }
 
    @ParameterizedTest
@@ -178,6 +221,13 @@ class UniformSQLNestedJoinTest {
    }
 
    @Test
+   void naturalJoinWithRightJoinFailsCleanly() {
+      // a natural join has no join condition. #77435 refuses any natural join with
+      // its own message
+      assertRefused("select * from a natural join b right join c on b.id = c.id", "Unsupported");
+   }
+
+   @Test
    void refusedQueryKeepsOriginalSql() {
       String text = "select * from a left join (b join c on b.id = c.id) on a.id = b.id";
       UniformSQL sql = new UniformSQL();
@@ -193,6 +243,75 @@ class UniformSQLNestedJoinTest {
       assertEquals(UniformSQL.PARSE_SUCCESS, sql.getParseResult());
       assertEquals("select a.x from a, b, c where a.id = b.id and c.k = 1",
                    normalize(sql.getSQLString()));
+   }
+
+   /**
+    * Join models as the query editor builds them, each "table1.id op table2.id" link with
+    * op =, *=, =* or *=*, over a chain, a star and a snowflake of 3 and 4 tables.
+    */
+   static List<String> editorJoinModels() {
+      String[][] shapes = {
+         { "a-b", "b-c" }, { "a-b", "a-c" },
+         { "a-b", "b-c", "c-d" }, { "a-b", "a-c", "a-d" }, { "a-b", "b-c", "a-d" }
+      };
+      String[] ops = { "=", "*=", "=*", "*=*" };
+      List<String> models = new ArrayList<>();
+
+      for(String[] shape : shapes) {
+         int n = (int) Math.pow(ops.length, shape.length);
+
+         for(int i = 0; i < n; i++) {
+            StringBuilder model = new StringBuilder();
+
+            for(int j = 0, k = i; j < shape.length; j++, k /= ops.length) {
+               model.append(j == 0 ? "" : ",").append(shape[j]).append(":").append(ops[k % ops.length]);
+            }
+
+            models.add(model.toString());
+         }
+      }
+
+      return models;
+   }
+
+   @ParameterizedTest
+   @MethodSource("editorJoinModels")
+   void editorGeneratedSqlRoundTrips(String model) throws Exception {
+      String tables = model.contains("d") ? "a, b, c, d" : "a, b, c";
+      UniformSQL sql = parse("select a.id from " + tables);
+
+      for(String link : model.split(",")) {
+         String[] parts = link.split("[-:]");
+         sql.addJoin(new XJoin(new XExpression(parts[0] + ".id", XExpression.FIELD),
+                               new XExpression(parts[1] + ".id", XExpression.FIELD), parts[2]));
+      }
+
+      sql.clearSQLString();
+      String generated = normalize(sql.getSQLString());
+      UniformSQL reparsed = parse(generated);
+      assertEquals(UniformSQL.PARSE_SUCCESS, reparsed.getParseResult(), generated);
+
+      // the generated sql is the same, except that the outer join ON after a nested
+      // inner join can have its columns in the other order (as before this change)
+      String generated2 = normalize(reparsed.getSQLString());
+      assertEquals(sortJoinColumns(generated), sortJoinColumns(generated2));
+      assertEquals(generated2, normalize(parse(generated2).getSQLString()));
+   }
+
+   // put the columns of each "x.id = y.id" in name order
+   private static String sortJoinColumns(String sql) {
+      java.util.regex.Matcher matcher =
+         java.util.regex.Pattern.compile("(\\w+\\.\\w+) = (\\w+\\.\\w+)").matcher(sql);
+      StringBuilder result = new StringBuilder();
+
+      while(matcher.find()) {
+         String c1 = matcher.group(1);
+         String c2 = matcher.group(2);
+         matcher.appendReplacement(result, c1.compareTo(c2) <= 0 ? c1 + " = " + c2 : c2 + " = " + c1);
+      }
+
+      matcher.appendTail(result);
+      return result.toString();
    }
 
    private static void assertRefused(String text, String message) {

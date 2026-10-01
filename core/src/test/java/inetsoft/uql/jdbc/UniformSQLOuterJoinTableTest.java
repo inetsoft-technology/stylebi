@@ -150,9 +150,9 @@ class UniformSQLOuterJoinTableTest {
       assertEquals(UniformSQL.PARSE_SUCCESS, sql.getParseResult());
       assertEquals(expected, joins(sql));
 
-      // the generated sql parses back to the same query. A right join to a nested join
-      // is generated as a left join with the ON columns in the other order, so compare
-      // from the second generation on.
+      // the generated sql parses back to the same query. An outer join ON can be
+      // generated with its columns in the other order, so compare from the second
+      // generation on.
       String generated = normalize(parse(normalize(sql.getSQLString())).getSQLString());
       assertEquals(generated, normalize(parse(generated).getSQLString()));
    }

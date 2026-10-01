@@ -427,6 +427,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
 
       if(parseType == PARSE_ALL) {
          parser.direct_select_stmt_n_rows(UniformSQL.this);
+         checkJoinOrders(parser, time);
          setParseResult(PARSE_SUCCESS);
       }
       else if(parseType == PARSE_ONLY_SELECT) {
@@ -436,6 +437,36 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
       else if(parseType == PARSE_ONLY_SELECT_FROM) {
          parser.only_select_from(UniformSQL.this);
          setParseResult(PARSE_PARTIALLY);
+      }
+   }
+
+   /**
+    * Check that each query that mixes a RIGHT or FULL join with an inner join
+    * has the same joins in its regenerated sql. UniformSQL keeps the joins
+    * without their order, so the sql helper picks the order, and a different
+    * order can change the query results (Bug #77434).
+    */
+   private static void checkJoinOrders(SQLParser parser, long time) throws Exception {
+      for(Object obj : parser.getJoinOrderChecks()) {
+         UniformSQL query = (UniformSQL) obj;
+         String structure = null;
+
+         try {
+            String generated = SQLHelper.getSQLHelper(query).generateSentence();
+            UniformSQL regenerated = new UniformSQL();
+            regenerated.setDataSource(query.getDataSource());
+            SQLLexer lexer = new SQLLexer(
+               new StringReader(regenerated.getQuotedSqlString(generated)));
+            SQLParser parser2 = new SQLParser(lexer);
+            parser2.setTime(time);
+            parser2.direct_select_stmt_n_rows(regenerated);
+            structure = parser2.getJoinStructure(regenerated);
+         }
+         catch(Exception ex) {
+            LOG.debug("Failed to parse the generated sql to check its joins", ex);
+         }
+
+         parser.checkJoinOrder(query, structure);
       }
    }
 
