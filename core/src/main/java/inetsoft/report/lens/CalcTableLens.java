@@ -1101,6 +1101,9 @@ public class CalcTableLens extends DefaultTableLens {
          }
       };
 
+      // a freehand table formula is written by end users, run it restricted (bug #77396)
+      boolean restricted = FormulaContext.isRestricted();
+
       try {
          FormulaContext.pushTable(CalcTableLens.this);
          FormulaContext.pushCellLocation(new Point(col, row));
@@ -1140,6 +1143,7 @@ public class CalcTableLens extends DefaultTableLens {
          }
 
          tableScope.setRow(row);
+         FormulaContext.setRestricted(true);
 
          Object result = ProfileUtils.addExecutionBreakDownRecord(getReportName(),
             ExecutionBreakDownRecord.JAVASCRIPT_PROCESSING_CYCLE, args -> {
@@ -1163,6 +1167,7 @@ public class CalcTableLens extends DefaultTableLens {
          throw new ScriptException(rname == null ? str : rname + str, ex);
       }
       finally {
+         FormulaContext.setRestricted(restricted);
          FormulaContext.popTable();
          FormulaContext.popCellLocation();
 

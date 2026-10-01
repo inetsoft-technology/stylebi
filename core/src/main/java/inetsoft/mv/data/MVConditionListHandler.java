@@ -26,6 +26,7 @@ import inetsoft.uql.asset.*;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.jdbc.*;
 import inetsoft.uql.jdbc.util.ConditionListHandler;
+import inetsoft.util.script.FormulaContext;
 import inetsoft.util.script.ScriptEnv;
 import inetsoft.util.script.ScriptException;
 import inetsoft.util.script.ScriptStateLint;
@@ -143,8 +144,12 @@ public class MVConditionListHandler extends ConditionListHandler {
       String exp = eval.getExpression();
       ScriptEnv senv = box.getScriptEnv();
       MVScriptable scriptable = new MVScriptable(mvdef, mvcol, mv);
+      // a condition expression is written by end users, run it restricted (bug #77396)
+      boolean restricted = FormulaContext.isRestricted();
 
       try {
+         FormulaContext.setRestricted(true);
+
          if(box.isScriptPoolMode()) {
             // pool mode: MV is this exec's own name, not an env global that every pooled
             // context would replay (bug #76960, spec §6.6)
@@ -160,6 +165,9 @@ public class MVConditionListHandler extends ConditionListHandler {
       }
       catch(Exception ex) {
          throw new ScriptException("MV Script error: " + ex.getMessage());
+      }
+      finally {
+         FormulaContext.setRestricted(restricted);
       }
 
       val = PreAssetQuery.getScriptValue(val, cond);

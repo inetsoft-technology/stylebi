@@ -621,6 +621,8 @@ public class ConditionGroup extends XConditionGroup implements Cloneable, Serial
       }
 
       ScriptScope scope = null;
+      // a condition expression is written by end users, run it restricted (bug #77396)
+      boolean restricted = FormulaContext.isRestricted();
 
       try {
          ViewsheetSandbox vbox = box.getViewsheetSandbox();
@@ -645,6 +647,7 @@ public class ConditionGroup extends XConditionGroup implements Cloneable, Serial
                senv.put("conditionGroupScope", scope);
             }
 
+            FormulaContext.setRestricted(true);
             val = senv.exec(script, scope, null, vs);
 
             if(ex[0] != null) {
@@ -675,6 +678,8 @@ public class ConditionGroup extends XConditionGroup implements Cloneable, Serial
          throw new ScriptException(scriptMsg);
       }
       finally {
+         FormulaContext.setRestricted(restricted);
+
          if(!box.isScriptPoolMode()) {
             senv.remove("conditionGroupScope");
          }

@@ -180,6 +180,8 @@ public class GraalJavaScriptEngine implements AutoCloseable {
             .allowCreateProcess(false)
             .allowEnvironmentAccess(org.graalvm.polyglot.EnvironmentAccess.NONE)
             .build();
+         // test every Java.type name, not just a context's first lookup (bug #77396)
+         ScriptHostAccess.installTypeLookupCheck(context, classFilter);
 
          // FIX B: reset per-Source error counts on (re)init
          resetErrorCounts();

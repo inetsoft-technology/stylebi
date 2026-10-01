@@ -39,6 +39,7 @@ import inetsoft.uql.util.*;
 import inetsoft.uql.viewsheet.CalculateRef;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.util.*;
+import inetsoft.util.script.FormulaContext;
 import inetsoft.util.script.ScriptEnv;
 import inetsoft.util.script.ScriptException;
 import inetsoft.util.script.ScriptStateLint;
@@ -3961,10 +3962,13 @@ public abstract class PreAssetQuery implements Serializable, Cloneable {
       ScriptEnv senv = box.getScriptEnv();
       Object val = null;
       ScriptScope scope = null;
+      // a condition expression is written by end users, run it restricted (bug #77396)
+      boolean restricted = FormulaContext.isRestricted();
 
       try {
          ViewsheetSandbox vbox = box.getViewsheetSandbox();
          Viewsheet vs = vbox == null ? null : vbox.getViewsheet();
+         FormulaContext.setRestricted(true);
          val = senv.exec(ScriptStateLint.checkCondition(senv.compile(exp), exp, scope0, "condition"),
                          scope = scope0, null, vs);
       }
@@ -3982,6 +3986,9 @@ public abstract class PreAssetQuery implements Serializable, Cloneable {
          }
 
          throw new ScriptException(msg);
+      }
+      finally {
+         FormulaContext.setRestricted(restricted);
       }
 
       return getScriptValue(val, cond);

@@ -75,8 +75,13 @@ public class VpmScope implements ScriptScope {
          throw ex;
       }
 
+      // a vpm script is written by an administrator, so it runs unrestricted even when a
+      // query runs it while a restricted end-user formula runs (bug #77396)
+      boolean restricted = FormulaContext.isRestricted();
+
       // execute the script object
       try {
+         FormulaContext.setRestricted(false);
          return senv.exec(script, scope, null, null);
       }
       catch(Exception ex) {
@@ -84,6 +89,9 @@ public class VpmScope implements ScriptScope {
             "Script failed: %s\n%s",
             ex.getMessage(), XUtil.numbering(statement)));
          throw ex;
+      }
+      finally {
+         FormulaContext.setRestricted(restricted);
       }
    }
 
