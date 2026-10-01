@@ -17,8 +17,13 @@
  */
 package inetsoft.util.dep;
 
+import inetsoft.sree.schedule.ScheduleTask;
+import inetsoft.sree.web.dashboard.VSDashboard;
 import inetsoft.uql.asset.Worksheet;
+import inetsoft.uql.erm.XLogicalModel;
+import inetsoft.uql.erm.XPartition;
 import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.uql.viewsheet.vslayout.DeviceInfo;
 import inetsoft.util.Tool;
 import inetsoft.util.TransformerManager;
 import inetsoft.web.admin.deploy.PartialDeploymentJarInfo;
@@ -29,9 +34,17 @@ import java.nio.charset.StandardCharsets;
 import java.util.*;
 
 /**
- * Invariants of parsing the XML entries of an imported asset bundle: viewsheets, worksheets
- * and the {@code JarFileInfo.xml} manifest. Shared by {@code ExampleAssetsSeedTest}, which
- * replays the bundled examples, and the enterprise fuzzer ({@code test/fuzzer}).
+ * Invariants of parsing the XML entries of an imported asset bundle: viewsheets, worksheets,
+ * partitions, logical models, devices, dashboards, schedule tasks and the {@code JarFileInfo.xml}
+ * manifest.
+ * The other deployable types are not covered because they do not round-trip as a single
+ * standalone XML object here: data sources need {@code Config} to map the source type (e.g.
+ * {@code jdbc}) to a class, which the unit-test harness does not load, so the source parses to
+ * null; table styles are read from an element but written through a helper (no symmetric
+ * {@code writeXML}); scripts are JavaScript text, not XML; and schedule tasks, VPMs, queries,
+ * auto-drills and data cycles are not in the example bundle, so there is no seed to validate
+ * them. Shared by {@code ExampleAssetsSeedTest}, which replays the bundled
+ * examples, and the enterprise fuzzer ({@code test/fuzzer}).
  * <p>
  * An input is the entry content. {@link #check(byte[], boolean)} parses it the way import
  * does (XML parse, version transform, {@code parseXML}). When fuzzing, an entry that fails to
@@ -111,7 +124,9 @@ public final class ImportedAssetProperties {
       return true;
    }
 
-   private enum Kind { VIEWSHEET, WORKSHEET, JAR_INFO }
+   private enum Kind {
+      VIEWSHEET, WORKSHEET, JAR_INFO, PARTITION, LOGICAL_MODEL, DEVICE, DASHBOARD, SCHEDULE_TASK
+   }
 
    private static Kind kindOf(Element root) {
       return switch(root.getTagName()) {
@@ -120,6 +135,11 @@ public final class ImportedAssetProperties {
             Kind.VIEWSHEET : null;
          case "worksheet" -> Kind.WORKSHEET;
          case "jarinfo" -> Kind.JAR_INFO;
+         case "partition" -> Kind.PARTITION;
+         case "LogicalModel" -> Kind.LOGICAL_MODEL;
+         case "deviceInfo" -> Kind.DEVICE;
+         case "dashboardAsset" -> Kind.DASHBOARD;
+         case "ScheduleTask" -> Kind.SCHEDULE_TASK;
          default -> null;
       };
    }
@@ -152,6 +172,28 @@ public final class ImportedAssetProperties {
          Worksheet ws = new Worksheet();
          ws.parseXML(read(content, TransformerManager.WORKSHEET), false);
          return ws;
+      case PARTITION:
+         XPartition partition = new XPartition();
+         partition.parseXML(read(content, null));
+         return partition;
+      case LOGICAL_MODEL:
+         XLogicalModel model = new XLogicalModel("");
+         model.parseXML(read(content, null), false);
+         return model;
+      case DEVICE:
+         DeviceInfo device = new DeviceInfo();
+         device.parseXML(read(content, null));
+         return device;
+      case DASHBOARD:
+         Element dashboard = Tool.getChildNodeByTagName(read(content, null), "dashboard");
+         VSDashboard board = new VSDashboard();
+         board.parseXML(dashboard, false);
+         return board;
+      case SCHEDULE_TASK:
+         Element taskElem = Tool.getChildNodeByTagName(read(content, null), "Task");
+         ScheduleTask task = new ScheduleTask();
+         task.parseXML(taskElem, false);
+         return task;
       default:
          PartialDeploymentJarInfo info = new PartialDeploymentJarInfo();
          info.parseXML(read(content, null));
@@ -175,6 +217,25 @@ public final class ImportedAssetProperties {
             break;
          case WORKSHEET:
             ((Worksheet) object).writeXML(writer);
+            break;
+         case PARTITION:
+            ((XPartition) object).writeXML(writer);
+            break;
+         case LOGICAL_MODEL:
+            ((XLogicalModel) object).writeXML(writer);
+            break;
+         case DEVICE:
+            ((DeviceInfo) object).writeXML(writer);
+            break;
+         case DASHBOARD:
+            writer.println("<dashboardAsset>");
+            ((VSDashboard) object).writeXML(writer);
+            writer.println("</dashboardAsset>");
+            break;
+         case SCHEDULE_TASK:
+            writer.println("<ScheduleTask>");
+            ((ScheduleTask) object).writeXML(writer);
+            writer.println("</ScheduleTask>");
             break;
          default:
             ((PartialDeploymentJarInfo) object).writeXML(writer);
@@ -205,7 +266,10 @@ public final class ImportedAssetProperties {
          for(int i = 0; i < map.getLength(); i++) {
             Node attribute = map.item(i);
 
-            if(!KNOWN_ISSUES.contains(attribute.getNodeName())) {
+            // an empty attribute (x="") reloads as absent, so treat the two as the same
+            if(!KNOWN_ISSUES.contains(attribute.getNodeName()) &&
+               !attribute.getNodeValue().isEmpty())
+            {
                attributes.add(attribute.getNodeName() + "=\"" + attribute.getNodeValue() + "\"");
             }
          }
@@ -221,7 +285,9 @@ public final class ImportedAssetProperties {
             if(child instanceof CharacterData data && !(child instanceof Comment)) {
                text.append(data.getData());
             }
-            else if(child instanceof Element) {
+            else if(child instanceof Element && !KNOWN_ISSUE_ELEMENTS.contains(
+               ((Element) child).getTagName()))
+            {
                String canonical = canonical(child);
 
                if(!canonical.isEmpty()) {
@@ -273,6 +339,17 @@ public final class ImportedAssetProperties {
     * </ul>
     */
    public static final Set<String> KNOWN_ISSUES = Set.of("zIndex");
+
+   /**
+    * Child elements left out of the comparison because they are known to change.
+    * Remove an entry together with the fix for its bug.
+    * <ul>
+    *    <li>{@code Notify}: a schedule-task action saved without a {@code <Notify>} reloads
+    *        with a default {@code <Notify link="false" onError="false">}, so the task's XML
+    *        grows on every save and reload.</li>
+    * </ul>
+    */
+   public static final Set<String> KNOWN_ISSUE_ELEMENTS = Set.of("Notify");
 
    /**
     * Larger entries are skipped.
