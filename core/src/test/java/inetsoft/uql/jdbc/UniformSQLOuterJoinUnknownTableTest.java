@@ -145,6 +145,47 @@ class UniformSQLOuterJoinUnknownTableTest {
       assertTrue(generated.contains(expected), generated);
    }
 
+   // qualified legacy outer joins regenerate exactly as before the check was added:
+   // (+) on either side, several (+) predicates, mixed with ordinary filters, aliases,
+   // schema-qualified names, mixed case, and subqueries at several levels
+   @ParameterizedTest
+   @CsvSource(delimiter = '|', value = {
+      "select a.x, b.y from a, b where b.id(+) = a.id | " +
+         "select a.x, b.y from b RIGHT OUTER JOIN a ON b.id = a.id",
+      "select a.x from a, b where a.id = b.id(+) and a.k = b.k(+) and (a.f = 1 or a.f = 2) | " +
+         "select a.x from a LEFT OUTER JOIN b ON a.id = b.id AND a.k = b.k where (a.f = 1 or a.f = 2)",
+      "select a.x from a, b, c where a.id = b.id(+) and a.cid = c.id(+) | " +
+         "select a.x from (a LEFT OUTER JOIN b ON a.id = b.id ) LEFT OUTER JOIN c ON a.cid = c.id",
+      "select a.x from a, b, c where a.id = b.id(+) and a.cid = c.id and c.v is not null | " +
+         "select a.x from (a INNER JOIN c ON a.cid = c.id ) LEFT OUTER JOIN b ON a.id = b.id " +
+         "where c.v is not null",
+      "Select a.X From A a1, B b1 Where a1.Id = b1.Id(+) And a1.K = 5 | " +
+         "select a.X from A a1 LEFT OUTER JOIN B b1 ON a1.Id = b1.Id where a1.K = 5",
+      "select x.x from db.s.a x, db.s.b y where x.id = y.id(+) | " +
+         "select x.x from db.s.a x LEFT OUTER JOIN db.s.b y ON x.id = y.id",
+      "select S.A.x from S.A, s.b where s.a.id = S.B.id(+) | " +
+         "select S.A.x from S.A LEFT OUTER JOIN s.b ON s.a.id = S.B.id",
+      "select t.id from (select u.id from (select a.id from a, b where a.id = b.id(+)) u, c " +
+         "where u.id = c.id(+)) t, d where t.id = d.id(+) | " +
+         "select t.id from ( select u.id from ( select a.id from a LEFT OUTER JOIN b ON " +
+         "a.id = b.id) u LEFT OUTER JOIN c ON u.id = c.id) t LEFT OUTER JOIN d ON t.id = d.id",
+      "select a.x from a where a.k = (select max(c.k) from c, d where c.id = d.id(+) and " +
+         "c.k < (select min(e.k) from e, f where e.id = f.id(+))) | " +
+         "select a.x from a where a.k = ( select max(c.k) from c LEFT OUTER JOIN d ON " +
+         "c.id = d.id where c.k < ( select min(e.k) from e LEFT OUTER JOIN f ON e.id = f.id))",
+      "select a.x from a, b where a.id *= b.id and a.k in (select c.k from c, d " +
+         "where c.id *= d.id and d.z = 2) | " +
+         "select a.x from a LEFT OUTER JOIN b ON a.id = b.id where a.k IN ( select c.k from c " +
+         "LEFT OUTER JOIN d ON c.id = d.id where d.z = 2)",
+   })
+   void qualifiedLegacyOuterJoinRegeneratesUnchanged(String text, String expected)
+      throws Exception
+   {
+      UniformSQL sql = parse(text);
+      assertEquals(UniformSQL.PARSE_SUCCESS, sql.getParseResult());
+      assertEquals(expected, normalize(sql.getSQLString()));
+   }
+
    /**
     * An Oracle data source in its default non-ANSI mode would regenerate an unqualified
     * outer join as a valid where clause (+) join. The parse is not dialect aware (the data
