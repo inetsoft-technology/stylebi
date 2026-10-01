@@ -31,6 +31,7 @@ import java.text.ParseException;
 import java.text.ParsePosition;
 import java.text.SimpleDateFormat;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.*;
@@ -665,6 +666,66 @@ public class ExtendedDateFormatTest {
       }
       finally {
          Locale.setDefault(Locale.Category.FORMAT, oldLocale);
+      }
+   }
+
+   // Bug #77458: java.time resolves the week fields to a date only for a week date (Y, w
+   // and E), and parse(str, null) then read Jan 1 or the first of the month. other week
+   // patterns must give what SimpleDateFormat gives, for text in any locale
+   @ParameterizedTest(name = "{0} {1}")
+   @CsvSource(delimiter = '|', value = {
+      "en-US | yyyy-ww",
+      "en-GB | yyyy-ww",
+      "en-GB | yyyy-ww-EEE",
+      "de | yyyy-'W'ww-EEE",
+      "fr | yyyy-'W'ww-EEE",
+      "zh-CN | yyyy-'W'ww-EEE",
+      "ja | yyyy-'W'ww-EEE",
+      "ko | yyyy-'W'ww-EEE",
+      "ru | yyyy-'W'ww-EEE",
+      "ar | yyyy-'W'ww-EEE",
+      "de | YYYY-ww-EEE yyyy",
+      "en-US | YYYY-ww",
+      "fr | yyyy-MM-W",
+      "en-GB | yyyy-MM-dd EEE ww"
+   })
+   public void weekPatternParsesLikeSimpleDateFormat(String tag, String pattern) {
+      final Locale locale = Locale.forLanguageTag(tag);
+
+      for(LocalDate day : new LocalDate[] {
+         LocalDate.of(2011, 3, 10), LocalDate.of(2012, 12, 31), LocalDate.of(2016, 1, 3) })
+      {
+         final Date date = Date.from(day.atStartOfDay(ZoneId.systemDefault()).toInstant());
+
+         for(Locale textLocale : new Locale[] { locale, Locale.US }) {
+            final String text = new SimpleDateFormat(pattern, textLocale).format(date);
+            final ExtendedDateFormat format = new ExtendedDateFormat(pattern, locale);
+            final Object expected =
+               parseOrError(() -> new SimpleDateFormat(pattern, locale).parse(text));
+
+            assertEquals(expected, parseOrError(() -> format.parse(text)), text);
+            assertEquals(expected, parseOrError(() -> (Date) format.parseObject(text)), text);
+         }
+      }
+   }
+
+   // Bug #77458: a week date is resolved by java.time like SimpleDateFormat, so it keeps
+   // the java.time path
+   @ParameterizedTest(name = "{0}")
+   @CsvSource({ "en-US", "en-GB", "de" })
+   public void weekDateKeepsJavaTime(String tag) throws Exception {
+      final Locale locale = Locale.forLanguageTag(tag);
+      final String pattern = "YYYY-ww-EEE";
+
+      for(LocalDate day : new LocalDate[] {
+         LocalDate.of(2011, 3, 10), LocalDate.of(2012, 12, 31), LocalDate.of(2016, 1, 3) })
+      {
+         final Date date = Date.from(day.atStartOfDay(ZoneId.systemDefault()).toInstant());
+         final String text = new SimpleDateFormat(pattern, locale).format(date);
+         final ExtendedDateFormat format = new ExtendedDateFormat(pattern, locale);
+
+         assertEquals(new SimpleDateFormat(pattern, locale).parse(text), format.parse(text, null));
+         assertEquals(date, format.parse(text));
       }
    }
 

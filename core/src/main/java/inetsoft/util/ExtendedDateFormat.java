@@ -660,9 +660,12 @@ public class ExtendedDateFormat extends SimpleDateFormat {
       String pattern = toPattern();
 
       // parse(str, null) keeps only the local fields, which would drop the parsed offset or
-      // zone name, so patterns with a zone field are always parsed by SimpleDateFormat
+      // zone name, so patterns with a zone field are always parsed by SimpleDateFormat. it
+      // also reads only the year, month and day, which java.time resolves from the week
+      // fields only for a full week date, so other week patterns are parsed the same way
       if(unsupportedPatterns.contains(pattern) ||
-         zonePatterns.computeIfAbsent(pattern, ExtendedDateFormat::hasZoneField))
+         zonePatterns.computeIfAbsent(pattern, ExtendedDateFormat::hasZoneField) ||
+         weekPatterns.computeIfAbsent(pattern, ExtendedDateFormat::hasUnresolvedWeekField))
       {
          return null;
       }
@@ -719,6 +722,45 @@ public class ExtendedDateFormat extends SimpleDateFormat {
       }
 
       return false;
+   }
+
+   /**
+    * Check if the pattern has an unquoted week field (w or W) that java.time does not resolve
+    * like SimpleDateFormat. Only a week date (Y, w and E, without y or W) is resolved to the
+    * same date. e.g. java.time gives Jan 1 for yyyy-ww-EEE, since w needs Y.
+    */
+   private static boolean hasUnresolvedWeekField(String pattern) {
+      boolean quoted = false;
+      boolean week = false;
+      boolean weekDate = true;
+      boolean weekYear = false;
+      boolean dayOfWeek = false;
+
+      for(int i = 0; i < pattern.length(); i++) {
+         char c = pattern.charAt(i);
+
+         // an escaped quote ('') toggles twice, so it never changes the quoted state
+         if(c == QT) {
+            quoted = !quoted;
+         }
+         else if(!quoted) {
+            if(c == 'w' || c == 'W') {
+               week = true;
+               weekDate = weekDate && c == 'w';
+            }
+            else if(c == 'y') {
+               weekDate = false;
+            }
+            else if(c == 'Y') {
+               weekYear = true;
+            }
+            else if(c == 'E') {
+               dayOfWeek = true;
+            }
+         }
+      }
+
+      return week && !(weekDate && weekYear && dayOfWeek);
    }
 
    /**
@@ -803,6 +845,8 @@ public class ExtendedDateFormat extends SimpleDateFormat {
    private static Set<String> unsupportedPatterns = ConcurrentHashMap.newKeySet();
    // whether a pattern has a zone field, keyed by pattern like unsupportedPatterns
    private static Map<String, Boolean> zonePatterns = new ConcurrentHashMap<>();
+   // whether a pattern has a week field java.time does not resolve, keyed by pattern
+   private static Map<String, Boolean> weekPatterns = new ConcurrentHashMap<>();
 
    private static final LocalDate DEFAULT_LOCAL_DATE = LocalDate.ofEpochDay(0);
    private static final LocalTime DEFAULT_LOCAL_TIME = LocalTime.of(0, 0);
