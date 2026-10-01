@@ -1093,6 +1093,19 @@ public class ScheduleManager {
     * The action's raw identifier string is read directly (never through {@link
     * AssetEntry#createAssetEntryForCurrentOrg}, which silently coerces the org to the caller's
     * own and would defeat this check).
+    *
+    * <p>The comparison is case-insensitive (Bug #77530 review round 1): an org id may be mixed
+    * case (see {@code ScheduleTaskIdentityChecker.useCurrentOrgID}'s own Bug #77259 comment), and
+    * a restricted (non-site-admin) task import re-cases a task's owner/execute-as identity back to
+    * the importer's actual org but, unlike the owner, never re-cases a {@code ViewsheetAction}'s
+    * already-embedded org (which {@code ScheduleTask.parseXML}'s own org rewrite leaves
+    * lower-cased, via the no-arg, context-principal-based {@code
+    * OrganizationManager.getCurrentOrgID()}). A case-sensitive comparison here would then wrongly
+    * refuse a legitimate same-org import. Case-insensitive matches how every other org-id
+    * comparison in this class already works (e.g. the Bug #77379 parent-folder-org check and
+    * {@code checkOwnerOrganization}'s stored-owner-org check, both via {@code equalsIgnoreCase}),
+    * and the existing runtime cross-org guard ({@code
+    * AbstractAssetEngine.checkAssetPermission0}'s {@code equalsIgnoreCase} check).
     */
    private static void checkViewsheetOrgBoundary(ViewsheetAction action, String orgID,
                                                   Principal principal)
@@ -1106,7 +1119,9 @@ public class ScheduleManager {
 
       AssetEntry entry = AssetEntry.createAssetEntry(sheet);
 
-      if(entry != null && entry.getOrgID() != null && !Tool.equals(entry.getOrgID(), orgID)) {
+      if(entry != null && entry.getOrgID() != null &&
+         !Tool.equals(entry.getOrgID(), orgID, false))
+      {
          throw new inetsoft.sree.security.SecurityException(String.format(
             "Unauthorized access to viewsheet \"%s\" by %s", sheet, principal));
       }

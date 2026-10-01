@@ -105,10 +105,15 @@ class ScheduleActionOrgBoundaryTest {
 
    @AfterEach
    void tearDown() {
-      @SuppressWarnings("unchecked")
-      Map<String, ScheduleTask> map = (Map<String, ScheduleTask>) (Object)
-         scheduleManager.getOrgTaskMap(ORG_A);
-      map.values().removeIf(t -> t != null && taskNames.contains(t.getName()));
+      OrganizationContextHolder.clear();
+
+      for(String orgID : List.of(ORG_A, ORG_B)) {
+         @SuppressWarnings("unchecked")
+         Map<String, ScheduleTask> map = (Map<String, ScheduleTask>) (Object)
+            scheduleManager.getOrgTaskMap(orgID);
+         map.values().removeIf(t -> t != null && taskNames.contains(t.getName()));
+      }
+
       taskNames.clear();
    }
 
@@ -149,6 +154,40 @@ class ScheduleActionOrgBoundaryTest {
 
       ScheduleTask stored = scheduleManager.getScheduleTask(task.getTaskId(), ORG_A);
       assertNotNull(stored, "stored even though the sheet is in another org");
+   }
+
+   // (review round 1, informational note) distinguishes orgID (the org the task is actually
+   // being saved into, which respects an org-context switch) from principal.getOrgId() (the
+   // principal's static home org, never overridden by a context switch). Calls the private
+   // checkActionOrgBoundary helper directly (via reflection) with an orgID that deliberately
+   // differs from the principal's home org, so a future change that silently narrows the
+   // implementation back to principal.getOrgId() is caught here, independent of the
+   // setScheduleTask() call site. (Exercising this through the full setScheduleTask() path with
+   // an actual OrganizationContextHolder switch would also need the scheduler-permission check
+   // a few lines above this one in setScheduleTask() to recognize the switched-to org, which is
+   // unrelated plumbing this bug doesn't touch -- the direct-helper test below is the precise,
+   // minimal way to pin the invariant that matters here.)
+   @Test
+   void checkActionOrgBoundary_usesThePassedInOrgID_notPrincipalsHomeOrg() {
+      SRPrincipal caller = builder.principalOf("saobUser", ORG_A);
+      assertFalse(OrganizationManager.getInstance().isSiteAdmin(caller), "test setup: not a site admin");
+      assertEquals(ORG_A, caller.getOrgId(), "test setup: the principal's home org is ORG_A");
+      ScheduleTask task = newTask("SaobDirectOrgIdCheck", "1^128^__NULL__^Reports/Dashboard^" + ORG_B);
+
+      // orgID (ORG_B) matches the sheet's org even though it differs from the principal's own
+      // home org (ORG_A) -- must be allowed, the same as an org-context-switched save would be.
+      assertDoesNotThrow(() -> ReflectionTestUtils.invokeMethod(
+         ScheduleManager.class, "checkActionOrgBoundary", task, ORG_B, caller),
+         "must check against the passed-in orgID, not principal.getOrgId()");
+
+      // sanity: the same task, same principal, but orgID now matches the principal's home org
+      // instead of the sheet's actual org -- must still be refused, proving the assertion above
+      // isn't vacuously true (i.e. the method isn't just allowing everything for this principal)
+      // ReflectionTestUtils.invokeMethod wraps a checked exception thrown by the reflectively
+      // invoked method in UndeclaredThrowableException, the same as
+      // ScheduleTaskOwnerOrgReplaceTest's established pattern for this helper
+      assertThrows(Exception.class, () -> ReflectionTestUtils.invokeMethod(
+         ScheduleManager.class, "checkActionOrgBoundary", task, ORG_A, caller));
    }
 
    // a BatchAction's query entry is not touched by this fix (out of scope, see bug #77531/#77530
