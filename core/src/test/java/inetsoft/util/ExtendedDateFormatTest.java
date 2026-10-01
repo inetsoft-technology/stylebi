@@ -209,6 +209,80 @@ public class ExtendedDateFormatTest {
       }
    }
 
+   // Bug #77443: parse(String) must convert in the zone of the format, like format() and
+   // parse(String, ParsePosition), not in the JVM default zone. the format is created after
+   // the default is changed so that only setTimeZone() makes the two zones differ
+   @ParameterizedTest(name = "{0} {1} {2} {3}")
+   @CsvSource({
+      "America/Los_Angeles, UTC, yyyy-MM-dd HH:mm:ss, 2025-01-01 12:00:00, 2025-01-01T12:00:00Z",
+      "America/Los_Angeles, Asia/Shanghai, yyyy-MM-dd HH:mm:ss, 2025-01-01 20:00:00, 2025-01-01T12:00:00Z",
+      "America/Los_Angeles, UTC, HH:mm:ss, 12:00:00, 1970-01-01T12:00:00Z",
+      "UTC, America/New_York, yyyy-MM-dd, 2025-01-01, 2025-01-01T05:00:00Z",
+      "America/Los_Angeles, Asia/Shanghai, yyyy-MM-dd HH:mm:ss, 1901-01-01 01:00:00, 1900-12-31T17:00:00Z",
+      "America/Los_Angeles, Asia/Shanghai, yyyy-MM-dd HH:mm:ss, 1900-12-31 23:00:00, 1900-12-31T14:54:17Z"
+   })
+   public void parseUsesZoneOfFormat(String defaultZone, String zone, String pattern, String text,
+                                     String expected) throws Exception
+   {
+      final TimeZone oldZone = TimeZone.getDefault();
+
+      try {
+         TimeZone.setDefault(TimeZone.getTimeZone(defaultZone));
+         final ExtendedDateFormat format = new ExtendedDateFormat(pattern, Locale.US);
+         format.setTimeZone(TimeZone.getTimeZone(zone));
+         final Date parsed = format.parse(text);
+
+         assertEquals(Date.from(Instant.parse(expected)), parsed);
+         assertEquals(format.parse(text, new ParsePosition(0)), parsed);
+         assertEquals(parsed, format.parseObject(text));
+         assertEquals(text, format.format(parsed));
+      }
+      finally {
+         TimeZone.setDefault(oldZone);
+      }
+   }
+
+   // Bug #77443: a daylight saving gap is resolved with the transitions of the format's zone
+   @Test
+   public void parseUsesZoneOfFormatInDaylightSavingGap() throws Exception {
+      final TimeZone oldZone = TimeZone.getDefault();
+
+      try {
+         TimeZone.setDefault(TimeZone.getTimeZone("America/Los_Angeles"));
+         final ExtendedDateFormat format = new ExtendedDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US);
+         format.setTimeZone(TimeZone.getTimeZone("America/New_York"));
+         final String text = "2024-03-10 02:30:00";
+
+         assertEquals(Date.from(Instant.parse("2024-03-10T07:30:00Z")), format.parse(text));
+         assertEquals(format.parse(text, new ParsePosition(0)), format.parse(text));
+      }
+      finally {
+         TimeZone.setDefault(oldZone);
+      }
+   }
+
+   // Bug #77443: a daylight saving overlap takes the earlier offset of the format's zone, the
+   // same choice made when the format's zone is the default (see post1900DateUsesJavaTime)
+   @Test
+   public void parseUsesZoneOfFormatInDaylightSavingOverlap() throws Exception {
+      final TimeZone oldZone = TimeZone.getDefault();
+
+      try {
+         TimeZone.setDefault(TimeZone.getTimeZone("America/Los_Angeles"));
+         final ExtendedDateFormat format = new ExtendedDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US);
+         format.setTimeZone(TimeZone.getTimeZone("America/New_York"));
+         final Date daylight = Date.from(Instant.parse("2024-11-03T05:30:00Z"));
+         final String text = format.format(daylight);
+
+         assertEquals("2024-11-03 01:30:00", text);
+         assertEquals(daylight, format.parse(text));
+         assertEquals(daylight, format.parseObject(text));
+      }
+      finally {
+         TimeZone.setDefault(oldZone);
+      }
+   }
+
    // Bug #77441: an input java.time rejects must not switch the instance to SimpleDateFormat
    // for later inputs. results are compared with a fresh instance instead of fixed values
    // because the java.time answers for invalid days and zones are owned by other fixes

@@ -2918,6 +2918,15 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
 
          if(!added) {
             combineWhere(join, merging);
+
+            // a join merged by 'or' with a new pair of tables puts the where tree in an or
+            // set. Mark it as a join group like the 'or' set of createJoinNode(), so ANSI
+            // SQL generation keeps treating the joins in it as joins of the query.
+            if(XSet.OR.equalsIgnoreCase(merging) && where instanceof XSet &&
+               XSet.OR.equalsIgnoreCase(((XSet) where).getRelation()))
+            {
+               where.setGroup(true);
+            }
          }
       }
    }

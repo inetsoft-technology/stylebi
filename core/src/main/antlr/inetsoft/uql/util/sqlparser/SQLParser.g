@@ -146,6 +146,7 @@ private Set columns = new HashSet();
 private long ts = -1; // stop timestamp
 private int checkCnt = 0; // optimization
 private Map map = new HashMap(); // sql + table ->op
+private int onClauseCount = 0; // ON clauses parsed so far, in text order
 private boolean catalog = false;
 private boolean schema = true;
 private boolean preferQuote = true;
@@ -219,6 +220,47 @@ private String getTableOp(UniformSQL sql, Object table) {
 
 private void clearTableOps() {
     map.clear();
+}
+
+/**
+ * Set the join type of the tables of a parenthesized joined table on the
+ * right of a join, e.g. b and c in a left join (b join c on ..) on .., so an
+ * ON that names one of them first is still an outer join to the right side.
+ * @param first the index of the first table of the joined table.
+ */
+private void setJoinedTableOps(UniformSQL sql, int first, String op) {
+   if(sql == null || op == null || op.trim().length() == 0) {
+      return;
+   }
+
+   clearTableOps();
+
+   for(int i = first; i < sql.getTableCount(); i++) {
+      String alias = sql.getTableAlias(i);
+      Object name = sql.getSelectTable(i).getName();
+
+      if(alias != null && alias.length() > 0) {
+         setTableOp(sql, alias, op.trim());
+      }
+
+      setTableOp(sql, name, op.trim());
+   }
+}
+
+/**
+ * Record where the joins in a condition were found: the where clause, or the
+ * number of an ON clause in text order. SQLHelper regenerates where clause
+ * joins as where conditions and ON clause joins in text order (#77475).
+ */
+private void markJoins(inetsoft.uql.XNode node, int clause) {
+   if(node instanceof XJoin) {
+      ((XJoin) node).setJoinClause(clause);
+   }
+   else if(node instanceof XSet) {
+      for(int i = 0; i < node.getChildCount(); i++) {
+         markJoins(node.getChild(i), clause);
+      }
+   }
 }
 
 /**
@@ -2605,7 +2647,7 @@ table_exp [UniformSQL sql]
         {XFilterNode where, having; String nouse; {checkStatus();}}
         :
         (from_clause[sql])?
-        ( where = where_clause {where.setClause(XFilterNode.WHERE); sql.combineWhereByAnd(where);})?
+        ( where = where_clause {where.setClause(XFilterNode.WHERE); markJoins(where, XJoin.WHERE_CLAUSE); sql.combineWhereByAnd(where);})?
         ( group_by_clause[sql] )?
         ( having = having_clause {having.setClause(XFilterNode.HAVING); sql.setHaving(having);})?
         ((ORDER BY)=> nouse = order_by_clause[sql] )?
@@ -2902,7 +2944,7 @@ qualified_join [UniformSQL sql] returns [XExpression exp = null]
         ;
 
 sub_qualified_join [UniformSQL sql] returns [String str = ""]
-        { String tbl2=""; String tmp; String op = ""; String table = ""; XExpression exp = null; {checkStatus();}}
+        { String tbl2=""; String tmp; String op = ""; String table = ""; XExpression exp = null; int first = 0; {checkStatus();}}
         :
         (
          (
@@ -2915,7 +2957,8 @@ sub_qualified_join [UniformSQL sql] returns [String str = ""]
         )
         (
           ((joined_table)=>
-            (exp = joined_table_2[sql] {str += exp.toString();})
+            ({first = sql == null ? 0 : sql.getTableCount();}
+             exp = joined_table_2[sql] {str += exp.toString(); setJoinedTableOps(sql, first, op);})
             |(table = table_ref_nojoin[sql, op] {str += " " + table;
                                                  tbl2 = table;
                                                  tbl2 = tbl2.trim();})
@@ -3001,6 +3044,7 @@ join_condition [UniformSQL sql, String op, String tbl2] returns [String jc = ""]
               }
            }
 
+           markJoins(tmp, ++onClauseCount);
            sql.combineWhereByAnd(tmp);
         }
 
@@ -3046,6 +3090,7 @@ named_columns_join [UniformSQL sql] returns [String jc = ""]
                         ((XSet)node).addChild(tmpNode);
                 }
            }
+           markJoins(node, ++onClauseCount);
            sql.combineWhereByAnd(node);
           }
          }
