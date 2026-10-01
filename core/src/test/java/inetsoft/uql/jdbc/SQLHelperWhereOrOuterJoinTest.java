@@ -205,9 +205,10 @@ class SQLHelperWhereOrOuterJoinTest {
          "from a LEFT OUTER JOIN b ON a.id = b.id where (a.k = 1 or b.k = 2)",
       "from a left join b on a.id = b.id and a.k = b.k|" +
          "from a LEFT OUTER JOIN b ON a.id = b.id AND a.k = b.k",
-      // a comparison at the top level between tables that aren't outer joined is still a join
+      // a comparison at the top level between tables that aren't outer joined is still a join.
+      // A parsed where clause join stays in WHERE in text join order (#77475)
       "from a left join b on a.id = b.id, c where a.k = c.k|" +
-         "from (a INNER JOIN c ON a.k = c.k ) LEFT OUTER JOIN b ON a.id = b.id",
+         "from a LEFT OUTER JOIN b ON a.id = b.id , c where a.k = c.k",
       "from a, b where not (a.id = b.k)|from a INNER JOIN b ON a.id <> b.k",
    })
    void controlsUnchanged(String tail, String expected) throws Exception {
