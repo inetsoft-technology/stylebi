@@ -405,11 +405,19 @@ public abstract class DatasourcesBaseService {
       return null;
    }
 
-   public void checkDataSourceFolderOuterDependencies(String fname) throws Exception {
+   public void checkDataSourceFolderOuterDependencies(String fname, Principal principal)
+      throws Exception
+   {
       String[] sources = repository.getSubDataSourceNames(fname);
 
       for(String source : sources) {
-         checkDataSourceOuterDependencies(source);
+         // the folder delete refuses a source the user can't delete, so don't report its
+         // dependencies
+         if(securityEngine.checkPermission(
+            principal, ResourceType.DATA_SOURCE, source, ResourceAction.DELETE))
+         {
+            checkDataSourceOuterDependencies(source);
+         }
       }
    }
 

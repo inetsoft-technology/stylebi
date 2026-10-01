@@ -161,6 +161,7 @@ public class SaveWorksheetDialogService extends WorksheetControllerService {
       RuntimeWorksheet rws, SaveWorksheetDialogModel model, Principal principal,
       boolean confirmed) throws Exception
    {
+      checkNoCubeTableReference(rws.getWorksheet());
       String fullName = model.assetRepositoryPaneModel().getName();
       fullName = fullName == null ? null : SUtil.removeControlChars(fullName);
       model.assetRepositoryPaneModel().setName(fullName);

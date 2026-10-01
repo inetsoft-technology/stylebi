@@ -35,12 +35,12 @@ class ScriptHostAccessTest {
    /**
     * Builds a context as if script.java.allowed.classes named the given FQCNs,
     * without needing a SreeEnv context. The remaining arguments mirror the
-    * production defaults (no javascript.java.packages, com_org on).
+    * production defaults (no javascript.java.packages, com_org off).
     */
    private Context newContext(Set<String> extra) {
       return Context.newBuilder("js")
          .allowHostAccess(ScriptHostAccess.hostAccess())
-         .allowHostClassLookup(ScriptHostAccess.classFilter(extra, new String[0], true))
+         .allowHostClassLookup(ScriptHostAccess.classFilter(extra, new String[0], false))
          .build();
    }
 
@@ -132,8 +132,9 @@ class ScriptHostAccessTest {
 
    /**
     * Regression (#75423): the broad main-branch allow-list was narrowed away in
-    * the initial GraalJS cutover. java.awt.Color (and the java.awt/text/util,
-    * com/org families) must be reachable again via Java.type.
+    * the initial GraalJS cutover. java.awt.Color (and the java.awt/text/util
+    * families) must be reachable again via Java.type. The com/org families are
+    * off by default since #77466.
     */
    @Test void restoredPackageAllowListLoads() {
       try(Context ctx = newContext()) {

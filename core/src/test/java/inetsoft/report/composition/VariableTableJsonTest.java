@@ -17,9 +17,14 @@
  */
 package inetsoft.report.composition;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import inetsoft.test.*;
 import inetsoft.uql.VariableTable;
+import inetsoft.uql.XCondition;
+import inetsoft.uql.asset.AssetCondition;
+import inetsoft.uql.schema.UserVariable;
+import inetsoft.uql.schema.XSchema;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -192,6 +197,180 @@ class VariableTableJsonTest {
       assertNotNull(result);
       assertEquals("v", result.get("kept"));
       assertFalse(result.contains("untyped"));
+   }
+
+   @Test
+   void objectArrayElementsKeepTheirTypes() throws Exception {
+      // Object[] is the type of a multi-value parameter, its elements used to come back as the
+      // plain JSON value (Bug #77472)
+      Object[] nested = new Object[] {
+         java.sql.Date.valueOf("2026-09-15"), "n1", new Object[] { new BigDecimal("2.50") }, null
+      };
+      Object[] values = new Object[] {
+         new Date(1_790_000_000_123L), java.sql.Date.valueOf("2026-09-15"),
+         new java.sql.Timestamp(1_790_000_000_123L), java.sql.Time.valueOf("10:13:20"),
+         new BigDecimal("1.50"), new BigDecimal("12345678901234567890.123456789"),
+         BigInteger.valueOf(5), new BigInteger("12345678901234567890"), 5L, 1234567890123L,
+         (short) 3, (byte) 2, 7, 1.5f, 2.25, 'c', true, "text", null, nested,
+         new String[] { "s1", "s2" }
+      };
+
+      VariableTable table = new VariableTable();
+      table.put("mixed", values);
+      table.put("dates", new Object[] { java.sql.Date.valueOf("2026-09-15"),
+                                        java.sql.Date.valueOf("2026-09-20") });
+      table.put("one", new Object[] { new java.sql.Timestamp(1_790_000_000_123L) });
+      table.put("empty", new Object[0]);
+      VariableTable base = new VariableTable();
+      base.put("baseDates", new Object[] { java.sql.Date.valueOf("2026-09-15"), null });
+      table.setBaseTable(base);
+
+      VariableTable result = roundTrip(table);
+
+      assertSameValues(values, result.get("mixed"), "mixed");
+      assertSameValues(table.get("dates"), result.get("dates"), "dates");
+      assertSameValues(table.get("one"), result.get("one"), "one");
+      assertSameValues(table.get("empty"), result.get("empty"), "empty");
+      assertSameValues(base.get("baseDates"), result.getBaseTable().get("baseDates"), "baseDates");
+   }
+
+   @Test
+   void bigDecimalKeepsScaleAndPrecision() throws Exception {
+      VariableTable table = new VariableTable();
+      table.put("scale", new BigDecimal("1.50"));
+      table.put("precision", new BigDecimal("12345678901234567890.123456789"));
+      table.put("array", new BigDecimal[] { new BigDecimal("1.50"), new BigDecimal("1E+3") });
+
+      VariableTable result = roundTrip(table);
+
+      assertSameValues(table.get("scale"), result.get("scale"), "scale");
+      assertSameValues(table.get("precision"), result.get("precision"), "precision");
+      assertSameValues(table.get("array"), result.get("array"), "array");
+   }
+
+   @Test
+   void dateOneOfConditionMatchesAfterReload() throws Exception {
+      VariableTable table = new VariableTable();
+      table.put("p", new Object[] { java.sql.Date.valueOf("2026-09-15"),
+                                    java.sql.Date.valueOf("2026-09-20") });
+
+      VariableTable result = roundTrip(table);
+
+      for(VariableTable vars : new VariableTable[] { table, result }) {
+         AssetCondition condition = new AssetCondition(XSchema.DATE);
+         condition.setOperation(XCondition.ONE_OF);
+         UserVariable variable = new UserVariable("p");
+         variable.setTypeNode(XSchema.createPrimitiveType(XSchema.DATE));
+         condition.addValue(variable);
+         condition.replaceVariable(vars);
+
+         assertFalse(condition.isIgnored());
+         assertTrue(condition.evaluate(java.sql.Date.valueOf("2026-09-15")));
+         assertTrue(condition.evaluate(java.sql.Timestamp.valueOf("2026-09-20 00:00:00")));
+         assertFalse(condition.evaluate(java.sql.Date.valueOf("2026-09-16")));
+      }
+   }
+
+   @Test
+   void jsonWithoutElementTypesStillLoads() throws Exception {
+      // the state written before Bug #77472 has no element types and numeric decimals
+      String json = tableJson("{\"p\":{\"type\":\"[Ljava.lang.Object;\",\"value\":" +
+                                 "[1789444800000,\"05:13:20\",1.5,null,[\"n1\",1]]}," +
+                                 "\"bd\":{\"type\":\"java.math.BigDecimal\",\"value\":1.50}}",
+                              "null");
+
+      VariableTable result = RuntimeSheet.loadJson(VariableTable.class, json, mapper);
+
+      assertNotNull(result);
+      assertArrayEquals(new Object[] { 1789444800000L, "05:13:20", 1.5, null, List.of("n1", 1) },
+                        (Object[]) result.get("p"));
+      assertEquals(0, new BigDecimal("1.5").compareTo((BigDecimal) result.get("bd")));
+   }
+
+   @Test
+   void oldReaderIgnoresElementTypes() throws Exception {
+      VariableTable table = new VariableTable();
+      table.put("p", new Object[] { java.sql.Date.valueOf("2026-09-15"),
+                                    java.sql.Time.valueOf("10:13:20"), new BigDecimal("1.50") });
+      table.put("bd", new BigDecimal("1.50"));
+      table.put("time", java.sql.Time.valueOf("10:13:20"));
+      JsonNode vartable = mapper.readTree(new RuntimeViewsheet().saveJson(table, mapper))
+         .get("vartable");
+
+      // the reader before Bug #77472 converted only the "type" and "value" fields, nothing may
+      // be written as a number where it expects a string (e.g. java.sql.Time)
+      assertArrayEquals(new Object[] { java.sql.Date.valueOf("2026-09-15").getTime(), "10:13:20",
+                                       "1.50" }, (Object[]) oldRead(vartable.get("p")));
+      assertEquals(new BigDecimal("1.50"), oldRead(vartable.get("bd")));
+      assertEquals(java.sql.Time.valueOf("10:13:20"), oldRead(vartable.get("time")));
+   }
+
+   @Test
+   void invalidElementTypesFallBackPerElement() throws Exception {
+      String json = tableJson(
+         "{\"short\":{\"type\":\"[Ljava.lang.Object;\",\"value\":[1789444800000,1789444800000]," +
+            "\"elementTypes\":[\"java.sql.Date\"]}," +
+         "\"long\":{\"type\":\"[Ljava.lang.Object;\",\"value\":[1789444800000]," +
+            "\"elementTypes\":[\"java.sql.Date\",\"java.lang.String\"]}," +
+         "\"bad\":{\"type\":\"[Ljava.lang.Object;\",\"value\":[\"abc\",\"x\",1,[1]]," +
+            "\"elementTypes\":[\"java.sql.Date\",\"" + SentinelScalar.class.getName() +
+            "\",{\"foo\":1},\"java.lang.String\"]}," +
+         "\"notArray\":{\"type\":\"[Ljava.lang.Object;\",\"value\":[1]," +
+            "\"elementTypes\":\"java.sql.Date\"}," +
+         "\"kept\":{\"type\":\"java.lang.String\",\"value\":\"v\"}}", "null");
+
+      VariableTable result = RuntimeSheet.loadJson(VariableTable.class, json, mapper);
+
+      assertNotNull(result);
+      assertTrue(INITIALIZED.isEmpty(), "static initializer ran: " + INITIALIZED);
+      assertTrue(CONSTRUCTED.isEmpty(), "constructor ran: " + CONSTRUCTED);
+      assertSameValues(new Object[] { new java.sql.Date(1789444800000L), 1789444800000L },
+                       result.get("short"), "short");
+      assertSameValues(new Object[] { new java.sql.Date(1789444800000L) }, result.get("long"),
+                       "long");
+      assertArrayEquals(new Object[] { "abc", "x", 1, List.of(1) }, (Object[]) result.get("bad"));
+      assertArrayEquals(new Object[] { 1 }, (Object[]) result.get("notArray"));
+      assertEquals("v", result.get("kept"));
+   }
+
+   private VariableTable roundTrip(VariableTable table) throws Exception {
+      String json = new RuntimeViewsheet().saveJson(table, mapper);
+      VariableTable result = RuntimeSheet.loadJson(VariableTable.class, json, mapper);
+      assertNotNull(result, json);
+      return result;
+   }
+
+   // the conversion done by the deserializer before Bug #77472, which ignores other fields
+   private Object oldRead(JsonNode entry) throws Exception {
+      Class<?> type = Class.forName(entry.get("type").asText());
+      return mapper.convertValue(entry.get("value"), type);
+   }
+
+   private static void assertSameValues(Object expected, Object actual, String name) {
+      if(expected == null) {
+         assertNull(actual, name);
+         return;
+      }
+
+      assertNotNull(actual, name);
+      assertEquals(expected.getClass(), actual.getClass(), name);
+
+      if(expected instanceof Object[] array) {
+         Object[] actualArray = (Object[]) actual;
+         assertEquals(array.length, actualArray.length, name);
+
+         for(int i = 0; i < array.length; i++) {
+            assertSameValues(array[i], actualArray[i], name + "[" + i + "]");
+         }
+      }
+      else {
+         // equals, not compareTo, so that the BigDecimal scale is compared too
+         assertEquals(expected, actual, name);
+
+         if(expected instanceof Date date) {
+            assertEquals(date.getTime(), ((Date) actual).getTime(), name);
+         }
+      }
    }
 
    private static String tableJson(String entries, String baseTable) {

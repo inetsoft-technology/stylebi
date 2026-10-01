@@ -91,6 +91,7 @@ public class ConcatenateTablesService extends WorksheetControllerService {
    {
       Worksheet ws = getWorksheetEngine()
          .getWorksheet(runtimeId, principal).getWorksheet();
+      checkCubeTableReadPermission(principal, concatTable);
       TableAssembly sourceTable = (TableAssembly) ws.getAssembly(concatTable);
       ArrayList<String> validTables = new ArrayList<>();
       Assembly[] assemblies = ws.getAssemblies();
@@ -123,6 +124,8 @@ public class ConcatenateTablesService extends WorksheetControllerService {
       }
 
       Worksheet ws = getRuntimeWorksheet(runtimeId, principal).getWorksheet();
+      checkCubeTableReadPermission(principal, event.getSourceTable());
+      checkCubeTableReadPermission(principal, event.getOtherTables());
       TableAssembly sourceTable = (TableAssembly) ws.getAssembly(event.getSourceTable());
       ConcatCompatibilityCommand compatibilityCommand = new ConcatCompatibilityCommand();
 
@@ -236,6 +239,7 @@ public class ConcatenateTablesService extends WorksheetControllerService {
       CommandDispatcher commandDispatcher, Principal principal) throws Exception
    {
       Worksheet ws = rws.getWorksheet();
+      checkCubeTableReadPermission(principal, left, right);
       TableAssembly leftTable = (TableAssembly) ws.getAssembly(left);
       TableAssembly rightTable = (TableAssembly) ws.getAssembly(right);
 

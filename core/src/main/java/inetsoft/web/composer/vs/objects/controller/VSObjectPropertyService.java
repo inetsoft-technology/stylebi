@@ -125,6 +125,11 @@ public class VSObjectPropertyService {
       Worksheet ws = vs.getBaseWorksheet();
 
       if(!Tool.equals(oldName, newName)) {
+         // the new name replaces the source of the assemblies bound to this one, and a cube
+         // table name would be resolved from its data source (Bug #77427). It is checked
+         // before anything is changed, so a refused rename leaves the viewsheet as it was
+         // (Bug #77462)
+         queryManagerService.checkCubeTableReadPermission(newName, user);
          String id = vs.getViewsheetInfo().getFilterID(oldName);
          vs.getViewsheetInfo().setFilterID(oldName, null);
          vs.getViewsheetInfo().setFilterID(newName, id);
@@ -209,9 +214,6 @@ public class VSObjectPropertyService {
       boolean renamed = false;
 
       if(!oldName.equals(newName)) {
-         // the new name replaces the source of the assemblies bound to this one, and a cube
-         // table name would be resolved from its data source (Bug #77427)
-         queryManagerService.checkCubeTableReadPermission(newName, user);
          // rename all bind assemblies before rename assembly.
          renameAllBindSourceAssemblies(oldName, newName, vs, rvs, commandDispatcher);
          VSAssembly container = vsAssembly.getContainer();

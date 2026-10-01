@@ -263,6 +263,8 @@ public class SaveWorksheetService extends WorksheetControllerService {
          return false;
       }
 
+      checkNoCubeTableReference(ws);
+
       if(event.confirmed()) {
          rws.setProperty("mvconfirmed", "true");
       }

@@ -67,6 +67,7 @@ public class ValueRangeService extends WorksheetControllerService {
                                                 Principal principal) throws Exception
    {
       RuntimeWorksheet rws = super.getWorksheetEngine().getWorksheet(runtimeId, principal);
+      checkCubeTableReadPermission(principal, tableName);
       TableAssembly assembly = (TableAssembly) rws.getWorksheet().getAssembly(tableName);
 
       if(assembly != null) {
@@ -130,6 +131,7 @@ public class ValueRangeService extends WorksheetControllerService {
    {
       RuntimeWorksheet rws = super.getRuntimeWorksheet(runtimeId, principal);
       Worksheet ws = rws.getWorksheet();
+      checkCubeTableReadPermission(principal, tableName);
       String columnName = model.getOldName();
       TableAssembly table = (TableAssembly) ws.getAssembly(tableName);
 
@@ -147,6 +149,7 @@ public class ValueRangeService extends WorksheetControllerService {
    {
       RuntimeWorksheet rws = super.getWorksheetEngine()
          .getWorksheet(Tool.byteDecode(runtimeId), principal);
+      checkCubeTableReadPermission(principal, tableName);
       TableAssembly table = (TableAssembly) rws.getWorksheet().getAssembly(tableName);
       ColumnSelection columns = table.getColumnSelection();
       String columnName = model.getNewName();
@@ -169,6 +172,7 @@ public class ValueRangeService extends WorksheetControllerService {
                              CommandDispatcher commandDispatcher) throws Exception
    {
       tableName = Tool.byteDecode(tableName);
+      checkCubeTableReadPermission(principal, tableName);
       fromColumn = Tool.byteDecode(fromColumn);
       RuntimeWorksheet rws = super.getRuntimeWorksheet(runtimeId, principal);
       Worksheet ws = rws.getWorksheet();
