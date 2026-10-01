@@ -31,6 +31,7 @@ import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.asset.internal.ColumnIndexMap;
 import inetsoft.uql.util.XUtil;
+import inetsoft.util.ThreadContext;
 import inetsoft.util.Tool;
 import inetsoft.util.script.ScriptEnv;
 import org.slf4j.Logger;
@@ -43,18 +44,76 @@ import java.security.Principal;
 import java.util.*;
 
 public class BatchAction extends AbstractAction {
+   /**
+    * Runs the child task once per embedded parameter map and once per row of the query. The
+    * query is the content of the task that holds this action, so it runs with that task's
+    * principal. Bug #77452, the child task runs with its own principal, the same principal it
+    * runs with when it is scheduled ({@link SUtil#getScheduleTaskRunPrincipal}), never with the
+    * principal of the task that holds this action: anyone who may change the child task would
+    * otherwise run its actions with the roles of that task. A nested batch action of the child
+    * task gets the child's principal and in turn runs its own child task with that task's
+    * principal.
+    *
+    * @param principal the principal of the task that holds this action.
+    */
    @Override
    public void run(Principal principal) throws Throwable {
       ScheduleManager scheduleManager = ScheduleManager.getScheduleManager();
       ScheduleTask task = scheduleManager.getScheduleTask(taskId);
 
       if(task != null) {
-         runScheduleTaskWithEmbeddedParameters(task, principal);
-         runScheduleTaskWithQueryParameters(task, principal);
+         Principal childPrincipal = getChildPrincipal(task);
+         runScheduleTaskWithEmbeddedParameters(task, childPrincipal);
+         runScheduleTaskWithQueryParameters(task, principal, childPrincipal);
       }
    }
 
-   private void runScheduleTaskWithQueryParameters(ScheduleTask task, Principal principal) throws Throwable {
+   /**
+    * Runs a copy of the child task with its principal, which is also the context principal of
+    * this thread while it runs (the actions' pooled threads inherit it). The context principal
+    * of the task that holds this action is restored afterwards.
+    */
+   private static void runChildTask(ScheduleTask clonedTask, Principal childPrincipal)
+      throws Throwable
+   {
+      Principal contextPrincipal = ThreadContext.getContextPrincipal();
+
+      try {
+         ThreadContext.setContextPrincipal(childPrincipal);
+         clonedTask.run(childPrincipal);
+      }
+      finally {
+         ThreadContext.setContextPrincipal(contextPrincipal);
+      }
+   }
+
+   /**
+    * Gets the principal the child task runs with, the same as ScheduleTaskJob: none for an
+    * internal task, otherwise its execute-as identity or its owner, with the locale of the task.
+    */
+   private Principal getChildPrincipal(ScheduleTask task) {
+      if(ScheduleManager.isInternalTask(task.getTaskId())) {
+         return null;
+      }
+
+      Principal childPrincipal = SUtil.getScheduleTaskRunPrincipal(task, Tool.getIP(), true);
+
+      if(childPrincipal == null) {
+         // fail closed, never fall back to the principal of the task that holds this action
+         throw new IllegalStateException(
+            "Cannot get the principal of the batch action task " + task.getTaskId() +
+            ", the task was not run");
+      }
+
+      // the child runs with its own locale, the same as when it is run (SUtil.runTask)
+      SUtil.applyScheduleTaskLocale(childPrincipal, task.getLocale());
+      return childPrincipal;
+   }
+
+   private void runScheduleTaskWithQueryParameters(ScheduleTask task, Principal principal,
+                                                   Principal childPrincipal)
+      throws Throwable
+   {
       if(queryEntry == null || queryParameters == null || queryParameters.size() == 0) {
          return;
       }
@@ -134,12 +193,15 @@ public class BatchAction extends AbstractAction {
                replaceVariablesInScheduleAction((AbstractAction) action, vars);
             }
 
-            clonedTask.run(principal);
+            runChildTask(clonedTask, childPrincipal);
          }
       }
    }
 
-   private void runScheduleTaskWithEmbeddedParameters(ScheduleTask task, Principal principal) throws Throwable {
+   private void runScheduleTaskWithEmbeddedParameters(ScheduleTask task,
+                                                      Principal childPrincipal)
+      throws Throwable
+   {
       if(embeddedParameters != null) {
          for(Map<String, Object> map : embeddedParameters) {
             ScheduleTask clonedTask = ScheduleTask.copyScheduleTask(task);
@@ -181,7 +243,7 @@ public class BatchAction extends AbstractAction {
                replaceVariablesInScheduleAction((AbstractAction) action, vars);
             }
 
-            clonedTask.run(principal);
+            runChildTask(clonedTask, childPrincipal);
          }
       }
    }
