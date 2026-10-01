@@ -507,9 +507,10 @@ public class ExtendedDateFormat extends SimpleDateFormat {
       }
 
       // try as milliseconds from epoch. we don't invent a new format type since it's
-      // unlikely that a user will know to use it. so we just try it and see if it works
+      // unlikely that a user will know to use it. so we just try it and see if it works.
+      // date text such as 12/31/85 is skipped (NaN), since the exception is slow
       try {
-         double val = Double.parseDouble(str);
+         double val = isNumber(str) ? Double.parseDouble(str) : Double.NaN;
          final long year = 60000 * 60 * 24 * 365L;
          final long year10 = year * 10;
          final long year70 = year * 70;
@@ -523,6 +524,40 @@ public class ExtendedDateFormat extends SimpleDateFormat {
       }
 
       return super.parseObject(str);
+   }
+
+   /**
+    * Check if the string may be a number for Double.parseDouble(). this is a quick check
+    * that accepts every decimal or hex number (some other strings too), and rejects text
+    * with any other letter or sign, e.g. dates such as 12/31/85, 03-11 or 10-Mar-11.
+    * NaN and Infinity are rejected, which is fine since they are never epoch milliseconds.
+    */
+   private static boolean isNumber(String str) {
+      if(str == null) {
+         return false;
+      }
+
+      char prev = ' ';
+
+      for(int i = 0; i < str.length(); i++) {
+         char c = str.charAt(i);
+
+         // a sign is only allowed first or in an exponent
+         if(c == '+' || c == '-') {
+            if(prev > ' ' && prev != 'e' && prev != 'E' && prev != 'p' && prev != 'P') {
+               return false;
+            }
+         }
+         else if(c > ' ' && c != '.' && c != 'x' && c != 'X' && c != 'p' && c != 'P' &&
+            Character.digit(c, 16) < 0)
+         {
+            return false;
+         }
+
+         prev = c;
+      }
+
+      return true;
    }
 
    @Override
@@ -672,15 +707,20 @@ public class ExtendedDateFormat extends SimpleDateFormat {
       // names and the week rules. the pattern is last since only it may contain the separator
       Locale loc = locale != null ? locale :
          defaultLocale != null ? defaultLocale : Locale.getDefault(Locale.Category.FORMAT);
-      WeekFields weekFields = WeekFields.of(loc);
-      Calendar calendar = getCalendar();
 
       // the week rules of the calendar may differ from the locale's, e.g. for a -u-ca-iso8601
-      // locale or after setCalendar(). Calendar numbers the days from Sunday = 1
-      if(calendar.getFirstDayOfWeek() != weekFields.getFirstDayOfWeek().getValue() % 7 + 1 ||
-         calendar.getMinimalDaysInFirstWeek() != weekFields.getMinimalDaysInFirstWeek())
-      {
-         return null;
+      // locale or after setCalendar(). they only matter for a week date, which always has w,
+      // so the (slow) WeekFields lookup is skipped for other patterns. Calendar numbers the
+      // days from Sunday = 1
+      if(pattern.indexOf('w') >= 0) {
+         WeekFields weekFields = WeekFields.of(loc);
+         Calendar calendar = getCalendar();
+
+         if(calendar.getFirstDayOfWeek() != weekFields.getFirstDayOfWeek().getValue() % 7 + 1 ||
+            calendar.getMinimalDaysInFirstWeek() != weekFields.getMinimalDaysInFirstWeek())
+         {
+            return null;
+         }
       }
 
       String key = loc.toLanguageTag() + "|" + zone.getID() + "|" + pattern;
@@ -721,7 +761,8 @@ public class ExtendedDateFormat extends SimpleDateFormat {
     *   year start;
     * - week fields (Y, w, W) outside a week date (Y, w and E, without y), since java.time
     *   resolves the date from them only for a week date, e.g. Jan 1 for yyyy-ww-EEE;
-    * - letters with another meaning in java.time (u, F, S other than SSS, GGGGG) or that
+    * - letters with another meaning in java.time (u, F, S other than SSS, and G, M, L or E
+    *   more than 4 times, which are the narrow forms in java.time) or that
     *   SimpleDateFormat resolves on their own (D, a day of week without a day or week date,
     *   a 12-hour hour without am/pm or am/pm without a 12-hour hour).
     */
@@ -753,6 +794,11 @@ public class ExtendedDateFormat extends SimpleDateFormat {
 
          switch(c) {
          case 'G':
+         case 'M':
+         case 'L':
+         case 'E':
+            // GGGGG, MMMMM, LLLLL and EEEEE are the narrow forms in java.time but the
+            // full forms in SimpleDateFormat
             if(count > 4) {
                return true;
             }
@@ -772,10 +818,7 @@ public class ExtendedDateFormat extends SimpleDateFormat {
 
             break;
          case 'w':
-         case 'M':
-         case 'L':
          case 'd':
-         case 'E':
          case 'a':
          case 'h':
          case 'K':

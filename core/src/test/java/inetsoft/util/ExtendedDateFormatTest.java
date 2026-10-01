@@ -687,6 +687,7 @@ public class ExtendedDateFormatTest {
       "de | YYYY-ww-EEE yyyy",
       "en-US | YYYY-ww",
       "fr | yyyy-MM-W",
+      "en-US | yyyy-MM-W",
       "en-GB | yyyy-MM-dd EEE ww"
    })
    public void weekPatternParsesLikeSimpleDateFormat(String tag, String pattern) {
@@ -748,7 +749,12 @@ public class ExtendedDateFormatTest {
       "de | d. MMMM Y",
       "fr | dd/MM/yyyy HH:mm:ss.S",
       "de | D MMMM yyyy",
-      "en-US-u-ca-iso8601 | YYYY-ww-EEE"
+      "en-US-u-ca-iso8601 | YYYY-ww-EEE",
+      "en-US | MM/dd/YY",
+      "en-US | yyMMdd",
+      "de | MMMMM yyyy",
+      "fr | EEEEE, MMMMM dd, yyyy",
+      "de | F MMM yyyy"
    })
    public void fieldParsesLikeSimpleDateFormat(String tag, String pattern) {
       final Locale locale = Locale.forLanguageTag(tag);
@@ -802,6 +808,94 @@ public class ExtendedDateFormatTest {
 
       assertEquals(new SimpleDateFormat(pattern, locale).parse(text),
                    new ExtendedDateFormat(pattern, locale).parse(text, null), text);
+   }
+
+   // Bug #77508: java.time does not resolve a calendar year with a week of year, so
+   // parse(String) gave Jan 1
+   @Test
+   public void calendarYearWithWeekParsesToDayOfWeek() throws Exception {
+      final ExtendedDateFormat format = new ExtendedDateFormat("yyyy-'W'ww-EEE", Locale.UK);
+      final Date date = Date.from(LocalDate.of(2011, 3, 10)
+                                     .atStartOfDay(ZoneId.systemDefault()).toInstant());
+
+      assertEquals(date, format.parse("2011-W10-Thu"));
+      assertEquals(date, format.parseObject("2011-W10-Thu"));
+   }
+
+   // Bug #77507: java.time read a two-letter year as 2000-2099, ignoring the 2-digit year
+   // start and the lenient flag of SimpleDateFormat
+   @Test
+   public void twoDigitYearUsesTwoDigitYearStart() throws Exception {
+      final ExtendedDateFormat format = new ExtendedDateFormat("MM/dd/yy", Locale.US);
+      final ExtendedDateFormat compact = new ExtendedDateFormat("yyMMdd", Locale.US);
+      final ExtendedDateFormat strict = new ExtendedDateFormat("MM/dd/yy", Locale.US);
+      final Calendar calendar = Calendar.getInstance();
+      calendar.clear();
+      calendar.set(1900, Calendar.JANUARY, 1);
+      format.set2DigitYearStart(calendar.getTime());
+      strict.setLenient(false);
+
+      assertEquals(date(1910, 12, 31), format.parse("12/31/10"));
+      assertEquals(date(1910, 12, 31), format.parseObject("12/31/10"));
+      assertEquals(date(1985, 12, 31), compact.parse("851231"));
+      assertEquals(date(1985, 12, 31), compact.parseObject("851231"));
+      assertThrows(ParseException.class, () -> strict.parse("02/30/85"));
+      assertThrows(ParseException.class, () -> strict.parseObject("02/30/85"));
+   }
+
+   // Bug #77458: GGGGG, MMMMM, LLLLL and EEEEE are the narrow forms in java.time, e.g. 3 for
+   // March in zh and the Cyrillic M for both March and May in ru, so java.time accepted text
+   // that SimpleDateFormat in the format locale rejects. the full forms SimpleDateFormat makes
+   // must still parse. the ru text, which java.time read as May, must throw
+   @ParameterizedTest(name = "{0} {1} {2}")
+   @CsvSource(delimiter = '|', value = {
+      "zh | MMMMM yyyy | 3 2011",
+      "ja | MMMMM yyyy | 3 2011",
+      "ru | d MMMMM yyyy | 10 \u041c 2011",
+      "ru | d LLLLL yyyy | 10 \u041c 2011",
+      "fr | EEEEE dd/MM/yyyy | J 10/03/2011",
+      "en-US | dd MMMM yyyy GGGGG | 10 March 2011 A"
+   })
+   public void narrowFormParsesLikeSimpleDateFormat(String tag, String pattern, String narrow)
+      throws Exception
+   {
+      final Locale locale = Locale.forLanguageTag(tag);
+      final ExtendedDateFormat format = new ExtendedDateFormat(pattern, locale);
+      final Object expected =
+         parseOrError(() -> new SimpleDateFormat(pattern, locale).parse(narrow));
+
+      if(tag.equals("ru")) {
+         assertEquals(ParseException.class, expected, narrow);
+      }
+
+      assertEquals(expected, parseOrError(() -> format.parse(narrow)), narrow);
+      assertEquals(expected, parseOrError(() -> (Date) format.parseObject(narrow)), narrow);
+
+      final Date date = date(2011, 3, 10);
+      final String full = new SimpleDateFormat(pattern, locale).format(date);
+
+      assertEquals(new SimpleDateFormat(pattern, locale).parse(full), format.parse(full), full);
+      assertEquals(new SimpleDateFormat(pattern, locale).parse(full), format.parseObject(full),
+                   full);
+   }
+
+   // Bug #77507: a number is still read as milliseconds from epoch by parseObject() when the
+   // pattern is parsed by SimpleDateFormat
+   @ParameterizedTest(name = "{0}")
+   @CsvSource(delimiter = '|', value = {
+      "1300000000000", "+1300000000000", "' 1300000000000 '", "1.3E12", "1.3e+12", "1300000000000d",
+      "0x1.2ea05f2p40"
+   })
+   public void numberParsesAsEpochMillis(String text) throws Exception {
+      final ExtendedDateFormat format = new ExtendedDateFormat("MM/dd/yy", Locale.US);
+      final long millis = (long) Double.parseDouble(text);
+
+      assertEquals(new Date(millis), format.parseObject(text));
+   }
+
+   private static Date date(int year, int month, int day) {
+      return Date.from(LocalDate.of(year, month, day).atStartOfDay(ZoneId.systemDefault())
+                          .toInstant());
    }
 
    private interface DateParser {
