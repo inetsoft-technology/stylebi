@@ -2133,22 +2133,102 @@ public class VSTableLens extends DefaultTableFilter implements XMLSerializable, 
    }
 
    /**
-    * How much taller a row is for its padding: the larger of what a stylesheet asks for and what
-    * the assembly's own padding asks for.
+    * How much taller a row is for its padding: the inset the row actually draws, floored by the
+    * seed that the row's stored height had taken out of it.
     *
-    * The max is what keeps the row on its density tier. A marked table stores the tier height
-    * less its seeded padding (VSDensityDefaults.rowHeight) and this adds it back, so returning
-    * the stylesheet's amount alone where it covers every column would leave the row short by the
-    * seeded amount - below the tier, and below what the same table rendered before it was marked.
-    * A stylesheet that wants a row height sets one, and getCSSDataRowHeight applies it instead.
+    * The floor is what keeps a row on its density tier. VSDensityDefaults.rowHeight stores the
+    * tier less the DEFAULT-tier cell padding on the promise that render puts it back, so a row
+    * growing by the stylesheet's smaller amount alone would land below the tier, and below what
+    * the same table rendered before it was marked.
     *
-    * Which inset the text sits at is a separate question, and getCellInsets still answers it with
-    * the stylesheet's value.
+    * The floor is the seed and not the resolved padding, because the seed is what was subtracted.
+    * An author padding above it is additive and arrives through the inset instead; an unmarked
+    * table has no seed, so nothing was subtracted from its height and nothing is owed back.
+    *
+    * It is skipped entirely where a stylesheet sets the row height, since that replaces the
+    * density height outright rather than shrinking it - adding the seed there would grow a row
+    * neither the stylesheet nor the tier asked for.
+    *
+    * Which inset the text sits at is a separate question, and getCellInsets answers it.
     */
    public int getRowPadding(int row, TableDataVSAssemblyInfo info) {
+      int inset = getEffectiveRowInset(row, info);
+      return isCSSRowHeightDefined(row, info) ? inset : Math.max(inset, getSeededInsetHeight(info));
+   }
+
+   /**
+    * The inset height the row actually draws: the stylesheet's where it covers every column, and
+    * otherwise the larger of the stylesheet's and the assembly's own, so a row partly covered is
+    * tall enough for both kinds of cell.
+    */
+   private int getEffectiveRowInset(int row, TableDataVSAssemblyInfo info) {
       int css = getCSSRowPadding(row);
+
+      if(isCSSRowFullyPadded(row)) {
+         return css;
+      }
+
       Insets cell = info == null ? null : info.getCellPadding();
       return cell == null ? css : Math.max(css, cell.top + cell.bottom);
+   }
+
+   /**
+    * The seed the stored row height was reduced by - the DEFAULT tier alone, matching what
+    * VSDensityDefaults.rowHeight(VizContext, TableDataVSAssemblyInfo) subtracts.
+    */
+   private int getSeededInsetHeight(TableDataVSAssemblyInfo info) {
+      Insets seeded = info == null ? null : info.getDefaultCellPadding();
+      return seeded == null ? 0 : seeded.top + seeded.bottom;
+   }
+
+   /**
+    * Whether a CSSTableStyle sets this row's height, in which case the caller uses that in place
+    * of the density height and no seed was taken out of it.
+    */
+   private boolean isCSSRowHeightDefined(int row, TableDataVSAssemblyInfo info) {
+      if(info == null) {
+         return false;
+      }
+
+      return (row < getHeaderRowCount() ? getCSSHeaderRowHeight(info)
+                                        : getCSSDataRowHeight(info)) > 0;
+   }
+
+   /**
+    * Whether a CSSTableStyle defines an inset for every column of this row, so that no cell in it
+    * falls back to the assembly's own padding. Mirrors getCSSRowPadding's traversal and caching.
+    */
+   private boolean isCSSRowFullyPadded(int row) {
+      if(row > getHeaderRowCount()) {
+         row = getHeaderRowCount();
+      }
+
+      CSSTableStyle cssTableStyle = (CSSTableStyle) Util.getNestedTable(this, CSSTableStyle.class);
+
+      if(cssTableStyle == null) {
+         return false;
+      }
+
+      int baseRow = TableTool.getBaseRowIndex(this, cssTableStyle, row);
+
+      if(baseRow < 0) {
+         return false;
+      }
+
+      Boolean cached = fullRowPadding.get(row);
+
+      if(cached != null) {
+         return cached;
+      }
+
+      boolean full = cssTableStyle.getColCount() > 0;
+
+      for(int c = 0; full && c < cssTableStyle.getColCount(); c++) {
+         full = cssTableStyle.getInsets(baseRow, c) != null;
+      }
+
+      fullRowPadding.put(row, full);
+      return full;
    }
 
    /**
@@ -2312,4 +2392,5 @@ public class VSTableLens extends DefaultTableFilter implements XMLSerializable, 
    private transient Object calcTable;
    private Map<Integer, Integer> maxRowPadding = new HashMap<>();
    private Map<Integer, Integer> maxColPadding = new HashMap<>();
+   private final Map<Integer, Boolean> fullRowPadding = new HashMap<>();
 }

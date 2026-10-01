@@ -236,11 +236,31 @@ rowGrowth(r) = max over c of ( effective(lens, info, r, c).top + .bottom )
 `getCSSRowPadding` (`:2053`) already loops the columns taking a max; the change is that its per-cell
 read falls back to `info.getCellPadding()` instead of contributing nothing.
 
-Deriving it this way rather than as `max(cssRowPadding, seededY × 2)` matters in the two mixed
-cases. Where a `CSSTableStyle` covers every cell, nothing falls back and the row grows by the CSS
-amount alone — a blunt `max` would instead grow existing `format.css` customers' rows whenever the
-seeded value happened to be larger. Where a style covers only some cells, the uncovered ones
-contribute the seeded inset and the row is tall enough for both.
+Where a style covers only some cells, the uncovered ones contribute the seeded inset and the row
+is tall enough for both.
+
+**Corrected 2026-10-01.** This section originally said that where a `CSSTableStyle` covers every
+cell the row grows by the CSS amount alone, rejecting `max(cssRowPadding, seededY × 2)` on the
+grounds that a blunt max would grow an existing `format.css` customer's rows. That reasoning is
+sound against an unshrunk base, which is what it assumed; but the stored height is the tier *less*
+the seed, so the CSS amount alone leaves the row short by the seed — below the tier and below what
+the same table rendered unmarked. At comfortable a stylesheet padding of 1px rendered 20px headers
+above 28px data rows.
+
+The rule is now: the row grows by **the inset it actually draws, floored by the seed its stored
+height had taken out of it**. Three consequences, and each is the reason for one half of it:
+
+- The floor is the **DEFAULT tier**, not the resolved padding, because the DEFAULT tier is what
+  `VSDensityDefaults.rowHeight(VizContext, TableDataVSAssemblyInfo)` subtracts. An author padding
+  above it stays additive and arrives through the inset. An unmarked table has no DEFAULT tier, so
+  nothing was subtracted and nothing is owed back — which is what keeps an unmarked table with an
+  author cell padding on the pre-feature behaviour.
+- The floor is **skipped where a stylesheet sets the row height**. `getCSSDataRowHeight` and
+  `getCSSHeaderRowHeight` replace the density height outright rather than shrinking it, so there
+  is nothing to give back and the seed would be unrequested growth. This is the case the original
+  rejection of `max` was really protecting, and it is the only one where it still applies.
+- A stylesheet padding **larger** than the seed still grows the row past the tier, exactly as an
+  author padding does.
 
 Sites: `VSTableLens.getRowHeightWithPadding` (`:2148`), `BaseTableService:492/498`,
 `VSTableHelper:209`, `ComposerVSTableService:958/969`, `BaseTableCellModel:169`.
@@ -398,8 +418,12 @@ double-count the cell padding.
 - seed and Revert round-trip for the chart inset, table inset and cell padding
 - `userPadding` surviving the hoist: XML write, parse of a pre-hoist asset, and `copyInfo`
 - css-wins: a `CSSTableStyle` padding still beats a seeded one, and still adds to the row
-- row growth under mixed coverage: full CSS coverage grows the row by the CSS amount alone even
-  when the seeded value is larger; partial coverage grows it enough for the seeded cells too
+- row growth under mixed coverage: partial coverage grows the row enough for the seeded cells too.
+  **Corrected 2026-10-01** — full coverage no longer grows the row by the CSS amount alone; it is
+  floored at the seed so the row stays on its tier, per the correction in §4.3. The cases to pin
+  are full coverage reaching the tier, a stylesheet row height taking its padding alone, a
+  stylesheet padding larger than the seed still growing the row, and an unmarked table with an
+  author cell padding being left alone
 
 **Frontend**: `*.spec.ts` for the `base-table` geometry split and the `vs-simple-cell` bindings; one
 `*.tl.spec.ts` for the two dialog panes. Scope every TL run with `--include` against the

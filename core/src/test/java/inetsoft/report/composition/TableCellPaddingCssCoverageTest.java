@@ -20,6 +20,7 @@ package inetsoft.report.composition;
 import inetsoft.sree.SreeEnv;
 import inetsoft.test.*;
 import inetsoft.uql.CompositeValue;
+import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.util.css.CSSTableStyle;
 import inetsoft.util.css.CSSParameter;
@@ -34,14 +35,18 @@ import java.awt.Insets;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
- * A format.css table padding decides where a cell's text sits. It must not also decide how tall
- * the row is.
+ * A format.css table padding decides where a cell's text sits. It must not leave the row below
+ * its density tier.
  *
  * A marked table stores the tier height less its seeded cell padding and render adds the padding
- * back, so the two have to describe the same padding or the row loses the difference. The row
- * growth is the only half a stylesheet can reach, which is why a stylesheet that declares padding
- * and no height would otherwise leave every row short by the seeded amount it never gets back.
- * A stylesheet that wants a row height has getCSSDataRowHeight for that.
+ * back, so the two have to describe the same padding or the row loses the difference. A
+ * stylesheet declaring padding and no height would otherwise leave every row short by the seeded
+ * amount it never gets back.
+ *
+ * Padding may still make a row taller - a stylesheet or author value above the seed is additive,
+ * which these tests pin alongside the floor. What it may not do is make the row shorter than the
+ * tier. The two places there is nothing to give back, because nothing was subtracted, are a
+ * stylesheet that sets the row height and a table with no seed at all.
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
@@ -86,6 +91,27 @@ class TableCellPaddingCssCoverageTest {
    }
 
    @Test
+   void aCssRowHeightTakesTheStylesheetsPaddingAlone() {
+      // the stylesheet supplies the height, so nothing was subtracted and nothing has to come
+      // back. Adding the seed on top would grow a row that neither the stylesheet nor the tier
+      // asked for, and the row-height channel is the remedy this feature points a stylesheet at
+      assertRenderedDataRow("comfortable", bodyHeightAndPadding(20, 1), 22);
+      assertRenderedDataRow("compact", bodyHeightAndPadding(20, 1), 22);
+      assertRenderedDataRow("dense", bodyHeightAndPadding(20, 1), 22);
+   }
+
+   @Test
+   void anUnmarkedTableWithAnAuthorPaddingTakesTheCssPaddingAlone() {
+      // an unmarked table has no DEFAULT tier, so its stored height was never shrunk. The floor
+      // tracks what was subtracted, not what is drawn, so an author padding must not raise it
+      VSTableLens lens = lens(bodyPadded(1));
+      TableVSAssemblyInfo info = unmarkedTable();
+      info.setCellPadding(new Insets(10, 10, 10, 10), CompositeValue.Type.USER);
+
+      assertEquals(2, lens.getRowPadding(1, info));
+   }
+
+   @Test
    void aCssPaddingLargerThanTheSeedStillGrowsTheRow() {
       // a guard, not a restatement: it passes before the fix as well, and it is what would catch
       // a fix that clamped the row to the tier instead of taking the larger of the two
@@ -100,6 +126,28 @@ class TableCellPaddingCssCoverageTest {
       TableVSAssemblyInfo info = unmarkedTable();
 
       assertEquals(2, lens.getRowPadding(1, info));
+   }
+
+   /**
+    * The rendered data row, mirroring BaseTableService:459-493: the density substitution, then a
+    * stylesheet height replacing it outright, then the padding on top. The row-height source is a
+    * caller decision, so a lens-level assertion alone cannot see the case this pins.
+    */
+   private void assertRenderedDataRow(String density, CSSTableStyle style, int expected) {
+      VSTableLens lens = lens(style);
+      TableVSAssemblyInfo info = markedTable(density);
+      VizContext ctx = context(density);
+      int row = lens.getHeaderRowCount();
+      int height = info.getDataRowHeight(row);
+
+      if(ctx.modern && !info.isUserDataRowHeight() && height == AssetUtil.defh) {
+         height = VSDensityDefaults.rowHeight(ctx, info);
+      }
+
+      int css = lens.getCSSDataRowHeight(info);
+      height = css > 0 ? css : height;
+
+      assertEquals(expected, height + lens.getRowPadding(row, info), density + " rendered data row");
    }
 
    private void assertDataRow(String density, CSSTableStyle style, int expected) {
@@ -134,11 +182,25 @@ class TableCellPaddingCssCoverageTest {
    }
 
    private CSSTableStyle padded(String attribute, int padding) {
+      CSSTableStyle style = newStyle();
+      style.put(attribute, new Insets(padding, padding, padding, padding));
+      style.setApplyInsets(true);
+      return style;
+   }
+
+   /** A stylesheet that sets the row height as well as the padding - the supported way to ask
+    *  for a shorter row, and the case the padding floor must keep its hands off. */
+   private CSSTableStyle bodyHeightAndPadding(int height, int padding) {
+      CSSTableStyle style = padded("body.padding", padding);
+      style.put("body.height", height);
+      style.setApplyRowHeight(true);
+      return style;
+   }
+
+   private CSSTableStyle newStyle() {
       CSSTableStyle style = new CSSTableStyle(
          new CSSParameter("Table", null, null, null), XTableUtil.getDefaultTableLens());
       style.setTable(XTableUtil.getDefaultTableLens());
-      style.put(attribute, new Insets(padding, padding, padding, padding));
-      style.setApplyInsets(true);
       return style;
    }
 
