@@ -1462,11 +1462,9 @@ public abstract class AssetQuery extends PreAssetQuery {
             }
          }
 
+         // expression columns are end-user authored, always run them restricted
          boolean[] restricted = new boolean[sarr.length];
-
-         for(int i = 0; i < sarr.length; i++) {
-            restricted[i] = "true".equals(table.getProperty("adhoc.edit." + harr[i]));
-         }
+         Arrays.fill(restricted, true);
 
          base = PostProcessor.formula(
             base, harr, sarr, env, box.getScope(), marr,
@@ -4041,8 +4039,16 @@ public abstract class AssetQuery extends PreAssetQuery {
                         try {
                            ViewsheetSandbox vbox = box.getViewsheetSandbox();
                            Viewsheet vs = vbox == null ? null : vbox.getViewsheet();
-                           val = varName != null && vval == null ? attr :
-                              senv.exec(senv.compile(exp), scope = box.getScope(), null, vs);
+                           if(varName != null && vval == null) {
+                              val = attr;
+                           }
+                           else {
+                              AssetQueryScope scope0 = scope = box.getScope();
+                              String exp0 = exp;
+                              // condition expressions are end-user authored
+                              val = FormulaContext.runRestricted(
+                                 () -> senv.exec(senv.compile(exp0), scope0, null, vs));
+                           }
                         }
                         catch(Exception ex) {
                            String suggestion = senv.getSuggestion(ex, null, scope);

@@ -22,6 +22,7 @@ import org.mozilla.javascript.Scriptable;
 
 import java.awt.*;
 import java.util.Stack;
+import java.util.concurrent.Callable;
 
 /**
  * This class holds the context of a formula execution. A context is set and
@@ -110,6 +111,23 @@ public class FormulaContext {
    public static boolean isRestricted() {
       Boolean bobj = (Boolean) sandbox.get();
       return bobj != null && bobj.booleanValue();
+   }
+
+   /**
+    * Run an action with scripts in a restricted environment. The previous
+    * setting is restored afterwards, so a nested call never removes the
+    * restriction of an enclosing script.
+    */
+   public static <T> T runRestricted(Callable<T> action) throws Exception {
+      boolean restricted = isRestricted();
+      setRestricted(true);
+
+      try {
+         return action.call();
+      }
+      finally {
+         setRestricted(restricted);
+      }
    }
 
    /**

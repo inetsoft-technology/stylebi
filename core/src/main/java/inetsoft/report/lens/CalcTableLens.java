@@ -1118,7 +1118,8 @@ public class CalcTableLens extends DefaultTableLens {
 
          return ProfileUtils.addExecutionBreakDownRecord(getReportName(),
             ExecutionBreakDownRecord.JAVASCRIPT_PROCESSING_CYCLE, args -> {
-               return senv.exec(args[0], args[1], null, null);
+               // freehand table formulas are end-user authored, run them in restricted mode
+               return FormulaContext.runRestricted(() -> senv.exec(args[0], args[1], null, null));
             }, script, tableScope);
 
          //return senv.exec(script, tableScope);

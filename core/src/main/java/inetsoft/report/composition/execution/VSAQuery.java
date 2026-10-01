@@ -40,6 +40,7 @@ import inetsoft.uql.viewsheet.internal.DateComparisonUtil;
 import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.util.*;
 import inetsoft.util.log.LogLevel;
+import inetsoft.util.script.FormulaContext;
 import inetsoft.util.script.ScriptEnv;
 import inetsoft.util.script.ScriptException;
 import org.mozilla.javascript.Scriptable;
@@ -1322,7 +1323,10 @@ public abstract class VSAQuery {
       Scriptable scope = null;
 
       try {
-         val = senv.exec(senv.compile(exp), scope = box.getScope(), null, vs);
+         Scriptable scope0 = scope = box.getScope();
+         // condition expressions are end-user authored, run them in restricted mode
+         val = FormulaContext.runRestricted(
+            () -> senv.exec(senv.compile(exp), scope0, null, vs));
       }
       catch(Exception ex) {
          String suggestion = senv.getSuggestion(ex, null, scope);

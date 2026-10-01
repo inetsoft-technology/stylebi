@@ -72,7 +72,9 @@ public class FormulaTableLens extends AbstractTableLens
       this.formulas = formulas;
       this.types = new Class[formulas.length];
       this.aligntypes = new Class[formulas.length];
-      this.restricted = new boolean[formulas.length]; // defaults all to false
+      this.restricted = new boolean[formulas.length];
+      // expression columns are end-user authored, restrict them by default
+      Arrays.fill(this.restricted, true);
       this.report = report;
       this.listener = new DefaultTableChangeListener(this);
 
@@ -368,6 +370,7 @@ public class FormulaTableLens extends AbstractTableLens
          }
 
          boolean first = true;
+         boolean prestricted = FormulaContext.isRestricted();
          JSFactory.startCache();
          // advance at least 10 to avoid going through this once per row
          final int advance = Math.min(Math.max(r / 100, 10), 100);
@@ -414,8 +417,8 @@ public class FormulaTableLens extends AbstractTableLens
                tableRow.setRowData(row);
 
                for(j = 0; j < scripts.length; j++) {
-                  // disable access to java classes if modified from adhoc
-                  FormulaContext.setRestricted(restricted[j]);
+                  // disable access to java classes, never lift an enclosing restriction
+                  FormulaContext.setRestricted(prestricted || restricted[j]);
                   // row[] values are assigned in tableRow.getResult
                   currExec = new Point(ncols + j, i);
                   tableRow.getResult(j);
@@ -439,7 +442,7 @@ public class FormulaTableLens extends AbstractTableLens
                FormulaContext.popTable();
                currExec = null;
                table.addChangeListener(listener);
-               FormulaContext.setRestricted(false);
+               FormulaContext.setRestricted(prestricted);
             }
          }
       }

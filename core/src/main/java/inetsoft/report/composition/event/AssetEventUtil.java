@@ -45,6 +45,7 @@ import inetsoft.uql.xmla.*;
 import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
 import inetsoft.util.audit.ActionRecord;
+import inetsoft.util.script.FormulaContext;
 import inetsoft.util.script.ScriptEnv;
 import inetsoft.web.composer.BrowseDataController;
 import inetsoft.web.composer.model.BrowseDataModel;
@@ -1058,7 +1059,9 @@ public class AssetEventUtil {
             }
          }
 
-         Object result = senv.exec(senv.compile(exp), scope, null, null);
+         // variable expressions are end-user authored, run them in restricted mode
+         Object result = FormulaContext.runRestricted(
+            () -> senv.exec(senv.compile(exp), scope, null, null));
          executedVars.put(var.getName(), result);
          VariableTable newVarTable = new VariableTable();
          newVarTable.put(var.getName(), result);

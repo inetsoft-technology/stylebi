@@ -627,7 +627,9 @@ public class ConditionGroup extends XConditionGroup implements Cloneable, Serial
             scope = box.createAssetQueryScope();
             senv.put("conditionGroupScope", scope);
 
-            val = senv.exec(script, scope, null, vs);
+            Scriptable scope0 = scope;
+            // condition scripts are end-user authored, run them in restricted mode
+            val = FormulaContext.runRestricted(() -> senv.exec(script, scope0, null, vs));
 
             if(ex[0] != null) {
                throw ex[0];

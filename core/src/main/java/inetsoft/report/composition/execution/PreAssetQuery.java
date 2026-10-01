@@ -39,6 +39,7 @@ import inetsoft.uql.util.*;
 import inetsoft.uql.viewsheet.CalculateRef;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.util.*;
+import inetsoft.util.script.FormulaContext;
 import inetsoft.util.script.ScriptEnv;
 import inetsoft.util.script.ScriptException;
 import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
@@ -3914,7 +3915,10 @@ public abstract class PreAssetQuery implements Serializable, Cloneable {
       try {
          ViewsheetSandbox vbox = box.getViewsheetSandbox();
          Viewsheet vs = vbox == null ? null : vbox.getViewsheet();
-         val = senv.exec(senv.compile(exp), scope = box.getScope(), null, vs);
+         Scriptable scope0 = scope = box.getScope();
+         // condition expressions are end-user authored, run them in restricted mode
+         val = FormulaContext.runRestricted(
+            () -> senv.exec(senv.compile(exp), scope0, null, vs));
       }
       catch(Exception ex) {
          String suggestion = senv.getSuggestion(ex, null, scope);
