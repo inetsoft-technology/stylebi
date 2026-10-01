@@ -20,6 +20,7 @@ package inetsoft.sree.security;
 import inetsoft.sree.SreeEnv;
 import inetsoft.storage.KeyValueStorage;
 import inetsoft.test.*;
+import inetsoft.uql.util.Identity;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.*;
@@ -28,8 +29,7 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.io.IOException;
 import java.lang.reflect.Field;
-import java.util.Arrays;
-import java.util.List;
+import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 
@@ -66,6 +66,16 @@ public class FileAuthenticationProviderOtherWriteFailureTest {
       SreeEnv.save();
 
       SecurityEngine.getSecurity().init();
+
+      // the ORGANIZATION removed event strips the org's grants and logs out its sessions, so it
+      // must only be fired once the organization record is really gone
+      orgRemovedEvents.clear();
+      provider.addAuthenticationChangeListener(e -> {
+         if(e.getType() == Identity.ORGANIZATION && e.isRemoved()) {
+            orgRemovedEvents.add(e.getOldOrgID() + ":orgExists=" +
+                                    (provider.getOrganization(e.getOldOrgID()) != null));
+         }
+      });
    }
 
    @AfterEach
@@ -183,6 +193,8 @@ public class FileAuthenticationProviderOtherWriteFailureTest {
          "removeOrganization returned normally although the storage remove failed"));
 
       assertNotNull(provider.getOrganization("aRmOrg"), "the organization was not removed");
+      assertEquals(List.of(), orgRemovedEvents,
+                   "the organization removed event must not fire for a kept organization");
    }
 
    // the organization must be kept when its members can't be removed, or the users would be
@@ -209,7 +221,9 @@ public class FileAuthenticationProviderOtherWriteFailureTest {
                              "the organization must be kept so the removal can be retried"),
          () -> assertTrue(thrown[0].getMessage().contains("oUser1") &&
                           thrown[0].getMessage().contains("oUser2"),
-                          "message must name the users: " + thrown[0].getMessage()));
+                          "message must name the users: " + thrown[0].getMessage()),
+         () -> assertEquals(List.of(), orgRemovedEvents,
+                            "the organization removed event must not fire for a kept organization"));
    }
 
    // one failing member must not stop the removal of the others
@@ -233,7 +247,37 @@ public class FileAuthenticationProviderOtherWriteFailureTest {
          () -> assertNull(provider.getGroup(group), "the group is still removed"),
          () -> assertNull(provider.getRole(role), "the role is still removed"),
          () -> assertNotNull(provider.getOrganization("pOrg"),
-                             "the organization must be kept so the removal can be retried"));
+                             "the organization must be kept so the removal can be retried"),
+         () -> assertEquals(List.of(), orgRemovedEvents,
+                            "the organization removed event must not fire for a kept organization"));
+   }
+
+   // a retry of a partially failed removal completes it, and the organization removed event is
+   // fired once, after the organization record is gone
+   @Test
+   void removeOrganization_retryAfterMemberFailure_removesAllAndFiresOrgEventOnce()
+      throws Exception
+   {
+      IdentityID user1 = new IdentityID("qUser1", "qOrg");
+      IdentityID user2 = new IdentityID("qUser2", "qOrg");
+      IdentityID group = new IdentityID("qGroup", "qOrg");
+      IdentityID role = new IdentityID("qRole", "qOrg");
+      addOrganizationWithMembers("qOrg", user1, user2, group, role);
+
+      withFailing("userStorage", false, user1.convertToKey(), storage -> assertThrows(
+         RuntimeException.class, () -> provider.removeOrganization("qOrg")));
+
+      assertDoesNotThrow(() -> provider.removeOrganization("qOrg"), "the retry must succeed");
+
+      assertAll(
+         () -> assertNull(provider.getUser(user1), "user1 is removed by the retry"),
+         () -> assertNull(provider.getUser(user2)),
+         () -> assertNull(provider.getGroup(group)),
+         () -> assertNull(provider.getRole(role)),
+         () -> assertNull(provider.getOrganization("qOrg"), "the organization is removed"),
+         () -> assertEquals(List.of("qOrg:orgExists=false"), orgRemovedEvents,
+                            "the organization removed event must fire once, after the record " +
+                            "is removed"));
    }
 
    private FSOrganization addOrganization(String id, String... members) {
@@ -300,5 +344,6 @@ public class FileAuthenticationProviderOtherWriteFailureTest {
       }
    }
 
+   private final List<String> orgRemovedEvents = Collections.synchronizedList(new ArrayList<>());
    private FileAuthenticationProvider provider;
 }
