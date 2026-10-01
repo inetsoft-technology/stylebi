@@ -104,6 +104,13 @@ class UniformSQLWhereOnOuterPairTest {
                       COLS + "a RIGHT OUTER JOIN b ON a.id = b.id where a.k = b.k"),
          Arguments.of(COLS + "a full join b on a.id = b.id where a.k = b.k",
                       COLS + "a FULL OUTER JOIN b ON a.id = b.id where a.k = b.k"),
+         // qualifiers that differ in case from the FROM and ON (SQLHelper matches ignoring case)
+         Arguments.of(COLS + "a left join b on a.id = b.id where A.k = B.k",
+                      COLS + "a LEFT OUTER JOIN b ON a.id = b.id where A.k = B.k"),
+         Arguments.of("select x.id from Orders x left join Lines y on x.id = y.id where X.k = Y.k",
+                      "select x.id from Orders x LEFT OUTER JOIN Lines y ON x.id = y.id where X.k = Y.k"),
+         Arguments.of(COLS + "a left join b on a.id = b.id join c on a.k = B.k",
+                      COLS + "a LEFT OUTER JOIN b ON a.id = b.id , c where a.k = B.k"),
          Arguments.of("select x1.id from a x1 left join a x2 on x1.id = x2.id where x1.k = x2.k",
                       "select x1.id from a x1 LEFT OUTER JOIN a x2 ON x1.id = x2.id where x1.k = x2.k"),
          // WHERE-sourced, three tables
@@ -291,6 +298,8 @@ class UniformSQLWhereOnOuterPairTest {
    @ValueSource(strings = {
       COLS + "a left join b on a.id = b.id where a.k = b.k",
       COLS + "a left join b on a.id = b.id where b.k = a.k",
+      COLS + "a left join b on a.id = b.id where A.k = B.k",
+      COLS + "a left join b on a.id = b.id join c on a.k = B.k",
       COLS + "a left join b on a.id = b.id where a.k < b.k",
       COLS + "a left join b on a.id = b.id where a.k = b.k or a.id = 1",
       COLS + "a left join b on a.id = b.id where not (a.k = b.k)",
@@ -337,6 +346,16 @@ class UniformSQLWhereOnOuterPairTest {
       String generated = sql.getSQLString();
       assertNotEquals(text, generated);
       assertSameRows(text, generated);
+   }
+
+   @AfterAll
+   static void dropDerbyDatabase() {
+      try {
+         DriverManager.getConnection("jdbc:derby:memory:bug77478;drop=true").close();
+      }
+      catch(SQLException ignore) {
+         // derby reports a successful drop (or a database never created) as an exception
+      }
    }
 
    private static void assertSameRows(String text, String generated) throws Exception {

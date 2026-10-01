@@ -363,6 +363,10 @@ private String getTablePair(UniformSQL sql, XJoin join) {
       return null;
    }
 
+   // SQLHelper matches the tables of a join ignoring case (getTableIndex)
+   table1 = table1.toLowerCase(Locale.ROOT);
+   table2 = table2.toLowerCase(Locale.ROOT);
+
    return table1.compareTo(table2) < 0 ? table1 + "\n" + table2 :
       table2 + "\n" + table1;
 }
