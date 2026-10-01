@@ -31,6 +31,8 @@ package inetsoft.web.admin.security.action;
  *   buddy       - plain org user, the only user an admin let into settings/security/users
  *   managedUser - also granted settings/security/users, administered by the delegate
  *   secondUser  - plain org user without grants
+ *   hiddenGroup, hiddenRole - org group and role the delegate neither administers nor belongs to
+ *   managedGroup, managedRole - org group and role the delegate administers but does not belong to
  *   orgAdmin    - org user holding the global "Organization Administrator" role
  *   siteAdmin   - org user holding a system administrator role
  *
@@ -106,12 +108,22 @@ class ActionPermissionHoldToGrantTest {
          .addUserToGroup("delegateUser", "delegGroup", ORG_ID)
          .addRole("delegRole", ORG_ID)
          .addUserToRole("delegateUser", "delegRole", ORG_ID)
+         .addGroup("hiddenGroup", ORG_ID)
+         .addRole("hiddenRole", ORG_ID)
+         .addGroup("managedGroup", ORG_ID)
+         .addRole("managedRole", ORG_ID)
          .addSysAdminRole("siteAdminRole", ORG_ID)
          .addUserToRole("siteAdminUser", "siteAdminRole", ORG_ID)
          .grantPermission(ResourceType.EM, "*", ResourceAction.ACCESS,
                           "delegateUser", Identity.USER, ORG_ID)
          .grantPermission(ResourceType.SECURITY_USER,
                           new IdentityID("managedUser", ORG_ID).convertToKey(),
+                          ResourceAction.ADMIN, "delegateUser", Identity.USER, ORG_ID)
+         .grantPermission(ResourceType.SECURITY_GROUP,
+                          new IdentityID("managedGroup", ORG_ID).convertToKey(),
+                          ResourceAction.ADMIN, "delegateUser", Identity.USER, ORG_ID)
+         .grantPermission(ResourceType.SECURITY_ROLE,
+                          new IdentityID("managedRole", ORG_ID).convertToKey(),
                           ResourceAction.ADMIN, "delegateUser", Identity.USER, ORG_ID);
       builder.setup();
 
@@ -290,18 +302,61 @@ class ActionPermissionHoldToGrantTest {
       assertTrue(isEdited(SETTINGS_USERS));
    }
 
-   // control: an unchanged re-save is allowed on a node the delegate does not hold
+   // control: re-saving the delegate's own view unchanged is allowed on a node the delegate does
+   // not hold, and keeps the grants of the identities the view hides
    @Test
    void delegate_unchangedResaveOnNotHeldNode_saved() throws Exception {
-      ThreadContext.setContextPrincipal(delegate);
+      storeGrant(SETTINGS_USERS, "hiddenGroup", Identity.Type.GROUP);
+      storeGrant(SETTINGS_USERS, "hiddenRole", Identity.Type.ROLE);
+      ResourcePermissionModel view = delegateView(SETTINGS_USERS);
 
-      controller.setPermissions(ResourceType.EM_COMPONENT.name(), SETTINGS_USERS, true,
-                                grant(row("buddyUser", Identity.Type.USER),
-                                      row("managedUser", Identity.Type.USER)), delegate);
+      assertEquals(List.of("managedUser"), rowNames(view));
+
+      controller.setPermissions(ResourceType.EM_COMPONENT.name(), SETTINGS_USERS, true, view,
+                                delegate);
 
       assertTrue(hasUserGrant(SETTINGS_USERS, "buddyUser"));
       assertTrue(hasUserGrant(SETTINGS_USERS, "managedUser"));
+      assertTrue(hasGrant(SETTINGS_USERS, "hiddenGroup", Identity.GROUP));
+      assertTrue(hasGrant(SETTINGS_USERS, "hiddenRole", Identity.ROLE));
       assertFalse(canAccess(delegate, SETTINGS_USERS));
+   }
+
+   // Bug #77461, stored grants of a group and role the delegate administers still count, so
+   // re-saving a view that shows them is not a new grant
+   @Test
+   void delegate_resaveAdministeredGroupAndRoleOnNotHeldNode_saved() throws Exception {
+      storeGrant(SETTINGS_USERS, "managedGroup", Identity.Type.GROUP);
+      storeGrant(SETTINGS_USERS, "managedRole", Identity.Type.ROLE);
+      ResourcePermissionModel view = delegateView(SETTINGS_USERS);
+
+      assertEquals(Set.of("managedUser", "managedGroup", "managedRole"),
+                   new HashSet<>(rowNames(view)));
+
+      controller.setPermissions(ResourceType.EM_COMPONENT.name(), SETTINGS_USERS, true, view,
+                                delegate);
+
+      assertTrue(hasGrant(SETTINGS_USERS, "managedGroup", Identity.GROUP));
+      assertTrue(hasGrant(SETTINGS_USERS, "managedRole", Identity.ROLE));
+      assertTrue(hasUserGrant(SETTINGS_USERS, "buddyUser"));
+      assertFalse(canAccess(delegate, SETTINGS_USERS));
+   }
+
+   // Bug #77461, a row naming an identity the delegate does not administer is a new grant whether
+   // or not that identity already holds the action, so the reply does not reveal the hidden grant
+   @Test
+   void delegate_hiddenUserRow_refusedWhetherHeldOrNot() throws Exception {
+      assertHiddenRowRefusedWhetherHeldOrNot("secondUser", Identity.Type.USER);
+   }
+
+   @Test
+   void delegate_hiddenGroupRow_refusedWhetherHeldOrNot() throws Exception {
+      assertHiddenRowRefusedWhetherHeldOrNot("hiddenGroup", Identity.Type.GROUP);
+   }
+
+   @Test
+   void delegate_hiddenRoleRow_refusedWhetherHeldOrNot() throws Exception {
+      assertHiddenRowRefusedWhetherHeldOrNot("hiddenRole", Identity.Type.ROLE);
    }
 
    // control: the delegate may hand out an action they hold
@@ -359,6 +414,40 @@ class ActionPermissionHoldToGrantTest {
       assertTrue(hasUserGrant(SETTINGS_USERS, "secondUser"));
    }
 
+   // the hidden identity holds the action, then does not; the delegate's view plus its row is
+   // refused both times
+   private static void assertHiddenRowRefusedWhetherHeldOrNot(String name, Identity.Type type)
+      throws Exception
+   {
+      storeGrant(SETTINGS_USERS, name, type);
+      assertTrue(hasGrant(SETTINGS_USERS, name, type.code()));
+      assertHiddenRowRefused(name, type);
+
+      restrict(SETTINGS_USERS, "buddyUser", "managedUser");
+      assertFalse(hasGrant(SETTINGS_USERS, name, type.code()));
+      assertHiddenRowRefused(name, type);
+   }
+
+   private static void assertHiddenRowRefused(String name, Identity.Type type) throws Exception {
+      assertFalse(canAccess(delegate, SETTINGS_USERS));
+      ResourcePermissionModel view = delegateView(SETTINGS_USERS);
+      assertFalse(rowNames(view).contains(name), name + " must be hidden from the delegate");
+
+      List<ResourcePermissionTableModel> rows = new ArrayList<>(view.permissions());
+      rows.add(row(name, type));
+      assertRefused(SETTINGS_USERS, ResourcePermissionModel.builder().from(view)
+         .permissions(rows).build());
+   }
+
+   private static ResourcePermissionModel delegateView(String path) {
+      ThreadContext.setContextPrincipal(delegate);
+      return controller.getPermissions(ResourceType.EM_COMPONENT.name(), path, true, delegate);
+   }
+
+   private static List<String> rowNames(ResourcePermissionModel view) {
+      return view.permissions().stream().map(r -> r.identityID().name).toList();
+   }
+
    private static void assertRefused(String path, ResourcePermissionModel body) {
       ThreadContext.setContextPrincipal(delegate);
       Map<String, Boolean> before = grantState(path);
@@ -376,11 +465,14 @@ class ActionPermissionHoldToGrantTest {
          state.put(user, hasUserGrant(path, user));
       }
 
-      Permission perm = permission(path);
-      state.put("#groups", perm != null &&
-         !perm.getOrgScopedGrants(ResourceAction.ACCESS, Identity.GROUP, ORG_ID).isEmpty());
-      state.put("#roles", perm != null &&
-         !perm.getOrgScopedGrants(ResourceAction.ACCESS, Identity.ROLE, ORG_ID).isEmpty());
+      for(String group : List.of("delegGroup", "hiddenGroup", "managedGroup")) {
+         state.put("group:" + group, hasGrant(path, group, Identity.GROUP));
+      }
+
+      for(String role : List.of("delegRole", "hiddenRole", "managedRole")) {
+         state.put("role:" + role, hasGrant(path, role, Identity.ROLE));
+      }
+
       state.put("#edited", isEdited(path));
       return state;
    }
@@ -391,6 +483,29 @@ class ActionPermissionHoldToGrantTest {
       perm.setUserGrantsForOrg(ResourceAction.ACCESS, names, ORG_ID);
       perm.updateGrantAllByOrg(ORG_ID, true);
       engine().getSecurityProvider().setPermission(ResourceType.EM_COMPONENT, path, perm, ORG_ID);
+   }
+
+   private static void storeGrant(String path, String name, Identity.Type type) {
+      Permission perm = permission(path);
+      Set<String> names = new HashSet<>();
+      perm.getOrgScopedGrants(ResourceAction.ACCESS, type.code(), ORG_ID)
+         .forEach(id -> names.add(id.name));
+      names.add(name);
+
+      switch(type) {
+      case USER -> perm.setUserGrantsForOrg(ResourceAction.ACCESS, names, ORG_ID);
+      case GROUP -> perm.setGroupGrantsForOrg(ResourceAction.ACCESS, names, ORG_ID);
+      case ROLE -> perm.setRoleGrantsForOrg(ResourceAction.ACCESS, names, ORG_ID);
+      default -> throw new IllegalArgumentException(type.toString());
+      }
+
+      engine().getSecurityProvider().setPermission(ResourceType.EM_COMPONENT, path, perm, ORG_ID);
+   }
+
+   private static boolean hasGrant(String path, String name, int type) {
+      Permission perm = permission(path);
+      return perm != null && perm.getOrgScopedGrants(ResourceAction.ACCESS, type, ORG_ID)
+         .contains(new IdentityID(name, ORG_ID));
    }
 
    private static Permission permission(String path) {
