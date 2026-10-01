@@ -85,6 +85,11 @@ class AssetTabularDependencyTransformerSqlRenameEdgeTest {
          arguments("non-ASCII old name prefix guard", "café", "rest2",
                    "select xcafé.x, cafés.y, a.café.z from café.t",
                    "select xcafé.x, cafés.y, a.café.z from rest2.t"),
+         // a digit-start old name is matched unquoted, but not inside a longer identifier,
+         // a longer number-like token or a dotted path
+         arguments("digit-start old name prefix guard", "2024sales", "sales2024",
+                   "select x2024sales.a, 12024sales.b, a.2024sales.c, 2024salesX.d from 2024sales.t",
+                   "select x2024sales.a, 12024sales.b, a.2024sales.c, 2024salesX.d from sales2024.t"),
          // the old name only in literals, comments, quoted identifiers and longer
          // identifiers: the whole text is scanned and must come back byte-identical
          arguments("no match is byte-identical", "rest1", "rest2",
