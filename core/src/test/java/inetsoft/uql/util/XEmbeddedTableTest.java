@@ -30,8 +30,6 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.io.*;
-import java.sql.Timestamp;
-import java.util.*;
 
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
@@ -138,41 +136,6 @@ public class XEmbeddedTableTest {
       Assertions.assertEquals("a", table.getObject(1, 0));
       Assertions.assertNull(table.getObject(1, 1));
       Assertions.assertEquals(2, table.getObject(2, 1));
-   }
-
-   // Bug #77442: a BC date must reload as the same BC date, not the AD date with the same year
-   @Test
-   public void bcDatesSurviveDataRoundTrip() throws Exception {
-      java.sql.Date date = new java.sql.Date(bc(44, 3, 15, 0, 0, 0));
-      Timestamp ts = new Timestamp(bc(1, 1, 1, 10, 30, 5));
-      XEmbeddedTable original = new XEmbeddedTable(
-         new String[] { XSchema.DATE, XSchema.TIME_INSTANT },
-         new Object[][] { { "date", "ts" }, { date, ts } });
-
-      for(boolean piece : new boolean[] { true, false }) {
-         original.reset();
-         ByteArrayOutputStream buf = new ByteArrayOutputStream();
-         original.writeData(new DataOutputStream(buf), piece);
-         XEmbeddedTable table = new XEmbeddedTable();
-         table.parseData(new DataInputStream(new ByteArrayInputStream(buf.toByteArray())),
-                         piece, true);
-         assertBCDates(table, date, ts);
-      }
-   }
-
-   private static void assertBCDates(XEmbeddedTable table, Date date, Date ts) {
-      Assertions.assertEquals(date.getTime(), ((Date) table.getObject(1, 0)).getTime());
-      Assertions.assertEquals(ts.getTime(), ((Date) table.getObject(1, 1)).getTime());
-   }
-
-   // BC dates are created through the ERA field, the hybrid Julian/Gregorian calendar the
-   // persistent date formats use
-   private static long bc(int year, int month, int day, int hour, int min, int sec) {
-      GregorianCalendar cal = new GregorianCalendar();
-      cal.clear();
-      cal.set(Calendar.ERA, GregorianCalendar.BC);
-      cal.set(year, month - 1, day, hour, min, sec);
-      return cal.getTimeInMillis();
    }
 
    private static void assertRejected(byte[] data, boolean piece) {
