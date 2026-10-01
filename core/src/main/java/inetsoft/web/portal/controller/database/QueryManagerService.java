@@ -151,6 +151,18 @@ public class QueryManagerService {
 
       UniformSQL sql = (UniformSQL) query.getSQLDefinition();
 
+      // The structure cannot represent this sql string (parse off, parse not a full success,
+      // or a lossy parse such as TOP), so regenerating it from the structure would silently
+      // drop part of the user's sql. Keep the sql string. The editor disables the graphical
+      // tabs for such a query, so the only callers reaching here are save and the switch to
+      // simple mode, and their pane models are echoes of the structure, not user edits.
+      if(isSqlOnly(sql)) {
+         LOG.debug("Keep the sql string of a sql-only query, skip updating it from the {} pane",
+                   all ? "all" : tab);
+         saveRuntimeQuery(runtimeQuery);
+         return;
+      }
+
       if(DatabaseQueryTabs.FIELDS.getTab().equals(tab) || all) {
          // only need to update the order of fields and 'distinct' property
          QueryFieldPaneModel fieldPaneModel = queryModel.getFieldPaneModel();
@@ -241,6 +253,16 @@ public class QueryManagerService {
       }
 
       saveRuntimeQuery(runtimeQuery);
+   }
+
+   /**
+    * Check if the sql string of the query cannot be regenerated from its structure without
+    * losing information: parsing is off, the parse was not a full success, or the parse is
+    * lossy (e.g. TOP). The sql string must then be kept as is.
+    */
+   static boolean isSqlOnly(UniformSQL sql) {
+      return sql.hasSQLString() &&
+         (!sql.isParseSQL() || sql.getParseResult() != UniformSQL.PARSE_SUCCESS || sql.isLossy());
    }
 
    public AdvancedSQLQueryModel getQueryModel(String runtimeId, Principal principal) {
@@ -345,6 +367,8 @@ public class QueryManagerService {
       sql.setHint(UniformSQL.HINT_WITHOUT_SORTED_SQL, false);
       freeFormSQLPaneModel.setParseSql(sql.isParseSQL());
       freeFormSQLPaneModel.setParseResult(sql.getParseResult());
+      // isLossy() may re-parse the sql string once, the result is cached on the object
+      freeFormSQLPaneModel.setLossy(sql.isLossy());
       freeFormSQLPaneModel.setHasColumnInfo(metadata != null && metadata.getChildCount() > 0);
       SQLHelper helper = SQLHelper.getSQLHelper(sql);
       freeFormSQLPaneModel.setGeneratedSqlString(helper.generateSentence());
@@ -2174,7 +2198,9 @@ public class QueryManagerService {
 
       UniformSQL sql = (UniformSQL) query.getSQLDefinition();
 
-      if(sql.isParseSQL() && !sql.isLossy()) {
+      // only regenerate the preview sql when the structure fully represents the sql string,
+      // a refused or partial parse holds only part of the query (e.g. part of the FROM list)
+      if(!isSqlOnly(sql)) {
          query = query.clone();
          sql = (UniformSQL) query.getSQLDefinition();
          sql.clearSQLString();
