@@ -893,6 +893,31 @@ public class ExtendedDateFormatTest {
       assertEquals(new Date(millis), format.parseObject(text));
    }
 
+   // Bug #77458: parseObject() tried java.time before the epoch milliseconds, so a compact
+   // numeric date sent to SimpleDateFormat must not be read as milliseconds. text java.time
+   // rejects (too long for the pattern or day of year 0) is still read as milliseconds
+   @ParameterizedTest(name = "{0} {1}")
+   @CsvSource(delimiter = '|', value = {
+      "yyMMddHHmmss | 851231120000 | date",
+      "yyMMddHHmmss | 460101000000 | date",
+      "yyyyDDDHHmmss | 2011069120000 | date",
+      "yyMMddHHmmss | 1300000000000 | millis",
+      "yyyyDDDHHmmss | 1300000000000 | millis"
+   })
+   public void numericDateParsesBeforeEpochMillis(String pattern, String text, String kind)
+      throws Exception
+   {
+      final ExtendedDateFormat format = new ExtendedDateFormat(pattern, Locale.US);
+      final Date expected = kind.equals("date") ?
+         new SimpleDateFormat(pattern, Locale.US).parse(text) : new Date(Long.parseLong(text));
+
+      assertEquals(expected, format.parseObject(text));
+
+      if(kind.equals("date")) {
+         assertEquals(expected, format.parse(text));
+      }
+   }
+
    private static Date date(int year, int month, int day) {
       return Date.from(LocalDate.of(year, month, day).atStartOfDay(ZoneId.systemDefault())
                           .toInstant());

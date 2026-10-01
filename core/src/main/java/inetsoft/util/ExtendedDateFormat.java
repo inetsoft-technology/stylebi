@@ -515,7 +515,10 @@ public class ExtendedDateFormat extends SimpleDateFormat {
          final long year10 = year * 10;
          final long year70 = year * 70;
 
-         if(val > year10 && val < year70) {
+         // java.time was tried before the epoch milliseconds for every pattern it can parse,
+         // so a pattern now parsed by SimpleDateFormat keeps that order, e.g. yyMMddHHmmss
+         // reads 851231120000 as a date and 1300000000000 (too long) as milliseconds
+         if(val > year10 && val < year70 && !(getFormatter() == null && isJavaTimeDate(str))) {
             return new Date((long) val);
          }
       }
@@ -524,6 +527,26 @@ public class ExtendedDateFormat extends SimpleDateFormat {
       }
 
       return super.parseObject(str);
+   }
+
+   /**
+    * Check if java.time can parse the whole string with the pattern of this format, ignoring
+    * whether the pattern is parsed by java.time or SimpleDateFormat.
+    */
+   private boolean isJavaTimeDate(String str) {
+      DateTimeFormatter formatter = getFormatter(toPattern(), getParseLocale());
+
+      try {
+         if(formatter != null) {
+            formatter.parse(str);
+            return true;
+         }
+      }
+      catch(DateTimeException ex) {
+         // not a date for java.time
+      }
+
+      return false;
    }
 
    /**
@@ -702,11 +725,7 @@ public class ExtendedDateFormat extends SimpleDateFormat {
          return null;
       }
 
-      TimeZone zone = getTimeZone();
-      // the locale SimpleDateFormat was created with, for the month, day, am/pm and era
-      // names and the week rules. the pattern is last since only it may contain the separator
-      Locale loc = locale != null ? locale :
-         defaultLocale != null ? defaultLocale : Locale.getDefault(Locale.Category.FORMAT);
+      Locale loc = getParseLocale();
 
       // the week rules of the calendar may differ from the locale's, e.g. for a -u-ca-iso8601
       // locale or after setCalendar(). they only matter for a week date, which always has w,
@@ -723,6 +742,25 @@ public class ExtendedDateFormat extends SimpleDateFormat {
          }
       }
 
+      return getFormatter(pattern, loc);
+   }
+
+   /**
+    * Get the locale SimpleDateFormat was created with, for the month, day, am/pm and era
+    * names and the week rules.
+    */
+   private Locale getParseLocale() {
+      return locale != null ? locale :
+         defaultLocale != null ? defaultLocale : Locale.getDefault(Locale.Category.FORMAT);
+   }
+
+   /**
+    * Get the shared java.time formatter for the pattern, locale and the zone of this format,
+    * or null if java.time cannot compile the pattern or convert the zone.
+    */
+   private DateTimeFormatter getFormatter(String pattern, Locale loc) {
+      TimeZone zone = getTimeZone();
+      // the pattern is last since only it may contain the separator
       String key = loc.toLanguageTag() + "|" + zone.getID() + "|" + pattern;
       DateTimeFormatter formatter = formatters.get(key);
 
