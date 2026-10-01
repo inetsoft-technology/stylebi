@@ -716,7 +716,8 @@ public class ScheduleTaskService {
    }
 
    /**
-    * Bug #77405, a task that still runs with the roles of a site admin after the save (with the
+    * Bug #77405, a task that still runs with elevated roles (given because of a site admin of
+    * the same name, the org admin roles of its org since Bug #77452) after the save (with the
     * owner and execute-as identity that the save stores) runs its actions with those roles, so
     * only a site admin may add or change them. This is decided before anything is written
     * (updateTaskName saves a rename), on the conditions and actions the save would store,
@@ -1738,7 +1739,8 @@ public class ScheduleTaskService {
 
       // Bug #77281, clearing the execute-as identity, setting it to the owner or to a name that
       // doesn't resolve all store an identity that runs the task as its owner, which runs with
-      // the roles of a site admin of the same name when the owner doesn't exist. Check the
+      // elevated roles (the org admin roles of its org since Bug #77452) when the owner doesn't
+      // exist and has the name of a site admin. Check the
       // identity that is stored, before anything is saved (updateTaskName saves a rename).
       IdentityID newOwner = owner != null ? owner : task.getOwner();
       Identity newIdentity = getNewIdentity(options, task.getIdentity(), principal);

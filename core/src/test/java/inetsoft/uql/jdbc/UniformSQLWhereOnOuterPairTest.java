@@ -113,9 +113,9 @@ class UniformSQLWhereOnOuterPairTest {
                       COLS + "a LEFT OUTER JOIN b ON a.id = b.id , c where a.k = B.k"),
          Arguments.of("select x1.id from a x1 left join a x2 on x1.id = x2.id where x1.k = x2.k",
                       "select x1.id from a x1 LEFT OUTER JOIN a x2 ON x1.id = x2.id where x1.k = x2.k"),
-         // WHERE-sourced, three tables
+         // WHERE-sourced, three tables. The joins keep the nesting of the text (#77475)
          Arguments.of(COLS + "a left join b on a.id = b.id join c on a.id = c.id where a.k = b.k",
-                      COLS + "(a INNER JOIN c ON a.id = c.id ) LEFT OUTER JOIN b ON a.id = b.id " +
+                      COLS + "(a LEFT OUTER JOIN b ON a.id = b.id ) INNER JOIN c ON a.id = c.id " +
                       "where a.k = b.k"),
          Arguments.of(COLS + "a left join b on a.id = b.id left join c on b.id = c.id where b.k = c.k",
                       COLS + "(a LEFT OUTER JOIN b ON a.id = b.id ) LEFT OUTER JOIN c ON b.id = c.id " +
@@ -127,7 +127,7 @@ class UniformSQLWhereOnOuterPairTest {
                       COLS + "(a LEFT OUTER JOIN b ON a.id = b.id ) FULL OUTER JOIN c ON a.id = c.id " +
                       "where a.k = b.k"),
          Arguments.of(COLS + "a left join (b join c on b.id = c.id) on a.id = b.id where a.k = b.k",
-                      COLS + "(a LEFT OUTER JOIN b ON a.id = b.id ) INNER JOIN c ON b.id = c.id " +
+                      COLS + "(b INNER JOIN c ON b.id = c.id ) RIGHT OUTER JOIN a ON a.id = b.id " +
                       "where a.k = b.k"),
          // legacy outer joins in the where clause, in both orders
          Arguments.of(COLS + "a, b where a.k = b.k and a.id = b.id(+)",
@@ -142,13 +142,13 @@ class UniformSQLWhereOnOuterPairTest {
          Arguments.of(COLS + "a left join b on a.id = b.id join c on a.id = b.id",
                       COLS + "a LEFT OUTER JOIN b ON a.id = b.id , c where a.id = b.id"),
          Arguments.of(COLS + "a left join b on a.id = b.id join c on a.k = b.k and a.id = c.id",
-                      COLS + "(a INNER JOIN c ON a.id = c.id ) LEFT OUTER JOIN b ON a.id = b.id " +
+                      COLS + "(a LEFT OUTER JOIN b ON a.id = b.id ) INNER JOIN c ON a.id = c.id " +
                       "where a.k = b.k"),
          // a later LEFT join only null-supplies the new table
          Arguments.of(COLS + "a left join b on a.id = b.id join c on a.id = c.id and a.k = b.k " +
                       "left join d on c.id = d.id",
-                      COLS + "((a INNER JOIN c ON a.id = c.id ) LEFT OUTER JOIN d ON c.id = d.id ) " +
-                      "LEFT OUTER JOIN b ON a.id = b.id where a.k = b.k"),
+                      COLS + "((a LEFT OUTER JOIN b ON a.id = b.id ) INNER JOIN c ON a.id = c.id ) " +
+                      "LEFT OUTER JOIN d ON c.id = d.id where a.k = b.k"),
          // each query level is converted on its own
          Arguments.of("select a.id from a where a.id in " +
                       "(select b.id from b left join c on b.id = c.id where b.k = c.k)",
@@ -467,8 +467,23 @@ class UniformSQLWhereOnOuterPairTest {
    private static void assertRoundTrip(String generated, JDBCDataSource ds) throws Exception {
       UniformSQL reparsed = parse(generated, ds);
       assertEquals(UniformSQL.PARSE_SUCCESS, reparsed.getParseResult(), generated);
-      assertEquals(generated, normalize(reparsed.getSQLString()));
+      String regenerated = normalize(reparsed.getSQLString());
+      String swapped = SWAPPED_ON.get(generated);
+
+      // a right join of a parenthesized joined table is written back once with its ON
+      // operands swapped (#77475), and is stable from then on
+      if(swapped != null) {
+         assertEquals(swapped, regenerated);
+         assertRoundTrip(swapped, ds);
+         return;
+      }
+
+      assertEquals(generated, regenerated);
    }
+
+   private static final Map<String, String> SWAPPED_ON = Map.of(
+      COLS + "(b INNER JOIN c ON b.id = c.id ) RIGHT OUTER JOIN a ON a.id = b.id where a.k = b.k",
+      COLS + "(b INNER JOIN c ON b.id = c.id ) RIGHT OUTER JOIN a ON b.id = a.id where a.k = b.k");
 
    private static XJoin[] joins(UniformSQL sql) {
       XJoin[] joins = sql.getJoins();

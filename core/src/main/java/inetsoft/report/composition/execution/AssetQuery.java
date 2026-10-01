@@ -4671,6 +4671,6 @@ public abstract class AssetQuery extends PreAssetQuery {
 
    static final String DESIGN_TABLE = AssetQuery.class.getName() + ".designTable";
    public static final String BROWSE_MAXROWS = "browse_maxrows";
-   public static ThreadLocal<Boolean> THROW_EXECUTE_EXCEPTION = ThreadLocal.withInitial(() -> Boolean.FALSE);
+   public static final ThreadLocal<Boolean> THROW_EXECUTE_EXCEPTION = ThreadLocal.withInitial(() -> Boolean.FALSE);
    private static final Logger LOG = LoggerFactory.getLogger(AssetQuery.class);
 }

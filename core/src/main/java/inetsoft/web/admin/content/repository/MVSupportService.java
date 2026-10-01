@@ -590,8 +590,8 @@ public class MVSupportService {
 
       IdentityID owner = SUtil.getOwnerForNewTask(user);
 
-      // Bug #77309, the task runs as its owner, with the roles of a site admin of the same name
-      // when the owner doesn't exist
+      // Bug #77309, the task runs as its owner, with elevated roles (the org admin roles of its
+      // org since Bug #77452) when the owner doesn't exist and has the name of a site admin
       if(!new ScheduleTaskIdentityChecker(securityEngine)
          .isNewTaskOwnerAllowed(owner, principal))
       {

@@ -28,8 +28,6 @@ import org.springframework.util.StringUtils;
 import org.w3c.dom.Element;
 
 import java.io.*;
-import java.text.ParseException;
-import java.text.SimpleDateFormat;
 import java.util.*;
 
 /**
@@ -547,16 +545,6 @@ public final class DateRangeRef extends ExpressionRef implements AssetObject,
       switch(option) {
       case YEAR_INTERVAL: {
          int year = calendar.getYear();
-
-         if(year == 1900) {
-            try {
-               result = new SimpleDateFormat("yyyy-MM-dd").parse("1900-01-01");
-               break;
-            }
-            catch(ParseException pe) {
-            }
-         }
-
          result = calendar.getTimestamp(year, 1, 1, 0, 0, 0);
          break;
       }

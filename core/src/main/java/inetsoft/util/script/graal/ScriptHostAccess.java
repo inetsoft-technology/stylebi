@@ -263,6 +263,22 @@ public final class ScriptHostAccess {
                   .denyAccess(Process.class)
                   .denyAccess(ProcessBuilder.class)
                   .denyAccess(Thread.class)
+                  // Bug #77497: a public static is shared by every script context and by
+                  // Java code in the JVM, and a script can reach the statics of a class by
+                  // more than one route (Java.type, the legacy package shim, the class
+                  // globals). Member access is decided here per declaring type on all of
+                  // them, so shared mutable statics are taken out of script reach by type:
+                  // - a thread-local carries state from one script run to whatever runs
+                  //   next on that thread; scripts cannot name the type already
+                  //   (BLOCKED_CLASSES), and no script API hands one out
+                  .denyAccess(ThreadLocal.class)
+                  // - the constant holders the StyleConstant and Chart scopes are built
+                  //   from declare only constants, some of them shared mutable arrays and
+                  //   page sizes; scripts read them through those scopes, which hand out
+                  //   copies (ConstantScope). Exact type only: the members of the classes
+                  //   that implement or extend them are unaffected
+                  .denyAccess(inetsoft.report.StyleConstants.class, false)
+                  .denyAccess(inetsoft.report.composition.region.ChartConstants.class, false)
                   // Bug #77348: the #77255 read-only principal view is applied only
                   // where the engine converts a value for a script (toGuest). A raw
                   // host call (a Spring holder, VariableTable.get('__principal__'),
