@@ -153,6 +153,21 @@ class DataSourceDeletePermissionTest {
       verify(repository, never()).getDataModel(OTHER_DS);
    }
 
+   @Test
+   void folderDependencies_withFolderDelete_omitsTextOfDeniedSourceListedFirst() throws Exception {
+      // the first source with dependencies ends the scan, so put the denied one first to show
+      // that its text is skipped rather than merely never reached
+      when(repository.getSubDataSourceNames(FOLDER)).thenReturn(new String[] { OTHER_DS, DS });
+      grant(ResourceType.DATA_SOURCE_FOLDER, FOLDER, ResourceAction.DELETE);
+      grant(ResourceType.DATA_SOURCE, DS, ResourceAction.DELETE);
+
+      StringWrapper result = controller.checkDsFolderOuterDependencies(folderEvent(), principal);
+
+      assertNotNull(result);
+      assertFalse(result.getBody().contains("Hidden/OtherWorksheet"), result.getBody());
+      assertTrue(result.getBody().contains("Hidden/SecretWorksheet"), result.getBody());
+   }
+
    // ---- checkOuterDependencies/selected ----
 
    @Test
