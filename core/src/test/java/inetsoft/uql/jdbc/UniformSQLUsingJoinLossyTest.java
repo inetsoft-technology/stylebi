@@ -65,6 +65,13 @@ class UniformSQLUsingJoinLossyTest {
          // exists and in subqueries
          list.add("select a.x from a where exists (select 1 from b " + join + " c using (id))");
          list.add("select a.x from a where a.id in (select id from b " + join + " c using (id))");
+         // several columns, a scalar, a having and a nested derived table subquery
+         list.add("select a.x from a " + join + " b using (id, k)");
+         list.add("select (select max(c.z) from b " + join + " c using (id)) m from a");
+         list.add("select a.x from a group by a.x having count(*) > " +
+                  "(select count(*) from b " + join + " c using (id))");
+         list.add("select t.x from (select u.x from (select a.x from a " + join +
+                  " b using (id)) u) t");
       }
 
       return list;

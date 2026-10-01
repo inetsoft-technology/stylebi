@@ -2986,8 +2986,10 @@ named_columns_join [UniformSQL sql, String op, int rstart, int rend] returns [St
          if(sql != null && list.size()>0) {
           // the database merges a USING column, so select * returns one copy and an
           // unqualified reference resolves. The model has no merged column, so its
-          // regenerated ON join would differ: keep the sql string (Bug #77482). Mark
-          // the statement too, since a derived table or subquery has its own sql
+          // regenerated ON join would differ: keep the sql string (Bug #77482).
+          // Consumers read the statement's (uniSql) flag, since a derived table or
+          // subquery has its own UniformSQL. Its own flag is set only for a caller
+          // that parses into sql without the statement rules (uniSql is null)
           sql.setLossy(true);
 
           if(uniSql != null) {
