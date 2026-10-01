@@ -2036,6 +2036,17 @@ public class QueryManagerService {
       runtimeQuery.setMetadata(parseResult);
       SQLDefinition sqlDefinition = query.getSQLDefinition();
       UniformSQL sql = (UniformSQL) sqlDefinition;
+      GetColumnInfoResult result = new GetColumnInfoResult();
+
+      // Bug #77496, the "Parse SQL" checkbox is client-only until a parse/save call, so the
+      // runtime sql may still be parse-on here. Don't re-parse it or clear its selection: the
+      // client still holds the parsed model, and the next parse/save with parse off applies the
+      // column info from runtimeQuery.getMetadata() (see parseSqlString).
+      if(sql.isParseSQL()) {
+         result.setHasColumnInfo(parseResult != null && parseResult.getChildCount() > 0);
+         runtimeQueryService.saveRuntimeQuery(runtimeQuery);
+         return result;
+      }
 
       synchronized(sql) {
          sql.setSQLString(sqlString);
@@ -2049,8 +2060,6 @@ public class QueryManagerService {
             }
          }
       }
-
-      GetColumnInfoResult result = new GetColumnInfoResult();
 
       if(parseResult != null && parseResult.getChildCount() > 0) {
          XField[] flds = new XField[parseResult.getChildCount()];
