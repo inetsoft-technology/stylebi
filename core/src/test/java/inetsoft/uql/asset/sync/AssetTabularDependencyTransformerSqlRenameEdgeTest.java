@@ -36,7 +36,8 @@ import static org.junit.jupiter.params.provider.Arguments.arguments;
 
 /**
  * Bug #77484: edge cases of the textual data source rename in a Spark SQL query's stored
- * text (special characters in the names, unterminated text, line endings, empty text).
+ * text (special characters in the names, unterminated text, line endings, empty text, and
+ * inputs with no match).
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = BaseTestConfiguration.class,
@@ -76,7 +77,21 @@ class AssetTabularDependencyTransformerSqlRenameEdgeTest {
          arguments("windows line endings", "rest1", "rest2",
                    "select id\r\nfrom rest1.users -- rest1.c\r\nwhere rest1.users.id = 1\r\n",
                    "select id\r\nfrom rest2.users -- rest1.c\r\nwhere rest2.users.id = 1\r\n"),
-         arguments("empty sql", "rest1", "rest2", "", "")
+         arguments("empty sql", "rest1", "rest2", "", ""),
+         // a new name starting with a digit is not an unquoted identifier
+         arguments("digit-start new name", "rest1", "1rest",
+                   "select id from rest1.users", "select id from `1rest`.users"),
+         // a non-ASCII old name does not match inside a longer identifier or dotted path
+         arguments("non-ASCII old name prefix guard", "café", "rest2",
+                   "select xcafé.x, cafés.y, a.café.z from café.t",
+                   "select xcafé.x, cafés.y, a.café.z from rest2.t"),
+         // the old name only in literals, comments, quoted identifiers and longer
+         // identifiers: the whole text is scanned and must come back byte-identical
+         arguments("no match is byte-identical", "rest1", "rest2",
+                   "  select\tID , 'rest1.x' as \"rest1.y\" /* rest1.z */\r\n from rest1x.u -- rest1.w\r\n" +
+                      " where rest1 .q = `rest1.u` and rest1_b.v = 1\n\n",
+                   "  select\tID , 'rest1.x' as \"rest1.y\" /* rest1.z */\r\n from rest1x.u -- rest1.w\r\n" +
+                      " where rest1 .q = `rest1.u` and rest1_b.v = 1\n\n")
       );
    }
 
