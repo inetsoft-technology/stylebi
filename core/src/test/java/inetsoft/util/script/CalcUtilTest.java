@@ -346,6 +346,75 @@ public class CalcUtilTest {
       }
    }
 
+   // Bug #77450, the serial start and 30/360 years use the Gregorian calendar when the default
+   // locale has a Buddhist (Thai) or imperial (Japanese) calendar
+   @Test
+   void serialDaysWithNonGregorianDefaultLocale() {
+      for(String tag : new String[] { "th-TH", "ja-JP-u-ca-japanese" }) {
+         Locale oldLocale = Locale.getDefault();
+
+         try {
+            Locale.setDefault(Locale.forLanguageTag(tag));
+            runInZone("Asia/Bangkok", () -> {
+               assertEquals(45291, CalcDateTime.datevalue(hybridDate(2024, 1, 1)), tag);
+               assertEquals(45291, CalcTextData.value("1/1/2024"), tag);
+               assertEquals(1, CalcTextData.value("1/1/1900"), tag);
+               // across the 2019-05-01 Heisei/Reiwa era change
+               assertEquals(150, CalcUtil.get30_360Days(hybridDate(2019, 1, 15),
+                                                        hybridDate(2019, 6, 15)), tag);
+            });
+         }
+         finally {
+            Locale.setDefault(oldLocale);
+         }
+      }
+   }
+
+   // Bug #77450, the local millis are the displayed calendar fields on a UTC time line in every
+   // zone, including local mean time before 1901, the 1582 cutover and BC dates
+   @Test
+   void localMillisMatchCalendarFields() {
+      TimeZone utc = TimeZone.getTimeZone("UTC");
+      Random random = new Random(77450);
+      long min = hybridDate(-500, 1, 1).getTime();
+      long max = hybridDate(2200, 1, 1).getTime();
+      long[] fixed = { hybridDate(1582, 10, 4).getTime(), hybridDate(1582, 10, 15).getTime(),
+                       hybridDate(1899, 12, 31).getTime() - 1, hybridDate(1900, 1, 1).getTime(),
+                       hybridDate(1300, 2, 29).getTime() };
+
+      for(String zone : TimeZone.getAvailableIDs()) {
+         TimeZone tz = TimeZone.getTimeZone(zone);
+         TimeZone oldZone = TimeZone.getDefault();
+
+         try {
+            TimeZone.setDefault(tz);
+
+            for(int i = 0; i < 100 + fixed.length; i++) {
+               long time = i < fixed.length ? fixed[i] + random.nextInt(86_400_000) :
+                  min + (long) (random.nextDouble() * (max - min));
+               GregorianCalendar local = new GregorianCalendar(tz);
+               local.setTimeInMillis(time);
+               GregorianCalendar fields = new GregorianCalendar(utc);
+               fields.clear();
+               fields.set(Calendar.ERA, local.get(Calendar.ERA));
+               fields.set(local.get(Calendar.YEAR), local.get(Calendar.MONTH),
+                          local.get(Calendar.DAY_OF_MONTH));
+               assertEquals(fields.getTimeInMillis(),
+                            CalcUtil.getLocalMillis(new Date(time), false), zone + " " + time);
+               fields.set(Calendar.HOUR_OF_DAY, local.get(Calendar.HOUR_OF_DAY));
+               fields.set(Calendar.MINUTE, local.get(Calendar.MINUTE));
+               fields.set(Calendar.SECOND, local.get(Calendar.SECOND));
+               fields.set(Calendar.MILLISECOND, local.get(Calendar.MILLISECOND));
+               assertEquals(fields.getTimeInMillis(),
+                            CalcUtil.getLocalMillis(new Date(time), true), zone + " " + time);
+            }
+         }
+         finally {
+            TimeZone.setDefault(oldZone);
+         }
+      }
+   }
+
    static Date hybridDate(int year, int month, int day) {
       GregorianCalendar cal = new GregorianCalendar();
       cal.clear();

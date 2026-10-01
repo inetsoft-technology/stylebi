@@ -30,10 +30,12 @@ import java.util.*;
  */
 public class CalcUtil {
    /**
-    * Utility method to get the Calendar instance
+    * Utility method to get the Calendar instance. Always the Julian/Gregorian calendar, a
+    * locale default such as the Thai Buddhist or Japanese imperial calendar would change the
+    * meaning of the year field (bug #77450).
     */
    public static Calendar getCalendar() {
-      return Calendar.getInstance();
+      return new GregorianCalendar();
    }
 
    /**
@@ -81,23 +83,11 @@ public class CalcUtil {
     * @param withTime true to keep the time of day, false to truncate to midnight.
     */
    public static long getLocalMillis(Date date, boolean withTime) {
-      GregorianCalendar local = new GregorianCalendar(TimeZone.getDefault());
-      local.setTimeInMillis(date.getTime());
-
-      GregorianCalendar utc = new GregorianCalendar(TimeZone.getTimeZone("UTC"));
-      utc.clear();
-      utc.set(Calendar.ERA, local.get(Calendar.ERA));
-      utc.set(local.get(Calendar.YEAR), local.get(Calendar.MONTH),
-              local.get(Calendar.DAY_OF_MONTH));
-
-      if(withTime) {
-         utc.set(Calendar.HOUR_OF_DAY, local.get(Calendar.HOUR_OF_DAY));
-         utc.set(Calendar.MINUTE, local.get(Calendar.MINUTE));
-         utc.set(Calendar.SECOND, local.get(Calendar.SECOND));
-         utc.set(Calendar.MILLISECOND, local.get(Calendar.MILLISECOND));
-      }
-
-      return utc.getTimeInMillis();
+      // the hybrid calendar days are continuous on the time line, so adding the java.util
+      // zone offset (the one GregorianCalendar and SimpleDateFormat use) gives the fields
+      long time = date.getTime();
+      long local = time + TimeZone.getDefault().getOffset(time);
+      return withTime ? local : Math.floorDiv(local, DAY_MILLIS) * DAY_MILLIS;
    }
 
    /**
