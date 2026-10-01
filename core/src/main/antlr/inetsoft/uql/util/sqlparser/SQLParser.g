@@ -1244,7 +1244,8 @@ value_exp_primary_body returns [XExpression exp = null]
         }
         | tmp = case_exp {exp.setValue(tmp,XExpression.EXPRESSION);}
         | OPEN_PAREN exp = value_exp CLOSE_PAREN
-        {exp.setValue("(" + exp.toString() + ")", XExpression.EXPRESSION);}
+        {exp.setValue("(" + exp.toQuotedString() + ")", XExpression.EXPRESSION);
+         exp.setQuote(XExpression.QUOTE_NONE);}
         | tmp = cast_spec {exp.setValue(tmp,XExpression.EXPRESSION);}
         ;
 field_exp returns [String value=""]
@@ -1630,9 +1631,9 @@ case_abbreviation returns [String cassadd = ""]
         {XExpression exp1, exp2; {checkStatus();}}
         :
         a:NULLIF OPEN_PAREN exp1 = value_exp COMMA exp2 = value_exp CLOSE_PAREN
-        {cassadd = a.getText() + "(" + exp1.toString() + "," + exp2.toString() + ")";}
-        | b:COALESCE OPEN_PAREN exp1 = value_exp {cassadd = b.getText() + "(" + exp1.toString();}
-        ( COMMA exp2 = value_exp {cassadd += "," + exp2.toString();})* CLOSE_PAREN
+        {cassadd = a.getText() + "(" + exp1.toQuotedString() + "," + exp2.toQuotedString() + ")";}
+        | b:COALESCE OPEN_PAREN exp1 = value_exp {cassadd = b.getText() + "(" + exp1.toQuotedString();}
+        ( COMMA exp2 = value_exp {cassadd += "," + exp2.toQuotedString();})* CLOSE_PAREN
         {cassadd += ")";}
         ;
 
@@ -1659,7 +1660,7 @@ simple_case returns [String simpcase = ""]
 case_operand returns [String caseop = null]
         {XExpression exp; {checkStatus();}}
         :
-        exp = value_exp {caseop = exp.toString();}
+        exp = value_exp {caseop = exp.toQuotedString();}
         ;
 
 simple_when_clause returns [String simpwhen = ""]
@@ -1672,7 +1673,7 @@ simple_when_clause returns [String simpwhen = ""]
 when_operand returns [String whenop = ""]
         {XExpression tmp; {checkStatus();}}
         :
-        tmp = value_exp {whenop += tmp.toString();}
+        tmp = value_exp {whenop += tmp.toQuotedString();}
         ;
 
 result returns [String ret = ""]
@@ -1684,7 +1685,7 @@ result returns [String ret = ""]
 result_exp returns [String retexp = ""]
         {XExpression tmp; {checkStatus();}}
         :
-        tmp = value_exp {retexp = tmp.toString();}
+        tmp = value_exp {retexp = tmp.toQuotedString();}
         ;
 
 m_else_clause returns [String elsestr = ""]
@@ -1725,7 +1726,7 @@ cast_spec returns [String cast = ""]
 cast_operand returns [String caseop = ""]
         {XExpression tmp; {checkStatus();}}
         :
-        tmp = value_exp {caseop = tmp.toString();}
+        tmp = value_exp {caseop = tmp.toQuotedString();}
         ;
 
 cast_target returns [String casttar = ""]
@@ -2577,7 +2578,16 @@ derived_column [JDBCSelection selection, UniformSQL sql]
         :
         (column_name EQ)=>
         aliastmp=column_name EQ exp=value_exp  // to support sybase gramma: select a=b, ....
-        {tmp = exp.toString(); selection.addColumn(tmp); selection.setAlias(selection.getColumnCount() - 1,aliastmp);}
+        {
+           tmp = exp.toString();
+           selection.addColumn(tmp);
+           selection.setAlias(selection.getColumnCount() - 1,aliastmp);
+
+           // a bare quoted identifier ("x y"), stored without its quotes
+           if(exp.isQuotedField()) {
+              selection.setQuoted(tmp, true);
+           }
+        }
         |
         exp = value_exp
         {
@@ -2819,14 +2829,14 @@ group_by_clause [UniformSQL sql]
         GROUP BY
         (ALL {sql.setGroupByAll(true);})?
         (
-        (grouping_column_ref_list)=>
-        group = grouping_column_ref_list
+        (grouping_column_ref_list[sql])=>
+        group = grouping_column_ref_list[sql]
         |(OPEN_PAREN CLOSE_PAREN)=>
         OPEN_PAREN CLOSE_PAREN
         |(grouping_set COMMA grouping_set_list)=>
         grouping_set COMMA grouping_set_list
-        |ROLLUP OPEN_PAREN tmp = grouping_column_ref_list CLOSE_PAREN
-        |CUBE OPEN_PAREN tmp = grouping_column_ref_list CLOSE_PAREN
+        |ROLLUP OPEN_PAREN tmp = grouping_column_ref_list[null] CLOSE_PAREN
+        |CUBE OPEN_PAREN tmp = grouping_column_ref_list[null] CLOSE_PAREN
         |GROUPING SETS OPEN_PAREN grouping_set_list CLOSE_PAREN
         )?
         {sql.setGroupBy(group.toArray());}
@@ -2841,28 +2851,36 @@ grouping_set_list
 grouping_set
         {Vector tmp; String tstr; {checkStatus();}}
         :
-        (OPEN_PAREN grouping_column_ref_list)=>
-        OPEN_PAREN tmp = grouping_column_ref_list CLOSE_PAREN
+        (OPEN_PAREN grouping_column_ref_list[null])=>
+        OPEN_PAREN tmp = grouping_column_ref_list[null] CLOSE_PAREN
         |
-        (grouping_column_ref)=>
-        tstr = grouping_column_ref
-        |ROOLUP OPEN_PAREN tmp = grouping_column_ref_list CLOSE_PAREN
-        |CUBE OPEN_PAREN tmp = grouping_column_ref_list CLOSE_PAREN
+        (grouping_column_ref[null])=>
+        tstr = grouping_column_ref[null]
+        |ROOLUP OPEN_PAREN tmp = grouping_column_ref_list[null] CLOSE_PAREN
+        |CUBE OPEN_PAREN tmp = grouping_column_ref_list[null] CLOSE_PAREN
         |OPEN_PAREN CLOSE_PAREN
         ;
 
-grouping_column_ref_list returns [Vector glist = new Vector()]
+grouping_column_ref_list [UniformSQL sql] returns [Vector glist = new Vector()]
         {String tmp; {checkStatus();}}
         :
-        tmp = grouping_column_ref {glist.add(tmp);}
-        (COMMA tmp = grouping_column_ref {glist.add(tmp);})*
+        tmp = grouping_column_ref[sql] {glist.add(tmp);}
+        (COMMA tmp = grouping_column_ref[sql] {glist.add(tmp);})*
         ;
 
-grouping_column_ref returns [String gcol = ""]
+grouping_column_ref [UniformSQL sql] returns [String gcol = ""]
         {String tmp; XExpression exp = null; {checkStatus();}}
         :
         //gcol = column_ref ( tmp = collate_clause {gcol += " " + tmp;})?
-        exp= value_exp {gcol = exp.toString();}//( tmp = collate_clause {gcol += " " + tmp;})?
+        exp= value_exp
+        {
+           gcol = exp.toString();
+
+           // a bare quoted identifier ("x y"), stored without its quotes
+           if(sql != null && exp.isQuotedField()) {
+              sql.setQuotedField(gcol, true);
+           }
+        }//( tmp = collate_clause {gcol += " " + tmp;})?
         //|a:UNSIGNED_NUM_LIT {gcol = a.getText();}
         ;
 
@@ -3148,7 +3166,7 @@ sort_spec_list [UniformSQL sql] returns [String ret = ""]
 sort_spec [UniformSQL sql] returns [String ret = ""]
         {Object field; String order = "asc"; String tmp; {checkStatus();}}
         :
-        field = sort_key
+        field = sort_key[sql]
         //( tmp = collate_clause )?
         ( order = ordering_spec )?
         {if(sql != null)
@@ -3159,7 +3177,7 @@ sort_spec [UniformSQL sql] returns [String ret = ""]
         }
         ;
 
-sort_key returns [Object field = null]
+sort_key [UniformSQL sql] returns [Object field = null]
         {String tmp; XExpression exp; {checkStatus();}}
         :
         exp = value_exp
@@ -3169,6 +3187,11 @@ sort_key returns [Object field = null]
           }
           catch(Exception e) {
             field = new String(exp.toString());
+
+            // a bare quoted identifier ("x y"), stored without its quotes
+            if(sql != null && exp.isQuotedField()) {
+               sql.setQuotedField((String) field, true);
+            }
           }
         }
         ;

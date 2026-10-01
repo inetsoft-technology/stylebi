@@ -378,6 +378,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
          orderDBFields = new Vector<>(uniformSql.orderDBFields);
          groupDBFields = new Vector<>(uniformSql.groupDBFields);
          orderByList = new Vector<>(uniformSql.orderByList);
+         quotedFields = new HashSet<>(uniformSql.quotedFields);
 
          if(uniformSql.groups == null) {
             groups = null;
@@ -491,6 +492,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
       tables = new Vector<>();
       fields = new Vector<>();
       orderByList = new Vector<>();
+      quotedFields = new HashSet<>();
       groups = null;
       where = null;
       having = null;
@@ -793,6 +795,10 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
             String field = Tool.getValue(sortNode);
             String order = Tool.getAttribute(sortNode, "order");
             orderByList.add(new OrderByItem(field, order));
+
+            if("true".equals(Tool.getAttribute(sortNode, "quoted"))) {
+               setQuotedField(field, true);
+            }
          }
       }
 
@@ -806,6 +812,10 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
             Element groupNode = (Element) nlist.item(i);
             String field = Tool.getValue(groupNode);
             groups[i] = field;
+
+            if("true".equals(Tool.getAttribute(groupNode, "quoted"))) {
+               setQuotedField(field, true);
+            }
          }
       }
 
@@ -1059,8 +1069,8 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
       Object[] orderField = this.getOrderByFields();
 
       for(int i = 0; orderField != null && i < orderField.length; i++) {
-         writer.print("<field order=\"" + this.getOrderBy(orderField[i]) +
-                      "\"><![CDATA[");
+         writer.print("<field order=\"" + this.getOrderBy(orderField[i]) + "\"" +
+                      quotedFieldAttribute(orderField[i]) + "><![CDATA[");
          writer.print(orderField[i].toString());
          writer.print("]]></field>");
 
@@ -1075,7 +1085,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
       Object[] groupby = this.getGroupBy();
 
       for(int i = 0; groupby != null && i < groupby.length; i++) {
-         writer.print("<field><![CDATA[");
+         writer.print("<field" + quotedFieldAttribute(groupby[i]) + "><![CDATA[");
          writer.print(groupby[i].toString());
          writer.print("]]></field>");
       }
@@ -1680,6 +1690,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
             String fp = JDBCUtil.getFullPathOf(this, (String) sortFields[i]);
 
             if(fp != null && !fp.equals(sortFields[i])) {
+               copyQuotedField((String) sortFields[i], fp);
                sortFields[i] = fp;
                changed = true;
             }
@@ -1732,6 +1743,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
             String fp = JDBCUtil.getFullPathOf(this, (String) groupBy[i]);
 
             if(fp != null && !fp.equals(groupBy[i])) {
+               copyQuotedField((String) groupBy[i], fp);
                groupBy[i] = fp;
             }
          }
@@ -2816,6 +2828,40 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
       return groups;
    }
 
+   /**
+    * Check if a group by or order by field was written as a quoted identifier (e.g. "x y")
+    * in the parsed sql. The field is stored without its quotes.
+    * @param field the group by or order by field.
+    * @return <tt>true</tt> if quoted, <tt>false</tt> otherwise.
+    */
+   public synchronized boolean isQuotedField(Object field) {
+      return field instanceof String && quotedFields.contains(field);
+   }
+
+   /**
+    * Set whether a group by or order by field was written as a quoted identifier.
+    * @param field the group by or order by field.
+    * @param quoted <tt>true</tt> if quoted, <tt>false</tt> otherwise.
+    */
+   public synchronized void setQuotedField(String field, boolean quoted) {
+      if(quoted) {
+         quotedFields.add(field);
+      }
+      else {
+         quotedFields.remove(field);
+      }
+   }
+
+   private void copyQuotedField(String field, String nfield) {
+      if(isQuotedField(field)) {
+         setQuotedField(nfield, true);
+      }
+   }
+
+   private String quotedFieldAttribute(Object field) {
+      return isQuotedField(field) ? " quoted=\"true\"" : "";
+   }
+
    public synchronized Vector<String> getOrderDBFields() {
       return orderDBFields;
    }
@@ -3259,6 +3305,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
          Objects.equals(fields, that.fields) &&
          Objects.equals(orderByList, that.orderByList) &&
          Arrays.equals(groups, that.groups) &&
+         Objects.equals(quotedFields, that.quotedFields) &&
          Objects.equals(where, that.where) &&
          Objects.equals(having, that.having) &&
          Objects.equals(dataSource, that.dataSource) &&
@@ -3348,6 +3395,8 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
          if(groups != null) {
             obj.groups = groups.clone();
          }
+
+         obj.quotedFields = new HashSet<>(quotedFields);
 
          if(where != null) {
             obj.where = (XFilterNode) where.clone();
@@ -3717,6 +3766,8 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
    private Vector<XField> fields = new Vector<>(); // field list
    private Vector<OrderByItem> orderByList = new Vector<>(); // order by list
    private Object[] groups; // group by list
+   // group by and order by fields written as quoted identifiers
+   private HashSet<String> quotedFields = new HashSet<>();
    private XFilterNode where; // root XFilterNode of where clause
    private XFilterNode having; // root XFilterNode of having clause
    private JDBCDataSource dataSource = null;
