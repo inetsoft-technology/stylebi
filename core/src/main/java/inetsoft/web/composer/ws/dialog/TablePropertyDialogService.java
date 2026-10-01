@@ -92,7 +92,8 @@ public class TablePropertyDialogService extends WorksheetControllerService {
    {
       RuntimeWorksheet rws = super.getRuntimeWorksheet(runtimeId, principal);
       Worksheet ws = rws.getWorksheet();
-      checkCubeTableReadPermission(principal, model.getOldName(), model.getNewName());
+      checkCubeTableReadPermission(principal, model.getOldName());
+      checkNotCubeTableName(model.getNewName());
       AbstractTableAssembly assembly = (AbstractTableAssembly) ws
          .getAssembly(model.getOldName());
 

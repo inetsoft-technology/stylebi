@@ -102,6 +102,20 @@ public class WorksheetControllerService {
    }
 
    /**
+    * Refuses a cube table name (<tt>___inetsoft_cube_&lt;data source&gt;/&lt;cube&gt;</tt>) as the
+    * new name of a worksheet table. The worksheet would resolve that name to the cube instead
+    * of the table, and the worksheet could not be saved (Bug #77462).
+    *
+    * @throws java.lang.SecurityException if the name is a cube table name.
+    */
+   protected static void checkNotCubeTableName(String name) {
+      if(name != null && name.startsWith(Assembly.CUBE_VS)) {
+         throw new java.lang.SecurityException(
+            "A worksheet table cannot be named as a cube table: \"" + name + "\"");
+      }
+   }
+
+   /**
     * Refuses to save a worksheet that references a cube table name
     * (<tt>___inetsoft_cube_&lt;data source&gt;/&lt;cube&gt;</tt>), for example as the base of a
     * mirror, a member of a join, a condition subquery or a variable's table, or that names one

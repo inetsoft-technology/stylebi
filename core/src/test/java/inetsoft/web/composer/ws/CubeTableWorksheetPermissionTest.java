@@ -32,9 +32,13 @@ import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
 import inetsoft.uql.xmla.Domain;
 import inetsoft.util.Tool;
+import inetsoft.util.DataSpace;
+import inetsoft.web.binding.VSFormulaService;
+import inetsoft.web.binding.VSScriptableService;
 import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
 import inetsoft.web.binding.handler.VSColumnHandler;
 import inetsoft.web.composer.model.vs.ViewsheetPropertyDialogModel;
+import inetsoft.web.composer.model.ws.SaveWorksheetDialogModel;
 import inetsoft.web.composer.model.ws.SortColumnDialogModel;
 import inetsoft.web.composer.model.ws.VariableAssemblyDialogModel;
 import inetsoft.web.composer.vs.dialog.SelectionListService;
@@ -341,13 +345,27 @@ class CubeTableWorksheetPermissionTest {
    }
 
    @Test
-   void sRenameToDeniedCubeNameRefused() throws Throwable {
+   void sRenameToCubeNameRefusedEvenIfReadable() throws Throwable {
+      // the worksheet would resolve the new name to the cube instead of the table, and the
+      // save would refuse it, so the rename is refused whatever the permission
       WSRenameAssemblyService service = guarded(new WSRenameAssemblyService(viewsheetService, null));
       WSRenameAssemblyEvent event = mock(WSRenameAssemblyEvent.class);
       when(event.oldName()).thenReturn(TABLE);
       when(event.newName()).thenReturn(CUBE_TABLE);
-      assertDenied(() -> service.renameAssembly(RUNTIME_ID, event, principal, dispatcher));
+      withCube(true, true, () -> assertThrows(java.lang.SecurityException.class,
+         () -> service.renameAssembly(RUNTIME_ID, event, principal, dispatcher)));
       assertNotNull(worksheet.getAssembly(TABLE));
+   }
+
+   @Test
+   void sConcatCompatibilityWithDeniedCubeRefused() throws Throwable {
+      ConcatenateTablesService service =
+         guarded(new ConcatenateTablesService(viewsheetService, null));
+      ConcatCompatibilityEvent event = mock(ConcatCompatibilityEvent.class);
+      when(event.getSourceTable()).thenReturn(TABLE);
+      when(event.getOtherTables()).thenReturn(new String[] { CUBE_TABLE });
+      assertDenied(() -> service.checkCompatibility(RUNTIME_ID, event, principal, dispatcher));
+      verifyNoInteractions(dispatcher);
    }
 
    @Test
@@ -392,6 +410,21 @@ class CubeTableWorksheetPermissionTest {
 
       assertThrows(java.lang.SecurityException.class,
                    () -> service.saveWorksheet(RUNTIME_ID, event, principal, dispatcher));
+      verify(viewsheetService, never()).setWorksheet(
+         any(Worksheet.class), any(AssetEntry.class), any(Principal.class), anyBoolean(), anyBoolean());
+   }
+
+   @Test
+   void bSaveAsRefusesLaunderedMirror() throws Throwable {
+      SaveWorksheetDialogService service = guarded(new SaveWorksheetDialogService(
+         viewsheetService, null, mock(DataSpace.class)));
+      withCube(true, true, () -> mirrorOfCube(worksheet));
+      when(rws.getEntry()).thenReturn(new AssetEntry(
+         AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.WORKSHEET, "WS1", null));
+      SaveWorksheetDialogModel model = mock(SaveWorksheetDialogModel.class, RETURNS_DEEP_STUBS);
+
+      assertThrows(java.lang.SecurityException.class,
+                   () -> service.process(rws, model, principal, true));
       verify(viewsheetService, never()).setWorksheet(
          any(Worksheet.class), any(AssetEntry.class), any(Principal.class), anyBoolean(), anyBoolean());
    }
@@ -564,6 +597,40 @@ class CubeTableWorksheetPermissionTest {
          null, null, service, null, null, null, null, null, columnHandler, queryManager);
       withCube(true, true, () -> input.getTableColumns("vs1", CUBE_TABLE, principal));
       verify(columnHandler).getTableColumns(rvs, CUBE_TABLE, true, principal);
+   }
+
+   private VSFormulaService formulaService(RuntimeViewsheet rvs, VSColumnHandler columnHandler)
+      throws Exception
+   {
+      ViewsheetService service = mock(ViewsheetService.class);
+      when(service.getViewsheet("vs1", principal)).thenReturn(rvs);
+      return new VSFormulaService(service, null, columnHandler, null, queryManager);
+   }
+
+   @Test
+   void vFormulaFieldsOfUnboundCubeRefused() throws Throwable {
+      VSColumnHandler columnHandler = mock(VSColumnHandler.class);
+      VSFormulaService service = formulaService(viewsheet(TABLE), columnHandler);
+      assertDenied(() -> service.getFields("vs1", "Chart1", CUBE_TABLE, principal));
+      verifyNoInteractions(columnHandler);
+   }
+
+   @Test
+   void vFormulaFieldsOfBoundCubeNotChecked() throws Throwable {
+      VSFormulaService service = formulaService(viewsheet(CUBE_TABLE), mock(VSColumnHandler.class));
+      withCube(false, false, () -> service.getFields("vs1", "Chart1", CUBE_TABLE, principal));
+      withCube(false, false, () -> service.getFields("vs1", "Chart1", null, principal));
+      verifyNothingChecked();
+   }
+
+   @Test
+   void vScriptFieldsOfUnboundCubeRefused() throws Throwable {
+      ViewsheetService service = mock(ViewsheetService.class);
+      RuntimeViewsheet rvs = viewsheet(TABLE);
+      when(service.getViewsheet("vs1", principal)).thenReturn(rvs);
+      VSScriptableService scriptable = new VSScriptableService(service, null, null, queryManager);
+      assertDenied(() -> scriptable.getScriptDefinition("vs1", "Chart1", CUBE_TABLE, false, principal));
+      verify(rvs, never()).getViewsheetSandbox();
    }
 
    // ---- K: Bug #77427 viewsheet rename and base change gates ----
