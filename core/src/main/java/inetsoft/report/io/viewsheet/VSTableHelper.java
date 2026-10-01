@@ -211,11 +211,19 @@ public abstract class VSTableHelper extends VSTableDataHelper {
          int displayRowHeight = info.getViewsheet().getDisplayRowHeight(false, info.getName());
          VizContext ctx = VizContext.of(info);
 
-         // getDisplayRowHeight returns the raw stored height, so apply the same density
-         // substitution the live model does (BaseTableService:466) before adding the padding -
-         // otherwise the estimate exceeds the real rendered row and match-exact drops rows
+         // getDisplayRowHeight returns the raw stored height, so apply the same substitutions the
+         // live model does before adding the padding - otherwise the estimate misses the real
+         // rendered row and match-exact drops rows. First the density height, then a stylesheet
+         // height replacing it outright, which is also what decides whether getRowPadding floors
+         // its result at the seed
          if(ctx.modern && !info.isUserDataRowHeight() && displayRowHeight == AssetUtil.defh) {
             displayRowHeight = VSDensityDefaults.rowHeight(ctx, info);
+         }
+
+         int cssDataRowHeight = lens.getCSSDataRowHeight(info);
+
+         if(cssDataRowHeight > 0) {
+            displayRowHeight = cssDataRowHeight;
          }
 
          displayRowHeight += lens.getRowPadding(lens.getHeaderRowCount(), info);
