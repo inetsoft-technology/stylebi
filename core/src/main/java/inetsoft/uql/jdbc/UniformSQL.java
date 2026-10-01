@@ -1149,6 +1149,8 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
    public synchronized void setSQLString(String sqlstring, boolean parse) {
       this.cstring = null;
       this.sqlstring = null;
+      // a new sql string must re-derive lossy (null keeps the lazy check in isLossy())
+      this.lossy = null;
 
       if(parse) {
          Vector<Point> locPoints = new Vector<>();
@@ -1194,6 +1196,8 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
     */
    public synchronized void clearSQLString() {
       sqlstring = null;
+      // the structure is now the whole query, nothing is lost any more
+      lossy = null;
    }
 
    /**
