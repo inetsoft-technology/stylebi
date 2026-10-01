@@ -655,8 +655,8 @@ public class ExtendedDateFormat extends SimpleDateFormat {
          // zone's local mean time, while java.util.TimeZone applies its raw offset before its
          // first transition around 1900 (e.g. Asia/Shanghai +8:05:43 vs +8). converting the
          // fields through java.time shifts the date on every save and reload, so convert with
-         // the same calendar and zone as format(). SimpleDateFormat is tried first because
-         // the SMART resolver has already clamped a Julian leap day such as 1500-02-29
+         // the same calendar and zone as format(). a strict SimpleDateFormat is tried first
+         // because the SMART resolver has already clamped a Julian leap day such as 1500-02-29
          if(year < 1901) {
             // strict first so an invalid day such as 1850-02-30 is not rolled over into the
             // next month. a clone is used because this instance may be shared, and a
@@ -673,14 +673,17 @@ public class ExtendedDateFormat extends SimpleDateFormat {
             // a "y" pattern, the 1582 cutover and years <= 0. if an invalid day rolled it over
             // into the next month, step back to the last day of the parsed month, which clamps
             // it the same way as the SMART resolver does from 1901 on (1500-02-30 gives the
-            // Julian 1500-02-29)
+            // Julian 1500-02-29). only a pattern with a month and a day can overflow the day,
+            // and the overflow always lands in the next month (month % 12 is its 0 based index)
             date = super.parse(str, new ParsePosition(0));
 
             if(date != null) {
                Calendar parsed = (Calendar) getCalendar().clone();
                parsed.setTime(date);
+               boolean monthDay = temporal.isSupported(ChronoField.MONTH_OF_YEAR) &&
+                  temporal.isSupported(ChronoField.DAY_OF_MONTH);
 
-               if(parsed.get(Calendar.MONTH) != month - 1) {
+               if(monthDay && parsed.get(Calendar.MONTH) == month % 12) {
                   parsed.add(Calendar.DAY_OF_MONTH, -parsed.get(Calendar.DAY_OF_MONTH));
                   date = parsed.getTime();
                }

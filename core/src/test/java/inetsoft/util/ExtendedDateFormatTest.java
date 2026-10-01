@@ -284,6 +284,38 @@ public class ExtendedDateFormatTest {
       }
    }
 
+   // Bug #77444: the step back to the last day of the month must only undo a day overflow.
+   // without a month or a day field, or when the lenient result is not exactly one month
+   // after the java.time month (week patterns, where java.time reads "u" as the year, an
+   // offset moving 24:00 across a month, a Julian day of year), the lenient result is kept
+   @ParameterizedTest(name = "{0} {1} {2}")
+   @CsvSource(quoteCharacter = '"', value = {
+      "America/New_York, YYYY-'W'ww-u, 2020-W53-1",
+      "America/New_York, YYYY-'W'ww-u, 1850-W53-1",
+      "Asia/Shanghai, YYYY-'W'ww-u, 2020-W53-1",
+      "America/New_York, yyyy-MM-dd HH:mm XXX, 1850-01-31 24:00 +00:00",
+      "America/New_York, yyyy-DDD HH:mm, 1500-059 24:00",
+      "America/New_York, yyyy dd HH:mm, 1850 31 24:00",
+      "America/New_York, yyyy-MM HH:mm, 1850-02 24:00"
+   })
+   public void pre1901NoDayOverflowKeepsLenientResult(String zone, String pattern, String text)
+      throws Exception
+   {
+      final TimeZone oldZone = TimeZone.getDefault();
+
+      try {
+         TimeZone.setDefault(TimeZone.getTimeZone(zone));
+         final ExtendedDateFormat format = new ExtendedDateFormat(pattern, Locale.US);
+         final Date expected = new SimpleDateFormat(pattern, Locale.US).parse(text);
+
+         assertEquals(expected, format.parse(text));
+         assertEquals(expected, format.parseObject(text));
+      }
+      finally {
+         TimeZone.setDefault(oldZone);
+      }
+   }
+
    // Bug #77443: parse(String) must convert in the zone of the format, like format() and
    // parse(String, ParsePosition), not in the JVM default zone. the format is created after
    // the default is changed so that only setTimeZone() makes the two zones differ
