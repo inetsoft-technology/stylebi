@@ -245,6 +245,18 @@ class UniformSQLOuterJoinDialectTest {
          "select * from a LEFT OUTER JOIN b ON a.id = b.id",
       "postgresql | select * from a where exists (select 1 from c where c.id = a.id) | " +
          "select * from \"a\" where EXISTS ( select 1 from \"c\" where \"c\".\"id\" = \"a\".\"id\")",
+      // a legacy where outer join lists each quoted table once
+      "postgresql | select a.x, b.x from a, b where a.id = b.id(+) | " +
+         "select \"a\".\"x\", \"b\".\"x\" from \"a\" LEFT OUTER JOIN \"b\" ON \"a\".\"id\" = \"b\".\"id\"",
+      "postgresql | select a.x, b.x from a, b where a.id *= b.id | " +
+         "select \"a\".\"x\", \"b\".\"x\" from \"a\" LEFT OUTER JOIN \"b\" ON \"a\".\"id\" = \"b\".\"id\"",
+      // oracle (+) preserves the earlier table, a case-mismatched or nested join used to
+      // put the (+) on the wrong side
+      "oracle | select A.x, B.x from A left join B on b.id = a.id | " +
+         "select A.X, B.X from A, B where a.id = b.id(+)",
+      "oracle | select a.x from (a left join b on a.id = b.id) left join " +
+         "(c left join d on d.id = c.id) on c.id = a.id | select A.X from a, b, c, d " +
+         "where a.id = b.id(+) and c.id = d.id(+) and a.id = c.id(+)",
       // quoted names are case-sensitive, \"A\" and a are two tables
       "postgresql | select * from \"A\", a left join c on c.id = a.id where \"A\".id = a.id | " +
          "select * from (\"A\" INNER JOIN \"a\" ON \"A\".\"id\" = \"a\".\"id\" ) " +
