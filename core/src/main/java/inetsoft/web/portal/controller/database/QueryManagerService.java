@@ -48,8 +48,10 @@ import java.rmi.RemoteException;
 import java.security.Principal;
 import java.util.List;
 import java.util.*;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -163,7 +165,14 @@ public class QueryManagerService {
          return;
       }
 
-      if(DatabaseQueryTabs.FIELDS.getTab().equals(tab) || all) {
+      // Bug #77487, #77496, apply a pane and clear the sql string only when the pane differs
+      // from the echo of the current structure. Tab-leave and save post every pane, also the
+      // unchanged ones, and regenerating the sql would replace the sql the user typed.
+      XDataSource dataSource = query.getDataSource();
+
+      if((DatabaseQueryTabs.FIELDS.getTab().equals(tab) || all) &&
+         isFieldPaneChanged(sql, queryModel.getFieldPaneModel()))
+      {
          // only need to update the order of fields and 'distinct' property
          QueryFieldPaneModel fieldPaneModel = queryModel.getFieldPaneModel();
          JDBCSelection newSelection = new JDBCSelection();
@@ -197,16 +206,20 @@ public class QueryManagerService {
          QueryConditionPaneModel conditionPaneModel = queryModel.getConditionPaneModel();
          List<DataConditionItem> conditions = conditionPaneModel.getConditions();
 
-         if(conditions != null && conditions.size() > 0) {
-            XFilterNode filterNode = createConditionXFilterNode(conditions);
-            setQueryCondition(sql, filterNode, CONDITION_WHERE);
-         }
-         else {
-            setQueryCondition(sql, null, CONDITION_WHERE);
+         if(isConditionChanged(sql, dataSource, conditions, CONDITION_WHERE)) {
+            if(conditions != null && conditions.size() > 0) {
+               XFilterNode filterNode = createConditionXFilterNode(conditions);
+               setQueryCondition(sql, filterNode, CONDITION_WHERE);
+            }
+            else {
+               setQueryCondition(sql, null, CONDITION_WHERE);
+            }
          }
       }
 
-      if(DatabaseQueryTabs.SORT.getTab().equals(tab) || all) {
+      if((DatabaseQueryTabs.SORT.getTab().equals(tab) || all) &&
+         isSortPaneChanged(sql, queryModel.getSortPaneModel()))
+      {
          QuerySortPaneModel sortPaneModel = queryModel.getSortPaneModel();
          List<String> fields = sortPaneModel.getFields();
          List<String> orders = sortPaneModel.getOrders();
@@ -226,27 +239,32 @@ public class QueryManagerService {
 
       if(DatabaseQueryTabs.GROUPING.getTab().equals(tab) || all) {
          QueryGroupingPaneModel groupingPaneModel = queryModel.getGroupingPaneModel();
-         List<String> groupByFields = groupingPaneModel.getGroupByFields();
-         List<String> groups = new ArrayList<>();
-         sql.clearGroupDBFields();
 
-         for(int i = 0; groupByFields != null && i < groupByFields.size(); i++) {
-            String groupName = groupByFields.get(i);
+         if(isGroupByChanged(sql, groupingPaneModel)) {
+            List<String> groupByFields = groupingPaneModel.getGroupByFields();
+            List<String> groups = new ArrayList<>();
+            sql.clearGroupDBFields();
 
-            if(!sql.isTableColumn(groupName) && !sql.getSelection().isAlias(groupName)) {
-               sql.addGroupDBField(groupName);
+            for(int i = 0; groupByFields != null && i < groupByFields.size(); i++) {
+               String groupName = groupByFields.get(i);
+
+               if(!sql.isTableColumn(groupName) && !sql.getSelection().isAlias(groupName)) {
+                  sql.addGroupDBField(groupName);
+               }
+
+               groups.add(groupName);
             }
 
-            groups.add(groupName);
+            sql.setGroupBy(groups.toArray());
+            sql.clearSQLString();
          }
-
-         sql.setGroupBy(groups.toArray());
-         sql.clearSQLString();
 
          QueryConditionPaneModel havingConditionsModel = groupingPaneModel.getHavingConditions();
          List<DataConditionItem> conditions = havingConditionsModel.getConditions();
 
-         if(conditions != null) {
+         if(conditions != null &&
+            isConditionChanged(sql, dataSource, conditions, CONDITION_HAVING))
+         {
             XFilterNode filterNode = createConditionXFilterNode(conditions);
             setQueryCondition(sql, filterNode, CONDITION_HAVING);
          }
@@ -263,6 +281,127 @@ public class QueryManagerService {
    static boolean isSqlOnly(UniformSQL sql) {
       return sql.hasSQLString() &&
          (!sql.isParseSQL() || sql.getParseResult() != UniformSQL.PARSE_SUCCESS || sql.isLossy());
+   }
+
+   /**
+    * Check if the fields pane differs from the pane getAdvancedQueryModel() echoes for the
+    * current structure, in what updateQuery() applies from it: the field names and aliases
+    * in order, and distinct.
+    */
+   static boolean isFieldPaneChanged(UniformSQL sql, QueryFieldPaneModel pane) {
+      if(pane == null || pane.isDistinct() != sql.isDistinct()) {
+         return true;
+      }
+
+      JDBCSelection selection = (JDBCSelection) sql.getSelection();
+      List<QueryFieldModel> fields = pane.getFields();
+      int count = fields == null ? 0 : fields.size();
+
+      if(selection == null || count != selection.getColumnCount()) {
+         return true;
+      }
+
+      for(int i = 0; i < count; i++) {
+         QueryFieldModel field = fields.get(i);
+
+         if(field == null || !Tool.equals(field.getName(), selection.getColumn(i)) ||
+            !Tool.equals(field.getAlias(), selection.getAlias(i)))
+         {
+            return true;
+         }
+      }
+
+      return false;
+   }
+
+   /**
+    * Check if the sort pane differs from the pane getAdvancedQueryModel() echoes for the
+    * current structure.
+    */
+   static boolean isSortPaneChanged(UniformSQL sql, QuerySortPaneModel pane) {
+      if(pane == null) {
+         return true;
+      }
+
+      List<String> fields = new ArrayList<>();
+      List<String> orders = new ArrayList<>();
+      getSortFields(sql, fields, orders);
+
+      return !Objects.equals(fields, emptyIfNull(pane.getFields())) ||
+         !Objects.equals(orders, emptyIfNull(pane.getOrders()));
+   }
+
+   /**
+    * Check if the group by fields differ from the ones getAdvancedQueryModel() echoes for the
+    * current structure.
+    */
+   static boolean isGroupByChanged(UniformSQL sql, QueryGroupingPaneModel pane) {
+      return pane == null ||
+         !Objects.equals(getGroupByFields(sql), emptyIfNull(pane.getGroupByFields()));
+   }
+
+   /**
+    * Check if the conditions differ from the ones getAdvancedQueryModel() echoes for the
+    * current structure. The condition items have no equals(), so their json trees are
+    * compared. They can't be compared by the generated sql: applying an unchanged where
+    * condition appends the joins after it, which reorders the generated where clause.
+    */
+   private boolean isConditionChanged(UniformSQL sql, XDataSource dataSource,
+                                      List<DataConditionItem> conditions, int conditionType)
+   {
+      try {
+         List<DataConditionItem> current = createConditions(sql, dataSource, conditionType);
+         return !CONDITION_MAPPER.valueToTree(current)
+            .equals(CONDITION_MAPPER.valueToTree(emptyIfNull(conditions)));
+      }
+      catch(Exception ex) {
+         // can't tell, apply the pane as before
+         LOG.debug("Failed to compare the conditions with the current structure", ex);
+         return true;
+      }
+   }
+
+   private static <T> List<T> emptyIfNull(List<T> list) {
+      return list == null ? Collections.emptyList() : list;
+   }
+
+   private static void getSortFields(UniformSQL sql, List<String> fields, List<String> orders) {
+      OrderByItem[] orderByItems = sql.getOrderByItems();
+
+      for(OrderByItem item : orderByItems) {
+         fields.add(Tool.toString(item.getField()));
+         orders.add(item.getOrder());
+      }
+   }
+
+   private static List<String> getGroupByFields(UniformSQL sql) {
+      List<String> groupByFields = new ArrayList<>();
+      Object[] groups = sql.getGroupBy();
+
+      if(groups != null) {
+         for(Object group : groups) {
+            groupByFields.add(Tool.toString(group));
+         }
+      }
+
+      return groupByFields;
+   }
+
+   /**
+    * Run an action with the sorted sql of the query cache normalizer turned off. The normalizer
+    * clears the sql string of a parsed query when it generates the sorted sql.
+    */
+   private static <T> T withoutSortedSql(UniformSQL sql, Supplier<T> action) {
+      Object oldHint = sql.getHint(UniformSQL.HINT_WITHOUT_SORTED_SQL, false);
+      sql.setHint(UniformSQL.HINT_WITHOUT_SORTED_SQL, true);
+
+      try {
+         return action.get();
+      }
+      finally {
+         // UniformSQL can't remove a hint, false is what an unset hint means here
+         sql.setHint(UniformSQL.HINT_WITHOUT_SORTED_SQL, oldHint != null ? oldHint : false);
+      }
    }
 
    public AdvancedSQLQueryModel getQueryModel(String runtimeId, Principal principal) {
@@ -362,42 +501,28 @@ public class QueryManagerService {
       XTypeNode metadata = runtimeQuery.getMetadata();
       FreeFormSQLPaneModel freeFormSQLPaneModel = new FreeFormSQLPaneModel();
       freeFormSQLPaneModel.setHasSqlString(sql.hasSQLString());
-      sql.setHint(UniformSQL.HINT_WITHOUT_SORTED_SQL, true);
-      freeFormSQLPaneModel.setSqlString(sql.getSQLString());
-      sql.setHint(UniformSQL.HINT_WITHOUT_SORTED_SQL, false);
+      freeFormSQLPaneModel.setSqlString(withoutSortedSql(sql, sql::getSQLString));
       freeFormSQLPaneModel.setParseSql(sql.isParseSQL());
       freeFormSQLPaneModel.setParseResult(sql.getParseResult());
       // isLossy() may re-parse the sql string once, the result is cached on the object
       freeFormSQLPaneModel.setLossy(sql.isLossy());
       freeFormSQLPaneModel.setHasColumnInfo(metadata != null && metadata.getChildCount() > 0);
       SQLHelper helper = SQLHelper.getSQLHelper(sql);
-      freeFormSQLPaneModel.setGeneratedSqlString(helper.generateSentence());
+      // Bug #77487, without the hint the sorted column map of the cache normalizer clears the
+      // sql string the user typed, so every model fetch would make a save regenerate it
+      freeFormSQLPaneModel.setGeneratedSqlString(withoutSortedSql(sql, helper::generateSentence));
       model.setFreeFormSQLPaneModel(freeFormSQLPaneModel);
 
       QuerySortPaneModel sortPaneModel = new QuerySortPaneModel();
       List<String> sortFields = new ArrayList<>();
       List<String> orders = new ArrayList<>();
-      OrderByItem[] orderByItems = sql.getOrderByItems();
-
-      for(int i = 0; i < orderByItems.length; i++) {
-         OrderByItem item = orderByItems[i];
-         sortFields.add(Tool.toString(item.getField()));
-         orders.add(item.getOrder());
-      }
-
+      getSortFields(sql, sortFields, orders);
       sortPaneModel.setFields(sortFields);
       sortPaneModel.setOrders(orders);
       model.setSortPaneModel(sortPaneModel);
 
       QueryGroupingPaneModel groupingPaneModel = new QueryGroupingPaneModel();
-      List<String> groupByFields = new ArrayList<>();
-      Object[] groups = sql.getGroupBy();
-
-      if(groups != null) {
-         for(Object group : groups) {
-            groupByFields.add(Tool.toString(group));
-         }
-      }
+      List<String> groupByFields = getGroupByFields(sql);
 
       List<Column> havingFields = new ArrayList<>();
 
@@ -1123,6 +1248,8 @@ public class QueryManagerService {
          result =  editExpression(sql, selection, expression, columnName, columnAlias);
       }
 
+      // a structure edit, regenerate the sql string (Bug #77487)
+      sql.clearSQLString();
       saveRuntimeQuery(runtimeQuery);
       return result;
    }
@@ -3171,4 +3298,6 @@ public class QueryManagerService {
    private final DataSourceService dataSourceService;
    private final ColumnCache columnCache;
    private static final Logger LOG = LoggerFactory.getLogger(QueryManagerService.class);
+   // compares the condition pane items of the client with the ones of the current structure
+   private static final ObjectMapper CONDITION_MAPPER = new ObjectMapper();
 }

@@ -116,6 +116,8 @@ public class QueryGraphModelService {
                runtimeQuery.addSelectedTable(tableAlias, tables.get(i));
             }
 
+            // a structure edit, regenerate the sql string (Bug #77487)
+            ((UniformSQL) sql).clearSQLString();
             queryService.fixUniformSQLInfo((UniformSQL) sql, (JDBCDataSource) query.getDataSource(),
                                            principal);
             runtimeQueryService.saveRuntimeQuery(runtimeQuery);
@@ -144,6 +146,9 @@ public class QueryGraphModelService {
                sql.removeTable(tableName);
                runtimeQuery.removeSelectedTable(tableName);
             }
+
+            // a structure edit, regenerate the sql string (Bug #77487)
+            sql.clearSQLString();
 
             // if no more table, clear the query
             if(sql.getTableCount() == 0) {
@@ -287,6 +292,8 @@ public class QueryGraphModelService {
 
             if(sql instanceof UniformSQL) {
                ((UniformSQL) sql).addJoin(createXJoin(joinModel));
+               // a structure edit, regenerate the sql string (Bug #77487)
+               ((UniformSQL) sql).clearSQLString();
             }
 
             runtimeQueryService.saveRuntimeQuery(runtimeQuery);
@@ -313,6 +320,8 @@ public class QueryGraphModelService {
 
             if(sql instanceof UniformSQL) {
                UniformSQL newSql = processEditJoin((UniformSQL) sql, detailJoinInfo, joinModel);
+               // a structure edit, regenerate the sql string (Bug #77487)
+               newSql.clearSQLString();
                query.setSQLDefinition(newSql);
                runtimeQueryService.saveRuntimeQuery(runtimeQuery);
             }
@@ -336,6 +345,8 @@ public class QueryGraphModelService {
 
             if(sql instanceof UniformSQL) {
                UniformSQL newSql = processDeleteJoins((UniformSQL) sql, joinInfo);
+               // a structure edit, regenerate the sql string (Bug #77487)
+               newSql.clearSQLString();
                query.setSQLDefinition(newSql);
                runtimeQueryService.saveRuntimeQuery(runtimeQuery);
             }
@@ -353,6 +364,8 @@ public class QueryGraphModelService {
          if(query != null) {
             UniformSQL sql = (UniformSQL) query.getSQLDefinition();
             sql.removeAllJoins();
+            // a structure edit, regenerate the sql string (Bug #77487)
+            sql.clearSQLString();
             runtimeQueryService.saveRuntimeQuery(runtimeQuery);
          }
       }
@@ -813,6 +826,11 @@ public class QueryGraphModelService {
 
       leftTable.getJoins().addAll(autoJoins);
       autoJoins.forEach(joinModel -> sql.addJoin(createXJoin(joinModel)));
+
+      if(!autoJoins.isEmpty()) {
+         // a structure edit, regenerate the sql string (Bug #77487)
+         sql.clearSQLString();
+      }
    }
 
    private XJoin createXJoin(JoinModel joinModel) {
