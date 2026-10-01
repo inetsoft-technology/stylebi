@@ -19,6 +19,7 @@ package inetsoft.uql.jdbc;
 
 import inetsoft.test.*;
 import inetsoft.uql.XRepository;
+import inetsoft.uql.jdbc.util.JDBCUtil;
 import inetsoft.util.Plugins;
 import inetsoft.util.Tool;
 import inetsoft.util.credential.CredentialService;
@@ -265,6 +266,53 @@ class SQLHelperWhereOrOuterJoinTest {
    void sameRowsOnDerby(String text) throws Exception {
       JDBCDataSource ds = dataSource("derby-ansi");
       assertEquals(0, RowCompare.diffCount(text, generate(text, ds), 120), text);
+   }
+
+   // a comparison deeper in the where tree (OR under AND under OR, a negated leaf under a
+   // negated OR)
+   @ParameterizedTest
+   @CsvSource(delimiter = '|', value = {
+      "from a left join b on a.id = b.id where a.k = 2 or (b.j = 1 and (a.id = b.k or " +
+         "a.j = b.j))|from a LEFT OUTER JOIN b ON a.id = b.id where (a.k = 2 or (b.j = 1 and " +
+         "(a.id = b.k or a.j = b.j)))",
+      "from a left join b on a.id = b.id where not (not (a.id = b.k) or a.k = 1)|" +
+         "from a LEFT OUTER JOIN b ON a.id = b.id where (not (not (a.id = b.k) or a.k = 1))",
+   })
+   void nestedComparisonsStayInWhere(String tail, String expected) throws Exception {
+      for(boolean ansi : new boolean[] { false, true }) {
+         String generated = generate(SEL + tail, ds(ansi));
+         assertEquals(GEN_SEL + expected, generated, "ansi=" + ansi);
+         assertRoundTrip(generated, ds(ansi));
+      }
+
+      assertEquals(0, RowCompare.diffCount(SEL + tail, generate(SEL + tail,
+                                                              dataSource("derby-ansi")), 120));
+   }
+
+   // the worksheet SQL dialog and the query manager demote the top-level "fake joins" of a
+   // fresh parse with JDBCUtil.fixWhereInfo, but HAVING, NOT over AND and subquery levels
+   // still reach the generator as joins
+   @ParameterizedTest
+   @CsvSource(delimiter = '|', value = {
+      "select a.id ai, a.k ak from a left join b on a.id = b.id group by a.id, a.k, b.k " +
+         "having a.k = b.k|select a.id as ai, a.k as ak from a LEFT OUTER JOIN b ON a.id = " +
+         "b.id group by a.id, a.k, b.k having a.k = b.k",
+      SEL + "from a left join b on a.id = b.id where not (a.id = b.k and a.k = 1)|" + GEN_SEL +
+         "from a LEFT OUTER JOIN b ON a.id = b.id where not (a.id = b.k and a.k = 1)",
+      "select a.id ai from a where exists (select 1 from b left join c on b.id = c.id where " +
+         "b.k = c.k or c.j = 1)|select a.id as ai from a where EXISTS ( select 1 from b LEFT " +
+         "OUTER JOIN c ON b.id = c.id where (b.k = c.k or c.j = 1))",
+   })
+   void fakeJoinsLeftByFixWhereInfo(String text, String expected) throws Exception {
+      for(boolean ansi : new boolean[] { false, true }) {
+         UniformSQL sql = new UniformSQL();
+         sql.parse(text, UniformSQL.PARSE_ALL, UniformSQL.PARSE_PERIOD);
+         assertEquals(UniformSQL.PARSE_SUCCESS, sql.getParseResult(), text);
+         JDBCUtil.fixWhereInfo(sql);
+         sql.setDataSource(ds(ansi));
+         sql.clearSQLString();
+         assertEquals(expected, normalize(sql.getSQLString()), "ansi=" + ansi);
+      }
    }
 
    private static void assertModel(String expected, UniformSQL model) throws Exception {
