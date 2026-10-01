@@ -2006,6 +2006,8 @@ public class SQLHelper implements KeywordProvider {
          return "";
       }
 
+      // the joins before they are reordered, to generate again without cycle conditions
+      List<XJoin> vJoin0 = vJoin == null ? null : new ArrayList<>(vJoin);
       int val = -1;
       boolean sorted = false;
 
@@ -2028,7 +2030,7 @@ public class SQLHelper implements KeywordProvider {
       // a lj b on a.id = b.id join c on b.id = c.id lj d on a.id = d.id is
       // ((a lj b) join c) lj d. Reordering them (below) can move an inner join
       // to the null-supplying side of an outer join and change the result
-      if(!sorted && isTextJoinOrder()) {
+      if(!sorted && !noCycleConditions && isTextJoinOrder()) {
          String from = generateFromClauseText(count);
 
          if(from != null) {
@@ -2169,12 +2171,19 @@ public class SQLHelper implements KeywordProvider {
       // e.g. c in a = b, b = c, a = c. It is a condition of the joined tables, not a join of
       // a new table. Only write it as one if no join is under or/not, because the joins of
       // such a condition tree are already flattened into the from clause
-      boolean cycleConditions = vJoin != null && vJoin.stream().allMatch(this::isJoinPathAnded);
+      boolean cycleConditions = !noCycleConditions && vJoin != null &&
+         vJoin.stream().allMatch(this::isJoinPathAnded);
       // the last join step of the current group, whose ON is the outermost one
       XJoin lastJoin = null;
       SelectTable lastTable = null;
       boolean lastTablePreserved = false;
       boolean lastAnded = true;
+      // conditions that filter the group after an outer join step. They stay valid as where
+      // conditions through inner and left join steps, but a right join step null-extends the
+      // group, so they go into its ON
+      List<XJoin> pending = new ArrayList<>();
+      // true if the last join step is a right join that the pending conditions go into
+      boolean lastRight = false;
 
       for(int i = 0; i < count; i++) {
          if(joinCount >= jsize) {
@@ -2187,8 +2196,14 @@ public class SQLHelper implements KeywordProvider {
             }
 
             // a join between columns of one table at the start of a group would join the
-            // table to itself. It's a condition of the table, so it goes to the where clause
+            // table to itself. If the table has other joins, it's a condition of the group of
+            // those joins, which reaches it when the table is joined. Otherwise the table is
+            // not in a group, and the condition goes to the where clause
             if(i == j && cycleConditions && joins[i][j] != null && joins[i][j].size() > 0) {
+               if(hasOtherJoins(joins, count, i)) {
+                  continue;
+               }
+
                for(XJoin cjoin : joins[i][j]) {
                   addAnsiWhereJoin(cjoin);
                   joinCount++;
@@ -2203,6 +2218,8 @@ public class SQLHelper implements KeywordProvider {
                startX = i;
                startY = j;
                lastJoin = null;
+               lastRight = false;
+               pending.clear();
 
                /*
                 * When no more related joins are found, seperate the
@@ -2243,7 +2260,7 @@ public class SQLHelper implements KeywordProvider {
                            from.append(" ");
                         }
                         else {
-                           addAnsiWhereJoin(cjoin);
+                           pending.add(cjoin);
                         }
 
                         joinCount++;
@@ -2277,6 +2294,15 @@ public class SQLHelper implements KeywordProvider {
                         lastTable = (SelectTable) (traverse ? table1[1] : table2[1]);
                         lastTablePreserved = isPreservedTable(join, traverse);
                         lastAnded = true;
+                        lastRight = join.isOuterJoin() && !join.isFullOuterJoin() &&
+                           lastTablePreserved;
+
+                        // a full join null-extends the group and the new table, so no
+                        // placement of the pending conditions keeps their meaning. Generate
+                        // the joins as before, without cycle conditions
+                        if(join.isFullOuterJoin() && !pending.isEmpty()) {
+                           return generateFromClauseAnsiAgain(vJoin0);
+                        }
                      }
 
                      lastAnded = lastAnded && isJoinAnded(join);
@@ -2295,6 +2321,22 @@ public class SQLHelper implements KeywordProvider {
                      continue;
                   }
 
+                  // the right join step is complete, AND the pending conditions into its ON
+                  if(lastRight && !pending.isEmpty()) {
+                     if(!lastAnded) {
+                        return generateFromClauseAnsiAgain(vJoin0);
+                     }
+
+                     for(XJoin cjoin : pending) {
+                        from.append(AND);
+                        from.append(buildAnsiJoinCondition(cjoin));
+                        from.append(" ");
+                     }
+
+                     pending.clear();
+                  }
+
+                  lastRight = false;
                   tag.add(new Point(startX, startY));
                   newTables = true;
 
@@ -2305,6 +2347,13 @@ public class SQLHelper implements KeywordProvider {
                      startY = nextP.y;
                      continue;
                   }
+
+                  // no later step null-extends the group
+                  for(XJoin cjoin : pending) {
+                     addAnsiWhereJoin(cjoin);
+                  }
+
+                  pending.clear();
 
                   // if we reach here that means no related joins found
                   // moved ahead to find other groups
@@ -2700,6 +2749,39 @@ public class SQLHelper implements KeywordProvider {
    }
 
    /**
+    * Generate the ANSI from clause again, without writing the joins between joined tables as
+    * conditions. It writes such a join as a join of its table again, so the sql fails instead
+    * of returning wrong rows.
+    * @param vJoin0 the joins before generateFromClauseAnsi() reordered them.
+    */
+   private String generateFromClauseAnsiAgain(List<XJoin> vJoin0) {
+      vJoin = vJoin0;
+      noCycleConditions = true;
+
+      try {
+         return generateFromClauseAnsi();
+      }
+      finally {
+         noCycleConditions = false;
+      }
+   }
+
+   /**
+    * Check if a table has joins with other tables in the join matrix.
+    */
+   private static boolean hasOtherJoins(Deque<XJoin>[][] joins, int count, int index) {
+      for(int k = 0; k < count; k++) {
+         if(k != index && (joins[index][k] != null && !joins[index][k].isEmpty() ||
+            joins[k][index] != null && !joins[k][index].isEmpty()))
+         {
+            return true;
+         }
+      }
+
+      return false;
+   }
+
+   /**
     * Check if a matrix cell of the ANSI join walk joins no new table, i.e. if both of its
     * tables are already joined (the cell closes a cycle of the join graph) or its joins are
     * between columns of one table. Its joins are then conditions of the joined tables.
@@ -2715,8 +2797,9 @@ public class SQLHelper implements KeywordProvider {
     * Check if a join between two joined tables can be ANDed into the ON of the last join
     * step, which is the outermost ON of the group. An inner join can, unless the last step is
     * an outer join: in its ON the condition would keep the null-extended rows the inner join
-    * removes, so it goes to the where clause. An outer join can only if it has the outer join
-    * of the last step, i.e. the table the last step joined is on the same (preserved or null
+    * removes, so it filters the group after that step instead (in the where clause, or in the
+    * ON of a later right join step). An outer join can only if it has the outer join of the
+    * last step, i.e. the table the last step joined is on the same (preserved or null
     * supplying) side of both joins. Any other outer join can't be written and is treated as
     * an inner join.
     */
@@ -2819,7 +2902,47 @@ public class SQLHelper implements KeywordProvider {
       }
 
       String condition = where.startsWith(WHERE) ? where.substring(WHERE.length()) : where;
-      return WHERE + "(" + condition + ") " + AND + joins;
+
+      if(!isParenthesized(condition)) {
+         condition = "(" + condition + ")";
+      }
+
+      return WHERE + condition + " " + AND + joins;
+   }
+
+   /**
+    * Check if a condition is in one pair of parentheses, outside of quoted text.
+    */
+   private static boolean isParenthesized(String condition) {
+      condition = condition.trim();
+
+      if(!condition.startsWith("(") || !condition.endsWith(")")) {
+         return false;
+      }
+
+      int depth = 0;
+      char quote = 0;
+
+      for(int i = 0; i < condition.length(); i++) {
+         char c = condition.charAt(i);
+
+         if(quote != 0) {
+            if(c == quote) {
+               quote = 0;
+            }
+         }
+         else if(c == '\'' || c == '"') {
+            quote = c;
+         }
+         else if(c == '(') {
+            depth++;
+         }
+         else if(c == ')' && --depth == 0 && i < condition.length() - 1) {
+            return false;
+         }
+      }
+
+      return depth == 0 && quote == 0;
    }
 
    /**
@@ -5374,6 +5497,8 @@ public class SQLHelper implements KeywordProvider {
    private Boolean textJoinOrder = null; // isTextJoinOrder of this generation
    // conditions of the joins the ANSI FROM clause wrote in the where clause
    private List<String> ansiWhereJoins = null;
+   // true to generate the ANSI FROM clause without writing joins as cycle conditions
+   private boolean noCycleConditions = false;
    private Map<String, String> aliasmap = null; // old table alias -> new alias
    private String version = "";
    private boolean isFormatSQL; //for test auto case. Test will not format sql.

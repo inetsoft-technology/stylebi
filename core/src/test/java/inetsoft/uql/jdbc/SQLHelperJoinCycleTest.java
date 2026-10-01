@@ -49,6 +49,7 @@ class SQLHelperJoinCycleTest {
    private static final String COLS = "select a.id, b.id, c.id, d.id ";
    private static final String COLS5 = "select a.id, b.id, c.id, d.id, e.id ";
    private static final String DB = "jdbc:derby:memory:bug77489";
+   private static final String HSQLDB = "jdbc:hsqldb:mem:bug77489";
 
    // parsed queries with a cycle in their joins. With the join clauses cleared (a query saved
    // before they were recorded) or on an ANSI join data source, they use the join matrix walk
@@ -98,8 +99,38 @@ class SQLHelperJoinCycleTest {
       );
    }
 
+   // a right join after the outer step before the cycle edge null-extends the group, so the
+   // edge can't be a where condition. It goes into the ON of the right join
+   static Stream<String> rightJoinCycleQueries() {
+      return Stream.of(
+         COLS + "from a left join b on a.id = b.id join c on b.id = c.id and a.k = c.k " +
+            "right join d on c.id = d.id",
+         COLS + "from a right join b on a.id = b.id join c on a.id = c.id and b.k = c.k " +
+            "right join d on c.id = d.id",
+         COLS5 + "from a left join b on a.id = b.id join c on b.id = c.id and a.k = c.k " +
+            "right join d on c.id = d.id left join e on d.id = e.id",
+         COLS5 + "from a left join b on a.id = b.id join c on b.id = c.id and a.k = c.k " +
+            "join d on c.id = d.id right join e on d.k = e.k"
+      );
+   }
+
+   // queries with a full join after a cycle, run on HSQLDB (Derby has no full join)
+   static Stream<String> fullJoinCycleQueries() {
+      return Stream.of(
+         // the cycle edge is in the ON of an inner step
+         COLS + "from a join b on a.id = b.id join c on b.id = c.id and a.k = c.k " +
+            "full join d on c.id = d.id",
+         // the cycle edge follows an outer step, and no condition placement keeps its meaning
+         // once the full join null-extends the group
+         COLS + "from a left join b on a.id = b.id join c on b.id = c.id and a.k = c.k " +
+            "full join d on c.id = d.id",
+         COLS + "from a left join b on a.id = b.id join c on b.id = c.id and a.k = c.k " +
+            "left join d on c.id = d.id full join e on d.id = e.id"
+      );
+   }
+
    static Stream<Arguments> cycleQueryCases() {
-      return cycleQueries().flatMap(text -> Stream.of(
+      return Stream.concat(cycleQueries(), rightJoinCycleQueries()).flatMap(text -> Stream.of(
          Arguments.of(text, false, false), Arguments.of(text, false, true),
          Arguments.of(text, true, false), Arguments.of(text, true, true)));
    }
@@ -112,6 +143,64 @@ class SQLHelperJoinCycleTest {
    }
 
    @ParameterizedTest
+   @MethodSource("cycleQueryCases")
+   void cycleReturnsSameRowsOnHsqldb(String text, boolean legacy, boolean ansiJoin) throws Exception {
+      String generated = generate(parse(text, legacy), ansiJoin);
+      List<String> mismatch = rowMismatch(HSQLDB, text, generated);
+      assertNull(mismatch, "expected: " + text + "\ngenerated: " + generated + "\n" + mismatch);
+   }
+
+   static Stream<Arguments> fullJoinCycleQueryCases() {
+      return fullJoinCycleQueries().flatMap(text -> Stream.of(
+         Arguments.of(text, false, false), Arguments.of(text, false, true),
+         Arguments.of(text, true, false), Arguments.of(text, true, true)));
+   }
+
+   @ParameterizedTest
+   @MethodSource("fullJoinCycleQueryCases")
+   void fullJoinAfterCycleIsNeverSilentlyWrong(String text, boolean legacy, boolean ansiJoin)
+      throws Exception
+   {
+      // with a condition pending after an outer step, a later full join leaves no placement
+      // that keeps its meaning, so the joins are generated as before: the table of the cycle
+      // edge is joined again, which databases reject (Derby, PostgreSQL, MySQL, SQL Server).
+      // HSQLDB accepts a table twice, so a mismatch there must be that sql
+      String generated = generate(parse(text, legacy), ansiJoin);
+      List<String> mismatch = rowMismatch(HSQLDB, text, generated);
+
+      assertTrue(mismatch == null || hasDuplicateTable(generated),
+                 "expected: " + text + "\ngenerated: " + generated + "\n" + mismatch);
+   }
+
+   @Test
+   void fullJoinAfterInnerCycleStepKeepsTheCondition() throws Exception {
+      // the cycle edge is in the ON of the inner step, inside the full join
+      String text = COLS + "from a join b on a.id = b.id join c on b.id = c.id and a.k = c.k " +
+         "full join d on c.id = d.id";
+      String generated = generate(parse(text, true), true);
+      assertTrue(generated.contains("INNER JOIN c ON a.k = c.k AND b.id = c.id ) FULL OUTER JOIN d"),
+                 generated);
+      assertNull(rowMismatch(HSQLDB, text, generated), generated);
+   }
+
+   @Test
+   void conditionAfterOuterStepIsInTheOnOfALaterRightJoin() throws Exception {
+      String text = COLS + "from a left join b on a.id = b.id join c on b.id = c.id and " +
+         "a.k = c.k right join d on c.id = d.id";
+      String generated = generate(parse(text, true), true);
+      assertTrue(generated.endsWith("RIGHT OUTER JOIN d ON c.id = d.id AND a.k = c.k"), generated);
+      assertSameRows(text, generated);
+
+      // a.id *= c.id is the last step before b.k = c.k, and c.id =* d.id keeps all d rows
+      generated = generate(editor("a.id = b.id", "a.id *= c.id", "b.k = c.k", "c.id =* d.id"), true);
+      assertTrue(generated.endsWith("LEFT OUTER JOIN c ON a.id = c.id ) RIGHT OUTER JOIN d ON " +
+                                    "c.id = d.id AND b.k = c.k"), generated);
+      assertSameRows("select t.ai, t.bi, t.ci, d.id from (select a.id ai, b.id bi, c.id ci " +
+                     "from a join b on a.id = b.id left join c on a.id = c.id where b.k = c.k) t " +
+                     "right join d on t.ci = d.id", generated);
+   }
+
+   @ParameterizedTest
    @MethodSource("cycleQueries")
    void regeneratedCycleRoundTrips(String text) throws Exception {
       // a reparsed outer join can swap its ON operands once, so require a fixed point after
@@ -120,6 +209,17 @@ class SQLHelperJoinCycleTest {
       String regenerated = generate(parse(generated, true), true);
       assertEquals(regenerated, generate(parse(regenerated, true), true));
       assertSameRows(text, regenerated);
+   }
+
+   @ParameterizedTest
+   @MethodSource("rightJoinCycleQueries")
+   void rightJoinWithCycleConditionIsNotReparsed(String text) throws Exception {
+      // the parser refuses an outer join ON between more than one pair of tables, so the
+      // regenerated sql fails to parse (and runs as written) instead of parsing differently
+      String generated = generate(parse(text, true), true);
+      Exception ex = assertThrows(Exception.class, () -> parse(generated, false));
+      assertTrue(String.valueOf(ex.getMessage()).contains("Unsupported outer join condition"),
+                 String.valueOf(ex.getMessage()));
    }
 
    @Test
@@ -154,7 +254,7 @@ class SQLHelperJoinCycleTest {
          "a.k = c.k left join d on c.id = d.id where a.id > 1 or b.k is null";
       generated = generate(parse(text, true), true);
       assertTrue(generated.endsWith("RIGHT OUTER JOIN a ON a.id = b.id ) LEFT OUTER JOIN d ON " +
-                                    "c.id = d.id where ((a.id > 1 or b.k is null)) AND a.k = c.k"),
+                                    "c.id = d.id where (a.id > 1 or b.k is null) AND a.k = c.k"),
                  generated);
       assertSameRows(text, generated);
    }
@@ -228,9 +328,10 @@ class SQLHelperJoinCycleTest {
 
    @Test
    void oneTableJoinIsACondition() throws Exception {
-      // at the start of a group it would join the table to itself
+      // at the start of a group it would join the table to itself. It's a condition of the
+      // group, here in the ON of the inner join
       String generated = generate(editor("a.k = a.id", "a.id = b.id"), true);
-      assertTrue(generated.endsWith("from a INNER JOIN b ON a.id = b.id where a.k = a.id"),
+      assertTrue(generated.endsWith("from a INNER JOIN b ON a.id = b.id AND a.k = a.id"),
                  generated);
       assertRuns(generated);
 
@@ -321,17 +422,25 @@ class SQLHelperJoinCycleTest {
 
    @BeforeAll
    static void createTables() throws SQLException {
-      try(Connection conn = DriverManager.getConnection(DB + ";create=true");
-          Statement stmt = conn.createStatement())
-      {
-         for(String table : TABLES) {
-            stmt.executeUpdate("create table " + table + " (id int, k int)");
+      for(String url : new String[] { DB + ";create=true", HSQLDB }) {
+         try(Connection conn = DriverManager.getConnection(url);
+             Statement stmt = conn.createStatement())
+         {
+            for(String table : TABLES) {
+               stmt.executeUpdate("create table " + table + " (id int, k int)");
+            }
          }
       }
    }
 
    @AfterAll
-   static void dropDatabase() {
+   static void dropDatabase() throws SQLException {
+      try(Connection conn = DriverManager.getConnection(HSQLDB);
+          Statement stmt = conn.createStatement())
+      {
+         stmt.execute("shutdown");
+      }
+
       try {
          DriverManager.getConnection(DB + ";drop=true").close();
       }
@@ -352,9 +461,15 @@ class SQLHelperJoinCycleTest {
 
    // the rows of the first dataset that differs, or null if every dataset is the same
    private static List<String> rowMismatch(String expected, String generated) throws SQLException {
+      return rowMismatch(DB, expected, generated);
+   }
+
+   private static List<String> rowMismatch(String url, String expected, String generated)
+      throws SQLException
+   {
       Random random = new Random(77489);
 
-      try(Connection conn = DriverManager.getConnection(DB)) {
+      try(Connection conn = DriverManager.getConnection(url)) {
          for(int i = 0; i < 200; i++) {
             fillTables(conn, random);
             List<String> rows1 = rows(conn, expected);
@@ -367,6 +482,21 @@ class SQLHelperJoinCycleTest {
       }
 
       return null;
+   }
+
+   // check if a table is in the from clause more than once
+   private static boolean hasDuplicateTable(String sql) {
+      java.util.regex.Matcher matcher =
+         java.util.regex.Pattern.compile("(?:from \\(*|JOIN )(\\w+)").matcher(sql);
+      Set<String> tables = new HashSet<>();
+
+      while(matcher.find()) {
+         if(!tables.add(matcher.group(1))) {
+            return true;
+         }
+      }
+
+      return false;
    }
 
    private static void assertRuns(String sql) throws SQLException {
@@ -404,7 +534,10 @@ class SQLHelperJoinCycleTest {
                insert.addBatch();
             }
 
-            insert.executeBatch();
+            // hsqldb rejects an empty batch
+            if(count > 0) {
+               insert.executeBatch();
+            }
          }
       }
    }
