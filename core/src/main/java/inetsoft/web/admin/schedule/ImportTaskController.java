@@ -187,14 +187,26 @@ public class ImportTaskController {
          }
 
          if(selectedTasks.contains(taskId) && (!taskExists || overwriting)) {
+            // Bug #77350, only a task imported here is moved from the root folder, where
+            // setScheduleTask put it, to its folder in the xml
+            boolean move = isMovedToFolder(task, path);
+
+            // Bug #77503, the move is refused without write permission on the folder, check it
+            // before the task is saved so the task is reported as failed instead of the refusal
+            // aborting the rest of the import
+            if(move && !scheduleTaskFolderService.checkFolderPermission(
+               path, principal, ResourceAction.WRITE))
+            {
+               LOG.warn("Task {} is not imported, the user doesn't have the write permission " +
+                        "on its folder {}", taskId, path);
+               failedList.add(taskId);
+               continue;
+            }
+
             updateTaskInfo(task, linkURI);
             scheduleManager.setScheduleTask(taskId, task, principal);
 
-            // Bug #77350, only a task imported here is moved from the root folder, where
-            // setScheduleTask put it, to its folder in the xml
-            if(path != null &&
-               scheduleTaskFolderService.checkFolderExists(path))
-            {
+            if(move) {
                moveTask(task, path, principal);
             }
          }
@@ -292,12 +304,26 @@ public class ImportTaskController {
       TimeRange.setTimeRanges(ranges);
    }
 
+   /**
+    * Checks if an imported task is moved into its folder in the xml, the same tasks that
+    * ScheduleTaskFolderService.getMovableTask() lets the move change.
+    */
+   private boolean isMovedToFolder(ScheduleTask task, String path) {
+      return path != null && scheduleTaskFolderService.checkFolderExists(path) &&
+         task.isRemovable() && !isInternal(task) &&
+         task.getType() != ScheduleTask.Type.CYCLE_TASK;
+   }
+
+   // Bug #77350, internal tasks are never moved into a folder, and the removable flag of
+   // the xml isn't trusted for them
+   private static boolean isInternal(ScheduleTask task) {
+      return task.getType() == ScheduleTask.Type.INTERNAL_TASK ||
+         ScheduleManager.isInternalTask(task.getTaskId());
+   }
+
    private void moveTask(ScheduleTask task, String path, Principal principal) throws Exception {
       String taskId = task.getTaskId();
-      // Bug #77350, internal tasks are never moved into a folder, and the removable flag of
-      // the xml isn't trusted for them
-      boolean internal = task.getType() == ScheduleTask.Type.INTERNAL_TASK ||
-         ScheduleManager.isInternalTask(taskId);
+      boolean internal = isInternal(task);
       ScheduleTaskModel model = ScheduleTaskModel.builder()
          .name(taskId)
          .owner(task.getOwner())
