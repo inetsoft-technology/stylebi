@@ -122,7 +122,72 @@ public class XJoin extends XBinaryCondition {
       }
 
       String table = XUtil.getTablePart(column, sql);
-      return table == null ? "" : table;
+
+      if(table == null) {
+         return "";
+      }
+
+      if(sql != null && !table.isEmpty() && sql.getTableIndex(table) < 0) {
+         String fromTable = getUnaliasedTable(table, sql);
+
+         if(fromTable != null) {
+            return fromTable;
+         }
+      }
+
+      return table;
+   }
+
+   /**
+    * Find the unaliased FROM table that a join qualifier names when the qualifier text is not
+    * a FROM table or alias as written: a table whose name is the qualifier once quotes are
+    * removed (dialects such as PostgreSQL store unaliased tables quoted, e.g. "s"."a" for
+    * s.a), or else one whose name ends with the qualifier, e.g. s.a for a.id or c.s.a for
+    * s.a.id. Databases expose an unaliased schema-qualified table under its unqualified name
+    * too, so the qualifier names that table. Returns null if no table or more than one table
+    * matches, so an ambiguous qualifier is not resolved.
+    */
+   private static String getUnaliasedTable(String qualifier, UniformSQL sql) {
+      SelectTable[] tables = sql.getSelectTable();
+
+      if(tables == null) {
+         return null;
+      }
+
+      String name = unquote(qualifier);
+      String match = getUnaliasedTable(tables, name, false);
+      return match != null ? match : getUnaliasedTable(tables, name, true);
+   }
+
+   private static String getUnaliasedTable(SelectTable[] tables, String qualifier,
+                                           boolean suffix)
+   {
+      String match = null;
+
+      for(SelectTable table : tables) {
+         Object name = table.getName();
+         String alias = table.getAlias();
+
+         if(!(name instanceof String) || alias != null && !alias.equals(name)) {
+            continue;
+         }
+
+         String tname = unquote((String) name);
+
+         if(suffix ? tname.endsWith("." + qualifier) : tname.equals(qualifier)) {
+            if(match != null) {
+               return null;
+            }
+
+            match = (String) name;
+         }
+      }
+
+      return match;
+   }
+
+   private static String unquote(String name) {
+      return name.replace("\"", "");
    }
 
    /**
