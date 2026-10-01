@@ -53,6 +53,7 @@ public class TablePropertyDialogService extends WorksheetControllerService {
    {
       RuntimeWorksheet rws = super.getWorksheetEngine().getWorksheet(runtimeId, principal);
       Worksheet ws = rws.getWorksheet();
+      checkCubeTableReadPermission(principal, name);
       AbstractTableAssembly table = (AbstractTableAssembly) ws.getAssembly(name);
 
       if(table != null) {
@@ -91,6 +92,7 @@ public class TablePropertyDialogService extends WorksheetControllerService {
    {
       RuntimeWorksheet rws = super.getRuntimeWorksheet(runtimeId, principal);
       Worksheet ws = rws.getWorksheet();
+      checkCubeTableReadPermission(principal, model.getOldName(), model.getNewName());
       AbstractTableAssembly assembly = (AbstractTableAssembly) ws
          .getAssembly(model.getOldName());
 

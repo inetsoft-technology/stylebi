@@ -49,6 +49,7 @@ public class WSRenameAssemblyService extends WorksheetControllerService {
    {
       RuntimeWorksheet rws = super.getRuntimeWorksheet(runtimeId, principal);
       Worksheet ws = rws.getWorksheet();
+      checkCubeTableReadPermission(principal, event.oldName(), event.newName());
       WSAssembly assembly = (WSAssembly) ws.getAssembly(event.oldName());
 
       if(assembly != null) {

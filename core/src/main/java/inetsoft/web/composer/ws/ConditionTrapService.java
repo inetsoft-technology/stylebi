@@ -58,6 +58,7 @@ public class ConditionTrapService extends WorksheetControllerService {
       runtimeId = Tool.byteDecode(runtimeId);
       RuntimeWorksheet rws = super.getWorksheetEngine().getWorksheet(runtimeId, principal);
       Worksheet ws = rws.getWorksheet();
+      checkCubeTableReadPermission(principal, model.tableName());
       TableAssembly table = (TableAssembly) ws.getAssembly(model.tableName());
 
       if(table != null) {
