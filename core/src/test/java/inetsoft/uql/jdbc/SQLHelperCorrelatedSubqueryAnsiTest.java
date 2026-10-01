@@ -214,6 +214,36 @@ class SQLHelperCorrelatedSubqueryAnsiTest {
                                "b.k = 1)", dataSource("h2-ansi")));
    }
 
+   // scalar subqueries (select list and where) and a FULL join inside the subquery take the
+   // same path: the outer table was joined inside the subquery and the outer join dropped
+   @ParameterizedTest
+   @CsvSource(delimiter = '|', value = {
+      "select a.id ai, (select count(*) from b left join c on b.id = c.id where b.id = a.id) " +
+         "cnt from a|select (select count(*) from b LEFT OUTER JOIN c ON b.id = c.id where " +
+         "b.id = a.id ) as cnt, a.id as ai from a|true",
+      "select a.id ai from a where (select count(*) from b left join c on b.id = c.id where " +
+         "b.id = a.id) > 1|select a.id as ai from a where ( select count(*) from b LEFT OUTER " +
+         "JOIN c ON b.id = c.id where b.id = a.id) > 1|true",
+      "select a.id ai from a where exists (select 1 from b full outer join c on b.id = c.id " +
+         "where b.id = a.id)|select a.id as ai from a where EXISTS ( select 1 from b FULL OUTER " +
+         "JOIN c ON b.id = c.id where b.id = a.id)|false",
+   })
+   void scalarAndFullJoinSubqueries(String text, String expected, boolean rows)
+      throws Exception
+   {
+      for(String type : new String[] { "default", "h2-ansi", "derby" }) {
+         JDBCDataSource ds = dataSource(type);
+         String generated = generate(text, ds);
+         assertEquals(expected, generated, type);
+         assertEquals(generated, generate(generated, ds), "round trip " + type);
+      }
+
+      // Derby has no FULL join
+      if(rows) {
+         assertEquals(0, diffCount(text, generate(text, dataSource("derby")), 120), text);
+      }
+   }
+
    // row comparison on Derby: the original and the regenerated SQL return the same rows
    @ParameterizedTest
    @ValueSource(strings = {
