@@ -613,7 +613,7 @@ public class ExtendedDateFormat extends SimpleDateFormat {
          else {
             ZonedDateTime dateTime = LocalDateTime
                .of(year, month, day, hour, minute, second, nanosecond)
-               .atZone(ZoneId.systemDefault());
+               .atZone(zone.toZoneId());
             return new Date(dateTime.toInstant().toEpochMilli());
          }
       }
