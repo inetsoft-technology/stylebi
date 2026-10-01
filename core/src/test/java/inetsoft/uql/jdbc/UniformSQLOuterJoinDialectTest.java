@@ -44,7 +44,8 @@ import static org.mockito.Mockito.when;
 
 /**
  * Bug #77440, the outer join table check resolves a join column's table the same way with
- * every data source. A data source whose helper quotes identifiers (e.g. PostgreSQL)
+ * every data source, and a query with an outer join can't join a table outside its own
+ * from clause (a correlated subquery). A data source whose helper quotes identifiers (e.g. PostgreSQL)
  * stores an unaliased table with its quoted name ("a"), while the join column's table
  * part is unquoted (a), and the two must still be the same table.
  */
@@ -67,8 +68,11 @@ class UniformSQLOuterJoinDialectTest {
                       "jdbc:sqlserver://localhost;databaseName=db"),
          Arguments.of("access", "net.ucanaccess.jdbc.UcanaccessDriver", "jdbc:ucanaccess://db.accdb"),
          Arguments.of("oracle", "oracle.jdbc.OracleDriver", "jdbc:oracle:thin:@localhost:1521:db"),
+         Arguments.of("oracle ansi", "oracle.jdbc.OracleDriver", "jdbc:oracle:thin:@localhost:1521:db"),
          Arguments.of("db2", "com.ibm.db2.jcc.DB2Driver", "jdbc:db2://localhost:50000/db"),
          Arguments.of("h2", "org.h2.Driver", "jdbc:h2:mem:db"),
+         Arguments.of("h2 ansi", "org.h2.Driver", "jdbc:h2:mem:db"),
+         Arguments.of("postgresql ansi", "org.postgresql.Driver", "jdbc:postgresql://localhost:5432/db"),
          Arguments.of("sybase", "net.sourceforge.jtds.jdbc.Driver", "jdbc:jtds:sybase://localhost/db"),
          Arguments.of("hive", "org.apache.hive.jdbc.HiveDriver", "jdbc:hive2://localhost:10000/db"),
          Arguments.of("google bigquery", "com.simba.googlebigquery.jdbc42.Driver",
@@ -94,6 +98,39 @@ class UniformSQLOuterJoinDialectTest {
       "select * from a left join b on id = bid",
       "select * from a left join b on b.id = zz.id"
    };
+
+   // a query with an outer join that joins a table outside its from clause, the
+   // generated from clause would join the outer table into the subquery
+   static final String[] OUTSIDE_TABLE_REFUSED = {
+      "select * from a where exists (select 1 from c left join d on d.id = c.id where c.id = a.id)",
+      "select * from a where not exists (select 1 from c left join d on d.id = c.id " +
+         "where a.id = c.id and d.k = 1)",
+      "select * from a where a.id in (select c.id from c left join d on d.id = c.id where c.k = a.k)",
+      "select * from a where exists (select 1 from c right join d on d.id = c.id where d.id = a.id)",
+      "select * from a where exists (select 1 from c, d where c.id = d.id(+) and c.id = a.id)",
+      "select * from (select c.id from c left join d on d.id = c.id where c.k = a.k) t, a",
+      "select * from a left join b on b.id = a.id where a.x = zz.y"
+   };
+
+   // a correlated subquery without an outer join keeps its joins in the where clause
+   static final String[] CORRELATED_ACCEPTED = {
+      "select * from a where exists (select 1 from c where c.id = a.id)",
+      "select * from a where exists (select 1 from c, d where c.id = d.id and c.id = a.id)",
+      "select * from a where exists (select 1 from c join d on d.id = c.id where c.id = a.id)",
+      "select * from a where a.id in (select c.id from c where c.k = a.k)",
+      "select * from a left join b on b.id = a.id where exists (select 1 from c where c.id = b.id)"
+   };
+
+   static Stream<Arguments> outsideTableRefusedCases() {
+      return cases(OUTSIDE_TABLE_REFUSED);
+   }
+
+   // a data source with ansi joins generates every join of the subquery in its from
+   // clause, which loses the correlation (a separate, existing problem), so only the
+   // data sources that keep the subquery's joins in its where clause are checked
+   static Stream<Arguments> correlatedAcceptedCases() {
+      return cases(CORRELATED_ACCEPTED).filter(a -> !((String) a.get()[0]).endsWith(" ansi"));
+   }
 
    static Stream<Arguments> acceptedCases() {
       return cases(ACCEPTED);
@@ -163,14 +200,79 @@ class UniformSQLOuterJoinDialectTest {
       assertEquals(expected, normalize(parse(text, ds).getSQLString()));
    }
 
+   @ParameterizedTest(name = "{0}: {3}")
+   @MethodSource("outsideTableRefusedCases")
+   void outerJoinQueryJoiningOutsideTableFails(String type, String driver, String url,
+                                               String text)
+   {
+      JDBCDataSource ds = dataSource(type, driver, url);
+      RecognitionException ex = assertThrows(RecognitionException.class, () -> parse(text, ds));
+      assertTrue(ex.getMessage().contains("Unsupported"), ex.getMessage());
+
+      UniformSQL sql = new UniformSQL();
+      sql.setDataSource(ds);
+      new SQLProcessor(sql).parse(text);
+      assertEquals(UniformSQL.PARSE_FAILED, sql.getParseResult());
+   }
+
+   @ParameterizedTest(name = "{0}: {3}")
+   @MethodSource("correlatedAcceptedCases")
+   void correlatedSubqueryWithoutOuterJoinParses(String type, String driver, String url,
+                                                 String text)
+      throws Exception
+   {
+      JDBCDataSource ds = dataSource(type, driver, url);
+      UniformSQL sql = parse(text, ds);
+      assertEquals(UniformSQL.PARSE_SUCCESS, sql.getParseResult());
+      String generated = normalize(sql.getSQLString());
+      // the subquery keeps its own tables and the correlation stays in its where clause
+      assertTrue(generated.replace("\"", "").matches(".*\\( select [^()]* where [^()]*\\.\\w+ = [^()]*\\)$"),
+                 generated);
+      assertEquals(generated, normalize(parse(generated, ds).getSQLString()));
+   }
+
+   @ParameterizedTest
+   @CsvSource(delimiter = '|', value = {
+      "sql server | select * from a left join b on b.id = a.id | " +
+         "select * from a LEFT OUTER JOIN b ON a.id = b.id",
+      "sql server | select * from a where exists (select 1 from c join d on d.id = c.id " +
+         "where c.id = a.id) | select * from a where EXISTS ( select 1 from c, d " +
+         "where d.id = c.id and c.id = a.id)",
+      "oracle | select * from a left join b on b.id = a.id where exists " +
+         "(select 1 from c where c.id = b.id) | select * from a, b where a.id = b.id(+) " +
+         "and EXISTS ( select 1 from c where c.id = b.id)",
+      "oracle ansi | select * from a left join b on b.id = a.id | " +
+         "select * from a LEFT OUTER JOIN b ON a.id = b.id",
+      "postgresql | select * from a where exists (select 1 from c where c.id = a.id) | " +
+         "select * from \"a\" where EXISTS ( select 1 from \"c\" where \"c\".\"id\" = \"a\".\"id\")",
+      // quoted names are case-sensitive, \"A\" and a are two tables
+      "postgresql | select * from \"A\", a left join c on c.id = a.id where \"A\".id = a.id | " +
+         "select * from (\"A\" INNER JOIN \"a\" ON \"A\".\"id\" = \"a\".\"id\" ) " +
+         "LEFT OUTER JOIN \"c\" ON \"a\".\"id\" = \"c\".\"id\""
+   })
+   void generatesSql(String type, String text, String expected) throws Exception {
+      JDBCDataSource ds = dataSource(type, null, null);
+      assertEquals(expected, normalize(parse(text, ds).getSQLString()));
+   }
+
    private static JDBCDataSource dataSource(String type, String driver, String url) {
+      boolean ansi = type.endsWith(" ansi");
+      String product = ansi ? type.substring(0, type.length() - 5) : type;
+
+      if(driver == null) {
+         Arguments args = dataSources().filter(a -> a.get()[0].equals(type)).findFirst().get();
+         driver = (String) args.get()[1];
+         url = (String) args.get()[2];
+      }
+
       JDBCDataSource ds = new JDBCDataSource();
+      ds.setAnsiJoin(ansi);
       ds.setName("ds");
       ds.setDriver(driver);
       ds.setURL(url);
       // a version so the helper lookup doesn't query the database
       ds.setProductVersion("19.0");
-      assertEquals(type, SQLHelper.getProductName(ds));
+      assertEquals(product, SQLHelper.getProductName(ds));
       return ds;
    }
 

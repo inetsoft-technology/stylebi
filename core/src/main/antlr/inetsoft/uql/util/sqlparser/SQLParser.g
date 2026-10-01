@@ -310,6 +310,51 @@ private int getJoinTableIndex(UniformSQL sql, String table) {
    return sql.getJoinTableIndex(table);
 }
 
+/**
+ * Check that a query with an outer join doesn't join a table that isn't in its
+ * own from clause, such as a correlated subquery's join to an outer query
+ * table. The joins of a query with an outer join are generated in its from
+ * clause, which would add the outer table to the subquery and lose the
+ * correlation. A query without an outer join keeps the join in its where clause.
+ */
+private void checkOuterJoinTables(UniformSQL sql, Token tok)
+   throws SemanticException
+{
+   List joins = new ArrayList();
+   collectJoins(sql.getWhere(), joins);
+   boolean outer = false;
+
+   for(int i = 0; i < joins.size() && !outer; i++) {
+      outer = ((XJoin) joins.get(i)).isOuterJoin();
+   }
+
+   for(int i = 0; i < joins.size() && outer; i++) {
+      XJoin join = (XJoin) joins.get(i);
+      String[] tables = { join.getTable1(sql), join.getTable2(sql) };
+
+      for(int j = 0; j < tables.length; j++) {
+         if(tables[j] != null && tables[j].length() > 0 &&
+            getJoinTableIndex(sql, tables[j]) < 0)
+         {
+            throw new SemanticException(
+               "Unsupported join to a table outside the from clause: " + join,
+               getFilename(), tok.getLine(), tok.getColumn());
+         }
+      }
+   }
+}
+
+private void collectJoins(XFilterNode node, List joins) {
+   if(node instanceof XJoin) {
+      joins.add(node);
+   }
+   else if(node instanceof XSet) {
+      for(int i = 0; i < node.getChildCount(); i++) {
+         collectJoins((XFilterNode) node.getChild(i), joins);
+      }
+   }
+}
+
 private boolean collectOuterJoins(XFilterNode node, List joins) {
    if(node instanceof XJoin) {
       joins.add(node);
@@ -2467,6 +2512,7 @@ table_exp [UniformSQL sql]
         (from_clause[sql])?
         ( where = where_clause {where.setClause(XFilterNode.WHERE); sql.combineWhereByAnd(where);})?
         ( group_by_clause[sql] )?
+        {if(sql != null) {checkOuterJoinTables(sql, LT(1));}}
         ( having = having_clause {having.setClause(XFilterNode.HAVING); sql.setHaving(having);})?
         ((ORDER BY)=> nouse = order_by_clause[sql] )?
         ;

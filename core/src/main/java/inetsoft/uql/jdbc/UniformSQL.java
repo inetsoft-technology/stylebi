@@ -2518,7 +2518,8 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
     * (XJoin.getTable1/getTable2) refers to. The table part has its quotes removed,
     * while a table without an alias keeps its quoted name as the alias (e.g. "a"
     * when the data source quotes identifiers), so quotes are ignored when there is
-    * no exact match.
+    * no exact match. A case-sensitive match is preferred, since a quoted name is
+    * case-sensitive (e.g. "A" and "a" can be two tables).
     * @param table the table part of a join column.
     * @return -1 if the table is empty or not found.
     */
@@ -2527,14 +2528,14 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
          return -1;
       }
 
-      int index = getTableIndex(table);
-
-      if(index >= 0) {
-         return index;
-      }
-
       String name = stripIdentifierQuotes(table);
+      int index = findJoinTable(table, false, false);
+      index = index >= 0 ? index : findJoinTable(name, true, false);
+      index = index >= 0 ? index : getTableIndex(table);
+      return index >= 0 ? index : findJoinTable(name, true, true);
+   }
 
+   private int findJoinTable(String table, boolean strip, boolean ignoreCase) {
       for(int i = 0; i < tables.size(); i++) {
          SelectTable stable = tables.get(i);
          String salias = stable.getAlias();
@@ -2543,7 +2544,13 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
             salias = (String) stable.getName();
          }
 
-         if(salias != null && name.equalsIgnoreCase(stripIdentifierQuotes(salias))) {
+         if(salias == null) {
+            continue;
+         }
+
+         salias = strip ? stripIdentifierQuotes(salias) : salias;
+
+         if(ignoreCase ? table.equalsIgnoreCase(salias) : table.equals(salias)) {
             return i;
          }
       }
@@ -2552,7 +2559,17 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
    }
 
    private static String stripIdentifierQuotes(String name) {
-      return name.replaceAll("[\"`\\[\\]]", "");
+      StringBuilder buf = new StringBuilder(name.length());
+
+      for(int i = 0; i < name.length(); i++) {
+         char ch = name.charAt(i);
+
+         if(ch != '"' && ch != '`' && ch != '[' && ch != ']') {
+            buf.append(ch);
+         }
+      }
+
+      return buf.toString();
    }
 
    /**
