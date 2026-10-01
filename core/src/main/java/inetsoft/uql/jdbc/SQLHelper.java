@@ -2830,7 +2830,10 @@ public class SQLHelper implements KeywordProvider {
 
    /**
     * Check if a join is ANDed with the other conditions, i.e. no set above it is negated or
-    * an or set with more than one condition.
+    * an or set with more than one condition. Unlike isJoinPathAnded(), the or sets of a join
+    * group are not allowed: a join that is ANDed into an ON (or the where clause) as a cycle
+    * condition, and a join step that a condition is ANDed after, must not be an alternative of
+    * another join.
     */
    private boolean isJoinAnded(XJoin join) {
       for(XNode node = join.getParent(); node instanceof XSet; node = node.getParent()) {
@@ -2849,7 +2852,9 @@ public class SQLHelper implements KeywordProvider {
    /**
     * Check if a join is on a non-negated all-AND path of the where tree, allowing the or sets
     * of a join group built by UniformSQL.addJoin, which hold alternative joins of one pair of
-    * tables that are written into the ON of that pair.
+    * tables that are written into the ON of that pair. This is the query-wide check: a join
+    * group's or set is still a join of the query, so it doesn't turn cycle conditions off,
+    * while isJoinAnded() keeps the cells of such a group from being written as conditions.
     */
    private boolean isJoinPathAnded(XJoin join) {
       for(XNode node = join.getParent(); node instanceof XSet; node = node.getParent()) {

@@ -110,7 +110,10 @@ class SQLHelperJoinCycleTest {
          COLS5 + "from a left join b on a.id = b.id join c on b.id = c.id and a.k = c.k " +
             "right join d on c.id = d.id left join e on d.id = e.id",
          COLS5 + "from a left join b on a.id = b.id join c on b.id = c.id and a.k = c.k " +
-            "join d on c.id = d.id right join e on d.k = e.k"
+            "join d on c.id = d.id right join e on d.k = e.k",
+         // an inner step with its own cycle edge between the held condition and the right join
+         COLS5 + "from a left join b on a.id = b.id join c on b.id = c.id and a.k = c.k " +
+            "join d on c.id = d.id and b.k = d.k right join e on d.id = e.id"
       );
    }
 
@@ -171,6 +174,57 @@ class SQLHelperJoinCycleTest {
       assertTrue(mismatch == null || hasDuplicateTable(generated),
                  "expected: " + text + "\ngenerated: " + generated + "\n" + mismatch);
    }
+
+   @Test
+   void fullJoinAfterFlushedConditionsKeepsTheRows() throws Exception {
+      // the held condition is in the ON of the right join, so nothing is held at the full join
+      // and the cycle is still written as a condition
+      String text = COLS5 + "from a left join b on a.id = b.id join c on b.id = c.id and " +
+         "a.k = c.k right join d on c.id = d.id full join e on d.id = e.id";
+
+      for(boolean legacy : new boolean[] { false, true }) {
+         for(boolean ansiJoin : new boolean[] { false, true }) {
+            String generated = generate(parse(text, legacy), ansiJoin);
+            assertFalse(hasDuplicateTable(generated), generated);
+            assertNull(rowMismatch(HSQLDB, text, generated), generated);
+         }
+      }
+   }
+
+   @Test
+   void heldConditionsGoIntoOneRightJoin() throws Exception {
+      // a.k = c.k and d.k = c.k both follow the outer join of c, and the right join of e gets
+      // both of them
+      String generated = generate(editor("a.id = b.id", "b.id = d.id", "a.k = c.k", "d.k = c.k",
+                                         "b.id *= c.id", "d.id =* e.id"), true);
+      assertTrue(generated.endsWith("RIGHT OUTER JOIN e ON d.id = e.id AND a.k = c.k AND d.k = c.k"),
+                 generated);
+      assertSameRows("select t.ai, t.bi, t.ci, t.di, e.id from (select a.id ai, b.id bi, c.id ci, " +
+                     "d.id di from a join b on a.id = b.id join d on b.id = d.id left join c " +
+                     "on b.id = c.id where a.k = c.k and d.k = c.k) t right join e on t.di = e.id",
+                     generated);
+   }
+
+   @Test
+   void legacyCycleKeepsTheOuterLastOrder() throws Exception {
+      // Known risk: a parsed query saved before #77475 has no recorded join clauses, so it
+      // can't be told from joins built in the query editor. A cycle makes getLoyalJoins fail,
+      // so its joins take the outer-last order, which keeps the a rows that the text's inner
+      // join to d removes. It used to fail with a duplicate table; now it runs with that
+      // order. This pins the sql, so a fix of the order is a deliberate change
+      String text = COLS5 + "from a left join b on a.id = b.id left join c on a.id = c.id " +
+         "join d on c.id = d.id join e on c.id = e.id and d.k = e.k";
+      String generated = generate(parse(text, true), true);
+      assertTrue(generated.endsWith(LEGACY_OUTER_LAST), generated);
+      assertRuns(generated);
+
+      // with the join clauses recorded (the sql parsed again), the text order is kept
+      assertSameRows(text, generate(parse(text, false), true));
+   }
+
+   private static final String LEGACY_OUTER_LAST = "from (((c INNER JOIN d ON c.id = d.id ) " +
+      "INNER JOIN e ON c.id = e.id AND d.k = e.k ) RIGHT OUTER JOIN a ON a.id = c.id ) " +
+      "LEFT OUTER JOIN b ON a.id = b.id";
 
    @Test
    void fullJoinAfterInnerCycleStepKeepsTheCondition() throws Exception {
