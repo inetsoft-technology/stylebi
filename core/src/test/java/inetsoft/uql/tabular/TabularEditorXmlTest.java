@@ -18,6 +18,7 @@
 package inetsoft.uql.tabular;
 
 import inetsoft.test.*;
+import inetsoft.util.ItemList;
 import inetsoft.util.Tool;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -149,6 +150,23 @@ class TabularEditorXmlTest {
       assertNull(editor.getValue());
    }
 
+   @Test
+   void itemListWithUnknownCollectionEditorKeepsParsing() throws Exception {
+      String xml = "<itemList><tabularEditor class=\"" + TabularEditor.class.getName() + "\">" +
+         "<type>LIST</type><subtype>TEXT</subtype>" +
+         "<propertyType><![CDATA[" + ItemListSentinel.class.getName() + "]]></propertyType>" +
+         "<propertySubtype><![CDATA[java.lang.String]]></propertySubtype>" +
+         "<value><value><![CDATA[a]]></value></value></tabularEditor></itemList>";
+      ItemList list = new ItemList();
+      list.parseXML(Tool.parseXML(new StringReader(xml)).getDocumentElement());
+
+      assertEquals(1, list.size());
+      TabularEditor editor = assertInstanceOf(TabularEditor.class, list.getItem(0));
+      assertNull(editor.getValue());
+      assertEquals(0, SENTINEL[3], "static initializer ran");
+      assertEquals(0, SENTINEL[4], "constructor ran");
+   }
+
    private static TabularEditor parseEditor(Consumer<TabularEditor> init) throws Exception {
       TabularEditor editor = new TabularEditor();
       editor.setType(TabularEditor.Type.LIST);
@@ -166,11 +184,16 @@ class TabularEditorXmlTest {
       return result;
    }
 
-   private static final int[] SENTINEL = new int[3];
+   private static final int[] SENTINEL = new int[5];
 
    public static class SentinelCollection extends ArrayList<Object> {
       static { SENTINEL[0]++; }
       public SentinelCollection() { SENTINEL[1]++; }
+   }
+
+   public static class ItemListSentinel extends ArrayList<Object> {
+      static { SENTINEL[3]++; }
+      public ItemListSentinel() { SENTINEL[4]++; }
    }
 
    public static class SentinelElement {
