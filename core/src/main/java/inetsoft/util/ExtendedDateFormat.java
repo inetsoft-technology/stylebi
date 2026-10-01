@@ -623,14 +623,18 @@ public class ExtendedDateFormat extends SimpleDateFormat {
 
    /**
     * Get the shared java.time formatter for the pattern and zone of this format, or null if
-    * java.time cannot compile the pattern (e.g. the escaped extended quarter patterns) or
-    * cannot convert the zone. The
+    * java.time cannot compile the pattern (e.g. the escaped extended quarter patterns),
+    * the pattern has a zone field, or java.time cannot convert the zone. The
     * result depends only on the pattern and zone, never on what was parsed before.
     */
    private DateTimeFormatter getFormatter() {
       String pattern = toPattern();
 
-      if(unsupportedPatterns.contains(pattern)) {
+      // parse(str, null) keeps only the local fields, which would drop the parsed offset or
+      // zone name, so patterns with a zone field are always parsed by SimpleDateFormat
+      if(unsupportedPatterns.contains(pattern) ||
+         zonePatterns.computeIfAbsent(pattern, ExtendedDateFormat::hasZoneField))
+      {
          return null;
       }
 
@@ -661,6 +665,27 @@ public class ExtendedDateFormat extends SimpleDateFormat {
       }
 
       return formatter;
+   }
+
+   /**
+    * Check if the pattern has an unquoted zone or offset letter (z, Z or X).
+    */
+   private static boolean hasZoneField(String pattern) {
+      boolean quoted = false;
+
+      for(int i = 0; i < pattern.length(); i++) {
+         char c = pattern.charAt(i);
+
+         // an escaped quote ('') toggles twice, so it never changes the quoted state
+         if(c == QT) {
+            quoted = !quoted;
+         }
+         else if(!quoted && (c == 'z' || c == 'Z' || c == 'X')) {
+            return true;
+         }
+      }
+
+      return false;
    }
 
    /**
@@ -743,6 +768,8 @@ public class ExtendedDateFormat extends SimpleDateFormat {
    // patterns DateTimeFormatter.ofPattern() rejects. keyed by pattern only (never by input or
    // instance) so cloned formats, e.g. the FormatCache copies, all make the same choice
    private static Set<String> unsupportedPatterns = ConcurrentHashMap.newKeySet();
+   // whether a pattern has a zone field, keyed by pattern like unsupportedPatterns
+   private static Map<String, Boolean> zonePatterns = new ConcurrentHashMap<>();
 
    private static final LocalDate DEFAULT_LOCAL_DATE = LocalDate.ofEpochDay(0);
    private static final LocalTime DEFAULT_LOCAL_TIME = LocalTime.of(0, 0);
