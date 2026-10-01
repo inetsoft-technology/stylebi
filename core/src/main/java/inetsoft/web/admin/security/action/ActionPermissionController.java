@@ -244,8 +244,9 @@ public class ActionPermissionController {
             continue;
          }
 
-         // Bug #77461, judged by the same (name, current org) key the GET view and
-         // setResourcePermissions() use, not the client supplied org ID
+         // Bug #77461, whether the caller administers the row's identity, judged by the same
+         // (name, current org) key the GET view and setResourcePermissions() use, not the client
+         // supplied org ID
          boolean administered = permissionService.isIdentityAuthorized(
             new IdentityID(identity.name, orgID), row.type(), principal);
 

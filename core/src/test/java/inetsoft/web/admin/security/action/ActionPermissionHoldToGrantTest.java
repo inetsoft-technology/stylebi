@@ -465,11 +465,14 @@ class ActionPermissionHoldToGrantTest {
          state.put(user, hasUserGrant(path, user));
       }
 
-      Permission perm = permission(path);
-      state.put("#groups", perm != null &&
-         !perm.getOrgScopedGrants(ResourceAction.ACCESS, Identity.GROUP, ORG_ID).isEmpty());
-      state.put("#roles", perm != null &&
-         !perm.getOrgScopedGrants(ResourceAction.ACCESS, Identity.ROLE, ORG_ID).isEmpty());
+      for(String group : List.of("delegGroup", "hiddenGroup", "managedGroup")) {
+         state.put("group:" + group, hasGrant(path, group, Identity.GROUP));
+      }
+
+      for(String role : List.of("delegRole", "hiddenRole", "managedRole")) {
+         state.put("role:" + role, hasGrant(path, role, Identity.ROLE));
+      }
+
       state.put("#edited", isEdited(path));
       return state;
    }
