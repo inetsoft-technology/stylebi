@@ -313,6 +313,102 @@ private void checkStatus() {
    }
 }
 
+/*
+ * Memoization of rule results while guessing. The syntactic predicates make
+ * every nested parenthesis parse its contents at least twice (once to guess,
+ * once for real), and several times when the guesses fail, so without it the
+ * parse time grows exponentially with the nesting depth. A rule listed below
+ * is split into a wrapper and a "_body" rule; while guessing, the wrapper
+ * records at which token the body stopped, or that it failed, for each start
+ * token, and replays that result the next time the rule is guessed there.
+ * Actions do not run while guessing, so only the stop position matters.
+ * Exception handlers do not run while guessing either, so a failure is
+ * recorded before the body is parsed and replaced when the body matches.
+ * This assumes that no listed rule calls itself again at its start token
+ * without consuming a token first, which would read that recorded failure.
+ */
+private static final int MEMO_SEARCH_CONDITION = 0;
+private static final int MEMO_BOOLEAN_PRIMARY = 1;
+private static final int MEMO_PREDICATE = 2;
+private static final int MEMO_ROW_VALUE_CONSTRUCTOR = 3;
+private static final int MEMO_VALUE_EXP = 4;
+private static final int MEMO_NUM_VALUE_EXP = 5;
+private static final int MEMO_VALUE_EXP_PRIMARY = 6;
+private static final int MEMO_STRING_VALUE_EXP = 7;
+private static final int MEMO_CHAR_VALUE_EXP = 8;
+private static final int MEMO_DATETIME_VALUE_EXP = 9;
+private static final int MEMO_INTERVAL_VALUE_EXP = 10;
+private static final int MEMO_MATCH_VALUE = 11;
+private static final int MEMO_SET_FCT_SPEC = 12;
+private static final int MEMO_RULE_COUNT = 13;
+private static final Object MEMO_FAILED = new Object();
+// start token -> stop token or MEMO_FAILED, one map per rule
+private final List<Map<Token, Object>> memo = createMemo();
+
+private static List<Map<Token, Object>> createMemo() {
+   List<Map<Token, Object>> memo = new ArrayList<>();
+
+   for(int i = 0; i < MEMO_RULE_COUNT; i++) {
+      memo.add(new IdentityHashMap<>());
+   }
+
+   return memo;
+}
+
+/**
+ * Replay a memoized result of a rule while guessing.
+ * @return true if the rule already matched at the start token and the input
+ * was advanced past the match; false if the rule must be parsed, in which case
+ * a failure is recorded until memoSuccess() replaces it.
+ * @throws RecognitionException if the rule already failed at the start token.
+ */
+private boolean memoHit(int rule, Token start)
+   throws RecognitionException, TokenStreamException
+{
+   if(inputState.guessing == 0) {
+      return false;
+   }
+
+   Object stop = memo.get(rule).get(start);
+
+   if(stop == null) {
+      memo.get(rule).put(start, MEMO_FAILED);
+      return false;
+   }
+
+   if(stop == MEMO_FAILED) {
+      throw new RecognitionException("memoized failure");
+   }
+
+   while(LT(1) != stop && LA(1) != Token.EOF_TYPE) {
+      consume();
+   }
+
+   return true;
+}
+
+/**
+ * Record that a rule matched from the start token up to the current token.
+ * Always returns true so that it can be used as a validating predicate.
+ */
+private boolean memoSuccess(int rule, Token start) throws TokenStreamException {
+   if(inputState.guessing > 0) {
+      memo.get(rule).put(start, LT(1));
+   }
+
+   return true;
+}
+
+/**
+ * Forget the memoized results, needed when a token type changes because the
+ * results recorded before the change may no longer hold.
+ */
+private void clearMemo() {
+   for(Map<Token, Object> map : memo) {
+      map.clear();
+   }
+}
+
 public String getUniqueName() {
    return Integer.toString(sequence++);
 }
@@ -393,6 +489,10 @@ public static boolean isQualifiedName(String name) {
 public boolean changeType(String targetStr, int type) {
    try {
            if(LT(1).getText().trim().equalsIgnoreCase(targetStr)) {
+                if(LT(1).getType() != type) {
+                   clearMemo();
+                }
+
                 LT(1).setType(type);
                 return true;
            }
@@ -473,6 +573,12 @@ comparison_operator returns [String comp = ""]
 /*  Rebuild the condition  */
 
 search_condition returns [XFilterNode node = null]
+        {Token memoStart = LT(1); if(memoHit(MEMO_SEARCH_CONDITION, memoStart)) {return node;}}
+        :
+        node = search_condition_body {memoSuccess(MEMO_SEARCH_CONDITION, memoStart)}?
+        ;
+
+search_condition_body returns [XFilterNode node = null]
         {XFilterNode tmp, tmp1; {checkStatus();}}
         :
         tmp = boolean_term
@@ -540,6 +646,12 @@ truth_value returns [String tv = ""]
         ;
 
 boolean_primary returns [XFilterNode node = null]
+        {Token memoStart = LT(1); if(memoHit(MEMO_BOOLEAN_PRIMARY, memoStart)) {return node;}}
+        :
+        node = boolean_primary_body {memoSuccess(MEMO_BOOLEAN_PRIMARY, memoStart)}?
+        ;
+
+boolean_primary_body returns [XFilterNode node = null]
         {checkStatus();}
         :
         (OPEN_PAREN (NOT)? boolean_primary)=>
@@ -548,6 +660,12 @@ boolean_primary returns [XFilterNode node = null]
         ;
 
 predicate returns [XFilterNode node = null]
+        {Token memoStart = LT(1); if(memoHit(MEMO_PREDICATE, memoStart)) {return node;}}
+        :
+        node = predicate_body {memoSuccess(MEMO_PREDICATE, memoStart)}?
+        ;
+
+predicate_body returns [XFilterNode node = null]
         {checkStatus();}
         :
         (row_value_constructor comp_op quantifier)=>
@@ -738,6 +856,12 @@ similar_predicate returns [XFilterNode xnode = null]
 */
 
 match_value returns [XExpression exp = null]
+        {Token memoStart = LT(1); if(memoHit(MEMO_MATCH_VALUE, memoStart)) {return exp;}}
+        :
+        exp = match_value_body {memoSuccess(MEMO_MATCH_VALUE, memoStart)}?
+        ;
+
+match_value_body returns [XExpression exp = null]
         {String str; {checkStatus();}}
         :
         str = char_value_exp {exp = new XExpression(); exp.setValue(str, XExpression.EXPRESSION);}
@@ -851,6 +975,12 @@ row_value_constructor_2 returns [XExpression exp = null]
         ;
 
 row_value_constructor returns [XExpression exp = null]
+        {Token memoStart = LT(1); if(memoHit(MEMO_ROW_VALUE_CONSTRUCTOR, memoStart)) {return exp;}}
+        :
+        exp = row_value_constructor_body {memoSuccess(MEMO_ROW_VALUE_CONSTRUCTOR, memoStart)}?
+        ;
+
+row_value_constructor_body returns [XExpression exp = null]
         {String str; XExpression tmp; {checkStatus();}}
         :
         (OPEN_PAREN SELECT)=>
@@ -891,6 +1021,12 @@ row_value_const_list returns [XExpression exp = null]
         ;
 
 value_exp returns [XExpression exp = null]
+        {Token memoStart = LT(1); if(memoHit(MEMO_VALUE_EXP, memoStart)) {return exp;}}
+        :
+        exp = value_exp_body {memoSuccess(MEMO_VALUE_EXP, memoStart)}?
+        ;
+
+value_exp_body returns [XExpression exp = null]
         {String str;
         hasField = false;
         {checkStatus();}
@@ -928,6 +1064,12 @@ single_value_exp
         ;
 
 num_value_exp returns [XExpression exp = null]
+        {Token memoStart = LT(1); if(memoHit(MEMO_NUM_VALUE_EXP, memoStart)) {return exp;}}
+        :
+        exp = num_value_exp_body {memoSuccess(MEMO_NUM_VALUE_EXP, memoStart)}?
+        ;
+
+num_value_exp_body returns [XExpression exp = null]
         {XExpression tmp,tmp1; {checkStatus();}}
         //remove all predictions of this rules if don't use subquery_select_list
         :
@@ -1003,13 +1145,25 @@ num_primary returns [XExpression exp = null]
         ;
 
 value_exp_primary returns [XExpression exp = null]
+        {Token memoStart = LT(1); if(memoHit(MEMO_VALUE_EXP_PRIMARY, memoStart)) {return exp;}}
+        :
+        exp = value_exp_primary_body {memoSuccess(MEMO_VALUE_EXP_PRIMARY, memoStart)}?
+        ;
+
+value_exp_primary_body returns [XExpression exp = null]
         {String tmp; exp = new XExpression(); {checkStatus();}}
         :
         // @by vincentx, 2004-08-13
         // parse the date type: date, time and timestamp
         (SPIDENT_BRACKET)=> m:SPIDENT_BRACKET {
-           if(XUtil.parseDate(m.getText()) != null) {
-              exp.setValue(XUtil.parseDate(m.getText()), XExpression.VALUE);
+           String date = XUtil.parseDate(m.getText());
+
+           if(date != null) {
+              exp.setValue(date, XExpression.VALUE);
+           }
+           // keep other escapes, e.g. {fn now()} or a malformed date, instead of dropping them
+           else {
+              exp.setValue(m.getText(), XExpression.EXPRESSION);
            }
         }
         |
@@ -1322,6 +1476,12 @@ column_ref returns [String colref = ""]
         ;
 
 set_fct_spec returns [String setfct = ""]
+        {Token memoStart = LT(1); if(memoHit(MEMO_SET_FCT_SPEC, memoStart)) {return setfct;}}
+        :
+        setfct = set_fct_spec_body {memoSuccess(MEMO_SET_FCT_SPEC, memoStart)}?
+        ;
+
+set_fct_spec_body returns [String setfct = ""]
         {checkStatus();}
         :
         //(COUNT OPEN_PAREN STAR )=>
@@ -1717,6 +1877,12 @@ position_exp returns [String pe = ""]
 */
 
 char_value_exp returns [String cve = ""]
+        {Token memoStart = LT(1); if(memoHit(MEMO_CHAR_VALUE_EXP, memoStart)) {return cve;}}
+        :
+        cve = char_value_exp_body {memoSuccess(MEMO_CHAR_VALUE_EXP, memoStart)}?
+        ;
+
+char_value_exp_body returns [String cve = ""]
         {XExpression exp1, exp2; checkStatus();}
         :
         // @by billh, here prediction is too heavy and occupies too much time,
@@ -1966,6 +2132,12 @@ extract_source returns [String extsou = ""]
 */
 
 datetime_value_exp returns [String dve = ""]
+        {Token memoStart = LT(1); if(memoHit(MEMO_DATETIME_VALUE_EXP, memoStart)) {return dve;}}
+        :
+        dve = datetime_value_exp_body {memoSuccess(MEMO_DATETIME_VALUE_EXP, memoStart)}?
+        ;
+
+datetime_value_exp_body returns [String dve = ""]
         {String tmp, tmp1; {checkStatus();}}
         :
         (interval_value_exp PLUS)=>
@@ -2058,6 +2230,12 @@ time_zone_specifier returns [String tzs = ""]
 */
 
 interval_value_exp returns [String ive = ""]
+        {Token memoStart = LT(1); if(memoHit(MEMO_INTERVAL_VALUE_EXP, memoStart)) {return ive;}}
+        :
+        ive = interval_value_exp_body {memoSuccess(MEMO_INTERVAL_VALUE_EXP, memoStart)}?
+        ;
+
+interval_value_exp_body returns [String ive = ""]
         {String tmp, tmp1, tmp2; {checkStatus();}}
         :
         (interval_term_1 PLUS )=>
@@ -2139,6 +2317,12 @@ char_length_exp returns [String cle = ""]
 */
 
 string_value_exp returns [String sve = ""]
+        {Token memoStart = LT(1); if(memoHit(MEMO_STRING_VALUE_EXP, memoStart)) {return sve;}}
+        :
+        sve = string_value_exp_body {memoSuccess(MEMO_STRING_VALUE_EXP, memoStart)}?
+        ;
+
+string_value_exp_body returns [String sve = ""]
         {checkStatus();}
         :
         (char_value_exp)=>
