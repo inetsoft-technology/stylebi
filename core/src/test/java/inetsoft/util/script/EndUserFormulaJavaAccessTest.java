@@ -19,20 +19,28 @@ package inetsoft.util.script;
 
 import inetsoft.report.TableLens;
 import inetsoft.report.composition.execution.AssetQuerySandbox;
+import inetsoft.report.composition.execution.PreAssetQuery;
 import inetsoft.report.filter.CalcFieldFormula;
 import inetsoft.report.filter.Formula;
 import inetsoft.report.filter.SumFormula;
 import inetsoft.sree.ClientInfo;
+import inetsoft.sree.RepletRequest;
+import inetsoft.sree.DynamicParameterValue;
+import inetsoft.sree.schedule.ScheduleParameterScope;
 import inetsoft.sree.security.DestinationUserNameProviderPrincipal;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.test.SreeHome;
-import inetsoft.uql.ColumnSelection;
+import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.erm.ExpressionRef;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.script.VpmScope;
 import inetsoft.uql.util.XEmbeddedTable;
+import inetsoft.web.admin.schedule.ScheduleTaskFormulaService;
+import inetsoft.web.composer.model.vs.DynamicValueModel;
 import org.junit.jupiter.api.*;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -119,6 +127,62 @@ class EndUserFormulaJavaAccessTest {
    }
 
    @Test
+   void formulasCanUseJavaLangAndJavaMath() throws Exception {
+      String exp = "java.lang.Integer.parseInt('10') + java.lang.Math.round(2.6) + " +
+         "new java.math.BigDecimal('0.5').doubleValue()";
+
+      // 10 + 3 + 0.5, plus the aggregate in the calc field
+      assertEquals(19.5, createCalcField(exp + " + total").getResult());
+      assertEquals(13.5, ((Number) runCondition(exp)).doubleValue());
+      assertEquals("13.5", runExpressionColumn("'' + (" + exp + ")").getObject(1, 2));
+   }
+
+   @ParameterizedTest
+   @ValueSource(strings = {
+      "java.lang.System.getProperty('user.dir')",
+      "java.lang.Runtime.getRuntime().availableProcessors()",
+      "java.lang.Class.forName('java.lang.String').getName()",
+      "java.lang.ClassLoader.getSystemClassLoader().toString()",
+      "java.lang.Thread.currentThread().getName()",
+      "new java.lang.ProcessBuilder('true').toString()",
+      "java.lang.reflect.Array.newInstance(java.lang.Integer, 1).length",
+      "java.lang.invoke.MethodHandles.lookup().toString()"
+   })
+   void formulasCannotUseDangerousJavaLangClasses(String exp) throws Exception {
+      String script = "'' + " + exp;
+
+      assertThrows(ScriptException.class, () -> createCalcField(script).getResult());
+      assertThrows(Exception.class, () -> runCondition(script));
+      // a failed expression column cell shows the error marker
+      assertEquals("XXX", runExpressionColumn(script).getObject(1, 2));
+      assertFalse(FormulaContext.isRestricted());
+   }
+
+   @Test
+   void scheduleParameterExpressionCannotCallOrgClass() {
+      ScheduleParameterScope scope = new ScheduleParameterScope();
+      scope.getScriptEnv().addTopLevelParentScope(scope);
+
+      assertThrows(ScriptException.class, () -> RepletRequest.executeParameter(
+         new DynamicParameterValue("=org.apache.commons.lang3.StringUtils.length('abc')",
+                                   DynamicValueModel.EXPRESSION, XSchema.INTEGER), scope));
+      assertEquals(13, RepletRequest.executeParameter(
+         new DynamicParameterValue("=java.lang.Integer.parseInt('10') + 3",
+                                   DynamicValueModel.EXPRESSION, XSchema.INTEGER), scope));
+      assertFalse(FormulaContext.isRestricted());
+   }
+
+   @Test
+   void scheduleParameterTestScriptCannotCallOrgClass() {
+      ScheduleTaskFormulaService service = new ScheduleTaskFormulaService();
+
+      assertNotNull(service.testScheduleParameterExpression(
+         "org.apache.commons.lang3.StringUtils.length('abc')"));
+      assertNull(service.testScheduleParameterExpression("java.lang.Math.round(2.6) + 1"));
+      assertFalse(FormulaContext.isRestricted());
+   }
+
+   @Test
    void vpmScriptKeepsOrgClassAccess() throws Exception {
       VpmScope scope = new VpmScope();
 
@@ -159,6 +223,15 @@ class EndUserFormulaJavaAccessTest {
       lens.moreRows(Integer.MAX_VALUE);
 
       return lens;
+   }
+
+   // condition value expression, as a worksheet condition runs it
+   private Object runCondition(String expression) {
+      Condition cond = new Condition();
+      cond.setType(XSchema.DOUBLE);
+
+      return PreAssetQuery.execScriptExpression(
+         expression, cond, new VariableTable(), createSandbox(new Worksheet()));
    }
 
    private AssetQuerySandbox createSandbox(Worksheet ws) {
