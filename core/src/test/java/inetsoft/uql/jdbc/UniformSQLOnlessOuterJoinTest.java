@@ -127,6 +127,26 @@ class UniformSQLOnlessOuterJoinTest {
       }
    }
 
+   // keyword case, comments and line breaks between the join keywords, an outer join with
+   // no ON inside a parenthesized operand of a join with an ON, and after a natural join
+   @ParameterizedTest
+   @ValueSource(strings = {
+      "select * from a lEfT jOiN b",
+      "select * from a RiGhT oUtEr JoIn b",
+      "select * from a Union Join b on a.id = b.id",
+      "select * from a   left    outer   join   b",
+      "select * from a left /* c1 */ outer /* c2 */ join b",
+      "select * from a left -- c\n outer\n join b",
+      "select * from a\nleft\nouter\njoin\nb",
+      "select * from a\tfull\t\tjoin\tb",
+      "select * from a left join (b left join c) on a.id = b.id",
+      "select * from a join (b left join c) on a.id = b.id",
+      "select * from a natural join b left join c",
+   })
+   void joinWithoutConditionVariantsFailParse(String text) {
+      joinWithoutConditionFailsParse(text);
+   }
+
    @Test
    void scalarSubqueryExpressionIsInvalid() {
       assertFalse(XUtil.isSQLExpressionValid("(select count(*) from a left join b)"));
