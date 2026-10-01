@@ -185,9 +185,8 @@ public class ScheduleTaskFolderService {
             continue;
          }
 
-         AssetFolder folder = getTaskFolder(child.toIdentifier());
-
-         if(folder != null && Tool.equals(folder.getOwner(), editModel.owner())) {
+         // the folder is stored by its path, whatever its owner
+         if(getTaskFolder(child.toIdentifier()) != null) {
             return new CheckDuplicateResponse(true);
          }
       }
@@ -207,17 +206,13 @@ public class ScheduleTaskFolderService {
          throw new FileNotFoundException(parentEntry.getPath());
       }
 
-      AssetFolder newFolder = new AssetFolder();
-      newFolder.setOwner(parentFolder.getOwner());
-
       for(AssetEntry child : parentFolder.getEntries()) {
          if(child == null || !Tool.equals(child.toIdentifier(), folderEntry.toIdentifier())) {
             continue;
          }
 
-         AssetFolder folder = getTaskFolder(child.toIdentifier());
-
-         if(folder != null && Tool.equals(folder.getOwner(), newFolder.getOwner())) {
+         // the folder is stored by its path, whatever its owner
+         if(getTaskFolder(child.toIdentifier()) != null) {
             return new CheckDuplicateResponse(true);
          }
       }
@@ -476,7 +471,7 @@ public class ScheduleTaskFolderService {
          String newName = renameModel.folderName();
          String npath = index < 0 ? newName : opath.substring(0, index) + "/" + newName;
          nEntry = new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.SCHEDULE_TASK_FOLDER, npath, null);
-         changeFolder(folderEntry, nEntry, renameModel.owner(), principal);
+         changeFolder(folderEntry, nEntry, principal);
          updatePermission(ResourceType.SCHEDULE_TASK_FOLDER, folderEntry.getPath(), nEntry.getPath());
          actionRecord.setActionError("Target Entry: " + nEntry.getDescription());
 
@@ -505,13 +500,6 @@ public class ScheduleTaskFolderService {
    public void changeFolder(AssetEntry oentry, AssetEntry nentry, Principal principal)
       throws Exception
    {
-      changeFolder(oentry, nentry, null, principal);
-   }
-
-   public void changeFolder(AssetEntry oentry, AssetEntry nentry, IdentityID newOwner,
-                            Principal principal)
-      throws Exception
-   {
       AssetFolder ofolder = getTaskFolder(oentry.toIdentifier());
       AssetFolder nfolder = new AssetFolder();
 
@@ -519,12 +507,8 @@ public class ScheduleTaskFolderService {
          return;
       }
 
-      if(newOwner != null && StringUtils.isEmpty(newOwner.name)) {
-         nfolder.setOwner(ofolder.getOwner());
-      }
-      else {
-         nfolder.setOwner(newOwner);
-      }
+      // Bug #77406, a rename or move keeps the owner, the owner sent by the client isn't used
+      nfolder.setOwner(ofolder.getOwner());
 
       String oidentifier = oentry.toIdentifier();
       String nidentifier = nentry.toIdentifier();
@@ -583,7 +567,7 @@ public class ScheduleTaskFolderService {
 
       for(int i = 0; i < entries.length; i++) {
          if(entries[i].isFolder()) {
-            changeFolder(entries[i],nentries[i], null, principal);
+            changeFolder(entries[i], nentries[i], principal);
          }
          else {
             changeTaskFolder(nentries[i], nentry, principal);
