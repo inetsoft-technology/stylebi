@@ -87,6 +87,29 @@ class ScriptHostAccessRestrictedTest {
    }
 
    @Test
+   void restrictedScriptKeepsJavaLangAndMath() throws Exception {
+      assertEquals(42, ((Number) eval("java.lang.Integer.parseInt('42')", true)).intValue());
+      assertEquals(42, ((Number) eval(
+         "Java.type('java.lang.Integer').parseInt('42')", true)).intValue());
+      assertEquals("3.000", eval(
+         "'' + new java.math.BigDecimal('1.5').multiply(new java.math.BigDecimal('2.00'))", true));
+      assertEquals("3", eval(
+         "'' + Java.type('java.math.BigInteger').valueOf(3)", true));
+   }
+
+   @Test
+   void restrictedScriptStillDeniesDangerousJavaLangClasses() {
+      for(String cls : new String[] {
+         "java.lang.System", "java.lang.Runtime", "java.lang.Class", "java.lang.ClassLoader",
+         "java.lang.Thread", "java.lang.ProcessBuilder", "java.lang.reflect.Method",
+         "java.lang.invoke.MethodHandles" })
+      {
+         assertThrows(Exception.class, () -> eval("Java.type('" + cls + "')", true), cls);
+         assertThrows(Exception.class, () -> eval("'' + " + cls, true), cls);
+      }
+   }
+
+   @Test
    void unrestrictedScriptStillReachesComOrgClass() throws Exception {
       assertEquals(true, eval("Java.type('" + COM_ORG + "').isEmpty('')", false));
       assertEquals(true, eval(COM_ORG + ".isEmpty('')", false));
