@@ -301,17 +301,21 @@ class DeployManagerServiceScheduleTaskIdentityImportTest {
    // folder created in the UI
    @Test
    void restrictedParseContent_createsFoldersWithoutOwner() throws Exception {
+      // Bug #77454, the importer may create the folders
+      when(securityEngine.checkPermission(any(), eq(ResourceType.SCHEDULE_TASK_FOLDER),
+                                          anyString(), eq(ResourceAction.WRITE))).thenReturn(true);
       Map<String, XMLSerializable> store = importFolders(principal, false);
 
       assertNull(((AssetFolder) store.get(folderId("F"))).getOwner());
       assertNull(((AssetFolder) store.get(folderId("F/G"))).getOwner());
    }
 
+   // Bug #77454, the folder owner is moved to the current organization, like the task owner
    @Test
-   void siteAdminParseContent_keepsFolderOwner() throws Exception {
+   void siteAdminParseContent_remapsFolderOwnerToCurrentOrg() throws Exception {
       Map<String, XMLSerializable> store = importFolders(null, true);
 
-      IdentityID owner = new IdentityID("admin", HOST_ORG);
+      IdentityID owner = new IdentityID("admin", ORG_A);
       assertEquals(owner, ((AssetFolder) store.get(folderId("F"))).getOwner());
       assertEquals(owner, ((AssetFolder) store.get(folderId("F/G"))).getOwner());
    }
