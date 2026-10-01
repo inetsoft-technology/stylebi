@@ -186,6 +186,49 @@ class BatchActionTest {
             copyMock.verifyNoInteractions();
          }
       }
+
+      // Bug #77452, a failing child task runs with its own principal and the batch task's
+      // context principal is still restored
+      @Test
+      void run_childTaskThrows_contextPrincipalIsRestored() throws Throwable {
+         BatchAction action = new BatchAction();
+         action.setTaskId("child-task");
+         action.setEmbeddedParameters(List.of(Map.of("p", "v")));
+         ScheduleTask sourceTask = buildTaskWithViewsheetAction("child-task");
+         ScheduleTask clonedTask = spy(buildTaskWithViewsheetAction("child-task"));
+         List<Principal> contextPrincipals = new ArrayList<>();
+         doAnswer(inv -> {
+            contextPrincipals.add(inetsoft.util.ThreadContext.getContextPrincipal());
+            throw new IllegalStateException("child failed");
+         }).when(clonedTask).run(any());
+
+         Principal previous = inetsoft.util.ThreadContext.getContextPrincipal();
+         inetsoft.util.ThreadContext.setContextPrincipal(admin);
+
+         try(MockedStatic<ScheduleManager> scheduleManager = mockStatic(ScheduleManager.class);
+             MockedStatic<inetsoft.sree.internal.SUtil> sUtil =
+                mockStatic(inetsoft.sree.internal.SUtil.class);
+             MockedStatic<ScheduleTask> copyMock = mockStatic(ScheduleTask.class))
+         {
+            ScheduleManager manager = mock(ScheduleManager.class);
+            scheduleManager.when(ScheduleManager::getScheduleManager).thenReturn(manager);
+            when(manager.getScheduleTask("child-task")).thenReturn(sourceTask);
+            sUtil.when(() -> inetsoft.sree.internal.SUtil.getScheduleTaskRunPrincipal(
+               same(sourceTask), any(), eq(true))).thenReturn(child);
+            copyMock.when(() -> ScheduleTask.copyScheduleTask(sourceTask)).thenReturn(clonedTask);
+
+            IllegalStateException ex =
+               assertThrows(IllegalStateException.class, () -> action.run(admin));
+            assertEquals("child failed", ex.getMessage(), "the child's failure is not swallowed");
+            assertEquals(List.of(child), contextPrincipals,
+                         "the child's principal is the context principal while it runs");
+            assertSame(admin, inetsoft.util.ThreadContext.getContextPrincipal(),
+                       "the batch task's context principal is restored after the child fails");
+         }
+         finally {
+            inetsoft.util.ThreadContext.setContextPrincipal(previous);
+         }
+      }
    }
 
    // -------------------------------------------------------------------------
