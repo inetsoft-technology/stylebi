@@ -270,6 +270,28 @@ class RoundDecimalFormatRoundingModeTest {
       assertEquals(RoundingMode.DOWN, fmt.getRoundingMode());
    }
 
+   @Test
+   void fieldPositionIsReportedWithRounding() {
+      // only the JDK's DontCareFieldPosition is replaced, a caller's FieldPosition is filled in
+      RoundDecimalFormat fmt = new RoundDecimalFormat("#,##0.###", US);
+      fmt.setRoundingByName("ROUND_DOWN");
+      FieldPosition integer = new FieldPosition(NumberFormat.INTEGER_FIELD);
+      FieldPosition fraction = new FieldPosition(NumberFormat.FRACTION_FIELD);
+      FieldPosition grouping = new FieldPosition(NumberFormat.Field.GROUPING_SEPARATOR);
+
+      assertEquals("1,234,567.898",
+                   fmt.format(1234567.89876, new StringBuffer(), integer).toString());
+      fmt.format(1234567.89876, new StringBuffer(), fraction);
+      fmt.format(1234567.89876, new StringBuffer(), grouping);
+
+      assertEquals(0, integer.getBeginIndex());
+      assertEquals(9, integer.getEndIndex());
+      assertEquals(10, fraction.getBeginIndex());
+      assertEquals(13, fraction.getEndIndex());
+      assertEquals(1, grouping.getBeginIndex());
+      assertEquals(2, grouping.getEndIndex());
+   }
+
    @ParameterizedTest
    @ValueSource(ints = { -1, 8, 100 })
    void setRoundingRejectsInvalidValue(int rounding) {
