@@ -535,6 +535,8 @@ public final class ScriptHostAccess {
    static Predicate<String> classFilter(Set<String> extra, String[] customPkgs,
                                         boolean comOrg)
    {
+      // invariant: no unrestricted script may share a Context with restricted surfaces,
+      // since a host type it leaves in a global bypasses this filter (bug #77396)
       // a restricted script gets no com/org or extra classes, only the packages an
       // administrator listed in javascript.java.packages, as in Rhino (bug #77396)
       return fqcn -> FormulaContext.isRestricted() ?

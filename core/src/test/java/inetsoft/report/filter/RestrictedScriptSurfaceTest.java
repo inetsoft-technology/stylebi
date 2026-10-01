@@ -24,7 +24,15 @@ import inetsoft.sree.DynamicParameterValue;
 import inetsoft.sree.RepletRequest;
 import inetsoft.sree.schedule.ScheduleParameterScope;
 import inetsoft.test.*;
+import inetsoft.uql.ConditionItem;
+import inetsoft.uql.ConditionList;
+import inetsoft.uql.XCondition;
+import inetsoft.uql.asset.AssetCondition;
+import inetsoft.uql.asset.ExpressionValue;
 import inetsoft.uql.asset.Worksheet;
+import inetsoft.uql.erm.AttributeRef;
+import inetsoft.uql.schema.XSchema;
+import inetsoft.uql.script.VpmScope;
 import inetsoft.util.script.FormulaContext;
 import inetsoft.util.script.ScriptEnv;
 import inetsoft.util.script.graal.GraalJavaScriptEnv;
@@ -39,7 +47,8 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Bug #77396: the end-user script surfaces (calculated fields, expression columns,
- * schedule parameters) run restricted, so they cannot look up com.* / org.* classes, and they put back
+ * conditions, schedule parameters) run restricted, an administrator's VPM script runs
+ * unrestricted, so they cannot look up com.* / org.* classes, and they put back
  * the restricted flag the thread had when they finish.
  */
 @ExtendWith(SpringExtension.class)
@@ -121,6 +130,37 @@ class RestrictedScriptSurfaceTest {
       assertNotNull(service.testScheduleParameterExpression(
          "Java.type('org.apache.commons.lang3.StringUtils')"));
       assertFalse(FormulaContext.isRestricted());
+   }
+
+   @Test
+   void conditionExpressionRunsRestricted() {
+      // the condition is "value == PROBE": true on the row holding 2 only when restricted
+      DefaultTableLens table = new DefaultTableLens(new Object[][] { { "value" }, { 2 }, { 1 } });
+      ConditionGroup group = new ConditionGroup(table, conditionList(PROBE), box);
+
+      assertTrue(group.evaluate(table, 1));
+      assertFalse(group.evaluate(table, 2));
+      assertFalse(FormulaContext.isRestricted());
+   }
+
+   @Test
+   void vpmScriptRunsUnrestrictedInsideRestrictedFrame() throws Exception {
+      FormulaContext.setRestricted(true);
+      assertEquals(1.0, ((Number) VpmScope.execute(PROBE, new VpmScope())).doubleValue());
+      assertTrue(FormulaContext.isRestricted());
+   }
+
+   private static ConditionList conditionList(String exp) {
+      AssetCondition condition = new AssetCondition();
+      condition.setOperation(XCondition.EQUAL_TO);
+      condition.setType(XSchema.INTEGER);
+      ExpressionValue value = new ExpressionValue();
+      value.setExpression(exp);
+      value.setType(ExpressionValue.JAVASCRIPT);
+      condition.addValue(value);
+      ConditionList list = new ConditionList();
+      list.append(new ConditionItem(new AttributeRef(null, "value"), condition, 0));
+      return list;
    }
 
    private double calcFieldResult() {
