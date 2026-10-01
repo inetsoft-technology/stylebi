@@ -33,6 +33,8 @@ import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import java.security.Principal;
+
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
@@ -192,5 +194,71 @@ class QueryManagerServiceSqlOnlyTest {
             sql.wait();
          }
       }
+   }
+
+   @Test
+   void saveStillRegeneratesRepresentableQuery() throws Exception {
+      // control: save (all=true) of a full, non-lossy parse is still merged from the panes
+      UniformSQL sql = install(PLAIN_SQL, true);
+      AdvancedSQLQueryModel model = qms.getAdvancedQueryModel(runtimeQuery, null);
+      model.getFieldPaneModel().setDistinct(true);
+
+      qms.updateQuery(RID, model, null, true);
+
+      assertFalse(sql.hasSQLString());
+      String generated = sql.getSQLString().replaceAll("\\s+", " ").trim();
+      assertTrue(generated.startsWith("select distinct a.x, a.y from a where a.x > 1"), generated);
+   }
+
+   @Test
+   void parseNowWithoutTopRestoresStructuredEditing() throws Exception {
+      UniformSQL sql = install(TOP_SQL, true);
+      assertTrue(qms.getAdvancedQueryModel(runtimeQuery, null).getFreeFormSQLPaneModel().isLossy());
+
+      qms.parseSqlString(RID, PLAIN_SQL, false, true, principal());
+      AdvancedSQLQueryModel model = qms.getAdvancedQueryModel(runtimeQuery, null);
+      assertFalse(model.getFreeFormSQLPaneModel().isLossy());
+      assertFalse(QueryManagerService.isSqlOnly(sql));
+      model.getFieldPaneModel().setDistinct(true);
+
+      qms.updateQuery(RID, model, DatabaseQueryTabs.FIELDS.getTab(), false);
+
+      assertFalse(sql.hasSQLString());
+      assertTrue(sql.getSQLString().replaceAll("\\s+", " ").trim().startsWith("select distinct a.x"),
+                 sql.getSQLString());
+   }
+
+   @Test
+   void parseNowWithTopOnStructuredQueryKeepsTop() throws Exception {
+      UniformSQL sql = install(PLAIN_SQL, true);
+      assertFalse(qms.getAdvancedQueryModel(runtimeQuery, null).getFreeFormSQLPaneModel().isLossy());
+
+      qms.parseSqlString(RID, TOP_SQL, false, true, principal());
+      AdvancedSQLQueryModel model = qms.getAdvancedQueryModel(runtimeQuery, null);
+      assertTrue(model.getFreeFormSQLPaneModel().isLossy());
+
+      qms.updateQuery(RID, model, DatabaseQueryTabs.SORT.getTab(), false);
+      qms.updateQuery(RID, model, null, true);
+
+      assertEquals(TOP_SQL, sql.getSQLString());
+   }
+
+   @Test
+   void topWithJoinKeepsTop() throws Exception {
+      String text = "select top 5 a.x, b.y from a, b where a.id = b.id order by a.x";
+      UniformSQL sql = install(text, true);
+      AdvancedSQLQueryModel model = qms.getAdvancedQueryModel(runtimeQuery, null);
+      assertTrue(model.getFreeFormSQLPaneModel().isLossy());
+
+      qms.updateQuery(RID, model, DatabaseQueryTabs.CONDITIONS.getTab(), false);
+      qms.updateQuery(RID, model, null, true);
+
+      assertEquals(text, sql.getSQLString());
+   }
+
+   private static Principal principal() {
+      Principal p = mock(Principal.class);
+      when(p.getName()).thenReturn("admin");
+      return p;
    }
 }
