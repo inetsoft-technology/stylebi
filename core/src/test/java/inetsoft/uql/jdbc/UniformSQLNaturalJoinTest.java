@@ -29,6 +29,7 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.mock;
 
 /**
  * Bug #77435, a natural join has no join columns in the sql text and UniformSQL can't
@@ -74,6 +75,9 @@ class UniformSQLNaturalJoinTest {
       "select * from (select a.x from a natural join b) t",
       "select a.x from a where exists (select 1 from b natural join c)",
       "select a.x from a where a.id in (select b.id from b natural left join c)",
+      // scalar subquery in the select list, and keyword case/whitespace/comments
+      "select (select 1 from b natural join c) from a",
+      "select * from a NaTuRaL /* c */\n join b",
       // a natural join with ON or USING is invalid sql, but must not be accepted either
       "select a.x from a natural join b on a.id = b.id",
       "select a.x from a natural join b using (id)"
@@ -88,6 +92,7 @@ class UniformSQLNaturalJoinTest {
       assertEquals(UniformSQL.PARSE_FAILED, sql.getParseResult());
       assertEquals(text, sql.getSQLString());
       assertFalse(XUtil.isParsedSQL(sql));
+      assertFalse(XUtil.isQueryMergeable(query(sql)));
 
       // the lazy lossy check re-parses the sql, so a fresh object is lossy too
       assertTrue(sql.isLossy());
@@ -107,7 +112,12 @@ class UniformSQLNaturalJoinTest {
       "select a.x from a left join b on a.id = b.id | a LEFT OUTER JOIN b ON a.id = b.id",
       "select a.x from a right join b on b.id = a.id | a RIGHT OUTER JOIN b ON a.id = b.id",
       // a comma join with a where join is unchanged
-      "select a.x from a, b where a.id = b.id | where a.id = b.id"
+      "select a.x from a, b where a.id = b.id | where a.id = b.id",
+      // identifiers that start with natural, and a quoted "NATURAL" alias, are not the keyword
+      "select a.natural_id from a join b on a.natural_id = b.natural_id | where a.natural_id = b.natural_id",
+      "select naturalness from natural_tbl a left join b on a.id = b.id | natural_tbl a LEFT OUTER JOIN b ON a.id = b.id",
+      "select a.x from a natural_a join b on natural_a.id = b.id | from a natural_a, b where natural_a.id = b.id",
+      "select \"NATURAL\".x from a \"NATURAL\" join b on \"NATURAL\".id = b.id | from a \"NATURAL\", b where \"NATURAL\".id = b.id"
    })
    void otherJoinsStillParse(String text, String expected) throws Exception {
       UniformSQL sql = parse(text);
@@ -120,6 +130,14 @@ class UniformSQLNaturalJoinTest {
       UniformSQL processed = new UniformSQL();
       new SQLProcessor(processed).parse(text);
       assertEquals(UniformSQL.PARSE_SUCCESS, processed.getParseResult());
+      assertTrue(XUtil.isQueryMergeable(query(processed)));
+   }
+
+   private static JDBCQuery query(UniformSQL sql) {
+      JDBCQuery query = new JDBCQuery();
+      query.setSQLDefinition(sql);
+      query.setDataSource(mock(JDBCDataSource.class));
+      return query;
    }
 
    private static UniformSQL parse(String text) throws Exception {
