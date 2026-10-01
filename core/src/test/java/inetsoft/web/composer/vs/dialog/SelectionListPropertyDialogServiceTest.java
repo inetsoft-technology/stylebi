@@ -28,6 +28,7 @@ import inetsoft.web.binding.service.DataRefModelFactoryService;
 import inetsoft.web.composer.model.vs.SelectionListPropertyDialogModel;
 import inetsoft.web.composer.vs.objects.controller.VSObjectPropertyService;
 import inetsoft.web.composer.vs.objects.controller.VSTrapService;
+import inetsoft.web.portal.controller.database.QueryManagerService;
 import inetsoft.web.viewsheet.service.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -47,6 +48,7 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -61,7 +63,8 @@ class SelectionListPropertyDialogServiceTest {
    void setup() {
       service = new SelectionListPropertyDialogService(
          vsObjectPropertyService, vsOutputService, engine, trapService, dialogService,
-         selectionDialogService, assemblyInfoHandler, dataRefService, dataSourceRegistry);
+         selectionDialogService, assemblyInfoHandler, dataRefService, dataSourceRegistry,
+         mock(QueryManagerService.class));
    }
 
    @Test

@@ -116,7 +116,8 @@ public class ChangeGeographicService {
 
       // Handle source changed.
       if(assemblyInfoHandler.handleSourceChanged(chart, event.table(),
-                                                 "/events/vs/chart/changeGeographic", event, dispatcher, box.get()))
+                                                 "/events/vs/chart/changeGeographic", event, dispatcher, box.get(),
+                                                 principal))
       {
          return null;
       }
@@ -127,7 +128,7 @@ public class ChangeGeographicService {
       vs = chart.getViewsheet();
       ChartVSAssemblyInfo oinfo = (ChartVSAssemblyInfo) chart.getChartInfo().clone();
       ChartVSAssemblyInfo ninfo = (ChartVSAssemblyInfo) bindingFactory.
-         updateAssembly(event.binding(), chart).getVSAssemblyInfo();
+         updateAssembly(event.binding(), chart, principal).getVSAssemblyInfo();
 
       boolean isDim = event.isDim();
 

@@ -104,7 +104,8 @@ public class VSTableDndService {
 
       // Handle source changed.
       if(sourceChanged) {
-         assemblyInfoHandler.changeSource(newTableAssembly, dragAssembly.getTableName(), event.getSourceType());
+         assemblyInfoHandler.changeSource(newTableAssembly, dragAssembly.getTableName(),
+                                          event.getSourceType(), principal);
       }
 
       tableHandler.addRemoveColumns(newTableAssembly, dragAssembly, tableData.getDragIndex(),
@@ -193,7 +194,8 @@ public class VSTableDndService {
 
          // Handle source changed.
          if(sourceChanged) {
-            assemblyInfoHandler.changeSource(nassembly, event.getTable(), event.getSourceType());
+            assemblyInfoHandler.changeSource(nassembly, event.getTable(), event.getSourceType(),
+                                             principal);
          }
 
          BindingDropTarget dropTarget = (BindingDropTarget) event.getDropTarget();

@@ -34,6 +34,7 @@ import inetsoft.web.binding.service.*;
 import inetsoft.web.composer.vs.VSObjectTreeService;
 import inetsoft.web.composer.vs.command.PopulateVSObjectTreeCommand;
 import inetsoft.web.composer.vs.objects.event.ChangeVSObjectBindingEvent;
+import inetsoft.web.portal.controller.database.QueryManagerService;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
 import inetsoft.web.viewsheet.model.VSObjectModelFactoryService;
 import inetsoft.web.viewsheet.service.*;
@@ -75,7 +76,8 @@ class ComposerBindingControllerTest {
                                            viewsheetService, factories, dataRefService,
                                            objectModelService, wizardTemporaryInfoService,
                                            vsSelectionContainerService, analyticAssistant,
-                                           assemblyHandler, vsObjectTreeService, coreLifecycleService);
+                                           assemblyHandler, vsObjectTreeService, coreLifecycleService,
+                                           mock(QueryManagerService.class));
 
       when(runtimeViewsheetRef.getRuntimeId()).thenReturn("Viewsheet1");
       when(viewsheetEngine.getViewsheet(anyString(), nullable(Principal.class))).thenReturn(rvs);
@@ -91,7 +93,8 @@ class ComposerBindingControllerTest {
       when(mockAssembly.getInfo()).thenReturn(listInfoSpy);
       TableVSAssembly mockTableAssembly = mock(TableVSAssembly.class);
       when(vsTableService.createTable(nullable(RuntimeViewsheet.class), nullable(ViewsheetService.class),
-                                      nullable(AssetEntry.class), anyInt(), anyInt()))
+                                      nullable(AssetEntry.class), anyInt(), anyInt(),
+                                      nullable(Principal.class)))
          .thenReturn(mockTableAssembly);
       VSAssemblyInfo infoSpy = spy(new TableVSAssemblyInfo());
       when(mockTableAssembly.getInfo()).thenReturn(infoSpy);
