@@ -25,6 +25,7 @@ import java.time.*;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoField;
 import java.time.temporal.TemporalAccessor;
+import java.time.temporal.WeekFields;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -644,9 +645,10 @@ public class ExtendedDateFormat extends SimpleDateFormat {
    /**
     * Get the shared java.time formatter for the pattern, zone and locale of this format, or
     * null if java.time cannot compile the pattern (e.g. the escaped extended quarter patterns),
-    * the pattern has a zone field, java.time cannot convert the zone, or the calendar is not
-    * Gregorian. The result depends only on the pattern, zone, locale and calendar type, never
-    * on what was parsed before.
+    * the pattern has a field java.time parses differently (see needsSimpleDateFormat()),
+    * java.time cannot convert the zone, or the calendar is not Gregorian or has other week
+    * rules than the locale. The result depends only on the pattern, zone, locale and calendar,
+    * never on what was parsed before.
     */
    private DateTimeFormatter getFormatter() {
       // parse(str, null) converts the ISO fields, so a non-Gregorian calendar such as the
@@ -659,13 +661,8 @@ public class ExtendedDateFormat extends SimpleDateFormat {
 
       String pattern = toPattern();
 
-      // parse(str, null) keeps only the local fields, which would drop the parsed offset or
-      // zone name, so patterns with a zone field are always parsed by SimpleDateFormat. it
-      // also reads only the year, month and day, which java.time resolves from the week
-      // fields only for a full week date, so other week patterns are parsed the same way
       if(unsupportedPatterns.contains(pattern) ||
-         zonePatterns.computeIfAbsent(pattern, ExtendedDateFormat::hasZoneField) ||
-         weekPatterns.computeIfAbsent(pattern, ExtendedDateFormat::hasUnresolvedWeekField))
+         sdfPatterns.computeIfAbsent(pattern, ExtendedDateFormat::needsSimpleDateFormat))
       {
          return null;
       }
@@ -675,6 +672,17 @@ public class ExtendedDateFormat extends SimpleDateFormat {
       // names and the week rules. the pattern is last since only it may contain the separator
       Locale loc = locale != null ? locale :
          defaultLocale != null ? defaultLocale : Locale.getDefault(Locale.Category.FORMAT);
+      WeekFields weekFields = WeekFields.of(loc);
+      Calendar calendar = getCalendar();
+
+      // the week rules of the calendar may differ from the locale's, e.g. for a -u-ca-iso8601
+      // locale or after setCalendar(). Calendar numbers the days from Sunday = 1
+      if(calendar.getFirstDayOfWeek() != weekFields.getFirstDayOfWeek().getValue() % 7 + 1 ||
+         calendar.getMinimalDaysInFirstWeek() != weekFields.getMinimalDaysInFirstWeek())
+      {
+         return null;
+      }
+
       String key = loc.toLanguageTag() + "|" + zone.getID() + "|" + pattern;
       DateTimeFormatter formatter = formatters.get(key);
 
@@ -704,10 +712,22 @@ public class ExtendedDateFormat extends SimpleDateFormat {
    }
 
    /**
-    * Check if the pattern has an unquoted zone or offset letter (z, Z or X).
+    * Check if the pattern has to be parsed by SimpleDateFormat, because java.time parses one
+    * of its unquoted fields differently or parse(str, null) does not use it. java.time is
+    * kept only for fields both resolve the same way, and any other letter goes to
+    * SimpleDateFormat, e.g.
+    * - a zone or offset (z, Z, X), since parse(str, null) keeps only the local fields;
+    * - a two-letter year (yy, YY), read as 2000-2099 by java.time instead of with the 2-digit
+    *   year start;
+    * - week fields (Y, w, W) outside a week date (Y, w and E, without y), since java.time
+    *   resolves the date from them only for a week date, e.g. Jan 1 for yyyy-ww-EEE;
+    * - letters with another meaning in java.time (u, F, S other than SSS, GGGGG) or that
+    *   SimpleDateFormat resolves on their own (D, a day of week without a day or week date,
+    *   a 12-hour hour without am/pm or am/pm without a 12-hour hour).
     */
-   private static boolean hasZoneField(String pattern) {
+   private static boolean needsSimpleDateFormat(String pattern) {
       boolean quoted = false;
+      boolean[] letters = new boolean[128];
 
       for(int i = 0; i < pattern.length(); i++) {
          char c = pattern.charAt(i);
@@ -715,52 +735,65 @@ public class ExtendedDateFormat extends SimpleDateFormat {
          // an escaped quote ('') toggles twice, so it never changes the quoted state
          if(c == QT) {
             quoted = !quoted;
+            continue;
          }
-         else if(!quoted && (c == 'z' || c == 'Z' || c == 'X')) {
+
+         if(quoted || !(c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z')) {
+            continue;
+         }
+
+         int count = 1;
+
+         while(i + 1 < pattern.length() && pattern.charAt(i + 1) == c) {
+            count++;
+            i++;
+         }
+
+         letters[c] = true;
+
+         switch(c) {
+         case 'G':
+            if(count > 4) {
+               return true;
+            }
+
+            break;
+         case 'y':
+         case 'Y':
+            if(count == 2) {
+               return true;
+            }
+
+            break;
+         case 'S':
+            if(count != 3) {
+               return true;
+            }
+
+            break;
+         case 'w':
+         case 'M':
+         case 'L':
+         case 'd':
+         case 'E':
+         case 'a':
+         case 'h':
+         case 'K':
+         case 'H':
+         case 'k':
+         case 'm':
+         case 's':
+            break;
+         default:
             return true;
          }
       }
 
-      return false;
-   }
+      boolean weekDate = letters['Y'] && letters['w'] && letters['E'] && !letters['y'];
 
-   /**
-    * Check if the pattern has an unquoted week field (w or W) that java.time does not resolve
-    * like SimpleDateFormat. Only a week date (Y, w and E, without y or W) is resolved to the
-    * same date. e.g. java.time gives Jan 1 for yyyy-ww-EEE, since w needs Y.
-    */
-   private static boolean hasUnresolvedWeekField(String pattern) {
-      boolean quoted = false;
-      boolean week = false;
-      boolean weekDate = true;
-      boolean weekYear = false;
-      boolean dayOfWeek = false;
-
-      for(int i = 0; i < pattern.length(); i++) {
-         char c = pattern.charAt(i);
-
-         // an escaped quote ('') toggles twice, so it never changes the quoted state
-         if(c == QT) {
-            quoted = !quoted;
-         }
-         else if(!quoted) {
-            if(c == 'w' || c == 'W') {
-               week = true;
-               weekDate = weekDate && c == 'w';
-            }
-            else if(c == 'y') {
-               weekDate = false;
-            }
-            else if(c == 'Y') {
-               weekYear = true;
-            }
-            else if(c == 'E') {
-               dayOfWeek = true;
-            }
-         }
-      }
-
-      return week && !(weekDate && weekYear && dayOfWeek);
+      return (letters['Y'] || letters['w']) && !weekDate ||
+         letters['E'] && !letters['d'] && !weekDate ||
+         letters['a'] != (letters['h'] || letters['K']);
    }
 
    /**
@@ -843,10 +876,8 @@ public class ExtendedDateFormat extends SimpleDateFormat {
    // patterns DateTimeFormatter.ofPattern() rejects. keyed by pattern only (never by input or
    // instance) so cloned formats, e.g. the FormatCache copies, all make the same choice
    private static Set<String> unsupportedPatterns = ConcurrentHashMap.newKeySet();
-   // whether a pattern has a zone field, keyed by pattern like unsupportedPatterns
-   private static Map<String, Boolean> zonePatterns = new ConcurrentHashMap<>();
-   // whether a pattern has a week field java.time does not resolve, keyed by pattern
-   private static Map<String, Boolean> weekPatterns = new ConcurrentHashMap<>();
+   // whether a pattern needs SimpleDateFormat, keyed by pattern like unsupportedPatterns
+   private static Map<String, Boolean> sdfPatterns = new ConcurrentHashMap<>();
 
    private static final LocalDate DEFAULT_LOCAL_DATE = LocalDate.ofEpochDay(0);
    private static final LocalTime DEFAULT_LOCAL_TIME = LocalTime.of(0, 0);

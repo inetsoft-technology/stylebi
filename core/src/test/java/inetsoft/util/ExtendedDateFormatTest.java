@@ -729,6 +729,81 @@ public class ExtendedDateFormatTest {
       }
    }
 
+   // Bug #77458: fields java.time resolves differently from SimpleDateFormat were hidden for
+   // text in other languages, since English java.time rejected it. a two-letter year is read
+   // as 2000-2099 by java.time instead of with the 2-digit year start (#77507). a day of week
+   // without a day, a 12-hour hour without am/pm, a week year without a week, a fraction other
+   // than SSS and the calendar week rules of a -u-ca-iso8601 locale are resolved differently too
+   @ParameterizedTest(name = "{0} {1}")
+   @CsvSource(delimiter = '|', value = {
+      "fr | MMM d, yy",
+      "de | dd. MMM yy",
+      "ja | d-MMM-yy",
+      "en-US | MM/dd/yy",
+      "en-US | MMMM yy",
+      "fr | YY-ww-EEE",
+      "de | EEE yyyy",
+      "de | d. MMMM yyyy h:mm",
+      "en-GB | yyyy-MM-dd a",
+      "de | d. MMMM Y",
+      "fr | dd/MM/yyyy HH:mm:ss.S",
+      "de | D MMMM yyyy",
+      "en-US-u-ca-iso8601 | YYYY-ww-EEE"
+   })
+   public void fieldParsesLikeSimpleDateFormat(String tag, String pattern) {
+      final Locale locale = Locale.forLanguageTag(tag);
+
+      for(LocalDateTime time : new LocalDateTime[] {
+         LocalDateTime.of(1990, 1, 1, 0, 0), LocalDateTime.of(1950, 6, 15, 3, 4, 5, 6_000_000),
+         LocalDateTime.of(2011, 3, 10, 14, 5, 6, 789_000_000) })
+      {
+         final Date date = Date.from(time.atZone(ZoneId.systemDefault()).toInstant());
+
+         for(Locale textLocale : new Locale[] { locale, Locale.US }) {
+            final String text = new SimpleDateFormat(pattern, textLocale).format(date);
+            final ExtendedDateFormat format = new ExtendedDateFormat(pattern, locale);
+            final Object expected =
+               parseOrError(() -> new SimpleDateFormat(pattern, locale).parse(text));
+
+            assertEquals(expected, parseOrError(() -> format.parse(text)), text);
+            assertEquals(expected, parseOrError(() -> (Date) format.parseObject(text)), text);
+         }
+      }
+   }
+
+   // Bug #77458: setCalendar() can give other week rules than the locale's
+   @Test
+   public void calendarWeekRulesParseLikeSimpleDateFormat() throws Exception {
+      final String pattern = "YYYY-ww-EEE";
+      final ExtendedDateFormat format = new ExtendedDateFormat(pattern, Locale.US);
+      final SimpleDateFormat sdf = new SimpleDateFormat(pattern, Locale.US);
+      format.getCalendar().setFirstDayOfWeek(Calendar.MONDAY);
+      format.getCalendar().setMinimalDaysInFirstWeek(4);
+      sdf.getCalendar().setFirstDayOfWeek(Calendar.MONDAY);
+      sdf.getCalendar().setMinimalDaysInFirstWeek(4);
+
+      assertEquals(sdf.parse("2011-10-Thu"), format.parse("2011-10-Thu"));
+      assertThrows(IllegalArgumentException.class, () -> format.parse("2011-10-Thu", null));
+   }
+
+   // Bug #77458: the common patterns keep the java.time path in every locale
+   @ParameterizedTest(name = "{0} {1}")
+   @CsvSource(delimiter = '|', value = {
+      "en-US | yyyy-MM-dd", "en-US | yyyy-MM-dd HH:mm:ss", "en-US | MM/dd/yyyy", "en-US | HH:mm:ss",
+      "en-US | MMM d, yyyy", "en-US | hh:mm a", "en-US | yyyy-MM-dd'T'HH:mm:ss.SSS",
+      "en-US | EEE MMM dd HH:mm:ss yyyy", "en-US | MMMM yyyy", "de | dd.MM.yyyy", "de | d. MMMM yyyy",
+      "fr | EEEE d MMMM yyyy", "ja | yyyy/MM/dd H:mm", "en-GB | dd/MM/yyyy hh:mm a", "de | YYYY-ww-EEE"
+   })
+   public void commonPatternKeepsJavaTime(String tag, String pattern) throws Exception {
+      final Locale locale = Locale.forLanguageTag(tag);
+      final Date date = Date.from(LocalDateTime.of(2011, 3, 10, 14, 5, 6, 789_000_000)
+                                     .atZone(ZoneId.systemDefault()).toInstant());
+      final String text = new SimpleDateFormat(pattern, locale).format(date);
+
+      assertEquals(new SimpleDateFormat(pattern, locale).parse(text),
+                   new ExtendedDateFormat(pattern, locale).parse(text, null), text);
+   }
+
    private interface DateParser {
       Date parse() throws ParseException;
    }
