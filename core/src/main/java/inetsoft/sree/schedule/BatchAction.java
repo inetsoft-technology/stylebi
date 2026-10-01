@@ -26,6 +26,7 @@ import inetsoft.sree.RepletRequest;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.sree.security.OrganizationManager;
+import inetsoft.sree.security.SecurityException;
 import inetsoft.uql.VariableTable;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
@@ -62,6 +63,19 @@ public class BatchAction extends AbstractAction {
       ScheduleTask task = scheduleManager.getScheduleTask(taskId);
 
       if(task != null) {
+         // Bug #77531, run-time backstop: refuse to dispatch to one of the three internal tasks
+         // (asset file backup, task balancer, update assets dependencies) unless the principal of
+         // the task that holds this action is a site admin. Those internal actions ignore the
+         // principal they are run with and perform no permission check of their own, so a
+         // BatchAction saved (or imported) before this fix, or through any path the save-time
+         // checks miss, must still be refused here.
+         if(ScheduleManager.isInternalTask(task.getTaskId()) &&
+            !OrganizationManager.getInstance().isSiteAdmin(principal))
+         {
+            throw new SecurityException(String.format(
+               "Unauthorized access to resource \"%s\" by %s", task.getTaskId(), principal));
+         }
+
          Principal childPrincipal = getChildPrincipal(task);
          runScheduleTaskWithEmbeddedParameters(task, childPrincipal);
          runScheduleTaskWithQueryParameters(task, principal, childPrincipal);
