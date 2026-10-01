@@ -30,6 +30,7 @@ import inetsoft.uql.asset.*;
 import inetsoft.uql.util.XEmbeddedTable;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.util.Tool;
+import inetsoft.util.script.FormulaContext;
 import inetsoft.web.viewsheet.event.OpenViewsheetEvent;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.RegisterExtension;
@@ -87,6 +88,26 @@ public class ViewsheetScopeTest {
        }
        viewsheetScope.refreshData();
        return tableAssembly.getEmbeddedData();
+   }
+
+   /**
+    * Bug #77396, a viewsheet script restores the enclosing restricted setting
+    * instead of resetting it to false.
+    */
+   @Test
+   void executeRestoresEnclosingRestriction() throws Exception {
+      try {
+         FormulaContext.setRestricted(true);
+         viewsheetScope.execute("1 + 1", "TableView1", false);
+         assertTrue(FormulaContext.isRestricted());
+
+         FormulaContext.setRestricted(false);
+         viewsheetScope.execute("1 + 1", "TableView1", false);
+         assertFalse(FormulaContext.isRestricted());
+      }
+      finally {
+         FormulaContext.setRestricted(false);
+      }
    }
 
    /**

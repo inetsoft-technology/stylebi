@@ -989,6 +989,9 @@ public class ViewsheetScope extends ScriptableObject implements Cloneable, Dynam
          throw new ScriptException(msg, ex);
       };
 
+      // restore the enclosing setting afterwards instead of lifting its restriction
+      boolean restricted = FormulaContext.isRestricted();
+
       // execute the script object
       try {
          // compile the script
@@ -1052,7 +1055,7 @@ public class ViewsheetScope extends ScriptableObject implements Cloneable, Dynam
             vtable.copyParameters((XPrincipal) box.getUser());
          }
 
-         FormulaContext.setRestricted(false);
+         FormulaContext.setRestricted(restricted);
       }
    }
 
