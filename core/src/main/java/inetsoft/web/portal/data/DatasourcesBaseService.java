@@ -400,7 +400,7 @@ public abstract class DatasourcesBaseService {
    {
       repository.removeDataSource(path, force);
       securityEngine.removePermission(ResourceType.DATA_SOURCE, path);
-      SreeEnv.remove("inetsoft.uql.jdbc.pool." + path + ".connectionTestQuery");
+      JDBCUtil.removeConnectionTestQuery(path);
       SreeEnv.save();
       return null;
    }
