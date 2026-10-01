@@ -355,6 +355,32 @@ private void collectJoins(XFilterNode node, List joins) {
    }
 }
 
+/**
+ * Check that each legacy outer join of a where clause (*=, =* or (+)) is between
+ * two different from clause tables of the query. An outer join is generated in the
+ * from clause, which needs both of its tables, so a join on an unqualified column,
+ * or on a table that isn't in the from clause, can't be represented.
+ */
+private void checkWhereOuterJoins(UniformSQL sql, XFilterNode node, Token tok)
+   throws SemanticException
+{
+   if(node instanceof XJoin && ((XJoin) node).isOuterJoin()) {
+      XJoin join = (XJoin) node;
+      int index1 = getJoinTableIndex(sql, join.getTable1(sql));
+      int index2 = getJoinTableIndex(sql, join.getTable2(sql));
+
+      if(index1 < 0 || index2 < 0 || index1 == index2) {
+         throw new SemanticException("Unsupported outer join condition: " + join,
+                                     getFilename(), tok.getLine(), tok.getColumn());
+      }
+   }
+   else if(node instanceof XSet) {
+      for(int i = 0; i < node.getChildCount(); i++) {
+         checkWhereOuterJoins(sql, (XFilterNode) node.getChild(i), tok);
+      }
+   }
+}
+
 private boolean collectOuterJoins(XFilterNode node, List joins) {
    if(node instanceof XJoin) {
       joins.add(node);
@@ -2507,10 +2533,11 @@ column_name returns [String colname = ""]
         ;
 
 table_exp [UniformSQL sql]
-        {XFilterNode where, having; String nouse; {checkStatus();}}
+        {XFilterNode where, having; String nouse; Token wtok = null; {checkStatus();}}
         :
         (from_clause[sql])?
-        ( where = where_clause {where.setClause(XFilterNode.WHERE); sql.combineWhereByAnd(where);})?
+        ( {wtok = LT(1);} where = where_clause {where.setClause(XFilterNode.WHERE);
+        checkWhereOuterJoins(sql, where, wtok); sql.combineWhereByAnd(where);})?
         ( group_by_clause[sql] )?
         {if(sql != null) {checkOuterJoinTables(sql, LT(1));}}
         ( having = having_clause {having.setClause(XFilterNode.HAVING); sql.setHaving(having);})?
