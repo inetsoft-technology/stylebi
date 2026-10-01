@@ -2076,6 +2076,7 @@ public class SQLHelper implements KeywordProvider {
             int index2 = tables.get(table2[0]);
 
             if(index1 >= count || index2 >= count) {
+               LOG.warn("Join ignored, a table of the join is not in the FROM clause: {}", join);
                continue;
             }
 
@@ -2669,7 +2670,18 @@ public class SQLHelper implements KeywordProvider {
 
       where.append(WHERE);
       XFilterNode root = uniformSql.getWhere();
-      String condition = generateConditions(root);
+      boolean oJoinPosition = ansiJoinPosition;
+      String condition;
+
+      try {
+         // only joins on a non-negated all-AND path of the where tree can be moved into the
+         // ANSI FROM clause
+         ansiJoinPosition = !(root instanceof XSet) || isAnsiJoinTransparent((XSet) root, null);
+         condition = generateConditions(root);
+      }
+      finally {
+         ansiJoinPosition = oJoinPosition;
+      }
 
       if(condition != null && !condition.trim().equals("")) {
          where.append(condition);
@@ -3303,16 +3315,56 @@ public class SQLHelper implements KeywordProvider {
             return buildConditionString0(condition);
          }
 
-         if(vJoin == null) {
-            vJoin = new ArrayList<>();
-         }
+         if(isAnsiFromJoin(join)) {
+            if(vJoin == null) {
+               vJoin = new ArrayList<>();
+            }
 
-         vJoin.add((XJoin) condition);
-         return "";
+            vJoin.add(join);
+            return "";
+         }
       }
-      else {
-         return buildConditionString0(condition);
+
+      return buildConditionString0(condition);
+   }
+
+   /**
+    * Check if a join found in the condition tree can be moved into the ANSI FROM clause.
+    * A join that is not moved is rendered in place as an ordinary predicate. An outer join
+    * is always moved, since its operator can't be written in a WHERE clause. Any other join
+    * is moved only if it's in the WHERE clause (not HAVING), it's on a non-negated all-AND
+    * path from the root (or in a join group built by UniformSQL.addJoin), its operator has
+    * an ANSI join, and both of its tables are in the FROM clause of this query level (so a
+    * correlation to an outer query stays in WHERE).
+    */
+   private boolean isAnsiFromJoin(XJoin join) {
+      if(join.isOuterJoin()) {
+         return true;
       }
+
+      if(having || !ansiJoinPosition || getAnsiJoin(join.getOp(), false) == null) {
+         return false;
+      }
+
+      return uniformSql.getTableIndex(join.getTable1(uniformSql)) >= 0 &&
+         uniformSql.getTableIndex(join.getTable2(uniformSql)) >= 0;
+   }
+
+   /**
+    * Check if the children of a condition set are in the same join position as the set
+    * itself, i.e. if a join in the set is a join of the whole query when the set is.
+    * @param set the condition set.
+    * @param parent the parent set of the condition set, or null if it's the root.
+    */
+   private static boolean isAnsiJoinTransparent(XSet set, XSet parent) {
+      if(set.isIsNot()) {
+         return false;
+      }
+
+      // the or sets of a join group built by UniformSQL.addJoin hold alternative joins of
+      // the same pair of tables, which makeJoinClause() writes into the join ON clause
+      return XSet.AND.equalsIgnoreCase(set.getRelation()) || set.getChildCount() <= 1 ||
+         set.isGroup() || (parent != null && parent.isGroup());
    }
 
    /**
@@ -3357,15 +3409,27 @@ public class SQLHelper implements KeywordProvider {
       int childCount;
       XNode node;
       childCount = condition.getChildCount();
+      // the children of this set are in a join position
+      final boolean joinPosition = ansiJoinPosition;
 
       for(int i = 0; i < childCount; i++) {
          String tmpStr = "";
          node = condition.getChild(i);
+         ansiJoinPosition = joinPosition;
 
          if(node instanceof XFilterNode) {
             if(node instanceof XSet) {
                String relation = condition.getRelation();
-               String childStr = buildConditionString((XSet) node);
+               ansiJoinPosition = joinPosition &&
+                  isAnsiJoinTransparent((XSet) node, condition);
+               String childStr;
+
+               try {
+                  childStr = buildConditionString((XSet) node);
+               }
+               finally {
+                  ansiJoinPosition = joinPosition;
+               }
 
                if(!relation.equals(((XSet) node).getRelation()) || ((XSet) node).isGroup()) {
                   if(!childStr.equals("")) {
@@ -5033,6 +5097,8 @@ public class SQLHelper implements KeywordProvider {
    protected boolean having = false; // in having
    private boolean vpmCondition = false; // in vpm condition
    private List<XJoin> vJoin = null; // for ansi join
+   // true if the condition being generated is in a join position of the where clause
+   private boolean ansiJoinPosition = false;
    private Boolean textJoinOrder = null; // isTextJoinOrder of this generation
    private Map<String, String> aliasmap = null; // old table alias -> new alias
    private String version = "";
