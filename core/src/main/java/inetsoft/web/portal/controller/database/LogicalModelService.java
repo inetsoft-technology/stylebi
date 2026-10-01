@@ -635,7 +635,8 @@ public class LogicalModelService {
       repository.updateDataModel(dataModel);
 
       if(!isExtended) {
-         String resource = name + "::" + dataSource + (folder == null ? "" : "/" + folder);
+         // use the stored folder of the model, which is the form the permission is saved in
+         String resource = XUtil.getLogicalModelResourceName(dataSource, model.getFolder(), name);
          securityEngine.removePermission(ResourceType.QUERY, resource);
       }
    }
