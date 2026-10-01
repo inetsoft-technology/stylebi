@@ -3007,7 +3007,7 @@ public class SQLHelper implements KeywordProvider {
       // the or sets of a join group built by UniformSQL.addJoin hold alternative joins of
       // the same pair of tables, which makeJoinClause() writes into the join ON clause
       return XSet.AND.equalsIgnoreCase(set.getRelation()) || set.getChildCount() <= 1 ||
-         set.isGroup() || parent != null && parent.isGroup();
+         set.isGroup() || (parent != null && parent.isGroup());
    }
 
    /**

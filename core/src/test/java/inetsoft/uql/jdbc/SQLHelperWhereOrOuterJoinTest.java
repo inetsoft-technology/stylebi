@@ -195,15 +195,18 @@ class SQLHelperWhereOrOuterJoinTest {
                                "a.k = 1", dataSource("oracle")));
    }
 
-   // controls that were already right are unchanged, including the #77478 fold
+   // controls that were already right are unchanged. A comparison in WHERE on an outer-joined
+   // pair (the #77478 fold) is left out, since its output is fixed by the parser change for
+   // #77478 (PR #6057), not here.
    @ParameterizedTest
    @CsvSource(delimiter = '|', value = {
       "from a left join b on a.id = b.id where a.k = 1 or b.k = 2|" +
          "from a LEFT OUTER JOIN b ON a.id = b.id where (a.k = 1 or b.k = 2)",
       "from a left join b on a.id = b.id and a.k = b.k|" +
          "from a LEFT OUTER JOIN b ON a.id = b.id AND a.k = b.k",
-      "from a left join b on a.id = b.id where a.k = b.k|" +
-         "from a LEFT OUTER JOIN b ON a.id = b.id AND a.k = b.k",
+      // a comparison at the top level between tables that aren't outer joined is still a join
+      "from a left join b on a.id = b.id, c where a.k = c.k|" +
+         "from (a INNER JOIN c ON a.k = c.k ) LEFT OUTER JOIN b ON a.id = b.id",
       "from a, b where not (a.id = b.k)|from a INNER JOIN b ON a.id <> b.k",
    })
    void controlsUnchanged(String tail, String expected) throws Exception {
@@ -253,6 +256,7 @@ class SQLHelperWhereOrOuterJoinTest {
       SEL + "from a left join b on a.id = b.id where not (a.id = b.k and a.k = 1)",
       SEL + "from a left join b on a.id = b.id where a.k != b.k",
       SEL + "from a, b where a.id = b.k or a.k = 1",
+      SEL + "from a left join b on a.id = b.id, c where a.k = c.k",
       "select a.id ai, a.k ak, b.id bi, c.k ck from a left join b on a.id = b.id, c where " +
          "a.id = c.k or c.j = 1",
       "select a.id ai, a.k ak from a left join b on a.id = b.id group by a.id, a.k, b.k " +
