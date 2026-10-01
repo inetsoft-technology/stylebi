@@ -90,11 +90,12 @@ class CurrentSelectionVSAssemblyZIndexTest {
    }
 
    /**
-    * Tab children are not renumbered by calcChildZIndex (see Bug #72999). Guards against
-    * generalizing the selection container fix to every container.
+    * Tab children are renumbered directly above the tab, 1 apart, not with the container gap
+    * the selection container fix uses, so the second group stays below the next top-level
+    * object (Bugs #72999 and #77451). The groups' children are numbered from the tab's z-index.
     */
    @Test
-   void tabWithGroupsKeepsCurrentZIndexes() {
+   void tabWithGroupsRenumbersWithoutContainerGap() {
       Viewsheet vs = new Viewsheet();
       add(vs, new TextVSAssembly(vs, "Back"), 1);
       TabVSAssembly tab = new TabVSAssembly(vs, "Tab1");
@@ -117,8 +118,8 @@ class CurrentSelectionVSAssemblyZIndexTest {
       assertEquals(1, vs.getAssembly("Back").getZIndex());
       assertEquals(2, vs.getAssembly("Tab1").getZIndex());
       assertEquals(52, vs.getAssembly("After").getZIndex());
-      assertEquals(5, vs.getAssembly("G1").getZIndex());
-      assertEquals(6, vs.getAssembly("G2").getZIndex());
+      assertEquals(3, vs.getAssembly("G1").getZIndex());
+      assertEquals(4, vs.getAssembly("G2").getZIndex());
       assertEquals(3, vs.getAssembly("T1").getZIndex());
       assertEquals(4, vs.getAssembly("T2").getZIndex());
       assertEquals(3, vs.getAssembly("T3").getZIndex());
