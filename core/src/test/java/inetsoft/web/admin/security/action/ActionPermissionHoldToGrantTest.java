@@ -32,6 +32,7 @@ package inetsoft.web.admin.security.action;
  *   managedUser - also granted settings/security/users, administered by the delegate
  *   secondUser  - plain org user without grants
  *   hiddenGroup, hiddenRole - org group and role the delegate neither administers nor belongs to
+ *   managedGroup, managedRole - org group and role the delegate administers but does not belong to
  *   orgAdmin    - org user holding the global "Organization Administrator" role
  *   siteAdmin   - org user holding a system administrator role
  *
@@ -109,12 +110,20 @@ class ActionPermissionHoldToGrantTest {
          .addUserToRole("delegateUser", "delegRole", ORG_ID)
          .addGroup("hiddenGroup", ORG_ID)
          .addRole("hiddenRole", ORG_ID)
+         .addGroup("managedGroup", ORG_ID)
+         .addRole("managedRole", ORG_ID)
          .addSysAdminRole("siteAdminRole", ORG_ID)
          .addUserToRole("siteAdminUser", "siteAdminRole", ORG_ID)
          .grantPermission(ResourceType.EM, "*", ResourceAction.ACCESS,
                           "delegateUser", Identity.USER, ORG_ID)
          .grantPermission(ResourceType.SECURITY_USER,
                           new IdentityID("managedUser", ORG_ID).convertToKey(),
+                          ResourceAction.ADMIN, "delegateUser", Identity.USER, ORG_ID)
+         .grantPermission(ResourceType.SECURITY_GROUP,
+                          new IdentityID("managedGroup", ORG_ID).convertToKey(),
+                          ResourceAction.ADMIN, "delegateUser", Identity.USER, ORG_ID)
+         .grantPermission(ResourceType.SECURITY_ROLE,
+                          new IdentityID("managedRole", ORG_ID).convertToKey(),
                           ResourceAction.ADMIN, "delegateUser", Identity.USER, ORG_ID);
       builder.setup();
 
@@ -310,6 +319,26 @@ class ActionPermissionHoldToGrantTest {
       assertTrue(hasUserGrant(SETTINGS_USERS, "managedUser"));
       assertTrue(hasGrant(SETTINGS_USERS, "hiddenGroup", Identity.GROUP));
       assertTrue(hasGrant(SETTINGS_USERS, "hiddenRole", Identity.ROLE));
+      assertFalse(canAccess(delegate, SETTINGS_USERS));
+   }
+
+   // Bug #77461, stored grants of a group and role the delegate administers still count, so
+   // re-saving a view that shows them is not a new grant
+   @Test
+   void delegate_resaveAdministeredGroupAndRoleOnNotHeldNode_saved() throws Exception {
+      storeGrant(SETTINGS_USERS, "managedGroup", Identity.Type.GROUP);
+      storeGrant(SETTINGS_USERS, "managedRole", Identity.Type.ROLE);
+      ResourcePermissionModel view = delegateView(SETTINGS_USERS);
+
+      assertEquals(Set.of("managedUser", "managedGroup", "managedRole"),
+                   new HashSet<>(rowNames(view)));
+
+      controller.setPermissions(ResourceType.EM_COMPONENT.name(), SETTINGS_USERS, true, view,
+                                delegate);
+
+      assertTrue(hasGrant(SETTINGS_USERS, "managedGroup", Identity.GROUP));
+      assertTrue(hasGrant(SETTINGS_USERS, "managedRole", Identity.ROLE));
+      assertTrue(hasUserGrant(SETTINGS_USERS, "buddyUser"));
       assertFalse(canAccess(delegate, SETTINGS_USERS));
    }
 
