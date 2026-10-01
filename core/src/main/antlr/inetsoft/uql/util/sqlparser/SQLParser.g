@@ -329,6 +329,162 @@ private boolean collectOuterJoins(XFilterNode node, List joins) {
    return false;
 }
 
+// sql -> XJoins of inner join ON conditions that are still filters on the
+// result of the joins before them (no later RIGHT/FULL or nested outer join)
+private Map innerOnJoins = new IdentityHashMap();
+
+/**
+ * Remember the column comparisons of an inner join ON condition. Once the
+ * FROM clause is complete, the ones between two outer joined tables are
+ * converted to plain conditions by moveOuterPairJoins().
+ */
+private void addInnerOnJoins(UniformSQL sql, XFilterNode cond) {
+   List joins = (List) innerOnJoins.get(sql);
+
+   if(joins == null) {
+      joins = new ArrayList();
+      innerOnJoins.put(sql, joins);
+   }
+
+   collectInnerJoins(cond, joins);
+}
+
+/**
+ * An outer join can make the tables of the inner joins before it null
+ * supplying (a RIGHT/FULL join, or an outer join of a parenthesized operand).
+ * A filter in their ON conditions is then not the same as a where condition,
+ * so those conditions are left as they are.
+ */
+private void clearInnerOnJoins(UniformSQL sql, String outerType, String tbl2) {
+   if(!"LEFT".equals(outerType) || tbl2 == null || tbl2.length() == 0) {
+      innerOnJoins.remove(sql);
+   }
+}
+
+private void collectInnerJoins(XFilterNode node, List joins) {
+   if(node instanceof XJoin) {
+      if(!((XJoin) node).isOuterJoin()) {
+         joins.add(node);
+      }
+   }
+   else if(node instanceof XSet) {
+      for(int i = 0; i < node.getChildCount(); i++) {
+         collectInnerJoins((XFilterNode) node.getChild(i), joins);
+      }
+   }
+}
+
+/**
+ * Collect the table pairs of the outer joins in a condition. Each pair is the
+ * two table names, sorted and separated by a newline.
+ */
+private void collectOuterPairs(UniformSQL sql, XFilterNode node, Set pairs) {
+   if(node instanceof XJoin) {
+      String pair = getTablePair(sql, (XJoin) node);
+
+      if(((XJoin) node).isOuterJoin() && pair != null) {
+         pairs.add(pair);
+      }
+   }
+   else if(node instanceof XSet && !node.isIsNot() &&
+      XSet.AND.equalsIgnoreCase(((XSet) node).getRelation()))
+   {
+      for(int i = 0; i < node.getChildCount(); i++) {
+         collectOuterPairs(sql, (XFilterNode) node.getChild(i), pairs);
+      }
+   }
+}
+
+private String getTablePair(UniformSQL sql, XJoin join) {
+   String table1 = join.getTable1(sql);
+   String table2 = join.getTable2(sql);
+
+   if(table1 == null || table2 == null || table1.length() == 0 ||
+      table2.length() == 0 || table1.equals(table2))
+   {
+      return null;
+   }
+
+   // SQLHelper matches the tables of a join ignoring case (getTableIndex)
+   table1 = table1.toLowerCase(Locale.ROOT);
+   table2 = table2.toLowerCase(Locale.ROOT);
+
+   return table1.compareTo(table2) < 0 ? table1 + "\n" + table2 :
+      table2 + "\n" + table1;
+}
+
+/**
+ * An XJoin between two outer joined tables is generated in the ON condition
+ * of the outer join, where it no longer drops the null extended rows. Store
+ * a filter between such tables as a plain condition instead (#77478).
+ */
+private XFilterNode toOuterPairCondition(UniformSQL sql, XFilterNode node,
+                                         Set pairs)
+{
+   if(node instanceof XJoin) {
+      XJoin join = (XJoin) node;
+
+      if(!join.isOuterJoin() && pairs.contains(getTablePair(sql, join))) {
+         XBinaryCondition cond = new XBinaryCondition(
+            join.getExpression1(), join.getExpression2(), join.getOp());
+         cond.setName(join.getName());
+         cond.setIsNot(join.isIsNot());
+         cond.setClause(join.getClause());
+         cond.setGroup(join.isGroup());
+         return cond;
+      }
+   }
+   else if(node instanceof XSet) {
+      for(int i = 0; i < node.getChildCount(); i++) {
+         XFilterNode child = (XFilterNode) node.getChild(i);
+         XFilterNode child2 = toOuterPairCondition(sql, child, pairs);
+
+         if(child2 != child) {
+            node.setChild(i, child2);
+         }
+      }
+   }
+
+   return node;
+}
+
+/**
+ * Convert the column comparisons of a where clause between two outer joined
+ * tables to plain conditions. The where clause applies after all the joins,
+ * so this keeps its meaning wherever the outer join is.
+ */
+private XFilterNode whereOuterPairJoins(UniformSQL sql, XFilterNode where) {
+   Set pairs = new HashSet();
+   collectOuterPairs(sql, sql.getWhere(), pairs);
+   collectOuterPairs(sql, where, pairs);
+   return pairs.isEmpty() ? where : toOuterPairCondition(sql, where, pairs);
+}
+
+/**
+ * Convert the remembered inner join ON comparisons between two outer joined
+ * tables to plain conditions once the FROM clause is complete.
+ */
+private void moveOuterPairJoins(UniformSQL sql) {
+   List joins = (List) innerOnJoins.remove(sql);
+   Set pairs = new HashSet();
+   collectOuterPairs(sql, sql.getWhere(), pairs);
+
+   for(int i = 0; joins != null && !pairs.isEmpty() && i < joins.size(); i++) {
+      XJoin join = (XJoin) joins.get(i);
+      inetsoft.uql.XNode parent = join.getParent();
+      XFilterNode cond = toOuterPairCondition(sql, join, pairs);
+
+      for(int j = 0; parent != null && cond != join &&
+             j < parent.getChildCount(); j++)
+      {
+         if(parent.getChild(j) == join) {
+            parent.setChild(j, cond);
+            break;
+         }
+      }
+   }
+}
+
 public boolean hasField(){
    return hasField;
 }
@@ -2646,8 +2802,8 @@ column_name returns [String colname = ""]
 table_exp [UniformSQL sql]
         {XFilterNode where, having; String nouse; {checkStatus();}}
         :
-        (from_clause[sql])?
-        ( where = where_clause {where.setClause(XFilterNode.WHERE); markJoins(where, XJoin.WHERE_CLAUSE); sql.combineWhereByAnd(where);})?
+        (from_clause[sql] {moveOuterPairJoins(sql);})?
+        ( where = where_clause {where = whereOuterPairJoins(sql, where); where.setClause(XFilterNode.WHERE); markJoins(where, XJoin.WHERE_CLAUSE); sql.combineWhereByAnd(where);})?
         ( group_by_clause[sql] )?
         ( having = having_clause {having.setClause(XFilterNode.HAVING); sql.setHaving(having);})?
         ((ORDER BY)=> nouse = order_by_clause[sql] )?
@@ -3042,6 +3198,11 @@ join_condition [UniformSQL sql, String op, String tbl2] returns [String jc = ""]
 
                  join.setOp(outerOp);
               }
+
+              clearInnerOnJoins(sql, outerType, tbl2);
+           }
+           else {
+              addInnerOnJoins(sql, tmp);
            }
 
            markJoins(tmp, ++onClauseCount);
