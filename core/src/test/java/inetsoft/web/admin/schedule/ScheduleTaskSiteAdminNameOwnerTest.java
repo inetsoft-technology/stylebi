@@ -247,6 +247,62 @@ class ScheduleTaskSiteAdminNameOwnerTest {
             .getRoles()), "an existing owner runs with its own roles");
    }
 
+   // Bug #77452 path (a): a batch action lends the principal of its task to the child task it
+   // runs. The child of a task owned by a missing user named like a site admin must not get a
+   // site admin's principal. The child is owned by a plain user, who could change what it runs.
+   // Whether the child should run as its own owner instead is a separate decision, so this only
+   // asserts that the lent principal is not a site admin.
+   @Test
+   void batchChild_ofTaskOwnedLikeSiteAdmin_isNotRunAsSiteAdmin() throws Throwable {
+      String childName = "SanoBatchChild";
+      ScheduleTask child = new ScheduleTask(childName);
+      child.setOwner(new IdentityID("carol", ORG_B));
+      taskNames.add(childName);
+      String key = ReflectionTestUtils.invokeMethod(
+         scheduleManager, "getTaskIdentifier", child.getTaskId(), ORG_B);
+      @SuppressWarnings("unchecked")
+      Map<String, ScheduleTask> map =
+         (Map<String, ScheduleTask>) (Object) scheduleManager.getOrgTaskMap(ORG_B);
+      map.put(key, child);
+
+      BatchAction batch = new BatchAction();
+      batch.setTaskId(child.getTaskId());
+      batch.setEmbeddedParameters(List.of(Map.of("p", "v")));
+
+      // the run copy of the child, records the principal the child task is run with
+      java.util.concurrent.atomic.AtomicReference<java.security.Principal> received =
+         new java.util.concurrent.atomic.AtomicReference<>();
+      ScheduleTask childRun = spy(new ScheduleTask(childName));
+      doAnswer(inv -> {
+         received.set(inv.getArgument(0));
+         return null;
+      }).when(childRun).run(any());
+
+      SRPrincipal parent = SUtil.getScheduleTaskOwnerPrincipal(SADM_IN_B, null, false);
+      // as ScheduleTask.doRun, the current org of the action is the owner's org
+      ThreadContext.setContextPrincipal(parent);
+
+      try(MockedStatic<ScheduleTask> copy = mockStatic(ScheduleTask.class, inv ->
+         "copyScheduleTask".equals(inv.getMethod().getName()) ? childRun : inv.callRealMethod()))
+      {
+         batch.run(parent);
+      }
+
+      java.security.Principal principal = received.get();
+      assertNotNull(principal, "the child task was found and run");
+      assertFalse(OrganizationManager.getInstance().isSiteAdmin(principal),
+                  "the child doesn't run as a site admin");
+      assertFalse(Arrays.stream(((inetsoft.uql.XPrincipal) principal).getAllRoles(securityProvider))
+                     .anyMatch(securityProvider::isSystemAdministratorRole),
+                  "no inherited system admin role");
+      assertFalse(securityProvider.checkPermission(
+         principal, ResourceType.SECURITY_USER, new IdentityID("sadm", ORG_A).convertToKey(),
+         ResourceAction.ADMIN), "doesn't administer the site admin");
+      assertFalse(securityProvider.checkPermission(
+         principal, ResourceType.EM_COMPONENT, "settings/general", ResourceAction.ACCESS),
+                  "no site admin EM component");
+   }
+
    // --- ScheduleTaskIdentityChecker -------------------------------------------------------------
 
    @Test
