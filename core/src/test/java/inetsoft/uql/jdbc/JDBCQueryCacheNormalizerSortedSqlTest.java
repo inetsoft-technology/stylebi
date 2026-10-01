@@ -39,7 +39,10 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import javax.sql.DataSource;
+import inetsoft.sree.security.IdentityID;
+import inetsoft.uql.erm.vpm.VpmProcessor;
 import java.lang.reflect.*;
+import java.security.Principal;
 import java.sql.*;
 import java.util.*;
 import java.util.function.Consumer;
@@ -164,6 +167,71 @@ class JDBCQueryCacheNormalizerSortedSqlTest {
 
       assertEquals(SQL, run.executedSql);
       assertSelectOrder(run.table);
+   }
+
+   // parse off, not lossy: the normalizer clears the sql string. XUtil.clearComments then
+   // generates the sorted sql in JDBCHandler and saves it, before the final generation.
+   @Test
+   void parseOffNotLossyIsRegeneratedSortedAndRestored() throws Exception {
+      Run run = run(newSession(false), parseOffNotLossy(SQL), null);
+
+      assertTrue(norm(run.executedSql).startsWith("select t.a, t.b"), run.executedSql);
+      assertSelectOrder(run.table);
+   }
+
+   @Test
+   void parseOffNotLossyCacheHitKeepsSelectOrder() throws Exception {
+      String sql2 = "select T2.B, T2.A from T2 where T2.A = 1";
+      XSessionManager session = newSession(true);
+      assertSelectOrder(run(session, parseOffNotLossy(sql2), null).table);
+
+      try(Connection conn = derby().getConnection(); Statement stmt = conn.createStatement()) {
+         stmt.executeUpdate("insert into T2 values (1, 'y')");
+      }
+
+      Run second = run(session, parseOffNotLossy(sql2), null);
+      assertEquals(2, rowCount(second.table), "expected a cache hit");
+      assertSelectOrder(second.table);
+   }
+
+   // enterprise VpmUtil.applyConditions generates a parse-off query's sql inside
+   // JDBCHandler.execute and saves it as the sql string
+   @Test
+   void parseOffNotLossySavedByVpmIsRestored() throws Exception {
+      Run run = run(newSession(false), parseOffNotLossy(SQL), null,
+                    u -> u.setSQLString(u.getSQLString(), false));
+
+      assertTrue(norm(run.executedSql).startsWith("select t.a, t.b"), run.executedSql);
+      assertSelectOrder(run.table);
+   }
+
+   // VPM conditions regenerate a lossy query inside JDBCHandler.execute
+   @Test
+   void lossyRegeneratedByVpmIsRestored() throws Exception {
+      UniformSQL usql = parsed(SQL);
+      usql.setLossy(true);
+      Run run = run(newSession(false), usql, null, UniformSQL::clearSQLString);
+
+      assertTrue(norm(run.executedSql).startsWith("select t.a, t.b"), run.executedSql);
+      assertSelectOrder(run.table);
+   }
+
+   // no map (maxrow text), then VPM conditions regenerate inside JDBCHandler.execute
+   @Test
+   void noMapThenRegeneratedByVpmIsNotSorted() throws Exception {
+      UniformSQL usql = parsed(SQL);
+      usql.setSQLString(SQL + " fetch first 5 rows only", false);
+      Run run = run(newSession(false), usql, null, UniformSQL::clearSQLString);
+
+      assertTrue(norm(run.executedSql).startsWith("select t.b, t.a"), run.executedSql);
+      assertSelectOrder(run.table);
+   }
+
+   private static UniformSQL parseOffNotLossy(String sql) throws Exception {
+      UniformSQL usql = parsed(sql);
+      usql.setParseSQL(false);
+      usql.setLossy(false);
+      return usql;
    }
 
    // setSQLString(s, false) or an unfinished async parse: PARSE_INIT keeps the sql string
@@ -327,7 +395,7 @@ class JDBCQueryCacheNormalizerSortedSqlTest {
       XDataService dataService = mock(XDataService.class);
       when(dataService.execute(any(), any(XQuery.class), any(), any(), anyBoolean(), any()))
          .thenAnswer(inv -> execute(inv.getArgument(1), inv.getArgument(2),
-                                    inv.getArgument(5)));
+                                    inv.getArgument(3), inv.getArgument(5)));
       XSessionManager session = new XSessionManager(
          dataService, ConfigurationContext.getContext().getSpringBean(XSessionService.class),
          null);
@@ -342,39 +410,95 @@ class JDBCQueryCacheNormalizerSortedSqlTest {
    private Run run(XSessionManager session, UniformSQL usql, Consumer<UniformSQL> hook)
       throws Exception
    {
+      return run(session, usql, hook, null);
+   }
+
+   /**
+    * Run a query through XSessionManager. The vpm hook runs inside JDBCHandler.execute, on a
+    * clone of the query returned from VpmProcessor.applyConditions, the way the enterprise
+    * VpmUtil.applyConditions regenerates (and for parse-off sql saves) the sql string.
+    */
+   private Run run(XSessionManager session, UniformSQL usql, Consumer<UniformSQL> hook,
+                   Consumer<UniformSQL> vpmHook)
+      throws Exception
+   {
       JDBCQuery query = newQuery(usql);
       Run run = new Run();
-      currentHook = hook;
-      currentRun = run;
+      run.hook = hook;
+      run.vpmHook = vpmHook;
+      currentRun.set(run);
 
       try {
-         run.table = session.getXNodeTableLens(query, new VariableTable(), null, null, null,
-                                               -1);
+         run.table = session.getXNodeTableLens(query, new VariableTable(),
+                                               vpmHook != null ? USER : null, null, null, -1);
       }
       finally {
-         currentHook = null;
-         currentRun = null;
+         currentRun.remove();
       }
 
       assertNotNull(run.table, "query failed, see log");
       return run;
    }
 
-   private static XNode execute(XQuery query, VariableTable vars,
+   private static XNode execute(XQuery query, VariableTable vars, Principal user,
                                 inetsoft.util.DataCacheVisitor visitor) throws Exception
    {
+      Run run = currentRun.get();
       UniformSQL usql = (UniformSQL) ((JDBCQuery) query).getSQLDefinition();
 
-      if(currentHook != null) {
-         currentHook.accept(usql);
+      if(run.hook != null) {
+         run.hook.accept(usql);
       }
 
       JDBCHandler handler = new JDBCHandler();
       handler.connect(query.getDataSource(), vars);
       executed.set(null);
-      XNode node = handler.execute(query, vars, null, visitor);
-      currentRun.executedSql = executed.get();
+      XNode node = handler.execute(query, vars, user, visitor);
+      run.executedSql = executed.get();
       return node;
+   }
+
+   /**
+    * Stands in for the enterprise VpmProcessor. Only a run with a vpm hook changes the query.
+    */
+   private static final class TestVpmProcessor extends VpmProcessor {
+      @Override
+      public XQuery applyConditions(XQuery query, VariableTable vars, boolean checkVariable,
+                                    Principal user)
+      {
+         Run run = currentRun.get();
+
+         if(run == null || run.vpmHook == null) {
+            return query;
+         }
+
+         JDBCQuery clone = (JDBCQuery) query.clone();
+         run.vpmHook.accept((UniformSQL) clone.getSQLDefinition());
+         return clone;
+      }
+
+      @Override
+      public XQuery applyHiddenColumns(XQuery query, VariableTable vars, Principal user) {
+         return query;
+      }
+   }
+
+   private static Field vpmProcessorField() throws Exception {
+      Field field = VpmProcessor.class.getDeclaredField("processor");
+      field.setAccessible(true);
+      return field;
+   }
+
+   @BeforeAll
+   static void installVpmProcessor() throws Exception {
+      Field field = vpmProcessorField();
+      oldVpmProcessor = field.get(null);
+      field.set(null, new TestVpmProcessor());
+   }
+
+   @AfterAll
+   static void restoreVpmProcessor() throws Exception {
+      vpmProcessorField().set(null, oldVpmProcessor);
    }
 
    private static DataSource derby() {
@@ -430,9 +554,13 @@ class JDBCQueryCacheNormalizerSortedSqlTest {
    private static final class Run {
       TableLens table;
       String executedSql;
+      Consumer<UniformSQL> hook;
+      Consumer<UniformSQL> vpmHook;
    }
 
+   // a vpm hook only runs for a user, as in JDBCHandler.execute
+   private static final Principal USER = new XPrincipal(new IdentityID("bug77485", "host-org"));
    private static final ThreadLocal<String> executed = new ThreadLocal<>();
-   private static Consumer<UniformSQL> currentHook;
-   private static Run currentRun;
+   private static final ThreadLocal<Run> currentRun = new ThreadLocal<>();
+   private static Object oldVpmProcessor;
 }
