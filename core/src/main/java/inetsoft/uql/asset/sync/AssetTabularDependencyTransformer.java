@@ -113,6 +113,8 @@ public class AssetTabularDependencyTransformer extends AssetDependencyTransforme
          return sql;
       }
 
+      // an unquoted all-digit name is a number (1.5), not a qualifier
+      final boolean numeric = oname.chars().allMatch(ch -> ch >= '0' && ch <= '9');
       final int n = sql.length();
       final StringBuilder out = new StringBuilder(n);
       int i = 0;
@@ -147,8 +149,7 @@ public class AssetTabularDependencyTransformer extends AssetDependencyTransforme
                continue;
             }
          }
-         // a name starting with a digit is a number when unquoted (1.5), not a qualifier
-         else if(!Character.isDigit(oname.charAt(0)) && isQualifierStart(sql, i) &&
+         else if(!numeric && isQualifierStart(sql, i) &&
             sql.startsWith(oname, i) && i + oname.length() < n && sql.charAt(i + oname.length()) == '.')
          {
             out.append(isPlainIdentifier(nname) ? nname : "`" + nname.replace("`", "``") + "`");

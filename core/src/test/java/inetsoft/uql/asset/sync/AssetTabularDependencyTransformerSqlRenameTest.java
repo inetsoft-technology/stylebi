@@ -109,8 +109,9 @@ class AssetTabularDependencyTransformerSqlRenameTest {
       # a backtick in a name is doubled in the quoted form
       rest1 | a`b   | select id from rest1.users              | select id from `a``b`.users
       a`b   | c     | select id from `a``b`.t                 | select id from `c`.t
-      # an unquoted name starting with a digit is a number
+      # an unquoted all-digit name is a number, but a name that only starts with a digit is not
       1     | 2     | select 1.5 from `1`.t                   | select 1.5 from `2`.t
+      2024sales | sales2024 | select id from 2024sales.orders | select id from sales2024.orders
       # known limitation: a table named like the data source can't be told apart from it
       rest1 | rest2 | select rest1.id from rest1.rest1        | select rest2.id from rest2.rest1
       """)
