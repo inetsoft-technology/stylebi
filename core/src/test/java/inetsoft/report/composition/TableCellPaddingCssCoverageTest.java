@@ -112,6 +112,41 @@ class TableCellPaddingCssCoverageTest {
    }
 
    @Test
+   void anAuthorPaddingBelowTheSeedStillShortensTheRow() {
+      // D3: cell padding y is additive, in both directions. With no stylesheet the assembly's own
+      // padding is already the inset, so the seed was never displaced and there is nothing to
+      // floor - flooring here would leave the pane's vertical half able only to grow a row
+      assertAuthorPaddingRow("comfortable", 0, 16);
+      assertAuthorPaddingRow("comfortable", 2, 20);
+      assertAuthorPaddingRow("comfortable", 6, 28);
+      assertAuthorPaddingRow("comfortable", 10, 36);
+   }
+
+   @Test
+   void aRevertedTableKeepsItsSeedOutOfTheRow() {
+      // Revert clears the mark but leaves the DEFAULT tier alone when an author padding exists,
+      // because the re-seed is skipped for an author value. The mark is then the only thing that
+      // still says whether the stored height was ever shrunk
+      VSTableLens lens = lens(bodyPadded(1));
+      TableVSAssemblyInfo info = markedTable("comfortable");
+      info.setCellPadding(new Insets(2, 2, 2, 2), CompositeValue.Type.USER);
+      info.setVizMark(null);
+
+      assertEquals(2, lens.getRowPadding(1, info));
+   }
+
+   @Test
+   void aDraggedRowHeightRoundTripsThroughTheUserHeightFlag() {
+      // store and render read getRowPadding on opposite sides of setUserDataRowHeight, so any
+      // part of the answer that moves with that flag comes back as an overshoot on the first
+      // resize. Both a stylesheet height and the plain density base have to survive it
+      assertRoundTrip("comfortable", bodyHeightAndPadding(20, 1), 40);
+      assertRoundTrip("compact", bodyHeightAndPadding(20, 1), 40);
+      assertRoundTrip("dense", bodyHeightAndPadding(20, 1), 40);
+      assertRoundTrip("comfortable", bodyPadded(1), 40);
+   }
+
+   @Test
    void aCssPaddingLargerThanTheSeedStillGrowsTheRow() {
       // a guard, not a restatement: it passes before the fix as well, and it is what would catch
       // a fix that clamped the row to the tier instead of taking the larger of the two
@@ -148,6 +183,35 @@ class TableCellPaddingCssCoverageTest {
       height = css > 0 ? css : height;
 
       assertEquals(expected, height + lens.getRowPadding(row, info), density + " rendered data row");
+   }
+
+   /** A marked table with no stylesheet at all, carrying an author cell padding. */
+   private void assertAuthorPaddingRow(String density, int padding, int expected) {
+      VSTableLens lens = new VSTableLens(XTableUtil.getDefaultTableLens());
+      TableVSAssemblyInfo info = markedTable(density);
+      info.setCellPadding(new Insets(padding, padding, padding, padding), CompositeValue.Type.USER);
+      VizContext ctx = context(density);
+
+      assertEquals(expected, VSDensityDefaults.rowHeight(ctx, info) + lens.getRowPadding(1, info),
+                   density + " data row at author padding " + padding);
+   }
+
+   /**
+    * A row dragged to a new height and rendered back, mirroring
+    * ComposerVSTableService.changeRowHeight - subtract the padding, store, then raise the user
+    * flag - and BaseTableService, which skips the density substitution once that flag is up.
+    */
+   private void assertRoundTrip(String density, CSSTableStyle style, int dragged) {
+      VSTableLens lens = lens(style);
+      TableVSAssemblyInfo info = markedTable(density);
+      int row = lens.getHeaderRowCount();
+
+      int stored = Math.max(0, dragged - lens.getRowPadding(row, info));
+      info.setDataRowHeight(stored);
+      info.setUserDataRowHeight(true);
+
+      assertEquals(dragged, stored + lens.getRowPadding(row, info),
+                   density + " dragged row round trip");
    }
 
    private void assertDataRow(String density, CSSTableStyle style, int expected) {
@@ -204,8 +268,14 @@ class TableCellPaddingCssCoverageTest {
       return style;
    }
 
+   /**
+    * The mark is stamped as well as the seed. A DEFAULT tier on an unmarked info is a state the
+    * seed never produces going forward, and the padding floor reads the mark to tell a shrunk
+    * stored height from a reverted one that kept its seed.
+    */
    private TableVSAssemblyInfo markedTable(String density) {
       TableVSAssemblyInfo info = new TableVSAssemblyInfo();
+      info.setVizMark(VizMark.MODERN_LIGHT);
       info.setCellPadding(VSDensityDefaults.cellPadding(context(density)),
                           CompositeValue.Type.DEFAULT);
       return info;

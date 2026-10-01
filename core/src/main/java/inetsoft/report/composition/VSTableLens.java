@@ -2153,7 +2153,16 @@ public class VSTableLens extends DefaultTableFilter implements XMLSerializable, 
     */
    public int getRowPadding(int row, TableDataVSAssemblyInfo info) {
       int inset = getEffectiveRowInset(row, info);
-      return isCSSRowHeightDefined(row, info) ? inset : Math.max(inset, getSeededInsetHeight(info));
+
+      // the seed is lost only where a stylesheet displaces the assembly's padding on every
+      // column of the row. Under partial or no coverage the assembly's own value is already in
+      // the inset, so flooring there would stop an author padding below the seed from shortening
+      // the row at all - the pane's vertical half could then only grow one
+      if(isCSSRowFullyPadded(row) && !isCSSRowHeightDefined(row)) {
+         return Math.max(inset, getSeededInsetHeight(info));
+      }
+
+      return inset;
    }
 
    /**
@@ -2173,25 +2182,40 @@ public class VSTableLens extends DefaultTableFilter implements XMLSerializable, 
    }
 
    /**
-    * The seed the stored row height was reduced by - the DEFAULT tier alone, matching what
-    * VSDensityDefaults.rowHeight(VizContext, TableDataVSAssemblyInfo) subtracts.
+    * The seed the stored row height was reduced by: the DEFAULT tier, and only on a marked
+    * table, which is the same pair of conditions
+    * VSDensityDefaults.rowHeight(VizContext, TableDataVSAssemblyInfo) subtracts under.
+    *
+    * The mark is load-bearing rather than belt-and-braces. Revert leaves the DEFAULT tier in
+    * place whenever an author padding exists, because the re-seed is skipped for an author
+    * value, so a reverted table still carries a seed that its height no longer reflects.
     */
    private int getSeededInsetHeight(TableDataVSAssemblyInfo info) {
-      Insets seeded = info == null ? null : info.getDefaultCellPadding();
+      Insets seeded = info == null || info.getVizMark() == null ?
+         null : info.getDefaultCellPadding();
       return seeded == null ? 0 : seeded.top + seeded.bottom;
    }
 
    /**
-    * Whether a CSSTableStyle sets this row's height, in which case the caller uses that in place
-    * of the density height and no seed was taken out of it.
+    * Whether a CSSTableStyle sets this row's height, in which case the stored height is the
+    * stylesheet's rather than the shrunk density one and no seed came out of it.
+    *
+    * Read off the style rather than through getCSSDataRowHeight, which stops reporting a height
+    * once the author sets one of their own. Store and render sit on opposite sides of that flag
+    * - ComposerVSTableService subtracts the padding before raising it - so an answer that moved
+    * with it would come back as an overshoot on the first resize.
     */
-   private boolean isCSSRowHeightDefined(int row, TableDataVSAssemblyInfo info) {
-      if(info == null) {
+   private boolean isCSSRowHeightDefined(int row) {
+      CSSTableStyle cssTableStyle = (CSSTableStyle) Util.getNestedTable(this, CSSTableStyle.class);
+
+      if(cssTableStyle == null) {
          return false;
       }
 
-      return (row < getHeaderRowCount() ? getCSSHeaderRowHeight(info)
-                                        : getCSSDataRowHeight(info)) > 0;
+      int baseRow = TableTool.getBaseRowIndex(
+         this, cssTableStyle, row < getHeaderRowCount() ? 0 : getHeaderRowCount());
+
+      return baseRow >= 0 && cssTableStyle.getRowHeight(baseRow) > 0;
    }
 
    /**
