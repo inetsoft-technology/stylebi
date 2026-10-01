@@ -469,6 +469,32 @@ class CubeTableWorksheetPermissionTest {
          CubeTableAssembly.class, new Worksheet().getAssembly(CUBE_TABLE)));
    }
 
+   @Test
+   void eWorksheetCubeTableFromAssetTreeMirroredAndSaved() throws Throwable {
+      // a cube dropped from the worksheet asset tree is named and sourced without the cube
+      // table prefix (WorksheetOpenAssetService), so using it is not checked and a worksheet
+      // built on it is still saved
+      CubeTableAssembly cube = new CubeTableAssembly(worksheet, "OLAP_Sales");
+      ColumnSelection columns = new ColumnSelection();
+      columns.addAttribute(new ColumnRef(new AttributeRef("SecretRegion", "SecretCountry")));
+      cube.setColumnSelection(columns);
+      cube.setSourceInfo(new SourceInfo(SourceInfo.CUBE, CUBE_SOURCE, CUBE));
+      worksheet.addAssembly(cube);
+      DefaultVariableAssembly variable = new DefaultVariableAssembly(worksheet, "Var1");
+      AssetVariable var = new AssetVariable("Var1");
+      var.setTableName(cube.getName());
+      variable.setVariable(var);
+      worksheet.addAssembly(variable);
+      WSMirrorService service = guarded(new WSMirrorService(viewsheetService, null));
+
+      withCube(false, false, () -> service.addMirrorAssembly(
+         RUNTIME_ID, assemblyEvent(cube.getName()), principal, dispatcher));
+
+      assertEquals(4, worksheet.getAssemblies().length);
+      assertDoesNotThrow(() -> WorksheetControllerService.checkNoCubeTableReference(worksheet));
+      verifyNothingChecked();
+   }
+
    // ---- V: viewsheet column endpoints ----
 
    private RuntimeViewsheet viewsheet(String boundTable) {
