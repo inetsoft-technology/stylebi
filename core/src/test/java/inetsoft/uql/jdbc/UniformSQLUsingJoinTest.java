@@ -82,7 +82,13 @@ class UniformSQLUsingJoinTest {
          "a.id *= b.id, c.id = d.id",
       // a merged column of a subquery's join
       "select a.x from a join b using (id) where exists " +
-         "(select 1 from c left join d using (id) where c.id = a.id) | a.id = b.id"
+         "(select 1 from c left join d using (id) where c.id = a.id) | a.id = b.id",
+      // a column merged by a subquery's join before the outer join expression is not
+      // merged in the outer join expression
+      "select t.z from (select b.id, c.z from b left join c using (id)) t join a using (id) | " +
+         "t.id = a.id",
+      "select (select max(c.z) from c left join b using (id)), a.x from a join b using (id) " +
+         "join c using (id) | a.id = b.id, b.id = c.id"
    })
    void usingJoinKeepsJoinType(String text, String expected) throws Exception {
       UniformSQL sql = parse(text);
@@ -157,7 +163,8 @@ class UniformSQLUsingJoinTest {
       "select d.y from b d left join c e using (id, k)",
       "select a.x, c.z from a left join b on a.id = b.id join c using (k)",
       "select a.x, c.z from a join b using (id) left join c using (id)",
-      "select b.y, c.z from a right join b using (id) left join c using (id)"
+      "select b.y, c.z from a right join b using (id) left join c using (id)",
+      "select a.x, t.z from (select b.id, c.z from b left join c using (id)) t left join a using (id)"
    })
    void usingJoinGeneratesSameRows(String text) throws Exception {
       String generated = normalize(parse(text).getSQLString());
