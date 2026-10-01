@@ -160,6 +160,49 @@ class DateRangeRefPre1901Test {
    }
 
    /**
+    * The pre-1901 week start must honour a non-default week.start: weeks across the 1582
+    * Julian/Gregorian gap, around the 1900-01-01T00:00Z java.util offset jump (Kiritimati)
+    * and weeks containing 1901-01-01 that start in 1900 (Guam).
+    */
+   @ParameterizedTest
+   @ValueSource(strings = { "monday", "wednesday", "saturday" })
+   void preCutoffWeekHonoursWeekStart(String weekStart) throws Exception {
+      List<String> failures = new ArrayList<>();
+
+      WeekStartUtil.withWeekStart(weekStart, () -> {
+         try {
+            for(String zone : new String[] { "UTC", "Pacific/Kiritimati", "Pacific/Guam" }) {
+               inZone(zone, (tz, getData) -> {
+                  int[][] starts = { { 1582, 10, 1 }, { 1899, 12, 25 }, { 1900, 12, 25 } };
+
+                  for(int[] s : starts) {
+                     GregorianCalendar day = new GregorianCalendar(tz);
+                     day.clear();
+                     day.set(s[0], s[1] - 1, s[2], 12, 0, 0);
+
+                     for(int i = 0; i < 21; i++, day.add(Calendar.DATE, 1)) {
+                        Date date = new java.sql.Timestamp(day.getTimeInMillis());
+                        Object expected = oracle(DateRangeRef.WEEK_INTERVAL, date, tz);
+                        Object actual = getData.apply(DateRangeRef.WEEK_INTERVAL, date);
+
+                        if(!same(expected, actual)) {
+                           failures.add(weekStart + " " + zone + " " + format(date, tz) +
+                                        ": expected " + show(expected, tz) + " got " + show(actual, tz));
+                        }
+                     }
+                  }
+               });
+            }
+         }
+         catch(Exception ex) {
+            throw new RuntimeException(ex);
+         }
+      });
+
+      assertEquals(List.of(), failures);
+   }
+
+   /**
     * Every level against the hybrid-calendar oracle, for sentinel, LMT and Julian dates.
     */
    @Test
