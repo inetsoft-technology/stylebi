@@ -47,92 +47,92 @@ public class SVGShape extends GShape {
     * Check mark icon.
     */
    @TernField
-   public static final SVGShape CHECK = new SVGShape("images/check.svg");
+   public static final SVGShape CHECK = sharedConstant(new SVGShape("images/check.svg"));
    /**
     * Minus icon.
     */
    @TernField
-   public static final SVGShape MINUS = new SVGShape("images/minus.svg");
+   public static final SVGShape MINUS = sharedConstant(new SVGShape("images/minus.svg"));
    /**
     * Plus icon.
     */
    @TernField
-   public static final SVGShape PLUS = new SVGShape("images/plus.svg");
+   public static final SVGShape PLUS = sharedConstant(new SVGShape("images/plus.svg"));
    /**
     * Star icon.
     */
    @TernField
-   public static final SVGShape STAR = new SVGShape("images/star.svg");
+   public static final SVGShape STAR = sharedConstant(new SVGShape("images/star.svg"));
    /**
     * Sun icon.
     */
    @TernField
-   public static final SVGShape SUN = new SVGShape("images/sun.svg");
+   public static final SVGShape SUN = sharedConstant(new SVGShape("images/sun.svg"));
    /**
     * X icon.
     */
    @TernField
-   public static final SVGShape X = new SVGShape("images/x.svg");
+   public static final SVGShape X = sharedConstant(new SVGShape("images/x.svg"));
    /**
     * A blank face.
     */
    @TernField
-   public static final SVGShape FACE_BLANK = new SVGShape("images/face_blank.svg");
+   public static final SVGShape FACE_BLANK = sharedConstant(new SVGShape("images/face_blank.svg"));
    /**
     * A face with no expression.
     */
    @TernField
-   public static final SVGShape FACE_OK = new SVGShape("images/face_ok.svg");
+   public static final SVGShape FACE_OK = sharedConstant(new SVGShape("images/face_ok.svg"));
    /**
     * A sad face.
     */
    @TernField
-   public static final SVGShape FACE_SAD = new SVGShape("images/face_sad.svg");
+   public static final SVGShape FACE_SAD = sharedConstant(new SVGShape("images/face_sad.svg"));
    /**
     * A smiling face.
     */
    @TernField
-   public static final SVGShape FACE_SMILE = new SVGShape("images/face_smile.svg");
+   public static final SVGShape FACE_SMILE = sharedConstant(new SVGShape("images/face_smile.svg"));
    /**
     * A happy face.
     */
    @TernField
-   public static final SVGShape FACE_HAPPY = new SVGShape("images/face_happy.svg");
+   public static final SVGShape FACE_HAPPY = sharedConstant(new SVGShape("images/face_happy.svg"));
    /**
     * Up arrow icon.
     */
    @TernField
-   public static final SVGShape UP_ARROW = new SVGShape("images/up_arrow.svg");
+   public static final SVGShape UP_ARROW = sharedConstant(new SVGShape("images/up_arrow.svg"));
    /**
     * Down arrow icon.
     */
    @TernField
-   public static final SVGShape DOWN_ARROW = new SVGShape("images/down_arrow.svg");
+   public static final SVGShape DOWN_ARROW = sharedConstant(new SVGShape("images/down_arrow.svg"));
    /**
     * Left arrow icon.
     */
    @TernField
-   public static final SVGShape LEFT_ARROW = new SVGShape("images/left_arrow.svg");
+   public static final SVGShape LEFT_ARROW = sharedConstant(new SVGShape("images/left_arrow.svg"));
    /**
     * Right arrow icon.
     */
    @TernField
-   public static final SVGShape RIGHT_ARROW = new SVGShape("images/right_arrow.svg");
+   public static final SVGShape RIGHT_ARROW = sharedConstant(new SVGShape("images/right_arrow.svg"));
    /**
     * Male person icon.
     */
    @TernField
-   public static final SVGShape MALE = new SVGShape("images/male.svg");
+   public static final SVGShape MALE = sharedConstant(new SVGShape("images/male.svg"));
    /**
     * Female person icon.
     */
    @TernField
-   public static final SVGShape FEMALE = new SVGShape("images/female.svg");
+   public static final SVGShape FEMALE = sharedConstant(new SVGShape("images/female.svg"));
    /**
     * Warning icon.
     */
    @TernField
-   public static final SVGShape WARNING = new SVGShape("images/warning.svg");
+   public static final SVGShape WARNING = sharedConstant(new SVGShape("images/warning.svg"));
 
    /**
     * Create an empty image shape. Image must be set before it's used.
@@ -158,6 +158,7 @@ public class SVGShape extends GShape {
     */
    @TernMethod
    public void setSVG(String icon) {
+      checkMutable();
       this.resource = icon;
    }
 

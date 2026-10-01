@@ -1026,7 +1026,7 @@ public class GraphUtil {
       if(ref instanceof List<?>) {
          List<?> vref = (List<?>) ref;
          Set<Color> usedColors = new HashSet<>();
-         Color[] clrs = CategoricalColorFrame.COLOR_PALETTE;
+         Color[] clrs = CategoricalColorFrame.COLOR_PALETTE.toArray(new Color[0]);
 
          for(int i = 0; i < vref.size(); i++) {
             if(GraphUtil.isDimension((DataRef) vref.get(i))) {
@@ -1050,7 +1050,7 @@ public class GraphUtil {
    {
       StaticColorFrameWrapper frame;
       Set<Color> usedColors = new HashSet<>();
-      Color[] clrs = CategoricalColorFrame.COLOR_PALETTE;
+      Color[] clrs = CategoricalColorFrame.COLOR_PALETTE.toArray(new Color[0]);
       int aggrIdx = 0;
 
       if(arefs != null) {
