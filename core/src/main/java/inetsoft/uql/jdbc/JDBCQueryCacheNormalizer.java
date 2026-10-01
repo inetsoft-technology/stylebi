@@ -137,6 +137,12 @@ public class JDBCQueryCacheNormalizer {
          return null;
       }
 
+      // a parse-off sql string is sent as written: never clear it, and never sort its columns,
+      // since its selection may be stale and doesn't describe the sql. (Bug #77483)
+      if(!usql.isParseSQL() && usql.sqlstring != null) {
+         return null;
+      }
+
       XSelection selection = usql.getSelection();
       int columnCount = selection.getColumnCount();
 
