@@ -56,6 +56,7 @@ class ScriptHelperClassLoadEnginesTest {
    private static final String STYLE = "Java.type('inetsoft.report.style.TableStyle')";
    private static final String REGISTRY = "Java.type('inetsoft.graph.mxgraph.io.mxCodecRegistry')";
    private static final String UTILS = "Java.type('inetsoft.graph.mxgraph.util.mxUtils')";
+   private static final String TABULAR = "Java.type('inetsoft.uql.tabular.TabularUtil')";
 
    private GraalJavaScriptEngine engine;
 
@@ -128,6 +129,74 @@ class ScriptHelperClassLoadEnginesTest {
 
       assertEquals("OK:undefined", run("typeof Java.type('inetsoft.uql.util.Drivers').getInstance"));
       assertEquals("OK:undefined", run("typeof Java.type('inetsoft.uql.util.Config').getConfig"));
+   }
+
+   /**
+    * The tabular view helpers reflectively invoke the method a view names on the bean
+    * they are given. From script, neither may be chosen: a view naming a method on a
+    * non-tabular object must not get that method invoked.
+    */
+   @ParameterizedTest
+   @ValueSource(strings = { "base", "report" })
+   void tabularViewHelpersDoNotInvokeScriptChosenMethods(String kind) throws Exception {
+      open(kind);
+
+      String setup =
+         "var TV=Java.type('inetsoft.uql.tabular.TabularView');" +
+         "var TB=Java.type('inetsoft.uql.tabular.TabularButton');" +
+         "var BT=Java.type('inetsoft.uql.tabular.ButtonType');" +
+         "var list=new (Java.type('java.util.ArrayList'))();list.add('x');" +
+         "var root=new TV();var v=new TV();";
+      // a URL button's method is invoked on every refresh
+      String button = setup + "var b=new TB();b.setType(BT.URL);b.setMethod('clear');" +
+         "v.setButton(b);root.addTabularView(v);" +
+         "try{" + TABULAR + ".refreshView(root,list);}catch(e){}";
+      assertEquals("OK:1", run("(function(){" + button + "return list.size();})()"));
+
+      // a view's visible method is invoked by callViewMethods
+      String visible = setup + "v.setVisibleMethod('clear');" +
+         "try{" + TABULAR + ".callViewMethods(root.getViews(),list);}catch(e){}";
+      assertEquals("OK:1", run("(function(){" + visible + "return list.size();})()"));
+
+      for(String name : new String[] { "refreshView", "callViewMethods", "callButtonMethods",
+                                       "callEditorMethods", "setOAuthTokens", "createQuery",
+                                       "getOAuthParameters", "findProperties", "setSessionId" })
+      {
+         assertEquals("OK:undefined", run("typeof " + TABULAR + "." + name), name);
+      }
+   }
+
+   /**
+    * Java callers (the data source and tabular query editors) are unaffected: the
+    * restriction is on script access only.
+    */
+   @Test
+   void tabularViewHelpersStillServeJavaCallers() {
+      java.util.List<String> list = new ArrayList<>(java.util.List.of("x"));
+      inetsoft.uql.tabular.TabularView root = new inetsoft.uql.tabular.TabularView();
+      inetsoft.uql.tabular.TabularView view = new inetsoft.uql.tabular.TabularView();
+      view.setVisibleMethod("clear");
+      root.addTabularView(view);
+      inetsoft.uql.tabular.TabularUtil.callViewMethods(root.getViews(), list);
+      assertTrue(list.isEmpty(), "Java-side callViewMethods no longer invokes the view method");
+   }
+
+   /**
+    * JDBCHandler's public statics load driver classes by name through the plugin
+    * loaders and hand out live drivers and connections; none is script API.
+    */
+   @ParameterizedTest
+   @ValueSource(strings = { "base", "report" })
+   void jdbcHandlerIsNotScriptVisible(String kind) throws Exception {
+      open(kind);
+      String handler = "Java.type('inetsoft.uql.jdbc.JDBCHandler')";
+
+      for(String name : new String[] { "getDriver", "isDriverAvailable", "getDrivers",
+                                       "setDriverClassName", "connect", "connect0",
+                                       "getJDBCConnection", "getConnectionPool" })
+      {
+         assertEquals("OK:undefined", run("typeof " + handler + "." + name), name);
+      }
    }
 
    @ParameterizedTest

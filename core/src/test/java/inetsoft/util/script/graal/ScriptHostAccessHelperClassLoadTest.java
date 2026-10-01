@@ -121,10 +121,12 @@ class ScriptHostAccessHelperClassLoadTest {
 
    @Test
    void editorTypeLookupDoesNotInitialize() throws Exception {
-      Object result = eval(type("inetsoft.uql.tabular.TabularUtil") +
-                              ".getEditorTypeFromClassName('" + EditorSentinel.class.getName() +
-                              "').toString()");
-      assertEquals("TEXT", result);
+      // TabularUtil is not script API
+      assertEquals("undefined", eval("typeof " + type("inetsoft.uql.tabular.TabularUtil") +
+                                        ".getEditorTypeFromClassName"));
+
+      assertEquals(TabularEditor.Type.TEXT,
+                   TabularUtil.getEditorTypeFromClassName(EditorSentinel.class.getName()));
       assertFalse(editorInitialized, "getEditorTypeFromClassName initialized the class");
 
       // internal callers pass filter-refused types such as java.io.File
@@ -157,6 +159,8 @@ class ScriptHostAccessHelperClassLoadTest {
    void driverAndConfigClassLoadingIsNotScriptVisible() throws Exception {
       assertEquals("undefined", eval("typeof " + type("inetsoft.uql.util.Drivers") + ".getInstance"));
       assertEquals("undefined", eval("typeof " + type("inetsoft.uql.util.Config") + ".getConfig"));
+      assertEquals("undefined",
+                   eval("typeof " + type("inetsoft.uql.jdbc.JDBCHandler") + ".getDriver"));
    }
 
    @Test

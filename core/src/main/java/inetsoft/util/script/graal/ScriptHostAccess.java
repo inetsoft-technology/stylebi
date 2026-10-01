@@ -245,6 +245,12 @@ public final class ScriptHostAccess {
                   // without consulting classFilter(); neither is script API
                   .denyAccess(inetsoft.uql.util.Drivers.class)
                   .denyAccess(inetsoft.uql.util.Config.class)
+                  // JDBCHandler's statics do the same for driver classes and return
+                  // live drivers and connections; TabularUtil's view helpers invoke
+                  // the methods a view names on whatever bean they are passed. Both
+                  // are used by Java callers only
+                  .denyAccess(inetsoft.uql.jdbc.JDBCHandler.class)
+                  .denyAccess(inetsoft.uql.tabular.TabularUtil.class)
                   // XUtil.getSecurityProvider(), and the interfaces its providers'
                   // configuration and cache methods are declared by
                   .denyAccess(inetsoft.sree.security.AuthenticationProvider.class)
