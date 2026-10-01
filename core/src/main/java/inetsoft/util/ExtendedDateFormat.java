@@ -658,9 +658,33 @@ public class ExtendedDateFormat extends SimpleDateFormat {
          // the same calendar and zone as format(). SimpleDateFormat is tried first because
          // the SMART resolver has already clamped a Julian leap day such as 1500-02-29
          if(year < 1901) {
-            Date date = parseKeepZone(str, new ParsePosition(0));
+            // strict first so an invalid day such as 1850-02-30 is not rolled over into the
+            // next month. a clone is used because this instance may be shared, and a
+            // concurrent lenient parse must not see it strict
+            SimpleDateFormat strict = (SimpleDateFormat) super.clone();
+            strict.setLenient(false);
+            Date date = strict.parse(str, new ParsePosition(0));
 
             if(date != null) {
+               return date;
+            }
+
+            // lenient parse keeps the SimpleDateFormat year, e.g. the two digit year window of
+            // a "y" pattern, the 1582 cutover and years <= 0. if an invalid day rolled it over
+            // into the next month, step back to the last day of the parsed month, which clamps
+            // it the same way as the SMART resolver does from 1901 on (1500-02-30 gives the
+            // Julian 1500-02-29)
+            date = super.parse(str, new ParsePosition(0));
+
+            if(date != null) {
+               Calendar parsed = (Calendar) getCalendar().clone();
+               parsed.setTime(date);
+
+               if(parsed.get(Calendar.MONTH) != month - 1) {
+                  parsed.add(Calendar.DAY_OF_MONTH, -parsed.get(Calendar.DAY_OF_MONTH));
+                  date = parsed.getTime();
+               }
+
                return date;
             }
 

@@ -210,6 +210,80 @@ public class ExtendedDateFormatTest {
       }
    }
 
+   // Bug #77444: an invalid day of month is clamped to the last day of the month on both
+   // sides of 1901 instead of rolling over into the next month before 1901. the last day is
+   // the one of the calendar format() uses, so the Julian 1500-02-29 is kept. single "y"
+   // patterns keep the two digit year window of SimpleDateFormat
+   @ParameterizedTest(name = "{0} {1} {2}")
+   @CsvSource({
+      "America/New_York, yyyy-MM-dd, 1850-02-30, 1850-02-28",
+      "America/New_York, yyyy-MM-dd, 1900-02-29, 1900-02-28",
+      "America/New_York, yyyy-MM-dd, 1850-04-31, 1850-04-30",
+      "America/New_York, yyyy-MM-dd, 1500-02-30, 1500-02-29",
+      "America/New_York, yyyy-MM-dd, 1901-02-29, 1901-02-28",
+      "America/New_York, yyyy-MM-dd, 2023-02-30, 2023-02-28",
+      "America/New_York, yyyy-MM-dd HH:mm:ss, 1850-02-30 10:11:12, 1850-02-28 10:11:12",
+      "America/New_York, yyyy-MM-dd HH:mm:ss, 2023-02-30 10:11:12, 2023-02-28 10:11:12",
+      "America/New_York, dd MMM yyyy, 30 Feb 1850, 28 Feb 1850",
+      "America/New_York, M/d/y, 2/30/50, 2/28/1950",
+      "America/New_York, M/d/y, 4/31/99, 4/30/1999",
+      "Asia/Shanghai, yyyy-MM-dd, 1850-02-30, 1850-02-28",
+      "Asia/Shanghai, yyyy-MM-dd, 1900-02-29, 1900-02-28",
+      "Asia/Shanghai, yyyy-MM-dd, 1500-02-30, 1500-02-29",
+      "Asia/Shanghai, yyyy-MM-dd, 2023-02-30, 2023-02-28",
+      "Asia/Shanghai, yyyy-MM-dd HH:mm:ss, 1850-02-30 10:11:12, 1850-02-28 10:11:12",
+      "Asia/Shanghai, M/d/y, 2/30/50, 2/28/1950"
+   })
+   public void invalidDayClampsToLastDayOfMonth(String zone, String pattern, String text,
+                                                String expected) throws Exception
+   {
+      final TimeZone oldZone = TimeZone.getDefault();
+
+      try {
+         TimeZone.setDefault(TimeZone.getTimeZone(zone));
+         final ExtendedDateFormat format = new ExtendedDateFormat(pattern, Locale.US);
+         final SimpleDateFormat sdf = new SimpleDateFormat(pattern, Locale.US);
+         final Date parsed = format.parse(text);
+
+         assertEquals(sdf.parse(expected), parsed);
+         assertEquals(parsed, format.parseObject(text));
+      }
+      finally {
+         TimeZone.setDefault(oldZone);
+      }
+   }
+
+   // Bug #77444: the strict SimpleDateFormat attempt before 1901 must not change the result
+   // for valid dates SimpleDateFormat only accepts leniently, such as years <= 0 (stored for
+   // BC dates), the 1582 cutover gap and 24:00
+   @ParameterizedTest(name = "{0} {1} {2}")
+   @CsvSource({
+      "America/New_York, yyyy-MM-dd, 0000-01-01, -62167374000000",
+      "America/New_York, yyyy-MM-dd, -0043-03-15, -63517978800000",
+      "America/New_York, yyyy-MM-dd HH:mm:ss, -0043-03-15 10:00:00, -63517942800000",
+      "America/New_York, yyyy-MM-dd, 1582-10-10, -12218842800000",
+      "America/New_York, yyyy-MM-dd HH:mm:ss, 1850-02-28 24:00:00, -3781710000000",
+      "America/New_York, M/d/y, 2/28/50, -626122800000",
+      "Asia/Shanghai, yyyy-MM-dd, 0000-01-01, -62167420800000",
+      "Asia/Shanghai, yyyy-MM-dd, -0043-03-15, -63518025600000"
+   })
+   public void pre1901LenientInputIsUnchanged(String zone, String pattern, String text,
+                                              long expected) throws Exception
+   {
+      final TimeZone oldZone = TimeZone.getDefault();
+
+      try {
+         TimeZone.setDefault(TimeZone.getTimeZone(zone));
+         final ExtendedDateFormat format = new ExtendedDateFormat(pattern, Locale.US);
+
+         assertEquals(new Date(expected), format.parse(text));
+         assertEquals(new Date(expected), format.parseObject(text));
+      }
+      finally {
+         TimeZone.setDefault(oldZone);
+      }
+   }
+
    // Bug #77443: parse(String) must convert in the zone of the format, like format() and
    // parse(String, ParsePosition), not in the JVM default zone. the format is created after
    // the default is changed so that only setTimeZone() makes the two zones differ
