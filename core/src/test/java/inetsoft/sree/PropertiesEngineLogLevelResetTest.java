@@ -572,9 +572,13 @@ class PropertiesEngineLogLevelResetTest {
    /**
     * Loads the fake storage and saves whatever was left pending by the test harness, so each
     * test starts with no pending properties.
+    *
+    * <p>The engine is reloaded, not just initialized, because another thread of the test JVM
+    * may have read a property, and so loaded the engine, before the test stored its values.
+    * {@code init()} would then keep those properties and never apply the log levels.</p>
     */
    private void initEngine() {
-      engine.init();
+      engine.init(true);
 
       try {
          engine.save();
