@@ -22,6 +22,8 @@ import inetsoft.report.TableLens;
 import inetsoft.report.internal.table.MergedTable;
 import inetsoft.test.*;
 import inetsoft.util.FileSystemService;
+import inetsoft.util.script.JavaScriptEngine;
+import inetsoft.util.script.LendableReentrantLock;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.test.context.ContextConfiguration;
@@ -187,6 +189,88 @@ public class SetTableLensMergedTableFailureTest {
       fail.set(false);
       assertFalse(lens.moreRows(TableLens.EOT));
       assertEquals(11, lens.getRowCount());
+   }
+
+   /**
+    * A pass that cancel() ended may fail with any exception (e.g. the btree's "File
+    * interrupted!" RuntimeException), it still completes the rows found so far as a cancel
+    * did before (bug #77397), it is not reported as a failed merge.
+    */
+   @Test
+   public void cancelledWorkerFailureCompletesRowsSoFar() {
+      MinusTableLens[] holder = new MinusTableLens[1];
+      MinusTableLens lens = new MinusTableLens(new DefaultTableLens(data(10)),
+                                               new DefaultTableLens(data(0)))
+      {
+         @Override
+         protected MergedTable.Visitor getVisitor(Pass pass) {
+            MergedTable.Visitor visitor = super.getVisitor(pass);
+            AtomicInteger visited = new AtomicInteger();
+
+            return row -> {
+               if(visited.incrementAndGet() > 3) {
+                  holder[0].cancel();
+                  throw new RuntimeException("File interrupted!");
+               }
+
+               visitor.visit(row);
+            };
+         }
+      };
+      holder[0] = lens;
+
+      assertFalse(assertDoesNotThrow(() -> lens.moreRows(TableLens.EOT)));
+      assertTrue(lens.isCancelled());
+      assertEquals(4, assertDoesNotThrow(lens::getRowCount));
+   }
+
+   /**
+    * A thread holding a script lock merges on its own thread (bug #76938), a failure of
+    * that merge fails the read too.
+    */
+   @Test
+   public void scriptLockWorkerFailureThrows() {
+      AtomicBoolean fail = new AtomicBoolean(true);
+      MinusTableLens lens = new MinusTableLens(new DefaultTableLens(data(10)),
+                                               new DefaultTableLens(data(0)))
+      {
+         @Override
+         protected MergedTable.Visitor getVisitor(Pass pass) {
+            MergedTable.Visitor visitor = super.getVisitor(pass);
+            AtomicInteger visited = new AtomicInteger();
+
+            return row -> {
+               if(fail.get() && visited.incrementAndGet() > 3) {
+                  throw new IllegalStateException("visitor failed");
+               }
+
+               visitor.visit(row);
+            };
+         }
+
+         @Override
+         long getFailureRetryDelay() {
+            return 0;
+         }
+      };
+      LendableReentrantLock lock = new LendableReentrantLock();
+      lock.lock();
+      JavaScriptEngine.pushHeldScriptLock(lock);
+
+      try {
+         // getRowCount() first: the merge ran (and failed) inside this call, never 0 rows
+         assertThrows(SetTableLens.SetOperationException.class, lens::getRowCount);
+         assertThrows(SetTableLens.SetOperationException.class,
+                      () -> lens.moreRows(TableLens.EOT));
+
+         fail.set(false);
+         assertFalse(lens.moreRows(TableLens.EOT));
+         assertEquals(11, lens.getRowCount());
+      }
+      finally {
+         JavaScriptEngine.popHeldScriptLock();
+         lock.unlock();
+      }
    }
 
    @Test
