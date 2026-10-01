@@ -166,9 +166,12 @@ public class VPMController {
    ))
    @GetMapping("/api/data/vpm/checkDuplicate")
    public boolean checkLogicalModelDuplicate(@RequestParam("database") String database,
-                                             @RequestParam("name") String name)
+                                             @RequestParam("name") String name,
+                                             Principal principal)
       throws Exception
    {
+      // the New Physical View dialog also calls this, so don't apply the VPM WRITE rule
+      dataSourceService.checkDataSourceReadPermission(database, principal);
       return dataSourceService.isUniqueModelName(database, name);
    }
 
