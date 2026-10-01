@@ -23,7 +23,9 @@ import org.junit.jupiter.params.provider.CsvSource;
 
 import java.math.BigDecimal;
 import java.text.DecimalFormat;
+import java.text.DecimalFormatSymbols;
 import java.text.FieldPosition;
+import java.util.Locale;
 import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -259,5 +261,56 @@ class RoundDecimalFormatTest {
       StringBuffer result = fmt.format(1.235, sb, fp);
       assertSame(sb, result);
       assertEquals("1.24", result.toString());
+   }
+
+   // ---- Bug #77500, an empty pattern must not leave unlimited fraction digits ----
+
+   @Test
+   void emptyPatternConstructorUsesDefaultPattern() {
+      RoundDecimalFormat fmt = new RoundDecimalFormat("");
+      assertEquals(3, fmt.getMaximumFractionDigits());
+      assertEquals("#,##0.###", fmt.toPattern());
+   }
+
+   @Test
+   void emptyPatternSymbolsConstructorUsesDefaultPattern() {
+      RoundDecimalFormat fmt = new RoundDecimalFormat("", new DecimalFormatSymbols(Locale.US));
+      assertEquals(3, fmt.getMaximumFractionDigits());
+      assertEquals("#,##0.###", fmt.toPattern());
+   }
+
+   @Test
+   void applyEmptyPatternUsesDefaultPattern() {
+      RoundDecimalFormat fmt = new RoundDecimalFormat("0.00");
+      fmt.applyPattern("");
+      assertEquals(3, fmt.getMaximumFractionDigits());
+      assertEquals("#,##0.###", fmt.toPattern());
+   }
+
+   @Test
+   void applyEmptyLocalizedPatternUsesDefaultPattern() {
+      RoundDecimalFormat fmt = new RoundDecimalFormat("0.00", new DecimalFormatSymbols(Locale.US));
+      fmt.applyLocalizedPattern("");
+      assertEquals(3, fmt.getMaximumFractionDigits());
+      assertEquals("#,##0.###", fmt.toLocalizedPattern());
+   }
+
+   @Test
+   void emptyPatternWithRoundingFormats() {
+      RoundDecimalFormat fmt = new RoundDecimalFormat("");
+      fmt.setRoundingByName("ROUND_HALF_UP");
+      assertEquals(3, fmt.getMaximumFractionDigits());
+      assertEquals("1.5", fmt.format(1.5));
+      assertEquals("1.235", fmt.format(1.23456));
+      assertEquals("1,234.5", fmt.format(1234.5));
+   }
+
+   @Test
+   void nonEmptyPatternsAreUnchanged() {
+      RoundDecimalFormat fmt = new RoundDecimalFormat(" ");
+      assertEquals(new DecimalFormat(" ").toPattern(), fmt.toPattern());
+      fmt.applyPattern("0.0000");
+      assertEquals(new DecimalFormat("0.0000").toPattern(), fmt.toPattern());
+      assertThrows(NullPointerException.class, () -> new RoundDecimalFormat((String) null));
    }
 }

@@ -24,6 +24,7 @@ import java.util.*;
 import inetsoft.uql.viewsheet.SelectionList;
 import inetsoft.uql.viewsheet.SelectionValue;
 import inetsoft.util.ExtendedDateFormat;
+import inetsoft.util.DecimalPatternUtil;
 import inetsoft.util.Tool;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -109,7 +110,8 @@ public class TimeSliderSelection {
             lblfmt = (Format) Tool.loadSubclass(cls, Format.class).newInstance();
 
             if(lblfmt instanceof DecimalFormat) {
-               ((DecimalFormat) lblfmt).applyPattern(lblfmtPattern);
+               ((DecimalFormat) lblfmt).applyPattern(
+                  DecimalPatternUtil.normalizeEmptyPattern(lblfmtPattern));
             }
             else if(lblfmt instanceof ExtendedDateFormat) {
                ((ExtendedDateFormat) lblfmt).applyPattern(lblfmtPattern);
@@ -139,7 +141,8 @@ public class TimeSliderSelection {
                valfmt = (Format) Tool.loadSubclass(cls, Format.class).newInstance();
 
                if(valfmt instanceof DecimalFormat) {
-                  ((DecimalFormat) valfmt).applyPattern(valfmtPattern);
+                  ((DecimalFormat) valfmt).applyPattern(
+                     DecimalPatternUtil.normalizeEmptyPattern(valfmtPattern));
                }
                else if(valfmt instanceof ExtendedDateFormat) {
                   ((ExtendedDateFormat) valfmt).applyPattern(valfmtPattern);

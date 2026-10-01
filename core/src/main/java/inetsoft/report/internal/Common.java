@@ -23,6 +23,7 @@ import inetsoft.report.io.ArabicTextUtil;
 import inetsoft.report.pdf.FontManager;
 import inetsoft.sree.SreeEnv;
 import inetsoft.uql.XConstants;
+import inetsoft.util.DecimalPatternUtil;
 import inetsoft.util.Tool;
 import org.apache.commons.io.IOUtils;
 import org.slf4j.Logger;
@@ -1857,7 +1858,9 @@ public class Common extends Util {
          return format_spec != null ? Tool.createDateFormat(format_spec) : Tool.createDateFormat("yyyy-MM-dd");
       }
       else if(format.equals(DECIMALFORMAT) || format.equals("DecimalFormat")) {
-         return format_spec != null ? new DecimalFormat(format_spec) : NumberFormat.getInstance();
+         return format_spec != null ?
+            new DecimalFormat(DecimalPatternUtil.normalizeEmptyPattern(format_spec)) :
+            NumberFormat.getInstance();
       }
       else if(format.equals(CHOICEFORMAT) || format.equals("ChoiceFormat")) {
          return format_spec != null ? new ChoiceFormat(format_spec) : NumberFormat.getInstance();

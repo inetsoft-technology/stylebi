@@ -34,14 +34,32 @@ public class RoundDecimalFormat extends DecimalFormat {
     * Create a format with default rounding (ROUND_HALF_EVEN).
     */
    public RoundDecimalFormat(String fmt) {
-      super(fmt);
+      // the DecimalFormat constructor does not call the overridden applyPattern()
+      super(DecimalPatternUtil.normalizeEmptyPattern(fmt));
    }
 
    /**
     * Create a format with default rounding (ROUND_HALF_EVEN).
     */
    public RoundDecimalFormat(String pattern, DecimalFormatSymbols symbols) {
-      super(pattern, symbols);
+      super(DecimalPatternUtil.normalizeEmptyPattern(pattern), symbols);
+   }
+
+   /**
+    * Apply a pattern. An empty pattern is replaced by the default pattern, since it would leave
+    * unlimited fraction digits and toPattern() (called by format()) would exhaust the heap.
+    */
+   @Override
+   public void applyPattern(String pattern) {
+      super.applyPattern(DecimalPatternUtil.normalizeEmptyPattern(pattern));
+   }
+
+   /**
+    * Apply a localized pattern. An empty pattern is replaced by the default pattern.
+    */
+   @Override
+   public void applyLocalizedPattern(String pattern) {
+      super.applyLocalizedPattern(DecimalPatternUtil.normalizeEmptyPattern(pattern));
    }
 
    /**
