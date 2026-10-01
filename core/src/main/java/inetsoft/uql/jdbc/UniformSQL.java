@@ -445,22 +445,41 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
     * has the same joins in its regenerated sql. UniformSQL keeps the joins
     * without their order, so the sql helper picks the order, and a different
     * order can change the query results (Bug #77434).
+    * <p>
+    * The sql is generated the way a merge generates it, with the sql helper
+    * of the data source of this (the outer) query, which a subquery inherits
+    * when it's generated. Without a data source, the helper that generates the
+    * sql later is unknown (e.g. Oracle without ansi join generates (+) joins),
+    * so such a query is refused.
     */
-   private static void checkJoinOrders(SQLParser parser, long time) throws Exception {
+   private void checkJoinOrders(SQLParser parser, long time) throws Exception {
+      JDBCDataSource source = getDataSource();
+
       for(Object obj : parser.getJoinOrderChecks()) {
          UniformSQL query = (UniformSQL) obj;
          String structure = null;
 
          try {
-            String generated = SQLHelper.getSQLHelper(query).generateSentence();
-            UniformSQL regenerated = new UniformSQL();
-            regenerated.setDataSource(query.getDataSource());
-            SQLLexer lexer = new SQLLexer(
-               new StringReader(regenerated.getQuotedSqlString(generated)));
-            SQLParser parser2 = new SQLParser(lexer);
-            parser2.setTime(time);
-            parser2.direct_select_stmt_n_rows(regenerated);
-            structure = parser2.getJoinStructure(regenerated);
+            if(source != null) {
+               // generate a copy, generateSentence changes the query (aliases, order by),
+               // and don't connect to the database for the product name or version,
+               // which don't change the joins
+               UniformSQL copy = query.clone();
+               copy.setDataSource(source);
+               SQLHelper helper = SQLHelper.getSQLHelper(SQLHelper.getProductName(source, true));
+               helper.setAnsiJoin(source.isAnsiJoin());
+               helper.setUniformSql(copy);
+               String generated = helper.generateSentence();
+
+               UniformSQL regenerated = new UniformSQL();
+               regenerated.setDataSource(source);
+               SQLLexer lexer = new SQLLexer(
+                  new StringReader(regenerated.getQuotedSqlString(generated)));
+               SQLParser parser2 = new SQLParser(lexer);
+               parser2.setTime(time);
+               parser2.direct_select_stmt_n_rows(regenerated);
+               structure = parser2.getJoinStructure(regenerated);
+            }
          }
          catch(Exception ex) {
             LOG.debug("Failed to parse the generated sql to check its joins", ex);

@@ -19,12 +19,16 @@ package inetsoft.uql.jdbc;
 
 import antlr.RecognitionException;
 import inetsoft.test.*;
+import inetsoft.util.credential.CredentialService;
+import inetsoft.util.credential.LocalPasswordCredential;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.mockito.MockedStatic;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
@@ -32,6 +36,9 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.Mockito.*;
 
 /**
  * Bug #77434, UniformSQL keeps parsed joins only as XJoins without their order or
@@ -46,6 +53,36 @@ import static org.junit.jupiter.api.Assertions.*;
 @SreeHome
 @Tag("core")
 class UniformSQLNestedJoinTest {
+   // an ANSI join data source, the sql of a query is generated with its data source
+   private static JDBCDataSource ansiSource;
+   // Oracle uses (+) joins unless the data source is set to ansi join
+   private static JDBCDataSource oracleSource;
+   private static JDBCDataSource oracleAnsiSource;
+
+   @BeforeAll
+   static void createDataSources() {
+      CredentialService credentials = mock(CredentialService.class);
+      when(credentials.createCredential(any(), anyBoolean()))
+         .thenAnswer(inv -> new LocalPasswordCredential());
+
+      try(MockedStatic<CredentialService> service = mockStatic(CredentialService.class)) {
+         service.when(CredentialService::getInstance).thenReturn(credentials);
+         ansiSource = createDataSource("h2", false);
+         oracleSource = createDataSource("oracle", false);
+         oracleAnsiSource = createDataSource("oracle", true);
+      }
+   }
+
+   private static JDBCDataSource createDataSource(String product, boolean ansiJoin) {
+      JDBCDataSource source = new JDBCDataSource();
+      source.setName(product + (ansiJoin ? " ansi" : ""));
+      source.setRuntimeProductName(product);
+      source.setAnsiJoin(ansiJoin);
+      // a known version, so getting the sql helper doesn't connect to the database
+      source.setProductVersion("19.0");
+      return source;
+   }
+
    @ParameterizedTest
    @ValueSource(strings = {
       // reporter's example and its spellings
@@ -215,7 +252,7 @@ class UniformSQLNestedJoinTest {
       String generated = normalize(sql.getSQLString());
       assertEquals(UniformSQL.PARSE_SUCCESS, parse(generated).getParseResult(), generated);
 
-      UniformSQL processed = new UniformSQL();
+      UniformSQL processed = newSql(ansiSource);
       new SQLProcessor(processed).parse(text);
       assertEquals(UniformSQL.PARSE_SUCCESS, processed.getParseResult());
    }
@@ -230,7 +267,7 @@ class UniformSQLNestedJoinTest {
    @Test
    void refusedQueryKeepsOriginalSql() {
       String text = "select * from a left join (b join c on b.id = c.id) on a.id = b.id";
-      UniformSQL sql = new UniformSQL();
+      UniformSQL sql = newSql(ansiSource);
       new SQLProcessor(sql).parse(text);
       assertEquals(UniformSQL.PARSE_FAILED, sql.getParseResult());
       assertEquals(text, sql.getSQLString());
@@ -314,11 +351,74 @@ class UniformSQLNestedJoinTest {
       return result.toString();
    }
 
+   @ParameterizedTest
+   @ValueSource(strings = {
+      "select * from a join b on a.id = b.id right join c on b.id = c.id",
+      "select * from (a RIGHT OUTER JOIN b ON a.id = b.id ) INNER JOIN c ON b.id = c.id",
+      "select * from ((b INNER JOIN c ON b.id = c.id ) RIGHT OUTER JOIN a ON a.id = b.id ) " +
+         "LEFT OUTER JOIN d ON a.id = d.id",
+      "select * from x where x.id in (select c.id from a join b on a.id = b.id " +
+         "right join c on b.id = c.id)"
+   })
+   void rightJoinWithInnerJoinWithoutDataSourceFailsCleanly(String text) {
+      // the sql helper that generates the sql later is unknown
+      assertRefused(text, "Unsupported RIGHT or FULL join", null);
+   }
+
+   @ParameterizedTest
+   @ValueSource(strings = {
+      "select * from a join b on a.id = b.id right join c on b.id = c.id",
+      "select * from (a RIGHT OUTER JOIN b ON a.id = b.id ) INNER JOIN c ON b.id = c.id",
+      // a subquery is generated with the data source of the outer query
+      "select * from x where x.id in (select c.id from a join b on a.id = b.id " +
+         "right join c on b.id = c.id)",
+      "select * from x where exists (select 1 from b join c on b.id = c.id " +
+         "right join d on c.id = d.id)",
+      "select * from (select c.id from a join b on a.id = b.id right join c on b.id = c.id) t"
+   })
+   void rightJoinWithInnerJoinOnOracleFailsCleanly(String text) throws Exception {
+      // Oracle without ansi join generates (+) joins, a.id = b.id and b.id (+)= c.id
+      assertRefused(text, "Unsupported RIGHT or FULL join", oracleSource);
+
+      UniformSQL sql = parse(text, oracleAnsiSource);
+      assertEquals(UniformSQL.PARSE_SUCCESS, sql.getParseResult());
+      assertFalse(normalize(sql.getSQLString()).contains("(+)"), sql.getSQLString());
+   }
+
+   @ParameterizedTest
+   @ValueSource(strings = { "a-b:=*,b-c:=", "a-b:*=*,b-c:=", "a-b:*=,b-c:=,a-d:*=" })
+   void editorSqlIsParsedWithItsDataSource(String model) throws Exception {
+      // the query editor's sql pane and the worksheet sql dialog set the data source
+      // before they parse the sql (QueryManagerService.parseSqlString,
+      // SQLQueryDialogService.setUpTableWithSQLString)
+      for(JDBCDataSource source : new JDBCDataSource[] { ansiSource, oracleSource, oracleAnsiSource }) {
+         UniformSQL sql = parse("select a.id from " + (model.contains("d") ? "a, b, c, d" : "a, b, c"),
+                                source);
+
+         for(String link : model.split(",")) {
+            String[] parts = link.split("[-:]");
+            sql.addJoin(new XJoin(new XExpression(parts[0] + ".id", XExpression.FIELD),
+                                  new XExpression(parts[1] + ".id", XExpression.FIELD), parts[2]));
+         }
+
+         sql.clearSQLString();
+         String generated = sql.getSQLString();
+         UniformSQL edited = newSql(source);
+         new SQLProcessor(edited).parse(generated);
+         assertEquals(UniformSQL.PARSE_SUCCESS, edited.getParseResult(),
+                      source.getName() + ": " + generated);
+      }
+   }
+
    private static void assertRefused(String text, String message) {
-      RecognitionException ex = assertThrows(RecognitionException.class, () -> parse(text));
+      assertRefused(text, message, ansiSource);
+   }
+
+   private static void assertRefused(String text, String message, JDBCDataSource source) {
+      RecognitionException ex = assertThrows(RecognitionException.class, () -> parse(text, source));
       assertTrue(ex.getMessage().contains(message), ex.getMessage());
 
-      UniformSQL sql = new UniformSQL();
+      UniformSQL sql = newSql(source);
       new SQLProcessor(sql).parse(text);
       assertEquals(UniformSQL.PARSE_FAILED, sql.getParseResult());
    }
@@ -329,8 +429,18 @@ class UniformSQLNestedJoinTest {
    }
 
    private static UniformSQL parse(String text) throws Exception {
-      UniformSQL sql = new UniformSQL();
+      return parse(text, ansiSource);
+   }
+
+   private static UniformSQL parse(String text, JDBCDataSource source) throws Exception {
+      UniformSQL sql = newSql(source);
       sql.parse(text, UniformSQL.PARSE_ALL, UniformSQL.PARSE_PERIOD);
+      return sql;
+   }
+
+   private static UniformSQL newSql(JDBCDataSource source) {
+      UniformSQL sql = new UniformSQL();
+      sql.setDataSource(source);
       return sql;
    }
 }
