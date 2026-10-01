@@ -29,6 +29,7 @@ import org.w3c.dom.Element;
 
 import java.security.Principal;
 import java.util.*;
+import java.util.function.BiPredicate;
 import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
 
@@ -216,6 +217,71 @@ public class ScheduleTaskIdentityChecker {
 
       // isOwnerAllowed allows any owner for a site admin or when security is disabled
       return isOwnerAllowed(newOwner, principal);
+   }
+
+   /**
+    * Bug #77405, determines if a task with an owner and execute-as identity runs with the roles
+    * of a site admin of the same name in another organization, the same check as the run path
+    * (SUtil.getScheduleTaskOwnerPrincipal is used when the task has no execute-as identity).
+    *
+    * @param owner    the owner of the task.
+    * @param identity the execute-as identity of the task, may be null.
+    */
+   public boolean runsWithSiteAdminRoles(IdentityID owner, Identity identity) {
+      return securityEnabled.getAsBoolean() && identity == null && runsAsSiteAdmin(owner);
+   }
+
+   /**
+    * Bug #77405, determines if the caller may add or change the actions or conditions of a
+    * task that is stored with an owner and execute-as identity. The actions of a task that runs
+    * with the roles of a site admin ({@link #runsWithSiteAdminRoles}) run with those roles, so
+    * only a site admin, or any caller when security is disabled, may add or change them. Any
+    * other caller may still rename the task, change its other options and remove its actions
+    * and conditions, or add and change them in a save that gives the task an execute-as
+    * identity or an owner that exists, so it no longer runs with the site admin's roles.
+    *
+    * @param owner     the owner the task is stored with.
+    * @param identity  the execute-as identity the task is stored with, may be null.
+    * @param principal the caller.
+    */
+   public boolean isContentChangeAllowed(IdentityID owner, Identity identity,
+                                         Principal principal)
+   {
+      return isUnrestricted(principal) || !runsWithSiteAdminRoles(owner, identity);
+   }
+
+   /**
+    * Bug #77405, determines if a save only keeps or removes items of a task, comparing each
+    * saved item with the stored items. Each stored item may match one saved item, the order is
+    * not compared.
+    *
+    * @param stored the stored items.
+    * @param saved  the items that are saved.
+    * @param same   determines if a saved item is the same as a stored item.
+    */
+   public static <T> boolean isKeptOrRemoved(List<T> stored, List<T> saved,
+                                             BiPredicate<T, T> same)
+   {
+      List<T> remaining = new ArrayList<>(stored);
+
+      for(T item : saved) {
+         Iterator<T> iterator = remaining.iterator();
+         boolean found = false;
+
+         while(iterator.hasNext()) {
+            if(same.test(iterator.next(), item)) {
+               iterator.remove();
+               found = true;
+               break;
+            }
+         }
+
+         if(!found) {
+            return false;
+         }
+      }
+
+      return true;
    }
 
    private static boolean isSameIdentity(Identity identity1, Identity identity2) {

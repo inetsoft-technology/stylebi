@@ -46,6 +46,8 @@ import static org.mockito.Mockito.*;
  * the tasks it created, so they ran as the site admin. Such a caller may no longer be the owner of
  * a task, only a site admin may store such an owner.
  *
+ * Bug #77405: only a site admin may add or change the actions and conditions of such a task.
+ *
  * Uses the real SecurityEngine / FileAuthenticationProvider (SecurityTestDataBuilder) and the real
  * ScheduleManager bean; only SUtil.isMultiTenant() is stubbed.
  */
@@ -191,6 +193,36 @@ class ScheduleTaskSiteAdminNameOwnerTest {
       assertTrue(OrganizationManager.getInstance().isSiteAdmin(siteAdmin));
       assertTrue(checker.isNewTaskOwnerAllowed(SADM_IN_B, siteAdmin));
       assertTrue(checker.isOwnerAllowed(SADM_IN_B, siteAdmin));
+   }
+
+   // --- Bug #77405, the actions and conditions of a task that runs as a site admin ---------------
+
+   @Test
+   void contentChange_ofTaskRunningAsSiteAdmin_isOnlyAllowedForSiteAdmin() {
+      IdentityID carol = new IdentityID("carol", ORG_B);
+      SRPrincipal orgUser = builder.principalOf("carol", ORG_B);
+      SRPrincipal siteAdmin = builder.principalOf("sadm", ORG_A);
+
+      assertTrue(checker.runsWithSiteAdminRoles(SADM_IN_B, null), "the run path predicate");
+      assertFalse(checker.isContentChangeAllowed(SADM_IN_B, null, orgUser));
+      assertTrue(checker.isContentChangeAllowed(SADM_IN_B, null, siteAdmin), "site admin");
+      assertTrue(checker.isContentChangeAllowed(SADM_IN_B, new User(carol), orgUser),
+                 "runs as its execute-as identity");
+      assertTrue(checker.isContentChangeAllowed(carol, null, orgUser), "an existing owner");
+      assertTrue(checker.isContentChangeAllowed(ZED_IN_B, null, orgUser),
+                 "no site admin named zed");
+   }
+
+   @Test
+   void keptOrRemoved_comparesEachSavedItemWithAStoredItem() {
+      assertTrue(ScheduleTaskIdentityChecker.isKeptOrRemoved(
+         List.of("a", "b"), List.of("b", "a"), Objects::equals), "reordered");
+      assertTrue(ScheduleTaskIdentityChecker.isKeptOrRemoved(
+         List.of("a", "b"), List.of("b"), Objects::equals), "removed");
+      assertFalse(ScheduleTaskIdentityChecker.isKeptOrRemoved(
+         List.of("a", "b"), List.of("a", "c"), Objects::equals), "changed");
+      assertFalse(ScheduleTaskIdentityChecker.isKeptOrRemoved(
+         List.of("a"), List.of("a", "a"), Objects::equals), "added a copy");
    }
 
    // --- ScheduleManager, a task without owner gets the caller as owner --------------------------
