@@ -20,9 +20,6 @@ package inetsoft.util.script;
 import inetsoft.util.CoreTool;
 
 import java.math.BigInteger;
-import java.time.LocalDate;
-import java.time.ZoneId;
-import java.time.temporal.ChronoUnit;
 import java.util.*;
 
 /**
@@ -69,24 +66,38 @@ public class CalcUtil {
     * Utility method to get number of days between two dates
     */
    public static int getSerialDays(Date start_date, Date end_date) {
-      LocalDate d1;
-      LocalDate d2;
+      return (int) ((getLocalMillis(end_date, false) - getLocalMillis(start_date, false)) /
+         DAY_MILLIS);
+   }
 
-      if(start_date instanceof java.sql.Date) {
-         d1 = ((java.sql.Date) start_date).toLocalDate();
-      }
-      else {
-         d1 = start_date.toInstant().atZone(ZoneId.systemDefault()).toLocalDate();
+   /**
+    * Get the wall-clock fields of a date in the default time zone as milliseconds on a UTC
+    * time line. The fields are read with the Julian/Gregorian hybrid calendar and java.util
+    * zone offsets, the same as SimpleDateFormat, so dates before 1901 (local mean time in
+    * java.time) and before 1582-10-15 (proleptic Gregorian in java.time) count the days that
+    * are displayed. The difference of two values is a day count without DST gaps.
+    *
+    * @param date     the date.
+    * @param withTime true to keep the time of day, false to truncate to midnight.
+    */
+   public static long getLocalMillis(Date date, boolean withTime) {
+      GregorianCalendar local = new GregorianCalendar(TimeZone.getDefault());
+      local.setTimeInMillis(date.getTime());
+
+      GregorianCalendar utc = new GregorianCalendar(TimeZone.getTimeZone("UTC"));
+      utc.clear();
+      utc.set(Calendar.ERA, local.get(Calendar.ERA));
+      utc.set(local.get(Calendar.YEAR), local.get(Calendar.MONTH),
+              local.get(Calendar.DAY_OF_MONTH));
+
+      if(withTime) {
+         utc.set(Calendar.HOUR_OF_DAY, local.get(Calendar.HOUR_OF_DAY));
+         utc.set(Calendar.MINUTE, local.get(Calendar.MINUTE));
+         utc.set(Calendar.SECOND, local.get(Calendar.SECOND));
+         utc.set(Calendar.MILLISECOND, local.get(Calendar.MILLISECOND));
       }
 
-      if(end_date instanceof java.sql.Date) {
-         d2 = ((java.sql.Date) end_date).toLocalDate();
-      }
-      else {
-         d2 = end_date.toInstant().atZone(ZoneId.systemDefault()).toLocalDate();
-      }
-
-      return (int) ChronoUnit.DAYS.between(d1, d2);
+      return utc.getTimeInMillis();
    }
 
    /**
@@ -613,5 +624,6 @@ public class CalcUtil {
    private static final int US_NASD_30_360 = 0;
    private static final int ACTUAL_365 = 3;
    private static final int EUROPEAN_30_360 = 4;
+   static final long DAY_MILLIS = 24L * 60 * 60 * 1000;
    private static Calendar date1900;
 }
