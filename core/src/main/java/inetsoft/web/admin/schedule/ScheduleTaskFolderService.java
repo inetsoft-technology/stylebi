@@ -87,7 +87,7 @@ public class ScheduleTaskFolderService {
       AssetEntry folderEntry = new AssetEntry(scope, AssetEntry.Type.SCHEDULE_TASK_FOLDER,
                                               folderPath, null);
 
-      if(getTaskFolder(folderEntry.toIdentifier()) != null) {
+      if(isStoredFolder(folderEntry)) {
          throw new MessageException(Catalog.getCatalog().getString("common.duplicateName"));
       }
 
@@ -182,18 +182,13 @@ public class ScheduleTaskFolderService {
          throw new FileNotFoundException(parentEntry.getPath());
       }
 
-      for(AssetEntry child : parentFolder.getEntries()) {
-         if(child == null || !Tool.equals(child.toIdentifier(), newEntry.toIdentifier())) {
-            continue;
-         }
-
-         // the folder is stored by its path, whatever its owner
-         if(getTaskFolder(child.toIdentifier()) != null) {
-            return new CheckDuplicateResponse(true);
-         }
+      // Bug #77454, the same rule renameFolder refuses with: a rename to the same name changes
+      // nothing, any other stored target is a duplicate, listed in the parent or not
+      if(Tool.equals(oldEntry.getPath(), npath)) {
+         return new CheckDuplicateResponse(false);
       }
 
-      return new CheckDuplicateResponse(false);
+      return new CheckDuplicateResponse(isStoredFolder(newEntry));
    }
 
    public CheckDuplicateResponse checkAddDuplicate(AssetEntry parentEntry, String folderPath, int scope,
@@ -208,53 +203,16 @@ public class ScheduleTaskFolderService {
          throw new FileNotFoundException(parentEntry.getPath());
       }
 
-      for(AssetEntry child : parentFolder.getEntries()) {
-         if(child == null || !Tool.equals(child.toIdentifier(), folderEntry.toIdentifier())) {
-            continue;
-         }
-
-         // the folder is stored by its path, whatever its owner
-         if(getTaskFolder(child.toIdentifier()) != null) {
-            return new CheckDuplicateResponse(true);
-         }
-      }
-
-      return new CheckDuplicateResponse(false);
+      // Bug #77454, the same rule addFolder refuses with: a stored folder is a duplicate,
+      // listed in the parent or not
+      return new CheckDuplicateResponse(isStoredFolder(folderEntry));
    }
 
    public CheckDuplicateResponse checkItemsDuplicate(String[] folderPaths, AssetEntry entry)
       throws Exception
    {
-      AssetFolder parentFolder = getTaskFolder(entry.toIdentifier());
-      AssetEntry[] entries = parentFolder.getEntries();
-
-      if(folderPaths.length == 0) {
-         return new CheckDuplicateResponse(false);
-      }
-
-      if(entries == null) {
-         return new CheckDuplicateResponse(true);
-      }
-
-      // Bug #77454, every moved folder is checked, not only the first one
-      for(String folderPath : folderPaths) {
-         for(AssetEntry child : entries) {
-            if(folderPath == null) {
-               return new CheckDuplicateResponse(true);
-            }
-
-            if(Tool.equals(folderPath, child.getPath())) {
-               return new CheckDuplicateResponse(true);
-            }
-
-            if(Tool.equals(folderPath.substring(folderPath.lastIndexOf("/") + 1),
-               child.getName())) {
-               return new CheckDuplicateResponse(true);
-            }
-         }
-      }
-
-      return new CheckDuplicateResponse(false);
+      // Bug #77454, the same rule moveScheduleItems refuses with, for every moved folder
+      return new CheckDuplicateResponse(hasMoveDuplicate(folderPaths, entry));
    }
 
    /**
@@ -267,28 +225,8 @@ public class ScheduleTaskFolderService {
    public boolean checkDuplicateFolderPath(String[] folders, AssetEntry targetEntry)
       throws Exception
    {
-      AssetFolder parentFolder = getTaskFolder(targetEntry.toIdentifier());
-      AssetEntry[] entries = parentFolder.getEntries();
-
-      if(folders.length <= 0 || entries == null) {
-         return false;
-      }
-
-      for(AssetEntry child : entries) {
-         if(folders[0] == null) {
-            return true;
-         }
-
-         if(Tool.equals(folders[0], child.getPath())) {
-            return true;
-         }
-
-         if(Tool.equals(folders[0].substring(folders[0].lastIndexOf("/") + 1),
-            child.getName())) {
-            return true;
-         }
-      }
-      return false;
+      // Bug #77454, the same rule moveScheduleItems refuses with, for every moved folder
+      return hasMoveDuplicate(folders, targetEntry);
    }
 
    public void moveScheduleItems(ScheduleTaskModel[] taskModels, String[] folders, AssetEntry targetEntry, Principal principal)
@@ -307,7 +245,8 @@ public class ScheduleTaskFolderService {
       checkMoveDuplicates(folders, targetEntry);
 
       for(String folderPath: folders) {
-         if(folderPath == null || StringUtils.startsWith(targetEntry.getPath(), folderPath)) {
+         // Bug #77454, a folder moved into the folder it's already in isn't rewritten either
+         if(isSkippedMove(folderPath, targetEntry)) {
             continue;
          }
 
@@ -392,30 +331,58 @@ public class ScheduleTaskFolderService {
     * folder of the request.
     */
    private void checkMoveDuplicates(String[] folders, AssetEntry targetEntry) throws Exception {
+      if(hasMoveDuplicate(folders, targetEntry)) {
+         throw new MessageException(Catalog.getCatalog().getString("common.duplicateName"));
+      }
+   }
+
+   /**
+    * Bug #77454, determines if a folder move would replace a stored folder, or would move two
+    * folders to the same path. This is the rule of both the move and its duplicate hints.
+    */
+   private boolean hasMoveDuplicate(String[] folders, AssetEntry targetEntry) throws Exception {
       if(folders == null) {
-         return;
+         return false;
       }
 
       Set<String> targets = new HashSet<>();
 
       for(String folderPath : folders) {
-         if(folderPath == null || StringUtils.startsWith(targetEntry.getPath(), folderPath)) {
+         if(isSkippedMove(folderPath, targetEntry)) {
             continue;
          }
 
-         AssetEntry folderEntry = getFolderEntry(folderPath);
-         String path = targetEntry.isRoot() ? folderEntry.getName() :
-            targetEntry.getPath() + "/" + folderEntry.getName();
+         String path = getMovedPath(folderPath, targetEntry);
 
-         // a folder moved into the folder it's already in stays where it is
-         if(Tool.equals(path, folderPath)) {
-            continue;
-         }
-
-         if(!targets.add(path) || getTaskFolder(getFolderEntry(path).toIdentifier()) != null) {
-            throw new MessageException(Catalog.getCatalog().getString("common.duplicateName"));
+         if(!targets.add(path) || isStoredFolder(getFolderEntry(path))) {
+            return true;
          }
       }
+
+      return false;
+   }
+
+   /**
+    * Checks if a folder of a move request is not moved: a missing path, a move into the folder
+    * itself or one of its subfolders, or a move into the folder it is already in.
+    */
+   private boolean isSkippedMove(String folderPath, AssetEntry targetEntry) {
+      return folderPath == null || StringUtils.startsWith(targetEntry.getPath(), folderPath) ||
+         Tool.equals(getMovedPath(folderPath, targetEntry), folderPath);
+   }
+
+   private String getMovedPath(String folderPath, AssetEntry targetEntry) {
+      AssetEntry folderEntry = getFolderEntry(folderPath);
+      return targetEntry.isRoot() ? folderEntry.getName() :
+         targetEntry.getPath() + "/" + folderEntry.getName();
+   }
+
+   /**
+    * Bug #77454, the duplicate rule of the folder writes and of their hints: a folder is a
+    * duplicate when it is stored, whether its parent lists it or not.
+    */
+   private boolean isStoredFolder(AssetEntry folderEntry) throws Exception {
+      return getTaskFolder(folderEntry.toIdentifier()) != null;
    }
 
    /**
@@ -530,7 +497,7 @@ public class ScheduleTaskFolderService {
       AssetEntry nEntry =
          new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.SCHEDULE_TASK_FOLDER, npath, null);
 
-      if(getTaskFolder(nEntry.toIdentifier()) != null) {
+      if(isStoredFolder(nEntry)) {
          throw new MessageException(Catalog.getCatalog().getString("common.duplicateName"));
       }
 
@@ -576,8 +543,8 @@ public class ScheduleTaskFolderService {
       // permission would be overwritten. Checked before anything is written. The subfolders are
       // moved into the new folder's subtree, which is not checked again
       if(!Tool.equals(oentry.toIdentifier(), nentry.toIdentifier()) &&
-         getTaskFolder(oentry.toIdentifier()) != null &&
-         getTaskFolder(nentry.toIdentifier()) != null)
+         isStoredFolder(oentry) &&
+         isStoredFolder(nentry))
       {
          throw new MessageException(Catalog.getCatalog().getString("common.duplicateName"));
       }

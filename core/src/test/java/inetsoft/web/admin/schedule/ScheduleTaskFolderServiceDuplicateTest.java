@@ -275,6 +275,138 @@ class ScheduleTaskFolderServiceDuplicateTest {
       assertTrue(root().containsEntry(folder("a")));
    }
 
+   // I1, a folder that is stored but missing from its parent's entries (left by the old
+   // overwrite) is a duplicate for the hints and for the writes alike, so the UI warns first
+   @Test
+   void storedButUnlistedTarget_hintsAndWritesAgree() throws Exception {
+      AssetFolder orphan = new AssetFolder();
+      store.put(folder("orphan").toIdentifier(), orphan);
+      addFolder("A/orphan");
+
+      assertTrue(service.checkAddDuplicate(folder("/"), "orphan", AssetRepository.GLOBAL_SCOPE,
+                                           principal).isDuplicate());
+      assertThrows(MessageException.class, () -> service.addFolder(
+         folder("/"), "orphan", "/", AssetRepository.GLOBAL_SCOPE, principal));
+
+      assertTrue(service.checkRenameDuplicate(renameModel("A", "orphan")).isDuplicate());
+      assertThrows(MessageException.class,
+                   () -> service.renameFolder(renameModel("A", "orphan"), principal));
+
+      String[] moved = { "A/orphan" };
+      assertTrue(service.checkItemsDuplicate(moved, folder("/")).isDuplicate());
+      assertTrue(service.checkDuplicateFolderPath(moved, folder("/")));
+      assertThrows(MessageException.class,
+                   () -> service.moveScheduleItems(null, moved, folder("/"), principal));
+
+      assertSame(orphan, store.get(folder("orphan").toIdentifier()));
+      assertTrue(store.containsKey(folder("A").toIdentifier()));
+      assertTrue(store.containsKey(folder("A/orphan").toIdentifier()));
+   }
+
+   // the EM move hint checks every folder, the same as the move
+   @Test
+   void emMoveHint_checksEveryFolder() throws Exception {
+      addFolder("A/X");
+      addFolder("A/B");
+
+      assertTrue(service.checkDuplicateFolderPath(new String[] { "A/X", "A/B" }, folder("/")));
+      assertFalse(service.checkDuplicateFolderPath(new String[] { "A/X" }, folder("/")));
+   }
+
+   // M2, a folder already in the target isn't moved, so it isn't a duplicate for the hints and
+   // isn't rewritten by the move
+   @Test
+   void folderAlreadyInTarget_isSkippedByHintsAndMove() throws Exception {
+      addFolder("A/X");
+      AssetFolder a = (AssetFolder) store.get(folder("A").toIdentifier());
+      String[] moved = { "A", "A/X" };
+
+      assertFalse(service.checkItemsDuplicate(moved, folder("/")).isDuplicate());
+      assertFalse(service.checkDuplicateFolderPath(moved, folder("/")));
+
+      service.moveScheduleItems(null, moved, folder("/"), principal);
+
+      assertSame(a, store.get(folder("A").toIdentifier()), "A was rewritten in place");
+      assertTrue(store.containsKey(folder("X").toIdentifier()));
+      assertSame(permA, perms.get("A"));
+   }
+
+   // two moved folders with the same name would end up at the same path
+   @Test
+   void moveOfTwoFoldersWithSameName_isRefusedAndNothingMoved() throws Exception {
+      addFolder("A/X");
+      addFolder("A/Y");
+      addFolder("A/Y/X");
+      String[] moved = { "A/X", "A/Y/X" };
+
+      assertTrue(service.checkDuplicateFolderPath(moved, folder("/")));
+      assertThrows(MessageException.class,
+                   () -> service.moveScheduleItems(null, moved, folder("/"), principal));
+
+      assertFalse(store.containsKey(folder("X").toIdentifier()), "A/X was moved");
+      assertTrue(store.containsKey(folder("A/X").toIdentifier()));
+      assertTrue(store.containsKey(folder("A/Y/X").toIdentifier()));
+   }
+
+   // M1, the public changeFolder guard refuses on its own, before anything is written
+   @Test
+   void changeFolderOntoStoredFolder_isRefused() throws Exception {
+      clearInvocations(indexedStorage);
+
+      assertThrows(MessageException.class,
+                   () -> service.changeFolder(folder("A"), folder("B"), principal));
+
+      assertSiblingBUnchanged();
+      verify(indexedStorage, never()).putXMLSerializable(anyString(), any());
+   }
+
+   // M1, the subfolders are moved without the duplicate check: a stale orphan in the new
+   // subtree doesn't stop the move halfway, it is replaced as before
+   @Test
+   void renameOverStaleOrphanSubfolder_completes() throws Exception {
+      addFolder("A/sub");
+      AssetFolder staleOrphan = new AssetFolder();
+      store.put(folder("N/sub").toIdentifier(), staleOrphan);
+
+      service.renameFolder(renameModel("A", "N"), principal);
+
+      assertTrue(store.containsKey(folder("N").toIdentifier()));
+      assertNotSame(staleOrphan, store.get(folder("N/sub").toIdentifier()));
+      assertTrue(((AssetFolder) store.get(folder("N").toIdentifier()))
+                    .containsEntry(folder("N/sub")));
+      assertFalse(store.containsKey(folder("A/sub").toIdentifier()));
+      assertFalse(store.containsKey(folder("A").toIdentifier()));
+   }
+
+   // a folder of another organization with the same path is no duplicate, its identifier
+   // carries its organization
+   @Test
+   void sameFolderInOtherOrg_isNoDuplicate() throws Exception {
+      AssetFolder otherM = new AssetFolder();
+      AssetFolder otherN = new AssetFolder();
+      String otherMId = otherOrgFolder("M").toIdentifier();
+      String otherNId = otherOrgFolder("N").toIdentifier();
+      assertNotEquals(otherMId, folder("M").toIdentifier());
+      store.put(otherMId, otherM);
+      store.put(otherNId, otherN);
+
+      assertFalse(service.checkAddDuplicate(folder("/"), "M", AssetRepository.GLOBAL_SCOPE,
+                                            principal).isDuplicate());
+      service.addFolder(folder("/"), "M", "/", AssetRepository.GLOBAL_SCOPE, principal);
+      assertFalse(service.checkRenameDuplicate(renameModel("A", "N")).isDuplicate());
+      service.renameFolder(renameModel("A", "N"), principal);
+
+      assertTrue(store.containsKey(folder("M").toIdentifier()));
+      assertTrue(store.containsKey(folder("N").toIdentifier()));
+      assertSame(otherM, store.get(otherMId));
+      assertSame(otherN, store.get(otherNId));
+   }
+
+   private static AssetEntry otherOrgFolder(String path) {
+      return new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.SCHEDULE_TASK_FOLDER,
+                            path, null, "otherorg");
+   }
+
    private void assertSiblingBUnchanged() {
       AssetFolder b = (AssetFolder) store.get(folder("B").toIdentifier());
       List<String> entries = Arrays.stream(b.getEntries()).map(AssetEntry::getPath).sorted()
