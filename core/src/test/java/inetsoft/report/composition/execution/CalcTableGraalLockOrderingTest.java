@@ -177,8 +177,10 @@ public class CalcTableGraalLockOrderingTest {
             try {
                writeLockStolen.countDown();
                // Mirrors CalcTableLens.evaluate() -> GraalJavaScriptEnv.put() needing the same
-               // engine lock while still holding the sandbox write lock.
-               graalEngineLock.lock();
+               // engine lock while still holding the sandbox write lock. Interruptible, unlike
+               // the real lock(), so that pool.shutdownNow() breaks the deadlock of the
+               // unguarded case instead of leaving it to outlive the test.
+               graalEngineLock.lockInterruptibly();
                graalEngineLock.unlock();
             }
             finally {
@@ -201,6 +203,8 @@ public class CalcTableGraalLockOrderingTest {
       }
       finally {
          pool.shutdownNow();
+         assertTrue(pool.awaitTermination(5, TimeUnit.SECONDS),
+            "lock-ordering test threads did not exit, the deadlock outlives the test");
       }
    }
 
