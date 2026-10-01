@@ -52,12 +52,13 @@ class UniformSQLOuterJoinUnknownTableTest {
       "select a.x from a right join b on id = bid",
       "select a.x from a full outer join b on id = bid",
       // partly qualified, an unknown qualifier, a name hidden by its alias, and a bare
-      // name against a schema-qualified table
+      // name against an ambiguous or aliased schema-qualified table
       "select a.x from a left join b on a.id = bid",
       "select a.x from a left join b on id = b.bid",
       "select a.x from a left join b on x.id = b.id",
       "select a.x from a t1 left join b t2 on a.id = t2.id",
-      "select a.x from s.a left join s.b on a.id = b.id",
+      "select b.x from s1.a join b on s1.a.k = b.k left join s2.a on a.id = b.id",
+      "select a.x from s.a t1 left join s.b on a.id = b.id",
       // chained and subquery positions
       "select a.x from a left join b on a.id = b.id left join c on id = cid",
       "select a.x from a left join b on id = bid left join c on a.id = c.id",
@@ -70,14 +71,15 @@ class UniformSQLOuterJoinUnknownTableTest {
       "select a.x from a, b where id = bid(+) and k = 5",
       "select a.x from a, b where k = 5 or id = bid(+)",
       // legacy, partly qualified, an unknown table, a name hidden by its alias, and a
-      // bare name against a schema-qualified table
+      // bare name against an ambiguous or aliased schema-qualified table
       "select a.x from a, b where a.id = bid(+)",
       "select a.x from a, b where id *= b.bid",
       "select a.x from a, b where a.id *= x.id",
       "select a.x from a t1, b t2 where a.id = t2.id(+)",
-      "select a.x from s.a, s.b where a.id = b.id(+)",
-      // an unaliased quoted table name with spaces doesn't resolve to its table
-      "select * from \"my a\", \"my b\" where \"my a\".id = \"my b\".id(+)",
+      "select a.x from s1.a, s2.a, b where a.id = b.id(+)",
+      "select a.x from s.a t1, s.b where a.id = b.id(+)",
+      // a quoted table name with spaces hidden by its alias
+      "select * from \"my a\" t1, \"my b\" where \"my a\".id = \"my b\".id(+)",
       // legacy outer joins in a subquery are checked against the subquery's tables, so
       // a correlated outer join to the outer query's table is refused too
       "select a.x from a where exists (select 1 from c, d where cid *= did)",
@@ -143,6 +145,26 @@ class UniformSQLOuterJoinUnknownTableTest {
    void legacyOuterJoinGeneratesJoin(String text, String expected) throws Exception {
       String generated = normalize(parse(text).getSQLString());
       assertTrue(generated.contains(expected), generated);
+   }
+
+   // a bare table name refers to the one unaliased schema-qualified table it names (a
+   // for s.a), and an unaliased quoted name with spaces to its table (Bug #77440), so
+   // these are outer joins between two from clause tables
+   @ParameterizedTest
+   @CsvSource(delimiter = '|', value = {
+      "select a.x from s.a left join s.b on a.id = b.id | " +
+         "select a.x from s.a LEFT OUTER JOIN s.b ON a.id = b.id",
+      "select a.x from s.a, s.b where a.id = b.id(+) | " +
+         "select a.x from s.a LEFT OUTER JOIN s.b ON a.id = b.id",
+      "select * from \"my a\", \"my b\" where \"my a\".id = \"my b\".id(+) | " +
+         "select * from \"my a\" LEFT OUTER JOIN \"my b\" ON \"my a\".id = \"my b\".id",
+   })
+   void outerJoinOnResolvedTableNameIsAccepted(String text, String expected)
+      throws Exception
+   {
+      UniformSQL sql = parse(text);
+      assertEquals(UniformSQL.PARSE_SUCCESS, sql.getParseResult());
+      assertEquals(expected, normalize(sql.getSQLString()));
    }
 
    // qualified legacy outer joins regenerate exactly as before the check was added:
