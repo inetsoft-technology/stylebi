@@ -2010,6 +2010,6 @@ public class DataSourceRegistry implements MessageListener {
 
    private static final IndexedStorage.Filter datasourceFilter =
       DataSourceRegistry::matchesDataSourceFilter;
-   public static ThreadLocal<Boolean> IGNORE_GLOBAL_SHARE = ThreadLocal.withInitial(() -> false);
+   public static final ThreadLocal<Boolean> IGNORE_GLOBAL_SHARE = ThreadLocal.withInitial(() -> false);
 
 }
