@@ -27,6 +27,7 @@ import inetsoft.report.composition.event.AssetEventUtil;
 import inetsoft.report.composition.execution.AssetQuerySandbox;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
+import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.erm.DataRefWrapper;
 import inetsoft.uql.schema.UserVariable;
@@ -82,6 +83,7 @@ public class AssemblyConditionDialogService extends WorksheetControllerService {
    {
       RuntimeWorksheet rws = super.getWorksheetEngine().getWorksheet(runtimeId, principal);
       Worksheet ws = rws.getWorksheet();
+      checkCubeTableReadPermission(principal, assemblyName);
       final TableAssembly tableAssembly = (TableAssembly) ws.getAssembly(assemblyName);
       return createAssemblyConditionDialogModel(rws, tableAssembly, principal);
    }
@@ -242,6 +244,7 @@ public class AssemblyConditionDialogService extends WorksheetControllerService {
       final String tableAssemblyName = Tool.byteDecode(assemblyName);
       RuntimeWorksheet rws = super.getRuntimeWorksheet(runtimeId, principal);
       Worksheet ws = rws.getWorksheet();
+      checkCubeTableReadPermission(principal, tableAssemblyName);
       final TableAssembly tableAssembly = (TableAssembly) ws.getAssembly(tableAssemblyName);
       updateByModel(rws, tableAssembly, tableAssemblyName, model, principal, commandDispatcher);
       return null;
@@ -280,6 +283,8 @@ public class AssemblyConditionDialogService extends WorksheetControllerService {
       ConditionList mvDeletePostConds = ConditionUtil.fromModelToConditionList(
          mvPaneModel.getDeletePostAggregateConditionList(), sourceInfo, super.getWorksheetEngine(),
          principal, rws);
+      checkSubqueryTables(ws, principal, preConds, postConds, rankConds, mvUpdatePreConds,
+                          mvUpdatePostConds, mvDeletePreConds, mvDeletePostConds);
       VSUtil.removeVariable(variableTable, (ConditionList) tableAssembly.getPreConditionList(), preConds);
       VSUtil.removeVariable(variableTable, (ConditionList) tableAssembly.getPostConditionList(), postConds);
       VSUtil.removeVariable(variableTable, (ConditionList) tableAssembly.getRankingConditionList(), rankConds);
@@ -343,6 +348,22 @@ public class AssemblyConditionDialogService extends WorksheetControllerService {
       }
 
       AssetEventUtil.refreshTableLastModified(ws, assemblyName, true);
+   }
+
+   /**
+    * Checks the tables that the subqueries of the conditions name, before the conditions are
+    * stored. A subquery resolves its table by name, so a cube table name in one is checked like
+    * any other client-supplied table name (Bug #77462).
+    */
+   private void checkSubqueryTables(Worksheet ws, Principal principal, ConditionList... lists) {
+      Set<AssemblyRef> refs = new HashSet<>();
+
+      for(ConditionList list : lists) {
+         AssetUtil.getConditionDependeds(ws, list, refs);
+      }
+
+      checkCubeTableReadPermission(
+         principal, refs.stream().map(ref -> ref.getEntry().getName()).toArray(String[]::new));
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)

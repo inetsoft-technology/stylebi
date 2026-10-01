@@ -634,43 +634,6 @@ public final class XUtil {
 
 
    /**
-    * Call a method on an object without causing exception if the class or
-    * method is not in the jvm (e.g. jdk1.2 methods used in jdk1.1)
-    */
-   public static Object call(Object obj, String clsname, String method,
-                             Class[] params, Object[] args) {
-      return Tool.call(obj, clsname, method, params, args);
-   }
-
-   /**
-    * Call a method on an object without causing exception if the class or
-    * method is not in the jvm (e.g. jdk1.2 methods used in jdk1.1)
-    */
-   public static Object field(Class cls, String field) {
-      try {
-         Field member = cls.getField(field);
-
-         return member.get(null);
-      }
-      catch(Throwable e) {
-         return null;
-      }
-   }
-
-   /**
-    * Call a method on an object without causing exception if the class or
-    * method is not in the jvm (e.g. jdk1.2 methods used in jdk1.1)
-    */
-   public static Object field(String cls, String field) {
-      try {
-         return field(Class.forName(cls), field);
-      }
-      catch(Throwable e) {
-         return null;
-      }
-   }
-
-   /**
     * Get the string representation for view.
     */
    public static final String toView(Object dataRef) {
@@ -3691,7 +3654,7 @@ public final class XUtil {
       try {
          Class[] params = new Class[] {Hyperlink.Ref.class, String.class};
          Object[] args = new Object[] {link, servlet};
-         return (String) call(null, "inetsoft.sree.internal.SUtil",
+         return (String) Tool.call(null, "inetsoft.sree.internal.SUtil",
                               "getCommand", params, args);
       }
       catch(Exception ex) {

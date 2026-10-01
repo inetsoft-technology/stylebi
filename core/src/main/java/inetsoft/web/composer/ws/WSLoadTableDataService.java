@@ -65,6 +65,7 @@ public class WSLoadTableDataService extends WorksheetControllerService {
       RuntimeWorksheet rws = getRuntimeWorksheet(runtimeId, principal);
       final int startRow = event.start();
       AssetQuerySandbox box = rws.getAssetQuerySandbox();
+      checkCubeTableReadPermission(principal, assemblyName);
       TableAssembly table = (TableAssembly) rws.getWorksheet().getAssembly(assemblyName);
 
       if(table == null) {
@@ -201,6 +202,7 @@ public class WSLoadTableDataService extends WorksheetControllerService {
       Worksheet ws = rws.getWorksheet();
       AssetQuerySandbox box = rws.getAssetQuerySandbox();
       String name = event.getAssemblyName();
+      checkCubeTableReadPermission(principal, name);
       TableAssembly table = (TableAssembly) ws.getAssembly(name);
 
       if(table == null) {

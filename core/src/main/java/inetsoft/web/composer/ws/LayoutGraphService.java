@@ -55,6 +55,7 @@ public class LayoutGraphService extends WorksheetControllerService {
    {
       RuntimeWorksheet worksheet = getRuntimeWorksheet(runtimeId, principal);
 
+      checkCubeTableReadPermission(principal, event.names());
       mxGraph graph = new mxGraph();
       Object parent = graph.getDefaultParent();
       Map<String, Object> vertices = new HashMap<>();

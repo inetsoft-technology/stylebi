@@ -694,7 +694,7 @@ public class JDBCHandler extends XHandler {
 
                // find the cursor type code
                if(isproc && xds.checkDatabaseType(JDBCDataSource.JDBC_ORACLE)) {
-                  cursorType = (Integer) XUtil.field(
+                  cursorType = (Integer) Tool.field(
                      "oracle.jdbc.driver.OracleTypes", "CURSOR");
                }
 
@@ -2969,13 +2969,13 @@ public class JDBCHandler extends XHandler {
             if(sqlTypes instanceof inetsoft.uql.jdbc.util.OracleSQLTypes &&
                "REF CURSOR".equals(typename))
             {
-               xnode = sqlTypes.createTypeNode(col, (Integer) XUtil.field(
+               xnode = sqlTypes.createTypeNode(col, (Integer) Tool.field(
                   "oracle.jdbc.driver.OracleTypes", "CURSOR"), null);
             }
             // @by marblew, 2005-01-01, fix bug1106711509486
             else if(sqlTypes instanceof inetsoft.uql.jdbc.util.OracleSQLTypes &&
                     "BLOB".equals(typename)) {
-               xnode = sqlTypes.createTypeNode(col, (Integer) XUtil.field(
+               xnode = sqlTypes.createTypeNode(col, (Integer) Tool.field(
                   "oracle.jdbc.driver.OracleTypes", "BLOB"), null);
             }
             else {

@@ -373,4 +373,175 @@ public class ExtendedDateFormatTest {
          return ParseException.class;
       }
    }
+
+   // Bug #77465: the java.time fast path kept only the local fields, so the offset or zone
+   // name parsed by z, Z or X was replaced by another zone. both String overloads must give
+   // what SimpleDateFormat and parse(String, ParsePosition) give. the JVM zone, the format
+   // zone and the parsed offset all differ, so a wrong zone cannot match by coincidence
+   @ParameterizedTest(name = "{0} {1}")
+   @CsvSource(delimiter = '|', value = {
+      "yyyy-MM-dd HH:mm:ss Z | 2025-01-01 12:00:00 +0000",
+      "yyyy-MM-dd HH:mm:ss Z | 2025-01-01 12:00:00 +0530",
+      "yyyy-MM-dd HH:mm:ss Z | 2025-07-01 12:00:00 -0400",
+      "yyyy-MM-dd HH:mm:ss X | 2025-01-01 12:00:00 Z",
+      "yyyy-MM-dd HH:mm:ss X | 2025-01-01 12:00:00 +05",
+      "yyyy-MM-dd HH:mm:ss XX | 2025-01-01 12:00:00 +0530",
+      "yyyy-MM-dd HH:mm:ss XXX | 2025-01-01 12:00:00 +05:30",
+      "yyyy-MM-dd'T'HH:mm:ssXXX | 2025-01-01T12:00:00Z",
+      "yyyy-MM-dd HH:mm:ss z | 2025-01-01 12:00:00 EST",
+      "yyyy-MM-dd HH:mm:ss z | 2025-01-01 12:00:00 UTC",
+      "yyyy-MM-dd HH:mm:ss z | 2025-01-01 12:00:00 GMT+05:30",
+      "yyyy-MM-dd HH:mm:ss z | 2025-07-01 12:00:00 PST",
+      "yyyy-MM-dd HH:mm:ss zzzz | 2025-01-01 12:00:00 Eastern Standard Time",
+      "EEE MMM dd HH:mm:ss zzz yyyy | Wed Jan 01 12:00:00 EST 2025",
+      "HH:mm Z | 12:00 +0000",
+      "HH:mm:ss z | 12:00:00 EST",
+      "yyyy-MM-dd Z | 2025-01-01 +0900",
+      "HH 'o''clock' Z | 12 o'clock +0000",
+      "yyyy-MM-dd HH:mm:ss Z | 1850-01-01 12:00:00 +0000",
+      "yyyy-MM-dd HH:mm:ss Z | 1900-12-31 12:00:00 +0530"
+   })
+   public void zonePatternParsesLikeSimpleDateFormat(String pattern, String text)
+      throws Exception
+   {
+      final TimeZone oldZone = TimeZone.getDefault();
+
+      try {
+         TimeZone.setDefault(TimeZone.getTimeZone("America/Los_Angeles"));
+         final TimeZone zone = TimeZone.getTimeZone("Asia/Tokyo");
+         final ExtendedDateFormat format = new ExtendedDateFormat(pattern, Locale.US);
+         final SimpleDateFormat sdf = new SimpleDateFormat(pattern, Locale.US);
+         format.setTimeZone(zone);
+         sdf.setTimeZone(zone);
+         final Date expected = sdf.parse(text);
+
+         assertEquals(expected, format.parse(text));
+         assertEquals(expected, format.parseObject(text));
+         assertEquals(expected, format.parse(text, new ParsePosition(0)));
+         assertThrows(IllegalArgumentException.class, () -> format.parse(text, null));
+      }
+      finally {
+         TimeZone.setDefault(oldZone);
+      }
+   }
+
+   // Bug #77465: a quoted Z is a literal, so the pattern has no zone field and keeps the
+   // java.time fast path
+   @ParameterizedTest(name = "{0} {1}")
+   @CsvSource(delimiter = '|', value = {
+      "yyyy-MM-dd'T'HH:mm:ss'Z' | 2025-01-01T12:00:00Z",
+      "yyyy-MM-dd 'it''s Z' | 2025-01-01 it's Z"
+   })
+   public void quotedZoneLetterKeepsJavaTime(String pattern, String text) throws Exception {
+      final TimeZone oldZone = TimeZone.getDefault();
+
+      try {
+         TimeZone.setDefault(TimeZone.getTimeZone("America/Los_Angeles"));
+         final ExtendedDateFormat format = new ExtendedDateFormat(pattern, Locale.US);
+         final Date expected = new SimpleDateFormat(pattern, Locale.US).parse(text);
+
+         assertEquals(expected, format.parse(text, null));
+         assertEquals(expected, format.parse(text));
+         assertEquals(expected, format.parseObject(text));
+      }
+      finally {
+         TimeZone.setDefault(oldZone);
+      }
+   }
+
+   // Bug #77465: SimpleDateFormat only accepts the zone names of the locale for z, so a
+   // region id fails to parse instead of giving a date with the zone ignored
+   @Test
+   public void zoneNamePatternRejectsRegionId() {
+      final TimeZone oldZone = TimeZone.getDefault();
+
+      try {
+         TimeZone.setDefault(TimeZone.getTimeZone("America/Los_Angeles"));
+         final String pattern = "yyyy-MM-dd HH:mm:ss z";
+         final String text = "2025-01-01 12:00:00 America/New_York";
+         final ExtendedDateFormat format = new ExtendedDateFormat(pattern, Locale.US);
+
+         assertThrows(ParseException.class,
+                      () -> new SimpleDateFormat(pattern, Locale.US).parse(text));
+         assertThrows(ParseException.class, () -> format.parse(text));
+         assertThrows(ParseException.class, () -> format.parseObject(text));
+         assertNull(format.parse(text, new ParsePosition(0)));
+      }
+      finally {
+         TimeZone.setDefault(oldZone);
+      }
+   }
+
+   // Bug #77465: the zone field check follows applyPattern() on the same instance, and a
+   // lowercase z inside a quoted literal is not a zone field
+   @Test
+   public void zoneFieldFollowsApplyPattern() throws Exception {
+      final TimeZone oldZone = TimeZone.getDefault();
+
+      try {
+         TimeZone.setDefault(TimeZone.getTimeZone("America/Los_Angeles"));
+         final String plain = "yyyy-MM-dd 'zone z' HH:mm";
+         final String zoned = "yyyy-MM-dd HH:mm Z";
+         final ExtendedDateFormat format = new ExtendedDateFormat(plain, Locale.US);
+         final Date plainDate =
+            new SimpleDateFormat(plain, Locale.US).parse("2025-01-01 zone z 12:00");
+
+         assertEquals(plainDate, format.parse("2025-01-01 zone z 12:00", null));
+
+         format.applyPattern(zoned);
+         assertEquals(Date.from(Instant.parse("2025-01-01T12:00:00Z")),
+                      format.parse("2025-01-01 12:00 +0000"));
+         assertThrows(IllegalArgumentException.class,
+                      () -> format.parse("2025-01-01 12:00 +0000", null));
+
+         format.applyPattern(plain);
+         assertEquals(plainDate, format.parse("2025-01-01 zone z 12:00", null));
+      }
+      finally {
+         TimeZone.setDefault(oldZone);
+      }
+   }
+
+   // Bug #77465: SimpleDateFormat sets the zone of the format from a parsed zone name. a
+   // shared or cached format must keep its zone, otherwise every later format() prints in
+   // the zone of whatever was parsed last
+   @ParameterizedTest(name = "{0} {1}")
+   @CsvSource(delimiter = '|', value = {
+      "America/New_York | 2011-03-10 14:05 PST",
+      "America/New_York | 2011-03-10 14:05 PST tail",
+      "America/New_York | 1850-01-01 12:00 PST",
+      "America/New_York | 2011-03-10 14:05 GMT+05:30",
+      "Asia/Tokyo | 2011-03-10 14:05 PST"
+   })
+   public void parseKeepsZoneOfFormat(String zoneId, String text) throws Exception {
+      final TimeZone oldZone = TimeZone.getDefault();
+
+      try {
+         TimeZone.setDefault(TimeZone.getTimeZone("America/New_York"));
+         final String pattern = "yyyy-MM-dd HH:mm z";
+         final TimeZone zone = TimeZone.getTimeZone(zoneId);
+         final Date other = Date.from(Instant.parse("2011-07-01T12:00:00Z"));
+         final ExtendedDateFormat fresh = new ExtendedDateFormat(pattern, Locale.US);
+         fresh.setTimeZone(zone);
+         final String expected = fresh.format(other);
+         final List<ThrowingFunction> parsers = List.of(
+            f -> f.parse(text), f -> f.parseObject(text), f -> f.parse(text, new ParsePosition(0)));
+
+         for(ThrowingFunction parser : parsers) {
+            final ExtendedDateFormat format = new ExtendedDateFormat(pattern, Locale.US);
+            format.setTimeZone(zone);
+
+            assertNotNull(parser.apply(format));
+            assertEquals(zoneId, format.getTimeZone().getID());
+            assertEquals(expected, format.format(other));
+         }
+      }
+      finally {
+         TimeZone.setDefault(oldZone);
+      }
+   }
+
+   private interface ThrowingFunction {
+      Object apply(ExtendedDateFormat format) throws Exception;
+   }
 }

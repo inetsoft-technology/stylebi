@@ -58,6 +58,7 @@ import inetsoft.util.script.graal.ScriptScope;
 import inetsoft.web.binding.handler.VSTreeHandler;
 import inetsoft.web.binding.model.ScriptTreeNodeData;
 import inetsoft.web.composer.model.TreeNodeModel;
+import inetsoft.web.portal.controller.database.QueryManagerService;
 import inetsoft.web.vswizard.recommender.WizardRecommenderUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -74,9 +75,11 @@ import java.util.stream.Collectors;
 public class VSScriptableService {
 
    public VSScriptableService(ViewsheetService viewsheetService, VSTreeHandler treeHandler,
-                              LibManagerProvider libManagerProvider)
+                              LibManagerProvider libManagerProvider,
+                              QueryManagerService queryManagerService)
    {
       this.viewsheetService = viewsheetService;
+      this.queryManagerService = queryManagerService;
       this.treeHandler = treeHandler;
       this.libManagerProvider = libManagerProvider;
    }
@@ -87,6 +90,11 @@ public class VSScriptableService {
    {
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(vsId, principal);
       Viewsheet viewsheet = rvs.getViewsheet();
+      // a cube table is resolved from its data source without a permission check, so a cube
+      // that no assembly of the viewsheet is bound to is checked before its fields are
+      // listed (Bug #77462)
+      queryManagerService.checkNewCubeTablesReadPermission(
+         Collections.singletonList(tableName), VSUtil.getBoundTables(viewsheet), principal);
       Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
       String vsName = null;
 
@@ -1863,6 +1871,7 @@ public class VSScriptableService {
    private final ViewsheetService viewsheetService;
    private final VSTreeHandler treeHandler;
    private final LibManagerProvider libManagerProvider;
+   private final QueryManagerService queryManagerService;
    private static final Map<String, String> FUNCTION_CSHIDS = new HashMap<>();
    private static final Logger LOG = LoggerFactory.getLogger(VSScriptableService.class);
 

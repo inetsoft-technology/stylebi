@@ -32,11 +32,15 @@ import inetsoft.uql.util.XUtil;
 import inetsoft.web.composer.ws.assembly.WorksheetEventUtil;
 import inetsoft.web.composer.ws.event.WSInsertColumnsEvent;
 import inetsoft.web.composer.ws.event.WSInsertColumnsEventValidator;
+import inetsoft.web.portal.controller.database.QueryManagerService;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.security.Principal;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Set;
 
 @Service
 public class WorksheetControllerService {
@@ -60,6 +64,92 @@ public class WorksheetControllerService {
 
    protected DataSourceRegistry getDataSourceRegistry() {
       return dataSourceRegistry;
+   }
+
+   @Autowired
+   public void setQueryManagerService(QueryManagerService queryManagerService) {
+      this.queryManagerService = queryManagerService;
+   }
+
+   /**
+    * Checks the table names that a worksheet composer request supplies, before they are
+    * looked up in or stored into the worksheet. A cube table name
+    * (<tt>___inetsoft_cube_&lt;data source&gt;/&lt;cube&gt;</tt>) is resolved by the worksheet
+    * straight from the data source, ahead of its own assemblies and without a permission
+    * check. The composer never names its own tables this way, so such a name always requires
+    * READ on its data source and cube. Any other name is not checked (Bug #77462).
+    *
+    * @param principal  the current user.
+    * @param tableNames the client-supplied table names, any of which may be null.
+    *
+    * @throws java.lang.SecurityException if a permission is not granted.
+    */
+   protected void checkCubeTableReadPermission(Principal principal, String... tableNames) {
+      if(tableNames == null) {
+         return;
+      }
+
+      for(String tableName : tableNames) {
+         if(tableName != null && tableName.startsWith(Assembly.CUBE_VS)) {
+            if(queryManagerService == null) {
+               throw new java.lang.SecurityException(
+                  "Unauthorized access to cube table \"" + tableName + "\"");
+            }
+
+            queryManagerService.checkCubeTableReadPermission(tableName, principal);
+         }
+      }
+   }
+
+   /**
+    * Refuses a cube table name (<tt>___inetsoft_cube_&lt;data source&gt;/&lt;cube&gt;</tt>) as the
+    * new name of a worksheet table. The worksheet would resolve that name to the cube instead
+    * of the table, and the worksheet could not be saved (Bug #77462).
+    *
+    * @throws java.lang.SecurityException if the name is a cube table name.
+    */
+   protected static void checkNotCubeTableName(String name) {
+      if(name != null && name.startsWith(Assembly.CUBE_VS)) {
+         throw new java.lang.SecurityException(
+            "A worksheet table cannot be named as a cube table: \"" + name + "\"");
+      }
+   }
+
+   /**
+    * Refuses to save a worksheet that references a cube table name
+    * (<tt>___inetsoft_cube_&lt;data source&gt;/&lt;cube&gt;</tt>), for example as the base of a
+    * mirror, a member of a join, a condition subquery or a variable's table, or that names one
+    * of its own tables that way. The composer never creates such a reference itself, and a
+    * saved one would be resolved later by the viewsheet runtime without a permission check
+    * (Bug #77462).
+    *
+    * @throws java.lang.SecurityException if the worksheet references a cube table name.
+    */
+   protected static void checkNoCubeTableReference(Worksheet ws) {
+      if(ws == null) {
+         return;
+      }
+
+      for(Assembly assembly : ws.getAssemblies()) {
+         if(assembly.getName().startsWith(Assembly.CUBE_VS)) {
+            throw new java.lang.SecurityException(
+               "Worksheet table \"" + assembly.getName() + "\" is named as a cube table");
+         }
+
+         Set<AssemblyRef> depends = new HashSet<>();
+         assembly.getDependeds(depends);
+
+         for(AssemblyRef ref : depends) {
+            AssemblyEntry entry = ref.getEntry();
+            String name = entry == null ? null : entry.getName();
+
+            if(name != null && name.startsWith(Assembly.CUBE_VS)) {
+               throw new java.lang.SecurityException(
+                  "Worksheet table \"" + assembly.getName() +
+                  "\" references cube table \"" + name + "\"");
+            }
+         }
+      }
    }
 
    /**
@@ -126,6 +216,7 @@ public class WorksheetControllerService {
       Worksheet ws = rws.getWorksheet();
       String name = event.name();
       int index = event.index();
+      checkCubeTableReadPermission(principal, name);
       TableAssembly assembly = (TableAssembly) ws.getAssembly(name);
 
       if(assembly == null) {
@@ -436,6 +527,7 @@ public class WorksheetControllerService {
 
    private final WorksheetService wsEngine;
    private final DataSourceRegistry dataSourceRegistry;
+   private QueryManagerService queryManagerService;
 
    protected static final int ROW_LIMIT = 10000;
    protected static final int COL_LIMIT = 1000;

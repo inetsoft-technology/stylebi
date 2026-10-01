@@ -1187,7 +1187,7 @@ public class CoreTool {
             }
          case CODE_ARRAY:
             if(val.startsWith("^")) {
-               return parseEscapedArray(val);
+               return parseEscapedArray(val, strictNull);
             }
 
             String[] vals = split(val, '^');
@@ -1197,7 +1197,7 @@ public class CoreTool {
                String[] temp = split(vals[i], '~');
 
                try {
-                  res[i] = getData(temp[0], temp[1]);
+                  res[i] = getData(temp[0], temp[1], strictNull);
                }
                catch(Exception ignore) {
                }
@@ -1449,8 +1449,9 @@ public class CoreTool {
    /**
     * Parse an array data string written in the escaped form, i.e. a leading '^' followed by
     * type~value items separated by '^', with '\', '^' and '~' in values escaped by '\'.
+    * @param strictNull true if the items were written with strict nulls (FAKE_NULL).
     */
-   private static Object[] parseEscapedArray(String val) {
+   private static Object[] parseEscapedArray(String val, boolean strictNull) {
       List<Object> res = new ArrayList<>();
       StringBuilder type = new StringBuilder();
       StringBuilder value = null;
@@ -1468,7 +1469,7 @@ public class CoreTool {
             // an item without a type separator is null, same as in the legacy form
             if(value != null) {
                try {
-                  item = getData(type.toString(), value.toString());
+                  item = getData(type.toString(), value.toString(), strictNull);
                }
                catch(Exception ignore) {
                }
@@ -3906,6 +3907,35 @@ public class CoreTool {
 
    // AD 1-01-03 00:00 UTC, any earlier date may be BC in some time zone
    private static final long AD_START_THRESHOLD = -62135596800000L;
+
+   /**
+    * Get the value of a public static field, or null if the class or field is not
+    * available (e.g. an optional JDBC driver class).
+    */
+   public static Object field(Class<?> cls, String field) {
+      try {
+         Field member = cls.getField(field);
+
+         return member.get(null);
+      }
+      catch(Throwable e) {
+         return null;
+      }
+   }
+
+   /**
+    * Get the value of a public static field, or null if the class or field is not
+    * available (e.g. an optional JDBC driver class).
+    */
+   public static Object field(String cls, String field) {
+      try {
+         return field(Class.forName(cls), field);
+      }
+      catch(Throwable e) {
+         return null;
+      }
+   }
+
    // date time format cache
    static final FormatCache DATETIME_FORMAT_CACHE =
       new FormatCache(createDateFormat(DEFAULT_DATETIME_PATTERN));
