@@ -19,7 +19,12 @@ package inetsoft.util;
 
 /**
  * Decimal format pattern helpers. This class has no dependencies, so it can be used by any
- * format class without triggering other static initialization.
+ * format class without triggering other static initialization. Do not move these members to
+ * ExtendedDecimalFormat: its static initializer reaches DataSpace (a Spring bean), so every class
+ * that touched it would then need a Spring context.
+ * <p>
+ * RoundDecimalFormat does not use this mapping: with "#,##0.###" the JDK's DecimalFormat fast
+ * path would ignore its rounding option, so it bounds the fraction digits of "" instead.
  */
 public final class DecimalPatternUtil {
    /**

@@ -54,14 +54,29 @@ class EmptyDecimalPatternTest {
       assertEquals("0.00", DecimalPatternUtil.normalizeEmptyPattern("0.00"));
    }
 
+   /**
+    * formatNumber with a rounding option uses RoundDecimalFormat. An empty pattern has no fixed
+    * scale, so every rounding option must give the same output as the no-rounding call.
+    */
    @Test
-   void scriptFormatNumberEmptyPatternWithRounding() {
-      // formatNumber with a rounding option uses RoundDecimalFormat, whose format() calls
-      // toPattern(); check it is bounded first so a regression fails instead of exhausting the heap
-      assertEquals(3, new RoundDecimalFormat("").getMaximumFractionDigits());
-      assertEquals("1.5", JavaScriptEngine.formatNumber(1.5, "", "ROUND_HALF_UP"));
-      assertEquals("1.235", JavaScriptEngine.formatNumber(1.23456, "", "ROUND_HALF_UP"));
-      assertEquals("0.3", JavaScriptEngine.formatNumber(0.3, "", "ROUND_HALF_UP"));
+   void scriptFormatNumberEmptyPatternWithRoundingMatchesNoRounding() {
+      // RoundDecimalFormat.format() calls toPattern(); check it is bounded first so a regression
+      // fails instead of exhausting the heap
+      assertTrue(new RoundDecimalFormat("").getMaximumFractionDigits() <= 340);
+
+      String[] roundings = { "ROUND_UP", "ROUND_DOWN", "ROUND_CEILING", "ROUND_FLOOR",
+                             "ROUND_HALF_UP", "ROUND_HALF_DOWN", "ROUND_UNNECESSARY" };
+
+      for(String rounding : roundings) {
+         for(double value : new double[] { 1.5, 1.23456, 0.3, 0.0625, 1.9999, 1234.5 }) {
+            assertEquals(JavaScriptEngine.formatNumber(value, "", null),
+                         JavaScriptEngine.formatNumber(value, "", rounding), rounding + " " + value);
+         }
+      }
+
+      assertEquals("1.23456", JavaScriptEngine.formatNumber(1.23456, "", "ROUND_DOWN"));
+      assertEquals(".0625", JavaScriptEngine.formatNumber(0.0625, "", "ROUND_HALF_UP"));
+      assertEquals(".3", JavaScriptEngine.formatNumber(0.3, "", "ROUND_UP"));
    }
 
    /** Without rounding formatNumber uses a plain DecimalFormat, which is left unchanged. */

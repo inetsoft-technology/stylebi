@@ -24,6 +24,9 @@ import java.text.*;
  * A format class that supports different rounding options.
  */
 public class RoundDecimalFormat extends DecimalFormat {
+   // the implicit value before the pattern overrides were added; the serialized fields are unchanged
+   private static final long serialVersionUID = 3176001257543027570L;
+
    /**
     * Create an empty format. The format pattern must be set before it's used.
     */
@@ -34,32 +37,49 @@ public class RoundDecimalFormat extends DecimalFormat {
     * Create a format with default rounding (ROUND_HALF_EVEN).
     */
    public RoundDecimalFormat(String fmt) {
+      super(fmt);
       // the DecimalFormat constructor does not call the overridden applyPattern()
-      super(DecimalPatternUtil.normalizeEmptyPattern(fmt));
+      boundEmptyPattern(fmt);
    }
 
    /**
     * Create a format with default rounding (ROUND_HALF_EVEN).
     */
    public RoundDecimalFormat(String pattern, DecimalFormatSymbols symbols) {
-      super(DecimalPatternUtil.normalizeEmptyPattern(pattern), symbols);
+      super(pattern, symbols);
+      boundEmptyPattern(pattern);
    }
 
    /**
-    * Apply a pattern. An empty pattern is replaced by the default pattern, since it would leave
-    * unlimited fraction digits and toPattern() (called by format()) would exhaust the heap.
+    * Apply a pattern.
     */
    @Override
    public void applyPattern(String pattern) {
-      super.applyPattern(DecimalPatternUtil.normalizeEmptyPattern(pattern));
+      super.applyPattern(pattern);
+      boundEmptyPattern(pattern);
    }
 
    /**
-    * Apply a localized pattern. An empty pattern is replaced by the default pattern.
+    * Apply a localized pattern.
     */
    @Override
    public void applyLocalizedPattern(String pattern) {
-      super.applyLocalizedPattern(DecimalPatternUtil.normalizeEmptyPattern(pattern));
+      super.applyLocalizedPattern(pattern);
+      boundEmptyPattern(pattern);
+   }
+
+   /**
+    * An empty pattern leaves Integer.MAX_VALUE maximum fraction digits, and toPattern() (called
+    * by format() for any rounding other than ROUND_HALF_EVEN) would then build a string of about
+    * 2^31 chars. Keep the empty pattern's formatting but cap the fraction digits at the most a
+    * double can show. Unlike substituting a "#,##0.###" pattern, this keeps the JDK's
+    * DecimalFormat fast path (which ignores the rounding option) from applying, and gives the
+    * same output as a plain DecimalFormat("").
+    */
+   private void boundEmptyPattern(String pattern) {
+      if(pattern != null && pattern.isEmpty()) {
+         setMaximumFractionDigits(DOUBLE_FRACTION_DIGITS);
+      }
    }
 
    /**
@@ -136,5 +156,7 @@ public class RoundDecimalFormat extends DecimalFormat {
       }
    }
 
+   // the most fraction digits DecimalFormat can show for a double
+   private static final int DOUBLE_FRACTION_DIGITS = 340;
    private int rounding = BigDecimal.ROUND_HALF_EVEN;
 }
