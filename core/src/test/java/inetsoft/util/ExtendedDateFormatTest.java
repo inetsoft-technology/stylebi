@@ -316,6 +316,54 @@ public class ExtendedDateFormatTest {
       }
    }
 
+   // Bug #77444: the last valid day follows the hybrid calendar on both sides of the 1582
+   // cutover (the Julian 1300 is a leap year, the Gregorian 1700 is not), also when the zone
+   // set on the format differs from the JVM default
+   @ParameterizedTest(name = "{0} {1} {2}")
+   @CsvSource({
+      "America/New_York, America/New_York, 1300-02-30, 1300-02-29",
+      "America/New_York, America/New_York, 1300-02-31, 1300-02-29",
+      "America/New_York, America/New_York, 1700-02-29, 1700-02-28",
+      "America/New_York, America/New_York, 1582-11-31, 1582-11-30",
+      "America/New_York, Asia/Tokyo, 1850-02-30, 1850-02-28",
+      "Asia/Shanghai, Asia/Tokyo, 1300-02-30, 1300-02-29"
+   })
+   public void invalidDayClampsInHybridCalendarAndFormatZone(String defaultZone, String zone,
+                                                             String text, String expected)
+      throws Exception
+   {
+      final TimeZone oldZone = TimeZone.getDefault();
+
+      try {
+         TimeZone.setDefault(TimeZone.getTimeZone(defaultZone));
+         final ExtendedDateFormat format = new ExtendedDateFormat("yyyy-MM-dd", Locale.US);
+         final SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd", Locale.US);
+         format.setTimeZone(TimeZone.getTimeZone(zone));
+         sdf.setTimeZone(TimeZone.getTimeZone(zone));
+
+         assertEquals(sdf.parse(expected), format.parse(text));
+         assertEquals(sdf.parse(expected), format.parseObject(text));
+      }
+      finally {
+         TimeZone.setDefault(oldZone);
+      }
+   }
+
+   // Bug #77444: the strict attempt before 1901 runs on a clone, so the format itself stays
+   // lenient and a later parse with a ParsePosition still rolls an invalid day over
+   @Test
+   public void strictPre1901AttemptLeavesFormatLenient() throws Exception {
+      final TimeZone zone = TimeZone.getTimeZone("America/New_York");
+      final ExtendedDateFormat format = new ExtendedDateFormat("yyyy-MM-dd", Locale.US);
+      final SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd", Locale.US);
+      format.setTimeZone(zone);
+      sdf.setTimeZone(zone);
+
+      assertEquals(sdf.parse("1850-02-28"), format.parse("1850-02-30"));
+      assertTrue(format.isLenient());
+      assertEquals(sdf.parse("1850-03-02"), format.parse("1850-02-30", new ParsePosition(0)));
+   }
+
    // Bug #77443: parse(String) must convert in the zone of the format, like format() and
    // parse(String, ParsePosition), not in the JVM default zone. the format is created after
    // the default is changed so that only setTimeZone() makes the two zones differ
