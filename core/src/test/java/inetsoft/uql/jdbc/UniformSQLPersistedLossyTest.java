@@ -17,7 +17,12 @@
  */
 package inetsoft.uql.jdbc;
 
+import inetsoft.report.composition.execution.AssetQuerySandbox;
+import inetsoft.report.composition.execution.SQLBoundQuery;
 import inetsoft.test.*;
+import inetsoft.uql.asset.SQLBoundTableAssembly;
+import inetsoft.uql.asset.Worksheet;
+import inetsoft.uql.asset.internal.SQLBoundTableAssemblyInfo;
 import inetsoft.uql.util.XUtil;
 import inetsoft.util.Tool;
 import org.junit.jupiter.api.Tag;
@@ -158,6 +163,91 @@ class UniformSQLPersistedLossyTest {
       assertEquals(UniformSQL.PARSE_FAILED, sql.getParseResult());
    }
 
+   /**
+    * The same old asset loaded the way a worksheet SQL table is: the Worksheet XML round trip
+    * through SQLBoundTableAssemblyInfo and JDBCQuery.parseXML, then the merge decision of the
+    * SQLBoundQuery built on it. A parseable sql string in the same worksheet stays mergeable.
+    */
+   @Test
+   void savedWorksheetSqlTableWithRefusedSqlIsNotMerged() throws Exception {
+      String refused = "select a.x, b.y from a left join b on a.x < b.y";
+      SQLBoundTableAssembly table = loadWorksheetSqlTable(
+         "select a.x, b.y from a left join b on a.x = b.y", refused);
+      UniformSQL sql = sql(table);
+
+      assertEquals(UniformSQL.PARSE_SUCCESS, sql.getParseResult());
+      assertTrue(XUtil.isParsedSQL(sql));
+      assertFalse(isSourceMergeable(table));
+      assertEquals(refused, sql.getSQLString());
+      assertEquals(UniformSQL.PARSE_SUCCESS, sql.getParseResult());
+
+      String text = "select a.x, b.y from a left join b on a.x = b.y where a.k = 1";
+      table = loadWorksheetSqlTable(text, null);
+      sql = sql(table);
+
+      assertTrue(isSourceMergeable(table));
+      assertEquals(text, sql.getSQLString());
+      assertEquals(UniformSQL.PARSE_SUCCESS, sql.getParseResult());
+   }
+
+   /**
+    * Save a worksheet with a sql-edited SQL table, optionally swap the saved sql text, and load
+    * it back the way the worksheet is read from storage.
+    */
+   private static SQLBoundTableAssembly loadWorksheetSqlTable(String text, String savedText)
+      throws Exception
+   {
+      UniformSQL sql = parse(text);
+      sql.isLossy();
+      JDBCQuery query = new JDBCQuery();
+      query.setName("q");
+      query.setSQLDefinition(sql);
+
+      Worksheet ws = new Worksheet();
+      SQLBoundTableAssembly table = new SQLBoundTableAssembly(ws, "t1");
+      ((SQLBoundTableAssemblyInfo) table.getTableInfo()).setQuery(query);
+      table.setSQLEdited(true);
+      ws.addAssembly(table);
+      ws.setPrimaryAssembly(table);
+
+      StringWriter buffer = new StringWriter();
+
+      try(PrintWriter writer = new PrintWriter(buffer)) {
+         ws.writeXML(writer);
+      }
+
+      Element xml = Tool.parseXML(new StringReader(buffer.toString())).getDocumentElement();
+      Element usql = (Element) xml.getElementsByTagName("uniform_sql").item(0);
+      assertEquals("false", usql.getAttribute("lossy"));
+
+      if(savedText != null) {
+         setSQLText(usql, savedText);
+      }
+
+      Worksheet loaded = new Worksheet();
+      loaded.parseXML(xml);
+      SQLBoundTableAssembly loadedTable = (SQLBoundTableAssembly) loaded.getAssembly("t1");
+      JDBCQuery loadedQuery = ((SQLBoundTableAssemblyInfo) loadedTable.getTableInfo()).getQuery();
+      // what SQLBoundTableAssemblyInfo.parseContents() does for a <datasource> node
+      JDBCDataSource ds = dataSource();
+      loadedQuery.setDataSource(ds);
+      ((UniformSQL) loadedQuery.getSQLDefinition()).setDataSource(ds);
+      return loadedTable;
+   }
+
+   private static UniformSQL sql(SQLBoundTableAssembly table) {
+      return (UniformSQL) ((SQLBoundTableAssemblyInfo) table.getTableInfo()).getQuery()
+         .getSQLDefinition();
+   }
+
+   // the merge decision of the SQLBoundQuery the worksheet builds on the table
+   private static boolean isSourceMergeable(SQLBoundTableAssembly table) throws Exception {
+      Worksheet ws = table.getWorksheet();
+      SQLBoundQuery query = new SQLBoundQuery(
+         AssetQuerySandbox.RUNTIME_MODE, new AssetQuerySandbox(ws), table, false, false);
+      return query.isSourceMergeable0();
+   }
+
    // parse the way setSQLString() does, synchronously, so the sql string is kept
    private static UniformSQL parse(String text) {
       UniformSQL sql = new UniformSQL();
@@ -212,13 +302,18 @@ class UniformSQLPersistedLossyTest {
    }
 
    private static JDBCQuery query(UniformSQL sql) {
+      JDBCQuery query = new JDBCQuery();
+      query.setDataSource(dataSource());
+      query.setSQLDefinition(sql);
+      return query;
+   }
+
+   private static JDBCDataSource dataSource() {
       JDBCDataSource ds = mock(JDBCDataSource.class);
       when(ds.getDatabaseType()).thenReturn(JDBCDataSource.JDBC_ODBC);
       when(ds.getRuntimeProductName()).thenReturn("h2");
-
-      JDBCQuery query = new JDBCQuery();
-      query.setDataSource(ds);
-      query.setSQLDefinition(sql);
-      return query;
+      // the merge decision runs on a clone of the query, which clones its data source
+      when(ds.clone()).thenReturn(ds);
+      return ds;
    }
 }
