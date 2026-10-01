@@ -104,12 +104,12 @@ public class AssetTabularDependencyTransformer extends AssetDependencyTransforme
     * path, so <code>rest10.t</code>, <code>xrest1.t</code> and <code>a.rest1.t</code> are not
     * renamed. The backtick quoted form <code>`rest1`.t</code> is renamed too. String literals,
     * double quoted text (a string literal in Spark SQL), variables and comments are skipped.
-    * The name is matched exactly (case-sensitive), as data source names are.
+    * The name is matched exactly (case-sensitive), as data source names are. A table or alias
+    * that has the same name as the data source can't be told apart from it, so its column
+    * qualifiers (<code>rest1.id</code> for table <code>rest1</code>) are renamed too.
     */
    private static String renameSqlQualifier(String sql, String oname, String nname) {
-      if(sql == null || oname == null || oname.isEmpty() || nname == null ||
-         !sql.contains(oname))
-      {
+      if(sql == null || oname == null || oname.isEmpty() || nname == null) {
          return sql;
       }
 
@@ -147,8 +147,9 @@ public class AssetTabularDependencyTransformer extends AssetDependencyTransforme
                continue;
             }
          }
-         else if(isQualifierStart(sql, i) && sql.startsWith(oname, i) &&
-            i + oname.length() < n && sql.charAt(i + oname.length()) == '.')
+         // a name starting with a digit is a number when unquoted (1.5), not a qualifier
+         else if(!Character.isDigit(oname.charAt(0)) && isQualifierStart(sql, i) &&
+            sql.startsWith(oname, i) && i + oname.length() < n && sql.charAt(i + oname.length()) == '.')
          {
             out.append(isPlainIdentifier(nname) ? nname : "`" + nname.replace("`", "``") + "`");
             i += oname.length();
@@ -203,13 +204,20 @@ public class AssetTabularDependencyTransformer extends AssetDependencyTransforme
       return prev != '.' && prev != '`' && !isIdentifierChar(prev);
    }
 
+   /**
+    * Check if a name can be written unquoted. Spark SQL's unquoted identifier is ASCII
+    * letters, digits and underscore only, so any other name (e.g. a CJK or accented one)
+    * must be backtick quoted.
+    */
    private static boolean isPlainIdentifier(String name) {
-      if(name.isEmpty() || Character.isDigit(name.charAt(0))) {
+      if(name.isEmpty() || (name.charAt(0) >= '0' && name.charAt(0) <= '9')) {
          return false;
       }
 
       for(int i = 0; i < name.length(); i++) {
-         if(!isIdentifierChar(name.charAt(i))) {
+         final char c = name.charAt(i);
+
+         if(!(c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || c == '_')) {
             return false;
          }
       }

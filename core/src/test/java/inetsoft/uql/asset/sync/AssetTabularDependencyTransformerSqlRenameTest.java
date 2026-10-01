@@ -99,6 +99,33 @@ class AssetTabularDependencyTransformerSqlRenameTest {
       assertEquals(expected, doc.getElementsByTagName("sql").item(0).getTextContent());
    }
 
+   @ParameterizedTest(name = "{0} -> {1}: {2}")
+   @CsvSource(delimiter = '|', quoteCharacter = '~', textBlock = """
+      # Spark's unquoted identifier is ASCII only, so a non-ASCII new name is quoted
+      rest1 | 销售  | select id from rest1.users              | select id from `销售`.users
+      rest1 | café  | select id from rest1.users              | select id from `café`.users
+      # a non-ASCII old name is still matched, unquoted or quoted
+      销售  | rest2 | select id from 销售.users, `销售`.orders | select id from rest2.users, `rest2`.orders
+      # a backtick in a name is doubled in the quoted form
+      rest1 | a`b   | select id from rest1.users              | select id from `a``b`.users
+      a`b   | c     | select id from `a``b`.t                 | select id from `c`.t
+      # an unquoted name starting with a digit is a number
+      1     | 2     | select 1.5 from `1`.t                   | select 1.5 from `2`.t
+      # known limitation: a table named like the data source can't be told apart from it
+      rest1 | rest2 | select rest1.id from rest1.rest1        | select rest2.id from rest2.rest1
+      """)
+   void renamesSpecialNames(String oname, String nname, String sql, String expected)
+      throws Exception
+   {
+      Document doc = createWorksheet(sql);
+
+      new AssetTabularDependencyTransformer(null).renameWSSource(
+         doc.getDocumentElement(),
+         new RenameInfo(oname, nname, RenameInfo.TABULAR_SOURCE | RenameInfo.DATA_SOURCE, true));
+
+      assertEquals(expected, doc.getElementsByTagName("sql").item(0).getTextContent());
+   }
+
    // no Spark SQL query class ships in either repo, so the stored XML is built by hand
    private static Document createWorksheet(String sql) throws Exception {
       Document doc = DocumentBuilderFactory.newInstance().newDocumentBuilder().newDocument();
