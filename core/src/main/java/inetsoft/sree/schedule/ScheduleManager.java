@@ -1006,6 +1006,16 @@ public class ScheduleManager {
          checkOwnerOrganization(taskId, task, orgID, trusted);
       }
 
+      // Bug #77530, every save path converges here (the EM/portal task editor via
+      // ScheduleTaskService.saveTask() and the viewer's own "Schedule" dialog via
+      // ScheduleDialogService.scheduleVS()), and both let a client-supplied ViewsheetAction
+      // sheet identifier through with no check of its own. Reject one that doesn't belong to
+      // the saving principal's organization here, the one place both paths reach, the same as
+      // the scheduler-permission and owner-organization checks right above.
+      if(!trusted) {
+         checkActionOrgBoundary(task, orgID, principal);
+      }
+
       ScheduleTaskMessage.Action action;
 
       if(getOrgTaskMap(orgID).containsKey(getTaskIdentifier(taskId, orgID), orgID)) {
@@ -1051,6 +1061,54 @@ public class ScheduleManager {
       catch(SRSecurityException e) {
          LOG.error("Failed to set permission on scheduled task " +
                task.getTaskId() + " for user " + owner.getName(), e);
+      }
+   }
+
+   /**
+    * Bug #77530, rejects a client-supplied {@code ViewsheetAction} whose sheet identifier embeds
+    * an organization other than the one the task is being saved into (the same {@code orgID}
+    * this save already computed from {@code principal}, {@link OrganizationManager#getCurrentOrgID}
+    * so this also respects a legitimate org-context switch), unless {@code principal} is a site
+    * admin. Matches the equivalent check the enterprise public REST API already performs for its
+    * own save path ({@code ScheduleApiService.checkActionOrgBoundary}/{@code
+    * checkAssetOrgBoundary}), so the two save paths behave consistently.
+    */
+   private static void checkActionOrgBoundary(ScheduleTask task, String orgID, Principal principal)
+      throws inetsoft.sree.security.SecurityException
+   {
+      if(OrganizationManager.getInstance().isSiteAdmin(principal)) {
+         return;
+      }
+
+      for(int i = 0; i < task.getActionCount(); i++) {
+         ScheduleAction action = task.getAction(i);
+
+         if(action instanceof ViewsheetAction viewsheetAction) {
+            checkViewsheetOrgBoundary(viewsheetAction, orgID, principal);
+         }
+      }
+   }
+
+   /**
+    * The action's raw identifier string is read directly (never through {@link
+    * AssetEntry#createAssetEntryForCurrentOrg}, which silently coerces the org to the caller's
+    * own and would defeat this check).
+    */
+   private static void checkViewsheetOrgBoundary(ViewsheetAction action, String orgID,
+                                                  Principal principal)
+      throws inetsoft.sree.security.SecurityException
+   {
+      String sheet = action.getViewsheet();
+
+      if(sheet == null) {
+         return;
+      }
+
+      AssetEntry entry = AssetEntry.createAssetEntry(sheet);
+
+      if(entry != null && entry.getOrgID() != null && !Tool.equals(entry.getOrgID(), orgID)) {
+         throw new inetsoft.sree.security.SecurityException(String.format(
+            "Unauthorized access to viewsheet \"%s\" by %s", sheet, principal));
       }
    }
 
