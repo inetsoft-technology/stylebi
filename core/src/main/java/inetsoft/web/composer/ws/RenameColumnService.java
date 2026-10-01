@@ -52,6 +52,7 @@ public class RenameColumnService extends WorksheetControllerService {
       RuntimeWorksheet rws = super.getWorksheetEngine().getWorksheet(runtimeId, principal);
       Worksheet ws = rws.getWorksheet();
       String tname = event.tableName();
+      checkCubeTableReadPermission(principal, tname);
       TableAssembly table = (TableAssembly) ws.getAssembly(tname);
       HashSet<String> nameset = new HashSet<>();
       nameset.add(tname);
@@ -81,6 +82,7 @@ public class RenameColumnService extends WorksheetControllerService {
       Worksheet ws = rws.getWorksheet();
       String tname = event.tableName();
       String alias = event.newAlias();
+      checkCubeTableReadPermission(principal, tname);
       TableAssembly table = (TableAssembly) ws.getAssembly(tname);
       ColumnRef column = (ColumnRef) table.getColumnSelection()
          .getAttribute(event.columnName());
