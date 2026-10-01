@@ -44,6 +44,7 @@ public class ExtendedDateFormat extends SimpleDateFormat {
     */
    public ExtendedDateFormat() {
       super();
+      defaultLocale = Locale.getDefault(Locale.Category.FORMAT);
    }
 
    /**
@@ -52,6 +53,7 @@ public class ExtendedDateFormat extends SimpleDateFormat {
     */
    public ExtendedDateFormat(String pattern) {
       super(ExtendedDateFormat.createPattern(pattern));
+      defaultLocale = Locale.getDefault(Locale.Category.FORMAT);
    }
 
    /**
@@ -548,7 +550,7 @@ public class ExtendedDateFormat extends SimpleDateFormat {
 
          if(formatter == null) {
             throw new IllegalArgumentException(
-               "Pattern or time zone is not supported by java.time: " + toPattern());
+               "Pattern, time zone or calendar is not supported by java.time: " + toPattern());
          }
 
          final TemporalAccessor temporal = formatter.parse(str);
@@ -640,12 +642,21 @@ public class ExtendedDateFormat extends SimpleDateFormat {
    }
 
    /**
-    * Get the shared java.time formatter for the pattern and zone of this format, or null if
-    * java.time cannot compile the pattern (e.g. the escaped extended quarter patterns),
-    * the pattern has a zone field, or java.time cannot convert the zone. The
-    * result depends only on the pattern and zone, never on what was parsed before.
+    * Get the shared java.time formatter for the pattern, zone and locale of this format, or
+    * null if java.time cannot compile the pattern (e.g. the escaped extended quarter patterns),
+    * the pattern has a zone field, java.time cannot convert the zone, or the calendar is not
+    * Gregorian. The result depends only on the pattern, zone, locale and calendar type, never
+    * on what was parsed before.
     */
    private DateTimeFormatter getFormatter() {
+      // parse(str, null) converts the ISO fields, so a non-Gregorian calendar such as the
+      // buddhist (th_TH) or japanese (ja_JP_JP) one is parsed by SimpleDateFormat. checked for
+      // each call since setCalendar() can change it. BuddhistCalendar extends GregorianCalendar,
+      // so the calendar type is checked instead of the class
+      if(!"gregory".equals(getCalendar().getCalendarType())) {
+         return null;
+      }
+
       String pattern = toPattern();
 
       // parse(str, null) keeps only the local fields, which would drop the parsed offset or
@@ -657,13 +668,17 @@ public class ExtendedDateFormat extends SimpleDateFormat {
       }
 
       TimeZone zone = getTimeZone();
-      String key = pattern + ":" + zone.getID();
+      // the locale SimpleDateFormat was created with, for the month, day, am/pm and era
+      // names and the week rules. the pattern is last since only it may contain the separator
+      Locale loc = locale != null ? locale :
+         defaultLocale != null ? defaultLocale : Locale.getDefault(Locale.Category.FORMAT);
+      String key = loc.toLanguageTag() + "|" + zone.getID() + "|" + pattern;
       DateTimeFormatter formatter = formatters.get(key);
 
       // formatter is thread safe so it can be shared globally
       if(formatter == null) {
          try {
-            formatter = DateTimeFormatter.ofPattern(pattern);
+            formatter = DateTimeFormatter.ofPattern(pattern, loc);
          }
          catch(IllegalArgumentException ex) {
             unsupportedPatterns.add(pattern);
@@ -796,4 +811,7 @@ public class ExtendedDateFormat extends SimpleDateFormat {
    private String cupattern = null;
    private transient FastDateFormat fastFmt;
    private Locale locale = null;
+   // the default format locale SimpleDateFormat used when no locale was given. kept apart
+   // from locale, since format() uses the thread locale when locale is null
+   private Locale defaultLocale = null;
 }

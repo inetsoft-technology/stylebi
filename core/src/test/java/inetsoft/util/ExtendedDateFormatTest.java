@@ -544,4 +544,140 @@ public class ExtendedDateFormatTest {
    private interface ThrowingFunction {
       Object apply(ExtendedDateFormat format) throws Exception;
    }
+
+   // Bug #77458: the java.time formatter was built in the JVM locale and shared by every
+   // format locale, so parse(String) accepted JVM-language text, used the JVM week rules and
+   // ignored a non-Gregorian calendar. both String overloads must give what SimpleDateFormat
+   // in the format locale gives, for the text of the format locale and for en_US text. the
+   // text is made by SimpleDateFormat so it does not depend on the locale data provider
+   @ParameterizedTest(name = "{0} {1}")
+   @CsvSource(delimiter = '|', value = {
+      "de | MMM d, yyyy",
+      "de | MMMM d, yyyy",
+      "de | EEE yyyy-MM-dd",
+      "de | yyyy-MM-dd G",
+      "fr | MMMM d, yyyy",
+      "fr | EEEE yyyy-MM-dd",
+      "zh-CN | yyyy-MM-dd hh:mm a",
+      "en-GB | YYYY-ww-EEE",
+      "en-US-u-rg-gbzzzz | YYYY-ww-EEE",
+      "th-TH | yyyy-MM-dd",
+      "en-US-u-ca-buddhist | yyyy-MM-dd",
+      "ja-JP-u-ca-japanese-x-lvariant-JP | yyyy-MM-dd",
+      "en-US | MMM d, yyyy",
+      "en-US | EEE yyyy-MM-dd hh:mm a"
+   })
+   public void localeParsesLikeSimpleDateFormat(String tag, String pattern) {
+      final Locale locale = Locale.forLanguageTag(tag);
+      final Date date = Date.from(LocalDateTime.of(2011, 3, 10, 14, 0)
+                                     .atZone(ZoneId.systemDefault()).toInstant());
+      final String localText = new SimpleDateFormat(pattern, locale).format(date);
+      final String usText = new SimpleDateFormat(pattern, Locale.US).format(date);
+
+      for(String text : new String[] { localText, usText }) {
+         final ExtendedDateFormat format = new ExtendedDateFormat(pattern, locale);
+         final Object expected = parseOrError(() -> new SimpleDateFormat(pattern, locale).parse(text));
+
+         assertEquals(expected, parseOrError(() -> format.parse(text)), text);
+         assertEquals(expected, parseOrError(() -> (Date) format.parseObject(text)), text);
+         assertEquals(expected == ParseException.class ? null : expected,
+                      format.parse(text, new ParsePosition(0)), text);
+      }
+   }
+
+   // Bug #77458: the java.time path ignored the buddhist and japanese imperial calendars of
+   // the locale, so a formatted date could parse back hundreds of years off. the date is in
+   // the current japanese era since yyyy has no era
+   @ParameterizedTest(name = "{0}")
+   @CsvSource({ "th-TH", "ja-JP-u-ca-japanese-x-lvariant-JP" })
+   public void nonGregorianLocaleRoundTrip(String tag) throws Exception {
+      final Locale locale = Locale.forLanguageTag(tag);
+      final ExtendedDateFormat format = new ExtendedDateFormat("yyyy-MM-dd", locale);
+      final Date date = Date.from(LocalDateTime.of(2025, 3, 3, 0, 0)
+                                     .atZone(ZoneId.systemDefault()).toInstant());
+      final String text = format.format(date);
+
+      assertEquals(date, format.parse(text));
+      assertEquals(date, format.parseObject(text));
+      assertThrows(IllegalArgumentException.class, () -> format.parse(text, null));
+   }
+
+   // Bug #77458: the shared formatter was keyed by pattern and zone only, so the locale of
+   // the first format to parse a pattern was used by every later format with that pattern
+   @Test
+   public void formatterCacheKeysOnLocale() throws Exception {
+      final String pattern = "MMM d, yyyy '77458'";
+      final Date date = Date.from(LocalDateTime.of(2011, 3, 3, 0, 0)
+                                     .atZone(ZoneId.systemDefault()).toInstant());
+      final String usText = new SimpleDateFormat(pattern, Locale.US).format(date);
+      final String deText = new SimpleDateFormat(pattern, Locale.GERMANY).format(date);
+      final ExtendedDateFormat us = new ExtendedDateFormat(pattern, Locale.US);
+      final ExtendedDateFormat de = new ExtendedDateFormat(pattern, Locale.GERMANY);
+
+      assertEquals(date, us.parse(usText, null));
+      assertEquals(date, de.parse(deText));
+      assertEquals(parseOrError(() -> new SimpleDateFormat(pattern, Locale.GERMANY).parse(usText)),
+                   parseOrError(() -> de.parse(usText)));
+      assertEquals(date, us.parse(usText));
+   }
+
+   // Bug #77458: the calendar type is checked for each call, since setCalendar() can switch
+   // between a Gregorian and a non-Gregorian calendar
+   @Test
+   public void setCalendarSwitchesParser() throws Exception {
+      final String pattern = "yyyy-MM-dd";
+      final Locale thai = Locale.forLanguageTag("th-TH");
+      final TimeZone zone = TimeZone.getDefault();
+      final ExtendedDateFormat us = new ExtendedDateFormat(pattern, Locale.US);
+      final SimpleDateFormat usSdf = new SimpleDateFormat(pattern, Locale.US);
+      us.setCalendar(Calendar.getInstance(zone, thai));
+      usSdf.setCalendar(Calendar.getInstance(zone, thai));
+
+      assertEquals(usSdf.parse("2554-03-03"), us.parse("2554-03-03"));
+      assertThrows(IllegalArgumentException.class, () -> us.parse("2554-03-03", null));
+
+      final ExtendedDateFormat th = new ExtendedDateFormat(pattern, thai);
+      final SimpleDateFormat thSdf = new SimpleDateFormat(pattern, thai);
+      th.setCalendar(new GregorianCalendar(zone, thai));
+      thSdf.setCalendar(new GregorianCalendar(zone, thai));
+
+      assertEquals(thSdf.parse("2011-03-03"), th.parse("2011-03-03"));
+      assertEquals(thSdf.parse("2011-03-03"), th.parse("2011-03-03", null));
+   }
+
+   // Bug #77458: without a locale, SimpleDateFormat uses the default format locale at
+   // construction, so the java.time path must use that one too and not the current default
+   @Test
+   public void defaultLocaleIsTakenAtConstruction() {
+      final Locale oldLocale = Locale.getDefault(Locale.Category.FORMAT);
+      final String pattern = "MMM d, yyyy";
+      final String text = "Mar 3, 2011";
+
+      try {
+         Locale.setDefault(Locale.Category.FORMAT, Locale.GERMANY);
+         final ExtendedDateFormat format = new ExtendedDateFormat(pattern);
+         final SimpleDateFormat sdf = new SimpleDateFormat(pattern);
+         Locale.setDefault(Locale.Category.FORMAT, Locale.US);
+
+         assertEquals(parseOrError(() -> sdf.parse(text)), parseOrError(() -> format.parse(text)));
+         assertEquals(parseOrError(() -> sdf.parse(text)),
+                      parseOrError(() -> (Date) format.parseObject(text)));
+      }
+      finally {
+         Locale.setDefault(Locale.Category.FORMAT, oldLocale);
+      }
+   }
+
+   private interface DateParser {
+      Date parse() throws ParseException;
+   }
+
+   private static Object parseOrError(DateParser parser) {
+      try {
+         return parser.parse();
+      }
+      catch(ParseException ex) {
+         return ParseException.class;
+      }
+   }
 }
