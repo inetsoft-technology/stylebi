@@ -47,6 +47,7 @@ import static org.junit.jupiter.api.Assertions.*;
 class SQLHelperJoinCycleTest {
    private static final String COLS3 = "select a.id, b.id, c.id ";
    private static final String COLS = "select a.id, b.id, c.id, d.id ";
+   private static final String COLS5 = "select a.id, b.id, c.id, d.id, e.id ";
    private static final String DB = "jdbc:derby:memory:bug77489";
 
    // parsed queries with a cycle in their joins. With the join clauses cleared (a query saved
@@ -82,7 +83,18 @@ class SQLHelperJoinCycleTest {
             "and c.k = d.k",
          // an unrelated table
          COLS + "from a left join b on a.id = b.id join c on b.id = c.id and a.k = c.k, d " +
-            "where d.k > 1"
+            "where d.k > 1",
+         // a right join step between the tables of the cycle edge
+         COLS + "from a join b on a.id = b.id right join c on b.k = c.k join d on c.id = d.id " +
+            "and a.k = d.k",
+         // two cycle edges in one on
+         COLS + "from a left join b on a.id = b.id join c on b.id = c.id and a.k = c.k " +
+            "and b.k = c.k left join d on b.id = d.id",
+         // five tables, the cycle edge closes after an outer join step
+         COLS5 + "from a join b on a.id = b.id left join c on b.id = c.id join d on c.id = d.id " +
+            "join e on d.id = e.id and b.k = e.k",
+         COLS5 + "from a left join b on a.id = b.id join c on b.id = c.id and a.k = c.k " +
+            "left join d on c.id = d.id left join e on d.id = e.id"
       );
    }
 
@@ -174,6 +186,22 @@ class SQLHelperJoinCycleTest {
       assertTrue(generated.endsWith("from (a INNER JOIN c ON a.id = c.id ) RIGHT OUTER JOIN b ON " +
                                     "b.k = a.k where c.id = b.id"), generated);
       assertRuns(generated);
+   }
+
+   @Test
+   void editorCycleEdgesKeepTheirMeaning() throws Exception {
+      // the rows of each placement, compared with a hand-written query of the joins
+      assertSameRows(COLS3 + "from a left join b on a.id = b.id join c on b.id = c.id and a.k = c.k",
+                     generate(editor("a.id *= b.id", "b.id = c.id", "a.k = c.k"), true));
+      assertSameRows(COLS + "from a left join b on a.id = b.id join c on b.id = c.id " +
+                     "join d on c.id = d.id and d.k = a.k",
+                     generate(editor("a.id *= b.id", "b.id = c.id", "c.id = d.id", "d.k = a.k"), true));
+      // inner cycle edge after an outer step (where clause)
+      assertSameRows(COLS3 + "from a join b on a.id = b.id left join c on a.id = c.id where b.k = c.k",
+                     generate(editor("a.id = b.id", "a.id *= c.id", "b.k = c.k"), true));
+      // outer cycle edge of the last outer join (on)
+      assertSameRows(COLS3 + "from a left join (b join c on b.k = c.k) on a.id = b.id and a.id = c.id",
+                     generate(editor("a.id *= b.id", "a.id *= c.id", "b.k = c.k"), true));
    }
 
    @Test
