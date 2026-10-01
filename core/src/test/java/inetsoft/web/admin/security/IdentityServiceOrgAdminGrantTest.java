@@ -53,6 +53,8 @@ class IdentityServiceOrgAdminGrantTest {
    private static final IdentityID FLAGGED_ROLE = new IdentityID("OrgBoss", ORG);  // orgAdmin flag
    private static final IdentityID OA_GROUP = new IdentityID("bosses", ORG);       // holds OrgBoss
    private static final IdentityID PLAIN_GROUP = new IdentityID("staff", ORG);
+   private static final IdentityID CHILD_GROUP = new IdentityID("juniorBosses", ORG); // child of bosses
+   private static final IdentityID SUB_ROLE = new IdentityID("SubBoss", ORG);       // inherits OrgBoss
    private static final IdentityID DELEGATE = new IdentityID("delegate", ORG);
    private static final IdentityID ACCOMPLICE = new IdentityID("accomplice", ORG);
    private static final IdentityID BOSS = new IdentityID("boss", ORG);             // in OrgBoss + bosses
@@ -86,6 +88,14 @@ class IdentityServiceOrgAdminGrantTest {
       FSGroup plainGroup = new FSGroup(PLAIN_GROUP, null, new String[0], new IdentityID[0]);
       plainGroup.setOrganization(ORG);
       groups.put(PLAIN_GROUP, plainGroup);
+      FSGroup childGroup = new FSGroup(CHILD_GROUP, null, new String[] { OA_GROUP.name },
+                                       new IdentityID[0]);
+      childGroup.setOrganization(ORG);
+      groups.put(CHILD_GROUP, childGroup);
+      // a plain role whose inherited role is the flagged one
+      FSRole subRole = new FSRole(SUB_ROLE);
+      subRole.setRoles(new IdentityID[] { FLAGGED_ROLE });
+      roles.put(SUB_ROLE, subRole);
 
       // the delegate holds the plain org role R and is in no group
       users.put(DELEGATE, user(DELEGATE, new IdentityID[] { PLAIN_ROLE }, new String[0]));
@@ -224,6 +234,31 @@ class IdentityServiceOrgAdminGrantTest {
       assertInstanceOf(java.lang.SecurityException.class, error,
          "delegate added group " + PLAIN_GROUP + " to org-admin group " + OA_GROUP);
       assertEquals(0, groups.get(PLAIN_GROUP).getGroups().length);
+   }
+
+   /** A child group of an org admin group grants org admin to its members through its parent. */
+   @Test
+   void groupsRootDelegate_addingSelfToChildOfOrgAdminGroup_isRefused() throws Exception {
+      Throwable error = saveGroup(CHILD_GROUP, List.of(member(DELEGATE)));
+
+      assertInstanceOf(java.lang.SecurityException.class, error,
+         "delegate added itself to " + CHILD_GROUP + ", a child of org-admin group " + OA_GROUP +
+         "; delegate is now org admin=" + isOrgAdmin(DELEGATE));
+      assertFalse(isOrgAdmin(DELEGATE));
+   }
+
+   /** A role that inherits a flagged role grants org admin to its members. */
+   @Test
+   void rolesRootDelegate_addingSelfToRoleInheritingOrgAdminRole_isRefused() throws Exception {
+      EditRolePaneModel model = roleModel(SUB_ROLE, false, List.of(member(DELEGATE)));
+      when(model.roles()).thenReturn(List.of(FLAGGED_ROLE));
+
+      Throwable error = saveRole(SUB_ROLE, model);
+
+      assertInstanceOf(java.lang.SecurityException.class, error,
+         "delegate added itself to " + SUB_ROLE + ", which inherits org-admin role " +
+         FLAGGED_ROLE + "; delegate is now org admin=" + isOrgAdmin(DELEGATE));
+      assertFalse(isOrgAdmin(DELEGATE));
    }
 
    @Test
