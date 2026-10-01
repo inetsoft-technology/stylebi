@@ -281,6 +281,34 @@ class UniformSQLSchemaQualifiedJoinTest {
       assertRoundTrip(sql, helper);
    }
 
+   static Stream<Arguments> parenthesizedSelfJoins() {
+      return Stream.of(
+         Arguments.of(DEFAULT, "select * from s.a left join (s.a x join s.b on x.id = b.id) on a.id = x.pid",
+                      "select * from (s.a x INNER JOIN s.b ON x.id = b.id ) RIGHT OUTER JOIN s.a ON a.id = x.pid"),
+         Arguments.of(DEFAULT, "select * from s.a left join (s.b join s.a x on x.id = b.id) on a.id = x.pid",
+                      "select * from (s.a x INNER JOIN s.b ON x.id = b.id ) RIGHT OUTER JOIN s.a ON a.id = x.pid"),
+         Arguments.of(ORACLE, "select * from s.a left join (s.a x join s.b on x.id = b.id) on a.id = x.pid",
+                      "select * from s.a, s.a x, s.b where x.id = b.id and a.id = x.pid(+)"),
+         Arguments.of(ORACLE, "select * from s.a left join (s.b join s.a x on x.id = b.id) on a.id = x.pid",
+                      "select * from s.a, s.b, s.a x where x.id = b.id and a.id = x.pid(+)")
+      );
+   }
+
+   // the tables of a parenthesized joined table on the right get their join type in
+   // setJoinedTableOps, which must not key "s.a x" under s.a either, or the qualifier a,
+   // which names the preserved s.a, finds it and swaps the preserved side. The ANSI output
+   // is not round-trip stable (a re-parse writes the ON operands as x.pid = a.id), the same
+   // as for aliased tables on main, so only the joins and the SQL are checked.
+   @ParameterizedTest
+   @MethodSource("parenthesizedSelfJoins")
+   void parenthesizedSelfJoinKeepsPreservedSide(String helper, String text, String expected)
+      throws Exception
+   {
+      UniformSQL sql = parse(text, helper);
+      assertTrue(joins(sql).contains("s.a *= x"), joins(sql).toString());
+      assertEquals(expected, regenerate(sql));
+   }
+
    // an aliased joined table referenced by its table name, which no other FROM table has,
    // still finds its join type under that name
    @Test
