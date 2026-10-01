@@ -376,6 +376,102 @@ private boolean collectOuterJoins(XFilterNode node, List joins) {
    return false;
 }
 
+// sql -> the first RIGHT or FULL JOIN keyword of the query
+private Map rightJoins = new IdentityHashMap();
+// sql -> TRUE if the query has an INNER, CROSS or other non-outer JOIN keyword
+private Map innerJoins = new IdentityHashMap();
+
+/**
+ * Check if a join type (join_type + " JOIN") is a LEFT, RIGHT or FULL join.
+ */
+private boolean isOuterJoinType(String op) {
+   return op != null && (op.regionMatches(true, 0, "LEFT", 0, 4) ||
+      isRightJoinType(op));
+}
+
+/**
+ * Check if a join type (join_type + " JOIN") is a RIGHT or FULL join.
+ */
+private boolean isRightJoinType(String op) {
+   return op != null && (op.regionMatches(true, 0, "RIGHT", 0, 5) ||
+      op.regionMatches(true, 0, "FULL", 0, 4));
+}
+
+/**
+ * Check that a nested join (a parenthesized join, or a join followed by its
+ * own ON) is not the right side of an outer join. UniformSQL keeps no join
+ * nesting, so the nested join would be regenerated outside of the outer join
+ * and filter out or keep the wrong rows.
+ */
+private void checkOuterJoinGroup(UniformSQL sql, String op, Token tok)
+   throws SemanticException
+{
+   if(sql != null && isOuterJoinType(op)) {
+      throw new SemanticException("Unsupported nested join on the right side of " +
+         op, getFilename(), tok == null ? 0 : tok.getLine(),
+         tok == null ? 0 : tok.getColumn());
+   }
+}
+
+/**
+ * Record the join keyword of a query for checkRightJoins.
+ */
+private void addJoinType(UniformSQL sql, String op, Token tok) {
+   if(sql == null) {
+      return;
+   }
+
+   if(isRightJoinType(op)) {
+      if(!rightJoins.containsKey(sql)) {
+         rightJoins.put(sql, tok);
+      }
+   }
+   else if(!isOuterJoinType(op)) {
+      innerJoins.put(sql, Boolean.TRUE);
+   }
+}
+
+/**
+ * Check that a query with a RIGHT or FULL join has no inner or cross join,
+ * from a join keyword or from a column join in the where clause. UniformSQL
+ * keeps the joins only as XJoins without their order, and the regenerated
+ * from clause can move the inner join into or out of the null-supplying side
+ * of the outer join, which changes the query results.
+ */
+private void checkRightJoins(UniformSQL sql) throws SemanticException {
+   if(sql == null) {
+      return;
+   }
+
+   boolean right = rightJoins.containsKey(sql);
+   Token tok = (Token) rightJoins.remove(sql);
+   boolean inner = innerJoins.remove(sql) != null;
+
+   if(right && (inner || hasInnerJoin(sql.getWhere()))) {
+      throw new SemanticException(
+         "Unsupported RIGHT or FULL join mixed with an inner or cross join",
+         getFilename(), tok == null ? 0 : tok.getLine(),
+         tok == null ? 0 : tok.getColumn());
+   }
+}
+
+/**
+ * Check if a condition has a join that is not an outer join.
+ */
+private boolean hasInnerJoin(XFilterNode node) {
+   if(node instanceof XJoin) {
+      return !((XJoin) node).isOuterJoin();
+   }
+
+   for(int i = 0; node instanceof XSet && i < node.getChildCount(); i++) {
+      if(hasInnerJoin((XFilterNode) node.getChild(i))) {
+         return true;
+      }
+   }
+
+   return false;
+}
+
 public boolean hasField(){
    return hasField;
 }
@@ -2515,6 +2611,7 @@ table_exp [UniformSQL sql]
         {if(sql != null) {checkOuterJoinTables(sql, LT(1));}}
         ( having = having_clause {having.setClause(XFilterNode.HAVING); sql.setHaving(having);})?
         ((ORDER BY)=> nouse = order_by_clause[sql] )?
+        {checkRightJoins(sql);}
         ;
 
 from_clause [UniformSQL sql]
@@ -2794,6 +2891,7 @@ cross_join [UniformSQL sql] returns [XExpression exp = null]
         {String tmp, tmp1; {checkStatus();}}
         :
         tmp = table_ref_nojoin[sql, null] a:CROSS b:JOIN tmp1 = table_ref_nojoin[sql, null]
+        {addJoinType(sql, "CROSS JOIN", b);}
         {tmp += " " + a.getText() + " " + b.getText() + " " + tmp1;
          exp = new XExpression(); exp.setValue(tmp,XExpression.EXPRESSION);
         }
@@ -2826,10 +2924,13 @@ sub_qualified_join [UniformSQL sql] returns [String str = ""]
             |(table = table_ref_nojoin[sql, op] {str += " " + table;})
           )
           {rend = sql == null ? 0 : sql.getTableCount();}
+          {addJoinType(sql, op, d);}
           ( (join_spec[null, "", 0, 0])=>
             tmp = join_spec[sql, op, rstart, rend] {str += " " + tmp;}
             ((sub_qualified_join[sql])=> tmp = sub_qualified_join[sql] {str += " " + tmp;})?
           )?
+          // exp is only set when the right operand is a nested join
+          {if(exp != null) {checkOuterJoinGroup(sql, op, d);}}
         )
         ;
 
