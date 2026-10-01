@@ -75,6 +75,9 @@ class ImportTaskControllerUnselectedMoveTest {
       principal = mock(Principal.class);
 
       when(folderService.checkFolderExists(FOLDER)).thenReturn(true);
+      // Bug #77503, the import checks the folder write permission before a task is moved
+      when(folderService.checkFolderPermission(eq(FOLDER), any(), eq(ResourceAction.WRITE)))
+         .thenReturn(true);
       when(repository.checkPermission(any(), any(ResourceType.class), anyString(),
                                       any(ResourceAction.class))).thenReturn(true);
 
@@ -168,6 +171,7 @@ class ImportTaskControllerUnselectedMoveTest {
    }
 
    // an imported internal task is never folder-moved, even if the xml says it's removable
+   // (Bug #77503, the move isn't even requested, so the folder permission isn't checked for it)
    @Test
    void selectedInternalTask_isImportedButNotRemovable() throws Exception {
       ScheduleTask task = internalTask(true);
@@ -176,7 +180,7 @@ class ImportTaskControllerUnselectedMoveTest {
       importTasks(List.of(BACKUP), false, task);
 
       verify(scheduleManager).setScheduleTask(BACKUP, task, principal);
-      assertFalse(captureMove().removable());
+      verify(folderService, never()).moveScheduleItems(any(), any(), any(), any());
    }
 
    // the reported attack, an org admin (refused SCHEDULE_TASK WRITE on internal tasks) imports
