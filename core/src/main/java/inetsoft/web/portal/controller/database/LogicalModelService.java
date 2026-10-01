@@ -357,8 +357,9 @@ public class LogicalModelService {
       // saving with a different folder moves the model, which needs DELETE on the model and
       // WRITE in the target folder, as moving it in the data model browser does
       String targetFolder = Tool.isEmptyString(model.getFolder()) ? null : model.getFolder();
+      String storedFolder = storedModel.getFolder();
 
-      if(!isExtended && !Tool.equals(storedModel.getFolder(), targetFolder)) {
+      if(!isExtended && !Tool.equals(storedFolder, targetFolder)) {
          validatePermission(dataSource, storedModel, ResourceAction.DELETE, principal);
          validatePermission(dataSource, targetFolder, null, model.getName(),
             model.getConnection(), ResourceAction.WRITE, principal);
@@ -405,6 +406,11 @@ public class LogicalModelService {
       }
 
       renameDependencies(dataSource, name, model);
+
+      if(!isExtended) {
+         // the permission is stored under the folder of the model, so it moves with the model
+         renameModelPermission(dataSource, storedFolder, name, targetFolder, name);
+      }
 
       return model;
    }
@@ -566,6 +572,10 @@ public class LogicalModelService {
       logicalModel.setLastModified(System.currentTimeMillis());
       dataModel.renameLogicalModel(oldName, newName, description);
       repository.updateDataModel(dataModel);
+      // the registry only moves the permission of a model in the root folder, so move it here
+      // using the stored folder of the model, which is the form the permission is saved in
+      String modelFolder = logicalModel.getFolder();
+      renameModelPermission(dataSource, modelFolder, oldName, modelFolder, newName);
 
       path = dataSource + "/" + newName;
       entry = new AssetEntry(AssetRepository.QUERY_SCOPE,
@@ -638,6 +648,27 @@ public class LogicalModelService {
          // use the stored folder of the model, which is the form the permission is saved in
          String resource = XUtil.getLogicalModelResourceName(dataSource, model.getFolder(), name);
          securityEngine.removePermission(ResourceType.QUERY, resource);
+      }
+   }
+
+   /**
+    * Moves the QUERY permission of a base logical model when its name or folder changes.
+    */
+   private void renameModelPermission(String dataSource, String oldFolder, String oldName,
+                                      String newFolder, String newName)
+   {
+      String oldResource = XUtil.getLogicalModelResourceName(dataSource, oldFolder, oldName);
+      String newResource = XUtil.getLogicalModelResourceName(dataSource, newFolder, newName);
+
+      if(oldResource.equals(newResource)) {
+         return;
+      }
+
+      Permission permission = securityEngine.getPermission(ResourceType.QUERY, oldResource);
+
+      if(permission != null) {
+         securityEngine.setPermission(ResourceType.QUERY, newResource, permission);
+         securityEngine.removePermission(ResourceType.QUERY, oldResource);
       }
    }
 
