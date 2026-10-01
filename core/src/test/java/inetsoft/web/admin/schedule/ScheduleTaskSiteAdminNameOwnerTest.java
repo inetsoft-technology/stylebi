@@ -48,6 +48,10 @@ import static org.mockito.Mockito.*;
  *
  * Bug #77405: only a site admin may add or change the actions and conditions of such a task.
  *
+ * Bug #77452: such a task runs with the organization administrator roles of the owner's
+ * organization, never with the roles of the site admin, and without roles when the organization
+ * has no organization administrator role that may be used.
+ *
  * Uses the real SecurityEngine / FileAuthenticationProvider (SecurityTestDataBuilder) and the real
  * ScheduleManager bean; only SUtil.isMultiTenant() is stubbed.
  */
@@ -63,6 +67,12 @@ class ScheduleTaskSiteAdminNameOwnerTest {
    private static final String ORG_A = "sanoorga";
    private static final String ORG_B = "sanoorgb";
    private static final String SCHEDULE_ROLE = "sanoSchedRoleB";
+   // an org admin role of org B that inherits a system admin role, may never be used
+   private static final String ELEVATED_ORG_ADMIN_ROLE = "sanoElevatedOrgAdminB";
+   private static final String SYS_ADMIN_ROLE_B = "sanoSysAdminB";
+   // an org admin role of org A, not used for an owner in org B
+   private static final String ORG_ADMIN_ROLE_A = "sanoOrgAdminA";
+   private static final IdentityID ORG_ADMIN_ROLE = new IdentityID("Organization Administrator", null);
    // "sadm~;~sanoorgb" is not a user, sadm is a site admin of org A
    private static final IdentityID SADM_IN_B = new IdentityID("sadm", ORG_B);
    // "zed~;~sanoorgb" is not a user and no site admin is named zed
@@ -89,6 +99,10 @@ class ScheduleTaskSiteAdminNameOwnerTest {
          .addOrg("sanoOrgB", ORG_B)
          .addSysAdminRole("sanoSiteAdmin", ORG_A)
          .addRole(SCHEDULE_ROLE, ORG_B)
+         .addSysAdminRole(SYS_ADMIN_ROLE_B, ORG_B)
+         .addOrgAdminRole(ELEVATED_ORG_ADMIN_ROLE, ORG_B)
+         .addRoleParent(ELEVATED_ORG_ADMIN_ROLE, SYS_ADMIN_ROLE_B, ORG_B)
+         .addOrgAdminRole(ORG_ADMIN_ROLE_A, ORG_A)
          .addUser("sadm", ORG_A, "password")
          .addUser("carol", ORG_B, "password")
          .addUserToRole("sadm", "sanoSiteAdmin", ORG_A)
@@ -140,18 +154,97 @@ class ScheduleTaskSiteAdminNameOwnerTest {
    // --- the shared predicate --------------------------------------------------------------------
 
    @Test
-   void sameNameSiteAdmin_isTheSiteAdminTheTaskRunsAs() {
+   void sameNameSiteAdmin_isFoundForAMissingOwnerOnly() {
       assertEquals(new IdentityID("sadm", ORG_A),
                    SUtil.getSameNameSiteAdmin(securityProvider, SADM_IN_B));
-      assertTrue(OrganizationManager.getInstance().isSiteAdmin(
-         SUtil.getScheduleTaskOwnerPrincipal(SADM_IN_B, null, false)),
-                 "a task owned by the missing user runs as the site admin");
       assertNull(SUtil.getSameNameSiteAdmin(securityProvider, ZED_IN_B),
                  "no site admin named zed");
       assertNull(SUtil.getSameNameSiteAdmin(securityProvider, new IdentityID("carol", ORG_B)),
                  "an existing user runs with its own roles");
       assertNull(SUtil.getSameNameSiteAdmin(securityProvider, new IdentityID("sadm", ORG_A)),
                  "the site admin itself");
+   }
+
+   // --- Bug #77452, the roles a task owned by such a missing user runs with ---------------------
+
+   @Test
+   void ownerNamedLikeSiteAdmin_runsAsOrgAdminNotAsSiteAdmin() {
+      SRPrincipal principal = SUtil.getScheduleTaskOwnerPrincipal(SADM_IN_B, null, false);
+      OrganizationManager manager = OrganizationManager.getInstance();
+
+      assertEquals(SADM_IN_B, IdentityID.getIdentityIDFromKey(principal.getName()), "the owner");
+      assertEquals(ORG_B, principal.getOrgId(), "the owner's org");
+      assertEquals(List.of(ORG_ADMIN_ROLE), Arrays.asList(principal.getRoles()),
+                   "only the usable org admin role");
+      assertFalse(manager.isSiteAdmin(principal), "not a site admin");
+      assertTrue(manager.isOrgAdmin(principal), "an org admin of the owner's org");
+      assertFalse(Arrays.stream(principal.getAllRoles(securityProvider))
+                     .anyMatch(securityProvider::isSystemAdministratorRole),
+                  "no inherited system admin role");
+      assertTrue(securityProvider.checkPermission(
+         principal, ResourceType.SECURITY_USER, new IdentityID("carol", ORG_B).convertToKey(),
+         ResourceAction.ADMIN), "administers the users of its org");
+      assertFalse(securityProvider.checkPermission(
+         principal, ResourceType.SECURITY_USER, new IdentityID("sadm", ORG_A).convertToKey(),
+         ResourceAction.ADMIN), "doesn't administer the site admin");
+      assertFalse(securityProvider.checkPermission(
+         principal, ResourceType.EM_COMPONENT, "settings/general", ResourceAction.ACCESS),
+                  "no site admin EM component");
+   }
+
+   @Test
+   void orgAdminRoles_ofOtherOrgsOrInheritingSystemAdmin_areNotUsed() {
+      List<IdentityID> roles =
+         Arrays.asList(SUtil.getScheduleTaskOrgAdminRoles(securityProvider, ORG_B));
+      IdentityID elevated = new IdentityID(ELEVATED_ORG_ADMIN_ROLE, ORG_B);
+
+      assertTrue(securityProvider.isOrgAdministratorRole(elevated), "test setup: org admin role");
+      assertTrue(Arrays.stream(securityProvider.getAllRoles(new IdentityID[] { elevated }))
+                    .anyMatch(securityProvider::isSystemAdministratorRole),
+                 "test setup: inherits a system admin role");
+      assertEquals(List.of(ORG_ADMIN_ROLE), roles);
+      assertFalse(roles.contains(elevated), "inherits a system admin role");
+      assertFalse(roles.contains(new IdentityID(ORG_ADMIN_ROLE_A, ORG_A)), "another org's role");
+      assertTrue(Arrays.asList(SUtil.getScheduleTaskOrgAdminRoles(securityProvider, ORG_A))
+                    .contains(new IdentityID(ORG_ADMIN_ROLE_A, ORG_A)), "its own org's role");
+   }
+
+   @Test
+   void ownerNamedLikeSiteAdmin_withoutOrgAdminRole_runsWithoutRoles() {
+      // e.g. a database provider without organization administrator roles, or LDAP
+      SecurityProvider noOrgAdmin = spy(securityProvider);
+      doReturn(false).when(noOrgAdmin).isOrgAdministratorRole(any());
+      securityEngineOverrides.setSecurityProvider(noOrgAdmin);
+
+      try {
+         assertNotNull(SUtil.getSameNameSiteAdmin(noOrgAdmin, SADM_IN_B),
+                       "still the elevated case");
+         assertEquals(0, SUtil.getScheduleTaskOrgAdminRoles(noOrgAdmin, ORG_B).length);
+
+         SRPrincipal principal = SUtil.getScheduleTaskOwnerPrincipal(SADM_IN_B, null, false);
+
+         assertEquals(SADM_IN_B, IdentityID.getIdentityIDFromKey(principal.getName()));
+         assertEquals(0, principal.getRoles().length, "no roles, never the site admin's");
+         assertFalse(OrganizationManager.getInstance().isSiteAdmin(principal), "not site admin");
+         assertFalse(OrganizationManager.getInstance().isOrgAdmin(principal), "not org admin");
+         assertFalse(noOrgAdmin.checkPermission(
+            principal, ResourceType.SECURITY_USER, new IdentityID("sadm", ORG_A).convertToKey(),
+            ResourceAction.ADMIN), "doesn't administer the site admin");
+      }
+      finally {
+         securityEngineOverrides.setSecurityProvider(securityProvider);
+      }
+   }
+
+   @Test
+   void ownerWithoutSameNameSiteAdmin_isUnchanged() {
+      SRPrincipal principal = SUtil.getScheduleTaskOwnerPrincipal(ZED_IN_B, null, false);
+
+      assertEquals(0, principal.getRoles().length, "a missing owner has no roles");
+      assertFalse(OrganizationManager.getInstance().isOrgAdmin(principal));
+      assertEquals(List.of(new IdentityID(SCHEDULE_ROLE, ORG_B)), Arrays.asList(
+         SUtil.getScheduleTaskOwnerPrincipal(new IdentityID("carol", ORG_B), null, false)
+            .getRoles()), "an existing owner runs with its own roles");
    }
 
    // --- ScheduleTaskIdentityChecker -------------------------------------------------------------

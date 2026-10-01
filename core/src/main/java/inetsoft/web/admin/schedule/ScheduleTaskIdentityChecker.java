@@ -35,8 +35,10 @@ import java.util.function.Supplier;
 
 /**
  * Decides which owner and execute-as identity a caller may store in a schedule task. A task
- * whose owner doesn't exist runs with the roles of a site admin of the same name in another
- * organization (SUtil.getScheduleTaskOwnerPrincipal, Epic 70095), so every path that stores
+ * whose owner doesn't exist and has the name of a site admin in another organization runs with
+ * elevated roles (SUtil.getScheduleTaskOwnerPrincipal, Epic 70095): the organization
+ * administrator roles of its organization since Bug #77452, the site admin's roles before
+ * that. So every path that stores
  * an owner or execute-as identity sent by the client (the task editor, the schedule task
  * import, the deploy import and the public schedule API) uses this check. A site admin, or any
  * caller when security is disabled, may store any identity. Any other caller may only store:
@@ -220,9 +222,12 @@ public class ScheduleTaskIdentityChecker {
    }
 
    /**
-    * Bug #77405, determines if a task with an owner and execute-as identity runs with the roles
-    * of a site admin of the same name in another organization, the same check as the run path
-    * (SUtil.getScheduleTaskOwnerPrincipal is used when the task has no execute-as identity).
+    * Bug #77405, determines if a task with an owner and execute-as identity runs with the
+    * elevated roles given to an owner that doesn't exist and has the name of a site admin in
+    * another organization, the same check as the run path (SUtil.getScheduleTaskOwnerPrincipal
+    * is used when the task has no execute-as identity). Since Bug #77452 those are the
+    * organization administrator roles of the owner's organization, not the site admin's roles,
+    * but the check is kept so that a caller can't gain them by changing the task.
     *
     * @param owner    the owner of the task.
     * @param identity the execute-as identity of the task, may be null.
