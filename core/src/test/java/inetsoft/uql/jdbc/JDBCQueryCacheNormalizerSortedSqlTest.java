@@ -181,13 +181,13 @@ class JDBCQueryCacheNormalizerSortedSqlTest {
       assertSelectOrder(run.table);
    }
 
-   // parse off, not lossy: the normalizer clears the sql string. XUtil.clearComments then
-   // generates the sorted sql in JDBCHandler and saves it, before the final generation.
+   // parse off, not lossy, with a sql string: it runs as written and nothing is sorted
+   // (Bug #77483), so no inverse map may be applied
    @Test
-   void parseOffNotLossyIsRegeneratedSortedAndRestored() throws Exception {
+   void parseOffNotLossyRunsVerbatimInSelectOrder() throws Exception {
       Run run = run(newSession(false), parseOffNotLossy(SQL), null);
 
-      assertTrue(norm(run.executedSql).startsWith("select t.a, t.b"), run.executedSql);
+      assertEquals(SQL, run.executedSql);
       assertSelectOrder(run.table);
    }
 
@@ -206,11 +206,46 @@ class JDBCQueryCacheNormalizerSortedSqlTest {
       assertSelectOrder(second.table);
    }
 
-   // enterprise VpmUtil.applyConditions generates a parse-off query's sql inside
-   // JDBCHandler.execute and saves it as the sql string
+   // parse off without a sql string: the normalizer has a map, and XUtil.clearComments
+   // generates the sorted sql inside JDBCHandler.execute and saves it as the sql string
+   // before the final generation. The sorted hint from that generation must be kept.
    @Test
-   void parseOffNotLossySavedByVpmIsRestored() throws Exception {
-      Run run = run(newSession(false), parseOffNotLossy(SQL), null,
+   void parseOffStructureSavedByClearCommentsIsRestored() throws Exception {
+      Run run = run(newSession(false), parseOffStructureOnly(SQL), null);
+
+      assertTrue(norm(run.executedSql).startsWith("select t.a, t.b"), run.executedSql);
+      assertSelectOrder(run.table);
+   }
+
+   @Test
+   void parseOffStructureCacheHitKeepsSelectOrder() throws Exception {
+      String sql2 = "select T2.B, T2.A from T2 where T2.A = 1";
+      XSessionManager session = newSession(true);
+      assertSelectOrder(run(session, parseOffStructureOnly(sql2), null).table);
+
+      try(Connection conn = derby().getConnection(); Statement stmt = conn.createStatement()) {
+         stmt.executeUpdate("insert into T2 values (1, 'y')");
+      }
+
+      Run second = run(session, parseOffStructureOnly(sql2), null);
+      assertEquals(2, rowCount(second.table), "expected a cache hit");
+      assertSelectOrder(second.table);
+   }
+
+   // enterprise VpmUtil.applyConditions generates the sql inside JDBCHandler.execute and
+   // saves it as the sql string, before XUtil.clearComments and the final generation
+   @Test
+   void sortedSqlSavedByVpmIsRestored() throws Exception {
+      Run run = run(newSession(false), parsed(SQL), null,
+                    u -> u.setSQLString(u.getSQLString(), false));
+
+      assertTrue(norm(run.executedSql).startsWith("select t.a, t.b"), run.executedSql);
+      assertSelectOrder(run.table);
+   }
+
+   @Test
+   void parseOffStructureSavedByVpmIsRestored() throws Exception {
+      Run run = run(newSession(false), parseOffStructureOnly(SQL), null,
                     u -> u.setSQLString(u.getSQLString(), false));
 
       assertTrue(norm(run.executedSql).startsWith("select t.a, t.b"), run.executedSql);
@@ -237,6 +272,14 @@ class JDBCQueryCacheNormalizerSortedSqlTest {
 
       assertTrue(norm(run.executedSql).startsWith("select t.b, t.a"), run.executedSql);
       assertSelectOrder(run.table);
+   }
+
+   private static UniformSQL parseOffStructureOnly(String sql) throws Exception {
+      UniformSQL usql = parsed(sql);
+      usql.setParseSQL(false);
+      usql.clearSQLString();
+      usql.setLossy(false);
+      return usql;
    }
 
    private static UniformSQL parseOffNotLossy(String sql) throws Exception {
