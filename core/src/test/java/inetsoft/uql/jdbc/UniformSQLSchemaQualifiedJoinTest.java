@@ -111,6 +111,7 @@ class UniformSQLSchemaQualifiedJoinTest {
    @MethodSource("otherQualifiers")
    void otherQualifiersUseFromTables(String text, String join, String expected) throws Exception {
       UniformSQL sql = parse(text, DEFAULT);
+      assertFalse(joins(sql).isEmpty());
 
       for(String recorded : joins(sql)) {
          assertEquals(join, recorded);
@@ -208,6 +209,91 @@ class UniformSQLSchemaQualifiedJoinTest {
       UniformSQL sql = parse(text, ORACLE);
       assertEquals(expected, regenerate(sql));
       assertRoundTrip(sql, ORACLE);
+   }
+
+   static Stream<Arguments> selfJoins() {
+      return Stream.of(
+         // the same table preserved and joined under an alias, qualified by its bare name, by
+         // its name as written in FROM, or without a schema, in both ON orientations
+         Arguments.of("select * from s.a left join s.a x on a.id = x.pid", "s.a *= x",
+                      "select * from s.a LEFT OUTER JOIN s.a x ON a.id = x.pid"),
+         Arguments.of("select * from s.a left join s.a x on x.pid = a.id", "s.a *= x",
+                      "select * from s.a LEFT OUTER JOIN s.a x ON a.id = x.pid"),
+         Arguments.of("select * from s.a right join s.a x on a.id = x.pid", "s.a =* x",
+                      "select * from s.a RIGHT OUTER JOIN s.a x ON a.id = x.pid"),
+         Arguments.of("select * from s.a right join s.a x on x.pid = a.id", "s.a =* x",
+                      "select * from s.a RIGHT OUTER JOIN s.a x ON a.id = x.pid"),
+         Arguments.of("select * from s.a left join s.a x on s.a.id = x.pid", "s.a *= x",
+                      "select * from s.a LEFT OUTER JOIN s.a x ON s.a.id = x.pid"),
+         Arguments.of("select * from a left join a x on a.id = x.pid", "a *= x",
+                      "select * from a LEFT OUTER JOIN a x ON a.id = x.pid"),
+         Arguments.of("select * from a left join a x on x.pid = a.id", "a *= x",
+                      "select * from a LEFT OUTER JOIN a x ON a.id = x.pid"),
+         // the alias on the preserved side
+         Arguments.of("select * from s.a x left join s.a on x.pid = a.id", "x *= s.a",
+                      "select * from s.a x LEFT OUTER JOIN s.a ON x.pid = a.id"),
+         Arguments.of("select * from s.a x left join s.a on a.id = x.pid", "x *= s.a",
+                      "select * from s.a x LEFT OUTER JOIN s.a ON x.pid = a.id")
+      );
+   }
+
+   // the parser recorded the join type of "s.a x" under s.a as well, so a qualifier that
+   // resolves to the preserved s.a found it and swapped the preserved side
+   @ParameterizedTest
+   @MethodSource("selfJoins")
+   void selfJoinKeepsPreservedSide(String text, String join, String expected) throws Exception {
+      UniformSQL sql = parse(text, DEFAULT);
+      assertEquals(List.of(join), joins(sql));
+      assertEquals(expected, regenerate(sql));
+      assertRoundTrip(sql, DEFAULT);
+   }
+
+   static Stream<Arguments> selfJoinDialects() {
+      return Stream.of(
+         Arguments.of(ORACLE, "select * from s.a left join s.a x on a.id = x.pid",
+                      "select * from s.a, s.a x where a.id = x.pid(+)"),
+         Arguments.of(ORACLE, "select * from s.a left join s.a x on x.pid = a.id",
+                      "select * from s.a, s.a x where a.id = x.pid(+)"),
+         Arguments.of(ORACLE, "select * from s.a right join s.a x on a.id = x.pid",
+                      "select * from s.a, s.a x where a.id (+)= x.pid"),
+         Arguments.of(ORACLE, "select * from s.a right join s.a x on x.pid = a.id",
+                      "select * from s.a, s.a x where a.id (+)= x.pid"),
+         Arguments.of(ORACLE, "select * from s.a left join s.a x on s.a.id = x.pid",
+                      "select * from s.a, s.a x where s.a.id = x.pid(+)"),
+         Arguments.of(ORACLE, "select * from a left join a x on x.pid = a.id",
+                      "select * from a, a x where a.id = x.pid(+)"),
+         Arguments.of(POSTGRESQL_ANSI, "select * from s.a left join s.a x on a.id = x.pid",
+                      "select * from \"s\".\"a\" LEFT OUTER JOIN \"s\".\"a\" x ON \"a\".\"id\" = \"x\".\"pid\""),
+         Arguments.of(POSTGRESQL_ANSI, "select * from s.a left join s.a x on x.pid = a.id",
+                      "select * from \"s\".\"a\" LEFT OUTER JOIN \"s\".\"a\" x ON \"a\".\"id\" = \"x\".\"pid\""),
+         Arguments.of(POSTGRESQL_ANSI, "select * from s.a right join s.a x on x.pid = a.id",
+                      "select * from \"s\".\"a\" RIGHT OUTER JOIN \"s\".\"a\" x ON \"a\".\"id\" = \"x\".\"pid\"")
+      );
+   }
+
+   @ParameterizedTest
+   @MethodSource("selfJoinDialects")
+   void selfJoinDialectKeepsPreservedSide(String helper, String text, String expected)
+      throws Exception
+   {
+      UniformSQL sql = parse(text, helper);
+      assertEquals(expected, regenerate(sql));
+      assertRoundTrip(sql, helper);
+   }
+
+   // an aliased joined table referenced by its table name, which no other FROM table has,
+   // still finds its join type under that name
+   @Test
+   void aliasedTableByNameKeepsPreservedSide() throws Exception {
+      UniformSQL sql = parse("select * from s.a left join s.b y on s.b.id = a.id", DEFAULT);
+      assertEquals(List.of("s.a *= s.b"), joins(sql));
+   }
+
+   // a quoted name that contains a dot is one table, not schema s and table a
+   @Test
+   void quotedDottedNameIsNotSchemaQualified() throws Exception {
+      UniformSQL sql = parse("select * from \"s.a\" left join s.b on a.id = b.id", DEFAULT);
+      assertEquals(List.of("a *= s.b"), joins(sql));
    }
 
    static Stream<Arguments> unchanged() {

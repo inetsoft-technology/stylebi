@@ -243,8 +243,37 @@ private void setJoinedTableOps(UniformSQL sql, int first, String op) {
          setTableOp(sql, alias, op.trim());
       }
 
-      setTableOp(sql, name, op.trim());
+      if(!isEarlierTableName(sql, name, first)) {
+         setTableOp(sql, name, op.trim());
+      }
    }
+}
+
+/**
+ * Check if a table name is also the name of a FROM table before the given
+ * index, e.g. s.a in "from s.a left join s.a x". The join type of the joined
+ * table x is then not keyed under its name s.a, since the name also names the
+ * preserved table, and an ON qualifier that resolves to s.a (s.a.id, or a.id,
+ * #77518) would find the join type of x and swap the preserved side.
+ */
+private boolean isEarlierTableName(UniformSQL sql, Object name, int end) {
+   if(!(name instanceof String)) {
+      return false;
+   }
+
+   String tname = ((String) name).replace("\"", "");
+
+   for(int i = 0; i < end; i++) {
+      Object name2 = sql.getSelectTable(i).getName();
+
+      if(name2 instanceof String &&
+         tname.equalsIgnoreCase(((String) name2).replace("\"", "")))
+      {
+         return true;
+      }
+   }
+
+   return false;
 }
 
 /**
@@ -2745,7 +2774,10 @@ table_ref_nojoin [UniformSQL sql, String op] returns [String tbref = ""]
                         if(op != null && op.trim().length() > 0) {
                            clearTableOps();
                            setTableOp(sql, alias, op.trim());
-                           setTableOp(sql, name, op.trim());
+
+                           if(!isEarlierTableName(sql, name, sql.getTableCount() - 1)) {
+                              setTableOp(sql, name, op.trim());
+                           }
                         }
                  }
                  else {
