@@ -306,7 +306,40 @@ class UniformSQLWhereOnOuterPairTest {
       "select a.id from a where a.id in (select b.id from b left join c on b.id = c.id where b.k = c.k)"
    })
    void regeneratedSqlReturnsSameRows(String text) throws Exception {
-      String generated = parse(text, null).getSQLString();
+      assertSameRows(text, parse(text, null).getSQLString());
+   }
+
+   /**
+    * A plain (unmerged) SQL query on the data cache path also runs regenerated SQL:
+    * XSessionManager creates a JDBCQueryCacheNormalizer, which clears the SQL string of a
+    * parsed query, so the SQL is generated from the parsed structure.
+    */
+   @ParameterizedTest
+   @ValueSource(strings = {
+      COLS + "a left join b on a.id = b.id where a.k = b.k",
+      COLS + "a left join b on a.id = b.id join c on a.k = b.k",
+      COLS + "a right join d on a.id = d.id left join b on a.id = b.id join c on a.k = b.k"
+   })
+   void dataCacheNormalizerRegeneratesSameRows(String text) throws Exception {
+      UniformSQL sql = new UniformSQL();
+
+      synchronized(sql) {
+         sql.setSQLString(text);
+         sql.wait(20000);
+      }
+
+      assertEquals(UniformSQL.PARSE_SUCCESS, sql.getParseResult(), text);
+      JDBCQuery query = new JDBCQuery();
+      query.setSQLDefinition(sql);
+      JDBCQueryCacheNormalizer normalizer = new JDBCQueryCacheNormalizer(query);
+      assertTrue(normalizer.isClearedSqlString(), text);
+
+      String generated = sql.getSQLString();
+      assertNotEquals(text, generated);
+      assertSameRows(text, generated);
+   }
+
+   private static void assertSameRows(String text, String generated) throws Exception {
       Random random = new Random(77478);
 
       try(Connection conn = DriverManager.getConnection("jdbc:derby:memory:bug77478;create=true")) {
