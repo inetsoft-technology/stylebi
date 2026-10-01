@@ -21,6 +21,7 @@ package inetsoft.uql.util;
 import inetsoft.test.*;
 import inetsoft.uql.XTable;
 import inetsoft.uql.schema.XSchema;
+import inetsoft.util.Tool;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -28,6 +29,7 @@ import org.junit.jupiter.api.Tag;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
+import org.w3c.dom.Element;
 
 import java.io.*;
 
@@ -135,6 +137,28 @@ public class XEmbeddedTableTest {
       Assertions.assertEquals(3, table.getRowCount());
       Assertions.assertEquals("a", table.getObject(1, 0));
       Assertions.assertNull(table.getObject(1, 1));
+      Assertions.assertEquals(2, table.getObject(2, 1));
+   }
+
+   // Bug #77445: writeXML must produce well-formed XML that parseXML can read back
+   @Test
+   public void writeXmlRoundTripsThroughParser() throws Exception {
+      XEmbeddedTable original = new XEmbeddedTable(
+         new String[] { XSchema.STRING, XSchema.INTEGER },
+         new Object[][] { { "name", "value" }, { "a", 1 }, { "b", 2 } });
+      StringWriter xml = new StringWriter();
+      original.writeXML(new PrintWriter(xml));
+
+      Element elem = Tool.parseXML(new StringReader(xml.toString())).getDocumentElement();
+      XEmbeddedTable table = new XEmbeddedTable();
+      table.parseXML(elem);
+
+      Assertions.assertEquals("3", Tool.getAttribute(elem, "row"));
+      Assertions.assertEquals("2", Tool.getAttribute(elem, "col"));
+      Assertions.assertTrue(table.isStrictNull());
+      Assertions.assertEquals(2, table.getColCount());
+      Assertions.assertEquals(3, table.getRowCount());
+      Assertions.assertEquals("b", table.getObject(2, 0));
       Assertions.assertEquals(2, table.getObject(2, 1));
    }
 
