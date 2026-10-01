@@ -265,7 +265,8 @@ class RestrictedFormulaScriptTest {
       "java.lang.Thread", "java.lang.Process", "java.lang.ProcessBuilder",
       "java.lang.reflect.Method", "java.lang.reflect.Field", "java.lang.reflect.Proxy",
       "java.lang.invoke.MethodHandles", "java.lang.invoke.MethodHandle",
-      "java.lang.management.ManagementFactory", "java.lang.ref.WeakReference"
+      "java.lang.management.ManagementFactory", "java.lang.ref.WeakReference",
+      "java.lang.Package", "java.lang.Module", "java.lang.ModuleLayer", "java.lang.StackWalker"
    })
    void shutterDeniesDangerousJavaLangClasses(String className) {
       assertFalse(new SecureClassShutter().visibleToScripts(className));
@@ -275,7 +276,7 @@ class RestrictedFormulaScriptTest {
    @ValueSource(strings = {
       "java.lang.System", "java.lang.Runtime", "java.lang.Class", "java.lang.ClassLoader",
       "java.lang.Thread", "java.lang.ProcessBuilder", "java.lang.reflect.Method",
-      "java.lang.invoke.MethodHandles"
+      "java.lang.invoke.MethodHandles", "java.lang.Package", "java.lang.Module"
    })
    void restrictedScriptCannotResolveDangerousJavaLangClasses(String className)
       throws Exception
@@ -312,6 +313,18 @@ class RestrictedFormulaScriptTest {
 
       assertEquals(9.5, formula.getResult());
       assertEquals(Boolean.TRUE, probe.restricted);
+   }
+
+   @Test
+   void scheduleParameterCanUseJavaLangAndJavaMath() {
+      DynamicParameterValue parameter = new DynamicParameterValue(
+         "=java.lang.Integer.parseInt('5') + java.lang.Math.round(2.4) + " +
+         "new java.math.BigDecimal('1.5').doubleValue()",
+         DynamicValueModel.EXPRESSION, XSchema.DOUBLE);
+      ScheduleParameterScope scope = new ScheduleParameterScope();
+      scope.getScriptEnv().addTopLevelParentScope(scope);
+
+      assertEquals(8.5, RepletRequest.executeParameter(parameter, scope));
    }
 
    @Test
