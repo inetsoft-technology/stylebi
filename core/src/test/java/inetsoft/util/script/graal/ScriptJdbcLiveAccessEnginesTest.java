@@ -395,6 +395,39 @@ class ScriptJdbcLiveAccessEnginesTest {
       assertTrue(cols.startsWith("ERR:"), "JDBCUtil.getTableColumns connected: " + cols);
    }
 
+   /**
+    * Round 2 (07-verify-r2 probe Q): DefaultMetaDataProvider takes any data source a
+    * script holds, here one the registry returned, and runs metadata against it
+    * Java-side through XRepository.getMetaData with no permission check, connecting
+    * with the data source's stored credentials. The database is not created
+    * beforehand and the data source's URL has create=true, so it exists afterwards
+    * only if the provider opened a connection. XEngine caches metadata in files that
+    * outlive the JVM, keyed by data source name, so the name is unique per run;
+    * otherwise a second run is answered from the cache and never connects.
+    */
+   @ParameterizedTest
+   @ValueSource(strings = { "base", "report" })
+   void metaDataProviderCannotConnect(String kind) throws Exception {
+      open(kind);
+      String db = "dmp" + kind + System.nanoTime();
+      String name = "victim" + kind;
+      when(dataSourceRegistry.getDataSource(eq(name))).thenReturn(new Fixtures().ds(db));
+      engine.put("heldDs", dataSourceRegistry.getDataSource(name));
+
+      String result = run(
+         "var p=new (Java.type('inetsoft.uql.util.DefaultMetaDataProvider'))();" +
+         "p.setDataSource(heldDs);" +
+         "var t=p.getTable('APP.SECRET77467','',true);" +
+         "return 'ran:'+(t!=null);");
+
+      assertTrue(result.startsWith("ERR:"), "DefaultMetaDataProvider ran metadata: " + result);
+      SQLException notFound = assertThrows(
+         SQLException.class,
+         () -> DriverManager.getConnection("jdbc:derby:memory:s77467" + db).close(),
+         "DefaultMetaDataProvider opened a connection to the registry data source");
+      assertEquals("XJ004", notFound.getSQLState());
+   }
+
    @ParameterizedTest
    @ValueSource(strings = { "base", "report" })
    void poolFactoriesCannotRunSql(String kind) throws Exception {

@@ -327,7 +327,8 @@ public final class ScriptHostAccess {
                   // JDBCHandler's statics do the same for driver classes and return
                   // live drivers and connections; TabularUtil's view helpers invoke
                   // the methods a view names on whatever bean they are passed. Both
-                  // are used by Java callers only
+                  // are used by Java callers only. (Bug #77467: the XHandler deny
+                  // below now also covers JDBCHandler; this line is not load-bearing.)
                   .denyAccess(inetsoft.uql.jdbc.JDBCHandler.class)
                   .denyAccess(inetsoft.uql.tabular.TabularUtil.class)
                   // Bug #77467: classFilter() gates only the Java.type(...) lookup;
@@ -420,6 +421,11 @@ public final class ScriptHostAccess {
                   .denyAccess(inetsoft.uql.service.XHandler.class)
                   .denyAccess(inetsoft.uql.jdbc.util.SQLTypes.class)
                   .denyAccess(inetsoft.uql.jdbc.util.JDBCUtil.class)
+                  // DefaultMetaDataProvider (the only MetaDataProvider) runs metadata
+                  // Java-side against whatever data source it is given, connecting
+                  // with its stored credentials and no permission check
+                  .denyAccess(inetsoft.uql.util.MetaDataProvider.class)
+                  .denyAccess(inetsoft.uql.util.DefaultMetaDataProvider.class)
                   // XUtil.getSecurityProvider(), and the interfaces its providers'
                   // configuration and cache methods are declared by
                   .denyAccess(inetsoft.sree.security.AuthenticationProvider.class)
