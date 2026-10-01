@@ -81,9 +81,13 @@ class UniformSQLUsingJoinExecutionTest {
    void normalizedSqlReturnsOriginalResult(String text) throws Exception {
       JDBCQuery query = query(text);
       UniformSQL sql = (UniformSQL) query.getSQLDefinition();
+      // the original must run, or a query failing on both sides would compare equal
+      String expected = assertDoesNotThrow(() -> run(text), "original: " + text);
       new JDBCQueryCacheNormalizer(query);
+      String executed = sql.getSQLString();
+      String actual = assertDoesNotThrow(() -> run(executed), "executed: " + executed);
 
-      assertEquals(run(text), run(sql.getSQLString()));
+      assertEquals(expected, actual);
    }
 
    private static JDBCQuery query(String text) {
@@ -97,8 +101,8 @@ class UniformSQLUsingJoinExecutionTest {
       return query;
    }
 
-   // column count plus the sorted rows, or the database error
-   private static String run(String text) {
+   // column count plus the sorted rows
+   private static String run(String text) throws SQLException {
       try(Statement st = conn.createStatement(); ResultSet rs = st.executeQuery(text)) {
          int count = rs.getMetaData().getColumnCount();
          List<String> rows = new ArrayList<>();
@@ -115,9 +119,6 @@ class UniformSQLUsingJoinExecutionTest {
 
          Collections.sort(rows);
          return count + " columns " + rows;
-      }
-      catch(SQLException ex) {
-         return "error " + ex.getMessage();
       }
    }
 }
