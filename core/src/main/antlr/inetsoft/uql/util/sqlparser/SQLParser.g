@@ -2944,7 +2944,7 @@ qualified_join [UniformSQL sql] returns [XExpression exp = null]
         ;
 
 sub_qualified_join [UniformSQL sql] returns [String str = ""]
-        { String tbl2=""; String tmp; String op = ""; String table = ""; XExpression exp = null; int first = 0; {checkStatus();}}
+        { String tbl2=""; String tmp; String op = ""; String table = ""; XExpression exp = null; int first = 0; boolean spec = false; {checkStatus();}}
         :
         (
          (
@@ -2964,9 +2964,22 @@ sub_qualified_join [UniformSQL sql] returns [String str = ""]
                                                  tbl2 = tbl2.trim();})
           )
           ( (join_spec[null, "", ""])=>
-            tmp = join_spec[sql, op, tbl2] {str += " " + tmp;}
+            tmp = join_spec[sql, op, tbl2] {str += " " + tmp; spec = true;}
             ((sub_qualified_join[sql])=> tmp = sub_qualified_join[sql] {str += " " + tmp;})?
           )?
+          {
+            // an outer join is only recorded by its join condition, so without one it
+            // would be regenerated as a cross join. a union join (no database supports it)
+            // would be regenerated as a cross or inner join
+            String jop = op.trim().toUpperCase();
+
+            if(sql != null && (jop.startsWith("UNION") ||
+               !spec && (jop.startsWith("LEFT") || jop.startsWith("RIGHT") || jop.startsWith("FULL"))))
+            {
+              throw new SemanticException("Unsupported join: " + jop, getFilename(),
+                                          d.getLine(), d.getColumn());
+            }
+          }
         )
         ;
 
