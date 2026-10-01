@@ -489,36 +489,34 @@ public class ExtendedDateFormat extends SimpleDateFormat {
 
    @Override
    public Object parseObject(String str) throws ParseException {
-      // if joda parsing failed, use default java parsing since it could
+      // if java.time parsing failed, use default java parsing since it could
       // be caused by incompatibility. for example, with pattern yyyy-MM-dd
-      // java can parse '2011-01-02 10:01:02' but joda throws exception
-      if(!formatterError) {
+      // java can parse '2011-01-02 10:01:02' but java.time throws exception.
+      // the fallback is decided for each call, so the parser used for a string does
+      // not depend on what this instance (or the instance it was cloned from) parsed before
+      if(getFormatter() != null) {
          try {
             return parse(str, null);
          }
          catch(Exception ex) {
-            // try as milliseconds from epoch. we don't invent a new format type since it's
-            // unlikely that a user will know to use it. so we just try it and see if it works
-            if(tryMS) {
-               try {
-                  double val = Double.parseDouble(str);
-                  final long year = 60000 * 60 * 24 * 365L;
-                  final long year10 = year * 10;
-                  final long year70 = year * 70;
-
-                  if(val > year10 && val < year70) {
-                     return new Date((long) val);
-                  }
-               }
-               catch(Exception e2) {
-                  // ignore
-               }
-
-               tryMS = false;
-            }
-
-            formatterError = true;
+            // ignore, try other ways below
          }
+      }
+
+      // try as milliseconds from epoch. we don't invent a new format type since it's
+      // unlikely that a user will know to use it. so we just try it and see if it works
+      try {
+         double val = Double.parseDouble(str);
+         final long year = 60000 * 60 * 24 * 365L;
+         final long year10 = year * 10;
+         final long year70 = year * 70;
+
+         if(val > year10 && val < year70) {
+            return new Date((long) val);
+         }
+      }
+      catch(Exception e2) {
+         // ignore
       }
 
       return super.parseObject(str);
@@ -526,12 +524,12 @@ public class ExtendedDateFormat extends SimpleDateFormat {
 
    @Override
    public Date parse(String source) throws ParseException {
-      if(!formatterError) {
+      if(getFormatter() != null) {
          try {
             return parse(source, null);
          }
          catch(Exception ex) {
-            formatterError = true;
+            // ignore, fall back to SimpleDateFormat
          }
       }
 
@@ -544,17 +542,13 @@ public class ExtendedDateFormat extends SimpleDateFormat {
       // parseObject(String), which catch its exceptions and fall back. Callers passing
       // a ParsePosition get the Format contract (locale, parse position, error index and
       // null on failure) from SimpleDateFormat
-      if(!formatterError && pos == null) {
-         String pattern = toPattern();
+      if(pos == null) {
          TimeZone zone = getTimeZone();
-         String key = pattern + ":" + zone.getID();
-         DateTimeFormatter formatter = formatters.get(key);
+         DateTimeFormatter formatter = getFormatter();
 
-         // formatter is thread safe so it can be shared globally
          if(formatter == null) {
-            formatter = DateTimeFormatter.ofPattern(pattern);
-            formatter = formatter.withZone(zone.toZoneId());
-            formatters.put(key, formatter);
+            throw new IllegalArgumentException(
+               "Pattern or time zone is not supported by java.time: " + toPattern());
          }
 
          final TemporalAccessor temporal = formatter.parse(str);
@@ -627,6 +621,55 @@ public class ExtendedDateFormat extends SimpleDateFormat {
       return super.parse(str, pos);
    }
 
+   /**
+    * Get the shared java.time formatter for the pattern and zone of this format, or null if
+    * java.time cannot compile the pattern (e.g. the escaped extended quarter patterns) or
+    * cannot convert the zone. The
+    * result depends only on the pattern and zone, never on what was parsed before.
+    */
+   private DateTimeFormatter getFormatter() {
+      String pattern = toPattern();
+
+      if(unsupportedPatterns.contains(pattern)) {
+         return null;
+      }
+
+      TimeZone zone = getTimeZone();
+      String key = pattern + ":" + zone.getID();
+      DateTimeFormatter formatter = formatters.get(key);
+
+      // formatter is thread safe so it can be shared globally
+      if(formatter == null) {
+         try {
+            formatter = DateTimeFormatter.ofPattern(pattern);
+         }
+         catch(IllegalArgumentException ex) {
+            unsupportedPatterns.add(pattern);
+            return null;
+         }
+
+         try {
+            formatter = formatter.withZone(zone.toZoneId());
+         }
+         catch(DateTimeException ex) {
+            // the zone (e.g. a custom SimpleTimeZone) has no java.time ID. this is a property
+            // of the zone, not the pattern, so it is not added to unsupportedPatterns
+            return null;
+         }
+
+         formatters.put(key, formatter);
+      }
+
+      return formatter;
+   }
+
+   /**
+    * Check if java.time was found unable to compile the pattern, for testing.
+    */
+   static boolean isUnsupportedPattern(String pattern) {
+      return unsupportedPatterns.contains(pattern);
+   }
+
    public String toString() {
       return "ExtendedDateFormat[" + toPattern() + "]";
    }
@@ -693,7 +736,13 @@ public class ExtendedDateFormat extends SimpleDateFormat {
    private static String[] MMM_STRINGS = {"MMMMM", "MMMM"};
    private static String[][] M_ALL = {MM_STRINGS, MMM_STRINGS};
 
+   // the value computed before the parse state fields were removed, so serialized formats
+   // stay compatible
+   private static final long serialVersionUID = 1728351691389349897L;
    private static Map<String, DateTimeFormatter> formatters = new ConcurrentHashMap<>();
+   // patterns DateTimeFormatter.ofPattern() rejects. keyed by pattern only (never by input or
+   // instance) so cloned formats, e.g. the FormatCache copies, all make the same choice
+   private static Set<String> unsupportedPatterns = ConcurrentHashMap.newKeySet();
 
    private static final LocalDate DEFAULT_LOCAL_DATE = LocalDate.ofEpochDay(0);
    private static final LocalTime DEFAULT_LOCAL_TIME = LocalTime.of(0, 0);
@@ -701,7 +750,5 @@ public class ExtendedDateFormat extends SimpleDateFormat {
    // cached user pattern
    private String cupattern = null;
    private transient FastDateFormat fastFmt;
-   private boolean formatterError = false;
-   private boolean tryMS = true;
    private Locale locale = null;
 }

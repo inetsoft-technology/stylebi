@@ -27,16 +27,15 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import java.text.ParseException;
 import java.text.ParsePosition;
 import java.text.SimpleDateFormat;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
-import java.util.Date;
-import java.util.Locale;
-import java.util.TimeZone;
+import java.util.*;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.*;
 
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
@@ -207,6 +206,171 @@ public class ExtendedDateFormatTest {
       }
       finally {
          TimeZone.setDefault(oldZone);
+      }
+   }
+
+   // Bug #77441: an input java.time rejects must not switch the instance to SimpleDateFormat
+   // for later inputs. results are compared with a fresh instance instead of fixed values
+   // because the java.time answers for invalid days and zones are owned by other fixes
+   @ParameterizedTest(name = "{0} {1}")
+   @CsvSource({
+      "yyyy-MM-dd, 2011-02-30",
+      "yyyy-MM-dd, 2011-02-29",
+      "yyyy-MM-dd, 1300000000000",
+      "yyyy-MM-dd, 2011-01-02",
+      "HH:mm:ss, 24:00:00",
+      "yyyy-MM-dd HH:mm:ss, 2024-11-03 01:30:00",
+      "M/d/yy, 1/2/50"
+   })
+   public void failedParseDoesNotChangeLaterResults(String pattern, String text) {
+      final ExtendedDateFormat fresh = new ExtendedDateFormat(pattern, Locale.US);
+      final ExtendedDateFormat poisoned = new ExtendedDateFormat(pattern, Locale.US);
+      poison(poisoned);
+
+      assertEquals(parseResult(fresh, text), parseResult(poisoned, text));
+      assertEquals(parseResult(fresh, text), parseResult(poisoned, text));
+   }
+
+   // Bug #77441: parse(String) had the same sticky fallback as parseObject(String)
+   @Test
+   public void failedParseDoesNotChangeLaterParse() throws Exception {
+      final ExtendedDateFormat fresh = new ExtendedDateFormat("yyyy-MM-dd", Locale.US);
+      final ExtendedDateFormat poisoned = new ExtendedDateFormat("yyyy-MM-dd", Locale.US);
+      poison(poisoned);
+
+      assertEquals(fresh.parse("2011-02-30"), poisoned.parse("2011-02-30"));
+   }
+
+   // Bug #77441: a zone other than the JVM default must give the same result before and
+   // after a failed parse
+   @Test
+   public void failedParseDoesNotChangeZonedResult() {
+      final ExtendedDateFormat fresh = new ExtendedDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US);
+      final ExtendedDateFormat poisoned = new ExtendedDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US);
+      final TimeZone zone = TimeZone.getTimeZone(
+         "UTC".equals(TimeZone.getDefault().getID()) ? "Asia/Shanghai" : "UTC");
+      fresh.setTimeZone(zone);
+      poisoned.setTimeZone(zone);
+      poison(poisoned);
+
+      assertEquals(parseResult(fresh, "2020-01-01 00:00:00"),
+                   parseResult(poisoned, "2020-01-01 00:00:00"));
+   }
+
+   // Bug #77441: FormatCache clones the prototype and hands the clones out round robin, so a
+   // clone that failed once must not answer differently from the others
+   @Test
+   public void formatCacheSlotsAgreeAfterFailedParse() {
+      final FormatCache cache = new FormatCache(new ExtendedDateFormat("yyyy-MM-dd", Locale.US));
+      parseResult(cache, "2011-01-02 10:01:02");
+      final Set<Object> results = new HashSet<>();
+
+      for(int i = 0; i < 512; i++) {
+         results.add(parseResult(cache, "2011-02-30"));
+      }
+
+      assertEquals(1, results.size(), results::toString);
+   }
+
+   // Bug #77441: CoreTool.parseDate() uses a process wide FormatCache, so one failed parse
+   // anywhere in the server must not change what later callers get, including epoch millis
+   @Test
+   public void coreToolParseDateAgreesAfterFailedParse() {
+      parseDateResult("2011-01-02 10:01:02");
+      final Set<Object> results = new HashSet<>();
+      final Set<Object> epochResults = new HashSet<>();
+
+      for(int i = 0; i < 512; i++) {
+         results.add(parseDateResult("2011-02-30"));
+      }
+
+      for(int i = 0; i < 512; i++) {
+         epochResults.add(parseDateResult("1300000000000"));
+      }
+
+      assertEquals(1, results.size(), results::toString);
+      assertEquals(Set.of(new Date(1300000000000L)), epochResults);
+   }
+
+   // Bug #77441: a clone of a format that already failed a parse behaves like a fresh format
+   @Test
+   public void cloneOfFailedFormatMatchesFresh() {
+      final ExtendedDateFormat prototype = new ExtendedDateFormat("HH:mm:ss", Locale.US);
+      poison(prototype);
+      final ExtendedDateFormat clone = (ExtendedDateFormat) prototype.clone();
+      final ExtendedDateFormat fresh = new ExtendedDateFormat("HH:mm:ss", Locale.US);
+
+      assertEquals(parseResult(fresh, "24:00:00"), parseResult(clone, "24:00:00"));
+   }
+
+   // Bug #77441: java.time cannot compile the extended quarter patterns. that is remembered
+   // per pattern, and the pattern parses the same way on every call
+   @Test
+   public void quarterPatternIsRememberedAsUnsupported() {
+      final ExtendedDateFormat format = new ExtendedDateFormat("QQQ yyyy", Locale.US);
+      final String pattern = format.toPattern();
+      final String text = format.format(
+         Date.from(LocalDateTime.of(2011, 2, 1, 0, 0).atZone(ZoneId.systemDefault()).toInstant()));
+      final Object first = parseResult(format, text);
+
+      assertTrue(ExtendedDateFormat.isUnsupportedPattern(pattern));
+      assertEquals(first, parseResult(format, text));
+      assertEquals(first, parseResult(new ExtendedDateFormat("QQQ yyyy", Locale.US), text));
+      assertEquals(parseResult(format, "not a quarter"), parseResult(format, "not a quarter"));
+      assertThrows(IllegalArgumentException.class, () -> format.parse(text, null));
+   }
+
+   // Bug #77441: a zone without a java.time ID must fall back to SimpleDateFormat for the
+   // call instead of throwing ZoneRulesException out of parse(String)/parseObject(String)
+   @Test
+   public void zoneWithoutJavaTimeIdFallsBack() throws Exception {
+      final TimeZone oldZone = TimeZone.getDefault();
+
+      try {
+         TimeZone.setDefault(TimeZone.getTimeZone("America/Los_Angeles"));
+         final ExtendedDateFormat format = new ExtendedDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US);
+         format.setTimeZone(new SimpleTimeZone(3600000, "Custom"));
+         final String text = "2025-01-01 13:00:00";
+         final Date expected = Date.from(Instant.parse("2025-01-01T12:00:00Z"));
+
+         assertEquals(expected, format.parse(text));
+         assertEquals(expected, format.parseObject(text));
+         assertEquals(expected, format.parse(text, new ParsePosition(0)));
+      }
+      finally {
+         TimeZone.setDefault(oldZone);
+      }
+   }
+
+   private static void poison(ExtendedDateFormat format) {
+      // java.time rejects it, which used to switch the instance to SimpleDateFormat for good
+      assertEquals(ParseException.class, parseResult(format, "not a date"));
+   }
+
+   private static Object parseResult(ExtendedDateFormat format, String text) {
+      try {
+         return format.parseObject(text);
+      }
+      catch(ParseException ex) {
+         return ParseException.class;
+      }
+   }
+
+   private static Object parseDateResult(String text) {
+      try {
+         return CoreTool.parseDate(text, null);
+      }
+      catch(ParseException ex) {
+         return ParseException.class;
+      }
+   }
+
+   private static Object parseResult(FormatCache cache, String text) {
+      try {
+         return cache.parse(text);
+      }
+      catch(ParseException ex) {
+         return ParseException.class;
       }
    }
 }
