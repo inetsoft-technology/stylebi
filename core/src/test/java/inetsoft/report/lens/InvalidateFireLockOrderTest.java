@@ -18,12 +18,15 @@
 
 package inetsoft.report.lens;
 
+import inetsoft.report.TableDataPath;
 import inetsoft.report.TableLens;
-import inetsoft.report.filter.ConditionFilter;
-import inetsoft.report.filter.ConditionGroup;
-import inetsoft.report.filter.SortFilter;
+import inetsoft.report.filter.*;
 import inetsoft.report.internal.table.FormatTableLens2;
+import inetsoft.report.internal.table.TableHighlightAttr;
 import inetsoft.test.*;
+import inetsoft.uql.*;
+import inetsoft.uql.asset.ColumnRef;
+import inetsoft.uql.erm.AttributeRef;
 import inetsoft.util.stall.StallPolicy;
 import inetsoft.util.stall.StallTestSupport;
 import org.junit.jupiter.api.*;
@@ -33,6 +36,7 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import java.awt.Color;
 import java.io.File;
 import java.lang.management.ManagementFactory;
 import java.lang.management.ThreadInfo;
@@ -120,11 +124,81 @@ public class InvalidateFireLockOrderTest {
       assertEquals(TOP + 1, lens.getRowCount());
    }
 
+   @Test
+   public void conditionFilterOverFormatTableLensOverRanking() throws Exception {
+      ConditionFilter top = acceptAll(base());
+      FormatTableLens2 format = new FormatTableLens2(top);
+      RankingTableLens lens = ranking(format);
+
+      stress("CF->Format->Ranking", top::invalidate, lens);
+      assertEquals(TOP + 1, lens.getRowCount());
+   }
+
+   @Test
+   public void summaryFilterOverRanking() throws Exception {
+      SummaryFilter summary = summary(base());
+      RankingTableLens lens = ranking(summary);
+
+      stress("Summary->Ranking", summary::invalidate, lens);
+   }
+
+   @Test
+   public void conditionFilterOverSummaryFilterOverRanking() throws Exception {
+      ConditionFilter top = acceptAll(base());
+      RankingTableLens lens = ranking(summary(top));
+
+      stress("CF->Summary->Ranking", top::invalidate, lens);
+   }
+
+   @Test
+   public void crossJoinOverRanking() throws Exception {
+      CrossJoinTableLens join = new CrossJoinTableLens(base(60), base(50));
+      RankingTableLens lens = ranking(join);
+
+      stress("CrossJoin->Ranking", join::invalidate, lens);
+      assertEquals(TOP + 1, lens.getRowCount());
+   }
+
+   @Test
+   public void conditionFilterOverDistinctOverRanking() throws Exception {
+      ConditionFilter top = acceptAll(base());
+      RankingTableLens lens = ranking(new DistinctTableLens(top));
+
+      stress("CF->Distinct->Ranking", top::invalidate, lens);
+      assertEquals(TOP + 1, lens.getRowCount());
+   }
+
+   /**
+    * The reader evaluates highlights, which holds the highlight lens's monitor while it
+    * reads the ranking lens.
+    */
+   @Test
+   public void rankingOverHighlight() throws Exception {
+      RankingTableLens ranking = ranking(base());
+      TableLens lens = highlight(ranking);
+
+      stress("Ranking->Highlight", ranking::invalidate, lens, () -> {
+         for(int r = 1; r < 40 && lens.moreRows(r); r++) {
+            lens.getBackground(r, 1);
+         }
+      });
+   }
+
    /**
     * Loop {@code invalidate} on one thread and {@code lens.moreRows(EOT)} on another for
     * {@link #DURATION_MS}, and fail if they deadlock or do not stop.
     */
    private void stress(String name, Runnable invalidate, TableLens lens) throws Exception {
+      stress(name, invalidate, lens, null);
+   }
+
+   /**
+    * Same as {@link #stress(String, Runnable, TableLens)}, and the reader also runs
+    * {@code read} after each {@code moreRows(EOT)} if it is not null.
+    */
+   private void stress(String name, Runnable invalidate, TableLens lens, Runnable read)
+      throws Exception
+   {
       AtomicBoolean done = new AtomicBoolean();
       AtomicLong invalidations = new AtomicLong();
       AtomicLong reads = new AtomicLong();
@@ -140,6 +214,11 @@ public class InvalidateFireLockOrderTest {
          while(!done.get()) {
             lens.moreRows(TableLens.EOT);
             lens.getRowCount();
+
+            if(read != null) {
+               read.run();
+            }
+
             reads.incrementAndGet();
          }
       }, error, "InvalidateFireLockOrderTest-" + name + "-reader");
@@ -238,13 +317,54 @@ public class InvalidateFireLockOrderTest {
    }
 
    /**
+    * Sum the id column grouped by the value column.
+    */
+   private static SummaryFilter summary(TableLens table) {
+      return new SummaryFilter(table, new int[] { 1 }, new int[] { 0 }, new SumFormula(), null);
+   }
+
+   /**
+    * Highlight the value cells equal to 5.
+    */
+   private static TableLens highlight(TableLens table) {
+      Condition condition = new Condition();
+      condition.addValue(5);
+      condition.setOperation(XCondition.EQUAL_TO);
+      ConditionList conditions = new ConditionList();
+      conditions.append(new ConditionItem(new ColumnRef(new AttributeRef("value")), condition, 0));
+
+      ColumnHighlight highlight = new ColumnHighlight();
+      highlight.setConditionGroup(conditions);
+      highlight.setBackground(Color.BLUE);
+      HighlightGroup group = new HighlightGroup();
+      group.addHighlight("h1", highlight);
+
+      TableDataPath path = new TableDataPath("value");
+      path.setType(TableDataPath.DETAIL);
+      path.setColIndex(1);
+      TableHighlightAttr attr = new TableHighlightAttr();
+      attr.setHighlight(path, group);
+
+      TableLens lens = attr.createFilter(table);
+      assertInstanceOf(TableHighlightAttr.HighlightTableLens.class, lens);
+      return lens;
+   }
+
+   /**
     * {@link #ROWS} distinct rows of {@code id, value}.
     */
    private static DefaultTableLens base() {
-      Object[][] data = new Object[ROWS + 1][];
+      return base(ROWS);
+   }
+
+   /**
+    * {@code rows} distinct rows of {@code id, value}.
+    */
+   private static DefaultTableLens base(int rows) {
+      Object[][] data = new Object[rows + 1][];
       data[0] = new Object[] { "id", "value" };
 
-      for(int r = 1; r <= ROWS; r++) {
+      for(int r = 1; r <= rows; r++) {
          data[r] = new Object[] { r, (r * 7919) % 3001 };
       }
 
