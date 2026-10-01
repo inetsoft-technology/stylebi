@@ -82,7 +82,7 @@ class UniformSQLUsingJoinTest {
          "a.id *= b.id, c.id = d.id",
       // a merged column of a subquery's join
       "select a.x from a join b using (id) where exists " +
-         "(select 1 from c left join d using (id) where c.id = a.id) | a.id = b.id",
+         "(select 1 from c left join d using (id) where c.k = 1) | a.id = b.id",
       // a column merged by a subquery's join before the outer join expression is not
       // merged in the outer join expression
       "select t.z from (select b.id, c.z from b left join c using (id)) t join a using (id) | " +
@@ -149,6 +149,26 @@ class UniformSQLUsingJoinTest {
    })
    void usingJoinOfMergedColumnFailsCleanly(String text) {
       assertFailsCleanly(text, "the column is merged by an earlier outer join");
+   }
+
+   /**
+    * A correlated subquery with an outer USING join is refused like the ON form, since
+    * the subquery's joins are generated in its from clause and the correlation is lost.
+    */
+   @ParameterizedTest
+   @ValueSource(strings = {
+      "select a.x from a join b using (id) where exists " +
+         "(select 1 from c left join d using (id) where c.id = a.id)",
+      "select a.x from a where exists (select 1 from c left join b using (id) where c.id = a.id)"
+   })
+   void correlatedSubqueryWithOuterUsingJoinFailsCleanly(String text) {
+      RecognitionException ex = assertThrows(RecognitionException.class, () -> parse(text));
+      assertTrue(ex.getMessage().contains("Unsupported join to a table outside the from clause"),
+                 ex.getMessage());
+
+      UniformSQL sql = new UniformSQL();
+      new SQLProcessor(sql).parse(text);
+      assertEquals(UniformSQL.PARSE_FAILED, sql.getParseResult());
    }
 
    /**
