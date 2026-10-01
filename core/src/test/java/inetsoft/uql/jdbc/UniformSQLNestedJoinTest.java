@@ -163,12 +163,20 @@ class UniformSQLNestedJoinTest {
       "select * from x where exists (select 1 from b join c on b.id = c.id " +
          "join d on b.id = d.id right join e on c.id = e.id)",
       "select * from (select a.id from a right join b on a.id = b.id, c " +
-         "where a.id = c.id) t",
-      "select a.id from a where exists (select 1 from b right join c on b.id = c.id " +
-         "where c.id = a.id)"
+         "where a.id = c.id) t"
    })
    void rightJoinWithInnerJoinFailsCleanly(String text) {
       assertRefused(text, "Unsupported RIGHT or FULL join");
+   }
+
+   @Test
+   void correlatedRightJoinSubqueryFailsCleanly() {
+      // the subquery's where join to the outer table a mixes an inner join with its right
+      // join, but #77440 refuses an outer join query that joins a table outside its from
+      // clause first, with its own message
+      assertRefused("select a.id from a where exists (select 1 from b right join c " +
+                    "on b.id = c.id where c.id = a.id)",
+                    "Unsupported join to a table outside the from clause");
    }
 
    @ParameterizedTest

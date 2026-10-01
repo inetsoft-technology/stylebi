@@ -89,7 +89,6 @@ class UniformSQLOuterJoinDialectTest {
       "select t1.x from a t1 left join b t2 on t2.id = t1.id",
       "select sch.a.id from sch.a left join sch.b on sch.b.id = sch.a.id",
       "select a.x from a left join b on a.k = b.k left join c on c.id = b.id",
-      "select a.x from a left join (b left join c on c.id = b.id) on b.id = a.id",
       "select a.x from \"a\" left join \"b\" on \"b\".\"id\" = \"a\".\"id\"",
       "select * from \"My A\" left join b on b.id = \"My A\".id"
    };
@@ -98,6 +97,14 @@ class UniformSQLOuterJoinDialectTest {
       "select a.x from a left join b on a.k = b.k left join c on a.id = b.id",
       "select * from a left join b on id = bid",
       "select * from a left join b on b.id = zz.id"
+   };
+
+   // Bug #77434, a join group on the right side of an outer join is refused with every
+   // data source, the generated sql doesn't keep the group and changes the rows
+   static final String[] NESTED_REFUSED = {
+      "select a.x from a left join (b left join c on c.id = b.id) on b.id = a.id",
+      "select a.x from (a left join b on a.id = b.id) left join " +
+         "(c left join d on d.id = c.id) on c.id = a.id"
    };
 
    // a query with an outer join that joins a table outside its from clause, the
@@ -161,6 +168,10 @@ class UniformSQLOuterJoinDialectTest {
       return cases(REFUSED);
    }
 
+   static Stream<Arguments> nestedRefusedCases() {
+      return cases(NESTED_REFUSED);
+   }
+
    private static Stream<Arguments> cases(String[] texts) {
       List<Arguments> list = new ArrayList<>();
       dataSources().forEach(ds -> {
@@ -200,6 +211,19 @@ class UniformSQLOuterJoinDialectTest {
       JDBCDataSource ds = dataSource(type, driver, url);
       RecognitionException ex = assertThrows(RecognitionException.class, () -> parse(text, ds));
       assertTrue(ex.getMessage().contains("Unsupported outer join condition"), ex.getMessage());
+   }
+
+   @ParameterizedTest(name = "{0}: {3}")
+   @MethodSource("nestedRefusedCases")
+   void outerJoinOfNestedJoinFails(String type, String driver, String url, String text) {
+      JDBCDataSource ds = dataSource(type, driver, url);
+      RecognitionException ex = assertThrows(RecognitionException.class, () -> parse(text, ds));
+      assertTrue(ex.getMessage().contains("Unsupported nested join"), ex.getMessage());
+
+      UniformSQL sql = new UniformSQL();
+      sql.setDataSource(ds);
+      new SQLProcessor(sql).parse(text);
+      assertEquals(UniformSQL.PARSE_FAILED, sql.getParseResult());
    }
 
    @ParameterizedTest
@@ -271,13 +295,11 @@ class UniformSQLOuterJoinDialectTest {
          "select \"a\".\"x\", \"b\".\"x\" from \"a\" LEFT OUTER JOIN \"b\" ON \"a\".\"id\" = \"b\".\"id\"",
       "postgresql | select a.x, b.x from a, b where a.id *= b.id | " +
          "select \"a\".\"x\", \"b\".\"x\" from \"a\" LEFT OUTER JOIN \"b\" ON \"a\".\"id\" = \"b\".\"id\"",
-      // oracle (+) preserves the earlier table, a case-mismatched or nested join used to
-      // put the (+) on the wrong side
+      // oracle (+) preserves the earlier table, a case-mismatched join used to put the
+      // (+) on the wrong side (the nested join case is refused by Bug #77434, see
+      // NESTED_REFUSED)
       "oracle | select A.x, B.x from A left join B on b.id = a.id | " +
          "select A.X, B.X from A, B where a.id = b.id(+)",
-      "oracle | select a.x from (a left join b on a.id = b.id) left join " +
-         "(c left join d on d.id = c.id) on c.id = a.id | select A.X from a, b, c, d " +
-         "where a.id = b.id(+) and c.id = d.id(+) and a.id = c.id(+)",
       // a bare table name refers to its unaliased schema table (I2), legacy oracle sql is
       // kept, and the ansi helpers no longer list the tables twice
       "oracle | select * from scott.emp, scott.dept where emp.deptno = dept.deptno(+) | " +
