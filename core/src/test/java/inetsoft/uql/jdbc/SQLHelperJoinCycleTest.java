@@ -113,8 +113,31 @@ class SQLHelperJoinCycleTest {
             "join d on c.id = d.id right join e on d.k = e.k",
          // an inner step with its own cycle edge between the held condition and the right join
          COLS5 + "from a left join b on a.id = b.id join c on b.id = c.id and a.k = c.k " +
-            "join d on c.id = d.id and b.k = d.k right join e on d.id = e.id"
+            "join d on c.id = d.id and b.k = d.k right join e on d.id = e.id",
+         // the first of two right joins takes the pending condition
+         COLS5 + "from a left join b on a.id = b.id join c on b.id = c.id and a.k = c.k " +
+            "right join d on c.id = d.id right join e on d.k = e.k",
+         // a second cycle edge after an inner step is in its ON, the pending one in the right join
+         COLS5 + "from a left join b on a.id = b.id join c on b.id = c.id and a.k = c.k " +
+            "join d on c.id = d.id and a.id = d.id right join e on d.k = e.k",
+         // a left join step between the outer step and the right join
+         COLS5 + "from a left join b on a.id = b.id join c on b.id = c.id and a.k = c.k " +
+            "left join d on c.id = d.id right join e on d.k = e.k",
+         // ... with a where clause
+         COLS + "from a left join b on a.id = b.id join c on b.id = c.id and a.k = c.k " +
+            "right join d on c.id = d.id where d.k > 1 or a.id is null"
       );
+   }
+
+   @Test
+   void editorRightJoinAfterWhereRouteKeepsAllRightRows() throws Exception {
+      // G RIGHT JOIN d ON c.id = d.id, with b.k = c.k filtering G first, written as d LEFT JOIN G
+      String generated = generate(editor("a.id = b.id", "a.id *= c.id", "b.k = c.k", "c.id =* d.id"),
+                                  true);
+      String reference = COLS + "from d left join (a join b on a.id = b.id left join c on " +
+         "a.id = c.id) on c.id = d.id and b.k = c.k";
+      assertSameRows(reference, generated);
+      assertNull(rowMismatch(HSQLDB, reference, generated), generated);
    }
 
    // queries with a full join after a cycle, run on HSQLDB (Derby has no full join)
