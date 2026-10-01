@@ -108,25 +108,39 @@ TableStyle[region="Body"] {
 **Pass:** 24px. **Fail:** 32px means the seeded 12px is being added on top of the stylesheet's 4px —
 every stylesheet customer's tables just got taller.
 
-**Part B — confirm the decided behaviour.** Measure the *modernized* table with the same stylesheet:
+**Part B — the marked table stays on its tier.** Measure the *modernized* table with the same
+stylesheet:
 
 | | height | why |
 |---|---|---|
 | marked, no stylesheet | 28px | stored 16 + seeded 12 |
-| marked, **with** the 2px stylesheet | **20px** | stored 16 + css 4; the stylesheet wins wholesale |
+| marked, **with** the 2px stylesheet | **28px** | stored 16 + `max(css 4, seed 12)` = 12 |
 | same table unmarked | 24px | stored 20 + css 4 |
 
-**Pass:** 20px.
+**Pass:** 28px. **Fail:** 20px — the row grew by the stylesheet's 4px alone and is short by the
+seed its stored height gave up, so it renders below the tier and below what the same table renders
+unmarked.
 
-That a stylesheet table gets *shorter* when modernized — 20px, identical to dense, and 4px shorter
-than before it was modernized — is deliberate and was decided on 2026-09-24. The rule is that a
-stylesheet wins wholesale, for marked and unmarked assemblies alike: one rule beats two, and a
-stylesheet author overriding padding is asking to own it. `getRowPadding`'s fully-covered branch
-returns `css` alone and is not to be changed to `max(css, seeded)`.
+**Corrected 2026-10-01.** This check originally expected **20px**, and recorded that a stylesheet
+table getting shorter when modernized was deliberate: a stylesheet wins wholesale, and
+`getRowPadding`'s fully-covered branch returns `css` alone "and is not to be changed to
+`max(css, seeded)`". That is wrong, and the instruction not to change it is withdrawn.
 
-Slice B's card inset carries the same decision through a different mechanism — the assembly's own
-CSS class via `setCSSDefaults` rather than `CSSTableStyle` — and is named in that PR. The two were
-decided together and should stay that way.
+The reasoning assumed a base the seed had not come out of. The stored height is the tier *less* the
+seed, on the promise that render adds it back, so the CSS amount alone leaves the row short by the
+difference — the 20px it expected is the comfortable tier rendering at dense, and 4px shorter than
+the same table unmarked. The rule is now that a row grows by the inset it actually draws, floored
+by the seed its stored height gave up.
+
+The wholesale rule survives in one place: the floor is skipped where the stylesheet also sets
+`height`, because that replaces the density height outright rather than shrinking it. That is the
+case the original rejection of `max` was really protecting. Design §4.3 and §8 carry the full
+correction, and `TableCellPaddingCssCoverageTest` pins both halves.
+
+Slice B's card inset keeps the wholesale rule, through a different mechanism — the assembly's own
+CSS class via `setCSSDefaults` rather than `CSSTableStyle`. This correction does not reach it:
+`setCSSDefaults` skips the inset seed outright where CSS defines padding (`!isUserPadding() &&
+!isCssPaddingDefined()`), so nothing was subtracted there and nothing is owed back.
 
 ---
 
