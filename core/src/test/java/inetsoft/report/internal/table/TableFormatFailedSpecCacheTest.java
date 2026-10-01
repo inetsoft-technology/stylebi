@@ -22,6 +22,7 @@ import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
+import inetsoft.report.lens.DefaultTableLens;
 import inetsoft.test.*;
 import inetsoft.util.Tool;
 import inetsoft.util.UserMessage;
@@ -34,6 +35,8 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.text.Format;
+import java.util.Date;
+import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -146,6 +149,54 @@ class TableFormatFailedSpecCacheTest {
       assertNull(TableFormat.getFormat("DateFormat", "null", Locale.US));
       Format fmt = TableFormat.getFormat("DateFormat", null, Locale.US);
       assertNotNull(fmt, "a valid null-spec date format must not be shadowed by spec \"null\"");
+   }
+
+   @Test
+   void tableLensReadLogsEachRejectedColumnFormatOnce() throws Exception {
+      String[][] specs = {
+         { "MessageFormat", "{0,choice,}" }, { "DecimalFormat", "#,##0.0.0" }, { "DateFormat", "yyyy-qq" }
+      };
+
+      assertEquals(3, readCells(specs).size(), "each column format warns the first request");
+
+      // a later request reads the same cells on another thread
+      AtomicReference<List<String>> later = new AtomicReference<>();
+      Thread thread = new Thread(() -> later.set(readCells(specs)));
+      thread.start();
+      thread.join(10000);
+
+      assertEquals(3, later.get().size(), "each column format still warns a later request");
+      assertEquals(3, appender.list.size(), "one trace per rejected spec, not one per cell");
+   }
+
+   // formats every data cell of a 3-column table and returns this request's user messages
+   private static List<String> readCells(String[][] specs) {
+      Object[][] data = new Object[21][];
+      data[0] = new Object[] { "message", "decimal", "date" };
+
+      for(int r = 1; r < data.length; r++) {
+         data[r] = new Object[] { r, r * 1.5, new Date() };
+      }
+
+      DefaultTableLens table = new DefaultTableLens(data);
+      table.setHeaderRowCount(1);
+      FormatTableLens2 lens = new FormatTableLens2(table);
+
+      for(int c = 0; c < specs.length; c++) {
+         TableFormat format = new TableFormat();
+         format.format = specs[c][0];
+         format.format_spec = specs[c][1];
+         lens.getFormatMap().put(table.getDescriptor().getColDataPath(c), format);
+      }
+
+      for(int r = 1; r < data.length; r++) {
+         for(int c = 0; c < specs.length; c++) {
+            assertEquals(data[r][c], lens.getObject(r, c), "an unformatted value is shown");
+         }
+      }
+
+      UserMessage message = Tool.getUserMessage();
+      return message == null ? List.of() : List.of(message.getMessage().split("\n"));
    }
 
    private Logger logger;
