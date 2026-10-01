@@ -26,6 +26,7 @@ import inetsoft.uql.asset.*;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.jdbc.*;
 import inetsoft.uql.jdbc.util.ConditionListHandler;
+import inetsoft.util.script.FormulaContext;
 import inetsoft.util.script.ScriptEnv;
 import inetsoft.util.script.ScriptException;
 
@@ -143,7 +144,9 @@ public class MVConditionListHandler extends ConditionListHandler {
 
       try {
          senv.put("MV", scriptable);
-         val = senv.exec(senv.compile(exp), box.getScope(), null, box.getWorksheet());
+         // condition expressions are end-user authored, run them in restricted mode
+         val = FormulaContext.runRestricted(
+            () -> senv.exec(senv.compile(exp), box.getScope(), null, box.getWorksheet()));
       }
       catch(Exception ex) {
          throw new ScriptException("MV Script error: " + ex.getMessage());

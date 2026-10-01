@@ -34,6 +34,7 @@ import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.util.QueryManager;
 import inetsoft.uql.util.XUtil;
 import inetsoft.util.*;
+import inetsoft.util.script.FormulaContext;
 import inetsoft.util.script.ScriptEnv;
 import inetsoft.web.admin.monitoring.MonitorLevelService;
 import inetsoft.web.messaging.MessageAttributes;
@@ -417,8 +418,10 @@ public class AssetDataCache extends DataCache<DataKey, TableLens> {
             if(val instanceof ExpressionValue expressionValue) {
                if(expressionValue.getType().equals(ExpressionValue.JAVASCRIPT)) {
                   ScriptEnv senv = box.getScriptEnv();
-                  Object result = senv.exec(senv.compile(expressionValue.getExpression()),
-                                            box.getScope(), null, null);
+                  // variable expressions are end-user authored, run them in restricted mode
+                  Object result = FormulaContext.runRestricted(
+                     () -> senv.exec(senv.compile(expressionValue.getExpression()),
+                                     box.getScope(), null, null));
                   vtable.put(key, result);
                }
             }

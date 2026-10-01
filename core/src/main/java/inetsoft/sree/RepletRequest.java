@@ -24,6 +24,7 @@ import inetsoft.uql.VariableTable;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.util.XUtil;
 import inetsoft.util.*;
+import inetsoft.util.script.FormulaContext;
 import inetsoft.util.script.ScriptEnv;
 import inetsoft.util.script.ScriptException;
 import inetsoft.web.composer.model.vs.DynamicValueModel;
@@ -1311,7 +1312,8 @@ public class RepletRequest implements java.io.Serializable, Cloneable, HttpXMLSe
       Object val;
 
       try {
-         val = senv.exec(senv.compile(cmd), scope, null, null);
+         // schedule parameter expressions are end-user authored, run them in restricted mode
+         val = FormulaContext.runRestricted(() -> senv.exec(senv.compile(cmd), scope, null, null));
       }
       catch(Exception ex) {
          String suggestion = senv.getSuggestion(ex, null, scope);

@@ -273,7 +273,9 @@ public class CalcFieldFormula implements PercentageFormula, Formula2 {
 
       // execute the script object
       try {
-         result = senv.exec(script, scope = updateParameter(), null, null);
+         Scriptable scope0 = scope = updateParameter();
+         // calc fields are end-user authored, run them in restricted mode
+         result = FormulaContext.runRestricted(() -> senv.exec(script, scope0, null, null));
       }
       catch(Exception ex) {
          String suggestion = senv.getSuggestion(ex, "field", scope);
