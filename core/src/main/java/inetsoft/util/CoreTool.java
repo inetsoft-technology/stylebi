@@ -3906,6 +3906,35 @@ public class CoreTool {
 
    // AD 1-01-03 00:00 UTC, any earlier date may be BC in some time zone
    private static final long AD_START_THRESHOLD = -62135596800000L;
+
+   /**
+    * Get the value of a public static field, or null if the class or field is not
+    * available (e.g. an optional JDBC driver class).
+    */
+   public static Object field(Class<?> cls, String field) {
+      try {
+         Field member = cls.getField(field);
+
+         return member.get(null);
+      }
+      catch(Throwable e) {
+         return null;
+      }
+   }
+
+   /**
+    * Get the value of a public static field, or null if the class or field is not
+    * available (e.g. an optional JDBC driver class).
+    */
+   public static Object field(String cls, String field) {
+      try {
+         return field(Class.forName(cls), field);
+      }
+      catch(Throwable e) {
+         return null;
+      }
+   }
+
    // date time format cache
    static final FormatCache DATETIME_FORMAT_CACHE =
       new FormatCache(createDateFormat(DEFAULT_DATETIME_PATTERN));

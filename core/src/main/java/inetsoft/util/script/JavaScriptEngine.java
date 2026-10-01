@@ -304,11 +304,8 @@ public class JavaScriptEngine {
          throw new IllegalArgumentException("Class name is required");
       }
 
-      if(!ScriptHostAccess.classFilter().test(cls)) {
-         throw new SecurityException("Class " + cls + " is not allowed in scripts");
-      }
-
-      Class<?> clazz = Class.forName(cls, false, JavaScriptEngine.class.getClassLoader());
+      Class<?> clazz =
+         ScriptHostAccess.loadScriptVisibleClass(cls, JavaScriptEngine.class.getClassLoader());
       return clazz.getDeclaredConstructor().newInstance();
    }
 
