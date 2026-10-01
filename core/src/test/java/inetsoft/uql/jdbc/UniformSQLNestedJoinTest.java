@@ -410,6 +410,51 @@ class UniformSQLNestedJoinTest {
       }
    }
 
+   @ParameterizedTest
+   @ValueSource(strings = {
+      // each of these is generated with different results today, whatever the data source
+      "select * from a left join (b join c on b.id = c.id) on a.id = b.id",
+      "select * from a left join (b right join c on b.id = c.id) on a.id = b.id",
+      "select * from a join b on a.id = b.id join d on a.id = d.id right join c on b.id = c.id",
+      "select * from a right join b on a.id = b.id join c on a.id = c.id",
+      "select * from (a cross join b) right join c on b.id = c.id",
+      "select * from a right join b on a.id = b.id, c where a.id = c.id",
+      "select * from a, b right join c on b.id = c.id where a.id = b.id",
+      "select * from a right join b on a.id = b.id where a.id = b.id or a.k = 1",
+      "select * from a left join b on a.id = b.id right join c on b.id = c.id where a.id = c.k",
+      "select a.id from a where exists (select 1 from b right join c on b.id = c.id " +
+         "where c.id = a.id)",
+      // nested joins in a derived table and in an exists subquery
+      "select a.id, t.id from a left join (select b.id from b left join " +
+         "(c join d on c.id = d.id) on b.id = c.id) t on a.id = t.id",
+      "select a.id from a join b on a.id = b.id where exists (select 1 from c left join " +
+         "(d join b on d.id = b.id) on c.id = d.id)"
+   })
+   void wrongJoinFailsWithEveryDataSource(String text) {
+      for(JDBCDataSource source :
+         new JDBCDataSource[] { null, ansiSource, oracleSource, oracleAnsiSource })
+      {
+         assertRefused(text, "Unsupported", source);
+      }
+   }
+
+   @ParameterizedTest
+   @ValueSource(strings = {
+      "select * from a join b on a.id = b.id left join c on b.id = c.id right join d on c.id = d.id",
+      "select * from a right join (select c.id, c.k from c join d on c.id = d.id) t " +
+         "on a.id = t.id join e on e.id = t.id"
+   })
+   void rightJoinWithSameGeneratedJoinsParsesWithAnsiSources(String text) throws Exception {
+      for(JDBCDataSource source : new JDBCDataSource[] { ansiSource, oracleAnsiSource }) {
+         UniformSQL sql = parse(text, source);
+         assertEquals(UniformSQL.PARSE_SUCCESS, sql.getParseResult(), source.getName());
+
+         String generated = normalize(sql.getSQLString());
+         assertEquals(generated, normalize(parse(generated, source).getSQLString()),
+                      source.getName());
+      }
+   }
+
    private static void assertRefused(String text, String message) {
       assertRefused(text, message, ansiSource);
    }
