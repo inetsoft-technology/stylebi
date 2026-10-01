@@ -127,7 +127,12 @@ public final class ScriptHostAccess {
       "com.github.spullara",
       "com.github.dockerjava",
       "com.jcraft",
-      "com.zaxxer"
+      "com.zaxxer",
+      // Bug #77467: c3p0 + mchange-commons build a pooled DataSource from
+      // script-supplied settings. HikariCP (com.zaxxer) and jdbi3 (org.jdbi),
+      // listed above, are the other connection-pool / SQL-access libraries on the
+      // runtime classpath.
+      "com.mchange"
    );
 
    // Specific dangerous classes that are blocked by exact name.
@@ -325,6 +330,55 @@ public final class ScriptHostAccess {
                   // are used by Java callers only
                   .denyAccess(inetsoft.uql.jdbc.JDBCHandler.class)
                   .denyAccess(inetsoft.uql.tabular.TabularUtil.class)
+                  // Bug #77467: classFilter() gates only the Java.type(...) lookup;
+                  // it never consults member access on an object a script already
+                  // holds. So once a script reaches any object that is or yields a
+                  // live JDBC handle, every public method on it is callable
+                  // (getConnection/createStatement/executeQuery/connect) no matter
+                  // whether its class is in classFilter. There are many ways a script
+                  // can get such an object (the pool factories, a pool library, the
+                  // driver manager, a Driver on the classpath), so the fix is at the
+                  // member layer: deny, by type, the connection-bearing JDBC types,
+                  // which kills the operation on the held object however it was
+                  // obtained. Deny on an interface covers its implementors and their
+                  // construction/statics (verified against Graal 24.1.2), so the pool
+                  // factory interface covers all three factory impls in one line.
+                  // java.sql.Statement covers Prepared/CallableStatement (subtypes),
+                  // and javax.sql.DataSource covers Hikari's HikariDataSource.
+                  // java.sql.Types/Date/Time/Timestamp are value types with no
+                  // connection methods and are untouched (they stay in ALLOWED_CLASSES
+                  // at the type layer), so the form write-back API (createConnection ->
+                  // DBScriptable, which keeps the Connection on the Java side and hands
+                  // the script only XTableArray/primitives) still works.
+                  .denyAccess(javax.sql.DataSource.class)
+                  .denyAccess(javax.sql.ConnectionPoolDataSource.class)
+                  .denyAccess(javax.sql.XADataSource.class)
+                  .denyAccess(javax.sql.PooledConnection.class)
+                  .denyAccess(java.sql.Connection.class)
+                  .denyAccess(java.sql.Statement.class)
+                  .denyAccess(java.sql.Driver.class)
+                  .denyAccess(java.sql.DriverManager.class)
+                  // the pool factory interface (covers Default/JNDI/Legacy impls, their
+                  // statics and construction) and the Hikari pool types a script could
+                  // drive directly (HikariConfig.setDriverClassName instantiates an
+                  // arbitrary named class via internal reflection, bypassing classFilter)
+                  .denyAccess(inetsoft.uql.jdbc.ConnectionPoolFactory.class)
+                  .denyAccess(com.zaxxer.hikari.HikariConfig.class)
+                  .denyAccess(com.zaxxer.hikari.HikariDataSource.class)
+                  // Bug #77467 (R5): the query engine runs a query against the data
+                  // source the query carries (XQuery.getDataSource()) with no
+                  // data-source permission check. A script that builds a JDBCQuery
+                  // over a JDBCDataSource it made itself and passes it to the manager
+                  // or engine would run arbitrary SQL inside Java without ever
+                  // receiving a Connection, so the member-layer java.sql denies above
+                  // would not stop it. Deny the two engine-side execution entry points
+                  // reachable from script (getXNodeTableLens/getXNode on the session
+                  // manager, and the execute(...) family on the data service that
+                  // XRepository/XEngine expose). Both are Java-caller APIs; the
+                  // permission-checked, by-name script query path (XUtil.runQuery) is
+                  // unaffected because it runs on the Java side.
+                  .denyAccess(inetsoft.report.XSessionManager.class)
+                  .denyAccess(inetsoft.uql.XDataService.class)
                   // XUtil.getSecurityProvider(), and the interfaces its providers'
                   // configuration and cache methods are declared by
                   .denyAccess(inetsoft.sree.security.AuthenticationProvider.class)
