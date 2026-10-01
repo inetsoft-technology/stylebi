@@ -129,6 +129,60 @@ class VariableTableJsonTest {
    }
 
    @Test
+   void typedArraysRoundTrip() throws Exception {
+      Map<String, Object[]> values = new LinkedHashMap<>();
+      values.put("chars", new Character[] { 'a', 'b' });
+      values.put("booleans", new Boolean[] { true, false });
+      values.put("bytes", new Byte[] { 1, 2 });
+      values.put("shorts", new Short[] { 3, 4 });
+      values.put("longs", new Long[] { 1L, 1234567890123L });
+      values.put("floats", new Float[] { 1.5f });
+      values.put("doubles", new Double[] { 2.25, 3.5 });
+      values.put("bigIntegers", new BigInteger[] { new BigInteger("12345678901234567890") });
+      values.put("bigDecimals", new BigDecimal[] { new BigDecimal("1.5") });
+      values.put("dates", new Date[] { new Date(1_790_000_000_000L) });
+      values.put("sqlDates", new java.sql.Date[] { new java.sql.Date(1_790_000_000_000L) });
+      values.put("timestamps", new java.sql.Timestamp[] { new java.sql.Timestamp(1_790_000_000_123L) });
+
+      VariableTable table = new VariableTable();
+      values.forEach(table::put);
+
+      String json = new RuntimeViewsheet().saveJson(table, mapper);
+      VariableTable result = RuntimeSheet.loadJson(VariableTable.class, json, mapper);
+      assertNotNull(result);
+
+      for(Map.Entry<String, Object[]> e : values.entrySet()) {
+         Object actual = result.get(e.getKey());
+         assertNotNull(actual, e.getKey());
+         assertEquals(e.getValue().getClass(), actual.getClass(), e.getKey());
+         assertArrayEquals(e.getValue(), (Object[]) actual, e.getKey());
+      }
+   }
+
+   @Test
+   void unknownTypeDoesNotDropOtherVariables() throws Exception {
+      // a class that is not on the classpath and a value Jackson cannot construct used to fail
+      // the whole table, which loadJson turned into null
+      String json = tableJson("{\"missing\":{\"type\":\"com.example.DoesNotExist\",\"value\":\"x\"}," +
+                                 "\"kept\":{\"type\":\"java.lang.String\",\"value\":\"v\"}}", "null");
+      VariableTable result = RuntimeSheet.loadJson(VariableTable.class, json, mapper);
+
+      assertNotNull(result);
+      assertEquals("x", result.get("missing"));
+      assertEquals("v", result.get("kept"));
+
+      VariableTable table = new VariableTable();
+      table.put("color", new java.awt.Color(1, 2, 3));
+      table.put("kept", "v");
+      result = RuntimeSheet.loadJson(
+         VariableTable.class, new RuntimeViewsheet().saveJson(table, mapper), mapper);
+
+      assertNotNull(result);
+      assertInstanceOf(Map.class, result.get("color"));
+      assertEquals("v", result.get("kept"));
+   }
+
+   @Test
    void entryWithoutTypeIsSkipped() throws Exception {
       String json = tableJson("{\"kept\":{\"type\":\"java.lang.String\",\"value\":\"v\"}," +
                                  "\"untyped\":{\"value\":\"v\"}}", "null");
