@@ -363,8 +363,12 @@ public final class ScriptHostAccess {
                   // drive directly (HikariConfig.setDriverClassName instantiates an
                   // arbitrary named class via internal reflection, bypassing classFilter)
                   .denyAccess(inetsoft.uql.jdbc.ConnectionPoolFactory.class)
+                  // (HikariDataSource extends HikariConfig, so this covers it too)
                   .denyAccess(com.zaxxer.hikari.HikariConfig.class)
-                  .denyAccess(com.zaxxer.hikari.HikariDataSource.class)
+                  // unwrap()/isWrapperFor() let a held JDBC handle whose class is not
+                  // public (Graal then reports the interface-declared method) hand
+                  // out the vendor API behind it; nothing script-facing is a Wrapper
+                  .denyAccess(java.sql.Wrapper.class)
                   // Bug #77467 (R5): the query engine runs a query against the data
                   // source the query carries (XQuery.getDataSource()) with no
                   // data-source permission check. A script that builds a JDBCQuery
@@ -379,6 +383,43 @@ public final class ScriptHostAccess {
                   // unaffected because it runs on the Java side.
                   .denyAccess(inetsoft.report.XSessionManager.class)
                   .denyAccess(inetsoft.uql.XDataService.class)
+                  // Bug #77467 (round 1): the same cause has more Java-side helpers
+                  // than the two entry points above. XAgent/JDBCAgent.getQueryData,
+                  // ColumnCache.getColumnData, SQLTypes.getChildMetaData,
+                  // JDBCUtil.getTableColumns and the XHandler family each take a data
+                  // source or query from the caller and connect or run it with no
+                  // permission check, and the pool properties a data source carries
+                  // (e.g. connectionInitSql) run SQL on every new connection. Naming
+                  // helpers one at a time keeps missing some, so close the source:
+                  // scripts must not construct, configure or read data-source and
+                  // query objects. A deny on the base classes covers every subclass
+                  // (JDBC, XMLA, tabular and plugin connectors), their constructors,
+                  // setters, getters (incl. credentials) and clone(). No script API
+                  // hands these objects to scripts; the form write-back API
+                  // (DBScriptable) holds its data source on the Java side.
+                  .denyAccess(inetsoft.uql.XDataSource.class)
+                  .denyAccess(inetsoft.uql.XQuery.class)
+                  // ...and the Java-side factories that would otherwise build one from
+                  // script input without the script touching an XDataSource member:
+                  // the XML wrappers (parseXML instantiates and configures the data
+                  // source or query an element describes), the registry
+                  // (parseXDataSource2 does the same; getDataSource and the
+                  // set/remove methods read and write the stored data sources with no
+                  // permission check of their own) and the data source listings
+                  // (createDataSource() returns a configured data source)
+                  .denyAccess(inetsoft.uql.XDataSourceWrapper.class)
+                  .denyAccess(inetsoft.uql.XQueryWrapper.class)
+                  .denyAccess(inetsoft.uql.service.DataSourceRegistry.class)
+                  .denyAccess(inetsoft.uql.DataSourceListing.class)
+                  // Defense in depth for a data source or query a script still holds
+                  // (e.g. one a Java API returned): deny the helpers that connect or
+                  // run it. XAgent covers JDBCAgent/XMLAAgent, and XHandler covers
+                  // JDBCHandler/XMLAHandler/TabularHandler. None is script API.
+                  .denyAccess(inetsoft.uql.util.XAgent.class)
+                  .denyAccess(inetsoft.uql.util.ColumnCache.class)
+                  .denyAccess(inetsoft.uql.service.XHandler.class)
+                  .denyAccess(inetsoft.uql.jdbc.util.SQLTypes.class)
+                  .denyAccess(inetsoft.uql.jdbc.util.JDBCUtil.class)
                   // XUtil.getSecurityProvider(), and the interfaces its providers'
                   // configuration and cache methods are declared by
                   .denyAccess(inetsoft.sree.security.AuthenticationProvider.class)

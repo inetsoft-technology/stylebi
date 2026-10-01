@@ -19,6 +19,7 @@ package inetsoft.util.script.graal;
 
 import inetsoft.report.script.graal.ReportGraalJavaScriptEngine;
 import inetsoft.test.*;
+import inetsoft.uql.XRepository;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -34,6 +35,7 @@ import java.util.logging.Logger;
 import javax.sql.DataSource;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.mock;
 
 /**
  * Bug #77467: a script must not be able to obtain or operate a live JDBC connection,
@@ -167,12 +169,58 @@ class ScriptJdbcAccessEnginesTest {
       // getXNodeTableLens / getXNode via the session manager
       assertEquals("OK:undefined",
                    typeofExpr("Java.type('inetsoft.report.XSessionManager').getSessionManager"));
-      // the execute(...) family the data service exposes (XRepository extends it); the
-      // static getRepository() still returns an object, but execute is denied on it
-      assertEquals("OK:undefined", typeofExpr(
-         "Java.type('inetsoft.uql.XRepository').getRepository != null ? " +
-         "(function(){try{return (Java.type('inetsoft.uql.XRepository').getRepository()).execute;}" +
-         "catch(e){return undefined;}})() : undefined"));
+      // the static accessor is declared on XRepository, which extends XDataService, so
+      // the deny hides it too
+      assertEquals("OK:undefined",
+                   typeofExpr("Java.type('inetsoft.uql.XRepository').getRepository"));
+
+      // The deny must also hold on a repository the script already holds (a raw host
+      // call could return one). Hand the script one and check the members that run
+      // a query or connect for metadata, and a getter, are all hidden.
+      engine.put("repo", mock(XRepository.class));
+      assertEquals("OK:object", typeofExpr("repo"));
+
+      for(String member : new String[] { "execute", "getMetaData", "getDataSource", "connect" }) {
+         assertEquals("OK:undefined", typeofExpr("repo." + member),
+                      member + " is reachable on a held XRepository");
+      }
+   }
+
+   /**
+    * Round 1: the Java-side factories that would build or look up a data source or
+    * query for a script, and the helpers that connect or run one, are not reachable.
+    */
+   @ParameterizedTest
+   @ValueSource(strings = { "base", "report" })
+   void dataSourceFactoriesAndQueryHelpersAreNotScriptVisible(String kind) throws Exception {
+      open(kind);
+
+      // the registry: parseXDataSource2 builds a configured data source from an XML
+      // element, getDataSource has no permission check of its own
+      assertEquals("OK:undefined",
+                   typeofExpr("Java.type('inetsoft.uql.service.DataSourceRegistry').getRegistry"));
+
+      // the XML wrappers, a data source listing and the non-JDBC handlers
+      for(String type : new String[] { "inetsoft.uql.XDataSourceWrapper",
+                                       "inetsoft.uql.XQueryWrapper",
+                                       "inetsoft.uql.listing.DerbyEmbeddedDataSourceListing",
+                                       "inetsoft.uql.xmla.XMLAHandler",
+                                       "inetsoft.uql.tabular.impl.TabularHandler",
+                                       "inetsoft.uql.jdbc.util.JDBCAgent",
+                                       "inetsoft.uql.jdbc.util.XMLAAgent" })
+      {
+         String made = run("(new (Java.type('" + type + "'))()) != null");
+         assertTrue(made.startsWith("ERR:"), type + " is still constructible from script: " + made);
+      }
+
+      // the static helpers that connect or run a data source or query they are given
+      assertEquals("OK:undefined", typeofExpr("Java.type('inetsoft.uql.util.XAgent').getAgent"));
+      assertEquals("OK:undefined",
+                   typeofExpr("Java.type('inetsoft.uql.util.ColumnCache').getColumnCache"));
+      assertEquals("OK:undefined",
+                   typeofExpr("Java.type('inetsoft.uql.jdbc.util.SQLTypes').getChildMetaData"));
+      assertEquals("OK:undefined",
+                   typeofExpr("Java.type('inetsoft.uql.jdbc.util.JDBCUtil').getTableColumns"));
    }
 
    /**
