@@ -33,6 +33,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import java.util.Locale;
 import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -145,6 +146,30 @@ class UniformSQLOnlessOuterJoinTest {
    })
    void joinWithoutConditionVariantsFailParse(String text) {
       joinWithoutConditionFailsParse(text);
+   }
+
+   // a dotless/dotted i must not change the join type, so the type is not upper-cased
+   // with the default locale
+   @ParameterizedTest
+   @ValueSource(strings = {
+      "select * from a right join b",
+      "select * from a right outer join b",
+      "select * from a left join b",
+      "select * from a full join b",
+      "select * from a union join b on a.id = b.id",
+   })
+   void joinWithoutConditionFailsParseInTurkishLocale(String text) {
+      Locale locale = Locale.getDefault();
+
+      try {
+         Locale.setDefault(Locale.forLanguageTag("tr-TR"));
+         UniformSQL sql = new UniformSQL();
+         new SQLProcessor(sql).parse(text);
+         assertEquals(UniformSQL.PARSE_FAILED, sql.getParseResult(), text);
+      }
+      finally {
+         Locale.setDefault(locale);
+      }
    }
 
    @Test

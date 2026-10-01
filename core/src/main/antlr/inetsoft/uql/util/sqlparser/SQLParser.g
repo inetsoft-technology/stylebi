@@ -2969,12 +2969,14 @@ sub_qualified_join [UniformSQL sql] returns [String str = ""]
           )?
           {
             // an outer join is only recorded by its join condition, so without one it
-            // would be regenerated as a cross join. a union join (no database supports it)
-            // would be regenerated as a cross or inner join
-            String jop = op.trim().toUpperCase();
+            // would be regenerated as a cross join. a union join (rejected by H2, SQLite
+            // and Derby) would be regenerated as a cross or inner join
+            String jop = op.trim();
 
-            if(sql != null && (jop.startsWith("UNION") ||
-               !spec && (jop.startsWith("LEFT") || jop.startsWith("RIGHT") || jop.startsWith("FULL"))))
+            if(sql != null && (jop.regionMatches(true, 0, "UNION", 0, 5) ||
+               !spec && (jop.regionMatches(true, 0, "LEFT", 0, 4) ||
+                         jop.regionMatches(true, 0, "RIGHT", 0, 5) ||
+                         jop.regionMatches(true, 0, "FULL", 0, 4))))
             {
               throw new SemanticException("Unsupported join: " + jop, getFilename(),
                                           d.getLine(), d.getColumn());
