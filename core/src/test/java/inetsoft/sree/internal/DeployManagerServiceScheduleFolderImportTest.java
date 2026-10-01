@@ -190,6 +190,23 @@ class DeployManagerServiceScheduleFolderImportTest {
       assertTrue(store.containsKey(folderId("X/Y")));
    }
 
+   // a new folder under an existing folder needs WRITE on that folder, WRITE on the root isn't
+   // enough, and the existing folder isn't changed when the import is refused
+   @Test
+   void restrictedImport_newFolderUnderUnwritableExistingFolder_isRefused() throws Exception {
+      AssetFolder x = new AssetFolder();
+      store.put(folderId("X"), x);
+      root().addEntry(folder("X"));
+      writableFolders.add("/");
+
+      List<String> failed = importEntry(taskInFolders("X/Y", "X", "X/Y"));
+
+      assertEquals(1, failed.size(), "the refusal is reported: " + failed);
+      assertFalse(store.containsKey(folderId("X/Y")));
+      assertSame(x, store.get(folderId("X")));
+      assertEquals(0, x.getEntries().length);
+   }
+
    // amendments 2-i and 2-ii, a round trip into an org where the folder already exists needs no
    // WRITE on its parent and none on the existing destination folder
    @Test

@@ -146,6 +146,20 @@ class ScheduleTaskFolderServiceDuplicateTest {
       assertTrue(root().containsEntry(folder("N")));
    }
 
+   // a subfolder is added with the path format the EM and portal controllers build
+   // (parent path + "/" + name), a path outside the checked parent is refused
+   @Test
+   void addNestedFolder_isCreatedOnlyUnderCheckedParent() throws Exception {
+      service.addFolder(folder("A"), "A/N", "A", AssetRepository.GLOBAL_SCOPE, principal);
+
+      assertTrue(store.containsKey(folder("A/N").toIdentifier()));
+      assertTrue(((AssetFolder) store.get(folder("A").toIdentifier())).containsEntry(folder("A/N")));
+
+      assertThrows(MessageException.class, () -> service.addFolder(
+         folder("A"), "AB/N", "A", AssetRepository.GLOBAL_SCOPE, principal));
+      assertFalse(store.containsKey(folder("AB/N").toIdentifier()));
+   }
+
    @Test
    void renameToNewName_isRenamed() throws Exception {
       AssetEntry renamed = service.renameFolder(renameModel("A", "N"), principal);
