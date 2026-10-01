@@ -380,6 +380,68 @@ class QueryManagerServiceTypedSqlTest {
       assertTrue(checked >= 50, "checked " + checked);
    }
 
+   // ---- quoted identifiers and non-ascii names: the fields echo compares the names as quoted ----
+
+   @ParameterizedTest
+   @MethodSource("quotedCases")
+   void unchangedQuotedEchoKeepsTypedSql(String text, String tab) throws Exception {
+      UniformSQL sql = install(text);
+      assertFalse(QueryManagerService.isSqlOnly(sql), text);
+
+      update(clientEcho(), tab);
+
+      assertTrue(sql.hasSQLString(), tab);
+      assertEquals(text, sql.getSQLString(), tab);
+   }
+
+   static Stream<Arguments> quotedCases() {
+      List<Arguments> list = new ArrayList<>();
+
+      for(String text : new String[] {
+         "select \"a\".\"x\", \"a\".\"y\" from \"a\" where \"a\".\"x\" > 1 order by \"a\".\"x\"",
+         "select \"T1\".\"Col One\" from \"T1\" where \"T1\".\"Col One\" = 'v'",
+         "select a.x as \"名称\", a.y as 数量 from a where a.x > 1",
+         "select a.\"名称\" from a where a.\"名称\" = '中文'" })
+      {
+         for(String tab : new String[] { "fields", "conditions", "sort", "grouping", "ALL" }) {
+            list.add(Arguments.of(text, tab));
+         }
+      }
+
+      return list.stream();
+   }
+
+   // ---- a condition pane that can't be compared counts as changed and is applied ----
+
+   @ParameterizedTest
+   @ValueSource(booleans = { false, true })
+   void uncomparableConditionPaneIsApplied(boolean negate) throws Exception {
+      UniformSQL sql = install(TYPED_SQL);
+      AdvancedSQLQueryModel model = clientEcho();
+      List<DataConditionItem> conds = model.getConditionPaneModel().getConditions();
+      Clause echoed = (Clause) conds.get(0);
+      // its json can't be written, so the comparison with the current conditions fails
+      Clause clause = new Clause() {
+         public String getUnwritable() {
+            throw new IllegalStateException("not serializable");
+         }
+      };
+      clause.setOperation(echoed.getOperation());
+      clause.setValue1(echoed.getValue1());
+      clause.setValue2(echoed.getValue2());
+      clause.setValue3(echoed.getValue3());
+      clause.setLevel(echoed.getLevel());
+      clause.setNegated(negate);
+      conds.set(0, clause);
+
+      update(model, "conditions");
+
+      assertFalse(sql.hasSQLString());
+      String saved = oneLine(sql.getSQLString());
+      assertTrue(saved.contains("a.x > 1"), saved);
+      assertEquals(negate, saved.contains("not"), saved);
+   }
+
    // ---- #77437 isSqlOnly stays first: a changed pane does not touch sql-only text ----
 
    @ParameterizedTest
