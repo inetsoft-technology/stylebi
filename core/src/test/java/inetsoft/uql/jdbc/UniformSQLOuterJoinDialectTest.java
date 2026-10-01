@@ -24,6 +24,7 @@ import inetsoft.util.Plugins;
 import inetsoft.util.credential.CredentialService;
 import inetsoft.util.credential.LocalPasswordCredential;
 import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.*;
@@ -121,8 +122,28 @@ class UniformSQLOuterJoinDialectTest {
       "select * from a left join b on b.id = a.id where exists (select 1 from c where c.id = b.id)"
    };
 
+   // Bug #77440 (I2), a join column may name an unaliased schema-qualified table by its
+   // bare table name, which is ordinary legacy (e.g. Oracle) sql and not correlated
+   static final String[] SCHEMA_BARE_NAME_ACCEPTED = {
+      "select * from scott.emp, scott.dept where emp.deptno = dept.deptno(+)",
+      "select * from scott.emp left join scott.dept on emp.deptno = dept.deptno",
+      "select * from scott.emp right join scott.dept on dept.deptno = emp.deptno",
+      "select * from scott.emp left join scott.dept on scott.dept.deptno = emp.deptno",
+      "select * from \"scott\".\"emp\" left join \"scott\".\"dept\" " +
+         "on \"emp\".\"deptno\" = \"dept\".\"deptno\""
+   };
+
+   // the bare name matches no table when two unaliased tables share it (ambiguous), or
+   // when the schema table has an alias (the alias hides the table name)
+   static final String[] SCHEMA_BARE_NAME_REFUSED = {
+      "select * from s1.emp, s2.emp, dept where emp.deptno = dept.deptno(+)",
+      "select * from s1.emp, s2.emp left join dept on dept.deptno = emp.deptno",
+      "select * from scott.emp e, scott.dept where emp.deptno = dept.deptno(+)",
+      "select * from scott.emp e left join scott.dept on dept.deptno = emp.deptno"
+   };
+
    static Stream<Arguments> outsideTableRefusedCases() {
-      return cases(OUTSIDE_TABLE_REFUSED);
+      return Stream.concat(cases(OUTSIDE_TABLE_REFUSED), cases(SCHEMA_BARE_NAME_REFUSED));
    }
 
    // a data source with ansi joins generates every join of the subquery in its from
@@ -133,7 +154,7 @@ class UniformSQLOuterJoinDialectTest {
    }
 
    static Stream<Arguments> acceptedCases() {
-      return cases(ACCEPTED);
+      return Stream.concat(cases(ACCEPTED), cases(SCHEMA_BARE_NAME_ACCEPTED));
    }
 
    static Stream<Arguments> refusedCases() {
@@ -257,6 +278,23 @@ class UniformSQLOuterJoinDialectTest {
       "oracle | select a.x from (a left join b on a.id = b.id) left join " +
          "(c left join d on d.id = c.id) on c.id = a.id | select A.X from a, b, c, d " +
          "where a.id = b.id(+) and c.id = d.id(+) and a.id = c.id(+)",
+      // a bare table name refers to its unaliased schema table (I2), legacy oracle sql is
+      // kept, and the ansi helpers no longer list the tables twice
+      "oracle | select * from scott.emp, scott.dept where emp.deptno = dept.deptno(+) | " +
+         "select * from scott.emp, scott.dept where emp.deptno = dept.deptno(+)",
+      "oracle | select * from scott.emp left join scott.dept on emp.deptno = dept.deptno | " +
+         "select * from scott.emp, scott.dept where emp.deptno = dept.deptno(+)",
+      "oracle | select * from scott.emp right join scott.dept on dept.deptno = emp.deptno | " +
+         "select * from scott.emp, scott.dept where emp.deptno (+)= dept.deptno",
+      "oracle ansi | select * from scott.emp, scott.dept where emp.deptno = dept.deptno(+) | " +
+         "select * from scott.emp LEFT OUTER JOIN scott.dept ON emp.deptno = dept.deptno",
+      "sql server | select * from scott.emp right join scott.dept on dept.deptno = emp.deptno | " +
+         "select * from scott.emp RIGHT OUTER JOIN scott.dept ON emp.deptno = dept.deptno",
+      "postgresql | select * from scott.emp left join scott.dept on emp.deptno = dept.deptno | " +
+         "select * from \"scott\".\"emp\" LEFT OUTER JOIN \"scott\".\"dept\" " +
+         "ON \"emp\".\"deptno\" = \"dept\".\"deptno\"",
+      "google bigquery | select * from scott.emp left join scott.dept on emp.deptno = dept.deptno | " +
+         "select * from `scott.emp` LEFT OUTER JOIN `scott.dept` ON emp.deptno = dept.deptno",
       // quoted names are case-sensitive, \"A\" and a are two tables
       "postgresql | select * from \"A\", a left join c on c.id = a.id where \"A\".id = a.id | " +
          "select * from (\"A\" INNER JOIN \"a\" ON \"A\".\"id\" = \"a\".\"id\" ) " +
@@ -265,6 +303,38 @@ class UniformSQLOuterJoinDialectTest {
    void generatesSql(String type, String text, String expected) throws Exception {
       JDBCDataSource ds = dataSource(type, null, null);
       assertEquals(expected, normalize(parse(text, ds).getSQLString()));
+   }
+
+   // a bare table name resolves to the one unaliased schema table with that last segment
+   @Test
+   void bareNameResolvesToSingleUnaliasedSchemaTable() {
+      UniformSQL sql = new UniformSQL();
+      sql.addTable("scott.emp");
+      sql.addTable("\"scott\".\"dept\"");
+      sql.addTable("e", "hr.emp2");
+      assertEquals(0, sql.getJoinTableIndex("emp"));
+      assertEquals(0, sql.getJoinTableIndex("EMP"));
+      assertEquals(1, sql.getJoinTableIndex("dept"));
+      assertEquals(1, sql.getJoinTableIndex("\"dept\""));
+      // an aliased table is only referred to by its alias
+      assertEquals(-1, sql.getJoinTableIndex("emp2"));
+      assertEquals(2, sql.getJoinTableIndex("e"));
+      // a qualified table part is not a bare name
+      assertEquals(-1, sql.getJoinTableIndex("x.emp"));
+
+      // ambiguous, two unaliased tables named emp
+      UniformSQL ambiguous = new UniformSQL();
+      ambiguous.addTable("s1.emp");
+      ambiguous.addTable("s2.emp");
+      assertEquals(-1, ambiguous.getJoinTableIndex("emp"));
+
+      // a case-sensitive match is preferred over a case-insensitive one
+      UniformSQL cased = new UniformSQL();
+      cased.addTable("s1.EMP");
+      cased.addTable("s2.emp");
+      assertEquals(1, cased.getJoinTableIndex("emp"));
+      assertEquals(0, cased.getJoinTableIndex("EMP"));
+      assertEquals(-1, cased.getJoinTableIndex("Emp"));
    }
 
    private static JDBCDataSource dataSource(String type, String driver, String url) {

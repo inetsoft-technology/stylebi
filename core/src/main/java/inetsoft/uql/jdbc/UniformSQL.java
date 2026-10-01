@@ -2519,7 +2519,9 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
     * while a table without an alias keeps its quoted name as the alias (e.g. "a"
     * when the data source quotes identifiers), so quotes are ignored when there is
     * no exact match. A case-sensitive match is preferred, since a quoted name is
-    * case-sensitive (e.g. "A" and "a" can be two tables).
+    * case-sensitive (e.g. "A" and "a" can be two tables). As a last resort, a bare
+    * table name refers to the one unaliased schema-qualified table it names (emp for
+    * scott.emp).
     * @param table the table part of a join column.
     * @return -1 if the table is empty or not found.
     */
@@ -2532,7 +2534,74 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
       int index = findJoinTable(table, false, false);
       index = index >= 0 ? index : findJoinTable(name, true, false);
       index = index >= 0 ? index : getTableIndex(table);
-      return index >= 0 ? index : findJoinTable(name, true, true);
+      index = index >= 0 ? index : findJoinTable(name, true, true);
+      return index >= 0 ? index : findSchemaTable(name);
+   }
+
+   /**
+    * Find the unaliased schema-qualified table (e.g. scott.emp) that a bare table name
+    * (emp) refers to, as in legacy sql such as
+    * "from scott.emp, scott.dept where emp.deptno = dept.deptno(+)". The table is only
+    * found if it is the one unaliased table with that last name segment, an ambiguous
+    * name (s1.emp and s2.emp) isn't resolved. As for the other lookups, a case-sensitive
+    * match is preferred.
+    * @return -1 if no single table matches.
+    */
+   private int findSchemaTable(String table) {
+      if(table.indexOf('.') >= 0) {
+         return -1;
+      }
+
+      int index = findSchemaTable(table, false);
+      index = index == -1 ? findSchemaTable(table, true) : index;
+      return Math.max(index, -1);
+   }
+
+   /**
+    * Find the unaliased schema-qualified table whose last name segment is the table.
+    * @return the index of the single matching table, -1 if no table matches, or -2 if
+    * more than one table matches.
+    */
+   private int findSchemaTable(String table, boolean ignoreCase) {
+      int index = -1;
+
+      for(int i = 0; i < tables.size(); i++) {
+         SelectTable stable = tables.get(i);
+         String salias = stable.getAlias();
+
+         // a table with an alias can only be referred to by its alias
+         if(!(stable.getName() instanceof String sname) ||
+            salias != null && !salias.equals(sname))
+         {
+            continue;
+         }
+
+         String segment = getLastNameSegment(sname);
+
+         if(segment != null &&
+            (ignoreCase ? table.equalsIgnoreCase(segment) : table.equals(segment)))
+         {
+            if(index >= 0) {
+               return -2;
+            }
+
+            index = i;
+         }
+      }
+
+      return index;
+   }
+
+   /**
+    * Get the last segment of a qualified table name, without quotes (emp of scott.emp,
+    * "scott"."emp" or `scott.emp`, BigQuery quotes the whole path in one pair of
+    * backticks).
+    * @return null if the name isn't qualified.
+    */
+   private static String getLastNameSegment(String name) {
+      String stripped = stripIdentifierQuotes(name);
+      int dot = stripped.lastIndexOf('.');
+      return dot < 0 ? null : stripped.substring(dot + 1);
    }
 
    private int findJoinTable(String table, boolean strip, boolean ignoreCase) {
