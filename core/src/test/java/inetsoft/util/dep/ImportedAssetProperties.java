@@ -267,12 +267,8 @@ public final class ImportedAssetProperties {
    /**
     * Attributes left out of the save-and-reload comparison because they are known to change.
     * Remove an entry together with the fix for its bug.
-    * <ul>
-    *    <li>{@code zIndex}: the selection lists in the "Return Analysis" example move up by 3
-    *        on every save and reload.</li>
-    * </ul>
     */
-   public static final Set<String> KNOWN_ISSUES = Set.of("zIndex");
+   public static final Set<String> KNOWN_ISSUES = Set.of();
 
    /**
     * Larger entries are skipped.
