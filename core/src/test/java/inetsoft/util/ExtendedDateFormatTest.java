@@ -30,6 +30,7 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 import java.text.ParseException;
 import java.text.ParsePosition;
 import java.text.SimpleDateFormat;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.*;
@@ -317,6 +318,28 @@ public class ExtendedDateFormatTest {
       assertEquals(first, parseResult(new ExtendedDateFormat("QQQ yyyy", Locale.US), text));
       assertEquals(parseResult(format, "not a quarter"), parseResult(format, "not a quarter"));
       assertThrows(IllegalArgumentException.class, () -> format.parse(text, null));
+   }
+
+   // Bug #77441: a zone without a java.time ID must fall back to SimpleDateFormat for the
+   // call instead of throwing ZoneRulesException out of parse(String)/parseObject(String)
+   @Test
+   public void zoneWithoutJavaTimeIdFallsBack() throws Exception {
+      final TimeZone oldZone = TimeZone.getDefault();
+
+      try {
+         TimeZone.setDefault(TimeZone.getTimeZone("America/Los_Angeles"));
+         final ExtendedDateFormat format = new ExtendedDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US);
+         format.setTimeZone(new SimpleTimeZone(3600000, "Custom"));
+         final String text = "2025-01-01 13:00:00";
+         final Date expected = Date.from(Instant.parse("2025-01-01T12:00:00Z"));
+
+         assertEquals(expected, format.parse(text));
+         assertEquals(expected, format.parseObject(text));
+         assertEquals(expected, format.parse(text, new ParsePosition(0)));
+      }
+      finally {
+         TimeZone.setDefault(oldZone);
+      }
    }
 
    private static void poison(ExtendedDateFormat format) {

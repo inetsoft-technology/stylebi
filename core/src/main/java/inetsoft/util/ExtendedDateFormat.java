@@ -548,7 +548,7 @@ public class ExtendedDateFormat extends SimpleDateFormat {
 
          if(formatter == null) {
             throw new IllegalArgumentException(
-               "Pattern is not supported by java.time: " + toPattern());
+               "Pattern or time zone is not supported by java.time: " + toPattern());
          }
 
          final TemporalAccessor temporal = formatter.parse(str);
@@ -623,7 +623,8 @@ public class ExtendedDateFormat extends SimpleDateFormat {
 
    /**
     * Get the shared java.time formatter for the pattern and zone of this format, or null if
-    * java.time cannot compile the pattern (e.g. the escaped extended quarter patterns). The
+    * java.time cannot compile the pattern (e.g. the escaped extended quarter patterns) or
+    * cannot convert the zone. The
     * result depends only on the pattern and zone, never on what was parsed before.
     */
    private DateTimeFormatter getFormatter() {
@@ -647,7 +648,15 @@ public class ExtendedDateFormat extends SimpleDateFormat {
             return null;
          }
 
-         formatter = formatter.withZone(zone.toZoneId());
+         try {
+            formatter = formatter.withZone(zone.toZoneId());
+         }
+         catch(DateTimeException ex) {
+            // the zone (e.g. a custom SimpleTimeZone) has no java.time ID. this is a property
+            // of the zone, not the pattern, so it is not added to unsupportedPatterns
+            return null;
+         }
+
          formatters.put(key, formatter);
       }
 
