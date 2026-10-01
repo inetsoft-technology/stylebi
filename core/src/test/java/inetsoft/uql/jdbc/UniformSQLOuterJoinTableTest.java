@@ -82,7 +82,15 @@ class UniformSQLOuterJoinTableTest {
       "select * from \"my a\" left join \"my b\" on \"my a\".\"id\" = \"my b\".\"id\"",
       // subquery positions share the rule
       "select * from (select a.id from a left join b on a.k = b.k left join c on a.id = b.id) t",
-      "select * from a where exists (select 1 from b left join c on b.k = b.j)"
+      "select * from a where exists (select 1 from b left join c on b.k = b.j)",
+      // an ON between two earlier tables or within the joined table, and schema-qualified
+      "select a.x from a left join b on a.k = b.k left join c on a.id = a.j",
+      "select a.x from a left join b on a.k = b.k left join c on c.id = c.j",
+      "select sch.a.x from sch.a left join sch.b on sch.a.k = sch.b.k " +
+         "left join sch.c on sch.a.id = sch.b.id",
+      // a correlated outer query table is not in the subquery's from clause
+      "select a.x from a where exists " +
+         "(select 1 from b left join c on c.id = a.id where b.id = a.id)"
    })
    void outerJoinNotOnJoinedTableFailsCleanly(String text) {
       RecognitionException ex = assertThrows(RecognitionException.class, () -> parse(text));
@@ -118,6 +126,11 @@ class UniformSQLOuterJoinTableTest {
          "b.id *= c.id, a.id =* c.id",
       "select a.x from a left join b on a.k = b.k left join (c join d on c.id = d.id) " +
          "on c.id = a.id | a.k *= b.k, c.id = d.id, a.id *= c.id",
+      // a nested right operand after a parenthesized left operand, and a full join chain
+      "select a.x from (a left join b on a.id = b.id) left join (c left join d on d.id = c.id) " +
+         "on c.id = a.id | a.id *= b.id, c.id *= d.id, a.id *= c.id",
+      "select a.x from a full join b on b.k = a.k full join c on c.id = b.id | " +
+         "a.k *=* b.k, b.id *=* c.id",
       // unquoted identifiers are case-insensitive
       "select o.x from Orders o left join Customers c on O.cid = C.id | O.cid *= C.id",
       "select a.x from a left join b on a.id = b.id left join c on C.id = A.id | " +
@@ -164,7 +177,10 @@ class UniformSQLOuterJoinTableTest {
       "select a.x from a left join (b left join c on c.id = b.id) on b.id = a.id | " +
          "LEFT OUTER JOIN b ON a.id = b.id",
       "select a.x from a left join a y on a.id = y.pid | a LEFT OUTER JOIN a y ON a.id = y.pid",
-      "select a.x from a right join b on b.id = a.id | a RIGHT OUTER JOIN b ON a.id = b.id"
+      "select a.x from a right join b on b.id = a.id | a RIGHT OUTER JOIN b ON a.id = b.id",
+      // the nested left join stays a left join, it used to be generated as a right join
+      "select a.x from (a left join b on a.id = b.id) left join (c left join d on d.id = c.id) " +
+         "on c.id = a.id | (a LEFT OUTER JOIN b ON a.id = b.id ) LEFT OUTER JOIN c ON a.id = c.id"
    })
    void outerJoinOnJoinedTableGeneratesJoin(String text, String expected) throws Exception {
       String generated = normalize(parse(text).getSQLString());
