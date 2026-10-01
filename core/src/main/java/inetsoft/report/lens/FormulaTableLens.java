@@ -1120,9 +1120,18 @@ public class FormulaTableLens extends AbstractTableLens
          try {
             Scriptable scope0 = (scope != null) ? thisScope : iterator;
 
-            // for Feature #26586, add javascript execution time record for current report.
-            row[col] = FormulaTableLens.exec(scripts[col], senv, scope0,
-                                             formulas[col], runtime, "XXX");
+            // a column referenced through field[] from another column keeps its own
+            // restriction, even if the referencing column is unrestricted
+            if(restricted[col]) {
+               row[col] = FormulaContext.runRestricted(
+                  () -> FormulaTableLens.exec(scripts[col], senv, scope0,
+                                              formulas[col], runtime, "XXX"));
+            }
+            else {
+               // for Feature #26586, add javascript execution time record for current report.
+               row[col] = FormulaTableLens.exec(scripts[col], senv, scope0,
+                                                formulas[col], runtime, "XXX");
+            }
          }
          catch(Exception ex) {
             throw new ScriptException(ex.getMessage());

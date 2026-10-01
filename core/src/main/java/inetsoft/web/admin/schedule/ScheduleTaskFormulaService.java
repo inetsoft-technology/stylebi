@@ -22,6 +22,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import inetsoft.analytic.web.adhoc.AdHocQueryHandler;
 import inetsoft.sree.schedule.ScheduleParameterScope;
 import inetsoft.util.*;
+import inetsoft.util.script.FormulaContext;
 import inetsoft.util.script.ScriptEnv;
 import inetsoft.web.binding.model.ScriptTreeNodeData;
 import inetsoft.web.composer.model.TreeNodeModel;
@@ -115,7 +116,9 @@ public class ScheduleTaskFormulaService {
          ScheduleParameterScope scope = new ScheduleParameterScope();
          ScriptEnv scriptEnv = scope.getScriptEnv();
          scriptEnv.addTopLevelParentScope(scope);
-         scriptEnv.exec(scriptEnv.compile(script), scope, null, null);
+         // run restricted, the same way the expression runs when the task executes
+         FormulaContext.runRestricted(
+            () -> scriptEnv.exec(scriptEnv.compile(script), scope, null, null));
       }
       catch(Exception ex) {
          return catalog.getString("schedule.task.action.scriptTestFailed", ex.getMessage());

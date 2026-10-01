@@ -17,24 +17,34 @@
  */
 package inetsoft.util.script;
 
+import inetsoft.report.FormulaTable;
 import inetsoft.report.composition.execution.AssetQuerySandbox;
 import inetsoft.report.composition.execution.PreAssetQuery;
 import inetsoft.report.filter.CalcFieldFormula;
+import inetsoft.report.filter.ConditionGroup;
 import inetsoft.report.filter.Formula;
 import inetsoft.report.filter.SumFormula;
+import inetsoft.report.lens.CalcTableLens;
 import inetsoft.report.lens.DefaultTableLens;
 import inetsoft.report.lens.FormulaTableLens;
+import inetsoft.sree.DynamicParameterValue;
+import inetsoft.sree.RepletRequest;
+import inetsoft.sree.schedule.ScheduleParameterScope;
 import inetsoft.test.SreeHome;
-import inetsoft.uql.Condition;
-import inetsoft.uql.VariableTable;
-import inetsoft.uql.asset.Worksheet;
+import inetsoft.uql.*;
+import inetsoft.uql.asset.*;
+import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.script.VpmScope;
+import inetsoft.web.admin.schedule.ScheduleTaskFormulaService;
+import inetsoft.web.composer.model.vs.DynamicValueModel;
 import org.junit.jupiter.api.*;
 import org.mozilla.javascript.NativeObject;
 import org.mozilla.javascript.Scriptable;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /**
  * Bug #77396, end-user formula scripts (calc fields, condition expressions and
@@ -167,6 +177,87 @@ class RestrictedFormulaScriptTest {
    }
 
    @Test
+   void expressionColumnReferencedFromUnrestrictedColumnRunsRestricted() {
+      Probe probe = new Probe();
+      ScriptEnv senv = ScriptEnvRepository.getScriptEnv();
+      Scriptable scope = createScope(senv, probe);
+      DefaultTableLens table = new DefaultTableLens(new Object[][] {
+         { "col1" },
+         { "a" }
+      });
+      FormulaTableLens lens = new FormulaTableLens(
+         table, new String[] { "f1", "f2" },
+         new String[] { "field['f2']", PROBE_SCRIPT }, senv, scope);
+      // f1 is unrestricted but pulls f2 through field[], f2 keeps its own restriction
+      lens.setRestricted(0, false);
+
+      assertTrue(lens.moreRows(1));
+      assertEquals(PACKAGE_STUB, lens.getObject(1, 1));
+      assertEquals(Boolean.TRUE, probe.restricted);
+      assertFalse(FormulaContext.isRestricted());
+   }
+
+   @Test
+   void conditionGroupRunsRestricted() {
+      Probe probe = new Probe();
+      AssetQuerySandbox box = new AssetQuerySandbox(new Worksheet());
+      box.getScriptEnv().put("probe", probe);
+      ExpressionValue eval = new ExpressionValue();
+      eval.setType(ExpressionValue.JAVASCRIPT);
+      eval.setExpression(PROBE_SCRIPT);
+      AssetCondition cond = new AssetCondition(XSchema.STRING);
+      cond.setOperation(XCondition.EQUAL_TO);
+      cond.addValue(eval);
+      ConditionList list = new ConditionList();
+      list.append(new ConditionItem(new ColumnRef(new AttributeRef("col1")), cond, 0));
+
+      // highlights and named groups evaluate expression values when the group is built
+      ConditionGroup group = new ConditionGroup(0, list, box);
+
+      assertEquals(Boolean.TRUE, probe.restricted);
+      assertTrue(group.evaluate(new Object[] { PACKAGE_STUB }));
+      assertFalse(FormulaContext.isRestricted());
+   }
+
+   @Test
+   void freehandCellFormulaRunsRestricted() {
+      Probe probe = new Probe();
+      ScriptEnv senv = ScriptEnvRepository.getScriptEnv();
+      senv.put("probe", probe);
+      FormulaTable elem = mock(FormulaTable.class);
+      when(elem.getID()).thenReturn("FreehandTable1");
+      when(elem.getScriptEnv()).thenReturn(senv);
+      when(elem.getScriptTable()).thenReturn(new DefaultTableLens(new Object[][] { { "col1" } }));
+      FreehandTable lens = new FreehandTable();
+      lens.setElement(elem);
+
+      assertEquals(PACKAGE_STUB, lens.evaluate(PROBE_SCRIPT));
+      assertEquals(Boolean.TRUE, probe.restricted);
+      assertFalse(FormulaContext.isRestricted());
+   }
+
+   @Test
+   void scheduleParameterExpressionRunsRestricted() {
+      DynamicParameterValue parameter = new DynamicParameterValue(
+         "=" + ORG_CLASS, DynamicValueModel.EXPRESSION, XSchema.STRING);
+      ScheduleParameterScope scope = new ScheduleParameterScope();
+      scope.getScriptEnv().addTopLevelParentScope(scope);
+
+      assertEquals(PACKAGE_STUB, RepletRequest.executeParameter(parameter, scope));
+      assertFalse(FormulaContext.isRestricted());
+   }
+
+   @Test
+   void scheduleParameterTestScriptRunsRestricted() {
+      ScheduleTaskFormulaService service = new ScheduleTaskFormulaService();
+
+      // succeeds only if the org class resolves to a package stub
+      assertNull(service.testScheduleParameterExpression(
+         "if(" + ORG_CLASS + " != '" + PACKAGE_STUB + "') throw 'unrestricted';"));
+      assertFalse(FormulaContext.isRestricted());
+   }
+
+   @Test
    void vpmScriptStaysUnrestricted() throws Exception {
       Probe probe = new Probe();
       VpmScope scope = new VpmScope();
@@ -194,6 +285,19 @@ class RestrictedFormulaScriptTest {
 
       return new FormulaTableLens(
          table, new String[] { "f1" }, new String[] { PROBE_SCRIPT }, senv, scope);
+   }
+
+   /**
+    * Exposes the freehand table cell evaluation.
+    */
+   private static final class FreehandTable extends CalcTableLens {
+      FreehandTable() {
+         super(1, 1);
+      }
+
+      Object evaluate(String formula) {
+         return evaluate(0, 0, new CalcTableLens.Formula(formula));
+      }
    }
 
    /**
