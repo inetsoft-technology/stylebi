@@ -77,9 +77,6 @@ class UniformSQLOuterJoinTableTest {
       "select * from a full join b on b.id = id",
       // the table name where the table has an alias is not a from clause table
       "select * from a t1 left join b t2 on a.id = t2.id",
-      // an unaliased quoted table name with spaces doesn't resolve to its from clause
-      // table, and the generated from clause would repeat the tables
-      "select * from \"my a\" left join \"my b\" on \"my a\".\"id\" = \"my b\".\"id\"",
       // subquery positions share the rule
       "select * from (select a.id from a left join b on a.k = b.k left join c on a.id = b.id) t",
       "select * from a where exists (select 1 from b left join c on b.k = b.j)",
@@ -180,7 +177,11 @@ class UniformSQLOuterJoinTableTest {
       "select a.x from a right join b on b.id = a.id | a RIGHT OUTER JOIN b ON a.id = b.id",
       // the nested left join stays a left join, it used to be generated as a right join
       "select a.x from (a left join b on a.id = b.id) left join (c left join d on d.id = c.id) " +
-         "on c.id = a.id | (a LEFT OUTER JOIN b ON a.id = b.id ) LEFT OUTER JOIN c ON a.id = c.id"
+         "on c.id = a.id | (a LEFT OUTER JOIN b ON a.id = b.id ) LEFT OUTER JOIN c ON a.id = c.id",
+      // an unaliased quoted table keeps its quotes in the from clause table, and the
+      // join column's table doesn't, they must still resolve to the same table
+      "select * from \"my a\" left join \"my b\" on \"my b\".\"id\" = \"my a\".\"id\" | " +
+         "select * from \"my a\" LEFT OUTER JOIN \"my b\" ON \"my a\".id = \"my b\".id"
    })
    void outerJoinOnJoinedTableGeneratesJoin(String text, String expected) throws Exception {
       String generated = normalize(parse(text).getSQLString());

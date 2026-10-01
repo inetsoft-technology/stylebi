@@ -2303,7 +2303,7 @@ public class SQLHelper implements KeywordProvider {
       Object[] result = new Object[2];
 
       String tname = left ? join.getTable1(uniformSql) : join.getTable2(uniformSql);
-      int index = uniformSql.getTableIndex(tname);
+      int index = uniformSql.getJoinTableIndex(tname);
       SelectTable stable = (index >= 0) ? uniformSql.getSelectTable(index) : null;
       String table = stable != null ? generateTableClause(stable) : quoteTableName(tname);
 

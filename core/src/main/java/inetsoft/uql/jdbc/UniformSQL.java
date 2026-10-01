@@ -2514,6 +2514,48 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
    }
 
    /**
+    * Get the index of the from clause table that the table part of a join column
+    * (XJoin.getTable1/getTable2) refers to. The table part has its quotes removed,
+    * while a table without an alias keeps its quoted name as the alias (e.g. "a"
+    * when the data source quotes identifiers), so quotes are ignored when there is
+    * no exact match.
+    * @param table the table part of a join column.
+    * @return -1 if the table is empty or not found.
+    */
+   public synchronized int getJoinTableIndex(String table) {
+      if(table == null || table.isEmpty()) {
+         return -1;
+      }
+
+      int index = getTableIndex(table);
+
+      if(index >= 0) {
+         return index;
+      }
+
+      String name = stripIdentifierQuotes(table);
+
+      for(int i = 0; i < tables.size(); i++) {
+         SelectTable stable = tables.get(i);
+         String salias = stable.getAlias();
+
+         if(salias == null && (stable.getName() instanceof String)) {
+            salias = (String) stable.getName();
+         }
+
+         if(salias != null && name.equalsIgnoreCase(stripIdentifierQuotes(salias))) {
+            return i;
+         }
+      }
+
+      return -1;
+   }
+
+   private static String stripIdentifierQuotes(String name) {
+      return name.replaceAll("[\"`\\[\\]]", "");
+   }
+
+   /**
     * Find the table that the column belongs.
     */
    public synchronized String findTableForColumn(String col) {

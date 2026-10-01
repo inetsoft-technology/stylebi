@@ -303,10 +303,11 @@ private void orientOuterJoins(UniformSQL sql, List joins, int rstart, int rend,
 /**
  * Get the index of the from clause table that the table of a join column
  * (XJoin.getTable1/getTable2) refers to, or -1 if it isn't a known table, such
- * as the empty table of an unqualified column.
+ * as the empty table of an unqualified column. This is the same resolution
+ * SQLHelper uses to generate the join.
  */
 private int getJoinTableIndex(UniformSQL sql, String table) {
-   return table == null || table.length() == 0 ? -1 : sql.getTableIndex(table);
+   return sql.getJoinTableIndex(table);
 }
 
 private boolean collectOuterJoins(XFilterNode node, List joins) {
