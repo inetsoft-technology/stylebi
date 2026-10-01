@@ -21,6 +21,8 @@ import inetsoft.analytic.composition.ViewsheetEngine;
 import inetsoft.report.internal.Util;
 import inetsoft.uql.erm.vpm.VpmProcessor;
 import inetsoft.sree.SreeEnv;
+import inetsoft.sree.security.Organization;
+import inetsoft.sree.security.OrganizationManager;
 import inetsoft.sree.security.ResourceAction;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.AssetEntry;
@@ -976,8 +978,7 @@ public class JDBCUtil {
       result.setTransactionIsolation(jdbcDataSource.getTransactionIsolation());
       result.setChangeDefaultDB(!Tool.isEmptyString(jdbcDataSource.getDefaultDatabase()));
 
-      String testQuery = SreeEnv.getProperty(
-         "inetsoft.uql.jdbc.pool." + jdbcDataSource.getFullName() + ".connectionTestQuery");
+      String testQuery = getConnectionTestQuery(jdbcDataSource.getFullName());
 
       if(type.getType().equals(CustomDatabaseType.TYPE)) {
          CustomDatabaseType.CustomDatabaseInfo customInfo =
@@ -1651,6 +1652,76 @@ public class JDBCUtil {
       matcher.appendTail(result);
 
       return result.toString();
+   }
+
+   /**
+    * Gets the connection test query shown in the data source editor. The value is stored in
+    * the current organization's scope, because data source names are only unique within an
+    * organization. Values saved before the key was organization scoped are global and are
+    * attributed to the host organization only.
+    *
+    * @param fullName the data source full name.
+    *
+    * @return the test query or <code>null</code> if none is set.
+    */
+   public static String getConnectionTestQuery(String fullName) {
+      String key = getConnectionTestQueryKey(fullName);
+      String orgID = getConnectionTestQueryOrgID();
+
+      if(orgID == null || isHostOrganization(orgID)) {
+         // the organization key first, then the legacy global key
+         return SreeEnv.getProperty(key);
+      }
+
+      return SreeEnv.getProperty("inetsoft.org." + orgID + "." + key, false, false);
+   }
+
+   /**
+    * Sets the connection test query of a data source in the current organization's scope.
+    *
+    * @param fullName  the data source full name.
+    * @param testQuery the test query.
+    */
+   public static void setConnectionTestQuery(String fullName, String testQuery) {
+      SreeEnv.setProperty(getConnectionTestQueryKey(fullName), testQuery, true);
+   }
+
+   /**
+    * Removes the connection test query of a data source in the current organization's scope.
+    * In the host organization the legacy global key is removed too, so that it is not shown
+    * again after the user clears the test query.
+    *
+    * @param fullName the data source full name.
+    */
+   public static void removeConnectionTestQuery(String fullName) {
+      String key = getConnectionTestQueryKey(fullName);
+      String orgID = getConnectionTestQueryOrgID();
+      SreeEnv.remove(key, true);
+
+      if(orgID != null && isHostOrganization(orgID)) {
+         SreeEnv.remove(key);
+      }
+   }
+
+   private static String getConnectionTestQueryKey(String fullName) {
+      return "inetsoft.uql.jdbc.pool." + fullName + ".connectionTestQuery";
+   }
+
+   /**
+    * Gets the organization that SreeEnv scopes the test query to, or <code>null</code> if
+    * the thread has no principal and SreeEnv uses the global key.
+    */
+   private static String getConnectionTestQueryOrgID() {
+      if(ThreadContext.getPrincipal() == null && ThreadContext.getContextPrincipal() == null) {
+         return null;
+      }
+
+      return OrganizationManager.getInstance().getCurrentOrgID();
+   }
+
+   private static boolean isHostOrganization(String orgID) {
+      // the enterprise organization manager does not lower case the organization ID
+      return Organization.getDefaultOrganizationID().equalsIgnoreCase(orgID);
    }
 
    // table xnode->XTypeNode(columns)
