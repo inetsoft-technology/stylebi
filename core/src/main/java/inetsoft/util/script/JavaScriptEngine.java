@@ -227,9 +227,10 @@ public class JavaScriptEngine {
          ContextJavaPackage compkg = new ContextJavaPackage("com");
          ContextJavaPackage orgpkg = new ContextJavaPackage("org");
          // allow java.awt (color, font) to be accessed in all envs
-         // java.text for formats
+         // java.text for formats, java.lang and java.math for basic types and math.
+         // SecureClassShutter still blocks System, Runtime, Class, Thread, reflection, etc.
          ContextJavaPackage javapkg = new ContextJavaPackage(
-            "java", "java.awt", "java.text", "java.util");
+            "java", "java.awt", "java.text", "java.util", "java.lang", "java.math");
 
          // For Protecht, only expose java.sql to end user if Form is available.
          if(LicenseManager.isComponentAvailable(LicenseManager.LicenseComponent.FORM)) {

@@ -39,6 +39,8 @@ import inetsoft.uql.script.VpmScope;
 import inetsoft.web.admin.schedule.ScheduleTaskFormulaService;
 import inetsoft.web.composer.model.vs.DynamicValueModel;
 import org.junit.jupiter.api.*;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mozilla.javascript.NativeObject;
 import org.mozilla.javascript.Scriptable;
 
@@ -255,6 +257,61 @@ class RestrictedFormulaScriptTest {
       assertNull(service.testScheduleParameterExpression(
          "if(" + ORG_CLASS + " != '" + PACKAGE_STUB + "') throw 'unrestricted';"));
       assertFalse(FormulaContext.isRestricted());
+   }
+
+   @ParameterizedTest
+   @ValueSource(strings = {
+      "java.lang.System", "java.lang.Runtime", "java.lang.Class", "java.lang.ClassLoader",
+      "java.lang.Thread", "java.lang.Process", "java.lang.ProcessBuilder",
+      "java.lang.reflect.Method", "java.lang.reflect.Field", "java.lang.reflect.Proxy",
+      "java.lang.invoke.MethodHandles", "java.lang.invoke.MethodHandle",
+      "java.lang.management.ManagementFactory", "java.lang.ref.WeakReference"
+   })
+   void shutterDeniesDangerousJavaLangClasses(String className) {
+      assertFalse(new SecureClassShutter().visibleToScripts(className));
+   }
+
+   @ParameterizedTest
+   @ValueSource(strings = {
+      "java.lang.System", "java.lang.Runtime", "java.lang.Class", "java.lang.ClassLoader",
+      "java.lang.Thread", "java.lang.ProcessBuilder", "java.lang.reflect.Method",
+      "java.lang.invoke.MethodHandles"
+   })
+   void restrictedScriptCannotResolveDangerousJavaLangClasses(String className)
+      throws Exception
+   {
+      ScriptEnv senv = ScriptEnvRepository.getScriptEnv();
+      Scriptable scope = createScope(senv, new Probe());
+      Object script = senv.compile("String(" + className + ")");
+
+      Object result = FormulaContext.runRestricted(() -> senv.exec(script, scope, null, null));
+
+      assertFalse(String.valueOf(result).startsWith("[JavaClass"), String.valueOf(result));
+   }
+
+   @Test
+   void restrictedScriptCannotCallSystem() {
+      ScriptEnv senv = ScriptEnvRepository.getScriptEnv();
+      Scriptable scope = createScope(senv, new Probe());
+
+      assertThrows(Exception.class, () -> FormulaContext.runRestricted(
+         () -> senv.exec(senv.compile("java.lang.System.getProperty('user.home')"),
+                         scope, null, null)));
+   }
+
+   @Test
+   void restrictedScriptCanUseJavaLangAndJavaMath() throws Exception {
+      Probe probe = new Probe();
+      ScriptEnv senv = ScriptEnvRepository.getScriptEnv();
+      Scriptable scope = createScope(senv, probe);
+      CalcFieldFormula formula = new CalcFieldFormula(
+         "java.lang.Integer.parseInt('5') + java.lang.Math.round(2.4) + " +
+         "new java.math.BigDecimal('1.5').doubleValue() + (probe.check('x') ? 1 : 0)",
+         new String[] { "total" }, new Formula[] { new SumFormula() }, new int[1], senv, scope);
+      formula.addValue(1);
+
+      assertEquals(9.5, formula.getResult());
+      assertEquals(Boolean.TRUE, probe.restricted);
    }
 
    @Test
