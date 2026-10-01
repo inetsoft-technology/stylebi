@@ -362,6 +362,8 @@ public class JDBCHandler extends XHandler {
             ((XSessionManager.DataCacheResult) visitor).getCacheNormalizer() : null;
       UniformSQL uniformSQL = xquery.getSQLDefinition() instanceof UniformSQL ?
          (UniformSQL) xquery.getSQLDefinition() : null;
+      int[] sortedColumnMap = cacheNormalizer != null ? cacheNormalizer.getSortedColumnMap() : null;
+      boolean hasSortedColumnMap = sortedColumnMap != null && sortedColumnMap.length > 0;
 
       // since we try to sort selection columns as much as possible when generate sql string,
       // may appear sql string was sorted but there's no cacheNormalizer available, fix by
@@ -389,12 +391,32 @@ public class JDBCHandler extends XHandler {
          }
       }
 
-      String sql = replaceEscCharacter(xquery.getSQLAsString(), JDBCUtil.getAllTableAliases(xquery));
+      // Bug #77485, uniformSQL is a clone (XUtil.clearComments), so these hints only affect
+      // this execution. Without a column map there is nothing to restore the original order,
+      // so the SQL must not be sorted, even if it is regenerated after the cache normalizer
+      // ran (e.g. VPM conditions). Reset the sorted hint so that it reflects only the SQL
+      // generated below, not a stale value copied from the source query.
+      if(uniformSQL != null) {
+         if(!hasSortedColumnMap) {
+            uniformSQL.setHint(UniformSQL.HINT_WITHOUT_SORTED_SQL, true);
+         }
 
-      if(cacheNormalizer != null && uniformSQL != null &&
-         !Boolean.TRUE.equals(uniformSQL.getHint(UniformSQL.HINT_SQL_STRING_SORTED_COLUMN, false)))
-      {
+         uniformSQL.setHint(UniformSQL.HINT_SQL_STRING_SORTED_COLUMN, false);
+         uniformSQL.clearCachedString();
+      }
+
+      String sql = replaceEscCharacter(xquery.getSQLAsString(), JDBCUtil.getAllTableAliases(xquery));
+      boolean sortedSqlExecuted = hasSortedColumnMap && uniformSQL != null &&
+         Boolean.TRUE.equals(uniformSQL.getHint(UniformSQL.HINT_SQL_STRING_SORTED_COLUMN, false));
+
+      if(!sortedSqlExecuted) {
          cacheNormalizer = null;
+      }
+
+      // the result is restored to the original column order only if the executed sql was
+      // sorted. A sql string that is kept (e.g. lossy) runs as written. (Bug #77485)
+      if(visitor instanceof XSessionManager.DataCacheResult) {
+         ((XSessionManager.DataCacheResult) visitor).setSortedSqlExecuted(sortedSqlExecuted);
       }
 
       SQLDefinition def = xquery.getSQLDefinition();
