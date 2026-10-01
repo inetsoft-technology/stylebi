@@ -395,6 +395,7 @@ public class DataSourceController {
    {
       // only the selected delete asks for this, so require the permission the delete needs
       checkDeletePermission(request, principal);
+
       String dependencies = "";
 
       for(SelectedDataSourceItem f : request.folders()) {
