@@ -147,10 +147,6 @@ public class VpmCondition extends VpmObject {
                           Principal user, boolean checkVariable)
       throws Exception
    {
-      if(user != null && XPrincipal.SYSTEM.equals(user.getName())) {
-         return null;
-      }
-
       // create a uniform sql to maintain table information,
       // then sql helper will be able to quote fields properly
       UniformSQL sql = new UniformSQL();
