@@ -202,6 +202,40 @@ class WizControllerErrorHandlerTest {
    }
 
    /**
+    * Bug #77597: a second export of a runtime viewsheet while another one still holds the
+    * Bug #77227 export claim. That is a wait, not a failure, so it must come back as 503 with a
+    * {@code Retry-After}, not the catch-all's 500 that says retrying will fail the same way.
+    */
+   @Test
+   void exportInProgressMapsToServiceUnavailableWithARetryAfterHeader() throws Exception {
+      String content = mvc.perform(get("/wiz-test/throw").param("type", "exportinprogress"))
+         .andExpect(status().isServiceUnavailable())
+         .andExpect(header().string("Retry-After", "2"))
+         .andReturn().getResponse().getContentAsString();
+
+      assertTrue(content.contains("Exporting Dashboard in progress"),
+                 "the export-in-progress message must reach the caller, got: [" + content + "]");
+      assertTrue(content.contains("EXPORT_IN_PROGRESS"),
+                 "the errorCode must be present, got: [" + content + "]");
+      assertTrue(content.contains("retry after 2s"),
+                 "the body must carry the same wait as the header, got: [" + content + "]");
+      assertFalse(content.contains("retrying will fail"),
+                  "and it must not carry the catch-all's do-not-retry advice, got: [" + content + "]");
+   }
+
+   /**
+    * Only the export-in-progress subtype is retryable. A plain {@code MessageException} is used
+    * throughout core for permanent user-facing errors, so it keeps its old mapping.
+    */
+   @Test
+   void aPlainMessageExceptionKeepsTheCatchAllMapping() throws Exception {
+      mvc.perform(get("/wiz-test/throw").param("type", "message"))
+         .andExpect(status().isInternalServerError())
+         .andExpect(header().doesNotExist("Retry-After"))
+         .andExpect(content().string(containsString("unexpected server error")));
+   }
+
+   /**
     * Any exception none of the handlers above recognize — an NPE deep in a binding/viewsheet
     * service, for example — must still come back as JSON 500, not fall through to Tomcat's own
     * default HTML error page (which ignores the client's {@code Accept: application/json} header
@@ -260,6 +294,16 @@ class WizControllerErrorHandlerTest {
 
          if("notready".equals(type)) {
             throw new RenderNotReadyException(2);
+         }
+
+         if("exportinprogress".equals(type)) {
+            throw new inetsoft.web.viewsheet.service.ExportInProgressException(
+               "Exporting Dashboard in progress, please wait...",
+               inetsoft.util.log.LogLevel.INFO, false);
+         }
+
+         if("message".equals(type)) {
+            throw new inetsoft.util.MessageException("Some permanent user-facing error.");
          }
 
          if("unexpected".equals(type)) {

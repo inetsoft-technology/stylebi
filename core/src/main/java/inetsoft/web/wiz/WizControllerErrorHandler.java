@@ -19,6 +19,7 @@ package inetsoft.web.wiz;
 
 import inetsoft.util.Catalog;
 import inetsoft.util.InvalidUserException;
+import inetsoft.web.viewsheet.service.ExportInProgressException;
 import inetsoft.web.wiz.dispatch.CommandErrorException;
 import inetsoft.web.wiz.service.RenderNotReadyException;
 import inetsoft.web.wiz.service.UnsupportedDatasourceException;
@@ -134,6 +135,35 @@ public class WizControllerErrorHandler {
       payload.put("errorCode", "RENDER_NOT_READY");
       HttpHeaders headers = new HttpHeaders();
       headers.set(HttpHeaders.RETRY_AFTER, String.valueOf(Math.max(1, e.getRetryAfter())));
+      return new ResponseEntity<>(payload, headers, HttpStatus.SERVICE_UNAVAILABLE);
+   }
+
+   /**
+    * Maps a rejected concurrent export of the same runtime viewsheet to 503 with a retry hint,
+    * instead of the catch-all's 500 (Bug #77597).
+    *
+    * <p>{@code VSExportService.beginExport} refuses a second export while another one of the same
+    * runtime viewsheet holds the claim (Bug #77227). That other export may be a browser export, or
+    * a wiz render that {@code RenderWaitSupport} stopped waiting for but did not cancel. Either way
+    * it will finish and release the claim, so this is a wait, not a failure. Unmapped, the
+    * exception fell through to the catch-all, which told the caller that retrying will fail the
+    * same way.
+    *
+    * <p>The status, {@code Retry-After} header and body shape match {@link #handleRenderNotReady}.
+    * Spring picks the most specific handler in this advice, so this one wins over the catch-all.
+    */
+   @ExceptionHandler(ExportInProgressException.class)
+   public ResponseEntity<Map<String, String>> handleExportInProgress(ExportInProgressException e) {
+      LOG.debug("Wiz export rejected, another export of the viewsheet is running: {}",
+                e.getMessage());
+
+      Map<String, String> payload = new HashMap<>();
+      payload.put("error", e.getMessage() + " Another export or render of this viewsheet is " +
+         "still running. This is not a failure: retry after " + EXPORT_IN_PROGRESS_RETRY_AFTER +
+         "s, and the same call should succeed once that export is done.");
+      payload.put("errorCode", "EXPORT_IN_PROGRESS");
+      HttpHeaders headers = new HttpHeaders();
+      headers.set(HttpHeaders.RETRY_AFTER, String.valueOf(EXPORT_IN_PROGRESS_RETRY_AFTER));
       return new ResponseEntity<>(payload, headers, HttpStatus.SERVICE_UNAVAILABLE);
    }
 
@@ -286,5 +316,8 @@ public class WizControllerErrorHandler {
       return new ResponseEntity<>(payload, null, HttpStatus.INTERNAL_SERVER_ERROR);
    }
 
+   // Seconds to wait before retrying an export rejected as in progress. The same 2s that
+   // ScriptImageService's whole-viewsheet render gives in its own RenderNotReadyException.
+   private static final int EXPORT_IN_PROGRESS_RETRY_AFTER = 2;
    private static final Logger LOG = LoggerFactory.getLogger(WizControllerErrorHandler.class);
 }
