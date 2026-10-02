@@ -42,6 +42,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.function.LongSupplier;
 
 /**
  * XSwapper swapps the swappables.
@@ -402,7 +403,7 @@ public final class XSwapper {
                // memory freed by swapping, or by sheets that were closed, only shows up in the
                // memory state after a collection, and the swapper only collects when it swaps
                // something. doGC() is throttled, so a waiter collects on its first pass and then
-               // at most once per swapper.gc.min.interval. stop waiting if it freed enough.
+               // only as often as the throttle allows. stop waiting if it freed enough.
                if(!deadlock && doGC(true) && getMemoryState() > CRITICAL_MEM) {
                   break;
                }
@@ -467,30 +468,36 @@ public final class XSwapper {
    }
 
    /**
-    * Perform GC and clear cached state.
+    * Run a throttled garbage collection for the swapper sweep, honoring the back-off. See
+    * {@link #doGC(boolean)}.
     */
    private void doGC() {
       doGC(false);
    }
 
    /**
-    * Run a full garbage collection, at most once per swapper.gc.min.interval, and clear the
-    * cached memory state if one ran. While memory stays critical after a collection, which
-    * means the heap is really full of live data, the interval backs off up to
-    * MAX_GC_BACKOFF to bound the pause time.
+    * Run a full garbage collection, if the throttle allows it, and clear the cached memory
+    * state if one ran. Two collections are always spaced at least
+    * <tt>max(swapper.gc.min.interval, GC_PAUSE_FACTOR * last pause)</tt> apart, for every
+    * caller, so the swapper's collections never take more than about 1/GC_PAUSE_FACTOR (5%)
+    * of wall time, however large the heap. In addition, while memory stays critical after a
+    * collection, which means the heap is really full of live data, the sweep backs off up to
+    * MAX_GC_BACKOFF.
     *
     * @param waiting <tt>true</tt> if called for a thread waiting in waitForMemory(). Such a
-    *                call honors only the base interval and not the back-off, so that an
-    *                earlier period of real memory pressure can't hold off the collection that
-    *                a waiter needs to see memory that has since become garbage.
+    *                call honors the spacing but not the sweep back-off, so that an earlier
+    *                period of real memory pressure can't hold off the collection that a waiter
+    *                needs to see memory that has since become garbage. With the default
+    *                interval and pauses up to 500ms the waiter gets one within 10s.
     *
     * @return <tt>true</tt> if a garbage collection was run.
     */
    boolean doGC(boolean waiting) {
       try {
          final long base = getGCMinInterval();
-         final long interval = waiting ? base : Math.max(base, gcBackoff.get());
-         final long now = System.currentTimeMillis();
+         final long spacing = Math.max(base, GC_PAUSE_FACTOR * lastGCPause.get());
+         final long interval = waiting ? spacing : Math.max(spacing, gcBackoff.get());
+         final long now = clock.getAsLong();
          final long last = lastGC.get();
 
          // claim the slot before collecting so that concurrent callers don't stack collections
@@ -501,6 +508,7 @@ public final class XSwapper {
          final long count = getGCCount();
          final long free = getFreeSpace();
          runGC();
+         lastGCPause.set(Math.max(clock.getAsLong() - now, 0L));
          final long freed = getFreeSpace() - free;
          final boolean collected = getGCCount() != count;
          stateTS = 0;
@@ -508,7 +516,7 @@ public final class XSwapper {
          gcBackoff.set(critical ? Math.min(Math.max(base, gcBackoff.get()) * 2, MAX_GC_BACKOFF) : 0);
 
          if(!collected) {
-            if(gcWarned.compareAndSet(false, true)) {
+            if(gcNotRunWarned.compareAndSet(false, true)) {
                LOG.warn("A garbage collection requested by the swapper did not run. Garbage is " +
                            "not reclaimed, so the memory state can stay critical and requests " +
                            "can wait up to swapper.critical.max.wait. Explicit garbage " +
@@ -516,9 +524,10 @@ public final class XSwapper {
                            "-XX:+DisableExplicitGC with the Shenandoah collector.");
             }
          }
+         // this is also what a heap that is really full of live data looks like, so it's only a hint
          else if(critical && freed < Runtime.getRuntime().maxMemory() / 20) {
-            if(gcWarned.compareAndSet(false, true)) {
-               LOG.warn("A garbage collection requested by the swapper freed only {}MB and " +
+            if(gcFreedLittleLogged.compareAndSet(false, true)) {
+               LOG.info("A garbage collection requested by the swapper freed only {}MB and " +
                            "memory is still critical. If the heap is not really full of live " +
                            "data, the collection is probably concurrent and can't reclaim " +
                            "garbage mixed with live objects, for example " +
@@ -545,6 +554,7 @@ public final class XSwapper {
          try {
             ManagementFactory.getPlatformMBeanServer().invoke(
                new ObjectName("com.sun.management:type=DiagnosticCommand"), "gcRun", null, null);
+            lastGCDiagnostic = true;
             return;
          }
          catch(Exception | LinkageError ex) {
@@ -553,7 +563,16 @@ public final class XSwapper {
          }
       }
 
+      lastGCDiagnostic = false;
       System.gc();
+   }
+
+   /**
+    * Check if the last runGC() went through the DiagnosticCommand MBean, not the System.gc()
+    * fallback. For tests.
+    */
+   boolean isLastGCDiagnostic() {
+      return lastGCDiagnostic;
    }
 
    /**
@@ -571,7 +590,8 @@ public final class XSwapper {
 
    /**
     * Get the minimum time, in milliseconds, between two garbage collections run by the
-    * swapper.
+    * swapper. Values below MIN_GC_INTERVAL, including 0, are raised to MIN_GC_INTERVAL, so
+    * the throttle can't be turned off.
     */
    long getGCMinInterval() {
       // test override
@@ -581,7 +601,7 @@ public final class XSwapper {
 
       // read every time so a property change takes effect without a restart
       try {
-         return Math.max(0L, Long.parseLong(
+         return Math.max(MIN_GC_INTERVAL, Long.parseLong(
             SreeEnv.getProperty("swapper.gc.min.interval",
                                 Long.toString(DEFAULT_GC_MIN_INTERVAL))));
       }
@@ -1010,6 +1030,10 @@ public final class XSwapper {
    private static final long DEFAULT_GC_MIN_INTERVAL = 10000L;
    // cap on the garbage collection interval while memory stays critical after a collection
    private static final long MAX_GC_BACKOFF = 60000L;
+   // lowest accepted swapper.gc.min.interval
+   private static final long MIN_GC_INTERVAL = 1000L;
+   // minimum spacing between two garbage collections, as a multiple of the last pause
+   private static final long GC_PAUSE_FACTOR = 20L;
    // swapping thresholds for [critical, bad, low, norm, good]
    private static final int[] PRIORITY = {1, 5, 20, 50, 200};
    // swapping percentage for [critical, bad, low, norm, good]
@@ -1067,9 +1091,14 @@ public final class XSwapper {
    private volatile long maxCriticalWait = -1L;
    private volatile long gcMinInterval = -1L;
    private volatile boolean dcmdUnavailable = false;
+   private volatile boolean lastGCDiagnostic = false;
    private final AtomicLong lastGC = new AtomicLong(0L);
    private final AtomicLong gcBackoff = new AtomicLong(0L);
-   private final AtomicBoolean gcWarned = new AtomicBoolean(false);
+   private final AtomicLong lastGCPause = new AtomicLong(0L);
+   private final AtomicBoolean gcNotRunWarned = new AtomicBoolean(false);
+   private final AtomicBoolean gcFreedLittleLogged = new AtomicBoolean(false);
+   // clock for the garbage collection throttle, replaced by tests
+   volatile LongSupplier clock = System::currentTimeMillis;
    private final AtomicBoolean gcIntervalWarned = new AtomicBoolean(false);
    private int circle = 0;
    private int tcount = 0;
