@@ -1831,6 +1831,205 @@ class ChartAestheticMutatorTest {
       assertFalse(color.containsKey("framesByMeasure"));
    }
 
+   // ── multi-style field fallback (bug #77014 VCA-003) ─────────────────────
+   //
+   // ChartDcProcessor's date-comparison color-by-default injection writes the runtime color
+   // field onto each aesthetic aggregate ref, never onto the chart-level slot this class used to
+   // read alone -- so a multi-style chart's color legend rendered a real, visible field while
+   // get_chart_aesthetics reported field: null forever. These pin the read-side fallback that
+   // closes that gap, mirroring frameOf()'s existing per-measure fallback for the field itself.
+
+   private static AestheticInfo colorFieldFor(String column) {
+      ChartBindingModel scratch = new ChartBindingModel();
+      ChartAestheticMutator.setField(scratch, "color", dimension(column));
+      return scratch.getColorField();
+   }
+
+   @Test
+   void theReadFallsBackToTheFirstMeasuresFieldOnAMultiStyleChart() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(
+         model, "y", List.of(measure("Sales", "Sum"), measure("Profit", "Sum")));
+      AestheticInfo field = colorFieldFor("Quarter(ORDER_DATE)");
+      ((ChartAggregateRefModel) model.getYFields().get(0)).setColorField(field);
+      ((ChartAggregateRefModel) model.getYFields().get(1)).setColorField(field);
+
+      @SuppressWarnings("unchecked")
+      Map<String, Object> color =
+         (Map<String, Object>) ChartAestheticMutator.describe(model).get("color");
+
+      assertEquals("Quarter(ORDER_DATE)", color.get("field"),
+                   "the rendered legend has this field; the read must not lie and say null");
+   }
+
+   /** The fallback is chart-type-gated the same way {@code frameOf}'s own is. */
+   @Test
+   void theFieldFallbackNeedsAPerMeasureChannel() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(
+         model, "y", List.of(measure("Sales", "Sum"), measure("Profit", "Sum")));
+      ((ChartAggregateRefModel) model.getYFields().get(0))
+         .setColorField(colorFieldFor("Quarter(ORDER_DATE)"));
+
+      Map<String, Object> color = ChartAestheticMutator.describe(model, false, Set.of());
+
+      assertNull(color.get("field"),
+                 "a chart type whose renderer never reads the per-measure slot must not report a "
+                 + "field that chart never draws");
+   }
+
+   /** A chart-level field, when there is one, still wins -- the fallback is for its absence only. */
+   @Test
+   void aChartLevelFieldWinsOverThePerMeasureFallback() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "y", List.of(measure("Sales", "Sum")));
+      ChartAestheticMutator.setField(model, "color", dimension("Region"));
+      ((ChartAggregateRefModel) model.getYFields().get(0))
+         .setColorField(colorFieldFor("Quarter(ORDER_DATE)"));
+
+      @SuppressWarnings("unchecked")
+      Map<String, Object> color =
+         (Map<String, Object>) ChartAestheticMutator.describe(model).get("color");
+
+      assertEquals("Region", color.get("field"));
+   }
+
+   /**
+    * {@code ChartDcProcessor.updateAestheticField} writes the same dimension to every aesthetic
+    * aggregate ref in one pass, so this never fires for date comparison's own injection -- but a
+    * multi-style chart built or edited some other way could still leave two measures bound to
+    * different fields, and reporting only the first would describe a chart that is visibly
+    * rendering something else beside it.
+    */
+   @Test
+   void theFieldReportedDisagreeingAcrossMeasuresIsDisclosed() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(
+         model, "y", List.of(measure("Sales", "Sum"), measure("Profit", "Sum")));
+      ((ChartAggregateRefModel) model.getYFields().get(0))
+         .setColorField(colorFieldFor("Region"));
+      ((ChartAggregateRefModel) model.getYFields().get(1))
+         .setColorField(colorFieldFor("Category"));
+
+      @SuppressWarnings("unchecked")
+      Map<String, Object> color =
+         (Map<String, Object>) ChartAestheticMutator.describe(model).get("color");
+      @SuppressWarnings("unchecked")
+      Map<String, Object> byMeasure = (Map<String, Object>) color.get("fieldsByMeasure");
+
+      assertNotNull(byMeasure,
+                    "a read that hid this would report a field half the chart is not bound to");
+      assertEquals("Region", byMeasure.get("Sales"));
+      assertEquals("Category", byMeasure.get("Profit"));
+   }
+
+   /** Agreeing measures -- date comparison's own case -- keep the common chart's read short. */
+   @Test
+   void theFieldReportedAgreeingAcrossMeasuresStaysShort() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(
+         model, "y", List.of(measure("Sales", "Sum"), measure("Profit", "Sum")));
+      AestheticInfo field = colorFieldFor("Quarter(ORDER_DATE)");
+      ((ChartAggregateRefModel) model.getYFields().get(0)).setColorField(field);
+      ((ChartAggregateRefModel) model.getYFields().get(1)).setColorField(field);
+
+      @SuppressWarnings("unchecked")
+      Map<String, Object> color =
+         (Map<String, Object>) ChartAestheticMutator.describe(model).get("color");
+
+      assertFalse(color.containsKey("fieldsByMeasure"));
+   }
+
+   // ── the fallback is read-only (PR #5740 review) ─────────────────────────
+   //
+   // reportedField()'s first-measure fallback answers "what does the first measure render", not
+   // "is a field bound for the whole channel". Letting setFrame/resetFrame branch on it made a
+   // write on a multi-measure chart whose first measure alone carries a field land in that one
+   // field's frame and silently skip every other measure.
+
+   /** Two measures, only the first carrying a color field of its own. */
+   private static ChartBindingModel firstMeasureOnlyColorField(AestheticInfo field) {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(
+         model, "y", List.of(measure("Sales", "Sum"), measure("Profit", "Sum")));
+      ((ChartAggregateRefModel) model.getYFields().get(0)).setColorField(field);
+      return model;
+   }
+
+   @Test
+   void aFrameWriteStillBroadcastsWhenOnlyTheFirstMeasureHasAField() {
+      AestheticInfo field = colorFieldFor("Region");
+      Object fieldFrame = field.getFrame();
+      ChartBindingModel model = firstMeasureOnlyColorField(field);
+
+      ChartAestheticMutator.setFrame(model, "color", spec("type", "static", "color", "#4e79a7"));
+
+      assertEquals("#4E79A7", colorOf(model, 0));
+      assertEquals("#4E79A7", colorOf(model, 1),
+                   "the second measure must not be silently skipped");
+      assertSame(fieldFrame, field.getFrame(),
+                 "the first measure's own field is not the channel's field");
+   }
+
+   /** The pre-fallback refusal, not a write that reaches the first measure alone. */
+   @Test
+   void aCategoricalFrameIsStillRefusedWhenOnlyTheFirstMeasureHasAField() {
+      AestheticInfo field = colorFieldFor("Region");
+      Object fieldFrame = field.getFrame();
+      ChartBindingModel model = firstMeasureOnlyColorField(field);
+
+      assertThrows(IllegalArgumentException.class, () -> ChartAestheticMutator.setFrame(
+         model, "color", spec("type", "categorical", "colors", List.of("#111111", "#222222"))));
+      assertSame(fieldFrame, field.getFrame());
+      assertNull(((ChartAggregateRefModel) model.getYFields().get(1)).getColorFrame());
+   }
+
+   @Test
+   void aResetStillReachesEveryMeasureWhenOnlyTheFirstMeasureHasAField() {
+      ChartBindingModel scratch = new ChartBindingModel();
+      ChartAestheticMutator.setField(scratch, "color", dimension("Region"));
+      ChartAestheticMutator.setFrame(
+         scratch, "color", spec("type", "categorical", "colors", List.of("#111111", "#222222")));
+      AestheticInfo field = scratch.getColorField();
+      ChartBindingModel model = firstMeasureOnlyColorField(field);
+      ChartAestheticMutator.setFrame(model, "color", spec("type", "static", "color", "#abcdef"));
+
+      ChartAestheticMutator.resetFrame(
+         model, "color", false, AestheticChannels.FRAME_CHANNELS, null);
+
+      assertNotEquals("#abcdef", colorOf(model, 0));
+      assertNotEquals("#abcdef", colorOf(model, 1),
+                      "the second measure must not be silently skipped");
+      assertArrayEquals(new String[]{ "#111111", "#222222" },
+                        ((CategoricalColorModel) field.getFrame()).getColors(),
+                        "the first measure's own field is not the channel's field");
+   }
+
+   /**
+    * framesByMeasure is gated on the chart-level field, not the widened one: the first measure
+    * rendering from its own field while the second renders a static colour is a disagreement.
+    */
+   @Test
+   void framesByMeasureIsStillDisclosedWhenTheFallbackFires() {
+      ChartBindingModel scratch = new ChartBindingModel();
+      ChartAestheticMutator.setField(scratch, "color", dimension("Region"));
+      ChartAestheticMutator.setFrame(
+         scratch, "color", spec("type", "categorical", "colors", List.of("#111111", "#222222")));
+      ChartBindingModel model = firstMeasureOnlyColorField(scratch.getColorField());
+      ChartAestheticMutator.setFrame(model, "color", spec("type", "static", "color", "#abcdef"));
+
+      @SuppressWarnings("unchecked")
+      Map<String, Object> color =
+         (Map<String, Object>) ChartAestheticMutator.describe(model).get("color");
+      @SuppressWarnings("unchecked")
+      Map<String, Object> byMeasure = (Map<String, Object>) color.get("framesByMeasure");
+
+      assertEquals("Region", color.get("field"));
+      assertNotNull(byMeasure, "the measures render different frames; the read must say so");
+      assertEquals(Set.of("Sales", "Profit"), byMeasure.keySet());
+      assertNotEquals(byMeasure.get("Sales"), byMeasure.get("Profit"));
+   }
+
    private static String colorOf(ChartBindingModel model, int index) {
       ChartAggregateRefModel agg = (ChartAggregateRefModel) model.getYFields().get(index);
       return assertInstanceOf(StaticColorModel.class, agg.getColorFrame()).getColor();
