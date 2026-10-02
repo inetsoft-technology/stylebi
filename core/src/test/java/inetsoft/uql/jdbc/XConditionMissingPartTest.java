@@ -22,6 +22,7 @@ import inetsoft.uql.XNode;
 import inetsoft.uql.asset.SQLBoundTableAssembly;
 import inetsoft.uql.asset.Worksheet;
 import inetsoft.uql.asset.internal.SQLBoundTableAssemblyInfo;
+import inetsoft.uql.erm.vpm.VpmCondition;
 import inetsoft.util.Tool;
 import inetsoft.util.TransformerManager;
 import inetsoft.util.dep.ImportedAssetProperties;
@@ -203,6 +204,97 @@ class XConditionMissingPartTest {
 
       Exception ex = assertThrows(Exception.class, () -> new UniformSQL().parseXML(elem));
       assertEquals("XBinaryCondition is missing <op>", ex.getMessage());
+   }
+
+   // ---- complete conditions keep loading and writing the same XML ----
+
+   /**
+    * The refusal must not change how a complete condition, or one with an empty value or a
+    * stored {@code null} op, loads: writing it, parsing that output and writing again, and
+    * writing a clone of it, all give the same XML.
+    */
+   @ParameterizedTest(name = "{0}")
+   @MethodSource("completeConditions")
+   void completeConditionRoundTripsUnchanged(String name, String xml) throws Exception {
+      XFilterNode node = XFilterNode.createConditionNode(
+         Tool.parseXML(new StringReader(xml)).getDocumentElement());
+      String written = write(node);
+      XFilterNode reloaded = XFilterNode.createConditionNode(
+         Tool.parseXML(new StringReader(written)).getDocumentElement());
+
+      assertEquals(written, write(reloaded), name);
+      assertEquals(written, write((XFilterNode) node.clone()), name);
+   }
+
+   static Stream<Arguments> completeConditions() {
+      String fieldExp2 =
+         "<expression2><expression type=\"Field\"><![CDATA[u.b]]></expression></expression2>";
+      String emptyExp1 = "<expression1>" + EMPTY_EXP + "</expression1>";
+      String emptyExp2 = "<expression2>" + EMPTY_EXP + "</expression2>";
+      String emptyExp3 = "<expression3>" + EMPTY_EXP + "</expression3>";
+
+      return Stream.of(
+         Arguments.of("binary", binary("XBinaryCondition", EXP1 + EXP2 + OP_EQ)),
+         Arguments.of("binary null op", binary("XBinaryCondition", EXP1 + EXP2 + OP_NULL)),
+         Arguments.of("binary empty values",
+                      binary("XBinaryCondition", emptyExp1 + emptyExp2 + OP_EQ)),
+         Arguments.of("join", binary("XJoin", EXP1 + fieldExp2 + OP_EQ)),
+         Arguments.of("join null op", binary("XJoin", EXP1 + fieldExp2 + OP_NULL)),
+         Arguments.of("unary", unary(EXP1 + OP_NULL_CHECK)),
+         Arguments.of("unary empty value", unary(emptyExp1 + OP_NULL)),
+         Arguments.of("trinary", trinary(EXP1 + EXP2 + EXP3 + OP_BETWEEN)),
+         Arguments.of("trinary null op", trinary(EXP1 + EXP2 + EXP3 + OP_NULL)),
+         Arguments.of("trinary empty values",
+                      trinary(emptyExp1 + emptyExp2 + emptyExp3 + OP_BETWEEN)));
+   }
+
+   // ---- VPM conditions parse through the same classes ----
+
+   @Test
+   void vpmConditionLoadsCompleteAndRefusesIncomplete() throws Exception {
+      String set = "<XSet relation=\"and\" isnot=\"false\">" +
+         binary("XBinaryCondition", EXP1 + EXP2 + OP_EQ) +
+         binary("XJoin", EXP1 + EXP2 + OP_EQ) + unary(EXP1 + OP_NULL_CHECK) +
+         trinary(EXP1 + EXP2 + EXP3 + OP_BETWEEN) + "</XSet>";
+      VpmCondition vpm = new VpmCondition("c1");
+      vpm.setTable("t");
+      vpm.setCondition(
+         XFilterNode.createConditionNode(Tool.parseXML(new StringReader(set)).getDocumentElement()));
+      String written = writeVpm(vpm);
+
+      VpmCondition loaded = new VpmCondition();
+      loaded.parseXML(Tool.parseXML(new StringReader(written)).getDocumentElement());
+      assertEquals(written, writeVpm(loaded));
+      assertEquals(4, leaves(loaded.getCondition()).size());
+
+      // drop the first <expression2>, which belongs to the XBinaryCondition
+      int start = written.indexOf("<expression2>");
+      String broken = written.substring(0, start) +
+         written.substring(written.indexOf("</expression2>", start) + "</expression2>".length());
+      Element elem = Tool.parseXML(new StringReader(broken)).getDocumentElement();
+      Exception ex = assertThrows(
+         Exception.class, () -> new VpmCondition().parseXML(elem));
+      assertEquals("XBinaryCondition is missing <expression2>", ex.getMessage());
+   }
+
+   private static String write(XFilterNode node) {
+      StringWriter buffer = new StringWriter();
+
+      try(PrintWriter writer = new PrintWriter(buffer)) {
+         node.writeXML(writer);
+      }
+
+      return buffer.toString();
+   }
+
+   private static String writeVpm(VpmCondition vpm) {
+      StringWriter buffer = new StringWriter();
+
+      try(PrintWriter writer = new PrintWriter(buffer)) {
+         vpm.writeXML(writer);
+      }
+
+      return buffer.toString();
    }
 
    // ---- clone() of a condition that lacks a part in memory ----
