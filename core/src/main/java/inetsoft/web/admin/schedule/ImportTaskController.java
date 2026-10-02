@@ -203,6 +203,17 @@ public class ImportTaskController {
                continue;
             }
 
+            // Bug #77549, a batch action query in another organization is refused by
+            // setScheduleTask, check it first so the refusal doesn't abort the rest of the import
+            try {
+               scheduleManager.checkBatchQueryOrganization(taskId, task, principal);
+            }
+            catch(inetsoft.sree.security.SecurityException e) {
+               LOG.warn("Task {} is not imported: {}", taskId, e.getMessage());
+               failedList.add(taskId);
+               continue;
+            }
+
             updateTaskInfo(task, linkURI);
             scheduleManager.setScheduleTask(taskId, task, principal);
 

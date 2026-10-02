@@ -2390,6 +2390,9 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
       }
 
       try {
+         // the auto save properties (AutoSaveUtils.AUTO_SAVE_PROPERTIES) skip the permission
+         // check, an entry from the client that must be a saved sheet has them removed, see
+         // BatchAction.removeAutoSaveProperties (Bug #77549)
          if(permission && !"true".equals(entry.getProperty("openAutoSaved"))) {
             checkAssetPermission(user, entry, ResourceAction.READ, true);
          }

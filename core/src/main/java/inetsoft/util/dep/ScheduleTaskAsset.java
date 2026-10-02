@@ -357,6 +357,9 @@ public class ScheduleTaskAsset extends AbstractXAsset {
       ScheduleTask existing = manager.getScheduleTask(newTask.getTaskId());
 
       if(overwriting || existing == null) {
+         // Bug #77549, refused before the stored task is removed, so it isn't lost
+         manager.checkBatchQueryOrganization(newTask.getTaskId(), newTask, principal);
+
          if(existing != null) {
             manager.removeScheduleTask(newTask.getTaskId(), principal);
          }

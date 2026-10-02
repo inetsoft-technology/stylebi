@@ -394,6 +394,8 @@ public class ScheduleService {
       // Bug #77359, check the owner organization before the task is removed, a renamed task
       // whose owner is in another organization is refused by setScheduleTask() and would be lost
       scheduleManager.checkReplaceOwnerOrganization(oldId, newId, currTask, principal);
+      // Bug #77549, the same for a batch action query in another organization
+      scheduleManager.checkBatchQueryOrganization(newId, currTask, principal);
       scheduleManager.removeScheduleTask(oldId, principal);
       String newName = newId;
 
