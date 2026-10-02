@@ -125,6 +125,128 @@ class UniformSQLCaseDistinctTableTest {
       assertEquals(0, sql.getTableIndex("X"));
    }
 
+   // an alias that equals another table's name in a different case (from T1 A, a y): every
+   // alias lookup resolves a name to the same table, the one with the alias, as SQL does
+   @ParameterizedTest
+   @CsvSource({ "A,T1,y,a,a", "a,T1,y,A,A", "A,T1,y,a,A", "a,T1,y,A,a" })
+   void aliasLookupsAgreeAcrossRows(String alias0, String name0, String alias1, String name1,
+                                    String key)
+   {
+      UniformSQL sql = new UniformSQL();
+      sql.addTable(alias0, name0);
+      sql.addTable(alias1, name1);
+
+      int index = sql.getTableIndex(key);
+      assertEquals(0, index, key);
+      assertSame(sql.getSelectTable(index), sql.getSelectTable(key), key);
+      assertEquals(name0, sql.getTableName(key), key);
+      // getTableAlias(String) looks up by table name, so it finds the other table, as before
+      assertEquals(alias1, sql.getTableAlias(key), key);
+
+      sql.removeTable(key);
+      assertEquals(1, sql.getTableCount(), key);
+      assertEquals(alias1, sql.getTableAlias(0), key);
+   }
+
+   // a name that is both a table name and another table's alias resolves to the alias
+   @Test
+   void aliasBeatsNameOfAnotherTable() {
+      UniformSQL sql = new UniformSQL();
+      sql.addTable("x", "a");
+      sql.addTable("a", "T");
+
+      for(String key : new String[] { "a", "A" }) {
+         assertEquals(1, sql.getTableIndex(key), key);
+         assertEquals("T", sql.getTableName(key), key);
+         assertSame(sql.getSelectTable(1), sql.getSelectTable(key), key);
+      }
+   }
+
+   // a table without a name doesn't break the lookup by name
+   @Test
+   void nullNameRow() {
+      UniformSQL sql = new UniformSQL();
+      sql.addTable(new SelectTable("n", null));
+      sql.addTable("x", "a");
+
+      assertEquals("x", sql.getSelectTable("A").getAlias());
+      assertNull(sql.getSelectTable("zz"));
+   }
+
+   // when at most one table matches a key case-insensitively, each lookup returns exactly
+   // what the previous case-insensitive first-match loops returned
+   @Test
+   void singleMatchSameAsCaseInsensitiveLookup() {
+      String[][] models = {
+         { "EMP", "EMP", "b", "b" },
+         { "e", "Emp", "b", "B" },
+         { "Orders", "SALES.ORDERS", "c", "Customers" },
+         { "x", "a", "y", "b" },
+      };
+      String[] keys = { "EMP", "emp", "Emp", "e", "E", "b", "B", "orders", "ORDERS",
+                        "sales.orders", "C", "customers", "X", "a", "A", "Y", "zz" };
+
+      for(String[] tables : models) {
+         for(String key : keys) {
+            UniformSQL sql = new UniformSQL();
+
+            for(int i = 0; i < tables.length; i += 2) {
+               sql.addTable(tables[i], tables[i + 1]);
+            }
+
+            String msg = Arrays.toString(tables) + " " + key;
+            assertEquals(oldTableIndex(sql, key), sql.getTableIndex(key), msg);
+            assertEquals(oldTableName(sql, key), sql.getTableName(key), msg);
+            assertEquals(oldTableAlias(sql, key), sql.getTableAlias(key), msg);
+            assertSame(oldSelectTable(sql, key), sql.getSelectTable(key), msg);
+
+            int removed = oldTableIndex(sql, key);
+            sql.removeTable(key);
+            assertEquals(tables.length / 2 - (removed >= 0 ? 1 : 0), sql.getTableCount(), msg);
+         }
+      }
+   }
+
+   // the lookups before #77544: the first case-insensitive match
+   private static int oldTableIndex(UniformSQL sql, String key) {
+      for(int i = 0; i < sql.getTableCount(); i++) {
+         if(sql.getSelectTable(i).getAlias().equalsIgnoreCase(key)) {
+            return i;
+         }
+      }
+
+      return -1;
+   }
+
+   private static Object oldTableName(UniformSQL sql, String key) {
+      int index = oldTableIndex(sql, key);
+      return index >= 0 ? sql.getSelectTable(index).getName() : null;
+   }
+
+   private static String oldTableAlias(UniformSQL sql, String key) {
+      for(int i = 0; i < sql.getTableCount(); i++) {
+         if(key.equalsIgnoreCase((String) sql.getSelectTable(i).getName())) {
+            return sql.getSelectTable(i).getAlias();
+         }
+      }
+
+      return null;
+   }
+
+   private static SelectTable oldSelectTable(UniformSQL sql, String key) {
+      for(int i = 0; i < sql.getTableCount(); i++) {
+         SelectTable table = sql.getSelectTable(i);
+
+         if(table.getAlias().equalsIgnoreCase(key) ||
+            key.equalsIgnoreCase(table.getName().toString()))
+         {
+            return table;
+         }
+      }
+
+      return null;
+   }
+
    // a single table referenced with another case resolves as before
    @Test
    void singleMatchIgnoresCase() {

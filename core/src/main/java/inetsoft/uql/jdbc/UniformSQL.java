@@ -1340,18 +1340,12 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
     * @param alias the specified table alias.
     */
    public synchronized void removeTable(String alias) {
-      // try an exact match first so that tables whose aliases differ only in
-      // case (e.g. "A" and "a") are not confused, then fall back to the
-      // case-insensitive match
-      for(boolean ignoreCase : new boolean[] { false, true }) {
-         for(int i = 0; i < tables.size(); i++) {
-            SelectTable table = tables.elementAt(i);
+      // resolve the alias the same way as getTableIndex so that tables whose
+      // aliases differ only in case (e.g. "A" and "a") are not confused
+      int index = getTableIndex(alias);
 
-            if(nameMatches(table.getAlias(), alias, ignoreCase)) {
-               tables.removeElementAt(i);
-               return;
-            }
-         }
+      if(index >= 0) {
+         tables.removeElementAt(index);
       }
    }
 
@@ -2133,7 +2127,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
    public synchronized String getTableAlias(String name) {
       int size = tables.size();
 
-      // exact match first, then case-insensitive (see removeTable)
+      // exact match first, then case-insensitive (see getTableIndex)
       for(boolean ignoreCase : new boolean[] { false, true }) {
          for(int i = 0; i < size; i++) {
             SelectTable table = tables.elementAt(i);
@@ -2185,18 +2179,9 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
          return null;
       }
 
-      // exact match first, then case-insensitive (see removeTable)
-      for(boolean ignoreCase : new boolean[] { false, true }) {
-         for(int i = 0; i < tables.size(); i++) {
-            SelectTable table = tables.elementAt(i);
-
-            if(nameMatches(table.getAlias(), alias, ignoreCase)) {
-               return table.getName();
-            }
-         }
-      }
-
-      return null;
+      // resolve the alias the same way as getTableIndex
+      int index = getTableIndex(alias);
+      return index >= 0 ? tables.get(index).getName() : null;
    }
 
    /**
@@ -2207,16 +2192,23 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
          return null;
       }
 
-      // exact match first, then case-insensitive (see removeTable)
+      // an alias match wins, resolved the same way as getTableIndex, so that
+      // this agrees with getTableIndex and getTableName on which table a name
+      // refers to
+      int index = getTableIndex(alias);
+
+      if(index >= 0) {
+         return tables.get(index);
+      }
+
+      // otherwise match the table name, exact match first, then
+      // case-insensitive
       for(boolean ignoreCase : new boolean[] { false, true }) {
          for(int i = 0; i < tables.size(); i++) {
-            SelectTable table = tables.elementAt(i);
+            Object name = tables.elementAt(i).getName();
 
-            if(nameMatches(table.getAlias(), alias, ignoreCase)) {
-               return table;
-            }
-            else if(nameMatches(alias, table.getName().toString(), ignoreCase)) {
-               return table;
+            if(name != null && nameMatches(alias, name.toString(), ignoreCase)) {
+               return tables.elementAt(i);
             }
          }
       }
