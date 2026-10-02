@@ -1,5 +1,18 @@
 # Selection family padding — manual checks
 
+**Superseded in part, 2026-10-02.** The before/after export comparison now lives in
+`2026-10-02-selection-padding-export-checks.md`, which is the document to run. Use this one only for
+the on-screen observations it carries that the export checks do not.
+
+**MT-1 is obsolete.** It asks whether the container's card inset reaches the browser. The container
+was scoped out of the inset entirely after the whole-branch review, so the question no longer has an
+answer to find — the container has no inset on any surface. What replaced it is MC-6 in the new
+document, which proves the container is *unchanged* rather than asking where its inset went.
+
+**MT-5 still stands** and is the check most worth a human's time: `ExcelSelectionTreeHelper`
+inherits through the shared helper base, so Excel's tree is the one place the opt-out could fail by
+inheritance, and only a unit test over a mocked exporter covers it today.
+
 Five checks that no automated test covers. Captured numbers: **none yet**. Every value below is
 an expectation derived from the implementation and the tier matrices, not a measurement.
 
