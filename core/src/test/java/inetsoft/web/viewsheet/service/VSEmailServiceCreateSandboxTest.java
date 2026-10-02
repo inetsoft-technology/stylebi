@@ -50,12 +50,14 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.awt.*;
 import java.io.File;
+import java.io.IOException;
 import java.lang.reflect.Field;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.Principal;
 import java.util.*;
 import java.util.List;
+import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -445,12 +447,44 @@ class VSEmailServiceCreateSandboxTest {
       FileSystemService fs = mock(FileSystemService.class);
       when(fs.getCacheFile(anyString()))
          .thenAnswer(inv -> dir.resolve((String) inv.getArgument(0)).toFile());
+
+      // Bug #77565: the excel->CSV path now puts its .xlsx intermediate in its own per-call
+      // subdirectory (VSEmailService.createTmpDir()) instead of directly under the cache dir,
+      // so the mock must also support getCacheDirectory()/getFile(..) for that to work.
+      try {
+         when(fs.getCacheDirectory()).thenReturn(dir.toString());
+      }
+      catch(IOException e) {
+         throw new RuntimeException(e);
+      }
+
+      when(fs.getFile(anyString())).thenAnswer(inv -> new File((String) inv.getArgument(0)));
+      when(fs.getFile(anyString(), anyString())).thenAnswer(inv ->
+         new File((String) inv.getArgument(0), (String) inv.getArgument(1)));
+
       return fs;
    }
 
+   /**
+    * Lists every regular file under {@code dir}, recursively, as paths relative to {@code dir}.
+    * Recursive (not just {@code dir.toFile().list()}) since Bug #77565's fix nests the excel->CSV
+    * intermediate under its own unique subdirectory of {@code dir} rather than directly in it.
+    */
    private static List<String> cachedFiles(Path dir) {
-      String[] names = dir.toFile().list();
-      return names == null ? List.of() : Arrays.stream(names).sorted().toList();
+      if(!Files.exists(dir)) {
+         return List.of();
+      }
+
+      try(Stream<Path> paths = Files.walk(dir)) {
+         return paths.filter(Files::isRegularFile)
+            .map(dir::relativize)
+            .map(Path::toString)
+            .sorted()
+            .toList();
+      }
+      catch(IOException e) {
+         throw new RuntimeException(e);
+      }
    }
 
    private static ViewsheetSandbox createSandbox(Viewsheet bookmark) throws Exception {
