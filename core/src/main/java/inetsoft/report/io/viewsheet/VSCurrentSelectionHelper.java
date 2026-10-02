@@ -120,7 +120,7 @@ public abstract class VSCurrentSelectionHelper extends ExporterHelper {
       Dimension size = info.getPixelSize();
       Rectangle2D cbounds = cHelper.createBounds(position, size);
 
-      size = new Dimension(size.width, AssetUtil.defh);
+      size = new Dimension(size.width, info.getOutSelectionRowHeight(AssetUtil.defh));
       Point startPos = info.getViewsheet().getPixelPosition(info);
       startPos = new Point(startPos.x, startPos.y + info.getTitleHeight());
       Rectangle2D tbounds = cHelper.createBounds(startPos, size);

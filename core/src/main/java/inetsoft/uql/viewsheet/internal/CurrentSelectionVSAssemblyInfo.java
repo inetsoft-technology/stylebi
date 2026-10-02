@@ -250,6 +250,21 @@ public class CurrentSelectionVSAssemblyInfo extends ContainerVSAssemblyInfo
    }
 
    /**
+    * Get the height of one collapsed out-selection row. A collapsed row is a child's title lane
+    * in summary form, so a modern container takes the title matrix rather than the cell matrix:
+    * collapsing a filter must not change how tall its header is. Browser and export both read
+    * this, so they agree once modern.
+    * @param legacy the surface's own height for an unmarked container. It is a parameter because
+    *               the browser (18) and export (AssetUtil.defh) disagreed before this existed,
+    *               and an unmarked container must render exactly as it always did.
+    * @return the out-selection row height.
+    */
+   public int getOutSelectionRowHeight(int legacy) {
+      VizContext ctx = VizContext.of(this);
+      return ctx.modern ? VSDensityDefaults.titleHeight(ctx) : legacy;
+   }
+
+   /**
     * Get the current selection title height value.
     * @return the title height value of the current selection assembly.
     */

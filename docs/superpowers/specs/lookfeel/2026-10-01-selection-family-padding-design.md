@@ -396,9 +396,21 @@ was supposed to inset its children. With that false, the consistent rule is that
 looks the same in or out of a container, so the exemption was removed rather than mirrored into
 export. A contained child insets on browser, export and print alike.
 
-**Still open, and not part of this work.** The container's out-selection row height is not
-density-aware and disagrees across surfaces — `VSSelectionContainerModel` defaults it to 18 while
-`VSCurrentSelectionHelper` uses `AssetUtil.defh` (20) — while the container's title lane already
-follows density at 30/26/20. That 2px discrepancy predates this branch. Whether those rows should
-take the 28/24/20 cell matrix, and whether the container's default size should then grow to keep its
-row count, is a separate slice.
+**The out-selection row height, decided 2026-10-02.** A collapsed child is shown as a one-line
+summary row, and that row's height used to come from two unrelated places: the browser's model held
+a constant 18 that nothing could set, and export drew `AssetUtil.defh` (20). A modern container's
+rows now take the title-lane matrix, 30 / 26 / 20 by tier, from one method,
+`CurrentSelectionVSAssemblyInfo.getOutSelectionRowHeight`, which both surfaces call. The title
+matrix rather than the cell matrix, because a collapsed row is a child's title lane in summary form
+and collapsing a filter must not change how tall its header is; the container's own lane and an
+expanded child's title are already density-aware, and the collapsed row was the only part of that
+stack still frozen at legacy. The method resolves through `VSDensityDefaults.titleHeight(ctx)`, so no
+new matrix or literal was introduced.
+
+**An unmarked container is unchanged on both surfaces.** The method takes the caller's legacy height
+as a parameter: the browser passes 18 and export passes `AssetUtil.defh`. Marked containers converge
+on the tier value; unmarked ones keep their own numbers, so D6 holds with no exception. The 2px
+browser-versus-export disagreement on legacy rows is knowingly left in place. It predates this
+branch, and unifying it would move every existing container, which is the one thing D6 rules out.
+Whether the container's default size should grow to keep its row count at the larger tiers remains
+a separate slice.
