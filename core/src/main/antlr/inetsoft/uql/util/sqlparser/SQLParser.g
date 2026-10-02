@@ -938,6 +938,26 @@ private void clearInnerOnJoins(UniformSQL sql, String outerType, String tbl2) {
    }
 }
 
+/**
+ * Check that a condition has no legacy outer join (*=, =* or (+)). It is only valid
+ * in a where clause. In an inner join ON it isn't valid on any database ((+) in an
+ * ANSI join is ORA-25156, and *= can't be mixed with ANSI joins), and in a having
+ * clause or a case it isn't a join. The generation hoisted it into an outer join
+ * anyway, which dropped it or lost its position and comparison op (e.g. "on a.id =
+ * b.id and a.k > b.k(+)" became "ON a.k = b.k where a.id = b.id"), or printed *=.
+ */
+private void checkNoOuterJoins(XFilterNode node, Token tok) throws SemanticException {
+   if(node instanceof XJoin && ((XJoin) node).isOuterJoin()) {
+      throw new SemanticException("Unsupported outer join condition: " + node,
+                                  getFilename(), tok.getLine(), tok.getColumn());
+   }
+   else if(node instanceof XSet) {
+      for(int i = 0; i < node.getChildCount(); i++) {
+         checkNoOuterJoins((XFilterNode) node.getChild(i), tok);
+      }
+   }
+}
+
 private void collectInnerJoins(XFilterNode node, List joins) {
    if(node instanceof XJoin) {
       if(!((XJoin) node).isOuterJoin()) {
@@ -1507,7 +1527,7 @@ predicate_body returns [XFilterNode node = null]
 
 comp_predicate returns [XFilterNode xnode = null]
         {XExpression exp1, exp2; String op; XBinaryCondition node;
-        boolean isOracleLeftJoin = false; {checkStatus();}}
+        boolean isOracleLeftJoin = false; Token start = LT(1); {checkStatus();}}
         :
         exp1 = row_value_constructor op = comp_op exp2 = row_value_constructor
         ((OJ)=>OJ {isOracleLeftJoin = true;}|)
@@ -1533,6 +1553,16 @@ comp_predicate returns [XFilterNode xnode = null]
                 node = new XJoin();
         }
         else {
+                // an outer join op on a condition that isn't a join between two
+                // tables, such as b.code(+) = 'X', is a filter of the outer join.
+                // the model has no place for it, and generating it with = would
+                // give different rows, so refuse it and the original sql runs
+                if(op.equals("*=") || op.equals("=*")) {
+                        throw new SemanticException("Unsupported outer join condition: " +
+                           exp1 + " " + op + " " + exp2,
+                           getFilename(), start.getLine(), start.getColumn());
+                }
+
                 node = new XBinaryCondition();
         }
 
@@ -1687,11 +1717,21 @@ null_predicate returns [XFilterNode xnode = null]
         ;
 
 quantified_comp_predicate returns [XFilterNode xnode =null]
-        {XExpression exp1, exp2, tmp; String op, str; XBinaryCondition node; {checkStatus();}}
+        {XExpression exp1, exp2, tmp; String op, str; XBinaryCondition node;
+        Token start = LT(1); {checkStatus();}}
         :
         exp1 = row_value_constructor op = comp_op str = quantifier tmp = table_subquery
 
         {exp2 = new XExpression(); exp2.setValue(str + " " + tmp, XExpression.EXPRESSION);
+
+        // an outer join op against a subquery can't be represented, the same as
+        // in comp_predicate. (+)= isn't converted to =* here, so check it too
+        if(op.equals("*=") || op.equals("=*") || op.equals("(+)=")) {
+                throw new SemanticException("Unsupported outer join condition: " +
+                   exp1 + " " + op + " " + exp2,
+                   getFilename(), start.getLine(), start.getColumn());
+        }
+
         node = new XBinaryCondition(); node.setExpression1(exp1);
         node.setExpression2(exp2); node.setOp(op); xnode = node;}
         ;
@@ -2484,7 +2524,7 @@ searched_case returns [String searchcase = ""]
 searched_when_clause returns [String searchwhen = ""]
         {String tmp,tmp1; XFilterNode node; {checkStatus();}}
         :
-        a:WHEN node = search_condition b:THEN tmp1 = result
+        a:WHEN node = search_condition {checkNoOuterJoins(node, a);} b:THEN tmp1 = result
         {SQLHelper helper = SQLHelper.getSQLHelper(this.uniSql);
          String condition = helper.generateConditions(node);
         searchwhen = a.getText() + " " + condition + " " + b.getText() + " " + tmp1;}
@@ -3696,7 +3736,7 @@ grouping_column_ref [UniformSQL sql] returns [String gcol = ""]
 having_clause returns [XFilterNode having = null]
         {checkStatus();}
         :
-        HAVING having = search_condition
+        a:HAVING having = search_condition {checkNoOuterJoins(having, a);}
         ;
 
 table_value_constructor returns [XExpression exp = null]
@@ -3900,6 +3940,7 @@ join_condition [UniformSQL sql, String op, String tbl2, int rstart, int rend] re
               clearInnerOnJoins(sql, outerType, tbl2);
            }
            else {
+              checkNoOuterJoins(tmp, a);
               addInnerOnJoins(sql, tmp);
            }
 
