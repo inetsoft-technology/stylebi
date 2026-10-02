@@ -1,0 +1,30 @@
+<worksheet>
+<assemblies>
+<oneAssembly>
+<assembly class="inetsoft.uql.asset.SQLBoundTableAssembly">
+<assemblyInfo>
+<normalColumnSelection>
+</normalColumnSelection>
+<crosstabColumnSelection>
+</crosstabColumnSelection>
+<source>
+<sourceInfo type="16">
+</sourceInfo>
+</source>
+<query>
+<query_jdbc>
+<uniform_sql>
+<where>
+<XSet>
+<XJoin>
+XJoin isnot="false" clause="" containsNull="false">
+</XJoin>
+</XSet>
+</where>
+</uniform_sql>
+</query_jdbc>
+</query>
+</assemblyInfo>
+</assembly></oneAssembly>
+</assemblies>
+</worksheet>
