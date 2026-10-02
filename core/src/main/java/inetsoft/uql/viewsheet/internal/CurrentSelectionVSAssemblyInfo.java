@@ -106,6 +106,14 @@ public class CurrentSelectionVSAssemblyInfo extends ContainerVSAssemblyInfo
          // getForeground() has the same field fallback getBackground() has
          def.setForeground(null);
       }
+
+      // the box grows by the card inset, which the container's own basis then keeps. Not the
+      // five-row rule that sizes a list: the container holds child assemblies, not rows. Guarded
+      // on a size this rule could have written, so an author size survives, and Revert reverses
+      // it
+      if(VSDensityDefaults.isSeededContainerSize(getPixelSize())) {
+         setPixelSize(VSDensityDefaults.containerSize(ctx));
+      }
    }
 
    /**

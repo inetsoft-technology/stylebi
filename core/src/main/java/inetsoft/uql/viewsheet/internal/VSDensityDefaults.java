@@ -227,6 +227,43 @@ public final class VSDensityDefaults {
    }
 
    /**
+    * The default size of a selection container: its legacy size grown by the card inset. The
+    * container holds child assemblies, not rows, so the five-row rule that sizes a list does not
+    * apply to it.
+    */
+   public static Dimension containerSize(VizContext ctx) {
+      if(!ctx.modern) {
+         return new Dimension(3 * AssetUtil.defw, 12 * AssetUtil.defh);
+      }
+
+      return containerSizeForMode(ctx.density);
+   }
+
+   /**
+    * Whether a size is one containerSize() could have written - the legacy default, or a tier
+    * default. Anything else is an author size, and the seed must leave it alone.
+    */
+   public static boolean isSeededContainerSize(Dimension size) {
+      if(size == null) {
+         return false;
+      }
+
+      if(size.width == 3 * AssetUtil.defw && size.height == 12 * AssetUtil.defh) {
+         return true;
+      }
+
+      return size.equals(containerSizeForMode(COMFORTABLE))
+         || size.equals(containerSizeForMode(COMPACT))
+         || size.equals(containerSizeForMode(DENSE));
+   }
+
+   private static Dimension containerSizeForMode(String mode) {
+      Insets inset = chartPaddingForMode(mode);
+      return new Dimension(inset.left + 3 * AssetUtil.defw + inset.right,
+                           inset.top + 12 * AssetUtil.defh + inset.bottom);
+   }
+
+   /**
     * Five data rows. The legacy default was defh * 6 - a title lane over five rows - so the lane
     * is counted separately in both the legacy and tier sizes and this constant means one thing.
     */

@@ -976,6 +976,32 @@ public abstract class SelectionBaseVSAssemblyInfo extends MaxModeSelectionVSAsse
       if(!isUserPadding() && !isCssPaddingDefined()) {
          setPadding(VSDensityDefaults.tablePadding(ctx));
       }
+
+      // the box follows density, because the content inside it does. A tier's taller rows and
+      // title lane cost a default-size list two of its five rows, and the inset would cost a
+      // third, so the box grows to keep the row count the legacy default had.
+      //
+      // Guarded on a size this rule could itself have written, so an author who sized the
+      // assembly keeps their size through a Modernize or a density change. Revert reverses it,
+      // or a reverted list keeps a box sized for rows it no longer has. Last, because it sizes
+      // against the inset seeded above
+      if(isSeededSize(getPixelSize())) {
+         setPixelSize(seededSize(ctx));
+      }
+   }
+
+   /**
+    * The size this type takes when nobody has sized it.
+    */
+   protected Dimension seededSize(VizContext ctx) {
+      return VSDensityDefaults.selectionSize(ctx);
+   }
+
+   /**
+    * Whether a size is one seededSize() could have written, at any tier or legacy.
+    */
+   protected boolean isSeededSize(Dimension size) {
+      return VSDensityDefaults.isSeededSelectionSize(size);
    }
 
    @Override
