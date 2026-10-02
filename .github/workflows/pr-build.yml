@@ -68,9 +68,11 @@ jobs:
       matrix:
         include:
           - shard: 1
-            filter: -Dsurefire.excludesFile=${{ github.workspace }}/.github/ci/core-tests-shard-1.exclude
+            option: excludesFile
+            file: core-tests-shard-1.exclude
           - shard: 2
-            filter: -Dsurefire.includesFile=${{ github.workspace }}/.github/ci/core-tests-shard-2.include
+            option: includesFile
+            file: core-tests-shard-2.include
 
     steps:
       - name: Checkout repository
@@ -100,7 +102,8 @@ jobs:
 
       - name: Core tests, shard ${{ matrix.shard }}
         run: >-
-          ./mvnw --batch-mode test -pl core ${{ matrix.filter }}
+          ./mvnw --batch-mode test -pl core
+          -Dsurefire.${{ matrix.option }}=$GITHUB_WORKSPACE/.github/ci/${{ matrix.file }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
