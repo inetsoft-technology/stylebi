@@ -146,10 +146,12 @@ export abstract class AbstractVSActions<T extends VSObjectModel> extends Assembl
 
    // True only in the host that anchors the strip into a lane, where a lane under the minimum
    // draws no strip and no kebab — so the dismissal would name a control that does not exist. The
-   // five floating hosts overlay the strip and are unaffected by lane height. embedAssembly sets
-   // viewer while floating its strip, hence the explicit exclusion.
+   // five floating hosts overlay the strip and are unaffected by lane height. Two of them set
+   // viewer while floating, and are excluded by name: the embedded chart, and the binding pane
+   // opened from the viewer rather than the composer.
    private get laneSuppressed(): boolean {
-      return (this.viewer || this.preview) && !this.contextProvider.embedAssembly &&
+      return (this.viewer || this.preview) && !this.binding &&
+         !this.contextProvider.embedAssembly &&
          isAnchoredChromeSuppressed(this.model.objectType, this.model.vizModern,
                                     anchoredLaneHeight(this.model));
    }

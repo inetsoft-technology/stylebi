@@ -258,22 +258,16 @@ describe("AbstractVSActions", () => {
    // dismissal there names a control that does not exist.
    describe("dismissal against the lane", () => {
       it("hides the dismissal in the viewer when the lane cannot hold the strip", () => {
-         document.body.classList.add("viz-density-dense");
-
          expect(visibleMenuIds(viewerActionsFor(400, 200, true, 20)))
             .not.toContain("vs-assembly hide-mini-toolbar");
       });
 
       it("hides the dismissal in the viewer when the title is hidden", () => {
-         document.body.classList.add("viz-density-compact");
-
          expect(visibleMenuIds(viewerActionsFor(400, 200, true, 0)))
             .not.toContain("vs-assembly hide-mini-toolbar");
       });
 
       it("keeps the dismissal in the viewer when the lane can hold the strip", () => {
-         document.body.classList.add("viz-density-compact");
-
          expect(visibleMenuIds(viewerActionsFor(400, 200, true, 26)))
             .toContain("vs-assembly hide-mini-toolbar");
       });
@@ -281,8 +275,6 @@ describe("AbstractVSActions", () => {
       // The composer floats the strip rather than anchoring it, so a short lane changes nothing
       // there. This is the regression an ungated lane test would cause.
       it("keeps the dismissal in the composer whatever the lane", () => {
-         document.body.classList.add("viz-density-dense");
-
          expect(visibleMenuIds(actionsFor(400, 200, true, 20)))
             .toContain("vs-assembly hide-mini-toolbar");
       });
@@ -299,7 +291,6 @@ describe("AbstractVSActions", () => {
 
       // The range slider is outside ANCHORED_ASSEMBLY_TYPES, so no lane of any height suppresses it.
       it("leaves a non-anchored type alone when the lane is short", () => {
-         document.body.classList.add("viz-density-dense");
          const model: VSRangeSliderModel =
             TestUtils.createMockVSRangeSliderModel("RangeSlider1");
          model.objectFormat.width = 400;
@@ -971,12 +962,19 @@ describe("AbstractVSActions", () => {
             acc.concat(g.actions.filter(a => a.visible()).map(a => a.id())), [] as string[]);
 
       // Both flavours — opened from the composer, and opened from the viewer, which sets viewer
-      // alongside binding.
-      function bindingChartActions(vizModern: boolean, fromComposer: boolean): ChartActions {
+      // alongside binding. The mock chart hides its title, so the lane is 0 unless one is given.
+      function bindingChartActions(vizModern: boolean, fromComposer: boolean,
+                                   laneHeight?: number): ChartActions
+      {
          const model: VSChartModel = TestUtils.createMockVSChartModel("Chart1");
          model.objectFormat.width = 400;
          model.objectFormat.height = 200;
          model.vizModern = vizModern;
+
+         if(laneHeight != null) {
+            TestUtils.withTitleLane(model, laneHeight);
+         }
+
          return new ChartActions(model, popService, BindingContextProviderFactory(fromComposer),
             false, null, null, miniToolbarService);
       }
@@ -1010,6 +1008,20 @@ describe("AbstractVSActions", () => {
       it("renders the same strip marked as unmarked", () => {
          expect(visibleIds(bindingChartActions(true, true).toolbarActions))
             .toEqual(visibleIds(bindingChartActions(false, true).toolbarActions));
+      });
+
+      // Opened from the viewer the pane sets viewer alongside binding, so a lane rule written for
+      // the anchoring host can reach it. It still floats its strip, so no lane may change it.
+      it("renders the same strip marked as unmarked, opened from the viewer", () => {
+         expect(visibleIds(bindingChartActions(true, false).toolbarActions))
+            .toEqual(visibleIds(bindingChartActions(false, false).toolbarActions));
+      });
+
+      it("keeps the dismissal on the strip at a lane too short to anchor", () => {
+         expect(ids(bindingChartActions(true, false, 20).toolbarActions)[0])
+            .toBe("vs-assembly hide-mini-toolbar");
+         expect(visibleIds(bindingChartActions(true, false, 20).toolbarActions))
+            .toContain("vs-assembly hide-mini-toolbar");
       });
    });
 
