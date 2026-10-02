@@ -752,6 +752,7 @@ public class SQLHelper implements KeywordProvider {
    public final String generateSentence() {
       vJoin = null;
       textJoinOrder = null;
+      ansiWhereJoins = null;
 
       // make sure the table aliases don't exceed database limit
       fixTableAliases();
@@ -843,6 +844,8 @@ public class SQLHelper implements KeywordProvider {
       // From to create the vJoin list
       String where = generateWhereClause();
       String from = generateFromClause();
+      // join conditions the ANSI FROM clause couldn't write in an ON
+      where = appendAnsiWhereJoins(where);
       String groupby = generateGroupByClause();
       String having = generateHavingClause();
       String orderby = generateOrderByClause();
@@ -2003,6 +2006,8 @@ public class SQLHelper implements KeywordProvider {
          return "";
       }
 
+      // the joins before they are reordered, to generate again without cycle conditions
+      List<XJoin> vJoin0 = vJoin == null ? null : new ArrayList<>(vJoin);
       int val = -1;
       boolean sorted = false;
 
@@ -2025,7 +2030,7 @@ public class SQLHelper implements KeywordProvider {
       // a lj b on a.id = b.id join c on b.id = c.id lj d on a.id = d.id is
       // ((a lj b) join c) lj d. Reordering them (below) can move an inner join
       // to the null-supplying side of an outer join and change the result
-      if(!sorted && isTextJoinOrder()) {
+      if(!sorted && !noCycleConditions && isTextJoinOrder()) {
          String from = generateFromClauseText(count);
 
          if(from != null) {
@@ -2161,6 +2166,24 @@ public class SQLHelper implements KeywordProvider {
        */
       int jsize = vJoin == null ? 0 : vJoin.size();
       int top = 0;
+      ansiWhereJoins = null;
+      // a join between two tables that are already joined closes a cycle of the join graph,
+      // e.g. c in a = b, b = c, a = c. It is a condition of the joined tables, not a join of
+      // a new table. Only write it as one if no join is under or/not, because the joins of
+      // such a condition tree are already flattened into the from clause
+      boolean cycleConditions = !noCycleConditions && vJoin != null &&
+         vJoin.stream().allMatch(this::isJoinPathAnded);
+      // the last join step of the current group, whose ON is the outermost one
+      XJoin lastJoin = null;
+      SelectTable lastTable = null;
+      boolean lastTablePreserved = false;
+      boolean lastAnded = true;
+      // conditions that filter the group after an outer join step. They stay valid as where
+      // conditions through inner and left join steps, but a right join step null-extends the
+      // group, so they go into its ON
+      List<XJoin> pending = new ArrayList<>();
+      // true if the last join step is a right join that the pending conditions go into
+      boolean lastRight = false;
 
       for(int i = 0; i < count; i++) {
          if(joinCount >= jsize) {
@@ -2172,10 +2195,31 @@ public class SQLHelper implements KeywordProvider {
                break;
             }
 
+            // a join between columns of one table at the start of a group would join the
+            // table to itself. If the table has other joins, it's a condition of the group of
+            // those joins, which reaches it when the table is joined. Otherwise the table is
+            // not in a group, and the condition goes to the where clause
+            if(i == j && cycleConditions && joins[i][j] != null && joins[i][j].size() > 0) {
+               if(hasOtherJoins(joins, count, i)) {
+                  continue;
+               }
+
+               for(XJoin cjoin : joins[i][j]) {
+                  addAnsiWhereJoin(cjoin);
+                  joinCount++;
+               }
+
+               joins[i][j].clear();
+               continue;
+            }
+
             // find a starting point to start constructing the from clause
             if(joins[i][j] != null && joins[i][j].size() > 0) {
                startX = i;
                startY = j;
+               lastJoin = null;
+               lastRight = false;
+               pending.clear();
 
                /*
                 * When no more related joins are found, seperate the
@@ -2203,28 +2247,69 @@ public class SQLHelper implements KeywordProvider {
                   String tableTwo = null;
                   boolean traverse = false;
 
-                  if(newTables) {
-                     tableOne = (String) table1[0];
-                     tableTwo = (String) table2[0];
+                  if(newTables && cycleConditions && lastJoin != null &&
+                     isCycleJoinCell(joins[startX][startY], table1[1], table2[1], usedtables))
+                  {
+                     for(XJoin cjoin : joins[startX][startY]) {
+                        if(lastAnded && isCycleJoinInLastOn(cjoin, lastJoin, lastTable,
+                                                            lastTablePreserved))
+                        {
+                           // AND, never the relation of the previous join (which can be or)
+                           from.append(AND);
+                           from.append(buildAnsiJoinCondition(cjoin));
+                           from.append(" ");
+                        }
+                        else {
+                           pending.add(cjoin);
+                        }
 
-                     if(usedtables.contains(table1[1])) {
-                        tableOne = null;
-                     }
-                     else if(usedtables.contains(table2[1])) {
-                        tableTwo = tableOne;
-                        tableOne = null;
-                        traverse = true;
+                        joinCount++;
                      }
 
-                     usedtables.add(table1[1]);
-                     usedtables.add(table2[1]);
+                     joins[startX][startY].clear();
                   }
+                  else {
+                     if(newTables) {
+                        tableOne = (String) table1[0];
+                        tableTwo = (String) table2[0];
 
-                  String op = getAnsiJoin(join.getOp(), traverse);
-                  appendJoinClause(from, join, op, tableOne, tableTwo, top, previousJoin);
-                  previousJoin = join;
-                  joinCount++;
-                  joins[startX][startY].removeFirst();
+                        if(usedtables.contains(table1[1])) {
+                           tableOne = null;
+                        }
+                        else if(usedtables.contains(table2[1])) {
+                           tableTwo = tableOne;
+                           tableOne = null;
+                           traverse = true;
+                        }
+
+                        usedtables.add(table1[1]);
+                        usedtables.add(table2[1]);
+                     }
+
+                     String op = getAnsiJoin(join.getOp(), traverse);
+                     appendJoinClause(from, join, op, tableOne, tableTwo, top, previousJoin);
+
+                     if(newTables) {
+                        lastJoin = join;
+                        lastTable = (SelectTable) (traverse ? table1[1] : table2[1]);
+                        lastTablePreserved = isPreservedTable(join, traverse);
+                        lastAnded = true;
+                        lastRight = join.isOuterJoin() && !join.isFullOuterJoin() &&
+                           lastTablePreserved;
+
+                        // a full join null-extends the group and the new table, so no
+                        // placement of the pending conditions keeps their meaning. Generate
+                        // the joins as before, without cycle conditions
+                        if(join.isFullOuterJoin() && !pending.isEmpty()) {
+                           return generateFromClauseAnsiAgain(vJoin0);
+                        }
+                     }
+
+                     lastAnded = lastAnded && isJoinAnded(join);
+                     previousJoin = join;
+                     joinCount++;
+                     joins[startX][startY].removeFirst();
+                  }
 
                   // There are multiple joins between same tables
                   // e.g. A -> B's or B -> A's, evaluate the next one
@@ -2236,6 +2321,22 @@ public class SQLHelper implements KeywordProvider {
                      continue;
                   }
 
+                  // the right join step is complete, AND the pending conditions into its ON
+                  if(lastRight && !pending.isEmpty()) {
+                     if(!lastAnded) {
+                        return generateFromClauseAnsiAgain(vJoin0);
+                     }
+
+                     for(XJoin cjoin : pending) {
+                        from.append(AND);
+                        from.append(buildAnsiJoinCondition(cjoin));
+                        from.append(" ");
+                     }
+
+                     pending.clear();
+                  }
+
+                  lastRight = false;
                   tag.add(new Point(startX, startY));
                   newTables = true;
 
@@ -2246,6 +2347,13 @@ public class SQLHelper implements KeywordProvider {
                      startY = nextP.y;
                      continue;
                   }
+
+                  // no later step null-extends the group
+                  for(XJoin cjoin : pending) {
+                     addAnsiWhereJoin(cjoin);
+                  }
+
+                  pending.clear();
 
                   // if we reach here that means no related joins found
                   // moved ahead to find other groups
@@ -2641,6 +2749,208 @@ public class SQLHelper implements KeywordProvider {
    }
 
    /**
+    * Generate the ANSI from clause again, without writing the joins between joined tables as
+    * conditions. It writes such a join as a join of its table again, so the sql fails instead
+    * of returning wrong rows.
+    * @param vJoin0 the joins before generateFromClauseAnsi() reordered them.
+    */
+   private String generateFromClauseAnsiAgain(List<XJoin> vJoin0) {
+      vJoin = vJoin0;
+      noCycleConditions = true;
+
+      try {
+         return generateFromClauseAnsi();
+      }
+      finally {
+         noCycleConditions = false;
+      }
+   }
+
+   /**
+    * Check if a table has joins with other tables in the join matrix.
+    */
+   private static boolean hasOtherJoins(Deque<XJoin>[][] joins, int count, int index) {
+      for(int k = 0; k < count; k++) {
+         if(k != index && (joins[index][k] != null && !joins[index][k].isEmpty() ||
+            joins[k][index] != null && !joins[k][index].isEmpty()))
+         {
+            return true;
+         }
+      }
+
+      return false;
+   }
+
+   /**
+    * Check if a matrix cell of the ANSI join walk joins no new table, i.e. if both of its
+    * tables are already joined (the cell closes a cycle of the join graph) or its joins are
+    * between columns of one table. Its joins are then conditions of the joined tables.
+    */
+   private boolean isCycleJoinCell(Deque<XJoin> cell, Object table1, Object table2,
+                                   Set<Object> usedtables)
+   {
+      return table1 != null && table2 != null && usedtables.contains(table1) &&
+         usedtables.contains(table2) && cell.stream().allMatch(this::isJoinAnded);
+   }
+
+   /**
+    * Check if a join between two joined tables can be ANDed into the ON of the last join
+    * step, which is the outermost ON of the group. An inner join can, unless the last step is
+    * an outer join: in its ON the condition would keep the null-extended rows the inner join
+    * removes, so it filters the group after that step instead (in the where clause, or in the
+    * ON of a later right join step). An outer join can only if it has the outer join of the
+    * last step, i.e. the table the last step joined is on the same (preserved or null
+    * supplying) side of both joins. Any other outer join can't be written and is treated as
+    * an inner join.
+    */
+   private boolean isCycleJoinInLastOn(XJoin join, XJoin lastJoin, SelectTable lastTable,
+                                       boolean lastTablePreserved)
+   {
+      if(!lastJoin.isOuterJoin()) {
+         return true;
+      }
+
+      if(!join.isOuterJoin() || join.isFullOuterJoin() || lastJoin.isFullOuterJoin()) {
+         return false;
+      }
+
+      boolean leftPreserved = "*=".equals(join.getOp());
+      Object preserved = getJoinedTable(join, leftPreserved)[1];
+      Object optional = getJoinedTable(join, !leftPreserved)[1];
+      return lastTable != null && lastTable == (lastTablePreserved ? preserved : optional);
+   }
+
+   /**
+    * Check if the table a join step adds is the preserved side of its outer join.
+    * @param traverse true if the step adds the left table of the join.
+    */
+   private static boolean isPreservedTable(XJoin join, boolean traverse) {
+      return "*=".equals(join.getOp()) ? traverse : "=*".equals(join.getOp()) && !traverse;
+   }
+
+   /**
+    * Check if a join is ANDed with the other conditions, i.e. no set above it is negated or
+    * an or set with more than one condition. Unlike isJoinPathAnded(), the or sets of a join
+    * group are not allowed: a join that is ANDed into an ON (or the where clause) as a cycle
+    * condition, and a join step that a condition is ANDed after, must not be an alternative of
+    * another join.
+    */
+   private boolean isJoinAnded(XJoin join) {
+      for(XNode node = join.getParent(); node instanceof XSet; node = node.getParent()) {
+         XSet set = (XSet) node;
+
+         if(set.isIsNot() || !XSet.AND.equalsIgnoreCase(set.getRelation()) &&
+            set.getChildCount() > 1)
+         {
+            return false;
+         }
+      }
+
+      return true;
+   }
+
+   /**
+    * Check if a join is on a non-negated all-AND path of the where tree, allowing the or sets
+    * of a join group built by UniformSQL.addJoin, which hold alternative joins of one pair of
+    * tables that are written into the ON of that pair. This is the query-wide check: a join
+    * group's or set is still a join of the query, so it doesn't turn cycle conditions off,
+    * while isJoinAnded() keeps the cells of such a group from being written as conditions.
+    */
+   private boolean isJoinPathAnded(XJoin join) {
+      for(XNode node = join.getParent(); node instanceof XSet; node = node.getParent()) {
+         XSet set = (XSet) node;
+         XNode parent = set.getParent();
+
+         if(set.isIsNot() || !XSet.AND.equalsIgnoreCase(set.getRelation()) &&
+            set.getChildCount() > 1 && !set.isGroup() &&
+            !(parent instanceof XSet && ((XSet) parent).isGroup()))
+         {
+            return false;
+         }
+      }
+
+      return true;
+   }
+
+   /**
+    * Write a join as a condition, the way it's written in an ON clause.
+    */
+   private String buildAnsiJoinCondition(XJoin join) {
+      return buildExpressionString(join.getExpression1(), true) + " " +
+         getAnsiOp(join.getOp(), join.isIsNot()) + " " +
+         buildExpressionString(join.getExpression2(), true);
+   }
+
+   /**
+    * Add a join the ANSI FROM clause can't write to the conditions of the where clause.
+    */
+   private void addAnsiWhereJoin(XJoin join) {
+      if(ansiWhereJoins == null) {
+         ansiWhereJoins = new ArrayList<>();
+      }
+
+      ansiWhereJoins.add(buildAnsiJoinCondition(join));
+   }
+
+   /**
+    * AND the joins the ANSI FROM clause couldn't write in an ON to a where clause.
+    */
+   private String appendAnsiWhereJoins(String where) {
+      if(ansiWhereJoins == null || ansiWhereJoins.isEmpty()) {
+         return where;
+      }
+
+      String joins = String.join(" " + AND, ansiWhereJoins);
+
+      if(where == null || where.isEmpty()) {
+         return WHERE + joins;
+      }
+
+      String condition = where.startsWith(WHERE) ? where.substring(WHERE.length()) : where;
+
+      if(!isParenthesized(condition)) {
+         condition = "(" + condition + ")";
+      }
+
+      return WHERE + condition + " " + AND + joins;
+   }
+
+   /**
+    * Check if a condition is in one pair of parentheses, outside of quoted text.
+    */
+   private static boolean isParenthesized(String condition) {
+      condition = condition.trim();
+
+      if(!condition.startsWith("(") || !condition.endsWith(")")) {
+         return false;
+      }
+
+      int depth = 0;
+      char quote = 0;
+
+      for(int i = 0; i < condition.length(); i++) {
+         char c = condition.charAt(i);
+
+         if(quote != 0) {
+            if(c == quote) {
+               quote = 0;
+            }
+         }
+         else if(c == '\'' || c == '"') {
+            quote = c;
+         }
+         else if(c == '(') {
+            depth++;
+         }
+         else if(c == ')' && --depth == 0 && i < condition.length() - 1) {
+            return false;
+         }
+      }
+
+      return depth == 0 && quote == 0;
+   }
+
+   /**
     * Check if a join operation is a key operation.
     * @param op the specified join operation.
     * @return <tt>true</tt> if is a key operation, <tt>false</tt> otherwise.
@@ -2672,6 +2982,12 @@ public class SQLHelper implements KeywordProvider {
     * @return where clause.
     */
    public String generateWhereClause() {
+      // after the ANSI FROM clause is generated, include the joins it couldn't write, so a
+      // caller that looks for the where clause in the sql (appendLimitClause) finds it
+      return appendAnsiWhereJoins(generateWhereClause0());
+   }
+
+   private String generateWhereClause0() {
       StringBuilder where = new StringBuilder();
 
       where.append(WHERE);
@@ -5189,6 +5505,10 @@ public class SQLHelper implements KeywordProvider {
    // true if the condition being generated is in a join position of the where clause
    private boolean ansiJoinPosition = false;
    private Boolean textJoinOrder = null; // isTextJoinOrder of this generation
+   // conditions of the joins the ANSI FROM clause wrote in the where clause
+   private List<String> ansiWhereJoins = null;
+   // true to generate the ANSI FROM clause without writing joins as cycle conditions
+   private boolean noCycleConditions = false;
    private Map<String, String> aliasmap = null; // old table alias -> new alias
    private String version = "";
    private boolean isFormatSQL; //for test auto case. Test will not format sql.

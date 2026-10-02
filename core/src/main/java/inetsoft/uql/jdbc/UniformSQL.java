@@ -3928,7 +3928,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
 
          try {
             parser.direct_select_stmt_n_rows(sql);
-            setLossy(sql.lossy == null ? false : sql.lossy);
+            setLossy((sql.lossy != null && sql.lossy) || isLegacyCycleJoins());
          }
          catch(Exception e) {
             setLossy(true);
@@ -3936,6 +3936,72 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
       }
 
       return lossy != null && lossy;
+   }
+
+   /**
+    * Check if the joins of this query close a cycle of the join graph (or join a table to
+    * itself) and none of them has a recorded join clause. This is a parsed query saved before
+    * the parser recorded the clauses (Bug #77475). Its structure can't tell the join order and
+    * the ON/WHERE placement of the text, so regenerating it from the structure can return
+    * different rows than the text. It is treated as lossy to keep the sql string instead
+    * (Bug #77489).
+    */
+   private boolean isLegacyCycleJoins() {
+      XJoin[] joins = getJoins();
+
+      if(joins == null) {
+         return false;
+      }
+
+      Map<String, String> parents = new HashMap<>();
+      Set<String> pairs = new HashSet<>();
+
+      for(XJoin join : joins) {
+         if(join.getJoinClause() != XJoin.UNKNOWN_CLAUSE) {
+            return false;
+         }
+      }
+
+      for(XJoin join : joins) {
+         String table1 = join.getTable1(this);
+         String table2 = join.getTable2(this);
+
+         if(table1 == null || table2 == null || table1.isEmpty() || table2.isEmpty()) {
+            continue;
+         }
+
+         if(table1.equals(table2)) {
+            return true;
+         }
+
+         // joins of the same two tables are one step, not a cycle
+         if(!pairs.add(table1.compareTo(table2) < 0 ? table1 + "\0" + table2 :
+                       table2 + "\0" + table1))
+         {
+            continue;
+         }
+
+         String root1 = findJoinRoot(parents, table1);
+         String root2 = findJoinRoot(parents, table2);
+
+         if(root1.equals(root2)) {
+            return true;
+         }
+
+         parents.put(root1, root2);
+      }
+
+      return false;
+   }
+
+   private static String findJoinRoot(Map<String, String> parents, String table) {
+      String parent;
+
+      while((parent = parents.get(table)) != null) {
+         table = parent;
+      }
+
+      return table;
    }
 
    private String getQuotedSqlString(String sql) {
