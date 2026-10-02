@@ -72,7 +72,9 @@ class GraalJavaScriptEngineDeclarationSplitTest {
       Object script = engine.compile("var v = 5; var w = v + 1; w");
 
       assertTrue(script instanceof Source, String.valueOf(script));
-      assertTrue(((Source) script).getCharacters().toString().startsWith("with(__scope__)"),
+      // the plain path, inside the with of its var store (Bug #77595), not the eval wrapper
+      String text = ((Source) script).getCharacters().toString();
+      assertTrue(text.contains("with(__scope__){") && !text.contains("eval("),
                  "the per-piece eval wrapper re-parses on every execution: " + script);
    }
 
