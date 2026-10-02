@@ -43,10 +43,11 @@ import static org.mockito.Mockito.*;
 /**
  * Bug #77434, UniformSQL keeps parsed joins only as XJoins without their order or
  * nesting, and the regenerated from clause picks its own join order. A join group on
- * the right side of an outer join can't be regenerated with the same results, and a
- * RIGHT or FULL join mixed with an inner or cross join (from a join keyword or a where
- * clause column join) can only be when the generated sql has the same joins. The
- * other queries fail the parse and keep the original sql.
+ * the right side of an outer join, and a RIGHT or FULL join mixed with an inner or
+ * cross join (from a join keyword or a where clause column join), are only accepted
+ * when the generated sql has the same joins. #77475 generates parsed joins in text
+ * order, which keeps most of them. The other queries fail the parse and keep the
+ * original sql.
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
@@ -85,47 +86,20 @@ class UniformSQLNestedJoinTest {
 
    @ParameterizedTest
    @ValueSource(strings = {
-      // reporter's example and its spellings
-      "select * from a left join (b join c on b.id = c.id) on a.id = b.id",
-      "select * from a left join (b inner join c on b.id = c.id) on a.id = b.id",
-      "select * from a left join ((b join c on b.id = c.id)) on a.id = b.id",
-      "select * from a left join b join c on b.id = c.id on a.id = b.id",
-      "select * from a left outer join (b join c on b.id = c.id) on b.id = a.id",
-      // non-join and missing inner ON, cross and USING inner joins in the group
+      // non-join and missing inner ON and cross inner joins in the group, the generated
+      // sql moves the group's condition or table out of the outer join
       "select * from a left join (b join c on c.k = 1) on a.id = b.id",
       "select * from a left join (b cross join c) on a.id = b.id",
       "select * from a left join b cross join c on a.id = b.id",
-      "select * from a left join (b join c using (id)) on a.id = b.id",
-      // right and full joins
-      "select * from a right join (b join c on b.id = c.id) on a.id = b.id",
-      "select * from a right join (b join c on b.id = c.id) on b.id = a.id",
-      "select * from a full join (b join c on b.id = c.id) on a.id = b.id",
-      "select * from a full outer join (b join c on b.id = c.id) on a.id = b.id",
-      // outer joins in the group
-      "select * from a left join (b left join c on b.id = c.id) on a.id = b.id",
-      "select * from a left join (b left join c on b.id = c.id) on a.id = c.id",
-      "select * from a left join (b left join c on b.id = c.id) on b.id = a.id",
-      "select * from a right join (b left join c on c.id = b.id) on c.id = a.id",
-      "select * from a left join b left join c on c.id = b.id on b.id = a.id",
-      "select * from (a left join b on a.id = b.id) left join (c left join d on d.id = c.id) " +
-         "on c.id = a.id",
-      "select * from a left join (b right join c on b.id = c.id) on a.id = b.id",
-      "select * from a left join b on a.id = b.id left join (c left join d on c.id = d.id) " +
-         "on b.id = d.id",
-      // later positions
-      "select * from a left join b on a.id = b.id left join (c join d on c.id = d.id) " +
-         "on b.id = c.id",
-      "select * from a left join (b join c on b.id = c.id) on a.id = b.id " +
-         "left join d on a.id = d.id",
-      "select * from (a left join b on a.id = b.id) left join (c join d on c.id = d.id) " +
-         "on a.id = c.id",
-      // subqueries
-      "select * from (select a.id from a left join (b join c on b.id = c.id) " +
-         "on a.id = b.id) t",
-      "select * from x where exists (select 1 from a left join (b join c on b.id = c.id) " +
-         "on a.id = b.id)",
-      "select * from x where x.id in (select a.id from a left join (b join c on b.id = c.id) " +
-         "on a.id = b.id)"
+      // an inner ON that doesn't name its joined table c leaves c without a join (#77515)
+      "select * from d left join (a left join b on a.id = b.id join c on a.k = b.k) " +
+         "on c.id = d.id",
+      "select * from d left join a left join b on a.id = b.id join c on a.k = b.k " +
+         "on c.id = d.id",
+      "select * from d right join (a left join b on a.id = b.id join c on a.k = b.k) " +
+         "on c.id = d.id",
+      "select * from d full join (a left join b on a.id = b.id join c on a.k = b.k) " +
+         "on c.id = d.id"
    })
    void outerJoinOfNestedJoinFailsCleanly(String text) {
       assertRefused(text, "Unsupported nested join");
@@ -137,46 +111,41 @@ class UniformSQLNestedJoinTest {
       "select * from a join b on b.k = 1 right join c on b.id = c.id",
       "select * from a join b on a.id = b.id and b.k = 1 right join c on b.id = c.id",
       "select * from (b join c on c.k = 1) right join a on a.id = b.id",
-      // column joins only, regenerated in another order
-      "select * from a join b on a.id = b.id join d on a.id = d.id right join c on b.id = c.id",
-      "select * from a join (b join c on b.id = c.id) on a.id = b.id right join d on c.id = d.id",
-      "select * from a right join b on a.id = b.id join c on a.id = c.id",
-      "select * from a full join b on a.id = b.id join c on a.id = c.id",
-      "select * from a right join b on a.id = b.id join c on b.id = c.id join d on d.id = a.id",
       // cross joins
       "select * from (a cross join b) right join c on b.id = c.id",
-      // inner joins from where clause column joins, across comma-listed tables
-      "select * from a right join b on a.id = b.id, c where a.id = c.id",
-      "select * from a, b right join c on b.id = c.id where a.id = b.id",
-      "select * from a right join b on a.id = b.id, c, d where a.id = c.id and c.id = d.id",
-      "select * from a right join b on a.id = b.id, c join d on c.id = d.id where a.id = d.id",
-      // a where clause column join is folded into the outer join ON, also under OR and NOT
-      "select * from a right join b on a.id = b.id where a.id = b.k",
-      "select * from a right join b on a.id = b.id where a.id = b.id or a.k = 1",
-      "select * from a right join b on a.id = b.id where b.k = 1 and not (a.id = b.k)",
-      "select * from a right join b on a.id = b.id right join c on b.id = c.id where a.k = b.k",
       // a subquery in the inner ON doesn't hide the inner join
       "select * from a join b on a.id = b.id and b.k in (select c.k from c) " +
          "join e on a.id = e.id right join d on b.id = d.id",
       "select * from a join b on b.k in (select c.k from c) right join d on b.id = d.id",
-      // subqueries
-      "select * from x where exists (select 1 from b join c on b.id = c.id " +
-         "join d on b.id = d.id right join e on c.id = e.id)",
-      "select * from (select a.id from a right join b on a.id = b.id, c " +
-         "where a.id = c.id) t"
+      // an inner ON that doesn't name its joined table c leaves c without a join (#77515)
+      "select * from a left join b on a.id = b.id join c on a.k = b.k right join d on c.id = d.id",
+      "select * from a left join b on a.id = b.id join c on a.k = b.k full join d on c.id = d.id",
+      "select * from a join b on a.id = b.id join c on a.k = b.k right join d on c.id = d.id",
+      "select * from a join c on a.k = 1 right join d on c.id = d.id, b",
+      "select * from a left join b on a.id = b.id join c on 1 = 1 right join d on c.id = d.id",
+      "select * from a left join b on a.id = b.id join c on a.k = b.k and a.id = b.k " +
+         "right join d on c.id = d.id",
+      "select * from (a left join b on a.id = b.id join c on a.k = b.k) right join d on c.id = d.id",
+      "select * from (select a.id from a left join b on a.id = b.id join c on a.k = b.k " +
+         "right join d on c.id = d.id) t"
    })
    void rightJoinWithInnerJoinFailsCleanly(String text) {
       assertRefused(text, "Unsupported RIGHT or FULL join");
    }
 
    @Test
-   void correlatedRightJoinSubqueryFailsCleanly() {
+   void correlatedRightJoinSubqueryParses() throws Exception {
       // the subquery's where join to the outer table a mixes an inner join with its right
-      // join, but #77440 refuses an outer join query that joins a table outside its from
-      // clause first, with its own message
-      assertRefused("select a.id from a where exists (select 1 from b right join c " +
-                    "on b.id = c.id where c.id = a.id)",
-                    "Unsupported join to a table outside the from clause");
+      // join. The correlation stays in the subquery's where clause (#77480), so the
+      // generated sql has the same joins, except for the (+) joins of oracle
+      String text = "select a.id from a where exists (select 1 from b right join c " +
+         "on b.id = c.id where c.id = a.id)";
+      UniformSQL sql = parse(text);
+      assertEquals(UniformSQL.PARSE_SUCCESS, sql.getParseResult());
+      assertEquals("select a.id from a where EXISTS ( select 1 from b RIGHT OUTER JOIN c " +
+                   "ON b.id = c.id where c.id = a.id)", normalize(sql.getSQLString()));
+      assertRefused(text, "Unsupported RIGHT or FULL join", oracleSource);
+      assertRefused(text, "Unsupported RIGHT or FULL join", null);
    }
 
    @ParameterizedTest
@@ -208,7 +177,67 @@ class UniformSQLNestedJoinTest {
       "select * from a right join b on a.id = b.id where b.id in " +
          "(select c.id from c join d on c.id = d.id)",
       "select * from (select a.id, b.k from a right join b on a.id = b.id) t join c on t.id = c.id",
-      "select (select count(*) from c join d on c.id = d.id) as n from a right join b on a.id = b.id"
+      "select (select count(*) from c join d on c.id = d.id) as n from a right join b on a.id = b.id",
+      // generated in text order (#77475), these used to be generated with other joins
+      "select * from a join b on a.id = b.id join d on a.id = d.id right join c on b.id = c.id",
+      "select * from a join (b join c on b.id = c.id) on a.id = b.id right join d on c.id = d.id",
+      "select * from a right join b on a.id = b.id join c on a.id = c.id",
+      "select * from a full join b on a.id = b.id join c on a.id = c.id",
+      "select * from a right join b on a.id = b.id join c on b.id = c.id join d on d.id = a.id",
+      "select * from a right join b on a.id = b.id, c where a.id = c.id",
+      "select * from a, b right join c on b.id = c.id where a.id = b.id",
+      "select * from a right join b on a.id = b.id, c, d where a.id = c.id and c.id = d.id",
+      "select * from a right join b on a.id = b.id, c join d on c.id = d.id where a.id = d.id",
+      "select * from a left join b on a.id = b.id right join c on b.id = c.id where a.id = c.k",
+      "select * from a left join b on a.id = b.id join c on c.id = a.id and a.k = b.k " +
+         "right join d on c.id = d.id",
+      "select * from x where exists (select 1 from b join c on b.id = c.id " +
+         "join d on b.id = d.id right join e on c.id = e.id)",
+      "select * from (select a.id from a right join b on a.id = b.id, c " +
+         "where a.id = c.id) t",
+      // a where clause comparison of the outer joined tables stays a where condition
+      // (#77478), so it isn't a join
+      "select * from a right join b on a.id = b.id where a.id = b.k",
+      "select * from a right join b on a.id = b.id where a.id = b.id or a.k = 1",
+      "select * from a right join b on a.id = b.id where b.k = 1 and not (a.id = b.k)",
+      "select * from a right join b on a.id = b.id right join c on b.id = c.id where a.k = b.k",
+      // a nested join on the right side of an outer join
+      "select * from a left join (b join c on b.id = c.id) on a.id = b.id",
+      "select * from a left join (b inner join c on b.id = c.id) on a.id = b.id",
+      "select * from a left join ((b join c on b.id = c.id)) on a.id = b.id",
+      "select * from a left join b join c on b.id = c.id on a.id = b.id",
+      "select * from a left outer join (b join c on b.id = c.id) on b.id = a.id",
+      "select * from a left join (b join c using (id)) on a.id = b.id",
+      "select * from a right join (b join c on b.id = c.id) on a.id = b.id",
+      "select * from a right join (b join c on b.id = c.id) on b.id = a.id",
+      "select * from a full join (b join c on b.id = c.id) on a.id = b.id",
+      "select * from a full outer join (b join c on b.id = c.id) on a.id = b.id",
+      "select * from a left join (b left join c on b.id = c.id) on a.id = b.id",
+      "select * from a left join (b left join c on b.id = c.id) on a.id = c.id",
+      "select * from a left join (b left join c on b.id = c.id) on b.id = a.id",
+      "select * from a right join (b left join c on c.id = b.id) on c.id = a.id",
+      "select * from a left join b left join c on c.id = b.id on b.id = a.id",
+      "select * from (a left join b on a.id = b.id) left join (c left join d on d.id = c.id) " +
+         "on c.id = a.id",
+      "select * from a left join (b right join c on b.id = c.id) on a.id = b.id",
+      "select * from a left join b on a.id = b.id left join (c left join d on c.id = d.id) " +
+         "on b.id = d.id",
+      "select * from a left join b on a.id = b.id left join (c join d on c.id = d.id) " +
+         "on b.id = c.id",
+      "select * from a left join (b join c on b.id = c.id) on a.id = b.id " +
+         "left join d on a.id = d.id",
+      "select * from (a left join b on a.id = b.id) left join (c join d on c.id = d.id) " +
+         "on a.id = c.id",
+      "select * from (select a.id from a left join (b join c on b.id = c.id) " +
+         "on a.id = b.id) t",
+      "select * from x where exists (select 1 from a left join (b join c on b.id = c.id) " +
+         "on a.id = b.id)",
+      "select * from x where x.id in (select a.id from a left join (b join c on b.id = c.id) " +
+         "on a.id = b.id)",
+      "select a.id, t.id from a left join (select b.id from b left join " +
+         "(c join d on c.id = d.id) on b.id = c.id) t on a.id = t.id",
+      "select a.id from a join b on a.id = b.id where exists (select 1 from c left join " +
+         "(d join b on d.id = b.id) on c.id = d.id)"
    })
    void rightJoinWithSameGeneratedJoinsParses(String text) throws Exception {
       UniformSQL sql = parse(text);
@@ -218,6 +247,37 @@ class UniformSQLNestedJoinTest {
       UniformSQL reparsed = parse(generated);
       assertEquals(UniformSQL.PARSE_SUCCESS, reparsed.getParseResult(), generated);
       assertEquals(sortJoinColumns(generated), sortJoinColumns(normalize(reparsed.getSQLString())));
+
+      // the original and the generated sql return the same rows. Derby has no FULL join,
+      // and the row comparison has the tables a to d
+      if(text.startsWith("select * ") && !text.contains(" full ") &&
+         !text.matches(".*\\b[ex]\\b.*"))
+      {
+         String columns = selectColumns(sql);
+         assertEquals(0, SQLHelperWhereOrOuterJoinTest.RowCompare.diffCount(
+            withColumns(text, columns), withColumns(generated, columns), 120), generated);
+      }
+   }
+
+   // the id and k of each table of the from clause with a unique label, so that the rows
+   // compare the same whatever the column order
+   private static String selectColumns(UniformSQL sql) {
+      List<String> columns = new ArrayList<>();
+
+      for(int i = 0; i < sql.getTableCount(); i++) {
+         String alias = sql.getTableAlias(i);
+         columns.add(alias + ".id " + alias + "_id");
+
+         if(!(sql.getSelectTable(i).getName() instanceof UniformSQL)) {
+            columns.add(alias + ".k " + alias + "_k");
+         }
+      }
+
+      return String.join(", ", columns);
+   }
+
+   private static String withColumns(String sql, String columns) {
+      return sql.startsWith("select * ") ? "select " + columns + sql.substring(8) : sql;
    }
 
    @ParameterizedTest
@@ -274,7 +334,8 @@ class UniformSQLNestedJoinTest {
 
    @Test
    void refusedQueryKeepsOriginalSql() {
-      String text = "select * from a left join (b join c on b.id = c.id) on a.id = b.id";
+      String text = "select * from a left join b on a.id = b.id join c on a.k = b.k " +
+         "right join d on c.id = d.id";
       UniformSQL sql = newSql(ansiSource);
       new SQLProcessor(sql).parse(text);
       assertEquals(UniformSQL.PARSE_FAILED, sql.getParseResult());
@@ -421,22 +482,16 @@ class UniformSQLNestedJoinTest {
    @ParameterizedTest
    @ValueSource(strings = {
       // each of these is generated with different results today, whatever the data source
-      "select * from a left join (b join c on b.id = c.id) on a.id = b.id",
-      "select * from a left join (b right join c on b.id = c.id) on a.id = b.id",
-      "select * from a join b on a.id = b.id join d on a.id = d.id right join c on b.id = c.id",
-      "select * from a right join b on a.id = b.id join c on a.id = c.id",
       "select * from (a cross join b) right join c on b.id = c.id",
-      "select * from a right join b on a.id = b.id, c where a.id = c.id",
-      "select * from a, b right join c on b.id = c.id where a.id = b.id",
-      "select * from a right join b on a.id = b.id where a.id = b.id or a.k = 1",
-      "select * from a left join b on a.id = b.id right join c on b.id = c.id where a.id = c.k",
-      "select a.id from a where exists (select 1 from b right join c on b.id = c.id " +
-         "where c.id = a.id)",
-      // nested joins in a derived table and in an exists subquery
-      "select a.id, t.id from a left join (select b.id from b left join " +
-         "(c join d on c.id = d.id) on b.id = c.id) t on a.id = t.id",
-      "select a.id from a join b on a.id = b.id where exists (select 1 from c left join " +
-         "(d join b on d.id = b.id) on c.id = d.id)"
+      "select * from a left join (b cross join c) on a.id = b.id",
+      // #77515, c has no join of its own
+      "select * from a left join b on a.id = b.id join c on a.k = b.k right join d on c.id = d.id",
+      "select * from a left join b on a.id = b.id join c on a.k = b.k full join d on c.id = d.id",
+      "select * from d left join (a left join b on a.id = b.id join c on a.k = b.k) " +
+         "on c.id = d.id",
+      "select * from a join b on a.id = b.id join c on a.k = b.k right join d on c.id = d.id",
+      "select * from a where exists (select 1 from a left join b on a.id = b.id " +
+         "join c on a.k = b.k right join d on c.id = d.id)"
    })
    void wrongJoinFailsWithEveryDataSource(String text) {
       for(JDBCDataSource source :

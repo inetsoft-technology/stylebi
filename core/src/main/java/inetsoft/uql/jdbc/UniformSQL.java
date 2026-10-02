@@ -441,10 +441,11 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
    }
 
    /**
-    * Check that each query that mixes a RIGHT or FULL join with an inner join
-    * has the same joins in its regenerated sql. UniformSQL keeps the joins
-    * without their order, so the sql helper picks the order, and a different
-    * order can change the query results (Bug #77434).
+    * Check that each query that mixes a RIGHT or FULL join with an inner join,
+    * or that has a nested join on the right side of an outer join, has the same
+    * joins in its regenerated sql. UniformSQL keeps the joins without their
+    * order or nesting, so the sql helper picks them, and a different order or
+    * nesting can change the query results (Bug #77434).
     * <p>
     * The sql is generated the way a merge generates it, with the sql helper
     * of the data source of this (the outer) query, which a subquery inherits

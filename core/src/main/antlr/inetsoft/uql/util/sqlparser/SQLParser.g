@@ -422,6 +422,8 @@ private boolean collectOuterJoins(XFilterNode node, List joins) {
 private Map rightJoins = new IdentityHashMap();
 // sql -> TRUE if the query has an INNER, CROSS or other non-outer JOIN keyword
 private Map innerJoins = new IdentityHashMap();
+// sql -> {join type, JOIN keyword} of the first outer join of a nested join
+private Map nestedJoins = new IdentityHashMap();
 
 /**
  * Check if a join type (join_type + " JOIN") is a LEFT, RIGHT or FULL join.
@@ -440,18 +442,16 @@ private boolean isRightJoinType(String op) {
 }
 
 /**
- * Check that a nested join (a parenthesized join, or a join followed by its
- * own ON) is not the right side of an outer join. UniformSQL keeps no join
- * nesting, so the nested join would be regenerated outside of the outer join
- * and filter out or keep the wrong rows.
+ * Record a nested join (a parenthesized join, or a join followed by its own
+ * ON) on the right side of an outer join. UniformSQL keeps no join nesting,
+ * and SQLHelper only keeps it when it generates the joins in text order
+ * (#77475), otherwise the nested join is regenerated outside of the outer join
+ * and filters out or keeps the wrong rows. Such a query is only supported if
+ * its regenerated from clause has the same joins, see checkRightJoins.
  */
-private void checkOuterJoinGroup(UniformSQL sql, String op, Token tok)
-   throws SemanticException
-{
-   if(sql != null && isOuterJoinType(op)) {
-      throw new SemanticException("Unsupported nested join on the right side of " +
-         op, getFilename(), tok == null ? 0 : tok.getLine(),
-         tok == null ? 0 : tok.getColumn());
+private void checkOuterJoinGroup(UniformSQL sql, String op, Token tok) {
+   if(sql != null && isOuterJoinType(op) && !nestedJoins.containsKey(sql)) {
+      nestedJoins.put(sql, new Object[] {op, tok});
    }
 }
 
@@ -480,7 +480,8 @@ private void addJoinType(UniformSQL sql, String op, Token tok) {
  * from clause can move the inner join into or out of the null-supplying side
  * of the outer join, which changes the query results. Such a query is only
  * supported if its regenerated from clause has the same joins, which
- * UniformSQL checks with getJoinOrderChecks after the parse.
+ * UniformSQL checks with getJoinOrderChecks after the parse. So is a query with
+ * a nested join on the right side of an outer join (checkOuterJoinGroup).
  */
 private void checkRightJoins(UniformSQL sql) {
    if(sql == null) {
@@ -490,7 +491,7 @@ private void checkRightJoins(UniformSQL sql) {
    boolean right = rightJoins.containsKey(sql);
    boolean inner = innerJoins.remove(sql) != null;
 
-   if(right && (inner || hasInnerJoin(sql.getWhere()))) {
+   if(nestedJoins.containsKey(sql) || right && (inner || hasInnerJoin(sql.getWhere()))) {
       joinOrderChecks.add(sql);
    }
    else {
@@ -515,7 +516,8 @@ private boolean hasInnerJoin(XFilterNode node) {
    return false;
 }
 
-// queries with a RIGHT or FULL join mixed with an inner join, in parse order
+// queries with a RIGHT or FULL join mixed with an inner join, or with a nested
+// join on the right side of an outer join, in parse order
 private List joinOrderChecks = new ArrayList();
 // sql -> the joins of the from clause, each an Object[] {kind, left tables,
 // right tables, join conditions, where conditions before the join}
@@ -524,8 +526,9 @@ private Map joinEvents = new IdentityHashMap();
 private LinkedList joinStarts = new LinkedList();
 
 /**
- * Get the queries that mix a RIGHT or FULL join with an inner join. Each must
- * be checked with checkJoinOrder after the parse.
+ * Get the queries that mix a RIGHT or FULL join with an inner join, or that
+ * have a nested join on the right side of an outer join. Each must be checked
+ * with checkJoinOrder after the parse.
  */
 public List getJoinOrderChecks() {
    return joinOrderChecks;
@@ -533,14 +536,17 @@ public List getJoinOrderChecks() {
 
 /**
  * Check that the joins of a query that mixes a RIGHT or FULL join with an
- * inner join are the same as the joins of its regenerated sql.
+ * inner join, or that has a nested join on the right side of an outer join,
+ * are the same as the joins of its regenerated sql.
  * @param structure the getJoinStructure of the regenerated sql, or null if
  * it couldn't be parsed.
  */
 public void checkJoinOrder(UniformSQL sql, String structure) throws SemanticException {
    if(structure == null || !structure.equals(getJoinStructure(sql))) {
-      Token tok = (Token) rightJoins.get(sql);
-      throw new SemanticException(
+      Object[] nested = (Object[]) nestedJoins.get(sql);
+      Token tok = nested != null ? (Token) nested[1] : (Token) rightJoins.get(sql);
+      throw new SemanticException(nested != null ?
+         "Unsupported nested join on the right side of " + nested[0] :
          "Unsupported RIGHT or FULL join mixed with an inner or cross join",
          getFilename(), tok == null ? 0 : tok.getLine(),
          tok == null ? 0 : tok.getColumn());

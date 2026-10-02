@@ -114,8 +114,18 @@ class UniformSQLOuterJoinTableTest {
       "select a.x from (a left join b on a.k = b.k) left join c on c.id = b.id | " +
          "a.k *= b.k, b.id *= c.id",
       "select a.x from a left join b on a.id = b.id and b.k = a.k | a.id *= b.id, a.k *= b.k",
-      // a nested right operand of an outer join fails the parse (#77434),
-      // see UniformSQLNestedJoinTest. A full join chain:
+      // nested right operands are oriented by the joined tables, not by the last table
+      "select a.x from a left join (b left join c on c.id = b.id) on b.id = a.id | " +
+         "b.id *= c.id, a.id *= b.id",
+      "select a.x from a left join b left join c on c.id = b.id on b.id = a.id | " +
+         "b.id *= c.id, a.id *= b.id",
+      "select a.x from a right join (b left join c on c.id = b.id) on c.id = a.id | " +
+         "b.id *= c.id, a.id =* c.id",
+      "select a.x from a left join b on a.k = b.k left join (c join d on c.id = d.id) " +
+         "on c.id = a.id | a.k *= b.k, c.id = d.id, a.id *= c.id",
+      // a nested right operand after a parenthesized left operand, and a full join chain
+      "select a.x from (a left join b on a.id = b.id) left join (c left join d on d.id = c.id) " +
+         "on c.id = a.id | a.id *= b.id, c.id *= d.id, a.id *= c.id",
       "select a.x from a full join b on b.k = a.k full join c on c.id = b.id | " +
          "a.k *=* b.k, b.id *=* c.id",
       // unquoted identifiers are case-insensitive
@@ -150,9 +160,9 @@ class UniformSQLOuterJoinTableTest {
       assertEquals(UniformSQL.PARSE_SUCCESS, sql.getParseResult());
       assertEquals(expected, joins(sql));
 
-      // the generated sql parses back to the same query. An outer join ON can be
-      // generated with its columns in the other order, so compare from the second
-      // generation on.
+      // the generated sql parses back to the same query. A right join to a nested join
+      // is generated as a left join with the ON columns in the other order, so compare
+      // from the second generation on.
       String generated = normalize(parse(normalize(sql.getSQLString())).getSQLString());
       assertEquals(generated, normalize(parse(generated).getSQLString()));
    }
@@ -161,8 +171,15 @@ class UniformSQLOuterJoinTableTest {
    @CsvSource(delimiter = '|', value = {
       "select a.x from a left join b on a.k = b.k left join c on c.id = b.id | " +
          "select a.x from (a LEFT OUTER JOIN b ON a.k = b.k ) LEFT OUTER JOIN c ON b.id = c.id",
+      // a left join to a nested join is generated as a right join in text order (#77475)
+      "select a.x from a left join (b left join c on c.id = b.id) on b.id = a.id | " +
+         "(b LEFT OUTER JOIN c ON b.id = c.id ) RIGHT OUTER JOIN a ON a.id = b.id",
       "select a.x from a left join a y on a.id = y.pid | a LEFT OUTER JOIN a y ON a.id = y.pid",
       "select a.x from a right join b on b.id = a.id | a RIGHT OUTER JOIN b ON a.id = b.id",
+      // the nested left join stays a left join, it used to be generated as a right join
+      "select a.x from (a left join b on a.id = b.id) left join (c left join d on d.id = c.id) " +
+         "on c.id = a.id | (a LEFT OUTER JOIN b ON a.id = b.id ) LEFT OUTER JOIN " +
+         "(c LEFT OUTER JOIN d ON c.id = d.id ) ON a.id = c.id",
       // an unaliased quoted table keeps its quotes in the from clause table, and the
       // join column's table doesn't, they must still resolve to the same table
       "select * from \"my a\" left join \"my b\" on \"my b\".\"id\" = \"my a\".\"id\" | " +
@@ -188,6 +205,9 @@ class UniformSQLOuterJoinTableTest {
 
    private static UniformSQL parse(String text) throws Exception {
       UniformSQL sql = new UniformSQL();
+      // Bug #77434 refuses a nested join on the right of an outer join without a data
+      // source, and accepts it with one when the generated sql has the same joins
+      sql.setDataSource(GenericJDBCDataSource.create());
       sql.parse(text, UniformSQL.PARSE_ALL, UniformSQL.PARSE_PERIOD);
       return sql;
    }
