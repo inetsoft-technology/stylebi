@@ -1,0 +1,16 @@
+<viewsheet>
+<assembly>
+<assemblies>
+<oneAssembly>
+<assembly class="inetsoft.uql.viewsheet.TextVSAssembly">
+<assemblyInfo><name><![CDATA[Text77583Fuzz]]></name><absoluteName><![CDATA[Text77583Fuzz]]></absoluteName>
+<formatInfo><aFormat><tableDataPath>
+</tableDataPath>
+<VSCompositeFormat>
+<userFormat><VSFormat alphaValue="10(">
+</VSFormat></userFormat>
+</VSCompositeFormat></aFormat></formatInfo>
+</assemblyInfo></assembly></oneAssembly>
+</assemblies>
+</assembly>
+</viewsheet>
