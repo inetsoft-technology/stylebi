@@ -676,9 +676,8 @@ describe("Group 12 — anchored toolbar geometry: chart and table anchored in ma
       expect(comp.getAnchoredToolbarWidth(obj)).toBe(600);
    });
 
-   // Selection carries no padding object, so the zero inset gives it
-   // the lane an unmarked table gets: flush left, full width, right edge
-   // landing exactly on the assembly's own right edge.
+   // An unpadded selection gets the lane an unmarked table gets: flush left, full width, right
+   // edge landing exactly on the assembly's own right edge.
    // Top is centred in the lane like every other anchored type, not flush against it.
    it("anchors a non-max-mode selection list", () => {
       const { comp } = makeComponent({
@@ -699,6 +698,29 @@ describe("Group 12 — anchored toolbar geometry: chart and table anchored in ma
       expect(comp.getToolbarLeft(obj, 0)).toBe(250);
       expect(comp.getAnchoredToolbarWidth(obj)).toBe(600);
       expect(comp.getToolbarLeft(obj, 0) + comp.getAnchoredToolbarWidth(obj)).toBe(250 + 600);
+   });
+
+   // A selection insets only its body. Its title lane stays flush with the card edge, so unlike a
+   // chart's or a table's, the lane does not move in by the card inset and neither does the strip.
+   it.each(["VSSelectionList", "VSSelectionTree"] as const)(
+      "keeps a padded %s's strip in its flush title lane", (objectType) => {
+      const { comp } = makeComponent({
+         vsObjectActions: [{ showingActions: [], toolbarActions: [] } as any],
+      });
+      comp.containerRef = scrollless;
+      const obj: any = makeVSObject({
+         objectType,
+         vizModern: true,
+         objectFormat: makeObjectFormat({ top: 40, left: 250, width: 600, height: 300 }),
+      });
+      obj.padding = { top: 16, left: 16, bottom: 16, right: 16 };
+      obj.titleVisible = true;
+      obj.titleFormat = { height: 30 };
+      comp.vsInfo = makeVsInfo([obj]);
+
+      expect(comp.getToolbarTop(obj, 0)).toBe(40 + 3);   // top + centring, no inset
+      expect(comp.getToolbarLeft(obj, 0)).toBe(250);
+      expect(comp.getAnchoredToolbarWidth(obj)).toBe(600);
    });
 
    it("does not anchor a maximised selection list, which abandons objectFormat positioning", () => {

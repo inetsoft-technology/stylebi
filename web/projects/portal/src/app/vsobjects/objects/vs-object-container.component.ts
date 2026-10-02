@@ -527,9 +527,20 @@ export class VSObjectContainer implements AfterViewInit, OnChanges, OnDestroy {
             Tool.equalsIgnoreCase(object.objectType, "VSSelectionTree"));
    }
 
-   /** The card inset the title lane sits inside. An assembly without a card has none. */
+   /**
+    * The card inset the title lane sits inside. An assembly without a card has none, and neither
+    * does a selection list or tree, whose card inset moves only its body under a flush title lane.
+    */
    private static getLaneInset(object: VSObjectModel): { top: number, left: number, right: number } {
-      return object.padding ?? { top: 0, left: 0, right: 0, bottom: 0 };
+      const none = { top: 0, left: 0, right: 0, bottom: 0 };
+
+      if(Tool.equalsIgnoreCase(object.objectType, "VSSelectionList") ||
+         Tool.equalsIgnoreCase(object.objectType, "VSSelectionTree"))
+      {
+         return none;
+      }
+
+      return object.padding ?? none;
    }
 
    public getToolbarTop(object: VSObjectModel, i: number): number {
