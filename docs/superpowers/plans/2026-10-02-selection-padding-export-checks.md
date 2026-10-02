@@ -397,7 +397,7 @@ poisons every future comparison against this baseline.
     - Pre-fix PDF: the rows sat at 68-188 and the first child at 148-178, overlapping them by 40.
     - Post-fix: the first child sits at 188-218 in PDF, HTML, PNG and PPTX (141pt). HTML's rows
       are 30 tall, where they were 20.
-- **H. A marked list child can be left out of a match-layout export. Fixed, not yet re-exported.**
+- **H. A marked list child can be left out of a match-layout export. Fixed and verified (16:09 run).**
   - `AbstractVSExporter.needExport` exports a container's list child only when its stored offset
     lies inside the container (`0 < y - container y < height`).
   - Turning Show Current Selections on re-runs the container's stored layout with 20px rows, which
@@ -409,6 +409,9 @@ poisons every future comparison against this baseline.
     (`getContainerChildTop`). A marked child is left out only when the container draws it past its
     bottom.
   - An unmarked child is still judged by its stored offset.
+  - Verified on `SEL OutRows Comfortable`. Customer now exports at 218-278 in PDF, PNG and PPTX
+    (163pt). HTML is byte-identical to before. The 24-file fixture set, PNG and PPTX are identical
+    to the 15:18 run, and MC-1 is still identical to the pre-branch baseline.
 
 **Run environment to record with the results:** the commit each server was built from (confirmed by
 `javap`, not timestamp), whether `config/fonts/` existed at JVM start, and the density each fixture
