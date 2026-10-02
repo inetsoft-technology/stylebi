@@ -592,13 +592,17 @@ public class FileSystemService {
                try {
                   Map<String, Integer> map = FileSystemService.this.cluster.getMap(XSwapper.SWAP_FILE_MAP);
                   Map<String, Integer> snapshotMap = FileSystemService.this.cluster.getMap(SnapshotEmbeddedTableAssembly.FILE_REFERENCES_MAP);
+                  XSwapper swapper = XSwapper.getSwapper();
 
                   for(int i = 0; files != null && i < files.length; i++) {
+                     // Bug #77600, files of this JVM's swapper are live and not all of
+                     // them are registered in the swap file map
                      if(!files[i].isDirectory() &&
                         !files[i].getName().startsWith(Tool.PERSISTENT_PREFIX) &&
                         !files[i].getName().startsWith(DriverCache.DRIVER_CACHE_FILE_NAME) &&
                         !map.containsKey(files[i].getAbsolutePath()) &&
-                        !snapshotMap.containsKey(files[i].getAbsolutePath()))
+                        !snapshotMap.containsKey(files[i].getAbsolutePath()) &&
+                        !swapper.isOwnSwapFile(files[i].getName()))
                      {
                         Path path = files[i].toPath();
 
