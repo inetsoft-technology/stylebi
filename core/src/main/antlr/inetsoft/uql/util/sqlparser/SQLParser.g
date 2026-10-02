@@ -3390,6 +3390,18 @@ named_columns_join [UniformSQL sql, String op, String tbl2, int rstart, int rend
         a:USING OPEN_PAREN tmp = join_column_list[list] CLOSE_PAREN
         {jc = a.getText() + "(" + tmp + ")";
          if(sql != null && list.size()>0) {
+          // the database merges a USING column, so select * returns one copy and an
+          // unqualified reference resolves. The model has no merged column, so its
+          // regenerated ON join would differ: keep the sql string (Bug #77482).
+          // Consumers read the statement's (uniSql) flag, since a derived table or
+          // subquery has its own UniformSQL. Its own flag is set only for a caller
+          // that parses into sql without the statement rules (uniSql is null)
+          sql.setLossy(true);
+
+          if(uniSql != null) {
+             uniSql.setLossy(true);
+          }
+
           // the join is between the last table of the left operand and the joined
           // table, so the joined table (rstart to rend) must be a single table
           if(rend - rstart != 1) {
