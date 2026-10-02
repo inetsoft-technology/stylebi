@@ -545,14 +545,14 @@ public class PropertiesEngine {
          int dot = name.indexOf('.', "inetsoft.org.".length());
 
          if(dot >= 0) {
-            String orgPrefix = name.substring(0, dot + 1);
+            String orgID = name.substring("inetsoft.org.".length(), dot);
             String suffix = name.substring(dot + 1);
             // recurse directly rather than through fixPropertyNameCase(): that would re-enter
             // propertyNameCaseCache.computeIfAbsent() for a second key while the outer call for
             // this name is still computing, which ConcurrentHashMap can reject with a recursive
             // update IllegalStateException. Bypassing the cache here is deliberate; recursion is
             // one level deep (org prefix, then the real name), so the cost is negligible.
-            return orgPrefix.toLowerCase() + computePropertyNameCase(suffix);
+            return getOrgPropertyPrefix(orgID) + computePropertyNameCase(suffix);
          }
 
          return name.toLowerCase();
@@ -567,6 +567,16 @@ public class PropertiesEngine {
       }
 
       return name;
+   }
+
+   /**
+    * Get the prefix of an organization's scoped property names as they are stored, i.e.
+    * <code>inetsoft.org.&lt;org&gt;.</code> with the case rules applied that every read and write
+    * applies to it. Organization IDs are case insensitive, so IDs that differ only in case have
+    * the same prefix.
+    */
+   public static String getOrgPropertyPrefix(String orgID) {
+      return ("inetsoft.org." + orgID + ".").toLowerCase();
    }
 
    /**

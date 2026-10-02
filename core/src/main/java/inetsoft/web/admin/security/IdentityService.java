@@ -1335,7 +1335,8 @@ public class IdentityService {
    }
 
    public void removeOrgProperties(String orgID) {
-      String prefix = "inetsoft.org." + orgID + ".";
+      // the stored names have the org ID lower case, the log level suffix keeps its case
+      String prefix = PropertiesEngine.getOrgPropertyPrefix(orgID);
 
       Properties properties = SreeEnv.getProperties();
       Set<Object> orgProperties = properties.keySet().stream()
@@ -1506,19 +1507,23 @@ public class IdentityService {
          return;
       }
 
-      String oldPrefix = "inetsoft.org." + oId + ".";
-      String newPrefix = "inetsoft.org." + id + ".";
-
+      String oldPrefix = PropertiesEngine.getOrgPropertyPrefix(oId);
+      String newPrefix = PropertiesEngine.getOrgPropertyPrefix(id);
       Properties properties = SreeEnv.getProperties();
-      Set<Object> orgProperties = properties.keySet().stream()
-         .filter(prop -> ((String) prop).startsWith(oldPrefix))
-         .collect(Collectors.toSet());
 
-      for(Object orgProp : orgProperties) {
-         String oldName = (String) orgProp;
-         String newName = newPrefix + (oldName).substring(oldPrefix.length());
-         SreeEnv.setProperty(newName, SreeEnv.getProperty(oldName));
-         SreeEnv.remove(oldName);
+      // a change of only the org ID's case keeps the scoped property names, so there is
+      // nothing to move; the log level properties still need it, their suffix keeps its case
+      if(!oldPrefix.equals(newPrefix)) {
+         Set<Object> orgProperties = properties.keySet().stream()
+            .filter(prop -> ((String) prop).startsWith(oldPrefix))
+            .collect(Collectors.toSet());
+
+         for(Object orgProp : orgProperties) {
+            String oldName = (String) orgProp;
+            String newName = newPrefix + (oldName).substring(oldPrefix.length());
+            SreeEnv.setProperty(newName, SreeEnv.getProperty(oldName));
+            SreeEnv.remove(oldName);
+         }
       }
 
       updateOrgLogProperties(properties, oId, id);

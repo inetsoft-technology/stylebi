@@ -146,8 +146,15 @@ public abstract class AbstractEditableAuthenticationProvider
       copyDataSpace(fromOrganization, newOrg, replace);
       String newOrgThemeId = copyThemes(fromOrgId, newOrgID, replace);
 
+      // a rename that only changes the case of the org ID keeps the org's scoped property names,
+      // so they must not be removed as the old organization's
+      boolean sameScopedProperties = isSameOrgPropertyScope(fromOrgId, newOrgID);
+
       if(replace) {
-         clearScopedProperties(fromOrgId);
+         if(!sameScopedProperties) {
+            clearScopedProperties(fromOrgId);
+         }
+
          dashboardRegistryManager.clear(fromOrganization.getIdentityID());
          identityService.updateOrgProperties(fromOrgId, newOrgID);
          identityService.updateAutoSaveFiles(fromOrganization, newOrg, principal);
@@ -359,7 +366,12 @@ public abstract class AbstractEditableAuthenticationProvider
       if(replace) {
          removeOldIdentity("organization " + fromOrgId, () -> removeOrganization(fromOrgId),
                            fromOrgId, newOrgID);
-         identityService.removeOrgProperties(fromOrgId);
+
+         // updateOrgProperties() has already moved the old org ID's log level properties
+         if(!sameScopedProperties) {
+            identityService.removeOrgProperties(fromOrgId);
+         }
+
          identityService.removeOrgScopedDataSpaceElements(fromOrganization);
          themeService.removeTheme(fromOrgId);
          FSService.clearServerNodeCache(fromOrgId);
@@ -658,6 +670,11 @@ public abstract class AbstractEditableAuthenticationProvider
       }
    }
 
+   private static boolean isSameOrgPropertyScope(String orgId1, String orgId2) {
+      return PropertiesEngine.getOrgPropertyPrefix(orgId1)
+         .equals(PropertiesEngine.getOrgPropertyPrefix(orgId2));
+   }
+
    protected void clearScopedProperties(String oldOrgId) {
       //loop through properties, delete any containing .thisOrg.
       Properties properties = SreeEnv.getProperties();
@@ -765,6 +782,12 @@ public abstract class AbstractEditableAuthenticationProvider
    }
 
    private void copyScopedProperties(String fromOrgId, String newOrgId, boolean replace) {
+      // org IDs that differ only in case have the same scoped property names, so copying each
+      // property onto itself and removing the original would lose it
+      if(isSameOrgPropertyScope(fromOrgId, newOrgId)) {
+         return;
+      }
+
       Properties properties = SreeEnv.getProperties();
       String oldOrgIdentifier = "inetsoft.org." + fromOrgId.toLowerCase(Locale.ROOT) + ".";
       String newOrgPrefix = "inetsoft.org." + newOrgId.toLowerCase(Locale.ROOT) + ".";
