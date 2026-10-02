@@ -62,7 +62,7 @@ public class JDBCQueryCacheNormalizer {
       String sqlString = usql.sqlstring;
       Object[] orderByFields = usql.getOrderByFields();
 
-      if(noneContainsSortByDistinctSql(usql)) {
+      if(noneContainsSortByDistinctSql(usql) || hasPositionalReference(usql)) {
          return false;
       }
 
@@ -118,6 +118,37 @@ public class JDBCQueryCacheNormalizer {
    }
 
    /**
+    * Check if the order by or group by of this query level refers to a select list column by
+    * its position, e.g. 'order by 1' or 'group by 1, 3'. The parser stores an order by ordinal
+    * as an Integer, while a query loaded from xml and a group by ordinal hold it as a String.
+    */
+   private static boolean hasPositionalReference(UniformSQL usql) {
+      return containsPositional(usql.getOrderByFields()) || containsPositional(usql.getGroupBy());
+   }
+
+   private static boolean containsPositional(Object[] fields) {
+      if(fields == null) {
+         return false;
+      }
+
+      for(Object field : fields) {
+         if(field instanceof Number) {
+            return true;
+         }
+
+         if(field instanceof String) {
+            String str = ((String) field).trim();
+
+            if(!str.isEmpty() && str.chars().allMatch(c -> c >= '0' && c <= '9')) {
+               return true;
+            }
+         }
+      }
+
+      return false;
+   }
+
+   /**
     * Returns an index mapping that can be used to transform a sql selection such that the
     * columns are sorted.
     * <p>
@@ -128,6 +159,13 @@ public class JDBCQueryCacheNormalizer {
     * in order to transform it into a sql that looks like this 'select a, b, c from ...'
     */
    public static int[] generateSortedColumnMap(UniformSQL usql) {
+      // an ordinal in order by or group by refers to a select list position, so sorting the
+      // select list would change what it refers to. Checked ahead of the sorted hint, which may
+      // be stale or inherited by a subquery from its parent. (Bug #77557)
+      if(hasPositionalReference(usql)) {
+         return null;
+      }
+
       boolean noSortDistinct = noneContainsSortByDistinctSql(usql);
 
       if(!Boolean.TRUE.equals(usql.getHint(UniformSQL.HINT_SORTED_SQL, !noSortDistinct)) &&
