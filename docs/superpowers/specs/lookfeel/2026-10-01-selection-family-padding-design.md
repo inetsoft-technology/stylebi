@@ -232,11 +232,17 @@ Two `PaddingPaneModel` instances — card inset and cell padding — added to th
 property dialogs, with read and write in `SelectionListPropertyDialogService`,
 `SelectionTreePropertyDialogService` and `SelectionContainerPropertyDialogService`.
 
-**Placement diverges from tables, deliberately.** Tables put both panes on the general pane. For
-selections they go on `SizePositionPaneModel`, where `cellHeight` and its
-`cellHeightFollowsDensity` checkbox already live, so all three density-aware geometry controls sit
-together. The accepted cost is that a table author and a selection author find the same control in
-different tabs.
+**Placement follows tables.** Both panes go on the per-type general pane models —
+`SelectionGeneralPaneModel` (shared by the list and tree dialogs) and
+`SelectionContainerGeneralPaneModel` — exactly as tables use `TableViewGeneralPaneModel`.
+
+**Corrected 2026-10-01, before planning.** This section first said the panes would go on
+`SizePositionPaneModel` instead, to sit beside `cellHeight` and its `cellHeightFollowsDensity`
+checkbox, and accepted a divergence from tables as the cost. That was wrong on its premise:
+`SizePositionPaneModel` is shared by **21** general pane models — every assembly type — so padding
+controls placed there would appear on calendars, images, shapes and tabs. `cellHeightFollowsDensity`
+lives there only because the pane renders it conditionally. The per-type pane is both the correct
+home and the one that matches tables, so the divergence this section argued for does not arise.
 
 **Checkbox semantics follow `cellHeightFollowsDensity` exactly:** a missing flag means no opinion.
 That is what makes stale clients and unmarked content behave, and it is the rule L′ established when
@@ -340,7 +346,8 @@ numbers it produces go in the PR description, the files stay on one machine.
   list.
 - **A comfortable selection list is 202px tall by default, against 120 today.** Accepted as the
   cost of five-row parity; D2 records the rejected alternatives.
-- **The dialog placement differs from tables.** Accepted, with the reasoning in §6.
+- ~~**The dialog placement differs from tables.**~~ Withdrawn 2026-10-01: the placement that would
+  have diverged rested on a false premise about `SizePositionPaneModel`'s reach. See §6.
 - **The model-shape convergence is a prerequisite with eleven unchecked template bindings.** Its
   risk is real but bounded and loud at runtime — a missing binding renders padding 0, visibly.
 
