@@ -728,7 +728,7 @@ public class ScheduleTask implements Serializable, Cloneable, XMLSerializable {
                      String subject = Catalog.getCatalog().getString(
                         "em.scheduler.notification.taskFailedSub.community",
                         SUtil.getTaskNameWithoutOrg(getTaskId()),
-                        (new SimpleDateFormat("hh:mma yyyy-MM-dd"))
+                        gregorianDateFormat("hh:mma yyyy-MM-dd")
                            .format(new Date()));
 
                      if(SUtil.isMultiTenant()) {
@@ -736,7 +736,7 @@ public class ScheduleTask implements Serializable, Cloneable, XMLSerializable {
                            "em.scheduler.notification.taskFailedSub",
                            SUtil.getTaskNameWithoutOrg(getTaskId()),
                            SUtil.getTaskOrgName(getTaskId(), principal),
-                           (new SimpleDateFormat("hh:mma yyyy-MM-dd"))
+                           gregorianDateFormat("hh:mma yyyy-MM-dd")
                               .format(new Date()));
                      }
 
@@ -782,7 +782,7 @@ public class ScheduleTask implements Serializable, Cloneable, XMLSerializable {
          cycleInfo.getName());
       String body = catalog.getString("em.scheduler.cycle.startObject",
          cycleInfo.getName(),
-         (new SimpleDateFormat("hh:mm:ssa yyyy-MM-dd")).format(new Date()));
+         gregorianDateFormat("hh:mm:ssa yyyy-MM-dd").format(new Date()));
       Mailer mailer = new Mailer();
 
       try {
@@ -805,7 +805,7 @@ public class ScheduleTask implements Serializable, Cloneable, XMLSerializable {
       String subject;
       String body = catalog.getString("em.scheduler.cycle.completionObject",
             cycleInfo.getName(),
-            (new SimpleDateFormat("hh:mm:ssa yyyy-MM-dd")).format(new Date()));
+            gregorianDateFormat("hh:mm:ssa yyyy-MM-dd").format(new Date()));
       boolean failed = exceptions.size() > 0;
       String email = notifyFailure && failed ? cycleInfo.getFailureEmail()
          : cycleInfo.getEndEmail();
@@ -1745,6 +1745,18 @@ public class ScheduleTask implements Serializable, Cloneable, XMLSerializable {
       }
 
       return action0;
+   }
+
+   /**
+    * Bug #77566: a locale-less {@code SimpleDateFormat} uses the JVM default locale's calendar
+    * (e.g. Buddhist for th_TH, Japanese imperial for ja_JP_JP). The patterns below are only ever
+    * used to build cosmetic text for a notification email subject/body that is never parsed back,
+    * so forcing Gregorian here only fixes the displayed year, with no persistence/compat impact.
+    */
+   private static SimpleDateFormat gregorianDateFormat(String pattern) {
+      SimpleDateFormat format = new SimpleDateFormat(pattern);
+      format.setCalendar(new GregorianCalendar());
+      return format;
    }
 
    /**
