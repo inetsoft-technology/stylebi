@@ -172,9 +172,11 @@ class UniformSQLOnlessOuterJoinTest {
       }
    }
 
+   // the expression check judges the syntax only, so a refused join in a scalar subquery is
+   // still a valid expression (#77493)
    @Test
-   void scalarSubqueryExpressionIsInvalid() {
-      assertFalse(XUtil.isSQLExpressionValid("(select count(*) from a left join b)"));
+   void scalarSubqueryExpressionIsValid() {
+      assertTrue(XUtil.isSQLExpressionValid("(select count(*) from a left join b)"));
       assertTrue(XUtil.isSQLExpressionValid("(select count(*) from a join b)"));
       assertTrue(XUtil.isSQLExpressionValid(
          "(select count(*) from a left join b on a.id = b.id)"));

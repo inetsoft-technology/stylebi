@@ -255,13 +255,13 @@ class UniformSQLGroupingSetsRefuseTest {
 
    /**
     * A SQL expression (a calc field, a VPM condition) that holds a ROLLUP/CUBE/GROUPING SETS
-    * scalar subquery is now invalid, since the subquery can't be parsed. It was valid while
-    * the subquery's GROUP BY was dropped.
+    * scalar subquery stays valid. The expression check judges the syntax only, so the
+    * refusal doesn't make it invalid (#77493).
     */
    @Test
-   void scalarSubqueryExpressionIsInvalid() {
-      assertFalse(XUtil.isSQLExpressionValid("(select max(a) from t group by rollup(a))"));
-      assertFalse(XUtil.isSQLExpressionValid("(select max(a) from t group by cube(a), b)"));
+   void scalarSubqueryExpressionIsValid() {
+      assertTrue(XUtil.isSQLExpressionValid("(select max(a) from t group by rollup(a))"));
+      assertTrue(XUtil.isSQLExpressionValid("(select max(a) from t group by cube(a), b)"));
       assertTrue(XUtil.isSQLExpressionValid("(select max(a) from t group by a)"));
       assertTrue(XUtil.isSQLExpressionValid("(select max(a) from t group by ())"));
    }

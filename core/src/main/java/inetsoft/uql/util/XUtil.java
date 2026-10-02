@@ -1621,12 +1621,8 @@ public final class XUtil {
          return true;
       }
 
-      SQLParser parser = null;
-
       try {
-         SQLLexer lexer = new SQLLexer(new StringReader(exp));
-         parser = new SQLParser(lexer);
-         parser.value_exp();
+         parseSQLExpressionSyntax(exp);
       }
       catch(Exception ex) {
          LOG.debug("Failed to parse SQL expression: " + exp, ex);
@@ -1650,6 +1646,40 @@ public final class XUtil {
       return result;
       */
       return true;
+   }
+
+   /**
+    * Parse a sql expression to check its syntax only. A scalar subquery in the expression
+    * builds a UniformSQL, so a construct the model refuses throws a SemanticException though
+    * the text is valid sql, and a TOP subquery throws a NullPointerException. When the parse
+    * fails that way, the expression is parsed again in guessing mode, which skips every
+    * action and keeps every syntax check.
+    * @param exp the specified sql expression.
+    * @return the lexer of the parse that succeeded.
+    * @throws Exception the exception of the normal parse if the expression is invalid.
+    */
+   public static SQLLexer parseSQLExpressionSyntax(String exp) throws Exception {
+      SQLLexer lexer = new SQLLexer(new StringReader(exp));
+
+      try {
+         new SQLParser(lexer).value_exp();
+         return lexer;
+      }
+      catch(antlr.SemanticException | RuntimeException ex) {
+         SQLLexer guessLexer = new SQLLexer(new StringReader(exp));
+         SQLParser parser = new SQLParser(guessLexer);
+         parser.getInputState().guessing = 1;
+
+         try {
+            parser.value_exp();
+         }
+         catch(Exception guessEx) {
+            // report the error of the normal parse, which names the token
+            throw ex;
+         }
+
+         return guessLexer;
+      }
    }
 
    /**
