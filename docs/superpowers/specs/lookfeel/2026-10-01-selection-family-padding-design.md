@@ -164,9 +164,25 @@ sixth row. The size rule exists to make the default sensible, not to track every
 
 ### D6 — Existing assets are not migrated
 
-Nothing rewrites a stored size, inset or cell padding on load. The parse funnel uses the no-arg
+~~Nothing rewrites a stored size, inset or cell padding on load. The parse funnel uses the no-arg
 constructor and never reaches `setVizMark`, which is the guarantee the mark mechanism already
-relies on. An existing dashboard changes only when its author Modernizes it (D4).
+relies on. An existing dashboard changes only when its author Modernizes it (D4).~~
+
+**Reversed 2026-10-02.** The parse funnel is as described, but every open then restores the
+`INITIAL_STATE` bookmark:
+
+```
+RuntimeViewsheet.gotoDefaultBookmark → Viewsheet.parseState → AbstractVSAssembly.parseState
+   → VizModernizeUtil.reseedAfterRestore → seedChromeDefaults
+```
+
+That last hook is the one that now writes the cell padding, the card inset and the size. So a
+selection marked before this work takes all three, in memory, the first time it is opened, and
+keeps them if the dashboard is then saved. The export checks found it (their defect A).
+
+**Accepted, not fixed.** The feature is not yet live, so the content marked before it is a small
+window, and splitting the restore path from the creation hook costs more than it saves. An
+existing *unmarked* dashboard is still untouched, and MC-1 proves that. See §9.
 
 ## 4. Seeding and resolution
 
@@ -211,8 +227,16 @@ fraction of the table work:
 - `getBodyWidth()` (`:959`) subtracts `inset.left + inset.right`.
 
 The card — border, background, round corner — stays at the assembly edge, and the inset is drawn
-inside it: the same split the chart and table card use. The title lane sits inside the inset,
-consistent with chart and table, which is what D2's arithmetic assumes.
+inside it: the same split the chart and table card use. ~~The title lane sits inside the inset,
+consistent with chart and table, which is what D2's arithmetic assumes.~~
+
+**Corrected 2026-10-02.** The title lane stays flush with the card edge, at full width. Only the
+body is inset, on all three surfaces.
+- **Why:** a selection is too narrow for an inset lane. At 132px wide, 32px of side inset crowds a
+  long title.
+- **D2 is unaffected.** It sums inset, lane and rows, so it holds wherever the lane sits.
+- **One thing does differ from chart and table:** the kebab is placed against the lane, so
+  `VSObjectContainer.getLaneInset` returns zero for a list or a tree.
 
 **Three branches take their own answer:**
 
@@ -356,6 +380,10 @@ numbers it produces go in the PR description, the files stay on one machine.
   list.
 - **A comfortable selection list is 202px tall by default, against 120 today.** Accepted as the
   cost of five-row parity; D2 records the rejected alternatives.
+- **A selection marked before this work reflows on its first open.** D6 is reversed. A marked
+  100 × 120 list or tree opens at the tier default (132 × 202 at comfortable) with the inset and
+  cell padding, with no author action, and can overlap its neighbours. Accepted 2026-10-02: the
+  feature is not yet live.
 - ~~**The dialog placement differs from tables.**~~ Withdrawn 2026-10-01: the placement that would
   have diverged rested on a false premise about `SizePositionPaneModel`'s reach. See §6.
 - **The model-shape convergence is a prerequisite with eleven unchecked template bindings.** Its
