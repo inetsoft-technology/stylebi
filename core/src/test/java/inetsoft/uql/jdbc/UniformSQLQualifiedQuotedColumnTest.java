@@ -438,6 +438,38 @@ class UniformSQLQualifiedQuotedColumnTest {
    }
 
    /**
+    * On a case-sensitive database the parser quotes every segment of an unquoted name too
+    * (t.MixedCase is parsed as "t"."MixedCase"), and the metadata step rewrites it to the
+    * case of the column in the database. That repair must still apply to an unquoted name,
+    * and must not apply to a quoted one.
+    */
+   @Test
+   void unquotedNamesKeepTheMetadataCaseRepair() throws Exception {
+      String unquoted = "select t.MixedCase from t where t.MixedCase = 1 group by t.MixedCase " +
+         "order by t.MixedCase";
+      String quoted = unquoted.replace("t.MixedCase", "t.\"MixedCase\"");
+      String[][] cases = {
+         // helper, the column as the database stores an unquoted MixedCase
+         { "postgresql", "mixedcase" }, { "snowflake", "MIXEDCASE" }, { "exasol", "MIXEDCASE" },
+      };
+
+      for(String[] c : cases) {
+         JDBCDataSource ds = helpers().get(c[0]);
+         String folded = "\"t\".\"" + c[1] + "\"";
+         UniformSQL sql = parse(unquoted, ds);
+         resolve(sql, c[1], "id");
+         assertEquals("select " + folded + " from \"t\" where " + folded + " = 1 group by " + folded +
+                      " order by " + folded + " asc", regenerate(sql), c[0]);
+
+         // the quoted name keeps its case
+         sql = parse(quoted, ds);
+         resolve(sql, "MixedCase", "id");
+         assertEquals("select \"t\".\"MixedCase\" from \"t\" where \"t\".\"MixedCase\" = 1 group by " +
+                      "\"t\".\"MixedCase\" order by \"t\".\"MixedCase\" asc", regenerate(sql), c[0]);
+      }
+   }
+
+   /**
     * Known risk, not fixed here: the quoted flag is keyed by the stored name (#77501), and
     * t."MixedCase" and t.MixedCase are both stored as t.MixedCase. When both spellings are in
     * the same select or group list, both are generated quoted, so the unquoted one (column
@@ -468,6 +500,18 @@ class UniformSQLQualifiedQuotedColumnTest {
       }
 
       return stages;
+   }
+
+   // the metadata step of JDBCUtil.fixUniformSQLInfo, with the columns of table t
+   private static void resolve(UniformSQL sql, String... columns) {
+      for(String column : columns) {
+         sql.addField(new XField(column, column, "t", XSchema.INTEGER));
+      }
+
+      JDBCUtil.fixSelectionInfo(sql);
+      JDBCUtil.expandAsterisk(sql);
+      JDBCUtil.fixWhereInfo(sql);
+      sql.syncTable();
    }
 
    // removes what a version before this change doesn't read
