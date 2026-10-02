@@ -45,6 +45,7 @@ import inetsoft.uql.xmla.*;
 import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
 import inetsoft.util.audit.ActionRecord;
+import inetsoft.util.script.FormulaContext;
 import inetsoft.util.script.ScriptEnv;
 import inetsoft.web.composer.BrowseDataController;
 import inetsoft.web.composer.model.BrowseDataModel;
@@ -1070,7 +1071,18 @@ public class AssetEventUtil {
             }
          }
 
-         Object result = senv.exec(senv.compile(exp), scope, null, null);
+         Object result;
+         // a variable expression is written by end users, run it restricted (bug #77396)
+         boolean restricted = FormulaContext.isRestricted();
+
+         try {
+            FormulaContext.setRestricted(true);
+            result = senv.exec(senv.compile(exp), scope, null, null);
+         }
+         finally {
+            FormulaContext.setRestricted(restricted);
+         }
+
          executedVars.put(var.getName(), result);
          VariableTable newVarTable = new VariableTable();
          newVarTable.put(var.getName(), result);

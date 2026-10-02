@@ -19,8 +19,12 @@ package inetsoft.util.script.graal;
 
 import inetsoft.sree.SreeEnv;
 import inetsoft.uql.viewsheet.internal.FormUtil;
+import inetsoft.util.script.FormulaContext;
+import org.graalvm.polyglot.Context;
 import org.graalvm.polyglot.HostAccess;
+import org.graalvm.polyglot.Source;
 import org.graalvm.polyglot.Value;
+import org.graalvm.polyglot.proxy.ProxyExecutable;
 import java.time.Instant;
 import java.util.*;
 import java.util.function.Predicate;
@@ -224,6 +228,35 @@ public final class ScriptHostAccess {
    private static final Set<String> PRIMITIVE_ARRAY_SIGNATURES = Set.of(
       "[B", "[S", "[I", "[J", "[F", "[D", "[C", "[Z"
    );
+
+   // Replaces Java.type and Java.to with wrappers that test the class name first
+   // (see installTypeLookupCheck). A non-string name is refused rather than
+   // converted, so the name tested is the name looked up. Java.to's type may also
+   // be a type Java.type returned. The wrappers use only what they captured when
+   // installed, so a script that changes a built-in prototype cannot change them.
+   private static final String TYPE_LOOKUP_CHECK_JS =
+      "(function(allowed) {" +
+      "  var J = Java, javaType = J.type, javaTo = J.to, isType = J.isType, TE = TypeError;" +
+      "  var check = function(name) {" +
+      "     if(typeof name !== 'string') {" +
+      "        throw new TE('Java.type expects one string argument');" +
+      "     }" +
+      "     if(!allowed(name)) {" +
+      "        throw new TE('Access to host class ' + name + ' is not allowed.');" +
+      "     }" +
+      "  };" +
+      "  Object.defineProperty(J, 'type', {value: function type(name) {" +
+      "     check(name); return javaType(name); }," +
+      "     writable: false, configurable: false, enumerable: false});" +
+      "  Object.defineProperty(J, 'to', {value: function to(value, name) {" +
+      "     if(arguments.length < 2) { return javaTo(value); }" +
+      "     if(!isType(name)) { check(name); }" +
+      "     return javaTo(value, name); }," +
+      "     writable: false, configurable: false, enumerable: false});" +
+      "})";
+
+   private static final Set<String> PRIMITIVE_TYPES = Set.of(
+      "boolean", "byte", "char", "short", "int", "long", "float", "double");
 
    private static volatile HostAccess hostAccess;
 
@@ -602,6 +635,15 @@ public final class ScriptHostAccess {
     * Dangerous classes (System/Runtime/Class/ClassLoader, threading,
     * inetsoft.report.internal.license.*, engine internals) are NOT on any allow
     * path, so they stay blocked.
+    *
+    * <p>The returned predicate reads {@link FormulaContext#isRestricted()} on every
+    * test. While a script runs restricted (end-user script surfaces), the
+    * {@code com.*}/{@code org.*} allowance and the {@code script.java.allowed.classes}
+    * grant do not apply; only {@code javascript.java.packages} still grants
+    * packages, which mirrors the restricted package roots of the Rhino engine. GraalJS keeps the classes a
+    * context has already found, so a lookup is not always tested again;
+    * {@link #installTypeLookupCheck} closes that gap for {@code Java.type}.
+    * (Bug #77396)
     */
    public static Predicate<String> classFilter() {
       // optional SreeEnv extension (off by default): comma-separated extra FQCNs
@@ -672,7 +714,44 @@ public final class ScriptHostAccess {
    static Predicate<String> classFilter(Set<String> extra, String[] customPkgs,
                                         boolean comOrg)
    {
-      return fqcn -> isVisibleToScripts(fqcn, extra, customPkgs, comOrg);
+      // invariant: no unrestricted script may share a Context with restricted surfaces,
+      // since a host type it leaves in a global bypasses this filter (bug #77396)
+      // a restricted script gets no com/org or extra classes, only the packages an
+      // administrator listed in javascript.java.packages, as in Rhino (bug #77396)
+      return fqcn -> FormulaContext.isRestricted() ?
+         isVisibleToScripts(fqcn, Set.of(), customPkgs, false) :
+         isVisibleToScripts(fqcn, extra, customPkgs, comOrg);
+   }
+
+   /**
+    * Makes {@code Java.type} and {@code Java.to} test a class name against the
+    * class filter on every call. GraalJS tests the filter given to
+    * {@code allowHostClassLookup} only the first time a context looks up a class
+    * and keeps the class after that, so without this check a class found by an
+    * unrestricted script would stay reachable from a restricted script that runs
+    * later in the same context. The original functions are kept only in a
+    * closure, so a script cannot reach them. (Bug #77396)
+    *
+    * @param context the context to install the check in, before any script runs.
+    * @param filter  the class filter the context was built with.
+    */
+   public static void installTypeLookupCheck(Context context, Predicate<String> filter) {
+      Value install = context.eval(Source.create("js", TYPE_LOOKUP_CHECK_JS));
+      install.execute((ProxyExecutable) args -> args.length > 0 && args[0].isString() &&
+         isTypeNameAllowed(args[0].asString(), filter));
+   }
+
+   /**
+    * Whether a type name given to Java.type or Java.to passes the class filter. An
+    * array type name ("x.Y[]") tests its element type, and a primitive type is not
+    * a class, as in the GraalJS lookup itself.
+    */
+   private static boolean isTypeNameAllowed(String name, Predicate<String> filter) {
+      while(name.endsWith("[]")) {
+         name = name.substring(0, name.length() - 2);
+      }
+
+      return PRIMITIVE_TYPES.contains(name) || filter.test(name);
    }
 
    /**
