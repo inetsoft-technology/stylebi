@@ -20,7 +20,6 @@ import { UntypedFormGroup, FormsModule } from "@angular/forms";
 import { TreeNodeModel } from "../../../widget/tree/tree-node-model";
 import { SelectionContainerGeneralPaneModel } from "../../data/vs/selection-container-general-pane-model";
 import { SizePositionPane } from "../../../vsobjects/dialog/size-position-pane.component";
-import { PaddingPane } from "../../../vsobjects/dialog/padding-pane.component";
 import { TitlePropPane } from "../../../vsobjects/dialog/title-prop-pane.component";
 import { GeneralPropPane } from "../../../vsobjects/dialog/general-prop-pane.component";
 
@@ -32,7 +31,6 @@ import { GeneralPropPane } from "../../../vsobjects/dialog/general-prop-pane.com
         TitlePropPane,
         FormsModule,
         SizePositionPane,
-        PaddingPane,
     ]
 })
 

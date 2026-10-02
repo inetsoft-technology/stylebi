@@ -1962,7 +1962,7 @@ public class VsToReportConverter {
 
       if(!"".equals(text.trim())) {
          TableDataPath path = new TableDataPath(-1, TableDataPath.DETAIL);
-         applyCardInset(addTextBoxElement0(info, path, text, bounds, sectionName), info);
+         addTextBoxElement0(info, path, text, bounds, sectionName);
       }
    }
 

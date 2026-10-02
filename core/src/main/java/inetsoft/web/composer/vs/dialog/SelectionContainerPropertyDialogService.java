@@ -26,7 +26,6 @@ import inetsoft.uql.viewsheet.CurrentSelectionVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.CurrentSelectionVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.VSDensityDefaults;
-import inetsoft.uql.viewsheet.internal.VizContext;
 import inetsoft.util.Tool;
 import inetsoft.web.composer.model.vs.*;
 import inetsoft.web.composer.vs.objects.controller.VSObjectPropertyService;
@@ -79,17 +78,6 @@ public class SelectionContainerPropertyDialogService {
 
       selectionContainerGeneralPaneModel.setShowCurrentSelection(selectionContainerAssemblyInfo.getShowCurrentSelectionValue());
       selectionContainerGeneralPaneModel.setAdhocEnabled(selectionContainerAssemblyInfo.getAdhocEnabledValue());
-
-      PaddingPaneModel paddingPaneModel = selectionContainerGeneralPaneModel.getPaddingPaneModel();
-      Insets padding = selectionContainerAssemblyInfo.getPadding();
-      paddingPaneModel.setTop(padding.top);
-      paddingPaneModel.setLeft(padding.left);
-      paddingPaneModel.setBottom(padding.bottom);
-      paddingPaneModel.setRight(padding.right);
-      // null hides the checkbox: an unmarked selection has no default to follow, and the pane then
-      // behaves exactly as it did before the checkbox existed
-      paddingPaneModel.setFollowsDefault(
-         selectionContainerAssemblyInfo.getVizMark() == null ? null : !selectionContainerAssemblyInfo.isUserPadding());
 
       titlePropPaneModel.setVisible(selectionContainerAssemblyInfo.getTitleVisibleValue());
       titlePropPaneModel.setTitle(selectionContainerAssemblyInfo.getTitleValue());
@@ -156,29 +144,6 @@ public class SelectionContainerPropertyDialogService {
 
       selectionContainerAssemblyInfo.setShowCurrentSelectionValue(selectionContainerGeneralPaneModel.isShowCurrentSelection());
       selectionContainerAssemblyInfo.setAdhocEnabledValue(selectionContainerGeneralPaneModel.isAdhocEnabled());
-
-      PaddingPaneModel paddingPaneModel = selectionContainerGeneralPaneModel.getPaddingPaneModel();
-      Insets editedPadding = new Insets(
-         paddingPaneModel.getTop(), paddingPaneModel.getLeft(),
-         paddingPaneModel.getBottom(), paddingPaneModel.getRight());
-      Boolean paddingFollowsDefault = paddingPaneModel.getFollowsDefault();
-
-      if(paddingFollowsDefault == null) {
-         // no checkbox was shown, so this selection is not marked; store only a real edit
-         if(!editedPadding.equals(selectionContainerAssemblyInfo.getPadding())) {
-            selectionContainerAssemblyInfo.setUserPadding(true);
-            selectionContainerAssemblyInfo.setPadding(editedPadding);
-         }
-      }
-      else if(paddingFollowsDefault) {
-         // clear the opinion and let the default decide, the same shape Revert uses
-         selectionContainerAssemblyInfo.setUserPadding(false);
-         selectionContainerAssemblyInfo.resetPadding(VizContext.of(selectionContainerAssemblyInfo));
-      }
-      else {
-         selectionContainerAssemblyInfo.setUserPadding(true);
-         selectionContainerAssemblyInfo.setPadding(editedPadding);
-      }
 
       selectionContainerAssemblyInfo.setTitleVisibleValue(titlePropPaneModel.isVisible());
       selectionContainerAssemblyInfo.setTitleValue(titlePropPaneModel.getTitle());

@@ -18,7 +18,6 @@
 import { GeneralPropPaneModel } from "../../../vsobjects/model/general-prop-pane-model";
 import { TitlePropPaneModel } from "../../../vsobjects/model/title-prop-pane-model";
 import { SizePositionPaneModel } from "../../../vsobjects/model/size-position-pane-model";
-import { PaddingPaneModel } from "../../../vsobjects/model/padding-pane-model";
 
 export interface SelectionContainerGeneralPaneModel {
    showCurrentSelection: boolean;
@@ -26,5 +25,4 @@ export interface SelectionContainerGeneralPaneModel {
    generalPropPaneModel: GeneralPropPaneModel;
    titlePropPaneModel: TitlePropPaneModel;
    sizePositionPaneModel: SizePositionPaneModel;
-   paddingPaneModel: PaddingPaneModel;
 }
