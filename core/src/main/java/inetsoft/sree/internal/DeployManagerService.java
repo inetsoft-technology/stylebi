@@ -642,7 +642,14 @@ public class DeployManagerService {
                AssetContent.ALL);
             ViewsheetSandbox box = new ViewsheetSandbox(vs,
                Viewsheet.SHEET_DESIGN_MODE, null, false, entry);
-            box.updateAssemblies();
+
+            // Bug #77609: the sandbox is only needed for updateAssemblies()
+            try {
+               box.updateAssemblies();
+            }
+            finally {
+               box.dispose();
+            }
          }
       }
       catch(Throwable e) {
