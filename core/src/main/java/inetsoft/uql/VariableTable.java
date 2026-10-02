@@ -939,6 +939,13 @@ public class VariableTable implements ContentObject, Serializable, Cloneable {
                      writeElementTypes((Object[]) entry.getValue(), generator);
                   }
 
+                  // a java.sql.Time value is written as "HH:mm:ss" and a Timestamp without its
+                  // nanos, the full value is kept in a field that the older reader ignores
+                  if(hasTimes(entry.getValue())) {
+                     generator.writeFieldName("times");
+                     writeTimes(entry.getValue(), generator);
+                  }
+
                   generator.writeEndObject();
                }
             }
@@ -1017,6 +1024,51 @@ public class VariableTable implements ContentObject, Serializable, Cloneable {
 
          generator.writeEndArray();
       }
+
+      private static boolean hasTimes(Object value) {
+         if(value instanceof java.sql.Time || value instanceof java.sql.Timestamp) {
+            return true;
+         }
+
+         if(value instanceof Object[] array) {
+            for(Object element : array) {
+               if(hasTimes(element)) {
+                  return true;
+               }
+            }
+         }
+
+         return false;
+      }
+
+      // a Time or Timestamp is written as {"time": millis, "nanos": nanos}, an array as the
+      // array of its elements' times, and any other value as null. The numbers are written
+      // directly so they don't depend on the modules of the generator's codec
+      private static void writeTimes(Object value, JsonGenerator generator) throws IOException {
+         if(value instanceof java.sql.Time time) {
+            generator.writeStartObject();
+            generator.writeNumberField("time", time.getTime());
+            generator.writeEndObject();
+         }
+         else if(value instanceof java.sql.Timestamp timestamp) {
+            generator.writeStartObject();
+            generator.writeNumberField("time", timestamp.getTime());
+            generator.writeNumberField("nanos", timestamp.getNanos());
+            generator.writeEndObject();
+         }
+         else if(value instanceof Object[] array) {
+            generator.writeStartArray();
+
+            for(Object element : array) {
+               writeTimes(element, generator);
+            }
+
+            generator.writeEndArray();
+         }
+         else {
+            generator.writeNull();
+         }
+      }
    }
 
    public static final class Deserializer extends StdDeserializer<VariableTable> {
@@ -1031,9 +1083,10 @@ public class VariableTable implements ContentObject, Serializable, Cloneable {
          JsonNode node = parser.getCodec().readTree(parser);
          VariableTable table = new VariableTable();
          table.session = node.get("session") != null ? node.get("session").asText() : null;
-         ObjectNode object = (ObjectNode) node.get("vartable");
+         Iterable<Map.Entry<String, JsonNode>> entries = node.get("vartable") instanceof
+            ObjectNode object ? object.properties() : Collections.emptySet();
 
-         for(Map.Entry<String, JsonNode> e : object.properties()) {
+         for(Map.Entry<String, JsonNode> e : entries) {
             if(e.getValue().isNull()) {
                table.vartable.put(e.getKey(), null);
             }
@@ -1059,22 +1112,31 @@ public class VariableTable implements ContentObject, Serializable, Cloneable {
                   value = readElements(valueNode, elementTypes, mapper);
                }
                else {
-                  value = mapper.convertValue(valueNode, valueClass);
+                  // a value that can't be converted, e.g. written in another encoding by a
+                  // node of another version, must not drop the other variables
+                  try {
+                     value = mapper.convertValue(valueNode, valueClass);
+                  }
+                  catch(IllegalArgumentException ex) {
+                     LOG.warn("Variable {} can't be converted to {}, keeping the JSON value",
+                              e.getKey(), type, ex);
+                     value = valueNode != null && valueNode.isArray() ?
+                        readTypedElements(valueNode, valueClass.getComponentType(), mapper) :
+                        mapper.convertValue(valueNode, Object.class);
+                  }
                }
 
-               table.vartable.put(e.getKey(), value);
+               table.vartable.put(e.getKey(), readTimes(value, e.getValue().get("times")));
             }
          }
 
-         ArrayNode array = (ArrayNode) node.get("notIgnoreNull");
-
-         for(JsonNode child : array) {
-            table.notIgnoreNull.add(child.asText());
+         if(node.get("notIgnoreNull") instanceof ArrayNode array) {
+            for(JsonNode child : array) {
+               table.notIgnoreNull.add(child.asText());
+            }
          }
 
-         array = (ArrayNode) node.get("asIs");
-
-         if(array != null) {
+         if(node.get("asIs") instanceof ArrayNode array) {
             if(table.asIs == null) {
                table.asIs = new HashSet<>();
             }
@@ -1084,13 +1146,93 @@ public class VariableTable implements ContentObject, Serializable, Cloneable {
             }
          }
 
-         if(!node.get("basetable").isNull()) {
-            table.basetable = ((ObjectMapper) parser.getCodec())
-               .convertValue(node.get("basetable"), VariableTable.class);
+         JsonNode basetable = node.get("basetable");
+
+         if(basetable != null && !basetable.isNull()) {
+            try {
+               table.basetable = ((ObjectMapper) parser.getCodec())
+                  .convertValue(basetable, VariableTable.class);
+            }
+            catch(IllegalArgumentException ex) {
+               LOG.warn("Failed to load the base variable table", ex);
+            }
          }
 
-         table.copyParameterTS = node.get("copyParameterTS").asLong();
+         table.copyParameterTS = node.get("copyParameterTS") != null ?
+            node.get("copyParameterTS").asLong() : 0;
          return table;
+      }
+
+      // replaces a Time or Timestamp by the one in its "times" field, which has the date part,
+      // millis and nanos that the "value" field doesn't have. The type is still taken only from
+      // the "type" field, the state written before Bug #77528 has no "times"
+      private static Object readTimes(Object value, JsonNode times) {
+         if(times == null) {
+            return value;
+         }
+
+         if(value instanceof Object[] array && times.isArray()) {
+            for(int i = 0; i < array.length && i < times.size(); i++) {
+               array[i] = readTimes(array[i], times.get(i));
+            }
+
+            return array;
+         }
+
+         if(!(value instanceof java.sql.Time || value instanceof java.sql.Timestamp) ||
+            !times.isObject() || times.get("time") == null || !times.get("time").canConvertToLong())
+         {
+            return value;
+         }
+
+         long time = times.get("time").asLong();
+
+         if(value instanceof java.sql.Time) {
+            return new java.sql.Time(time);
+         }
+
+         java.sql.Timestamp timestamp = new java.sql.Timestamp(time);
+         JsonNode nanos = times.get("nanos");
+
+         if(nanos != null && nanos.canConvertToInt()) {
+            try {
+               timestamp.setNanos(nanos.asInt());
+            }
+            catch(IllegalArgumentException ex) {
+               LOG.debug("Invalid nanos {} of timestamp", nanos, ex);
+            }
+         }
+
+         return timestamp;
+      }
+
+      // the fallback of a typed array that can't be converted as a whole, each element is
+      // converted to the component type or kept as the plain JSON value
+      private static Object[] readTypedElements(JsonNode array, Class<?> componentType,
+                                                ObjectMapper mapper)
+      {
+         Object[] elements = new Object[array.size()];
+
+         for(int i = 0; i < elements.length; i++) {
+            elements[i] = readElement(array.get(i), componentType, mapper);
+         }
+
+         return elements;
+      }
+
+      private static Object readElement(JsonNode element, Class<?> elementClass,
+                                        ObjectMapper mapper)
+      {
+         if(elementClass != null && !element.isNull()) {
+            try {
+               return mapper.convertValue(element, elementClass);
+            }
+            catch(IllegalArgumentException ex) {
+               LOG.debug("Failed to convert element {} to {}", element, elementClass, ex);
+            }
+         }
+
+         return mapper.convertValue(element, Object.class);
       }
 
       // an element type is only looked up in VALUE_TYPES, an element without a known type
@@ -1109,18 +1251,7 @@ public class VariableTable implements ContentObject, Serializable, Cloneable {
 
             Class<?> elementClass = type != null && type.isTextual() ?
                VALUE_TYPES.get(type.asText()) : null;
-
-            if(elementClass != null && !element.isNull()) {
-               try {
-                  elements[i] = mapper.convertValue(element, elementClass);
-                  continue;
-               }
-               catch(IllegalArgumentException ex) {
-                  LOG.debug("Failed to convert element {} to {}", element, elementClass, ex);
-               }
-            }
-
-            elements[i] = mapper.convertValue(element, Object.class);
+            elements[i] = readElement(element, elementClass, mapper);
          }
 
          return elements;
