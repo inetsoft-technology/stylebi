@@ -25,6 +25,7 @@ import inetsoft.uql.jdbc.JDBCDataSource;
 import inetsoft.uql.jdbc.util.JDBCUtil;
 import inetsoft.uql.util.Config;
 import inetsoft.util.ThreadContext;
+import inetsoft.util.Tool;
 import inetsoft.web.admin.content.database.DatabaseDefinition;
 import inetsoft.web.admin.content.database.DatabaseTypeService;
 import inetsoft.web.admin.content.database.types.AccessDatabaseType;
@@ -36,6 +37,9 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import java.io.PrintWriter;
+import java.io.StringReader;
+import java.io.StringWriter;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.security.Principal;
@@ -168,6 +172,16 @@ class DatabaseDatasourcesServiceTestQueryPoolTest {
    }
 
    @Test
+   void savedTestQuerySurvivesStoringTheDataSource() throws Exception {
+      DatabaseDefinition definition = edit(customSource(poolProperties()));
+      customInfo(definition).setTestQuery("VALUES 2");
+      JDBCDataSource stored = writeAndParse(save(definition));
+
+      assertEquals("VALUES 2", poolConfig(stored).getConnectionTestQuery());
+      assertEquals("VALUES 2", customInfo(edit(stored)).getTestQuery());
+   }
+
+   @Test
    void accessKeepsTheTestQueryInThePoolPropertiesTable() throws Exception {
       JDBCDataSource source = customSource(poolProperties(PROPERTY, "VALUES 2"));
       source.setCustom(false);
@@ -214,6 +228,18 @@ class DatabaseDatasourcesServiceTestQueryPoolTest {
          "createDataSourceConfig", JDBCDataSource.class, boolean.class);
       method.setAccessible(true);
       return (HikariConfig) method.invoke(new DefaultConnectionPoolFactory(), dataSource, true);
+   }
+
+   // the data source as it is written to and read back from storage
+   private static JDBCDataSource writeAndParse(JDBCDataSource dataSource) throws Exception {
+      StringWriter buffer = new StringWriter();
+      PrintWriter writer = new PrintWriter(buffer);
+      dataSource.writeXML(writer);
+      writer.flush();
+
+      JDBCDataSource parsed = new JDBCDataSource();
+      parsed.parseXML(Tool.parseXML(new StringReader(buffer.toString())).getDocumentElement());
+      return parsed;
    }
 
    private static TreeMap<String, String> poolProperties(String... keyValues) {
