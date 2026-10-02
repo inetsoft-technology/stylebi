@@ -97,6 +97,9 @@ class SQLExpressionValidityRefusalTest {
       "(select max(b.k) from b group by cube(b.k, b.j))",
       "(select max(b.k) from b group by grouping sets ((b.k), (b.j)))",
       "(select max(b.k) from b group by (), b.k)",
+      // a derived column list (#77494)
+      "(select max(p) from (select 1 x) t(p))",
+      "(select max(t.p) from (select b.id from b) t(p) where t.p = a.id)",
    };
 
    private static Stream<String> validExpressions() {
@@ -105,8 +108,6 @@ class SQLExpressionValidityRefusalTest {
          "coalesce((select max(b.k) from b group by rollup(b.k)), 0)",
          // TOP failed with a NullPointerException outside a statement parse
          "(select top 1 b.x from b)",
-         // a derived column list, which #77494 refuses. move it to REFUSED once it lands
-         "(select max(p) from (select 1 x) t(p))",
          // controls with no refusal
          "(select max(b.x) from b left join c on b.id = c.id)",
          "(select max(b.k) from b group by b.k)"));
