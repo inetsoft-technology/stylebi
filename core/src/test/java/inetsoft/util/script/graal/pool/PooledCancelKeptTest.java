@@ -45,12 +45,14 @@ class PooledCancelKeptTest {
    @BeforeEach
    void rememberParanoia() {
       forcedBefore = PoolParanoia.forced;
+      verifyTimeoutBefore = PoolParanoia.verifyTimeout;
    }
 
    @AfterEach
    void restoreParanoia() {
       PoolParanoia.forced = forcedBefore;
       PoolParanoia.beforeVerifyHook = null;
+      PoolParanoia.verifyTimeout = verifyTimeoutBefore;
       PoolParanoia.refresh();
    }
 
@@ -253,6 +255,8 @@ class PooledCancelKeptTest {
    @Test
    void aParanoidReleaseKeepsACancelAndReusesTheSlot() throws Exception {
       PoolParanoia.forced = true;
+      // the check's own timeout would make it inconclusive on a stalled machine
+      PoolParanoia.verifyTimeout = LONG_CHECK;
       WorksheetScriptEnv env = PoolTestSupport.env();
 
       try {
@@ -282,19 +286,23 @@ class PooledCancelKeptTest {
 
    /**
     * Bug #77568: a cancel that lands while the paranoid check runs is consumed at one of the
-    * check's guest safepoint polls; the check's catch must put it back. The check is made
-    * slow (many off-baseline globals) and the cancel is sent as it starts; a cancel that
-    * lands only after it ended must be kept as well, so the test holds either way.
+    * check's guest safepoint polls; the check's catch must put it back. The check is wrapped
+    * so that it first enters a host call that waits, outside guest code, until the canceller
+    * has interrupted the thread; so the cancel lands inside the check, after it set the
+    * caller's flag aside, and the next guest safepoint poll consumes it, on any schedule. The
+    * check's own timeout is lengthened so that only the cancel can stop it.
     */
    @Test
    void aCancelDuringAParanoidCheckIsKept() throws Exception {
       WorksheetScriptEnv env = PoolTestSupport.env();
+      Spinner spinner = new Spinner();
       Thread self = Thread.currentThread();
-      CountDownLatch checking = new CountDownLatch(1);
+      CountDownLatch sent = new CountDownLatch(1);
       Thread canceller = new Thread(() -> {
          try {
-            if(checking.await(30, TimeUnit.SECONDS)) {
+            if(spinner.entered.await(30, TimeUnit.SECONDS)) {
                self.interrupt();
+               sent.countDown();
             }
          }
          catch(InterruptedException ignore) {
@@ -304,12 +312,20 @@ class PooledCancelKeptTest {
 
       try {
          PoolTestSupport.run(env, "1");
+         long inconclusive = PoolParanoia.inconclusive();
          PoolParanoia.forced = true;
+         PoolParanoia.verifyTimeout = LONG_CHECK;
          PoolParanoia.beforeVerifyHook = s -> {
             PoolParanoia.beforeVerifyHook = null;
-            s.engine().context().eval("js",
-               "for(let i = 0; i < 50000; i++) globalThis['zqc' + i] = i;");
-            checking.countDown();
+
+            try {
+               PoolTestSupport.injectVerify(
+                  s, "(function(real, sp) { return function() { sp.spin(); return real(); }; })",
+                  spinner);
+            }
+            catch(Exception ex) {
+               throw new IllegalStateException(ex);
+            }
          };
          canceller.start();
          String outcome;
@@ -321,16 +337,44 @@ class PooledCancelKeptTest {
             outcome = String.valueOf(ex);
          }
 
-         canceller.join(30_000);
-         assertEquals(0, checking.getCount(), "the check did not run");
-         assertTrue(Thread.interrupted(), "the cancel was lost in the check: " + outcome);
-         assertEquals("undefined", PoolTestSupport.run(env, "typeof zqc0"));
+         // take the flag before waiting, and wait so that no interrupt can end the wait
+         boolean cancelled = Thread.interrupted();
+         boolean stray = joinIgnoringInterrupts(canceller);
+         assertEquals(0, spinner.entered.getCount(), "the check did not run");
+         assertEquals(0, sent.getCount(), "the canceller did not cancel");
+         assertFalse(stray, "the cancel landed after the release returned");
+         assertTrue(cancelled, "the cancel was lost in the check: " + outcome);
+         assertEquals(inconclusive + 1, PoolParanoia.inconclusive(),
+                      "the cancel did not stop the check");
+         assertEquals(2, ((Number) PoolTestSupport.run(env, "1 + 1")).intValue());
       }
       finally {
          PoolParanoia.beforeVerifyHook = null;
          canceller.interrupt();
          env.retire();
       }
+   }
+
+   /**
+    * Join {@code thread} for at most 30 s; an interrupt of the calling thread meanwhile does
+    * not end the wait and is cleared.
+    *
+    * @return whether such an interrupt arrived.
+    */
+   private static boolean joinIgnoringInterrupts(Thread thread) {
+      boolean interrupted = false;
+      long end = System.nanoTime() + TimeUnit.SECONDS.toNanos(30);
+
+      while(thread.isAlive() && end - System.nanoTime() > 0) {
+         try {
+            thread.join(Math.max(1, TimeUnit.NANOSECONDS.toMillis(end - System.nanoTime())));
+         }
+         catch(InterruptedException ex) {
+            interrupted = true;
+         }
+      }
+
+      return interrupted | Thread.interrupted();
    }
 
    private static Slot newSlot() throws Exception {
@@ -346,4 +390,7 @@ class PooledCancelKeptTest {
 
    private Slot slot;
    private Boolean forcedBefore;
+   private Duration verifyTimeoutBefore;
+
+   private static final Duration LONG_CHECK = Duration.ofSeconds(60);
 }

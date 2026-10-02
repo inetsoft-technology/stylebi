@@ -70,8 +70,7 @@ class ParanoidCheckFlagTest {
    void aCheckStoppedByItsTimeoutKeepsACancel() throws Exception {
       slot = newSlot();
       assertTrue(slot.clean().reusable(256));
-      slot.engine().context().eval("js",
-         "for(let i = 0; i < 50000; i++) globalThis['zqt' + i] = i;");
+      stallCheck(slot);
       PoolParanoia.verifyTimeout = Duration.ofMillis(1);
       Thread.currentThread().interrupt();
       List<String> keys = PoolParanoia.verify(slot.engine().context(), slot.cleaner());
@@ -84,11 +83,11 @@ class ParanoidCheckFlagTest {
    void aCheckStoppedByItsTimeoutLeavesNoInterrupt() throws Exception {
       slot = newSlot();
       assertTrue(slot.clean().reusable(256));
-      slot.engine().context().eval("js",
-         "for(let i = 0; i < 50000; i++) globalThis['zqt' + i] = i;");
+      stallCheck(slot);
       PoolParanoia.verifyTimeout = Duration.ofMillis(1);
       List<String> keys = PoolParanoia.verify(slot.engine().context(), slot.cleaner());
       assertFalse(Thread.interrupted(), "the check's own timeout was left on the thread");
+      assertEquals(1, keys.size(), keys::toString);
       assertTrue(keys.get(0).startsWith(PoolParanoia.INCONCLUSIVE_PREFIX), keys::toString);
    }
 
@@ -116,6 +115,15 @@ class ParanoidCheckFlagTest {
       finally {
          env.retire();
       }
+   }
+
+   /**
+    * Make the slot's check run guest code for 30 s before the real check, so that only the
+    * check's own timeout ends it in time, however fast the machine runs the real check.
+    */
+   private static void stallCheck(Slot slot) throws Exception {
+      PoolTestSupport.injectVerify(slot, "(function(real) { return function() { " +
+         "const end = Date.now() + 30000; while(Date.now() < end) {} return real(); }; })");
    }
 
    private static Slot newSlot() throws Exception {
