@@ -88,6 +88,37 @@ class CoreToolArrayDataStringTest {
       assertArrayEquals(value, (Object[]) Tool.getData(Tool.ARRAY, text, true));
    }
 
+   static Stream<Arguments> strictArrays() {
+      return Stream.of(
+         new Object[] { "null", "", "x" },
+         new Object[] { "", null, " " },
+         new Object[] { "", "a^b", "null" },
+         new Object[] { new Object[] { "", "a" }, "b" },
+         new Object[] { new Object[] { new Object[] { "null", "" }, "p^q" }, "" }
+      ).map(value -> Arguments.of((Object) value));
+   }
+
+   // in the persistent form "" and "null" elements are kept apart from null, as at top level
+   @ParameterizedTest
+   @MethodSource("strictArrays")
+   void persistentArrayKeepsEmptyAndNullStrings(Object[] value) {
+      String text = Tool.getPersistentDataString(value);
+
+      assertArrayEquals(value, (Object[]) Tool.getData(Tool.ARRAY, text, true), "encoded as " + text);
+      assertArrayEquals(value, (Object[]) Tool.getPersistentData(Tool.ARRAY, text), "encoded as " + text);
+   }
+
+   @Test
+   void regularArrayStillReadsEmptyAndNullStringsAsNull() {
+      Object[] value = { "null", "", " ", "x" };
+      Object[] loaded = (Object[]) Tool.getData(Tool.ARRAY, Tool.getDataString(value));
+
+      assertArrayEquals(new Object[] { null, null, " ", "x" }, loaded);
+      assertArrayEquals(new Object[] { new Object[] { null, "a" }, null },
+                        (Object[]) Tool.getData(Tool.ARRAY,
+                           Tool.getDataString(new Object[] { new Object[] { "", "a" }, "" })));
+   }
+
    @Test
    void arrayWithoutDelimitersKeepsLegacyBytes() {
       assertEquals("string~a^string~C:\\d^string~50%",

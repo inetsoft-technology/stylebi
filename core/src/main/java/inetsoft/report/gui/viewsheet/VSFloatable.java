@@ -237,6 +237,6 @@ public abstract class VSFloatable extends VSObject {
       return new Point((int) getBW(LEFT), (int) getBW(TOP));
    }
 
-   public static ThreadLocal<Boolean> isExport = ThreadLocal.withInitial(() -> false);
+   public static final ThreadLocal<Boolean> isExport = ThreadLocal.withInitial(() -> false);
    protected Dimension imageSize;
 }

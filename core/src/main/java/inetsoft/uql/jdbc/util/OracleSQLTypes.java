@@ -22,7 +22,7 @@ import inetsoft.uql.schema.UserDefinedType;
 import inetsoft.uql.schema.XTypeNode;
 import inetsoft.uql.table.XTableColumnCreator;
 import inetsoft.uql.table.XTimestampColumn;
-import inetsoft.uql.util.XUtil;
+import inetsoft.util.Tool;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -81,7 +81,7 @@ public final class OracleSQLTypes extends SQLTypes {
             if(val.getClass().getName().equals("oracle.sql.TIMESTAMP") ||
                val.getClass().getName().equals("oracle.sql.DATE"))
             {
-               val = XUtil.call(val, "oracle.sql.Datum", "timestampValue",
+               val = Tool.call(val, "oracle.sql.Datum", "timestampValue",
                                 new Class[] {}, new Object[] {});
             }
             else if(val.getClass().getName().equals("oracle.sql.TIMESTAMPTZ") ||
@@ -94,10 +94,10 @@ public final class OracleSQLTypes extends SQLTypes {
                }
 
                String cls = val.getClass().getName();
-               byte[] buf = (byte[]) XUtil.call(val, cls, "toBytes",
+               byte[] buf = (byte[]) Tool.call(val, cls, "toBytes",
                                                 new Class[]{}, new Object[]{});
 
-               val = XUtil.call(val, cls, "toTimestamp",
+               val = Tool.call(val, cls, "toTimestamp",
                                 new Class[] { Connection.class, byte[].class },
                                 new Object[] { stmt.getConnection(), buf });
 
@@ -106,7 +106,7 @@ public final class OracleSQLTypes extends SQLTypes {
                // fine. There is likely some initialization involved but
                // could not find any api or documentation for it
                if(val == null) {
-                  val = XUtil.call(val, cls, "toTimestamp",
+                  val = Tool.call(val, cls, "toTimestamp",
                                    new Class[] { Connection.class, byte[].class },
                                    new Object[] { stmt.getConnection(), buf });
                }
@@ -115,7 +115,7 @@ public final class OracleSQLTypes extends SQLTypes {
             return val;
          case -104: // oracle INTERVALDAYTOSECOND
             try {
-               val = XUtil.call(result, "oracle.sql.OracleResultSet",
+               val = Tool.call(result, "oracle.sql.OracleResultSet",
                                 "getINTERVALDS", new Class[] {int.class},
                                 new Object[] {Integer.valueOf(idx)});
                return val;
@@ -223,14 +223,14 @@ public final class OracleSQLTypes extends SQLTypes {
 
             if(val.getClass().getName().equals("oracle.sql.TIMESTAMP") ||
                val.getClass().getName().equals("oracle.sql.DATE")) {
-               val = XUtil.call(val, "oracle.sql.Datum", "timestampValue",
+               val = Tool.call(val, "oracle.sql.Datum", "timestampValue",
                                 new Class[] {}, new Object[] {});
             }
             else if(val.getClass().getName().equals("oracle.sql.TIMESTAMPTZ")) {
-               byte[] buf = (byte[]) XUtil.call(val, "oracle.sql.TIMESTAMPTZ",
+               byte[] buf = (byte[]) Tool.call(val, "oracle.sql.TIMESTAMPTZ",
                   "toBytes", new Class[] {}, new Object[] {});
 
-               val = XUtil.call(val, "oracle.sql.TIMESTAMPTZ", "toTimestamp",
+               val = Tool.call(val, "oracle.sql.TIMESTAMPTZ", "toTimestamp",
                   new Class[] {Connection.class, byte[].class},
                   new Object[] {cs.getConnection(), buf});
 
@@ -239,7 +239,7 @@ public final class OracleSQLTypes extends SQLTypes {
                // fine. There is likely some initialization involved but
                // could not find any api or documentation for it
                if(val == null) {
-                  val = XUtil.call(val, "oracle.sql.TIMESTAMPTZ", "toTimestamp",
+                  val = Tool.call(val, "oracle.sql.TIMESTAMPTZ", "toTimestamp",
                      new Class[] {Connection.class, byte[].class},
                      new Object[] {cs.getConnection(), buf});
                }

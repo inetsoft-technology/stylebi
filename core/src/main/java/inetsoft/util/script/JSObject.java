@@ -21,6 +21,7 @@ import inetsoft.report.StyleFont;
 import inetsoft.report.internal.table.TableFormat;
 import inetsoft.uql.VariableTable;
 import inetsoft.util.CoreTool;
+import inetsoft.util.DecimalPatternUtil;
 import inetsoft.util.Tool;
 import inetsoft.util.script.graal.ScriptValueConverter;
 import org.graalvm.polyglot.Value;
@@ -138,7 +139,7 @@ public class JSObject {
             return new Point((int) arr[0], (int) arr[1]);
          }
          else if(type == NumberFormat.class) {
-            return new DecimalFormat(val.toString());
+            return new DecimalFormat(DecimalPatternUtil.normalizeEmptyPattern(val.toString()));
          }
          else if(type == DateFormat.class) {
             return Tool.createDateFormat(val.toString());

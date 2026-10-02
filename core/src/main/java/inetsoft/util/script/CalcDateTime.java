@@ -21,9 +21,6 @@ import inetsoft.util.CoreTool;
 import inetsoft.util.Tool;
 
 import java.text.DateFormat;
-import java.time.LocalDate;
-import java.time.ZoneId;
-import java.time.temporal.ChronoUnit;
 import java.util.*;
 
 /**
@@ -88,24 +85,10 @@ public class CalcDateTime {
       // Removed the plus one, as the getSerialStart() day is
       // now set 1 less day so that getSerialDays threshold properly considers
       // the exact moment, time (00:00:00), when the end date is crossed.
-      
-      // Using "toInstant().atZone" to convert one date to localDate works well for date after1900.
-      // But for date before 1900, it will calculate different offset for different time zones.
-      // In nomal case, date wil not start before 1900, there is only one date before it is the 
-      // getSerialStart(), so for the getSerialStart, we create local date from calendar to avoid
-      // convert it to wrong data. Using origianl to create local date.
-      Calendar cal = CalcUtil.getSerialStart();
-      LocalDate date1 = LocalDate.of(cal.get(Calendar.YEAR), cal.get(Calendar.MONTH) + 1,
-              cal.get(Calendar.DAY_OF_MONTH));
 
-      // java.sql.Date doesn't support toInstant()
-      if(date instanceof java.sql.Date) {
-         date = new java.util.Date(((java.sql.Date) date).getTime());
-      }
-
-      LocalDate date2 = ((Date) date).toInstant().atZone(ZoneId.systemDefault()).toLocalDate();
-
-      return (int) ChronoUnit.DAYS.between(date1, date2);
+      // Count the days on the calendar SimpleDateFormat displays. java.time would read the
+      // 1899 serial start and other dates before 1901 in local mean time (bug #77450).
+      return CalcUtil.getSerialDays(CalcUtil.getSerialStart().getTime(), (Date) date);
    }
 
    /**
@@ -359,7 +342,7 @@ public class CalcDateTime {
       }
 
       int working_days = 0;
-      Calendar cal = Calendar.getInstance();
+      Calendar cal = new GregorianCalendar();
 
       while(true) {
          int day = start.get(Calendar.DAY_OF_WEEK);
@@ -565,7 +548,7 @@ public class CalcDateTime {
          rt = ((Number) return_type).intValue();
       }
 
-      Calendar cal = Calendar.getInstance();
+      Calendar cal = new GregorianCalendar();
       cal.setTime((Date) date);
 
       //Default --> Week Begins SUNDAY
@@ -615,7 +598,7 @@ public class CalcDateTime {
          days *= -1;
       }
 
-      Calendar cal = Calendar.getInstance();
+      Calendar cal = new GregorianCalendar();
 
       while(days != 0) {
          start.set(Calendar.DATE, start.get(Calendar.DATE) + difference);
@@ -1311,7 +1294,7 @@ public class CalcDateTime {
     * @since 12.0
     */
    private static Calendar createCalendar(Object timeZone) {
-      Calendar calendar = Calendar.getInstance();
+      Calendar calendar = new GregorianCalendar();
 
       if(timeZone != null) {
          calendar.setTimeZone(TimeZone.getTimeZone((String) timeZone));

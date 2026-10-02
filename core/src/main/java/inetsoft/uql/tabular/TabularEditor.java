@@ -788,25 +788,30 @@ public class TabularEditor implements XMLSerializable {
 
       if(type == Type.LIST) {
          NodeList valueNodes = Tool.getChildNodesByTagName(node, "value");
-         Class collectionClass = Tool.loadSubclass(propertyType, Object.class);
-         Class elementClass = Tool.loadSubclass(propertySubtype, Object.class);
+         // only the known list types are created, never a class named in the XML. Array
+         // elements take the component type of the list type and collection elements are
+         // parsed by the subtype editor, so the property subtype is not needed here
+         Class<?> listClass = propertyType == null ? null : LIST_TYPES.get(propertyType);
 
-         if(!collectionClass.isArray()) {
-            Tool.checkSubclass(collectionClass, Collection.class);
+         if(listClass == null) {
+            LOG.warn("Unsupported list property type: {}", propertyType);
+            return null;
          }
 
-         if(collectionClass.isArray()) {
-            value = Array.newInstance(elementClass,
-               valueNodes.getLength());
+         if(listClass.isArray()) {
+            value = Array.newInstance(listClass.getComponentType(), valueNodes.getLength());
+         }
+         else if(Set.class.isAssignableFrom(listClass)) {
+            value = new HashSet<>();
          }
          else {
-            value = collectionClass.newInstance();
+            value = new ArrayList<>();
          }
 
          for(int i = 0; i < valueNodes.getLength(); i++) {
             Element valueNode = (Element) valueNodes.item(i);
 
-            if(collectionClass.isArray()) {
+            if(listClass.isArray()) {
                Array.set(value, i, parseValue(valueNode, subtype));
             }
             else {
@@ -923,6 +928,32 @@ public class TabularEditor implements XMLSerializable {
    private boolean visible = true;
    private boolean autocomplete;
    private boolean autoSize;
+
+   private static Map<String, Class<?>> createTypeMap(Class<?>... types) {
+      Map<String, Class<?>> map = new HashMap<>();
+
+      for(Class<?> type : types) {
+         map.put(type.getName(), type);
+      }
+
+      return Collections.unmodifiableMap(map);
+   }
+
+   private static final Class<?>[] VALUE_CLASSES = {
+      String.class, Boolean.class, Character.class, Byte.class, Short.class,
+      Integer.class, Long.class, Float.class, Double.class,
+      java.math.BigInteger.class, java.math.BigDecimal.class, Date.class,
+      java.sql.Date.class, java.sql.Time.class, java.sql.Timestamp.class, File.class,
+      ColumnDefinition.class, QueryParameter.class, HttpParameter.class,
+      RestParameters.class, GooglePicker.class
+   };
+   private static final Map<String, Class<?>> VALUE_TYPES = createTypeMap(VALUE_CLASSES);
+   // arrays of the value types, and the collection types a list property may declare
+   private static final Map<String, Class<?>> LIST_TYPES = createTypeMap(
+      Stream.concat(
+         Arrays.stream(VALUE_CLASSES).map(Class::arrayType),
+         Stream.of(Collection.class, List.class, ArrayList.class, Set.class, HashSet.class))
+      .toArray(Class<?>[]::new));
 
    private static final Logger LOG =
       LoggerFactory.getLogger(TabularEditor.class);
@@ -1167,31 +1198,5 @@ public class TabularEditor implements XMLSerializable {
          Class<?> cls = name == null ? null : VALUE_TYPES.get(name);
          return cls == null ? String.class : cls;
       }
-
-      private static Map<String, Class<?>> createTypeMap(Class<?>... types) {
-         Map<String, Class<?>> map = new HashMap<>();
-
-         for(Class<?> type : types) {
-            map.put(type.getName(), type);
-         }
-
-         return Collections.unmodifiableMap(map);
-      }
-
-      private static final Class<?>[] VALUE_CLASSES = {
-         String.class, Boolean.class, Character.class, Byte.class, Short.class,
-         Integer.class, Long.class, Float.class, Double.class,
-         java.math.BigInteger.class, java.math.BigDecimal.class, Date.class,
-         java.sql.Date.class, java.sql.Time.class, java.sql.Timestamp.class, File.class,
-         ColumnDefinition.class, QueryParameter.class, HttpParameter.class,
-         RestParameters.class, GooglePicker.class
-      };
-      private static final Map<String, Class<?>> VALUE_TYPES = createTypeMap(VALUE_CLASSES);
-      // arrays of the value types, and the collection types a list property may declare
-      private static final Map<String, Class<?>> LIST_TYPES = createTypeMap(
-         Stream.concat(
-            Arrays.stream(VALUE_CLASSES).map(Class::arrayType),
-            Stream.of(Collection.class, List.class, ArrayList.class, Set.class, HashSet.class))
-         .toArray(Class<?>[]::new));
    }
 }

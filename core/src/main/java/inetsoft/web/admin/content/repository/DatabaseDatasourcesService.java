@@ -824,11 +824,10 @@ public class DatabaseDatasourcesService {
    }
 
    private void saveTestQuery(String oldSource, String newSource, String testQuery) throws Exception {
-      SreeEnv.remove("inetsoft.uql.jdbc.pool." + oldSource + ".connectionTestQuery");
+      JDBCUtil.removeConnectionTestQuery(oldSource);
 
       if(testQuery != null && !testQuery.isEmpty()) {
-         SreeEnv.setProperty("inetsoft.uql.jdbc.pool." + newSource +
-            ".connectionTestQuery", testQuery);
+         JDBCUtil.setConnectionTestQuery(newSource, testQuery);
       }
 
       SreeEnv.save();

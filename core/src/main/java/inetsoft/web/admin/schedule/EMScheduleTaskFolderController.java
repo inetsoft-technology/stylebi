@@ -234,11 +234,18 @@ public class EMScheduleTaskFolderController {
       ScheduleTaskModel[] taskModels = request.getTasks();
       if(taskModels != null) {
          for(ScheduleTaskModel taskModel : taskModels) {
-            ScheduleTask task = scheduleManager.getScheduleTask(taskModel.name());
+            // Bug #77503, check the stored task that the move changes, which is resolved from
+            // the owner and name of the model, not the task stored under the bare model name
+            ScheduleTask task = scheduleTaskFolderService.getMovableTask(taskModel);
+
+            // the move skips the task too
+            if(task == null) {
+               continue;
+            }
 
             if(!(securityEngine.checkPermission(principal,
-               ResourceType.SCHEDULE_TASK, taskModel.name(), ResourceAction.WRITE) ||
-               (task != null && scheduleTaskService.canDeleteTask(task, principal))))
+               ResourceType.SCHEDULE_TASK, task.getTaskId(), ResourceAction.WRITE) ||
+               scheduleTaskService.canDeleteTask(task, principal)))
             {
                return;
             }

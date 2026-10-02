@@ -19,14 +19,13 @@ package inetsoft.web.admin.schedule;
 
 import inetsoft.sree.AnalyticRepository;
 import inetsoft.sree.internal.SUtil;
-import inetsoft.sree.schedule.ScheduleManager;
-import inetsoft.sree.schedule.ScheduleTask;
+import inetsoft.sree.schedule.*;
 import inetsoft.sree.security.*;
 import inetsoft.sree.security.SecurityException;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.util.Identity;
-import inetsoft.web.admin.schedule.model.ScheduleTaskEditorModel;
-import inetsoft.web.admin.schedule.model.TaskOptionsPaneModel;
+import inetsoft.util.MessageException;
+import inetsoft.web.admin.schedule.model.*;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -38,9 +37,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Properties;
+import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -61,6 +58,8 @@ class ScheduleTaskServiceOwnershipTest {
    private ScheduleManager scheduleManager;
    @Mock
    private ScheduleService scheduleService;
+   @Mock
+   private ScheduleConditionService scheduleConditionService;
    @Mock
    private SecurityProvider securityProvider;
    @Mock
@@ -116,7 +115,7 @@ class ScheduleTaskServiceOwnershipTest {
       when(scheduleService.updateTaskName(any(), any(), any(), any())).thenReturn(TASK_ID);
 
       service = new ScheduleTaskService(analyticRepository, scheduleManager, scheduleService,
-                                        null, securityProvider, null, null);
+                                        scheduleConditionService, securityProvider, null, null);
    }
 
    @AfterEach
@@ -304,7 +303,7 @@ class ScheduleTaskServiceOwnershipTest {
 
    @Test
    void saveTask_siteAdminOwnerNamingMissingUser_isAllowed() throws Exception {
-      // Bug #73978, a site admin in another org saves a task owned by its own name there
+      // Epic 70095, a site admin in another org saves a task owned by its own name there
       asOrgAdminWithAdminOnEveryUser();
       when(organizationManager.isSiteAdmin(principal)).thenReturn(true);
       ScheduleTaskEditorModel model = model(null, options("admin", null));
@@ -317,17 +316,21 @@ class ScheduleTaskServiceOwnershipTest {
 
    @Test
    void saveTask_orgAdminUnchangedMissingOwner_isAllowed() throws Exception {
-      // an org admin edits a task a site admin created in the org without changing its owner
+      // an org admin edits a task a site admin created in the org without changing its owner,
+      // the task runs with the site admin's roles (Epic 70095); the save neither adds nor
+      // changes an action or condition, so it is allowed (Bug #77405)
       IdentityID siteAdminOwner = new IdentityID("admin", CALLER_ORG);
       ScheduleTask existing = new ScheduleTask("Task1");
       existing.setOwner(siteAdminOwner);
       when(scheduleManager.getScheduleTask(anyString())).thenReturn(existing);
+      runsAsSiteAdmin(siteAdminOwner);
       asOrgAdminWithAdminOnEveryUser();
       ScheduleTaskEditorModel model = model(null, options("admin", "admin"));
 
       runSaveIgnoringDownstreamFailures(model);
 
       verify(scheduleService).updateTaskName(any(), any(), eq(siteAdminOwner), eq(principal));
+      verify(scheduleService).saveTask(any(), any(), eq(principal));
    }
 
    @Test
@@ -373,7 +376,7 @@ class ScheduleTaskServiceOwnershipTest {
    private static final IdentityID UA = new IdentityID("ua", CALLER_ORG);
    private static final IdentityID BOB = new IdentityID("bob", CALLER_ORG);
 
-   // a site admin created the task in the org with its own name as the owner (Bug #73978); it
+   // a site admin created the task in the org with its own name as the owner (Epic 70095); it
    // runs as an existing user of the org
    private ScheduleTask storedTask(IdentityID owner, Identity identity) {
       ScheduleTask existing = new ScheduleTask("Task1");
@@ -599,6 +602,268 @@ class ScheduleTaskServiceOwnershipTest {
       runSaveIgnoringDownstreamFailures(model(null, options("bob", "bob")));
 
       verify(scheduleService).updateTaskName(any(), any(), eq(BOB), eq(principal));
+   }
+
+   // ── Bug #77405: the actions and conditions of a task that runs as a site admin ─────────
+
+   private static final IdentityID SITE_ADMIN = new IdentityID("admin", "host-org");
+   private final Map<String, ScheduleActionModel> actionModels = new HashMap<>();
+   private final Map<String, ScheduleConditionModel> conditionModels = new HashMap<>();
+
+   @Test
+   void saveTask_orgAdminAddsActionToSiteAdminTask_isRefused() throws Exception {
+      siteAdminTask(true);
+      asOrgAdminWithAdminOnEveryUser();
+
+      assertContentRefused(contentModel(options("admin", null), List.of("child", "other"),
+                                        List.of(90)), true);
+   }
+
+   @Test
+   void saveTask_orgAdminChangesActionOfSiteAdminTask_isRefused() throws Exception {
+      siteAdminTask(true);
+      asOrgAdminWithAdminOnEveryUser();
+
+      assertContentRefused(contentModel(options("admin", null), List.of("other"), List.of(90)),
+                           true);
+   }
+
+   @Test
+   void saveTask_orgAdminAddsConditionToSiteAdminTask_isRefused() throws Exception {
+      siteAdminTask(true);
+      asOrgAdminWithAdminOnEveryUser();
+
+      assertContentRefused(contentModel(options("admin", null), List.of("child"),
+                                        List.of(90, 120)), true);
+   }
+
+   @Test
+   void saveTask_portalChangesConditionOfSiteAdminTask_isRefused() throws Exception {
+      siteAdminTask(true);
+      asOrgAdminWithAdminOnEveryUser();
+      // may set the start time, otherwise sanitizeConditions restores the stored time
+      when(scheduleService.checkPermission(any(), any(), anyString())).thenReturn(true);
+
+      assertContentRefused(contentModel(options("admin", null), List.of("child"), List.of(120)),
+                           false);
+   }
+
+   @Test
+   void saveTask_orgAdminRenamesAndAddsActionToSiteAdminTask_isRefusedWithoutRename()
+      throws Exception
+   {
+      ScheduleTask stored = siteAdminTask(true);
+      asOrgAdminWithAdminOnEveryUser();
+      ScheduleTaskEditorModel model = ScheduleTaskEditorModel.builder()
+         .from(contentModel(options("admin", null), List.of("child", "other"), List.of(90)))
+         .taskName("Renamed")
+         .build();
+
+      assertContentRefused(model, true);
+      assertEquals("Task1", stored.getName());
+      assertEquals(1, stored.getActionCount());
+      assertEquals("child", ((BatchAction) stored.getAction(0)).getTaskId());
+   }
+
+   @Test
+   void saveTask_orgAdminRenamesSiteAdminTask_isAllowed() throws Exception {
+      siteAdminTask(true);
+      asOrgAdminWithAdminOnEveryUser();
+      ScheduleTaskEditorModel model = ScheduleTaskEditorModel.builder()
+         .from(contentModel(options("admin", null), List.of("child"), List.of(90)))
+         .taskName("Renamed")
+         .build();
+
+      ScheduleTask saved = savedTask(model);
+
+      verify(scheduleService).updateTaskName(eq(TASK_ID), eq("Renamed"), eq(MISSING_OWNER),
+                                             eq(principal));
+      assertEquals(1, saved.getActionCount());
+      assertEquals(1, saved.getConditionCount());
+      assertEquals(MISSING_OWNER, saved.getOwner());
+      assertNull(saved.getIdentity(), "still runs as the site admin");
+   }
+
+   @Test
+   void saveTask_orgAdminChangesOptionsOfSiteAdminTask_isAllowed() throws Exception {
+      siteAdminTask(true);
+      asOrgAdminWithAdminOnEveryUser();
+      TaskOptionsPaneModel options = TaskOptionsPaneModel.builder()
+         .from(options("admin", null))
+         .enabled(false)
+         .description("changed")
+         .build();
+
+      ScheduleTask saved = savedTask(contentModel(options, List.of("child"), List.of(90)));
+
+      assertFalse(saved.isEnabled());
+      assertEquals("changed", saved.getDescription());
+   }
+
+   @Test
+   void saveTask_orgAdminRemovesActionAndConditionOfSiteAdminTask_isAllowed() throws Exception {
+      siteAdminTask(true);
+      asOrgAdminWithAdminOnEveryUser();
+
+      ScheduleTask saved = savedTask(contentModel(options("admin", null), List.of(), List.of()));
+
+      assertEquals(0, saved.getActionCount());
+      assertEquals(0, saved.getConditionCount());
+   }
+
+   @Test
+   void saveTask_orgAdminAddsActionAndSetsExecuteAs_isAllowed() throws Exception {
+      siteAdminTask(true);
+      asOrgAdminWithAdminOnEveryUser();
+      when(securityProvider.getUsers()).thenReturn(new IdentityID[] { BOB });
+
+      ScheduleTask saved = savedTask(
+         contentModel(options("admin", "bob"), List.of("child", "other"), List.of(90)));
+
+      assertEquals(BOB, saved.getIdentity().getIdentityID());
+      assertEquals(2, saved.getActionCount());
+   }
+
+   @Test
+   void saveTask_orgAdminAddsActionAndChangesOwnerToExistingUser_isAllowed() throws Exception {
+      siteAdminTask(true);
+      asOrgAdminWithAdminOnEveryUser();
+
+      ScheduleTask saved = savedTask(
+         contentModel(options("bob", null), List.of("child", "other"), List.of(90)));
+
+      assertEquals(BOB, saved.getOwner());
+      assertEquals(2, saved.getActionCount());
+   }
+
+   @Test
+   void saveTask_siteAdminAddsActionToSiteAdminTask_isAllowed() throws Exception {
+      siteAdminTask(true);
+      asOrgAdminWithAdminOnEveryUser();
+      when(organizationManager.isSiteAdmin(principal)).thenReturn(true);
+
+      ScheduleTask saved = savedTask(
+         contentModel(options("admin", null), List.of("child", "other"), List.of(90, 120)));
+
+      assertEquals(2, saved.getActionCount());
+      assertEquals(2, saved.getConditionCount());
+   }
+
+   @Test
+   void saveTask_orgAdminAddsActionToTaskOfOwnerWithoutSiteAdmin_isAllowed() throws Exception {
+      // no site admin is named like the owner, the task runs with the roles of the owner
+      siteAdminTask(false);
+      asOrgAdminWithAdminOnEveryUser();
+
+      ScheduleTask saved = savedTask(
+         contentModel(options("admin", null), List.of("child", "other"), List.of(90, 120)));
+
+      assertEquals(2, saved.getActionCount());
+   }
+
+   /**
+    * A stored task owned by MISSING_OWNER without an execute-as identity, with an action that
+    * runs task "child" and a condition at 1:30.
+    */
+   private ScheduleTask siteAdminTask(boolean runsAsSiteAdmin) throws Exception {
+      ScheduleTask existing = storedTask(MISSING_OWNER, null);
+      existing.addAction(batchAction("child"));
+      existing.addCondition(TimeCondition.at(1, 30, 0));
+
+      if(runsAsSiteAdmin) {
+         runsAsSiteAdmin(MISSING_OWNER);
+      }
+
+      // the task editor models: one per task a batch action runs, one per condition time
+      when(scheduleService.getActionModel(any(), any(), anyBoolean())).thenAnswer(inv ->
+         actionModel(((BatchAction) inv.getArgument(0)).getTaskId()));
+      when(scheduleService.getActionFromModel(any(), any(), any(), any())).thenAnswer(inv ->
+         batchAction(keyOf(actionModels, inv.getArgument(0))));
+      when(scheduleConditionService.getConditionModel(any(), any())).thenAnswer(inv -> {
+         TimeCondition condition = inv.getArgument(0);
+         return conditionModel(condition.getHour() * 60 + condition.getMinute());
+      });
+      when(scheduleConditionService.getConditionFromModel(any())).thenAnswer(inv ->
+         timeCondition(inv.getArgument(0)));
+      when(scheduleService.setTaskCondition(any(), anyInt(), any(), any(), any()))
+         .thenAnswer(inv -> {
+            TimeCondition condition = timeCondition(inv.getArgument(2));
+            ScheduleTask task = inv.getArgument(4);
+            int index = inv.getArgument(1);
+
+            if(index < 0) {
+               task.addCondition(condition);
+            }
+            else {
+               task.setCondition(index, condition);
+            }
+
+            return null;
+         });
+
+      return existing;
+   }
+
+   private void runsAsSiteAdmin(IdentityID owner) {
+      sutilStatic.when(() -> SUtil.getSameNameSiteAdmin(any(), eq(owner))).thenReturn(SITE_ADMIN);
+   }
+
+   private ScheduleTaskEditorModel contentModel(TaskOptionsPaneModel options,
+                                                List<String> actions, List<Integer> conditions)
+   {
+      return ScheduleTaskEditorModel.builder()
+         .from(model(null, options))
+         .actions(actions.stream().map(this::actionModel).toList())
+         .conditions(conditions.stream().map(this::conditionModel).toList())
+         .build();
+   }
+
+   private void assertContentRefused(ScheduleTaskEditorModel model, boolean em)
+      throws Exception
+   {
+      MessageException e = assertThrows(
+         MessageException.class, () -> service.saveTask(model, "", principal, em));
+      assertTrue(e.getMessage().contains("Execute As"), e.getMessage());
+      // refused before anything is written, a rename included
+      verify(scheduleService, never()).updateTaskName(any(), any(), any(), any());
+      verify(scheduleService, never()).saveTask(any(), any(), any());
+   }
+
+   private ScheduleTask savedTask(ScheduleTaskEditorModel model) throws Exception {
+      runSaveIgnoringDownstreamFailures(model);
+      ArgumentCaptor<ScheduleTask> saved = ArgumentCaptor.forClass(ScheduleTask.class);
+      verify(scheduleService).saveTask(any(), saved.capture(), eq(principal));
+      return saved.getValue();
+   }
+
+   private ScheduleActionModel actionModel(String taskId) {
+      return actionModels.computeIfAbsent(taskId, k -> BatchActionModel.builder()
+         .taskName(k).actionType("BatchAction").build());
+   }
+
+   private ScheduleConditionModel conditionModel(int minutes) {
+      // the models are compared on their JSON, a completion condition model names the time
+      return conditionModels.computeIfAbsent(String.valueOf(minutes), k ->
+         CompletionConditionModel.builder().taskName(k).conditionType("CompletionCondition")
+            .build());
+   }
+
+   private TimeCondition timeCondition(ScheduleConditionModel model) {
+      int minutes = Integer.parseInt(keyOf(conditionModels, model));
+      return TimeCondition.at(minutes / 60, minutes % 60, 0);
+   }
+
+   private static <T> String keyOf(Map<String, T> models, T model) {
+      return models.entrySet().stream()
+         .filter(e -> e.getValue() == model)
+         .map(Map.Entry::getKey)
+         .findFirst().orElseThrow();
+   }
+
+   private static BatchAction batchAction(String taskId) {
+      BatchAction action = new BatchAction();
+      action.setTaskId(taskId);
+      return action;
    }
 
    private void asOrgAdminWithAdminOnEveryUser() {

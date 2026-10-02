@@ -176,28 +176,33 @@ public class CrossJoinTableLens extends AbstractBinaryTableFilter implements Can
     * perform filtering calculation to validate itself.
     */
    @Override
-   public synchronized void invalidate() {
-      if(lthread != null) {
-         lthread.dispose();
-         lthread = null;
+   public void invalidate() {
+      synchronized(this) {
+         if(lthread != null) {
+            lthread.dispose();
+            lthread = null;
+         }
+
+         if(rthread != null) {
+            rthread.dispose();
+            rthread = null;
+         }
+
+         lcompleted = false;
+         rcompleted = false;
+         stallFailure = null;
+
+         lrows = 0;
+         rrows = 0;
+
+         main = null;
+
+         mmap.clear();
       }
 
-      if(rthread != null) {
-         rthread.dispose();
-         rthread = null;
-      }
-
-      lcompleted = false;
-      rcompleted = false;
-      stallFailure = null;
-
-      lrows = 0;
-      rrows = 0;
-
-      main = null;
-
-      mmap.clear();
-
+      // fire after releasing the monitor: a downstream lens's invalidate() takes its own
+      // monitor, which a reader of that lens may hold while it waits for this monitor to read
+      // the next row (bug #77432)
       fireChangeEvent();
    }
 

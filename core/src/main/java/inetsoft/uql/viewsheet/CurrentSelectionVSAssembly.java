@@ -127,6 +127,30 @@ public class CurrentSelectionVSAssembly extends AbstractContainerVSAssembly
    }
 
    /**
+    * Renumber the children from the specified z-index. The base class version does not
+    * renumber the children, so the container z-index added to them at runtime by
+    * VSEventUtil.updateZIndex would be kept and saved. A selection container only holds
+    * selection assemblies, never containers, so there is nothing to recurse into.
+    */
+   @Override
+   public void calcChildZIndex(int zIndex) {
+      Viewsheet vs = getViewsheet();
+      String[] arr = getAssemblies();
+
+      if(vs == null || arr == null) {
+         return;
+      }
+
+      Assembly[] assemblies = new Assembly[arr.length];
+
+      for(int i = 0; i < arr.length; i++) {
+         assemblies[i] = arr[i] == null ? null : vs.getAssembly(arr[i]);
+      }
+
+      VSUtil.calcChildZIndex(assemblies, zIndex);
+   }
+
+   /**
     * Layout the Container Assembly.
     * @return the names of the assemblies relocated.
     */
@@ -364,7 +388,9 @@ public class CurrentSelectionVSAssembly extends AbstractContainerVSAssembly
          }
 
          arr[i] = assembly.getName();
-         vs.addAssembly(assembly);
+         // keep the parsed z-index, adding with adjust would move the child to the top
+         // of the viewsheet on every load
+         vs.addAssembly(assembly, false);
       }
 
       setAssemblies(arr);

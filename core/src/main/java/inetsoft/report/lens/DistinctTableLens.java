@@ -217,30 +217,36 @@ public class DistinctTableLens extends AbstractTableLens
     * perform filtering calculation to validate itself.
     */
    @Override
-   public synchronized void invalidate() {
-      // publish new rows with the header rows in them, and don't dispose the old ones: a
-      // reader or the worker of the old pass may still hold them, the finalizer frees them
-      // (bug #77333)
-      XSwappableIntList rows = new XSwappableIntList();
+   public void invalidate() {
+      synchronized(this) {
+         // publish new rows with the header rows in them, and don't dispose the old ones: a
+         // reader or the worker of the old pass may still hold them, the finalizer frees them
+         // (bug #77333)
+         XSwappableIntList rows = new XSwappableIntList();
 
-      if(table != null) {
-         for(int i = 0; i < table.getHeaderRowCount() && table.moreRows(i); i++)
-         {
-            rows.add(i);
+         if(table != null) {
+            for(int i = 0; i < table.getHeaderRowCount() && table.moreRows(i); i++)
+            {
+               rows.add(i);
+            }
          }
+
+         this.rows = rows;
+
+         if(table != null) {
+            // notify waiting consumers
+            notifyAll();
+         }
+
+         completed = false;
+         validated = false;
+         stallFailure = null;
+         scannedRows = 0;
       }
 
-      this.rows = rows;
-
-      if(table != null) {
-         // notify waiting consumers
-         notifyAll();
-      }
-
-      completed = false;
-      validated = false;
-      stallFailure = null;
-      scannedRows = 0;
+      // fire after releasing the monitor: a downstream lens's invalidate() takes its own
+      // monitor, which a reader of that lens may hold while it waits for this monitor to read
+      // the next row (bug #77432)
       fireChangeEvent();
    }
 

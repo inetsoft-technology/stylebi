@@ -186,14 +186,26 @@ public class TableFormat implements XMLSerializable, Serializable, Cloneable {
          return null;
       }
 
-      String key = format + format_spec + locale;
+      // separated so that two different (format, spec, locale) triples can't share an entry,
+      // e.g. a null spec and the literal spec "null"
+      String key = format + KEY_SEPARATOR + (format_spec == null ? NULL_SPEC : format_spec) +
+         KEY_SEPARATOR + locale;
       // @by jasons, don't cache the format directly, instead use a thread-local
       //             variable, so that we don't get data corruption from
       //             asynchronous use of formats.
       FormatThreadLocal local = formatCache.get(key);
 
+      // a rejected spec is cached too, otherwise every cell formatted with it rebuilds the
+      // format and logs the stack trace again. The user message is per request, so it is
+      // still added on every lookup.
+      if(local == FAILED_FORMAT) {
+         Tool.addUserMessage(getFailedFormatMessage(format, format_spec, locale));
+         return null;
+      }
+
       if(local == null) {
          Format fmt = null;
+         boolean failed = false;
 
          try {
             if(format.equals(DATE_FORMAT) || format.equals(TIME_FORMAT)
@@ -276,10 +288,10 @@ public class TableFormat implements XMLSerializable, Serializable, Cloneable {
             }
          }
          catch(Exception ex) {
-            String msg = "Failed to get format \"" + format + "\" for specification \"" +
-               format_spec + "\" in locale " + locale;
+            String msg = getFailedFormatMessage(format, format_spec, locale);
             Tool.addUserMessage(msg);
             LOG.info(msg, ex);
+            failed = true;
          }
 
          if(formatCache.size() > 200) {
@@ -289,9 +301,19 @@ public class TableFormat implements XMLSerializable, Serializable, Cloneable {
          if(fmt != null) {
             formatCache.put(key, local = new FormatThreadLocal(fmt));
          }
+         else if(failed) {
+            formatCache.put(key, FAILED_FORMAT);
+         }
       }
 
       return local == null ? null : local.get();
+   }
+
+   private static String getFailedFormatMessage(String format, String format_spec,
+                                                Locale locale)
+   {
+      return "Failed to get format \"" + format + "\" for specification \"" +
+         format_spec + "\" in locale " + locale;
    }
 
    /**
@@ -867,6 +889,10 @@ public class TableFormat implements XMLSerializable, Serializable, Cloneable {
    public boolean suppressIfDuplicate = false;
 
    private static final Hashtable<String, FormatThreadLocal> formatCache = new Hashtable<>();
+   // cache entry of a format spec that failed to construct
+   private static final FormatThreadLocal FAILED_FORMAT = new FormatThreadLocal(null);
+   private static final char KEY_SEPARATOR = '\u0001';
+   private static final String NULL_SPEC = "\u0000";
 
    private static final Logger LOG = LoggerFactory.getLogger(TableFormat.class);
 }

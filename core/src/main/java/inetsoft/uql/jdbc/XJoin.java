@@ -18,6 +18,9 @@
 package inetsoft.uql.jdbc;
 
 import inetsoft.uql.util.XUtil;
+import org.w3c.dom.Element;
+
+import java.io.PrintWriter;
 
 /**
  * The XJoin extends XFilterNode to store information of
@@ -237,14 +240,76 @@ public class XJoin extends XBinaryCondition {
       }
    }
 
+   /**
+    * Get where the parser found this join: {@link #WHERE_CLAUSE}, the number of
+    * the ON clause in text order (1 for the first), or {@link #UNKNOWN_CLAUSE}
+    * for a join not parsed from SQL text (query editor, data model, or saved
+    * before the clause was recorded).
+    */
+   public int getJoinClause() {
+      return joinClause;
+   }
+
+   /**
+    * Set where the parser found this join.
+    */
+   public void setJoinClause(int joinClause) {
+      this.joinClause = joinClause;
+   }
+
+   /**
+    * Check if the parser found this join in an ON clause.
+    */
+   public boolean isOnClauseJoin() {
+      return joinClause > 0;
+   }
+
+   /**
+    * Check if the parser found this join in the where clause.
+    */
+   public boolean isWhereClauseJoin() {
+      return joinClause == WHERE_CLAUSE;
+   }
+
+   @Override
+   void writeAttributes(PrintWriter writer) {
+      if(joinClause != UNKNOWN_CLAUSE) {
+         writer.print(" joinClause=\"" + joinClause + "\"");
+      }
+   }
+
+   @Override
+   void parseAttributes(Element node) {
+      String value = node.getAttribute("joinClause");
+      joinClause = UNKNOWN_CLAUSE;
+
+      if(value != null && !value.isEmpty()) {
+         try {
+            joinClause = Integer.parseInt(value);
+         }
+         catch(NumberFormatException ignore) {
+            // generated like a join not parsed from text
+         }
+      }
+   }
+
    @Override
    String getTag() {
       return XML_TAG;
    }
 
    public static final String XML_TAG = "XJoin";
+   /**
+    * The join was not parsed from SQL text.
+    */
+   public static final int UNKNOWN_CLAUSE = 0;
+   /**
+    * The join was parsed from the where clause.
+    */
+   public static final int WHERE_CLAUSE = -1;
 
    private String table1;
    private String table2;
    private transient int order;
+   private int joinClause = UNKNOWN_CLAUSE;
 }
