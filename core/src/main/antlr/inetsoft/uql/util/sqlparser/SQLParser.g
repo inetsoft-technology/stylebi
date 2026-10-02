@@ -1287,6 +1287,27 @@ String strip(String str) {
         ? str.substring(1, str.length()-1) : str;
 }
 
+// the quote of the last special_identifier token (XExpression.QUOTE_*)
+private int identQuote = XExpression.QUOTE_NONE;
+// the quote and the as-written segment of a quoted column in the last column_ref
+private int colrefQuote = XExpression.QUOTE_NONE;
+private String colrefColumn = null;
+// the last segment of the last qualified_name
+private int lastSegQuote = XExpression.QUOTE_NONE;
+private int lastSegStart = 0;
+private String lastSeg = null;
+
+// a quoted column segment without a dot is stored without its quotes and flagged
+String quoteColumn(String col) {
+   if(identQuote != XExpression.QUOTE_NONE && col.length() > 0 && col.indexOf('.') < 0) {
+      colrefQuote = identQuote;
+      colrefColumn = col;
+      return col;
+   }
+
+   return quoteDot(col);
+}
+
 // quote string if it contains dot
 String quoteDot(String str) {
    JDBCDataSource dx = null;
@@ -1318,10 +1339,10 @@ schema_identifier returns [String schmid = ""]
         ;
 
 special_identifier returns [String specid = ""]
-        {String tmp = ""; XExpression exp = null; {checkStatus();}}
+        {String tmp = ""; XExpression exp = null; identQuote = XExpression.QUOTE_NONE; {checkStatus();}}
         :
-        a:SPIDENT {tmp = a.getText();specid = tmp.substring(1, tmp.length() - 1);}
-        |c:SPIDENT2 {tmp = c.getText();specid = tmp.substring(1, tmp.length() - 1);}
+        a:SPIDENT {tmp = a.getText();specid = tmp.substring(1, tmp.length() - 1);identQuote = XExpression.QUOTE_DOUBLE;}
+        |c:SPIDENT2 {tmp = c.getText();specid = tmp.substring(1, tmp.length() - 1);identQuote = XExpression.QUOTE_SINGLE;}
         |d:SPIDENT_VAR {specid = d.getText();}
         |b:SPIDENT_SQUARE {tmp = b.getText();specid = tmp.substring(1,tmp.length() - 1);}
     |h:SPIDENT_BRACKET {specid = h.getText();}
@@ -1973,6 +1994,13 @@ value_exp_primary_body returns [XExpression exp = null]
            }
            else {
               exp.setValue(tmp, XExpression.FIELD);
+
+              // a qualified quoted column (t."MixedCase"), stored without its quotes
+              if(colrefQuote != XExpression.QUOTE_NONE) {
+                 exp.setQuote(colrefQuote);
+                 exp.setQuotedColumn(colrefColumn);
+              }
+
               columns.add(tmp);
               hasField = true;
            }
@@ -2243,14 +2271,25 @@ indicator_variable returns [String indivar = ""]
         ;
 
 column_ref returns [String colref = ""]
-        {String tmp; }
+        {String tmp; colrefQuote = XExpression.QUOTE_NONE; colrefColumn = null;}
         :
         // "order" and "simple" might be used as a table name
-        a:ORDER DOT tmp = column_name {colref = a.getText() + "." + quoteDot(tmp);}
+        a:ORDER DOT tmp = column_name {colref = a.getText() + "." + quoteColumn(tmp);}
         |
-        b:SIMPLE DOT tmp = column_name {colref = b.getText() + "." + quoteDot(tmp);}
+        b:SIMPLE DOT tmp = column_name {colref = b.getText() + "." + quoteColumn(tmp);}
         |
-        colref = table_name (DOT tmp = column_name {colref += "." + quoteDot(tmp);})?
+        colref = table_name
+        {
+           // the last segment of a qualified table_name is the column when no DOT follows
+           if(LA(1) != DOT && lastSegQuote != XExpression.QUOTE_NONE && lastSegStart > 0 &&
+              lastSeg.length() > 0 && lastSeg.indexOf('.') < 0)
+           {
+              colref = colref.substring(0, lastSegStart) + lastSeg;
+              colrefQuote = lastSegQuote;
+              colrefColumn = lastSeg;
+           }
+        }
+        (DOT tmp = column_name {colref += "." + quoteColumn(tmp);})?
         ;
 
 set_fct_spec returns [String setfct = ""]
@@ -2486,6 +2525,7 @@ schema_name returns [String schemaname = ""]
         ;
 
 qualified_id returns [String qid = ""]
+        {identQuote = XExpression.QUOTE_NONE;}
         :
         (a:IDENT {qid = a.getText();}
         | qid = special_identifier
@@ -3277,7 +3317,7 @@ qualified_name returns [String qname = ""]
         ((catalog_name DOT)=> tmp = catalog_name DOT {qname += quoteDot(tmp) + ".";}
         ( (~DOT)=> tmp = schema_name DOT {qname+=quoteDot(tmp)+".";}| DOT {qname+=".";})?
         )?
-        tmp = qualified_id {qname += quoteDot(tmp);}
+        tmp = qualified_id {lastSegStart = qname.length(); lastSegQuote = identQuote; lastSeg = tmp; qname += quoteDot(tmp);}
         ;
 
 catalog_name returns [String catname = ""]
@@ -3318,16 +3358,16 @@ derived_column [JDBCSelection selection, UniformSQL sql]
            selection.addColumn(tmp);
            selection.setAlias(selection.getColumnCount() - 1,aliastmp);
 
-           // a bare quoted identifier ("x y"), stored without its quotes
+           // a quoted identifier ("x y" or t."x y"), stored without its quotes
            if(exp.isQuotedField()) {
-              selection.setQuoted(tmp, true);
+              selection.setQuoted(tmp, exp.getQuotedColumn());
            }
         }
         |
         exp = value_exp
         {
            tmp = exp.toString();
-           // a bare quoted identifier ("x y"), stored without its quotes
+           // a quoted identifier ("x y" or t."x y"), stored without its quotes
            boolean quotedField = exp.getType().equals(XExpression.FIELD) &&
               exp.getQuote() != XExpression.QUOTE_NONE;
 
@@ -3360,7 +3400,7 @@ derived_column [JDBCSelection selection, UniformSQL sql]
            selection.addColumn(tmp);
 
            if(quotedField) {
-              selection.setQuoted(tmp, true);
+              selection.setQuoted(tmp, exp.getQuotedColumn());
            }
         }
 
@@ -3381,7 +3421,7 @@ as_clause returns [String as = ""]
         ;
 
 column_name returns [String colname = ""]
-        {checkStatus();}
+        {identQuote = XExpression.QUOTE_NONE; checkStatus();}
         :
         a:IDENT {colname = a.getText();}
         | colname = special_identifier
@@ -3645,9 +3685,9 @@ grouping_column_ref [UniformSQL sql] returns [String gcol = ""]
         {
            gcol = exp.toString();
 
-           // a bare quoted identifier ("x y"), stored without its quotes
+           // a quoted identifier ("x y" or t."x y"), stored without its quotes
            if(sql != null && exp.isQuotedField()) {
-              sql.setQuotedField(gcol, true);
+              sql.setQuotedField(gcol, exp.getQuotedColumn());
            }
         }//( tmp = collate_clause {gcol += " " + tmp;})?
         //|a:UNSIGNED_NUM_LIT {gcol = a.getText();}
@@ -4014,9 +4054,9 @@ sort_spec [UniformSQL sql] returns [String ret = ""]
          catch(Exception e) {
            field = new String(exp.toString());
 
-           // a bare quoted identifier ("x y"), stored without its quotes
+           // a quoted identifier ("x y" or t."x y"), stored without its quotes
            if(sql != null && exp.isQuotedField()) {
-              sql.setQuotedField((String) field, true);
+              sql.setQuotedField((String) field, exp.getQuotedColumn());
            }
          }
 

@@ -30,6 +30,7 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.AdditionalAnswers;
 import org.springframework.test.annotation.DirtiesContext;
@@ -667,5 +668,91 @@ class RangeOutputVSAssemblyInfoTest {
       }
 
       return g;
+   }
+   /**
+    * Bug #77585: parseContents() keeps any range color design text, but writeContents() used
+    * to run {@code Color.decode()} on it, so a color name, a {@code $(var)} / {@code =expr}
+    * dynamic value or an out-of-range int threw NumberFormatException and the viewsheet could
+    * not be saved. Each form must now save, reload to the same design text and the same
+    * design Color, and save the same design text again; numeric forms keep the normalized RGB int.
+    */
+   @ParameterizedTest(name = "{0} [{1}]")
+   @MethodSource("rangeColorDesignValues")
+   void rangeColorDesignValueSurvivesSaveAndReload(String className, String dvalue,
+                                                   String expectedText)
+      throws Exception
+   {
+      RangeOutputVSAssemblyInfo info = parseInfoWithRangeColor(className, dvalue);
+      Color expectedColor = info.getRangeColorsValue()[0];
+
+      String written = writeInfo(info);
+      assertEquals(expectedText, getDesignRangeColorText(written));
+
+      RangeOutputVSAssemblyInfo reloaded = parseInfo(written);
+      assertEquals(expectedColor, reloaded.getRangeColorsValue()[0]);
+      assertEquals(expectedText, getDesignRangeColorText(writeInfo(reloaded)));
+   }
+
+   static Stream<Arguments> rangeColorDesignValues() {
+      String[][] forms = {
+         // name and dynamic values are kept as-is
+         { "red", "red" },
+         { "RED", "RED" },
+         { "$(c)", "$(c)" },
+         { "=c", "=c" },
+         { "=']]>'", "=']]>'" },
+         // not decodable as an int, kept as-is
+         { "4294901760", "4294901760" },
+         { "#80ff0000", "#80ff0000" },
+         // hex / int forms are still normalized to the RGB int
+         { "#ff0000", "-65536" },
+         { "0xff0000", "-65536" },
+         { "16711680", "-65536" },
+         { "-65536", "-65536" },
+         // empty still writes null
+         { "", "null" },
+      };
+      String[] classes = {
+         GaugeVSAssemblyInfo.class.getName(), ThermometerVSAssemblyInfo.class.getName(),
+         CylinderVSAssemblyInfo.class.getName(), SlidingScaleVSAssemblyInfo.class.getName()
+      };
+      return Stream.of(classes).flatMap(c -> Stream.of(forms).map(
+         f -> Arguments.of(c.substring(c.lastIndexOf('.') + 1), f[0], f[1])));
+   }
+
+   private static RangeOutputVSAssemblyInfo parseInfoWithRangeColor(String className,
+                                                                    String dvalue)
+      throws Exception
+   {
+      String xml = "<assemblyInfo class=\"inetsoft.uql.viewsheet.internal." + className +
+         "\" style=\"1\"><rangeColorsValue><rangeColor><![CDATA[" +
+         dvalue.replace("]]>", "]]]]><![CDATA[>") +
+         "]]></rangeColor></rangeColorsValue></assemblyInfo>";
+      return parseInfo(xml);
+   }
+
+   private static RangeOutputVSAssemblyInfo parseInfo(String xml) throws Exception {
+      Document doc = Tool.parseXML(
+         new ByteArrayInputStream(xml.getBytes(StandardCharsets.UTF_8)), "UTF-8");
+      Element elem = Tool.getFirstElement(doc);
+      RangeOutputVSAssemblyInfo info = (RangeOutputVSAssemblyInfo)
+         Class.forName(elem.getAttribute("class")).getConstructor().newInstance();
+      info.parseXML(elem);
+      return info;
+   }
+
+   private static String writeInfo(RangeOutputVSAssemblyInfo info) {
+      StringWriter sw = new StringWriter();
+      PrintWriter writer = new PrintWriter(sw);
+      info.writeXML(writer);
+      writer.flush();
+      return sw.toString();
+   }
+
+   private static String getDesignRangeColorText(String xml) throws Exception {
+      Document doc = Tool.parseXML(
+         new ByteArrayInputStream(xml.getBytes(StandardCharsets.UTF_8)), "UTF-8");
+      Element design = Tool.getChildNodeByTagName(Tool.getFirstElement(doc), "rangeColorsValue");
+      return Tool.getValue(Tool.getChildNodeByTagName(design, "rangeColor"));
    }
 }

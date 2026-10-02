@@ -159,6 +159,10 @@ public class XUnaryCondition extends XFilterNode {
       if(nlist != null && nlist.getLength() == 1) {
          this.setOp(Tool.getValue(((Element) nlist.item(0))));
       }
+
+      // refuse a condition without its operand, see XBinaryCondition.parseXML() (#77586).
+      // A missing <op> is not refused, the operator defaults to "" (IS TRUE writes "").
+      XBinaryCondition.checkPresent(XML_TAG, expression1, "expression1");
    }
 
    /**

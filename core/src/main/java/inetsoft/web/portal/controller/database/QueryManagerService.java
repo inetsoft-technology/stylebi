@@ -33,7 +33,6 @@ import inetsoft.uql.jdbc.util.*;
 import inetsoft.uql.schema.*;
 import inetsoft.uql.util.*;
 import inetsoft.uql.util.sqlparser.SQLLexer;
-import inetsoft.uql.util.sqlparser.SQLParser;
 import inetsoft.util.*;
 import inetsoft.web.adhoc.model.FormatInfoModel;
 import inetsoft.web.composer.model.TreeNodeModel;
@@ -43,7 +42,6 @@ import inetsoft.web.portal.model.database.*;
 import inetsoft.web.portal.model.database.events.RemoveQueryColumnEvent;
 
 import java.awt.*;
-import java.io.StringReader;
 import java.rmi.RemoteException;
 import java.security.Principal;
 import java.util.List;
@@ -189,7 +187,7 @@ public class QueryManagerService {
                int newIndex = newSelection.addColumn(name);
                newSelection.setAlias(newIndex, alias);
                newSelection.setTable(name, oldSelection.getTable(name));
-               newSelection.setQuoted(name, oldSelection.isQuoted(name));
+               newSelection.copyQuoted(name, oldSelection, name);
                newSelection.setType(name, oldSelection.getType(name));
                newSelection.setXMetaInfo(newIndex, oldSelection.getXMetaInfo(columnIndex));
                newSelection.setDescription(name, oldSelection.getDescription(name));
@@ -719,7 +717,7 @@ public class QueryManagerService {
          if(!remove) {
             int index = newSelection.addColumn(selectionName);
             newSelection.setTable(selectionName, selection.getTable(selectionName));
-            newSelection.setQuoted(selectionName, selection.isQuoted(selectionName));
+            newSelection.copyQuoted(selectionName, selection, selectionName);
             newSelection.setAlias(index, selectionAlias);
             newSelection.setType(selectionName, selection.getType(selectionName));
             newSelection.setXMetaInfo(index, selection.getXMetaInfo(i));
@@ -1190,11 +1188,10 @@ public class QueryManagerService {
 
    public boolean checkExpression(String expression) {
       expression = expression.trim();
-      SQLLexer lexer = new SQLLexer(new StringReader(expression));
-      SQLParser parser = new SQLParser(lexer);
+      SQLLexer lexer;
 
       try {
-         parser.value_exp();
+         lexer = XUtil.parseSQLExpressionSyntax(expression);
       }
       catch(Exception ex) {
          return false;

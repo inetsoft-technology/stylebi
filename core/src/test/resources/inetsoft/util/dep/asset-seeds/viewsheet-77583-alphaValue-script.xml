@@ -1,0 +1,15 @@
+<viewsheet>
+<assembly>
+<assemblies>
+<oneAssembly>
+<assembly class="inetsoft.uql.viewsheet.TextVSAssembly">
+<assemblyInfo><name><![CDATA[Text77583Script]]></name><absoluteName><![CDATA[Text77583Script]]></absoluteName>
+<formatInfo><aFormat><tableDataPath>
+</tableDataPath>
+<VSCompositeFormat><userFormat><VSFormat alphaValue="=50">
+</VSFormat></userFormat>
+</VSCompositeFormat></aFormat></formatInfo>
+</assemblyInfo></assembly></oneAssembly>
+</assemblies>
+</assembly>
+</viewsheet>

@@ -678,6 +678,27 @@ public class RangeOutputVSAssemblyInfo extends OutputVSAssemblyInfo {
    }
 
    /**
+    * Get the text persisted for a range color design value. A value in integer/hex syntax is
+    * normalized to its RGB int as before; any other value (a color name, a {@code $(var)} or
+    * {@code =expr} dynamic value, ...) is written as-is, since parseContents() accepts any text
+    * and the read path resolves it leniently (#77585). The result is safe inside CDATA.
+    */
+   private static String getRangeColorDesignText(String dvalue) {
+      if(dvalue == null || dvalue.isEmpty()) {
+         return "null";
+      }
+
+      try {
+         return Integer.toString(Color.decode(dvalue).getRGB());
+      }
+      catch(NumberFormatException ignore) {
+         // not a numeric color, keep the design value as-is
+      }
+
+      return dvalue.replace("]]>", "]]]]><![CDATA[>");
+   }
+
+   /**
     * Write contents.
     * @param writer the specified writer.
     */
@@ -752,33 +773,16 @@ public class RangeOutputVSAssemblyInfo extends OutputVSAssemblyInfo {
          writer.println("</ranges>");
       }
 
-      Color[] color;
-
       if(rangeColorsValue != null) {
          int cnDesign = Math.min(rangeColorDesignCount, rangeColorsValue.length);
-         color = new Color[cnDesign];
 
-         for(int i = 0; i < cnDesign; i++) {
-            if(rangeColorsValue[i].getDValue() != null &&
-               !"".equals(rangeColorsValue[i].getDValue()))
-            {
-               color[i] = Color.decode(rangeColorsValue[i].getDValue());
-            }
-         }
-
-         if(color != null && color.length > 0) {
+         if(cnDesign > 0) {
             writer.print("<rangeColorsValue>");
 
-            for(int i = 0; i < color.length; i++) {
+            for(int i = 0; i < cnDesign; i++) {
                writer.print("<rangeColor>");
-
-               if(color[i] != null) {
-                  writer.print("<![CDATA[" + color[i].getRGB() + "]]>");
-               }
-               else {
-                  writer.print("<![CDATA[null]]>");
-               }
-
+               writer.print("<![CDATA[" +
+                  getRangeColorDesignText(rangeColorsValue[i].getDValue()) + "]]>");
                writer.print("</rangeColor>");
             }
 
@@ -786,7 +790,7 @@ public class RangeOutputVSAssemblyInfo extends OutputVSAssemblyInfo {
          }
       }
 
-      color = getRangeColors();
+      Color[] color = getRangeColors();
 
       if(color != null && color.length > 0) {
          writer.print("<rangeColors>");

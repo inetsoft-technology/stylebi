@@ -1404,7 +1404,12 @@ public class SQLHelper implements KeywordProvider {
          if(!expr && table == null && subalias == null &&
             ((JDBCSelection) xselect).isQuoted(xselect.getColumn(xIdx)))
          {
-            column = getQuote() + column + getQuote();
+            String qname = xselect.getColumn(xIdx);
+            String qseg = ((JDBCSelection) xselect).getQuotedColumn(qname);
+
+            // a qualified quoted column (t."MixedCase") quotes only its column segment
+            column = qseg != null ? quoteIdentifier(qname, column, qseg) :
+               getQuote() + column + getQuote();
          }
          else if(uniformSql.isTableColumn(column) && subalias == null && !expr) {
             // @by larryl, if this is a table column and the original column is
@@ -1443,7 +1448,8 @@ public class SQLHelper implements KeywordProvider {
          if(!expr && table != null && subalias == null &&
             ((JDBCSelection) xselect).isQuoted(xselect.getColumn(xIdx)))
          {
-            column = quoteIdentifier(xselect.getColumn(xIdx), column);
+            column = quoteIdentifier(xselect.getColumn(xIdx), column,
+               ((JDBCSelection) xselect).getQuotedColumn(xselect.getColumn(xIdx)));
          }
 
          // if table changed to a subquery, replace reference to table to alias
@@ -1721,7 +1727,15 @@ public class SQLHelper implements KeywordProvider {
 
       if(table == null || alias == null) {
          if(table != null && column != null) {
-            return form + getQuotedTableName(table, true) + "." + quoteColumnAlias(column) + ')';
+            // keep a quoted column segment as written (sum(t."MixedCase")), the column found
+            // ignoring case may be another column (MIXEDCASE). Only if the stored text can't have
+            // come from a parser that quotes every segment (a case-sensitive helper, generating
+            // here or where the sql was parsed): there an unquoted sum(t.MixedCase) is stored as
+            // sum("t"."MixedCase") and must keep the metadata case repair. A quoted
+            // sum(t."MixedCase") gets the same repair there, see #77578
+            String qcol = isCaseSensitive() ? null : getQuotedSegment(path, column);
+            return form + getQuotedTableName(table, true) + "." +
+               (qcol != null ? getQuote() + qcol + getQuote() : quoteColumnAlias(column)) + ')';
          }
 
          if(XUtil.isQualifiedName(npath)) {
@@ -1732,6 +1746,36 @@ public class SQLHelper implements KeywordProvider {
       }
 
       return form + quoteTableAlias(table) + "." + quoteColumnAlias(alias) + ')';
+   }
+
+   /**
+    * Get the last segment of a path if it is a quoted identifier ("MixedCase" or `MixedCase`)
+    * that names the column, ignoring case, and its qualifier is not quoted too.
+    * @return the segment without its quotes, or <tt>null</tt> if not quoted.
+    */
+   private static String getQuotedSegment(String path, String column) {
+      int len = path.length();
+
+      for(char q : new char[] { '"', '`' }) {
+         if(len > 1 && path.charAt(len - 1) == q) {
+            int start = path.lastIndexOf(q, len - 2);
+            String seg = start >= 0 ? path.substring(start + 1, len - 1) : null;
+
+            if(seg != null && seg.equalsIgnoreCase(column)) {
+               String qualifier = path.substring(0, start);
+
+               // a quoted qualifier ("q"."MixedCase") may come from a parser that quotes every
+               // segment (parsed under a case-sensitive helper), the quotes don't show the source
+               if(qualifier.length() > 2 && qualifier.charAt(0) == q && qualifier.endsWith(q + ".")) {
+                  return null;
+               }
+
+               return seg;
+            }
+         }
+      }
+
+      return null;
    }
 
    /**
@@ -3148,7 +3192,7 @@ public class SQLHelper implements KeywordProvider {
             }
 
             if(qname != null) {
-               sfield = quoteIdentifier(qname, sfield);
+               sfield = quoteIdentifier(qname, sfield, getQuotedSegment(qname));
             }
 
             // table changed to a subquery, replace reference to table to alias
@@ -3296,7 +3340,7 @@ public class SQLHelper implements KeywordProvider {
             }
 
             if(qname != null) {
-               column = quoteIdentifier(qname, column);
+               column = quoteIdentifier(qname, column, getQuotedSegment(qname));
             }
 
             // if table changed to a subquery, replace table by alias
@@ -3916,7 +3960,7 @@ public class SQLHelper implements KeywordProvider {
          str = buildFieldExpression(str, fld);
 
          if(exp.isQuotedField()) {
-            str = quoteIdentifier(value.toString(), str);
+            str = quoteIdentifier(value.toString(), str, exp.getQuotedColumn());
          }
       }
       else if(type.equals(XExpression.SUBQUERY)) {
@@ -4440,18 +4484,35 @@ public class SQLHelper implements KeywordProvider {
    }
 
    /**
+    * Get the column segment, as written, of a group by, order by or select name written as
+    * a qualified quoted identifier (t."MixedCase").
+    * @return the segment, or <tt>null</tt> if the name is not a qualified quoted identifier.
+    */
+   private String getQuotedSegment(String name) {
+      String seg = uniformSql.getQuotedFieldColumn(name);
+      return seg != null ? seg :
+         ((JDBCSelection) uniformSql.getSelection()).getQuotedColumn(name);
+   }
+
+   /**
     * Restore the quotes of a name written as a quoted identifier (e.g. "MixedCase") in the
     * parsed sql, which is stored without its quotes. Only the column segment is quoted, so
     * a name qualified by its table (t.MixedCase) is generated as t."MixedCase".
     * @param name the stored name, without quotes.
     * @param str the sql generated for the name.
+    * @param segment the column segment recorded by the parser for a qualified quoted
+    *                identifier, or <tt>null</tt> to find the column by the table of the name.
     */
-   private String quoteIdentifier(String name, String str) {
+   private String quoteIdentifier(String name, String str, String segment) {
       String table = uniformSql.getTable(name);
       int dot = name.lastIndexOf('.');
       String column = name;
 
-      if(table != null && !table.isEmpty() && name.startsWith(table + ".")) {
+      // the column segment of a qualified quoted identifier, recorded by the parser
+      if(segment != null && name.endsWith("." + segment)) {
+         column = segment;
+      }
+      else if(table != null && !table.isEmpty() && name.startsWith(table + ".")) {
          column = name.substring(table.length() + 1);
       }
       // the table may be stored quoted (e.g. postgresql)

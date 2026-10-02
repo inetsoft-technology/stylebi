@@ -30,6 +30,7 @@ import java.sql.Timestamp;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.EnumSet;
+import java.util.GregorianCalendar;
 
 /**
  * Module that defines serializers and deserializers for classes in third-party libraries.
@@ -52,16 +53,31 @@ public class ThirdPartySupportModule extends SimpleModule {
       addSerializer(RectangularShape.class, new RectangularShapeSerializer());
       addDeserializer(Rectangle.class, new RectangleDeserializer());
       addSerializer(Time.class, new DateSerializer(
-         false, new SimpleDateFormat("HH:mm:ss")));
+         false, gregorianDateFormat("HH:mm:ss")));
       addSerializer(Timestamp.class, new DateSerializer(
-         false, new SimpleDateFormat("yyyy-MM-dd HH:mm:ss")));
+         false, gregorianDateFormat("yyyy-MM-dd HH:mm:ss")));
       addSerializer(Date.class, new DateSerializer(
-         false, new SimpleDateFormat("yyyy-MM-dd HH:mm:ss")));
+         false, gregorianDateFormat("yyyy-MM-dd HH:mm:ss")));
       addSerializer(EnumSet.class, new EnumSetSerializer());
       addDeserializer(EnumSet.class, new EnumSetDeserializer());
 
       addSerializer(Class.class, new ClassSerializer());
       addSerializer(Method.class, new MethodSerializer());
       addSerializer(Parameter.class, new ParameterSerializer());
+   }
+
+   /**
+    * Bug #77566: a locale-less {@code SimpleDateFormat} uses the JVM default locale's calendar
+    * (e.g. Buddhist for th_TH, Japanese imperial for ja_JP_JP), and none of these patterns carry
+    * an era field, so the serialized digits would otherwise silently become the wrong calendar
+    * system's year on a non-Gregorian-default deployment. These serializers have no matching
+    * custom deserializer registered anywhere, so nothing in this codebase ever reads this exact
+    * string back through the same format -- forcing Gregorian here only fixes the serialized
+    * value, it does not change any persisted/round-tripped format.
+    */
+   private static SimpleDateFormat gregorianDateFormat(String pattern) {
+      SimpleDateFormat format = new SimpleDateFormat(pattern);
+      format.setCalendar(new GregorianCalendar());
+      return format;
    }
 }

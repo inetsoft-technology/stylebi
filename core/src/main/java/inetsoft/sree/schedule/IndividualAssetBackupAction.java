@@ -223,6 +223,17 @@ public class IndividualAssetBackupAction implements ScheduleAction, HttpXMLSeria
             }
 
             XAsset xAsset = SUtil.getXAsset(type, path, user);
+
+            // Bug #77587, getXAsset returns null for an unknown/empty type or a missing
+            // resource, keep it out of the list so the task can still be saved and run
+            if(xAsset == null) {
+               String task = action.getParentNode() instanceof Element parent ?
+                  parent.getAttribute("name") : "";
+               LOG.warn("Skipping the backup asset of type \"{}\" with path \"{}\" in " +
+                           "schedule task \"{}\", the asset cannot be resolved", type, path, task);
+               continue;
+            }
+
             assets.add(xAsset);
          }
       }
@@ -268,7 +279,13 @@ public class IndividualAssetBackupAction implements ScheduleAction, HttpXMLSeria
    }
 
    public void setAssets(List<XAsset> assets) {
-      this.assets = assets;
+      // Bug #77587, callers may pass unresolvable (null) assets, keep them out of the list
+      this.assets = new ArrayList<>();
+
+      if(assets != null) {
+         this.assets.addAll(assets);
+         this.assets.removeIf(Objects::isNull);
+      }
    }
 
    public String getPath() {

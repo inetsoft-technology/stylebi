@@ -271,6 +271,29 @@ final class Slot {
       return closed;
    }
 
+   /**
+    * A pool thread is about to take this slot without a claim and without the locks of all
+    * its tenants (a take-over, the expiry, a retire): a tenant's batch that misses its home
+    * meanwhile waits a moment for it in its pull instead of losing its objects (Testing
+    * #77123, finding G1). Begun BEFORE the slot's tryLock, so a puller whose tryLock failed on
+    * the prober's hold sees it; ended once the prober holds every tenant's lock (no tenant's
+    * batch runs then) or gave the slot back. A count: probes of several threads may overlap.
+    */
+   void beginProbe() {
+      probes.incrementAndGet();
+   }
+
+   void endProbe() {
+      probes.decrementAndGet();
+   }
+
+   /**
+    * @return whether a pool thread probes this slot now, see {@link #beginProbe}.
+    */
+   boolean isProbed() {
+      return probes.get() > 0;
+   }
+
    long epoch() {
       return epoch;
    }
@@ -417,6 +440,9 @@ final class Slot {
    private Cleaner.Cleanable nodeCount; // set at creation, before the slot is shared
    private long version; // owner only
    private int maxDeletes = PoolConfig.MAX_FOREIGN_DELETES; // owner only
+   // the pool threads probing this slot, see beginProbe
+   private final java.util.concurrent.atomic.AtomicInteger probes =
+      new java.util.concurrent.atomic.AtomicInteger();
    private volatile boolean doomed;
    private volatile boolean interruptLost;
    private volatile boolean closed;

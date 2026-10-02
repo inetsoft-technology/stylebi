@@ -717,6 +717,7 @@ public class XEngine implements XRepository, XQueryRepository {
       for(String tempKey : metaDataCache.keySet()) {
          if(tempKey.startsWith(keyHeader) || tempKey.equals(key)) {
             metaDataCache.remove(tempKey);
+            metaDataFailureTimes.remove(tempKey);
          }
       }
    }
@@ -739,6 +740,7 @@ public class XEngine implements XRepository, XQueryRepository {
       for(String tempKey : metaDataCache.keySet()) {
          if(tempKey.startsWith(keyHeader) || tempKey.equals(key)) {
             metaDataCache.remove(tempKey);
+            metaDataFailureTimes.remove(tempKey);
          }
       }
    }
@@ -1591,6 +1593,24 @@ public class XEngine implements XRepository, XQueryRepository {
          synchronized(lock) {
             node = getCachedMetaData(key);
 
+            // A cached failure (the permanently-empty XNode written in the catch
+            // block below after a metadata-retrieval error, e.g. an unreachable
+            // database) is only trusted as a cache hit for a short window. After
+            // that it's treated as a miss so the next request retries the data
+            // source instead of staying stuck on an empty result until an explicit
+            // "refresh metadata" action or a server restart (Bug #77542).
+            // Concurrent callers for the same key are still deduped by pendingFlag
+            // below once a retry actually starts.
+            if(node != null && node != pendingFlag) {
+               Long failedAt = metaDataFailureTimes.get(key);
+
+               if(failedAt != null &&
+                  System.currentTimeMillis() - failedAt >= META_DATA_FAILURE_RETRY_INTERVAL)
+               {
+                  node = null;
+               }
+            }
+
             while(node == pendingFlag) {
                try {
                   lock.wait(200);
@@ -1652,8 +1672,11 @@ public class XEngine implements XRepository, XQueryRepository {
 
                // add a holder so when there is problem getting
                // meta data for an object, we don't keep trying
-               // which may hold up the entire server
+               // which may hold up the entire server. the timestamp lets a later
+               // request retry after META_DATA_FAILURE_RETRY_INTERVAL instead of
+               // being stuck forever (Bug #77542).
                metaDataCache.put(key, node = new XNode());
+               metaDataFailureTimes.put(key, System.currentTimeMillis());
             }
 
             synchronized(lock) {
@@ -1803,6 +1826,7 @@ public class XEngine implements XRepository, XQueryRepository {
    @Override
    public void clearCache() {
       metaDataCache.clear();
+      metaDataFailureTimes.clear();
    }
 
    @Override
@@ -1852,6 +1876,7 @@ public class XEngine implements XRepository, XQueryRepository {
       }
 
       metaDataCache.clear();
+      metaDataFailureTimes.clear();
 
       // reset all XHandler for this data source because query parameters
       // may have changed
@@ -1965,6 +1990,9 @@ public class XEngine implements XRepository, XQueryRepository {
     */
    private void writeMetaDataCache(final String key, final XNode meta) {
       metaDataCache.put(key, meta);
+      // a real result was written for this key, so any earlier cached failure no
+      // longer applies (Bug #77542)
+      metaDataFailureTimes.remove(key);
 
       (new GroupedThread(ThreadContext.getContextPrincipal()) {
          {
@@ -2137,6 +2165,17 @@ public class XEngine implements XRepository, XQueryRepository {
    private final Map<Pair, XHandler> sessionrun = new ConcurrentHashMap<>();
    // [dxname, mtype] -> XNode
    private Map<String, XNode> metaDataCache = new ConcurrentHashMap<>();
+   // [dxname, mtype] -> time (System.currentTimeMillis()) a metadata-retrieval failure
+   // was cached for that key in metaDataCache. Entries older than
+   // META_DATA_FAILURE_RETRY_INTERVAL are treated as a cache miss, not a permanent
+   // failure (Bug #77542).
+   private final Map<String, Long> metaDataFailureTimes = new ConcurrentHashMap<>();
+   // how long a cached metadata-retrieval failure (e.g. the data source's database was
+   // unreachable) is trusted before the next request is allowed to retry it. Short enough
+   // that a transient outage recovers on its own without an explicit "refresh metadata"
+   // action or a server restart, but long enough that a data source that's genuinely
+   // still down isn't re-queried on every single asset-tree/composer request.
+   private static final long META_DATA_FAILURE_RETRY_INTERVAL = 60000L; // 1 minute
    private final Object lock = new Object();
    // special value used to mark a meta data as pending
    private final XNode pendingFlag = new XNode();

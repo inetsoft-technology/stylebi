@@ -483,8 +483,12 @@ public class AssetQuerySandbox implements Serializable, Cloneable, ActionListene
             table2, LIVE_MODE | EMBEDDED_MODE, this, false, -1L, true, true);
          this.setActive(active);
 
-         ColumnSelection columns = new ColumnSelection();
-         table2.setColumnSelection(columns, true);
+         // keep the column header columns of a crosstab, this refresh runs with row
+         // limits so it only sees a sample of the data, see
+         // AssetQuery.keepCrosstabHeaderColumns (77538)
+         if(!table.getAggregateInfo().isCrosstab()) {
+            table2.setColumnSelection(new ColumnSelection(), true);
+         }
 
          // not plain? execute the query to refresh the column selection
          if(active && !table.isPlain() && !metadata) {
@@ -928,7 +932,9 @@ public class AssetQuerySandbox implements Serializable, Cloneable, ActionListene
             data = getTableLens0(name, mode, table.isAggregate(), columns.hashCode());
             int ncol = columns.getAttributeCount();
 
-            if(data != null && data.getColCount() == ncol) {
+            // the columns of a crosstab don't match its data, the column header columns
+            // missing from a row-limited run are kept (77538)
+            if(data != null && (data.getColCount() == ncol || pub && ainfo.isCrosstab())) {
                return data;
             }
 
@@ -1103,7 +1109,11 @@ public class AssetQuerySandbox implements Serializable, Cloneable, ActionListene
       TableLens data = getTableLens0(name, mode, table.isAggregate(), columns.hashCode());
       int ncol = columns.getAttributeCount();
 
-      if(data != null && data.getColCount() == ncol) {
+      // the columns of a crosstab don't match its data, the column header columns
+      // missing from a row-limited run are kept (77538)
+      if(data != null &&
+         (data.getColCount() == ncol || pub && table.getAggregateInfo().isCrosstab()))
+      {
          return data;
       }
 

@@ -180,6 +180,86 @@ public final class PoolTestSupport {
    }
 
    /**
+    * Drop every tenant of every slot of the env's pool from the slot's weak tenant map without
+    * the pool's purge, as the collection of those formula tables does (Testing #77123, finding
+    * G1): a home whose tenants were all collected stays in the pool's homes until a purge.
+    */
+   public static void collectTenants(WorksheetScriptEnv env) {
+      for(Slot slot : env.pool().slots()) {
+         slot.clearTenants();
+      }
+   }
+
+   /**
+    * @return the slots of the env's pool that a pool thread is probing now (Testing #77123,
+    * finding G1), or 0 if this build has no probes.
+    */
+   public static int probedSlots(WorksheetScriptEnv env) {
+      int n = 0;
+
+      for(Slot slot : env.pool().slots()) {
+         try {
+            java.lang.reflect.Method m = Slot.class.getDeclaredMethod("isProbed");
+            m.setAccessible(true);
+
+            if((Boolean) m.invoke(slot)) {
+               n++;
+            }
+         }
+         catch(NoSuchMethodException ex) {
+            return 0;
+         }
+         catch(ReflectiveOperationException ex) {
+            throw new IllegalStateException(ex);
+         }
+      }
+
+      return n;
+   }
+
+   /**
+    * Run {@code hook} on a puller's thread at each retry of its pull while a pool thread
+    * probes the home (Testing #77123, finding G1); {@code null} to clear it.
+    */
+   public static void pullSpinHook(java.util.function.Consumer<Object> hook) {
+      OwnedValueCodec.pullSpinHook = hook == null ? null : hook::accept;
+   }
+
+   /**
+    * Set a test hook of the env's pool: {@code "handOffHook"}, {@code "takeOverHook"},
+    * {@code "plainTakeHook"}, {@code "closeIdleHook"} or {@code "giveBackHook"}; {@code null}
+    * clears it.
+    */
+   public static void poolHook(WorksheetScriptEnv env, String name,
+                               java.util.function.Consumer<Object> hook)
+   {
+      java.util.function.Consumer<Slot> h = hook == null ? null : hook::accept;
+
+      switch(name) {
+      case "handOffHook" -> env.pool().handOffHook = h;
+      case "takeOverHook" -> env.pool().takeOverHook = h;
+      case "plainTakeHook" -> env.pool().plainTakeHook = h;
+      case "closeIdleHook" -> env.pool().closeIdleHook = h;
+      case "giveBackHook" -> env.pool().giveBackHook = h;
+      default -> throw new IllegalArgumentException(name);
+      }
+   }
+
+   /**
+    * @return whether {@code slot} (from {@link #currentSlot} or {@link #slots}) is closed.
+    */
+   public static boolean isClosed(Object slot) {
+      return ((Slot) slot).isClosed();
+   }
+
+   /**
+    * @return the slots of the env's pool now, the primary first.
+    */
+   public static List<Object> slots(WorksheetScriptEnv env) {
+      return new ArrayList<>(env.pool().slots());
+   }
+
+   /**
     * @return the exclusive homes of this node, or -1.
     */
    public static int nodeHomes() {

@@ -65,7 +65,7 @@ public class JDBCSelection extends XSelection {
          if(select instanceof JDBCSelection) {
             setTable(path, ((JDBCSelection) select).getTable(path));
             setDescription(path, select.getDescription(path));
-            setQuoted(path, ((JDBCSelection) select).isQuoted(path));
+            copyQuoted(path, (JDBCSelection) select, path);
          }
       }
    }
@@ -380,7 +380,36 @@ public class JDBCSelection extends XSelection {
     * @return <tt>true</tt> if quoted, <tt>false</tt> otherwise.
     */
    public boolean isQuoted(String column) {
-      return quoted.contains(column);
+      return quoted.containsKey(column);
+   }
+
+   /**
+    * Get the column segment, as written, of a qualified quoted identifier (t."MixedCase").
+    * @return the segment, or <tt>null</tt> for a bare quoted identifier or an unquoted column.
+    */
+   public String getQuotedColumn(String column) {
+      String seg = quoted.get(column);
+      return seg == null || seg.isEmpty() ? null : seg;
+   }
+
+   /**
+    * Set a column as written as a qualified quoted identifier.
+    * @param segment the column segment as written, or <tt>null</tt> for a bare identifier.
+    */
+   public void setQuoted(String column, String segment) {
+      quoted.put(column, segment == null ? "" : segment);
+   }
+
+   /**
+    * Copy the quoting of a column of another selection.
+    */
+   public void copyQuoted(String column, JDBCSelection from, String fromColumn) {
+      if(from.isQuoted(fromColumn)) {
+         setQuoted(column, from.getQuotedColumn(fromColumn));
+      }
+      else {
+         quoted.remove(column);
+      }
    }
 
    /**
@@ -390,7 +419,7 @@ public class JDBCSelection extends XSelection {
     */
    public void setQuoted(String column, boolean quoted) {
       if(quoted) {
-         this.quoted.add(column);
+         this.quoted.putIfAbsent(column, "");
       }
       else {
          this.quoted.remove(column);
@@ -426,7 +455,7 @@ public class JDBCSelection extends XSelection {
       select.newToOldAlias = new HashMap<>(newToOldAlias);
       select.oldToNewAlias = new HashMap<>(oldToNewAlias);
       select.aggregates = (HashSet) aggregates.clone();
-      select.quoted = new HashSet<>(quoted);
+      select.quoted = new HashMap<>(quoted);
 
       return select;
    }
@@ -452,6 +481,7 @@ public class JDBCSelection extends XSelection {
    // alias -> valias, generated in this query or base/sub queries
    private Map<String, String> oldToNewAlias = new HashMap<>();
    private HashSet<String> aggregates = new HashSet<>(); // aggregates
-   private HashSet<String> quoted = new HashSet<>(); // columns written as quoted identifiers
+   // columns written as quoted identifiers -> the quoted column segment ("" if bare)
+   private HashMap<String, String> quoted = new HashMap<>();
    private boolean plan = false; // plan flag
 }

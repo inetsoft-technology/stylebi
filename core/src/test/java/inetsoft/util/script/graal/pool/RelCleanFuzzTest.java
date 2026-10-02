@@ -531,8 +531,10 @@ class RelCleanFuzzTest {
          return "piece";
       }
 
+      // the eval wrapper runs inside the with of its var store (Bug #77595)
       return script instanceof org.graalvm.polyglot.Source src &&
-         src.getCharacters().toString().startsWith("(function") ? "wrapper" : "plain";
+         src.getCharacters().toString().contains("(function(){with(__scope__){var ") ?
+         "wrapper" : "plain";
    }
 
    // whether a script of this form declares its top-level vars before its body runs

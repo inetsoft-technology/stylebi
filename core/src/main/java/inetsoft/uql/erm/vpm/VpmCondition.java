@@ -388,7 +388,8 @@ public class VpmCondition extends VpmObject {
             parser.value_exp();
             fields = parser.getColumns();
          }
-         catch(ParserStoppedException ex) {
+         // a timeout, or a construct the parser refuses in a subquery
+         catch(Exception ex) {
             final ArrayList<String> columns = new ArrayList<>();
             ColumnIterator iterator = new ColumnIterator((String) value);
             ColumnIterator.ColumnListener listener = new
@@ -403,9 +404,6 @@ public class VpmCondition extends VpmObject {
             iterator.addColumnListener(listener);
             iterator.iterate();
             fields = columns.toArray(new String[0]);
-         }
-         catch(Exception ex) {
-            // ignore it
          }
 
          value = replaceColumnTableName((String) value, fields, tables,

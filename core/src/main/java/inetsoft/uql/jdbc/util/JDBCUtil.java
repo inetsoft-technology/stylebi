@@ -358,22 +358,23 @@ public class JDBCUtil {
       for(int i = 0; i < xselect.getColumnCount(); i++) {
          String path = xselect.getColumn(i);
          String alias = xselect.getAlias(i);
-         String fp = getFullPathOf(sql, path);
+         boolean quoted = xselect.isQuoted(path);
+         String fp = getFullPathOf(sql, path, quoted);
 
          if(fp != null) {
             path = fp;
          }
 
-         XField field = sql.getFieldByPath(path);
+         XField field = sql.getFieldByPath(path, quoted);
 
          if(field != null && field.getTable().length() > 0) {
-            boolean quoted = xselect.isQuoted(xselect.getColumn(i));
+            String qseg = xselect.getQuotedColumn(xselect.getColumn(i));
             xselect.setColumn(i, path);
             xselect.setAlias(i, alias);
             xselect.setTable(path, field.getTable());
 
             if(quoted) {
-               xselect.setQuoted(path, true);
+               xselect.setQuoted(path, qseg);
             }
 
             // get type
@@ -390,6 +391,18 @@ public class JDBCUtil {
     * @param path column name
     */
    public static String getFullPathOf(UniformSQL sql, String path) {
+      return getFullPathOf(sql, path, false);
+   }
+
+   /**
+    * Get full path of column.
+    * @param sql Uniform SQL object
+    * @param path column name
+    * @param quoted <tt>true</tt> if the column was written as a quoted identifier
+    *               ("MixedCase" or t."MixedCase"), its case is only changed if no column has
+    *               the same case.
+    */
+   public static String getFullPathOf(UniformSQL sql, String path, boolean quoted) {
       String res = null;
       int idx = path.lastIndexOf('.');
       String table, col;
@@ -423,7 +436,7 @@ public class JDBCUtil {
       }
 
       res = table + "." + col;
-      XField field = sql.getFieldByPath(res);
+      XField field = sql.getFieldByPath(res, quoted);
 
       if(field != null && field.getTable().length() > 0) {
          if(!field.getName().equals(col)) {
@@ -497,7 +510,7 @@ public class JDBCUtil {
          newSelect.setType(path, select.getType(path));
          newSelect.setDescription(path, select.getDescription(path));
          newSelect.setTable(path, select.getTable(path));
-         newSelect.setQuoted(path, select.isQuoted(path));
+         newSelect.copyQuoted(path, select, path);
          newSelect.setXMetaInfo(aidx, select.getXMetaInfo(i));
          newSelect.setExpression(aidx, select.isExpression(i));
       }
@@ -527,7 +540,7 @@ public class JDBCUtil {
     */
    private static void normalizeExpression(XExpression exp, UniformSQL sql) {
       String ex1 = exp.toString();
-      String fullPath1 = getFullPathOf(sql, ex1);
+      String fullPath1 = getFullPathOf(sql, ex1, exp.isQuotedField());
 
       if(fullPath1 != null) {
          String type = sql.isTableColumn(fullPath1) ? XExpression.FIELD :
