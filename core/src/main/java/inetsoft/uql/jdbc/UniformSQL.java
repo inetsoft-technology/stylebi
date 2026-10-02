@@ -4074,7 +4074,16 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
             if(sql.getDataSource() != null) {
                sql.checkJoinOrders(parser, PARSE_PERIOD);
             }
-            setLossy((sql.lossy != null && sql.lossy) || isLegacyCycleJoins());
+
+            boolean result = (sql.lossy != null && sql.lossy) || isLegacyCycleJoins();
+
+            // a check skipped for the missing data source isn't cached, so it runs once a
+            // caller sets the data source (e.g. BoundQuery checks lossy before setting it)
+            if(sql.getDataSource() == null && !parser.getJoinOrderChecks().isEmpty()) {
+               return result;
+            }
+
+            setLossy(result);
          }
          catch(Exception e) {
             setLossy(true);

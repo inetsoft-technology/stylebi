@@ -299,6 +299,14 @@ class SQLHelperUnresolvedInnerJoinAnsiTest {
       fresh.setSQLString(text, false);
       assertTrue(fresh.isLossy(), text);
 
+      // checked before the data source is set (as BoundQuery does), the skipped join order
+      // check isn't cached, so it applies once the data source is set
+      UniformSQL early = new UniformSQL();
+      early.setSQLString(text, false);
+      assertFalse(early.isLossy(), text);
+      early.setDataSource(dataSource("derby-ansi"));
+      assertTrue(early.isLossy(), text);
+
       // a query saved with this text as a successful, non-lossy parse (before the join order
       // check) re-derives lossy on load, so it's not regenerated from its structure
       UniformSQL saved = new UniformSQL();
