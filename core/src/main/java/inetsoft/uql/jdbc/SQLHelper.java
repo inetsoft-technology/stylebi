@@ -1728,8 +1728,10 @@ public class SQLHelper implements KeywordProvider {
       if(table == null || alias == null) {
          if(table != null && column != null) {
             // keep a quoted column segment as written (sum(t."MixedCase")), the column found
-            // ignoring case may be another column (MIXEDCASE)
-            String qcol = getQuotedSegment(path, column);
+            // ignoring case may be another column (MIXEDCASE). A case-sensitive helper quotes
+            // every segment at parse, so the text can't show the source quotes there and an
+            // unquoted sum(t.MixedCase) must keep the metadata case repair (#77578)
+            String qcol = isCaseSensitive() ? null : getQuotedSegment(path, column);
             return form + getQuotedTableName(table, true) + "." +
                (qcol != null ? getQuote() + qcol + getQuote() : quoteColumnAlias(column)) + ')';
          }

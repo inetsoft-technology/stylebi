@@ -198,6 +198,20 @@ class UniformSQLQualifiedQuotedColumnTest {
                   String label = helper.getKey() + " " + stage.getKey() + ": " + query + " -> " + stage.getValue();
                   String generated = stage.getValue();
 
+                  // known residual (#77578): on PostgreSQL, Snowflake and Exasol the alias-qualified
+                  // aggregate argument sum(x."MixedCase") is stored like the unquoted sum(x.MixedCase)
+                  // and gets its metadata case repair, as before this change
+                  if(names[i].startsWith("x.") && template.contains("sum(") &&
+                     Set.of("postgresql", "snowflake", "exasol").contains(helper.getKey()))
+                  {
+                     String col = "fixed-twin-first".equals(stage.getKey()) ? "MIXEDCASE" : "MixedCase";
+                     String agg = "sum(x." +
+                        ("postgresql".equals(helper.getKey()) ? "\"" + col + "\"" : col) + ")";
+                     // the select list and the order by, the having clause is kept as written
+                     assertEquals(2, generated.split(Pattern.quote(agg), -1).length - 1, label);
+                     generated = generated.replace(agg, "sum(x.\"MixedCase\")");
+                  }
+
                   assertFalse(generated.contains("\"\""), label);
                   assertFalse(whole.matcher(generated).find(), label);
                   assertFalse(unquoted.matcher(generated).find(), label);
@@ -690,7 +704,7 @@ class UniformSQLQualifiedQuotedColumnTest {
     * argument sum(q."MixedCase") is stored with the same text as the unquoted sum(q.MixedCase)
     * (see above), so it gets the metadata case repair of an unquoted name, as before this
     * change: the first column ignoring case, unquoted on Snowflake and Exasol. Keeping it needs
-    * the parser to record the quotes of an aggregate argument, which is left to a follow-up issue.
+    * the parser to record the quotes of an aggregate argument, which is left to #77578.
     * These are the outputs before this change, change them when that is fixed.
     */
    @Test
