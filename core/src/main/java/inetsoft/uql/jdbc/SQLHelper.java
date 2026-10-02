@@ -1728,9 +1728,11 @@ public class SQLHelper implements KeywordProvider {
       if(table == null || alias == null) {
          if(table != null && column != null) {
             // keep a quoted column segment as written (sum(t."MixedCase")), the column found
-            // ignoring case may be another column (MIXEDCASE). A case-sensitive helper quotes
-            // every segment at parse, so the text can't show the source quotes there and an
-            // unquoted sum(t.MixedCase) must keep the metadata case repair (#77578)
+            // ignoring case may be another column (MIXEDCASE). Only if the stored text can't have
+            // come from a parser that quotes every segment (a case-sensitive helper, generating
+            // here or where the sql was parsed): there an unquoted sum(t.MixedCase) is stored as
+            // sum("t"."MixedCase") and must keep the metadata case repair. A quoted
+            // sum(t."MixedCase") gets the same repair there, see #77578
             String qcol = isCaseSensitive() ? null : getQuotedSegment(path, column);
             return form + getQuotedTableName(table, true) + "." +
                (qcol != null ? getQuote() + qcol + getQuote() : quoteColumnAlias(column)) + ')';
@@ -1748,7 +1750,7 @@ public class SQLHelper implements KeywordProvider {
 
    /**
     * Get the last segment of a path if it is a quoted identifier ("MixedCase" or `MixedCase`)
-    * that names the column, ignoring case.
+    * that names the column, ignoring case, and its qualifier is not quoted too.
     * @return the segment without its quotes, or <tt>null</tt> if not quoted.
     */
    private static String getQuotedSegment(String path, String column) {
@@ -1760,6 +1762,14 @@ public class SQLHelper implements KeywordProvider {
             String seg = start >= 0 ? path.substring(start + 1, len - 1) : null;
 
             if(seg != null && seg.equalsIgnoreCase(column)) {
+               String qualifier = path.substring(0, start);
+
+               // a quoted qualifier ("q"."MixedCase") may come from a parser that quotes every
+               // segment (parsed under a case-sensitive helper), the quotes don't show the source
+               if(qualifier.length() > 2 && qualifier.charAt(0) == q && qualifier.endsWith(q + ".")) {
+                  return null;
+               }
+
                return seg;
             }
          }
