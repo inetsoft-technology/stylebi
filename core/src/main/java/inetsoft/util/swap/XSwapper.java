@@ -476,6 +476,17 @@ public final class XSwapper {
    }
 
    /**
+    * Request a garbage collection for a background task, for example after memory was freed
+    * by dropping cached data. It shares the swapper sweep's throttle and back-off, so it is
+    * often a no-op. See {@link #doGC(boolean)}.
+    *
+    * @return <tt>true</tt> if a garbage collection was run.
+    */
+   public boolean requestGC() {
+      return doGC(false);
+   }
+
+   /**
     * Run a full garbage collection, if the throttle allows it, and clear the cached memory
     * state if one ran. Two collections are always spaced at least
     * <tt>max(swapper.gc.min.interval, GC_PAUSE_FACTOR * last pause)</tt> apart, for every
