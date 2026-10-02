@@ -111,7 +111,7 @@ public class VSSelectionListHelper extends ExporterHelper {
       }
 
       Rectangle2D total = cHelper.getBounds(assembly, CoordinateHelper.ALL, true, null);
-      Rectangle2D content = getContentBounds(info, total);
+      Rectangle2D content = getContentBounds(info, total, cHelper.getScale());
 
       if(content.equals(total) || total.getWidth() <= 0) {
          return;

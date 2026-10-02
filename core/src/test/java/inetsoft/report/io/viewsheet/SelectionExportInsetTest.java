@@ -84,6 +84,7 @@ class SelectionExportInsetTest {
       Rectangle2D total = new Rectangle2D.Double(0, 0, 132, 202);
       CoordinateHelper cHelper = Mockito.mock(CoordinateHelper.class);
       Mockito.when(cHelper.getBounds(null, CoordinateHelper.ALL, true, null)).thenReturn(total);
+      Mockito.when(cHelper.getScale()).thenReturn(1.0);
       Rectangle2D title = new Rectangle2D.Double(0, 0, 132, 20);
       VSSelectionListHelper helper = new VSSelectionListHelper();
       helper.setExporter(new HTMLVSExporter(new ByteArrayOutputStream()));

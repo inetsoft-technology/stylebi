@@ -225,7 +225,9 @@ public class SVGVSExporter extends AbstractVSExporter {
 
    @Override
    protected void writeSelectionList(SelectionListVSAssembly assembly) {
-      new SVGSelectionListHelper(helper).write(assembly);
+      SVGSelectionListHelper selectionListHelper = new SVGSelectionListHelper(helper);
+      selectionListHelper.setExporter(this);
+      selectionListHelper.write(assembly);
    }
 
    @Override

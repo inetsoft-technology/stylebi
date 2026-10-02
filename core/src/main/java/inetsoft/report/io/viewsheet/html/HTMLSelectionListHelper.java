@@ -124,7 +124,8 @@ public class HTMLSelectionListHelper extends VSSelectionListHelper{
       }
 
       SelectionValue[] svalues = list.getAllSelectionValues();
-      slist.append("<div style='overflow:auto;width:100%;height:" + dataH + "'>");
+      Insets inset = getCardInset(info);
+      appendRowBox(slist, inset, bounds.getWidth(), dataH);
 
       int ncol = info.getColumnCount();
       int nrow = svalues.length % ncol == 0 ? (int)(svalues.length / ncol) :
@@ -147,14 +148,31 @@ public class HTMLSelectionListHelper extends VSSelectionListHelper{
       }
 
       //if have scroll bar, rowWidth = selectionWidth - scrollBarWidth(18) - leftAndRightBorder(2).
-      double rowWidth = info.getEffectiveCellHeight() * nrow > bounds.getHeight() ? bounds.getWidth() - 20 :
-        bounds.getWidth() - 2;
+      double contentWidth = bounds.getWidth() - inset.left - inset.right;
+      double rowWidth = info.getEffectiveCellHeight() * nrow >
+         bounds.getHeight() - inset.top - inset.bottom ? contentWidth - 20 : contentWidth - 2;
 
       for(int k = 0; k < nrow; k++) {
          writeSelectionRow(info, slist, nvalues[k], rowWidth / ncol, ratio);
       }
 
       slist.append("</div>");
+   }
+
+   /**
+    * Open the scrolling row box, moved in by the card inset and shrunk to the content. The title
+    * and the card keep the full bounds. At a zero inset the box is written exactly as before.
+    */
+   static void appendRowBox(StringBuffer slist, Insets inset, double width, int dataH) {
+      if(new Insets(0, 0, 0, 0).equals(inset)) {
+         slist.append("<div style='overflow:auto;width:100%;height:" + dataH + "'>");
+         return;
+      }
+
+      int contentWidth = Math.max(0, (int) width - inset.left - inset.right);
+      int contentHeight = Math.max(0, dataH - inset.top - inset.bottom);
+      slist.append("<div style='position:relative;left:" + inset.left + "px;top:" + inset.top +
+                   "px;overflow:auto;width:" + contentWidth + "px;height:" + contentHeight + "px'>");
    }
 
    private void writeSelectionRow(SelectionListVSAssemblyInfo info, StringBuffer slist,

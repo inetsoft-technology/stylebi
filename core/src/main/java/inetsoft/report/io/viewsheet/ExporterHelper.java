@@ -49,14 +49,31 @@ public class ExporterHelper {
     * chart and table card use.
     */
    protected Rectangle2D getContentBounds(VSAssemblyInfo info, Rectangle2D bounds) {
-      Insets inset = exporter == null ? new Insets(0, 0, 0, 0) :
-         exporter.getSelectionCardInset(info);
+      return getContentBounds(info, bounds, 1);
+   }
+
+   /**
+    * The content rect for bounds in an output unit: the pixel inset is scaled by the coordinate
+    * helper's scale, which is points per pixel in PowerPoint and 1 elsewhere.
+    */
+   protected Rectangle2D getContentBounds(VSAssemblyInfo info, Rectangle2D bounds, double scale) {
+      Insets inset = getCardInset(info);
+      double top = inset.top * scale;
+      double left = inset.left * scale;
+      double bottom = inset.bottom * scale;
+      double right = inset.right * scale;
 
       // clamped: an inset larger than the assembly must not hand a painter a negative size
-      return new Rectangle2D.Double(bounds.getX() + inset.left,
-                                    bounds.getY() + inset.top,
-                                    Math.max(0, bounds.getWidth() - inset.left - inset.right),
-                                    Math.max(0, bounds.getHeight() - inset.top - inset.bottom));
+      return new Rectangle2D.Double(bounds.getX() + left, bounds.getY() + top,
+                                    Math.max(0, bounds.getWidth() - left - right),
+                                    Math.max(0, bounds.getHeight() - top - bottom));
+   }
+
+   /**
+    * The card inset this format draws a selection's rows inside, or zero without an exporter.
+    */
+   protected Insets getCardInset(VSAssemblyInfo info) {
+      return exporter == null ? new Insets(0, 0, 0, 0) : exporter.getSelectionCardInset(info);
    }
 
    private VSExporter exporter;

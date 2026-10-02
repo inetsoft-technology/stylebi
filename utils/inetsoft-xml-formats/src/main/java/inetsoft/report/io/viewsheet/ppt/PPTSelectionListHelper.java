@@ -47,6 +47,8 @@ public class PPTSelectionListHelper extends VSSelectionListHelper {
       this.slide = slide;
       this.cHelper = cHelper;
       this.exporter = exporter;
+      // the shared base resolves the card inset through its own reference
+      setExporter(exporter);
    }
 
    /**
