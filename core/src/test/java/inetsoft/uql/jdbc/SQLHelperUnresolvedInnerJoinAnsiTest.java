@@ -122,7 +122,8 @@ class SQLHelperUnresolvedInnerJoinAnsiTest {
          "select t1.x from a t1, b t2 where t1.id = id|" +
          "select t1.x from a t1, b t2 where t1.id = id",
       "select \"a\".\"x\" from \"a\", \"b\" where \"a\".\"id\" = bid|" +
-         "select a.x from a, b where a.id = bid|select a.x from a, b where a.id = bid",
+         "select a.\"x\" from a, b where a.\"id\" = bid|" +
+         "select a.\"x\" from a, b where a.\"id\" = bid",
       // other operators
       "select a.x from a, b where id > bid|select a.x from a, b where id > bid|" +
          "select a.x from a, b where id > bid",
