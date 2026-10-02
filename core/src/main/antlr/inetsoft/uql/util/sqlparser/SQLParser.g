@@ -148,6 +148,9 @@ private int checkCnt = 0; // optimization
 private Map map = new HashMap(); // sql + table ->op
 // sql -> columns merged by an earlier LEFT/FULL JOIN USING in the current join expression
 private Map usingMerges = new IdentityHashMap();
+// sql -> the USING columns of the current join expression, each mapped to an int[]
+// {index of the table of the column, start of the join's left operand}
+private Map usingTables = new IdentityHashMap();
 private int onClauseCount = 0; // ON clauses parsed so far, in text order
 private boolean catalog = false;
 private boolean schema = true;
@@ -599,6 +602,52 @@ private void addUsingMerges(UniformSQL sql, List columns) {
 private void clearUsingMerges(UniformSQL sql) {
    if(sql != null) {
       usingMerges.remove(sql);
+      usingTables.remove(sql);
+   }
+}
+
+/**
+ * Get the alias of the left operand table that has a column of a JOIN USING. The parser
+ * has no column metadata, so it's only known for a left operand of one table, or for a
+ * column of an earlier inner or RIGHT JOIN USING of the same left operand, whose merged
+ * column is the joined table's column. Otherwise the column could be in any table of
+ * the left operand, so the join fails the parse and the original sql runs (Bug #77490).
+ */
+private String getUsingTable(UniformSQL sql, String column, int lstart, int rstart,
+                             String jc, Token tok)
+   throws SemanticException
+{
+   if(rstart - lstart == 1) {
+      return sql.getTableAlias(lstart);
+   }
+
+   Map tables = (Map) usingTables.get(sql);
+   int[] table = tables == null ? null : (int[]) tables.get(getUsingColumnKey(column));
+
+   // a join of a nested join in the left operand has its own left operand, the other
+   // tables of this left operand may have the column too
+   if(table == null || table[1] != lstart || table[0] >= rstart) {
+      throw new SemanticException(
+         "Unsupported USING join, the left operand table of the column is unknown: " + jc,
+         getFilename(), tok.getLine(), tok.getColumn());
+   }
+
+   return sql.getTableAlias(table[0]);
+}
+
+/**
+ * Record the joined table as the table of the columns of an inner or RIGHT JOIN USING.
+ */
+private void addUsingTables(UniformSQL sql, List columns, int lstart, int rstart) {
+   Map tables = (Map) usingTables.get(sql);
+
+   if(tables == null) {
+      tables = new HashMap();
+      usingTables.put(sql, tables);
+   }
+
+   for(int i = 0; i < columns.size(); i++) {
+      tables.put(getUsingColumnKey((String) columns.get(i)), new int[] { rstart, lstart });
    }
 }
 
@@ -4083,8 +4132,8 @@ named_columns_join [UniformSQL sql, String op, String tbl2, int rstart, int rend
              uniSql.setLossy(true);
           }
 
-          // the join is between the last table of the left operand and the joined
-          // table, so the joined table (rstart to rend) must be a single table
+          // the join is between a table of the left operand and the joined table,
+          // so the joined table (rstart to rend) must be a single table
           if(rend - rstart != 1) {
              throw new SemanticException(
                 "Unsupported USING join, the joined table is a nested join: " + jc,
@@ -4094,7 +4143,7 @@ named_columns_join [UniformSQL sql, String op, String tbl2, int rstart, int rend
           checkUsingMerges(sql, list, jc, a);
 
           if(rstart >= 1) {
-           String t1 = sql.getTableAlias(rstart - 1);
+           int lstart = joinStarts.isEmpty() ? 0 : ((Integer) joinStarts.getFirst()).intValue();
            String t2 = sql.getTableAlias(rstart);
            String outerOp = getUsingJoinOp(op);
            String joinOp = outerOp == null ? "=" : outerOp;
@@ -4105,6 +4154,7 @@ named_columns_join [UniformSQL sql, String op, String tbl2, int rstart, int rend
            node.setName(getUniqueName());
 
            if(list.size() == 1) {
+                String t1 = getUsingTable(sql, (String) list.elementAt(0), lstart, rstart, jc, a);
                 e1 = new XExpression(t1+"."+(String)list.elementAt(0),
                                         XExpression.FIELD);
                 e2 = new XExpression(t2+"."+(String)list.elementAt(0),
@@ -4116,6 +4166,8 @@ named_columns_join [UniformSQL sql, String op, String tbl2, int rstart, int rend
            else {
                 ((XSet)node).setRelation(XSet.AND);
                 for(int i = 0; i < list.size(); i++) {
+                        String t1 = getUsingTable(sql, (String) list.elementAt(i), lstart,
+                                                  rstart, jc, a);
                         e1 = new XExpression(t1+"."+(String)list.elementAt(i),
                                                 XExpression.FIELD);
                         e2 = new XExpression(t2+"."+(String)list.elementAt(i),
@@ -4133,6 +4185,10 @@ named_columns_join [UniformSQL sql, String op, String tbl2, int rstart, int rend
            // the coalesce of both, a later USING of the column can't be represented
            if("*=".equals(outerOp) || "*=*".equals(outerOp)) {
               addUsingMerges(sql, list);
+           }
+           // an inner or RIGHT join merges the column to the joined table's column
+           else {
+              addUsingTables(sql, list, lstart, rstart);
            }
 
            // a RIGHT or FULL join makes the tables before it null supplying, so the
