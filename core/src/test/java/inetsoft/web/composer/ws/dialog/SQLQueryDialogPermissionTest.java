@@ -673,4 +673,84 @@ class SQLQueryDialogPermissionTest {
          () -> vpmController.browseData(ALLOWED, dataRefModel, principal)));
       verifyReadChecked(ALLOWED);
    }
+
+   // ---- Bug #77189: forged physical entries need PHYSICAL_TABLE ACCESS ----
+
+   private void denyPhysicalAccess() throws Exception {
+      when(securityEngine.checkPermission(
+         any(Principal.class), eq(ResourceType.PHYSICAL_TABLE), eq("*"), eq(ResourceAction.ACCESS)))
+         .thenReturn(false);
+   }
+
+   @Test
+   void s7TableColumnsDeniedWithoutPhysicalTableAccess() throws Exception {
+      denyPhysicalAccess();
+      AssetRepository assetRepository = wireAssetRepository();
+      AssetEntry table = queryEntry(AssetEntry.Type.PHYSICAL_TABLE, ALLOWED + "/T", ALLOWED);
+
+      assertDenied(() -> controller.getTableColumns(table, principal));
+      verifyNoInteractions(assetRepository);
+   }
+
+   @Test
+   void q1ExpandedPhysicalFolderDeniedWithoutPhysicalTableAccess() throws Exception {
+      denyPhysicalAccess();
+      AssetEntry expanded = queryEntry(AssetEntry.Type.PHYSICAL_FOLDER, ALLOWED + "/TABLE", ALLOWED);
+
+      try(MockedStatic<AssetUtil> assetUtil = mockStatic(AssetUtil.class)) {
+         AssetRepository assetRepository = mock(AssetRepository.class);
+         assetUtil.when(() -> AssetUtil.getAssetRepository(false)).thenReturn(assetRepository);
+
+         assertDenied(() -> queryManager.getDataSourceTreeNode(ALLOWED, true, expanded, principal));
+         verifyNoInteractions(assetRepository);
+      }
+   }
+
+   @Test
+   void v1VpmTreeExpandedPhysicalFolderDeniedWithoutPhysicalTableAccess() throws Exception {
+      denyPhysicalAccess();
+      AssetEntry expanded = queryEntry(AssetEntry.Type.PHYSICAL_FOLDER, ALLOWED + "/TABLE", ALLOWED);
+
+      try(MockedStatic<AssetUtil> assetUtil = mockStatic(AssetUtil.class)) {
+         AssetRepository assetRepository = mock(AssetRepository.class);
+         assetUtil.when(() -> AssetUtil.getAssetRepository(false)).thenReturn(assetRepository);
+
+         assertDenied(() -> vpmController.getDataSourceTreeNode(ALLOWED, expanded, principal));
+         verifyNoInteractions(assetRepository);
+      }
+   }
+
+   @Test
+   void v2VpmTableColumnsDeniedWithoutPhysicalTableAccess() throws Exception {
+      denyPhysicalAccess();
+      AssetEntry table = queryEntry(AssetEntry.Type.PHYSICAL_TABLE, ALLOWED + "/T", ALLOWED);
+
+      try(MockedStatic<AssetUtil> assetUtil = mockStatic(AssetUtil.class)) {
+         AssetRepository assetRepository = mock(AssetRepository.class);
+         assetUtil.when(() -> AssetUtil.getAssetRepository(false)).thenReturn(assetRepository);
+
+         assertDenied(() -> vpmController.getTableColumns(table, principal));
+         verifyNoInteractions(assetRepository);
+      }
+   }
+
+   @Test
+   void treesWithoutPhysicalTableAccessStillListTopLevelAndLogicalEntries() throws Exception {
+      // a user without the ACCESS never gets a physical entry from these trees, and the
+      // top-level and logical model listings are not physical entries
+      denyPhysicalAccess();
+      AssetEntry logical = logicalEntry(AssetEntry.Type.LOGIC_MODEL, ALLOWED);
+
+      try(MockedStatic<AssetUtil> assetUtil = mockStatic(AssetUtil.class)) {
+         AssetRepository assetRepository = mock(AssetRepository.class);
+         assetUtil.when(() -> AssetUtil.getAssetRepository(false)).thenReturn(assetRepository);
+         when(assetRepository.getEntries(any(), any(), any(), any())).thenReturn(new AssetEntry[0]);
+
+         assertNotNull(queryManager.getDataSourceTreeNode(ALLOWED, true, null, principal));
+         assertNotNull(vpmController.getDataSourceTreeNode(ALLOWED, null, principal));
+         assertNotNull(queryManager.getDataSourceTreeNode(ALLOWED, true, logical, principal));
+         verify(assetRepository).getEntries(same(logical), same(principal),
+                                            eq(ResourceAction.READ), any());
+      }
+   }
 }

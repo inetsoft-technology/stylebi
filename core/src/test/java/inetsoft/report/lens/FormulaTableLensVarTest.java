@@ -135,6 +135,134 @@ class FormulaTableLensVarTest {
       assertCounts(eot(lens), 1, "after invalidate, read to the end");
    }
 
+   // Bug #77249: a piece declaring one name with function and var/let parses as a script
+   // but not as the block of its with; it keeps the eval wrapper and computes every row
+   @ParameterizedTest(name = "pool={0}")
+   @ValueSource(booleans = { false, true })
+   void aFunctionAndVarOfOneNameComputeEveryRow(boolean pool) throws Exception {
+      AssetQuerySandbox box = box(pool);
+      TableLens fn = PostProcessor.formula(
+         base(ROWS), new String[] { "out" },
+         new String[] { "function ff(){ return 'f' + field['id'] } var ff; " +
+                        "if(field['id'] > 0) { ff() }" },
+         box.getScriptEnv(), box.getScope(), null, "F", null, List.of(String.class),
+         new boolean[] { false });
+      TableLens let = make(box, base(ROWS),
+         "let lf = field['id']; function lf(){ return 0 } if(field['id'] % 2 == 0) { lf }", "L");
+
+      for(int r = 1; r <= ROWS; r++) {
+         assertTrue(fn.moreRows(r));
+         assertEquals("f" + r, fn.getObject(r, 2), "function+var row " + r);
+         assertTrue(let.moreRows(r));
+         assertEquals(r % 2 == 0 ? (Object) (double) r : null, numOrNull(let.getObject(r, 2)),
+                      "let+function row " + r);
+      }
+   }
+
+   // Bug #77249 (F1): a function declared in a block of a split formula exists only on the
+   // rows that enter the block, as on the eval wrapper; as a piece it outlived its row
+   @ParameterizedTest(name = "pool={0}")
+   @ValueSource(booleans = { false, true })
+   void aFunctionOfABlockExistsOnlyOnItsRows(boolean pool) throws Exception {
+      AssetQuerySandbox box = box(pool);
+      TableLens t = PostProcessor.formula(
+         base(ROWS), new String[] { "out" },
+         new String[] { "if(field['id'] % 2 == 1) { function bf(){ return 'b' + field['id'] } } " +
+                        "if(typeof bf == 'function') { bf() }" },
+         box.getScriptEnv(), box.getScope(), null, "BF", null, List.of(String.class),
+         new boolean[] { false });
+
+      for(int r = 1; r <= ROWS; r++) {
+         assertTrue(t.moreRows(r));
+         assertEquals(r % 2 == 1 ? "b" + r : null, t.getObject(r, 2), "row " + r);
+      }
+   }
+
+   // Bug #77249 (I1, m1): a block function after a statement without `;` (ASI), or after an
+   // object with a keyword key, exists only on the rows that enter the block (an unrun if
+   // keeps an earlier value, hence the else)
+   @ParameterizedTest(name = "pool={0}")
+   @ValueSource(booleans = { false, true })
+   void aFunctionOfABlockAfterASIOrAKeywordKeyExistsOnlyOnItsRows(boolean pool)
+      throws Exception
+   {
+      AssetQuerySandbox box = box(pool);
+      String[] formulas = {
+         "if(field['id'] % 2 == 1) {\n var xa = field['id']\n" +
+            " function bfa(){ return 'b' + field['id'] }\n}\nif(typeof bfa == 'function') { bfa() }" +
+            " else { 'none' }",
+         "oc = {class: 'c'}; if(field['id'] % 2 == 1) { function bfk(){ return 'b' + field['id'] } }" +
+            " if(typeof bfk == 'function') { bfk() } else { 'none' }",
+         "[].concat({function: 1}); if(field['id'] % 2 == 1) { function bff(){ return 'b' + field['id'] } }" +
+            " if(typeof bff == 'function') { bff() } else { 'none' }" };
+
+      for(String f : formulas) {
+         TableLens t = PostProcessor.formula(
+            base(ROWS), new String[] { "out" }, new String[] { f },
+            box.getScriptEnv(), box.getScope(), null, "BA", null, List.of(String.class),
+            new boolean[] { false });
+
+         for(int r = 1; r <= ROWS; r++) {
+            assertTrue(t.moreRows(r));
+            assertEquals(r % 2 == 1 ? "b" + r : "none", t.getObject(r, 2), f + " row " + r);
+         }
+      }
+   }
+
+   // Bug #77249 (m1): a keyword object key (or destructuring key) does not hide the var of
+   // the next block: it stays table owned, so the accumulator counts every row (pool on it
+   // stopped at a batch), a second table starts over and no global is left (pool off). (A
+   // `function` key hides it on main too, pre-existing; the owned vars follow main, r4.)
+   @ParameterizedTest(name = "pool={0}")
+   @ValueSource(booleans = { false, true })
+   void aKeywordKeyKeepsTheVarOfTheNextBlockOwned(boolean pool) throws Exception {
+      AssetQuerySandbox box = box(pool);
+      String[] formulas = {
+         "let st = { class: 'a' }; if(true) { var kkAcc1 = (kkAcc1 || 0) + 1 } kkAcc1",
+         "let st = { if: 1, static: 2 }; if(true) { var kkAcc2 = (kkAcc2 || 0) + 1 } kkAcc2",
+         "let {class: c} = {class: 1}; if(true) { var kkAcc3 = (kkAcc3 || 0) + 1 } kkAcc3" };
+
+      for(int k = 0; k < formulas.length; k++) {
+         String f = formulas[k];
+         assertCounts(sequential(make(box, base(ROWS), f, "K" + k)), 1, "first table " + f);
+         assertCounts(sequential(make(box, base(ROWS), f, "L" + k)), 1, "second table " + f);
+         ScriptEnv env = box.getScriptEnv();
+         assertEquals("undef", env.exec(env.compile(
+            "typeof kkAcc" + (k + 1) + " == 'undefined' ? 'undef' : kkAcc" + (k + 1)),
+            null, null, null), "global of " + f);
+      }
+   }
+
+   // Bug #77249 (verify r3 C/D): a class field named `class`, a `static function =` field,
+   // or `yield`/`await`/`of` as an identifier ending a line does not hide the var of the
+   // next block: the accumulator counts every row of both tables (r3: pool on stopped at
+   // 442, pool off the second table started at 3001) and no global is left
+   @ParameterizedTest(name = "pool={0}")
+   @ValueSource(booleans = { false, true })
+   void aClassFieldOrContextualKeywordKeepsTheVarOfTheNextBlockOwned(boolean pool)
+      throws Exception
+   {
+      AssetQuerySandbox box = box(pool);
+      String[] formulas = {
+         "class P1 { static class = 1 }\nif(true) { var pqAcc1 = (pqAcc1 || 0) + 1 }\npqAcc1",
+         "class P2 { class = 1 }\nif(true) { var pqAcc2 = (pqAcc2 || 0) + 1 }\npqAcc2",
+         "class P3 { static function = function() { return 1 } }\n" +
+            "if(true) { var pqAcc3 = (pqAcc3 || 0) + 1 }\npqAcc3",
+         "var of = 1; x = of\n{ Math.abs(1)\n{ var pqAcc4 = (pqAcc4 || 0) + 1 } }\npqAcc4",
+         "var yield = 1; x = yield\n{ Math.abs(1)\n{ var pqAcc5 = (pqAcc5 || 0) + 1 } }\npqAcc5",
+         "var await = 1; x = await\n{ Math.abs(1)\n{ var pqAcc6 = (pqAcc6 || 0) + 1 } }\npqAcc6" };
+
+      for(int k = 0; k < formulas.length; k++) {
+         String f = formulas[k];
+         assertCounts(sequential(make(box, base(ROWS), f, "PK" + k)), 1, "first table " + f);
+         assertCounts(sequential(make(box, base(ROWS), f, "PL" + k)), 1, "second table " + f);
+         ScriptEnv env = box.getScriptEnv();
+         assertEquals("undef", env.exec(env.compile(
+            "typeof pqAcc" + (k + 1) + " == 'undefined' ? 'undef' : pqAcc" + (k + 1)),
+            null, null, null), "global of " + f);
+      }
+   }
+
    @ParameterizedTest(name = "pool={0}")
    @ValueSource(booleans = { false, true })
    void twoColumnsShareAVar(boolean pool) throws Exception {

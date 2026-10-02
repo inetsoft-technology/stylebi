@@ -184,7 +184,8 @@ public abstract class MonitorLevelService {
    }
 
    protected List<IdentityID> getOrgUsers() {
-      return getOrgUsers0(OrganizationManager.getInstance().getCurrentOrgID());
+      return getOrgUsers0(OrganizationManager.getInstance()
+                             .getCurrentOrgID(ThreadContext.getContextPrincipal()));
    }
 
    private List<IdentityID> getOrgUsers0(String orgID) {

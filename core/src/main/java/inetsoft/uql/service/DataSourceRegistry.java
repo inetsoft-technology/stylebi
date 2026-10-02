@@ -18,6 +18,7 @@
 package inetsoft.uql.service;
 
 import inetsoft.report.PropertyChangeEvent;
+import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.internal.cluster.*;
 import inetsoft.sree.security.*;
@@ -28,6 +29,7 @@ import inetsoft.uql.asset.internal.AssetFolder;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.erm.*;
 import inetsoft.uql.jdbc.JDBCDataSource;
+import inetsoft.uql.jdbc.util.JDBCUtil;
 import inetsoft.uql.util.*;
 import inetsoft.uql.xmla.Domain;
 import inetsoft.util.*;
@@ -611,11 +613,14 @@ public class DataSourceRegistry implements MessageListener {
             "Permission denied to delete datasource"));
       }
       try {
+         // read before the additional connections are removed with the data source
+         String[] additionalNames = getAdditionalConnectionNames(dxname);
          removeObject(new AssetEntry(AssetRepository.QUERY_SCOPE,
                                      AssetEntry.Type.DATA_SOURCE, dxname, null));
          removeObjects(getEntries(dxname + "/"));
          removeObject(new AssetEntry(AssetRepository.QUERY_SCOPE,
             AssetEntry.Type.DATA_MODEL, dxname, null));
+         removeConnectionTestQueries(dxname, additionalNames);
       }
       catch(Exception e) {
          LOG.error(
@@ -691,6 +696,9 @@ public class DataSourceRegistry implements MessageListener {
             getEntries(name + "/", AssetEntry.Type.DATA_SOURCE);
          AssetEntry[] allFolderChildren =
             getEntries(name + "/", AssetEntry.Type.DATA_SOURCE_FOLDER);
+         // a data source before its additional connections, which removeDataSource reads to
+         // remove their connection test queries
+         Arrays.sort(allDSChildren, Comparator.comparing(AssetEntry::getPath));
 
          for(AssetEntry entry : allDSChildren) {
             removeDataSource(entry.getPath());
@@ -826,6 +834,70 @@ public class DataSourceRegistry implements MessageListener {
       renameObjects(oname + "/", nname + "/", false,
          ds instanceof AdditionalConnectionDataSource);
       updateQueryFolders(ds, oname);
+
+      if(ds instanceof JDBCDataSource) {
+         renameConnectionTestQuery(oname, nname);
+      }
+   }
+
+   /**
+    * Moves the connection test query of a renamed or moved JDBC data source, which is kept in
+    * SreeEnv under the data source full name.
+    */
+   private void renameConnectionTestQuery(String oname, String nname) {
+      try {
+         if(JDBCUtil.renameConnectionTestQuery(oname, nname)) {
+            SreeEnv.save();
+         }
+      }
+      catch(Exception e) {
+         LOG.warn("Failed to move the connection test query of data source {} to {}",
+                  oname, nname, e);
+      }
+   }
+
+   /**
+    * Gets the names of the additional connections of a data source.
+    */
+   private String[] getAdditionalConnectionNames(String dxname) {
+      String prefix = dxname + "/";
+
+      try {
+         return Arrays.stream(getEntries(prefix, AssetEntry.Type.DATA_SOURCE))
+            .map(entry -> entry.getPath().substring(prefix.length()))
+            .filter(name -> !name.contains("/"))
+            .toArray(String[]::new);
+      }
+      catch(Exception e) {
+         LOG.warn("Failed to get the additional connections of data source {}", dxname, e);
+         return new String[0];
+      }
+   }
+
+   /**
+    * Removes the connection test queries of a removed data source and of its additional
+    * connections. The test query of an additional connection is kept under its name alone, so
+    * it is not removed if a data source of that full name exists.
+    */
+   private void removeConnectionTestQueries(String dxname, String[] additionalNames) {
+      try {
+         boolean changed = JDBCUtil.removeConnectionTestQueryIfSet(dxname);
+
+         for(String name : additionalNames) {
+            if(!containObject(new AssetEntry(AssetRepository.QUERY_SCOPE,
+                                             AssetEntry.Type.DATA_SOURCE, name, null)))
+            {
+               changed = JDBCUtil.removeConnectionTestQueryIfSet(name) || changed;
+            }
+         }
+
+         if(changed) {
+            SreeEnv.save();
+         }
+      }
+      catch(Exception e) {
+         LOG.warn("Failed to remove the connection test query of data source {}", dxname, e);
+      }
    }
 
    /**
@@ -2010,6 +2082,6 @@ public class DataSourceRegistry implements MessageListener {
 
    private static final IndexedStorage.Filter datasourceFilter =
       DataSourceRegistry::matchesDataSourceFilter;
-   public static ThreadLocal<Boolean> IGNORE_GLOBAL_SHARE = ThreadLocal.withInitial(() -> false);
+   public static final ThreadLocal<Boolean> IGNORE_GLOBAL_SHARE = ThreadLocal.withInitial(() -> false);
 
 }

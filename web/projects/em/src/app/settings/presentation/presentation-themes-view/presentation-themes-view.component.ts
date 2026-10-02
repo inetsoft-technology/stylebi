@@ -16,14 +16,15 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { BreakpointObserver } from "@angular/cdk/layout";
-import { HttpClient } from "@angular/common/http";
-import { Component, OnInit } from "@angular/core";
+import { HttpClient, HttpErrorResponse } from "@angular/common/http";
+import { Component, OnInit, ViewChild } from "@angular/core";
 import { MatDialog } from "@angular/material/dialog";
 import { forkJoin, Observable, of } from "rxjs";
 import { map } from "rxjs/operators";
 import { CommonKVModel } from "../../../../../../portal/src/app/common/data/common-kv-model";
 import { DownloadService } from "../../../../../../shared/download/download.service";
 import { Tool } from "../../../../../../shared/util/tool";
+import { ErrorHandlerService } from "../../../common/util/error/error-handler.service";
 import { MessageDialog, MessageDialogType } from "../../../common/util/message-dialog";
 import { ContextHelp } from "../../../context-help";
 import { PageHeaderService } from "../../../page-header/page-header.service";
@@ -61,6 +62,7 @@ interface CustomThemeList {
     imports: [MatDrawerContainer, MatDrawer, ThemeListViewComponent, MatDrawerContent, ThemeEditorViewComponent]
 })
 export class PresentationThemesViewComponent implements OnInit {
+   @ViewChild(ThemeEditorViewComponent) themeEditor: ThemeEditorViewComponent;
    themes: CustomThemeModel[] = [];
    selectedTheme: CustomThemeModel;
    unselectedThemeNames: string[] = [];
@@ -89,7 +91,8 @@ export class PresentationThemesViewComponent implements OnInit {
 
    constructor(private pageTitle: PageHeaderService, private breakpointObserver: BreakpointObserver,
                private http: HttpClient, private dialog: MatDialog,
-               private downloadService: DownloadService)
+               private downloadService: DownloadService,
+               private errorService: ErrorHandlerService)
    {
    }
 
@@ -192,11 +195,14 @@ export class PresentationThemesViewComponent implements OnInit {
             ref.afterClosed().subscribe(result => {
                if(!!result) {
                   result.global = this.isSiteAdmin && this.orgId == "host-org";
-                  this.http.post<CustomThemeModel>("../api/em/settings/presentation/themes", result).subscribe(model => {
-                     const newThemes = this.themes.slice();
-                     newThemes.push(model);
-                     this.setThemes(newThemes);
-                     this.setSelection(model)
+                  this.http.post<CustomThemeModel>("../api/em/settings/presentation/themes", result).subscribe({
+                     next: model => {
+                        const newThemes = this.themes.slice();
+                        newThemes.push(model);
+                        this.setThemes(newThemes);
+                        this.setSelection(model)
+                     },
+                     error: (error: HttpErrorResponse) => this.showSaveError(error)
                   });
                }
             });
@@ -207,46 +213,77 @@ export class PresentationThemesViewComponent implements OnInit {
    saveTheme(current: CustomThemeModel): void {
       if(!!current) {
          const uri = `../api/em/settings/presentation/themes/${Tool.byteEncode(current.id)}`;
-         this.http.put<CustomThemeModel>(uri, current).subscribe(model => {
-            const newThemes = this.themes.slice();
-            const index = newThemes.findIndex(t => t.id === current.id);
+         this.http.put<CustomThemeModel>(uri, this.getSavePayload(current)).subscribe({
+            next: model => {
+               const newThemes = this.themes.slice();
+               const index = newThemes.findIndex(t => t.id === current.id);
 
-            if(index < 0) {
-               this.clearSelection();
-            }
-            else {
-               // renaming a theme may change its id on the server (the id follows the
-               // name when they were initialized equal), so adopt the effective id from
-               // the response or subsequent delete/download/save would target a stale id
-               if(!!model?.id) {
-                  current.id = model.id;
+               if(index < 0) {
+                  this.clearSelection();
                }
+               else {
+                  // renaming a theme may change its id on the server (the id follows the
+                  // name when they were initialized equal), so adopt the effective id from
+                  // the response or subsequent delete/download/save would target a stale id
+                  if(!!model?.id) {
+                     current.id = model.id;
+                  }
 
-               newThemes[index] = Tool.clone(current);
+                  newThemes[index] = Tool.clone(current);
 
-               // if current theme is the new default theme then reset the defaultTheme property of
-               // other themes
-               if(current.defaultThemeGlobal) {
-                  for(let i = 0; i < newThemes.length; i++) {
-                     if(i != index) {
-                        newThemes[i].defaultThemeGlobal = false;
+                  // if current theme is the new default theme then reset the defaultTheme property of
+                  // other themes
+                  if(current.defaultThemeGlobal) {
+                     for(let i = 0; i < newThemes.length; i++) {
+                        if(i != index) {
+                           newThemes[i].defaultThemeGlobal = false;
+                        }
                      }
                   }
-               }
 
-               if(current.defaultThemeOrg) {
-                  for(let i = 0; i < newThemes.length; i++) {
-                     if(i != index) {
-                        newThemes[i].defaultThemeOrg = false;
+                  if(current.defaultThemeOrg) {
+                     for(let i = 0; i < newThemes.length; i++) {
+                        if(i != index) {
+                           newThemes[i].defaultThemeOrg = false;
+                        }
                      }
                   }
-               }
 
-               this.setThemes(newThemes);
-               this.setSelection(current);
+                  this.setThemes(newThemes);
+                  this.setSelection(current);
+               }
+            },
+            // the edits are kept in the form, so they can be corrected and applied again
+            error: (error: HttpErrorResponse) => {
+               this.showSaveError(error);
+               this.themeEditor?.saveFailed();
             }
          });
       }
+   }
+
+   /**
+    * Gets the theme to send to the server when it is saved. "Default for All Organizations" is
+    * only shown in single-tenant mode and to a site admin in the host organization, but the theme
+    * still carries the flag that the server reported. Elsewhere that value is not the user's
+    * choice and must not be sent back: if the theme is the global default and is private to the
+    * current organization (left by an older version), the server rejects every save of it. A null
+    * flag leaves the global default unchanged on the server.
+    */
+   private getSavePayload(current: CustomThemeModel): CustomThemeModel {
+      if(!this.isMultiTenant || this.isSiteAdmin && this.orgId == "host-org") {
+         return current;
+      }
+
+      return { ...current, defaultThemeGlobal: null };
+   }
+
+   private showSaveError(error: HttpErrorResponse): void {
+      // a rejection (ResponseStatusException) arrives as a ProblemDetail with the reason in
+      // "detail", other server errors carry "message", and some have no body at all
+      const body = error?.error;
+      const message = body?.detail || body?.message || "_#(js:em.presentation.theme.saveFailed)";
+      this.errorService.showErrorDialog(message);
    }
 
    resetTheme(): void {

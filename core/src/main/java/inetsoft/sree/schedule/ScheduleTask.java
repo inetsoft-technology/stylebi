@@ -1050,6 +1050,24 @@ public class ScheduleTask implements Serializable, Cloneable, XMLSerializable {
    }
 
    /**
+    * Bug #77359, moves the owner of a legacy task, which parseXML made the system user of the
+    * host organization because the xml has no owner organization, to the system user of the
+    * organization the task is stored in. Otherwise the task has the same id, and so the same
+    * scheduler job, as the same legacy task of any other organization.
+    *
+    * @param orgID the id of the organization the task is stored in.
+    */
+   void setLegacyOwnerOrganization(String orgID) {
+      if(legacyOwner && orgID != null && type != Type.INTERNAL_TASK &&
+         !Tool.equals(orgID, owner.orgID))
+      {
+         setOwner(new IdentityID(XPrincipal.SYSTEM, orgID));
+      }
+
+      legacyOwner = false;
+   }
+
+   /**
     * Get the task Id.
     */
    public String getTaskId() {
@@ -1432,7 +1450,8 @@ public class ScheduleTask implements Serializable, Cloneable, XMLSerializable {
          name = nameUser.convertToKey() + name.substring(name.indexOf(":"));
       }
 
-      owner = IdentityID.getIdentityIDFromKey(elem.getAttribute("owner"));
+      String ownerKey = elem.getAttribute("owner");
+      owner = IdentityID.getIdentityIDFromKey(ownerKey);
 
       if(isSiteAdminImport) {
          owner.setOrgID(OrganizationManager.getInstance().getCurrentOrgID());
@@ -1440,9 +1459,23 @@ public class ScheduleTask implements Serializable, Cloneable, XMLSerializable {
 
       path = elem.getAttribute("path");
       path = Tool.isEmptyString(path) ? "/" : path;
-      // backward compatibility, null is administrator
-      owner = Tool.equals("null", owner.name) ?
-         new IdentityID(XPrincipal.SYSTEM, Organization.getDefaultOrganizationID()) : owner;
+      legacyOwner = false;
+
+      // backward compatibility, null (or no owner) is administrator
+      if(Tool.equals("null", owner.name) || Tool.isEmptyString(ownerKey)) {
+         // Bug #77359, the system user of the organization the task belongs to, the task id
+         // embeds the owner and it's the scheduler (quartz) key of the task in every
+         // organization. The organization is the one in the owner key (e.g. null~;~orgb of an
+         // organization copy) or the one a site admin import moved it to. Otherwise it isn't
+         // known here, the current organization is the host organization when the tasks are
+         // loaded, and ScheduleTaskMap moves it to the organization it's stored in.
+         boolean orgKnown = isSiteAdminImport ||
+            ownerKey.contains(IdentityID.KEY_DELIMITER) && !Tool.isEmptyString(owner.orgID);
+         owner = new IdentityID(XPrincipal.SYSTEM,
+                                orgKnown ? owner.orgID : Organization.getDefaultOrganizationID());
+         legacyOwner = !orgKnown;
+      }
+
       enabled = "true".equals(elem.getAttribute("enabled"));
       // removable and editable will be missing if the xml is from a previous version.
       final String removableStr = Tool.getAttribute(elem, "removable");
@@ -1819,6 +1852,8 @@ public class ScheduleTask implements Serializable, Cloneable, XMLSerializable {
    private CycleInfo cycleInfo;
    private ScheduleTask runtimeTask;
    private Type type = Type.NORMAL_TASK;
+   // the owner is the system user of a legacy task whose organization isn't in the xml
+   private transient boolean legacyOwner;
    private transient String id;
 
    private static final Logger LOG = LoggerFactory.getLogger(ScheduleTask.class);

@@ -33,6 +33,7 @@ import inetsoft.web.binding.drm.*;
 import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
 import inetsoft.web.binding.handler.VSColumnHandler;
 import inetsoft.web.binding.service.DataRefModelFactoryService;
+import inetsoft.web.portal.controller.database.QueryManagerService;
 import org.springframework.stereotype.Service;
 
 import java.security.Principal;
@@ -43,8 +44,11 @@ import java.util.*;
 public class VSFormulaService {
 
    public VSFormulaService(ViewsheetService viewsheetService, VSAssemblyInfoHandler assemblyInfoHandler,
-                           VSColumnHandler columnHandler, DataRefModelFactoryService refModelFactoryService) {
+                           VSColumnHandler columnHandler, DataRefModelFactoryService refModelFactoryService,
+                           QueryManagerService queryManagerService)
+   {
       this.viewsheetService = viewsheetService;
+      this.queryManagerService = queryManagerService;
       this.assemblyInfoHandler = assemblyInfoHandler;
       this.columnHandler = columnHandler;
       this.refModelFactoryService = refModelFactoryService;
@@ -57,6 +61,11 @@ public class VSFormulaService {
       ViewsheetService engine = viewsheetService;
       RuntimeViewsheet rvs = engine.getViewsheet(vsId, principal);
       Viewsheet viewsheet = rvs.getViewsheet();
+      // a cube table is resolved from its data source without a permission check, so a cube
+      // that no assembly of the viewsheet is bound to is checked before its columns are
+      // listed (Bug #77462)
+      queryManagerService.checkNewCubeTablesReadPermission(
+         Collections.singletonList(tableName), VSUtil.getBoundTables(viewsheet), principal);
       Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
 
       if(box.isEmpty()) {
@@ -293,4 +302,5 @@ public class VSFormulaService {
    private VSAssemblyInfoHandler assemblyInfoHandler;
    private VSColumnHandler columnHandler;
    private DataRefModelFactoryService refModelFactoryService;
+   private final QueryManagerService queryManagerService;
 }

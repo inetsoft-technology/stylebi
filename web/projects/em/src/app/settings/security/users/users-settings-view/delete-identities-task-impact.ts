@@ -18,4 +18,5 @@
 export interface DeleteIdentitiesTaskImpact {
    ownedTasks: string[];
    executeAsTasks: string[];
+   refusedTasks: string[];
 }

@@ -136,7 +136,9 @@ public class ExtendedDecimalFormat extends DecimalFormat {
          }
       }
 
-      super.applyPattern(pattern);
+      // an empty pattern (e.g. the pattern was only a K/M/B suffix) leaves DecimalFormat with
+      // unlimited integer/fraction digits, and toPattern() would then exhaust the heap
+      super.applyPattern(DecimalPatternUtil.normalizeEmptyPattern(pattern));
    }
 
    /**

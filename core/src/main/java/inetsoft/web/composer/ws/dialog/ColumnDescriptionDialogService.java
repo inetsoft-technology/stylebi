@@ -53,6 +53,7 @@ public class ColumnDescriptionDialogService extends WorksheetControllerService {
       RuntimeWorksheet rws = super.getRuntimeWorksheet(runtimeId, principal);
       Worksheet ws = rws.getWorksheet();
       String name = event.tableName();
+      checkCubeTableReadPermission(principal, name);
       TableAssembly table = (TableAssembly) ws.getAssembly(name);
       String desc = event.description();
 

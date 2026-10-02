@@ -190,4 +190,15 @@ public interface ScriptEnv {
    default ScriptSpan openSpan() {
       return ScriptSpan.NONE;
    }
+
+   /**
+    * Open a span of script work on this thread that takes a context of its own, even inside
+    * another span of this thread or a query build, for one batch of a resident formula table,
+    * whose vars hold arrays or objects on a home (Testing #77123, cond-home): its context is
+    * given back when it closes. Environments without pooled contexts return {@link
+    * #openSpan()}.
+    */
+   default ScriptSpan openOwnSpan() {
+      return openSpan();
+   }
 }

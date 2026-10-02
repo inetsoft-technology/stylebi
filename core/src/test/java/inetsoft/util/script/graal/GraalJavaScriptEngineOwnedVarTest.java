@@ -53,6 +53,176 @@ class GraalJavaScriptEngineOwnedVarTest {
       assertEquals(Set.of(), owned("o.var = 1; /var z/.test(s)"));
    }
 
+   /**
+    * Bug #77305: a regex literal placed directly after an if/while/for/with head's closing
+    * `)` was misread as division, so the tokenizer walked into the regex's own pattern text as
+    * if it were real code and picked up a spurious `var` name from inside it.
+    */
+   @Test
+   void controlHeadAdjacentRegexIsNotOwned() {
+      assertEquals(Set.of(), owned("if(true) /var z=1/.test('z')"));
+      assertEquals(Set.of(), owned("while(false) /var z=1/.test('z')"));
+      assertEquals(Set.of(), owned("for(;;) /var z=1/.test('z')"));
+      assertEquals(Set.of(), owned("with(o) /var z=1/.test('z')"));
+   }
+
+   /**
+    * Bug #77305: a control head's own condition can contain nested parens (not just braces in
+    * the body) -- the bracket/control-head-tracking stack must track the true nesting depth so
+    * that `afterHead` fires only after the head's real, outer closing `)`, not after an inner
+    * one. Deliberately has no real `var`/`let`/`const` declaration of `z` anywhere so that, if
+    * the depth tracking mis-fired (either too early, swallowing part of the head as if it were
+    * the regex, or never at all, misreading the regex as division), the only way `z` could show
+    * up in `owned` is by leaking out of the regex literal's own pattern text.
+    */
+   @Test
+   void controlHeadWithNestedParensInConditionIsNotOwned() {
+      assertEquals(Set.of(), owned("for(i=(1+1); i<3; i++) /var z=1/.test('z')"));
+   }
+
+   /**
+    * Bug #77305, cross-column false negative (the centerpiece shape): a control-head-adjacent
+    * regex in one column also contains a stray unterminated-string-starting quote that swallows
+    * the rest of that formula's text, including a real `let`/`const` of a name a different
+    * column's clean accumulator needs to not-own. Before the fix, the swallow hid the `let`, so
+    * the accumulator's name stayed wrongly in the shared `owned` set.
+    */
+   @Test
+   void crossColumnLetSwallowNoLongerHidesLexicalDeclaration() {
+      String accIf = "var k = (k||0) + field['x']; k";
+      String poisonedIf = "if(true) /'/.test(s); let k = 5;";
+      assertEquals(Set.of(), GraalJavaScriptEngine.collectOwnedVarNames(
+         List.of(accIf, poisonedIf)));
+
+      // different control-head keyword and variable name
+      String accWhile = "var p = (p||0) + field['y']; p";
+      String poisonedWhile = "while(false) /'/.test(s); let p = 9;";
+      assertEquals(Set.of(), GraalJavaScriptEngine.collectOwnedVarNames(
+         List.of(accWhile, poisonedWhile)));
+   }
+
+   /**
+    * Bug #77305, cross-column false positive (the third, recheck-round shape): a column with no
+    * `var` of its own relies entirely on a sibling column's real `var` declaration, and that
+    * sibling's declaration is swallowed by a control-head-adjacent poisoned regex. Before the
+    * fix, the swallow hid the `var`, so {@code collectOwnedVarNames} never learned the name was
+    * declared anywhere in the table.
+    */
+   @Test
+   void crossColumnVarSwallowNoLongerHidesOwnership() {
+      String reliesOnOtherColumn = "v = (v || 0) + field['x']; v";
+      String poisonedVarDecl = "if(true) /\"/.test(x); var v = 1;";
+      assertEquals(Set.of("v"), GraalJavaScriptEngine.collectOwnedVarNames(
+         List.of(reliesOnOtherColumn, poisonedVarDecl)));
+
+      // different control-head keyword, swallow character and variable name
+      String reliesOnOtherColumn2 = "z2 = (z2 || 0) + field['y']; z2";
+      String poisonedVarDecl2 = "while(false) /'/.test(x); var z2 = 1;";
+      assertEquals(Set.of("z2"), GraalJavaScriptEngine.collectOwnedVarNames(
+         List.of(reliesOnOtherColumn2, poisonedVarDecl2)));
+   }
+
+   // Bug #77249: after a call that ends a line without `;`, a brace opens a block statement
+   // (ASI), not a function body, so its var is still owned (as on main)
+   @Test
+   void aBlockAfterACallIsNotAFunctionBody() {
+      assertEquals(Set.of("asi1"), owned("foo(1)\n{ var asi1 = 1 }"));
+      assertEquals(Set.of("asi2"), owned("if (a) foo(b)\n{ var asi2 }"));
+      assertEquals(Set.of("asi3"), owned("new Foo(a)\n{ var asi3 }"));
+      assertEquals(Set.of("asi4"), owned("let lq = f(a)\n{ var asi4 }"));
+      assertEquals(Set.of("asi5"), owned("if(x) { foo(1)\n{ var asi5 } }"));
+      assertEquals(Set.of("asi6"), owned("x = { k: 1 }; foo(x)\n{ var asi6 }"));
+   }
+
+   // Bug #77249 (review r4): the owned vars are the ones of main's scanner. A var of a
+   // method shorthand, accessor or class method (no `function` keyword) is owned, which is
+   // harmless (it is local to its method anyway); the r1 attempt to exclude them (M1) kept
+   // losing vars outside any function body in other shapes, which is data corruption (#77123)
+   @Test
+   void varsOfMethodBodiesAreOwnedAsOnMain() {
+      assertEquals(Set.of("u1", "u2", "u3", "u4"), owned(
+         "let o = { m(a) { var u1 }, get g() { var u2 }, async n() { var u3 }, *q() { var u4 } }"));
+      assertEquals(Set.of("u5"), owned("foo({ m() { var u5 } })"));
+      assertEquals(Set.of("u6", "u7"),
+                   owned("let o2 = { a: { m() { var u6 } }, b: [{ n() { var u7 } }] }"));
+      assertEquals(Set.of("u8", "u9"),
+                   owned("let C = class { m(a) { var u8 } static s(a = {}) { var u9 } }"));
+      assertEquals(Set.of("v1", "v2"),
+                   owned("class D extends B { constructor() { var v1 } get x() { var v2 } }"));
+      assertEquals(Set.of("v3"), owned("function d(a = { k: 1 }) { var v3 }"));
+      assertEquals(Set.of("v4"), owned("let f = function(a = {}, { b } = {}) { var v4 }"));
+      assertEquals(Set.of(), owned("let g = (a = { k: 1 }) => { var v5 }"));
+      assertEquals(Set.of("v7"), owned("function e(a = function() { var v6 }) { var v7 }"));
+      assertEquals(Set.of("v8", "w"), owned("function h(a = {}) { var v8 } var w"));
+   }
+
+   // keyword object keys own as on main (a `function` key still takes the next brace for a
+   // function body on main, so k2/k3 are not owned there either)
+   @Test
+   void keywordKeysOwnAsOnMain() {
+      assertEquals(Set.of("k1"), owned("oc = {class: 'c'}; if(v) { var k1 = v }"));
+      assertEquals(Set.of(), owned("foo({function: 1}); if(v) { var k2 = v }"));
+      assertEquals(Set.of(), owned("oc = {class : {a: 1}, function\n: 2}\n{ var k3 }"));
+      assertEquals(Set.of("k4"), owned(
+         "o = {get: 1, set: 2, static: 3, async: 4, if: 5, var: 6}; if(v) { var k4 }"));
+      assertEquals(Set.of("k5"), owned("o = {'class': 1, \"function\": 2}; if(v) { var k5 }"));
+      assertEquals(Set.of("k6"), owned("o = {['class']: 1, [k]: 2}; if(v) { var k6 }"));
+      assertEquals(Set.of("k7"), owned("x = a.class; y = b.function; if(v) { var k7 }"));
+      assertEquals(Set.of("k9"), owned("let {class: c} = o; if(x) { var k9 }"));
+      assertEquals(Set.of("k10"), owned("if(x) { let o = { class: 1 } } if(y) { var k10 }"));
+      assertEquals(Set.of("t40"), owned("i++\n{ foo(1)\n{ var t40 } }"));
+      assertEquals(Set.of("k8", "u1", "u3"), owned(
+         "o = { class() { var u1 }, function() { var u2 }, get static() { var u3 } }; " +
+         "if(v) { var k8 }"));
+   }
+
+   // Bug #77249 (verify r3 C/D): a class field named `class`, a `static function =` field,
+   // or `yield`/`await`/`of` as an identifier ending a line does not un-own the var of the
+   // next block (r3 lost all of them)
+   @Test
+   void classFieldsAndContextualKeywordsKeepTheNextBlockOwned() {
+      assertEquals(Set.of("c4"), owned("class K { class = 1 }\nif(x) { var c4 }"));
+      assertEquals(Set.of("c5"), owned("class K { static class = 1 }\nif(x) { var c5 }"));
+      assertEquals(Set.of("c7"),
+                   owned("class K { static function = function() { var u } }\nif(x) { var c7 }"));
+      assertEquals(Set.of("t41"), owned("x = yield\n{ foo(1)\n{ var t41 } }"));
+      assertEquals(Set.of("t42"), owned("x = await\n{ foo(1)\n{ var t42 } }"));
+      assertEquals(Set.of("t43"), owned("x = of\n{ foo(1)\n{ var t43 } }"));
+   }
+
+   // Bug #77249 (review r4): differential against main. owned-vars-main.txt holds the owned
+   // sets an independent build of main computed for the scanner shapes of the verify rounds;
+   // this branch must own exactly the same names for every one of them
+   @Test
+   void ownedVarsMatchMainOnTheScannerCorpus() throws Exception {
+      List<String> mismatches = new ArrayList<>();
+      int count = 0;
+
+      try(java.io.InputStream in = getClass().getResourceAsStream("owned-vars-main.txt")) {
+         assertNotNull(in, "owned-vars-main.txt");
+         String text = new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+
+         // (a checkout with core.autocrlf may give the file CRLF line ends)
+         for(String line : text.split("\r?\n")) {
+            if(line.isBlank() || line.startsWith("#")) {
+               continue;
+            }
+
+            String[] cols = line.split("\t", 3);
+            String script = cols[2].replace("\\n", "\n");
+            String actual = new TreeSet<>(owned(script)).toString();
+            count++;
+
+            if(!actual.equals(cols[0])) {
+               mismatches.add(cols[2] + " -> main " + cols[0] + ", here " + actual);
+            }
+         }
+      }
+
+      assertTrue(count >= 100, "corpus size " + count);
+      assertEquals(List.of(), mismatches);
+   }
+
    @Test
    void aNameDeclaredWithLetOrConstInAnyFormulaIsNotOwned() {
       assertEquals(Set.of(), GraalJavaScriptEngine.collectOwnedVarNames(

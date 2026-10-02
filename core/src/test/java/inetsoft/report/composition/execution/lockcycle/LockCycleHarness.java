@@ -79,7 +79,19 @@ public final class LockCycleHarness implements AutoCloseable {
     */
    public static final boolean POOL = Boolean.getBoolean("lockcycle.pool");
 
+   /**
+    * A harness whose sandboxes run pooled as {@link #POOL} says.
+    */
    public LockCycleHarness() {
+      this(POOL);
+   }
+
+   /**
+    * A harness whose sandboxes run on pooled worksheet script contexts if {@code pooled},
+    * whatever {@code -Dlockcycle.pool} says, so a pool-on case also runs in the default build.
+    */
+   public LockCycleHarness(boolean pooled) {
+      this.pooled = pooled;
       HARNESS_THREAD.set(true);
 
       // threads of earlier cases (e.g. left deadlocked by a known case) are not dumped
@@ -114,7 +126,7 @@ public final class LockCycleHarness implements AutoCloseable {
    }
 
    private Sandbox sandbox(boolean locking) {
-      Sandbox sandbox = new Sandbox(locking);
+      Sandbox sandbox = new Sandbox(locking, pooled);
       sandboxes.add(sandbox);
       return sandbox;
    }
@@ -468,14 +480,15 @@ public final class LockCycleHarness implements AutoCloseable {
     * A sandbox: a real GraalJS env, its engine and execution lock, and a mocked
     * {@code AssetQuerySandbox} whose condition filters take that lock.
     *
-    * <p>With {@link #POOL} on, the env is a {@code WorksheetScriptEnv}, and {@code engine} and
+    * <p>With a pooled harness ({@link #POOL} by default), the env is a
+    * {@code WorksheetScriptEnv}, and {@code engine} and
     * {@code lock} are only its primary slot's engine and that engine's lock; other threads
     * run on other pooled contexts with their own locks. So a case's {@code lock.isLocked()}
     * assertions and the deadlock dump cover only the primary slot.
     */
    public static final class Sandbox {
-      Sandbox(boolean locking) {
-         if(POOL) {
+      Sandbox(boolean locking, boolean onPool) {
+         if(onPool) {
             WorksheetScriptEnv pooled = new WorksheetScriptEnv(PoolConfig.defaults());
             pooled.init();
             this.env = pooled;
@@ -714,6 +727,8 @@ public final class LockCycleHarness implements AutoCloseable {
       new java.util.concurrent.atomic.AtomicInteger();
 
    private final ExecutorService pool;
+   // whether this harness's sandboxes run on pooled contexts
+   private final boolean pooled;
    private final Set<Long> preexisting = new HashSet<>();
    private final List<Sandbox> sandboxes = new CopyOnWriteArrayList<>();
    private final List<TableLens> tracked = new CopyOnWriteArrayList<>();

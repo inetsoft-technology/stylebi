@@ -47,6 +47,7 @@ import inetsoft.util.audit.ExecutionBreakDownRecord;
 import inetsoft.util.log.LogLevel;
 import inetsoft.util.profile.ProfileUtils;
 import inetsoft.util.script.*;
+import inetsoft.util.script.graal.pool.SlotClaim;
 import org.apache.commons.lang3.ArrayUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -653,8 +654,23 @@ public abstract class AssetQuery extends PreAssetQuery {
     * @return the table of the query.
     */
    public TableLens getTableLens(VariableTable vars) throws Exception {
-      return GroupedThread.runWithRecordContext(this::getLogRecord,
-                                                () -> this.doGetTableLens(vars));
+      try(SlotClaim.Build ignored = openScriptBuild()) {
+         return GroupedThread.runWithRecordContext(this::getLogRecord,
+                                                   () -> this.doGetTableLens(vars));
+      }
+   }
+
+   /**
+    * Pool mode: all the scripts of this query build (its formula columns, condition values,
+    * compiles; nested sub-queries join it) share one lazily claimed context and one clean at
+    * its end, instead of one claim and clean per script or batch (G10 piece Q). An override
+    * of {@link #getTableLens} that does not call it opens its own (DataQuery), or runs its
+    * scripts on a claim each, as without a build (MVAssetQuery, perf only).
+    *
+    * @return the build to close in a try-with-resources, or {@code null} off the pool.
+    */
+   protected final SlotClaim.Build openScriptBuild() {
+      return box != null && box.isScriptPoolMode() ? SlotClaim.openBuild() : null;
    }
 
    private TableLens doGetTableLens(VariableTable vars) throws Exception {
@@ -4068,10 +4084,13 @@ public abstract class AssetQuery extends PreAssetQuery {
                         }
 
                         AssetQueryScope scope = null;
+                        // a condition expression is written by end users, run it restricted (bug #77396)
+                        boolean restricted = FormulaContext.isRestricted();
 
                         try {
                            ViewsheetSandbox vbox = box.getViewsheetSandbox();
                            Viewsheet vs = vbox == null ? null : vbox.getViewsheet();
+                           FormulaContext.setRestricted(true);
                            val = varName != null && vval == null ? attr :
                               senv.exec(ScriptStateLint.checkCondition(senv.compile(exp), exp,
                                  scope = postConditionScope(box), "post-aggregate condition"),
@@ -4100,6 +4119,9 @@ public abstract class AssetQuery extends PreAssetQuery {
                            }
 
                            throw new ScriptException(scriptMsg);
+                        }
+                        finally {
+                           FormulaContext.setRestricted(restricted);
                         }
 
                         if(val instanceof Object[]) {
@@ -4655,6 +4677,6 @@ public abstract class AssetQuery extends PreAssetQuery {
 
    static final String DESIGN_TABLE = AssetQuery.class.getName() + ".designTable";
    public static final String BROWSE_MAXROWS = "browse_maxrows";
-   public static ThreadLocal<Boolean> THROW_EXECUTE_EXCEPTION = ThreadLocal.withInitial(() -> Boolean.FALSE);
+   public static final ThreadLocal<Boolean> THROW_EXECUTE_EXCEPTION = ThreadLocal.withInitial(() -> Boolean.FALSE);
    private static final Logger LOG = LoggerFactory.getLogger(AssetQuery.class);
 }

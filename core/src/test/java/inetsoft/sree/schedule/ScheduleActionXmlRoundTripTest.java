@@ -196,6 +196,25 @@ class ScheduleActionXmlRoundTripTest {
       assertEquals("Q2",    loadedEmbedded.get(1).get("quarter"));
    }
 
+   @Test
+   void batchAction_embeddedArrayParameterWithDelimitersRoundTrip() throws Exception {
+      BatchAction original = new BatchAction();
+      original.setTaskId("scheduler-test^host:embedded-array-task");
+
+      Map<String, Object> row = new LinkedHashMap<>();
+      row.put("codes", new Object[] { "a^b", "c" });
+      row.put("pairs", new Object[] { "x~y" });
+      row.put("plain", new Object[] { "North", "South" });
+      original.setEmbeddedParameters(List.of(row));
+
+      BatchAction loaded = roundTripAction(original, BatchAction.class);
+
+      Map<String, Object> loadedRow = loaded.getEmbeddedParameters().get(0);
+      assertArrayEquals(new Object[] { "a^b", "c" }, (Object[]) loadedRow.get("codes"));
+      assertArrayEquals(new Object[] { "x~y" }, (Object[]) loadedRow.get("pairs"));
+      assertArrayEquals(new Object[] { "North", "South" }, (Object[]) loadedRow.get("plain"));
+   }
+
    // -----------------------------------------------------------------------
    // ScheduleTask container round-trip
    // -----------------------------------------------------------------------

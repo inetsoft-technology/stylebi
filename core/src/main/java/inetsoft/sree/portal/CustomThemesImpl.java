@@ -35,6 +35,17 @@ public class CustomThemesImpl implements XMLSerializable, AutoCloseable {
       return new HashSet<>();
    }
 
+   /**
+    * Gets the current custom themes for a change of the whole set, see
+    * {@link CustomThemesManager#updateCustomThemes(CustomThemesManager.ThemesUpdate)}. Unlike
+    * {@link #getCustomThemes()}, an implementation must not return an empty or partial set when
+    * the themes cannot be read reliably, because the set is written back as a full replace of
+    * the store; it throws instead.
+    */
+   public Set<CustomTheme> getCustomThemesForUpdate() {
+      return getCustomThemes();
+   }
+
    public void setCustomThemes(Set<CustomTheme> customThemes) {
    }
 

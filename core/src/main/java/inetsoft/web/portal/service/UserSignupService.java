@@ -37,6 +37,8 @@ import javax.naming.NamingException;
 
 import jakarta.mail.MessagingException;
 import org.apache.commons.lang3.ArrayUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -206,12 +208,27 @@ public class UserSignupService {
             fSUser.setEmails((String[]) ArrayUtils.add(emails, userEmail));
             EditableAuthenticationProvider editableAuthenticationProvider =
                (EditableAuthenticationProvider) userProvider;
-            editableAuthenticationProvider.setUser(existUser.getIdentityID(), fSUser);
+
+            // the email is only added for convenience, a failed save must not fail the SSO login
+            try {
+               editableAuthenticationProvider.setUser(existUser.getIdentityID(), fSUser);
+            }
+            catch(RuntimeException e) {
+               LOG.warn("Failed to add the SSO email to user {}", existUser.getIdentityID(), e);
+            }
          }
       }
       else {
-         createUser(new IdentityID(userEmail, autoRegisterOrg), null, userEmail,
-            true, googleUserId, principal);
+         // the postprocessor runs after the SSO session was created, a failed save must not fail
+         // the login. The user isn't found on the next login, so the registration is retried then
+         try {
+            createUser(new IdentityID(userEmail, autoRegisterOrg), null, userEmail,
+                       true, googleUserId, principal);
+         }
+         catch(RuntimeException e) {
+            LOG.warn("Failed to register the SSO user {} in organization {}",
+                     userEmail, autoRegisterOrg, e);
+         }
       }
    }
 
@@ -349,4 +366,5 @@ public class UserSignupService {
       Pattern.compile("^(?=.*[A-Z])(?=.*[a-z])(?=.*[0-9])(?=.*[^A-Za-z0-9]).+$");
    private static final String CHARACTERS =
       "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+   private static final Logger LOG = LoggerFactory.getLogger(UserSignupService.class);
 }

@@ -751,6 +751,7 @@ public class SQLHelper implements KeywordProvider {
     */
    public final String generateSentence() {
       vJoin = null;
+      textJoinOrder = null;
 
       // make sure the table aliases don't exceed database limit
       fixTableAliases();
@@ -1108,7 +1109,7 @@ public class SQLHelper implements KeywordProvider {
       else if(op.equals("<")) {
          return " INNER JOIN ";
       }
-      else if(op.equals("<>")) {
+      else if(op.equals("<>") || op.equals("!=")) {
          return " INNER JOIN ";
       }
 
@@ -1144,7 +1145,7 @@ public class SQLHelper implements KeywordProvider {
          else if(op.equals("=")) {
             return "<>";
          }
-         else if(op.equals("<>")) {
+         else if(op.equals("<>") || op.equals("!=")) {
             return "=";
          }
       }
@@ -1395,7 +1396,14 @@ public class SQLHelper implements KeywordProvider {
 
          String ocolumn = xselect.getOriginalColumn(xIdx);
 
-         if(uniformSql.isTableColumn(column) && subalias == null && !expr) {
+         // a quoted identifier (e.g. "x y") parsed from the sql is stored without its
+         // quotes, restore them so the generated sql refers to the same column
+         if(!expr && table == null && subalias == null &&
+            ((JDBCSelection) xselect).isQuoted(xselect.getColumn(xIdx)))
+         {
+            column = getQuote() + column + getQuote();
+         }
+         else if(uniformSql.isTableColumn(column) && subalias == null && !expr) {
             // @by larryl, if this is a table column and the original column is
             // set, we should use the real column otherwise the flags to
             // quoteColumnAlias is not accurate
@@ -1427,6 +1435,12 @@ public class SQLHelper implements KeywordProvider {
          }
          else if(!XUtil.isQualifiedName(column)) {
             column = quoteExpressionCol(column);
+         }
+
+         if(!expr && table != null && subalias == null &&
+            ((JDBCSelection) xselect).isQuoted(xselect.getColumn(xIdx)))
+         {
+            column = quoteIdentifier(xselect.getColumn(xIdx), column);
          }
 
          // if table changed to a subquery, replace reference to table to alias
@@ -1586,6 +1600,11 @@ public class SQLHelper implements KeywordProvider {
    }
 
    private String quoteExpressionColumn0(String column, String exp) {
+      // an empty column matches at every index, so the search below would never end
+      if(column == null || column.isEmpty()) {
+         return exp;
+      }
+
       int idx = 0;
       int s;
 
@@ -2002,6 +2021,18 @@ public class SQLHelper implements KeywordProvider {
          }
       }
 
+      // joins parsed from SQL text keep the nesting of the text, e.g.
+      // a lj b on a.id = b.id join c on b.id = c.id lj d on a.id = d.id is
+      // ((a lj b) join c) lj d. Reordering them (below) can move an inner join
+      // to the null-supplying side of an outer join and change the result
+      if(!sorted && isTextJoinOrder()) {
+         String from = generateFromClauseText(count);
+
+         if(from != null) {
+            return from;
+         }
+      }
+
       List<XJoin> njoin = sorted ? vJoin : getLoyalJoins(vJoin);
 
       // @by billh, if we could keep the definition loyally without changing
@@ -2051,6 +2082,7 @@ public class SQLHelper implements KeywordProvider {
             int index2 = tables.get(table2[0]);
 
             if(index1 >= count || index2 >= count) {
+               LOG.warn("Join ignored, a table of the join is not in the FROM clause: {}", join);
                continue;
             }
 
@@ -2224,6 +2256,17 @@ public class SQLHelper implements KeywordProvider {
          }
       }
 
+      return finishFromClause(from, usedtables, count);
+   }
+
+   /**
+    * Add the tables that are not in any join to the from clause.
+    * @param from the joined tables.
+    * @param usedtables the tables in the joins.
+    * @param count the table count.
+    * @return the from clause.
+    */
+   private String finishFromClause(StringBuilder from, Set<Object> usedtables, int count) {
       if(from.length() > 0) {
          from.append(COMMA_GAP);
       }
@@ -2244,6 +2287,324 @@ public class SQLHelper implements KeywordProvider {
 
       return from.substring(0, isFormatSQL ? from.toString().length() - 9 :
          from.toString().length() - 2);
+   }
+
+   /**
+    * Check if the joins are generated in text order: some join was parsed from
+    * SQL text, the query has an outer join (inner joins can be reordered
+    * freely), and no outer join is written in the where clause (e.g.
+    * a.id *= b.id), whose meaning the text order can't keep.
+    */
+   private boolean isTextJoinOrder() {
+      if(textJoinOrder == null) {
+         textJoinOrder = isTextJoinOrder0();
+      }
+
+      return textJoinOrder;
+   }
+
+   private boolean isTextJoinOrder0() {
+      XJoin[] joins = uniformSql.getJoins();
+      boolean parsed = false;
+      boolean outer = false;
+
+      if(joins == null || !isTextJoinOrderSupported()) {
+         return false;
+      }
+
+      for(XJoin join : joins) {
+         if(join.isWhereClauseJoin() && join.isOuterJoin()) {
+            return false;
+         }
+
+         parsed = parsed || join.getJoinClause() != XJoin.UNKNOWN_CLAUSE;
+         outer = outer || join.isOuterJoin();
+      }
+
+      return parsed && outer;
+   }
+
+   /**
+    * Check if the database supports the text order from clause, which keeps
+    * where clause joins as where conditions (comma separated tables) and can
+    * join parenthesized groups of joined tables, e.g.
+    * (a join b) left join (c join d) on b.id = c.id.
+    */
+   protected boolean isTextJoinOrderSupported() {
+      return true;
+   }
+
+   /**
+    * Generate the ansi from clause with the joins in text order. Each ON
+    * clause is one join step, in text order, followed by the joins not parsed
+    * from an ON clause (e.g. added in the query editor), one table pair at a
+    * time. A step that adds one table joins it to the group of the tables it
+    * references; a step of two new tables starts a comma separated group; a
+    * step between two groups (a parenthesized join) joins the nested groups.
+    * @param count the table count.
+    * @return the from clause, or <tt>null</tt> if a step doesn't fit one of
+    * these forms.
+    */
+   private String generateFromClauseText(int count) {
+      Map<Integer, List<XJoin>> onClauses = new TreeMap<>();
+      Map<Set<Object>, List<XJoin>> pairs = new LinkedHashMap<>();
+      // the [table clause, select table] of each side of each join
+      Map<XJoin, Object[][]> joinTables = new IdentityHashMap<>();
+
+      for(int i = 0; vJoin != null && i < vJoin.size(); i++) {
+         XJoin join = vJoin.get(i);
+
+         // same as the join matrix, which ignores these joins
+         if(getAnsiJoin(join.getOp(), false) == null) {
+            continue;
+         }
+
+         Object[] table1 = getJoinedTable(join, true);
+         Object[] table2 = getJoinedTable(join, false);
+
+         if(table1[1] == null || table2[1] == null) {
+            return null;
+         }
+
+         joinTables.put(join, new Object[][] { table1, table2 });
+
+         if(join.isOnClauseJoin()) {
+            onClauses.computeIfAbsent(join.getJoinClause(), k -> new ArrayList<>()).add(join);
+         }
+         // a condition on one table that is not in an ON doesn't join anything
+         else if(table1[1].equals(table2[1])) {
+            return null;
+         }
+         else {
+            Set<Object> pair = new HashSet<>(Arrays.asList(table1[1], table2[1]));
+            pairs.computeIfAbsent(pair, k -> new ArrayList<>()).add(join);
+         }
+      }
+
+      List<List<XJoin>> steps = new ArrayList<>(onClauses.values());
+      steps.addAll(pairs.values());
+      List<TextJoinGroup> groups = new ArrayList<>();
+
+      for(List<XJoin> step : steps) {
+         if(!appendTextJoinStep(groups, step, joinTables)) {
+            return null;
+         }
+      }
+
+      StringBuilder from = new StringBuilder();
+      Set<Object> usedtables = new HashSet<>();
+
+      for(TextJoinGroup group : groups) {
+         if(from.length() > 0) {
+            from.append(COMMA_GAP);
+         }
+
+         from.append(group.text);
+         usedtables.addAll(group.tables);
+      }
+
+      return finishFromClause(from, usedtables, count);
+   }
+
+   /**
+    * Add one join step to the text order groups.
+    * @return <tt>false</tt> if the step doesn't fit a text order form.
+    */
+   private boolean appendTextJoinStep(List<TextJoinGroup> groups, List<XJoin> step,
+                                      Map<XJoin, Object[][]> joinTables)
+   {
+      // the conditions of the step are written as one AND list, so they must
+      // be ANDed in the ON, e.g. not on b.id = c.id and (a.x = c.x or ...)
+      if(!step.stream().allMatch(this::isAndedJoin)) {
+         return false;
+      }
+
+      // the step is written as one join, so its joins must have one join type,
+      // e.g. not an ON condition changed to an outer join in the query editor
+      String stepOp = step.get(0).getOp();
+      boolean outer = step.get(0).isOuterJoin();
+
+      if(!step.stream().allMatch(join -> join.isOuterJoin() == outer &&
+                                 (!outer || join.getOp().equals(stepOp))))
+      {
+         return false;
+      }
+
+      Map<Object, String> names = new LinkedHashMap<>();
+
+      for(XJoin join : step) {
+         for(Object[] table : joinTables.get(join)) {
+            names.putIfAbsent(table[1], (String) table[0]);
+         }
+      }
+
+      List<Object> newTables = new ArrayList<>();
+      Set<TextJoinGroup> joined = new LinkedHashSet<>();
+
+      for(Object table : names.keySet()) {
+         TextJoinGroup group = findTextJoinGroup(groups, table);
+
+         if(group == null) {
+            newTables.add(table);
+         }
+         else {
+            joined.add(group);
+         }
+      }
+
+      TextJoinGroup group;
+
+      if(newTables.size() == 2 && joined.isEmpty()) {
+         XJoin anchor = findAnchorJoin(step, joinTables, newTables.get(0), newTables.get(1));
+
+         if(anchor == null) {
+            return false;
+         }
+
+         group = new TextJoinGroup();
+         appendTextJoins(group, step, anchor, getAnsiJoin(anchor.getOp(), false),
+                         (String) joinTables.get(anchor)[0][0],
+                         (String) joinTables.get(anchor)[1][0]);
+         groups.add(group);
+      }
+      else if(newTables.size() == 1 && joined.size() == 1) {
+         Object table = newTables.get(0);
+         XJoin anchor = findAnchorJoin(step, joinTables, table, null);
+
+         if(anchor == null) {
+            return false;
+         }
+
+         // the new table is table1 of the join, so the join is written from
+         // the other side, e.g. a *= b adding a is b RIGHT OUTER JOIN a
+         boolean traverse = table.equals(joinTables.get(anchor)[0][1]);
+         group = joined.iterator().next();
+         appendTextJoins(group, step, anchor, getAnsiJoin(anchor.getOp(), traverse), null,
+                         names.get(table));
+      }
+      else if(newTables.isEmpty() && joined.size() == 2) {
+         XJoin anchor = null;
+
+         for(XJoin join : step) {
+            Object[][] tables = joinTables.get(join);
+
+            if(findTextJoinGroup(groups, tables[0][1]) != findTextJoinGroup(groups, tables[1][1])) {
+               anchor = join;
+               break;
+            }
+         }
+
+         if(anchor == null) {
+            return false;
+         }
+
+         TextJoinGroup left = findTextJoinGroup(groups, joinTables.get(anchor)[0][1]);
+         TextJoinGroup right = findTextJoinGroup(groups, joinTables.get(anchor)[1][1]);
+
+         // the parser only reads a joined table on the right of a join as one
+         // flat chain, e.g. a left join (c join d on .. join e on ..) on ..
+         group = new TextJoinGroup();
+         appendTextJoins(group, step, anchor, getAnsiJoin(anchor.getOp(), false),
+                         "(" + left.text + ")", "(" + right.flat + ")");
+         group.tables.addAll(left.tables);
+         group.tables.addAll(right.tables);
+         groups.remove(left);
+         groups.remove(right);
+         groups.add(group);
+      }
+      else {
+         return false;
+      }
+
+      group.tables.addAll(names.keySet());
+      return true;
+   }
+
+   /**
+    * Find the join of a step between two different tables, one of them a
+    * given table.
+    * @param table2 the other table, or <tt>null</tt> for any other table.
+    */
+   private static XJoin findAnchorJoin(List<XJoin> step, Map<XJoin, Object[][]> joinTables,
+                                       Object table1, Object table2)
+   {
+      for(XJoin join : step) {
+         Object[][] tables = joinTables.get(join);
+         Object left = tables[0][1];
+         Object right = tables[1][1];
+
+         if(left.equals(right)) {
+            continue;
+         }
+
+         if(left.equals(table1) && (table2 == null || right.equals(table2)) ||
+            right.equals(table1) && (table2 == null || left.equals(table2)))
+         {
+            return join;
+         }
+      }
+
+      return null;
+   }
+
+   /**
+    * Check if a join is ANDed with the rest of its where clause or ON.
+    */
+   private boolean isAndedJoin(XJoin join) {
+      for(XNode node = join.getParent(); node != null; node = node.getParent()) {
+         if(node instanceof XSet && (((XSet) node).isIsNot() ||
+            !XSet.AND.equalsIgnoreCase(((XSet) node).getRelation())))
+         {
+            return false;
+         }
+      }
+
+      return true;
+   }
+
+   /**
+    * Append the joins of one step to a text order group: the anchor join
+    * with the table it adds, then the other conditions of the same ON.
+    */
+   private void appendTextJoins(TextJoinGroup group, List<XJoin> step, XJoin anchor, String op,
+                                String table1, String table2)
+   {
+      appendJoinClause(group.text, anchor, op, table1, table2, 0, null);
+      group.flat.append(makeJoinClause(anchor, op, table1, table2, null));
+      XJoin previous = anchor;
+
+      for(XJoin join : step) {
+         if(join != anchor) {
+            String joinOp = getAnsiJoin(join.getOp(), false);
+            appendJoinClause(group.text, join, joinOp, null, null, 0, previous);
+            group.flat.append(makeJoinClause(join, joinOp, null, null, previous));
+            previous = join;
+         }
+      }
+   }
+
+   /**
+    * Find the text order group that contains a table.
+    */
+   private static TextJoinGroup findTextJoinGroup(List<TextJoinGroup> groups, Object table) {
+      for(TextJoinGroup group : groups) {
+         if(group.tables.contains(table)) {
+            return group;
+         }
+      }
+
+      return null;
+   }
+
+   /**
+    * A comma separated group of joined tables in a text order from clause.
+    */
+   private static final class TextJoinGroup {
+      // the joins with each left-deep step in parentheses, like the old order
+      private final StringBuilder text = new StringBuilder();
+      // the same joins as one chain without the left-deep parentheses
+      private final StringBuilder flat = new StringBuilder();
+      private final Set<Object> tables = new HashSet<>();
    }
 
    /**
@@ -2296,7 +2657,7 @@ public class SQLHelper implements KeywordProvider {
       Object[] result = new Object[2];
 
       String tname = left ? join.getTable1(uniformSql) : join.getTable2(uniformSql);
-      int index = uniformSql.getTableIndex(tname);
+      int index = uniformSql.getJoinTableIndex(tname);
       SelectTable stable = (index >= 0) ? uniformSql.getSelectTable(index) : null;
       String table = stable != null ? generateTableClause(stable) : quoteTableName(tname);
 
@@ -2315,7 +2676,18 @@ public class SQLHelper implements KeywordProvider {
 
       where.append(WHERE);
       XFilterNode root = uniformSql.getWhere();
-      String condition = generateConditions(root);
+      boolean oJoinPosition = ansiJoinPosition;
+      String condition;
+
+      try {
+         // only joins on a non-negated all-AND path of the where tree can be moved into the
+         // ANSI FROM clause
+         ansiJoinPosition = !(root instanceof XSet) || isAnsiJoinTransparent((XSet) root, null);
+         condition = generateConditions(root);
+      }
+      finally {
+         ansiJoinPosition = oJoinPosition;
+      }
 
       if(condition != null && !condition.trim().equals("")) {
          where.append(condition);
@@ -2375,6 +2747,7 @@ public class SQLHelper implements KeywordProvider {
 
          if(field instanceof String) {
             sfield = (String) field;
+            String qname = getQuotedName(sfield);
             sfield = getOrderByColumn(sfield);
 
             // some dbms (embedded derby) does not support sorting on field
@@ -2458,6 +2831,10 @@ public class SQLHelper implements KeywordProvider {
                sfield = quoteExpressionCol(sfield);
             }
 
+            if(qname != null) {
+               sfield = quoteIdentifier(qname, sfield);
+            }
+
             // table changed to a subquery, replace reference to table to alias
             if(isTableSubquery()) {
                sfield = replaceTableByAlias(true, sfield);
@@ -2528,6 +2905,7 @@ public class SQLHelper implements KeywordProvider {
          Object sfield = groupField[i];
 
          if(sfield instanceof String) {
+            String qname = getQuotedName((String) sfield);
             String column = xselect.getAliasColumn((String) sfield);
             column = column == null ? (String) sfield : column;
             String table = uniformSql.getTable(column);
@@ -2594,6 +2972,10 @@ public class SQLHelper implements KeywordProvider {
             }
             else if(!XUtil.isQualifiedName(column)) {
                column = quoteExpressionCol(column);
+            }
+
+            if(qname != null) {
+               column = quoteIdentifier(qname, column);
             }
 
             // if table changed to a subquery, replace table by alias
@@ -2940,16 +3322,77 @@ public class SQLHelper implements KeywordProvider {
     */
    private String buildConditionStringAnsi(XBinaryCondition condition) {
       if(condition instanceof XJoin) {
-         if(vJoin == null) {
-            vJoin = new ArrayList<>();
+         XJoin join = (XJoin) condition;
+
+         // an inner join the parser found in the where clause stays a where
+         // condition. Moving it into the from clause can make it an ON
+         // condition of an outer join, which keeps rows the where removes
+         if(join.isWhereClauseJoin() && !join.isOuterJoin() && isTextJoinOrder()) {
+            return buildConditionString0(condition);
          }
 
-         vJoin.add((XJoin) condition);
-         return "";
+         if(isAnsiFromJoin(join)) {
+            if(vJoin == null) {
+               vJoin = new ArrayList<>();
+            }
+
+            vJoin.add(join);
+            return "";
+         }
       }
-      else {
-         return buildConditionString0(condition);
+
+      return buildConditionString0(condition);
+   }
+
+   /**
+    * Check if a join found in the condition tree can be moved into the ANSI FROM clause.
+    * A join that is not moved is rendered in place as an ordinary predicate. An outer join
+    * is always moved, since its operator can't be written in a WHERE clause. Any other join
+    * is moved only if it's in the WHERE clause (not HAVING), it's on a non-negated all-AND
+    * path from the root (or in a join group built by UniformSQL.addJoin), its operator has
+    * an ANSI join (a != only from an ON clause in text join order), and both of its tables
+    * are in the FROM clause of this query level (so a correlation to an outer query stays in
+    * WHERE).
+    */
+   private boolean isAnsiFromJoin(XJoin join) {
+      if(join.isOuterJoin()) {
+         return true;
       }
+
+      if(having || !ansiJoinPosition || getAnsiJoin(join.getOp(), false) == null) {
+         return false;
+      }
+
+      // a != is written in place, as before != had an ANSI join, except for a != the parser
+      // found in an inner join ON of a query in text join order, which stays in that ON so
+      // it's kept on the null-supplying side of an outer join. A != in WHERE, from a query
+      // saved before the clause was recorded, or without text join order (no outer join, or
+      // MongoHelper) can't move a predicate out of an outer join, and moving it into the
+      // from clause there can join a table twice
+      if("!=".equals(join.getOp()) && !(join.isOnClauseJoin() && isTextJoinOrder())) {
+         return false;
+      }
+
+      // the same table resolution as getJoinedTable, which writes the join
+      return uniformSql.getJoinTableIndex(join.getTable1(uniformSql)) >= 0 &&
+         uniformSql.getJoinTableIndex(join.getTable2(uniformSql)) >= 0;
+   }
+
+   /**
+    * Check if the children of a condition set are in the same join position as the set
+    * itself, i.e. if a join in the set is a join of the whole query when the set is.
+    * @param set the condition set.
+    * @param parent the parent set of the condition set, or null if it's the root.
+    */
+   private static boolean isAnsiJoinTransparent(XSet set, XSet parent) {
+      if(set.isIsNot()) {
+         return false;
+      }
+
+      // the or sets of a join group built by UniformSQL.addJoin hold alternative joins of
+      // the same pair of tables, which makeJoinClause() writes into the join ON clause
+      return XSet.AND.equalsIgnoreCase(set.getRelation()) || set.getChildCount() <= 1 ||
+         set.isGroup() || (parent != null && parent.isGroup());
    }
 
    /**
@@ -2994,15 +3437,27 @@ public class SQLHelper implements KeywordProvider {
       int childCount;
       XNode node;
       childCount = condition.getChildCount();
+      // the children of this set are in a join position
+      final boolean joinPosition = ansiJoinPosition;
 
       for(int i = 0; i < childCount; i++) {
          String tmpStr = "";
          node = condition.getChild(i);
+         ansiJoinPosition = joinPosition;
 
          if(node instanceof XFilterNode) {
             if(node instanceof XSet) {
                String relation = condition.getRelation();
-               String childStr = buildConditionString((XSet) node);
+               ansiJoinPosition = joinPosition &&
+                  isAnsiJoinTransparent((XSet) node, condition);
+               String childStr;
+
+               try {
+                  childStr = buildConditionString((XSet) node);
+               }
+               finally {
+                  ansiJoinPosition = joinPosition;
+               }
 
                if(!relation.equals(((XSet) node).getRelation()) || ((XSet) node).isGroup()) {
                   if(!childStr.equals("")) {
@@ -3138,6 +3593,10 @@ public class SQLHelper implements KeywordProvider {
       if(fld || type.equals(XExpression.FIELD)) {
          str = value.toString();
          str = buildFieldExpression(str, fld);
+
+         if(exp.isQuotedField()) {
+            str = quoteIdentifier(value.toString(), str);
+         }
       }
       else if(type.equals(XExpression.SUBQUERY)) {
          UniformSQL sql = (UniformSQL) value;
@@ -3640,6 +4099,58 @@ public class SQLHelper implements KeywordProvider {
       }
 
       return path;
+   }
+
+   /**
+    * Get the name to quote for a group by or order by field written as a quoted identifier
+    * (e.g. "x y"), directly or through the alias of a quoted select column.
+    * @return the unquoted name, or <tt>null</tt> if the field is not quoted.
+    */
+   private String getQuotedName(String field) {
+      JDBCSelection xselect = (JDBCSelection) uniformSql.getSelection();
+      String column = xselect.getAliasColumn(field);
+
+      // an alias is generated as its column, which decides the quoting
+      if(column != null && !column.equals(field)) {
+         return !xselect.isExpression(column) && xselect.isQuoted(column) ? column : null;
+      }
+
+      return uniformSql.isQuotedField(field) ? field : null;
+   }
+
+   /**
+    * Restore the quotes of a name written as a quoted identifier (e.g. "MixedCase") in the
+    * parsed sql, which is stored without its quotes. Only the column segment is quoted, so
+    * a name qualified by its table (t.MixedCase) is generated as t."MixedCase".
+    * @param name the stored name, without quotes.
+    * @param str the sql generated for the name.
+    */
+   private String quoteIdentifier(String name, String str) {
+      String table = uniformSql.getTable(name);
+      int dot = name.lastIndexOf('.');
+      String column = name;
+
+      if(table != null && !table.isEmpty() && name.startsWith(table + ".")) {
+         column = name.substring(table.length() + 1);
+      }
+      // the table may be stored quoted (e.g. postgresql)
+      else if(dot > 0 && (uniformSql.getTableIndex(name.substring(0, dot)) >= 0 ||
+         uniformSql.getTableIndex(getQuote() + name.substring(0, dot) + getQuote()) >= 0))
+      {
+         column = name.substring(dot + 1);
+      }
+
+      String quoted = getQuote() + column + getQuote();
+
+      if(str.equals(column)) {
+         return quoted;
+      }
+      else if(str.endsWith("." + column)) {
+         return str.substring(0, str.length() - column.length()) + quoted;
+      }
+
+      // already quoted, or generated as an alias or a column index
+      return str;
    }
 
    public void setVPMCondition(boolean vpm) {
@@ -4670,6 +5181,9 @@ public class SQLHelper implements KeywordProvider {
    protected boolean having = false; // in having
    private boolean vpmCondition = false; // in vpm condition
    private List<XJoin> vJoin = null; // for ansi join
+   // true if the condition being generated is in a join position of the where clause
+   private boolean ansiJoinPosition = false;
+   private Boolean textJoinOrder = null; // isTextJoinOrder of this generation
    private Map<String, String> aliasmap = null; // old table alias -> new alias
    private String version = "";
    private boolean isFormatSQL; //for test auto case. Test will not format sql.

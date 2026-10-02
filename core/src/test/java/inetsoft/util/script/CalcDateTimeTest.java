@@ -22,13 +22,16 @@ import inetsoft.test.*;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
-import java.time.LocalDateTime;
-import java.time.ZoneId;
+import java.time.*;
+import java.time.temporal.IsoFields;
 import java.util.Date;
+import java.util.Locale;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -60,6 +63,18 @@ public class CalcDateTimeTest {
       catch(RuntimeException e) {
          assertTrue(e.getMessage().contains("Date is required"));
       }
+   }
+
+   // Bug #77450, java.time reads dates before 1901 in local mean time
+   @Test
+   void datevalueBefore1901InKolkata() {
+      CalcUtilTest.runInZone("Asia/Kolkata", () -> {
+         Date d1882 = CalcUtilTest.hybridDate(1882, 6, 1);
+         assertEquals(-6422, CalcDateTime.datevalue(d1882));
+         assertEquals(-6422, CalcDateTime.datevalue(new java.sql.Date(d1882.getTime())));
+         assertEquals(1, CalcDateTime.datevalue(CalcUtilTest.hybridDate(1900, 1, 1)));
+         assertEquals(45199, CalcDateTime.datevalue(CalcUtilTest.hybridDate(2023, 10, 1)));
+      });
    }
 
    @Test
@@ -1142,6 +1157,144 @@ public class CalcDateTimeTest {
       } catch (RuntimeException e) {
          assertTrue(e.getMessage().contains("date must not be null"));
       }
+   }
+
+   // Bug #77471, holidays, week numbers and fiscal periods use the Gregorian calendar under a
+   // Buddhist or Japanese imperial default locale, and are unchanged under Gregorian locales
+   @Test
+   void gregorianResultsUnderNonGregorianDefaultLocale() {
+      for(String tag : new String[] { "en-US", "de-DE", "th-TH", "ja-JP-u-ca-japanese" }) {
+         Locale oldLocale = Locale.getDefault();
+
+         try {
+            Locale.setDefault(Locale.forLanguageTag(tag));
+            Object[] holidays = { CalcUtilTest.hybridDate(2024, 1, 3) };
+            Object[] yearsWith53Weeks = { 2020 };
+            Date june2024 = CalcUtilTest.hybridDate(2024, 6, 15);
+
+            assertEquals(4, CalcDateTime.networkdays(CalcUtilTest.hybridDate(2024, 1, 1),
+                                                     CalcUtilTest.hybridDate(2024, 1, 5), holidays), tag);
+            assertEquals(CalcUtilTest.hybridDate(2024, 1, 5),
+                         CalcDateTime.workday(CalcUtilTest.hybridDate(2024, 1, 1), 3, holidays), tag);
+            assertEquals(24, CalcDateTime.weeknum(CalcUtilTest.hybridDate(2019, 6, 15), 1), tag);
+            // Bug #77526, January 1 is in week 1 whatever the locale's minimal days
+            assertEquals(1, CalcDateTime.weeknum(CalcUtilTest.hybridDate(2021, 1, 1), 1), tag);
+            assertEquals(2024, CalcDateTime.fiscalyear(june2024, 4, 1, null), tag);
+            assertEquals(3, CalcDateTime.fiscalmonth(june2024, 4, 1, null), tag);
+            assertEquals(2023, CalcDateTime.fiscalyear445(june2024, 2015, 1, 4, yearsWith53Weeks, null), tag);
+            assertEquals(24, CalcDateTime.fiscalweek445(june2024, 2015, 1, 4, yearsWith53Weeks, null), tag);
+         }
+         finally {
+            Locale.setDefault(oldLocale);
+         }
+      }
+   }
+
+   private static final int[] WEEKNUM_RETURN_TYPES = { 1, 2, 11, 12, 13, 14, 15, 16, 17, 21 };
+
+   // year, month, day, then the Excel WEEKNUM for each of WEEKNUM_RETURN_TYPES
+   private static final int[][] EXCEL_WEEKNUM = {
+         { 2023, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 52 }, // Sun
+         { 2024, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 }, // Mon
+         { 2019, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 }, // Tue
+         { 2020, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 }, // Wed
+         { 2015, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 }, // Thu
+         { 2021, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 53 }, // Fri
+         { 2022, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 52 }, // Sat
+         { 2023, 12, 31, 53, 53, 53, 53, 53, 53, 53, 53, 53, 52 }, // Sun
+         { 2024, 12, 31, 53, 53, 53, 54, 53, 53, 53, 53, 53, 1 }, // Tue
+         { 2019, 12, 31, 53, 53, 53, 53, 53, 53, 53, 53, 53, 1 }, // Tue
+         { 2020, 12, 31, 53, 53, 53, 53, 53, 54, 53, 53, 53, 53 }, // Thu
+         { 2015, 12, 31, 53, 53, 53, 53, 53, 53, 53, 53, 53, 53 }, // Thu
+         { 2021, 12, 31, 53, 53, 53, 53, 53, 53, 53, 53, 53, 52 }, // Fri
+         { 2022, 12, 31, 53, 53, 53, 53, 53, 53, 53, 53, 53, 52 }, // Sat
+         { 2000, 12, 31, 54, 53, 53, 53, 53, 53, 53, 53, 54, 52 }, // Sun
+         { 2024, 2, 29, 9, 9, 9, 10, 10, 10, 9, 9, 9, 9 }, // Thu
+         { 2012, 3, 9, 10, 11, 11, 11, 11, 11, 11, 10, 10, 10 }, // Fri
+         { 2019, 6, 15, 24, 24, 24, 24, 25, 25, 25, 25, 24, 24 }, // Sat
+         { 2021, 1, 3, 2, 1, 1, 1, 1, 1, 1, 2, 2, 53 }, // Sun
+         { 2021, 1, 4, 2, 2, 2, 1, 1, 1, 1, 2, 2, 1 }, // Mon
+         { 2024, 12, 29, 53, 52, 52, 53, 53, 53, 53, 53, 53, 52 }, // Sun
+         { 2024, 12, 30, 53, 53, 53, 53, 53, 53, 53, 53, 53, 1 }, // Mon
+         { 2026, 12, 31, 53, 53, 53, 53, 53, 53, 53, 53, 53, 53 }, // Thu
+         { 2027, 1, 3, 2, 1, 1, 1, 1, 1, 1, 2, 2, 53 }, // Sun
+         { 2027, 1, 4, 2, 2, 2, 1, 1, 1, 1, 2, 2, 1 }, // Mon
+   };
+
+   // Bug #77526, weeknum follows Excel WEEKNUM for every return type, at year boundaries and in
+   // leap years, whatever the default locale's first day of week and minimal days
+   @ParameterizedTest
+   @ValueSource(strings = { "en-US", "de-DE", "en-GB", "th-TH", "ja-JP-u-ca-japanese" })
+   void weeknumMatchesExcel(String tag) {
+      Locale oldLocale = Locale.getDefault();
+
+      try {
+         Locale.setDefault(Locale.forLanguageTag(tag));
+
+         for(int[] row : EXCEL_WEEKNUM) {
+            Date date = CalcUtilTest.hybridDate(row[0], row[1], row[2]);
+
+            for(int i = 0; i < WEEKNUM_RETURN_TYPES.length; i++) {
+               int rt = WEEKNUM_RETURN_TYPES[i];
+               assertEquals(row[i + 3], CalcDateTime.weeknum(date, rt),
+                            tag + " " + row[0] + "-" + row[1] + "-" + row[2] + " rt " + rt);
+            }
+
+            assertEquals(row[3], CalcDateTime.weeknum(date, null), tag + " null rt");
+         }
+      }
+      finally {
+         Locale.setDefault(oldLocale);
+      }
+   }
+
+   // Bug #77526, checks every day of 1999-2030 against the WEEKNUM definition: week 1 contains
+   // January 1 and each later start day begins a new week, and return type 21 is the ISO week
+   @ParameterizedTest
+   @ValueSource(strings = { "en-US", "de-DE", "en-GB", "th-TH" })
+   void weeknumMatchesDefinitionEveryDay(String tag) {
+      DayOfWeek[] starts = { DayOfWeek.SUNDAY, DayOfWeek.MONDAY, DayOfWeek.MONDAY,
+                             DayOfWeek.TUESDAY, DayOfWeek.WEDNESDAY, DayOfWeek.THURSDAY,
+                             DayOfWeek.FRIDAY, DayOfWeek.SATURDAY, DayOfWeek.SUNDAY };
+      Locale oldLocale = Locale.getDefault();
+
+      try {
+         Locale.setDefault(Locale.forLanguageTag(tag));
+         int[] weeks = new int[starts.length];
+
+         for(LocalDate day = LocalDate.of(1999, 1, 1); day.getYear() <= 2030;
+             day = day.plusDays(1))
+         {
+            Date date = Date.from(day.atStartOfDay(ZoneId.systemDefault()).toInstant());
+
+            for(int i = 0; i < starts.length; i++) {
+               if(day.getDayOfYear() == 1) {
+                  weeks[i] = 1;
+               }
+               else if(day.getDayOfWeek() == starts[i]) {
+                  weeks[i]++;
+               }
+
+               assertEquals(weeks[i], CalcDateTime.weeknum(date, WEEKNUM_RETURN_TYPES[i]),
+                            tag + " " + day + " rt " + WEEKNUM_RETURN_TYPES[i]);
+            }
+
+            assertEquals(day.get(IsoFields.WEEK_OF_WEEK_BASED_YEAR),
+                         CalcDateTime.weeknum(date, 21), tag + " " + day + " rt 21");
+         }
+      }
+      finally {
+         Locale.setDefault(oldLocale);
+      }
+   }
+
+   // Bug #77526, an unsupported return type keeps the Sunday default
+   @Test
+   void weeknumUnsupportedReturnTypeUsesSunday() {
+      Date date = CalcUtilTest.hybridDate(2019, 6, 15);
+      assertEquals(24, CalcDateTime.weeknum(date, 3));
+      assertEquals(24, CalcDateTime.weeknum(date, 99));
+      assertEquals(53, CalcDateTime.weeknum(CalcUtilTest.hybridDate(2024, 12, 30), 3));
    }
 
    /**

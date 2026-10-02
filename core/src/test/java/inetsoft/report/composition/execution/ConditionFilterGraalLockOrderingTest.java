@@ -71,7 +71,9 @@ import static org.junit.jupiter.api.Assertions.*;
  * {@code AssetQuerySandbox}/GraalJS/viewsheet harness -- the same trade-off
  * {@code CalcTableGraalLockOrderingTest} documents for bug #76905. Both threads run as daemon
  * threads with bounded waits, so a failed assertion here cannot hang the build even if a
- * future change reintroduces the deadlock.
+ * future change reintroduces the deadlock. The deadlock is also broken by interrupt before the
+ * test returns, so it never outlives the test: otherwise the stall watchdog would dump it again
+ * into the dump directory of every later test that resets the watchdog.
  */
 @Tag("core")
 public class ConditionFilterGraalLockOrderingTest {
@@ -106,9 +108,20 @@ public class ConditionFilterGraalLockOrderingTest {
       // Mirrors table.moreRows(baseRow) cascading into FormulaTableLens.exec() ->
       // GraalJavaScriptEngine.exec()'s lock.lock() (GraalJavaScriptEngine.java:1196), called
       // from *inside* the filter's synchronized(this) block (AbstractConditionFilter.java:202).
+      // Interruptible, unlike the real lock(), so that pool.shutdownNow() breaks the deadlock
+      // of the unguarded case: this thread then leaves the monitor, which lets the script
+      // thread finish and release the engine lock.
       Runnable populate = () -> {
          populateReachedMonitor.countDown();
-         engineLock.lock();
+
+         try {
+            engineLock.lockInterruptibly();
+         }
+         catch(InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            return;
+         }
+
          engineLock.unlock();
       };
 
@@ -174,6 +187,8 @@ public class ConditionFilterGraalLockOrderingTest {
       }
       finally {
          pool.shutdownNow();
+         assertTrue(pool.awaitTermination(5, TimeUnit.SECONDS),
+            "lock-ordering test threads did not exit, the deadlock outlives the test");
       }
    }
 

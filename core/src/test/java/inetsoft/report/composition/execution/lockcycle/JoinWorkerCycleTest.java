@@ -84,29 +84,28 @@ public class JoinWorkerCycleTest {
     * Bug #76960 A1, build-time ordering. An unlocked {@code getRowCount()}
     * ({@code AssetQuery.validateDataTypes}) starts the {@code WaitingThread}s, then the holder
     * arrives while they still have input rows to read (each worker {@code moreRows} costs
-    * 150 ms to widen the race). Same cycle as {@link #crossJoinFirstTouch()}.
+    * 150 ms to widen the race). Was the same cycle as {@link #crossJoinFirstTouch()}.
+    * {@code CrossJoinTableLens.setTables} computes both inputs on the building thread, so the
+    * {@code WaitingThread}s only re-read mapped rows and must not wait for E (bug #77273).
     */
    @Test
-   @Tag("known-deadlock")
-   @EnabledIfSystemProperty(named = "lockcycle.known", matches = "true")
    public void crossJoinBuildTime() throws Exception {
-      runHolder(s -> cross(s, true), Start.GET_ROW_COUNT, KNOWN_CAP);
+      runHolder(s -> cross(s, true), Start.GET_ROW_COUNT, ACTIVE_CAP);
    }
 
    /**
     * Bug #76960 A2. The {@code HashJoinTable} constructor starts two {@code JoinThread}s,
     * each scanning its input row by row. Cycle: holder holds E and waits in
-    * {@code XSwappableTable.moreRows}; the JoinThreads wait for E in the input
-    * {@code ConditionFilter2.moreRows}/{@code getObject}.
+    * {@code XSwappableTable.moreRows}; the JoinThreads waited for E in the input
+    * {@code ConditionFilter2.moreRows}/{@code getObject}. The builder computes the inputs, so
+    * the JoinThreads only re-read mapped rows and must not wait for E (bug #77273).
     */
    @Test
-   @Tag("known-deadlock")
-   @EnabledIfSystemProperty(named = "lockcycle.known", matches = "true")
    public void hashJoinFilteredInputs() throws Exception {
       harness.forceHashJoin();
       runHolder(s -> hash(s.filteredFormula(new SlowTable(ROWS, Slow.WORKERS)),
                           s.filteredFormula(new SlowTable(ROWS, Slow.WORKERS)), s, false),
-                Start.BUILT, KNOWN_CAP);
+                Start.BUILT, ACTIVE_CAP);
    }
 
    /**
@@ -131,33 +130,32 @@ public class JoinWorkerCycleTest {
     * {@code JoinTable} pre-drain are computed on the building thread, and the JoinThreads
     * compute the rest themselves, running the formula. This is a genuine lock need, not a
     * condition filter re-locking computed rows. Cycle: holder holds E and waits in
-    * {@code XSwappableTable.moreRows}; the JoinThreads wait for E in
-    * {@code FormulaTableLens.moreRows} → {@code exec}.
+    * {@code XSwappableTable.moreRows}; the JoinThreads waited for E in
+    * {@code FormulaTableLens.moreRows} → {@code exec}. The {@code JoinTable} constructor now
+    * computes an input that can reach a script to its end on the building thread, so the
+    * JoinThreads find every row computed (bug #77273).
     */
    @Test
-   @Tag("known-deadlock")
-   @EnabledIfSystemProperty(named = "lockcycle.known", matches = "true")
    public void hashJoinPastPreDrain() throws Exception {
       harness.forceHashJoin();
       // joined on the unique id column
       runHolder(s -> hash(s.formula(new SlowTable(BIG_ROWS, Slow.WORKERS_PAST_PREDRAIN)),
                           s.formula(new SlowTable(BIG_ROWS, Slow.WORKERS_PAST_PREDRAIN)), 2, s, false),
-                Start.BUILT, KNOWN_CAP);
+                Start.BUILT, ACTIVE_CAP);
    }
 
    /**
     * Bug #76960 A3. {@code MergeJoinTable} (chosen by {@code JoinTableLens} under memory
     * pressure) starts one {@code JoinThread} that sorts both inputs. Cycle: holder holds E and
-    * waits in {@code XSwappableTable.moreRows}; the JoinThread waits for E in the input
-    * {@code ConditionFilter2} read by {@code SortFilter.sort}.
+    * waits in {@code XSwappableTable.moreRows}; the JoinThread waited for E in the input
+    * {@code ConditionFilter2} read by {@code SortFilter.sort}. The builder computes the inputs,
+    * so the sort only re-reads mapped rows and must not wait for E (bug #77273).
     */
    @Test
-   @Tag("known-deadlock")
-   @EnabledIfSystemProperty(named = "lockcycle.known", matches = "true")
    public void mergeJoinFilteredInputs() throws Exception {
       runHolder(s -> merge(s.filteredFormula(new SlowTable(MERGE_ROWS, Slow.WORKERS)),
                            s.filteredFormula(new SlowTable(MERGE_ROWS, Slow.WORKERS)), s),
-                Start.BUILT, KNOWN_CAP);
+                Start.BUILT, ACTIVE_CAP);
    }
 
    /**

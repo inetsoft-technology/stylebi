@@ -105,7 +105,7 @@ public class DependenciesInfo implements RenameTransformObject, Cloneable {
                String cls = Tool.getAttribute(assetObj, "class");
 
                try {
-                  AssetObject assetObject = (AssetObject) Class.forName(cls).newInstance();
+                  AssetObject assetObject = (AssetObject) Tool.loadSubclass(cls, AssetObject.class).newInstance();
                   assetObject.parseXML(Tool.getFirstChildNode(assetObj));
                   dependencies.add(assetObject);
                }
@@ -127,7 +127,7 @@ public class DependenciesInfo implements RenameTransformObject, Cloneable {
             for(int i = 0; i < assetObjects.getLength(); i++) {
                Element assetObj = (Element) assetObjects.item(i);
                String cls = Tool.getAttribute(assetObj, "class");
-               AssetObject assetObject = (AssetObject) Class.forName(cls).newInstance();
+               AssetObject assetObject = (AssetObject) Tool.loadSubclass(cls, AssetObject.class).newInstance();
                assetObject.parseXML(Tool.getFirstChildNode(assetObj));
                embedDependencies.add(assetObject);
             }

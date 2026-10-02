@@ -25,6 +25,7 @@ package inetsoft.web.admin.security.user;
  * globally-shared) theme's `organizations` list, not just themes owned by the deleted org.
  */
 
+import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.portal.CustomTheme;
 import inetsoft.sree.portal.CustomThemesManager;
 import inetsoft.sree.portal.CustomThemesManagerMocks;
@@ -258,6 +259,21 @@ class IdentityThemeServiceTest {
       assertTrue(y.getUsers().isEmpty());
    }
 
+   // Bug #77304: the reserved default theme id selects the default theme like an empty string,
+   // so it removes the user from the previously selected theme instead of being ignored
+   @Test
+   void updateUserTheme_defaultThemeId_clearsPreviousAssignment() {
+      CustomTheme x = theme("x", HOST_ORG);
+      x.getUsers().add("bob");
+      CustomTheme y = theme("y", HOST_ORG);
+      when(manager.getCustomThemes()).thenReturn(new HashSet<>(Set.of(x, y)));
+
+      service.updateUserTheme("bob", "bob", HOST_ORG, CustomTheme.DEFAULT_THEME_ID);
+
+      assertTrue(x.getUsers().isEmpty(), "the default theme id must clear the user's theme");
+      assertTrue(y.getUsers().isEmpty());
+   }
+
    // Issue #77056: a global theme's bare user entry refers to the default organization's user,
    // so it must not be shown as the theme of another organization's same-named user
    @Test
@@ -445,6 +461,277 @@ class IdentityThemeServiceTest {
          assertEquals(Set.of("ta", "g", "e"), themeIds(service.getThemes("", principal)));
          assertEquals(Set.of("ta", "g", "e"), themeIds(service.getThemes(ORG_A, principal)));
       }
+   }
+
+   // Bug #77352: the group and role editors assign the selected theme, like the user editor
+   @Test
+   void updateIdentityTheme_group_assignsKeepsAndClears() {
+      CustomTheme x = theme("x", ORG_A);
+      CustomTheme y = theme("y", ORG_A);
+      y.getGroups().add("sales");
+      when(manager.getCustomThemes()).thenReturn(new HashSet<>(Set.of(x, y)));
+
+      service.updateIdentityTheme("sales", "sales", ORG_A, "x", CustomTheme::getGroups, null);
+
+      assertEquals(List.of("sales"), x.getGroups());
+      assertTrue(y.getGroups().isEmpty(), "a group is assigned to at most one theme");
+      assertTrue(x.getUsers().isEmpty() && x.getRoles().isEmpty(),
+                 "only the group list is changed");
+
+      service.updateIdentityTheme("sales", "sales", ORG_A, null, CustomTheme::getGroups, null);
+
+      assertEquals(List.of("sales"), x.getGroups(), "a null theme keeps the assignment");
+
+      service.updateIdentityTheme("sales", "sales", ORG_A, "", CustomTheme::getGroups, null);
+
+      assertTrue(x.getGroups().isEmpty(), "an empty theme selects the default theme");
+      assertTrue(y.getGroups().isEmpty());
+   }
+
+   // Bug #77352: a rename without a theme carries the role's assignment to the new name
+   @Test
+   void updateIdentityTheme_roleRenameWithoutTheme_keepsAssignment() {
+      CustomTheme x = theme("x", ORG_A);
+      x.getRoles().add("designer");
+      when(manager.getCustomThemes()).thenReturn(new HashSet<>(Set.of(x)));
+
+      service.updateIdentityTheme("designer", "lead", ORG_A, null, CustomTheme::getRoles, null);
+
+      assertEquals(List.of("lead"), x.getRoles());
+   }
+
+   // Bug #77352: an unknown theme, another organization's theme or a global theme (which only
+   // refers to identities of the default organization) is ignored for an organization's group
+   @Test
+   void updateIdentityTheme_ineligibleTheme_ignored() {
+      CustomTheme aTheme = theme("aTheme", ORG_A);
+      aTheme.getGroups().add("sales");
+      CustomTheme bTheme = theme("bTheme", ORG_B);
+      CustomTheme globalTheme = theme("globalTheme", null);
+      when(manager.getCustomThemes())
+         .thenReturn(new HashSet<>(Set.of(aTheme, bTheme, globalTheme)));
+
+      for(String ntheme : List.of("bTheme", "globalTheme", "unknown")) {
+         service.updateIdentityTheme("sales", "sales", ORG_A, ntheme, CustomTheme::getGroups,
+                                     null);
+      }
+
+      assertEquals(List.of("sales"), aTheme.getGroups(), "an ignored theme keeps the old theme");
+      assertTrue(bTheme.getGroups().isEmpty());
+      assertTrue(globalTheme.getGroups().isEmpty());
+      verify(manager, never()).setCustomThemes(any());
+   }
+
+   // Bug #77352 / #77304: the reserved default theme id selects the default theme for a group
+   // or role like an empty string, removing it from the previously selected theme
+   @Test
+   void updateIdentityTheme_defaultThemeId_clearsGroupAndRole() {
+      CustomTheme x = theme("x", ORG_A);
+      x.getGroups().add("sales");
+      x.getRoles().add("designer");
+      when(manager.getCustomThemes()).thenReturn(new HashSet<>(Set.of(x)));
+
+      service.updateIdentityTheme("sales", "sales", ORG_A, CustomTheme.DEFAULT_THEME_ID,
+                                  CustomTheme::getGroups, null);
+      service.updateIdentityTheme("designer", "designer", ORG_A, CustomTheme.DEFAULT_THEME_ID,
+                                  CustomTheme::getRoles, null);
+
+      assertTrue(x.getGroups().isEmpty());
+      assertTrue(x.getRoles().isEmpty());
+   }
+
+   // review C-m1: without a theme or a rename there is nothing to change, so the themes are
+   // neither locked nor read
+   @Test
+   void updateIdentityTheme_noThemeSameName_skipsThemesUpdate() {
+      service.updateIdentityTheme("sales", "sales", ORG_A, null, CustomTheme::getGroups, null);
+      service.updateUserTheme("bob", "bob", ORG_A, null);
+
+      verify(manager, never()).updateCustomThemes(any());
+   }
+
+   // Bug #77352: a global theme can be assigned to a group of the default organization
+   @Test
+   void updateIdentityTheme_defaultOrgGroup_globalThemeAssigned() {
+      CustomTheme globalTheme = theme("globalTheme", null);
+      when(manager.getCustomThemes()).thenReturn(new HashSet<>(Set.of(globalTheme)));
+
+      service.updateIdentityTheme("sales", "sales", HOST_ORG, "globalTheme",
+                                  CustomTheme::getGroups, null);
+
+      assertEquals(List.of("sales"), globalTheme.getGroups());
+   }
+
+   // Bug #77352: a global role is assigned only among the current organization's themes, so an
+   // edit in organization A leaves the role's theme in organization B unchanged
+   @Test
+   void updateIdentityTheme_globalRoleAssign_otherOrgThemeUntouched() {
+      CustomTheme aTheme = theme("aTheme", ORG_A);
+      CustomTheme bTheme = theme("bTheme", ORG_B);
+      bTheme.getRoles().add("Designer");
+
+      try(MockedStatic<OrganizationManager> ignored = mockOrg(ORG_A, false);
+          MockedStatic<SUtil> ignored2 = mockMultiTenant(true))
+      {
+         when(manager.getCustomThemes()).thenReturn(new HashSet<>(Set.of(aTheme, bTheme)));
+
+         service.updateIdentityTheme("Designer", "Designer", null, "aTheme",
+                                     CustomTheme::getRoles, null);
+         assertEquals(List.of("Designer"), aTheme.getRoles());
+         assertEquals(List.of("Designer"), bTheme.getRoles(), "org B's assignment must be kept");
+
+         service.updateIdentityTheme("Designer", "Designer", null, "", CustomTheme::getRoles,
+                                     null);
+         assertTrue(aTheme.getRoles().isEmpty());
+         assertEquals(List.of("Designer"), bTheme.getRoles(), "org B's assignment must be kept");
+      }
+   }
+
+   // Bug #77352: organization A cannot assign a global role to organization B's theme
+   @Test
+   void updateIdentityTheme_globalRoleOtherOrgTheme_ignored() {
+      CustomTheme aTheme = theme("aTheme", ORG_A);
+      aTheme.getRoles().add("Designer");
+      CustomTheme bTheme = theme("bTheme", ORG_B);
+
+      try(MockedStatic<OrganizationManager> ignored = mockOrg(ORG_A, true);
+          MockedStatic<SUtil> ignored2 = mockMultiTenant(true))
+      {
+         when(manager.getCustomThemes()).thenReturn(new HashSet<>(Set.of(aTheme, bTheme)));
+
+         service.updateIdentityTheme("Designer", "Designer", null, "bTheme",
+                                     CustomTheme::getRoles, null);
+
+         assertEquals(List.of("Designer"), aTheme.getRoles());
+         assertTrue(bTheme.getRoles().isEmpty());
+         verify(manager, never()).setCustomThemes(any());
+      }
+   }
+
+   // Bug #77352: renaming a global role still renames it in every organization's themes, while
+   // the selected theme is only assigned among the current organization's themes
+   @Test
+   void updateIdentityTheme_globalRoleRename_renamesInEveryOrgTheme() {
+      CustomTheme aTheme = theme("aTheme", ORG_A);
+      CustomTheme bTheme = theme("bTheme", ORG_B);
+      bTheme.getRoles().add("Designer");
+      CustomTheme globalTheme = theme("globalTheme", null);
+      globalTheme.getRoles().add("Designer");
+
+      try(MockedStatic<OrganizationManager> ignored = mockOrg(ORG_A, false);
+          MockedStatic<SUtil> ignored2 = mockMultiTenant(true))
+      {
+         when(manager.getCustomThemes())
+            .thenReturn(new HashSet<>(Set.of(aTheme, bTheme, globalTheme)));
+
+         service.updateIdentityTheme("Designer", "Lead", null, "aTheme", CustomTheme::getRoles,
+                                     null);
+
+         assertEquals(List.of("Lead"), aTheme.getRoles());
+         assertEquals(List.of("Lead"), bTheme.getRoles());
+         assertEquals(List.of("Lead"), globalTheme.getRoles(),
+                      "an organization admin must not strip a global role from a global theme");
+      }
+   }
+
+   // Bug #77352: in multi-tenant mode a global theme applies to every organization's users of a
+   // global role, so only a site admin can assign a global role to, or remove it from, one
+   @Test
+   void updateIdentityTheme_globalRoleGlobalTheme_onlySiteAdmin() {
+      CustomTheme aTheme = theme("aTheme", ORG_A);
+      CustomTheme globalTheme = theme("globalTheme", null);
+      globalTheme.getRoles().add("Designer");
+
+      try(MockedStatic<SUtil> ignored2 = mockMultiTenant(true)) {
+         when(manager.getCustomThemes()).thenReturn(new HashSet<>(Set.of(aTheme, globalTheme)));
+
+         try(MockedStatic<OrganizationManager> ignored = mockOrg(ORG_A, false)) {
+            service.updateIdentityTheme("Designer", "Designer", null, "aTheme",
+                                        CustomTheme::getRoles, null);
+            assertEquals(List.of("Designer"), aTheme.getRoles());
+            assertEquals(List.of("Designer"), globalTheme.getRoles(),
+                         "an organization admin must not change a global theme");
+
+            aTheme.getRoles().clear();
+            service.updateIdentityTheme("Designer", "Designer", null, "globalTheme",
+                                        CustomTheme::getRoles, null);
+            assertTrue(aTheme.getRoles().isEmpty(), "the global theme is ignored");
+         }
+
+         try(MockedStatic<OrganizationManager> ignored = mockOrg(ORG_A, true)) {
+            service.updateIdentityTheme("Designer", "Designer", null, "aTheme",
+                                        CustomTheme::getRoles, null);
+            assertEquals(List.of("Designer"), aTheme.getRoles());
+            assertTrue(globalTheme.getRoles().isEmpty(),
+                       "a site admin's selection replaces the global theme");
+         }
+      }
+   }
+
+   // Bug #77352: in single-tenant mode every theme is global, so a global role (e.g. the
+   // built-in Administrator role) can be assigned to any theme
+   @Test
+   void updateIdentityTheme_singleTenantGlobalRole_globalThemeAssigned() {
+      CustomTheme x = theme("x", null);
+      CustomTheme y = theme("y", null);
+      y.getRoles().add("Administrator");
+
+      try(MockedStatic<OrganizationManager> ignored = mockOrg(HOST_ORG, false);
+          MockedStatic<SUtil> ignored2 = mockMultiTenant(false))
+      {
+         when(manager.getCustomThemes()).thenReturn(new HashSet<>(Set.of(x, y)));
+
+         service.updateIdentityTheme("Administrator", "Administrator", null, "x",
+                                     CustomTheme::getRoles, null);
+
+         assertEquals(List.of("Administrator"), x.getRoles());
+         assertTrue(y.getRoles().isEmpty());
+      }
+   }
+
+   // Bug #77352 review: a mixed-case organization ID must still match its own themes for a
+   // global role, so the current organization is compared with its case preserved
+   @Test
+   void updateIdentityTheme_globalRoleMixedCaseOrg_currentOrgThemeAssigned() {
+      CustomTheme mixed = theme("mixed", "OrgMixed");
+      CustomTheme lower = theme("lower", "orglower");
+
+      try(MockedStatic<SUtil> ignored2 = mockMultiTenant(true)) {
+         when(manager.getCustomThemes()).thenReturn(new HashSet<>(Set.of(mixed, lower)));
+
+         try(MockedStatic<OrganizationManager> ignored = mockOrg("OrgMixed", false)) {
+            service.updateIdentityTheme("Designer", "Designer", null, "mixed",
+                                        CustomTheme::getRoles, null);
+         }
+
+         try(MockedStatic<OrganizationManager> ignored = mockOrg("orglower", false)) {
+            service.updateIdentityTheme("Designer", "Designer", null, "lower",
+                                        CustomTheme::getRoles, null);
+         }
+
+         assertEquals(List.of("Designer"), mixed.getRoles());
+         assertEquals(List.of("Designer"), lower.getRoles(),
+                      "a lower-case organization ID still matches");
+      }
+   }
+
+   private static MockedStatic<OrganizationManager> mockOrg(String currentOrgID,
+                                                            boolean siteAdmin)
+   {
+      OrganizationManager orgManager = mock(OrganizationManager.class, withSettings().lenient());
+      MockedStatic<OrganizationManager> orgManagerStatic = mockStatic(OrganizationManager.class);
+      orgManagerStatic.when(OrganizationManager::getInstance).thenReturn(orgManager);
+      // like OrganizationManager, the no-argument getter lower-cases the organization ID
+      when(orgManager.getCurrentOrgID()).thenReturn(currentOrgID.toLowerCase());
+      when(orgManager.getCurrentOrgID(nullable(Principal.class))).thenReturn(currentOrgID);
+      when(orgManager.isSiteAdmin(nullable(Principal.class))).thenReturn(siteAdmin);
+      return orgManagerStatic;
+   }
+
+   private static MockedStatic<SUtil> mockMultiTenant(boolean multiTenant) {
+      MockedStatic<SUtil> sUtilStatic = mockStatic(SUtil.class);
+      sUtilStatic.when(SUtil::isMultiTenant).thenReturn(multiTenant);
+      return sUtilStatic;
    }
 
    private MockedStatic<OrganizationManager> mockThemesAndOrg(String currentOrgID,

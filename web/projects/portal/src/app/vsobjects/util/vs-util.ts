@@ -583,6 +583,9 @@ export namespace VSUtil {
    }
 
    // calendar row height (px) × body rows, matching CalendarVSAssemblyInfo.java
+   // (DEFAULT_CALENDAR_ROW_HEIGHT and CALENDAR_BODY_HEIGHT, which the server uses to grow a
+   // calendar whose title fills its height). Keep them in sync, CalendarVSAssemblyInfoFixSizeTest
+   // checks that CALENDAR_BODY_HEIGHT matches.
    export const CALENDAR_ROW_HEIGHT = 18;
    export const CALENDAR_BODY_ROWS = 8;
    export const CALENDAR_BODY_HEIGHT = CALENDAR_ROW_HEIGHT * CALENDAR_BODY_ROWS;

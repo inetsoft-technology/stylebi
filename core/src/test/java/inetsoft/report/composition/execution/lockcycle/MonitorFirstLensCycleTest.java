@@ -23,6 +23,9 @@ import inetsoft.report.composition.execution.lockcycle.LockCycleHarness.Slow;
 import inetsoft.report.composition.execution.lockcycle.LockCycleHarness.Gate;
 import inetsoft.report.composition.execution.lockcycle.LockCycleHarness.SlowTable;
 import inetsoft.report.composition.execution.lockcycle.LockCycleHarness.Started;
+import inetsoft.report.composition.execution.TableFilter2;
+import inetsoft.report.filter.ColumnMapFilter;
+import inetsoft.report.filter.DefaultTableFilter;
 import inetsoft.report.filter.SortFilter;
 import inetsoft.report.lens.*;
 import inetsoft.test.*;
@@ -41,6 +44,7 @@ import java.util.function.Function;
 
 import static inetsoft.report.composition.execution.lockcycle.LockCycleHarness.*;
 import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
 /**
  * Lock cycles between a lens that holds its own monitor while it reads its base, and a
@@ -72,19 +76,118 @@ public class MonitorFirstLensCycleTest {
     * held across the base read is:
     * <ul>
     * <li>SORT: {@code SortFilter.checkInit} → {@code sort()} under {@code synchronized(lock)};</li>
-    * <li>MAX_ROWS: {@code MaxRowsTableLens.moreRows} under {@code synchronized(rlock)}, on every
-    * call;</li>
     * <li>UNION_ALL: non-distinct {@code UnionTableLens.moreRows} under {@code synchronized(this)};</li>
     * <li>RANKING: the {@code synchronized RankingTableLens.validate}.</li>
     * </ul>
+    * MAX_ROWS is fixed, see {@link #maxRowsOverFilteredFormula()}.
     */
    @ParameterizedTest
-   @EnumSource(Kind.class)
+   @EnumSource(value = Kind.class, names = "MAX_ROWS", mode = EnumSource.Mode.EXCLUDE)
    @Tag("known-deadlock")
    @EnabledIfSystemProperty(named = "lockcycle.known", matches = "true")
    public void lensOverFilteredFormula(Kind kind) throws Exception {
       runShared(g -> s -> build(kind, () -> s.filteredFormula(new SlowTable(ROWS, Slow.EVERYWHERE, g))),
                 KNOWN_CAP);
+   }
+
+   /**
+    * Bug #76960 B (R2) for MAX_ROWS, ordered so that the cycle formed on every run:
+    * {@code MaxRowsTableLens.moreRows} read its base under {@code synchronized(rlock)} on every
+    * call. T1 drains the lens and parks between the lens and its filtered base, without the
+    * engine lock E; T2's condition filter over the lens takes E for its first row and reads
+    * the lens. Cycle: T2 held E and was BLOCKED on {@code rlock}; T1 held {@code rlock} and
+    * waited for E in the inner condition filter. Fixed by bug #77311: the lens reads its base
+    * without the monitor, so T2 reads through while T1 is parked.
+    */
+   @Test
+   public void maxRowsOverFilteredFormula() throws Exception {
+      Gate gate = harness.gate();
+      Function<Sandbox, TableLens> build = s -> new MaxRowsTableLens(
+         new GateFilter(s.filteredFormula(new SlowTable(ROWS, Slow.NONE)), gate), 100000);
+      Sandbox control = harness.control();
+      TableLens controlLens = harness.track(build.apply(control));
+      List<List<Object>> expectedLens = harness.await(
+         harness.submit(() -> drain(controlLens)), ACTIVE_CAP, "control lens");
+      List<List<Object>> expectedOuter = harness.await(
+         harness.submit(() -> drain(cf2(controlLens, null))), ACTIVE_CAP, "control filter");
+
+      Sandbox sandbox = harness.sandbox();
+      TableLens lens = harness.track(build.apply(sandbox));
+      TableLens outer = harness.track(cf2(lens, sandbox.box));
+
+      Started<List<List<Object>>> t1 = harness.startGated(gate, () -> drain(lens));
+      assertTrue(gate.awaitEntered(ACTIVE_CAP), "T1 never read the lens's base");
+      Started<List<List<Object>>> t2 = harness.start(() -> drain(outer));
+      releaseAfter(gate, t2, ACTIVE_CAP);
+
+      assertEquals(expectedOuter, harness.await(t2.future, ACTIVE_CAP, "T2, the filter lock holder"));
+      assertEquals(expectedLens, harness.await(t1.future, ACTIVE_CAP, "T1, the unlocked lens reader"));
+      assertFalse(sandbox.lock.isLocked());
+   }
+
+   /**
+    * Bug #77311, the lock holder above the lens: a worksheet table's result
+    * {@code MaxRows(ColumnMapFilter(ConditionFilter2(formula)))} is shared through
+    * {@code AssetDataCache} by two mirror queries, and one of them adds an expression column
+    * over it ({@code FormulaTableLens}). T1 computes that formula lens: it holds E and parks
+    * in its script's read of the shared lens. T2 reads the shared lens past the rows mapped so
+    * far, so its condition filter waits for E. T1 then reads the next (loaded) row of the
+    * shared lens. Cycle: T1 held E and waited for {@code MaxRowsTableLens.rlock} in
+    * {@code moreRows}; T2 held {@code rlock} across the base read and waited for E. The
+    * engine lock is only taken off the pool.
+    */
+   @Test
+   public void formulaOverSharedMaxRows() throws Exception {
+      assumeFalse(POOL, "the cycle needs the engine lock, which a pooled env does not take");
+      Gate gate = harness.gate();
+      Sandbox control = harness.control();
+      TableLens controlShared = harness.track(sharedMaxRows(control, null));
+      TableLens controlFormula = harness.track(control.formula(controlShared, "g", "field['value'] + 1"));
+      List<List<Object>> expectedFormula = harness.await(
+         harness.submit(() -> drain(controlFormula)), ACTIVE_CAP, "control formula");
+      List<List<Object>> expectedShared = harness.await(
+         harness.submit(() -> drain(controlShared)), ACTIVE_CAP, "control shared lens");
+      assertTrue(expectedShared.size() > PRE_READ + 2, "control pipeline is too short");
+
+      Sandbox sandbox = harness.sandbox();
+      TableLens shared = harness.track(sharedMaxRows(sandbox, gate));
+      TableLens formula = harness.track(sandbox.formula(shared, "g", "field['value'] + 1"));
+      // an earlier reader mapped the first rows, so T1's reads of the shared lens before it
+      // takes E never wait for E
+      assertTrue(harness.await(harness.submit(() -> shared.moreRows(PRE_READ)), ACTIVE_CAP,
+                               "mapping the first rows"));
+
+      Started<List<List<Object>>> t1 = harness.startGated(gate, () -> drain(formula));
+      assertTrue(gate.awaitEntered(ACTIVE_CAP), "T1 never read the shared lens in its script");
+      assertTrue(sandbox.lock.isLocked(), "T1 does not hold the engine lock in its script");
+      Started<List<List<Object>>> t2 = harness.start(() -> drain(new TableFilter2(shared)));
+
+      try {
+         awaitParked(t2, ACTIVE_CAP);
+
+         if(!t2.future.isDone()) {
+            assertTrue(awaitWaitingOnLock(t2.thread, ACTIVE_CAP),
+                       "T2 is not waiting for the engine lock");
+         }
+      }
+      finally {
+         gate.release();
+      }
+
+      assertEquals(expectedFormula, harness.await(t1.future, ACTIVE_CAP, "T1, the formula over the lens"));
+      assertEquals(expectedShared, harness.await(t2.future, ACTIVE_CAP, "T2, the shared lens reader"));
+      assertFalse(sandbox.lock.isLocked());
+   }
+
+   /**
+    * The result of a worksheet table with an expression column and a post condition, as
+    * {@code AssetQuery.getRuntimeTableLens} builds it: max rows over the visible columns over
+    * the condition filter.
+    */
+   private static TableLens sharedMaxRows(Sandbox s, Gate gate) {
+      TableLens filtered = cf2(s.formula(new SlowTable(ROWS, Slow.NONE, gate)), s.box);
+      // the visible columns: group, value, id, not the expression column
+      return new MaxRowsTableLens(new ColumnMapFilter(filtered, new int[] {0, 1, 2}), 100000);
    }
 
    /**
@@ -166,11 +269,35 @@ public class MonitorFirstLensCycleTest {
       }
    }
 
+   /**
+    * Passes its base through; the owner of the gate parks at its first data row
+    * {@code moreRows}, before the condition filter below takes the engine lock.
+    */
+   private static final class GateFilter extends DefaultTableFilter {
+      GateFilter(TableLens table, Gate gate) {
+         super(table);
+         this.gate = gate;
+      }
+
+      @Override
+      public boolean moreRows(int row) {
+         if(row >= 1) {
+            gate.onRead();
+         }
+
+         return super.moreRows(row);
+      }
+
+      private final Gate gate;
+   }
+
    public enum Kind {
       SORT, MAX_ROWS, UNION_ALL, RANKING
    }
 
    private static final int ROWS = 300;
+   // rows of the shared lens mapped before the #77311 case starts, past T1's first read-ahead
+   private static final int PRE_READ = 50;
    // no cycle to provoke, so fewer rows keep the default suite fast
    private static final int FREE_ROWS = 100;
    private LockCycleHarness harness;

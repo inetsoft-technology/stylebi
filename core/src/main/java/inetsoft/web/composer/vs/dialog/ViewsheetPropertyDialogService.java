@@ -48,6 +48,7 @@ import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
 import inetsoft.web.composer.model.TreeNodeModel;
 import inetsoft.web.composer.model.vs.*;
 import inetsoft.web.composer.vs.controller.VSLayoutService;
+import inetsoft.web.portal.controller.database.QueryManagerService;
 import inetsoft.web.portal.model.database.StringWrapper;
 import inetsoft.web.viewsheet.command.*;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
@@ -71,7 +72,8 @@ public class ViewsheetPropertyDialogService {
                                          VSAssemblyInfoHandler vsAssemblyInfoHandler,
                                          SecurityEngine securityEngine,
                                          MVManager mvManager,
-                                         DeviceRegistry deviceRegistry)
+                                         DeviceRegistry deviceRegistry,
+                                         QueryManagerService queryManagerService)
    {
       this.coreLifecycleService = coreLifecycleService;
       this.viewsheetService = viewsheetService;
@@ -81,6 +83,7 @@ public class ViewsheetPropertyDialogService {
       this.securityEngine = securityEngine;
       this.mvManager = mvManager;
       this.deviceRegistry = deviceRegistry;
+      this.queryManagerService = queryManagerService;
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
@@ -268,6 +271,18 @@ public class ViewsheetPropertyDialogService {
       Viewsheet viewsheet = rvs.getViewsheet();
       ViewsheetInfo info = viewsheet.getViewsheetInfo();
       VSOptionsPaneModel vsOptionsPaneModel = value.vsOptionsPane();
+      AssetEntry newBaseEntry =
+         vsOptionsPaneModel.getSelectDataSourceDialogModel().getDataSource();
+
+      // check a newly bound base source before anything is changed. An unchanged source is
+      // not rebound below, so an existing viewsheet keeps working (Bug #77400)
+      if(newBaseEntry != null && !newBaseEntry.equals(viewsheet.getBaseEntry())) {
+         queryManagerService.checkViewsheetBaseEntryPermission(
+            newBaseEntry, viewsheetService.getAssetRepository(), principal);
+         // a query base rebinds the assemblies to the base worksheet table named by the
+         // entry, which resolves a cube table name from its data source (Bug #77427)
+         queryManagerService.checkCubeTableReadPermission(newBaseEntry.getName(), principal);
+      }
 
       boolean reset = info.isMetadata() != vsOptionsPaneModel.isUseMetaData() ||
          info.getDesignMaxRows() != vsOptionsPaneModel.getMaxRows();
@@ -1563,6 +1578,7 @@ public class ViewsheetPropertyDialogService {
    private final SecurityEngine securityEngine;
    private final MVManager mvManager;
    private final DeviceRegistry deviceRegistry;
+   private final QueryManagerService queryManagerService;
 
    private static final double RATIO_INCH_MM = 25.4;
    private static final double RATIO_INCH_POINT = 72;

@@ -492,19 +492,20 @@ public class SchedulerMonitoringService
             Catalog.getCatalog().getString("em.scheduler.notStarted"));
       }
 
-      ScheduleTask task = scheduleManager.getScheduleTask(taskName);
+      ScheduleTask task = resolveTask(taskName);
+      String taskId = task.getTaskId();
 
-      if(task != null && !task.isEnabled()) {
+      if(!task.isEnabled()) {
          throw new Exception(Catalog.getCatalog().
-            getString("em.schedule.task.failedRun", taskName));
+            getString("em.schedule.task.failedRun", taskId));
       }
 
       try {
-         scheduleClient.runNow(taskName);
+         scheduleClient.runNow(taskId);
       }
       catch(Throwable ex) {
          throw new Exception(Catalog.getCatalog().
-            getString("em.schedule.task.failedRun", taskName));
+            getString("em.schedule.task.failedRun", taskId));
       }
    }
 
@@ -522,21 +523,41 @@ public class SchedulerMonitoringService
             getString("em.schedule.task.failedStop", taskName));
       }
       else {
-         ScheduleTask task = scheduleManager.getScheduleTask(taskName);
+         ScheduleTask task = resolveTask(taskName);
+         String taskId = task.getTaskId();
 
-         if(task != null && !task.isEnabled()) {
+         if(!task.isEnabled()) {
             throw new Exception(Catalog.getCatalog().
-               getString("em.schedule.task.failedStop", taskName));
+               getString("em.schedule.task.failedStop", taskId));
          }
 
          try {
-            scheduleClient.stopNow(taskName);
+            scheduleClient.stopNow(taskId);
          }
          catch(Throwable ex) {
             throw new Exception(Catalog.getCatalog().
-               getString("em.schedule.task.failedStop", taskName));
+               getString("em.schedule.task.failedStop", taskId));
          }
       }
+   }
+
+   /**
+    * Looks up the named task in the current organization. Callers must run/stop the resolved
+    * task id, not the raw name, because the raw name may have been matched by the legacy
+    * fallback in getScheduleTask() and name a different quartz job.
+    * @param taskName the task name.
+    * @return the task, never null.
+    * @throws Exception if the task is not found.
+    */
+   private ScheduleTask resolveTask(String taskName) throws Exception {
+      ScheduleTask task = scheduleManager.getScheduleTask(taskName);
+
+      if(task == null) {
+         throw new Exception(Catalog.getCatalog().getString(
+            "scheduleManager.taskNotFound"));
+      }
+
+      return task;
    }
 
    /**

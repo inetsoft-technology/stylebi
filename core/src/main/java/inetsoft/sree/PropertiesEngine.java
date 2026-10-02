@@ -545,14 +545,14 @@ public class PropertiesEngine {
          int dot = name.indexOf('.', "inetsoft.org.".length());
 
          if(dot >= 0) {
-            String orgPrefix = name.substring(0, dot + 1);
+            String orgID = name.substring("inetsoft.org.".length(), dot);
             String suffix = name.substring(dot + 1);
             // recurse directly rather than through fixPropertyNameCase(): that would re-enter
             // propertyNameCaseCache.computeIfAbsent() for a second key while the outer call for
             // this name is still computing, which ConcurrentHashMap can reject with a recursive
             // update IllegalStateException. Bypassing the cache here is deliberate; recursion is
             // one level deep (org prefix, then the real name), so the cost is negligible.
-            return orgPrefix.toLowerCase() + computePropertyNameCase(suffix);
+            return getOrgPropertyPrefix(orgID) + computePropertyNameCase(suffix);
          }
 
          return name.toLowerCase();
@@ -569,23 +569,60 @@ public class PropertiesEngine {
       return name;
    }
 
-   private String useAvailableOrgProperty(String propertyName) {
+   /**
+    * Get the prefix of an organization's scoped property names as they are stored, i.e.
+    * <code>inetsoft.org.&lt;org&gt;.</code> with the case rules applied that every read and write
+    * applies to it. Organization IDs are case insensitive, so IDs that differ only in case have
+    * the same prefix. The org ID is lower-cased in the default locale on purpose: it must match
+    * {@code computePropertyNameCase()} and the readers, which also use the default locale,
+    * so do not change it to {@code Locale.ROOT}.
+    */
+   public static String getOrgPropertyPrefix(String orgID) {
+      return ("inetsoft.org." + orgID + ".").toLowerCase();
+   }
+
+   /**
+    * Get the property name as it is stored, i.e. with the case rules applied that every read and
+    * write applies to it.
+    */
+   String getPropertyNameCase(String name) {
+      return fixPropertyNameCase(name);
+   }
+
+   /**
+    * Get the organization whose <code>inetsoft.org.&lt;org&gt;.</code> override a property read
+    * made on the current thread consults. This is the same resolution that
+    * {@link #useAvailableOrgProperty(String)} applies, so a cache of property values can be keyed
+    * by it and still resolve exactly as an uncached read does.
+    *
+    * @param propertyName the property name, with {@link #fixPropertyNameCase(String)} applied.
+    *
+    * @return the lower case organization ID, or <code>null</code> if the read uses the global
+    *         key because the property is never organization scoped or the thread has no
+    *         principal. No organization lookup is made in either of those cases.
+    */
+   static String getPropertyOrgScope(String propertyName) {
       // Fast path: check excluded properties first before any expensive operations
-      if(EXCLUDED_ORG_PROPERTIES.contains(propertyName)) {
-         return propertyName;
-      }
-
-      XPrincipal principal = (XPrincipal) ThreadContext.getPrincipal();
-      principal = principal == null ? (XPrincipal) ThreadContext.getContextPrincipal() : principal;
-
-      if(principal == null) {
-         return propertyName;
+      if(EXCLUDED_ORG_PROPERTIES.contains(propertyName) || !hasThreadPrincipal()) {
+         return null;
       }
 
       String orgID = OrganizationManager.getInstance().getCurrentOrgID();
+      return orgID == null ? null : orgID.toLowerCase();
+   }
+
+   /**
+    * Determines if the current thread has a principal, in which case a property read is
+    * resolved in the principal's organization.
+    */
+   static boolean hasThreadPrincipal() {
+      return ThreadContext.getPrincipal() != null || ThreadContext.getContextPrincipal() != null;
+   }
+
+   private String useAvailableOrgProperty(String propertyName) {
+      String orgID = getPropertyOrgScope(propertyName);
 
       if(orgID != null) {
-         orgID = orgID.toLowerCase();
          Properties prop = getLoadedProperties();
          String orgPropertyName = "inetsoft.org." + orgID + "." + propertyName;
 
@@ -766,8 +803,9 @@ public class PropertiesEngine {
       initLogging(properties);
 
       if(fromChange) {
-         // initLogging() only applies the log properties that are present, so the running log
-         // levels of the properties removed by the reload must be reset (Bug #77006)
+         // initLogging() only applies the log properties that are present in some property
+         // layer, so the running log levels of the properties removed by the reload must be
+         // reset (Bug #77006)
          resetRemovedLogProperties(oldProperties, properties);
       }
 
@@ -810,6 +848,38 @@ public class PropertiesEngine {
       }
    }
 
+
+   /**
+    * Gets the value of a property from the sources that never hold key-value storage values,
+    * in the same order the cached properties layer them: an {@code INETSOFT_*} environment
+    * variable, then a system property, then the built-in defaults. Callers that read a property
+    * from the storage with {@link #getPropertyFromStorage(String)} use this when it is not
+    * stored, instead of {@link #getProperty(String, String)}, whose cached storage values may be
+    * stale on a cluster node that has not reloaded yet (Bug #77323).
+    *
+    * @param name the name of the property.
+    *
+    * @return the property value, or {@code null} if none of these sources supplies it.
+    */
+   public String getPropertyFromNonStorageSources(String name) {
+      name = fixPropertyNameCase(name);
+
+      if(name == null) {
+         return null;
+      }
+
+      String value = EarlyLoadedProperties.getEnvironmentProperty(name);
+
+      if(value == null) {
+         value = System.getProperty(name);
+      }
+
+      if(value == null) {
+         value = getDefaultProperties().getProperty(name);
+      }
+
+      return value;
+   }
 
    public Properties getDefaultProperties() {
       Properties prop = defaultProperties;
@@ -1074,11 +1144,72 @@ public class PropertiesEngine {
 
       reloadLoggingFramework();
 
-      for(Enumeration<?> e = props.propertyNames(); e.hasMoreElements();) {
-         applyLogProperty((String) e.nextElement());
+      // the levels are all applied first and the logging framework is then reloaded once,
+      // rather than once per log property
+      Set<String> names = getLogPropertyNames(props);
+
+      for(String name : names) {
+         applyLogProperty(name, getProperty(name));
+      }
+
+      if(!names.isEmpty()) {
+         reloadLogging();
       }
 
       System.out.println("Using built-in log configuration");
+   }
+
+   /**
+    * Gets the names of the log level properties set in any layer of the properties: the stored
+    * properties, the JVM system properties and defaults.properties. {@link
+    * DefaultProperties#propertyNames()} only enumerates the main (stored) layer, so the defaults,
+    * e.g. {@code log.detail.level=INFO}, and the {@code -D} system properties would otherwise
+    * never be applied (Bug #77302). The value of each property is read with {@link
+    * #getProperty(String)}, so the stored value still takes precedence over the system property
+    * and the system property over the default.
+    *
+    * <p>{@code log.detail.level} and {@code log.level.inetsoft} both set the level of the
+    * {@code inetsoft} logger; {@link #applyInetsoftLevel()} resolves them together, so the order
+    * of the names does not matter. It is kept deterministic, {@code log.detail.level} first.</p>
+    *
+    * @param props the properties.
+    *
+    * @return the log property names, {@code log.detail.level} first.
+    */
+   private static Set<String> getLogPropertyNames(Properties props) {
+      Set<String> names = new HashSet<>();
+      collectPropertyNames(props, names);
+      Set<String> result = new LinkedHashSet<>();
+
+      if(names.contains("log.detail.level")) {
+         result.add("log.detail.level");
+      }
+
+      names.stream()
+         .filter(PropertiesEngine::isLogProperty)
+         .sorted()
+         .forEach(result::add);
+      return result;
+   }
+
+   private static void collectPropertyNames(Properties props, Set<String> names) {
+      if(props == null) {
+         return;
+      }
+
+      for(Enumeration<?> e = props.propertyNames(); e.hasMoreElements();) {
+         Object name = e.nextElement();
+
+         if(name instanceof String) {
+            names.add((String) name);
+         }
+      }
+
+      if(props instanceof DefaultProperties) {
+         DefaultProperties layered = (DefaultProperties) props;
+         collectPropertyNames(layered.getMainProperties(), names);
+         collectPropertyNames(layered.getDefaultProperties(), names);
+      }
    }
 
    /**
@@ -1127,19 +1258,15 @@ public class PropertiesEngine {
          return;
       }
 
-      // enumerate the same properties that initLogging() applies
-      Set<String> names = new HashSet<>();
-
-      for(Enumeration<?> e = props.propertyNames(); e.hasMoreElements();) {
-         names.add((String) e.nextElement());
-      }
-
+      // enumerate the same properties that initLogging() applies, in every property layer. A
+      // removed stored property that is still set by a system property or a default was already
+      // re-applied with that value by initLogging(), so only the log properties that are no
+      // longer set in any layer are reset here
+      Set<String> names = getLogPropertyNames(props);
       boolean reset = false;
 
-      for(Enumeration<?> e = oldProperties.propertyNames(); e.hasMoreElements();) {
-         String prop = (String) e.nextElement();
-
-         if(isLogProperty(prop) && !names.contains(prop) && resetLogLevel(prop)) {
+      for(String prop : getLogPropertyNames(oldProperties)) {
+         if(!names.contains(prop) && resetLogLevel(prop)) {
             reset = true;
          }
       }
@@ -1162,13 +1289,16 @@ public class PropertiesEngine {
          return false;
       }
 
+      if(isInetsoftLevelProperty(prop)) {
+         // the other of the two properties that set the inetsoft logger, if any, still applies
+         applyInetsoftLevel();
+         return true;
+      }
+
       String val = getProperty(prop);
 
       if(val != null) {
          applyLogProperty(prop, val);
-      }
-      else if("log.detail.level".equals(prop)) {
-         logManagerProvider.ifAvailable(lm -> lm.setLevel((LogLevel) null));
       }
       else if(prop.startsWith("log.level.")) {
          String name = prop.substring(10);
@@ -1204,8 +1334,8 @@ public class PropertiesEngine {
    }
 
    private void applyLogProperty(String prop, String val) {
-      if("log.detail.level".equals(prop)) {
-         logManagerProvider.ifAvailable(lm -> lm.setLevel(LogManager.parseLevel(val)));
+      if(isInetsoftLevelProperty(prop)) {
+         applyInetsoftLevel();
       }
       else if(prop.startsWith("log.level.")) {
          try {
@@ -1237,6 +1367,31 @@ public class PropertiesEngine {
                getProperty(prop));
          }
       }
+   }
+
+   /**
+    * Determines if a property sets the level of the {@code inetsoft} logger, which both
+    * {@code log.detail.level} and the more specific {@code log.level.inetsoft} do.
+    */
+   private static boolean isInetsoftLevelProperty(String prop) {
+      return "log.detail.level".equals(prop) || INETSOFT_LEVEL_PROPERTY.equals(prop);
+   }
+
+   /**
+    * Applies the effective level of the {@code inetsoft} logger: {@code log.level.inetsoft} if
+    * it is set in any property layer, else {@code log.detail.level} (INFO in
+    * defaults.properties), else no level. Both properties are resolved together, so applying or
+    * removing one of them never clobbers or drops the other (Bug #77302).
+    */
+   private void applyInetsoftLevel() {
+      String val = getProperty(INETSOFT_LEVEL_PROPERTY);
+
+      if(val == null) {
+         val = getProperty("log.detail.level");
+      }
+
+      LogLevel level = val == null ? null : LogManager.parseLevel(val);
+      logManagerProvider.ifAvailable(lm -> lm.setLevel(level));
    }
 
    private boolean isScheduler() {
@@ -1659,6 +1814,7 @@ public class PropertiesEngine {
       "inetsoft.storage.aws.com.amazonaws", LogLevel.WARN,
       "inetsoft.storage.aws.org.apache", LogLevel.WARN,
       "org.apache.ignite", LogLevel.WARN);
+   private static final String INETSOFT_LEVEL_PROPERTY = "log.level.inetsoft";
    private static final String STORAGE_ID = "sreeProperties";
    private static final Logger LOG = LoggerFactory.getLogger(PropertiesEngine.class);
 }

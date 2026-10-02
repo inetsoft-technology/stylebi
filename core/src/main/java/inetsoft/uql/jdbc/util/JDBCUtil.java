@@ -21,6 +21,8 @@ import inetsoft.analytic.composition.ViewsheetEngine;
 import inetsoft.report.internal.Util;
 import inetsoft.uql.erm.vpm.VpmProcessor;
 import inetsoft.sree.SreeEnv;
+import inetsoft.sree.security.Organization;
+import inetsoft.sree.security.OrganizationManager;
 import inetsoft.sree.security.ResourceAction;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.AssetEntry;
@@ -365,9 +367,14 @@ public class JDBCUtil {
          XField field = sql.getFieldByPath(path);
 
          if(field != null && field.getTable().length() > 0) {
+            boolean quoted = xselect.isQuoted(xselect.getColumn(i));
             xselect.setColumn(i, path);
             xselect.setAlias(i, alias);
             xselect.setTable(path, field.getTable());
+
+            if(quoted) {
+               xselect.setQuoted(path, true);
+            }
 
             // get type
             if(xselect.getType(path) == null) {
@@ -490,6 +497,7 @@ public class JDBCUtil {
          newSelect.setType(path, select.getType(path));
          newSelect.setDescription(path, select.getDescription(path));
          newSelect.setTable(path, select.getTable(path));
+         newSelect.setQuoted(path, select.isQuoted(path));
          newSelect.setXMetaInfo(aidx, select.getXMetaInfo(i));
          newSelect.setExpression(aidx, select.isExpression(i));
       }
@@ -545,6 +553,8 @@ public class JDBCUtil {
             ((XJoin) root).getExpression2(), ((XJoin) root).getOp());
 
          newNode.setName(root.getName());
+         // keep the negation, e.g. "a.k = 1 or not (a.id = b.k)"
+         newNode.setIsNot(root.isIsNot());
          fixFakeJoins(sql, newNode, hash);
          return newNode;
       }
@@ -975,8 +985,7 @@ public class JDBCUtil {
       result.setTransactionIsolation(jdbcDataSource.getTransactionIsolation());
       result.setChangeDefaultDB(!Tool.isEmptyString(jdbcDataSource.getDefaultDatabase()));
 
-      String testQuery = SreeEnv.getProperty(
-         "inetsoft.uql.jdbc.pool." + jdbcDataSource.getFullName() + ".connectionTestQuery");
+      String testQuery = getConnectionTestQuery(jdbcDataSource.getFullName());
 
       if(type.getType().equals(CustomDatabaseType.TYPE)) {
          CustomDatabaseType.CustomDatabaseInfo customInfo =
@@ -1650,6 +1659,116 @@ public class JDBCUtil {
       matcher.appendTail(result);
 
       return result.toString();
+   }
+
+   /**
+    * Gets the connection test query shown in the data source editor. The value is stored in
+    * the current organization's scope, because data source names are only unique within an
+    * organization. Values saved before the key was organization scoped are global and are
+    * attributed to the host organization only.
+    *
+    * @param fullName the data source full name.
+    *
+    * @return the test query or <code>null</code> if none is set.
+    */
+   public static String getConnectionTestQuery(String fullName) {
+      String key = getConnectionTestQueryKey(fullName);
+      String orgID = getConnectionTestQueryOrgID();
+
+      if(orgID == null || isHostOrganization(orgID)) {
+         // the organization key first, then the legacy global key
+         return SreeEnv.getProperty(key);
+      }
+
+      return SreeEnv.getProperty("inetsoft.org." + orgID + "." + key, false, false);
+   }
+
+   /**
+    * Sets the connection test query of a data source in the current organization's scope.
+    *
+    * @param fullName  the data source full name.
+    * @param testQuery the test query.
+    */
+   public static void setConnectionTestQuery(String fullName, String testQuery) {
+      SreeEnv.setProperty(getConnectionTestQueryKey(fullName), testQuery, true);
+   }
+
+   /**
+    * Removes the connection test query of a data source in the current organization's scope.
+    * In the host organization the legacy global key is removed too, so that it is not shown
+    * again after the user clears the test query.
+    *
+    * @param fullName the data source full name.
+    */
+   public static void removeConnectionTestQuery(String fullName) {
+      String key = getConnectionTestQueryKey(fullName);
+      String orgID = getConnectionTestQueryOrgID();
+      SreeEnv.remove(key, true);
+
+      if(orgID != null && isHostOrganization(orgID)) {
+         SreeEnv.remove(key);
+      }
+   }
+
+   /**
+    * Moves the connection test query of a renamed or moved data source to its new name in the
+    * current organization's scope. If the old name has no test query, a value left at the new
+    * name by a data source deleted earlier is removed, so that it is not shown for this one.
+    *
+    * @param oldName the old data source full name.
+    * @param newName the new data source full name.
+    *
+    * @return <code>true</code> if a property was changed and SreeEnv needs to be saved.
+    */
+   public static boolean renameConnectionTestQuery(String oldName, String newName) {
+      String testQuery = getConnectionTestQuery(oldName);
+      boolean changed = removeConnectionTestQueryIfSet(newName);
+
+      if(testQuery != null) {
+         removeConnectionTestQuery(oldName);
+         setConnectionTestQuery(newName, testQuery);
+         changed = true;
+      }
+
+      return changed;
+   }
+
+   /**
+    * Removes the connection test query of a data source in the current organization's scope
+    * if one is set.
+    *
+    * @param fullName the data source full name.
+    *
+    * @return <code>true</code> if a property was removed and SreeEnv needs to be saved.
+    */
+   public static boolean removeConnectionTestQueryIfSet(String fullName) {
+      if(getConnectionTestQuery(fullName) == null) {
+         return false;
+      }
+
+      removeConnectionTestQuery(fullName);
+      return true;
+   }
+
+   private static String getConnectionTestQueryKey(String fullName) {
+      return "inetsoft.uql.jdbc.pool." + fullName + ".connectionTestQuery";
+   }
+
+   /**
+    * Gets the organization that SreeEnv scopes the test query to, or <code>null</code> if
+    * the thread has no principal and SreeEnv uses the global key.
+    */
+   private static String getConnectionTestQueryOrgID() {
+      if(ThreadContext.getPrincipal() == null && ThreadContext.getContextPrincipal() == null) {
+         return null;
+      }
+
+      return OrganizationManager.getInstance().getCurrentOrgID();
+   }
+
+   private static boolean isHostOrganization(String orgID) {
+      // the enterprise organization manager does not lower case the organization ID
+      return Organization.getDefaultOrganizationID().equalsIgnoreCase(orgID);
    }
 
    // table xnode->XTypeNode(columns)

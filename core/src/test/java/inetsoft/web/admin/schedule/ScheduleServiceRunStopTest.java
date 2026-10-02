@@ -67,6 +67,9 @@ class ScheduleServiceRunStopTest {
       orgManagerStatic.when(OrganizationManager::getInstance).thenReturn(organizationManager);
       lenient().when(organizationManager.getCurrentOrgID(any(Principal.class))).thenReturn(ORG_A);
       scheduleManagerStatic = mockStatic(ScheduleManager.class);
+      // ScheduleTask.getTaskId() derives the id through this static helper; run/stop use it
+      scheduleManagerStatic.when(() -> ScheduleManager.getTaskId(anyString(), anyString()))
+         .thenCallRealMethod();
       auditStatic = mockStatic(Audit.class);
       auditStatic.when(Audit::getInstance).thenReturn(mock(Audit.class));
 

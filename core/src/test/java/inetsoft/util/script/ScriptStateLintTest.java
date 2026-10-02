@@ -22,6 +22,7 @@ import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 import inetsoft.report.lens.DefaultTableLens;
+import inetsoft.util.script.graal.GraalJavaScriptEngine;
 import inetsoft.util.script.graal.ScriptScope;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -147,6 +148,22 @@ class ScriptStateLintTest {
          "/[/]x/.test(field['a'])",
          "field['a'].replace(/'/g, '')",
          "var a = (field['a'])\n/ 2",
+         // Bug #77305: a regex literal placed directly after an if/while/for/with head's
+         // closing `)` must not be misread as division
+         "if(true) /z = z + 1/.test('z')",
+         "while(false) /z = z + 1/.test('z')",
+         "for(;;) /z = z + 1/.test('z')",
+         // Bug #77305: 'with' was covered in GraalJavaScriptEngineOwnedVarTest but not here --
+         // ScriptStateLint has its own, separate lexer with the identical gap
+         "with(field) /z = z + 1/.test('z')",
+         // Bug #77305: a control head nested inside another must not confuse the bracket/
+         // control-head-tracking stack (the inner if's own regex-adjacent ')' must still be
+         // recognized via 'afterHead', independent of the outer if's bracket depth)
+         "if(true) { if(true) /z = z + 1/.test('z'); }",
+         // Bug #77305: parens nested *inside* a control head's own condition (not just braces
+         // in the body) must not be mistaken for the head's closing ')' -- the bracket stack
+         // must track the true nesting depth so 'afterHead' fires only after the real close
+         "for(i=(1+1); i<3; i++) /z = z + 1/.test('z')",
          // destructuring, labels, switch, do-while, loops, try/catch, ASI, ??=
          "var {a, b} = field['o']; a + b",
          "var [p, q] = [1, 2]; p + q",
@@ -426,12 +443,25 @@ class ScriptStateLintTest {
     */
    static Stream<Arguments> objectValues() {
       return Stream.of(
-         Arguments.of("var a = a || []; a.push(1); a.length", true),
-         Arguments.of("var o = o || {}; o.n = 1; o", true),
-         Arguments.of("var d; if(!d) { d = new Date(); } d", true),
+         // arrays and plain objects are kept across pooled contexts (B1 residual part 2)
+         Arguments.of("var a = a || []; a.push(1); a.length", false),
+         Arguments.of("var o = o || {}; o.n = 1; o", false),
+         // the same made with new (review round 2 L5)
+         Arguments.of("var na = na || new Array(); na.push(1); na.length", false),
+         Arguments.of("var no = no || new Object(); no.n = 1; no", false),
+         Arguments.of("var nx = nx || new Array.Foo(); nx", true),
+         // a Date is kept across pooled batches (Testing #77123, B1 residual)
+         Arguments.of("var d; if(!d) { d = new Date(); } d", false),
+         Arguments.of("var d2 = d2 || new Date(0); d2.setTime(d2.getTime() + 1); d2", false),
+         Arguments.of("var m = m || new Map(); m.set(1, 1); m", true),
+         Arguments.of("var e = e || [new Date(0)]; e", false),
+         Arguments.of("var k = k || new (class { })(); k", true),
+         Arguments.of("var n = n || new Intl.NumberFormat(); n", true),
+         Arguments.of("var q = q || new Date.Foo(); q", true),
          Arguments.of("var f = f || function(x) { return x; }; f(1)", true),
          Arguments.of("var g = g || (x => x); g(1)", true),
-         Arguments.of("var c; c ||= []; c", true),
+         Arguments.of("var c; c ||= []; c", false),
+         Arguments.of("var h; h ||= function() {}; h", true),
          Arguments.of("var acc = (acc || 0) + field['x']; acc", false),
          Arguments.of("var s = (s || '') + field['a'][0]; s", false),
          Arguments.of("var m = Math.max(m || 0, field['x']); m", false),
@@ -457,7 +487,7 @@ class ScriptStateLintTest {
    void ownedVarsOfAColumn() {
       DefaultTableLens tbl = new DefaultTableLens(new Object[][] { { "x" }, { 1 } });
       String acc = "var acc = (acc || 0) + field['x']; acc";
-      String list = "var list = list || []; list.push(field['x']); list.length";
+      String list = "var list = list || new Map(); list.set(field['x'], 1); list.size";
 
       ScriptStateLint.checkColumn(acc, new Object(), tbl, 1, "C", "T", null, Set.of("acc"), false);
       ScriptStateLint.checkColumn(acc, new Object(), tbl, 1, "C", "T", null, Set.of("acc"), true);
@@ -469,9 +499,10 @@ class ScriptStateLintTest {
                                   true);
       assertEquals(1, warnings().size());
       String msg = warnings().get(0).getFormattedMessage();
-      assertTrue(msg.contains("assigns it an object, array, Date or function"), msg);
-      assertTrue(msg.contains("kept only within one batch"), msg);
-      assertTrue(msg.contains("A number, string or boolean is always kept"), msg);
+      assertTrue(msg.contains("assigns it a function or an object made with new"), msg);
+      assertTrue(msg.contains("kept only while the table stays on one script context"), msg);
+      assertTrue(msg.contains("A number, string, boolean, Date, array or plain object is " +
+                              "always kept"), msg);
       assertFalse(msg.contains("not reset between tables"), msg);
 
       String notOwned = "var k = (k || 0) + 1; k";
@@ -488,6 +519,51 @@ class ScriptStateLintTest {
       assertEquals(3, warnings().size());
       msg = warnings().get(2).getFormattedMessage();
       assertTrue(msg.contains("rule R2"), msg);
+   }
+
+   /**
+    * Bug #77305, cross-column false negative (the centerpiece shape), exercised through the real
+    * {@code collectOwnedVarNames} -> {@code checkColumn} pipeline (see also
+    * {@code GraalJavaScriptEngineOwnedVarTest.crossColumnLetSwallowNoLongerHidesLexicalDeclaration}
+    * for the {@code owned}-set-level assertion): a control-head-adjacent regex in one column also
+    * contains a stray unterminated-string-starting quote that swallows the rest of that formula's
+    * text, including a real {@code let} of a name a different column's clean accumulator needs to
+    * not-own. Before the fix, the swallow hid the {@code let}, so {@code owned} wrongly kept "k",
+    * and {@code checkColumn} stayed silent; after the fix, {@code owned} correctly excludes "k",
+    * so the clean accumulator column now gets its {@code REPORT_NOT_OWNED} warning.
+    */
+   @Test
+   void crossColumnLetSwallowNoLongerSuppressesNotOwnedWarning() {
+      DefaultTableLens tbl = new DefaultTableLens(new Object[][] { { "x" }, { 1 } });
+      String acc = "var k = (k||0) + field['x']; k";
+      String poisonedLetDecl = "if(true) /'/.test(s); let k = 5;";
+      Set<String> owned = GraalJavaScriptEngine.collectOwnedVarNames(List.of(acc, poisonedLetDecl));
+      assertEquals(Set.of(), owned);
+
+      ScriptStateLint.checkColumn(acc, new Object(), tbl, 1, "C", "T", null, owned, false);
+      assertEquals(1, warnings().size(), () -> "warnings: " + appender.list);
+      String msg = warnings().get(0).getFormattedMessage();
+      assertTrue(msg.contains("with let or const"), msg);
+   }
+
+   /**
+    * Bug #77305, cross-column false positive (the third, recheck-round shape): a column with no
+    * {@code var} of its own relies entirely on a sibling column's real {@code var} declaration,
+    * and that sibling's declaration is swallowed by a control-head-adjacent poisoned regex.
+    * Before the fix, {@code collectOwnedVarNames} never saw the swallowed {@code var}. Note: the
+    * reading column's own finding is classified R2 (no declaration of "v" in that script), and
+    * {@code checkColumn}'s R2 disposition does not consult {@code owned} (only R1 does, see the
+    * class-level doc comment and {@code checkColumn}'s "R2 stays as is" branch) — so the
+    * observable, fixed effect of this shape is on the {@code owned} set itself, asserted directly
+    * here and in
+    * {@code GraalJavaScriptEngineOwnedVarTest.crossColumnVarSwallowNoLongerHidesOwnership}.
+    */
+   @Test
+   void crossColumnVarSwallowNoLongerHidesOwnership() {
+      String reliesOnOtherColumn = "v = (v || 0) + field['x']; v";
+      String poisonedVarDecl = "if(true) /\"/.test(x); var v = 1;";
+      assertEquals(Set.of("v"), GraalJavaScriptEngine.collectOwnedVarNames(
+         List.of(reliesOnOtherColumn, poisonedVarDecl)));
    }
 
    private List<ILoggingEvent> warnings() {

@@ -35,24 +35,29 @@ package inetsoft.sree.security;
  * [Event: remove]        grant with oldId + remove event       → grant stripped
  * [Event: rename/xorg]   rename orgA identity + orgB same-name grant → orgB grant survives unchanged
  * [Event: remove/xorg]   remove orgA identity + orgB same-name grant → orgB grant survives unchanged
+ * [Bootstrap: defaults] addDefaultRoleGrants(default/self org)  → DASHBOARD * and time ranges hold separate grants
  *
  */
 
+import inetsoft.sree.schedule.TimeRange;
 import inetsoft.storage.KeyValuePair;
 import inetsoft.storage.KeyValueStorage;
 import inetsoft.uql.util.Identity;
 import inetsoft.util.Tuple4;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.mockito.MockedStatic;
 
 import java.io.Serializable;
 import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Future;
 import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.mockStatic;
 
 @Tag("core")
 class FileAuthorizationProviderTest {
@@ -301,6 +306,65 @@ class FileAuthorizationProviderTest {
                         .anyMatch(pi -> "alice".equals(pi.getName())));
       assertTrue(stored.getGrants(ResourceAction.READ, Identity.USER, ORG_B).stream()
                        .anyMatch(pi -> "alice".equals(pi.getName())));
+   }
+
+   // [Bootstrap: Bug #77376] DASHBOARD * and the schedule time ranges get separate default grants
+   // Pre: one time range defined; Op: addDefaultRoleGrants(default org / self org);
+   // Post: DASHBOARD * holds only READ/WRITE, the time range holds only the Advanced ACCESS (default org)
+   @Test
+   void addDefaultRoleGrants_dashboardAndTimeRangesDoNotShareGrants() throws Exception {
+      String defaultOrg = Organization.getDefaultOrganizationID();
+      String selfOrg = Organization.getSelfOrganizationID();
+      String selfOrgName = Organization.getSelfOrganizationName();
+      Map<String, Permission> map = new HashMap<>();
+      Method method = Class.forName(FileAuthorizationProvider.class.getName() + "$LoadPermissionsTask")
+         .getDeclaredMethod("addDefaultRoleGrants", String.class, Map.class);
+      method.setAccessible(true);
+
+      try(MockedStatic<TimeRange> timeRanges = mockStatic(TimeRange.class)) {
+         timeRanges.when(TimeRange::getTimeRanges)
+            .thenReturn(List.of(new TimeRange("tr1", "09:00:00", "14:00:00", true)));
+         method.invoke(null, defaultOrg, map);
+         method.invoke(null, selfOrg, map);
+      }
+
+      Permission dashboard = map.get("DASHBOARD:" + defaultOrg + ":*");
+      Permission timeRange = map.get("SCHEDULE_TIME_RANGE:" + defaultOrg + ":tr1");
+      assertNotSame(dashboard, timeRange);
+      assertEquals(Set.of("Designer"), roleNames(dashboard, ResourceAction.READ, defaultOrg));
+      assertEquals(Set.of("Designer"), roleNames(dashboard, ResourceAction.WRITE, defaultOrg));
+      assertEquals(Set.of(), roleNames(dashboard, ResourceAction.ACCESS, defaultOrg));
+      assertEquals(Set.of("Advanced"), roleNames(timeRange, ResourceAction.ACCESS, defaultOrg));
+      assertEquals(Set.of(), roleNames(timeRange, ResourceAction.READ, defaultOrg));
+      assertEquals(Set.of(), roleNames(timeRange, ResourceAction.WRITE, defaultOrg));
+
+      Permission selfDashboard = map.get("DASHBOARD:" + selfOrg + ":*");
+      Permission selfTimeRange = map.get("SCHEDULE_TIME_RANGE:" + selfOrg + ":tr1");
+      assertNotSame(selfDashboard, selfTimeRange);
+      assertEquals(Set.of(selfOrgName),
+                   orgNames(selfDashboard, ResourceAction.READ, selfOrg));
+      assertEquals(Set.of(selfOrgName),
+                   orgNames(selfDashboard, ResourceAction.WRITE, selfOrg));
+      assertTrue(selfTimeRange.hasOrgEditedGrantAll(selfOrg));
+
+      for(ResourceAction action : ResourceAction.values()) {
+         assertEquals(Set.of(), orgNames(selfTimeRange, action, selfOrg));
+         assertEquals(Set.of(), roleNames(selfTimeRange, action, selfOrg));
+      }
+   }
+
+   private static Set<String> roleNames(Permission perm, ResourceAction action, String orgID) {
+      return names(perm.getRoleGrants(action, orgID));
+   }
+
+   private static Set<String> orgNames(Permission perm, ResourceAction action, String orgID) {
+      return names(perm.getOrganizationGrants(action, orgID));
+   }
+
+   private static Set<String> names(Set<Permission.PermissionIdentity> grants) {
+      Set<String> names = new HashSet<>();
+      grants.forEach(grant -> names.add(grant.getName()));
+      return names;
    }
 
    private static FileAuthorizationProvider newProvider() throws Exception {

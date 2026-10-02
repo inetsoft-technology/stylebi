@@ -71,6 +71,7 @@ public class RepositoryDashboardService {
    public RepositoryDashboardSettingsModel getSettings(String dashboardName, IdentityID owner,
                                                        Principal principal)
    {
+      checkOwnerOrg(owner, principal);
       DashboardRegistry registry = owner != null ? dashboardRegistryManager.getRegistry(owner) :
          dashboardRegistryManager.getRegistry();
       dashboardName = fixDashboardName(dashboardName, owner);
@@ -100,6 +101,14 @@ public class RepositoryDashboardService {
                            .build();
    }
 
+   /**
+    * Rejects a client-supplied dashboard owner from another organization unless the caller is a
+    * site administrator. See {@link RepositoryOwnerOrgCheck#checkOwnerOrg}.
+    */
+   private void checkOwnerOrg(IdentityID owner, Principal principal) {
+      RepositoryOwnerOrgCheck.checkOwnerOrg(owner, principal);
+   }
+
    private Identity effectiveIdentity(IdentityID owner, Principal principal) {
       if(!securityEngine.isSecurityEnabled()) {
          return new DefaultIdentity(XPrincipal.ANONYMOUS, Identity.USER);
@@ -125,6 +134,7 @@ public class RepositoryDashboardService {
          return null;
       }
 
+      checkOwnerOrg(owner, principal);
       IdentityID principalID = IdentityID.getIdentityIDFromKey(principal.getName());
 
       if((owner == null || !owner.equals(principalID)) &&
@@ -145,11 +155,24 @@ public class RepositoryDashboardService {
          VSDashboard dashboard = new VSDashboard();
          String desp = model.description();
          String identifier = model.viewsheet();
-         AssetEntry entry = Objects.requireNonNull(AssetEntry.createAssetEntry(identifier));
+         AssetEntry entry = AssetEntry.createAssetEntry(identifier);
+
+         if(entry == null) {
+            throw new MessageException(
+               Catalog.getCatalog().getString("common.invalidEntry", identifier));
+         }
+
          String oldName = model.oname();
          Dashboard oldDashboard = registry.getDashboard(oldName);
-         dependencyHandler.updateDashboardDependencies(owner, oldName, false);
          ViewsheetEntry oldEntry = ((VSDashboard) oldDashboard).getViewsheet();
+
+         // the caller must be able to read a newly bound, client-supplied viewsheet
+         if(oldEntry == null || !Tool.equals(identifier, oldEntry.getIdentifier())) {
+            AssetUtil.getAssetRepository(false)
+               .checkAssetPermission(principal, entry, ResourceAction.READ);
+         }
+
+         dependencyHandler.updateDashboardDependencies(owner, oldName, false);
          ViewsheetEntry viewsheet = new ViewsheetEntry(entry.getPath(), entry.getUser());
          viewsheet.setIdentifier(identifier);
          dashboard.setViewsheet(viewsheet);
@@ -196,7 +219,7 @@ public class RepositoryDashboardService {
             ViewsheetEntry newEntry = dashboard.getViewsheet();
 
             if(!Tool.equals(newEntry, oldEntry)) {
-               removeDashboardViewsheet((VSDashboard) oldDashboard);
+               removeDashboardViewsheet((VSDashboard) oldDashboard, principal);
             }
          }
 
@@ -210,8 +233,7 @@ public class RepositoryDashboardService {
          dashboard.setLastModified(System.currentTimeMillis());
          dashboard.setLastModifiedBy(identityID.getName());
 
-         registry.addDashboard(name, dashboard);
-         registry.save();
+         registry.putDashboard(name, dashboard);
          dependencyHandler.updateDashboardDependencies(owner, name, true);
 
          //security permission part
@@ -311,6 +333,8 @@ public class RepositoryDashboardService {
                                                  Principal principal)
       throws Exception
    {
+      checkOwnerOrg(parentInfo.getOwner(), principal);
+
       if(!securityProvider.checkPermission(principal, ResourceType.DASHBOARD, "/", ResourceAction.ADMIN)) {
          throw new MessageException(Catalog.getCatalog().getString(
             "em.common.security.no.permission", "/"));
@@ -343,8 +367,7 @@ public class RepositoryDashboardService {
          dashboard.setCreatedBy(identityID.getName());
          dashboard.setLastModified(System.currentTimeMillis());
          dashboard.setLastModifiedBy(identityID.getName());
-         registry.addDashboard(dashboardName, dashboard);
-         registry.save();
+         registry.putDashboard(dashboardName, dashboard);
          Identity identity = securityEngine.isSecurityEnabled() ?
             contentRepositoryTreeService.getIdentity((XPrincipal) principal) :
             new DefaultIdentity(XPrincipal.ANONYMOUS, Identity.USER);
@@ -391,7 +414,8 @@ public class RepositoryDashboardService {
                                                            parentInfo.getOwner());
    }
 
-   public void delete(String path, IdentityID owner) throws Exception {
+   public void delete(String path, IdentityID owner, Principal principal) throws Exception {
+      checkOwnerOrg(owner, principal);
       DashboardRegistry registry = dashboardRegistryManager.getRegistry(owner);
 
       if(owner != null && SUtil.isMyDashboard(path)) {
@@ -401,10 +425,9 @@ public class RepositoryDashboardService {
       dependencyHandler.updateDashboardDependencies(owner, path, false);
       Dashboard dashboard = registry.getDashboard(path);
       registry.removeDashboard(path);
-      registry.save();
 
       if(dashboard instanceof VSDashboard) {
-         removeDashboardViewsheet((VSDashboard) dashboard);
+         removeDashboardViewsheet((VSDashboard) dashboard, principal);
       }
    }
 
@@ -532,19 +555,19 @@ public class RepositoryDashboardService {
     * Method for removing a particular viewsheet of a VS Dashboard
     *
     * @param dashboard VS Dashboard to be removed
+    * @param principal the caller, used so the asset engine enforces org and owner checks
     */
-   private void removeDashboardViewsheet(VSDashboard dashboard) {
+   private void removeDashboardViewsheet(VSDashboard dashboard, Principal principal) {
       ViewsheetEntry ve = dashboard.getViewsheet();
       AssetRepository engine = AssetUtil.getAssetRepository(false);
       AssetEntry entry = ve == null ? null : AssetEntry.createAssetEntry(ve.getIdentifier());
 
       if(entry != null && entry.getScope() == AssetRepository.USER_SCOPE) {
          try {
-            Principal user = new XPrincipal(entry.getUser());
-            Viewsheet vs = (Viewsheet) engine.getSheet(entry, user, false, AssetContent.ALL);
+            Viewsheet vs = (Viewsheet) engine.getSheet(entry, principal, false, AssetContent.ALL);
 
             if(vs.getViewsheetInfo().isComposedDashboard()) {
-               engine.removeSheet(entry, user, false);
+               engine.removeSheet(entry, principal, false);
             }
          }
          catch(Exception e) {

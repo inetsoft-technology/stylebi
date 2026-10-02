@@ -91,6 +91,11 @@ public class SubQueryConditionCycleTest {
       senv.init();
       Lock lock = senv.getExecutionLock();
       AssetQuerySandbox box = new AssetQuerySandbox(null);
+      // pool off, like the plain env below (the pool is on by default, Feature #77123)
+      Field mode = AssetQuerySandbox.class.getDeclaredField("scriptPoolMode");
+      mode.setAccessible(true);
+      mode.set(box, false);
+      assertFalse(box.isScriptPoolMode());
       Field field = AssetQuerySandbox.class.getDeclaredField("senv");
       field.setAccessible(true);
       field.set(box, senv);

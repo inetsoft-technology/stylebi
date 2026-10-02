@@ -17,12 +17,16 @@
  */
 package inetsoft.web.viewsheet.controller;
 
+import inetsoft.report.composition.FormTableLens;
+import inetsoft.report.composition.FormTableRow;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.WorksheetService;
+import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.sree.SreeEnv;
 import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.SreeHome;
+import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.ViewsheetInfo;
@@ -39,6 +43,7 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.security.Principal;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.*;
@@ -50,7 +55,8 @@ import static org.mockito.Mockito.*;
  * gated on a data-change time that nothing records (ViewsheetEngine.dataChanged() has no
  * callers), so getDataChangedTime() is always 0 in a running server and auto-refresh never
  * fired. With assetMonitor.enabled true, a tick refreshes only when a data change newer than
- * the last touch has been recorded.
+ * the last touch has been recorded. A tick never refreshes while a form table has edits that
+ * have not been submitted, since the refresh would discard them.
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class },
@@ -101,6 +107,32 @@ class TouchAssetServiceTest {
       verifyAutoRefresh();
    }
 
+   @Test
+   void updateTickDoesNotRefreshWhenFormTableHasPendingEdits() throws Exception {
+      touch(true, true, 0L, formTableBox(1));
+
+      verify(vsRefreshController, never()).refreshViewsheet(any(), any(), any(), any());
+   }
+
+   @Test
+   void updateTickRefreshesWhenFormTableHasNoPendingEdits() throws Exception {
+      touch(true, true, 0L, formTableBox(0));
+
+      verifyAutoRefresh();
+   }
+
+   // a sandbox holding one form table "Table1" with the given number of changed rows
+   private ViewsheetSandbox formTableBox(int changedRows) throws Exception {
+      FormTableLens lens = mock(FormTableLens.class);
+      when(lens.rows(anyInt())).thenReturn(new FormTableRow[0]);
+      when(lens.rows(FormTableRow.CHANGED)).thenReturn(new FormTableRow[changedRows]);
+
+      ViewsheetSandbox box = mock(ViewsheetSandbox.class);
+      box.needRefresh = new AtomicBoolean();
+      when(box.getFormTableLens("Table1")).thenReturn(lens);
+      return box;
+   }
+
    private void verifyAutoRefresh() throws Exception {
       ArgumentCaptor<VSRefreshEvent> captor = ArgumentCaptor.forClass(VSRefreshEvent.class);
       verify(vsRefreshController).refreshViewsheet(
@@ -125,6 +157,12 @@ class TouchAssetServiceTest {
    }
 
    private void touch(boolean update, boolean updateEnabled, long changeTime) throws Exception {
+      touch(update, updateEnabled, changeTime, null);
+   }
+
+   private void touch(boolean update, boolean updateEnabled, long changeTime,
+                      ViewsheetSandbox box) throws Exception
+   {
       String runtimeId = "rt-touch-1";
 
       TouchAssetEvent event = mock(TouchAssetEvent.class);
@@ -140,6 +178,10 @@ class TouchAssetServiceTest {
       Viewsheet vs = mock(Viewsheet.class);
       when(vs.getViewsheetInfo()).thenReturn(vinfo);
 
+      Assembly table = mock(Assembly.class);
+      when(table.getAbsoluteName()).thenReturn("Table1");
+      when(vs.getAssemblies(true)).thenReturn(new Assembly[] { table });
+
       AssetEntry entry = mock(AssetEntry.class);
 
       RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
@@ -147,7 +189,7 @@ class TouchAssetServiceTest {
       when(rvs.getLockOwner()).thenReturn(null);
       when(rvs.getEntry()).thenReturn(entry);
       when(rvs.getOriginalID()).thenReturn(null);
-      when(rvs.getViewsheetSandbox()).thenReturn(Optional.empty());
+      when(rvs.getViewsheetSandbox()).thenReturn(Optional.ofNullable(box));
       when(rvs.getViewsheet()).thenReturn(vs);
       when(rvs.isRuntime()).thenReturn(true);
       when(rvs.getTouchTimestamp()).thenReturn(1_000L);

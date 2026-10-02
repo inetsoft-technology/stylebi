@@ -56,6 +56,26 @@ public class XPrincipal implements Principal, Serializable, Cloneable {
    public static final String ANONYMOUS = "anonymous";
 
    /**
+    * Check if a principal is the anonymous (guest) user. {@link Principal#getName()} returns
+    * the identity key ({@code name~;~orgID}), so the user name is taken as the part before
+    * {@link IdentityID#KEY_DELIMITER}. A plain name without the delimiter is also accepted.
+    *
+    * @param principal the principal to check, may be {@code null}.
+    *
+    * @return {@code true} if the principal's user name is {@link #ANONYMOUS}.
+    */
+   public static boolean isAnonymous(Principal principal) {
+      String name = principal == null ? null : principal.getName();
+
+      if(name == null) {
+         return false;
+      }
+
+      int index = name.indexOf(IdentityID.KEY_DELIMITER);
+      return ANONYMOUS.equals(index >= 0 ? name.substring(0, index) : name);
+   }
+
+   /**
     * The property name for alias.
     */
    public static final String ALIAS = "__alias__";

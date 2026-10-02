@@ -17,7 +17,9 @@
  */
 package inetsoft.util;
 
+import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.security.Organization;
+import inetsoft.sree.security.OrgScopedPaths;
 import inetsoft.storage.*;
 import jakarta.annotation.PreDestroy;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -27,9 +29,12 @@ import org.slf4j.LoggerFactory;
 
 import java.io.*;
 import java.nio.file.NoSuchFileException;
+import java.nio.file.NotDirectoryException;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListSet;
+import java.util.concurrent.locks.Lock;
+import java.util.stream.Collectors;
 
 /**
  * DataSpace object represents a data access implementation.
@@ -379,7 +384,16 @@ public class DataSpace implements AutoCloseable {
    public boolean rename(String opath, String npath) {
       String oldPath = sanitizePathComponent(opath);
       String newPath = sanitizePathComponent(npath);
-      return renameRecursively(oldPath, newPath);
+
+      if(!canMoveTo(oldPath, newPath)) {
+         return false;
+      }
+
+      boolean result = renameRecursively(oldPath, newPath);
+      // created after the move so that a rename into its own subtree, which removes the old
+      // folder marker, still leaves the ancestors of the new path as directories
+      makeMissingAncestors(newPath, result);
+      return result;
    }
 
    private boolean renameRecursively(String oldPath, String newPath) {
@@ -418,11 +432,16 @@ public class DataSpace implements AutoCloseable {
     * @return String[] containing org scoped paths
     */
    public String[] getOrgScopedPaths(Organization oorg) {
-      return storage().paths().filter(p -> p.equals("portal/" + oorg.getId()) ||
-         p.startsWith("portal/" + oorg.getId() + "/") || p.startsWith(oorg.getId() + "__") ||
-         p.equals(oorg.getId()) || p.startsWith(oorg.getId() + "/") ||
-         p.startsWith("sreeUserData/") && p.endsWith("_" + oorg.getId() + ".xml"))
+      return storage().paths().filter(p -> OrgScopedPaths.isOrgScopedPath(p, oorg.getId()))
          .toArray(String[]::new);
+   }
+
+   /**
+    * Determines if the data space contains any path that an organization with the id would own,
+    * i.e. that {@link #getOrgScopedPaths} would return for it.
+    */
+   public boolean hasOrgScopedPaths(String orgId) {
+      return storage().paths().anyMatch(p -> OrgScopedPaths.isOrgScopedPath(p, orgId));
    }
 
    /**
@@ -434,7 +453,71 @@ public class DataSpace implements AutoCloseable {
    public boolean copy(String opath, String npath) {
       String oldPath = sanitizePathComponent(opath);
       String newPath = sanitizePathComponent(npath);
-      return copyRecursively(oldPath, newPath);
+
+      if(!canMoveTo(oldPath, newPath)) {
+         return false;
+      }
+
+      boolean result = copyRecursively(oldPath, newPath);
+      makeMissingAncestors(newPath, result);
+      return result;
+   }
+
+   /**
+    * Determines if a file or folder can be renamed or copied to a new path. The source must
+    * exist and no ancestor of the new path may be a file.
+    */
+   private boolean canMoveTo(String oldPath, String newPath) {
+      if(oldPath == null || newPath == null || !isDirectory(oldPath) && !storage().exists(oldPath)) {
+         return false;
+      }
+
+      String parent = getParentPath(newPath);
+
+      while(parent != null) {
+         if(storage().exists(parent) && !storage().isDirectory(parent)) {
+            LOG.warn("Cannot move {} to {}, {} is a file", oldPath, newPath, parent);
+            return false;
+         }
+
+         parent = getParentPath(parent);
+      }
+
+      return true;
+   }
+
+   /**
+    * Creates the directory markers for the ancestors of a renamed or copied path that do not
+    * exist. Without a marker, a folder is not listed and is not treated as a directory, so
+    * deleting it leaves its children behind.
+    *
+    * @param newPath the target path.
+    * @param moved   {@code true} if the rename or copy succeeded.
+    */
+   private void makeMissingAncestors(String newPath, boolean moved) {
+      String parent = getParentPath(newPath);
+
+      if(parent == null) {
+         return;
+      }
+
+      // a partially failed move may still have moved some descendants to the new path
+      if(!moved && !storage().exists(newPath) &&
+         storage().paths().noneMatch(p -> p.startsWith(newPath + "/")))
+      {
+         return;
+      }
+
+      int end = 0;
+
+      while((end = newPath.indexOf('/', end + 1)) > 0) {
+         String ancestor = newPath.substring(0, end);
+
+         // never replace an existing key, a directory marker over a file orphans its content
+         if(!storage().exists(ancestor)) {
+            makeDirectory(ancestor);
+         }
+      }
    }
 
    private boolean copyRecursively(String oldPath, String newPath) {
@@ -487,6 +570,27 @@ public class DataSpace implements AutoCloseable {
    }
 
    /**
+    * Retrieve the digest of the content of the file, which identifies what the file holds
+    * whenever it was written, unlike its modification time.
+    *
+    * @param dir directory name
+    * @param file file name
+    *
+    * @return the lower-case hexadecimal MD5 hash of the file content, or {@code null} if the file
+    *         does not exist or is a directory
+    */
+   public String getDigest(String dir, String file) {
+      String path = getPath(dir, file);
+
+      try {
+         return storage().getDigest(path);
+      }
+      catch(FileNotFoundException ignore) {
+         return null;
+      }
+   }
+
+   /**
     * Create the directory named by a path.
     *
     * @param path the specified path
@@ -516,6 +620,14 @@ public class DataSpace implements AutoCloseable {
     */
    public boolean makeDirectories(String path) {
       String sanitized = sanitizePathComponent(path);
+      // check the whole chain first so that a refused call creates no markers
+      String file = isFile(sanitized) ? sanitized : findFileAncestor(sanitized);
+
+      if(file != null) {
+         LOG.warn("Cannot create directory {}, {} is a file", sanitized, file);
+         return false;
+      }
+
       int start = 0;
       int end = 0;
 
@@ -534,6 +646,102 @@ public class DataSpace implements AutoCloseable {
       }
 
       return true;
+   }
+
+   /**
+    * Determines if a sanitized path exists and is a file. A directory marker over a file
+    * replaces the file and orphans its content.
+    */
+   private boolean isFile(String path) {
+      return path != null && storage().exists(path) && !storage().isDirectory(path);
+   }
+
+   /**
+    * Finds the nearest ancestor of a sanitized path, from the parent up to the root, that is a
+    * file. The path itself is not checked.
+    *
+    * @return the ancestor path, or {@code null} if no ancestor is a file.
+    */
+   private String findFileAncestor(String path) {
+      String parent = path == null ? null : getParentPath(path);
+
+      while(parent != null) {
+         if(isFile(parent)) {
+            return parent;
+         }
+
+         parent = getParentPath(parent);
+      }
+
+      return null;
+   }
+
+   /**
+    * Creates the missing directory markers of folders that have children but no key of their
+    * own. Such a folder is not listed and is not treated as a directory, so deleting it leaves
+    * its children behind. They are left by older versions and by restoring a backup taken from
+    * one (Bug #77387). The passes of the cluster nodes are serialized, and no existing key is
+    * replaced.
+    *
+    * @return the number of directory markers created.
+    */
+   public int repairMissingFolders() {
+      Lock lock = Cluster.getInstance().getLock(REPAIR_FOLDERS_LOCK);
+      lock.lock();
+
+      try {
+         Set<String> keys = storage().paths().collect(Collectors.toSet());
+         // shortest first, so that a parent is created before its children
+         SortedSet<String> missing = new TreeSet<>(
+            Comparator.comparingInt(String::length).thenComparing(Comparator.naturalOrder()));
+
+         for(String key : keys) {
+            for(String parent = getParentPath(key); parent != null; parent = getParentPath(parent)) {
+               // a raw key that is not in canonical form can't be reached through the data space
+               if(!keys.contains(parent) && !parent.isEmpty() &&
+                  parent.equals(sanitizePathComponent(parent)))
+               {
+                  missing.add(parent);
+               }
+            }
+         }
+
+         int created = 0;
+
+         for(String folder : missing) {
+            // check the live store again, the snapshot is stale if a folder was created, deleted
+            // or renamed since it was taken
+            if(storage().exists(folder) ||
+               storage().paths().noneMatch(p -> p.startsWith(folder + "/")))
+            {
+               continue;
+            }
+
+            String file = findFileAncestor(folder);
+
+            if(file != null) {
+               LOG.warn("Cannot create the missing directory {}, {} is a file", folder, file);
+               continue;
+            }
+
+            try {
+               storage().createDirectory(folder, new Metadata());
+               created++;
+            }
+            catch(Exception e) {
+               LOG.warn("Failed to create the missing directory {}", folder, e);
+            }
+         }
+
+         if(created > 0) {
+            LOG.info("Created {} missing data space directories", created);
+         }
+
+         return created;
+      }
+      finally {
+         lock.unlock();
+      }
    }
 
    /**
@@ -611,6 +819,7 @@ public class DataSpace implements AutoCloseable {
 
    private static final String HOME_PLACEHOLDER = "$(sree.home)";
    private static final String STORAGE_ID = "dataSpace";
+   private static final String REPAIR_FOLDERS_LOCK = DataSpace.class.getName() + ".repairFolders";
    private static final Logger LOG = LoggerFactory.getLogger(DataSpace.class);
 
    public static final class Metadata implements Serializable {
@@ -675,22 +884,34 @@ public class DataSpace implements AutoCloseable {
 
       public OutputStream newStream(String dir, String file) throws IOException {
          String path = getPath(dir, file);
-         String parentPath = getParentPath(path);
-         return tx.newStream(path, new Metadata(), () -> {
-            if(parentPath != null) {
-               makeDirectories(parentPath);
-            }
-         });
+         return tx.newStream(path, new Metadata(), () -> makeParentDirectories(path));
       }
 
       public OutputStream newStream(String dir, String file, long lastModified) throws IOException {
          String path = getPath(dir, file);
+         return tx.newStream(path, new Metadata(), () -> makeParentDirectories(path),
+                             lastModified);
+      }
+
+      /**
+       * Creates the parent directories of a file before it is committed. The write fails, and is
+       * rolled back, if an ancestor is a file.
+       */
+      private void makeParentDirectories(String path) throws IOException {
          String parentPath = getParentPath(path);
-         return tx.newStream(path, new Metadata(), () -> {
-            if(parentPath != null) {
-               makeDirectories(parentPath);
-            }
-         }, lastModified);
+
+         if(parentPath == null) {
+            return;
+         }
+
+         String ancestor = findFileAncestor(path);
+
+         if(ancestor != null) {
+            LOG.warn("Cannot write {}, {} is a file", path, ancestor);
+            throw new NotDirectoryException(ancestor);
+         }
+
+         makeDirectories(parentPath);
       }
 
       public void commit() throws IOException {

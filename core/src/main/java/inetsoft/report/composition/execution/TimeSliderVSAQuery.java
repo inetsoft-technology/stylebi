@@ -1206,10 +1206,15 @@ public class TimeSliderVSAQuery extends AbstractSelectionVSAQuery {
          // when the previously selected value is still within (a tick's width of) the freshly
          // computed data range -- if it isn't, the underlying data itself has genuinely moved
          // out from under the selection, and falling back to the full range remains correct.
+         // The rescue is limited to ad hoc VS_ASSEMBLY sliders: for any other slider a missing
+         // tick means the data itself changed, and the bug1295840324493 full-range fallback
+         // applies. The last tick only closes the grid (no bucket starts there), so never
+         // land on it.
          if(pos < 0 && rsize != 0 && nearestPos >= 0 &&
+            assembly.getSourceType() == XSourceInfo.VS_ASSEMBLY &&
             currActual >= mind - rsize0 && currActual <= maxd + rsize0)
          {
-            pos = nearestPos;
+            pos = ticks.length >= 2 ? Math.min(nearestPos, ticks.length - 2) : nearestPos;
          }
       }
       else if(min instanceof Date && max instanceof Date) {

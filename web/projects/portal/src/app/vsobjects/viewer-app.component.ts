@@ -242,6 +242,7 @@ const CHECK_ASSEMBLY_IN_LAYOUT_URI: string = "vs/layouts/check-assembly-in-layou
 const CHECK_FORM_TABLES: string = "../api/vs/checkFormTables";
 const REFRESH_VS_URI: string = "/events/vs/refresh";
 const TOUCH_ASSET_URI: string = "/events/composer/touch-asset";
+const TEXT_INPUT_TYPES = ["text", "number", "password", "email", "search", "tel", "url"];
 const REFRESH_VS_PREVIEW_URI: string = "/events/composer/viewsheet/preview/refresh";
 const UNDO_URI: string = "/events/undo";
 const REDO_URI: string = "/events/redo";
@@ -483,6 +484,8 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
    contextMenu: ActionsContextmenuComponent;
    private initing: boolean = true;
    private serverUpdateSubscription: Subscription | null = null;
+   // the text field the user is typing a value in that has not been submitted yet
+   private editingElement: HTMLElement | null = null;
    private _active: boolean = true;
    private _vsConnectionInitialized: boolean = false;
    private _destroyed: boolean = false;
@@ -1071,6 +1074,38 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
       }
    }
 
+   /**
+    * Track the text field the user is typing in, so a server-side update doesn't reset a
+    * value that has not been submitted yet.
+    */
+   @HostListener("input", ["$event"])
+   onUserInput(event: Event) {
+      const target = event.target as HTMLElement;
+
+      if(target?.tagName == "TEXTAREA" || target?.isContentEditable ||
+         target?.tagName == "INPUT" && TEXT_INPUT_TYPES.includes((<HTMLInputElement> target).type))
+      {
+         this.editingElement = target;
+      }
+   }
+
+   // the value is submitted on Enter (Ctrl+Enter in a text area) or when the field loses focus
+   @HostListener("keyup.enter", ["$event"])
+   onUserEnter(event: KeyboardEvent) {
+      if(event.target === this.editingElement &&
+         (this.editingElement.tagName == "INPUT" || event.ctrlKey))
+      {
+         this.editingElement = null;
+      }
+   }
+
+   @HostListener("focusout", ["$event"])
+   onUserFocusOut(event: FocusEvent) {
+      if(event.target === this.editingElement) {
+         this.editingElement = null;
+      }
+   }
+
    onToolbarButtonFocus(button: VsToolbarButtonDirective) {
       this.focusedToolbarButton = this.toolbarButtons.toArray().findIndex(b => b == button);
    }
@@ -1363,6 +1398,12 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
          this.serverUpdateSubscription = this.heartbeatWorkerService
             .createHeartbeat(this.runtimeId + "-viewsheet-update", interval)
             .subscribe(() => {
+               // the refresh re-sends every object and would reset what the user is entering,
+               // so skip this update and refresh on a later one
+               if(this.isUserEditing()) {
+                  return;
+               }
+
                const event = new TouchAssetEvent();
                event.setDesign(false);
                event.setChanged(false);
@@ -1372,6 +1413,13 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
                this.viewsheetClient.sendEvent(TOUCH_ASSET_URI, event);
             });
       }
+   }
+
+   /**
+    * Check if the user is typing a value in a text field that has not been submitted yet.
+    */
+   private isUserEditing(): boolean {
+      return !!this.editingElement && this.editingElement === this.document.activeElement;
    }
 
    clearServerUpdateInterval(): void {

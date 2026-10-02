@@ -47,8 +47,8 @@ import inetsoft.util.audit.Audit;
 import inetsoft.util.dep.*;
 import inetsoft.web.admin.deploy.*;
 import inetsoft.web.admin.schedule.ScheduleSecretIdChecker;
+import inetsoft.web.admin.schedule.ScheduleTaskIdentityChecker;
 import inetsoft.web.portal.data.SecretIdAuthorizer;
-import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -58,7 +58,6 @@ import org.springframework.stereotype.Service;
 import org.w3c.dom.*;
 
 import java.io.*;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.security.Principal;
 import java.sql.Timestamp;
@@ -105,332 +104,6 @@ public class DeployManagerService {
       this.dataSpace = dataSpace;
       this.embeddedTableStorage = embeddedTableStorage;
       this.repletRegistryManager = repletRegistryManager;
-   }
-
-   /**
-    * Import assets. WARNING: this method should not be called directly as it
-    * may cause a deadlock. Instead, call RepletEngine.importAssets().
-    *
-    * @param data the jar file is provided as a byte array.
-    * @param replace indicates if existing assets should be overwritten.
-    * @param actionRecord the record to be inserted in the auditing database.
-    */
-   public void importAssets(byte[] data, boolean replace,
-                            ActionRecord actionRecord) throws Exception
-   {
-      JarInputStream jarIn = null;
-      InputStream in = null;
-      OutputStream out = null;
-
-      try {
-         in = new ByteArrayInputStream(data);
-         jarIn = new JarInputStream(in);
-         JarEntry jentry;
-         String cacheDirectory = this.fileSystemService.getCacheDirectory();
-         String cacheFolder = cacheDirectory + File.separator +
-            "partialDeploymentJarUnzip2";
-
-         Tool.deleteFile(this.fileSystemService.getFile(cacheFolder));
-         final ArrayList<String> fileOrders = new ArrayList<>();
-         Map<String, String> names = new HashMap<>();
-
-         while((jentry = (JarEntry) jarIn.getNextEntry()) != null) {
-            String ename = jentry.getName();
-            String fname = "JarFileInfo.xml".equals(ename) ? ename :
-               "f" + Math.abs(ename.hashCode());
-            String outFileName = cacheFolder + File.separator + fname;
-            names.put(fname, ename);
-            File outFile = this.fileSystemService.getFile(outFileName);
-
-            if(jentry.isDirectory()) {
-               if(!outFile.mkdirs()) {
-                  LOG.warn("Failed to create import directory: " + outFile);
-               }
-            }
-            else {
-               if(!outFile.getParentFile().exists()) {
-                  if(!outFile.getParentFile().mkdirs()) {
-                     LOG.warn(
-                        "Failed to create import directory: " + outFile);
-                  }
-               }
-
-               if(!outFile.exists()) {
-                  if(!outFile.createNewFile()) {
-                     LOG.warn(
-                        "Failed to create import temp file: " + outFile);
-                  }
-
-                  // wait 100 minutes for user to import files
-                  this.fileSystemService.remove(outFile, 6000000);
-                  fileOrders.add(outFile.getName());
-               }
-
-               out = new FileOutputStream(outFile);
-               Tool.copyTo(jarIn, out);
-               out.close();
-            }
-         }
-
-         jarIn.close();
-         File file = this.fileSystemService.getFile(cacheFolder, "JarFileInfo.xml");
-         Document infoDom = Tool.parseXML(new FileInputStream(file));
-         Element root = infoDom.getDocumentElement();
-         final PartialDeploymentJarInfo info = new PartialDeploymentJarInfo();
-         final DeploymentInfo deploymentInfo = new DeploymentInfo(info, names, cacheFolder);
-         names = deploymentInfo.getNames();
-         info.parseXML(root);
-         Tool.deleteFile(file);
-
-         XAssetConfig config = new XAssetConfig();
-         config.setOverwriting(replace);
-         File[] files = deploymentInfo.getFiles();
-         assert files != null;
-
-         if(files.length > 0) {
-            Arrays.sort(files, (f1, f2) -> {
-               int result = fileOrders.indexOf(f1.getName()) - fileOrders.indexOf(f2.getName());
-
-               if(result == 0) {
-                  Long lastModified1 = f1.lastModified();
-                  Long lastModified2 = f2.lastModified();
-                  result = lastModified1.compareTo(lastModified2);
-               }
-
-               return result;
-            });
-         }
-
-         for(File file1 : files) {
-            if(file1.isDirectory()) {
-               continue;
-            }
-
-            String filename = file1.getName();
-            filename = names.get(filename);
-
-            if(filename == null) {
-               continue;
-            }
-
-            filename = Tool.replaceAll(filename, "^_^", "/");
-
-            // templates or sub-reports or report files
-            if(filename != null && filename.startsWith("__")) {
-               String folder = null;
-               String fname = null;
-
-               if(filename.startsWith("__SUBREPORT_")) {
-                  fname = filename.substring(12);
-                  folder = "templates" + File.separator + "subreports";
-               }
-               else if(filename.startsWith("__TEMPLATE_MYREPORTS_'")) {
-                  fname = filename.substring("__TEMPLATE_MYREPORTS_'".length());
-                  int idx = fname.indexOf("'");
-
-                  if(idx < 0) {
-                     LOG.error(
-                        "The template path for users is incorrect: " + filename);
-                     continue;
-                  }
-
-                  String user = fname.substring(0, idx);
-                  fname = fname.substring(idx + 1);
-                  IdentityID userID = IdentityID.getIdentityIDFromKey(user);
-                  folder = "portal/" + userID.orgID + "/" + userID.name + "/my dashboard";
-               }
-               else if(filename.startsWith("__TEMPLATE_")) {
-                  fname = filename.substring(11);
-                  folder = "templates";
-               }
-               else if(filename.startsWith("__REPORTFILE_")) {
-                  fname = filename.substring(13);
-                  folder = "ReportFiles";
-               }
-
-               if(folder == null || fname == null) {
-                  continue;
-               }
-
-               if(dataSpace.exists(folder, fname)) {
-                  if(!replace) {
-                     continue;
-                  }
-               }
-
-               if(actionRecord != null) {
-                  actionRecord.setObjectName(fname);
-                  actionRecord.setObjectType(ActionRecord.OBJECT_TYPE_REPORT);
-                  Timestamp actionTimestamp = new Timestamp(System.currentTimeMillis());
-                  actionRecord.setActionTimestamp(actionTimestamp);
-                  //declare the asset tyle further
-                  actionRecord.setActionError(ActionRecord.OBJECT_TYPE_REPORT);
-               }
-
-               try(InputStream inp = new FileInputStream(file1)) {
-                  dataSpace.withOutputStream(folder, fname, os -> IOUtils.copy(inp, os));
-               }
-               catch(Throwable e) {
-                  LOG.error(
-                     "Failed to write deployed asset file {} in folder {}", fname, folder, e);
-
-                  if(actionRecord != null) {
-                     actionRecord.setActionStatus(ActionRecord.ACTION_STATUS_FAILURE);
-                     actionRecord.setActionError(e.getMessage());
-                  }
-               }
-               finally {
-                  if(actionRecord != null) {
-                     Audit.getInstance()
-                        .auditAction(actionRecord, ThreadContext.getContextPrincipal());
-                  }
-               }
-            }
-            // normal xasset
-            else if(filename != null) {
-               int idx = filename.indexOf("_");
-
-               if(idx < 0) {
-                  continue;
-               }
-
-               String type = filename.substring(0, idx);
-               List<?> types = XAssetUtil.getXAssetTypes(true);
-
-               if(!types.contains(type)) {
-                  continue;
-               }
-
-               String identifier = filename.substring(idx + 1);
-               XAsset asset = XAssetUtil.createXAsset(identifier);
-
-               if(asset == null || !type.equals(asset.getType())) {
-                  continue;
-               }
-
-               in = new FileInputStream(file1);
-
-               if(ViewsheetAsset.VIEWSHEET.equals(type)) {
-                  TransformerManager xform = TransformerManager.getManager(
-                     TransformerManager.VIEWSHEET);
-
-                  // @by ChrisS bug1402502061808 2014-6-18
-                  // Set the "sourceName" parameter property in TransformerManager.
-                  Properties propsOut = new Properties();
-                  propsOut.setProperty("sourceName", filename);
-                  xform.setProperties(propsOut);
-
-                  Document doc = Tool.parseXML(in);
-                  doc = (Document) xform.transform(doc);
-
-                  in.close();
-                  ByteArrayOutputStream output = new ByteArrayOutputStream();
-                  PrintWriter writer = new PrintWriter(
-                     new OutputStreamWriter(output, StandardCharsets.UTF_8));
-
-                  writer.println(
-                     "<?xml version=\"1.0\" encoding=\"UTF-8\"?>");
-                  writeNode(writer, doc.getDocumentElement());
-                  writer.flush();
-
-                  in = new ByteArrayInputStream(output.toByteArray());
-               }
-
-               if(ViewsheetAsset.VIEWSHEET.equals(type) && asset.getPath().contains("/")) {
-                  String folder = asset.getPath().substring(0, asset.getPath().lastIndexOf("/"));
-
-                  setFolderProperty(folder, info);
-               }
-
-               asset.parseContent(in, config, true, false);
-            }
-         }
-
-         Tool.deleteFile(this.fileSystemService.getFile(cacheFolder));
-      }
-      finally {
-         IOUtils.closeQuietly(jarIn);
-         IOUtils.closeQuietly(in);
-         IOUtils.closeQuietly(out);
-
-         // @by stephenwebster, Save the manager once to prevent unnecessary save and reloads
-         // which can feel slow on the GUI.
-         LibManager manager = libManagerProvider.getManager();
-
-         if(manager.isDirty()) {
-            manager.save();
-         }
-      }
-   }
-
-   /**
-    * Write node.
-    */
-   private void writeNode(PrintWriter writer, Node node) {
-      switch(node.getNodeType()) {
-         case Node.CDATA_SECTION_NODE:
-            writer.print("<![CDATA[");
-            writer.print(node.getNodeValue());
-            writer.print("]]>");
-            break;
-
-         case Node.ELEMENT_NODE:
-            writer.print("<");
-            writer.print(node.getNodeName());
-            Element elem = (Element) node;
-            NamedNodeMap attrs = elem.getAttributes();
-
-            for(int i = 0; i < attrs.getLength(); i++) {
-               Node attr = attrs.item(i);
-               writer.print(" ");
-               writer.print(attr.getNodeName());
-               writer.print("=\"");
-               writer.print(Tool.encodeHTMLAttribute(attr.getNodeValue()));
-               writer.print("\"");
-            }
-
-            writer.print(">");
-            NodeList elems = elem.getChildNodes();
-
-            for(int i = 0; i < elems.getLength(); i++) {
-               writeNode(writer, elems.item(i));
-            }
-
-            writer.print("</");
-            writer.print(node.getNodeName());
-            writer.print(">");
-            break;
-
-         case Node.TEXT_NODE:
-            writer.print(Tool.encodeHTMLAttribute(node.getNodeValue()));
-            break;
-      }
-   }
-
-   /**
-    * Set the property of folders.
-    */
-   private void setFolderProperty(String folder, PartialDeploymentJarInfo info)
-      throws Exception
-   {
-      RepletRegistry registry = repletRegistryManager.getRegistry();
-      String[] values = Tool.split(folder, '/');
-      String newFolder = "";
-
-      for(int i = 0; i < values.length; i++) {
-         newFolder = i > 0 ? newFolder + "/" + values[i] : values[i];
-
-         if(registry.isFolder(newFolder)) {
-            continue;
-         }
-
-         registry.addFolder(newFolder);
-         registry.setFolderAlias(newFolder, info.getFolderAlias().get(newFolder));
-         registry.setFolderDescription(
-            newFolder, info.getFolderDescription().get(newFolder));
-
-         registry.save();
-      }
    }
 
    /**
@@ -1777,6 +1450,21 @@ public class DeployManagerService {
                return false;
             }
 
+            // Bug #77281, the owner and execute-as identity of the task xml are not trusted
+            if(asset instanceof ScheduleTaskAsset scheduleTaskAsset && principal != null &&
+               !new ScheduleTaskIdentityChecker(securityEngine).isUnrestricted(principal))
+            {
+               if(!isImportedScheduleTaskAllowed(file, principal)) {
+                  String msg = catalog.getString("em.import.file.failed.noPermission",
+                     asset.getType() + " " + path);
+                  failedList.add(msg);
+                  LOG.warn(msg);
+                  return false;
+               }
+
+               scheduleTaskAsset.setRestrictedImporter(principal);
+            }
+
             if(ViewsheetAsset.VIEWSHEET.equals(type) && path.contains("/")) {
                String folder = path.substring(0, path.lastIndexOf("/"));
                setFolderProperty(folder, asset.getUser(), jarInfo);
@@ -2025,6 +1713,70 @@ public class DeployManagerService {
 
       ScheduleTask existing = ScheduleManager.getScheduleManager().getScheduleTask(task.getTaskId());
       return new ScheduleSecretIdChecker(securityEngine).isAllowed(task, existing, principal);
+   }
+
+   /**
+    * Bug #77281, determines if an importer that is not a site admin may import a schedule
+    * task. The task is parsed the same way ScheduleTaskAsset.parseContent stores it for such
+    * an importer, with the owner and execute-as identity moved to the importer's organization,
+    * and it gets the same checks as the schedule task import (ImportTaskController): the
+    * scheduler permission regardless of the removable flag, no internal task or internal task
+    * content, and an owner and execute-as identity the task editor lets the importer pick.
+    */
+   boolean isImportedScheduleTaskAllowed(File file, Principal principal) throws Exception {
+      Element taskElem;
+      boolean hasContent;
+
+      try(InputStream input = new FileInputStream(file)) {
+         Document doc = input.available() > 0 ? Tool.parseXML(input) : null;
+         hasContent = doc != null;
+         taskElem = doc == null ? null :
+            Tool.getChildNodeByTagName(doc.getDocumentElement(), "Task");
+      }
+
+      // an empty file is not parsed at all. Bug #77454, a file without a task (e.g. only
+      // folders) is refused before anything of it is written
+      if(taskElem == null) {
+         if(hasContent) {
+            LOG.warn("Schedule task file is not imported, it contains no task");
+         }
+
+         return !hasContent;
+      }
+
+      if(!securityEngine.checkPermission(principal, ResourceType.SCHEDULER, "*",
+                                         ResourceAction.ACCESS))
+      {
+         LOG.warn("Schedule task is not imported, the user doesn't have the scheduler permission");
+         return false;
+      }
+
+      ScheduleTaskIdentityChecker checker = new ScheduleTaskIdentityChecker(securityEngine);
+      ScheduleTask task = checker.parseImportedTask(taskElem, principal);
+      String taskId = task.getTaskId();
+
+      if(task.getType() == ScheduleTask.Type.INTERNAL_TASK ||
+         ScheduleManager.isInternalTask(taskId) || ScheduleManager.isInternalTask(task.getName()))
+      {
+         LOG.warn("Internal task {} is not imported, it's not allowed for the user", taskId);
+         return false;
+      }
+
+      if(!checker.isAllowed(task, taskId, principal)) {
+         return false;
+      }
+
+      for(String internalTask : ScheduleTaskIdentityChecker.getInternalTaskContents(task)) {
+         if(!securityEngine.checkPermission(principal, ResourceType.SCHEDULE_TASK, internalTask,
+                                            ResourceAction.WRITE))
+         {
+            LOG.warn("Task {} is not imported, it contains the actions or conditions of " +
+                     "the internal task {}", taskId, internalTask);
+            return false;
+         }
+      }
+
+      return true;
    }
 
    private static String getIdleSrtFileNameInSpace(String folder, String fname) {

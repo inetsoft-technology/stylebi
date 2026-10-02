@@ -273,7 +273,7 @@ public class JoinInfo implements Serializable, XMLSerializable, Cloneable {
 
          if(ref != null) {
             field = (Field)
-               Class.forName(Tool.getAttribute(ref, "class")).newInstance();
+               Tool.loadSubclass(Tool.getAttribute(ref, "class"), Field.class).newInstance();
             field.parseXML(ref);
          }
 
@@ -295,7 +295,7 @@ public class JoinInfo implements Serializable, XMLSerializable, Cloneable {
 
          if(ref != null) {
             field = (Field)
-               Class.forName(Tool.getAttribute(ref, "class")).newInstance();
+               Tool.loadSubclass(Tool.getAttribute(ref, "class"), Field.class).newInstance();
             field.parseXML(ref);
          }
 
@@ -347,7 +347,7 @@ public class JoinInfo implements Serializable, XMLSerializable, Cloneable {
 
             if(sattr != null) {
                Field field = (Field)
-                  Class.forName(Tool.getAttribute(ref, "class")).newInstance();
+                  Tool.loadSubclass(Tool.getAttribute(ref, "class"), Field.class).newInstance();
                field.parseXML(ref);
 
                addSource(sattr, field);

@@ -74,6 +74,7 @@ public class AggregateDialogService extends WorksheetControllerService {
       Worksheet ws = rws.getWorksheet();
       model.setMaxCol(Util.getOrganizationMaxColumn());
 
+      checkCubeTableReadPermission(principal, tname);
       TableAssembly table = (TableAssembly) ws.getAssembly(tname);
       model.setName(tname);
 
@@ -216,6 +217,7 @@ public class AggregateDialogService extends WorksheetControllerService {
       RuntimeWorksheet rws = super.getRuntimeWorksheet(runtimeId, principal);
       Worksheet ws = rws.getWorksheet();
       String tname = model.getName();
+      checkCubeTableReadPermission(principal, tname);
       TableAssembly table = (TableAssembly) ws.getAssembly(tname);
 
       if(table != null) {

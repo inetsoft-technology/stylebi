@@ -423,6 +423,74 @@ describe("VSTextInput - key handling and date flow", () => {
 });
 
 describe("VSTextInput - setters and navigation helpers", () => {
+   // A refresh (e.g. server-side update) replaces the model while the user may be typing.
+   describe("model replaced while typing", () => {
+      let input: HTMLInputElement;
+
+      function typeInto(comp: VSTextInput, focused: boolean) {
+         input = document.createElement("input");
+         document.body.appendChild(input);
+         comp.textAreaElementRef = { nativeElement: input } as any;
+         comp.model = makeModel({ text: "100" });
+
+         if(focused) {
+            input.focus();
+         }
+
+         comp.model.text = "4321";
+      }
+
+      afterEach(() => input?.remove());
+
+      it("should keep the unsubmitted text while the input has focus", () => {
+         const { comp } = createComponent();
+         typeInto(comp, true);
+
+         comp.model = makeModel({ text: "100" });
+
+         expect(comp.model.text).toBe("4321");
+      });
+
+      it("should keep the unsubmitted text across more than one refresh", () => {
+         const { comp } = createComponent();
+         typeInto(comp, true);
+
+         comp.model = makeModel({ text: "100" });
+         comp.model = makeModel({ text: "100" });
+
+         expect(comp.model.text).toBe("4321");
+      });
+
+      it("should take the server text when the input doesn't have focus", () => {
+         const { comp } = createComponent();
+         typeInto(comp, false);
+
+         comp.model = makeModel({ text: "100" });
+
+         expect(comp.model.text).toBe("100");
+      });
+
+      it("should take the server text once the typed text is submitted", () => {
+         const { comp } = createComponent();
+         typeInto(comp, true);
+
+         comp.onBlur();
+         comp.model = makeModel({ text: "4000" });
+
+         expect(comp.model.text).toBe("4000");
+      });
+
+      it("should take the server text when the user hasn't typed anything", () => {
+         const { comp } = createComponent();
+         typeInto(comp, true);
+         comp.model.text = "100";
+
+         comp.model = makeModel({ text: "200" });
+
+         expect(comp.model.text).toBe("200");
+      });
+   });
+
    it("should clear editing and label selection when selected becomes false", () => {
       const { comp } = createComponent({
          model: makeModel({

@@ -57,7 +57,8 @@ public class LensStallTest {
    @BeforeEach
    public void setUp() {
       resetGlobalStallState();
-      StallPolicy.setOverride(new StallPolicy(StallPolicy.Mode.FAIL, 1000, 200, dumpDir));
+      StallPolicy.setOverride(new StallPolicy(StallPolicy.Mode.FAIL, 1000, 200, dumpDir,
+                                              StallPolicy.DEFAULT_MAX_DUMPS, true));
       pool = readerPool();
    }
 
@@ -286,8 +287,8 @@ public class LensStallTest {
       }
 
       @Override
-      protected MergedTable.Visitor getVisitor() {
-         MergedTable.Visitor visitor = super.getVisitor();
+      protected MergedTable.Visitor getVisitor(Pass pass) {
+         MergedTable.Visitor visitor = super.getVisitor(pass);
          return row -> {
             hook.run();
             visitor.visit(row);

@@ -58,7 +58,7 @@ class QueryServiceOrgIsolationTest {
    void setUp() {
       orgManagerStatic = mockStatic(OrganizationManager.class);
       orgManagerStatic.when(OrganizationManager::getInstance).thenReturn(orgManager);
-      lenient().when(orgManager.getCurrentOrgID()).thenReturn("orgA");
+      lenient().when(orgManager.getCurrentOrgID(any())).thenReturn("orgA");
       service = spy(new QueryService(scheduleClient, clusterClient, monitoringDataService, cluster));
       lenient().doReturn(true).when(service).isLevelQualified(anyString());
    }
@@ -120,5 +120,70 @@ class QueryServiceOrgIsolationTest {
       service.messageReceived(event);
 
       verify(qmr, never()).cancel();
+   }
+
+   /**
+    * Bug #77266: the no-arg getCurrentOrgID() lower-cases the org id while the org id of
+    * a query owner is case-preserved, so a mixed-case org could not destroy its own queries.
+    */
+   private void useMixedCaseOrg() {
+      lenient().when(orgManager.getCurrentOrgID()).thenReturn("mixedorg");
+      lenient().when(orgManager.getCurrentOrgID(any())).thenReturn("MixedOrg");
+   }
+
+   @Test
+   void destroyLocal_mixedCaseOrgQuery_cancelled() throws Exception {
+      useMixedCaseOrg();
+      QueryManager qmr = addQuery("QUERY1_1_q", "MixedOrg");
+
+      service.destroyClusterQueries(null, new String[] { "QUERY1_1_q" });
+
+      verify(qmr).cancel();
+   }
+
+   @Test
+   void destroySingle_mixedCaseOrgQuery_cancelled() throws Exception {
+      useMixedCaseOrg();
+      QueryManager qmr = addQuery("QUERY1_1_q", "MixedOrg");
+
+      service.destroy("QUERY1_1_q");
+
+      verify(qmr).cancel();
+   }
+
+   @Test
+   void destroyLocal_mixedCaseOrg_otherOrgQueryNotCancelled() throws Exception {
+      useMixedCaseOrg();
+      QueryManager qmr = addQuery("QUERY1_1_q", "OtherOrg");
+
+      service.destroyClusterQueries(null, new String[] { "QUERY1_1_q" });
+
+      verify(qmr, never()).cancel();
+   }
+
+   @Test
+   void destroyRemote_mixedCaseOrg_messageCarriesCasePreservedOrg() throws Exception {
+      useMixedCaseOrg();
+
+      service.destroyClusterQueries("node-2", new String[] { "QUERY1_1_q" });
+
+      ArgumentCaptor<DestroyQueriesMessage> captor =
+         ArgumentCaptor.forClass(DestroyQueriesMessage.class);
+      verify(cluster).exchangeMessages(
+         eq("node-2"), captor.capture(), eq(DestroyQueriesCompleteMessage.class));
+      assertEquals("MixedOrg", captor.getValue().getOrgID());
+   }
+
+   @Test
+   void destroyMessage_mixedCaseOrgQuery_cancelled() throws Exception {
+      QueryManager qmr = addQuery("QUERY1_1_q", "MixedOrg");
+      MessageEvent event = mock(MessageEvent.class);
+      when(event.getSender()).thenReturn("node-1");
+      when(event.getMessage())
+         .thenReturn(new DestroyQueriesMessage(new String[] { "QUERY1_1_q" }, "MixedOrg"));
+
+      service.messageReceived(event);
+
+      verify(qmr).cancel();
    }
 }

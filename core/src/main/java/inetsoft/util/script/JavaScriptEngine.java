@@ -23,6 +23,7 @@ import inetsoft.sree.SreeEnv;
 import inetsoft.uql.viewsheet.internal.DateComparisonUtil;
 import inetsoft.util.*;
 import inetsoft.util.graphics.SVGSupport;
+import inetsoft.util.script.graal.ScriptHostAccess;
 import inetsoft.util.script.graal.ScriptScope;
 import inetsoft.web.viewsheet.command.MessageCommand;
 import org.pojava.datetime.DateTime;
@@ -294,10 +295,18 @@ public class JavaScriptEngine {
    }
 
    /**
-    * Create a new instance of an object.
+    * Create a new instance of an object. The class must be visible to scripts
+    * according to the script class filter; the name is checked before the class
+    * is loaded so a rejected class is never initialized.
     */
    public static Object newInstance(String cls) throws Exception {
-      return Class.forName(cls).newInstance();
+      if(cls == null || cls.isBlank()) {
+         throw new IllegalArgumentException("Class name is required");
+      }
+
+      Class<?> clazz =
+         ScriptHostAccess.loadScriptVisibleClass(cls, JavaScriptEngine.class.getClassLoader());
+      return clazz.getDeclaredConstructor().newInstance();
    }
 
    /**
@@ -521,11 +530,15 @@ public class JavaScriptEngine {
          final ZonedDateTime zonedDate2 = Instant.ofEpochMilli(dateVal2.getTime())
             .atZone(ZoneId.systemDefault());
 
+         // count days on the calendar SimpleDateFormat displays, java.time would use local
+         // mean time before 1901 (bug #77450)
          if(interval.equals("y") || interval.equals("d") || interval.equals("w")) {
-            return zonedDate1.until(zonedDate2, ChronoUnit.DAYS);
+            return (CalcUtil.getLocalMillis(dateVal2, true) -
+               CalcUtil.getLocalMillis(dateVal1, true)) / CalcUtil.DAY_MILLIS;
          }
          else if(interval.equals("ws") || interval.equals("ww")) {
-            return zonedDate1.until(zonedDate2, ChronoUnit.WEEKS);
+            return (CalcUtil.getLocalMillis(dateVal2, true) -
+               CalcUtil.getLocalMillis(dateVal1, true)) / (7 * CalcUtil.DAY_MILLIS);
          }
          else if(interval.equals("h")) {
             return zonedDate1.until(zonedDate2, ChronoUnit.HOURS);

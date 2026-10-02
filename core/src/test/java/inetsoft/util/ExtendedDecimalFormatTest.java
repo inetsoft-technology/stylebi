@@ -37,4 +37,13 @@ class ExtendedDecimalFormatTest {
       final ExtendedDecimalFormat format = new ExtendedDecimalFormat("##0.00");
       Assertions.assertEquals("40.29", format.format(40.285));
    }
+
+   // Bug #77411, a pattern that is only a suffix letter must not exhaust the heap
+   @Test
+   public void suffixOnlyPatternUsesDefaultNumberPattern() {
+      final ExtendedDecimalFormat format = new ExtendedDecimalFormat("m");
+      Assertions.assertEquals("#,##0.###m", format.toPattern());
+      Assertions.assertEquals("5m", format.format(5000000L));
+      Assertions.assertEquals("1.5m", format.format(1500000.0));
+   }
 }

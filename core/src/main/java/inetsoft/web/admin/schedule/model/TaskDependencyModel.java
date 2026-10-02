@@ -21,12 +21,22 @@ import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import org.immutables.value.Value;
 
+import javax.annotation.Nullable;
+
 @Value.Immutable
 @JsonSerialize(as = ImmutableTaskDependencyModel.class)
 @JsonDeserialize(as = ImmutableTaskDependencyModel.class)
 public interface TaskDependencyModel {
     String task();
     String dependency();
+
+    /**
+     * The id of the parsed task, as returned by {@code ScheduleTask.getTaskId()}. This is the
+     * value the import endpoint matches the selection against, {@link #task()} is only the
+     * display name.
+     */
+    @Nullable
+    String taskId();
 
     static Builder builder() {
         return new Builder();

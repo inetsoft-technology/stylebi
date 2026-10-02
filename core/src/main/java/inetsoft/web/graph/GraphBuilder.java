@@ -190,7 +190,8 @@ public class GraphBuilder {
          vmodel.setDateComparisonDescription(
             DateComparisonUtil.getDateComparisonDescription(assembly.getChartInfo()));
          vmodel.setAppliedDateComparison(((VSChartInfo) cinfo).isAppliedDateComparison());
-         DateComparisonInfo dcInfo = assembly.getChartInfo().getDateComparisonInfo();
+         DateComparisonInfo dcInfo = DateComparisonUtil.getDateComparison(
+            assembly.getChartInfo(), assembly.getViewsheet());
          vmodel.setCustomPeriod(dcInfo != null && dcInfo.getPeriods() instanceof CustomPeriods);
       }
 

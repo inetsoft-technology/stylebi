@@ -17,8 +17,12 @@
  */
 package inetsoft.sree;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.LoggerContext;
+import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.classic.util.ContextInitializer;
+import ch.qos.logback.core.read.ListAppender;
 import inetsoft.sree.security.SecurityEngine;
 import inetsoft.sree.security.SecurityProvider;
 import inetsoft.storage.InMemoryKeyValueStorage;
@@ -26,6 +30,8 @@ import inetsoft.storage.KeyValueStorage;
 import inetsoft.test.*;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.util.log.*;
+import inetsoft.util.log.logback.LogbackContextFilter;
+import inetsoft.util.stall.StallWatchdog;
 import inetsoft.web.admin.properties.PropertiesController;
 import inetsoft.web.admin.security.IdentityService;
 import org.junit.jupiter.api.*;
@@ -38,6 +44,7 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.lang.reflect.Field;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.BooleanSupplier;
@@ -48,6 +55,9 @@ import static org.mockito.Mockito.*;
 /**
  * Bug #77006: removing a log level property must reset the running log level, both on the node
  * that removed it and on the nodes that pick up the removal through a reload.
+ *
+ * <p>Bug #77302: the log level properties that are only set by defaults.properties or by a JVM
+ * system property must be applied too, with the stored value still taking precedence.</p>
  *
  * <p>A real {@link LogManager} replaces the mock of the test configuration, and the engine's
  * key-value storage is replaced by an in-memory fake, so that the test can play the part of
@@ -171,6 +181,218 @@ class PropertiesEngineLogLevelResetTest {
       storage.remoteRemove("log.detail.level", false);
       engine.init(true);
       assertEquals(LogLevel.INFO, logManager.getLevel());
+   }
+
+   /**
+    * Bug #77302: with no log property stored, the log.detail.level=INFO of defaults.properties
+    * must be the running level, so that the INFO/WARN events of the inetsoft loggers (e.g. the
+    * lock stall watchdog) are not dropped.
+    */
+   @Test
+   void defaultDetailLevelIsAppliedWhenNothingIsStored() {
+      initEngine();
+
+      assertEquals("INFO", engine.getProperty("log.detail.level"));
+      assertEquals(LogLevel.INFO, logManager.getLevel(), "the default detail level is not applied");
+      assertTrue(logManager.isLevelEnabled("inetsoft.util.stall.StallDumper", LogLevel.WARN),
+                 "a stall watchdog WARN is dropped");
+      assertTrue(logManager.isLevelEnabled("inetsoft.util.stall.StallDumper", LogLevel.INFO));
+      assertFalse(logManager.isLevelEnabled("inetsoft.util.stall.StallDumper", LogLevel.DEBUG));
+
+      // the other default, log.level.inetsoft.performance=OFF, is applied too
+      assertEquals(LogLevel.OFF, logManager.getLevel("inetsoft.performance"));
+
+      // and a reload keeps the default applied
+      engine.init(true);
+      assertEquals(LogLevel.INFO, logManager.getLevel());
+   }
+
+   @Test
+   void storedDetailLevelWinsOverDefault() {
+      storage.remotePut("log.detail.level", "error", false);
+      initEngine();
+      assertEquals(LogLevel.ERROR, logManager.getLevel());
+      assertFalse(logManager.isLevelEnabled("inetsoft.util.stall.StallDumper", LogLevel.WARN));
+
+      engine.init(true);
+      assertEquals(LogLevel.ERROR, logManager.getLevel());
+   }
+
+   @Test
+   void storedDetailLevelWinsOverSystemProperty() {
+      storage.remotePut("log.detail.level", "error", false);
+      String old = System.setProperty("log.detail.level", "debug");
+
+      try {
+         initEngine();
+         assertEquals(LogLevel.ERROR, logManager.getLevel());
+      }
+      finally {
+         restoreSystemProperty("log.detail.level", old);
+      }
+   }
+
+   @Test
+   void systemPropertyLogLevelsAreApplied() {
+      String detail = System.setProperty("log.detail.level", "debug");
+      String loggerLevel = System.setProperty("log.level." + logger, "warn");
+
+      try {
+         initEngine();
+         assertEquals(LogLevel.DEBUG, logManager.getLevel(), "-Dlog.detail.level is not applied");
+         assertEquals(LogLevel.WARN, logManager.getLevel(logger), "-Dlog.level.* is not applied");
+
+         engine.init(true);
+         assertEquals(LogLevel.DEBUG, logManager.getLevel());
+         assertEquals(LogLevel.WARN, logManager.getLevel(logger));
+
+         // a stored value overrides the system property, and once it is removed the running
+         // level falls back to the system property, not to no level
+         storage.remotePut("log.level." + logger, "debug", false);
+         engine.init(true);
+         assertEquals(LogLevel.DEBUG, logManager.getLevel(logger));
+         storage.remoteRemove("log.level." + logger, false);
+         engine.init(true);
+         assertEquals(LogLevel.WARN, logManager.getLevel(logger));
+      }
+      finally {
+         restoreSystemProperty("log.detail.level", detail);
+         restoreSystemProperty("log.level." + logger, loggerLevel);
+      }
+   }
+
+   /**
+    * Bug #77302, end to end through Logback: with nothing stored, a WARN and an INFO logged
+    * through the lock stall watchdog's logger must reach an appender of the real Logback context
+    * that the log manager configures (root at ERROR, gated by {@link LogbackContextFilter}), and
+    * a stored log.detail.level=ERROR must still drop them.
+    */
+   @Test
+   void stallWatchdogWarnReachesAppenderWhenNothingIsStored() throws Exception {
+      initEngine();
+      assertEquals(List.of(Level.WARN, Level.INFO), emittedStallEvents(),
+                   "the stall watchdog WARN/INFO did not reach the appender");
+
+      storage.remotePut("log.detail.level", "error", false);
+      engine.init(true);
+      assertEquals(List.of(), emittedStallEvents(),
+                   "a stored log.detail.level=ERROR no longer suppresses the WARN/INFO");
+   }
+
+   /**
+    * Logs a WARN, an INFO and a DEBUG through the logger of {@link StallWatchdog} and returns
+    * the levels of the events that reached an appender attached to it.
+    */
+   private List<Level> emittedStallEvents() throws Exception {
+      LoggerContext context = (LoggerContext) LoggerFactory.getILoggerFactory();
+      assertEquals(Level.ERROR, context.getLogger(Logger.ROOT_LOGGER_NAME).getLevel(),
+                   "not the Logback context configured by the log manager");
+      LogbackContextFilter filter = context.getTurboFilterList().stream()
+         .filter(LogbackContextFilter.class::isInstance)
+         .map(LogbackContextFilter.class::cast)
+         .findFirst()
+         .orElseThrow(() -> new AssertionError("no LogbackContextFilter installed"));
+
+      // the filter resolves LogManager.getInstance(), which is a mock in the test context, so
+      // point it at the real log manager that the engine configured
+      Field field = LogbackContextFilter.class.getDeclaredField("log");
+      field.setAccessible(true);
+      field.set(filter, logManager);
+
+      Logger stallLogger = context.getLogger(StallWatchdog.class);
+      ListAppender<ILoggingEvent> appender = new ListAppender<>();
+      appender.setContext(context);
+      appender.start();
+      stallLogger.addAppender(appender);
+
+      try {
+         org.slf4j.Logger log = LoggerFactory.getLogger(StallWatchdog.class);
+         log.warn("Lock stall detected by the watchdog: test");
+         log.info("stall info test");
+         log.debug("stall debug test");
+         return appender.list.stream().map(ILoggingEvent::getLevel).toList();
+      }
+      finally {
+         stallLogger.detachAppender(appender);
+         appender.stop();
+      }
+   }
+
+   private static void restoreSystemProperty(String name, String value) {
+      if(value == null) {
+         System.clearProperty(name);
+      }
+      else {
+         System.setProperty(name, value);
+      }
+   }
+
+   /**
+    * log.level.inetsoft and log.detail.level both set the inetsoft logger. The more specific
+    * log.level.inetsoft wins over the (default) detail level (Bug #77302 review).
+    */
+   @Test
+   void storedInetsoftLoggerLevelWinsOverDetailLevel() {
+      storage.remotePut("log.level.inetsoft", "debug", false);
+      initEngine();
+      assertEquals(LogLevel.DEBUG, logManager.getLevel());
+
+      engine.init(true);
+      assertEquals(LogLevel.DEBUG, logManager.getLevel());
+
+      // a detail level change does not clobber the more specific logger level
+      engine.setProperty("log.detail.level", "warn");
+      assertEquals(LogLevel.DEBUG, logManager.getLevel());
+      engine.init(true);
+      assertEquals(LogLevel.DEBUG, logManager.getLevel());
+   }
+
+   @Test
+   void remoteRemoveOfInetsoftLoggerLevelFallsBackToDetailLevel() {
+      storage.remotePut("log.level.inetsoft", "debug", false);
+      initEngine();
+      assertEquals(LogLevel.DEBUG, logManager.getLevel());
+
+      storage.remoteRemove("log.level.inetsoft", false);
+      engine.init(true);
+      assertEquals(LogLevel.INFO, logManager.getLevel(),
+                   "removing log.level.inetsoft dropped the default detail level");
+      assertTrue(logManager.isLevelEnabled("inetsoft.util.stall.StallDumper", LogLevel.WARN));
+   }
+
+   @Test
+   void localRemoveOfInetsoftLoggerLevelFallsBackToDetailLevel() {
+      initEngine();
+      engine.setProperty("log.level.inetsoft", "debug");
+      assertEquals(LogLevel.DEBUG, logManager.getLevel());
+
+      engine.remove("log.level.inetsoft");
+      assertEquals(LogLevel.INFO, logManager.getLevel(),
+                   "removing log.level.inetsoft dropped the default detail level");
+
+      // with a stored detail level, that is the fallback
+      engine.setProperty("log.detail.level", "warn");
+      engine.setProperty("log.level.inetsoft", "debug");
+      engine.remove("log.level.inetsoft");
+      assertEquals(LogLevel.WARN, logManager.getLevel());
+   }
+
+   @Test
+   void removedDetailLevelKeepsInetsoftLoggerLevel() {
+      storage.remotePut("log.level.inetsoft", "debug", false);
+      storage.remotePut("log.detail.level", "warn", false);
+      initEngine();
+      assertEquals(LogLevel.DEBUG, logManager.getLevel());
+
+      engine.remove("log.detail.level");
+      assertEquals(LogLevel.DEBUG, logManager.getLevel(),
+                   "removing log.detail.level clobbered log.level.inetsoft");
+
+      storage.remotePut("log.detail.level", "warn", false);
+      engine.init(true);
+      storage.remoteRemove("log.detail.level", false);
+      engine.init(true);
+      assertEquals(LogLevel.DEBUG, logManager.getLevel());
    }
 
    @Test
@@ -350,9 +572,13 @@ class PropertiesEngineLogLevelResetTest {
    /**
     * Loads the fake storage and saves whatever was left pending by the test harness, so each
     * test starts with no pending properties.
+    *
+    * <p>The engine is reloaded, not just initialized, because another thread of the test JVM
+    * may have read a property, and so loaded the engine, before the test stored its values.
+    * {@code init()} would then keep those properties and never apply the log levels.</p>
     */
    private void initEngine() {
-      engine.init();
+      engine.init(true);
 
       try {
          engine.save();

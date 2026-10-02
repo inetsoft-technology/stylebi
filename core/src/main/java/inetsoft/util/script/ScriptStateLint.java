@@ -38,7 +38,8 @@ import java.util.function.Predicate;
  * pooled batch with the pool on (Feature #77123, context-pool brief §5 P2). Detection only; it
  * never changes how a script runs. The exception is a top-level var of an expression column's
  * formula, which its table owns (Testing #77123): it is not reported, except, with the pool
- * on, when it is assigned a script object, which is kept only within one batch
+ * on, when it is assigned a function or an object made with {@code new} (a class instance, a
+ * Map, an Intl formatter), which is kept only while the table stays on one script context
  * ({@link #checkColumn(String, Object, XTable, int, String, String, String, Set, boolean)}).
  *
  * <p>The detector is a token-level lexer (comments, strings, templates, regex vs division) with
@@ -91,8 +92,10 @@ public final class ScriptStateLint {
     * its formulas (Testing #77123): an owned var keeps its value from row to row for the
     * whole table, so reading it before writing it is a supported accumulator and not a
     * finding. The exception is the pool: with the script context pool on, a script object in
-    * an owned var (array, object, Date, function) is kept only within one batch of rows, so a
-    * read-before-write of an owned var that is assigned such a value is still reported.
+    * an owned var that is a function or made with {@code new} (arrays, plain objects and Dates
+    * are kept, B1 residual part 2) is kept only while the table stays on one context of
+    * rows, so a read-before-write of an owned var that is assigned such a value is still
+    * reported.
     * R2 (an undeclared global) is not affected.
     *
     * @param owned  the names the table owns ({@code GraalJavaScriptEngine.collectOwnedVarNames}
@@ -158,7 +161,7 @@ public final class ScriptStateLint {
       REPORT,
       /** An expression column's var that its table does not own (a let/const of the name). */
       REPORT_NOT_OWNED,
-      /** A var its table owns that holds a script object, with the pool on. */
+      /** A var its table owns that holds a function or a class instance, with the pool on. */
       REPORT_POOLED_OBJECT
    }
 
@@ -313,7 +316,7 @@ public final class ScriptStateLint {
             .append(line(script, f.offset())).append(")");
 
          if(kinds.get(i) == Disposition.REPORT_POOLED_OBJECT) {
-            buf.append(" and assigns it an object, array, Date or function");
+            buf.append(" and assigns it a function or an object made with new");
          }
          else if(kinds.get(i) == Disposition.REPORT_NOT_OWNED) {
             buf.append(", which a formula of this table also declares with let or const, " +
@@ -344,9 +347,11 @@ public final class ScriptStateLint {
       if(pooledObject) {
          buf.append(" A top-level var of an expression column's formula keeps its value " +
                     "from row to row for its whole table, but with the worksheet script " +
-                    "context pool on an object, array, Date or function in it is kept only " +
-                    "within one batch of rows: a batch that runs on another pooled context " +
-                    "reads it as undefined. A number, string or boolean is always kept.");
+                    "context pool on a function or an object made with new (a class " +
+                    "instance, a Map, an Intl formatter) in it is kept only while the table " +
+                    "stays on one script context: a batch that runs on another pooled " +
+                    "context reads it as undefined. A number, string, boolean, Date, array " +
+                    "or plain object is always kept.");
       }
 
       if(column != null) {
@@ -430,8 +435,10 @@ public final class ScriptStateLint {
    /**
     * A read of {@code name} at {@code offset} (a char offset) before it is written.
     * {@code objectValue} is true when a top-level write of the name assigns a value that
-    * looks like a script object: an object or array literal, {@code new}, a function or an
-    * arrow function (a lexical check; a call that returns an object is not seen).
+    * looks like a script object that the pool does not keep across contexts: {@code new}
+    * (except {@code new Date}, {@code new Array}, {@code new Object}), a function, an arrow
+    * function or a class (a lexical check; a call that returns one is not seen). Arrays,
+    * plain objects and Dates are kept (Testing #77123, B1 residual part 2).
     */
    public record Finding(String rule, String name, int offset, boolean objectValue) {
       public Finding(String rule, String name, int offset) {
@@ -594,7 +601,7 @@ public final class ScriptStateLint {
       // the first write itself (x = x + 1, x += 1, x++) is not taken for a loop-carried read
       Map<String, Integer> firstWriteStart = new HashMap<>();
       Map<String, List<Integer>> reads = new LinkedHashMap<>();
-      // names that a top-level write may give a script object (array, object, Date, function)
+      // names that a top-level write may give a script object (array, object, function)
       Set<String> objectWrites = new HashSet<>();
       int declDepth = -1;
       boolean declExpectName = false;
@@ -785,6 +792,13 @@ public final class ScriptStateLint {
       int n = s.length();
       int i = 0;
       boolean nl = false;
+      String prevWord = null;   // previous identifier/keyword token, else null
+      // as in GraalJavaScriptEngine's scanTopLevel/skipInitializer/
+      // stripStringsAndComments: one entry per open bracket, whether it is the
+      // `(` of an if/while/for/with head, whose `)` is followed by a statement
+      // (so a `/` there starts a regex, bug #77305)
+      Deque<Boolean> brackets = new ArrayDeque<>();
+      boolean afterHead = false;   // the previous token closed a control-flow head
 
       while(i < n) {
          char c = s.charAt(i);
@@ -836,6 +850,8 @@ public final class ScriptStateLint {
             i = Math.min(i + 1, n);
             out.add(new Tok(T.STR, "\"\"", start, nl));
             nl = false;
+            prevWord = null;
+            afterHead = false;
             continue;
          }
 
@@ -843,29 +859,38 @@ public final class ScriptStateLint {
             i = skipTemplate(s, i + 1);
             out.add(new Tok(T.STR, "``", start, nl));
             nl = false;
+            prevWord = null;
+            afterHead = false;
             continue;
          }
 
-         if(c == '/' && regexAllowed(out)) {
+         if(c == '/' && (afterHead || regexAllowed(out))) {
             int e = regexEnd(s, i);
 
             if(e > 0) {
                i = e;
                out.add(new Tok(T.STR, "//", start, nl));
                nl = false;
+               prevWord = null;
+               afterHead = false;
                continue;
             }
          }
 
          if(Character.isJavaIdentifierStart(c)) {
+            boolean afterDot = !out.isEmpty() && out.get(out.size() - 1).type == T.P &&
+               out.get(out.size() - 1).text.equals(".");
             i++;
 
             while(i < n && Character.isJavaIdentifierPart(s.charAt(i))) {
                i++;
             }
 
-            out.add(new Tok(T.ID, s.substring(start, i), start, nl));
+            String word = s.substring(start, i);
+            out.add(new Tok(T.ID, word, start, nl));
             nl = false;
+            prevWord = afterDot ? null : word;   // a property name isn't a keyword
+            afterHead = false;
             continue;
          }
 
@@ -878,6 +903,8 @@ public final class ScriptStateLint {
 
             out.add(new Tok(T.NUM, s.substring(start, i), start, nl));
             nl = false;
+            prevWord = null;
+            afterHead = false;
             continue;
          }
 
@@ -895,14 +922,38 @@ public final class ScriptStateLint {
             p = "?";
          }
 
+         boolean closedHead = false;
+
+         if(p.equals("(") || p.equals("[") || p.equals("{")) {
+            brackets.push(p.equals("(") && prevWord != null && CONTROL_HEAD_KEYWORDS.contains(prevWord));
+         }
+         else if(p.equals(")") || p.equals("]") || p.equals("}")) {
+            if(!brackets.isEmpty()) {
+               closedHead = brackets.pop() && p.equals(")");
+            }
+         }
+
          i += p.length();
          out.add(new Tok(T.P, p, start, nl));
          nl = false;
+         prevWord = null;
+         afterHead = closedHead;
       }
 
       return out;
    }
 
+   /**
+    * Whether a {@code /} at the current lexing position begins a
+    * regular-expression literal rather than a division operator, based on the
+    * last emitted token. Does not by itself account for a {@code /} right after
+    * an {@code if}/{@code while}/{@code for}/{@code with} head's closing
+    * {@code )} \u2014 that case is handled by the caller's {@code afterHead} flag
+    * (bug #77305), since the last token here is always {@code )}, never the
+    * control-head keyword itself, so {@link #REGEX_AFTER_WORD} (which covers a
+    * regex directly after a keyword token, e.g. {@code return /x/}) does not
+    * apply to this shape.
+    */
    private static boolean regexAllowed(List<Tok> out) {
       if(out.isEmpty()) {
          return true;
@@ -1027,29 +1078,44 @@ public final class ScriptStateLint {
    }
 
    /**
-    * Whether the expression in tokens {@code [from, to)} can evaluate to a script object: it
-    * contains an object literal, an array literal (not a subscript), {@code new},
-    * {@code function} or {@code =>}.
+    * Whether the expression in tokens {@code [from, to)} can evaluate to a script object the
+    * pool does not keep across contexts: it contains {@code new} (but not {@code new Date},
+    * {@code new Array} or {@code new Object}), {@code function}, {@code class} or
+    * {@code =>}. Arrays, plain objects and Dates are kept across pooled batches (Testing
+    * #77123, B1 residual).
     */
    private static boolean objectValue(List<Tok> t, int from, int to) {
       for(int i = Math.max(0, from); i < to && i < t.size(); i++) {
          Tok k = t.get(i);
 
          if(k.type == T.P) {
-            if(k.text.equals("{") || k.text.equals("=>") ||
-               k.text.equals("[") && (i == from || !endsValue(t.get(i - 1))))
-            {
+            if(k.text.equals("=>")) {
                return true;
             }
          }
-         else if(k.type == T.ID && (k.text.equals("new") || k.text.equals("function")) &&
-                 !isMember(t, i))
+         else if(k.type == T.ID && (k.text.equals("new") || k.text.equals("function") ||
+                                    k.text.equals("class")) &&
+                 !isMember(t, i) && !newKept(t, i, to))
          {
             return true;
          }
       }
 
       return false;
+   }
+
+   // new Date, new Array or new Object (not new Date.Foo): the pool keeps these across
+   // contexts like a literal (Testing #77123, B1 residual part 2)
+   private static boolean newKept(List<Tok> t, int i, int to) {
+      if(!t.get(i).text.equals("new") || i + 1 >= to || i + 1 >= t.size() ||
+         t.get(i + 1).type != T.ID)
+      {
+         return false;
+      }
+
+      String cls = t.get(i + 1).text;
+      return (cls.equals("Date") || cls.equals("Array") || cls.equals("Object")) &&
+         (i + 2 >= to || i + 2 >= t.size() || !t.get(i + 2).text.equals("."));
    }
 
    private static void mark(boolean[] a, int from, int to) {
@@ -1228,6 +1294,13 @@ public final class ScriptStateLint {
    private static final Set<String> REGEX_AFTER_WORD = Set.of(
       "return", "typeof", "instanceof", "in", "of", "new", "delete", "void", "throw", "case",
       "do", "else", "yield", "await");
+   // mirrors GraalJavaScriptEngine.CONTROL_HEAD_KEYWORDS (bug #77305): a `)` that
+   // closes one of these heads is followed by a statement, so a `/` right after
+   // it starts a regex, not a division — a structurally different case from
+   // REGEX_AFTER_WORD above (that set is keyed on the token directly preceding
+   // the `/` being the keyword itself; here the token directly preceding the
+   // `/` is always `)`, never the keyword).
+   private static final Set<String> CONTROL_HEAD_KEYWORDS = Set.of("if", "while", "for", "with");
    private static final String[] PUNCT = {
       ">>>=", "...", "===", "!==", "**=", "<<=", ">>=", ">>>", "&&=", "||=", "??=",
       "=>", "==", "!=", "<=", ">=", "&&", "||", "??", "?.", "++", "--", "+=", "-=", "*=", "/=",

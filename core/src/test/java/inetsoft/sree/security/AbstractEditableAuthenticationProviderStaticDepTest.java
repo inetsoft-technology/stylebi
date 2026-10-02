@@ -63,7 +63,7 @@ package inetsoft.sree.security;
 
 /*
  * clearScopedProperties decision tree
- *  ├─ [A] property starts with "inetsoft.org." + orgId (case-insensitive) → SreeEnv.remove called
+ *  ├─ [A] property starts with getOrgPropertyPrefix(orgId)                → SreeEnv.remove called
  *  ├─ [B] property does not match prefix                                  → not removed
  *  ├─ [C] empty Properties                                                → no remove calls
  *  └─ [D] orgId passed with uppercase letters                             → lowercased prefix matches
@@ -112,6 +112,8 @@ import inetsoft.sree.portal.CustomThemesManager;
 import inetsoft.sree.portal.CustomThemesManagerMocks;
 import inetsoft.util.DataSpace;
 import org.junit.jupiter.api.*;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.MockedStatic;
 
@@ -140,7 +142,8 @@ class AbstractEditableAuthenticationProviderStaticDepTest {
    @Test
    void clearScopedProperties_matchingProperty_removed() {
       Properties props = new Properties();
-      props.setProperty("inetsoft.org.fromOrg.someKey", "value");
+      // stored org-scoped names have the org ID lower case (PropertiesEngine.getOrgPropertyPrefix)
+      props.setProperty("inetsoft.org.fromorg.somekey", "value");
       props.setProperty("other.property", "other");
 
       try(MockedStatic<SreeEnv> sreeEnv = mockStatic(SreeEnv.class)) {
@@ -148,7 +151,7 @@ class AbstractEditableAuthenticationProviderStaticDepTest {
 
          provider.clearScopedProperties("fromOrg");
 
-         sreeEnv.verify(() -> SreeEnv.remove("inetsoft.org.fromOrg.someKey"));
+         sreeEnv.verify(() -> SreeEnv.remove("inetsoft.org.fromorg.somekey"));
          sreeEnv.verify(() -> SreeEnv.remove(any(String.class)), times(1));
       }
    }
@@ -611,6 +614,42 @@ class AbstractEditableAuthenticationProviderStaticDepTest {
          CustomTheme migrated = captor.getValue().iterator().next();
          assertEquals("portal/toOrg/theme/theme1.jar", migrated.getJarPath(),
                       "jar path is still re-scoped even though the jar could not be located");
+      }
+   }
+
+   // [Path D2e — Bug #77307] the org id also occurs in "portal" and in the theme id: only the
+   //           org segment of the jar path is re-scoped, on rename and on clone
+   @ParameterizedTest
+   @ValueSource(booleans = { true, false })
+   void copyThemes_orgIdInPortalAndThemeId_onlyOrgSegmentRescoped(boolean replace) throws Exception {
+      CustomTheme theme = new CustomTheme();
+      theme.setId("art");
+      theme.setOrgID("rt");
+      theme.setJarPath("portal/rt/theme/art.jar");
+      theme.setOrganizations(new ArrayList<>());
+
+      try(MockedStatic<DataSpace> ds = mockStatic(DataSpace.class);
+          MockedStatic<CustomThemesManager> ctm = mockStatic(CustomThemesManager.class)) {
+
+         DataSpace mockDs = mock(DataSpace.class);
+         ds.when(DataSpace::getDataSpace).thenReturn(mockDs);
+         when(mockDs.exists(null, "portal/rt9/theme/art.jar")).thenReturn(true);
+
+         CustomThemesManager mockManager = mock(CustomThemesManager.class);
+         CustomThemesManagerMocks.applyUpdates(mockManager);
+         ctm.when(CustomThemesManager::getManager).thenReturn(mockManager);
+         when(mockManager.getCustomThemes()).thenReturn(new HashSet<>(Set.of(theme)));
+
+         provider.callCopyThemes("rt", "rt9", replace);
+
+         @SuppressWarnings("unchecked")
+         ArgumentCaptor<Set<CustomTheme>> captor = ArgumentCaptor.forClass(Set.class);
+         verify(mockManager).setCustomThemes(captor.capture());
+
+         CustomTheme copied = captor.getValue().stream()
+            .filter(t -> "rt9".equals(t.getOrgID())).findFirst().orElseThrow();
+         assertEquals("portal/rt9/theme/art.jar", copied.getJarPath());
+         verify(mockDs, never()).withOutputStream(any(), any(), any(DataSpace.OutputStreamOperation.class));
       }
    }
 

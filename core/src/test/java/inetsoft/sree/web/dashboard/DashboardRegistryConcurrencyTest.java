@@ -149,6 +149,7 @@ class DashboardRegistryConcurrencyTest {
    void globalRename_whileDashboardManagerReadsTheRegistry_doesNotDeadlock() throws Exception {
       DashboardRegistry global = registryManager.getRegistry();
       global.addDashboard("d1__GLOBAL", newVsDashboard(currentOrg(), null));
+      global.save();
 
       CountDownLatch holdingD = new CountDownLatch(1);
       CountDownLatch renameBlocked = new CountDownLatch(1);
@@ -209,6 +210,7 @@ class DashboardRegistryConcurrencyTest {
    {
       DashboardRegistry global = registryManager.getRegistry();
       global.addDashboard("d1__GLOBAL", newVsDashboard(currentOrg(), null));
+      global.save();
       Lock lock = managerLock();
 
       CountDownLatch holdingM = new CountDownLatch(1);
@@ -246,8 +248,10 @@ class DashboardRegistryConcurrencyTest {
       IdentityID user = new IdentityID("dashcc_port", org);
       DashboardRegistry global = registryManager.getRegistry();
       global.addDashboard("d1__GLOBAL", newVsDashboard(org, null));
+      global.save();
       DashboardRegistry userRegistry = registryManager.getRegistry(user);
       userRegistry.addDashboard("d1__GLOBAL", newVsDashboard(org, null));
+      userRegistry.save();
 
       // the reload reads an old-version file, which makes it look up the global registry
       ParkedLoad parked = parkLoad(userRegistry.getPath(), registryXml("9.0", org, "d1"));
@@ -275,6 +279,7 @@ class DashboardRegistryConcurrencyTest {
       IdentityID user = new IdentityID("dashcc_rename", org);
       DashboardRegistry userRegistry = registryManager.getRegistry(user);
       userRegistry.addDashboard("d1__GLOBAL", newVsDashboard(org, null));
+      userRegistry.save();
 
       CountDownLatch holdingD = new CountDownLatch(1);
       CountDownLatch renameBlocked = new CountDownLatch(1);

@@ -19,6 +19,7 @@
 package inetsoft.web.portal.service.datasource;
 
 import inetsoft.sree.SreeEnv;
+import inetsoft.sree.security.*;
 import inetsoft.uql.XDataSource;
 import inetsoft.uql.XRepository;
 import inetsoft.util.*;
@@ -38,8 +39,9 @@ import java.util.*;
 @Service
 public class DataSourceStatusService {
    @Autowired
-   public DataSourceStatusService(XRepository repository) {
+   public DataSourceStatusService(XRepository repository, SecurityEngine securityEngine) {
       this.repository = repository;
+      this.securityEngine = securityEngine;
    }
 
    public List<DataSourceStatus> getDataSourceConnectionStatuses(
@@ -53,6 +55,14 @@ public class DataSourceStatusService {
       for(int i = 0; i < paths.size(); i++) {
          final int idx = i;
 
+         // Bug #77429, an unreadable data source gets no status (a null entry), the same as
+         // one that does not exist, so it is neither tested nor saved
+         if(!securityEngine.checkPermission(
+            principal, ResourceType.DATA_SOURCE, paths.get(idx), ResourceAction.READ))
+         {
+            continue;
+         }
+
          final Thread thread = new GroupedThread(() -> {
             XDataSource.Status status = null;
             LogContext.setUser(ThreadContext.getContextPrincipal());
@@ -60,6 +70,9 @@ public class DataSourceStatusService {
 
             try {
                status = getDataSourceConnectionStatus(paths.get(idx), request.updateStatus());
+            }
+            catch(FileNotFoundException ex) {
+               status = null;
             }
             catch(Exception ex) {
                String errorMessage = ex.getMessage() == null ? "" : ex.getMessage().toLowerCase();
@@ -81,6 +94,10 @@ public class DataSourceStatusService {
       // save all data sources with the new status once all of them have finished the checks
       if(request.updateStatus()) {
          for(int i = 0; i < paths.size(); i++) {
+            if(statuses[i] == null) {
+               continue;
+            }
+
             XDataSource dataSource = repository.getDataSource(paths.get(i));
 
             if(dataSource != null) {
@@ -188,5 +205,6 @@ public class DataSourceStatusService {
    }
 
    private final XRepository repository;
+   private final SecurityEngine securityEngine;
    private static final Logger LOG = LoggerFactory.getLogger(DataSourceStatusService.class);
 }

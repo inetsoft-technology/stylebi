@@ -42,7 +42,9 @@ public class StallPolicyTest {
       File logDir = new File("logs");
       StallPolicy policy = StallPolicy.fromProperties(new HashMap<String, String>()::get, logDir);
 
-      assertEquals(StallPolicy.Mode.ALERT, policy.getMode());
+      // Feature #77123: fail is the default, failing only a confirmed stall
+      assertEquals(StallPolicy.Mode.FAIL, policy.getMode());
+      assertFalse(policy.isFailOnTimeout());
       assertEquals(300000L, policy.getNoProgressMillis());
       assertEquals(30000L, policy.getScanMillis());
       assertEquals(logDir, policy.getDumpDir());
@@ -57,9 +59,11 @@ public class StallPolicyTest {
       props.put("stall.watchdog.scanMillis", "500");
       props.put("stall.watchdog.dumpDir", " dumps ");
       props.put("stall.watchdog.maxDumps", "7");
+      props.put("stall.watchdog.failOnTimeout", " TRUE ");
       StallPolicy policy = StallPolicy.fromProperties(props::get, new File("logs"));
 
       assertEquals(StallPolicy.Mode.FAIL, policy.getMode());
+      assertTrue(policy.isFailOnTimeout());
       assertEquals(2000L, policy.getNoProgressMillis());
       assertEquals(500L, policy.getScanMillis());
       assertEquals(new File("dumps"), policy.getDumpDir());
@@ -73,9 +77,11 @@ public class StallPolicyTest {
       props.put("stall.watchdog.noProgressMillis", "-5");
       props.put("stall.watchdog.scanMillis", "abc");
       props.put("stall.watchdog.maxDumps", "0");
+      props.put("stall.watchdog.failOnTimeout", "yes");
       StallPolicy policy = StallPolicy.fromProperties(props::get, new File("logs"));
 
-      assertEquals(StallPolicy.Mode.ALERT, policy.getMode());
+      assertEquals(StallPolicy.Mode.FAIL, policy.getMode());
+      assertFalse(policy.isFailOnTimeout());
       assertEquals(300000L, policy.getNoProgressMillis());
       assertEquals(30000L, policy.getScanMillis());
       assertEquals(20, policy.getMaxDumps());
@@ -86,6 +92,45 @@ public class StallPolicyTest {
       assertEquals(StallPolicy.Mode.OFF, StallPolicy.parseMode(" OFF "));
       assertEquals(StallPolicy.Mode.FAIL, StallPolicy.parseMode("Fail"));
       assertEquals(StallPolicy.Mode.ALERT, StallPolicy.parseMode("ALERT"));
+   }
+
+   /**
+    * Feature #77123: alert is still available, as the old default.
+    */
+   @Test
+   public void alertModeCanBeSet() {
+      Map<String, String> props = new HashMap<>();
+      props.put("stall.watchdog.mode", "alert");
+      StallPolicy policy = StallPolicy.fromProperties(props::get, new File("logs"));
+
+      assertEquals(StallPolicy.Mode.ALERT, policy.getMode());
+      assertFalse(policy.isFailOnTimeout());
+   }
+
+   /**
+    * Feature #77123: the built-in default, used before the server environment is initialized
+    * and whenever no property is set, is fail, failing only a confirmed stall.
+    */
+   @Test
+   public void builtInDefaultIsFailOnConfirmedStallsOnly() {
+      StallPolicy.setOverride(null);
+      StallPolicy policy = StallPolicy.get();
+
+      assertEquals(StallPolicy.Mode.FAIL, policy.getMode());
+      assertFalse(policy.isFailOnTimeout());
+      assertEquals(StallPolicy.DEFAULT_NO_PROGRESS_MILLIS, policy.getNoProgressMillis());
+   }
+
+   /**
+    * The constructors without {@code failOnTimeout} keep the rule they were written for, fail
+    * on the timeout alone, for the tests of what a failed wait leaves behind.
+    */
+   @Test
+   public void shortConstructorsFailOnTheTimeout() {
+      File dir = new File("x");
+      assertTrue(new StallPolicy(StallPolicy.Mode.FAIL, 1, 1, dir).isFailOnTimeout());
+      assertTrue(new StallPolicy(StallPolicy.Mode.FAIL, 1, 1, dir, 3).isFailOnTimeout());
+      assertFalse(new StallPolicy(StallPolicy.Mode.FAIL, 1, 1, dir, 3, false).isFailOnTimeout());
    }
 
    @Test

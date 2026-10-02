@@ -107,9 +107,7 @@ class SecurityFilterChainOrderingTest {
    }
 
    private static void resetStaticSreeEnvValueCache(SreeEnv.Value value) throws Exception {
-      java.lang.reflect.Field tsField = SreeEnv.Value.class.getDeclaredField("ts");
-      tsField.setAccessible(true);
-      tsField.setLong(value, 0L);
+      value.updateValue();
    }
 
    @AfterEach

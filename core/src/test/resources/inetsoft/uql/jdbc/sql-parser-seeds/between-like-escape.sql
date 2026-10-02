@@ -1,0 +1,1 @@
+select * from t1 where x between 1 and 10 or y like 'ab%' escape '\'

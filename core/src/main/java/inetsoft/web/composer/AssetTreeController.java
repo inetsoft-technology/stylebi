@@ -35,6 +35,7 @@ import inetsoft.util.Tool;
 import inetsoft.web.RecycleUtils;
 import inetsoft.web.composer.model.*;
 import inetsoft.web.composer.ws.assembly.VariableAssemblyModelInfo;
+import inetsoft.web.portal.controller.database.QueryManagerService;
 import inetsoft.web.viewsheet.command.MessageCommand;
 import inetsoft.web.viewsheet.event.CollectParametersOverEvent;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -61,13 +62,15 @@ public class AssetTreeController {
                               AssetTreeServiceProxy assetTreeServiceProxy,
                               SecurityEngine securityEngine,
                               LibManagerProvider libManagerProvider,
-                              XRepository xRepository)
+                              XRepository xRepository,
+                              QueryManagerService queryManagerService)
    {
       this.assetRepository = assetRepository;
       this.assetTreeServiceProxy = assetTreeServiceProxy;
       this.securityEngine = securityEngine;
       this.libManagerProvider = libManagerProvider;
       this.xRepository = xRepository;
+      this.queryManagerService = queryManagerService;
    }
 
    @PostMapping("/api/vs/bindingtree/getConnectionParameters")
@@ -134,6 +137,10 @@ public class AssetTreeController {
       Catalog catalog = Catalog.getCatalog(principal);
       IdentityID user = principal == null ? null : IdentityID.getIdentityIDFromKey(principal.getName());
       AssetEntry expandedEntry = event.targetEntry();
+      // Bug #77189, the asset engine resolves the children of a query-scope entry from its
+      // client-supplied prefix without checking it. This runs for every recursive expansion too,
+      // since the expanded descendants are the client's entries.
+      queryManagerService.checkAssetTreeEntryPermission(expandedEntry, principal);
       AssetEntry.Selector assetSelector = physical ?
          new AssetEntry.Selector(AssetEntry.Type.FOLDER, AssetEntry.Type.WORKSHEET,
                                  AssetEntry.Type.VIEWSHEET, AssetEntry.Type.DATA,
@@ -191,8 +198,12 @@ public class AssetTreeController {
          if(!"cubeRoot".equals(expandedEntry.getProperty("entryName"))) {
             Set<UserVariable> list = new HashSet<>();
 
-            if("true".equals(expandedEntry.getProperty("CUBE_TABLE")) ||
-               expandedEntry.isDataSource())
+            // Bug #77401, only look up the connection parameters of a readable data source. A
+            // server-built cube table path (ds/cube) is not a data source and does not inherit
+            // READ from ds, so skip the lookup instead of denying and expand the node as on a miss.
+            if(("true".equals(expandedEntry.getProperty("CUBE_TABLE")) ||
+               expandedEntry.isDataSource()) &&
+               isDataSourceReadable(expandedEntry.getPath(), principal))
             {
                UserVariable[] vars = null;
 
@@ -213,6 +224,8 @@ public class AssetTreeController {
                UserVariable[] vars = list.toArray(new UserVariable[0]);
                AssetUtil.validateAlias(vars);
                List<VariableAssemblyModelInfo> parameters = Arrays.stream(vars)
+                  // Bug #77423, the identity variables are set from the user, never prompted
+                  .filter(v -> !VariableTable.isContextVariable(v.getName()))
                   .filter(v -> SUtil.isNeedPrompt(principal, v))
                   .map(VariableAssemblyModelInfo::new)
                   .collect(Collectors.toList());
@@ -479,6 +492,11 @@ public class AssetTreeController {
 
       if(variables != null) {
          for(VariableAssemblyModelInfo var : variables) {
+            // Bug #77423, the identity variables are set from the user, never from the client
+            if(VariableTable.isContextVariable(var.getName())) {
+               continue;
+            }
+
             Object[] values = Arrays.stream(var.getValue())
                .map((val) -> val == null ? null : val.toString())
                .map((val) -> val == null || val.length() == 0 ? null :
@@ -500,6 +518,12 @@ public class AssetTreeController {
                   dbs.add((String) var.getValue()[0]);
                }
             }
+         }
+
+         // Bug #77401, the data source lookup, test and connect below check nothing, so every
+         // named source must be readable. Check all of them before acting on any.
+         for(String db : dbs) {
+            queryManagerService.checkDataSourceReadPermission(db, principal);
          }
 
          Object session = assetRepository.getSession();
@@ -1065,11 +1089,30 @@ public class AssetTreeController {
       }
    }
 
+   /**
+    * Checks READ on a data source name without throwing, for lookups that are skipped (not
+    * denied) when the name is not a readable data source (Bug #77401).
+    */
+   private boolean isDataSourceReadable(String dataSource, Principal principal) {
+      if(dataSource == null || dataSource.isBlank()) {
+         return false;
+      }
+
+      try {
+         return securityEngine.checkPermission(
+            principal, ResourceType.DATA_SOURCE, dataSource, ResourceAction.READ);
+      }
+      catch(Exception e) {
+         return false;
+      }
+   }
+
    private final AssetRepository assetRepository;
    private final AssetTreeServiceProxy assetTreeServiceProxy;
    private final SecurityEngine securityEngine;
    private final LibManagerProvider libManagerProvider;
    private final XRepository xRepository;
+   private final QueryManagerService queryManagerService;
    private static final String TABLE_STYLE = "Table Style";
    private static final String SCRIPT = "Script Function";
    private static final Catalog catalog = Catalog.getCatalog();

@@ -226,7 +226,7 @@ public class RenameDependencyInfo implements Serializable, XMLSerializable {
          }
 
          String cls = Tool.getAttribute(assetNode, "class");
-         AssetObject assetObj = (AssetObject) Class.forName(cls).newInstance();
+         AssetObject assetObj = (AssetObject) Tool.loadSubclass(cls, AssetObject.class).newInstance();
 
          NodeList list = assetNode.getChildNodes();
 

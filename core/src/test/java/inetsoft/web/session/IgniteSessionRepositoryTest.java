@@ -114,6 +114,14 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import javax.cache.Cache;
+import java.lang.reflect.Field;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -329,6 +337,98 @@ class IgniteSessionRepositoryTest {
    }
 
    /**
+    * Bug #77300: on the node that lazily reaps an expired session, deleteById()'s own logout() and
+    * the same node's entryRemoved()/entryExpired() reaction to that removal run on different
+    * threads and both pass the non-atomic isActiveUser() gate, writing two LOGOFF records. Here
+    * entryExpired() (path B) is still inside authenticationService.logout() -- with the principal
+    * still reported active -- when deleteById() (path A) runs on another thread; only one logout
+    * may be issued.
+    */
+   @Test
+   void concurrentTimeoutLogouts_forOneSession_logOutOnce() throws Exception {
+      SRPrincipal principal = mockPrincipal("admin", "127.0.0.1");
+      when(securityEngine.isActiveUser(principal)).thenReturn(true);
+
+      IgniteSessionRepository.IgniteSession session = repository.createSession();
+      session.setAttribute(RepletRepository.PRINCIPAL_COOKIE, principal);
+      repository.save(session);
+      String id = session.getId();
+
+      @SuppressWarnings("unchecked")
+      Cache<String, org.springframework.session.MapSession> rawSessions =
+         cluster.getCache(IgniteSessionRepository.DEFAULT_SESSION_MAP_NAME, true, null);
+      org.springframework.session.MapSession rawSession = rawSessions.get(id);
+      inetsoft.sree.internal.cluster.EntryEvent<String, org.springframework.session.MapSession>
+         event = new inetsoft.sree.internal.cluster.EntryEvent<>(
+            IgniteSessionRepository.DEFAULT_SESSION_MAP_NAME, id, rawSession, null);
+
+      AtomicInteger calls = new AtomicInteger();
+      AtomicReference<Throwable> otherFailure = new AtomicReference<>();
+      AtomicBoolean otherFinished = new AtomicBoolean();
+
+      doAnswer(invocation -> {
+         if(calls.incrementAndGet() == 1) {
+            Thread other = new Thread(() -> {
+               try {
+                  repository.deleteById(id);
+                  otherFinished.set(true);
+               }
+               catch(Throwable e) {
+                  otherFailure.set(e);
+               }
+            });
+            other.start();
+            other.join(TimeUnit.SECONDS.toMillis(10));
+         }
+
+         return null;
+      }).when(authenticationService).logout(any(), anyString(), anyString());
+
+      repository.entryExpired(event);
+
+      assertNull(otherFailure.get(), "concurrent deleteById() should not fail");
+      assertTrue(otherFinished.get(), "concurrent deleteById() should return without blocking");
+      verify(authenticationService, times(1))
+         .logout(same(principal), eq("127.0.0.1"), eq(SessionRecord.LOGOFF_SESSION_TIMEOUT));
+   }
+
+   /**
+    * Bug #77300: the per-session claim is released once logout() returns, so a later caller for
+    * the same session is not skipped by the claim -- it is stopped by isActiveUser(), which the
+    * first logout (synchronously deregistering the principal) has turned false.
+    */
+   @Test
+   void sequentialTimeoutLogouts_forOneSession_secondGatedByIsActiveUser() {
+      SRPrincipal principal = mockPrincipal("admin", "127.0.0.1");
+      AtomicBoolean active = new AtomicBoolean(true);
+      when(securityEngine.isActiveUser(principal)).thenAnswer(invocation -> active.get());
+      doAnswer(invocation -> {
+         active.set(false);
+         return null;
+      }).when(authenticationService).logout(any(), anyString(), anyString());
+
+      IgniteSessionRepository.IgniteSession session = repository.createSession();
+      session.setAttribute(RepletRepository.PRINCIPAL_COOKIE, principal);
+      repository.save(session);
+      String id = session.getId();
+
+      @SuppressWarnings("unchecked")
+      Cache<String, org.springframework.session.MapSession> rawSessions =
+         cluster.getCache(IgniteSessionRepository.DEFAULT_SESSION_MAP_NAME, true, null);
+      org.springframework.session.MapSession rawSession = rawSessions.get(id);
+      inetsoft.sree.internal.cluster.EntryEvent<String, org.springframework.session.MapSession>
+         event = new inetsoft.sree.internal.cluster.EntryEvent<>(
+            IgniteSessionRepository.DEFAULT_SESSION_MAP_NAME, id, rawSession, null);
+
+      repository.deleteById(id);
+      repository.entryExpired(event);
+
+      verify(securityEngine, times(2)).isActiveUser(principal);
+      verify(authenticationService, times(1))
+         .logout(same(principal), eq("127.0.0.1"), eq(SessionRecord.LOGOFF_SESSION_TIMEOUT));
+   }
+
+   /**
     * Bug #76973: the user edit path rewrites the roles of every live session principal of the
     * edited user (both cookies), so an existing session is corrected on every node that reads the
     * replicated session. Other users' principals are left alone.
@@ -415,6 +515,275 @@ class IgniteSessionRepositoryTest {
       assertSame(principal, expiredEvent.getPrincipalCookie(),
                  "the published event must resolve the real principal, not null from the raw " +
                  "MapSession (bug #77178)");
+   }
+
+   /**
+    * Regression test for Bug #77306: {@code SESSION_ATTRIBUTE_MAPS} was a single static,
+    * unsynchronized {@code HashMap} shared by every session on the node, mutated concurrently by
+    * request threads ({@code createSessionAttributeMap()}/{@code getSessionAttributeMap()}'s
+    * cold-path put) and the Ignite cache-event listener path ({@code destroySessionAttributeMap()}
+    * from {@code entryExpired()}/{@code entryRemoved()}). The refuter demonstrated experimentally
+    * that two threads concurrently {@code put}/{@code remove}-ing on a plain {@code HashMap} --
+    * regardless of resize, bucket collision, or total map size -- reliably corrupts it badly
+    * enough to spuriously null out an entirely unrelated key, with the corruption persisting for
+    * the life of the map.
+    *
+    * <p>This exercises the exact static field via reflection (rather than routing through full
+    * session/EntryEvent/Mockito plumbing, which is too slow to reach the operation volume needed
+    * to reliably surface the corruption within a reasonable test time -- confirmed by hand before
+    * writing this version, see the fix write-up), with several writer threads doing real
+    * concurrent {@code put}/{@code remove} churn while a reader thread continuously reads one
+    * untouched "victim" key, asserting it is never spuriously lost or corrupted.
+    *
+    * <p><b>Round 2 (independent verification finding, 04-verify.md):</b> the first version of this
+    * test churned disjoint, sequential keys ({@code prefix + i}), which measured only ~90%
+    * reliable against the un-fixed {@code HashMap} (18/20 fail, 2/20 false-negative over 20 runs)
+    * -- with the map staying small (well under the 16-bucket/12-entry default resize threshold),
+    * most churn keys land in a *different* bucket from the victim key purely by chance, and it is
+    * corruption of the victim's own bucket that actually surfaces as a lost/corrupted read. This
+    * version instead precomputes, per writer thread, a small set of keys forced (via
+    * {@link #hashMapBucket}/{@link #findCollidingKeyIndex}) into the exact same {@code HashMap}
+    * bucket as the victim key -- the same technique the refuter used in {@code 02-refute.md} --
+    * making every churn {@code put()}/{@code remove()} a genuine same-bucket collision with the
+    * victim key instead of leaving collision to chance. Manually reverting
+    * {@code SESSION_ATTRIBUTE_MAPS} to a plain {@code HashMap} makes this test fail reliably
+    * (confirmed across repeated runs); it passes reliably with the fixed
+    * {@code ConcurrentHashMap}.
+    */
+   @Test
+   void concurrentSessionAttributeMapAccess_neverCorruptsUnrelatedKey() throws Exception {
+      Field field = IgniteSessionRepository.class.getDeclaredField("SESSION_ATTRIBUTE_MAPS");
+      field.setAccessible(true);
+      @SuppressWarnings("unchecked")
+      Map<String, Object> map = (Map<String, Object>) field.get(null);
+
+      String victimKey = "bug-77306-victim-" + UUID.randomUUID();
+      Object victimValue = new Object();
+      map.put(victimKey, victimValue);
+
+      try {
+         int writerThreads = 4;
+         int iterations = 200_000;
+
+         // Force every writer thread's churn keys into the SAME HashMap bucket as the victim key
+         // (see the class-level javadoc "Round 2" note above) instead of leaving the collision to
+         // chance.
+         int capacity = expectedHashMapCapacity(map.size());
+         int victimBucket = hashMapBucket(victimKey, capacity);
+         int keysPerThread = 8;
+         String[][] collidingKeys = new String[writerThreads][];
+
+         for(int t = 0; t < writerThreads; t++) {
+            String prefix = "bug-77306-churn-" + t + "-";
+            String[] keys = new String[keysPerThread];
+            int searchIndex = 0;
+
+            for(int k = 0; k < keysPerThread; k++) {
+               searchIndex = findCollidingKeyIndex(prefix, searchIndex, victimBucket, capacity);
+               keys[k] = prefix + searchIndex;
+               searchIndex++;
+            }
+
+            collidingKeys[t] = keys;
+         }
+
+         ExecutorService pool = Executors.newFixedThreadPool(writerThreads + 1);
+         CountDownLatch start = new CountDownLatch(1);
+         AtomicBoolean failed = new AtomicBoolean(false);
+         AtomicReference<String> failureDetail = new AtomicReference<>();
+         List<Future<?>> futures = new ArrayList<>();
+
+         // Writer threads: repeatedly put(), then remove(), one of a small set of keys
+         // precomputed to collide into the victim key's own HashMap bucket -- mirrors
+         // createSessionAttributeMap()'s put() racing destroySessionAttributeMap()'s remove() for
+         // unrelated sessions, forced into the exact bucket-collision scenario that reliably
+         // corrupts a plain HashMap.
+         for(int t = 0; t < writerThreads; t++) {
+            String[] keys = collidingKeys[t];
+
+            futures.add(pool.submit(() -> {
+               try {
+                  start.await();
+
+                  for(int i = 0; i < iterations && !failed.get(); i++) {
+                     String key = keys[i % keys.length];
+                     map.put(key, new Object());
+                     map.remove(key);
+                  }
+               }
+               catch(Exception e) {
+                  failed.set(true);
+                  failureDetail.set("writer thread failed: " + e);
+               }
+            }));
+         }
+
+         // Reader thread: continuously reads the victim key -- this must never come back
+         // null/wrong, regardless of how much unrelated put()/remove() churn is happening
+         // concurrently on the shared static map.
+         futures.add(pool.submit(() -> {
+            try {
+               start.await();
+
+               for(int i = 0; i < writerThreads * iterations && !failed.get(); i++) {
+                  Object read = map.get(victimKey);
+
+                  if(read != victimValue) {
+                     failed.set(true);
+                     failureDetail.set(
+                        "victim key was lost/corrupted at iteration " + i + ": got " + read);
+                     break;
+                  }
+               }
+            }
+            catch(Exception e) {
+               failed.set(true);
+               failureDetail.set("reader thread failed: " + e);
+            }
+         }));
+
+         start.countDown();
+
+         for(Future<?> future : futures) {
+            future.get(120, TimeUnit.SECONDS);
+         }
+
+         pool.shutdown();
+
+         assertFalse(failed.get(), failureDetail.get());
+      }
+      finally {
+         map.remove(victimKey);
+      }
+   }
+
+   /**
+    * Regression test for Bug #77306 review finding 2 (05-review-r1.md): getSessionAttributeMap()'s
+    * cold path "fetch but don't cache" branch -- reached when the per-session replicated map still
+    * exists in the cluster but the underlying session has already been swept from
+    * DEFAULT_SESSION_MAP_NAME -- must be preserved by the computeIfAbsent() rewrite (fix part 2).
+    * Before this test, only AbstractSecurityFilterSessionSweepTest exercised this cold path, and
+    * only incidentally: it never asserts on caching behavior, so a subtly-broken reimplementation
+    * (caching unconditionally, or never caching at all) would still pass it.
+    */
+   @Test
+   void getSessionAttributeMap_fetchesWithoutCaching_whenUnderlyingSessionGone() throws Exception {
+      String sessionId = "bug-77306-nocache-" + UUID.randomUUID();
+      String mapName =
+         IgniteSessionRepository.class.getName() + ".sessionAttributeMap." + sessionId;
+      Cluster instanceCluster = Cluster.getInstance();
+      inetsoft.sree.internal.cluster.DistributedMap<String, Object> attrMap =
+         instanceCluster.getReplicatedMap(mapName);
+      attrMap.put("k", "v");
+
+      Map<String, Object> cacheField = sessionAttributeMapsField();
+
+      try {
+         Cache<String, Object> sessionCache =
+            instanceCluster.getCache(IgniteSessionRepository.DEFAULT_SESSION_MAP_NAME);
+         assertFalse(cacheField.containsKey(sessionId),
+                     "sanity check: nothing should have cached this session id yet");
+         assertFalse(sessionCache.containsKey(sessionId),
+                     "sanity check: the underlying session must be absent for this to hit the " +
+                     "intended branch");
+
+         inetsoft.sree.internal.cluster.DistributedMap<String, Object> first =
+            IgniteSessionRepository.getSessionAttributeMap(sessionId);
+         assertNotNull(first, "the map still exists in the cluster and should be fetched");
+         assertEquals("v", first.get("k"));
+         assertFalse(cacheField.containsKey(sessionId),
+                     "must not cache the map once the underlying session is confirmed gone " +
+                     "(Bug #77306 review finding 2)");
+
+         inetsoft.sree.internal.cluster.DistributedMap<String, Object> second =
+            IgniteSessionRepository.getSessionAttributeMap(sessionId);
+         assertNotNull(second, "a second call should still re-fetch, not fail");
+         assertFalse(cacheField.containsKey(sessionId), "a second call must still not cache it");
+      }
+      finally {
+         cacheField.remove(sessionId);
+         instanceCluster.destroyReplicatedMap(mapName);
+      }
+   }
+
+   /**
+    * Regression test for Bug #77306 review finding 1/2 (05-review-r1.md): getAttribute(),
+    * setAttribute(), removeAttribute(), and getAttributeNames() must all handle
+    * getSessionAttributeMap() returning null gracefully (return null/empty, or no-op) instead of
+    * NPE-ing. Exercises the null-guards this fix adds directly, rather than relying on the
+    * swallowed-403 symptom (or a passing but non-asserting cold-path test) to ever hit them.
+    */
+   @Test
+   void igniteSession_handlesMissingAttributeMapGracefully() throws Exception {
+      IgniteSessionRepository.IgniteSession session = repository.createSession();
+      String id = session.getId();
+      session.setAttribute(RepletRepository.PRINCIPAL_COOKIE, "some-value");
+      repository.save(session);
+
+      assertEquals("some-value", session.getAttribute(RepletRepository.PRINCIPAL_COOKIE),
+                   "sanity check: attribute resolution must work before the map is torn down");
+
+      // Simulate the map being destroyed out from under a still-referenced IgniteSession ("could
+      // be out of sync due to session expiration", per the fix's own comment): remove the cached
+      // entry AND destroy the underlying replicated map so getSessionAttributeMap(id) genuinely
+      // returns null rather than silently re-fetching it.
+      String mapName = IgniteSessionRepository.class.getName() + ".sessionAttributeMap." + id;
+      sessionAttributeMapsField().remove(id);
+      Cluster.getInstance().destroyReplicatedMap(mapName);
+
+      assertNull(session.getAttribute(RepletRepository.PRINCIPAL_COOKIE),
+                 "getAttribute() must return null, not NPE, when the map is gone");
+      assertDoesNotThrow(() -> session.setAttribute(RepletRepository.PRINCIPAL_COOKIE, "other"),
+                          "setAttribute() must no-op, not NPE, when the map is gone");
+      assertDoesNotThrow(() -> session.removeAttribute(RepletRepository.PRINCIPAL_COOKIE),
+                          "removeAttribute() must no-op, not NPE, when the map is gone");
+      assertTrue(session.getAttributeNames().isEmpty(),
+                 "getAttributeNames() must return empty, not NPE, when the map is gone");
+   }
+
+   @SuppressWarnings("unchecked")
+   private static Map<String, Object> sessionAttributeMapsField() throws Exception {
+      Field field = IgniteSessionRepository.class.getDeclaredField("SESSION_ATTRIBUTE_MAPS");
+      field.setAccessible(true);
+      return (Map<String, Object>) field.get(null);
+   }
+
+   /**
+    * Computes the bucket index a plain {@code java.util.HashMap} (default load factor 0.75,
+    * default initial capacity 16, doubling on resize) would place {@code key} into, mirroring
+    * {@code HashMap.hash()}'s own spread function ({@code h ^ (h >>> 16)}) and its
+    * {@code (capacity - 1) & hash} bucket index formula.
+    */
+   private static int hashMapBucket(Object key, int capacity) {
+      int h = key.hashCode();
+      h ^= (h >>> 16);
+      return h & (capacity - 1);
+   }
+
+   /** Mirrors HashMap's own resize decision (grow once size exceeds capacity * loadFactor). */
+   private static int expectedHashMapCapacity(int size) {
+      int capacity = 16;
+
+      while(size > capacity * 0.75f) {
+         capacity <<= 1;
+      }
+
+      return capacity;
+   }
+
+   /**
+    * Finds the smallest {@code i >= startIndex} such that {@code prefix + i} falls into
+    * {@code targetBucket} for the given (assumed) HashMap capacity, brute-force -- with a
+    * ~1/capacity hit rate per candidate this resolves in a handful of iterations in practice.
+    */
+   private static int findCollidingKeyIndex(String prefix, int startIndex, int targetBucket,
+                                             int capacity)
+   {
+      for(int i = startIndex; ; i++) {
+         if(hashMapBucket(prefix + i, capacity) == targetBucket) {
+            return i;
+         }
+      }
    }
 
    private static SRPrincipal mockPrincipal(String name, String ip) {

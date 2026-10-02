@@ -592,7 +592,9 @@ public class XSessionManager {
          table = table.cloneShared();
       }
 
-      if(item.getCacheNormalizer() != null) {
+      // restore the original column order only if JDBCHandler executed the sorted sql,
+      // a kept sql string (e.g. lossy) is already in the original order. (Bug #77485)
+      if(item.getCacheNormalizer() != null && item.isSortedSqlExecuted()) {
          return item.getCacheNormalizer().transformTableLens(table);
       }
 
@@ -918,6 +920,22 @@ public class XSessionManager {
          return cacheNormalizer;
       }
 
+      /**
+       * Check if the executed sql selected its columns in the cache normalizer's sorted
+       * order, so the result must be transformed back to the original column order.
+       */
+      public boolean isSortedSqlExecuted() {
+         return sortedSqlExecuted;
+      }
+
+      /**
+       * Set if the executed sql selected its columns in the sorted order. This is set by
+       * JDBCHandler from the sql that is actually executed (or used as the cache key).
+       */
+      public void setSortedSqlExecuted(boolean sortedSqlExecuted) {
+         this.sortedSqlExecuted = sortedSqlExecuted;
+      }
+
       protected DataCache<String, CEntry> datacache;
       protected boolean usecache;
       protected long touched;
@@ -927,6 +945,7 @@ public class XSessionManager {
       protected String key;
       protected Object lens;
       private final JDBCQueryCacheNormalizer cacheNormalizer;
+      private boolean sortedSqlExecuted = false;
    }
 
    private static final ExecutionMap emap = new ExecutionMap();

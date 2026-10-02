@@ -30,7 +30,8 @@ public class DataSpaceProtocolResolver implements ProtocolResolver {
    public Resource resolve(String location, ResourceLoader resourceLoader) {
       if(location.startsWith(PROTOCOL)) {
          String resourceName = location.substring(PROTOCOL.length());
-         return createDataSpaceResource(resourceName, DataSpace.getDataSpace());
+         return createDataSpaceResource(
+            resourceName, DataSpace.getDataSpace(), resourceName.endsWith("/"));
       }
 
       return null;
@@ -38,6 +39,13 @@ public class DataSpaceProtocolResolver implements ProtocolResolver {
 
    private static DataSpaceResource createDataSpaceResource(String resourceName,
                                                             DataSpace dataSpace)
+   {
+      return createDataSpaceResource(resourceName, dataSpace, false);
+   }
+
+   private static DataSpaceResource createDataSpaceResource(String resourceName,
+                                                            DataSpace dataSpace,
+                                                            boolean directory)
    {
       String dir;
       String file;
@@ -53,16 +61,21 @@ public class DataSpaceProtocolResolver implements ProtocolResolver {
          file = path.substring(index + 1);
       }
 
-      return new DataSpaceResource(dir, file, dataSpace);
+      return new DataSpaceResource(dir, file, dataSpace, directory);
    }
 
    private static final String PROTOCOL = "dataspace:";
 
    public static final class DataSpaceResource extends AbstractResource {
       DataSpaceResource(String dir, String file, DataSpace dataSpace) {
+         this(dir, file, dataSpace, false);
+      }
+
+      DataSpaceResource(String dir, String file, DataSpace dataSpace, boolean directory) {
          this.dir = dir;
          this.file = file;
          this.dataSpace = dataSpace;
+         this.directory = directory;
       }
 
       @Override
@@ -120,6 +133,11 @@ public class DataSpaceProtocolResolver implements ProtocolResolver {
             path = dir + '/' + file;
          }
 
+         // Spring 6.2.19+ requires resource handler locations to have a URL path ending in a slash
+         if(directory) {
+            path = path + '/';
+         }
+
          return new URL(null, "dataspace://" + path, new DataSpaceURLStreamHandler(dataSpace));
       }
 
@@ -134,7 +152,7 @@ public class DataSpaceProtocolResolver implements ProtocolResolver {
             path = dir + '/' + file;
          }
 
-         if(dataSpace.exists(dir, file) && dataSpace.isDirectory(path)) {
+         if(directory || dataSpace.exists(dir, file) && dataSpace.isDirectory(path)) {
             path = path + '/' + relativePath;
          }
          else {
@@ -154,5 +172,6 @@ public class DataSpaceProtocolResolver implements ProtocolResolver {
       private final String dir;
       private final String file;
       private final DataSpace dataSpace;
+      private final boolean directory;
    }
 }

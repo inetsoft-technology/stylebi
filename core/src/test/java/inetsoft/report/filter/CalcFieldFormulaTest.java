@@ -240,6 +240,30 @@ public class CalcFieldFormulaTest {
       assertFalse(formula.isNull());
    }
 
+   // Bug #77321: an initializer-less let named like a CALC function (value) in a calc
+   // field starts undefined for every group, and the CALC function stays usable
+   @Test
+   void initializerlessLetNamedLikeCalcFunctionStartsUndefinedEveryGroup() {
+      CalcFieldFormula formula = buildSingleChildFormula("SUM", new SumFormula(),
+         "let value; SUM > 5 && (value = 'High'); value");
+      CalcFieldFormula reader = buildSingleChildFormula("SUM", new SumFormula(),
+         "value('7') + SUM");
+      java.util.List<Object> out = new java.util.ArrayList<>();
+      java.util.List<Object> read = new java.util.ArrayList<>();
+
+      for(double v : new double[] { 10, 1, 1 }) {
+         formula.reset();
+         formula.addValue(new Object[]{ null, v });
+         out.add(formula.getResult());
+         reader.reset();
+         reader.addValue(new Object[]{ null, v });
+         read.add(reader.getResult());
+      }
+
+      assertEquals(java.util.Arrays.asList("High", null, null), out);
+      assertEquals(java.util.Arrays.asList(17.0, 8.0, 8.0), read);
+   }
+
    // -----------------------------------------------------------------------
    // clone()
    // -----------------------------------------------------------------------

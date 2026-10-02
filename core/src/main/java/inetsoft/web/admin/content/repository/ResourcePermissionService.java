@@ -21,6 +21,7 @@ import inetsoft.report.LibManagerProvider;
 import inetsoft.report.style.XTableStyle;
 import inetsoft.sree.RepositoryEntry;
 import inetsoft.sree.SreeEnv;
+import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.*;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.service.DataSourceRegistry;
@@ -107,10 +108,13 @@ public class ResourcePermissionService {
             .securityEnabled(securityEngine.isSecurityEnabled())
             .requiresBoth(Boolean.parseBoolean(SreeEnv.getProperty("permission.andCondition",false, true)));
 
-      boolean hasGrantReadToAll = type == ResourceType.DATA_SOURCE_FOLDER && "/".equals(path) ||
+      // the grant-read-to-all flags are global, server-wide properties, only show them to users
+      // who are allowed to change them (site admins, or any admin on a single-tenant server)
+      boolean hasGrantReadToAll = (type == ResourceType.DATA_SOURCE_FOLDER && "/".equals(path) ||
          type == ResourceType.TABLE_STYLE_LIBRARY && catalog.getString("*").equals(path) ||
          type == ResourceType.SCRIPT_LIBRARY && catalog.getString("*").equals(path) ||
-         type == (ResourceType.SCHEDULE_TASK_FOLDER) && "/".equals(path);
+         type == (ResourceType.SCHEDULE_TASK_FOLDER) && "/".equals(path)) &&
+         canSetGrantReadToAll(principal);
 
       if(hasGrantReadToAll) {
          switch(type) {
@@ -235,6 +239,26 @@ public class ResourcePermissionService {
       return permission.hasOrgEditedGrantAll(OrganizationManager.getInstance().getCurrentOrgID());
    }
 
+   /**
+    * Determines if the principal may change the global security.*.everyone (grant read to all)
+    * properties. On a multi-tenant server only a site admin may, because the properties apply
+    * to every organization.
+    */
+   private boolean canSetGrantReadToAll(Principal principal) {
+      return !SUtil.isMultiTenant() || OrganizationManager.getInstance().isSiteAdmin(principal);
+   }
+
+   /**
+    * Determines if the principal may change permission.andCondition. The property decides how
+    * every permission check in the organization is evaluated, so only a site admin or an org
+    * admin may change it, not a user who is only an admin of the saved resource.
+    */
+   private boolean canSetAndCondition(Principal principal) {
+      OrganizationManager orgManager = OrganizationManager.getInstance();
+      return principal != null &&
+         (orgManager.isSiteAdmin(principal) || orgManager.isOrgAdmin(principal));
+   }
+
    @Audited(
       actionName = ActionRecord.ACTION_NAME_EDIT,
       objectType = ActionRecord.OBJECT_TYPE_OBJECTPERMISSION
@@ -315,7 +339,9 @@ public class ResourcePermissionService {
          return;
       }
 
-      if(tableModel.grantReadToAllVisible()) {
+      // security.*.everyone are global properties shared by all organizations, an org admin
+      // on a multi-tenant server must not change them from a per-org permission save
+      if(tableModel.grantReadToAllVisible() && canSetGrantReadToAll(principal)) {
          switch(resourceType) {
          case DATA_SOURCE_FOLDER:
             if("/".equals(path)) {
@@ -347,7 +373,14 @@ public class ResourcePermissionService {
       }
 
       String resourcePath = getPermissionResourcePath(path, resourceType, tableStyleFolder, libManagerProvider, dataSourceRegistry);
-      SreeEnv.setProperty("permission.andCondition", String.valueOf(tableModel.requiresBoth()), true);
+
+      // permission.andCondition applies to the whole organization, keep the current value when
+      // the caller is not a site or org admin. SreeEnv.save() also persists the
+      // security.*.everyone writes above, so it runs either way.
+      if(canSetAndCondition(principal)) {
+         SreeEnv.setProperty("permission.andCondition", String.valueOf(tableModel.requiresBoth()), true);
+      }
+
       SreeEnv.save();
 
       Permission permission = provider.getPermission(resourceType, resourcePath);
@@ -397,7 +430,10 @@ public class ResourcePermissionService {
             permission.getOrgScopedGroupGrants(action, OrganizationManager.getInstance().getCurrentOrgID()).stream()
                .filter(u -> !isIdentityAuthorized(u, Identity.Type.GROUP, principal))
                .forEach(gid -> groupGrants.add(gid.name));
+            // org-less (global) role grants are kept in the null-org set, which is written
+            // only by site admins, so do not carry them into the org-scoped set here.
             permission.getOrgScopedRoleGrants(action, OrganizationManager.getInstance().getCurrentOrgID()).stream()
+               .filter(u -> u.orgID != null)
                .filter(u -> !isIdentityAuthorized(u, Identity.Type.ROLE, principal))
                .forEach(rid -> roleGrants.add(rid.name));
             permission.getOrgScopedOrganizationGrants(action, OrganizationManager.getInstance().getCurrentOrgID()).stream()
@@ -454,11 +490,11 @@ public class ResourcePermissionService {
             permission.setRoleGrantsForOrg(action, Collections.emptySet(), orgID);
          }
 
-         if(!globalRoleGrants.isEmpty()) {
+         // only a site admin may change global (org-less) role grants. non site admins do
+         // not see them (see getIdentityActions), so keep the existing ones unchanged and
+         // ignore any global role rows in the request.
+         if(siteAdmin) {
             permission.setRoleGrantsForOrg(action, globalRoleGrants, null);
-         }
-         else if(siteAdmin) {
-            permission.setRoleGrantsForOrg(action, Collections.emptySet(), null);
          }
 
          if(!organizationGrants.isEmpty()) {
@@ -632,7 +668,7 @@ public class ResourcePermissionService {
       }
    }
 
-   boolean isIdentityAuthorized(IdentityID identity, Identity.Type type, Principal principal) {
+   public boolean isIdentityAuthorized(IdentityID identity, Identity.Type type, Principal principal) {
       final ResourceType resourceType;
       Principal oprincipal = ThreadContext.getContextPrincipal();
 

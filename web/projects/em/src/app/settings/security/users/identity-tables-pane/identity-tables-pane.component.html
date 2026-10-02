@@ -29,6 +29,7 @@
       [copyPasteContext]="copyPasteContextMembers"
       [pasteTypeFilter]="membersPasteTypeFilter"
       [pasteExcludeIdentities]="selfIdentity"
+      [pasteKeepsOtherOrgs]="globalRole"
       (dropOnTable)="addMembers([$event])"
       (addIdentities)="addMembers($event)"
       (removeSelection)="removeMembers($event)"

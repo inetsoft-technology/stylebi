@@ -47,6 +47,7 @@ import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
 import inetsoft.web.binding.handler.VSChartHandler;
 import inetsoft.web.binding.model.BindingModel;
 import inetsoft.web.binding.service.VSBindingService;
+import inetsoft.web.portal.controller.database.QueryManagerService;
 import inetsoft.web.viewsheet.command.MessageCommand;
 import inetsoft.web.viewsheet.controller.VSRefreshController;
 import inetsoft.web.viewsheet.event.VSRefreshEvent;
@@ -76,7 +77,8 @@ public class ModifyCalculateFieldService {
       VSRefreshController refreshController,
       ViewsheetService viewsheetService,
       VSAssemblyInfoHandler assemblyInfoHandler,
-      DataSourceRegistry dataSourceRegistry)
+      DataSourceRegistry dataSourceRegistry,
+      QueryManagerService queryManagerService)
    {
       this.bindingFactory = bindingFactory;
       this.bindingTreeController = bindingTreeController;
@@ -87,6 +89,7 @@ public class ModifyCalculateFieldService {
       this.viewsheetService = viewsheetService;
       this.assemblyInfoHandler = assemblyInfoHandler;
       this.dataSourceRegistry = dataSourceRegistry;
+      this.queryManagerService = queryManagerService;
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
@@ -130,6 +133,9 @@ public class ModifyCalculateFieldService {
          oldCalcRef.isBaseOnDetail() != cref.isBaseOnDetail();
       String oldPath = null;
       VSAssembly ass = vs.getAssembly(event.name());
+      // tname becomes the source of a chart or crosstab without a source or binding info
+      // below, so check a newly bound cube before anything is changed (Bug #77427)
+      checkNewSource(ass, tname, principal);
       String wizardFixedTableName = tname;
 
       if(rename && event.wizard()) {
@@ -726,6 +732,33 @@ public class ModifyCalculateFieldService {
       return false;
    }
 
+   /**
+    * Checks the table that is set as the source of a chart or crosstab that has no source
+    * or binding info yet, as {@link QueryManagerService#checkCubeTableReadPermission} does.
+    * An unchanged source is not checked (Bug #77427).
+    */
+   private void checkNewSource(VSAssembly assembly, String tname, Principal principal) {
+      SourceInfo srcInfo;
+      boolean noInfo;
+
+      if(assembly instanceof ChartVSAssembly chart) {
+         srcInfo = chart.getSourceInfo();
+         noInfo = chart.getVSChartInfo() == null;
+      }
+      else if(assembly instanceof CrosstabVSAssembly cross) {
+         srcInfo = cross.getSourceInfo();
+         noInfo = cross.getVSCrosstabInfo() == null;
+      }
+      else {
+         return;
+      }
+
+      if(noInfo || srcInfo == null) {
+         queryManagerService.checkNewCubeTableReadPermission(
+            tname, srcInfo == null ? null : srcInfo.getSource(), principal);
+      }
+   }
+
    private final VSBindingService bindingFactory;
    private final VSBindingTreeController bindingTreeController;
    private final VSRefreshController refreshController;
@@ -735,4 +768,5 @@ public class ModifyCalculateFieldService {
    private final VSWizardBindingHandler wizardBindingHandler;
    private final VSAssemblyInfoHandler assemblyInfoHandler;
    private final DataSourceRegistry dataSourceRegistry;
+   private final QueryManagerService queryManagerService;
 }

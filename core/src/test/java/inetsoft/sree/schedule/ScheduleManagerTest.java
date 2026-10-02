@@ -32,7 +32,6 @@ import inetsoft.util.Tool;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
-import org.mockito.exceptions.misusing.UnfinishedStubbingException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
@@ -68,7 +67,9 @@ import static org.mockito.Mockito.*;
  *             -> needs EditableAuthenticationProvider fixture; NOT yet covered
  */
 @ExtendWith(SpringExtension.class)
-@ContextConfiguration(classes = { BaseTestConfiguration.class, IntegrationTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class, IntegrationTestConfiguration.class,
+                                  SecurityEngineDispatchConfiguration.class },
+                      initializers = ConfigurationContextInitializer.class)
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 @SreeHome
@@ -79,6 +80,9 @@ public class ScheduleManagerTest {
 
    @Autowired
    SecurityEngine securityEngine;
+
+   @Autowired
+   SecurityEngineOverrides securityEngineOverrides;
 
    private IdentityID identityID_admin;
    private IdentityID identityID_tuser0;
@@ -701,6 +705,211 @@ public class ScheduleManagerTest {
       });
    }
 
+   /**
+    * Bug #77148: a user removal removes the bare and the name(User) tokens from the to, cc and bcc
+    * delivery lists, and keeps the same-named group, the other groups and the email addresses.
+    */
+   @Test
+   void identityRemoved_userRemovesDeliveryRecipients() throws Exception {
+      IdentityID bob = new IdentityID("bob", "host-org");
+
+      withNotificationTasks(() -> {
+         ScheduleTask task = seedDeliveryTask(
+            "n77148_usr", "bob(User),bob,g1(Group),bob(Group),e@f.com", "bob", "bob(User)",
+            "host-org");
+         scheduleManager.identityRemoved(new User(bob), mockProvider(new User(bob)));
+         assertDelivery(task, "host-org", "g1(Group),bob(Group),e@f.com", "", "");
+      });
+   }
+
+   /**
+    * Bug #77148: a group removal removes only the name(Group) tokens from the delivery lists. A
+    * same-named bare token and a same-named name(User) token denote a user and are kept.
+    */
+   @Test
+   void identityRemoved_groupRemovesOnlyGroupDeliveryRecipients() throws Exception {
+      IdentityID g1 = new IdentityID("g1", "host-org");
+
+      withNotificationTasks(() -> {
+         ScheduleTask task = seedDeliveryTask(
+            "n77148_grp", "g1,g1(User),g1(Group),e@f.com", "g1(Group)", "g1", "host-org");
+         scheduleManager.identityRemoved(new Group(g1), mockProvider(new Group(g1)));
+         assertDelivery(task, "host-org", "g1,g1(User),e@f.com", "", "g1");
+      });
+   }
+
+   /**
+    * Bug #77148: a user rename renames the bare and the name(User) tokens of the delivery lists in
+    * the same form, and keeps the same-named group, the delimiters and the spacing.
+    */
+   @Test
+   void identityRenamed_userRenamesDeliveryRecipients() throws Exception {
+      withNotificationTasks(() -> {
+         ScheduleTask task = seedDeliveryTask(
+            "n77148_usrren", "alice , alice(User);alice(Group),e@f.com", "alice", "alice(User)",
+            "host-org");
+         scheduleManager.identityRenamed(new IdentityID("alice", "host-org"),
+                                         new User(new IdentityID("alice2", "host-org")));
+         assertDelivery(task, "host-org", "alice2 , alice2(User);alice(Group),e@f.com",
+                        "alice2", "alice2(User)");
+      });
+   }
+
+   /**
+    * Bug #77148: a group rename renames only the name(Group) tokens of the delivery lists. The
+    * same-named user tokens are kept.
+    */
+   @Test
+   void identityRenamed_groupRenamesOnlyGroupDeliveryRecipients() throws Exception {
+      withNotificationTasks(() -> {
+         ScheduleTask task = seedDeliveryTask(
+            "n77148_grpren", "g1,g1(User),g1(Group),e@f.com", "g1(Group)", "g1", "host-org");
+         scheduleManager.identityRenamed(new IdentityID("g1", "host-org"),
+                                         new Group(new IdentityID("g2", "host-org")));
+         assertDelivery(task, "host-org", "g1,g1(User),g2(Group),e@f.com", "g2(Group)", "g1");
+      });
+   }
+
+   /**
+    * Bug #77148: a raw email address equal to a removed user's name and a display-name address
+    * are addresses, not the user, and are kept. Only the name(User) token is removed.
+    */
+   @Test
+   void identityRemoved_emailShapedUserKeepsDeliveryAddresses() throws Exception {
+      IdentityID bob = new IdentityID("bob@x.com", "host-org");
+
+      withNotificationTasks(() -> {
+         ScheduleTask task = seedDeliveryTask(
+            "n77148_email", "bob@x.com, Bob <bob@x.com>; bob@x.com(User)", "bob@x.com",
+            "Bob <bob@x.com>", "host-org");
+         scheduleManager.identityRemoved(new User(bob), mockProvider(new User(bob)));
+         assertDelivery(task, "host-org", "bob@x.com, Bob <bob@x.com>", "bob@x.com",
+                        "Bob <bob@x.com>");
+      });
+   }
+
+   /**
+    * Bug #77148: a non-ASCII user name is renamed in the delivery lists.
+    */
+   @Test
+   void identityRenamed_nonAsciiUserRenamesDeliveryRecipients() throws Exception {
+      String zhang = "\u5f20\u4e09";
+
+      withNotificationTasks(() -> {
+         ScheduleTask task = seedDeliveryTask(
+            "n77148_nonascii", zhang + "," + zhang + "(User)", zhang, "e@f.com", "host-org");
+         scheduleManager.identityRenamed(new IdentityID(zhang, "host-org"),
+                                         new User(new IdentityID("zs", "host-org")));
+         assertDelivery(task, "host-org", "zs,zs(User)", "zs", "e@f.com");
+      });
+   }
+
+   /**
+    * Bug #77148: a task whose delivery lists do not denote the removed identity is left
+    * byte-identical and is not saved.
+    */
+   @Test
+   void identityRemoved_unmatchedDeliveryRecipientsNotSaved() throws Exception {
+      IdentityID u9 = new IdentityID("u9", "host-org");
+
+      withNotificationTasks(() -> {
+         ScheduleTask matched =
+            seedDeliveryTask("n77148_hit", "e@f.com", "u9(User)", "x@y.com", "host-org");
+         ScheduleTask unmatched = seedDeliveryTask(
+            "n77148_miss", "a@b.com; c@d.com", "u9(Group)", "x@y.com , U9", "host-org");
+         ScheduleManager spyManager = spy(scheduleManager);
+         spyManager.identityRemoved(new User(u9), mockProvider(new User(u9)));
+
+         @SuppressWarnings("unchecked")
+         ArgumentCaptor<Collection<ScheduleTask>> saved = ArgumentCaptor.forClass(Collection.class);
+         verify(spyManager).save(saved.capture(), eq("host-org"));
+         Set<String> savedNames = new HashSet<>();
+         saved.getValue().forEach(task -> savedNames.add(task.getName()));
+         assertEquals(Set.of("n77148_hit"), savedNames);
+         assertDelivery(matched, "host-org", "e@f.com", "", "x@y.com");
+         assertDelivery(unmatched, "host-org", "a@b.com; c@d.com", "u9(Group)", "x@y.com , U9");
+      });
+   }
+
+   /**
+    * Bug #77148: when the removed identity was the only "to" recipient, the "to" list becomes
+    * empty, so the email step is skipped at run time (and shown as disabled), while the cc list is
+    * kept as is.
+    */
+   @Test
+   void identityRemoved_onlyToRecipientRemovedDisablesEmailStep() throws Exception {
+      IdentityID bob = new IdentityID("bob", "host-org");
+
+      withNotificationTasks(() -> {
+         ScheduleTask task =
+            seedDeliveryTask("n77148_onlyto", "bob", "carol@x.com", null, "host-org");
+         scheduleManager.identityRemoved(new User(bob), mockProvider(new User(bob)));
+
+         ViewsheetAction loaded = (ViewsheetAction)
+            scheduleManager.getScheduleTask(task.getTaskId(), "host-org").getAction(0);
+         assertEquals("", loaded.getEmails());
+         assertTrue(loaded.getScheduleEmails(null).isEmpty());
+         assertEquals("carol@x.com", loaded.getCCAddresses());
+      });
+   }
+
+   /**
+    * Bug #77148: a task whose only match is in the bcc list is saved, and the removal is in the
+    * stored task, not only in the cached in-memory copy.
+    */
+   @Test
+   void identityRemoved_bccOnlyMatchSavedToStorage() throws Exception {
+      IdentityID bob = new IdentityID("bob", "host-org");
+
+      withNotificationTasks(() -> {
+         ScheduleTask task = seedDeliveryTask(
+            "n77148_bcconly", "e@f.com", "x@y.com", "bob,z@w.com", "host-org");
+         ScheduleManager spyManager = spy(scheduleManager);
+         spyManager.identityRemoved(new User(bob), mockProvider(new User(bob)));
+
+         @SuppressWarnings("unchecked")
+         ArgumentCaptor<Collection<ScheduleTask>> saved = ArgumentCaptor.forClass(Collection.class);
+         verify(spyManager).save(saved.capture(), eq("host-org"));
+         Set<String> savedNames = new HashSet<>();
+         saved.getValue().forEach(t -> savedNames.add(t.getName()));
+         assertEquals(Set.of("n77148_bcconly"), savedNames);
+
+         AbstractAction stored = loadStoredAction(task, "host-org");
+         assertEquals("e@f.com", stored.getEmails(), "to");
+         assertEquals("x@y.com", stored.getCCAddresses(), "cc");
+         assertEquals("z@w.com", stored.getBCCAddresses(), "bcc");
+      });
+   }
+
+   /**
+    * Bug #77148: a user referenced in both the to and the cc list is renamed in both lists of the
+    * stored task.
+    */
+   @Test
+   void identityRenamed_userInToAndCcRenamedInStorage() throws Exception {
+      withNotificationTasks(() -> {
+         ScheduleTask task = seedDeliveryTask(
+            "n77148_toccren", "alice,e@f.com", "alice(User)", null, "host-org");
+         scheduleManager.identityRenamed(new IdentityID("alice", "host-org"),
+                                         new User(new IdentityID("alice2", "host-org")));
+
+         AbstractAction stored = loadStoredAction(task, "host-org");
+         assertEquals("alice2,e@f.com", stored.getEmails(), "to");
+         assertEquals("alice2(User)", stored.getCCAddresses(), "cc");
+      });
+   }
+
+   /**
+    * Drops the schedule task cache and parses the first action of the task again from storage.
+    */
+   private AbstractAction loadStoredAction(ScheduleTask task, String orgID) {
+      scheduleManager.getOrgTaskMap(orgID).clearCache();
+      ScheduleTask loaded = scheduleManager.getScheduleTask(task.getTaskId(), orgID);
+      assertNotNull(loaded);
+      assertNotSame(task, loaded);
+      return (AbstractAction) loaded.getAction(0);
+   }
+
    private static EditableAuthenticationProvider mockProvider(User user) {
       EditableAuthenticationProvider provider = mock(EditableAuthenticationProvider.class);
       when(provider.getUser(user.getIdentityID())).thenReturn(user);
@@ -714,7 +923,7 @@ public class ScheduleManagerTest {
    }
 
    /**
-    * Runs the body and then removes the n77111_ tasks it seeded.
+    * Runs the body and then removes the n77111_ and n77148_ tasks it seeded.
     */
    private void withNotificationTasks(NotificationTestBody body) throws Exception {
       try {
@@ -723,7 +932,8 @@ public class ScheduleManagerTest {
       finally {
          for(String org : new String[] { "host-org", "org1", "org2" }) {
             scheduleManager.getOrgTaskMap(org).values()
-               .removeIf(task -> task != null && task.getName().startsWith("n77111_"));
+               .removeIf(task -> task != null && (task.getName().startsWith("n77111_") ||
+                                                  task.getName().startsWith("n77148_")));
          }
       }
    }
@@ -740,6 +950,29 @@ public class ScheduleManagerTest {
    private String readNotifications(ScheduleTask task, String orgID) {
       ScheduleTask loaded = scheduleManager.getScheduleTask(task.getTaskId(), orgID);
       return ((AbstractAction) loaded.getAction(0)).getNotifications();
+   }
+
+   private ScheduleTask seedDeliveryTask(String name, String emails, String ccAddresses,
+                                         String bccAddresses, String orgID)
+      throws Exception
+   {
+      ScheduleTask task = createScheduleTask(name);
+      AbstractAction action = (AbstractAction) task.getAction(0);
+      action.setEmails(emails);
+      action.setCCAddresses(ccAddresses);
+      action.setBCCAddresses(bccAddresses);
+      scheduleManager.save(List.of(task), orgID);
+      return task;
+   }
+
+   private void assertDelivery(ScheduleTask task, String orgID, String emails,
+                               String ccAddresses, String bccAddresses)
+   {
+      ScheduleTask loaded = scheduleManager.getScheduleTask(task.getTaskId(), orgID);
+      AbstractAction action = (AbstractAction) loaded.getAction(0);
+      assertEquals(emails, action.getEmails(), "to");
+      assertEquals(ccAddresses, action.getCCAddresses(), "cc");
+      assertEquals(bccAddresses, action.getBCCAddresses(), "bcc");
    }
 
    @FunctionalInterface
@@ -925,15 +1158,17 @@ public class ScheduleManagerTest {
       when(provider.getOrganizationIDs()).thenReturn(orgs);
       when(provider.getRole(any())).thenAnswer(inv -> new Role(inv.<IdentityID>getArgument(0)));
       when(provider.getGroup(any())).thenAnswer(inv -> new Group(inv.<IdentityID>getArgument(0)));
-      stubSecurityEngineSafely(() -> doReturn(orgs).when(securityEngine).getOrganizations());
-      stubSecurityEngineSafely(() -> doReturn(provider).when(securityEngine).getSecurityProvider());
+      // the task owners exist, so a removed "execute as" is reset to the owner (Bug #77332)
+      when(provider.getUser(any())).thenAnswer(inv -> new User(inv.<IdentityID>getArgument(0)));
+      // never stub the shared spy here, background threads use it (Bug #77336)
+      securityEngineOverrides.setOrganizations(orgs);
+      securityEngineOverrides.setSecurityProvider(provider);
 
       try {
          body.run();
       }
       finally {
-         stubSecurityEngineSafely(() -> doCallRealMethod().when(securityEngine).getOrganizations());
-         stubSecurityEngineSafely(() -> doCallRealMethod().when(securityEngine).getSecurityProvider());
+         securityEngineOverrides.clear();
 
          for(String org : orgs) {
             Iterator<ScheduleTask> i = scheduleManager.getOrgTaskMap(org).values().iterator();
@@ -950,47 +1185,11 @@ public class ScheduleManagerTest {
    }
 
    /**
-    * Re-stubs the shared, Spring-singleton {@code securityEngine} mock, retrying on
-    * {@link UnfinishedStubbingException}.
-    *
-    * <p>{@code securityEngine} is the same instance returned application-wide by
-    * {@code SecurityEngine.getSecurity()} (it is registered with {@code ConfigurationContext} by
-    * {@code ConfigurationContextInitializer}), so production background threads legitimately call
-    * into it concurrently with this test — most notably a per-store {@code BlobStorageEvent}
-    * listener thread that {@code seedTask()}/{@code identityRemoved()} inside {@code body.run()}
-    * wake up asynchronously by writing to the schedule task store. Mockito's mock invocation
-    * dispatch is not safe against a stubbing registration on one thread (this one, in
-    * {@link #withRoleFixture}) interleaving with an ordinary invocation on another, and the two
-    * can race hard enough to corrupt the mock's stubbing state, surfacing later as an
-    * {@link UnfinishedStubbingException} in a completely unrelated test method (Bug #77168,
-    * fix-round-2: this raced roughly 1 in 5-8 runs in isolation, and was rare enough in the full
-    * ~8500-test module suite to pass most runs but fail CI once). The corruption is transient —
-    * the next stubbing call that does not race succeeds cleanly — so retry a few times with a
-    * short backoff rather than trying to synchronize with a production executor this test has no
-    * handle on.
+    * Fails the class loudly if the dispatcher was not installed on the spy.
     */
-   private static void stubSecurityEngineSafely(Runnable stubbingCall) {
-      final int maxAttempts = 5;
-
-      for(int attempt = 1; ; attempt++) {
-         try {
-            stubbingCall.run();
-            return;
-         }
-         catch(UnfinishedStubbingException e) {
-            if(attempt >= maxAttempts) {
-               throw e;
-            }
-
-            try {
-               Thread.sleep(20L);
-            }
-            catch(InterruptedException ie) {
-               Thread.currentThread().interrupt();
-               throw e;
-            }
-         }
-      }
+   @BeforeAll
+   void verifySecurityEngineDispatch() {
+      SecurityEngineOverrides.assertInstalled(securityEngine);
    }
 
    private ScheduleTask seedTask(String name, IdentityID owner, Identity executeAs,

@@ -81,7 +81,7 @@ public class FilesystemBlobEngine implements BlobEngine {
 
    @Override
    public void delete(String id, String digest) throws IOException {
-      Files.delete(getPath(id, digest));
+      Files.deleteIfExists(getPath(id, digest));
    }
 
    @Override

@@ -31,6 +31,10 @@ package inetsoft.sree.security;
  *  [Indirect #5]  org-level ORGANIZATION grant matches                             → true
  *  [Cycle]        circular group membership (A→B→A) terminates                     → false
  *  [AND]          AND mode: both/one/neither half satisfied                         → true/false/true/true
+ *  [PerOrg]       permission.andCondition resolved per identity org, not one shared
+ *                 cache (Bug #77253): two orgs back to back get their own AND/OR mode
+ *  [NullOrg]      identity with no org (global role) resolves andCondition from the
+ *                 thread's current org (host-org / tenant org), then the global key
  */
 
 import inetsoft.sree.SreeEnv;
@@ -43,7 +47,6 @@ import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.MockedStatic;
 
-import java.lang.reflect.Field;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
@@ -52,41 +55,26 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
-// This class mutates PermissionChecker.andCond (a private static field) via reflection.
-// Force same-thread execution to avoid races when test parallelism is enabled.
+// This class replaces SreeEnv with a MockedStatic and clears PermissionChecker's static
+// per-org andCondition cache. Force same-thread execution to avoid races when test
+// parallelism is enabled.
 @Tag("core")
 @Execution(ExecutionMode.SAME_THREAD)
 class PermissionCheckerTest {
 
    private static final String ORG = "testOrg";
-
-   // Reflection handle for the private static andCond field — avoids PropertiesEngine
-   // dependency when tests run without a Spring context.
-   private static Field andCondField;
-   private static SreeEnv.Value savedAndCond;
+   private static final String AND_COND = "permission.andCondition";
 
    private SecurityProvider mockProvider;
-   private SreeEnv.Value andCondMock;
+   // SreeEnv is mocked so no PropertiesEngine / Spring context is needed; unstubbed
+   // getProperty() calls return null → OR mode.
+   private MockedStatic<SreeEnv> sreeEnv;
    private PermissionChecker checker;
-
-   @BeforeAll
-   static void captureRealAndCond() throws Exception {
-      andCondField = PermissionChecker.class.getDeclaredField("andCond");
-      andCondField.setAccessible(true);
-      savedAndCond = (SreeEnv.Value) andCondField.get(null);
-   }
-
-   @AfterAll
-   static void restoreRealAndCond() throws Exception {
-      andCondField.set(null, savedAndCond);
-   }
 
    @BeforeEach
    void setUp() throws Exception {
-      // Install a fresh mock each test: default returns null → OR mode.
-      andCondMock = mock(SreeEnv.Value.class);
-      when(andCondMock.get()).thenReturn(null);
-      andCondField.set(null, andCondMock);
+      sreeEnv = mockStatic(SreeEnv.class);
+      PermissionChecker.resetAndConditionCache();
 
       mockProvider = mock(SecurityProvider.class);
       lenient().when(mockProvider.getGroup(any())).thenReturn(null);
@@ -95,6 +83,12 @@ class PermissionCheckerTest {
       lenient().when(mockProvider.getOrgNameFromID(anyString())).thenReturn(ORG);
 
       checker = new PermissionChecker(mockProvider);
+   }
+
+   @AfterEach
+   void tearDown() {
+      sreeEnv.close();
+      PermissionChecker.resetAndConditionCache();
    }
 
    // ─── [Deny] null or empty permission ─────────────────────────────────────
@@ -369,7 +363,7 @@ class PermissionCheckerTest {
       boolean recursive,
       boolean expected)
    {
-      when(andCondMock.get()).thenReturn("true");
+      sreeEnv.when(() -> SreeEnv.getProperty(AND_COND, false, false)).thenReturn("true");
       providerSetup.accept(mockProvider);
       assertEquals(expected, checker.checkPermission(identity, perm, ResourceAction.READ, recursive));
    }
@@ -417,6 +411,123 @@ class PermissionCheckerTest {
                       noSetup, alicePlain,
                       permForUser("alice", ORG, ResourceAction.READ), false, true)
       );
+   }
+
+   // ─── [PerOrg] permission.andCondition resolved per organization (Bug #77253) ───
+   //
+   // The property is org-scoped (inetsoft.org.<orgID>.permission.andCondition, falling back to
+   // the global key). Two orgs checked back to back, inside the cache timeout, must each get
+   // their own mode; a single shared cache would serve the first org's value to the second.
+   //
+   // Probe permission: user granted, role side set but not matched → AND=false, OR=true.
+
+   @Test
+   void checkPermission_andConditionResolvedPerOrgBackToBack() {
+      sreeEnv.when(() -> SreeEnv.getProperty("inetsoft.org.orga." + AND_COND, false, false))
+         .thenReturn("true");
+      sreeEnv.when(() -> SreeEnv.getProperty(AND_COND, false, false)).thenReturn("false");
+
+      // orga → AND (org key), orgb → OR (global fallback), then orga again → still AND
+      assertFalse(checker.checkPermission(userWithRole("orga"), andProbe("orga"),
+                                          ResourceAction.READ, true));
+      assertTrue(checker.checkPermission(userWithRole("orgb"), andProbe("orgb"),
+                                         ResourceAction.READ, true));
+      assertFalse(checker.checkPermission(userWithRole("orga"), andProbe("orga"),
+                                          ResourceAction.READ, true));
+   }
+
+   @Test
+   void checkPermission_orgAndConditionOverridesGlobal() {
+      sreeEnv.when(() -> SreeEnv.getProperty("inetsoft.org.orgb." + AND_COND, false, false))
+         .thenReturn("false");
+      sreeEnv.when(() -> SreeEnv.getProperty(AND_COND, false, false)).thenReturn("true");
+
+      // orgb explicitly OR, orga falls back to the global AND
+      assertTrue(checker.checkPermission(userWithRole("orgb"), andProbe("orgb"),
+                                         ResourceAction.READ, true));
+      assertFalse(checker.checkPermission(userWithRole("orga"), andProbe("orga"),
+                                          ResourceAction.READ, true));
+   }
+
+   // ─── [NullOrg] identity without an organization (Bug #77253 review I-1) ───
+   //
+   // A global role under a virtual role principal (MV generation, scheduled tasks) has a null
+   // organization. andCondition is then resolved from the thread's current org, where the EM
+   // permission save writes it (host-org on single-tenant), before the global key.
+   //
+   // Probe: global role granted, global user side set but not matched → AND=false, OR=true.
+
+   @ParameterizedTest(name = "current org {0}")
+   @MethodSource("currentOrgs")
+   void checkPermission_nullOrgIdentity_usesCurrentOrgAndCondition(String currentOrg) {
+      sreeEnv.when(() -> SreeEnv.getProperty(
+         "inetsoft.org." + currentOrg + "." + AND_COND, false, false)).thenReturn("true");
+
+      try(MockedStatic<OrganizationManager> omMock = mockCurrentOrg(currentOrg)) {
+         assertFalse(checker.checkPermission(new Role(new IdentityID("r", null)),
+                                             globalRoleProbe(), ResourceAction.READ, true));
+      }
+   }
+
+   @ParameterizedTest(name = "current org {0}")
+   @MethodSource("currentOrgs")
+   void checkPermission_nullOrgIdentity_noAndConditionSet_usesOr(String currentOrg) {
+      // control: the same probe passes in OR mode, so the assertion above really tests AND
+      try(MockedStatic<OrganizationManager> omMock = mockCurrentOrg(currentOrg)) {
+         assertTrue(checker.checkPermission(new Role(new IdentityID("r", null)),
+                                            globalRoleProbe(), ResourceAction.READ, true));
+      }
+   }
+
+   private static Stream<String> currentOrgs() {
+      // single-tenant (host-org) and a multi-tenant org
+      return Stream.of(Organization.getDefaultOrganizationID(), "orga");
+   }
+
+   @Test
+   void checkPermission_orgScopedIdentity_ignoresCurrentOrgAndCondition() {
+      // thread org is orga (AND), identity is in orgb (no key → OR): identity org wins
+      sreeEnv.when(() -> SreeEnv.getProperty("inetsoft.org.orga." + AND_COND, false, false))
+         .thenReturn("true");
+
+      try(MockedStatic<OrganizationManager> omMock = mockCurrentOrg("orga")) {
+         assertTrue(checker.checkPermission(userWithRole("orgb"), andProbe("orgb"),
+                                            ResourceAction.READ, true));
+      }
+   }
+
+   private static MockedStatic<OrganizationManager> mockCurrentOrg(String orgID) {
+      MockedStatic<OrganizationManager> omMock =
+         mockStatic(OrganizationManager.class, CALLS_REAL_METHODS);
+      OrganizationManager mockOM = mock(OrganizationManager.class);
+      omMock.when(OrganizationManager::getInstance).thenReturn(mockOM);
+      lenient().when(mockOM.getCurrentOrgID()).thenReturn(orgID);
+      return omMock;
+   }
+
+   private static Permission globalRoleProbe() {
+      Permission perm = new Permission();
+      perm.setGrants(ResourceAction.READ, Identity.ROLE,
+                     Set.of(new Permission.PermissionIdentity("r", null)));
+      perm.setGrants(ResourceAction.READ, Identity.USER,
+                     Set.of(new Permission.PermissionIdentity("someone", "__GLOBAL__")));
+      return perm;
+   }
+
+   private User userWithRole(String org) {
+      IdentityID roleID = new IdentityID("analyst", org);
+      lenient().when(mockProvider.getRole(roleID)).thenReturn(new Role(roleID));
+      return new User(new IdentityID("alice", org), new String[0], new String[0],
+                      new IdentityID[]{ roleID }, "", "");
+   }
+
+   private static Permission andProbe(String org) {
+      Permission perm = new Permission();
+      perm.setGrants(ResourceAction.READ, Identity.USER,
+                     Set.of(new Permission.PermissionIdentity("alice", org)));
+      perm.setGrants(ResourceAction.READ, Identity.ROLE,
+                     Set.of(new Permission.PermissionIdentity("other-role", org)));
+      return perm;
    }
 
    // ─── Shared factories (static — used by both @MethodSource and test bodies) ─

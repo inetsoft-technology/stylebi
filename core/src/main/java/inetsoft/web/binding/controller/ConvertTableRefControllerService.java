@@ -66,7 +66,7 @@ public class ConvertTableRefControllerService {
       // Handle source changed.
       if(box.isEmpty() || assemblyInfoHandler.handleSourceChanged(assembly, tableName,
                                                  "/events/vs/table/convertRef", event, dispatcher,
-                                                 box.get()))
+                                                 box.get(), principal))
       {
          return null;
       }

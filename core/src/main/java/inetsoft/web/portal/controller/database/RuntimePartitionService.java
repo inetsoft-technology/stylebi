@@ -19,6 +19,7 @@ package inetsoft.web.portal.controller.database;
 
 import com.google.common.collect.Sets;
 import inetsoft.sree.internal.cluster.Cluster;
+import inetsoft.uql.erm.AutoAlias;
 import inetsoft.uql.erm.XDataModel;
 import jakarta.annotation.PostConstruct;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -34,6 +35,7 @@ import javax.cache.expiry.TouchedExpiryPolicy;
 import java.awt.*;
 import java.io.Serializable;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 
 @Service
@@ -167,6 +169,29 @@ public class RuntimePartitionService {
    }
 
    /**
+    * Checks that a data source named in a request is the one the runtime was opened on. The
+    * runtime's source was permission-checked when it was opened, the request parameter was not.
+    *
+    * @param runtimePartition the runtime, or {@code null} if it does not exist.
+    * @param dataSource       the data source named in the request.
+    *
+    * @throws java.io.FileNotFoundException if the runtime does not exist.
+    * @throws inetsoft.sree.security.SecurityException if the names differ.
+    */
+   public static void checkDataSource(RuntimeXPartition runtimePartition, String dataSource)
+      throws java.io.FileNotFoundException, inetsoft.sree.security.SecurityException
+   {
+      if(runtimePartition == null) {
+         throw new java.io.FileNotFoundException("The physical view runtime does not exist");
+      }
+
+      if(!Objects.equals(runtimePartition.getDataSource(), dataSource)) {
+         throw new inetsoft.sree.security.SecurityException(
+            "Data source \"" + dataSource + "\" does not match the open physical view");
+      }
+   }
+
+   /**
     * Destroy the runtime.
     */
    public void destroy(String id) {
@@ -234,6 +259,9 @@ public class RuntimePartitionService {
          clone.id = this.id;
          clone.graphWidth = this.graphWidth;
          clone.graphHeight = this.graphHeight;
+         clone.removedIncomingJoins = new ConcurrentHashMap<>();
+         this.getRemovedIncomingJoins().forEach(
+            (key, removed) -> clone.removedIncomingJoins.put(key, removed.clone()));
 
          return clone;
       }
@@ -279,6 +307,72 @@ public class RuntimePartitionService {
          this.graphHeight = graphHeight;
       }
 
+      /**
+       * Remembers an auto-alias incoming join that was removed with the last join between its
+       * tables, so that re-adding a join between the tables in this editor session can restore
+       * the same auto-alias.
+       */
+      public void rememberRemovedIncomingJoin(RemovedIncomingJoin removed) {
+         getRemovedIncomingJoins().put(
+            getRemovedIncomingJoinKey(removed.getTable(), removed.getJoin().getSourceTable()),
+            removed);
+      }
+
+      /**
+       * Gets a remembered auto-alias incoming join.
+       *
+       * @param table       the auto-aliased table.
+       * @param sourceTable the source table of the incoming join.
+       *
+       * @return the removed incoming join or {@code null} if none.
+       */
+      public RemovedIncomingJoin getRemovedIncomingJoin(String table, String sourceTable) {
+         return getRemovedIncomingJoins().get(getRemovedIncomingJoinKey(table, sourceTable));
+      }
+
+      /**
+       * Forgets the remembered incoming joins between two tables, in both directions.
+       */
+      public void forgetRemovedIncomingJoins(String table1, String table2) {
+         getRemovedIncomingJoins().remove(getRemovedIncomingJoinKey(table1, table2));
+         getRemovedIncomingJoins().remove(getRemovedIncomingJoinKey(table2, table1));
+      }
+
+      /**
+       * Forgets the remembered incoming joins of a table, either as the auto-aliased table or as
+       * the source table.
+       */
+      public void forgetRemovedIncomingJoins(String table) {
+         getRemovedIncomingJoins().values().removeIf(removed ->
+            Objects.equals(table, removed.getTable()) ||
+            Objects.equals(table, removed.getJoin().getSourceTable()));
+      }
+
+      /**
+       * Forgets the remembered incoming joins whose tables are joined again in the partition.
+       */
+      public void forgetJoinedRemovedIncomingJoins() {
+         getRemovedIncomingJoins().values().removeIf(removed -> partition.findRelationship(
+            removed.getJoin().getSourceTable(), removed.getTable()) != null);
+      }
+
+      public void clearRemovedIncomingJoins() {
+         getRemovedIncomingJoins().clear();
+      }
+
+      private Map<String, RemovedIncomingJoin> getRemovedIncomingJoins() {
+         // null when deserialized from a version without the field
+         if(removedIncomingJoins == null) {
+            removedIncomingJoins = new ConcurrentHashMap<>();
+         }
+
+         return removedIncomingJoins;
+      }
+
+      private static String getRemovedIncomingJoinKey(String table, String sourceTable) {
+         return table + "|" + sourceTable;
+      }
+
       @Override
       public String toString() {
          return "RuntimeXPartition{" +
@@ -289,6 +383,7 @@ public class RuntimePartitionService {
             ", graphWidth=" + graphWidth +
             ", graphHeight=" + graphHeight +
             ", movedTables=" + movedTables +
+            ", removedIncomingJoins=" + getRemovedIncomingJoins().keySet() +
             '}';
       }
 
@@ -298,5 +393,49 @@ public class RuntimePartitionService {
       private int graphWidth = PhysicalGraphLayout.DEFAULT_VIEWPORT_WIDTH;
       private int graphHeight = PhysicalGraphLayout.DEFAULT_VIEWPORT_HEIGHT;
       private final Set<String> movedTables = Sets.newConcurrentHashSet();
+      // auto-alias incoming joins removed with the last join between their tables in this
+      // editor session, keyed by "table|sourceTable"
+      private Map<String, RemovedIncomingJoin> removedIncomingJoins = new ConcurrentHashMap<>();
+   }
+
+   /**
+    * An auto-alias incoming join removed from a table, and its index in the auto-alias.
+    */
+   public static final class RemovedIncomingJoin implements Cloneable, Serializable {
+      public RemovedIncomingJoin() {
+      }
+
+      public RemovedIncomingJoin(String table, int index, AutoAlias.IncomingJoin join) {
+         this.table = table;
+         this.index = index;
+         this.join = join;
+      }
+
+      /**
+       * Gets the auto-aliased table.
+       */
+      public String getTable() {
+         return table;
+      }
+
+      /**
+       * Gets the index of the incoming join in the auto-alias.
+       */
+      public int getIndex() {
+         return index;
+      }
+
+      public AutoAlias.IncomingJoin getJoin() {
+         return join;
+      }
+
+      @Override
+      public RemovedIncomingJoin clone() {
+         return new RemovedIncomingJoin(table, index, (AutoAlias.IncomingJoin) join.clone());
+      }
+
+      private String table;
+      private int index;
+      private AutoAlias.IncomingJoin join;
    }
 }

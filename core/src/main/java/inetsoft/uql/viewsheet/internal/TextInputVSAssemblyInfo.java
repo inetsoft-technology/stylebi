@@ -321,7 +321,7 @@ public class TextInputVSAssemblyInfo extends ClickableInputVSAssemblyInfo {
     */
    private ColumnOption createColumnOption(Element elem) throws Exception {
       String name = Tool.getAttribute(elem, "class");
-      ColumnOption opt = (ColumnOption) Class.forName(name).newInstance();
+      ColumnOption opt = (ColumnOption) Tool.loadSubclass(name, ColumnOption.class).newInstance();
       opt.parseXML(elem);
 
       return opt;

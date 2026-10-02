@@ -246,12 +246,13 @@ public class LookAndFeelService {
    )
    public void resetSettings(Principal principal, boolean globalSettings) throws Exception {
       PortalThemesManager manager = portalThemesManager;
-      Properties defaultProp = SreeEnv.getDefaultProperties();
+      // setModel() writes the sort org-scoped for an org admin, so reset it in that scope too;
+      // an org-scoped reset removes the org value so the org falls back to the global one
+      SreeEnv.resetProperty("repository.tree.sort", !globalSettings);
 
       if(globalSettings) {
          int repoTree = 0;
 
-         SreeEnv.setProperty("repository.tree.sort", defaultProp.getProperty("repository.tree.sort"), !globalSettings);
          manager.setReportListType(repoTree);
          manager.setAutoExpand(false);
          manager.setLogoStyle(false);

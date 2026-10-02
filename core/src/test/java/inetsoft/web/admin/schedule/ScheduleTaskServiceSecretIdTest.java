@@ -63,8 +63,11 @@ class ScheduleTaskServiceSecretIdTest {
       securityEngine = mock(SecurityEngine.class);
       when(securityEngine.isSecurityEnabled()).thenReturn(true);
       scheduleManager = mock(ScheduleManager.class);
+      // the save checks the owner with the security provider (Bug #77405), the task owner is
+      // not a site admin
       service = new ScheduleTaskService(mock(AnalyticRepository.class), scheduleManager,
-                                        scheduleService, null, null, null, securityEngine);
+                                        scheduleService, null, mock(SecurityProvider.class),
+                                        null, securityEngine);
       principal = mock(XPrincipal.class);
       when(principal.getName()).thenReturn(new IdentityID("alice", "orga").convertToKey());
    }
@@ -292,9 +295,12 @@ class ScheduleTaskServiceSecretIdTest {
       when(request.getSession(true)).thenReturn(session);
       when(session.getAttribute(ImportTaskController.INFO_ATTR))
          .thenReturn(new ArrayList<>(List.of(imported)));
+      // allow the scheduler permission so the secret id check is what refuses the task
+      AnalyticRepository repository = mock(AnalyticRepository.class);
+      when(repository.checkPermission(any(), eq(ResourceType.SCHEDULER), anyString(),
+                                      eq(ResourceAction.ACCESS))).thenReturn(true);
       ImportTaskController controller = new ImportTaskController(
-         scheduleManager, mock(ScheduleTaskFolderService.class),
-         mock(AnalyticRepository.class), securityEngine);
+         scheduleManager, mock(ScheduleTaskFolderService.class), repository, securityEngine);
 
       ImportTaskResponse response = controller.importScheduleTask(
          List.of(imported.getTaskId()), request, true, "http://host/", principal);
@@ -310,6 +316,9 @@ class ScheduleTaskServiceSecretIdTest {
       stored.addAction(saveAction("ftp://files.corp.example/out/a", OWN_ID));
       ScheduleTask imported = new ScheduleTask("imported");
       imported.addAction(saveAction("ftp://files.corp.example/out/a", OWN_ID));
+      // the caller's own task, the import only allows an owner the caller may act as
+      imported.setOwner(new IdentityID("alice", "orga"));
+      when(orgManager.getCurrentOrgID(principal)).thenReturn("orga");
       when(scheduleManager.getScheduleTask(imported.getTaskId())).thenReturn(stored);
       HttpServletRequest request = mock(HttpServletRequest.class);
       HttpSession session = mock(HttpSession.class);

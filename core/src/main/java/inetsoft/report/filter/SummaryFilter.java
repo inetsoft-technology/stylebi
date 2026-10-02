@@ -23,6 +23,7 @@ import inetsoft.report.internal.Util;
 import inetsoft.report.internal.binding.OrderInfo;
 import inetsoft.report.internal.table.CancellableTableLens;
 import inetsoft.report.internal.table.TableFormat;
+import inetsoft.report.lens.ChainScriptLock;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.internal.ColumnIndexMap;
 import inetsoft.uql.table.XSwappableTable;
@@ -43,6 +44,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.awt.*;
+import java.io.IOException;
+import java.io.ObjectInputStream;
+import java.io.Serial;
 import java.io.Serializable;
 import java.text.MessageFormat;
 import java.text.*;
@@ -264,7 +268,7 @@ public class SummaryFilter extends AbstractGroupedTable
     */
    @Override
    public int getGroupLevel(int r) {
-      return grpset.get(r) ? 0 : -1;
+      return pass.grpset.get(r) ? 0 : -1;
    }
 
    /**
@@ -354,7 +358,7 @@ public class SummaryFilter extends AbstractGroupedTable
     */
    @Override
    public int getSummaryLevel(int row) {
-      Integer iobj = groupmap.get(row);
+      Integer iobj = pass.groupmap.get(row);
 
       if(iobj != null) {
          return iobj;
@@ -460,9 +464,9 @@ public class SummaryFilter extends AbstractGroupedTable
     * @param row the specified row
     * @return row values
     */
-   private Object[] getGroupValues(int row) {
-      copyGroupValuesToArray(row, cols.length, gvals);
-      return gvals;
+   private Object[] getGroupValues(Pass pass, int row) {
+      copyGroupValuesToArray(row, cols.length, pass.gvals);
+      return pass.gvals;
    }
 
    private void copyGroupValuesToArray(int row, int len, Object[] arr) {
@@ -475,9 +479,10 @@ public class SummaryFilter extends AbstractGroupedTable
    /**
     * Add formula value.
     *
+    * @param pass the pass the formulae belong to.
     * @param formulae the specified formulae
     */
-   private void addFormulaValue(Formula[] formulae, int row) {
+   private void addFormulaValue(Pass pass, Formula[] formulae, int row) {
       for(int i = 0; formulae != null && i < formulae.length; i++) {
          // multi column formula
          if(formulae[i] instanceof Formula2) {
@@ -493,7 +498,7 @@ public class SummaryFilter extends AbstractGroupedTable
          }
          // one column formula
          else {
-            fagents[i].add(formulae[i], table, row, sums[i]);
+            pass.fagents[i].add(formulae[i], table, row, sums[i]);
          }
       }
    }
@@ -503,28 +508,36 @@ public class SummaryFilter extends AbstractGroupedTable
     * filtering calculation to validate itself.
     */
    @Override
-   public synchronized void invalidate() {
-      if(sumrows != null) {
-         sumrows.dispose();
+   public void invalidate() {
+      synchronized(this) {
+         invalidate0();
       }
 
-      if(formulas != null) {
-         formulas.dispose();
-         formulas = null;
-      }
-
-      inited = false;
-      hinited = false;
-      completed = false;
-      userMsg = null;
-      stallFailure = null;
-      processedRows = 0;
-      sumrows = new XSwappableTable(getColCount(), false);
-      clearCache();
-      groupmap = new Hashtable<>();
-      mmap = new Hashtable<>();
-      summaryLabelArea = null;
+      // fire after releasing the monitor: a downstream lens's invalidate() takes its own
+      // monitor, which a reader of that lens may hold while it waits for this monitor to read
+      // the next row (bug #77432)
       fireChangeEvent();
+   }
+
+   /**
+    * Reset the filter to a new pass. The caller holds the monitor.
+    */
+   private void invalidate0() {
+      Pass pass = this.pass;
+      inited = false;
+      // publish a new pass and don't dispose the old one: a reader or the worker of the old
+      // pass may still hold it, the finalizers free it (bug #77364)
+      this.pass = new Pass(getColCount());
+
+      if(pass != null) {
+         // the old pass stops, and the readers waiting for its rows read the new one
+         pass.supersede();
+      }
+
+      clearCache();
+      mmap = new Hashtable<>();
+      // notify waiting consumers
+      notifyAll();
    }
 
    /**
@@ -560,20 +573,21 @@ public class SummaryFilter extends AbstractGroupedTable
 
    /**
     * Initialize header.
+    * @param pass the pass whose rows get the header rows.
     */
-   private void initHeader() {
+   private void initHeader(Pass pass) {
       // header inited?
-      if(hinited) {
+      if(pass.hinited) {
          return;
       }
 
-      hinited = true;
+      pass.hinited = true;
 
       // if a column appears more than once, append a suffix to the column
       // header to distinguish the two columns
       String[] headerSuffix = new String[sums.length];
       int[] cnts = new int[table.getColCount()];
-      gvals = new Object[cols.length];
+      pass.gvals = new Object[cols.length];
 
       // prepare headers
       for(int i = 0; i < sums.length; i++) {
@@ -591,7 +605,7 @@ public class SummaryFilter extends AbstractGroupedTable
 
       // process header rows
       for(int i = 0; i < hcount; i++) {
-         Object[] vals = getGroupValues(i);
+         Object[] vals = getGroupValues(pass, i);
          Hashtable<Object, Integer> valscnts = new Hashtable<>();
 
          for(int j = 0; j < vals.length; j++) {
@@ -634,31 +648,36 @@ public class SummaryFilter extends AbstractGroupedTable
          }
 
          // add header row
-         sumrows.addRow(hvals);
+         pass.addRow(hvals);
       }
    }
 
    /**
     * Generate the crosstab.
+    * @param pass the pass to process, it stops once invalidate() replaces it.
     */
-   private void process(boolean background) {
+   private void process(Pass pass, boolean background) {
       try {
-         process1();
+         process1(pass);
       }
       finally {
-         finishProcess(background);
+         finishProcess(pass, background);
       }
    }
 
-   private void process1() {
+   private void process1(Pass pass) {
+      // the grand total formulas of this pass, a pass that runs on after invalidate() adds
+      // nothing to those of the next one (bug #77364)
+      pass.grand = cloneFormulas(grand);
+
       // one script span over the whole aggregation, so pooled calc fields pay one context
       // clean instead of one per group (bug #76960, spec §14.3); NONE with the pool off
-      try(ScriptSpan ignored = CalcFieldFormula.openSpan(calcs, grand)) {
+      try(ScriptSpan ignored = CalcFieldFormula.openSpan(calcs, pass.grand)) {
          // for Feature #26586, add post processing time record for current report/vs.
 
          ProfileUtils.addExecutionBreakDownRecord(getReportName(),
             ExecutionBreakDownRecord.POST_PROCESSING_CYCLE, args -> {
-               process0();
+               process0(pass);
             });
 
          //process0();
@@ -678,54 +697,51 @@ public class SummaryFilter extends AbstractGroupedTable
    /**
     * This method is called before a report is generated to allow a filter
     * to refresh cached values.
+    * @param pass the pass to process, it stops once invalidate() replaces it.
     */
-   private void process0() {
+   private void process0(Pass pass) {
       try {
-         initHeader();
-         // reset topn comparator map
-         compmap.clear();
-         sortByValCompMap.clear();
-         // reset group row set
-         grpset = new BitSet();
-         // reset grand formula totals
-         grandtotals = null;
-         formulas = new XSwappableObjectList<>(null);
-         gvals = new Object[cols.length];
-         fagents = new FormulaAgent[calcs.length];
+         initHeader(pass);
+         // the topn comparator maps, formulas and formula agents of this pass
+         pass.compmap = new HashMap<>();
+         pass.sortByValCompMap = new HashMap<>();
+         pass.formulas = new XSwappableObjectList<>(null);
+         pass.gvals = new Object[cols.length];
+         pass.fagents = new FormulaAgent[calcs.length];
 
          // reset formulas
          for(int i = 0; i < calcs.length; i++) {
             calcs[i].reset();
-            fagents[i] = FormulaAgent.getAgent(table.getColType(sums[i]),
-                                               table.isPrimitive(sums[i]));
+            pass.fagents[i] = FormulaAgent.getAgent(table.getColType(sums[i]),
+                                                    table.isPrimitive(sums[i]));
 
-            if(grand != null) {
-               grand[i].reset();
+            if(pass.grand != null) {
+               pass.grand[i].reset();
             }
          }
 
          // reset special order flag
-         minSpecialOrder = Integer.MAX_VALUE;
+         pass.minSpecialOrder = Integer.MAX_VALUE;
 
          for(int j = 0; j < cols.length; j++) {
            SortOrder order = getGroupOrder(cols[j]);
 
             if(order != null && order.isSpecific()) {
-               minSpecialOrder = j;
+               pass.minSpecialOrder = j;
                break;
             }
          }
 
          // top group node
-         GroupNode topnode = new GroupNode();
+         GroupNode topnode = new GroupNode(pass);
          Format[] formats = new Format[cols.length];
          boolean[] processed = new boolean[cols.length];
          final BitSet changedIndices = new BitSet();
 
          // iterate table
-         for(int i = hcount; table.moreRows(i) && !cancelled; i++) {
-            processedRows = i;
-            Object[] vals = getGroupValues(i);
+         for(int i = hcount; table.moreRows(i) && !isStopped(pass); i++) {
+            pass.processedRows = i;
+            Object[] vals = getGroupValues(pass, i);
             changedIndices.clear();
 
             // process non-header row
@@ -816,43 +832,45 @@ public class SummaryFilter extends AbstractGroupedTable
             }
 
             // add grand row formulae value
-            addFormulaValue(grand, i);
+            addFormulaValue(pass, pass.grand, i);
 
             // add row to top node
             topnode.addRow(vals, i, changedIndices, true, true);
          }
 
-         formulas.complete();
+         pass.formulas.complete();
 
          // fill in time series gaps
          if(timeSeries && timeSeriesLevel != XConstants.NONE_DATE_GROUP) {
             fixTimeSeries(topnode);
          }
 
-         if(cancelled) {
+         if(isStopped(pass)) {
             return;
          }
 
          // apply filering
          applyFiltering(topnode, topnode);
 
-         if(cancelled) {
+         if(isStopped(pass)) {
             return;
          }
 
          // aggregate topn
          aggregateTopN(topnode);
 
-         if(cancelled) {
+         if(isStopped(pass)) {
             return;
          }
 
          // topn filter
          topNFilter(topnode);
 
-         if(cancelled) {
+         if(isStopped(pass)) {
             return;
          }
+
+         publishGrandFormulae(pass);
 
          // add group/detail rows
          addRows(topnode, topnode);
@@ -877,12 +895,12 @@ public class SummaryFilter extends AbstractGroupedTable
                }
             }
 
-            Object[] totals = getGrandFormulaTotals();
+            Object[] totals = getGrandFormulaTotals(pass);
 
             // set summary col value
             for(int i = 0; i < sums.length; i++) {
-               setFormulaTotal(grand[i], null, totals[i]);
-               vals[cols.length + i] = grand[i].getResult();
+               setFormulaTotal(pass.grand[i], null, totals[i]);
+               vals[cols.length + i] = pass.grand[i].getResult();
 
                if(def && (vals[cols.length + i] == null ||
                   (vals[cols.length + i] instanceof Double &&
@@ -893,11 +911,11 @@ public class SummaryFilter extends AbstractGroupedTable
             }
 
             // add grand total row
-            sumrows.addRow(vals);
+            pass.addRow(vals);
          }
 
-         formulas.dispose();
-         formulas = null;
+         pass.formulas.dispose();
+         pass.formulas = null;
       }
       catch(IndexOutOfBoundsException ex) {
          LOG.error("Row index out of bounds: " + ex.getMessage() + " of " + table.getRowCount());
@@ -906,7 +924,7 @@ public class SummaryFilter extends AbstractGroupedTable
       catch(LockStallException ex) {
          // the readers rethrow it rather than take the rows so far for the whole table
          // (bug #76967)
-         stallFailure = ex;
+         pass.stallFailure = ex;
          throw ex;
       }
       catch(RuntimeException ex) {
@@ -914,7 +932,7 @@ public class SummaryFilter extends AbstractGroupedTable
          LockStallException stall = LockStallException.find(ex);
 
          if(stall != null) {
-            stallFailure = stall;
+            pass.stallFailure = stall;
          }
 
          throw ex;
@@ -924,13 +942,17 @@ public class SummaryFilter extends AbstractGroupedTable
    /**
     * Signal the completion of process(). A background worker publishes its own user
     * messages first, a reader woken by the signal would miss them otherwise (bug #77188).
+    * A pass that invalidate() replaced completes, fails and publishes nothing, the next pass
+    * finds the rows of the table (bug #77364).
     */
-   private void finishProcess(boolean background) {
+   private void finishProcess(Pass pass, boolean background) {
       synchronized(this) {
+         UserMessage msg = null;
+
          try {
             // the synchronous path leaves them to the calling thread
             if(background) {
-               userMsg = Tool.getUserMessage();
+               msg = Tool.getUserMessage();
             }
          }
          catch(RuntimeException ex) {
@@ -938,18 +960,37 @@ public class SummaryFilter extends AbstractGroupedTable
             Tool.clearUserMessage();
          }
          finally {
-            if(sumrows != null) {
-               sumrows.complete();
+            if(this.pass == pass) {
+               pass.userMsg = msg;
+               pass.rows.complete();
+               pass.completed = true;
+               // @by stephenwebster, For Bug #9676
+               // Stop-gap solution.  We create the XMetaInfo after the table
+               // is loaded so we know that column types are based on currently
+               // loaded table data.
+               createXMetaInfo();
+               notifyAll();
             }
-
-            completed = true;
-            // @by stephenwebster, For Bug #9676
-            // Stop-gap solution.  We create the XMetaInfo after the table
-            // is loaded so we know that column types are based on currently
-            // loaded table data.
-            createXMetaInfo();
-            notifyAll();
          }
+      }
+   }
+
+   /**
+    * Check if a pass stops: the table is cancelled, or invalidate() replaced the pass
+    * (bug #77364).
+    */
+   private boolean isStopped(Pass pass) {
+      return cancelled || this.pass != pass;
+   }
+
+   /**
+    * Publish the grand total formulas of a pass once they are final, before the rows a
+    * reader reads them with (e.g. BrushSummaryFilter). The array keeps its identity, a
+    * reader may keep it. A pass that invalidate() replaced publishes nothing (bug #77364).
+    */
+   private synchronized void publishGrandFormulae(Pass pass) {
+      if(this.pass == pass && grand != null && pass.grand != null) {
+         System.arraycopy(pass.grand, 0, grand, 0, grand.length);
       }
    }
 
@@ -1069,7 +1110,8 @@ public class SummaryFilter extends AbstractGroupedTable
    }
 
    /**
-    * Get grand formulae.
+    * Get grand formulae. They are those of the last pass that computed them, the array
+    * keeps its identity (bug #77364).
     *
     * @return grand formulae
     */
@@ -1080,18 +1122,19 @@ public class SummaryFilter extends AbstractGroupedTable
    /**
     * Get grand formula totals.
     *
+    * @param pass the pass of the grand formulae.
     * @return grand totals
     */
-   private Object[] getGrandFormulaTotals() {
-      if(grandtotals == null) {
-         grandtotals = new Object[grand.length];
+   private Object[] getGrandFormulaTotals(Pass pass) {
+      if(pass.grandtotals == null) {
+         pass.grandtotals = new Object[pass.grand.length];
       }
 
-      for(int i = 0; i < grandtotals.length; i++) {
-         grandtotals[i] = getFormulaTotal(grand[i]);
+      for(int i = 0; i < pass.grandtotals.length; i++) {
+         pass.grandtotals[i] = getFormulaTotal(pass.grand[i]);
       }
 
-      return grandtotals;
+      return pass.grandtotals;
    }
 
    /**
@@ -1213,11 +1256,11 @@ public class SummaryFilter extends AbstractGroupedTable
       List<GroupNode> nodes0 = new ArrayList<>(node.nodes);
       // get sub group nodes related comparator, use cache for performance
       Integer key = node.level + 1;
-      GroupNodeComparer comparer = compmap.get(key);
+      GroupNodeComparer comparer = node.pass.compmap.get(key);
 
       if(comparer == null) {
          comparer = new GroupNodeComparer(topn.scol, topn.asc);
-         compmap.put(key, comparer);
+         node.pass.compmap.put(key, comparer);
       }
 
       Collections.sort(topNNodes == null ? nodes : topNNodes, comparer);
@@ -1338,11 +1381,11 @@ public class SummaryFilter extends AbstractGroupedTable
 
       // get sub group nodes related comparator, use cache for performance
       Integer key = (node.level + 1);
-      GroupNodeComparer comparer = sortByValCompMap.get(key);
+      GroupNodeComparer comparer = node.pass.sortByValCompMap.get(key);
 
       if(comparer == null) {
          comparer = new GroupNodeComparer(topn.scol, topn.asc);
-         sortByValCompMap.put(key, comparer);
+         node.pass.sortByValCompMap.put(key, comparer);
       }
 
       nodes.sort(comparer);
@@ -1373,9 +1416,9 @@ public class SummaryFilter extends AbstractGroupedTable
 
       Formula[] formulas = gnode.getFormulas();
 
-      // grand total?
+      // grand total? the grand formulae of the pass (bug #77364)
       if(formulas == null) {
-         formulas = grand;
+         formulas = gnode.pass.grand;
       }
 
       if(formulas == null) {
@@ -1398,7 +1441,7 @@ public class SummaryFilter extends AbstractGroupedTable
       for(int row = includedRows.nextSetBit(0); row >= 0;
          row = includedRows.nextSetBit(row + 1))
       {
-         addFormulaValue(formulas, row);
+         addFormulaValue(node.pass, formulas, row);
       }
    }
 
@@ -1437,7 +1480,7 @@ public class SummaryFilter extends AbstractGroupedTable
     * @param node the specified group node
     */
    private void applyFiltering(GroupNode topnode, GroupNode node) {
-      Object[] grdtotals = getGrandFormulaTotals();
+      Object[] grdtotals = getGrandFormulaTotals(node.pass);
       Object[] grptotals = node.nodes == null ? null :
          getGroupTotal(topnode, node, grdtotals);
 
@@ -1551,7 +1594,8 @@ public class SummaryFilter extends AbstractGroupedTable
     * @param node the specified group node
     */
    private void addRows(GroupNode topnode, GroupNode node) {
-      Object[] grdtotals = getGrandFormulaTotals();
+      Pass pass = node.pass;
+      Object[] grdtotals = getGrandFormulaTotals(pass);
       Object[] grptotals = node.nodes == null ? null :
          getGroupTotal(topnode, node, grdtotals);
 
@@ -1562,7 +1606,7 @@ public class SummaryFilter extends AbstractGroupedTable
 
             // the inner-most group is treated as header detail row
             if(i == 0 && subnode.nodes == null) {
-               grpset.set(getRowCount(sumrows));
+               pass.grpset.set(getRowCount(pass.rows));
             }
 
             // @by davyc, for topn and sort by value, the sums is the original
@@ -1595,25 +1639,25 @@ public class SummaryFilter extends AbstractGroupedTable
 
          // is group summary node?
          if(node.nodes != null) {
-            groupmap.put(getRowCount(sumrows), node.level);
+            pass.groupmap.put(getRowCount(pass.rows), node.level);
          }
 
          // apply summary label format
          if(getSummaryLabel() != null) {
-            if(summaryLabelArea == null) {
-               summaryLabelArea = new SparseMatrix();
+            if(pass.summaryLabelArea == null) {
+               pass.summaryLabelArea = new SparseMatrix();
             }
 
             for(int i = 0; i < cols.length; i++) {
                if(nvals[i] != null) {
                   Object[] args = { nvals[i] };
                   nvals[i] = MessageFormat.format(getSummaryLabel(), args);
-                  summaryLabelArea.set(getRowCount(sumrows), i, Boolean.TRUE);
+                  pass.summaryLabelArea.set(getRowCount(pass.rows), i, Boolean.TRUE);
                }
             }
          }
 
-         sumrows.addRow(nvals);
+         pass.addRow(nvals);
       }
    }
 
@@ -1912,12 +1956,17 @@ public class SummaryFilter extends AbstractGroupedTable
     * Set the base table of this filter. The base table must be a sorted table.
     */
    @Override
-   public synchronized void setTable(TableLens table) {
-      this.table = table;
-      this.hcount = table.getHeaderRowCount();
-      this.ordermap = new SortOrder[table.getColCount()];
-      invalidate();
-      this.table.addChangeListener(new DefaultTableChangeListener(this));
+   public void setTable(TableLens table) {
+      synchronized(this) {
+         this.table = table;
+         this.hcount = table.getHeaderRowCount();
+         this.ordermap = new SortOrder[table.getColCount()];
+         invalidate0();
+         this.table.addChangeListener(new DefaultTableChangeListener(this));
+      }
+
+      // fire after releasing the monitor, see invalidate() (bug #77432)
+      fireChangeEvent();
    }
 
    /**
@@ -1982,25 +2031,43 @@ public class SummaryFilter extends AbstractGroupedTable
    @Override
    public boolean moreRows(int row) {
       if(row < hcount) {
-         initHeader();
+         initHeader(pass);
          return true;
       }
 
-      checkInit();
-      waitForRow(row);
-      UserMessage msg = userMsg;
+      // the pass is read once for the wait and the answer, and read again if invalidate()
+      // replaced it: its rows are not the rows of the table (bug #77364)
+      for(int retry = 0; ; retry++) {
+         Pass pass = this.pass;
+         checkInit();
+         waitForRow(pass, row);
+         boolean more = pass.rows.moreRows(row);
 
-      if(msg != null) {
-         Tool.addUserMessage(msg);
+         if(this.pass != pass) {
+            if(retry < MAX_READ_RETRIES) {
+               continue;
+            }
+
+            LOG.warn("Summary row {} read from a replaced pass: the table was invalidated " +
+                     "{} times while the row was found", row, MAX_READ_RETRIES);
+         }
+
+         UserMessage msg = pass.userMsg;
+
+         if(msg != null) {
+            Tool.addUserMessage(msg);
+         }
+
+         return more;
       }
-
-      return sumrows.moreRows(row);
    }
 
    /**
-    * Wait until the row is processed or the processing is done.
+    * Wait until the row is processed or the processing is done, or until invalidate()
+    * replaces the pass, whose rows are not the rows of the table then (bug #77364).
+    * @param pass the pass whose rows to wait for.
     */
-   private void waitForRow(int row) {
+   private void waitForRow(Pass pass, int row) {
       WaitRecord record = null;
 
       try {
@@ -2011,15 +2078,15 @@ public class SummaryFilter extends AbstractGroupedTable
                record.checkStall();
             }
 
-            LendableReentrantLock.Borrower lendTo = worker;
+            LendableReentrantLock.Borrower lendTo = pass.worker;
 
             synchronized(SummaryFilter.this) {
-               if(cancelled || row < getRowCount(sumrows)) {
+               if(cancelled || this.pass != pass || row < getRowCount(pass.rows)) {
                   return;
                }
 
-               if(completed) {
-                  throwStallFailure();
+               if(pass.completed) {
+                  throwStallFailure(pass);
                   return;
                }
 
@@ -2039,8 +2106,8 @@ public class SummaryFilter extends AbstractGroupedTable
             // the row is not there yet, register the wait (outside of the monitor) and check
             // again
             if(record == null) {
-               record = WaitRegistry.begin("SummaryFilter.waitForRow", getStallProgress(),
-                                           getStallBlockers());
+               record = WaitRegistry.begin("SummaryFilter.waitForRow",
+                                           pass.getStallProgress(), pass.getStallBlockers());
                continue;
             }
 
@@ -2050,7 +2117,9 @@ public class SummaryFilter extends AbstractGroupedTable
             // which the worker needs in order to finish
             try(LendableReentrantLock.Loan ignored = JavaScriptEngine.lendScriptLocks(lendTo)) {
                synchronized(SummaryFilter.this) {
-                  if(!completed && !cancelled && row >= getRowCount(sumrows)) {
+                  if(!pass.completed && !cancelled && this.pass == pass &&
+                     row >= getRowCount(pass.rows))
+                  {
                      try {
                         SummaryFilter.this.wait(
                            record.waitMillis(JavaScriptEngine.getScriptLockWaitMillis(10000)));
@@ -2071,57 +2140,14 @@ public class SummaryFilter extends AbstractGroupedTable
    }
 
    /**
-    * Progress of the worker for the lock-stall watchdog: base rows read plus rows added.
-    */
-   /**
-    * The worker's progress for the lock-stall watchdog (bug #76967). Created once, not on each
-    * cell read; a race creates an equivalent supplier.
-    */
-   private LongSupplier getStallProgress() {
-      LongSupplier progress = stallProgress;
-
-      if(progress == null) {
-         stallProgress = progress = this::getWorkerProgress;
-      }
-
-      return progress;
-   }
-
-   /**
-    * The worker, the blocker of a reader for the lock-stall watchdog (bug #76967). Created
-    * once, not on each cell read.
-    */
-   private Supplier<Thread[]> getStallBlockers() {
-      Supplier<Thread[]> blockers = stallBlockers;
-
-      if(blockers == null) {
-         stallBlockers = blockers = this::getWorkerThreads;
-      }
-
-      return blockers;
-   }
-
-   private long getWorkerProgress() {
-      XSwappableTable rows = sumrows;
-      return (long) processedRows + (rows == null ? 0 : getRowCount(rows));
-   }
-
-   /**
-    * The worker thread, for the lock-stall watchdog.
-    */
-   private Thread[] getWorkerThreads() {
-      LendableReentrantLock.Borrower task = worker;
-      return new Thread[] { task == null ? null : task.getThread() };
-   }
-
-   /**
     * Rethrow the stall the worker failed with, if the table is complete because of it. A
     * stall must never look like the end of the table (bug #76967).
+    * @param pass the pass that was read.
     */
-   private void throwStallFailure() {
-      LockStallException failure = stallFailure;
+   private void throwStallFailure(Pass pass) {
+      LockStallException failure = pass.stallFailure;
 
-      if(completed && failure != null) {
+      if(pass.completed && failure != null) {
          throw new LockStallException(failure);
       }
    }
@@ -2133,17 +2159,29 @@ public class SummaryFilter extends AbstractGroupedTable
     */
    @Override
    public int getRowCount() {
+      // a row count probe (e.g. AssetQuery.validateDataTypes) starts nothing if the base
+      // needs an engine lock this thread doesn't hold: it must not take the lock, it may be
+      // building a table inside that table's monitor, and a worker must not be left for a
+      // reader that can't lend it the lock. the first read of rows processes them
+      // (bug #77223)
+      if(!inited && getUnheldChainScriptLock() != null) {
+         return -1;
+      }
+
       checkInit();
+      Pass pass;
 
       synchronized(SummaryFilter.this) {
-         if(!completed) {
+         pass = this.pass;
+
+         if(!pass.completed) {
             return -1;
          }
       }
 
       // the rows so far of a stalled worker are not the whole table (bug #76967)
-      throwStallFailure();
-      return getRowCount(sumrows);
+      throwStallFailure(pass);
+      return getRowCount(pass.rows);
    }
 
    /**
@@ -2222,6 +2260,8 @@ public class SummaryFilter extends AbstractGroupedTable
          return false;
       }
 
+      SparseMatrix summaryLabelArea = pass.summaryLabelArea;
+
       if(summaryLabelArea != null && summaryLabelArea.get(r, c) != null &&
          summaryLabelArea.get(r, c) == Boolean.TRUE)
       {
@@ -2239,41 +2279,59 @@ public class SummaryFilter extends AbstractGroupedTable
     */
    @Override
    public Object getObject(int r, int c) {
-      if(!inited) {
-         if(r >= hcount) {
-            checkInit();
-         }
-         else if(!hinited) {
-            initHeader();
-         }
-      }
+      // the pass is read once for the wait and the read, and read again if invalidate()
+      // replaced it: its rows are not the rows of the table (bug #77364)
+      for(int retry = 0; ; retry++) {
+         Pass pass = this.pass;
 
-      if(cellValues != null) {
-         Object val = cellValues.get(r, c);
-
-         if(val != null) {
-            return val;
+         if(!inited) {
+            if(r >= hcount) {
+               checkInit();
+            }
+            else if(!pass.hinited) {
+               initHeader(pass);
+            }
          }
-      }
 
-      if(c < getColCount()) {
-         // sumrows.moreRows() blocks until the worker adds the row, so lend the worker
+         if(cellValues != null) {
+            Object val = cellValues.get(r, c);
+
+            if(val != null) {
+               return val;
+            }
+         }
+
+         if(c >= getColCount()) {
+            return null;
+         }
+
+         // rows.moreRows() blocks until the worker adds the row, so lend the worker
          // the script engine lock first if this thread holds it (bug #76938)
-         if(!completed && JavaScriptEngine.canLendScriptLocks(worker)) {
-            waitForRow(r);
+         if(!pass.completed && JavaScriptEngine.canLendScriptLocks(pass.worker)) {
+            waitForRow(pass, r);
          }
 
-         // bounded, the worker may be stuck waiting for a lock this thread holds (bug #76967)
-         if(sumrows.moreRows(r, "SummaryFilter.getObject", getStallProgress(),
-                             getStallBlockers()))
-         {
-            return sumrows.getObject(r, c);
+         // bounded, the worker may be stuck waiting for a lock this thread holds (bug #76967).
+         // invalidate() completes the rows of the pass it replaces, which ends the wait
+         boolean more = pass.rows.moreRows(r, "SummaryFilter.getObject",
+                                           pass.getStallProgress(), pass.getStallBlockers());
+
+         if(this.pass != pass) {
+            if(retry < MAX_READ_RETRIES) {
+               continue;
+            }
+
+            LOG.warn("Summary row {} read from a replaced pass: the table was invalidated " +
+                     "{} times while the row was found", r, MAX_READ_RETRIES);
          }
 
-         throwStallFailure();
+         if(more) {
+            return pass.rows.getObject(r, c);
+         }
+
+         throwStallFailure(pass);
+         return null;
       }
-
-      return null;
    }
 
    /**
@@ -2373,15 +2431,14 @@ public class SummaryFilter extends AbstractGroupedTable
    @Override
    public void dispose() {
       table.dispose();
+      Pass pass = this.pass;
 
-      if(formulas != null) {
-         formulas.dispose();
-         formulas = null;
+      if(pass.formulas != null) {
+         pass.formulas.dispose();
+         pass.formulas = null;
       }
 
-      if(sumrows != null) {
-         sumrows.dispose();
-      }
+      pass.rows.dispose();
    }
 
    /**
@@ -2404,21 +2461,60 @@ public class SummaryFilter extends AbstractGroupedTable
     */
    private void checkInit() {
       if(!inited) {
+         // the first read of rows takes the engine lock the base needs before this filter's
+         // monitor, like a condition filter (bug #76918), and processes them on this thread.
+         // a worker needing the lock could wait forever for a reader inside a script on that
+         // engine, which can't lend it the lock (bug #77223)
+         LendableReentrantLock execLock = getUnheldChainScriptLock();
+
+         if(execLock == null) {
+            checkInit0();
+            return;
+         }
+
+         execLock.lock();
+         JavaScriptEngine.pushHeldScriptLock(execLock);
+
+         try {
+            checkInit0();
+         }
+         finally {
+            JavaScriptEngine.popHeldScriptLock();
+            execLock.unlock();
+         }
+      }
+   }
+
+   /**
+    * Get the engine lock reading the base may take if the current thread does not hold it.
+    */
+   private LendableReentrantLock getUnheldChainScriptLock() {
+      LendableReentrantLock execLock = ChainScriptLock.find(table);
+      return execLock != null && !execLock.isHeldByCurrentThread() ? execLock : null;
+   }
+
+   private void checkInit0() {
+      if(!inited) {
          synchronized(this) {
             if(!inited) {
                inited = true;
-               boolean inExec = JavaScriptEngine.holdsScriptLock();
+               // the pass started here, it stops once invalidate() replaces it (bug #77364)
+               Pass pass = this.pass;
 
                // if this is called from JavaScriptEngine.exec() or a condition filter
                // (bug #76938), the script engine is already locked. running process() in
                // a separate thread would create a deadlock waiting forever for the
-               // JavaScriptEngine lock to be released.
+               // JavaScriptEngine lock to be released. if the base needs an engine lock,
+               // only holding that lock counts, see checkInit() (bug #77223)
+               LendableReentrantLock chainLock = ChainScriptLock.find(table);
+               boolean inExec = chainLock != null ? chainLock.isHeldByCurrentThread()
+                  : JavaScriptEngine.holdsScriptLock();
 
                if(!inExec) {
                   // a thread holding the lock may still wait for this worker later on,
                   // it lends the lock to the worker then (see waitForRow)
                   LendableReentrantLock.Borrower borrower = new LendableReentrantLock.Borrower();
-                  worker = borrower;
+                  pass.worker = borrower;
 
                   Runnable r = new ThreadPool.AbstractContextRunnable() {
                      @Override
@@ -2426,7 +2522,7 @@ public class SummaryFilter extends AbstractGroupedTable
                         borrower.begin();
 
                         try {
-                           SummaryFilter.this.process(true);
+                           SummaryFilter.this.process(pass, true);
                         }
                         finally {
                            borrower.end();
@@ -2437,7 +2533,7 @@ public class SummaryFilter extends AbstractGroupedTable
                   ThreadPool.addOnDemand(r);
                }
                else {
-                  process(false);
+                  process(pass, false);
                }
             }
          }
@@ -2459,9 +2555,7 @@ public class SummaryFilter extends AbstractGroupedTable
             ((CancellableTableLens) table).cancel();
          }
 
-         if(sumrows != null) {
-            sumrows.complete();
-         }
+         pass.rows.complete();
       }
       finally {
          cancelLock.unlock();
@@ -2556,6 +2650,10 @@ public class SummaryFilter extends AbstractGroupedTable
 
    // base class for MergedGroupNode and UnionGroupNode
    private class CombinedGroupNode extends GroupNode {
+      CombinedGroupNode(Pass pass) {
+         super(pass);
+      }
+
       @Override
       void prepareSum() {
          // prepared already?
@@ -2583,6 +2681,7 @@ public class SummaryFilter extends AbstractGroupedTable
     */
    protected class MergedGroupNode extends CombinedGroupNode {
       public MergedGroupNode(List<GroupNode> list) {
+         super(list.get(0).pass);
          GroupNode first = list.get(0);
          this.fid = first.fid;
          this.level = first.level;
@@ -2682,6 +2781,7 @@ public class SummaryFilter extends AbstractGroupedTable
     */
    private class UnionGroupNode extends CombinedGroupNode {
       public UnionGroupNode(List<GroupNode> list) {
+         super(list.get(0).pass);
          boolean first = true;
 
          for(GroupNode node : list) {
@@ -2712,7 +2812,12 @@ public class SummaryFilter extends AbstractGroupedTable
     * Group node.
     */
    protected class GroupNode {
-      public GroupNode() {
+      /**
+       * @param pass the pass the node is created in (bug #77364).
+       */
+      GroupNode(Pass pass) {
+         this.pass = pass;
+
          if(!topnmap.isEmpty()) {
             includedRows = new SparseBitSet();
          }
@@ -2740,7 +2845,7 @@ public class SummaryFilter extends AbstractGroupedTable
          // row as -1 when do timeseries, the formula has been set, ignore it.
          if(row != -1 && updateFormulaValue) {
             Formula[] formulae0 = getFormulas();
-            addFormulaValue(formulae0, row);
+            addFormulaValue(pass, formulae0, row);
             setFormulas(formulae0); // update formula objects in list
          }
 
@@ -2763,7 +2868,7 @@ public class SummaryFilter extends AbstractGroupedTable
          if(nodes != null) {
             // when level + 1 >= minimum special order, we have to reorder
             // group nodes, for in this level, sort calculation is useless
-            if(nextLevel >= minSpecialOrder) {
+            if(nextLevel >= pass.minSpecialOrder) {
                // default position is 0 for reverse order iteration reason
                pos = 0;
 
@@ -2810,7 +2915,7 @@ public class SummaryFilter extends AbstractGroupedTable
                getSwapper().waitForMemory();
             }
 
-            node = new GroupNode();
+            node = new GroupNode(pass);
             node.row = row;
             node.level = nextLevel;
 
@@ -2841,8 +2946,8 @@ public class SummaryFilter extends AbstractGroupedTable
             }
 
             if(addFormula && row != -1) {
-               synchronized(formulas) {
-                  node.fid = formulas.add(formulae);
+               synchronized(pass.formulas) {
+                  node.fid = pass.formulas.add(formulae);
                }
             }
             else if(row == -1) {
@@ -2948,7 +3053,7 @@ public class SummaryFilter extends AbstractGroupedTable
 
       public final void setFormulas(Formula[] arr) {
          if(fid != -1) {
-            formulas.set(fid, arr);
+            pass.formulas.set(fid, arr);
          }
       }
 
@@ -2959,7 +3064,7 @@ public class SummaryFilter extends AbstractGroupedTable
             }
 
             if(fid != -1) {
-               Formula[] objs = formulas.get(fid);
+               Formula[] objs = pass.formulas.get(fid);
                Formula[] res = new Formula[objs.length];
                System.arraycopy(objs, 0, res, 0, objs.length);
                return res;
@@ -3122,6 +3227,7 @@ public class SummaryFilter extends AbstractGroupedTable
          return sb.toString();
       }
 
+      final Pass pass; // the pass that created the node
       int level = -1; // group level
       int fid = -1;
       Map<Integer, Object> overwrittenValues = null;
@@ -3305,7 +3411,7 @@ public class SummaryFilter extends AbstractGroupedTable
        * @return summary level of the specified row.
        */
       private int getSummaryLevel(int row) {
-         Integer iobj = groupmap.get(row);
+         Integer iobj = pass.groupmap.get(row);
 
          if(iobj != null) {
             return iobj;
@@ -3581,25 +3687,124 @@ public class SummaryFilter extends AbstractGroupedTable
       private transient ColumnIndexMap filterColumnIndexMap = null;
    }
 
+   /**
+    * The rows of one pass of process() and the state the pass computes them with.
+    * invalidate() starts a new pass, and the old one stops, and completes, fails and
+    * publishes nothing of the table (bug #77364). A pass is processed once.
+    */
+   private static final class Pass implements Serializable {
+      Pass(int ncol) {
+         rows = new XSwappableTable(ncol, false);
+      }
+
+      /**
+       * Add a row, unless invalidate() replaced the pass and completed its rows.
+       */
+      synchronized void addRow(Object[] row) {
+         if(!superseded) {
+            rows.addRow(row);
+         }
+      }
+
+      /**
+       * Replace the pass. Its rows are completed, which ends the waits of their readers, who
+       * read the next pass then.
+       */
+      synchronized void supersede() {
+         superseded = true;
+         rows.complete();
+      }
+
+      /**
+       * The worker's progress for the lock-stall watchdog: base rows read plus rows added
+       * (bug #76967). Created once, not on each cell read; a race creates an equivalent
+       * supplier.
+       */
+      LongSupplier getStallProgress() {
+         LongSupplier progress = stallProgress;
+
+         if(progress == null) {
+            stallProgress = progress = () -> (long) processedRows + getRowCount(rows);
+         }
+
+         return progress;
+      }
+
+      /**
+       * The worker, the blocker of a reader for the lock-stall watchdog (bug #76967). Created
+       * once, not on each cell read.
+       */
+      Supplier<Thread[]> getStallBlockers() {
+         Supplier<Thread[]> blockers = stallBlockers;
+
+         if(blockers == null) {
+            stallBlockers = blockers = () -> {
+               LendableReentrantLock.Borrower task = worker;
+               return new Thread[] { task == null ? null : task.getThread() };
+            };
+         }
+
+         return blockers;
+      }
+
+      final XSwappableTable rows;
+      boolean hinited; // flag indicates header initialized or not
+      volatile boolean completed;
+      UserMessage userMsg;
+      final BitSet grpset = new BitSet(); // group row set
+      final Hashtable<Integer, Integer> groupmap = new Hashtable<>();
+      transient SparseMatrix summaryLabelArea;
+      private boolean superseded;
+      // the state of the worker, created when the pass starts. a pass that is not complete
+      // is processed again once read back, see readObject()
+      transient Formula[] grand; // grand total formulae of the pass
+      transient XSwappableObjectList<Formula[]> formulas;
+      transient FormulaAgent[] fagents; // formula agent
+      transient Object[] gvals;
+      transient Map<Integer, GroupNodeComparer> compmap; // topn comparator map
+      transient Map<Object, GroupNodeComparer> sortByValCompMap; // sort by value compara map
+      transient int minSpecialOrder = Integer.MAX_VALUE;
+      transient Object[] grandtotals; // grand formula totals
+      // the background task running process(), if any
+      transient volatile LendableReentrantLock.Borrower worker;
+      // the base row the worker has reached, and the stall it failed with (bug #76967)
+      transient volatile int processedRows;
+      transient volatile LockStallException stallFailure;
+      // the watchdog suppliers of getObject and waitForRow (bug #76967)
+      private transient LongSupplier stallProgress;
+      private transient Supplier<Thread[]> stallBlockers;
+   }
+
+   @Serial
+   private void readObject(ObjectInputStream in) throws ClassNotFoundException, IOException {
+      in.defaultReadObject();
+
+      // a pass written while it ran has no worker any more, the rows are processed again
+      // (bug #77364)
+      if(pass == null || !pass.completed) {
+         pass = new Pass(getColCount());
+         inited = false;
+      }
+   }
+
    private static final String TOTAL_LABEL = Catalog.getCatalog().getString("Total");
 
-   private XSwappableTable sumrows = null;
+   // volatile: the readers read it without the monitor, and a pass stops once invalidate()
+   // replaces it (bug #77364)
+   private volatile Pass pass;
    private boolean cube = false;
    private TableLens table;
    private boolean def;
    private final int[] cols; // sorting columns
    private final int[] sums; // summary columns
    private volatile boolean inited; // flag indicates initialized or not
-   private boolean hinited; // flag indicates header initialized or not
    private int hcount; // header row count
    private String[] headers; // summary column headers
    private Formula[] calcs;
    private Formula[] grand; // formulae
-   private FormulaAgent[] fagents; // formula agent
    private SortOrder[] ordermap = null;
    private final Hashtable<Object, InnerTopNInfo> topnmap = new Hashtable<>();
    private final Hashtable<Object, InnerTopNInfo> sortByValMap = new Hashtable<>();
-   private Hashtable<Integer, Integer> groupmap = new Hashtable<>();
    private boolean hierarchy = false; // show group hierarchy
    private String grandLabel; // grand total label
    private boolean hasGrand = false; // has grand total
@@ -3611,9 +3816,6 @@ public class SummaryFilter extends AbstractGroupedTable
    private int topNAggregateN = 0;
 
    private transient TableDataDescriptor sdescriptor = null;
-   // the watchdog suppliers of getObject and waitForRow, see getStallProgress() (bug #76967)
-   private transient LongSupplier stallProgress;
-   private transient Supplier<Thread[]> stallBlockers;
    private Hashtable<TableDataPath, Object> mmap = new Hashtable<>(); // xmeta info
    // percent by group level, default value 0 means the inner most group
    private int pglvl = 0;
@@ -3624,29 +3826,16 @@ public class SummaryFilter extends AbstractGroupedTable
    private int timeSeriesLevel;
    private boolean sortTopN = true;
 
-   private XSwappableObjectList<Formula[]> formulas;
-   private volatile boolean completed = false;
-   private transient Object[] gvals = null;
-   private final transient Map<Integer, GroupNodeComparer> compmap = new HashMap<>(); // topn comparator map
-   // sort by value compara map
-   private final transient Map<Object, GroupNodeComparer> sortByValCompMap = new HashMap<>();
-   private transient BitSet grpset = null; // group row set
-   private transient int minSpecialOrder = Integer.MAX_VALUE;
-   private transient Object[] grandtotals = null; // grand formula totals
-   private transient SparseMatrix summaryLabelArea;
    private transient SparseMatrix cellValues;
    private transient volatile boolean cancelled = false;
-   // the background task running process(), if any
-   private transient volatile LendableReentrantLock.Borrower worker;
-   // the base row the worker has reached, and the stall it failed with (bug #76967)
-   private transient volatile int processedRows;
-   private transient volatile LockStallException stallFailure;
    private final Lock cancelLock = new ReentrantLock();
    private boolean sortOthersLast = true; // whether sort others last
    private List<OrderInfo> orderInfo = new ArrayList<>();
-   UserMessage userMsg = null;
    private transient DefaultComparator defaultComparator = new DefaultComparator(true);
    private transient XSwapper swapper;
 
+   // the reads of a row that invalidate() keeps replacing the pass under, after which the
+   // pass is read as it is (bug #77364)
+   private static final int MAX_READ_RETRIES = 100;
    private static final Logger LOG = LoggerFactory.getLogger(SummaryFilter.class);
 }

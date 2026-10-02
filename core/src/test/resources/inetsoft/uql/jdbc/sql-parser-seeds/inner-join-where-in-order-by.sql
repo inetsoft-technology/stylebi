@@ -1,0 +1,1 @@
+select a.id, b.name as "Name" from orders a inner join customers b on a.cust_id = b.id where a.total > 100 and b.state in ('NJ','NY') order by b.name desc

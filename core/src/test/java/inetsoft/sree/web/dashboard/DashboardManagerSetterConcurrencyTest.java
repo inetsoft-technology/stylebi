@@ -35,47 +35,16 @@ package inetsoft.sree.web.dashboard;
  * after its get() or before its put(), and a thread is only let go once the other thread is seen
  * either past its step or blocked on the parked thread (ThreadMXBean), so no step depends on
  * timing. The stored records are read back from the raw store, because getDeselectedDashboards()
- * still filters out names that are not in the global registry. GROUP identities are used so the
+ * filters out names that are not in the global registry. GROUP identities are used so the
  * USER-only registry prune and sync don't take part.
  *
- * Bug #77299 extends the above to cluster scope: the KeyValueStorage is actually replicated
- * cluster-wide (confirmed by tracing LocalKeyValueStorage -> the singleton PutKeyValueTask
- * executor), so P1/P2/P2' above, which the #77232 fix solved with a plain per-JVM `synchronized`,
- * still lose an update when the two racing calls are made on two *different* DashboardManager
- * instances (simulating two cluster nodes), since they share no JVM monitor at all. See
- * renameDashboard_racingSetDashboardsFromAnotherManagerInstance_keepsBothChanges() below, which
- * repeats P1's shape across two manager instances sharing one real KeyValueStorage, to prove the
- * new cluster-wide lock (getDashboardsLockName()/Cluster.lockKey()) closes that gap.
- *
- * Bug #77299 also identified a second, independent mechanism: getDashboards()/
- * getDeselectedDashboards() used to persist the filtered (shortened) list whenever a name was not
- * recognized by the local registry cache, but that cache is only *eventually* consistent with a
- * remote rename/delete, so a read landing mid-reload could permanently discard a still-valid name.
- * The fix stops persisting that filtered result; see
- * getDeselectedDashboards_staleRegistryMiss_doesNotPersistThePrune() below.
- *
- * Round 2 (review r1): syncUserDashboards(Identity)/syncUserDashboards() (bulk) are the exact same
- * read-modify-write shape against the identical KeyValueStorage record, but were left unguarded by
- * the round-1 fix. getDashboards(Identity, boolean sync=true) -- the overload called by
- * DashboardController.getDashboards() on every ordinary, non-anonymous dashboard-tab load --
- * invokes syncUserDashboards(identity), so a same-moment unlocked sync on one node could silently
- * discard a concurrent, now-correctly-locked setDashboards()/addDashboard() write from another
- * node. See getDashboards_syncRacingSetDashboardsFromAnotherManagerInstance_doesNotBlockOrLoseIt()
- * below, which proves the ordinary getDashboards(identity, true) call path is now excluded by the
- * same cluster-wide lock while another manager instance holds it mid-write.
- *
- * Round 3 (review r2): getDeselectedDashboards(Identity) has a second, admin-only block (after the
- * round-1-fixed registry-recognition filter loop) that adds any global dashboard an org/site admin
- * has neither selected nor deselected yet, and persists via setDeselectedDashboards(...) whenever it
- * finds one. That persisted list was the *cumulative* `list` variable -- which, by that point, had
- * already silently dropped any name the first loop's registry-cache filter removed -- so an admin
- * whose deselected list contains a name this node's registry cache doesn't yet recognize (round 1's
- * exact stale-cache scenario) would have that name permanently deleted from storage the moment the
- * admin block also finds any new global dashboard to add, which is the common case. The fix mirrors
- * round 1's: persist only the delta the admin block is actually adding, merged into the *original*
- * unfiltered stored list, never the cumulative filtered-then-augmented `list`. See
- * getDeselectedDashboards_orgAdminStaleRegistryMissWithNewGlobalDashboard_doesNotPersistThePrune()
- * below.
+ * Bug #77299. Each cluster node has its own DashboardManager on the same replicated store, so the
+ * read-modify-writes above must also exclude a second manager instance, which shares no monitor
+ * with the first. They hold the per-org store lock (Cluster.getLock()) for that. The P1 shape and
+ * the selection sync of a dashboard-tab load are repeated across two manager instances below. A
+ * read that leaves out names the registry does not know yet must not store the shortened list
+ * while the registry can't be loaded from its file, and an admin's added global dashboards are
+ * stored on top of the stored record, not on top of the filtered list.
  */
 
 import inetsoft.sree.security.IdentityID;
@@ -258,14 +227,12 @@ class DashboardManagerSetterConcurrencyTest {
       assertEquals(List.of("Z"), data.getDeselected());
    }
 
-   // ── Bug #77299: cluster-wide atomicity across two DashboardManager instances ──
+   // ── Bug #77299: a rename on one node keeps a setter's write on another node ──
 
    /*
-    * Same shape as P1 above, but "arrange" and "renamer" now run on two SEPARATE DashboardManager
-    * instances sharing one real KeyValueStorage, simulating two cluster nodes. The two instances
-    * have no JVM monitor in common (different `synchronized` locks), so this exercises only the
-    * cluster-wide lock added for #77299 (getDashboardsLockName()/Cluster.lockKey()), not the
-    * #77232 per-JVM synchronized fix that P1 already covers.
+    * P1 with the setter and the rename on two manager instances on the same store, the way two
+    * cluster nodes run them. The instances share no monitor, so only the store lock keeps the
+    * rename from reading the record before the setter's put lands.
     */
    @Test
    void renameDashboard_racingSetDashboardsFromAnotherManagerInstance_keepsBothChanges()
@@ -288,12 +255,7 @@ class DashboardManagerSetterConcurrencyTest {
          manager.setDashboards(group, Tool.replace(dashboards, "A", "B"));
       }));
 
-      // node1's runLocked() must be excluded by the same cluster-wide lock node2 is holding:
-      // without it, these are two independent DashboardManager instances with no JVM monitor in
-      // common, so node1's read could freely interleave with node2's still-pending write.
-      assertFalse(renameRead.await(300, TimeUnit.MILLISECONDS),
-                  "node1 must be blocked by the cluster-wide lock while node2 holds it");
-      assertTrue(node1.isAlive(), "node1 ended unexpectedly instead of blocking");
+      awaitLatchOrWaitingOn(renameRead, node1, node2);
 
       park.release();
       assertCompletes(node2);
@@ -303,12 +265,10 @@ class DashboardManagerSetterConcurrencyTest {
 
       DashboardManager.DashboardData data = rawStorage.get(key(group));
       assertEquals(List.of("X", "B", "Y"), data.getDashboards(),
-                   "cluster-wide lock: a rename on one manager instance must observe and " +
-                   "preserve a concurrent write already committed by another instance, " +
-                   "simulating another cluster node");
+                   "the rename on one node must apply to the selection another node set");
    }
 
-   // ── Bug #77299: a stale registry miss on read must not be persisted as a removal ──
+   // ── Bug #77299: a name the registry does not know yet is not removed on read ──
 
    @Test
    void getDeselectedDashboards_staleRegistryMiss_doesNotPersistThePrune() throws Exception {
@@ -319,9 +279,8 @@ class DashboardManagerSetterConcurrencyTest {
 
       DashboardRegistryManager registryManager = mock(DashboardRegistryManager.class);
       DashboardRegistry registry = mock(DashboardRegistry.class);
-      // "Z" is not (yet) recognized by this node's registry cache, e.g. mid-reload of a remote
-      // rename/delete (the registry's reload is deliberately asynchronous), even though it was
-      // validly deselected and no mutation ever confirmed it deleted.
+      // "Z" is not in this node's cached registry yet, e.g. before the notification of a remote
+      // rename has reloaded it, and the registry can't be loaded from its file
       when(registry.getDashboard("Z")).thenReturn(null);
       when(registryManager.getRegistry()).thenReturn(registry);
 
@@ -330,27 +289,21 @@ class DashboardManagerSetterConcurrencyTest {
       String[] deselected = manager3.getDeselectedDashboards(group);
 
       assertEquals(0, deselected.length,
-                   "an unrecognized name is still filtered out of what this call returns");
+                   "a name that is not in the registry is not listed");
 
       DashboardManager.DashboardData stored = rawStorage.get(key(group));
       assertEquals(List.of("Z"), stored.getDeselected(),
-                   "a registry cache that does not yet recognize a name must not have its " +
-                   "absence persisted as a removal: the cache may simply be mid-reload of a " +
-                   "concurrent remote rename/delete, not a confirmed deletion");
+                   "a name that is not known to be gone must not be removed from the record");
    }
 
-   // ── Bug #77299 round 3: an org admin's stale registry miss must not be dropped by the
-   // admin-add block finding an unrelated new global dashboard on the same call ──
+   // ── Bug #77299: an admin's added global dashboard does not drop an unknown name ──
 
    /*
-    * Same stale-cache setup as getDeselectedDashboards_staleRegistryMiss_doesNotPersistThePrune
-    * above ("Z" is deselected but not (yet) recognized by this node's registry cache), but the
-    * identity is an org admin and the registry also has a second, distinct global dashboard
-    * ("NewGlobal") the admin has neither selected nor deselected. Before the round-3 fix, the
-    * admin-add block persisted the *cumulative* filtered list ("NewGlobal" only, since "Z" was
-    * already dropped by the first loop), permanently losing "Z" from storage every time this
-    * ordinary read ran. isOrgAdmin()/isSiteAdmin() resolve through the static
-    * SecurityEngine.getSecurity(), not a constructor-injected field, hence the static mock.
+    * The same unknown "Z" for an org admin, whose deselected list also gets every global dashboard
+    * the admin has neither selected nor deselected ("NewGlobal"). Adding it stores the record, and
+    * that must be the stored names plus "NewGlobal", not the listed names, which leave out "Z".
+    * isOrgAdmin() resolves the provider through the static SecurityEngine.getSecurity(), hence the
+    * static mock.
     */
    @Test
    void getDeselectedDashboards_orgAdminStaleRegistryMissWithNewGlobalDashboard_doesNotPersistThePrune()
@@ -358,19 +311,11 @@ class DashboardManagerSetterConcurrencyTest {
    {
       DashboardRegistryManager registryManager = mock(DashboardRegistryManager.class);
       DashboardRegistry registry = mock(DashboardRegistry.class);
-      // "Z" is mid-reload of a concurrent remote rename/delete: not (yet) individually recognized,
-      // and also not (yet) present in the cache's own name listing.
       when(registry.getDashboard("Z")).thenReturn(null);
-      // A second, distinct global dashboard IS visible to this node's cache, so the admin-add block
-      // finds something to add on this same call -- the common case that triggers the persist.
       when(registry.getDashboardNames()).thenReturn(new String[] { "NewGlobal" });
       when(registryManager.getRegistry()).thenReturn(registry);
 
-      // newManager()'s first getDashboards(group) call switches the manager to the current org,
-      // which triggers a bulk syncUserDashboards() over whatever is already in the store -- so the
-      // user's record is seeded only after this instance exists, the same ordering
-      // getDashboards_syncRacingSetDashboardsFromAnotherManagerInstance_doesNotClobberTheWrite
-      // above already relies on.
+      // the first use of the manager syncs every stored record, so the record is seeded after it
       DashboardManager manager3 = newManager(registryManager);
       seed(user, List.of(), List.of("Z"));
 
@@ -393,52 +338,43 @@ class DashboardManagerSetterConcurrencyTest {
       }
 
       assertEquals(List.of("NewGlobal"), Arrays.asList(deselected),
-                   "the returned value is unaffected by the fix: still filters out the " +
-                   "stale-cache-unrecognized name and still adds the newly-visible global " +
-                   "dashboard");
+                   "the unknown name is left out and the global dashboard is added");
 
       DashboardManager.DashboardData stored = rawStorage.get(key(user));
       assertEquals(List.of("Z", "NewGlobal"), stored.getDeselected(),
-                   "the admin-add block must persist only the delta it is actually adding, " +
-                   "merged into the original stored list, not the cumulative filtered list -- " +
-                   "otherwise \"Z\", only transiently unrecognized by the first loop's stale " +
-                   "registry-cache check, is silently and permanently dropped from storage");
+                   "only the added global dashboard may be stored on top of the record");
    }
 
-   // ── Bug #77299 round 2: syncUserDashboards (via getDashboards(identity, true)) is also
-   // excluded by the cluster-wide lock ──
+   // ── Bug #77299: the selection sync of a tab load on one node keeps a setter's write ──
 
    /*
-    * Same shape as renameDashboard_racingSetDashboardsFromAnotherManagerInstance_keepsBothChanges
-    * above, but the "node1" action is now the ordinary, unlocked-by-the-caller path a real
-    * dashboard-tab page load takes: DashboardController.getDashboards() ->
-    * DashboardManager.getDashboards(identity, true) -> syncUserDashboards(identity). Before round
-    * 2, syncUserDashboards(Identity) took no cluster lock at all, so it could read this identity's
-    * record while node2's locked setDashboards() write was still in flight, then -- after node2's
-    * write landed -- unconditionally overwrite the record with a value computed from that stale
-    * pre-write snapshot, discarding node2's change. A USER identity is required here (unlike the
-    * GROUP identity used above) because syncUserDashboards only runs for USER identities.
+    * A dashboard-tab load calls getDashboards(identity, true), which syncs the user's record with
+    * syncUserDashboards(identity), a read-modify-write of its own. Here the sync removes a global
+    * dashboard that is gone from the loaded global registry file. Run on a second node while a
+    * setter is between its get() and put(), it must wait for the setter, so that both the new
+    * selection and the removal are kept. syncUserDashboards only runs for USER identities.
     */
    @Test
-   void getDashboards_syncRacingSetDashboardsFromAnotherManagerInstance_doesNotClobberTheWrite()
+   void getDashboards_syncRacingSetDashboardsFromAnotherManagerInstance_keepsBothChanges()
       throws Exception
    {
       SecurityEngine securityEngine = mock(SecurityEngine.class);
       when(securityEngine.getSecurityProvider()).thenReturn(mock(SecurityProvider.class));
       DashboardRegistryManager registryManager = mock(DashboardRegistryManager.class);
-      // unrecognized by the registry, like getDeselectedDashboards_staleRegistryMiss above; the
-      // plain (non-"__GLOBAL") names used below are kept by syncUserDashboards regardless, so this
-      // only has to be non-null to avoid the NPE getDashboards()/getDeselectedDashboards() would
-      // otherwise hit resolving the global registry for a USER identity.
-      when(registryManager.getRegistry()).thenReturn(mock(DashboardRegistry.class));
+      DashboardRegistry registry = mock(DashboardRegistry.class);
+      when(registry.getDashboard(anyString())).thenReturn(mock(Dashboard.class));
+      when(registry.getDashboard("gone__GLOBAL")).thenReturn(null);
+      when(registry.syncWithFile()).thenReturn(true);
+      when(registry.isFileLoaded()).thenReturn(true);
+      when(registryManager.getRegistry()).thenReturn(registry);
 
       DashboardManager managerA = newManager(securityEngine, registryManager);
       DashboardManager managerB = newManager(securityEngine, registryManager);
-      seed(user, List.of("A", "X"), List.of());
+      seed(user, List.of("A", "X", "gone__GLOBAL"), List.of());
 
       park = new Park("node2-set", Step.BEFORE_PUT);
-      Thread node2 = start("node2-set",
-                           () -> managerB.setDashboards(user, new String[] { "X", "A", "Y" }));
+      Thread node2 = start("node2-set", () -> managerB.setDashboards(
+         user, new String[] { "X", "A", "Y", "gone__GLOBAL" }));
       park.awaitParked();
 
       CountDownLatch syncDone = new CountDownLatch(1);
@@ -447,12 +383,7 @@ class DashboardManagerSetterConcurrencyTest {
          syncDone.countDown();
       });
 
-      // node1's sync must be excluded by the same cluster-wide lock node2 is holding: before round
-      // 2, syncUserDashboards(Identity) took no lock at all, so node1 would read and (if it
-      // computed a different value) write back immediately, racing node2's still-pending write.
-      assertFalse(syncDone.await(300, TimeUnit.MILLISECONDS),
-                  "node1's sync must be blocked by the cluster-wide lock while node2 holds it");
-      assertTrue(node1.isAlive(), "node1 ended unexpectedly instead of blocking");
+      awaitLatchOrWaitingOn(syncDone, node1, node2);
 
       park.release();
       assertCompletes(node2);
@@ -460,13 +391,12 @@ class DashboardManagerSetterConcurrencyTest {
 
       DashboardManager.DashboardData data = rawStorage.get(key(user));
       assertEquals(List.of("X", "A", "Y"), data.getDashboards(),
-                   "an ordinary dashboard-tab sync running immediately after a concurrent, " +
-                   "cluster-locked setDashboards() must not clobber it");
+                   "the sync of a tab load on one node and the selection another node set must " +
+                   "both be kept");
    }
 
    /**
-    * A second DashboardManager instance sharing the same underlying KeyValueStorage as
-    * {@link #manager}, and using its own unstubbed DashboardRegistryManager mock, simulating
+    * A DashboardManager instance on the same store as {@link #manager}, like the manager of
     * another cluster node.
     */
    private DashboardManager newManagerSharingStorage() {
@@ -474,16 +404,16 @@ class DashboardManagerSetterConcurrencyTest {
    }
 
    /**
-    * A DashboardManager instance sharing the same underlying KeyValueStorage as {@link #manager},
-    * using the given DashboardRegistryManager.
+    * A DashboardManager instance on the same store as {@link #manager}, with the given registry
+    * manager.
     */
    private DashboardManager newManager(DashboardRegistryManager registryManager) {
       return newManager(mock(SecurityEngine.class), registryManager);
    }
 
    /**
-    * A DashboardManager instance sharing the same underlying KeyValueStorage as {@link #manager},
-    * using the given SecurityEngine and DashboardRegistryManager.
+    * A DashboardManager instance on the same store as {@link #manager}, with the given security
+    * engine and registry manager.
     */
    private DashboardManager newManager(SecurityEngine securityEngine,
                                        DashboardRegistryManager registryManager)
@@ -497,8 +427,7 @@ class DashboardManagerSetterConcurrencyTest {
       });
 
       DashboardManager m = new DashboardManager(securityEngine, registryManager, storages);
-      // first use switches the manager to the current org, outside the interleavings, as setUp()
-      // already does for `manager`
+      // first use switches the manager to the current org, outside the interleavings
       m.getDashboards(group);
       return m;
    }
@@ -655,6 +584,32 @@ class DashboardManagerSetterConcurrencyTest {
          assertTrue(thread.isAlive(), thread.getName() + " ended before its step");
          assertTrue(System.nanoTime() < deadline,
                     thread.getName() + " neither passed its step nor blocked on " +
+                    owner.getName());
+         latch.await(10, TimeUnit.MILLISECONDS);
+      }
+   }
+
+   /**
+    * Waits until a thread has either passed its step (the latch is counted down) or waits on a
+    * lock owned by another thread, the store lock being a java.util.concurrent lock and not a
+    * monitor. Without the store lock the thread passes its step; with it it waits for the owner.
+    */
+   private static void awaitLatchOrWaitingOn(CountDownLatch latch, Thread thread, Thread owner)
+      throws InterruptedException
+   {
+      ThreadMXBean bean = ManagementFactory.getThreadMXBean();
+      long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(TIMEOUT_SECONDS);
+
+      while(latch.getCount() > 0) {
+         ThreadInfo info = bean.getThreadInfo(thread.getId());
+
+         if(info != null && info.getLockOwnerId() == owner.getId()) {
+            return;
+         }
+
+         assertTrue(thread.isAlive(), thread.getName() + " ended before its step");
+         assertTrue(System.nanoTime() < deadline,
+                    thread.getName() + " neither passed its step nor waited on " +
                     owner.getName());
          latch.await(10, TimeUnit.MILLISECONDS);
       }

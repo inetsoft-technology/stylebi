@@ -123,6 +123,23 @@ public class LogicalModelService {
     *
     * @throws SecurityException if the user does not have the required permission.
     */
+   public void checkModelPermission(String database, XLogicalModel model,
+                                    ResourceAction action, Principal principal)
+      throws SecurityException
+   {
+      validatePermission(database, model, action, principal);
+   }
+
+   /**
+    * Checks if a user has the specified permission on a logical model.
+    *
+    * @param database      the name of the parent data source.
+    * @param model         the target logical model.
+    * @param action        the action to check the permission of.
+    * @param principal     the principal that identifies the remote user.
+    *
+    * @throws SecurityException if the user does not have the required permission.
+    */
    private void validatePermission(String database, XLogicalModel model,
                                    ResourceAction action, Principal principal)
       throws SecurityException
@@ -233,7 +250,8 @@ public class LogicalModelService {
       String path = isExtended ? dataSource + "/" + parent + "/" + model.getName() :
          dataSource + "/" + model.getName();
 
-      validateModelParameters(dataSource, physicalModel, model, principal, dataModel, path);
+      validateModelParameters(dataSource, physicalModel, model, parent, principal, dataModel,
+         path);
 
       if(isExtended) {
          XLogicalModel pLogicalModel = dataModel.getLogicalModel(parent);
@@ -285,7 +303,8 @@ public class LogicalModelService {
          throw new FileNotFoundException(dataSource + "/" + parent);
       }
 
-      validateModelParameters(dataSource, physicalModel, model, principal, dataModel, path);
+      validateModelParameters(dataSource, physicalModel, model, parent, principal, dataModel,
+         path);
 
       XLogicalModel pLogicalModel = dataModel.getLogicalModel(parent);
 
@@ -322,10 +341,29 @@ public class LogicalModelService {
                                              Principal principal)
       throws Exception
    {
-      getLogicalModel(
+      XLogicalModel storedModel = getLogicalModel(
          dataSource, model.getPartition(), parent, name, principal, ResourceAction.WRITE);
       XDataModel dataModel = getDataModel(dataSource);
       boolean isExtended = !StringUtils.isEmpty(parent);
+
+      // the write below replaces the model named in the definition, so it must be the model the
+      // WRITE check was made on (renaming has its own endpoint)
+      if(!Tool.equals(name, model.getName())) {
+         throw new SecurityException(String.format(
+            "Logical model \"%s\" cannot be saved as \"%s\" by %s",
+            dataSource + "/" + name, model.getName(), principal));
+      }
+
+      // saving with a different folder moves the model, which needs DELETE on the model and
+      // WRITE in the target folder, as moving it in the data model browser does
+      String targetFolder = Tool.isEmptyString(model.getFolder()) ? null : model.getFolder();
+      String storedFolder = storedModel.getFolder();
+
+      if(!isExtended && !Tool.equals(storedFolder, targetFolder)) {
+         validatePermission(dataSource, storedModel, ResourceAction.DELETE, principal);
+         validatePermission(dataSource, targetFolder, null, model.getName(),
+            model.getConnection(), ResourceAction.WRITE, principal);
+      }
       String path = isExtended ? dataSource + "/" + parent + "/" + name :
          dataSource + "/" + name;
       AssetEntry entry = getModelEntry(path, isExtended);
@@ -368,6 +406,11 @@ public class LogicalModelService {
       }
 
       renameDependencies(dataSource, name, model);
+
+      if(!isExtended) {
+         // the permission is stored under the folder of the model, so it moves with the model
+         renameModelPermission(dataSource, storedFolder, name, targetFolder, name);
+      }
 
       return model;
    }
@@ -529,6 +572,10 @@ public class LogicalModelService {
       logicalModel.setLastModified(System.currentTimeMillis());
       dataModel.renameLogicalModel(oldName, newName, description);
       repository.updateDataModel(dataModel);
+      // the registry only moves the permission of a model in the root folder, so move it here
+      // using the stored folder of the model, which is the form the permission is saved in
+      String modelFolder = logicalModel.getFolder();
+      renameModelPermission(dataSource, modelFolder, oldName, modelFolder, newName);
 
       path = dataSource + "/" + newName;
       entry = new AssetEntry(AssetRepository.QUERY_SCOPE,
@@ -598,8 +645,30 @@ public class LogicalModelService {
       repository.updateDataModel(dataModel);
 
       if(!isExtended) {
-         String resource = name + "::" + dataSource + (folder == null ? "" : "/" + folder);
+         // use the stored folder of the model, which is the form the permission is saved in
+         String resource = XUtil.getLogicalModelResourceName(dataSource, model.getFolder(), name);
          securityEngine.removePermission(ResourceType.QUERY, resource);
+      }
+   }
+
+   /**
+    * Moves the QUERY permission of a base logical model when its name or folder changes.
+    */
+   private void renameModelPermission(String dataSource, String oldFolder, String oldName,
+                                      String newFolder, String newName)
+   {
+      String oldResource = XUtil.getLogicalModelResourceName(dataSource, oldFolder, oldName);
+      String newResource = XUtil.getLogicalModelResourceName(dataSource, newFolder, newName);
+
+      if(oldResource.equals(newResource)) {
+         return;
+      }
+
+      Permission permission = securityEngine.getPermission(ResourceType.QUERY, oldResource);
+
+      if(permission != null) {
+         securityEngine.setPermission(ResourceType.QUERY, newResource, permission);
+         securityEngine.removePermission(ResourceType.QUERY, oldResource);
       }
    }
 
@@ -919,34 +988,47 @@ public class LogicalModelService {
       return logicalModel;
    }
 
+   /**
+    * Checks a new logical model before it is created. The model is written under the base
+    * model named by {@code parent} (the parameter the create uses, not the definition's
+    * parent), so an extended model needs WRITE in the base model's folder, as the Data tab
+    * requires, not in the folder named in the definition.
+    */
    private void validateModelParameters(String dataSource, String physicalModel,
-                                        LogicalModelDefinition model, Principal principal,
-                                        XDataModel dataModel, String path) throws Exception
+                                        LogicalModelDefinition model, String parent,
+                                        Principal principal, XDataModel dataModel, String path)
+      throws Exception
    {
-      validatePermission(dataSource, model, ResourceAction.WRITE, principal);
+      if(StringUtils.isEmpty(parent)) {
+         validatePermission(dataSource, model, ResourceAction.WRITE, principal);
+      }
+      else {
+         XLogicalModel baseModel = dataModel.getLogicalModel(parent);
+         validatePermission(dataSource, baseModel == null ? null : baseModel.getFolder(), parent,
+            model.getName(), model.getConnection(), ResourceAction.WRITE, principal);
+      }
 
       if(dataModel.getPartition(physicalModel) == null) {
          throw new FileNotFoundException(dataSource + "/" + physicalModel);
       }
 
-      if(StringUtils.isEmpty(model.getParent())) {
+      if(StringUtils.isEmpty(parent)) {
          if(dataModel.getLogicalModel(model.getName()) != null) {
             throw new FileExistsException(path);
          }
       }
       else {
-         XLogicalModel pLogicalModel = dataModel.getLogicalModel(model.getParent());
+         XLogicalModel pLogicalModel = dataModel.getLogicalModel(parent);
 
          if(pLogicalModel == null || pLogicalModel.getPartition() != null &&
             !pLogicalModel.getPartition().equals(physicalModel))
          {
-            throw new FileNotFoundException(dataSource + "/" + physicalModel + "/" +
-               model.getParent());
+            throw new FileNotFoundException(dataSource + "/" + physicalModel + "/" + parent);
          }
 
          if(pLogicalModel.getLogicalModel(model.getName()) != null) {
             throw new FileExistsException(dataSource + "/" + physicalModel + "/" +
-               model.getParent() + "/" + model.getName());
+               parent + "/" + model.getName());
          }
       }
    }

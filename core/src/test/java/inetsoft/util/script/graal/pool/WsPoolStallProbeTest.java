@@ -101,7 +101,8 @@ class WsPoolStallProbeTest {
    @Test
    void findingsReachTheWatchdog(@TempDir File dumpDir) {
       AtomicLong now = new AtomicLong();
-      StallPolicy policy = new StallPolicy(StallPolicy.Mode.ALERT, 1000, 500, dumpDir);
+      StallPolicy policy = new StallPolicy(StallPolicy.Mode.ALERT, 1000, 500, dumpDir,
+                                           StallPolicy.DEFAULT_MAX_DUMPS, false);
       StallDumper dumper = new StallDumper(now::get, () -> dumpDir, 60000);
       StallWatchdog watchdog = new StallWatchdog(
          new WaitRegistry(now::get, () -> policy, dumper), () -> null);

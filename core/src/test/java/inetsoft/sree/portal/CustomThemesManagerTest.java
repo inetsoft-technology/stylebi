@@ -265,7 +265,7 @@ class CustomThemesManagerTest {
       doAnswer(invocation -> {
          heldOnRead[0] = themesLock.isHeldByCurrentThread();
          return new HashSet<>(Set.of(existing));
-      }).when(manager).getCustomThemes();
+      }).when(manager).getCustomThemesForUpdate();
       doAnswer(invocation -> {
          heldOnWrite[0] = themesLock.isHeldByCurrentThread();
          return null;
@@ -282,6 +282,52 @@ class CustomThemesManagerTest {
       assertFalse(themesLock.isLocked(), "the lock must be released");
       Set<CustomTheme> saved = captureSetCustomThemes(manager);
       assertEquals(Set.of("existing", "added"), ids(saved));
+   }
+
+   // Bug #77222: when the current themes cannot be read reliably, the update is not applied
+   // and the store is not written, so a failed read can never wipe every theme
+   @Test
+   void updateCustomThemes_unreliableRead_doesNotWriteAndReleasesLock() {
+      CustomThemesManager manager = managerWithThemes(theme("existing", null));
+      doThrow(new IllegalStateException("closed"))
+         .when(manager).getCustomThemesForUpdate();
+      boolean[] applied = new boolean[1];
+
+      assertThrows(IllegalStateException.class, () -> manager.updateCustomThemes(themes -> {
+         applied[0] = true;
+         return new HashSet<>();
+      }));
+
+      assertFalse(applied[0], "the update must not be applied to an unreliable read");
+      verify(manager, never()).setCustomThemes(any());
+      assertFalse(themesLock.isLocked(), "the lock must be released");
+   }
+
+   // Bug #77222: renameThemeJar() runs after a data space rename that is already done, so an
+   // unreliable theme read is logged rather than thrown, and nothing is written
+   @Test
+   void renameThemeJar_unreliableRead_doesNotThrowOrWrite() {
+      CustomThemesManager manager = managerWithThemes(theme("t1", "portal/theme/t1.jar"));
+      doThrow(new IllegalStateException("closed"))
+         .when(manager).getCustomThemesForUpdate();
+
+      assertDoesNotThrow(() -> manager.renameThemeJar("portal/theme", "portal/newtheme"));
+
+      verify(manager, never()).setCustomThemes(any());
+   }
+
+   // Bug #77222: reloadThemes() runs after a data space delete that is already done, so an
+   // unreliable theme read is logged rather than thrown, and nothing is written or deselected
+   @Test
+   void reloadThemes_unreliableRead_doesNotThrowOrWrite() {
+      CustomThemesManager manager = managerWithThemes(theme("t1", "portal/theme/t1.jar"));
+      doThrow(new IllegalStateException("closed"))
+         .when(manager).getCustomThemesForUpdate();
+
+      assertDoesNotThrow(() -> manager.reloadThemes("portal/theme/t1.jar"));
+
+      verify(manager, never()).setCustomThemes(any());
+      verify(manager, never()).removeSelectedTheme(any());
    }
 
    // the update gets a copy, so changing it does not change the set returned by the store
@@ -368,6 +414,7 @@ class CustomThemesManagerTest {
       lenient().doReturn(themesLock).when(manager).getThemesLock();
       Set<CustomTheme> themeSet = new HashSet<>(Arrays.asList(themes));
       lenient().doReturn(themeSet).when(manager).getCustomThemes();
+      lenient().doReturn(themeSet).when(manager).getCustomThemesForUpdate();
       lenient().doNothing().when(manager).setCustomThemes(any());
       lenient().doNothing().when(manager).removeSelectedTheme(any());
       return manager;

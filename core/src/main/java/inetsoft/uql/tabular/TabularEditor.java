@@ -31,6 +31,7 @@ import org.w3c.dom.NodeList;
 import java.io.*;
 import java.lang.reflect.Array;
 import java.util.*;
+import java.util.stream.Stream;
 
 /**
  * Describes the layout information for the editor in TabularView
@@ -787,21 +788,30 @@ public class TabularEditor implements XMLSerializable {
 
       if(type == Type.LIST) {
          NodeList valueNodes = Tool.getChildNodesByTagName(node, "value");
-         Class collectionClass = Class.forName(propertyType);
-         Class elementClass = Class.forName(propertySubtype);
+         // only the known list types are created, never a class named in the XML. Array
+         // elements take the component type of the list type and collection elements are
+         // parsed by the subtype editor, so the property subtype is not needed here
+         Class<?> listClass = propertyType == null ? null : LIST_TYPES.get(propertyType);
 
-         if(collectionClass.isArray()) {
-            value = Array.newInstance(elementClass,
-               valueNodes.getLength());
+         if(listClass == null) {
+            LOG.warn("Unsupported list property type: {}", propertyType);
+            return null;
+         }
+
+         if(listClass.isArray()) {
+            value = Array.newInstance(listClass.getComponentType(), valueNodes.getLength());
+         }
+         else if(Set.class.isAssignableFrom(listClass)) {
+            value = new HashSet<>();
          }
          else {
-            value = collectionClass.newInstance();
+            value = new ArrayList<>();
          }
 
          for(int i = 0; i < valueNodes.getLength(); i++) {
             Element valueNode = (Element) valueNodes.item(i);
 
-            if(collectionClass.isArray()) {
+            if(listClass.isArray()) {
                Array.set(value, i, parseValue(valueNode, subtype));
             }
             else {
@@ -918,6 +928,32 @@ public class TabularEditor implements XMLSerializable {
    private boolean visible = true;
    private boolean autocomplete;
    private boolean autoSize;
+
+   private static Map<String, Class<?>> createTypeMap(Class<?>... types) {
+      Map<String, Class<?>> map = new HashMap<>();
+
+      for(Class<?> type : types) {
+         map.put(type.getName(), type);
+      }
+
+      return Collections.unmodifiableMap(map);
+   }
+
+   private static final Class<?>[] VALUE_CLASSES = {
+      String.class, Boolean.class, Character.class, Byte.class, Short.class,
+      Integer.class, Long.class, Float.class, Double.class,
+      java.math.BigInteger.class, java.math.BigDecimal.class, Date.class,
+      java.sql.Date.class, java.sql.Time.class, java.sql.Timestamp.class, File.class,
+      ColumnDefinition.class, QueryParameter.class, HttpParameter.class,
+      RestParameters.class, GooglePicker.class
+   };
+   private static final Map<String, Class<?>> VALUE_TYPES = createTypeMap(VALUE_CLASSES);
+   // arrays of the value types, and the collection types a list property may declare
+   private static final Map<String, Class<?>> LIST_TYPES = createTypeMap(
+      Stream.concat(
+         Arrays.stream(VALUE_CLASSES).map(Class::arrayType),
+         Stream.of(Collection.class, List.class, ArrayList.class, Set.class, HashSet.class))
+      .toArray(Class<?>[]::new));
 
    private static final Logger LOG =
       LoggerFactory.getLogger(TabularEditor.class);
@@ -1081,8 +1117,8 @@ public class TabularEditor implements XMLSerializable {
 
             if(editor.getType() == Type.LIST) {
                try {
-                  Class collectionClass = getClass(editor.getPropertyType());
-                  Class elementClass = getClass(editor.getPropertySubtype());
+                  Class collectionClass = getListClass(editor.getPropertyType());
+                  Class elementClass = getValueClass(editor.getPropertySubtype());
 
                   if(collectionClass.isArray()) {
                      value = parser.getCodec()
@@ -1101,7 +1137,7 @@ public class TabularEditor implements XMLSerializable {
                }
             }
             else {
-               Class cls = getClass(editor.getPropertyType());
+               Class cls = getClass(editor.getType(), editor.getPropertyType());
 
                if(editor.getType() == Type.DATE) {
                   value = Tool.getData(cls, child.textValue());
@@ -1118,14 +1154,49 @@ public class TabularEditor implements XMLSerializable {
          return editor;
       }
 
-      private Class<?> getClass(String name) {
-         try {
-            return Class.forName(name);
-         }
-         catch(ClassNotFoundException e) {
+      /**
+       * Gets the class of a non-list value. The editor type determines the class where it
+       * maps to a single type, otherwise the property type must be one of the known value
+       * types. The class name comes from the request, so it is never loaded.
+       */
+      private static Class<?> getClass(Type type, String name) {
+         if(type == null) {
+            return getValueClass(name);
          }
 
-         return String.class;
+         return switch(type) {
+            case BOOLEAN -> Boolean.class;
+            case INT -> Integer.class;
+            case LONG -> Long.class;
+            case SHORT -> Short.class;
+            case BYTE -> Byte.class;
+            case FLOAT -> Float.class;
+            case FILE -> File.class;
+            case COLUMN -> ColumnDefinition[].class;
+            case PARAMETER -> QueryParameter.class;
+            case HTTP_PARAMETER -> HttpParameter.class;
+            case REST_PARAMETERS -> RestParameters.class;
+            case GOOGLE_PICKER -> GooglePicker.class;
+            default -> getValueClass(name);
+         };
+      }
+
+      /**
+       * Gets the array or collection class of a list value, or String for any other name.
+       */
+      private static Class<?> getListClass(String name) {
+         Class<?> cls = name == null ? null : LIST_TYPES.get(name);
+         return cls == null ? String.class : cls;
+      }
+
+      /**
+       * Gets the value class for the name if it is a known value type, or String for any
+       * other name. Other property types, such as the enums defined in connector plugins,
+       * are passed as strings and converted when the value is set on the bean.
+       */
+      private static Class<?> getValueClass(String name) {
+         Class<?> cls = name == null ? null : VALUE_TYPES.get(name);
+         return cls == null ? String.class : cls;
       }
    }
 }

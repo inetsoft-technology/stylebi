@@ -24,6 +24,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.Properties;
@@ -44,14 +45,27 @@ public class MergedTable {
 
       tables = new XTable[0];
       file = FileSystemService.getInstance().getCacheTempFile("mergedTable", "dat");
-      Properties prop = new Properties();
-      prop.setProperty(BTreeFile.CONFIG_PAGESIZE, "256");
-      prop.setProperty(BTreeFile.CONFIG_DIRTYSIZE_MAX, "131072");
-      btree = new BTreeFile(file, prop);
-      btree.setCached(true);
 
-      if(!btree.open(true)) {
-         throw new Exception("Can not open file: " + file);
+      // getCacheTempFile() logs an I/O error and returns null (bug #77524)
+      if(file == null) {
+         throw new IOException("Cannot create the cache temp file of a merged table");
+      }
+
+      try {
+         Properties prop = new Properties();
+         prop.setProperty(BTreeFile.CONFIG_PAGESIZE, "256");
+         prop.setProperty(BTreeFile.CONFIG_DIRTYSIZE_MAX, "131072");
+         btree = new BTreeFile(file, prop);
+         btree.setCached(true);
+
+         if(!btree.open(true)) {
+            throw new IOException("Can not open file: " + file);
+         }
+      }
+      catch(Exception ex) {
+         // remove the temp file now, don't leave it to the finalizer (bug #77524)
+         dispose();
+         throw ex;
       }
    }
 
@@ -180,24 +194,34 @@ public class MergedTable {
          return;
       }
 
-      btree.accept(new BTreeFile.Visitor() {
-         @Override
-         public void visit(BTreeFile.Key key) throws Exception {
-            BTreeFile.Value value;
+      // check inside the btree monitor that dispose() closes the btree with, so a queued
+      // worker never reopens (re-creates) the file of a closed btree (bug #77397)
+      synchronized(btree) {
+         if(disposed) {
+            return;
+         }
 
-            synchronized(MergedTable.this) {
-               if(disposed) {
-                  return;
+         btree.accept(new BTreeFile.Visitor() {
+            @Override
+            public void visit(BTreeFile.Key key) throws Exception {
+               BTreeFile.Value value;
+
+               synchronized(MergedTable.this) {
+                  if(disposed) {
+                     // unwind the traversal, it releases the btree monitor that dispose()
+                     // waits for (bug #77397)
+                     throw new InterruptedException("merged table disposed");
+                  }
+
+                  value = btree.getRecord(key);
                }
 
-               value = btree.getRecord(key);
+               for(MergedRow rvalue : parseValue(value)) {
+                  visitor.visit(rvalue);
+               }
             }
-
-            for(MergedRow rvalue : parseValue(value)) {
-               visitor.visit(rvalue);
-            }
-         }
-      });
+         });
+      }
    }
    
    private MergedRow[] parseValue(BTreeFile.Value value) {
@@ -240,23 +264,29 @@ public class MergedTable {
    /**
     * Dispose the merged table.
     */
-   public final synchronized void dispose() {
-      if(disposed) {
-         return;
+   public final void dispose() {
+      // never close the btree while holding this monitor: a visitor holds the btree monitor
+      // for the whole traversal and takes this one per key (bug #77397)
+      synchronized(this) {
+         if(disposed) {
+            return;
+         }
+
+         disposed = true;
       }
 
-      disposed = true;
-
-      try {
-         btree.close();
+      // a constructor that failed leaves no btree or no file, and the instance is still
+      // finalized (bug #77524)
+      if(btree != null) {
+         try {
+            btree.close();
+         }
+         catch(Exception ex) {
+            LOG.error("Failed to close B-tree", ex);
+         }
       }
-      catch(Exception ex) {
-         LOG.error("Failed to close B-tree", ex);
-      }
 
-      boolean removed = file.delete();
-
-      if(!removed) {
+      if(file != null && !file.delete()) {
          FileSystemService.getInstance().remove(file, 60000);
       }
    }
@@ -282,7 +312,7 @@ public class MergedTable {
 
    private File file;
    private BTreeFile btree;
-   private boolean disposed;
+   private volatile boolean disposed;
    private XTable[] tables;
 
    private static final Logger LOG =

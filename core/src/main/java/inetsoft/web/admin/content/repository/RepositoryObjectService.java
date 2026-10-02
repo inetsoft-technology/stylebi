@@ -98,6 +98,10 @@ public class RepositoryObjectService {
       ArrayList<TreeNodeInfo> autoSaveNodes = new ArrayList<>();
 
       for(TreeNodeInfo node : nodes) {
+         // checked for every node type before anything is deleted, so a batch that mixes an
+         // own-org node with a node owned by another organization is refused as a whole
+         RepositoryOwnerOrgCheck.checkOwnerOrg(node.owner(), principal);
+
          if(node.type() == RepositoryEntry.TRASHCAN) {
             trashNodes.add(node);
          }
@@ -443,7 +447,7 @@ public class RepositoryObjectService {
 
                break;
             case RepositoryEntry.DASHBOARD:
-               this.repositoryDashboardService.delete(node.path(), node.owner());
+               this.repositoryDashboardService.delete(node.path(), node.owner(), principal);
                break;
             case RepositoryEntry.DATA_MODEL | RepositoryEntry.FOLDER:
                deleteDataModelFolder(node, principal);
@@ -584,8 +588,17 @@ public class RepositoryObjectService {
          return status;
       }
 
+      // read the folder before the model is removed, it is part of the permission resource
+      XLogicalModel logicalModel = dataModel.getLogicalModel(name);
+      String folder = logicalModel == null ? null : logicalModel.getFolder();
       dataModel.removeLogicalModel(name);
       removeDataModelDependencies(path, AssetEntry.Type.LOGIC_MODEL, true);
+
+      if(logicalModel != null) {
+         securityProvider.removePermission(ResourceType.QUERY,
+            XUtil.getLogicalModelResourceName(dataModel.getDataSource(), folder, name));
+      }
+
       return null;
    }
 
@@ -627,6 +640,7 @@ public class RepositoryObjectService {
                          Principal principal)
       throws Exception
    {
+      RepositoryOwnerOrgCheck.checkOwnerOrg(parentInfo.getOwner(), principal);
       ActionRecord actionRecord = null;
 
       try {
@@ -869,6 +883,13 @@ public class RepositoryObjectService {
       }).toArray(String[]::new);
 
       IdentityID[] userFroms = source.stream().map(ContentRepositoryTreeNode::owner).toArray(IdentityID[]::new);
+      // the destination and every source owner select a per-owner registry
+      RepositoryOwnerOrgCheck.checkOwnerOrg(userTo, principal);
+
+      for(IdentityID userFrom : userFroms) {
+         RepositoryOwnerOrgCheck.checkOwnerOrg(userFrom, principal);
+      }
+
       String[] typeFroms = source.stream().map(ContentRepositoryTreeNode::type)
          .map(String::valueOf).toArray(String[]::new);
 

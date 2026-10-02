@@ -785,14 +785,14 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly {
             ReentrantLock lock = SnapshotEmbeddedTableDataCache.getInstance().getLock(cacheKey);
             lock.lock();
 
-            cacheTable = SnapshotEmbeddedTableDataCache.getInstance().get(cacheKey);
-
-            if(cacheTable != null) {
-               stable = cacheTable;
-               return;
-            }
-
             try {
+               cacheTable = SnapshotEmbeddedTableDataCache.getInstance().get(cacheKey);
+
+               if(cacheTable != null) {
+                  stable = cacheTable;
+                  return;
+               }
+
                String[] paths = new String[dataPaths.length];
                Map<String, String> absolutePathsLoadVersion = new HashMap<>();
                List<File> tempFiles = new ArrayList<>();
@@ -873,7 +873,7 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly {
                XTableFragment[] tables = new XTableFragment[paths.length];
 
                for(int i = 0; i < creators.length; i++) {
-                  Class<?> clazz = Class.forName(creators[i]);
+                  Class<?> clazz = Tool.loadSubclass(creators[i], XTableColumn.class);
                   Method method = clazz.getMethod("getCreator");
                   xcreators[i] = (XTableColumnCreator) method.invoke(new Object[0]);
                }

@@ -317,6 +317,17 @@ public class TableSummaryFilter extends AbstractTableLens
 
          // reached end of table, calculate summary
          if(row == max && sum == null) {
+            // computed on copies of the formulas and published once filled: readers don't
+            // lock, and two first readers must not add the rows twice into the same formulas
+            // or read the summary before it is filled (bug #77365)
+            Formula[] calc = new Formula[this.calc.length];
+
+            for(int i = 0; i < calc.length; i++) {
+               if(this.calc[i] != null) {
+                  calc[i] = (Formula) this.calc[i].clone();
+               }
+            }
+
             FormulaAgent[] fagents = new FormulaAgent[table.getColCount()];
 
             for(int i = 0; i < fagents.length; i++) {
@@ -349,7 +360,7 @@ public class TableSummaryFilter extends AbstractTableLens
                }
             }
 
-            sum = new Object[calc.length];
+            Object[] sum = new Object[calc.length];
 
             if(label != null) {
                sum[0] = label;
@@ -368,6 +379,7 @@ public class TableSummaryFilter extends AbstractTableLens
             }
 
             srow = max;
+            this.sum = sum;
          }
 
          return more || super.moreRows(row);
@@ -647,12 +659,20 @@ public class TableSummaryFilter extends AbstractTableLens
          table.setObject(r, c, v);
       }
       else {
+         // read the summary once, invalidate() may clear it at any time. no summary (e.g. a
+         // row past the summary row before it is built) drops the value, as getObject()
+         // reads null there (bug #77397)
+         Object[] sum = this.sum;
+
          if(sum == null) {
             moreRows(r);
+            sum = this.sum;
          }
 
-         sum[c] = v;
-         fireChangeEvent();
+         if(sum != null) {
+            sum[c] = v;
+            fireChangeEvent();
+         }
       }
    }
 
@@ -1002,7 +1022,7 @@ public class TableSummaryFilter extends AbstractTableLens
 
    private TableLens table;
    private Formula[] calc;
-   private Object[] sum;
+   private volatile Object[] sum;
    private int srow;
    private String label;
    private boolean def;

@@ -148,16 +148,10 @@ public class PhysicalModelManagerService {
          return null;
       }
 
-      if(!dataSourceService.checkPermission(dataSource, model.getFolder(),
-         ResourceAction.WRITE, principal))
-      {
-         throw new SecurityException(
-            "Unauthorized access to resource \"" + dataSource + "\" by user " + principal);
-      }
-
       boolean isExtended = !StringUtils.isBlank(parent);
-      XPartition partition = physicalModelService.createPartition(model);
       XDataModel dataModel = getDataModel(dataSource);
+      checkCreatePermission(dataSource, dataModel, model.getFolder(), parent, principal);
+      XPartition partition = physicalModelService.createPartition(model);
       partition.setDataModel(dataModel);
 
       if(isExtended) {
@@ -216,11 +210,7 @@ public class PhysicalModelManagerService {
          path = dataSource + "/" + parent + "/" + model.getName();
       }
 
-      if(!dataSourceService.checkPermission(dataSource, folder, ResourceAction.WRITE, principal)) {
-         throw new SecurityException(
-            "Unauthorized access to resource \"" + dataSource + "\" by user " + principal);
-      }
-
+      checkCreatePermission(dataSource, dataModel, folder, parent, principal);
       DataSourceRegistry.IGNORE_GLOBAL_SHARE.set(true);
 
       try {
@@ -241,11 +231,10 @@ public class PhysicalModelManagerService {
          DataSourceRegistry.IGNORE_GLOBAL_SHARE.remove();
       }
 
-      getRuntimePartition(model.getId()).ifPresent(
-         p -> {
-            createAndSaveModel(dataModel, p, path, parent, isExtended, principal);
-            runtimePartitionService.saveRuntimePartition(p);
-         });
+      RuntimePartitionService.RuntimeXPartition p = getRuntimeToSave(
+         dataSource, model.getId(), model.getName(), folder, !isExtended, principal);
+      createAndSaveModel(dataModel, p, path, parent, isExtended, principal);
+      runtimePartitionService.saveRuntimePartition(p);
    }
 
    private void createAndSaveModel(XDataModel dataModel,
@@ -321,6 +310,7 @@ public class PhysicalModelManagerService {
    {
       XDataModel dataModel = getDataModel(dsName);
       boolean isExtended = !StringUtils.isBlank(parent);
+      XPartition storedPartition;
 
       if(isExtended) {
          XPartition parentPartition = dataModel.getPartition(parent);
@@ -332,18 +322,29 @@ public class PhysicalModelManagerService {
          if(parentPartition.getPartition(name) == null) {
             throw new FileNotFoundException(dsName + "/" + parent + "/" + name);
          }
+
+         storedPartition = parentPartition;
       }
       else {
-         if(dataModel.getPartition(name) == null) {
+         storedPartition = dataModel.getPartition(name);
+
+         if(storedPartition == null) {
             throw new FileNotFoundException(dsName + "/" + name);
          }
       }
 
-      if(!dataSourceService.checkPermission(dsName, folder, ResourceAction.WRITE, principal)) {
+      // check the folder the view is stored in, not the one named in the request
+      checkWritePermission(dsName, storedPartition, principal);
+
+      // the model written below is identified by the definition, so it must be the checked one
+      if(model == null || !Tool.equals(name, model.getName())) {
          throw new SecurityException(
-            "Unauthorized access to resource \"" + dsName + "\" by user " +
-               principal);
+            "Physical view \"" + dsName + "/" + name + "\" cannot be saved as \"" +
+               (model == null ? null : model.getName()) + "\" by user " + principal);
       }
+
+      RuntimePartitionService.RuntimeXPartition p = getRuntimeToSave(
+         dsName, model.getId(), name, storedPartition.getFolder(), !isExtended, principal);
 
       for(PhysicalTableModel table: model.getTables()) {
          if(!Tool.equals(table.getOldAlias(), table.getAlias())) {
@@ -364,10 +365,54 @@ public class PhysicalModelManagerService {
          AssetEntry.Type.PARTITION;
       AssetEntry entry = dataSourceService.getModelAssetEntry(
          new AssetEntry(AssetRepository.QUERY_SCOPE, entryType, path, null));
-      getRuntimePartition(model.getId()).ifPresent(p -> {
-         updateAndSaveModel(dataModel, p, parent, name, entry, isExtended);
-         runtimePartitionService.saveRuntimePartition(p);
-      });
+      updateAndSaveModel(dataModel, p, parent, name, entry, isExtended);
+      runtimePartitionService.saveRuntimePartition(p);
+   }
+
+   /**
+    * Gets the runtime whose partition a save writes, and checks that it is the view the save
+    * was permission-checked for. The partition is stored under its own name and folder, which
+    * come from whoever created the runtime, not from the save request.
+    *
+    * @param dataSource    the name of the parent data source.
+    * @param runtimeId     the runtime identifier from the definition.
+    * @param name          the view name the save checked.
+    * @param checkedFolder the folder the save checked WRITE on ({@code null} for the root).
+    * @param checkFolder   {@code false} for an extended view: it is written under its base
+    *                      view whatever its own folder is, and the caller has already checked
+    *                      WRITE on the stored base view's folder.
+    * @param principal     a principal that identifies the remote user.
+    */
+   private RuntimePartitionService.RuntimeXPartition getRuntimeToSave(
+      String dataSource, String runtimeId, String name, String checkedFolder,
+      boolean checkFolder, Principal principal)
+      throws Exception
+   {
+      RuntimePartitionService.RuntimeXPartition runtime =
+         getRuntimePartition(runtimeId).orElse(null);
+
+      if(runtime == null || runtime.getPartition() == null) {
+         throw new FileNotFoundException(
+            "The physical view runtime \"" + runtimeId + "\" does not exist");
+      }
+
+      RuntimePartitionService.checkDataSource(runtime, dataSource);
+      XPartition partition = runtime.getPartition();
+
+      if(!Tool.equals(name, partition.getName())) {
+         throw new SecurityException(
+            "Physical view \"" + dataSource + "/" + name + "\" cannot be saved from a runtime of \"" +
+               partition.getName() + "\" by user " + principal);
+      }
+
+      // a runtime in another folder moves the view there, which needs WRITE on that folder
+      String folder = Tool.isEmptyString(checkedFolder) ? null : checkedFolder;
+
+      if(checkFolder && !Tool.equals(folder, partition.getFolder())) {
+         checkWritePermission(dataSource, partition, principal);
+      }
+
+      return runtime;
    }
 
    private void renameAttribute(XLogicalModel logicalModel, PhysicalTableModel table) {
@@ -476,10 +521,12 @@ public class PhysicalModelManagerService {
          throw new FileNotFoundException(dataSource);
       }
 
-      if(!dataSourceService.checkPermission(dataSource, folder, ResourceAction.WRITE, principal)) {
-         throw new SecurityException(
-            "Unauthorized access to resource \"" + dataSource + "\" by user " +
-               principal);
+      // check the folder the view is stored in, not the one named in the request
+      XPartition storedPartition = dataModel.getPartition(oldName);
+      checkWritePermission(dataSource, storedPartition, principal);
+
+      if(storedPartition != null) {
+         folder = storedPartition.getFolder();
       }
 
       if(dataModel.getPartition(newName) != null) {
@@ -557,13 +604,12 @@ public class PhysicalModelManagerService {
          throw new FileNotFoundException(dataSource);
       }
 
-      if(!dataSourceService.checkPermission(dataSource, folder, ResourceAction.WRITE, principal)) {
-         throw new SecurityException(
-            "Unauthorized access to resource \"" + dataSource + "\" by user " +
-               principal);
-      }
-
       boolean isExtended = !StringUtils.isBlank(parent);
+
+      // check the folder the view (or its base view) is stored in, not the one in the request
+      checkWritePermission(
+         dataSource, dataModel.getPartition(isExtended ? parent : name), principal);
+
       XPartition partition;
       XPartition basePartition = null;
 
@@ -771,6 +817,8 @@ public class PhysicalModelManagerService {
          autoAlias.removeIncomingJoin(qualifiedName);
       }
 
+      rp.forgetRemovedIncomingJoins(qualifiedName);
+      rp.forgetRemovedIncomingJoins(tableName);
       runtimePartitionService.saveRuntimePartition(rp);
    }
 
@@ -1026,9 +1074,16 @@ public class PhysicalModelManagerService {
     */
    public void updateAutoAliasing(String runtimeId, PhysicalTableModel table) {
       if(table != null) {
-         getPartition(runtimeId).ifPresent(p -> {
-            physicalModelService.addRemoveAutoAlias(p, table);
-            runtimePartitionService.updatePartition(runtimeId, p);
+         getRuntimePartition(runtimeId).ifPresent(rp -> {
+            physicalModelService.addRemoveAutoAlias(rp.getPartition(), table);
+            // the user set the auto-aliases of the table explicitly, don't restore old ones
+            rp.forgetRemovedIncomingJoins(table.getQualifiedName());
+
+            if(table.getAlias() != null) {
+               rp.forgetRemovedIncomingJoins(table.getAlias());
+            }
+
+            runtimePartitionService.saveRuntimePartition(rp);
          });
       }
    }
@@ -1048,6 +1103,8 @@ public class PhysicalModelManagerService {
       throws Exception
    {
       String additional = model.getConnection();
+      // reads metadata of, and may run inline-view SQL on, the named source
+      dataSourceService.checkDataModelEditPermission(dataSource, additional, principal);
       JDBCDataSource jdbc = (JDBCDataSource) dataSourceService.getDataSource(dataSource, additional);
       XDataModel dataModel = getDataModel(dataSource);
       AutoJoinColumnsModel result = new AutoJoinColumnsModel();
@@ -1172,7 +1229,10 @@ public class PhysicalModelManagerService {
    public void addAutoJoin(String runtimeId, JoinModel join, String tableName, Principal principal)
    {
       getRuntimePartition(runtimeId).ifPresent(p -> {
+         boolean firstJoin =
+            p.getPartition().findRelationship(tableName, join.getForeignTable()) == null;
          addAutoJoin(p, join, tableName, principal);
+         restoreRemovedIncomingJoins(p, tableName, join.getForeignTable(), firstJoin);
          runtimePartitionService.saveRuntimePartition(p);
       });
    }
@@ -1284,9 +1344,12 @@ public class PhysicalModelManagerService {
     * @param tableName the name of the independent table.
     */
    public void addJoin(String runtimeId, JoinModel join, String tableName) {
-      getPartition(runtimeId).ifPresent(p -> {
-         addJoin(p, join, tableName);
-         runtimePartitionService.updatePartition(runtimeId, p);
+      getRuntimePartition(runtimeId).ifPresent(rp -> {
+         boolean firstJoin =
+            rp.getPartition().findRelationship(tableName, join.getForeignTable()) == null;
+         addJoin(rp.getPartition(), join, tableName);
+         restoreRemovedIncomingJoins(rp, tableName, join.getForeignTable(), firstJoin);
+         runtimePartitionService.saveRuntimePartition(rp);
       });
    }
 
@@ -1335,21 +1398,23 @@ public class PhysicalModelManagerService {
    public void removeJoin(String runtimeId, JoinModel join, String foreignTable,
                           String tableName)
    {
-      getPartition(runtimeId).ifPresent(p -> {
-         removeJoin(p, join, foreignTable, tableName);
-         runtimePartitionService.updatePartition(runtimeId, p);
+      getRuntimePartition(runtimeId).ifPresent(rp -> {
+         removeJoin(rp, join, foreignTable, tableName);
+         runtimePartitionService.saveRuntimePartition(rp);
       });
    }
 
-   private void removeJoin(XPartition partition, JoinModel join, String foreignTable,
-                           String tableName)
+   private void removeJoin(RuntimePartitionService.RuntimeXPartition rp, JoinModel join,
+                           String foreignTable, String tableName)
    {
+      XPartition partition = rp.getPartition();
+
       if(join != null) {
          XRelationship removeRelation = convertJoin(join, tableName);
 
          for(int i = 0; i < partition.getRelationshipCount(); i++) {
             if(removeRelation.equalContents(partition.getRelationship(i))) {
-               deleteJoin(partition, partition.getRelationship(i));
+               deleteJoinAndRememberAutoAliases(rp, partition.getRelationship(i));
 
                break;
             }
@@ -1372,7 +1437,161 @@ public class PhysicalModelManagerService {
    }
 
    public void deleteJoin(XPartition partition, XRelationship deleteJoin) {
-      if(partition.removeRelationship(deleteJoin)) {
+      deleteJoin(partition, deleteJoin, true);
+   }
+
+   /**
+    * Deletes a join and remembers the auto-alias incoming joins that are removed with it
+    * because it was the last join between its tables. Re-adding a join between the tables in
+    * the same editor session restores them, see
+    * {@link #restoreRemovedIncomingJoins(RuntimePartitionService.RuntimeXPartition, String, String, boolean)}.
+    */
+   private void deleteJoinAndRememberAutoAliases(RuntimePartitionService.RuntimeXPartition rp,
+                                                 XRelationship deleteJoin)
+   {
+      XPartition partition = rp.getPartition();
+      String table1 = deleteJoin.getDependentTable();
+      String table2 = deleteJoin.getIndependentTable();
+      List<RuntimePartitionService.RemovedIncomingJoin> removed = new ArrayList<>();
+      addOwnIncomingJoin(partition, table2, table1, removed);
+      addOwnIncomingJoin(partition, table1, table2, removed);
+
+      rp.forgetRemovedIncomingJoins(table1, table2);
+      deleteJoin(partition, deleteJoin);
+
+      if(partition.findRelationship(table1, table2) == null) {
+         removed.forEach(rp::rememberRemovedIncomingJoin);
+      }
+   }
+
+   /**
+    * Adds a copy of the incoming join from the source table to the auto-alias of the table, if
+    * the auto-alias is defined in this partition and not in the base partition.
+    */
+   private void addOwnIncomingJoin(XPartition partition, String table, String sourceTable,
+                                   List<RuntimePartitionService.RemovedIncomingJoin> joins)
+   {
+      AutoAlias autoAlias = partition.getAutoAlias(table);
+
+      if(autoAlias == null || !isOwnAutoAlias(partition, table, autoAlias)) {
+         return;
+      }
+
+      for(int i = 0; i < autoAlias.getIncomingJoinCount(); i++) {
+         AutoAlias.IncomingJoin join = autoAlias.getIncomingJoin(i);
+
+         if(Tool.equals(sourceTable, join.getSourceTable())) {
+            joins.add(new RuntimePartitionService.RemovedIncomingJoin(
+               table, i, (AutoAlias.IncomingJoin) join.clone()));
+            break;
+         }
+      }
+   }
+
+   /**
+    * Restores the auto-alias incoming joins that were removed with the last join between the
+    * two tables when a join between them is added again, and forgets them in any case.
+    *
+    * @param firstJoin {@code true} if the added join is the only one between the tables.
+    */
+   private void restoreRemovedIncomingJoins(RuntimePartitionService.RuntimeXPartition rp,
+                                            String table1, String table2, boolean firstJoin)
+   {
+      if(firstJoin) {
+         restoreRemovedIncomingJoin(rp, table2, table1);
+         restoreRemovedIncomingJoin(rp, table1, table2);
+      }
+
+      rp.forgetRemovedIncomingJoins(table1, table2);
+   }
+
+   private void restoreRemovedIncomingJoin(RuntimePartitionService.RuntimeXPartition rp,
+                                           String table, String sourceTable)
+   {
+      RuntimePartitionService.RemovedIncomingJoin removed =
+         rp.getRemovedIncomingJoin(table, sourceTable);
+      XPartition partition = rp.getPartition();
+
+      if(removed == null ||
+         !canRestoreIncomingJoin(partition, table, sourceTable, removed.getJoin().getAlias()))
+      {
+         return;
+      }
+
+      AutoAlias autoAlias = partition.getAutoAlias(table);
+
+      if(autoAlias == null) {
+         autoAlias = new AutoAlias();
+         partition.setAutoAlias(table, autoAlias);
+
+         // the table is defined in the base partition
+         if(partition.getAutoAlias(table) != autoAlias) {
+            return;
+         }
+      }
+      else if(!isOwnAutoAlias(partition, table, autoAlias) ||
+         hasIncomingJoin(autoAlias, sourceTable))
+      {
+         return;
+      }
+
+      List<AutoAlias.IncomingJoin> joins = new ArrayList<>();
+
+      for(int i = 0; i < autoAlias.getIncomingJoinCount(); i++) {
+         joins.add(autoAlias.getIncomingJoin(i));
+      }
+
+      // keep the original position so the alias nodes keep their layout
+      joins.add(Math.min(removed.getIndex(), joins.size()),
+                (AutoAlias.IncomingJoin) removed.getJoin().clone());
+      autoAlias.removeAllIncomingJoins();
+      joins.forEach(autoAlias::addIncomingJoin);
+      partition.setAutoAlias(table, autoAlias);
+   }
+
+   /**
+    * Checks that both tables are still in the partition and that the alias name is not used.
+    */
+   private static boolean canRestoreIncomingJoin(XPartition partition, String table,
+                                                 String sourceTable, String alias)
+   {
+      return alias != null && partition.containsTable(table) &&
+         partition.containsTable(sourceTable) && !partition.containsTable(alias, false) &&
+         !partition.isAlias(alias) && partition.getAllAutoAliasTable(alias) == null;
+   }
+
+   private static boolean isOwnAutoAlias(XPartition partition, String table,
+                                         AutoAlias autoAlias)
+   {
+      XPartition base = partition.getBasePartition();
+      return base == null || base.getAutoAlias(table) != autoAlias;
+   }
+
+   private static boolean hasIncomingJoin(AutoAlias autoAlias, String sourceTable) {
+      for(int i = 0; i < autoAlias.getIncomingJoinCount(); i++) {
+         if(Tool.equals(sourceTable, autoAlias.getIncomingJoin(i).getSourceTable())) {
+            return true;
+         }
+      }
+
+      return false;
+   }
+
+   /**
+    * Deletes a join.
+    *
+    * @param partition        the partition.
+    * @param deleteJoin       the join to delete.
+    * @param removeAutoAlias  {@code true} to remove the auto-alias incoming join when the
+    *                         deleted join was the last one between the two tables. The join
+    *                         edit pane passes {@code false} so that re-creating the join keeps
+    *                         the same auto-alias, and prunes the orphans on close instead, see
+    *                         {@link #removeOrphanAutoAliases(XPartition)}.
+    */
+   public void deleteJoin(XPartition partition, XRelationship deleteJoin,
+                          boolean removeAutoAlias)
+   {
+      if(partition.removeRelationship(deleteJoin) && removeAutoAlias) {
          // remove auto alias settings
          String sourceTable = deleteJoin.getDependentTable();
          String targetTable = deleteJoin.getIndependentTable();
@@ -1380,6 +1599,40 @@ public class PhysicalModelManagerService {
          if(partition.findRelationship(sourceTable, targetTable) == null) {
             removeAutoAlias(partition, sourceTable, targetTable);
             removeAutoAlias(partition, targetTable, sourceTable);
+         }
+      }
+   }
+
+   /**
+    * Removes the auto-alias incoming joins of this partition that no longer have a join
+    * between the incoming table and the aliased table. The relationships of the base partition
+    * are considered, and the auto-aliases defined in the base partition are left unchanged.
+    */
+   public void removeOrphanAutoAliases(XPartition partition) {
+      XPartition base = partition.getBasePartition();
+      Set<String> tables = new LinkedHashSet<>();
+
+      for(Enumeration<XPartition.PartitionTable> e = partition.getTables(); e.hasMoreElements();) {
+         tables.add(e.nextElement().getName());
+      }
+
+      for(String table : tables) {
+         AutoAlias autoAlias = partition.getAutoAlias(table);
+
+         if(autoAlias == null || base != null && base.getAutoAlias(table) == autoAlias) {
+            continue;
+         }
+
+         for(int i = autoAlias.getIncomingJoinCount() - 1; i >= 0; i--) {
+            String sourceTable = autoAlias.getIncomingJoin(i).getSourceTable();
+
+            if(sourceTable == null || partition.findRelationship(sourceTable, table) == null) {
+               autoAlias.removeIncomingJoin(i);
+            }
+         }
+
+         if(autoAlias.getIncomingJoinCount() < 1) {
+            partition.setAutoAlias(table, null);
          }
       }
    }
@@ -1465,6 +1718,52 @@ public class PhysicalModelManagerService {
    }
 
    /**
+    * Checks the permission to create a physical view. An extended view is written under its
+    * base view, so it needs WRITE on the stored base view's folder, as opening or removing it
+    * does, whatever folder the request names. Other views need WRITE on the folder they are
+    * created in.
+    *
+    * @param dataSource the name of the parent data source.
+    * @param dataModel  the data model of the data source.
+    * @param folder     the folder named in the request.
+    * @param parent     the name of the base view or {@code null} if none.
+    * @param principal  a principal that identifies the remote user.
+    */
+   private void checkCreatePermission(String dataSource, XDataModel dataModel, String folder,
+                                      String parent, Principal principal)
+      throws Exception
+   {
+      if(!StringUtils.isBlank(parent)) {
+         checkWritePermission(dataSource, dataModel.getPartition(parent), principal);
+      }
+      else if(!dataSourceService.checkPermission(dataSource, folder, ResourceAction.WRITE,
+                                                 principal))
+      {
+         throw new SecurityException(
+            "Unauthorized access to resource \"" + dataSource + "\" by user " + principal);
+      }
+   }
+
+   /**
+    * Checks WRITE on the folder a stored physical view is in (the data source when it is at the
+    * root, or when the view does not exist), the same rule {@link #openModel} applies.
+    *
+    * @param dataSource the name of the parent data source.
+    * @param partition  the stored view, or its base view for an extended view.
+    * @param principal  a principal that identifies the remote user.
+    */
+   private void checkWritePermission(String dataSource, XPartition partition, Principal principal)
+      throws Exception
+   {
+      String folder = partition == null ? null : partition.getFolder();
+
+      if(!dataSourceService.checkPermission(dataSource, folder, ResourceAction.WRITE, principal)) {
+         throw new SecurityException("Unauthorized access to resource \"" + dataSource +
+            (folder == null ? "" : "/" + folder) + "\" by user " + principal);
+      }
+   }
+
+   /**
     * Load runtime columns for target partition table.
     * @param database         the database name.
     * @param partitionId      the partition runtime id in portal data model.
@@ -1487,6 +1786,8 @@ public class PhysicalModelManagerService {
                                         boolean preview)
       throws Exception
    {
+      RuntimePartitionService.checkDataSource(
+         runtimePartitionService.getRuntimePartition(partitionId), database);
       XPartition partition = this.runtimePartitionService.getPartition(partitionId);
 
       if(preview) {

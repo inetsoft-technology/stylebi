@@ -36,6 +36,8 @@ package inetsoft.sree.security;
  * [New login]               login on B after revoke on A                        → new principal has no Administrator
  * [Login in window]          B's listeners off, login on B right after revoke    → new principal has no Administrator
  * [Control: cache only]     B's caches invalidated locally                      → existing session and new login denied
+ * [Revoke: storage closed] B loaded roles(X) + other tearDown + A setUser(X)   → B.getRoles(X) drops Administrator (#77204)
+ * [tearDown]               other tearDown                                      → other's listeners removed (#77204)
  *
  * Event delivery from the storage to node B is asynchronous (LocalKeyValueStorage re-dispatches
  * on the ThreadPool), so the assertions poll with a bounded timeout.
@@ -234,6 +236,48 @@ class FileAuthenticationProviderClusterCacheTest {
       finally {
          listeners.forEach(KeyValueStorage::addListener);
       }
+   }
+
+   /**
+    * Another provider closing the shared storages (KeyValueStorageManager hands every consumer the
+    * same instance) detaches B's listeners, so B misses a revoke made before it re-opens them. The
+    * re-open must not keep serving the roles cached before it (Bug #77204).
+    */
+   @Test
+   void revokeWhileStorageClosedReachesLoginNode() {
+      IdentityID x = new IdentityID("u77204closed", ORG);
+      nodeA.addUser(user(x, new String[0], EVERYONE, ADMIN));
+      assertHasAdmin(nodeB.getRoles(x), "precondition: login on B loads Administrator");
+
+      FileAuthenticationProvider other = new FileAuthenticationProvider();
+      other.getUser(x);
+      other.tearDown();
+
+      nodeA.setUser(x, user(x, new String[0], EVERYONE));
+
+      assertArrayEquals(new IdentityID[] { EVERYONE }, nodeB.getUser(x).getRoles(),
+                        "B's storage replica must already hold the revoked roles");
+      assertEventuallyNoAdmin(nodeB, x);
+   }
+
+   @Test
+   @SuppressWarnings("unchecked")
+   void tearDownRemovesCacheListeners() {
+      FileAuthenticationProvider other = new FileAuthenticationProvider();
+      other.getUser(new IdentityID("admin", ORG));
+      Map<String, KeyValueStorage<?>> storages = new HashMap<>();
+
+      for(String type : new String[] { "user", "group", "role" }) {
+         storages.put(type, (KeyValueStorage<?>) ReflectionTestUtils.getField(other, type + "Storage"));
+      }
+
+      other.tearDown();
+
+      storages.forEach((type, storage) -> {
+         Set<?> registered = (Set<?>) ReflectionTestUtils.getField(storage, "listeners");
+         assertFalse(registered.contains(ReflectionTestUtils.getField(other, type + "CacheListener")),
+                     "tearDown must remove the " + type + " cache listener");
+      });
    }
 
    @SuppressWarnings("unchecked")

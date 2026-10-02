@@ -21,20 +21,27 @@ import inetsoft.sree.SreeEnv;
 import inetsoft.sree.schedule.ScheduleManager;
 import inetsoft.sree.security.*;
 import inetsoft.sree.web.dashboard.DashboardManager;
+import inetsoft.storage.KeyValueStorage;
 import inetsoft.test.*;
 import inetsoft.uql.util.DefaultIdentity;
 import inetsoft.uql.util.Identity;
+import inetsoft.util.MessageException;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.AdditionalAnswers;
 import org.slf4j.LoggerFactory;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.io.IOException;
+import java.lang.reflect.Field;
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -125,6 +132,34 @@ class IdentityServiceDeleteGlobalRoleTest {
       assertArrayEquals(new IdentityID[] { SAME_B }, provider.getUser(USER_B).getRoles());
       assertArrayEquals(new IdentityID[] { SAME_B }, provider.getRole(ROLE_B).getRoles());
       assertNotNull(provider.getRole(SAME_B));
+   }
+
+   // Bug #77354: a failed member update must be reported and must not delete the role while
+   // members still hold it
+   @Test
+   void deleteGlobalRole_memberUpdateFails_reportsErrorAndKeepsRole() throws Exception {
+      Method method = IdentityService.class.getDeclaredMethod(
+         "syncIdentity", EditableAuthenticationProvider.class, Identity.class, IdentityID.class);
+      method.setAccessible(true);
+      Field field = FileAuthenticationProvider.class.getDeclaredField("userStorage");
+      field.setAccessible(true);
+      KeyValueStorage real = (KeyValueStorage) field.get(provider);
+      KeyValueStorage failing = mock(KeyValueStorage.class, AdditionalAnswers.delegatesTo(real));
+      doReturn(CompletableFuture.failedFuture(new IOException("simulated write failure")))
+         .when(failing).put(anyString(), any());
+      field.set(provider, failing);
+      InvocationTargetException thrown;
+
+      try {
+         thrown = assertThrows(InvocationTargetException.class, () -> method.invoke(
+            service, provider, new DefaultIdentity(G_ROLE, Identity.ROLE), null));
+      }
+      finally {
+         field.set(provider, real);
+      }
+
+      assertInstanceOf(MessageException.class, thrown.getCause());
+      assertNotNull(provider.getRole(G_ROLE), "the role must not be deleted");
    }
 
    private static final IdentityID G_ROLE = new IdentityID("gRole", null);

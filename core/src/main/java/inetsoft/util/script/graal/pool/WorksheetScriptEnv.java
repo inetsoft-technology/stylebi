@@ -36,7 +36,8 @@ import java.util.concurrent.locks.Lock;
  * engine and {@code vars} are never used.
  *
  * <p>Only {@code AssetQuerySandbox.getScriptEnv()} creates it, for a sandbox built with
- * {@code script.ws.contextPool} on. Viewsheet and report envs are unaffected.
+ * {@code script.ws.contextPool} on (the default; {@code false} turns it off). Viewsheet and
+ * report envs are unaffected.
  */
 public class WorksheetScriptEnv extends GraalJavaScriptEnv {
    public WorksheetScriptEnv(PoolConfig config) {
@@ -99,7 +100,7 @@ public class WorksheetScriptEnv extends GraalJavaScriptEnv {
    @Override
    public Object compile(String cmd, boolean fieldOnly) throws Exception {
       try(SlotClaim claim = SlotClaim.acquire(pool, false)) {
-         return claim.slot().engine().compile(cmd, fieldOnly);
+         return claim.scriptSlot(state, sql).engine().compile(cmd, fieldOnly);
       }
    }
 
@@ -123,7 +124,7 @@ public class WorksheetScriptEnv extends GraalJavaScriptEnv {
 
       try(SlotClaim claim = SlotClaim.acquire(pool, false)) {
          metrics.executed();
-         return claim.slot().engine().exec(script, scope, rscope);
+         return claim.scriptSlot(state, sql).engine().exec(script, scope, rscope);
       }
       finally {
          if(scriptScope != null) {
@@ -135,14 +136,14 @@ public class WorksheetScriptEnv extends GraalJavaScriptEnv {
    @Override
    public void checkFunction(String name, String cmd) throws Exception {
       try(SlotClaim claim = SlotClaim.acquire(pool, false)) {
-         claim.slot().engine().checkFunction(name, cmd);
+         claim.scriptSlot(state, sql).engine().checkFunction(name, cmd);
       }
    }
 
    @Override
    public Object[] getIds(Object id, Object scope, boolean parent) {
       try(SlotClaim claim = SlotClaim.acquire(pool, false)) {
-         return claim.slot().engine().getMemberKeys();
+         return claim.scriptSlot(state, sql).engine().getMemberKeys();
       }
    }
 
@@ -229,6 +230,15 @@ public class WorksheetScriptEnv extends GraalJavaScriptEnv {
    @Override
    public ScriptSpan openSpan() {
       return SlotClaim.acquire(pool, true);
+   }
+
+   /**
+    * A lazy claim of its own, also inside another claim of this thread, never adopted by a
+    * query build (Testing #77123, cond-home): see {@link SlotClaim#acquireOwn}.
+    */
+   @Override
+   public ScriptSpan openOwnSpan() {
+      return SlotClaim.acquireOwn(pool);
    }
 
    /**

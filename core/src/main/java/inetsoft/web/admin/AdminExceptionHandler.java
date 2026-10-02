@@ -106,9 +106,11 @@ public class AdminExceptionHandler {
    }
 
    /**
-    * Error handler for access denied. The {@link SecurityException} thrown by
-    * {@link inetsoft.web.security.SecuredAspect} is a checked exception; Spring AOP wraps it in
-    * an {@link UndeclaredThrowableException} before it reaches this handler.
+    * Error handler for access denied. A checked {@link SecurityException} or
+    * {@link UnauthorizedAccessException} (thrown, for example, by
+    * {@link inetsoft.web.security.DeniedMultiTenancyOrgUserAspect}) that is raised through the
+    * proxy of a controller method that does not declare it is wrapped by Spring AOP in an
+    * {@link UndeclaredThrowableException} before it reaches this handler.
     */
    @ExceptionHandler(UndeclaredThrowableException.class)
    @ResponseBody
@@ -123,7 +125,7 @@ public class AdminExceptionHandler {
    public ResponseEntity<GenericError> handleUndeclaredThrowable(UndeclaredThrowableException e) {
       Throwable cause = e.getCause();
 
-      if(cause instanceof SecurityException) {
+      if(cause instanceof SecurityException || cause instanceof UnauthorizedAccessException) {
          return accessDenied(cause);
       }
 
@@ -147,6 +149,25 @@ public class AdminExceptionHandler {
          description = "Access was denied because the user does not have the required permissions.")
    })
    public ResponseEntity<GenericError> handleAccessDenied(java.lang.SecurityException e) {
+      return accessDenied(e);
+   }
+
+   /**
+    * Error handler for access denied. {@link UnauthorizedAccessException} is thrown by
+    * {@link inetsoft.web.security.DeniedMultiTenancyOrgUserAspect} and by service-level
+    * permission checks; it reaches this handler unwrapped when the controller method declares
+    * it. Map it to a sanitized 403 instead of reporting it as a server error. The return type
+    * allows a subclass to override it with a more specific error, as the enterprise public API
+    * handler does to keep its 401 response.
+    */
+   @ExceptionHandler(UnauthorizedAccessException.class)
+   @ResponseBody
+   @ApiResponses({
+      @ApiResponse(
+         responseCode = "403",
+         description = "Access was denied because the user does not have the required permissions.")
+   })
+   public ResponseEntity<? extends ApiError> handleUnauthorizedAccess(UnauthorizedAccessException e) {
       return accessDenied(e);
    }
 

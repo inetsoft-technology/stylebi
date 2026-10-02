@@ -365,12 +365,17 @@ public class ScheduleService {
          }
       }
 
-      ScheduleTask currTask = scheduleManager.getScheduleTask(oldId);
+      ScheduleTask currTask = scheduleManager.getScheduleTask(oldId, orgId);
 
       if(currTask == null) {
          throw new MessageException(catalog.getString(
             "em.scheduler.taskNotFound", oldId));
       }
+
+      // Bug #77284: act on the task resolved in the caller's organization, the raw name may
+      // have been matched by the legacy fallback in getScheduleTask() and name another
+      // organization's task (quartz job keys are global)
+      oldId = currTask.getTaskId();
 
       if(scheduleManager.hasDependency(allTasks, oldId)) {
          oldId = SUtil.getTaskNameWithoutOrg(oldId);
@@ -379,6 +384,16 @@ public class ScheduleService {
             "em.schedule.task.renameDependency", oldId));
       }
 
+      // Bug #77359, the task is renamed for an owner change, check and save it with the new
+      // owner. Change a copy, the stored task is cached and is kept if the check refuses.
+      if(owner != null && !owner.equals(currTask.getOwner())) {
+         currTask = currTask.clone();
+         currTask.setOwner(owner);
+      }
+
+      // Bug #77359, check the owner organization before the task is removed, a renamed task
+      // whose owner is in another organization is refused by setScheduleTask() and would be lost
+      scheduleManager.checkReplaceOwnerOrganization(oldId, newId, currTask, principal);
       scheduleManager.removeScheduleTask(oldId, principal);
       String newName = newId;
 
@@ -494,6 +509,19 @@ public class ScheduleService {
       }
 
       return engine.taskHasShareGroupPermission(task.owner(), principal);
+   }
+
+   /**
+    * Checks if a stored task is shared with the user by the group of its owner.
+    */
+   public boolean isGroupShareTask(ScheduleTask task, Principal principal) {
+      RepletEngine engine = SUtil.getRepletEngine(analyticRepository);
+
+      if(engine == null || task == null) {
+         return false;
+      }
+
+      return engine.taskHasShareGroupPermission(task.getOwner(), principal);
    }
 
    /**
@@ -1485,8 +1513,20 @@ public class ScheduleService {
       }
       else if("BatchAction".equals(model.actionType())) {
          BatchActionModel batchActionModel = (BatchActionModel) model;
+         String targetTaskId = batchActionModel.taskName();
+
+         // Bug #77531, the three internal tasks (asset file backup, task balancer, update
+         // assets dependencies) run their action with a null principal and perform no permission
+         // check of their own, so only a site admin may point a BatchAction at one of them.
+         if(ScheduleManager.isInternalTask(targetTaskId) &&
+            !OrganizationManager.getInstance().isSiteAdmin(principal))
+         {
+            throw new SecurityException(String.format(
+               "Unauthorized access to resource \"%s\" by %s", targetTaskId, principal));
+         }
+
          BatchAction batchAction = new BatchAction();
-         batchAction.setTaskId(batchActionModel.taskName());
+         batchAction.setTaskId(targetTaskId);
 
          if(batchActionModel.queryEnabled()) {
             batchAction.setQueryEntry(batchActionModel.queryEntry());
@@ -1789,11 +1829,21 @@ public class ScheduleService {
       throws Exception
    {
       Catalog catalog = Catalog.getCatalog(principal);
-      ScheduleTask taskToDelete = scheduleManager.getScheduleTask(taskName);
+      ScheduleTask taskToDelete = scheduleManager.getScheduleTask(
+         taskName, OrganizationManager.getInstance().getCurrentOrgID(principal));
 
-      if(taskToDelete != null &&
-         !ScheduleManager.hasTaskPermission(taskToDelete.getOwner(), principal, ResourceAction.DELETE))
-      {
+      // Bug #77284: the task must resolve in the caller's organization, otherwise the raw name
+      // would reach removeScheduleTask() without a permission check on the task
+      if(taskToDelete == null) {
+         throw new MessageException(catalog.getString(
+            "em.scheduler.taskNotFound", SUtil.getTaskNameWithoutOrg(taskName)));
+      }
+
+      // use the resolved task id from here on, the raw name may have been matched by the legacy
+      // fallback in getScheduleTask() and name a different quartz job (another org's task)
+      taskName = taskToDelete.getTaskId();
+
+      if(!ScheduleManager.hasTaskPermission(taskToDelete.getOwner(), principal, ResourceAction.DELETE)) {
          throw new SecurityException(String.format(
             "Unauthorized access to resource \"%s\" by %s", taskName, principal));
       }
@@ -1847,9 +1897,13 @@ public class ScheduleService {
             "em.scheduler.taskNotFound", SUtil.getTaskNameWithoutOrg(taskName)));
       }
 
+      // use the resolved task id from here on, the raw name may have been matched by the legacy
+      // fallback in getScheduleTask() and name a different quartz job (another org's task)
+      String taskId = task.getTaskId();
+
       if(!ScheduleManager.hasTaskPermission(task.getOwner(), principal, ResourceAction.READ)) {
          throw new SecurityException(String.format(
-            "Unauthorized access to resource \"%s\" by %s", taskName, principal));
+            "Unauthorized access to resource \"%s\" by %s", taskId, principal));
       }
 
       if(!scheduleClient.isReady()) {
@@ -1857,8 +1911,8 @@ public class ScheduleService {
          dumpException = false;
       }
       else {
-         String taskNameWithoutOrg = SUtil.getTaskNameWithoutOrg(taskName);
-         String taskNameForLog = SUtil.getTaskNameForLogging(taskName);
+         String taskNameWithoutOrg = SUtil.getTaskNameWithoutOrg(taskId);
+         String taskNameForLog = SUtil.getTaskNameForLogging(taskId);
          MDC.put("SCHEDULE_TASK", taskNameForLog);
 
          if(!task.isEnabled()) {
@@ -1866,7 +1920,7 @@ public class ScheduleService {
          }
          else {
             try {
-               scheduleClient.runNow(taskName);
+               scheduleClient.runNow(taskId);
             }
             catch(Throwable ex) {
                LOG.debug("Failed to run task {}: {}", taskNameForLog, ex.getMessage(), ex);
@@ -1881,7 +1935,7 @@ public class ScheduleService {
       // log run task action
       String actionName = ActionRecord.ACTION_NAME_RUN;
       String objectType = ActionRecord.OBJECT_TYPE_TASK;
-      ActionRecord actionRecord = SUtil.getActionRecord(principal, actionName, taskName, objectType);
+      ActionRecord actionRecord = SUtil.getActionRecord(principal, actionName, taskId, objectType);
       actionRecord.setObjectUser(task.getOwner().name);
 
       if(errorMsg != null) {
@@ -1939,9 +1993,13 @@ public class ScheduleService {
             "em.scheduler.taskNotFound", SUtil.getTaskNameWithoutOrg(taskName)));
       }
 
+      // use the resolved task id from here on, the raw name may have been matched by the legacy
+      // fallback in getScheduleTask() and name a different quartz job (another org's task)
+      String taskId = task.getTaskId();
+
       if(!ScheduleManager.hasTaskPermission(task.getOwner(), principal, ResourceAction.READ)) {
          throw new SecurityException(String.format(
-            "Unauthorized access to resource \"%s\" by %s", taskName, principal));
+            "Unauthorized access to resource \"%s\" by %s", taskId, principal));
       }
 
       if(!scheduleClient.isReady()) {
@@ -1949,16 +2007,15 @@ public class ScheduleService {
       }
       else {
          if(!task.isEnabled()) {
-            errorMsg = catalog.getString("em.scheduler.stopDisabledTask",
-                                         task.getTaskId());
+            errorMsg = catalog.getString("em.scheduler.stopDisabledTask", taskId);
          }
          else {
             try {
-               scheduleClient.stopNow(taskName);
+               scheduleClient.stopNow(taskId);
             }
             catch(Throwable ex) {
-               LOG.debug("Failed to stop task {}: {}", taskName, ex.getMessage(), ex);
-               errorMsg = catalog.getString("em.scheduler.stopFailed", taskName);
+               LOG.debug("Failed to stop task {}: {}", taskId, ex.getMessage(), ex);
+               errorMsg = catalog.getString("em.scheduler.stopFailed", taskId);
             }
          }
       }
@@ -2187,7 +2244,10 @@ public class ScheduleService {
          if(entry.isScheduleTaskFolder()) {
             removeScheduledTasks0(entry, principal);
          }
-         else {
+         // a folder entry can outlive its task, skip it instead of failing the folder delete
+         else if(scheduleManager.getScheduleTask(
+            entry.getName(), OrganizationManager.getInstance().getCurrentOrgID(principal)) != null)
+         {
             removeScheduledTask("", "", entry.getName(), principal);
          }
       }

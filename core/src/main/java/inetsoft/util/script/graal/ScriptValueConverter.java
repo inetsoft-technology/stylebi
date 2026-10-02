@@ -21,6 +21,7 @@ import inetsoft.util.script.graal.pool.ForeignRef;
 import inetsoft.util.script.graal.pool.WsValueCopier;
 import org.graalvm.polyglot.Context;
 import org.graalvm.polyglot.Value;
+import java.security.Principal;
 import java.time.Instant;
 import java.util.*;
 
@@ -67,6 +68,15 @@ public final class ScriptValueConverter {
       // exposes only the raw getX/isX/setX accessor methods. (#75577)
       if(HostBeanProxy.shouldWrap(value)) {
          return HostBeanProxy.wrap(value);
+      }
+
+      // The session principal (parameter.__principal__ / ThreadContext principal)
+      // is handed to scripts read-only: its public setters and the mutable
+      // internals its getters expose would otherwise let a script change the live
+      // identity the rest of the session -- permission checks, the query sandbox,
+      // VPM -- trusts. (Bug #77255, Bug #77256)
+      if(value instanceof Principal) {
+         return ReadOnlyPrincipalProxy.wrap((Principal) value);
       }
 
       // inside a pooled worksheet exec, a value of another context is marked foreign (bug
@@ -128,6 +138,13 @@ public final class ScriptValueConverter {
          // unwrap the graph bean proxy back to its host object (#75577)
          if(proxy instanceof HostBeanProxy) {
             return ((HostBeanProxy) proxy).getTarget();
+         }
+
+         // a script that passes the principal back to one of our functions, or
+         // stores it in a scope, gets the real principal on the host side; only
+         // the script's own reads/writes are constrained. (Bug #77255, #77256)
+         if(proxy instanceof ReadOnlyPrincipalProxy principalProxy) {
+            return principalProxy.getTarget();
          }
 
          // a pooled worksheet context's reference to another context's value is that live

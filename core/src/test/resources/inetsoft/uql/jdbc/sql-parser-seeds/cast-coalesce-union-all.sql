@@ -1,0 +1,1 @@
+select cast(a as varchar(20)), coalesce(b, 0) + 1 * -c / 2 from t union all select 'x', 1 from dual

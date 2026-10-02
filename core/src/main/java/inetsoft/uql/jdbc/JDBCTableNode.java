@@ -23,7 +23,6 @@ import inetsoft.uql.jdbc.util.SQLTypes;
 import inetsoft.uql.path.XSelection;
 import inetsoft.uql.table.XTableColumnCreator;
 import inetsoft.uql.util.QueryManager;
-import inetsoft.uql.util.XUtil;
 import inetsoft.util.Tool;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -77,8 +76,8 @@ public class JDBCTableNode extends XTableNode {
 
       // may be unsupported
       try {
-         int type = (Integer) XUtil.call(result, "java.sql.ResultSet", "getType", null, null);
-         Integer forward = (Integer) XUtil.field(ResultSet.class, "TYPE_FORWARD_ONLY");
+         int type = (Integer) Tool.call(result, "java.sql.ResultSet", "getType", null, null);
+         Integer forward = (Integer) Tool.field(ResultSet.class, "TYPE_FORWARD_ONLY");
          rewindable = forward != null && type != forward;
       }
       catch(Throwable ignore) {
@@ -303,11 +302,11 @@ public class JDBCTableNode extends XTableNode {
    public synchronized boolean rewind() {
       try {
          if(result != null) {
-            Boolean first = (Boolean) XUtil.call(result, "java.sql.ResultSet",
+            Boolean first = (Boolean) Tool.call(result, "java.sql.ResultSet",
                "isBeforeFirst", null, null);
 
             if(!first) {
-               XUtil.call(result, "java.sql.ResultSet", "beforeFirst", null,
+               Tool.call(result, "java.sql.ResultSet", "beforeFirst", null,
                   null);
             }
 

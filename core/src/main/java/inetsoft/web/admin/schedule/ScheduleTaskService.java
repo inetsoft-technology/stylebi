@@ -17,6 +17,9 @@
  */
 package inetsoft.web.admin.schedule;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.NullNode;
 import inetsoft.report.io.Builder;
 import inetsoft.report.io.ExportType;
 import inetsoft.sree.*;
@@ -36,6 +39,7 @@ import inetsoft.util.audit.ActionRecord;
 import inetsoft.util.audit.Audit;
 import inetsoft.util.dep.ScheduleTaskAsset;
 import inetsoft.util.dep.XAsset;
+import inetsoft.util.log.LogLevel;
 import inetsoft.web.RecycleUtils;
 import inetsoft.web.admin.content.repository.model.ExportFormatModel;
 import inetsoft.web.admin.general.model.model.SMTPAuthType;
@@ -76,6 +80,7 @@ public class ScheduleTaskService {
       this.securityProvider = securityProvider;
       this.scheduleTaskFolderService = scheduleTaskFolderService;
       this.securityEngine = securityEngine;
+      this.identityChecker = new ScheduleTaskIdentityChecker(securityProvider);
    }
 
    public ScheduleTaskDialogModel getNewTaskDialogModel(PortalNewTaskRequest model,
@@ -100,6 +105,7 @@ public class ScheduleTaskService {
                                                         String timeZoneId, String orgId)
       throws Exception
    {
+      checkOrganizationAccess(orgId, principal);
       String originalOrg = OrganizationContextHolder.getCurrentOrgId();
 
       if(!Tool.isEmptyString(orgId)) {
@@ -125,6 +131,13 @@ public class ScheduleTaskService {
       Catalog catalog = Catalog.getCatalog(principal);
       IdentityID currentUser = IdentityID.getIdentityIDFromKey(principal.getName());
       IdentityID owner = SUtil.getOwnerForNewTask(currentUser);
+
+      if(!identityChecker.isNewTaskOwnerAllowed(owner, principal)) {
+         throw new inetsoft.sree.security.SecurityException(String.format(
+            "Unauthorized creation of a task owned by \"%s\" by %s, the owner doesn't exist " +
+            "and has the name of a site admin", owner, principal));
+      }
+
       String taskId = (owner != null ? owner.convertToKey() : principal.getName()) + ":" +
          catalog.getString("newTaskName");
       ScheduleCondition condition;
@@ -484,7 +497,18 @@ public class ScheduleTaskService {
       // the extension reload compares against to decide whether to update the scheduler)
       ScheduleTask task = scheduleManager.getScheduleTask(name).clone();
       task.setEnabled(enabled);
-      scheduleService.saveTask(name, task, principal);
+      // Bug #77356: save under the resolved task id, the raw name may have been matched by the
+      // legacy fallback in getScheduleTask() and would be written as a separate task
+      scheduleService.saveTask(getResolvedTaskId(name, task), task, principal);
+   }
+
+   /**
+    * Gets the id of a task resolved by a client supplied name, the name itself for a task that
+    * has no id (a data cycle task without an owner).
+    */
+   private static String getResolvedTaskId(String name, ScheduleTask task) {
+      return task.getType() == ScheduleTask.Type.CYCLE_TASK && task.getOwner() == null ?
+         name : task.getTaskId();
    }
 
    /**
@@ -505,6 +529,7 @@ public class ScheduleTaskService {
       throws Exception
    {
       String orgId = model.orgId();
+      checkOrganizationAccess(orgId, principal);
       String originalOrg = OrganizationContextHolder.getCurrentOrgId();
 
       if(!Tool.isEmptyString(orgId)) {
@@ -518,10 +543,15 @@ public class ScheduleTaskService {
       boolean internalTask = ScheduleManager.isInternalTask(oldTaskName);
       // if it's an internal task, ignore the localized name
       String taskName = internalTask ? oldTaskName : model.taskName();
+      String saveTaskId = null;
 
       if(internalTask) {
          task = scheduleManager.getScheduleTask(oldTaskName) == null ? null :
             scheduleManager.getScheduleTask(oldTaskName).clone();
+
+         if(task != null) {
+            checkTaskIdentityPermission(model.options(), task, principal);
+         }
       }
       else {
          if("".equals(taskName)) {
@@ -545,9 +575,19 @@ public class ScheduleTaskService {
                "Unauthorized access to resource \"%s\" by %s", oldTaskName, principal));
          }
 
+         checkTaskIdentityPermission(model.options(), existingTask, principal);
+         checkContentChangeAllowed(model, existingTask, owner, taskName, linkURI, catalog,
+                                   principal, em);
          taskName = scheduleService.updateTaskName(oldTaskName, taskName, owner, principal);
          task = scheduleManager.getScheduleTask(taskName) == null ? null :
             scheduleManager.getScheduleTask(taskName).clone();
+
+         // Bug #77356: when the task is not renamed, save under the resolved task id, the raw
+         // name may have been matched by the legacy fallback in getScheduleTask() and would be
+         // written as a separate task
+         if(task != null && taskName.equals(Tool.byteDecode(oldTaskName))) {
+            saveTaskId = getResolvedTaskId(taskName, task);
+         }
       }
 
       if(task == null) {
@@ -562,7 +602,52 @@ public class ScheduleTaskService {
       // Snapshot the server-side task before applying client changes so that sanitizeConditions
       // and sanitizeAction can restore any fields the principal is not permitted to change.
       ScheduleTask originalTask = task.clone();
+      Set<TimeRange> ranges = applyContent(model, task, originalTask, taskName, oldTaskName,
+                                           internalTask, linkURI, catalog, principal);
 
+      // Update Options
+      if(model.options() != null) {
+         setTaskOptions(model.options(), task, principal);
+      }
+
+      // Save task
+      scheduleService.saveTask(saveTaskId != null ? saveTaskId : taskName, task, principal);
+
+      // Balance tasks after saving
+      if(!ranges.isEmpty()) {
+         TaskBalancer balancer = new TaskBalancer();
+
+         for(TimeRange range : ranges) {
+            balancer.updateTask(task, range);
+         }
+      }
+
+      return getDialogModel(taskName, principal, em);
+      }
+      finally {
+         if(!Tool.isEmptyString(orgId)) {
+            OrganizationContextHolder.setCurrentOrgId(originalOrg);
+         }
+      }
+   }
+
+   /**
+    * Applies the conditions and actions of the editor model to a task.
+    *
+    * @param task         the task to change.
+    * @param originalTask the stored task, used to restore the fields the principal may not
+    *                     change.
+    * @param taskName     the name the task is saved with.
+    * @param oldTaskName  the name the task was stored with.
+    *
+    * @return the time ranges of the conditions, to balance the tasks after the save.
+    */
+   private Set<TimeRange> applyContent(ScheduleTaskEditorModel model, ScheduleTask task,
+                                       ScheduleTask originalTask, String taskName,
+                                       String oldTaskName, boolean internalTask, String linkURI,
+                                       Catalog catalog, Principal principal)
+      throws Exception
+   {
       Set<TimeRange> ranges = new HashSet<>();
 
       for(int i = 0; i < model.conditions().size(); i++) {
@@ -627,30 +712,121 @@ public class ScheduleTaskService {
          }
       }
 
-      // Update Options
-      if(model.options() != null) {
-         setTaskOptions(model.options(), task, principal);
+      return ranges;
+   }
+
+   /**
+    * Bug #77405, a task that still runs with elevated roles (given because of a site admin of
+    * the same name, the org admin roles of its org since Bug #77452) after the save (with the
+    * owner and execute-as identity that the save stores) runs its actions with those roles, so
+    * only a site admin may add or change them. This is decided before anything is written
+    * (updateTaskName saves a rename), on the conditions and actions the save would store,
+    * before the task options are applied (setTaskOptions drops the bookmarks the execute-as
+    * identity can't use, which the caller didn't change).
+    *
+    * @param existingTask the stored task.
+    * @param owner        the owner the client sent, null if it is not changed.
+    * @param taskName     the name the task is saved with.
+    */
+   private void checkContentChangeAllowed(ScheduleTaskEditorModel model,
+                                          ScheduleTask existingTask, IdentityID owner,
+                                          String taskName, String linkURI, Catalog catalog,
+                                          Principal principal, boolean em)
+      throws Exception
+   {
+      TaskOptionsPaneModel options = model.options();
+      IdentityID newOwner = owner != null ? owner : existingTask.getOwner();
+      Identity newIdentity = options == null ? existingTask.getIdentity() :
+         getNewIdentity(options, existingTask.getIdentity(), principal);
+
+      if(identityChecker.isContentChangeAllowed(newOwner, newIdentity, principal)) {
+         return;
       }
 
-      // Save task
-      scheduleService.saveTask(taskName, task, principal);
+      ScheduleTask candidate = existingTask.clone();
+      // the rename of a backup action of the task itself is not a change by the caller
+      applyContent(model, candidate, existingTask.clone(), taskName, taskName, false, linkURI,
+                   catalog, principal);
 
-      // Balance tasks after saving
-      if(!ranges.isEmpty()) {
-         TaskBalancer balancer = new TaskBalancer();
+      if(addsOrChangesContent(existingTask, candidate, linkURI, principal, em)) {
+         // a message exception, the EM and portal show the message of the refusal
+         throw new MessageException(
+            catalog.getString("em.scheduler.siteAdminTaskContent"), LogLevel.WARN, false);
+      }
+   }
 
-         for(TimeRange range : ranges) {
-            balancer.updateTask(task, range);
-         }
+   /**
+    * Bug #77405, determines if a save adds or changes an action or a condition of a task. The
+    * actions and conditions are compared on the models the task editor shows. A stored item is
+    * compared as it is saved when the editor sends its model back unchanged (a stored item may
+    * not have the defaults an item built from a model has), so an item that isn't edited is the
+    * same as the stored item.
+    *
+    * @param stored the stored task.
+    * @param task   the task that is saved.
+    */
+   private boolean addsOrChangesContent(ScheduleTask stored, ScheduleTask task, String linkURI,
+                                        Principal principal, boolean em)
+      throws Exception
+   {
+      List<JsonNode> storedConditions = new ArrayList<>();
+      List<JsonNode> storedActions = new ArrayList<>();
+
+      for(int i = 0; i < stored.getConditionCount(); i++) {
+         storedConditions.add(
+            toTree(getResavedConditionModel(stored.getCondition(i), principal)));
       }
 
-      return getDialogModel(taskName, principal, em);
+      for(int i = 0; i < stored.getActionCount(); i++) {
+         storedActions.add(toTree(getResavedActionModel(stored.getAction(i), linkURI, principal,
+                                                        em)));
       }
-      finally {
-         if(!Tool.isEmptyString(orgId)) {
-            OrganizationContextHolder.setCurrentOrgId(originalOrg);
-         }
-      }
+
+      List<JsonNode> conditions = task.getConditionStream()
+         .map(c -> toTree(scheduleConditionService.getConditionModel(c, principal))).toList();
+      List<JsonNode> actions = task.getActionStream()
+         .map(a -> toTree(scheduleService.getActionModel(a, principal, em))).toList();
+
+      return !ScheduleTaskIdentityChecker.isKeptOrRemoved(storedConditions, conditions,
+                                                          Objects::equals) ||
+         !ScheduleTaskIdentityChecker.isKeptOrRemoved(storedActions, actions, Objects::equals);
+   }
+
+   /**
+    * Gets the JSON the editor gets for a model. The models are compared on it, the model
+    * classes don't all compare their contents (DynamicValueModel has no equals, the embedded
+    * parameters of a batch action are a two-dimensional array).
+    */
+   private static JsonNode toTree(Object model) {
+      return model == null ? NullNode.getInstance() : CONTENT_MAPPER.valueToTree(model);
+   }
+
+   /**
+    * Gets the model of a stored condition as it is saved when the editor sends it back.
+    */
+   private ScheduleConditionModel getResavedConditionModel(ScheduleCondition condition,
+                                                           Principal principal)
+      throws Exception
+   {
+      ScheduleConditionModel model =
+         scheduleConditionService.getConditionModel(condition, principal);
+      ScheduleCondition resaved =
+         model == null ? null : scheduleConditionService.getConditionFromModel(model);
+      return resaved == null ?
+         model : scheduleConditionService.getConditionModel(resaved, principal);
+   }
+
+   /**
+    * Gets the model of a stored action as it is saved when the editor sends it back.
+    */
+   private ScheduleActionModel getResavedActionModel(ScheduleAction action, String linkURI,
+                                                     Principal principal, boolean em)
+      throws Exception
+   {
+      ScheduleActionModel model = scheduleService.getActionModel(action, principal, em);
+      ScheduleAction resaved = model == null ?
+         null : scheduleService.getActionFromModel(model, action, principal, linkURI);
+      return resaved == null ? model : scheduleService.getActionModel(resaved, principal, em);
    }
 
    public void sanitizeConditions(ScheduleTask task, ScheduleTask originalTask,
@@ -1097,19 +1273,8 @@ public class ScheduleTaskService {
          task.setEndDate(null);
       }
 
-      int type = model.idType();
       Identity oldIdentity = task.getIdentity();
-      IdentityID newIdentityID = getIdentityId(model.idName(), principal);
-      Identity newIdentity = SUtil.getIdentity(newIdentityID, type);
-
-      // Bug #77120, an unrelated edit must not clear an execute-as identity that can't be
-      // resolved right now, otherwise the task silently falls back to running as its owner
-      if(newIdentity == null && oldIdentity != null && oldIdentity.getType() == type &&
-         Tool.equals(oldIdentity.getIdentityID(), newIdentityID))
-      {
-         newIdentity = oldIdentity;
-      }
-
+      Identity newIdentity = getNewIdentity(model, oldIdentity, principal);
       task.setIdentity(newIdentity);
 
       if((oldIdentity == null || oldIdentity.getType() == Identity.USER) &&
@@ -1117,7 +1282,11 @@ public class ScheduleTaskService {
       }
 
       IdentityID oldIdentityID = oldIdentity != null ? oldIdentity.getIdentityID() : null;
-      task.setOwner(getIdentityId(model.owner(), principal));
+      // an omitted owner means no change, never clear the owner of the task
+      if(!Tool.isEmptyString(model.owner())) {
+         task.setOwner(getIdentityId(model.owner(), principal));
+      }
+
       task.setLocale(getTaskLocale(model.locale()));
       task.setDescription(model.description());
       task.setTimeZone(model.timeZone());
@@ -1524,6 +1693,115 @@ public class ScheduleTaskService {
          user, ResourceType.SCHEDULE_TIME_RANGE, range.getName(), ResourceAction.ACCESS);
    }
 
+   /**
+    * Rejects a client-supplied organization id that is not the caller's own organization unless
+    * the caller is a site administrator, so the request cannot switch into another organization.
+    */
+   private void checkOrganizationAccess(String orgId, Principal principal)
+      throws SecurityException
+   {
+      if(!Tool.isEmptyString(orgId) && !OrganizationManager.getInstance().isSiteAdmin(principal) &&
+         !(principal instanceof XPrincipal xp && orgId.equalsIgnoreCase(xp.getOrgId())))
+      {
+         throw new SecurityException(String.format(
+            "Unauthorized access to organization \"%s\" by %s", orgId, principal));
+      }
+   }
+
+   /**
+    * Verifies that the caller may assign the owner and run-as identity requested in the task
+    * options. An identity that is unchanged from the saved task, the caller itself, or (for the
+    * run-as identity) the task owner is always allowed; any other identity requires admin
+    * permission on that user or group. Bug #77281, a caller that isn't a site admin may only
+    * assign an identity the editor offers (ScheduleTaskIdentityChecker), the admin permission
+    * alone is granted on a user that doesn't exist.
+    */
+   private void checkTaskIdentityPermission(TaskOptionsPaneModel options, ScheduleTask task,
+                                            Principal principal)
+      throws SecurityException
+   {
+      if(options == null) {
+         return;
+      }
+
+      IdentityID caller = IdentityID.getIdentityIDFromKey(principal.getName());
+      IdentityID owner = Tool.isEmptyString(options.owner()) ?
+         null : getIdentityId(options.owner(), principal);
+
+      if(owner != null && !owner.equals(task.getOwner()) && !owner.equals(caller) &&
+         (!securityProvider.checkPermission(principal, ResourceType.SECURITY_USER,
+                                            owner.convertToKey(), ResourceAction.ADMIN) ||
+          !identityChecker.isOwnerAllowed(owner, principal)))
+      {
+         throw new SecurityException(String.format(
+            "Unauthorized assignment of task owner \"%s\" by %s", owner, principal));
+      }
+
+      // Bug #77281, clearing the execute-as identity, setting it to the owner or to a name that
+      // doesn't resolve all store an identity that runs the task as its owner, which runs with
+      // elevated roles (the org admin roles of its org since Bug #77452) when the owner doesn't
+      // exist and has the name of a site admin. Check the
+      // identity that is stored, before anything is saved (updateTaskName saves a rename).
+      IdentityID newOwner = owner != null ? owner : task.getOwner();
+      Identity newIdentity = getNewIdentity(options, task.getIdentity(), principal);
+
+      if(!identityChecker.isRunAsOwnerAllowed(task.getOwner(), task.getIdentity(), newOwner,
+                                              newIdentity, principal))
+      {
+         throw new SecurityException(String.format(
+            "Unauthorized assignment of task run-as identity \"%s\" by %s, the task would " +
+            "run as its owner \"%s\"", options.idName(), principal, newOwner));
+      }
+
+      if(Tool.isEmptyString(options.idName())) {
+         return;
+      }
+
+      IdentityID runAs = getIdentityId(options.idName(), principal);
+      int type = options.idType();
+      Identity oldIdentity = task.getIdentity();
+      boolean unchanged = oldIdentity != null && oldIdentity.getType() == type &&
+         runAs.equals(oldIdentity.getIdentityID());
+      IdentityID taskOwner = owner != null ? owner : task.getOwner();
+      boolean selfOrOwner = type == Identity.USER &&
+         (runAs.equals(caller) || runAs.equals(taskOwner));
+
+      if(!unchanged && !selfOrOwner) {
+         ResourceType resourceType = type == Identity.GROUP ? ResourceType.SECURITY_GROUP :
+            type == Identity.ROLE ? ResourceType.SECURITY_ROLE : ResourceType.SECURITY_USER;
+
+         if(!securityProvider.checkPermission(principal, resourceType, runAs.convertToKey(),
+                                              ResourceAction.ADMIN) ||
+            !identityChecker.isExecuteAsAllowed(runAs, type, taskOwner, principal))
+         {
+            throw new SecurityException(String.format(
+               "Unauthorized assignment of task run-as identity \"%s\" by %s", runAs,
+               principal));
+         }
+      }
+   }
+
+   /**
+    * Gets the execute-as identity that saving the task options stores in a task.
+    */
+   private Identity getNewIdentity(TaskOptionsPaneModel model, Identity oldIdentity,
+                                   Principal principal)
+   {
+      int type = model.idType();
+      IdentityID newIdentityID = getIdentityId(model.idName(), principal);
+      Identity newIdentity = SUtil.getIdentity(newIdentityID, type);
+
+      // Bug #77120, an unrelated edit must not clear an execute-as identity that can't be
+      // resolved right now, otherwise the task silently falls back to running as its owner
+      if(newIdentity == null && oldIdentity != null && oldIdentity.getType() == type &&
+         Tool.equals(oldIdentity.getIdentityID(), newIdentityID))
+      {
+         newIdentity = oldIdentity;
+      }
+
+      return newIdentity;
+   }
+
    private IdentityID getIdentityId(String name, Principal principal) {
       if(name == null) {
          return null;
@@ -1540,7 +1818,9 @@ public class ScheduleTaskService {
    private final SecurityProvider securityProvider;
    private final ScheduleTaskFolderService scheduleTaskFolderService;
    private final SecurityEngine securityEngine;
+   private final ScheduleTaskIdentityChecker identityChecker;
 
+   private static final ObjectMapper CONTENT_MAPPER = new ObjectMapper();
    private static final Logger LOG =
       LoggerFactory.getLogger(ScheduleTaskService.class);
 }

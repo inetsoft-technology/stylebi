@@ -1240,29 +1240,6 @@ public class RepletEngine extends AbstractAssetEngine
    }
 
    /**
-    * Import assets assets into the repository.
-    */
-   public void importAssets(byte[] data, boolean replace) throws Exception {
-      importAssets(data, replace, null);
-   }
-
-   /**
-    * Import assets assets into the repository.
-    */
-   public void importAssets(byte[] data, boolean replace,
-                            ActionRecord actionRecord) throws Exception
-   {
-      writeLock.lock();
-
-      try {
-         deployManagerService.importAssets(data, replace, actionRecord);
-      }
-      finally {
-         writeLock.unlock();
-      }
-   }
-
-   /**
     * {@inheritDoc}
     */
    @Override

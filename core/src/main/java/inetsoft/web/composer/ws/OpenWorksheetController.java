@@ -22,9 +22,13 @@ import inetsoft.report.composition.WorksheetService;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.*;
 import inetsoft.sree.security.SecurityException;
+import inetsoft.uql.XRepository;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.MirrorAssemblyImpl;
 import inetsoft.uql.asset.internal.MirrorTableAssemblyInfo;
+import inetsoft.uql.erm.XDataModel;
+import inetsoft.uql.erm.XLogicalModel;
+import inetsoft.uql.util.XUtil;
 import inetsoft.util.*;
 import inetsoft.util.log.LogContext;
 import inetsoft.web.AutoSaveUtils;
@@ -165,6 +169,19 @@ public class OpenWorksheetController extends WorksheetController {
       openService.processNewWorksheet(runtimeId, principal, commandDispatcher);
    }
 
+   /**
+    * Gets the QUERY resource name of a logical model, with the folder of the stored model.
+    */
+   static String getLogicalModelResource(XRepository repository, String dataSource,
+                                         String modelName)
+      throws Exception
+   {
+      XDataModel dataModel = repository == null ? null : repository.getDataModel(dataSource);
+      XLogicalModel model = dataModel == null ? null : dataModel.getLogicalModel(modelName);
+      String folder = model == null ? null : model.getFolder();
+      return XUtil.getLogicalModelResourceName(dataSource, folder, modelName);
+   }
+
    private String getForbiddenSourcesMessage(AssetEntry entry, Principal user,
                                              AtomicBoolean notUndoable)
    {
@@ -195,7 +212,10 @@ public class OpenWorksheetController extends WorksheetController {
                SourceInfo source = ((BoundTableAssembly) assembly).getSourceInfo();
 
                if(source.getType() == SourceInfo.QUERY || source.getType() == SourceInfo.MODEL) {
-                  String resource = source.getSource() + "::" + source.getPrefix();
+                  String resource = source.getType() == SourceInfo.MODEL ?
+                     getLogicalModelResource(
+                        XRepository.getRepository(), source.getPrefix(), source.getSource()) :
+                     source.getSource() + "::" + source.getPrefix();
 
                   if(!SUtil.checkQueryPermission(resource, user)) {
                      forbiddenMsg = source.getType() == SourceInfo.QUERY ?

@@ -157,8 +157,8 @@ public class ImportAssetController {
       )
    )
    @DeleteMapping("/api/em/content/repository/import/{importId}")
-   public void finishImport(@PathVariable("importId") String importId) {
-      importService.finishImport(importId);
+   public void finishImport(@PathVariable("importId") String importId, Principal principal) {
+      importService.finishImport(importId, principal);
    }
 
    private final ImportAssetServiceProxy importService;

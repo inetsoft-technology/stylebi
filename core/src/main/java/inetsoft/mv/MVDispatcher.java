@@ -161,7 +161,7 @@ public class MVDispatcher {
 
          try {
             dispatchers = new MVDispatcher[threads];
-            Calendar calendar = Calendar.getInstance();
+            Calendar calendar = new GregorianCalendar();
             // assuming 12 months data
             int dinterval = Math.max(1, 12 / threads);
             int nrange = 1000000;
@@ -198,7 +198,7 @@ public class MVDispatcher {
                // all the way to the future
                if(i == 0) {
                   if(isDate) {
-                     Calendar calendar0 = Calendar.getInstance();
+                     Calendar calendar0 = new GregorianCalendar();
                      // add 100 years instead of using MAX_VALUE, which
                      // causes year out of range error in oracle
                      calendar0.add(Calendar.YEAR, 100);

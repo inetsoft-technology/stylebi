@@ -86,6 +86,11 @@ class ScheduleTaskMap extends AbstractMap<String, ScheduleTask> {
          if(task == null) {
             task = (ScheduleTask) indexedStorage
                .getXMLSerializable(identifier, new ScheduleTransformListener(), curOrg);
+
+            if(task != null) {
+               task.setLegacyOwnerOrganization(curOrg);
+            }
+
             cache.put(identifier, new TaskWrapper(task, ts));
          }
       }

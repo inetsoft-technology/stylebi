@@ -22,11 +22,12 @@ import {
    NgZone,
    OnDestroy,
    OnInit,
+   signal,
    TemplateRef,
    ViewChild,
    ViewContainerRef
 } from "@angular/core";
-import { MatDialog, MatDialogRef, MatDialogContent, MatDialogActions, MatDialogClose } from "@angular/material/dialog";
+import { MatDialog, MatDialogRef, MatDialogState, MatDialogContent, MatDialogActions, MatDialogClose } from "@angular/material/dialog";
 import { NavigationError, Router, RouterOutlet } from "@angular/router";
 import { Subscription } from "rxjs";
 import { filter } from "rxjs/operators";
@@ -58,7 +59,7 @@ export class AppComponent implements OnInit, OnDestroy {
 
    permissions: ComponentPermissions;
    name: string;
-   notificationMessage: string;
+   readonly notificationMessage = signal("");
    scrollDirection: "up" | "down" = "up";
    navbarTransitioning = false;
 
@@ -67,6 +68,9 @@ export class AppComponent implements OnInit, OnDestroy {
    private smallDevice = false;
    private sessionExpirationDialog: MatDialogRef<SessionExpirationDialog>;
    private protectionExpirationDialog: MatDialogRef<SessionExpirationDialog>;
+   private notificationDialogRef: MatDialogRef<unknown>;
+   private notificationTimer: ReturnType<typeof setTimeout>;
+   private notificationSticky = false;
 
    constructor(private authzService: AuthorizationService,
                private stompClient: StompClientService, private zone: NgZone,
@@ -171,6 +175,7 @@ export class AppComponent implements OnInit, OnDestroy {
 
    ngOnDestroy(): void {
       this.subscription.unsubscribe();
+      clearTimeout(this.notificationTimer);
 
       if(this.connection) {
          this.connection.disconnect();
@@ -187,11 +192,38 @@ export class AppComponent implements OnInit, OnDestroy {
    }
 
    notify(notification: any, width?: string, duration?: number): void {
-      this.notificationMessage = notification.message;
-      const dialog = this.dialog.open(this.notificationDialog, { width: !!width ? width : "350px" });
+      // if the notification dialog is already open, append the message to it instead of
+      // opening another dialog that would share (and overwrite) notificationMessage. A dialog
+      // that is closing (exit animation, before afterClosed) must not receive new messages.
+      if(this.notificationDialogRef?.getState() === MatDialogState.OPEN) {
+         this.notificationMessage.update(text => text + "\n" + notification.message);
+      }
+      else {
+         this.notificationMessage.set(notification.message);
+         this.notificationSticky = false;
+         const dialog = this.dialog.open(this.notificationDialog, { width: !!width ? width : "350px" });
+         this.notificationDialogRef = dialog;
 
-      if(!!duration) {
-         setTimeout(() => { dialog.close(); }, duration);
+         dialog.afterClosed().subscribe(() => {
+            if(this.notificationDialogRef === dialog) {
+               this.notificationDialogRef = null;
+               clearTimeout(this.notificationTimer);
+               this.notificationTimer = null;
+            }
+         });
+      }
+
+      clearTimeout(this.notificationTimer);
+      this.notificationTimer = null;
+
+      // a message without a duration must stay until the user closes the dialog
+      if(!duration) {
+         this.notificationSticky = true;
+      }
+
+      if(!this.notificationSticky) {
+         const dialog = this.notificationDialogRef;
+         this.notificationTimer = setTimeout(() => { dialog.close(); }, duration);
       }
    }
 
@@ -234,6 +266,12 @@ export class AppComponent implements OnInit, OnDestroy {
       });
 
       expirationDialog.componentInstance.onTimerFinished.subscribe(() => {
+         // logging a guest out sends it to the login page, just close the dialog instead
+         if(model.guest) {
+            expirationDialog.close(false);
+            return;
+         }
+
          this.logoutService.logout(false, true);
       });
    }

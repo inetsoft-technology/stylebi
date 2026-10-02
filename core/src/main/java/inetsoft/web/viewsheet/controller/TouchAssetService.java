@@ -32,6 +32,8 @@ import inetsoft.web.viewsheet.command.MessageCommand;
 import inetsoft.web.viewsheet.event.TouchAssetEvent;
 import inetsoft.web.viewsheet.event.VSRefreshEvent;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
@@ -132,7 +134,10 @@ public class TouchAssetService {
                // With it enabled, refresh only when a data change was recorded since the
                // last touch.
                if(update && vinfo.isUpdateEnabled() && (!monitorEnabled ||
-                  (changeTime != 0 && changeTime > rvs.getTouchTimestamp())))
+                  (changeTime != 0 && changeTime > rvs.getTouchTimestamp())) &&
+                  // a refresh resets the form tables and would discard edits the user has
+                  // not submitted yet, so wait until they are submitted or written back
+                  (box.isEmpty() || !hasPendingFormEdits(vs, box.get())))
                {
                   // refresh content
                   processRefreshEvent(principal, commandDispatcher, linkUri, width, height);
@@ -229,6 +234,20 @@ public class TouchAssetService {
    }
 
    /**
+    * Check if a form table has edits that have not been submitted. A failure to check is
+    * treated as no pending edits so the update tick still refreshes.
+    */
+   private boolean hasPendingFormEdits(Viewsheet vs, ViewsheetSandbox box) {
+      try {
+         return VSCheckFormDataService.hasPendingFormEdits(vs, box);
+      }
+      catch(Exception ex) {
+         LOG.debug("Failed to check the pending form table edits", ex);
+         return false;
+      }
+   }
+
+   /**
     * Refresh the viewsheet.
     */
    private void processRefreshEvent(Principal principal,
@@ -251,4 +270,6 @@ public class TouchAssetService {
    private WorksheetService worksheetService;
    private VSRefreshController vsRefreshController;
    private Map<Object, Long> expiredSheets = new ConcurrentHashMap<>();
+
+   private static final Logger LOG = LoggerFactory.getLogger(TouchAssetService.class);
 }

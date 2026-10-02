@@ -62,6 +62,20 @@ class LocalKeyValueStorage<T extends Serializable> implements KeyValueStorage<T>
          LoggerFactory.getLogger(getClass())
             .warn("Interrupted loading key-value storage {}", id, e);
       }
+      catch(TimeoutException e) {
+         // Do not rethrow: callers (e.g. PropertiesEngine/DataSpace construction on the
+         // application's main thread) expect this constructor to return a usable, if
+         // possibly incomplete, storage instance rather than fail startup outright. "loaded"
+         // is left false so health checks (see inetsoft.util.health.ClusterHealthService) can
+         // tell "loaded fine" apart from "timed out here" instead of reporting healthy either
+         // way. Recovery from here is left to the store's own retryLoad(), invoked by callers
+         // like PropertiesEngine.getStorage() the next time this store is accessed, rather than
+         // a listener on this attempt's future, since an async self-heal here could not
+         // reliably beat a Kubernetes startup probe's budget anyway.
+         LoggerFactory.getLogger(getClass()).warn(
+            "Key-value storage '{}' did not finish loading within the 3 minute timeout; " +
+            "this node is starting with a possibly incomplete or empty store", id, e);
+      }
       catch(Exception e) {
          LoggerFactory.getLogger(getClass()).warn("Failed to load key-value storage {}", id, e);
       }

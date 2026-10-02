@@ -894,9 +894,12 @@ public class SUtil {
    /**
     * Gets the principal for a schedule task owner. Unlike {@link #getPrincipal}, this
     * handles the case where a site admin owns tasks in an organization other than their
-    * home org: if the owner is not found in the specified org, it searches for a site
-    * admin with the same name across all orgs and returns a principal using that admin's
-    * roles with the original org preserved as the context.
+    * home org: if the owner is not a user of the specified org and a site admin with the same
+    * name exists in another org (see {@link #getSameNameSiteAdmin}), the returned principal
+    * gets the organization administrator roles of the owner's org (see
+    * {@link #getScheduleTaskOrgAdminRoles}), with the owner's org as the context. It never gets
+    * the roles of the site admin (Bug #77452). If the org has no such role, the principal has
+    * no roles.
     */
    public static SRPrincipal getScheduleTaskOwnerPrincipal(IdentityID owner, String addr,
                                                             boolean fireEvent)
@@ -905,41 +908,162 @@ public class SUtil {
 
       // If the user does not exist in the specified org, check whether the name belongs to a
       // site admin in a different org
-      if(owner != null && owner.orgID != null &&
-         !XPrincipal.ANONYMOUS.equals(owner.name) && !XPrincipal.SYSTEM.equals(owner.name))
-      {
-         try {
-            SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
+      try {
+         SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
+         IdentityID siteAdminId = getSameNameSiteAdmin(provider, owner);
+         User siteAdmin = siteAdminId == null ? null : provider.getUser(siteAdminId);
 
-            if(provider.getUser(owner) == null) {
-               for(IdentityID candidateId : provider.getUsers()) {
-                  if(candidateId.name.equals(owner.name) && !owner.orgID.equals(candidateId.orgID)) {
-                     User candidate = provider.getUser(candidateId);
+         if(siteAdmin != null) {
+            // Bug #77452, the task runs with the organization administrator roles of the
+            // owner's org, not with the roles of the site admin. Anyone who can change what the
+            // task runs (e.g. the child task of a batch action, the sheets it runs) could
+            // otherwise act as a site admin.
+            IdentityID[] roles = getScheduleTaskOrgAdminRoles(provider, owner.orgID);
 
-                     if(candidate != null && OrganizationManager.getInstance().isSiteAdmin(candidateId)) {
-                        // Create a principal with the site admin's roles but the originally-
-                        // requested org as context so org-scoped lookups (task map, assets)
-                        // continue to use the correct org.
-                        LOG.debug("Resolved cross-org site admin {} (from {}) for task owner {}",
-                                  candidateId, candidateId.orgID, owner);
-                        principal = new SRPrincipal(
-                           new ClientInfo(owner, addr, null, null),
-                           candidate.getRoles(), new String[0], owner.orgID,
-                           getRandom().nextLong(), candidate.getAlias());
-                        principal.setIgnoreLogin(true);
-                        setAdditionalDatasource(principal);
-                        break;
-                     }
-                  }
-               }
+            if(roles.length == 0) {
+               // fail closed, the principal of a missing owner has no roles
+               LOG.warn("Schedule task owner {} does not exist and organization {} has no " +
+                        "organization administrator role that may be used, running it " +
+                        "without roles instead of with the roles of the site admin {}",
+                        owner, owner.orgID, siteAdminId);
+            }
+            else {
+               // Bug #77281, the owner is in another organization than the site admin of the
+               // same name, log it so that a task whose owner was forged before the owner was
+               // checked on every write path can be found
+               LOG.warn("Schedule task owner {} does not exist, running it with the " +
+                        "organization administrator roles {} of organization {} " +
+                        "(site admin of the same name: {})",
+                        owner, Arrays.toString(roles), owner.orgID, siteAdminId);
+               // keep the originally-requested org as context so org-scoped lookups (task
+               // map, assets) continue to use the correct org.
+               principal = new SRPrincipal(
+                  new ClientInfo(owner, addr, null, null),
+                  roles, new String[0], owner.orgID,
+                  getRandom().nextLong(), siteAdmin.getAlias());
+               principal.setIgnoreLogin(true);
+               setAdditionalDatasource(principal);
             }
          }
-         catch(Exception e) {
-            LOG.warn("Failed to find cross-org site admin principal for {}", owner, e);
-         }
+      }
+      catch(Exception e) {
+         LOG.warn("Failed to find the organization administrator principal for {}", owner, e);
       }
 
       return principal;
+   }
+
+   /**
+    * Bug #77452, gets the principal a schedule task runs its actions with: the principal of its
+    * execute-as identity, or the principal of its owner
+    * ({@link #getScheduleTaskOwnerPrincipal}) when the task has no execute-as identity or
+    * security is disabled. Every path that runs a task's actions (the scheduler job, the cluster
+    * job store and the batch action child tasks) uses this method, so that the principal a
+    * task's content runs with only depends on that task. Internal tasks are not handled here,
+    * the callers decide if such a task gets a principal.
+    * <p>
+    * Bug #77168, a non-null identity may be an unresolved placeholder kept by
+    * ScheduleTask.parseXML (Bug #77120/#77168); with security disabled that placeholder can
+    * never be resolved to a real principal, so the owner is used instead.
+    *
+    * @param task      the schedule task.
+    * @param addr      the remote address of the principal.
+    * @param fireEvent {@code true} to fire the login event.
+    *
+    * @return the principal.
+    */
+   public static SRPrincipal getScheduleTaskRunPrincipal(ScheduleTask task, String addr,
+                                                         boolean fireEvent)
+   {
+      Identity identity = task.getIdentity();
+      boolean securityEnabled;
+
+      try {
+         securityEnabled = SecurityEngine.getSecurity().isSecurityEnabled();
+      }
+      catch(Exception ex) {
+         LOG.debug("Failed to check whether security is enabled", ex);
+         securityEnabled = false;
+      }
+
+      if(identity == null || !securityEnabled) {
+         return getScheduleTaskOwnerPrincipal(task.getOwner(), addr, fireEvent);
+      }
+
+      return getPrincipal(identity, addr, fireEvent);
+   }
+
+   /**
+    * Bug #77452, gets the roles that a schedule task owned by a missing user that has the name of
+    * a site admin runs with (see {@link #getScheduleTaskOwnerPrincipal}): the organization
+    * administrator roles that have no organization or are in the specified organization. A role
+    * that is or inherits, directly or through its parents, a system administrator role is never
+    * included, because the permission check follows the inheritance.
+    *
+    * @param provider the security provider.
+    * @param orgID    the organization of the task owner.
+    *
+    * @return the roles, empty if there is none.
+    */
+   public static IdentityID[] getScheduleTaskOrgAdminRoles(SecurityProvider provider,
+                                                           String orgID)
+   {
+      IdentityID[] roles = provider.getRoles();
+
+      if(roles == null || orgID == null) {
+         return new IdentityID[0];
+      }
+
+      return Arrays.stream(roles)
+         .filter(Objects::nonNull)
+         .filter(role -> role.orgID == null || role.orgID.equalsIgnoreCase(orgID))
+         .filter(provider::isOrgAdministratorRole)
+         .filter(role -> {
+            IdentityID[] allRoles = provider.getAllRoles(new IdentityID[] { role });
+            return allRoles == null ||
+               Arrays.stream(allRoles).noneMatch(r -> r != null &&
+                  provider.isSystemAdministratorRole(r));
+         })
+         .distinct()
+         .toArray(IdentityID[]::new);
+   }
+
+   /**
+    * Bug #77309, gets the site admin of the same name in another organization as a schedule
+    * task owner that is not a user. A task with such an owner runs with elevated roles in
+    * {@link #getScheduleTaskOwnerPrincipal} (the organization administrator roles of the
+    * owner's organization since Bug #77452). Every check of who may store such an owner uses
+    * this method, so that it can't differ from the run path.
+    *
+    * @param provider the security provider.
+    * @param owner    the task owner.
+    *
+    * @return the site admin, or {@code null} if a task owned by the user runs with the roles of
+    *         the user itself (or no roles when the user doesn't exist).
+    */
+   public static IdentityID getSameNameSiteAdmin(SecurityProvider provider, IdentityID owner) {
+      if(owner == null || owner.orgID == null || XPrincipal.ANONYMOUS.equals(owner.name) ||
+         XPrincipal.SYSTEM.equals(owner.name) || provider.getUser(owner) != null)
+      {
+         return null;
+      }
+
+      IdentityID[] users = provider.getUsers();
+
+      if(users == null) {
+         return null;
+      }
+
+      for(IdentityID candidateId : users) {
+         if(candidateId.name.equals(owner.name) && !owner.orgID.equals(candidateId.orgID) &&
+            provider.getUser(candidateId) != null &&
+            OrganizationManager.getInstance().isSiteAdmin(candidateId))
+         {
+            return candidateId;
+         }
+      }
+
+      return null;
    }
 
    /**
@@ -1283,8 +1407,7 @@ public class SUtil {
 
       if(principal instanceof SRPrincipal) {
          SRPrincipal srp = (SRPrincipal) principal;
-         locale = LocaleService.getInstance().getLocale(locale, principal);
-         srp.setProperty(SRPrincipal.LOCALE, locale);
+         applyScheduleTaskLocale(srp, locale);
          srp.setIgnoreLogin(true);
          userID = SUtil.getUserID(srp.getClientUserID(), userID);
       }
@@ -1305,6 +1428,22 @@ public class SUtil {
       }
 
       return sessionRecord;
+   }
+
+   /**
+    * Sets the locale a schedule task runs with on the principal it runs with: the locale of the
+    * task, resolved for the user ({@link LocaleService#getLocale(String, Principal)}). Used by
+    * {@link #runTask} and, Bug #77452, by the child task of a batch action, so that the child
+    * runs with its own locale as when it is run directly.
+    *
+    * @param principal the principal the task runs with.
+    * @param locale    the locale of the task, see {@link ScheduleTask#getLocale()}.
+    */
+   public static void applyScheduleTaskLocale(Principal principal, String locale) {
+      if(principal instanceof SRPrincipal) {
+         ((SRPrincipal) principal).setProperty(
+            SRPrincipal.LOCALE, LocaleService.getInstance().getLocale(locale, principal));
+      }
    }
 
    /**
@@ -3088,15 +3227,25 @@ public class SUtil {
     * initialized, transient backend hiccup), so a storage blip degrades to the old staleness
     * window instead of throwing out of a permission check exercised on every folder listing and
     * viewsheet open.
+    * <p>
+    * A property that is not stored falls back to the sources that never hold stored values: an
+    * {@code INETSOFT_*} environment variable, a system property, or the built-in default, so a
+    * value supplied by {@code -D} or the environment is honored as it is by the cached read. The
+    * cached read is not used for that, because it can still hold a value another node already
+    * removed from the storage (Bug #77323).
     */
    private static String getPropertyBypassingCache(String name) {
+      String value;
+
       try {
-         return SreeEnv.getPropertyFromStorage(name);
+         value = SreeEnv.getPropertyFromStorage(name);
       }
       catch(Exception ex) {
          LOG.debug("Falling back to cached property value for {}", name, ex);
          return SreeEnv.getProperty(name, "false");
       }
+
+      return value != null ? value : SreeEnv.getPropertyFromNonStorageSources(name);
    }
 
    public static boolean isSharedDefaultOrgDashboard(AssetEntry entry) {
@@ -3255,6 +3404,21 @@ public class SUtil {
       else {
          currOrgId = organizationManager.getCurrentOrgID();
       }
+
+      return getOwnerForNewTask(user, currOrgId);
+   }
+
+   /**
+    * Gets the owner of a new task of an organization, the user itself if it's in the
+    * organization, otherwise an admin of the organization, or the user's name in the
+    * organization if the organization has no admin (a site admin owning a task of another
+    * organization, see {@link #getScheduleTaskOwnerPrincipal}).
+    *
+    * @param user      the user creating the task.
+    * @param currOrgId the id of the organization the task is stored in.
+    */
+   public static IdentityID getOwnerForNewTask(IdentityID user, String currOrgId) {
+      OrganizationManager organizationManager = OrganizationManager.getInstance();
 
       if(user != null && !Tool.equals(user.getOrgID(), currOrgId)) {
          SecurityEngine security = SecurityEngine.getSecurity();
@@ -3699,7 +3863,7 @@ public class SUtil {
 
       return securityEnabled &&
          "true".equals(SreeEnv.getProperty("enable.changePassword")) &&
-         !"anonymous".equals(principal.getName()) &&
+         !XPrincipal.isAnonymous(principal) &&
          userExistsInEditableSecurityProvider(principal) && SUtil.isInternalUser(principal);
    }
 

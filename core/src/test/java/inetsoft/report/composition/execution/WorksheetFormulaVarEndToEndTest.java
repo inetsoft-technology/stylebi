@@ -369,9 +369,10 @@ class WorksheetFormulaVarEndToEndTest {
 
    /**
     * The script-state lint as a worksheet runs it (the sandbox's scope and script env): a var
-    * accumulator its table owns is not reported in either pool mode, an owned var that holds
-    * an array is reported once with the pool on only (kept only within one batch there), and
-    * an undeclared global accumulator is still reported in both modes.
+    * accumulator its table owns is not reported in either pool mode, nor is one that holds an
+    * array (kept across pooled contexts, B1 residual part 2); one that holds a function is
+    * reported once with the pool on only (kept only while the table stays on one context
+    * there), and an undeclared global accumulator is still reported in both modes.
     */
    @Test
    void theStateLintWarnsOnlyAboutStateTheTableDoesNotKeep() throws Exception {
@@ -398,13 +399,23 @@ class WorksheetFormulaVarEndToEndTest {
          assertEquals(0, appender.list.size(), () -> "pool off: " + appender.list);
 
          for(int k = 0; k < 2; k++) {
-            pages(box(ws("A", list), true).getTableLens("A", RUNTIME), "out");
+            assertCounts(pages(box(ws("A", list), true).getTableLens("A", RUNTIME), "out"),
+                         list);
+         }
+
+         assertEquals(0, appender.list.size(), () -> "pool on, array: " + appender.list);
+         String fn = "var f = f || (function() { var n = 0; " +
+            "return function() { return ++n; }; })(); f()" + tag;
+
+         for(int k = 0; k < 2; k++) {
+            pages(box(ws("A", fn), true).getTableLens("A", RUNTIME), "out");
          }
 
          assertEquals(1, appender.list.size(), () -> "pool on: " + appender.list);
          String msg = appender.list.get(0).getFormattedMessage();
-         assertTrue(msg.contains("reads variable \"a\"") &&
-                    msg.contains("assigns it an object") && msg.contains("within one batch"),
+         assertTrue(msg.contains("reads variable \"f\"") &&
+                    msg.contains("assigns it a function or an object made with new") &&
+                    msg.contains("while the table stays on one script context"),
                     msg);
 
          for(boolean pool : new boolean[] { false, true }) {

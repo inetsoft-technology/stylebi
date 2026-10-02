@@ -118,7 +118,8 @@ export class ImportTaskDialogComponent {
       let tasks: string[] = [];
 
       for (let value of this.selection.selected.values()) {
-         tasks.push(value.task);
+         // Bug #77283, the import matches the parsed task id, task is only the display name
+         tasks.push(value.taskId ?? value.task);
       }
 
       this.http.post<ImportTaskResponse>(uri, tasks)

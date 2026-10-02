@@ -301,6 +301,7 @@ public class IdentityService {
       // track (org, task name) so distinct tasks that share a name across orgs aren't merged
       Set<TaskRef> ownedTasks = new LinkedHashSet<>();
       Set<TaskRef> executeAsTasks = new LinkedHashSet<>();
+      Set<TaskRef> refusedTasks = new LinkedHashSet<>();
       AuthenticationProvider authcProvider = this.getProvider(providerName);
 
       if(authcProvider instanceof EditableAuthenticationProvider provider) {
@@ -339,6 +340,7 @@ public class IdentityService {
                      targetOrg, () -> scheduleManager.getIdentityRemovalImpact(identity, provider));
                impact.ownedTasks().forEach(name -> ownedTasks.add(new TaskRef(targetOrg, name)));
                impact.executeAsTasks().forEach(name -> executeAsTasks.add(new TaskRef(targetOrg, name)));
+               impact.refusedTasks().forEach(name -> refusedTasks.add(new TaskRef(targetOrg, name)));
             }
             catch(Exception ex) {
                LOG.warn("Failed to compute schedule task impact for {}", model.identityID(), ex);
@@ -348,10 +350,12 @@ public class IdentityService {
 
       // a task whose owner is being deleted is removed entirely, so don't also report it as a reset
       executeAsTasks.removeAll(ownedTasks);
+      refusedTasks.removeAll(ownedTasks);
 
       return DeleteIdentitiesTaskImpactResponse.builder()
          .ownedTasks(toDisplayNames(ownedTasks))
          .executeAsTasks(toDisplayNames(executeAsTasks))
+         .refusedTasks(toDisplayNames(refusedTasks))
          .build();
    }
 
@@ -667,7 +671,7 @@ public class IdentityService {
                removeOrgProperties(orgID);
                removeOrgScopedDataSpaceElements(oOrg);
                updateRepletRegistry(orgID, null);
-               themeService.removeTheme(orgID);
+               removeOrganizationThemes(orgID);
                themesManager.removeCSSEntry(orgID);
                themesManager.removeLogoEntry(orgID);
                themesManager.removeFaviconEntry(orgID);
@@ -773,6 +777,20 @@ public class IdentityService {
       }
       catch(Exception e) {
          LOG.warn("Failed to remove the deleted identity {} from the custom themes", identityId, e);
+      }
+   }
+
+   /**
+    * Removes the themes of a deleted organization. A failure is only logged: the themes are
+    * left unchanged when they cannot be read reliably (Bug #77222), and the rest of the
+    * organization's cleanup must not be skipped.
+    */
+   private void removeOrganizationThemes(String orgID) {
+      try {
+         themeService.removeTheme(orgID);
+      }
+      catch(Exception e) {
+         LOG.error("Failed to remove the custom themes of the deleted organization {}", orgID, e);
       }
    }
 
@@ -1317,7 +1335,8 @@ public class IdentityService {
    }
 
    public void removeOrgProperties(String orgID) {
-      String prefix = "inetsoft.org." + orgID + ".";
+      // the stored names have the org ID lower case, the log level suffix keeps its case
+      String prefix = PropertiesEngine.getOrgPropertyPrefix(orgID);
 
       Properties properties = SreeEnv.getProperties();
       Set<Object> orgProperties = properties.keySet().stream()
@@ -1488,19 +1507,23 @@ public class IdentityService {
          return;
       }
 
-      String oldPrefix = "inetsoft.org." + oId + ".";
-      String newPrefix = "inetsoft.org." + id + ".";
-
+      String oldPrefix = PropertiesEngine.getOrgPropertyPrefix(oId);
+      String newPrefix = PropertiesEngine.getOrgPropertyPrefix(id);
       Properties properties = SreeEnv.getProperties();
-      Set<Object> orgProperties = properties.keySet().stream()
-         .filter(prop -> ((String) prop).startsWith(oldPrefix))
-         .collect(Collectors.toSet());
 
-      for(Object orgProp : orgProperties) {
-         String oldName = (String) orgProp;
-         String newName = newPrefix + (oldName).substring(oldPrefix.length());
-         SreeEnv.setProperty(newName, SreeEnv.getProperty(oldName));
-         SreeEnv.remove(oldName);
+      // a change of only the org ID's case keeps the scoped property names, so there is
+      // nothing to move; the log level properties still need it, their suffix keeps its case
+      if(!oldPrefix.equals(newPrefix)) {
+         Set<Object> orgProperties = properties.keySet().stream()
+            .filter(prop -> ((String) prop).startsWith(oldPrefix))
+            .collect(Collectors.toSet());
+
+         for(Object orgProp : orgProperties) {
+            String oldName = (String) orgProp;
+            String newName = newPrefix + (oldName).substring(oldPrefix.length());
+            SreeEnv.setProperty(newName, SreeEnv.getProperty(oldName));
+            SreeEnv.remove(oldName);
+         }
       }
 
       updateOrgLogProperties(properties, oId, id);
@@ -1635,6 +1658,38 @@ public class IdentityService {
                                       List<IdentityModel> permittedIdentities,
                                       String newOrgId)
    {
+      setIdentityPermissions(
+         oldID, newID, resourceType, principal, permittedIdentities, newOrgId, null);
+   }
+
+   /**
+    * Writes the grant of who may administer (or assign) an identity, keeping the existing
+    * grantees the principal cannot administer, since they are not in the requested list.
+    *
+    * @param oldID               the key the existing grant is stored under.
+    * @param newID               the key to store the grant under. The grant at {@code oldID} is
+    *                            removed when it differs.
+    * @param permittedIdentities the requested grantees. {@code null} is the same as an empty
+    *                            list, except that the edited grant-all flag is not set.
+    * @param newOrgId            the grantee scope: the org the requested grantees are written
+    *                            for. When null or empty, the bucket org if one is given,
+    *                            otherwise the ambient current org.
+    * @param bucketOrgId         the org whose permission storage holds the grant, where it is
+    *                            read, written and removed, and whose existing grantees are kept.
+    *                            {@code null} uses the ambient current org, for callers that run
+    *                            in the identity's org. Callers that do not (Bug #77271) pass the
+    *                            org explicitly.
+    */
+   public void setIdentityPermissions(IdentityID oldID, IdentityID newID,
+                                      ResourceType resourceType, Principal principal,
+                                      List<IdentityModel> permittedIdentities,
+                                      String newOrgId, String bucketOrgId)
+   {
+      // with an explicit bucket, never fall back to the ambient org for the grantee scope
+      if(bucketOrgId != null && (newOrgId == null || newOrgId.isEmpty())) {
+         newOrgId = bucketOrgId;
+      }
+
       String currOrgId = newOrgId;
 
       if(newOrgId == null || newOrgId.isEmpty()) {
@@ -1654,7 +1709,9 @@ public class IdentityService {
       }
 
       AuthorizationProvider authzProvider = securityProvider.getAuthorizationProvider();
-      Permission permission = authzProvider.getPermission(resourceType, oldID);
+      Permission permission = bucketOrgId == null ?
+         authzProvider.getPermission(resourceType, oldID) :
+         authzProvider.getPermission(resourceType, oldID, bucketOrgId);
       Set<String> userGrants = new HashSet<>();
       Set<String> groupGrants = new HashSet<>();
       Set<String> roleGrants = new HashSet<>();
@@ -1689,9 +1746,20 @@ public class IdentityService {
          EnumSet<ResourceAction> adminAction = EnumSet.of(ResourceAction.ADMIN);
 
          // If the principal does not have admin permission on some identities
-         // they will not show up in the permittedIdentities parameter, so we need to re-add them
+         // they will not show up in the permittedIdentities parameter, so we need to re-add them.
+         // They are read from the bucket org, so grants scoped to another org are left as they
+         // are rather than re-scoped to orgId.
+         Set<Permission.PermissionIdentity> userGrantIds = bucketOrgId == null ?
+            permission.getUserGrants(action) : permission.getUserGrants(action, bucketOrgId);
+         Set<Permission.PermissionIdentity> groupGrantIds = bucketOrgId == null ?
+            permission.getGroupGrants(action) : permission.getGroupGrants(action, bucketOrgId);
+         Set<Permission.PermissionIdentity> roleGrantIds = bucketOrgId == null ?
+            permission.getRoleGrants(action) : permission.getRoleGrants(action, bucketOrgId);
+         Set<Permission.PermissionIdentity> orgGrantIds = bucketOrgId == null ?
+            permission.getOrganizationGrants(action) :
+            permission.getOrganizationGrants(action, bucketOrgId);
 
-         for(Permission.PermissionIdentity userGrant : permission.getUserGrants(action)) {
+         for(Permission.PermissionIdentity userGrant : userGrantIds) {
             if(!securityProvider.checkAnyPermission(
                principal, getResourceType(Identity.USER),
                new IdentityID(userGrant.getName(), userGrant.getOrganizationID()).convertToKey(),
@@ -1701,7 +1769,7 @@ public class IdentityService {
             }
          }
 
-         for(Permission.PermissionIdentity groupGrant : permission.getGroupGrants(action)) {
+         for(Permission.PermissionIdentity groupGrant : groupGrantIds) {
             if(!securityProvider.checkAnyPermission(
                principal, getResourceType(Identity.GROUP),
                new IdentityID(groupGrant.getName(), groupGrant.getOrganizationID()).convertToKey(),
@@ -1711,7 +1779,7 @@ public class IdentityService {
             }
          }
 
-         for(Permission.PermissionIdentity roleGrant : permission.getRoleGrants(action)) {
+         for(Permission.PermissionIdentity roleGrant : roleGrantIds) {
             if(!securityProvider.checkAnyPermission(
                principal, getResourceType(Identity.ROLE), new IdentityID(roleGrant.getName(), roleGrant.getOrganizationID()).convertToKey(),
                adminAction))
@@ -1725,7 +1793,7 @@ public class IdentityService {
             }
          }
 
-         for(Permission.PermissionIdentity orgGrant : permission.getOrganizationGrants(action)) {
+         for(Permission.PermissionIdentity orgGrant : orgGrantIds) {
             if(!securityProvider.checkAnyPermission(
                principal, getResourceType(Identity.ORGANIZATION),
                new IdentityID(orgGrant.getName(), orgGrant.getOrganizationID()).convertToKey(),
@@ -1745,18 +1813,30 @@ public class IdentityService {
       permission.setUserGrantsForOrg(action, userGrants, orgId);
       permission.setGroupGrantsForOrg(action, groupGrants, orgId);
       permission.setRoleGrantsForOrg(action, roleGrants, orgId);
-      permission.setRoleGrantsForOrg(action, globalRoleGrants, null);
+
+      // only a site admin may change global (org-less) role grants. non site admins do
+      // not see them (see getPermission), so keep the existing ones unchanged and
+      // ignore any global role rows in the request.
+      if(OrganizationManager.getInstance().isSiteAdmin(principal)) {
+         permission.setRoleGrantsForOrg(action, globalRoleGrants, null);
+      }
+
       permission.setOrganizationGrantsForOrg(action, organizationGrants, orgId);
 
       if(permittedIdentities != null && !permittedIdentities.isEmpty()) {
          permission.updateGrantAllByOrg(orgId, true);
       }
 
-      authzProvider.setPermission(resourceType, newID, permission);
+      if(bucketOrgId == null) {
+         authzProvider.setPermission(resourceType, newID, permission);
+      }
+      else {
+         authzProvider.setPermission(resourceType, newID, permission, bucketOrgId);
+      }
 
       // the grant was re-keyed, so drop the old key rather than leave a stale copy behind
       if(!Objects.equals(oldID, newID)) {
-         authzProvider.removePermission(resourceType, oldID);
+         removePermission(authzProvider, resourceType, oldID, bucketOrgId);
       }
 
       // an org's self grant is keyed by its mutable name, and before the first rename the name
@@ -1764,7 +1844,23 @@ public class IdentityService {
       if(resourceType == ResourceType.SECURITY_ORGANIZATION && newID.orgID != null &&
          !newID.orgID.equals(newID.name))
       {
-         authzProvider.removePermission(resourceType, new IdentityID(newID.orgID, newID.orgID));
+         removePermission(
+            authzProvider, resourceType, new IdentityID(newID.orgID, newID.orgID), bucketOrgId);
+      }
+   }
+
+   /**
+    * Removes a grant from the given bucket org, or from the ambient current org when it is null.
+    */
+   private static void removePermission(AuthorizationProvider authzProvider,
+                                        ResourceType resourceType, IdentityID identityID,
+                                        String bucketOrgId)
+   {
+      if(bucketOrgId == null) {
+         authzProvider.removePermission(resourceType, identityID);
+      }
+      else {
+         authzProvider.removePermission(resourceType, identityID, bucketOrgId);
       }
    }
 
@@ -1984,6 +2080,7 @@ public class IdentityService {
       AuthenticationProvider provider = securityProvider.getAuthenticationProvider();
       int type = oldIdentity.getType();
       Set<IdentityID> oldRoles = new HashSet<>();
+      IdentityID[] addedGroups = new IdentityID[0];
       boolean granted = false;
 
       if(oldIdentity instanceof User user) {
@@ -1993,7 +2090,7 @@ public class IdentityService {
          // setUserInfo() stores membership by group name in the edited user's organization
          String newOrgID = model instanceof EditUserPaneModel userModel ?
             userModel.organization() : user.getOrganizationID();
-         IdentityID[] addedGroups = groupV.stream()
+         addedGroups = groupV.stream()
             .map(g -> new IdentityID(g.name, newOrgID))
             .filter(g -> !oldGroupSet.contains(g))
             .toArray(IdentityID[]::new);
@@ -2015,10 +2112,15 @@ public class IdentityService {
       // Organization edits are intentionally not checked: setOrganizationInfo() does not persist
       // model.roles() and rejects global roles (such as Administrator) as organization members.
       // Revisit this if organization roles are ever saved through setIdentity().
-      if(!granted && (type == Identity.USER || type == Identity.GROUP || type == Identity.ROLE)) {
-         IdentityID[] addedRoles = model.roles().stream()
+      IdentityID[] addedRoles = new IdentityID[0];
+
+      if(type == Identity.USER || type == Identity.GROUP || type == Identity.ROLE) {
+         addedRoles = model.roles().stream()
             .filter(r -> r != null && !oldRoles.contains(r))
             .toArray(IdentityID[]::new);
+      }
+
+      if(!granted && (type == Identity.USER || type == Identity.GROUP || type == Identity.ROLE)) {
          granted = grantsSystemAdmin(provider, addedRoles, null);
       }
 
@@ -2027,6 +2129,251 @@ public class IdentityService {
             "Unauthorized attempt to grant system administrator privileges via \"" +
             oldIdentity.getIdentityID() + "\" by user " + principal);
       }
+
+      checkOrgAdminGrant(provider, oldIdentity, model, principal);
+
+      // Only additions are checked, so roles already stored on the identity that the caller
+      // could not assign itself are kept and an unchanged re-save still passes. addedGroups is
+      // only set for user edits: in a group edit groupV holds member groups, not parents.
+      checkRoleAssignment(provider, addedRoles, addedGroups, oldIdentity.getIdentityID(), principal);
+   }
+
+   /**
+    * Bug #77498, the organization administrator twin of the system administrator checks in
+    * {@link #checkSystemAdminGrant}. Rejects an edit by a caller who is neither a site nor an
+    * organization administrator (OrganizationManager.isOrgAdmin(), role based) when the edit
+    * would grant organization administrator or take over an organization administrator:
+    * <ul>
+    *    <li>setting the isOrgAdmin flag on a role that isn't stored with it;</li>
+    *    <li>adding a member user or member group to a group or role that grants organization
+    *    administrator. Every added member is checked, not only the caller. Members the identity
+    *    already has are not, so an unchanged re-save still passes.</li>
+    * </ul>
+    * Roles and parent groups added to the identity are checked by {@link #checkRoleAssignment}.
+    * Organization members of a role are not checked, setRoleInfo() doesn't store them. A user
+    * that grants organization administrator is protected by the endpoint gate (SECURITY_USER
+    * ADMIN, which DefaultCheckPermissionStrategy only gives site and org admins on such a
+    * user), so an unchanged re-save of such a user stays allowed here (Bug #77381).
+    */
+   private void checkOrgAdminGrant(AuthenticationProvider provider, Identity oldIdentity,
+                                   EntityModel model, Principal principal)
+   {
+      if(OrganizationManager.getInstance().isOrgAdmin(principal)) {
+         return;
+      }
+
+      IdentityID id = oldIdentity.getIdentityID();
+      String reason = null;
+
+      if(oldIdentity instanceof Group group) {
+         if(addsMember(provider, model, id, false) &&
+            isOrgAdminTarget(provider, group.getRoles(), new IdentityID[] { id }))
+         {
+            reason = "add members to organization administrator group";
+         }
+      }
+      else if(oldIdentity instanceof Role role) {
+         boolean storedFlag = role instanceof FSRole fsRole && fsRole.isOrgAdmin();
+
+         if(model instanceof EditRolePaneModel roleModel && roleModel.isOrgAdmin() && !storedFlag) {
+            reason = "set the organization administrator flag on role";
+         }
+         else if(addsMember(provider, model, id, true) &&
+            isOrgAdminTarget(provider, new IdentityID[] { id }, null))
+         {
+            reason = "add members to organization administrator role";
+         }
+      }
+
+      if(reason != null) {
+         throw new java.lang.SecurityException(
+            "Unauthorized attempt to " + reason + " \"" + id + "\" by user " + principal);
+      }
+   }
+
+   /**
+    * Determines if an edited group or role gets a member user or member group it doesn't
+    * already have. Members that don't exist are skipped, they are never written.
+    *
+    * @param target the stored id of the edited group or role.
+    * @param role   true when the target is a role, false when it is a group.
+    */
+   private static boolean addsMember(AuthenticationProvider provider, EntityModel model,
+                                     IdentityID target, boolean role)
+   {
+      for(IdentityModel member : model.members()) {
+         IdentityID memberID = member == null ? null : member.identityID();
+
+         if(memberID == null) {
+            continue;
+         }
+
+         Identity identity;
+
+         if(member.type() == Identity.USER) {
+            identity = provider.getUser(memberID);
+         }
+         else if(member.type() == Identity.GROUP) {
+            identity = provider.getGroup(memberID);
+         }
+         else {
+            continue;
+         }
+
+         if(identity == null) {
+            continue;
+         }
+
+         boolean existing = role ?
+            identity.getRoles() != null && Arrays.asList(identity.getRoles()).contains(target) :
+            identity.getGroups() != null && Arrays.asList(identity.getGroups()).contains(target.name) &&
+               Tool.equals(identity.getOrganizationID(), target.orgID);
+
+         if(!existing) {
+            return true;
+         }
+      }
+
+      return false;
+   }
+
+   /**
+    * Determines if holding the given roles, or being a member of the given groups, makes an
+    * identity an organization administrator, the same as OrganizationManager.isOrgAdmin(): the
+    * built-in Organization Administrator role doesn't count when multi-tenancy is disabled.
+    * Used for the existing identity an edit targets. {@link #grantsOrgAdmin}, used for added
+    * roles and groups, also counts that role when multi-tenancy is disabled.
+    */
+   private static boolean isOrgAdminTarget(AuthenticationProvider provider, IdentityID[] roles,
+                                           IdentityID[] groups)
+   {
+      List<IdentityID> allRoles =
+         roles == null ? new ArrayList<>() : new ArrayList<>(Arrays.asList(roles));
+
+      if(groups != null && groups.length > 0) {
+         for(IdentityID groupID : provider.getAllGroups(groups)) {
+            Group group = provider.getGroup(groupID);
+
+            if(group != null && group.getRoles() != null) {
+               allRoles.addAll(Arrays.asList(group.getRoles()));
+            }
+         }
+      }
+
+      if(allRoles.isEmpty()) {
+         return false;
+      }
+
+      IdentityID[] expanded = provider.getAllRoles(allRoles.toArray(new IdentityID[0]));
+
+      return expanded != null && Arrays.stream(expanded)
+         .anyMatch(role -> role != null && provider.isOrgAdministratorRole(role) &&
+            (!"Organization Administrator".equals(role.name) || SUtil.isMultiTenant()));
+   }
+
+   /**
+    * Rejects giving roles or parent groups to a new user or group when the caller, who is not
+    * a site administrator, may not assign every requested role or, when a requested role or
+    * group leads to an organization administrator role, is not an organization administrator.
+    * Identity creation adds the new identity to the provider directly, bypassing setIdentity(),
+    * so create paths must call this with every requested role and parent group.
+    *
+    * @param roles        the roles requested for the new identity.
+    * @param parentGroups the parent groups requested for the new identity.
+    * @param principal    the caller.
+    */
+   public void checkAssignableRoles(Collection<IdentityID> roles, Collection<IdentityID> parentGroups,
+                                    Principal principal)
+   {
+      if(!securityEngine.isSecurityEnabled() ||
+         OrganizationManager.getInstance().isSiteAdmin(principal))
+      {
+         return;
+      }
+
+      IdentityID[] roleArr = roles == null ? new IdentityID[0] :
+         roles.stream().filter(Objects::nonNull).distinct().toArray(IdentityID[]::new);
+      IdentityID[] groupArr = parentGroups == null ? new IdentityID[0] :
+         parentGroups.stream().filter(Objects::nonNull).distinct().toArray(IdentityID[]::new);
+      checkRoleAssignment(securityProvider.getAuthenticationProvider(), roleArr, groupArr, null,
+                          principal);
+   }
+
+   /**
+    * Checks the roles and parent groups being added to an identity by a caller that is not a
+    * site administrator. This mirrors which roles the EM role tree offers as assignable
+    * (UserTreeService.getOrgRoleList): an organization administrator role, whether added
+    * directly, inherited or reached through a parent group, may only be granted by an
+    * organization administrator. Any other added role is assignable when it belongs to the
+    * current organization and the caller is an organization administrator or holds ADMIN on the
+    * roles root, or when the caller holds ASSIGN or ADMIN on the role itself. Roles of another
+    * organization are never assignable.
+    */
+   private void checkRoleAssignment(AuthenticationProvider provider, IdentityID[] addedRoles,
+                                    IdentityID[] addedGroups, IdentityID target,
+                                    Principal principal)
+   {
+      if(addedRoles.length == 0 && (addedGroups == null || addedGroups.length == 0)) {
+         return;
+      }
+
+      OrganizationManager orgManager = OrganizationManager.getInstance();
+      boolean orgAdmin = orgManager.isOrgAdmin(principal);
+      String via = target == null ? "" : " via \"" + target + "\"";
+
+      if(!orgAdmin && grantsOrgAdmin(provider, addedRoles, addedGroups)) {
+         throw new java.lang.SecurityException(
+            "Unauthorized attempt to grant organization administrator privileges" + via +
+            " by user " + principal);
+      }
+
+      String currOrgID = orgManager.getCurrentOrgID(principal);
+      Boolean rootAdmin = null;
+
+      for(IdentityID role : addedRoles) {
+         if(role == null) {
+            continue;
+         }
+
+         boolean assignable;
+
+         if(role.orgID != null && !role.orgID.equalsIgnoreCase(currOrgID)) {
+            assignable = false;
+         }
+         else if(orgAdmin && (role.orgID != null || provider.isOrgAdministratorRole(role))) {
+            assignable = true;
+         }
+         else {
+            if(role.orgID != null && rootAdmin == null) {
+               rootAdmin = hasRoleRootAdmin(principal);
+            }
+
+            assignable = role.orgID != null && rootAdmin ||
+               securityProvider.checkPermission(principal, ResourceType.SECURITY_ROLE,
+                                                role.convertToKey(), ResourceAction.ASSIGN) ||
+               securityProvider.checkPermission(principal, ResourceType.SECURITY_ROLE,
+                                                role.convertToKey(), ResourceAction.ADMIN);
+         }
+
+         if(!assignable) {
+            throw new java.lang.SecurityException(
+               "Unauthorized attempt to assign role \"" + role + "\"" + via + " by user " +
+               principal);
+         }
+      }
+   }
+
+   /**
+    * Determines if the caller holds ADMIN on the roles root of the current organization, which
+    * makes every role of that organization assignable in the EM role tree.
+    */
+   private boolean hasRoleRootAdmin(Principal principal) {
+      return securityProvider.checkPermission(principal, ResourceType.SECURITY_ROLE,
+                                              Organization.getRootOrgRoleName(principal),
+                                              ResourceAction.ADMIN) ||
+         securityProvider.checkPermission(principal, ResourceType.SECURITY_ROLE,
+                                          Organization.getRootRoleName(principal),
+                                          ResourceAction.ADMIN);
    }
 
    /**
@@ -2043,12 +2390,22 @@ public class IdentityService {
 
       AuthenticationProvider provider = securityProvider.getAuthenticationProvider();
 
-      if(grantsSystemAdmin(provider, new IdentityID[0],
-                           new IdentityID[] { new IdentityID(parentGroup, orgID) }))
-      {
+      IdentityID[] groups = new IdentityID[] { new IdentityID(parentGroup, orgID) };
+
+      if(grantsSystemAdmin(provider, new IdentityID[0], groups)) {
          throw new java.lang.SecurityException(
             "Unauthorized attempt to grant system administrator privileges via parent group \"" +
             parentGroup + "\" by user " + principal);
+      }
+
+      // a parent group leading to an organization administrator role would make the new
+      // identity (and so its creator, which gets ADMIN on it) an organization administrator
+      if(!OrganizationManager.getInstance().isOrgAdmin(principal) &&
+         grantsOrgAdmin(provider, new IdentityID[0], groups))
+      {
+         throw new java.lang.SecurityException(
+            "Unauthorized attempt to grant organization administrator privileges via parent " +
+            "group \"" + parentGroup + "\" by user " + principal);
       }
    }
 
@@ -2126,6 +2483,35 @@ public class IdentityService {
       }
 
       return false;
+   }
+
+   /**
+    * Determines if the given roles, or the roles held by the given groups and their ancestors,
+    * include or inherit an organization administrator role (the global Organization
+    * Administrator role or any role flagged as an organization administrator role).
+    */
+   private static boolean grantsOrgAdmin(AuthenticationProvider provider, IdentityID[] roles,
+                                         IdentityID[] groups)
+   {
+      List<IdentityID> allRoles =
+         roles == null ? new ArrayList<>() : new ArrayList<>(Arrays.asList(roles));
+
+      if(groups != null && groups.length > 0) {
+         for(IdentityID groupID : provider.getAllGroups(groups)) {
+            Group group = provider.getGroup(groupID);
+
+            if(group != null && group.getRoles() != null) {
+               allRoles.addAll(Arrays.asList(group.getRoles()));
+            }
+         }
+      }
+
+      if(allRoles.isEmpty()) {
+         return false;
+      }
+
+      return Arrays.stream(provider.getAllRoles(allRoles.toArray(new IdentityID[0])))
+         .anyMatch(role -> role != null && provider.isOrgAdministratorRole(role));
    }
 
    private IdentityInfoRecord getIdentityInfoRecord(EntityModel model,
@@ -2552,8 +2938,14 @@ public class IdentityService {
       Organization fromOrg = eprovider.getOrganization(oldID);
       String fromOrgID = fromOrg != null ? fromOrg.getId() : null;
 
+      // Tool.equals(String[], List) is always false (an array never equals a non-array), so compare
+      // membership by content instead; order is not significant to updateOrganizationMembers() below,
+      // which tests membership with List.contains(), not by position.
+      Set<String> oldMemberSet = oldOrg.getMembers() != null ?
+         new HashSet<>(Arrays.asList(oldOrg.getMembers())) : Collections.emptySet();
+
       if(model.oldName() == null ||
-            !Tool.equals(oldOrg.getMembers(), memberNames) ||
+            !oldMemberSet.equals(new HashSet<>(memberNames)) ||
             !Tool.equals(fromOrgID, model.id()))
       {
          updateOrganizationMembers(newOrg, members, oldID, eprovider, principal);
@@ -2582,6 +2974,7 @@ public class IdentityService {
          fromOrg instanceof FSOrganization)
       {
          fromOrg.setName(name);
+         ((FSOrganization) fromOrg).setActive(model.status());
          ((FSOrganization) fromOrg).setLocale(localeString);
          updateCustomThemeOrganization(fromOrg.getTheme(), theme, fromOrgID, fromOrgID);
          ((FSOrganization) fromOrg).setTheme(theme);
@@ -2638,7 +3031,8 @@ public class IdentityService {
    /**
     * Gets the theme to store as the default of an organization. Only a global theme or a theme
     * owned by the organization may be used, any other requested theme is ignored and the
-    * organization keeps its current theme. An empty theme clears the organization default.
+    * organization keeps its current theme. An empty theme or the default theme id
+    * ({@link CustomTheme#DEFAULT_THEME_ID}) clears the organization default.
     *
     * @param theme        the requested theme id.
     * @param currentTheme the current theme id of the organization.
@@ -2647,7 +3041,7 @@ public class IdentityService {
     * @return the theme id to store.
     */
    private String getEligibleOrgTheme(String theme, String currentTheme, String orgID) {
-      if(Tool.isEmptyString(theme)) {
+      if(Tool.isEmptyString(theme) || CustomTheme.isReservedId(theme)) {
          return null;
       }
 
@@ -2670,39 +3064,47 @@ public class IdentityService {
 
    private void updateCustomThemeOrganization(String oldThemeId, String themeID, String oldOrgID, String newOrgID) {
       if(!Tool.equals(oldThemeId, themeID)) {
-         customThemesManager.updateCustomThemes(themes -> {
-            boolean modified = false;
+         // the organization is partly saved at this point: a theme store that cannot be read
+         // reliably (Bug #77222) leaves the themes unchanged and is only logged, so the rest of
+         // the save is not skipped
+         try {
+            customThemesManager.updateCustomThemes(themes -> {
+               boolean modified = false;
 
-            if(oldThemeId != null) {
-               CustomTheme oldTheme = themes.stream()
-                  .filter(t -> Tool.equals(t.getId(), oldThemeId))
-                  .findFirst().orElse(null);
+               if(oldThemeId != null) {
+                  CustomTheme oldTheme = themes.stream()
+                     .filter(t -> Tool.equals(t.getId(), oldThemeId))
+                     .findFirst().orElse(null);
 
-               if(oldTheme != null) {
-                  oldTheme.getOrganizations().remove(oldOrgID);
-                  modified = true;
-               }
-            }
-
-            if(themeID != null) {
-               CustomTheme theme = themes.stream()
-                  .filter(t -> Tool.equals(t.getId(), themeID))
-                  .findFirst().orElse(null);
-
-               if(theme != null) {
-                  List<String> themeOrgs = theme.getOrganizations();
-
-                  if(!themeOrgs.contains(newOrgID)) {
-                     themeOrgs.add(newOrgID);
+                  if(oldTheme != null) {
+                     oldTheme.getOrganizations().remove(oldOrgID);
+                     modified = true;
                   }
-
-                  theme.setOrganizations(themeOrgs);
-                  modified = true;
                }
-            }
 
-            return modified ? themes : null;
-         });
+               if(themeID != null) {
+                  CustomTheme theme = themes.stream()
+                     .filter(t -> Tool.equals(t.getId(), themeID))
+                     .findFirst().orElse(null);
+
+                  if(theme != null) {
+                     List<String> themeOrgs = theme.getOrganizations();
+
+                     if(!themeOrgs.contains(newOrgID)) {
+                        themeOrgs.add(newOrgID);
+                     }
+
+                     theme.setOrganizations(themeOrgs);
+                     modified = true;
+                  }
+               }
+
+               return modified ? themes : null;
+            });
+         }
+         catch(IllegalStateException e) {
+            LOG.error("Failed to update the custom themes of organization {}", newOrgID, e);
+         }
 
          if(themeID != null) {
             customThemesManager.setOrgSelectedTheme(themeID, newOrgID);
@@ -2727,9 +3129,7 @@ public class IdentityService {
             continue;
          }
 
-         String toPath;
-
-         toPath = path.replace(oorg.getId(), norg.getId());
+         String toPath = OrgScopedPaths.rewrite(path, oorg.getId(), norg.getId());
 
          if(Tool.equals(toPath, path)) {
             continue;
@@ -2829,14 +3229,41 @@ public class IdentityService {
    }
 
    /**
-    * Determines if the principal is deleting its own user or a role its user holds.
+    * Determines if the principal is deleting its own user, a role its user holds directly or
+    * through its groups, or one of its groups or their ancestor groups.
     */
    private boolean isSelfDelete(Principal principal, IdentityID identityId, int type,
                                 AuthenticationProvider provider)
    {
-      return isSelfAndEMUser(principal, identityId, type) ||
-         isSelfRole(provider.getUser(IdentityID.getIdentityIDFromKey(principal.getName())),
-                    identityId, type);
+      if(isSelfAndEMUser(principal, identityId, type)) {
+         return true;
+      }
+
+      User user = provider.getUser(IdentityID.getIdentityIDFromKey(principal.getName()));
+
+      if(type == Identity.GROUP) {
+         return user != null &&
+            Arrays.asList(provider.getAllGroups(getUserGroupIDs(user))).contains(identityId);
+      }
+
+      return isSelfRole(user, identityId, type, provider);
+   }
+
+   /**
+    * Gets the ids of the user's groups. They are in the user's own organization, not the current
+    * one, so that a site admin who switched into another organization does not match that
+    * organization's groups of the same names.
+    */
+   private static IdentityID[] getUserGroupIDs(User user) {
+      String[] groups = user.getGroups();
+
+      if(groups == null) {
+         return new IdentityID[0];
+      }
+
+      return Arrays.stream(groups)
+         .map(g -> new IdentityID(g, user.getOrganizationID()))
+         .toArray(IdentityID[]::new);
    }
 
    /**
@@ -2880,6 +3307,16 @@ public class IdentityService {
          else if(principal != null && isSelfDelete(principal, id, type, eprovider)) {
             Tool.addUserMessage(catalog.getString("em.security.delself"));
          }
+         // like deleteIdentities(), never delete a group that still has users. A user remains if
+         // it is still a member or it is the requester, which the member update never deletes.
+         // Users dropped in this save are deleted before the groups, so they don't count.
+         else if(type == Identity.GROUP &&
+            Arrays.stream(eprovider.getUsers(id)).anyMatch(
+               u -> memberNames.contains(u.getName()) ||
+                  principal != null && isSelfAndEMUser(principal, u, Identity.USER)))
+         {
+            Tool.addUserMessage(catalog.getString("em.security.delgroup"));
+         }
          else {
             continue;
          }
@@ -2900,18 +3337,31 @@ public class IdentityService {
    }
 
    /**
-    * Check if the role is self.
+    * Check if the role is held by the user, directly or through its groups and their ancestor
+    * groups.
     */
-   private boolean isSelfRole(Identity principal, IdentityID identityID, int type) {
-      if(type != Identity.ROLE) {
+   private boolean isSelfRole(User user, IdentityID identityID, int type,
+                              AuthenticationProvider provider)
+   {
+      if(type != Identity.ROLE || user == null) {
          return false;
       }
 
-      if(principal == null || principal.getRoles() == null) {
-         return false;
+      if(user.getRoles() != null && Arrays.asList(user.getRoles()).contains(identityID)) {
+         return true;
       }
 
-      return Arrays.asList(principal.getRoles()).contains(identityID);
+      for(IdentityID groupID : provider.getAllGroups(getUserGroupIDs(user))) {
+         Group group = provider.getGroup(groupID);
+
+         if(group != null && group.getRoles() != null &&
+            Arrays.asList(group.getRoles()).contains(identityID))
+         {
+            return true;
+         }
+      }
+
+      return false;
    }
 
    public void clearRootPermittedIdentities(String orgID, Principal principal) {

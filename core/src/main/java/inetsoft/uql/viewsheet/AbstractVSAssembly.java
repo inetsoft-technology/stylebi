@@ -64,7 +64,7 @@ public abstract class AbstractVSAssembly extends AbstractAssembly implements VSA
       VSAssembly assembly = null;
 
       try {
-         assembly = (VSAssembly) Class.forName(cls).newInstance();
+         assembly = (VSAssembly) Tool.loadSubclass(cls, VSAssembly.class).newInstance();
          assembly.setViewsheet(vs);
          assembly.parseXML(elem, isSiteAdminImport);
 

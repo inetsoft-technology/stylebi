@@ -22,6 +22,7 @@ import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.cluster.*;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.WorksheetEngine;
+import inetsoft.sree.security.*;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
@@ -34,6 +35,7 @@ import inetsoft.uql.xmla.XMLADataSource;
 import inetsoft.web.composer.model.LoadAssetTreeNodesValidator;
 import inetsoft.web.composer.model.TreeNodeModel;
 import inetsoft.web.composer.ws.assembly.VariableAssemblyModelInfo;
+import inetsoft.web.portal.controller.database.QueryManagerService;
 import org.springframework.stereotype.Service;
 
 import java.rmi.RemoteException;
@@ -47,11 +49,14 @@ import java.util.stream.Collectors;
 public class AssetTreeService {
 
    public AssetTreeService(ViewsheetService viewsheetService, AssetRepository assetRepository,
-                           XRepository xRepository)
+                           XRepository xRepository, SecurityEngine securityEngine,
+                           QueryManagerService queryManagerService)
    {
       this.viewsheetService = viewsheetService;
       this.assetRepository = assetRepository;
       this.xRepository = xRepository;
+      this.securityEngine = securityEngine;
+      this.queryManagerService = queryManagerService;
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
@@ -91,6 +96,9 @@ public class AssetTreeService {
             return result;
          }
 
+         // Bug #77401, the lookup and connect below check nothing, so the source must be
+         // readable. This is the same READ the cube listing requires to show the node.
+         queryManagerService.checkDataSourceReadPermission(source, principal);
          XDataSource ds = xRepository.getDataSource(source);
 
          if(!(ds instanceof JDBCDataSource) && !(ds instanceof XMLADataSource))
@@ -103,6 +111,13 @@ public class AssetTreeService {
 
          if(vtbl.contains(XUtil.DB_USER_PREFIX + source)) {
             xRepository.connect(assetRepository.getSession(), ":" + source, vtbl);
+            return result;
+         }
+
+         // Bug #77401, the parameters are looked up by name. For a server-built cube entry the
+         // name is the cube, not a data source, so skip an unreadable name (the same result as a
+         // miss) instead of denying.
+         if(!isDataSourceReadable(name, principal)) {
             return result;
          }
 
@@ -131,7 +146,27 @@ public class AssetTreeService {
       return result;
    }
 
+   /**
+    * Checks READ on a data source name without throwing, for lookups that are skipped (not
+    * denied) when the name is not a readable data source (Bug #77401).
+    */
+   private boolean isDataSourceReadable(String dataSource, Principal principal) {
+      if(dataSource == null || dataSource.isBlank()) {
+         return false;
+      }
+
+      try {
+         return securityEngine.checkPermission(
+            principal, ResourceType.DATA_SOURCE, dataSource, ResourceAction.READ);
+      }
+      catch(Exception e) {
+         return false;
+      }
+   }
+
    private ViewsheetService viewsheetService;
    private AssetRepository assetRepository;
    private final XRepository xRepository;
+   private final SecurityEngine securityEngine;
+   private final QueryManagerService queryManagerService;
 }

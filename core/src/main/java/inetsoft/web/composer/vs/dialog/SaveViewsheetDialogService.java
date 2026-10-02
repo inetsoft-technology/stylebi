@@ -38,6 +38,7 @@ import inetsoft.util.audit.Audit;
 import inetsoft.util.log.LogLevel;
 import inetsoft.web.AutoSaveUtils;
 import inetsoft.web.composer.model.vs.*;
+import inetsoft.web.portal.controller.database.QueryManagerService;
 import inetsoft.web.viewsheet.command.SaveSheetCommand;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import inetsoft.web.viewsheet.service.CoreLifecycleService;
@@ -53,12 +54,14 @@ public class SaveViewsheetDialogService {
    public SaveViewsheetDialogService(CoreLifecycleService coreLifecycleService,
                                      AssetRepository assetRepository,
                                      ViewsheetService viewsheetService,
-                                     ViewsheetSettingsService viewsheetSettingsService)
+                                     ViewsheetSettingsService viewsheetSettingsService,
+                                     QueryManagerService queryManagerService)
    {
       this.coreLifecycleService = coreLifecycleService;
       this.viewsheetService = viewsheetService;
       this.viewsheetSettingsService = viewsheetSettingsService;
       this.assetRepository = assetRepository;
+      this.queryManagerService = queryManagerService;
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
@@ -226,6 +229,7 @@ public class SaveViewsheetDialogService {
       RuntimeViewsheet rvs = vsService.getViewsheet(runtimeId, principal);
       AssetEntry oentry = rvs.getEntry();
       IdentityID pId = IdentityID.getIdentityIDFromKey(principal.getName());
+      AssetEntry wentry = getBaseEntry(rvs.getViewsheet(), model, principal);
 
       if(oentry.getScope() == AssetRepository.TEMPORARY_SCOPE) {
          AutoSaveUtils.deleteAutoSaveFile(oentry, principal);
@@ -269,8 +273,6 @@ public class SaveViewsheetDialogService {
                "common.overwriteForbidden"), LogLevel.DEBUG, false);
          }
 
-         AssetEntry wentry = model.getViewsheetOptionsPaneModel()
-            .getSelectDataSourceDialogModel().getDataSource();
          viewsheet.setBaseEntry(wentry);
 
          ViewsheetInfo info = viewsheet.getViewsheetInfo();
@@ -329,6 +331,28 @@ public class SaveViewsheetDialogService {
       return null;
    }
 
+   /**
+    * Gets the base entry to save the viewsheet with. The client's entry is only equal to the
+    * current base entry by path, type and scope, not by the properties the base worksheet is
+    * built from, so an unchanged base keeps the server's entry. A changed base is newly bound
+    * and must be readable (Bug #77400).
+    */
+   private AssetEntry getBaseEntry(Viewsheet viewsheet, SaveViewsheetDialogModel model,
+                                   Principal principal)
+      throws Exception
+   {
+      AssetEntry wentry = model.getViewsheetOptionsPaneModel()
+         .getSelectDataSourceDialogModel().getDataSource();
+      AssetEntry baseEntry = viewsheet.getBaseEntry();
+
+      if(wentry != null && wentry.equals(baseEntry)) {
+         return baseEntry;
+      }
+
+      queryManagerService.checkViewsheetBaseEntryPermission(wentry, assetRepository, principal);
+      return wentry;
+   }
+
    private static final class IsDuplicateTask implements ViewsheetService.Task<Boolean> {
       public IsDuplicateTask(String runtimeId, AssetEntry entry) {
          this.runtimeId = runtimeId;
@@ -370,4 +394,5 @@ public class SaveViewsheetDialogService {
    private final ViewsheetSettingsService viewsheetSettingsService;
    private final Catalog catalog = Catalog.getCatalog();
    private final AssetRepository assetRepository;
+   private final QueryManagerService queryManagerService;
 }

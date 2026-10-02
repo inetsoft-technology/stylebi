@@ -19,6 +19,7 @@ package inetsoft.web.portal.data;
 
 import inetsoft.sree.security.ResourceAction;
 import inetsoft.sree.security.ResourceType;
+import inetsoft.sree.security.SecurityException;
 import inetsoft.uql.XDataSource;
 import inetsoft.uql.XRepository;
 import inetsoft.uql.service.XEngine;
@@ -199,6 +200,11 @@ public class DatabaseDatasourcesController {
    /**
     * add a new data source folder.
     */
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    @PostMapping("/api/portal/data/database/dataModelFolder")
    public void addDataModelFolder(
       @RequestBody @PermissionPath("parentPath()") AddFolderRequest request, Principal principal)
@@ -217,12 +223,27 @@ public class DatabaseDatasourcesController {
    /**
     * Check outer dependencies for logical models under the target folder;
     */
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    @PostMapping("/api/data/database/dataModelFolder/checkOuterDependencies")
-   public StringWrapper checkOuterDependencies(@RequestBody CheckDependenciesEvent event)
+   public StringWrapper checkOuterDependencies(@RequestBody CheckDependenciesEvent event,
+                                               Principal principal)
       throws Exception
    {
       if(event == null || event.isNewCreate()) {
          return null;
+      }
+
+      // only the folder delete asks for this, so require the permission the delete needs
+      if(!dataSourceService.checkPermission(event.getDatabaseName(), event.getDataModelFolder(),
+                                            ResourceAction.DELETE, principal))
+      {
+         throw new SecurityException(
+            "Unauthorized access to resource \"" + event.getDatabaseName() + "/" +
+               event.getDataModelFolder() + "\" by user " + principal);
       }
 
       return folderManagerService.checkOuterDependencies(
@@ -232,6 +253,11 @@ public class DatabaseDatasourcesController {
    /**
     * Delete a new data source folder.
     */
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    @DeleteMapping("/api/portal/data/database/dataModelFolder")
    public void deleteDataModelFolder(@RequestParam("databasePath") String databasePath,
                                               @RequestParam("folderName") String folderName,
@@ -244,6 +270,11 @@ public class DatabaseDatasourcesController {
    /**
     * Rename a new data source folder.
     */
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    @PutMapping("/api/portal/data/database/dataModelFolder")
    public void renameDataModelFolder(@RequestBody RenameFolderRequest request, Principal principal)
       throws Exception
@@ -270,11 +301,18 @@ public class DatabaseDatasourcesController {
    /**
     * Rename a new data source folder.
     */
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    @GetMapping("/api/portal/data/database/dataModelFolder/duplicateCheck")
    public boolean dataModelFolderDuplicateCheck(@RequestParam("databasePath") String databasePath,
-                                                @RequestParam("name") String folderName)
+                                                @RequestParam("name") String folderName,
+                                                Principal principal)
       throws Exception
    {
+      dataSourceService.checkDataSourceReadPermission(databasePath, principal);
       return databaseModelBrowserService.dataModelFolderDuplicateCheck(databasePath, folderName);
    }
 

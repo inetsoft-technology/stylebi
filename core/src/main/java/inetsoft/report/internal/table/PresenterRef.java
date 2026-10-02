@@ -162,13 +162,14 @@ public class PresenterRef implements XMLSerializable, Serializable, Cloneable {
       }
 
       try {
-         return (Presenter) Class.forName("inetsoft.report.painter." + presenter).newInstance();
+         return (Presenter) Tool.loadSubclass("inetsoft.report.painter." + presenter, Presenter.class)
+            .newInstance();
       }
       catch(Throwable e) {
       }
 
       try {
-         return (Presenter) Class.forName(presenter).newInstance();
+         return (Presenter) Tool.loadSubclass(presenter, Presenter.class).newInstance();
       }
       catch(Throwable e) {
          throw new RuntimeException("Presenter class not found: " + presenter);

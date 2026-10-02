@@ -258,7 +258,7 @@ public class ItemList implements XMLSerializable, Serializable {
                            Tool.getAttribute(node, "class") :
                            classname;
                XMLSerializable obj =
-                  (XMLSerializable) Class.forName(classname).newInstance();
+                  (XMLSerializable) Tool.loadSubclass(classname, XMLSerializable.class).newInstance();
                obj.parseXML(node);
                items.add(obj);
             }

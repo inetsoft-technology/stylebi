@@ -56,7 +56,8 @@ public class SummaryFilterStallTest {
    @BeforeEach
    public void setUp() {
       resetGlobalStallState();
-      StallPolicy.setOverride(new StallPolicy(StallPolicy.Mode.FAIL, 1000, 200, dumpDir));
+      StallPolicy.setOverride(new StallPolicy(StallPolicy.Mode.FAIL, 1000, 200, dumpDir,
+                                              StallPolicy.DEFAULT_MAX_DUMPS, true));
       pool = readerPool();
    }
 
@@ -197,7 +198,8 @@ public class SummaryFilterStallTest {
 
    @Test
    public void alertModeKeepsWaiting() throws Exception {
-      StallPolicy.setOverride(new StallPolicy(StallPolicy.Mode.ALERT, 1000, 200, dumpDir));
+      StallPolicy.setOverride(new StallPolicy(StallPolicy.Mode.ALERT, 1000, 200, dumpDir,
+                                              StallPolicy.DEFAULT_MAX_DUMPS, false));
       gated = new GatedTable(30);
       Future<Boolean> reader = pool.submit(() -> summary(gated).moreRows(1));
 

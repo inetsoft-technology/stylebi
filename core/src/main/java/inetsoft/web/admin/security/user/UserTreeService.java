@@ -19,6 +19,7 @@ package inetsoft.web.admin.security.user;
 
 import inetsoft.mv.MVManager;
 import inetsoft.report.internal.license.LicenseManager;
+import inetsoft.sree.PropertiesEngine;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.DataCycleManager;
 import inetsoft.sree.internal.SUtil;
@@ -709,7 +710,8 @@ public class UserTreeService {
          model.permittedIdentities(), Identity.GROUP, oldID, newID);
       identityService.setIdentity(oldGroup, model, provider, principal);
       // scope by the permission-checked group from the path, not the organization in the body
-      themeService.updateTheme(group.name, model.name(), group.orgID, CustomTheme::getGroups);
+      themeService.updateIdentityTheme(group.name, model.name(), group.orgID, model.theme(),
+                                       CustomTheme::getGroups, principal);
       identityService.setIdentityPermissions(oldID, newID, ResourceType.SECURITY_GROUP,
                                              principal, permittedIdentities, groupOrgID);
 
@@ -969,7 +971,9 @@ public class UserTreeService {
                final String orgKey = prefix + i;
                boolean found = Arrays.stream(getSecurityProvider().getOrganizationIDs()).anyMatch(o -> o.equalsIgnoreCase(orgKey)) ||
                   Arrays.stream(getSecurityProvider().getOrganizationNames()).anyMatch(o -> o.equalsIgnoreCase(orgKey)) ||
-                  getSecurityProvider().getOrgNameFromID(orgKey) != null;
+                  getSecurityProvider().getOrgNameFromID(orgKey) != null ||
+                  // skip ids whose data space paths exist, they are not this org's own files
+                  OrganizationIdRules.hasDataSpacePaths(orgKey);
 
                if(!found) {
                   newOrgKey = new IdentityID(orgKey, orgKey);
@@ -1117,19 +1121,24 @@ public class UserTreeService {
       List<PropertyModel> properties = new ArrayList<>();
       IdentityID pId = IdentityID.getIdentityIDFromKey(principal.getName());
       Set<Object> keyset = SreeEnv.getProperties().keySet();
-      String orgPrefix = "inetsoft.org." + orgID.getOrgID().toLowerCase() + ".";
+      String orgPrefix = PropertiesEngine.getOrgPropertyPrefix(orgID.getOrgID());
 
       for(Object key : keyset) {
-         String propName = (String) key;
+         String qualifiedName = (String) key;
 
-         if(!(propName).startsWith(orgPrefix)) {
+         if(!(qualifiedName).startsWith(orgPrefix)) {
             continue;
          }
 
-         propName = propName.substring(orgPrefix.length());
+         String propName = qualifiedName.substring(orgPrefix.length());
 
-         if(SreeEnv.getProperty(propName, false, true) != null) {
-            properties.add(PropertyModel.builder().name(propName).value(SreeEnv.getProperty(propName, false, true)).build());
+         // read by the already-org-qualified key (orgScope=false) instead of re-resolving the
+         // bare name against the CALLER's current org (orgScope=true), which silently drops
+         // every property whenever the caller is viewing an org other than their own
+         String propValue = SreeEnv.getProperty(qualifiedName, false, false);
+
+         if(propValue != null) {
+            properties.add(PropertyModel.builder().name(propName).value(propValue).build());
          }
       }
 
@@ -1794,8 +1803,8 @@ public class UserTreeService {
       }
 
       identityService.setIdentity(oldRole, model, provider, principal);
-      themeService.updateTheme(model.oldName(), model.name(), model.organization(),
-                               CustomTheme::getRoles);
+      themeService.updateIdentityTheme(model.oldName(), model.name(), model.organization(),
+                                       model.theme(), CustomTheme::getRoles, principal);
       migrateRoleRename(oldID, new IdentityID(model.name(), model.organization()));
    }
 
