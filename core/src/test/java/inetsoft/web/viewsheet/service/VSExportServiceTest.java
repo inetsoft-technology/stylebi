@@ -18,6 +18,7 @@
 package inetsoft.web.viewsheet.service;
 
 import inetsoft.analytic.composition.ViewsheetService;
+import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.sree.security.*;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
@@ -25,6 +26,7 @@ import inetsoft.uql.util.XSessionService;
 import inetsoft.uql.viewsheet.FileFormatInfo;
 import inetsoft.util.FileSystemService;
 import inetsoft.util.MessageException;
+import inetsoft.util.log.LogLevel;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -53,6 +55,35 @@ class VSExportServiceTest {
    @Test
    void nullTypeIsRejected() {
       assertFalse(VSExportService.isSupportedExportType(null));
+   }
+
+   /**
+    * Bug #77597: the Bug #77227 claim rejects a concurrent export with its own type, so a caller
+    * such as the wiz API can report it as retryable. It must still be a MessageException so the
+    * viewer and Composer handlers keep showing the same message.
+    */
+   @Test
+   void beginExportRejectsAHeldClaimWithExportInProgressException() {
+      RuntimeViewsheet rvs = new RuntimeViewsheet();
+      VSExportService.beginExport(rvs, null);
+
+      try {
+         ExportInProgressException ex = assertThrows(ExportInProgressException.class,
+            () -> VSExportService.beginExport(rvs, null));
+         assertInstanceOf(MessageException.class, ex);
+         assertEquals(LogLevel.INFO, ex.getLogLevel());
+         assertFalse(ex.isDumpStack());
+         assertNotNull(ex.getMessage());
+         assertEquals("true", rvs.getProperty("__EXPORTING__"),
+                      "the rejected claim must not clear the running export's flag");
+      }
+      finally {
+         rvs.endExport();
+      }
+
+      // once released, the claim is accepted again
+      assertDoesNotThrow(() -> VSExportService.beginExport(rvs, null));
+      rvs.endExport();
    }
 
    @Test

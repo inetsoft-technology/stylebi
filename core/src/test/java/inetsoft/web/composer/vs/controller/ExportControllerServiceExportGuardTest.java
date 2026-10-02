@@ -134,6 +134,8 @@ class ExportControllerServiceExportGuardTest {
 
       assertInstanceOf(MessageException.class, second[0],
                        "the concurrent export was not rejected");
+      // Bug #77597: typed, so the wiz API can report it as retryable
+      assertInstanceOf(ExportInProgressException.class, second[0]);
       assertEquals(1, refreshesWhenRejected[0], "the rejected export refreshed");
       assertEquals("true", flagWhileRejected[0],
                    "the rejected export cleared the running export's flag");
@@ -160,10 +162,10 @@ class ExportControllerServiceExportGuardTest {
       assertTrue(rvs.beginExport(), "the viewer export claims the runtime viewsheet");
 
       try {
-         assertThrows(MessageException.class, () -> exportService.exportViewsheet(
+         assertThrows(ExportInProgressException.class, () -> exportService.exportViewsheet(
             rvs, FileFormatInfo.EXPORT_TYPE_PDF, false, false, true, false, false,
             new String[0], false, new ExportResponse((OutputStream) null), null));
-         assertThrows(MessageException.class, this::export);
+         assertThrows(ExportInProgressException.class, this::export);
 
          // rejected before doing anything, and the owner's flag is untouched
          verifyNoInteractions(securityEngine);

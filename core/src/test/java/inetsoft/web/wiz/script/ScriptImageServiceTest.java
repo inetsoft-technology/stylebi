@@ -32,6 +32,7 @@ import inetsoft.uql.viewsheet.internal.SelectionVSAssemblyInfo;
 import inetsoft.util.cachefs.BinaryTransfer;
 import inetsoft.web.service.BinaryTransferService;
 import inetsoft.web.viewsheet.controller.AssemblyImageService;
+import inetsoft.web.viewsheet.service.ExportInProgressException;
 import inetsoft.web.viewsheet.service.ExportResponse;
 import inetsoft.web.viewsheet.service.VSExportService;
 import inetsoft.web.wiz.pairing.PairingException;
@@ -46,6 +47,9 @@ import java.awt.Point;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.security.Principal;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -735,5 +739,118 @@ class ScriptImageServiceTest {
       RenderNotReadyException ex = assertThrows(RenderNotReadyException.class,
          () -> svc.getViewsheetImage(rvs, null, null, TestPrincipals.user("alice", "host-org")));
       assertTrue(ex.getRetryAfter() > 0);
+   }
+
+   /**
+    * Bug #77597: the export {@code getViewsheetImage} stopped waiting for keeps running and keeps
+    * the Bug #77227 export claim. The next render of the same runtime viewsheet must be rejected
+    * as {@link ExportInProgressException}, which the wiz advice reports as a retryable 503, not a
+    * generic error. Uses the real {@link VSExportService#beginExport} rather than mocking the
+    * export wholesale, which is what hid this interaction from the test above.
+    */
+   @Test
+   void aRenderWhileAnAbandonedExportStillRunsIsRejectedAsExportInProgress() throws Exception {
+      RuntimeViewsheet rvs = claimableViewsheetWithChart("Chart1");
+      CountDownLatch release = new CountDownLatch(1);
+      CountDownLatch firstEnded = new CountDownLatch(1);
+      AtomicInteger exports = new AtomicInteger();
+      VSExportService exportService = mock(VSExportService.class);
+
+      doAnswer(invocation -> {
+         Principal p = invocation.getArgument(10);
+         VSExportService.beginExport(rvs, p);
+
+         try {
+            if(exports.incrementAndGet() == 1) {
+               release.await(30, TimeUnit.SECONDS);
+            }
+
+            ExportResponse response = invocation.getArgument(9);
+            response.getOutputStream().write(fakePng(200, 150));
+            return null;
+         }
+         finally {
+            rvs.endExport();
+
+            if(exports.get() == 1) {
+               firstEnded.countDown();
+            }
+         }
+      }).when(exportService).exportViewsheet(
+         any(), anyInt(), anyBoolean(), anyBoolean(), anyBoolean(), anyBoolean(), anyBoolean(),
+         any(), anyBoolean(), any(ExportResponse.class), any());
+
+      ScriptImageService svc = new ScriptImageService(
+         mock(AssemblyImageService.class), mock(BinaryTransferService.class), exportService);
+      Principal user = TestPrincipals.user("alice", "host-org");
+
+      try {
+         assertThrows(RenderNotReadyException.class,
+                      () -> svc.getViewsheetImage(rvs, null, null, user));
+         // the first export is still blocked and still holds the claim
+         assertThrows(ExportInProgressException.class,
+                      () -> svc.getViewsheetImage(rvs, null, null, user));
+      }
+      finally {
+         release.countDown();
+      }
+
+      assertTrue(firstEnded.await(30, TimeUnit.SECONDS), "the first export did not end");
+      ScriptImageService.ChartImage img = svc.getViewsheetImage(rvs, null, null, user);
+      assertEquals(200, img.width());
+   }
+
+   /**
+    * Bug #77597: a browser or Composer export ({@code ExportControllerService}) claims the same
+    * runtime viewsheet through {@link VSExportService#beginExport}. A wiz render during it must be
+    * rejected as {@link ExportInProgressException}, the retryable type.
+    */
+   @Test
+   void aRenderDuringABrowserExportIsRejectedAsExportInProgress() throws Exception {
+      RuntimeViewsheet rvs = claimableViewsheetWithChart("Chart1");
+      VSExportService exportService = mock(VSExportService.class);
+
+      doAnswer(invocation -> {
+         VSExportService.beginExport(rvs, invocation.getArgument(10));
+
+         try {
+            ExportResponse response = invocation.getArgument(9);
+            response.getOutputStream().write(fakePng(200, 150));
+            return null;
+         }
+         finally {
+            rvs.endExport();
+         }
+      }).when(exportService).exportViewsheet(
+         any(), anyInt(), anyBoolean(), anyBoolean(), anyBoolean(), anyBoolean(), anyBoolean(),
+         any(), anyBoolean(), any(ExportResponse.class), any());
+
+      ScriptImageService svc = new ScriptImageService(
+         mock(AssemblyImageService.class), mock(BinaryTransferService.class), exportService);
+      Principal user = TestPrincipals.user("alice", "host-org");
+
+      VSExportService.beginExport(rvs, user);
+
+      try {
+         assertThrows(ExportInProgressException.class,
+                      () -> svc.getViewsheetImage(rvs, null, null, user));
+      }
+      finally {
+         rvs.endExport();
+      }
+
+      assertEquals(200, svc.getViewsheetImage(rvs, null, null, user).width());
+   }
+
+   /** Like {@link #viewsheetWithChart}, but with the real export claim of a RuntimeViewsheet. */
+   private RuntimeViewsheet claimableViewsheetWithChart(String chartName) {
+      Viewsheet vs = new Viewsheet();
+      ChartVSAssembly chart = new ChartVSAssembly(vs, chartName);
+      chart.setSourceInfo(new SourceInfo(SourceInfo.ASSET, null, "Table1"));
+      vs.addAssembly(chart);
+
+      RuntimeViewsheet rvs = spy(new RuntimeViewsheet());
+      doReturn(vs).when(rvs).getViewsheet();
+      return rvs;
    }
 }
