@@ -90,8 +90,8 @@ class UniformSQLOuterJoinOuterOpConditionTest {
       assertRefused(text);
    }
 
-   // an outer join under an or, is or not in the on condition of an inner join, which
-   // the ANSI generation hoisted into an outer join, dropping the or, is or not
+   // an outer join under an or, is or not set in the on condition of an inner join,
+   // which the ANSI generation hoisted into an outer join, dropping the or, is or not
    @ParameterizedTest
    @ValueSource(strings = {
       "select a.x from a join b on a.id = b.id or a.k *= b.k",
@@ -103,9 +103,15 @@ class UniformSQLOuterJoinOuterOpConditionTest {
       "select a.x from a join b on (a.id = b.id(+)) is not true",
       "select a.x from a join b on (a.k *= b.k) is false",
       "select a.x from a join b on a.id = b.id and (a.k = b.k(+)) is true",
-      "select a.x from a join b on a.id = b.id and not (a.k = b.k(+))",
       "select a.x from a join b on a.id = b.id and (a.f = 1 or a.k = b.k(+))",
-      "select a.x from a join b on (a.f = 1 or a.k *= b.k) and a.id = b.id"
+      "select a.x from a join b on (a.f = 1 or a.k *= b.k) and a.id = b.id",
+      "select a.x from a join b on (a.id = b.id(+) or a.k = b.k(+))",
+      "select a.x from a join b on a.id = b.id and not (a.k = b.k(+) and a.f = 1)",
+      "select a.x from a join b on not (a.k *= b.k and a.f = 1)",
+      "select a.x from a left join b on a.id = b.id join c on b.id = c.id or c.k *= b.k",
+      // a subquery's inner join is checked at its own level
+      "select a.x from a join b on a.id = b.id and " +
+         "a.k in (select c.k from c join d on c.id = d.id or c.k *= d.k)"
    })
    void outerJoinInNonAndOnPositionFailsCleanly(String text) {
       assertRefused(text);
@@ -149,6 +155,9 @@ class UniformSQLOuterJoinOuterOpConditionTest {
       // the rows of the inner join
       "select a.x from a join b on a.id = b.id and a.k = b.k(+) | " +
          "select a.x from a LEFT OUTER JOIN b ON a.k = b.k where a.id = b.id",
+      // a negated outer join is the join condition, as in a where clause (Bug #77481)
+      "select a.x from a join b on a.id = b.id and not (a.k = b.k(+)) | " +
+         "select a.x from a LEFT OUTER JOIN b ON a.k <> b.k where a.id = b.id",
       "select a.x from a join b on a.id = b.id or a.k = b.k | " +
          "select a.x from a, b where (a.id = b.id or a.k = b.k)",
       "select a.x from a join b on a.id = b.id, c where a.k = c.k(+) | " +

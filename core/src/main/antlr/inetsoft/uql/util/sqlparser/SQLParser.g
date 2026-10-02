@@ -922,6 +922,32 @@ private void clearInnerOnJoins(UniformSQL sql, String outerType, String tbl2) {
    }
 }
 
+/**
+ * Check that each legacy outer join (*=, =* or (+)) in an inner join ON condition is
+ * under ANDs only. It is generated in the from clause as an outer join, so under an
+ * OR, an IS or a NOT set the rest of the set would lose it (e.g. "on a.id = b.id or
+ * a.k *= b.k" generated as "ON a.k = b.k where (a.id = b.id)"). A negated outer join
+ * itself is its join condition, as in a where clause.
+ */
+private void checkInnerOnOuterJoins(XFilterNode node, boolean joinPos, XFilterNode cond,
+                                    Token tok)
+   throws SemanticException
+{
+   if(!joinPos && node instanceof XJoin && ((XJoin) node).isOuterJoin()) {
+      throw new SemanticException("Unsupported outer join condition: " + cond,
+                                  getFilename(), tok.getLine(), tok.getColumn());
+   }
+
+   if(node instanceof XSet) {
+      boolean joinPos2 = joinPos && !node.isIsNot() && (node.getChildCount() <= 1 ||
+         XSet.AND.equalsIgnoreCase(((XSet) node).getRelation()));
+
+      for(int i = 0; i < node.getChildCount(); i++) {
+         checkInnerOnOuterJoins((XFilterNode) node.getChild(i), joinPos2, cond, tok);
+      }
+   }
+}
+
 private void collectInnerJoins(XFilterNode node, List joins) {
    if(node instanceof XJoin) {
       if(!((XJoin) node).isOuterJoin()) {
@@ -3904,6 +3930,7 @@ join_condition [UniformSQL sql, String op, String tbl2, int rstart, int rend] re
               clearInnerOnJoins(sql, outerType, tbl2);
            }
            else {
+              checkInnerOnOuterJoins(tmp, true, tmp, a);
               addInnerOnJoins(sql, tmp);
            }
 
