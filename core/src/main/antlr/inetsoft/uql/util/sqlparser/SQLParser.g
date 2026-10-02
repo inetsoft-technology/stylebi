@@ -498,6 +498,22 @@ private void clearUsingMerges(UniformSQL sql) {
    }
 }
 
+/**
+ * Refuse a derived column list (t(p, q)) of a from clause table. UniformSQL
+ * has no place for the column list, so it would be kept as part of the alias
+ * and regenerated as one quoted alias ("t(p,q)") without the column names.
+ */
+private void checkDerivedColumnList(UniformSQL sql, String alias, String columns,
+                                    Token tok)
+   throws SemanticException
+{
+   if(sql != null) {
+      throw new SemanticException(
+         "Unsupported derived column list: " + alias + "(" + columns + ")",
+         getFilename(), tok.getLine(), tok.getColumn());
+   }
+}
+
 private boolean collectOuterJoins(XFilterNode node, List joins) {
    if(node instanceof XJoin) {
       joins.add(node);
@@ -3458,7 +3474,7 @@ table_ref [UniformSQL sql] returns [String tbref = ""]
            }
         }
 
-        ( OPEN_PAREN tmp = derived_column_list CLOSE_PAREN {alias += "(" + tmp + ")";})? )?
+        ( dc1:OPEN_PAREN tmp = derived_column_list CLOSE_PAREN {checkDerivedColumnList(sql, alias, tmp, dc1); alias += "(" + tmp + ")";})? )?
         {
         tbref = name + " " + as + " " + alias;
         if(sql != null) {
@@ -3482,7 +3498,7 @@ table_ref [UniformSQL sql] returns [String tbref = ""]
             }
          }
 
-         ( OPEN_PAREN tmp = derived_column_list CLOSE_PAREN {alias += "(" + tmp + ")";})?
+         ( dc2:OPEN_PAREN tmp = derived_column_list CLOSE_PAREN {checkDerivedColumnList(sql, alias, tmp, dc2); alias += "(" + tmp + ")";})?
         )?
         {
          tbref = name + " " + as + " " + alias;
@@ -3506,7 +3522,7 @@ table_ref_nojoin [UniformSQL sql, String op] returns [String tbref = ""]
          ( a:AS {as = a.getText();})?
          alias = correlation_name
          ( (OPEN_PAREN derived_column_list)=>
-         OPEN_PAREN tmp = derived_column_list CLOSE_PAREN {alias += "(" + tmp + ")";})?
+         dc1:OPEN_PAREN tmp = derived_column_list CLOSE_PAREN {checkDerivedColumnList(sql, alias, tmp, dc1); alias += "(" + tmp + ")";})?
         )?
         {
          tbref = name + " " + as + " " + alias;
@@ -3535,7 +3551,7 @@ table_ref_nojoin [UniformSQL sql, String op] returns [String tbref = ""]
         ( b:AS {as = b.getText();})?
         alias = correlation_name
         ( (OPEN_PAREN derived_column_list)=>
-        OPEN_PAREN tmp = derived_column_list CLOSE_PAREN {alias += "(" + tmp + ")";})?
+        dc2:OPEN_PAREN tmp = derived_column_list CLOSE_PAREN {checkDerivedColumnList(sql, alias, tmp, dc2); alias += "(" + tmp + ")";})?
         {
         tbref = name + " " + as + " " + alias;
 
