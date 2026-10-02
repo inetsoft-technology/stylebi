@@ -57,12 +57,17 @@ Measure with devtools in the viewer, or `html_measure.js` on the HTML export. Fo
 
 **Why it matters.** This is open and was not settled by reading. Export honours the container
 inset: `VSCurrentSelectionHelper` places its rows through `getContentBounds`, which subtracts it.
-The browser may not: no selection-container component reads `model.padding`, and container
-children are positioned by the viewsheet layout engine. So a container could render its rows at the
+The browser may not. It was reported, and has not been verified, that no selection-container
+component reads `model.padding` and that container children are positioned by the viewsheet
+layout engine; treat that as a hypothesis, which this check exists to test. So a container could render its rows at the
 card edge in live view while the export indents them by 16px, which is the live/export mismatch this
 design exists to remove.
 
-**Standalone, about five minutes. You need only the `SelContainer` from the fixture.**
+**Standalone, about five minutes.**
+
+Setup: at comfortable density, a modernized dashboard holding one selection container that
+contains one list and one tree. Tooling: devtools in the viewer, and `inset_audit.py` (or any PDF
+viewer with a ruler) for the export.
 
 1. At comfortable, open the modernized dashboard in the **viewer**.
 2. In devtools, take the container's outer card element and its first out-selection row (the first
@@ -85,6 +90,8 @@ Measured L: ____  Measured P: ____  Date/commit: ____
   inset while export applies it. Record the exact numbers and flag the mismatch prominently in the
   PR. The fix is in the container's browser layout, which must subtract the inset where children
   are placed.
+- L = P = 0: neither side applies the inset; it reaches nothing, so the container was not
+  seeded or the helper ignores it.
 - L = P = 32: the child is inset by the container and again by its own card (the double-inset risk
   in design section 5, branch 1).
 - L = 16 and P = 0: export lost the inset; `VSCurrentSelectionHelper` is not reaching
@@ -104,7 +111,7 @@ Measured L: ____  Measured P: ____  Date/commit: ____
 Measured: ____  Date/commit: ____
 
 **Failure signatures.** 4 rows visible, or a partly cut fifth: the size was not grown to absorb the
-inset. Size 132x120 (the legacy default): Modernize did not resize. Inset 16 in export but 0 in
+inset. Size 100x120 (the legacy default): Modernize did not resize. Do not mistake 100x120 on an unmodernized assembly for a failure; only a modernized one should read 132x202. Inset 16 in export but 0 in
 HTML, or the reverse: browser and export subtract differently.
 
 ---
@@ -114,13 +121,15 @@ HTML, or the reverse: browser and export subtract differently.
 1. Modernize a selection tree with at least three levels and some long labels. Viewer, then PDF.
 2. Measure the body inset and the left edge of a level-1, level-2 and level-3 label.
 
-**Expected, comfortable:** inset **16px** each edge; each level's label starts at inset plus its
-node indent, not at the indent alone and not at twice the inset. No label clipped at the right by
-indent plus inset.
+Also build the same tree unmarked (the legacy control) and measure the same labels there, in the
+viewer and in PDF. This check is a delta, so it needs no indent constant.
+
+**Expected, comfortable:** inset **16px** each edge; each label sits at **legacy offset + 16px**
+from the card's left edge, at every level, in both HTML and PDF. No label clipped at the right.
 
 Measured: ____  Date/commit: ____
 
-**Failure signatures.** Level-1 label at the legacy offset: the inset is missing for trees. Labels
+**Failure signatures.** Delta of 0: the inset is missing for trees. Delta of 32: the inset is applied twice. Labels
 clipped at the right edge: the available width was not reduced by the inset. Level offsets
 different between HTML and PDF: tree geometry is computed in two places.
 
