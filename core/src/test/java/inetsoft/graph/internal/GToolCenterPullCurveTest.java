@@ -17,6 +17,7 @@
  */
 package inetsoft.graph.internal;
 
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.awt.geom.Point2D;
@@ -28,6 +29,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * Unit tests for GTool.computeCenterPullCurve, the helper that builds chord-bending bezier
  * curves used by circular network charts.
  */
+@Tag("core")
 class GToolCenterPullCurveTest {
    @Test
    void zeroSmoothing_keepsControlPointAtMidpoint() {

@@ -181,6 +181,7 @@ class LookAndFeelServiceTest {
          .fontFaces(new ArrayList<>())
          .userformatFile(FileData.builder().name("userformat.xml").content(userformat).build())
          .vsEnabled(true)
+         .modernVisualization(true)
          .build();
    }
 

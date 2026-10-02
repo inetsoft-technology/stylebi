@@ -45,7 +45,7 @@ class VSChartPaletteDefaultsTest {
       CategoricalColorFrame frame = new CategoricalColorFrame();
       VSChartPaletteDefaults.applyModernPalette(frame, VizContext.ofGate());
       // gate off => still the legacy head color
-      assertEquals(CategoricalColorFrame.COLOR_PALETTE[0], frame.getColor(0));
+      assertEquals(CategoricalColorFrame.COLOR_PALETTE.get(0), frame.getColor(0));
    }
 
    @Test
@@ -116,7 +116,7 @@ class VSChartPaletteDefaultsTest {
       SreeEnv.setProperty("viewsheet.darkMode", "true");
       CategoricalColorFrame frame = new CategoricalColorFrame();
       VSChartPaletteDefaults.applyModernPalette(frame, VizContext.ofGate());
-      assertEquals(CategoricalColorFrame.COLOR_PALETTE[0], frame.getColor(0));
+      assertEquals(CategoricalColorFrame.COLOR_PALETTE.get(0), frame.getColor(0));
    }
 
    @Test
@@ -261,8 +261,8 @@ class VSChartPaletteDefaultsTest {
       Color[] picker = VSChartPaletteDefaults.pickerPalette(VizContext.ofGate());
 
       assertEquals(40, picker.length);
-      assertEquals(CategoricalColorFrame.COLOR_PALETTE[0], picker[0]);
-      assertEquals(CategoricalColorFrame.COLOR_PALETTE[39], picker[39]);
+      assertEquals(CategoricalColorFrame.COLOR_PALETTE.get(0), picker[0]);
+      assertEquals(CategoricalColorFrame.COLOR_PALETTE.get(39), picker[39]);
    }
 
    @Test

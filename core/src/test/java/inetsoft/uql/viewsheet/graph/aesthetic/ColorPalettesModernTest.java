@@ -68,10 +68,10 @@ class ColorPalettesModernTest {
       assertEquals(new Color(0xb352b4), dark.getDefaultColor(39), "Modern Dark index 40");
 
       // no slot may still hold the legacy value it replaced
-      for(int i = 8; i < CategoricalColorFrame.COLOR_PALETTE.length; i++) {
-         assertNotEquals(CategoricalColorFrame.COLOR_PALETTE[i], modern.getDefaultColor(i),
+      for(int i = 8; i < CategoricalColorFrame.COLOR_PALETTE.size(); i++) {
+         assertNotEquals(CategoricalColorFrame.COLOR_PALETTE.get(i), modern.getDefaultColor(i),
                          "Modern index " + (i + 1) + " is still the legacy colour");
-         assertNotEquals(CategoricalColorFrame.COLOR_PALETTE[i], dark.getDefaultColor(i),
+         assertNotEquals(CategoricalColorFrame.COLOR_PALETTE.get(i), dark.getDefaultColor(i),
                          "Modern Dark index " + (i + 1) + " is still the legacy colour");
       }
    }
@@ -81,8 +81,8 @@ class ColorPalettesModernTest {
       CategoricalColorFrame def = ColorPalettes.getPalette("Default");
       assertEquals(40, def.getColorCount());
 
-      for(int i = 0; i < CategoricalColorFrame.COLOR_PALETTE.length; i++) {
-         assertEquals(CategoricalColorFrame.COLOR_PALETTE[i], def.getDefaultColor(i));
+      for(int i = 0; i < CategoricalColorFrame.COLOR_PALETTE.size(); i++) {
+         assertEquals(CategoricalColorFrame.COLOR_PALETTE.get(i), def.getDefaultColor(i));
       }
    }
 

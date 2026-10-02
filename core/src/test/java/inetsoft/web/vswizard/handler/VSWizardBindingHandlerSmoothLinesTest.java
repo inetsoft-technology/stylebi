@@ -49,7 +49,7 @@ class VSWizardBindingHandlerSmoothLinesTest {
    // no collaborator of VSWizardBindingHandler is touched by applyWizardSmoothLines, so nulls
    // are safe here
    private static final VSWizardBindingHandler HANDLER = new VSWizardBindingHandler(
-      null, null, null, null, null, null, null, null, null, null, null, null, null);
+      null, null, null, null, null, null, null, null, null, null, null, null, null, null);
 
    private void withGate(String value, Runnable body) {
       String saved = SreeEnv.getProperty("viewsheet.modernVisualization");

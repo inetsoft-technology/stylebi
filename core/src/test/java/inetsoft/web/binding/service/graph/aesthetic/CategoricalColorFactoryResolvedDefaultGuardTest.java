@@ -132,7 +132,7 @@ class CategoricalColorFactoryResolvedDefaultGuardTest {
       CategoricalColorModel model = new CategoricalColorModel(wrapper);
       CategoricalColorFrameWrapper updated = newService().updateVisualFrameWrapper(wrapper, model);
 
-      assertEquals(CategoricalColorFrame.COLOR_PALETTE[0], updated.getDefaultColor(0),
+      assertEquals(CategoricalColorFrame.COLOR_PALETTE.get(0), updated.getDefaultColor(0),
                    "and a legacy chart is equally unchanged");
    }
 

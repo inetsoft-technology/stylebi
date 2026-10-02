@@ -1646,7 +1646,7 @@ public class DataSetService {
       {
          securityEngine.setPermission(ResourceType.ASSET, newPath, oldPermission);
       }
-      securityEngine.setPermission(ResourceType.ASSET, newPath, oldPermission);
+
       invalidateWorksheetMetadata(oldEntry);
       invalidateWorksheetMetadata(newEntry);
    }

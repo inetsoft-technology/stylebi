@@ -1260,7 +1260,7 @@ class SeedChromeDefaultsTest {
       ChartVSAssemblyInfo info = newChart();
       info.setVizMark(VizMark.MODERN_LIGHT);
       CategoricalColorFrame frame = newNodeColorChart(info);
-      assertEquals(CategoricalColorFrame.COLOR_PALETTE[0], frame.getDefaultColor(0),
+      assertEquals(CategoricalColorFrame.COLOR_PALETTE.get(0), frame.getDefaultColor(0),
                    "precondition: a freshly bound frame carries the legacy constructor default");
 
       new ChangeChartProcessor()

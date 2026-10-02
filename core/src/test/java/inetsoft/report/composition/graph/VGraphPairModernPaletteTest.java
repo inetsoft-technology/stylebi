@@ -62,6 +62,6 @@ class VGraphPairModernPaletteTest {
       CategoricalColorFrame frame = new CategoricalColorFrame();
       inetsoft.uql.viewsheet.internal.VSChartPaletteDefaults.applyModernPalette(
          frame, inetsoft.uql.viewsheet.internal.VizContext.ofGate());
-      assertEquals(CategoricalColorFrame.COLOR_PALETTE[0], frame.getColor(0));
+      assertEquals(CategoricalColorFrame.COLOR_PALETTE.get(0), frame.getColor(0));
    }
 }

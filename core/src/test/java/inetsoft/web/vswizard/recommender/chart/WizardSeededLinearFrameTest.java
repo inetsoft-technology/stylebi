@@ -76,7 +76,7 @@ class WizardSeededLinearFrameTest {
     * it would change the arity and fail this line at compile time rather than silently.
     */
    private static final VSWizardBindingHandler HANDLER = new VSWizardBindingHandler(
-      null, null, null, null, null, null, null, null, null, null, null, null, null);
+      null, null, null, null, null, null, null, null, null, null, null, null, null, null);
 
    /**
     * The link the recommender used to drop: getTempChart hands back the info, which carries no

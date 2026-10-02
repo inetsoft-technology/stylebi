@@ -23,13 +23,6 @@ import inetsoft.test.SreeHome;
 import inetsoft.uql.viewsheet.graph.*;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
-import inetsoft.test.BaseTestConfiguration;
-import inetsoft.test.ConfigurationContextInitializer;
-import org.junit.jupiter.api.Tag;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.springframework.test.annotation.DirtiesContext;
-import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.junit.jupiter.SpringExtension;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
@@ -41,7 +34,6 @@ import static org.junit.jupiter.api.Assertions.*;
 @ContextConfiguration(classes = { BaseTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @SreeHome
-@Tag("core")
 @Tag("core")
 class ChartPlotOptionsPaneModelTest {
 

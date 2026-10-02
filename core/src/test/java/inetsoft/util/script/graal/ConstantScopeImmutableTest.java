@@ -343,9 +343,9 @@ class ConstantScopeImmutableTest {
       inetsoft.uql.viewsheet.VSFormat.class, inetsoft.uql.viewsheet.TimeInfo.class
    };
 
-   // member counts of the two scopes (less the map-type names), unchanged by this fix apart
-   // from the non-constant values
-   private static final Map<String, Integer> EXPECTED_SIZES = Map.of("Chart", 215, "StyleConstant", 509);
+   // member counts of the two scopes (less the map-type names); bump these when a constant is
+   // added to ChartConstants or StyleConstants
+   private static final Map<String, Integer> EXPECTED_SIZES = Map.of("Chart", 216, "StyleConstant", 510);
    // the map-type names added to each scope from the installed map data
    private static final int EXPECTED_MAP_TYPES = 6;
 

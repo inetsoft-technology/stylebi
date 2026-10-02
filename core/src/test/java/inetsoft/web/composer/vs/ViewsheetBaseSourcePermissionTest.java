@@ -28,6 +28,7 @@ import inetsoft.uql.erm.XLogicalModel;
 import inetsoft.uql.util.ColumnCache;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.ViewsheetInfo;
+import inetsoft.uql.viewsheet.internal.ViewsheetVSAssemblyInfo;
 import inetsoft.uql.viewsheet.vslayout.LayoutInfo;
 import inetsoft.util.MessageException;
 import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
@@ -328,6 +329,8 @@ class ViewsheetBaseSourcePermissionTest {
 
    private void setViewsheetInfo(ViewsheetPropertyDialogModel model) throws Exception {
       when(viewsheet.getLayoutInfo()).thenReturn(new LayoutInfo());
+      when(viewsheet.getVSAssemblyInfo()).thenReturn(new ViewsheetVSAssemblyInfo());
+      when(viewsheet.getAssemblies(anyBoolean())).thenReturn(new Assembly[0]);
       propertyService().setViewsheetInfo(
          RUNTIME_ID, model, principal, mock(CommandDispatcher.class), null, null);
    }

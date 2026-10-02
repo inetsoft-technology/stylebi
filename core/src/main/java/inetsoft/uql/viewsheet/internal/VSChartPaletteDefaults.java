@@ -84,7 +84,7 @@ public final class VSChartPaletteDefaults {
     * (unlike the raw COLOR_PALETTE constant, which does not).
     */
    static Color[] legacyPalette() {
-      return fromFrame(getPaletteSafely(DEFAULT_NAME), CategoricalColorFrame.COLOR_PALETTE);
+      return fromFrame(getPaletteSafely(DEFAULT_NAME), LEGACY_FALLBACK);
    }
 
    public static void applyModernPalette(CategoricalColorFrame frame, VizContext ctx) {
@@ -244,7 +244,7 @@ public final class VSChartPaletteDefaults {
     * and ChartTailDerivationTest re-derives and compares.
     *
     * Unlike the legacy splice this replaced, the result is only as long as what it is handed, and
-    * fromFrame silently returns a short palette below COLOR_PALETTE.length - so the callers below
+    * fromFrame silently returns a short palette below COLOR_PALETTE.size() - so the callers below
     * check the length rather than leaving the invariant to cssMatchesTheJavaFallback alone.
     */
    static Color[] splice(Color[] head, Color[] tail) {
@@ -260,9 +260,9 @@ public final class VSChartPaletteDefaults {
    private static Color[] spliceFull(Color[] head, Color[] tail) {
       Color[] palette = splice(head, tail);
 
-      if(palette.length != CategoricalColorFrame.COLOR_PALETTE.length) {
+      if(palette.length != CategoricalColorFrame.COLOR_PALETTE.size()) {
          throw new IllegalStateException(
-            "a modern palette must declare " + CategoricalColorFrame.COLOR_PALETTE.length
+            "a modern palette must declare " + CategoricalColorFrame.COLOR_PALETTE.size()
                + " colors, got " + palette.length);
       }
 
@@ -282,7 +282,7 @@ public final class VSChartPaletteDefaults {
 
       int count = frame.getColorCount();
 
-      if(count < CategoricalColorFrame.COLOR_PALETTE.length) {
+      if(count < CategoricalColorFrame.COLOR_PALETTE.size()) {
          return fallback.clone();
       }
 
@@ -362,6 +362,8 @@ public final class VSChartPaletteDefaults {
       Set.of("Pastel", "Heat 8", "Heat 16", "Heat 24", "Blue", "Green", "Red", "Orange", "Gray");
    private static final Map<String, Memo> MEMO = new ConcurrentHashMap<>();
    private static final Color[] NO_COMPANIONS = new Color[0];
+   private static final Color[] LEGACY_FALLBACK =
+      CategoricalColorFrame.COLOR_PALETTE.toArray(new Color[0]);
    private static final Logger LOG = LoggerFactory.getLogger(VSChartPaletteDefaults.class);
 
    private static final Color[] MODERN_HEAD = {

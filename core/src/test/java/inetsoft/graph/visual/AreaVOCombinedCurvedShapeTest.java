@@ -17,6 +17,7 @@
  */
 package inetsoft.graph.visual;
 
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.awt.*;
@@ -28,6 +29,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * Unit tests for AreaVO.buildCombinedCurvedAreaShape path-construction logic.
  * Verifies edge cases (empty, single-point, all-NaN), contiguous runs, and NaN-split runs.
  */
+@Tag("core")
 class AreaVOCombinedCurvedShapeTest {
    @Test
    void emptyInput_returnsNull() {

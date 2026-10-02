@@ -115,7 +115,7 @@ class CategoricalColorDerivedPersistenceTest {
    void aDerivedColorShadowsANewPaletteUntilCleared() {
       CategoricalColorFrame frame = new CategoricalColorFrame();
       frame.setDerivedColor("Business", new Color(0x00D4E8));
-      frame.setDefaultColors(CategoricalColorFrame.COLOR_PALETTE);
+      frame.setDefaultColors(CategoricalColorFrame.COLOR_PALETTE.toArray(new Color[0]));
 
       assertEquals(new Color(0x00D4E8), frame.getColor("Business"),
                    "precondition: re-seeding the palette alone does not dislodge it");

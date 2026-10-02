@@ -19,6 +19,7 @@ package inetsoft.graph.visual;
 
 import inetsoft.graph.aesthetic.GShape;
 import inetsoft.graph.element.RelationElement;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.awt.Shape;
@@ -30,6 +31,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * Guards that RelationVO.resolveNodeShape() returns a shape matching the rendered node,
  * so the selection region matches what is painted (Bug #75650).
  */
+@Tag("core")
 class RelationVONodeShapeTest {
    private static final Rectangle2D BOX = new Rectangle2D.Double(0, 0, 100, 60);
 
