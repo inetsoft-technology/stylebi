@@ -1435,6 +1435,143 @@ class ViewsheetFormatServiceTest {
       assertTrue(thrown.getMessage().contains("assembly"), thrown.getMessage());
    }
 
+   // ── Bug #77597 part A: dateSpec derivation and pattern validation ─────────────────────
+
+   private static VSObjectFormatInfoModel parsed(String formatJson) throws Exception {
+      return new ObjectMapper().readValue(
+         "{\"assemblies\":[\"Table1\"],\"format\":" + formatJson + ",\"reset\":false}",
+         ViewsheetFormatService.FormatRequest.class).format();
+   }
+
+   /**
+    * The pattern the painter stores, run through the real {@code FormatPainterService}
+    * translation: a {@code DateFormat} keeps {@code formatSpec} only when {@code dateSpec} is
+    * {@code "Custom"}, otherwise it stores {@code dateSpec} as the pattern.
+    */
+   private static String storedPattern(VSObjectFormatInfoModel model) throws Exception {
+      FormatPainterService painter = mock(FormatPainterService.class, CALLS_REAL_METHODS);
+      java.lang.reflect.Method setUserFormat = FormatPainterService.class.getDeclaredMethod(
+         "setUserFormat", inetsoft.uql.viewsheet.VSCompositeFormat.class,
+         VSObjectFormatInfoModel.class, VSObjectFormatInfoModel.class, boolean.class,
+         boolean.class);
+      setUserFormat.setAccessible(true);
+      inetsoft.uql.viewsheet.VSCompositeFormat stored =
+         new inetsoft.uql.viewsheet.VSCompositeFormat();
+      setUserFormat.invoke(painter, stored, model, new VSObjectFormatInfoModel(), false, false);
+      return stored.getUserDefinedFormat().getFormatExtentValue();
+   }
+
+   /** #1/#2a: before the fix the pattern was dropped and the cells rendered yyyy-MM-dd. */
+   @Test
+   void aCustomDatePatternIsMarkedCustomAndStoredVerbatim() throws Exception {
+      VSObjectFormatInfoModel model =
+         parsed("{\"format\":\"DateFormat\",\"formatSpec\":\"MMM dd, yyyy\"}");
+
+      assertEquals("Custom", model.getDateSpec());
+      assertEquals("MMM dd, yyyy", model.getFormatSpec());
+      assertEquals("MMM dd, yyyy", storedPattern(model),
+                   "the painter must store the caller's pattern, not drop it");
+   }
+
+   @Test
+   void aNamedDateStyleBecomesTheDateSpecIgnoringCase() throws Exception {
+      VSObjectFormatInfoModel model =
+         parsed("{\"format\":\"DateFormat\",\"formatSpec\":\"medium\"}");
+
+      assertEquals("MEDIUM", model.getDateSpec());
+      assertNull(model.getFormatSpec());
+      assertEquals("MEDIUM", storedPattern(model));
+   }
+
+   @Test
+   void anExplicitDateSpecIsKeptAndOnlyCanonicalized() throws Exception {
+      VSObjectFormatInfoModel named =
+         parsed("{\"format\":\"DateFormat\",\"dateSpec\":\"short\",\"formatSpec\":\"yyyy\"}");
+      assertEquals("SHORT", named.getDateSpec());
+      assertEquals("yyyy", named.getFormatSpec());
+
+      VSObjectFormatInfoModel custom =
+         parsed("{\"format\":\"DateFormat\",\"dateSpec\":\"custom\",\"formatSpec\":\"MM/dd\"}");
+      assertEquals("Custom", custom.getDateSpec());
+      assertEquals("MM/dd", storedPattern(custom));
+   }
+
+   @Test
+   void aDateFormatWithNoPatternIsLeftAlone() throws Exception {
+      VSObjectFormatInfoModel model = parsed("{\"format\":\"DateFormat\"}");
+
+      assertNull(model.getDateSpec());
+      assertNull(model.getFormatSpec());
+   }
+
+   @Test
+   void aNonDateFormatGetsNoDateSpec() throws Exception {
+      VSObjectFormatInfoModel model =
+         parsed("{\"format\":\"DecimalFormat\",\"formatSpec\":\"#,##0.00\"}");
+
+      assertNull(model.getDateSpec());
+      assertEquals("#,##0.00", model.getFormatSpec());
+   }
+
+   @Test
+   void anIllegalDatePatternIsRefusedNamingThePattern() {
+      Exception thrown = assertThrows(
+         Exception.class,
+         () -> parsed("{\"format\":\"DateFormat\",\"formatSpec\":\"MMM qq yyyy\"}"));
+
+      assertTrue(thrown.getMessage().contains("MMM qq yyyy"), thrown.getMessage());
+
+      // WizControllerErrorHandler.handleUnreadableBody reports the most specific cause's first
+      // line, so that cause must be the message naming the pattern, on one line.
+      Throwable root = thrown;
+
+      while(root.getCause() != null && root.getCause() != root) {
+         root = root.getCause();
+      }
+
+      assertTrue(root.getMessage().contains("MMM qq yyyy") &&
+                 root.getMessage().contains("Illegal pattern character"), root.getMessage());
+      assertFalse(root.getMessage().contains("\n"), root.getMessage());
+   }
+
+   @Test
+   void aMalformedDecimalPatternIsRefusedNamingThePattern() {
+      Exception thrown = assertThrows(
+         Exception.class,
+         () -> parsed("{\"format\":\"DecimalFormat\",\"formatSpec\":\"#,##0.0.0\"}"));
+
+      assertTrue(thrown.getMessage().contains("#,##0.0.0"), thrown.getMessage());
+   }
+
+   /** A typo that is still a legal pattern is accepted, as the Composer would accept it. */
+   @Test
+   void aLegalButOddDatePatternIsAccepted() throws Exception {
+      assertEquals("MMM dd, yyy",
+                   parsed("{\"format\":\"DateFormat\",\"formatSpec\":\"MMM dd, yyy\"}")
+                      .getFormatSpec());
+   }
+
+   /** StyleBI's extended decimal suffixes are accepted (no false refusal). */
+   @Test
+   void extendedDecimalSuffixesAreAccepted() throws Exception {
+      for(String spec : List.of("#.#B", "#,##0K", "'$'#,##0", "#,##0.##%M")) {
+         assertEquals(spec, parsed("{\"format\":\"DecimalFormat\",\"formatSpec\":\"" + spec +
+                                   "\"}").getFormatSpec());
+      }
+   }
+
+   /** set_calc_cell_format shares parseFormat, so it gets the derivation too. */
+   @Test
+   void calcCellFormatGetsTheDateSpecDerivation() throws Exception {
+      ViewsheetFormatService.CellFormatRequest request = new ObjectMapper().readValue(
+         "{\"assembly\":\"FreehandTable1\",\"row\":1,\"col\":0,\"format\":" +
+         "{\"format\":\"DateFormat\",\"formatSpec\":\"MM/dd/yyyy\"},\"reset\":false}",
+         ViewsheetFormatService.CellFormatRequest.class);
+
+      assertEquals("Custom", request.format().getDateSpec());
+      assertEquals("MM/dd/yyyy", request.format().getFormatSpec());
+   }
+
    private static ViewsheetFormatService serviceWith(FormatPainterService painter) {
       return serviceWith(painter, mock(CalcTableService.class));
    }

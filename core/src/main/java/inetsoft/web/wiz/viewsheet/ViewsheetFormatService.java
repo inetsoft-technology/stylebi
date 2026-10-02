@@ -29,6 +29,7 @@ import inetsoft.report.TableDataPath;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.VSTableLens;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
+import inetsoft.uql.XConstants;
 import inetsoft.uql.viewsheet.CrosstabVSAssembly;
 import inetsoft.uql.viewsheet.TableVSAssembly;
 import inetsoft.uql.viewsheet.VSAssembly;
@@ -42,14 +43,18 @@ import inetsoft.web.composer.vs.objects.event.FormatVSObjectEvent;
 import inetsoft.web.composer.vs.objects.event.GetVSObjectFormatEvent;
 import inetsoft.web.wiz.binding.CalcTableService;
 import inetsoft.web.wiz.dispatch.CapturingCommandDispatcher;
+import inetsoft.util.CoreTool;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.security.Principal;
+import java.text.DecimalFormat;
+import java.text.DecimalFormatSymbols;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -183,14 +188,129 @@ public class ViewsheetFormatService {
       coerceAlign(object, toolName);
       coerceBorderStyles(object, toolName);
 
+      VSObjectFormatInfoModel model;
+
       try {
-         return MAPPER.treeToValue(object, VSObjectFormatInfoModel.class);
+         model = MAPPER.treeToValue(object, VSObjectFormatInfoModel.class);
       }
       catch(JsonProcessingException e) {
          throw new IllegalArgumentException(
             toolName + " could not read 'format': " + e.getOriginalMessage(), e);
       }
+
+      deriveDateSpec(model);
+      validateFormatSpec(model, toolName);
+      return model;
    }
+
+   /**
+    * Bug #77597: fills in the {@code dateSpec} half of the Composer's two-field date contract.
+    *
+    * <p>{@code FormatPainterService} reads a {@code DateFormat}'s pattern from {@code formatSpec}
+    * only when {@code dateSpec} is {@code "Custom"}; otherwise it uses {@code dateSpec} itself as
+    * the pattern. The Composer's own Format pane always sends {@code dateSpec}. This API documents
+    * only {@code format}/{@code formatSpec}, so a caller's {@code "MMM dd, yyyy"} arrived with a
+    * null {@code dateSpec}, the painter stored a null pattern, and the cells rendered the
+    * {@code yyyy-MM-dd} default while the call reported success.
+    *
+    * <p>Derived the way {@code FormatInfoModel.fixDateSpec} does, but matching the named styles
+    * case-insensitively: {@code FULL}/{@code LONG}/{@code MEDIUM}/{@code SHORT} become
+    * {@code dateSpec} with no {@code formatSpec}; any other non-empty pattern becomes
+    * {@code "Custom"}. An explicit {@code dateSpec} is kept, only canonicalized; an empty
+    * {@code formatSpec} is left as it is (the default pattern, as before).
+    */
+   private static void deriveDateSpec(VSObjectFormatInfoModel model) {
+      if(model == null || !XConstants.DATE_FORMAT.equals(model.getFormat())) {
+         return;
+      }
+
+      String dateSpec = model.getDateSpec();
+
+      if(dateSpec != null && !dateSpec.isBlank()) {
+         String named = namedDateStyle(dateSpec);
+
+         if(named != null) {
+            model.setDateSpec(named);
+         }
+         else if(CUSTOM_DATE_SPEC.equalsIgnoreCase(dateSpec.trim())) {
+            model.setDateSpec(CUSTOM_DATE_SPEC);
+         }
+
+         return;
+      }
+
+      String spec = model.getFormatSpec();
+
+      if(spec == null || spec.isEmpty()) {
+         return;
+      }
+
+      String named = namedDateStyle(spec);
+
+      if(named != null) {
+         model.setDateSpec(named);
+         model.setFormatSpec(null);
+      }
+      else {
+         model.setDateSpec(CUSTOM_DATE_SPEC);
+      }
+   }
+
+   /** The upper-case named date style {@code spec} names, ignoring case; null if none. */
+   private static String namedDateStyle(String spec) {
+      String upper = spec.trim().toUpperCase(Locale.ROOT);
+      return NAMED_DATE_STYLES.contains(upper) ? upper : null;
+   }
+
+   /**
+    * Bug #77597: refuses a pattern the renderer cannot build.
+    *
+    * <p>{@code TableFormat.getFormat} catches a bad pattern at render time and shows the value
+    * unformatted, so a pattern stored verbatim but unusable is another silent no-op. The same
+    * date factory the renderer uses, {@code CoreTool.createDateFormat}, is tried for a custom
+    * date, time or timestamp pattern. A decimal pattern is tried with the JDK
+    * {@code DecimalFormat}, which accepts StyleBI's extended suffix forms ({@code #,##0K},
+    * {@code #.#B}, ...); {@code ExtendedDecimalFormat} itself is not used because its static
+    * initializer needs the server's configuration, which a request-body parse must not.
+    * The message stays on one line: a failure here surfaces through the request-body error
+    * handler, which reports only the cause's first line.
+    */
+   private static void validateFormatSpec(VSObjectFormatInfoModel model, String toolName) {
+      if(model == null) {
+         return;
+      }
+
+      String type = model.getFormat();
+      String spec = model.getFormatSpec();
+
+      if(type == null || spec == null || spec.isEmpty()) {
+         return;
+      }
+
+      boolean dateLike = XConstants.DATE_FORMAT.equals(type) &&
+         CUSTOM_DATE_SPEC.equals(model.getDateSpec()) ||
+         XConstants.TIME_FORMAT.equals(type) || XConstants.TIMEINSTANT_FORMAT.equals(type);
+
+      try {
+         if(dateLike) {
+            CoreTool.createDateFormat(spec, Locale.getDefault());
+         }
+         else if(XConstants.DECIMAL_FORMAT.equals(type)) {
+            new DecimalFormat(spec, new DecimalFormatSymbols(Locale.getDefault()));
+         }
+      }
+      catch(IllegalArgumentException e) {
+         String cause = e.getMessage() == null ? e.getClass().getSimpleName() :
+            e.getMessage().lines().findFirst().orElse("").trim();
+         // Not chained: the body-error handler reports the most specific cause, which must be
+         // this message (naming the pattern), not the JDK's bare "Illegal pattern character".
+         throw new IllegalArgumentException(
+            toolName + " could not use formatSpec '" + spec + "' for " + type + ": " + cause);
+      }
+   }
+
+   private static final String CUSTOM_DATE_SPEC = "Custom";
+   private static final Set<String> NAMED_DATE_STYLES = Set.of("FULL", "LONG", "MEDIUM", "SHORT");
 
    /**
     * Lets {@code align} be written as a word.
