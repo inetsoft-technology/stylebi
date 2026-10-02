@@ -31,6 +31,7 @@ import org.w3c.dom.Element;
 
 import javax.xml.parsers.DocumentBuilderFactory;
 import java.awt.Dimension;
+import java.awt.Insets;
 import java.io.ByteArrayInputStream;
 import java.io.PrintWriter;
 import java.io.StringWriter;
@@ -112,6 +113,44 @@ class SelectionDensitySizeTest {
 
       assertEquals(new Dimension(before.width + 32, before.height + 32), info.getPixelSize(),
                    "the container grows by its inset; the five-row rule is not its rule");
+   }
+
+   @Test
+   void theContainerSeedsTheTierInset() {
+      assertEquals(new Insets(16, 16, 16, 16), seededContainer("comfortable").getPadding());
+      assertEquals(new Insets(12, 12, 12, 12), seededContainer("compact").getPadding());
+      assertEquals(new Insets(8, 8, 8, 8), seededContainer("dense").getPadding());
+   }
+
+   @Test
+   void revertingTheContainerRestoresZeroInset() {
+      CurrentSelectionVSAssemblyInfo info = seededContainer("comfortable");
+      info.setVizMark(null);
+
+      info.seedChromeDefaults(VizContext.of(info));
+
+      assertEquals(new Insets(0, 0, 0, 0), info.getPadding());
+   }
+
+   @Test
+   void anAuthorContainerInsetIsKept() {
+      SreeEnv.setProperty("viewsheet.density", "comfortable");
+      CurrentSelectionVSAssemblyInfo info = new CurrentSelectionVSAssemblyInfo();
+      info.setPadding(new Insets(3, 3, 3, 3));
+      info.setUserPadding(true);
+      info.setVizMark(VizMark.MODERN_LIGHT);
+
+      info.seedChromeDefaults(VizContext.of(info));
+
+      assertEquals(new Insets(3, 3, 3, 3), info.getPadding());
+   }
+
+   private CurrentSelectionVSAssemblyInfo seededContainer(String density) {
+      SreeEnv.setProperty("viewsheet.density", density);
+      CurrentSelectionVSAssemblyInfo info = new CurrentSelectionVSAssemblyInfo();
+      info.setVizMark(VizMark.MODERN_LIGHT);
+      info.seedChromeDefaults(VizContext.of(info));
+      return info;
    }
 
    @Test
