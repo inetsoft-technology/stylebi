@@ -378,7 +378,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
          orderDBFields = new Vector<>(uniformSql.orderDBFields);
          groupDBFields = new Vector<>(uniformSql.groupDBFields);
          orderByList = new Vector<>(uniformSql.orderByList);
-         quotedFields = new HashSet<>(uniformSql.quotedFields);
+         quotedFields = new HashMap<>(uniformSql.quotedFields);
 
          if(uniformSql.groups == null) {
             groups = null;
@@ -543,7 +543,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
       tables = new Vector<>();
       fields = new Vector<>();
       orderByList = new Vector<>();
-      quotedFields = new HashSet<>();
+      quotedFields = new HashMap<>();
       groups = null;
       where = null;
       having = null;
@@ -778,9 +778,18 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
          }
 
          Element quotedNode = Tool.getChildNodeByTagName(column, "quoted");
+         Element quotedColumnNode = Tool.getChildNodeByTagName(column, "quotedColumn");
 
          if(quotedNode != null) {
             selection.setQuoted(columnName, "true".equals(Tool.getValue(quotedNode)));
+         }
+         // a qualified quoted identifier (t."MixedCase"), see writeXML
+         else if(quotedColumnNode != null) {
+            String seg = Tool.getAttribute(quotedColumnNode, "column");
+
+            if(seg != null && !seg.isEmpty()) {
+               selection.setQuoted(columnName, seg);
+            }
          }
       }
 
@@ -847,9 +856,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
             String order = Tool.getAttribute(sortNode, "order");
             orderByList.add(new OrderByItem(field, order));
 
-            if("true".equals(Tool.getAttribute(sortNode, "quoted"))) {
-               setQuotedField(field, true);
-            }
+            readQuotedField(sortNode, field);
          }
       }
 
@@ -864,9 +871,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
             String field = Tool.getValue(groupNode);
             groups[i] = field;
 
-            if("true".equals(Tool.getAttribute(groupNode, "quoted"))) {
-               setQuotedField(field, true);
-            }
+            readQuotedField(groupNode, field);
          }
       }
 
@@ -1102,7 +1107,17 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
          writer.println("<isExp><![CDATA[" + isExp + "]]></isExp>");
 
          if(selection.isQuoted(column)) {
-            writer.println("<quoted><![CDATA[true]]></quoted>");
+            String seg = selection.getQuotedColumn(column);
+
+            // a qualified quoted identifier (t."MixedCase") is not written as <quoted>,
+            // which older versions read as quoting the whole name ("t.MixedCase"). They
+            // ignore <quotedColumn> and generate the name unquoted, as before
+            if(seg != null) {
+               writer.println("<quotedColumn column=\"" + Tool.escape(seg) + "\"/>");
+            }
+            else {
+               writer.println("<quoted><![CDATA[true]]></quoted>");
+            }
          }
 
          writer.println("</column>");
@@ -1742,7 +1757,8 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
             // the fullpath may be pointing to a wrong column
             getSelection().getAliasColumn((String) sortFields[i]) == null)
          {
-            String fp = JDBCUtil.getFullPathOf(this, (String) sortFields[i]);
+            String fp = JDBCUtil.getFullPathOf(this, (String) sortFields[i],
+               isQuotedField(sortFields[i]));
 
             if(fp != null && !fp.equals(sortFields[i])) {
                copyQuotedField((String) sortFields[i], fp);
@@ -1795,7 +1811,8 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
             // the fullpath may be pointing to a wrong column
             getSelection().getAliasColumn((String) groupBy[i]) == null)
          {
-            String fp = JDBCUtil.getFullPathOf(this, (String) groupBy[i]);
+            String fp = JDBCUtil.getFullPathOf(this, (String) groupBy[i],
+               isQuotedField(groupBy[i]));
 
             if(fp != null && !fp.equals(groupBy[i])) {
                copyQuotedField((String) groupBy[i], fp);
@@ -1874,7 +1891,11 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
                   continue;
                }
 
-               String col = getColumnFromPath(path);
+               JDBCSelection jselect = xselect instanceof JDBCSelection ?
+                  (JDBCSelection) xselect : null;
+               boolean quoted = jselect != null && jselect.isQuoted(path);
+               String col = getColumnFromPath(path, oldTableAlias,
+                  quoted ? jselect.getQuotedColumn(path) : null, quoted);
                String alias = xselect.getAlias(i);
 
                if(alias != null && alias.startsWith(oldTableAlias + ".")) {
@@ -1889,6 +1910,11 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
                xselect.setAlias(i, alias);
                xselect.setType(newPath, type);
                xselect.setDescription(newPath, xselect.getDescription(path));
+
+               // a quoted identifier keeps its flag under the new name
+               if(quoted) {
+                  jselect.setQuoted(newPath, jselect.getQuotedColumn(path));
+               }
             }
             else if(oldTableAlias.length() > 0 && getTableIndex(oldTableAlias) < 0) {
                XField field = getFieldByPath(path);
@@ -1939,9 +1965,13 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
                   continue;
                }
 
-               String col = getColumnFromPath((String) orders[i]);
+               String field = (String) orders[i];
+               boolean quoted = isQuotedField(field);
+               String col = getColumnFromPath(field, oldTableAlias,
+                                              getQuotedFieldColumn(field), quoted);
                String ord = getOrderBy(orders[i]);
                replaceOrderBy(orders[i], ord, newTableAlias + "." + col, ord);
+               copyQuotedField(field, newTableAlias + "." + col);
             }
          }
       }
@@ -1962,8 +1992,12 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
                   continue;
                }
 
-               String col = getColumnFromPath((String) groups[i]);
+               String field = (String) groups[i];
+               boolean quoted = isQuotedField(field);
+               String col = getColumnFromPath(field, oldTableAlias,
+                                              getQuotedFieldColumn(field), quoted);
                groups[i] = newTableAlias + "." + col;
+               copyQuotedField(field, (String) groups[i]);
             }
          }
       }
@@ -1974,6 +2008,33 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
             setHaving((XFilterNode) getHaving().getChild(0));
          }
       }
+   }
+
+   /**
+    * Get the column part of a path whose table is renamed. The column of a quoted
+    * identifier keeps its written case, it isn't looked up ignoring case, which could
+    * find a column that differs only in case (MIXEDCASE for "MixedCase").
+    * @param segment the column segment recorded for a qualified quoted identifier.
+    * @param quoted <tt>true</tt> if the path was written as a quoted identifier.
+    */
+   private String getColumnFromPath(String path, String table, String segment, boolean quoted) {
+      if(quoted) {
+         if(segment != null && path.endsWith("." + segment)) {
+            return segment;
+         }
+
+         if(table != null && !table.isEmpty() && path.startsWith(table + ".")) {
+            return path.substring(table.length() + 1);
+         }
+
+         XField field = getFieldByPath(path, true);
+
+         if(field != null && field.getName() != null) {
+            return field.getName().toString();
+         }
+      }
+
+      return getColumnFromPath(path);
    }
 
    /**
@@ -2381,6 +2442,43 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
       }
 
       return null;
+   }
+
+   /**
+    * Get a field by its full path.
+    * @param path the path of field in format of "table.col".
+    * @param exactCase <tt>true</tt> if the column was written as a quoted identifier, so a
+    *                  field whose name has the same case is preferred over one that only
+    *                  matches ignoring case (e.g. "MixedCase" over MIXEDCASE).
+    */
+   public synchronized XField getFieldByPath(String path, boolean exactCase) {
+      XField field = getFieldByPath(path);
+
+      if(!exactCase || field == null) {
+         return field;
+      }
+
+      String path2 = trimPath(path);
+      int idx = path2.lastIndexOf('.');
+      String col = idx < 0 ? path : path2.substring(idx + 1);
+      String table = idx < 0 ? "" : path2.substring(0, idx);
+
+      if(col.equals(String.valueOf(field.getName()))) {
+         return field;
+      }
+
+      for(XField exact : fields) {
+         String ftable = exact.getTable();
+
+         if(col.equals(String.valueOf(exact.getName())) &&
+            (table.isEmpty() || ftable.equalsIgnoreCase(table) ||
+             trimPath(ftable).equalsIgnoreCase(table)))
+         {
+            return exact;
+         }
+      }
+
+      return field;
    }
 
    /**
@@ -3031,7 +3129,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
     * @return <tt>true</tt> if quoted, <tt>false</tt> otherwise.
     */
    public synchronized boolean isQuotedField(Object field) {
-      return field instanceof String && quotedFields.contains(field);
+      return field instanceof String && quotedFields.containsKey(field);
    }
 
    /**
@@ -3041,21 +3139,63 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
     */
    public synchronized void setQuotedField(String field, boolean quoted) {
       if(quoted) {
-         quotedFields.add(field);
+         quotedFields.putIfAbsent(field, "");
       }
       else {
          quotedFields.remove(field);
       }
    }
 
+   /**
+    * Set a group by or order by field as written as a qualified quoted identifier.
+    * @param segment the column segment as written, or <tt>null</tt> for a bare identifier.
+    */
+   public synchronized void setQuotedField(String field, String segment) {
+      quotedFields.put(field, segment == null ? "" : segment);
+   }
+
+   /**
+    * Get the column segment, as written, of a group by or order by field written as a
+    * qualified quoted identifier (t."MixedCase").
+    */
+   public synchronized String getQuotedFieldColumn(Object field) {
+      String seg = field instanceof String ? quotedFields.get(field) : null;
+      return seg == null || seg.isEmpty() ? null : seg;
+   }
+
    private void copyQuotedField(String field, String nfield) {
       if(isQuotedField(field)) {
-         setQuotedField(nfield, true);
+         setQuotedField(nfield, getQuotedFieldColumn(field));
       }
    }
 
+   /**
+    * Get the xml attribute that marks a group by or order by field as a quoted identifier.
+    * A qualified quoted identifier (t."MixedCase") is written as quotedColumn only, not
+    * quoted="true", which older versions read as quoting the whole name ("t.MixedCase").
+    * They ignore quotedColumn and generate the name unquoted, as before.
+    */
    private String quotedFieldAttribute(Object field) {
-      return isQuotedField(field) ? " quoted=\"true\"" : "";
+      if(!isQuotedField(field)) {
+         return "";
+      }
+
+      String seg = getQuotedFieldColumn(field);
+      return seg != null ? " quotedColumn=\"" + Tool.escape(seg) + "\"" : " quoted=\"true\"";
+   }
+
+   /**
+    * Read the quoting of a group by or order by field written by quotedFieldAttribute.
+    */
+   private void readQuotedField(Element node, String field) {
+      String seg = Tool.getAttribute(node, "quotedColumn");
+
+      if("true".equals(Tool.getAttribute(node, "quoted"))) {
+         setQuotedField(field, true);
+      }
+      else if(seg != null && !seg.isEmpty()) {
+         setQuotedField(field, seg);
+      }
    }
 
    public synchronized Vector<String> getOrderDBFields() {
@@ -3601,7 +3741,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
             obj.groups = groups.clone();
          }
 
-         obj.quotedFields = new HashSet<>(quotedFields);
+         obj.quotedFields = new HashMap<>(quotedFields);
 
          if(where != null) {
             obj.where = (XFilterNode) where.clone();
@@ -3928,7 +4068,22 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
 
          try {
             parser.direct_select_stmt_n_rows(sql);
-            setLossy((sql.lossy != null && sql.lossy) || isLegacyCycleJoins());
+            // the join order check fails the parse of sql whose regenerated joins differ,
+            // e.g. a saved query parsed before the check was added (Bug #77488). It needs
+            // the data source's sql helper, without one the parse result is kept
+            if(sql.getDataSource() != null) {
+               sql.checkJoinOrders(parser, PARSE_PERIOD);
+            }
+
+            boolean result = (sql.lossy != null && sql.lossy) || isLegacyCycleJoins();
+
+            // a check skipped for the missing data source isn't cached, so it runs once a
+            // caller sets the data source (e.g. BoundQuery checks lossy before setting it)
+            if(sql.getDataSource() == null && !parser.getJoinOrderChecks().isEmpty()) {
+               return result;
+            }
+
+            setLossy(result);
          }
          catch(Exception e) {
             setLossy(true);
@@ -4037,8 +4192,8 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
    private Vector<XField> fields = new Vector<>(); // field list
    private Vector<OrderByItem> orderByList = new Vector<>(); // order by list
    private Object[] groups; // group by list
-   // group by and order by fields written as quoted identifiers
-   private HashSet<String> quotedFields = new HashSet<>();
+   // group by/order by fields written as quoted identifiers -> column segment ("" if bare)
+   private HashMap<String, String> quotedFields = new HashMap<>();
    private XFilterNode where; // root XFilterNode of where clause
    private XFilterNode having; // root XFilterNode of having clause
    private JDBCDataSource dataSource = null;

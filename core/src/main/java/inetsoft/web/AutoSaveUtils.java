@@ -373,7 +373,11 @@ public final class AutoSaveUtils {
       }
 
       Date date = new Date(time);
+      // Bug #77566: a locale-less SimpleDateFormat uses the JVM default locale's calendar (e.g.
+      // Buddhist for th_TH, Japanese imperial for ja_JP_JP) for a value that is only ever
+      // displayed, never parsed back -- force Gregorian so the displayed year is correct.
       SimpleDateFormat format = new SimpleDateFormat(SreeEnv.getProperty("format.date.time"));
+      format.setCalendar(new GregorianCalendar());
       format.setTimeZone(TimeZone.getTimeZone(clientTimeZone));
       return format.format(date);
    }

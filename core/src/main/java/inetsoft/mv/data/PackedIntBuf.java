@@ -236,11 +236,15 @@ public class PackedIntBuf extends IntBuf {
       int size = buf.getInt();
       dimbuf = new long[size];
 
-      buf = channel.map(channel.position(), len);
-      ByteBuffer buf2 = XSwapUtil.uncompressByteBuffer(buf);
+      ByteBuffer mapped = channel.map(channel.position(), len);
 
-      buf2.asLongBuffer().get(dimbuf);
-      channel.unmap(buf);
+      try {
+         ByteBuffer buf2 = XSwapUtil.uncompressByteBuffer(mapped);
+         buf2.asLongBuffer().get(dimbuf);
+      }
+      finally {
+         channel.unmap(mapped);
+      }
    }
 
    /**

@@ -45,7 +45,7 @@ public class RestJsonDataSource extends AbstractRestDataSource<RestJsonDataSourc
       return super.getTokenUri();
    }
 
-   @Property(label = "Scope", required = true)
+   @Property(label = "Scope")
    @Override
    public String getScope() {
       return super.getScope();

@@ -155,6 +155,8 @@ private int onClauseCount = 0; // ON clauses parsed so far, in text order
 private boolean catalog = false;
 private boolean schema = true;
 private boolean preferQuote = true;
+// conditions of a (+) outer join with an op other than =, e.g. "a.id >= b.id(+)"
+private Map badOuterJoins = new IdentityHashMap();
 
 private static class TableKey {
    public TableKey(UniformSQL sql, Object table) {
@@ -266,6 +268,108 @@ private void markJoins(inetsoft.uql.XNode node, int clause) {
          markJoins(node.getChild(i), clause);
       }
    }
+}
+
+/**
+ * Check that each legacy outer join of a where clause (*=, =* or (+)) can be
+ * generated in the from clause.
+ */
+private void checkWhereOuterJoinPositions(UniformSQL sql, XFilterNode node, Token tok)
+   throws SemanticException
+{
+   List joins = new ArrayList();
+   collectJoins(sql.getWhere(), joins);
+   collectJoins(node, joins);
+   checkWhereOuterJoinPositions(sql, node, true, joins, tok);
+}
+
+/**
+ * An outer join is generated in the from clause as a join condition that the
+ * where clause doesn't see, so it must also be under ANDs only (joinPos). Under
+ * a NOT set, or an OR set with other conditions, the rest of the set would lose
+ * the join (e.g. "not (a.id = b.id(+) and a.k = 1)" generated as "ON a.id = b.id
+ * where not (a.k = 1)"). An OR of outer joins only, between the same two tables
+ * that have no other join, is generated as one ON condition, "ON a.id = b.id OR
+ * a.k = b.k", as Oracle applies it. With another join on the tables it would be
+ * "ON a.k = b.k AND a.id = b.id OR ..." without the parentheses. A negated outer
+ * join itself is fine: Oracle applies "not (a.id = b.id(+))" as the join
+ * condition, which is "ON a.id <> b.id". An outer join that isn't column =
+ * column (e.g. "a.id >= b.id(+)") has no op to keep its comparison, so it was
+ * recorded in badOuterJoins and can't be represented.
+ */
+private void checkWhereOuterJoinPositions(UniformSQL sql, XFilterNode node,
+                                          boolean joinPos, List joins, Token tok)
+   throws SemanticException
+{
+   if(badOuterJoins.containsKey(node) ||
+      !joinPos && node instanceof XJoin && ((XJoin) node).isOuterJoin())
+   {
+      throw new SemanticException("Unsupported outer join condition: " + node,
+                                  getFilename(), tok.getLine(), tok.getColumn());
+   }
+
+   if(node instanceof XSet) {
+      boolean joinPos2 = joinPos && !node.isIsNot() && (node.getChildCount() <= 1 ||
+         XSet.AND.equalsIgnoreCase(((XSet) node).getRelation()) ||
+         isOuterJoinSet(sql, node, joins));
+
+      for(int i = 0; i < node.getChildCount(); i++) {
+         checkWhereOuterJoinPositions(sql, (XFilterNode) node.getChild(i), joinPos2,
+                                      joins, tok);
+      }
+   }
+}
+
+/**
+ * Check if every condition of a set is an outer join of the same type between the
+ * same two tables, and the set has all the joins of the where clause (joins)
+ * between them.
+ */
+private boolean isOuterJoinSet(UniformSQL sql, XFilterNode node, List joins) {
+   String op = null;
+   int index1 = -1;
+   int index2 = -1;
+
+   for(int i = 0; i < node.getChildCount(); i++) {
+      Object child = node.getChild(i);
+
+      if(!(child instanceof XJoin) || !((XJoin) child).isOuterJoin()) {
+         return false;
+      }
+
+      XJoin join = (XJoin) child;
+      int cindex1 = getJoinTableIndex(sql, join.getTable1(sql));
+      int cindex2 = getJoinTableIndex(sql, join.getTable2(sql));
+
+      if(cindex1 < 0 || cindex2 < 0 || cindex1 == cindex2 ||
+         op != null && (!op.equals(join.getOp()) || cindex1 != index1 || cindex2 != index2))
+      {
+         return false;
+      }
+
+      op = join.getOp();
+      index1 = cindex1;
+      index2 = cindex2;
+   }
+
+   for(int i = 0; i < joins.size(); i++) {
+      XJoin join = (XJoin) joins.get(i);
+      int jindex1 = getJoinTableIndex(sql, join.getTable1(sql));
+      int jindex2 = getJoinTableIndex(sql, join.getTable2(sql));
+      boolean inSet = false;
+
+      for(int j = 0; j < node.getChildCount() && !inSet; j++) {
+         inSet = node.getChild(j) == join;
+      }
+
+      if(!inSet && (jindex1 == index1 && jindex2 == index2 ||
+                    jindex1 == index2 && jindex2 == index1))
+      {
+         return false;
+      }
+   }
+
+   return true;
 }
 
 /**
@@ -544,6 +648,22 @@ private void addUsingTables(UniformSQL sql, List columns, int lstart, int rstart
 
    for(int i = 0; i < columns.size(); i++) {
       tables.put(getUsingColumnKey((String) columns.get(i)), new int[] { rstart, lstart });
+   }
+}
+
+/**
+ * Refuse a derived column list (t(p, q)) of a from clause table. UniformSQL
+ * has no place for the column list, so it would be kept as part of the alias
+ * and regenerated as one quoted alias ("t(p,q)") without the column names.
+ */
+private void checkDerivedColumnList(UniformSQL sql, String alias, String columns,
+                                    Token tok)
+   throws SemanticException
+{
+   if(sql != null) {
+      throw new SemanticException(
+         "Unsupported derived column list: " + alias + "(" + columns + ")",
+         getFilename(), tok.getLine(), tok.getColumn());
    }
 }
 
@@ -971,6 +1091,26 @@ private void clearInnerOnJoins(UniformSQL sql, String outerType, String tbl2) {
    }
 }
 
+/**
+ * Check that a condition has no legacy outer join (*=, =* or (+)). It is only valid
+ * in a where clause. In an inner join ON it isn't valid on any database ((+) in an
+ * ANSI join is ORA-25156, and *= can't be mixed with ANSI joins), and in a having
+ * clause or a case it isn't a join. The generation hoisted it into an outer join
+ * anyway, which dropped it or lost its position and comparison op (e.g. "on a.id =
+ * b.id and a.k > b.k(+)" became "ON a.k = b.k where a.id = b.id"), or printed *=.
+ */
+private void checkNoOuterJoins(XFilterNode node, Token tok) throws SemanticException {
+   if(node instanceof XJoin && ((XJoin) node).isOuterJoin()) {
+      throw new SemanticException("Unsupported outer join condition: " + node,
+                                  getFilename(), tok.getLine(), tok.getColumn());
+   }
+   else if(node instanceof XSet) {
+      for(int i = 0; i < node.getChildCount(); i++) {
+         checkNoOuterJoins((XFilterNode) node.getChild(i), tok);
+      }
+   }
+}
+
 private void collectInnerJoins(XFilterNode node, List joins) {
    if(node instanceof XJoin) {
       if(!((XJoin) node).isOuterJoin()) {
@@ -1320,6 +1460,27 @@ String strip(String str) {
         ? str.substring(1, str.length()-1) : str;
 }
 
+// the quote of the last special_identifier token (XExpression.QUOTE_*)
+private int identQuote = XExpression.QUOTE_NONE;
+// the quote and the as-written segment of a quoted column in the last column_ref
+private int colrefQuote = XExpression.QUOTE_NONE;
+private String colrefColumn = null;
+// the last segment of the last qualified_name
+private int lastSegQuote = XExpression.QUOTE_NONE;
+private int lastSegStart = 0;
+private String lastSeg = null;
+
+// a quoted column segment without a dot is stored without its quotes and flagged
+String quoteColumn(String col) {
+   if(identQuote != XExpression.QUOTE_NONE && col.length() > 0 && col.indexOf('.') < 0) {
+      colrefQuote = identQuote;
+      colrefColumn = col;
+      return col;
+   }
+
+   return quoteDot(col);
+}
+
 // quote string if it contains dot
 String quoteDot(String str) {
    JDBCDataSource dx = null;
@@ -1351,10 +1512,10 @@ schema_identifier returns [String schmid = ""]
         ;
 
 special_identifier returns [String specid = ""]
-        {String tmp = ""; XExpression exp = null; {checkStatus();}}
+        {String tmp = ""; XExpression exp = null; identQuote = XExpression.QUOTE_NONE; {checkStatus();}}
         :
-        a:SPIDENT {tmp = a.getText();specid = tmp.substring(1, tmp.length() - 1);}
-        |c:SPIDENT2 {tmp = c.getText();specid = tmp.substring(1, tmp.length() - 1);}
+        a:SPIDENT {tmp = a.getText();specid = tmp.substring(1, tmp.length() - 1);identQuote = XExpression.QUOTE_DOUBLE;}
+        |c:SPIDENT2 {tmp = c.getText();specid = tmp.substring(1, tmp.length() - 1);identQuote = XExpression.QUOTE_SINGLE;}
         |d:SPIDENT_VAR {specid = d.getText();}
         |b:SPIDENT_SQUARE {tmp = b.getText();specid = tmp.substring(1,tmp.length() - 1);}
     |h:SPIDENT_BRACKET {specid = h.getText();}
@@ -1519,7 +1680,7 @@ predicate_body returns [XFilterNode node = null]
 
 comp_predicate returns [XFilterNode xnode = null]
         {XExpression exp1, exp2; String op; XBinaryCondition node;
-        boolean isOracleLeftJoin = false; {checkStatus();}}
+        boolean isOracleLeftJoin = false; Token start = LT(1); {checkStatus();}}
         :
         exp1 = row_value_constructor op = comp_op exp2 = row_value_constructor
         ((OJ)=>OJ {isOracleLeftJoin = true;}|)
@@ -1529,7 +1690,10 @@ comp_predicate returns [XFilterNode xnode = null]
                 op = "=*";
         }
 
-        // left outer join?
+        // left outer join? the outer join op can't keep another comparison op,
+        // so such a condition is refused if it is in a where clause
+        boolean badOuterJoin = isOracleLeftJoin && !op.equals("=");
+
         if(isOracleLeftJoin == true) {
                 op = "*=";
         }
@@ -1545,11 +1709,26 @@ comp_predicate returns [XFilterNode xnode = null]
                 node = new XJoin();
         }
         else {
+                // an outer join op on a condition that isn't a join between two
+                // tables, such as b.code(+) = 'X', is a filter of the outer join.
+                // the model has no place for it, and generating it with = would
+                // give different rows, so refuse it and the original sql runs
+                if(op.equals("*=") || op.equals("=*")) {
+                        throw new SemanticException("Unsupported outer join condition: " +
+                           exp1 + " " + op + " " + exp2,
+                           getFilename(), start.getLine(), start.getColumn());
+                }
+
                 node = new XBinaryCondition();
         }
 
         node.setExpression1(exp1);
-        node.setOp(op); node.setExpression2(exp2); xnode = node;}
+        node.setOp(op); node.setExpression2(exp2); xnode = node;
+
+        if(badOuterJoin) {
+                badOuterJoins.put(node, Boolean.TRUE);
+        }
+        }
         ;
 
 comp_op returns [String op = ""]
@@ -1699,11 +1878,21 @@ null_predicate returns [XFilterNode xnode = null]
         ;
 
 quantified_comp_predicate returns [XFilterNode xnode =null]
-        {XExpression exp1, exp2, tmp; String op, str; XBinaryCondition node; {checkStatus();}}
+        {XExpression exp1, exp2, tmp; String op, str; XBinaryCondition node;
+        Token start = LT(1); {checkStatus();}}
         :
         exp1 = row_value_constructor op = comp_op str = quantifier tmp = table_subquery
 
         {exp2 = new XExpression(); exp2.setValue(str + " " + tmp, XExpression.EXPRESSION);
+
+        // an outer join op against a subquery can't be represented, the same as
+        // in comp_predicate. (+)= isn't converted to =* here, so check it too
+        if(op.equals("*=") || op.equals("=*") || op.equals("(+)=")) {
+                throw new SemanticException("Unsupported outer join condition: " +
+                   exp1 + " " + op + " " + exp2,
+                   getFilename(), start.getLine(), start.getColumn());
+        }
+
         node = new XBinaryCondition(); node.setExpression1(exp1);
         node.setExpression2(exp2); node.setOp(op); xnode = node;}
         ;
@@ -2006,6 +2195,13 @@ value_exp_primary_body returns [XExpression exp = null]
            }
            else {
               exp.setValue(tmp, XExpression.FIELD);
+
+              // a qualified quoted column (t."MixedCase"), stored without its quotes
+              if(colrefQuote != XExpression.QUOTE_NONE) {
+                 exp.setQuote(colrefQuote);
+                 exp.setQuotedColumn(colrefColumn);
+              }
+
               columns.add(tmp);
               hasField = true;
            }
@@ -2276,14 +2472,25 @@ indicator_variable returns [String indivar = ""]
         ;
 
 column_ref returns [String colref = ""]
-        {String tmp; }
+        {String tmp; colrefQuote = XExpression.QUOTE_NONE; colrefColumn = null;}
         :
         // "order" and "simple" might be used as a table name
-        a:ORDER DOT tmp = column_name {colref = a.getText() + "." + quoteDot(tmp);}
+        a:ORDER DOT tmp = column_name {colref = a.getText() + "." + quoteColumn(tmp);}
         |
-        b:SIMPLE DOT tmp = column_name {colref = b.getText() + "." + quoteDot(tmp);}
+        b:SIMPLE DOT tmp = column_name {colref = b.getText() + "." + quoteColumn(tmp);}
         |
-        colref = table_name (DOT tmp = column_name {colref += "." + quoteDot(tmp);})?
+        colref = table_name
+        {
+           // the last segment of a qualified table_name is the column when no DOT follows
+           if(LA(1) != DOT && lastSegQuote != XExpression.QUOTE_NONE && lastSegStart > 0 &&
+              lastSeg.length() > 0 && lastSeg.indexOf('.') < 0)
+           {
+              colref = colref.substring(0, lastSegStart) + lastSeg;
+              colrefQuote = lastSegQuote;
+              colrefColumn = lastSeg;
+           }
+        }
+        (DOT tmp = column_name {colref += "." + quoteColumn(tmp);})?
         ;
 
 set_fct_spec returns [String setfct = ""]
@@ -2478,7 +2685,7 @@ searched_case returns [String searchcase = ""]
 searched_when_clause returns [String searchwhen = ""]
         {String tmp,tmp1; XFilterNode node; {checkStatus();}}
         :
-        a:WHEN node = search_condition b:THEN tmp1 = result
+        a:WHEN node = search_condition {checkNoOuterJoins(node, a);} b:THEN tmp1 = result
         {SQLHelper helper = SQLHelper.getSQLHelper(this.uniSql);
          String condition = helper.generateConditions(node);
         searchwhen = a.getText() + " " + condition + " " + b.getText() + " " + tmp1;}
@@ -2519,6 +2726,7 @@ schema_name returns [String schemaname = ""]
         ;
 
 qualified_id returns [String qid = ""]
+        {identQuote = XExpression.QUOTE_NONE;}
         :
         (a:IDENT {qid = a.getText();}
         | qid = special_identifier
@@ -3310,7 +3518,7 @@ qualified_name returns [String qname = ""]
         ((catalog_name DOT)=> tmp = catalog_name DOT {qname += quoteDot(tmp) + ".";}
         ( (~DOT)=> tmp = schema_name DOT {qname+=quoteDot(tmp)+".";}| DOT {qname+=".";})?
         )?
-        tmp = qualified_id {qname += quoteDot(tmp);}
+        tmp = qualified_id {lastSegStart = qname.length(); lastSegQuote = identQuote; lastSeg = tmp; qname += quoteDot(tmp);}
         ;
 
 catalog_name returns [String catname = ""]
@@ -3351,16 +3559,16 @@ derived_column [JDBCSelection selection, UniformSQL sql]
            selection.addColumn(tmp);
            selection.setAlias(selection.getColumnCount() - 1,aliastmp);
 
-           // a bare quoted identifier ("x y"), stored without its quotes
+           // a quoted identifier ("x y" or t."x y"), stored without its quotes
            if(exp.isQuotedField()) {
-              selection.setQuoted(tmp, true);
+              selection.setQuoted(tmp, exp.getQuotedColumn());
            }
         }
         |
         exp = value_exp
         {
            tmp = exp.toString();
-           // a bare quoted identifier ("x y"), stored without its quotes
+           // a quoted identifier ("x y" or t."x y"), stored without its quotes
            boolean quotedField = exp.getType().equals(XExpression.FIELD) &&
               exp.getQuote() != XExpression.QUOTE_NONE;
 
@@ -3393,7 +3601,7 @@ derived_column [JDBCSelection selection, UniformSQL sql]
            selection.addColumn(tmp);
 
            if(quotedField) {
-              selection.setQuoted(tmp, true);
+              selection.setQuoted(tmp, exp.getQuotedColumn());
            }
         }
 
@@ -3414,7 +3622,7 @@ as_clause returns [String as = ""]
         ;
 
 column_name returns [String colname = ""]
-        {checkStatus();}
+        {identQuote = XExpression.QUOTE_NONE; checkStatus();}
         :
         a:IDENT {colname = a.getText();}
         | colname = special_identifier
@@ -3426,6 +3634,8 @@ table_exp [UniformSQL sql]
         :
         (from_clause[sql] {moveOuterPairJoins(sql);})?
         ( {wtok = LT(1);} where = where_clause {checkWhereOuterJoins(sql, where, wtok);
+        // checked before whereOuterPairJoins() turns joins into plain conditions
+        checkWhereOuterJoinPositions(sql, where, wtok);
         where = whereOuterPairJoins(sql, where); where.setClause(XFilterNode.WHERE); markJoins(where, XJoin.WHERE_CLAUSE); sql.combineWhereByAnd(where);})?
         ( group_by_clause[sql] )?
         {if(sql != null) {checkOuterJoinTables(sql, LT(1));}}
@@ -3467,7 +3677,7 @@ table_ref [UniformSQL sql] returns [String tbref = ""]
            }
         }
 
-        ( OPEN_PAREN tmp = derived_column_list CLOSE_PAREN {alias += "(" + tmp + ")";})? )?
+        ( dc1:OPEN_PAREN tmp = derived_column_list CLOSE_PAREN {checkDerivedColumnList(sql, alias, tmp, dc1); alias += "(" + tmp + ")";})? )?
         {
         tbref = name + " " + as + " " + alias;
         if(sql != null) {
@@ -3491,7 +3701,7 @@ table_ref [UniformSQL sql] returns [String tbref = ""]
             }
          }
 
-         ( OPEN_PAREN tmp = derived_column_list CLOSE_PAREN {alias += "(" + tmp + ")";})?
+         ( dc2:OPEN_PAREN tmp = derived_column_list CLOSE_PAREN {checkDerivedColumnList(sql, alias, tmp, dc2); alias += "(" + tmp + ")";})?
         )?
         {
          tbref = name + " " + as + " " + alias;
@@ -3515,7 +3725,7 @@ table_ref_nojoin [UniformSQL sql, String op] returns [String tbref = ""]
          ( a:AS {as = a.getText();})?
          alias = correlation_name
          ( (OPEN_PAREN derived_column_list)=>
-         OPEN_PAREN tmp = derived_column_list CLOSE_PAREN {alias += "(" + tmp + ")";})?
+         dc1:OPEN_PAREN tmp = derived_column_list CLOSE_PAREN {checkDerivedColumnList(sql, alias, tmp, dc1); alias += "(" + tmp + ")";})?
         )?
         {
          tbref = name + " " + as + " " + alias;
@@ -3544,7 +3754,7 @@ table_ref_nojoin [UniformSQL sql, String op] returns [String tbref = ""]
         ( b:AS {as = b.getText();})?
         alias = correlation_name
         ( (OPEN_PAREN derived_column_list)=>
-        OPEN_PAREN tmp = derived_column_list CLOSE_PAREN {alias += "(" + tmp + ")";})?
+        dc2:OPEN_PAREN tmp = derived_column_list CLOSE_PAREN {checkDerivedColumnList(sql, alias, tmp, dc2); alias += "(" + tmp + ")";})?
         {
         tbref = name + " " + as + " " + alias;
 
@@ -3678,9 +3888,9 @@ grouping_column_ref [UniformSQL sql] returns [String gcol = ""]
         {
            gcol = exp.toString();
 
-           // a bare quoted identifier ("x y"), stored without its quotes
+           // a quoted identifier ("x y" or t."x y"), stored without its quotes
            if(sql != null && exp.isQuotedField()) {
-              sql.setQuotedField(gcol, true);
+              sql.setQuotedField(gcol, exp.getQuotedColumn());
            }
         }//( tmp = collate_clause {gcol += " " + tmp;})?
         //|a:UNSIGNED_NUM_LIT {gcol = a.getText();}
@@ -3689,7 +3899,7 @@ grouping_column_ref [UniformSQL sql] returns [String gcol = ""]
 having_clause returns [XFilterNode having = null]
         {checkStatus();}
         :
-        HAVING having = search_condition
+        a:HAVING having = search_condition {checkNoOuterJoins(having, a);}
         ;
 
 table_value_constructor returns [XExpression exp = null]
@@ -3893,6 +4103,7 @@ join_condition [UniformSQL sql, String op, String tbl2, int rstart, int rend] re
               clearInnerOnJoins(sql, outerType, tbl2);
            }
            else {
+              checkNoOuterJoins(tmp, a);
               addInnerOnJoins(sql, tmp);
            }
 
@@ -4054,9 +4265,9 @@ sort_spec [UniformSQL sql] returns [String ret = ""]
          catch(Exception e) {
            field = new String(exp.toString());
 
-           // a bare quoted identifier ("x y"), stored without its quotes
+           // a quoted identifier ("x y" or t."x y"), stored without its quotes
            if(sql != null && exp.isQuotedField()) {
-              sql.setQuotedField((String) field, true);
+              sql.setQuotedField((String) field, exp.getQuotedColumn());
            }
          }
 

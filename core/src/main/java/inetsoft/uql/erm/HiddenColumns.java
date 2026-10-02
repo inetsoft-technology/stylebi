@@ -19,7 +19,6 @@ package inetsoft.uql.erm;
 
 import inetsoft.sree.security.IdentityID;
 import inetsoft.uql.VariableTable;
-import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.internal.WSExecution;
 import inetsoft.uql.erm.vpm.VpmObject;
 import inetsoft.uql.script.StringArray;
@@ -154,10 +153,6 @@ public class HiddenColumns extends VpmObject {
                             String partition)
       throws Exception
    {
-      if(user != null && XPrincipal.SYSTEM.equals(user.getName())) {
-         return new String[0];
-      }
-
       IdentityID[] roles = XUtil.getUserRoles(user, false);
 
       for(IdentityID role : roles) {

@@ -40,6 +40,7 @@ public class BindingRootProxy implements ProxyObject {
    private LegacyJavaShim.ImportScope imports;
    private ScriptScope builtinScope;
    private Map<String, Object> assigned;
+   private LocalsSource locals;
 
    public BindingRootProxy(ScriptScope global, Supplier<ScriptScope> execScopeSupplier) {
       this(global, execScopeSupplier, null, null);
@@ -122,6 +123,32 @@ public class BindingRootProxy implements ProxyObject {
       }
 
       return assigned;
+   }
+
+   /**
+    * The members a script reads its var stores from (Bug #77595, see
+    * GraalJavaScriptEngine.localsFor), supplied per exec by the engine:
+    * {@code __scope__.__inetsoft_locals__} is the store the script reads (its scope's,
+    * else its nearest ancestor scope's), {@code __scope__.__inetsoft_own_locals__} the
+    * store of its own scope, made on first read, for a script that declares vars.
+    */
+   public static final String LOCALS_MEMBER = "__inetsoft_locals__";
+   public static final String OWN_LOCALS_MEMBER = "__inetsoft_own_locals__";
+
+   /** The var stores of the current exec (Bug #77595). */
+   public interface LocalsSource {
+      /** The store the script reads. */
+      Object view();
+
+      /** The store of the script's own scope, made on first read. */
+      Object own();
+   }
+
+   /** Swap the var stores of the current exec (Bug #77595). */
+   public LocalsSource swapLocals(LocalsSource newLocals) {
+      LocalsSource prev = locals;
+      locals = newLocals;
+      return prev;
    }
 
    /** Swap the per-exec script-local shadow state (reset to null for a fresh exec). */
@@ -355,12 +382,24 @@ public class BindingRootProxy implements ProxyObject {
          return ownedVarProbe;
       }
 
+      if(locals != null) {
+         if(LOCALS_MEMBER.equals(key)) {
+            return locals.view();
+         }
+
+         if(OWN_LOCALS_MEMBER.equals(key)) {
+            return locals.own();
+         }
+      }
+
       Object result = findInChain(key);
       // an owned var's OwnedVarScope.UNDEFINED reads as the context's undefined (Testing #77123)
       return ScriptValueConverter.toGuest(result == NOT_FOUND ? null : result);
    }
    @Override public boolean hasMember(String key) {
-      return OWNED_VAR_PROBE.equals(key) || resolves(key);
+      return OWNED_VAR_PROBE.equals(key) ||
+         locals != null && (LOCALS_MEMBER.equals(key) || OWN_LOCALS_MEMBER.equals(key)) ||
+         resolves(key);
    }
    @Override public Object getMemberKeys() { return enumerate().toArray(new String[0]); }
    @Override public void putMember(String key, Value value) {

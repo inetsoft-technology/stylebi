@@ -180,6 +180,86 @@ public final class PoolTestSupport {
    }
 
    /**
+    * Drop every tenant of every slot of the env's pool from the slot's weak tenant map without
+    * the pool's purge, as the collection of those formula tables does (Testing #77123, finding
+    * G1): a home whose tenants were all collected stays in the pool's homes until a purge.
+    */
+   public static void collectTenants(WorksheetScriptEnv env) {
+      for(Slot slot : env.pool().slots()) {
+         slot.clearTenants();
+      }
+   }
+
+   /**
+    * @return the slots of the env's pool that a pool thread is probing now (Testing #77123,
+    * finding G1), or 0 if this build has no probes.
+    */
+   public static int probedSlots(WorksheetScriptEnv env) {
+      int n = 0;
+
+      for(Slot slot : env.pool().slots()) {
+         try {
+            java.lang.reflect.Method m = Slot.class.getDeclaredMethod("isProbed");
+            m.setAccessible(true);
+
+            if((Boolean) m.invoke(slot)) {
+               n++;
+            }
+         }
+         catch(NoSuchMethodException ex) {
+            return 0;
+         }
+         catch(ReflectiveOperationException ex) {
+            throw new IllegalStateException(ex);
+         }
+      }
+
+      return n;
+   }
+
+   /**
+    * Run {@code hook} on a puller's thread at each retry of its pull while a pool thread
+    * probes the home (Testing #77123, finding G1); {@code null} to clear it.
+    */
+   public static void pullSpinHook(java.util.function.Consumer<Object> hook) {
+      OwnedValueCodec.pullSpinHook = hook == null ? null : hook::accept;
+   }
+
+   /**
+    * Set a test hook of the env's pool: {@code "handOffHook"}, {@code "takeOverHook"},
+    * {@code "plainTakeHook"}, {@code "closeIdleHook"} or {@code "giveBackHook"}; {@code null}
+    * clears it.
+    */
+   public static void poolHook(WorksheetScriptEnv env, String name,
+                               java.util.function.Consumer<Object> hook)
+   {
+      java.util.function.Consumer<Slot> h = hook == null ? null : hook::accept;
+
+      switch(name) {
+      case "handOffHook" -> env.pool().handOffHook = h;
+      case "takeOverHook" -> env.pool().takeOverHook = h;
+      case "plainTakeHook" -> env.pool().plainTakeHook = h;
+      case "closeIdleHook" -> env.pool().closeIdleHook = h;
+      case "giveBackHook" -> env.pool().giveBackHook = h;
+      default -> throw new IllegalArgumentException(name);
+      }
+   }
+
+   /**
+    * @return whether {@code slot} (from {@link #currentSlot} or {@link #slots}) is closed.
+    */
+   public static boolean isClosed(Object slot) {
+      return ((Slot) slot).isClosed();
+   }
+
+   /**
+    * @return the slots of the env's pool now, the primary first.
+    */
+   public static List<Object> slots(WorksheetScriptEnv env) {
+      return new ArrayList<>(env.pool().slots());
+   }
+
+   /**
     * @return the exclusive homes of this node, or -1.
     */
    public static int nodeHomes() {
@@ -229,26 +309,52 @@ public final class PoolTestSupport {
     * handles or constructor is fixed here.
     */
    static void injectClean(Slot slot, String factory, Object... args) throws Exception {
+      swapHandles(slot, factory, args, true);
+   }
+
+   /**
+    * Swap the slot's clean helper for one whose paranoid check ({@link CleanHelper#verify})
+    * is {@code factory} (a guest function source) applied to the real check's handle and then
+    * to {@code args}, keeping its other handles: {@code factory} wraps the real check, e.g. to
+    * block in a host call before it (bug #77568). Caller holds the slot.
+    */
+   static void injectVerify(Slot slot, String factory, Object... args) throws Exception {
+      swapHandles(slot, factory, args, false);
+   }
+
+   private static void swapHandles(Slot slot, String factory, Object[] args, boolean clean)
+      throws Exception
+   {
       Field field = Slot.class.getDeclaredField("cleaner");
       field.setAccessible(true);
       CleanHelper real = (CleanHelper) field.get(slot);
-      Value clean = slot.engine().context().eval("js", factory);
-
-      if(args.length > 0) {
-         clean = clean.execute(args);
-      }
-
+      Field cleanField = CleanHelper.class.getDeclaredField("clean");
       Field expect = CleanHelper.class.getDeclaredField("expect");
       Field forget = CleanHelper.class.getDeclaredField("forget");
-      Field verify = CleanHelper.class.getDeclaredField("verify");
+      Field verifyField = CleanHelper.class.getDeclaredField("verify");
+      cleanField.setAccessible(true);
       expect.setAccessible(true);
       forget.setAccessible(true);
-      verify.setAccessible(true);
+      verifyField.setAccessible(true);
+      Value made = slot.engine().context().eval("js", factory);
+      Value cleanHandle = (Value) cleanField.get(real);
+      Value verifyHandle = (Value) verifyField.get(real);
+
+      if(clean) {
+         cleanHandle = args.length > 0 ? made.execute(args) : made;
+      }
+      else {
+         Object[] all = new Object[args.length + 1];
+         all[0] = verifyHandle;
+         System.arraycopy(args, 0, all, 1, args.length);
+         verifyHandle = made.execute(all);
+      }
+
       Constructor<CleanHelper> ctor = CleanHelper.class.getDeclaredConstructor(
          Value.class, Value.class, Value.class, Value.class);
       ctor.setAccessible(true);
-      field.set(slot, ctor.newInstance(clean, expect.get(real), forget.get(real),
-                                       verify.get(real)));
+      field.set(slot, ctor.newInstance(cleanHandle, expect.get(real), forget.get(real),
+                                       verifyHandle));
    }
 
    @FunctionalInterface

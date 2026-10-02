@@ -557,185 +557,189 @@ public class ViewsheetAction extends AbstractAction implements ViewsheetSupport 
                box = new ViewsheetSandbox(
                   alertBookmarkVs, vmode, principal, false, rvs.getEntry());
 
-               if(obox.isPresent()) {
-                  box.getAssetQuerySandbox().refreshVariableTable(obox.get().getVariableTable());
-               }
+               try {
+                  if(obox.isPresent()) {
+                     box.getAssetQuerySandbox().refreshVariableTable(obox.get().getVariableTable());
+                  }
 
-               // Clear input assembly variables from the sandbox variable table before resetAll.
-               // applyParameterToInput() would otherwise overwrite bookmark-restored selections.
-               VariableTable alertSandboxVars = box.getVariableTable();
+                  // Clear input assembly variables from the sandbox variable table before resetAll.
+                  // applyParameterToInput() would otherwise overwrite bookmark-restored selections.
+                  VariableTable alertSandboxVars = box.getVariableTable();
 
-               if(alertSandboxVars != null && alertBookmarkVs != null) {
-                  for(Assembly assembly : alertBookmarkVs.getAssemblies()) {
-                     if(assembly instanceof InputVSAssembly inputAssembly) {
-                        alertSandboxVars.remove(assembly.getName());
-                        String varKey = inputAssembly.getVariableTableKey();
+                  if(alertSandboxVars != null && alertBookmarkVs != null) {
+                     for(Assembly assembly : alertBookmarkVs.getAssemblies()) {
+                        if(assembly instanceof InputVSAssembly inputAssembly) {
+                           alertSandboxVars.remove(assembly.getName());
+                           String varKey = inputAssembly.getVariableTableKey();
 
-                        if(varKey != null) {
-                           alertSandboxVars.remove(varKey);
+                           if(varKey != null) {
+                              alertSandboxVars.remove(varKey);
+                           }
                         }
                      }
                   }
-               }
 
-               setScheduleParameters(rvs.getVariableTable());
-               box.resetAll(new ChangedAssemblyList());
+                  setScheduleParameters(rvs.getVariableTable());
+                  box.resetAll(new ChangedAssemblyList());
 
-               if(executeViewsheet(box, assemblies)) {
-                  continue;
-               }
+                  if(executeViewsheet(box, assemblies)) {
+                     continue;
+                  }
 
-               AssetEntry entry = getViewsheetEntry();
-               Map<Assembly, List<ScheduleAlert>> alertAssemblies = new HashMap<>();
-               AtomicBoolean alertTriggered = new AtomicBoolean(false);
+                  AssetEntry entry = getViewsheetEntry();
+                  Map<Assembly, List<ScheduleAlert>> alertAssemblies = new HashMap<>();
+                  AtomicBoolean alertTriggered = new AtomicBoolean(false);
 
-               for(ScheduleAlert alert : alerts) {
-                  boolean found = false;
+                  for(ScheduleAlert alert : alerts) {
+                     boolean found = false;
 
-                  for(Assembly assembly : rvs.getViewsheet().getAssemblies(true)) {
-                     if(alert.getElementId().equals(assembly.getAbsoluteName())) {
-                        int aType = assembly.getAssemblyType();
+                     for(Assembly assembly : rvs.getViewsheet().getAssemblies(true)) {
+                        if(alert.getElementId().equals(assembly.getAbsoluteName())) {
+                           int aType = assembly.getAssemblyType();
 
-                        if((assembly instanceof TextVSAssembly) ||
-                           (assembly instanceof ImageVSAssembly))
-                        {
-                           OutputVSAssemblyInfo info =
-                              (OutputVSAssemblyInfo) assembly.getInfo();
-                           HighlightGroup group = info.getHighlightGroup();
+                           if((assembly instanceof TextVSAssembly) ||
+                              (assembly instanceof ImageVSAssembly))
+                           {
+                              OutputVSAssemblyInfo info =
+                                 (OutputVSAssemblyInfo) assembly.getInfo();
+                              HighlightGroup group = info.getHighlightGroup();
 
-                           if(containsHighlight(alert, group, alertTriggered)) {
-                              found = true;
-                              List<ScheduleAlert> alerts =
-                                 alertAssemblies.computeIfAbsent(assembly, k -> new ArrayList<>());
-                              alerts.add(alert);
+                              if(containsHighlight(alert, group, alertTriggered)) {
+                                 found = true;
+                                 List<ScheduleAlert> alerts =
+                                    alertAssemblies.computeIfAbsent(assembly, k -> new ArrayList<>());
+                                 alerts.add(alert);
+                              }
                            }
-                        }
-                        else if(aType == Viewsheet.TABLE_VIEW_ASSET) {
-                           TableVSAssemblyInfo info =
-                              (TableVSAssemblyInfo) assembly.getInfo();
-                           TableHighlightAttr attr = info.getHighlightAttr();
+                           else if(aType == Viewsheet.TABLE_VIEW_ASSET) {
+                              TableVSAssemblyInfo info =
+                                 (TableVSAssemblyInfo) assembly.getInfo();
+                              TableHighlightAttr attr = info.getHighlightAttr();
 
-                           if(attr != null) {
-                              Enumeration<?> e = attr.getAllHighlights();
+                              if(attr != null) {
+                                 Enumeration<?> e = attr.getAllHighlights();
 
-                              while(e.hasMoreElements()) {
-                                 HighlightGroup group =
-                                    (HighlightGroup) e.nextElement();
+                                 while(e.hasMoreElements()) {
+                                    HighlightGroup group =
+                                       (HighlightGroup) e.nextElement();
 
-                                 if(containsHighlight(alert, group, alertTriggered)) {
-                                    found = true;
-                                    List<ScheduleAlert> alerts =
-                                       alertAssemblies.computeIfAbsent(assembly, k -> new ArrayList<>());
-                                    alerts.add(alert);
+                                    if(containsHighlight(alert, group, alertTriggered)) {
+                                       found = true;
+                                       List<ScheduleAlert> alerts =
+                                          alertAssemblies.computeIfAbsent(assembly, k -> new ArrayList<>());
+                                       alerts.add(alert);
+                                    }
                                  }
                               }
                            }
-                        }
-                        else if(aType == Viewsheet.CROSSTAB_ASSET) {
-                           CrosstabVSAssemblyInfo info =
-                              (CrosstabVSAssemblyInfo) assembly.getInfo();
-                           TableHighlightAttr attr = info.getHighlightAttr();
+                           else if(aType == Viewsheet.CROSSTAB_ASSET) {
+                              CrosstabVSAssemblyInfo info =
+                                 (CrosstabVSAssemblyInfo) assembly.getInfo();
+                              TableHighlightAttr attr = info.getHighlightAttr();
 
-                           if(attr != null) {
-                              Enumeration<?> e = attr.getAllHighlights();
+                              if(attr != null) {
+                                 Enumeration<?> e = attr.getAllHighlights();
 
-                              while(e.hasMoreElements()) {
-                                 HighlightGroup group =
-                                    (HighlightGroup) e.nextElement();
+                                 while(e.hasMoreElements()) {
+                                    HighlightGroup group =
+                                       (HighlightGroup) e.nextElement();
 
-                                 if(containsHighlight(alert, group, alertTriggered)) {
-                                    found = true;
-                                    List<ScheduleAlert> alerts =
-                                       alertAssemblies.computeIfAbsent(assembly, k -> new ArrayList<>());
-                                    alerts.add(alert);
+                                    if(containsHighlight(alert, group, alertTriggered)) {
+                                       found = true;
+                                       List<ScheduleAlert> alerts =
+                                          alertAssemblies.computeIfAbsent(assembly, k -> new ArrayList<>());
+                                       alerts.add(alert);
+                                    }
                                  }
                               }
                            }
-                        }
-                        else if(aType == Viewsheet.FORMULA_TABLE_ASSET) {
-                           CalcTableVSAssemblyInfo info =
-                              (CalcTableVSAssemblyInfo) assembly.getInfo();
-                           TableHighlightAttr attr = info.getHighlightAttr();
+                           else if(aType == Viewsheet.FORMULA_TABLE_ASSET) {
+                              CalcTableVSAssemblyInfo info =
+                                 (CalcTableVSAssemblyInfo) assembly.getInfo();
+                              TableHighlightAttr attr = info.getHighlightAttr();
 
-                           if(attr != null) {
-                              Enumeration<?> e = attr.getAllHighlights();
+                              if(attr != null) {
+                                 Enumeration<?> e = attr.getAllHighlights();
 
-                              while(e.hasMoreElements()) {
-                                 HighlightGroup group =
-                                    (HighlightGroup) e.nextElement();
+                                 while(e.hasMoreElements()) {
+                                    HighlightGroup group =
+                                       (HighlightGroup) e.nextElement();
 
-                                 if(containsHighlight(alert, group, alertTriggered)) {
-                                    found = true;
-                                    List<ScheduleAlert> alerts =
-                                       alertAssemblies.computeIfAbsent(assembly, k -> new ArrayList<>());
-                                    alerts.add(alert);
+                                    if(containsHighlight(alert, group, alertTriggered)) {
+                                       found = true;
+                                       List<ScheduleAlert> alerts =
+                                          alertAssemblies.computeIfAbsent(assembly, k -> new ArrayList<>());
+                                       alerts.add(alert);
+                                    }
                                  }
                               }
                            }
-                        }
-                        else if(aType == Viewsheet.CHART_ASSET) {
-                           ChartVSAssemblyInfo info = (ChartVSAssemblyInfo) assembly.getInfo();
+                           else if(aType == Viewsheet.CHART_ASSET) {
+                              ChartVSAssemblyInfo info = (ChartVSAssemblyInfo) assembly.getInfo();
 
-                           for(ChartRef ref : info.getVSChartInfo().getBindingRefs(true)) {
-                              found = findAlert(alertAssemblies, alert, found, assembly, ref,
-                                                alertTriggered);
+                              for(ChartRef ref : info.getVSChartInfo().getBindingRefs(true)) {
+                                 found = findAlert(alertAssemblies, alert, found, assembly, ref,
+                                                   alertTriggered);
+                              }
+
+                              for(AestheticRef aref : info.getVSChartInfo().getAestheticRefs(true)) {
+                                 found = findAlert(alertAssemblies, alert, found, assembly,
+                                                   (ChartRef) aref.getDataRef(), alertTriggered);
+                              }
                            }
+                           else {
+                              VSAssemblyInfo info =
+                                 (VSAssemblyInfo) assembly.getInfo();
 
-                           for(AestheticRef aref : info.getVSChartInfo().getAestheticRefs(true)) {
-                              found = findAlert(alertAssemblies, alert, found, assembly,
-                                                (ChartRef) aref.getDataRef(), alertTriggered);
-                           }
-                        }
-                        else {
-                           VSAssemblyInfo info =
-                              (VSAssemblyInfo) assembly.getInfo();
+                              if(info instanceof RangeOutputVSAssemblyInfo range) {
+                                 if(alert.getHighlightName()
+                                    .matches("^RangeOutput_Range_\\d+$")) {
+                                    int index = Integer.parseInt(
+                                       alert.getHighlightName().substring(18)) - 1;
 
-                           if(info instanceof RangeOutputVSAssemblyInfo range) {
-                              if(alert.getHighlightName()
-                                 .matches("^RangeOutput_Range_\\d+$")) {
-                                 int index = Integer.parseInt(
-                                    alert.getHighlightName().substring(18)) - 1;
-
-                                 if(index < range.getRangeValues().length) {
-                                    found = true;
-                                    List<ScheduleAlert> alerts =
-                                       alertAssemblies.computeIfAbsent(assembly, k -> new ArrayList<>());
-                                    alerts.add(alert);
+                                    if(index < range.getRangeValues().length) {
+                                       found = true;
+                                       List<ScheduleAlert> alerts =
+                                          alertAssemblies.computeIfAbsent(assembly, k -> new ArrayList<>());
+                                       alerts.add(alert);
+                                    }
                                  }
                               }
                            }
-                        }
 
-                        break;
+                           break;
+                        }
+                     }
+
+                     if(!found) {
+                        throw new Exception(
+                           "Did not find alert highlight named \"" +
+                              alert.getHighlightName() + "\" in assembly \"" +
+                              alert.getElementId() + "\""
+                        );
                      }
                   }
 
-                  if(!found) {
-                     throw new Exception(
-                        "Did not find alert highlight named \"" +
-                           alert.getHighlightName() + "\" in assembly \"" +
-                           alert.getElementId() + "\""
-                     );
+                  alertTriggered = new AtomicBoolean(false);
+                  AlertExporter exporter = new AlertExporter(alertAssemblies, alertTriggered, box);
+                  exporter.setAssetEntry(rvs.getEntry());
+                  AssetQuerySandbox abox = box.getAssetQuerySandbox();
+
+                  if(abox != null) {
+                     abox.refreshVariableTable(box.getVariableTable());
+                  }
+
+                  exporter.setLogExecution(true);
+                  exporter.setLogExport(false);
+                  exporter.export(box, bookmarks[i].getName(), new VSPortalHelper());
+                  exporter.write();
+
+                  if(alertTriggered.get()) {
+                     alertTriggeredBookmarks.add(bookmarks[i].getName());
                   }
                }
-
-               alertTriggered = new AtomicBoolean(false);
-               AlertExporter exporter = new AlertExporter(alertAssemblies, alertTriggered, box);
-               exporter.setAssetEntry(rvs.getEntry());
-               AssetQuerySandbox abox = box.getAssetQuerySandbox();
-
-               if(abox != null) {
-                  abox.refreshVariableTable(box.getVariableTable());
-               }
-
-               exporter.setLogExecution(true);
-               exporter.setLogExport(false);
-               exporter.export(box, bookmarks[i].getName(), new VSPortalHelper());
-               exporter.write();
-               box.dispose();
-
-               if(alertTriggered.get()) {
-                  alertTriggeredBookmarks.add(bookmarks[i].getName());
+               finally {
+                  box.dispose();
                }
             }
 
@@ -1361,38 +1365,43 @@ public class ViewsheetAction extends AbstractAction implements ViewsheetSupport 
          Viewsheet bookmarkVs = rvs.getOriginalBookmark(bookmarkName, orgID);
          ViewsheetSandbox box = new ViewsheetSandbox(
             bookmarkVs, vmode, principal, false, rvs.getEntry());
-         AssetQuerySandbox assetQuerySandbox = box.getAssetQuerySandbox();
 
-         if(assetQuerySandbox != null) {
-            assetQuerySandbox.refreshVariableTable(variableTable);
-         }
+         try {
+            AssetQuerySandbox assetQuerySandbox = box.getAssetQuerySandbox();
 
-         // Clear input assembly variables from the sandbox variable table before reset.
-         // resetAll() → applyParameterToInput() would otherwise overwrite bookmark-restored
-         // assembly selections with stale values from the original sandbox's variable table.
-         VariableTable sandboxVars = box.getVariableTable();
+            if(assetQuerySandbox != null) {
+               assetQuerySandbox.refreshVariableTable(variableTable);
+            }
 
-         if(sandboxVars != null && bookmarkVs != null) {
-            for(Assembly assembly : bookmarkVs.getAssemblies()) {
-               if(assembly instanceof InputVSAssembly inputAssembly) {
-                  sandboxVars.remove(assembly.getName());
-                  String varKey = inputAssembly.getVariableTableKey();
+            // Clear input assembly variables from the sandbox variable table before reset.
+            // resetAll() → applyParameterToInput() would otherwise overwrite bookmark-restored
+            // assembly selections with stale values from the original sandbox's variable table.
+            VariableTable sandboxVars = box.getVariableTable();
 
-                  if(varKey != null) {
-                     sandboxVars.remove(varKey);
+            if(sandboxVars != null && bookmarkVs != null) {
+               for(Assembly assembly : bookmarkVs.getAssemblies()) {
+                  if(assembly instanceof InputVSAssembly inputAssembly) {
+                     sandboxVars.remove(assembly.getName());
+                     String varKey = inputAssembly.getVariableTableKey();
+
+                     if(varKey != null) {
+                        sandboxVars.remove(varKey);
+                     }
                   }
                }
             }
+
+            box.resetAll(new ChangedAssemblyList());
+
+            if(exporter instanceof AbstractVSExporter) {
+               ((AbstractVSExporter) exporter).setRuntimeViewsheet(rvs);
+            }
+
+            exporter.export(box, bookmarkName, new VSPortalHelper());
          }
-
-         box.resetAll(new ChangedAssemblyList());
-
-         if(exporter instanceof AbstractVSExporter) {
-            ((AbstractVSExporter) exporter).setRuntimeViewsheet(rvs);
+         finally {
+            box.dispose();
          }
-
-         exporter.export(box, bookmarkName, new VSPortalHelper());
-         box.dispose();
 
          // Bug #61272
          if(exporter instanceof HTMLVSExporter) {

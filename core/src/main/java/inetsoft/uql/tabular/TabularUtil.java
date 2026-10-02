@@ -188,7 +188,13 @@ public class TabularUtil {
     */
    private static String replaceJSDateVariables(String val, VariableTable vars) {
       TimeZone tz = TimeZone.getTimeZone("UTC");
+      // Bug #77566: this ISO-8601 string is sent to an external REST/tabular connector endpoint
+      // that expects Gregorian digits, and is never parsed back locally -- a locale-less
+      // SimpleDateFormat would otherwise emit the wrong calendar system's year under a
+      // non-Gregorian JVM default locale (e.g. Buddhist for th_TH, Japanese imperial for
+      // ja_JP_JP).
       DateFormat df = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'");
+      df.setCalendar(new GregorianCalendar());
       df.setTimeZone(tz);
 
       try {

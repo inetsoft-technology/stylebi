@@ -287,10 +287,10 @@ class ScheduleActionOrgBoundaryTest {
       }
    }
 
-   // a BatchAction's query entry is not touched by this fix (out of scope, see bug #77531/#77530
-   // diagnosis), confirming the new check is scoped to ViewsheetAction only
+   // a BatchAction's query entry is not checked by this fix, it's refused by the batch query
+   // check of bug #77549 (see ScheduleBatchQueryOrgTest)
    @Test
-   void batchAction_isNotCheckedByThisFix() throws Exception {
+   void batchAction_isRefusedByTheBatchQueryCheck() throws Exception {
       SRPrincipal caller = builder.principalOf("saobUser", ORG_A);
       ScheduleTask task = new ScheduleTask("SaobBatch");
       BatchAction batchAction = new BatchAction();
@@ -300,10 +300,8 @@ class ScheduleActionOrgBoundaryTest {
       task.addCondition(TimeCondition.at(1, 30, 0));
       taskNames.add(task.getName());
 
-      scheduleManager.setScheduleTask(task.getName(), task, caller);
-
-      assertNotNull(scheduleManager.getScheduleTask(task.getTaskId(), ORG_A),
-                    "a foreign-org BatchAction query entry is unaffected by this fix");
+      assertThrows(inetsoft.sree.security.SecurityException.class,
+         () -> scheduleManager.setScheduleTask(task.getName(), task, caller));
    }
 
    private ScheduleTask newTask(String name, String viewsheet) {

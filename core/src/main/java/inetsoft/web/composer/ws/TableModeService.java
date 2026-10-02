@@ -312,6 +312,11 @@ public class TableModeService extends WorksheetControllerService {
 
          Assembly assembly = ws.getAssembly(assemblyRef.getEntry().getName());
 
+         // dependings may be variables using the table for its values
+         if(!(assembly instanceof TableAssembly)) {
+            continue;
+         }
+
          if(assembly instanceof CompositeTableAssembly) {
             TableAssemblyOperator operator = ((CompositeTableAssembly) assembly)
                .getOperator(table.getName());

@@ -324,10 +324,6 @@ public class VirtualPrivateModel extends VpmObject {
                            VariableTable vars, Principal user,
                            String partition, String ds, boolean isTest) throws Exception
    {
-      if(user != null && XPrincipal.SYSTEM.equals(user.getName())) {
-         return false;
-      }
-
       String script = getScript();
 
       // no script defined?

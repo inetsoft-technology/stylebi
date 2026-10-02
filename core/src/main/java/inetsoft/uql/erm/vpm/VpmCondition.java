@@ -147,10 +147,6 @@ public class VpmCondition extends VpmObject {
                           Principal user, boolean checkVariable)
       throws Exception
    {
-      if(user != null && XPrincipal.SYSTEM.equals(user.getName())) {
-         return null;
-      }
-
       // create a uniform sql to maintain table information,
       // then sql helper will be able to quote fields properly
       UniformSQL sql = new UniformSQL();
@@ -388,7 +384,8 @@ public class VpmCondition extends VpmObject {
             parser.value_exp();
             fields = parser.getColumns();
          }
-         catch(ParserStoppedException ex) {
+         // a timeout, or a construct the parser refuses in a subquery
+         catch(Exception ex) {
             final ArrayList<String> columns = new ArrayList<>();
             ColumnIterator iterator = new ColumnIterator((String) value);
             ColumnIterator.ColumnListener listener = new
@@ -403,9 +400,6 @@ public class VpmCondition extends VpmObject {
             iterator.addColumnListener(listener);
             iterator.iterate();
             fields = columns.toArray(new String[0]);
-         }
-         catch(Exception ex) {
-            // ignore it
          }
 
          value = replaceColumnTableName((String) value, fields, tables,

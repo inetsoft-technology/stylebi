@@ -184,7 +184,7 @@ public class WorksheetEntry extends RepositoryEntry {
 
       writer.print(" onReport=\"" + onReport + "\"");
       writer.print(" snapshot=\"" + snapshot + "\"");
-      writer.print(" identifier=\"" + Tool.byteEncode(identifier) + "\"");
+      writer.print(" identifier=\"" + encodeAttribute(identifier) + "\"");
    }
 
    /**
