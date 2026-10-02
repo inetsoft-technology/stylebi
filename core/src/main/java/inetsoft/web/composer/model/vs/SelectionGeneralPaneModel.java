@@ -144,6 +144,24 @@ public class SelectionGeneralPaneModel implements Serializable {
       this.quickSwitchAllowed = quickSwitchAllowed;
    }
 
+   public PaddingPaneModel getPaddingPaneModel() {
+      return paddingPaneModel;
+   }
+
+   public void setPaddingPaneModel(PaddingPaneModel paddingPaneModel) {
+      this.paddingPaneModel = paddingPaneModel;
+   }
+
+   public PaddingPaneModel getCellPaddingPaneModel() {
+      return cellPaddingPaneModel;
+   }
+
+   public void setCellPaddingPaneModel(PaddingPaneModel cellPaddingPaneModel) {
+      this.cellPaddingPaneModel = cellPaddingPaneModel;
+   }
+
+   private PaddingPaneModel paddingPaneModel = new PaddingPaneModel();
+   private PaddingPaneModel cellPaddingPaneModel = new PaddingPaneModel();
    private int showType;
    private int listHeight;
    private int sortType;

@@ -68,6 +68,15 @@ public class SelectionContainerGeneralPaneModel implements Serializable {
       return sizePositionPaneModel;
    }
 
+   public PaddingPaneModel getPaddingPaneModel() {
+      return paddingPaneModel;
+   }
+
+   public void setPaddingPaneModel(PaddingPaneModel paddingPaneModel) {
+      this.paddingPaneModel = paddingPaneModel;
+   }
+
+   private PaddingPaneModel paddingPaneModel = new PaddingPaneModel();
    private boolean showCurrentSelection;
    private boolean adhocEnabled;
    private GeneralPropPaneModel generalPropPaneModel;
