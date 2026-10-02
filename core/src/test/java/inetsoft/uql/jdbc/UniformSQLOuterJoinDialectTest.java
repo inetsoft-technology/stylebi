@@ -89,7 +89,6 @@ class UniformSQLOuterJoinDialectTest {
       "select t1.x from a t1 left join b t2 on t2.id = t1.id",
       "select sch.a.id from sch.a left join sch.b on sch.b.id = sch.a.id",
       "select a.x from a left join b on a.k = b.k left join c on c.id = b.id",
-      "select a.x from a left join (b left join c on c.id = b.id) on b.id = a.id",
       "select a.x from \"a\" left join \"b\" on \"b\".\"id\" = \"a\".\"id\"",
       "select * from \"My A\" left join b on b.id = \"My A\".id"
    };
@@ -98,6 +97,15 @@ class UniformSQLOuterJoinDialectTest {
       "select a.x from a left join b on a.k = b.k left join c on a.id = b.id",
       "select * from a left join b on id = bid",
       "select * from a left join b on b.id = zz.id"
+   };
+
+   // Bug #77434, a join group on the right side of an outer join is only accepted when
+   // the generated sql has the same joins (#77475 generates them in text order). Oracle
+   // without ansi join generates (+) joins without the group and is refused
+   static final String[] NESTED = {
+      "select a.x from a left join (b left join c on c.id = b.id) on b.id = a.id",
+      "select a.x from (a left join b on a.id = b.id) left join " +
+         "(c left join d on d.id = c.id) on c.id = a.id"
    };
 
    // an outer join to a table outside the query's from clause, the generated from
@@ -171,6 +179,10 @@ class UniformSQLOuterJoinDialectTest {
       return cases(REFUSED);
    }
 
+   static Stream<Arguments> nestedCases() {
+      return cases(NESTED);
+   }
+
    private static Stream<Arguments> cases(String[] texts) {
       List<Arguments> list = new ArrayList<>();
       dataSources().forEach(ds -> {
@@ -215,6 +227,36 @@ class UniformSQLOuterJoinDialectTest {
       assertTrue(ex.getMessage().contains("Unsupported outer join condition"), ex.getMessage());
    }
 
+   @ParameterizedTest(name = "{0}: {3}")
+   @MethodSource("nestedCases")
+   void outerJoinOfNestedJoinParsesWithSameJoins(String type, String driver, String url,
+                                                 String text)
+      throws Exception
+   {
+      JDBCDataSource ds = dataSource(type, driver, url);
+
+      if("oracle".equals(type)) {
+         RecognitionException ex = assertThrows(RecognitionException.class, () -> parse(text, ds));
+         assertTrue(ex.getMessage().contains("Unsupported nested join"), ex.getMessage());
+
+         UniformSQL sql = new UniformSQL();
+         sql.setDataSource(ds);
+         new SQLProcessor(sql).parse(text);
+         assertEquals(UniformSQL.PARSE_FAILED, sql.getParseResult());
+         return;
+      }
+
+      // the generated sql keeps the group and parses back to itself. A left join to a
+      // nested join is generated as a right join (#77475) whose ON columns are in the
+      // other order when it is parsed again, so compare from the second generation on
+      UniformSQL sql = parse(text, ds);
+      assertEquals(UniformSQL.PARSE_SUCCESS, sql.getParseResult());
+      String generated = normalize(sql.getSQLString());
+      assertTrue(generated.contains("("), generated);
+      generated = normalize(parse(generated, ds).getSQLString());
+      assertEquals(generated, normalize(parse(generated, ds).getSQLString()));
+   }
+
    @ParameterizedTest
    @CsvSource(delimiter = '|', value = {
       "select a.x from a left join b on b.id = a.id | " +
@@ -256,6 +298,15 @@ class UniformSQLOuterJoinDialectTest {
       throws Exception
    {
       JDBCDataSource ds = dataSource(type, driver, url);
+
+      // Bug #77434, oracle without ansi join generates the right join and the correlation
+      // as (+) joins, which don't have the same joins
+      if("oracle".equals(type) && text.contains(" right join ")) {
+         RecognitionException ex = assertThrows(RecognitionException.class, () -> parse(text, ds));
+         assertTrue(ex.getMessage().contains("Unsupported RIGHT or FULL join"), ex.getMessage());
+         return;
+      }
+
       UniformSQL sql = parse(text, ds);
       assertEquals(UniformSQL.PARSE_SUCCESS, sql.getParseResult());
       String generated = normalize(sql.getSQLString());
@@ -302,13 +353,11 @@ class UniformSQLOuterJoinDialectTest {
          "select \"a\".\"x\", \"b\".\"x\" from \"a\" LEFT OUTER JOIN \"b\" ON \"a\".\"id\" = \"b\".\"id\"",
       "postgresql | select a.x, b.x from a, b where a.id *= b.id | " +
          "select \"a\".\"x\", \"b\".\"x\" from \"a\" LEFT OUTER JOIN \"b\" ON \"a\".\"id\" = \"b\".\"id\"",
-      // oracle (+) preserves the earlier table, a case-mismatched or nested join used to
-      // put the (+) on the wrong side
+      // oracle (+) preserves the earlier table, a case-mismatched join used to put the
+      // (+) on the wrong side (the nested join case is refused on oracle without ansi
+      // join by Bug #77434, see NESTED)
       "oracle | select A.x, B.x from A left join B on b.id = a.id | " +
          "select A.X, B.X from A, B where a.id = b.id(+)",
-      "oracle | select a.x from (a left join b on a.id = b.id) left join " +
-         "(c left join d on d.id = c.id) on c.id = a.id | select A.X from a, b, c, d " +
-         "where a.id = b.id(+) and c.id = d.id(+) and a.id = c.id(+)",
       // a bare table name refers to its unaliased schema table (I2), legacy oracle sql is
       // kept, and the ansi helpers no longer list the tables twice
       "oracle | select * from scott.emp, scott.dept where emp.deptno = dept.deptno(+) | " +

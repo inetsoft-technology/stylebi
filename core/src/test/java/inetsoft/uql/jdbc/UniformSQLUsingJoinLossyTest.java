@@ -147,6 +147,9 @@ class UniformSQLUsingJoinLossyTest {
    // parse the way setSQLString does, keeping the sql string
    private static UniformSQL process(String text) {
       UniformSQL sql = new UniformSQL();
+      // Bug #77434 refuses a RIGHT or FULL join mixed with an inner join without a data
+      // source, as the sql helper that would generate it is unknown
+      sql.setDataSource(GenericJDBCDataSource.create());
       new SQLProcessor(sql).parse(text);
       return sql;
    }

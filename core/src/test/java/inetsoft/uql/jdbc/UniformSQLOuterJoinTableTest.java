@@ -205,6 +205,9 @@ class UniformSQLOuterJoinTableTest {
 
    private static UniformSQL parse(String text) throws Exception {
       UniformSQL sql = new UniformSQL();
+      // Bug #77434 refuses a nested join on the right of an outer join without a data
+      // source, and accepts it with one when the generated sql has the same joins
+      sql.setDataSource(GenericJDBCDataSource.create());
       sql.parse(text, UniformSQL.PARSE_ALL, UniformSQL.PARSE_PERIOD);
       return sql;
    }

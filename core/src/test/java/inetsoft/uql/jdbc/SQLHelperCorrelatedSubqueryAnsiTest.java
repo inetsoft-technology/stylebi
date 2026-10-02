@@ -266,6 +266,9 @@ class SQLHelperCorrelatedSubqueryAnsiTest {
 
    private static String generate(String text, JDBCDataSource ds) throws Exception {
       UniformSQL sql = new UniformSQL();
+      // Bug #77434 refuses a RIGHT or FULL join mixed with an inner join (here the
+      // correlation) without a data source
+      sql.setDataSource(GenericJDBCDataSource.create());
       sql.parse(text, UniformSQL.PARSE_ALL, UniformSQL.PARSE_PERIOD);
       assertEquals(UniformSQL.PARSE_SUCCESS, sql.getParseResult(), text);
       assertFalse(sql.isLossy(), text);
