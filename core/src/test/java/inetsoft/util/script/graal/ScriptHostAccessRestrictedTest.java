@@ -17,6 +17,7 @@
  */
 package inetsoft.util.script.graal;
 
+import inetsoft.sree.SreeEnv;
 import inetsoft.test.*;
 import inetsoft.util.script.FormulaContext;
 import org.graalvm.polyglot.Context;
@@ -34,7 +35,8 @@ import static org.junit.jupiter.api.Assertions.*;
 /**
  * Bug #77396: a script that runs restricted (an end-user script surface) must not
  * reach com.* / org.* classes or the admin class grants, by any lookup path, while
- * an unrestricted (admin) script keeps them.
+ * an unrestricted (admin) script keeps them. The tests turn javascript.java.com_org on,
+ * so a refusal comes from the restricted mode and not from the com_org default.
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = BaseTestConfiguration.class,
@@ -45,10 +47,13 @@ class ScriptHostAccessRestrictedTest {
    private static final String COM_ORG = "org.apache.commons.lang3.StringUtils";
 
    private GraalJavaScriptEngine engine;
+   private String oldComOrg;
 
    @BeforeEach
    void setup() throws Exception {
       FormulaContext.setRestricted(false);
+      oldComOrg = SreeEnv.getProperty("javascript.java.com_org");
+      SreeEnv.setProperty("javascript.java.com_org", "true");
       engine = new GraalJavaScriptEngine();
       engine.init(new java.util.HashMap<>());
    }
@@ -57,6 +62,7 @@ class ScriptHostAccessRestrictedTest {
    void teardown() {
       engine.close();
       FormulaContext.setRestricted(false);
+      SreeEnv.setProperty("javascript.java.com_org", oldComOrg);
    }
 
    private Object eval(String src, boolean restricted) throws Exception {
@@ -83,7 +89,8 @@ class ScriptHostAccessRestrictedTest {
          .doubleValue());
       assertEquals(3.0, ((Number) eval("java.awt.Color(0x010203).getBlue()", true))
          .doubleValue());
-      assertNotNull(eval("Java.type('inetsoft.report.StyleConstants').CENTER", true));
+      assertEquals(2.0, ((Number) eval(
+         "new (Java.type('inetsoft.report.Size'))(2, 3).width", true)).doubleValue());
    }
 
    @Test
@@ -168,7 +175,7 @@ class ScriptHostAccessRestrictedTest {
    void restrictedScriptGetsOnlyThePackageGrant() {
       Predicate<String> filter = ScriptHostAccess.classFilter(
          Set.of("org.apache.commons.lang3.StringUtils"),
-         new String[] { "org.apache.commons.text" }, true);
+         new String[] { "org.apache.commons.lang3.math" }, true);
 
       try(Context ctx = Context.newBuilder("js")
          .allowHostAccess(ScriptHostAccess.hostAccess())
@@ -177,8 +184,8 @@ class ScriptHostAccessRestrictedTest {
       {
          ScriptHostAccess.installTypeLookupCheck(ctx, filter);
          String script = "Java.type('" + COM_ORG + "');" +
-            "Java.type('org.apache.commons.text.WordUtils');" +
-            "Java.type('com.fasterxml.jackson.databind.ObjectMapper')";
+            "Java.type('org.apache.commons.lang3.math.NumberUtils');" +
+            "Java.type('com.google.common.base.Strings')";
 
          FormulaContext.setRestricted(false);
          ctx.eval("js", script);
@@ -186,9 +193,9 @@ class ScriptHostAccessRestrictedTest {
          FormulaContext.setRestricted(true);
          assertThrows(PolyglotException.class, () -> ctx.eval("js", "Java.type('" + COM_ORG + "')"));
          // javascript.java.packages is the one grant a restricted script keeps
-         ctx.eval("js", "Java.type('org.apache.commons.text.WordUtils')");
+         ctx.eval("js", "Java.type('org.apache.commons.lang3.math.NumberUtils')");
          assertThrows(PolyglotException.class, () -> ctx.eval(
-            "js", "Java.type('com.fasterxml.jackson.databind.ObjectMapper')"));
+            "js", "Java.type('com.google.common.base.Strings')"));
       }
       finally {
          FormulaContext.setRestricted(false);

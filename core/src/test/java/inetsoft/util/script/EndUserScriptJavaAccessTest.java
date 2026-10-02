@@ -27,6 +27,7 @@ import inetsoft.report.script.viewsheet.ViewsheetScopeTest;
 import inetsoft.sree.ClientInfo;
 import inetsoft.sree.DynamicParameterValue;
 import inetsoft.sree.RepletRequest;
+import inetsoft.sree.SreeEnv;
 import inetsoft.sree.schedule.ScheduleParameterScope;
 import inetsoft.sree.security.DestinationUserNameProviderPrincipal;
 import inetsoft.sree.security.IdentityID;
@@ -56,7 +57,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * parameter.__principal__), by Java.type or by the package form. The scripts run
  * through the production calc field, worksheet query and viewsheet scope paths.
  * Basic java.lang / java.math classes stay usable, dangerous java.lang classes stay
- * denied, and an admin VPM script keeps com/org.
+ * denied, and an admin VPM script keeps com/org. The tests turn javascript.java.com_org
+ * on, so a refusal comes from the restricted mode and not from the com_org default.
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class, IntegrationTestConfiguration.class },
@@ -72,6 +74,8 @@ class EndUserScriptJavaAccessTest {
    @BeforeEach
    void setUp() {
       FormulaContext.setRestricted(false);
+      oldComOrg = SreeEnv.getProperty("javascript.java.com_org");
+      SreeEnv.setProperty("javascript.java.com_org", "true");
       principal = new DestinationUserNameProviderPrincipal(
          new ClientInfo(new IdentityID("alice", "orgA"), "10.0.0.1"),
          new IdentityID[] { new IdentityID("Everyone", "orgA") },
@@ -81,6 +85,7 @@ class EndUserScriptJavaAccessTest {
    @AfterEach
    void tearDown() {
       FormulaContext.setRestricted(false);
+      SreeEnv.setProperty("javascript.java.com_org", oldComOrg);
    }
 
    @ParameterizedTest
@@ -245,4 +250,5 @@ class EndUserScriptJavaAccessTest {
       ".invokeMethod(parameter.__principal__, 'getSecureID')";
    private static final long SECURE_ID = 987654321L;
    private DestinationUserNameProviderPrincipal principal;
+   private String oldComOrg;
 }

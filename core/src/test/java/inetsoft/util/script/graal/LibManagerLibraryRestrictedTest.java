@@ -19,6 +19,7 @@ package inetsoft.util.script.graal;
 
 import inetsoft.report.LibManager;
 import inetsoft.report.LibManagerProvider;
+import inetsoft.sree.SreeEnv;
 import inetsoft.test.*;
 import inetsoft.uql.script.VpmScope;
 import inetsoft.util.script.*;
@@ -33,6 +34,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * Bug #77396: a script library saved in the LibManager is installed with its top level
  * restricted, through the env a real surface gets from {@link ScriptEnvRepository}, and a
  * VPM script reached from a restricted frame can still use com/org in a library function.
+ * The tests turn javascript.java.com_org on, so a refusal comes from the restricted mode
+ * and not from the com_org default.
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class, LibManagerTestConfiguration.class },
@@ -58,9 +61,18 @@ class LibManagerLibraryRestrictedTest {
       mgr.removeScript("isEmptyLib");
    }
 
+   private String oldComOrg;
+
+   @BeforeEach
+   void allowComOrg() {
+      oldComOrg = SreeEnv.getProperty("javascript.java.com_org");
+      SreeEnv.setProperty("javascript.java.com_org", "true");
+   }
+
    @AfterEach
    void teardown() {
       FormulaContext.setRestricted(false);
+      SreeEnv.setProperty("javascript.java.com_org", oldComOrg);
    }
 
    private static Object exec(String src, boolean restricted) throws Exception {

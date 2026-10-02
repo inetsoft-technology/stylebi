@@ -22,6 +22,7 @@ import inetsoft.report.lens.DefaultTableLens;
 import inetsoft.report.lens.FormulaTableLens;
 import inetsoft.sree.DynamicParameterValue;
 import inetsoft.sree.RepletRequest;
+import inetsoft.sree.SreeEnv;
 import inetsoft.sree.schedule.ScheduleParameterScope;
 import inetsoft.test.*;
 import inetsoft.uql.ConditionItem;
@@ -49,7 +50,9 @@ import static org.junit.jupiter.api.Assertions.*;
  * Bug #77396: the end-user script surfaces (calculated fields, expression columns,
  * conditions, schedule parameters) run restricted, an administrator's VPM script runs
  * unrestricted, so they cannot look up com.* / org.* classes, and they put back
- * the restricted flag the thread had when they finish.
+ * the restricted flag the thread had when they finish. The tests turn
+ * javascript.java.com_org on, so a refusal comes from the restricted mode and not from
+ * the com_org default.
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class,
@@ -65,20 +68,24 @@ class RestrictedScriptSurfaceTest {
       " catch(e) { return 2; } })()";
 
    private AssetQuerySandbox box;
+   private String oldComOrg;
 
    @BeforeEach
    void setUp() throws Exception {
       FormulaContext.setRestricted(false);
+      oldComOrg = SreeEnv.getProperty("javascript.java.com_org");
+      SreeEnv.setProperty("javascript.java.com_org", "true");
       box = new AssetQuerySandbox(new Worksheet());
    }
 
    @AfterEach
    void tearDown() {
       FormulaContext.setRestricted(false);
+      SreeEnv.setProperty("javascript.java.com_org", oldComOrg);
    }
 
    @Test
-   void unrestrictedScriptKeepsComOrgByDefault() throws Exception {
+   void unrestrictedScriptKeepsComOrgWhenAllowed() throws Exception {
       ScriptEnv senv = box.getScriptEnv();
       assertEquals(1.0, ((Number) senv.exec(senv.compile(PROBE), box.getScope(), null, null))
          .doubleValue());

@@ -17,6 +17,7 @@
  */
 package inetsoft.util.script.graal;
 
+import inetsoft.sree.SreeEnv;
 import inetsoft.test.*;
 import inetsoft.util.script.FormulaContext;
 import org.junit.jupiter.api.*;
@@ -32,7 +33,8 @@ import static org.junit.jupiter.api.Assertions.*;
 /**
  * Bug #77396: the top level of a script library runs restricted when an engine installs
  * it, so a host type it would keep in a global cannot reach restricted scripts. A library
- * function body still runs under its caller's flag.
+ * function body still runs under its caller's flag. The tests turn javascript.java.com_org
+ * on, so a refusal comes from the restricted mode and not from the com_org default.
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = BaseTestConfiguration.class,
@@ -43,10 +45,13 @@ class ScriptLibraryRestrictedTest {
    private static final String COM_ORG = "org.apache.commons.lang3.StringUtils";
 
    private GraalJavaScriptEngine engine;
+   private String oldComOrg;
 
    @BeforeEach
    void setup() throws Exception {
       FormulaContext.setRestricted(false);
+      oldComOrg = SreeEnv.getProperty("javascript.java.com_org");
+      SreeEnv.setProperty("javascript.java.com_org", "true");
       Map<String, String> libs = new LinkedHashMap<>();
       libs.put("leak", "var MU = Java.type('" + COM_ORG + "');\n" +
          "function afterLeak(x) { return x + 1; }");
@@ -66,6 +71,7 @@ class ScriptLibraryRestrictedTest {
    void teardown() {
       engine.close();
       FormulaContext.setRestricted(false);
+      SreeEnv.setProperty("javascript.java.com_org", oldComOrg);
    }
 
    private Object eval(String src, boolean restricted) throws Exception {
