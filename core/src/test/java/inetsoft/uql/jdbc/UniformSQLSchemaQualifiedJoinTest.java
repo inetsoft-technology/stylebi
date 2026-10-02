@@ -17,6 +17,7 @@
  */
 package inetsoft.uql.jdbc;
 
+import antlr.RecognitionException;
 import inetsoft.test.*;
 import inetsoft.uql.XNode;
 import inetsoft.util.credential.CredentialService;
@@ -317,40 +318,79 @@ class UniformSQLSchemaQualifiedJoinTest {
       assertRoundTrip(sql, helper);
    }
 
+   // the joins of a parenthesized joined table on the right keep the preserved side when the
+   // ON's bare qualifier a names the preserved s.a. The ANSI output is not round-trip stable
+   // (a re-parse writes the ON operands as x.pid = a.id), the same as for aliased tables on
+   // main, so only the joins and the SQL are checked. Only a PostgreSQL ANSI data source
+   // accepts this shape: #77434 refuses it without a data source, and on Oracle, whose
+   // "x.id = b.id and a.id = x.pid(+)" drops the null extended rows of s.a
    static Stream<Arguments> parenthesizedSelfJoins() {
       return Stream.of(
-         Arguments.of(DEFAULT, "select * from s.a left join (s.a x join s.b on x.id = b.id) on a.id = x.pid",
-                      "select * from (s.a x INNER JOIN s.b ON x.id = b.id ) RIGHT OUTER JOIN s.a ON a.id = x.pid"),
-         Arguments.of(DEFAULT, "select * from s.a left join (s.b join s.a x on x.id = b.id) on a.id = x.pid",
-                      "select * from (s.a x INNER JOIN s.b ON x.id = b.id ) RIGHT OUTER JOIN s.a ON a.id = x.pid"),
-         Arguments.of(ORACLE, "select * from s.a left join (s.a x join s.b on x.id = b.id) on a.id = x.pid",
-                      "select * from s.a, s.a x, s.b where x.id = b.id and a.id = x.pid(+)"),
-         Arguments.of(ORACLE, "select * from s.a left join (s.b join s.a x on x.id = b.id) on a.id = x.pid",
-                      "select * from s.a, s.b, s.a x where x.id = b.id and a.id = x.pid(+)")
+         Arguments.of(POSTGRESQL_ANSI,
+                      "select * from s.a left join (s.a x join s.b on x.id = b.id) on a.id = x.pid",
+                      "select * from (\"s\".\"a\" x INNER JOIN \"s\".\"b\" ON \"x\".\"id\" = " +
+                         "\"b\".\"id\" ) RIGHT OUTER JOIN \"s\".\"a\" ON \"a\".\"id\" = \"x\".\"pid\""),
+         Arguments.of(POSTGRESQL_ANSI,
+                      "select * from s.a left join (s.b join s.a x on x.id = b.id) on a.id = x.pid",
+                      "select * from (\"s\".\"a\" x INNER JOIN \"s\".\"b\" ON \"x\".\"id\" = " +
+                         "\"b\".\"id\" ) RIGHT OUTER JOIN \"s\".\"a\" ON \"a\".\"id\" = \"x\".\"pid\"")
       );
    }
 
-   // the tables of a parenthesized joined table on the right get their join type in
-   // setJoinedTableOps, which must not key "s.a x" under s.a either, or the qualifier a,
-   // which names the preserved s.a, finds it and swaps the preserved side. The ANSI output
-   // is not round-trip stable (a re-parse writes the ON operands as x.pid = a.id), the same
-   // as for aliased tables on main, so only the joins and the SQL are checked.
    @ParameterizedTest
    @MethodSource("parenthesizedSelfJoins")
    void parenthesizedSelfJoinKeepsPreservedSide(String helper, String text, String expected)
       throws Exception
    {
       UniformSQL sql = parse(text, helper);
-      assertTrue(joins(sql).contains("s.a *= x"), joins(sql).toString());
+      assertTrue(joins(sql).contains("\"s\".\"a\" *= x"), joins(sql).toString());
       assertEquals(expected, regenerate(sql));
    }
 
-   // an aliased joined table referenced by its table name, which no other FROM table has,
-   // still finds its join type under that name
+   // an aliased joined table referenced by its alias still gets its join type
    @Test
-   void aliasedTableByNameKeepsPreservedSide() throws Exception {
-      UniformSQL sql = parse("select * from s.a left join s.b y on s.b.id = a.id", DEFAULT);
-      assertEquals(List.of("s.a *= s.b"), joins(sql));
+   void aliasedTableByAliasKeepsPreservedSide() throws Exception {
+      UniformSQL sql = parse("select * from s.a left join s.b y on y.id = a.id", DEFAULT);
+      assertEquals(List.of("s.a *= y"), joins(sql));
+      assertEquals("select * from s.a LEFT OUTER JOIN s.b y ON a.id = y.id", regenerate(sql));
+   }
+
+   // shapes that the outer join rules of #6034 refuse, so the original SQL runs as written.
+   // The table name of an aliased table (s.b.id for "s.b y") and the bare name of two FROM
+   // tables (a for s.a and t.a) don't name a FROM table and are invalid for the database
+   // too, and a nested join on the right of an outer join is refused without a data source
+   // or on Oracle (#77434), which would regenerate it with different rows
+   static Stream<Arguments> refused() {
+      return Stream.of(
+         Arguments.of(DEFAULT, "select * from s.a left join s.b y on s.b.id = a.id",
+                      "Unsupported outer join condition"),
+         Arguments.of(DEFAULT, "select * from s.a left join t.a on a.id = a.k",
+                      "Unsupported outer join condition"),
+         Arguments.of(DEFAULT,
+                      "select * from s.a left join (s.a x join s.b on x.id = b.id) on a.id = x.pid",
+                      "Unsupported nested join"),
+         Arguments.of(DEFAULT,
+                      "select * from s.a left join (s.b join s.a x on x.id = b.id) on a.id = x.pid",
+                      "Unsupported nested join"),
+         Arguments.of(ORACLE,
+                      "select * from s.a left join (s.a x join s.b on x.id = b.id) on a.id = x.pid",
+                      "Unsupported nested join"),
+         Arguments.of(ORACLE,
+                      "select * from s.a left join (s.b join s.a x on x.id = b.id) on a.id = x.pid",
+                      "Unsupported nested join")
+      );
+   }
+
+   @ParameterizedTest
+   @MethodSource("refused")
+   void refusedShapeKeepsOriginalSql(String helper, String text, String message) {
+      RecognitionException ex = assertThrows(RecognitionException.class, () -> parse(text, helper));
+      assertTrue(ex.getMessage().contains(message), ex.getMessage());
+
+      UniformSQL sql = new UniformSQL();
+      sql.setDataSource(dataSource(helper));
+      new SQLProcessor(sql).parse(text);
+      assertEquals(UniformSQL.PARSE_FAILED, sql.getParseResult());
    }
 
    // a quoted name that contains a dot is one table, not schema s and table a
@@ -360,11 +400,16 @@ class UniformSQLSchemaQualifiedJoinTest {
       assertEquals(List.of("a *= s.b"), joins(sql));
    }
 
+   // a bare name of two FROM tables (s.a and t.a) is ambiguous and stays unresolved
+   @Test
+   void ambiguousBareNameStaysUnresolved() throws Exception {
+      UniformSQL sql = parse("select * from s.a, t.a, s.b where a.id = b.id", DEFAULT);
+      assertEquals(List.of("a = s.b"), joins(sql));
+      assertEquals("select * from s.a, t.a, s.b where a.id = b.id", regenerate(sql));
+   }
+
    static Stream<Arguments> unchanged() {
       return Stream.of(
-         // a bare name of two FROM tables is ambiguous and stays unresolved
-         Arguments.of(DEFAULT, "select * from s.a left join t.a on a.id = a.k",
-                      "select * from a LEFT OUTER JOIN a ON a.id = a.k , s.a, t.a"),
          // a FROM table named as written wins over a schema-qualified one
          Arguments.of(DEFAULT, "select * from a left join s.a on a.id = s.a.id",
                       "select * from a LEFT OUTER JOIN s.a ON a.id = s.a.id"),
