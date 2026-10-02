@@ -379,6 +379,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
          groupDBFields = new Vector<>(uniformSql.groupDBFields);
          orderByList = new Vector<>(uniformSql.orderByList);
          quotedFields = new HashMap<>(uniformSql.quotedFields);
+         quotedAggregates = new HashMap<>(uniformSql.quotedAggregates);
 
          if(uniformSql.groups == null) {
             groups = null;
@@ -544,6 +545,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
       fields = new Vector<>();
       orderByList = new Vector<>();
       quotedFields = new HashMap<>();
+      quotedAggregates = new HashMap<>();
       groups = null;
       where = null;
       having = null;
@@ -791,6 +793,14 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
                selection.setQuoted(columnName, seg);
             }
          }
+
+         // an aggregate of a qualified quoted column (sum(t."MixedCase")), see writeXML
+         Element quotedAggregateNode = Tool.getChildNodeByTagName(column, "quotedAggregate");
+
+         if(quotedAggregateNode != null) {
+            selection.setQuotedAggregate(selection.getColumnCount() - 1,
+               Tool.getAttribute(quotedAggregateNode, "column"));
+         }
       }
 
       nlist = Tool.getChildNodesByTagName(node, "where");
@@ -857,6 +867,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
             orderByList.add(new OrderByItem(field, order));
 
             readQuotedField(sortNode, field);
+            setQuotedAggregate(field, Tool.getAttribute(sortNode, "quotedAggregate"));
          }
       }
 
@@ -1120,6 +1131,14 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
             }
          }
 
+         String qagg = selection.getQuotedAggregate(i);
+
+         // an aggregate of a qualified quoted column (sum(t."MixedCase")). Older versions
+         // ignore it and generate the aggregate as before
+         if(qagg != null) {
+            writer.println("<quotedAggregate column=\"" + Tool.escape(qagg) + "\"/>");
+         }
+
          writer.println("</column>");
       }
 
@@ -1136,7 +1155,8 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
 
       for(int i = 0; orderField != null && i < orderField.length; i++) {
          writer.print("<field order=\"" + this.getOrderBy(orderField[i]) + "\"" +
-                      quotedFieldAttribute(orderField[i]) + "><![CDATA[");
+                      quotedFieldAttribute(orderField[i]) +
+                      quotedAggregateAttribute(orderField[i]) + "><![CDATA[");
          writer.print(orderField[i].toString());
          writer.print("]]></field>");
 
@@ -1462,6 +1482,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
 
          if(Tool.equals(field, oldName)) {
             item.setField(newName);
+            moveQuotedAggregate((String) field, newName);
          }
       }
 
@@ -1569,6 +1590,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
 
          String fieldName = fixFieldName((String) field, rinfos);
          item.setField(fieldName);
+         moveQuotedAggregate((String) field, fieldName);
       }
    }
 
@@ -3163,6 +3185,46 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
       return seg == null || seg.isEmpty() ? null : seg;
    }
 
+   /**
+    * Set the column segment, as written, of the qualified quoted column that is the only
+    * argument of an order by aggregate (MixedCase for sum(t."MixedCase")). The stored text
+    * of the aggregate doesn't show the quotes on a case-sensitive helper.
+    * @param segment the segment, or <tt>null</tt> to clear it.
+    */
+   public synchronized void setQuotedAggregate(String field, String segment) {
+      if(segment == null || segment.isEmpty()) {
+         quotedAggregates.remove(field);
+      }
+      else {
+         quotedAggregates.put(field, segment);
+      }
+   }
+
+   /**
+    * Get the column segment, as written, of the qualified quoted column that is the only
+    * argument of an order by aggregate.
+    * @return the segment, or <tt>null</tt> if not recorded, which doesn't mean unquoted
+    *         (e.g. a query saved before it was recorded).
+    */
+   public synchronized String getQuotedAggregate(Object field) {
+      return field instanceof String ? quotedAggregates.get(field) : null;
+   }
+
+   // keep the quoted aggregate column of a renamed order by field
+   private void moveQuotedAggregate(String field, String nfield) {
+      String seg = quotedAggregates.get(field);
+
+      if(seg != null && nfield != null && !nfield.equals(field)) {
+         quotedAggregates.remove(field);
+         quotedAggregates.put(nfield, seg);
+      }
+   }
+
+   private String quotedAggregateAttribute(Object field) {
+      String seg = getQuotedAggregate(field);
+      return seg != null ? " quotedAggregate=\"" + Tool.escape(seg) + "\"" : "";
+   }
+
    private void copyQuotedField(String field, String nfield) {
       if(isQuotedField(field)) {
          setQuotedField(nfield, getQuotedFieldColumn(field));
@@ -3651,6 +3713,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
          Objects.equals(orderByList, that.orderByList) &&
          Arrays.equals(groups, that.groups) &&
          Objects.equals(quotedFields, that.quotedFields) &&
+         Objects.equals(quotedAggregates, that.quotedAggregates) &&
          Objects.equals(where, that.where) &&
          Objects.equals(having, that.having) &&
          Objects.equals(dataSource, that.dataSource) &&
@@ -3742,6 +3805,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
          }
 
          obj.quotedFields = new HashMap<>(quotedFields);
+         obj.quotedAggregates = new HashMap<>(quotedAggregates);
 
          if(where != null) {
             obj.where = (XFilterNode) where.clone();
@@ -4179,6 +4243,8 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
    private Object[] groups; // group by list
    // group by/order by fields written as quoted identifiers -> column segment ("" if bare)
    private HashMap<String, String> quotedFields = new HashMap<>();
+   // order by aggregates of a qualified quoted column (sum(t."MixedCase")) -> column segment
+   private HashMap<String, String> quotedAggregates = new HashMap<>();
    private XFilterNode where; // root XFilterNode of where clause
    private XFilterNode having; // root XFilterNode of having clause
    private JDBCDataSource dataSource = null;
