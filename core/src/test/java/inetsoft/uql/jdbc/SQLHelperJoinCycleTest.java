@@ -754,6 +754,8 @@ class SQLHelperJoinCycleTest {
     */
    private static UniformSQL parse(String text, boolean legacy) throws Exception {
       UniformSQL sql = new UniformSQL();
+      // a RIGHT or FULL join mixed with an inner join is refused without a data source
+      sql.setDataSource(GenericJDBCDataSource.create());
       sql.parse(text, UniformSQL.PARSE_ALL, UniformSQL.PARSE_PERIOD);
 
       if(legacy) {
