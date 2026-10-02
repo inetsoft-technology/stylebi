@@ -25,6 +25,7 @@ import java.time.*;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoField;
 import java.time.temporal.TemporalAccessor;
+import java.time.temporal.WeekFields;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -44,6 +45,7 @@ public class ExtendedDateFormat extends SimpleDateFormat {
     */
    public ExtendedDateFormat() {
       super();
+      defaultLocale = Locale.getDefault(Locale.Category.FORMAT);
    }
 
    /**
@@ -52,6 +54,7 @@ public class ExtendedDateFormat extends SimpleDateFormat {
     */
    public ExtendedDateFormat(String pattern) {
       super(ExtendedDateFormat.createPattern(pattern));
+      defaultLocale = Locale.getDefault(Locale.Category.FORMAT);
    }
 
    /**
@@ -504,14 +507,18 @@ public class ExtendedDateFormat extends SimpleDateFormat {
       }
 
       // try as milliseconds from epoch. we don't invent a new format type since it's
-      // unlikely that a user will know to use it. so we just try it and see if it works
+      // unlikely that a user will know to use it. so we just try it and see if it works.
+      // date text such as 12/31/85 is skipped (NaN), since the exception is slow
       try {
-         double val = Double.parseDouble(str);
+         double val = isNumber(str) ? Double.parseDouble(str) : Double.NaN;
          final long year = 60000 * 60 * 24 * 365L;
          final long year10 = year * 10;
          final long year70 = year * 70;
 
-         if(val > year10 && val < year70) {
+         // java.time was tried before the epoch milliseconds for every pattern it can parse,
+         // so a pattern now parsed by SimpleDateFormat keeps that order, e.g. yyMMddHHmmss
+         // reads 851231120000 as a date and 1300000000000 (too long) as milliseconds
+         if(val > year10 && val < year70 && !(getFormatter() == null && isJavaTimeDate(str))) {
             return new Date((long) val);
          }
       }
@@ -520,6 +527,60 @@ public class ExtendedDateFormat extends SimpleDateFormat {
       }
 
       return super.parseObject(str);
+   }
+
+   /**
+    * Check if java.time can parse the whole string with the pattern of this format, ignoring
+    * whether the pattern is parsed by java.time or SimpleDateFormat.
+    */
+   private boolean isJavaTimeDate(String str) {
+      DateTimeFormatter formatter = getFormatter(toPattern(), getParseLocale());
+
+      try {
+         if(formatter != null) {
+            formatter.parse(str);
+            return true;
+         }
+      }
+      catch(DateTimeException ex) {
+         // not a date for java.time
+      }
+
+      return false;
+   }
+
+   /**
+    * Check if the string may be a number for Double.parseDouble(). this is a quick check
+    * that accepts every decimal or hex number (some other strings too), and rejects text
+    * with any other letter or sign, e.g. dates such as 12/31/85, 03-11 or 10-Mar-11.
+    * NaN and Infinity are rejected, which is fine since they are never epoch milliseconds.
+    */
+   private static boolean isNumber(String str) {
+      if(str == null) {
+         return false;
+      }
+
+      char prev = ' ';
+
+      for(int i = 0; i < str.length(); i++) {
+         char c = str.charAt(i);
+
+         // a sign is only allowed first or in an exponent
+         if(c == '+' || c == '-') {
+            if(prev > ' ' && prev != 'e' && prev != 'E' && prev != 'p' && prev != 'P') {
+               return false;
+            }
+         }
+         else if(c > ' ' && c != '.' && c != 'x' && c != 'X' && c != 'p' && c != 'P' &&
+            Character.digit(c, 16) < 0)
+         {
+            return false;
+         }
+
+         prev = c;
+      }
+
+      return true;
    }
 
    @Override
@@ -548,7 +609,7 @@ public class ExtendedDateFormat extends SimpleDateFormat {
 
          if(formatter == null) {
             throw new IllegalArgumentException(
-               "Pattern or time zone is not supported by java.time: " + toPattern());
+               "Pattern, time zone or calendar is not supported by java.time: " + toPattern());
          }
 
          final TemporalAccessor temporal = formatter.parse(str);
@@ -613,7 +674,7 @@ public class ExtendedDateFormat extends SimpleDateFormat {
          else {
             ZonedDateTime dateTime = LocalDateTime
                .of(year, month, day, hour, minute, second, nanosecond)
-               .atZone(ZoneId.systemDefault());
+               .atZone(zone.toZoneId());
             return new Date(dateTime.toInstant().toEpochMilli());
          }
       }
@@ -640,30 +701,73 @@ public class ExtendedDateFormat extends SimpleDateFormat {
    }
 
    /**
-    * Get the shared java.time formatter for the pattern and zone of this format, or null if
-    * java.time cannot compile the pattern (e.g. the escaped extended quarter patterns),
-    * the pattern has a zone field, or java.time cannot convert the zone. The
-    * result depends only on the pattern and zone, never on what was parsed before.
+    * Get the shared java.time formatter for the pattern, zone and locale of this format, or
+    * null if java.time cannot compile the pattern (e.g. the escaped extended quarter patterns),
+    * the pattern has a field java.time parses differently (see needsSimpleDateFormat()),
+    * java.time cannot convert the zone, or the calendar is not Gregorian or has other week
+    * rules than the locale. The result depends only on the pattern, zone, locale and calendar,
+    * never on what was parsed before.
     */
    private DateTimeFormatter getFormatter() {
+      // parse(str, null) converts the ISO fields, so a non-Gregorian calendar such as the
+      // buddhist (th_TH) or japanese (ja_JP_JP) one is parsed by SimpleDateFormat. checked for
+      // each call since setCalendar() can change it. BuddhistCalendar extends GregorianCalendar,
+      // so the calendar type is checked instead of the class
+      if(!"gregory".equals(getCalendar().getCalendarType())) {
+         return null;
+      }
+
       String pattern = toPattern();
 
-      // parse(str, null) keeps only the local fields, which would drop the parsed offset or
-      // zone name, so patterns with a zone field are always parsed by SimpleDateFormat
       if(unsupportedPatterns.contains(pattern) ||
-         zonePatterns.computeIfAbsent(pattern, ExtendedDateFormat::hasZoneField))
+         sdfPatterns.computeIfAbsent(pattern, ExtendedDateFormat::needsSimpleDateFormat))
       {
          return null;
       }
 
+      Locale loc = getParseLocale();
+
+      // the week rules of the calendar may differ from the locale's, e.g. for a -u-ca-iso8601
+      // locale or after setCalendar(). they only matter for a week date, which always has w,
+      // so the (slow) WeekFields lookup is skipped for other patterns. Calendar numbers the
+      // days from Sunday = 1
+      if(pattern.indexOf('w') >= 0) {
+         WeekFields weekFields = WeekFields.of(loc);
+         Calendar calendar = getCalendar();
+
+         if(calendar.getFirstDayOfWeek() != weekFields.getFirstDayOfWeek().getValue() % 7 + 1 ||
+            calendar.getMinimalDaysInFirstWeek() != weekFields.getMinimalDaysInFirstWeek())
+         {
+            return null;
+         }
+      }
+
+      return getFormatter(pattern, loc);
+   }
+
+   /**
+    * Get the locale SimpleDateFormat was created with, for the month, day, am/pm and era
+    * names and the week rules.
+    */
+   private Locale getParseLocale() {
+      return locale != null ? locale :
+         defaultLocale != null ? defaultLocale : Locale.getDefault(Locale.Category.FORMAT);
+   }
+
+   /**
+    * Get the shared java.time formatter for the pattern, locale and the zone of this format,
+    * or null if java.time cannot compile the pattern or convert the zone.
+    */
+   private DateTimeFormatter getFormatter(String pattern, Locale loc) {
       TimeZone zone = getTimeZone();
-      String key = pattern + ":" + zone.getID();
+      // the pattern is last since only it may contain the separator
+      String key = loc.toLanguageTag() + "|" + zone.getID() + "|" + pattern;
       DateTimeFormatter formatter = formatters.get(key);
 
       // formatter is thread safe so it can be shared globally
       if(formatter == null) {
          try {
-            formatter = DateTimeFormatter.ofPattern(pattern);
+            formatter = DateTimeFormatter.ofPattern(pattern, loc);
          }
          catch(IllegalArgumentException ex) {
             unsupportedPatterns.add(pattern);
@@ -686,10 +790,23 @@ public class ExtendedDateFormat extends SimpleDateFormat {
    }
 
    /**
-    * Check if the pattern has an unquoted zone or offset letter (z, Z or X).
+    * Check if the pattern has to be parsed by SimpleDateFormat, because java.time parses one
+    * of its unquoted fields differently or parse(str, null) does not use it. java.time is
+    * kept only for fields both resolve the same way, and any other letter goes to
+    * SimpleDateFormat, e.g.
+    * - a zone or offset (z, Z, X), since parse(str, null) keeps only the local fields;
+    * - a two-letter year (yy, YY), read as 2000-2099 by java.time instead of with the 2-digit
+    *   year start;
+    * - week fields (Y, w, W) outside a week date (Y, w and E, without y), since java.time
+    *   resolves the date from them only for a week date, e.g. Jan 1 for yyyy-ww-EEE;
+    * - letters with another meaning in java.time (u, F, S other than SSS, and G, M, L or E
+    *   more than 4 times, which are the narrow forms in java.time) or that
+    *   SimpleDateFormat resolves on their own (D, a day of week without a day or week date,
+    *   a 12-hour hour without am/pm or am/pm without a 12-hour hour).
     */
-   private static boolean hasZoneField(String pattern) {
+   private static boolean needsSimpleDateFormat(String pattern) {
       boolean quoted = false;
+      boolean[] letters = new boolean[128];
 
       for(int i = 0; i < pattern.length(); i++) {
          char c = pattern.charAt(i);
@@ -697,13 +814,67 @@ public class ExtendedDateFormat extends SimpleDateFormat {
          // an escaped quote ('') toggles twice, so it never changes the quoted state
          if(c == QT) {
             quoted = !quoted;
+            continue;
          }
-         else if(!quoted && (c == 'z' || c == 'Z' || c == 'X')) {
+
+         if(quoted || !(c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z')) {
+            continue;
+         }
+
+         int count = 1;
+
+         while(i + 1 < pattern.length() && pattern.charAt(i + 1) == c) {
+            count++;
+            i++;
+         }
+
+         letters[c] = true;
+
+         switch(c) {
+         case 'G':
+         case 'M':
+         case 'L':
+         case 'E':
+            // GGGGG, MMMMM, LLLLL and EEEEE are the narrow forms in java.time but the
+            // full forms in SimpleDateFormat
+            if(count > 4) {
+               return true;
+            }
+
+            break;
+         case 'y':
+         case 'Y':
+            if(count == 2) {
+               return true;
+            }
+
+            break;
+         case 'S':
+            if(count != 3) {
+               return true;
+            }
+
+            break;
+         case 'w':
+         case 'd':
+         case 'a':
+         case 'h':
+         case 'K':
+         case 'H':
+         case 'k':
+         case 'm':
+         case 's':
+            break;
+         default:
             return true;
          }
       }
 
-      return false;
+      boolean weekDate = letters['Y'] && letters['w'] && letters['E'] && !letters['y'];
+
+      return (letters['Y'] || letters['w']) && !weekDate ||
+         letters['E'] && !letters['d'] && !weekDate ||
+         letters['a'] != (letters['h'] || letters['K']);
    }
 
    /**
@@ -786,8 +957,8 @@ public class ExtendedDateFormat extends SimpleDateFormat {
    // patterns DateTimeFormatter.ofPattern() rejects. keyed by pattern only (never by input or
    // instance) so cloned formats, e.g. the FormatCache copies, all make the same choice
    private static Set<String> unsupportedPatterns = ConcurrentHashMap.newKeySet();
-   // whether a pattern has a zone field, keyed by pattern like unsupportedPatterns
-   private static Map<String, Boolean> zonePatterns = new ConcurrentHashMap<>();
+   // whether a pattern needs SimpleDateFormat, keyed by pattern like unsupportedPatterns
+   private static Map<String, Boolean> sdfPatterns = new ConcurrentHashMap<>();
 
    private static final LocalDate DEFAULT_LOCAL_DATE = LocalDate.ofEpochDay(0);
    private static final LocalTime DEFAULT_LOCAL_TIME = LocalTime.of(0, 0);
@@ -796,4 +967,7 @@ public class ExtendedDateFormat extends SimpleDateFormat {
    private String cupattern = null;
    private transient FastDateFormat fastFmt;
    private Locale locale = null;
+   // the default format locale SimpleDateFormat used when no locale was given. kept apart
+   // from locale, since format() uses the thread locale when locale is null
+   private Locale defaultLocale = null;
 }
