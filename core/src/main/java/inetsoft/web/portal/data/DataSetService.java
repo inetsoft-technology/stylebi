@@ -389,9 +389,9 @@ public class DataSetService {
    {
       updateEntryCreationDetails(entry);
       String modifiedDateLabel = entry.getModifiedDate() == null ? "" :
-         new SimpleDateFormat(SreeEnv.getProperty("format.date.time")).format(entry.getModifiedDate());
+         gregorianDateFormat().format(entry.getModifiedDate());
       String createdDateLabel = entry.getCreatedDate() == null ? "" :
-         new SimpleDateFormat(SreeEnv.getProperty("format.date.time")).format(entry.getCreatedDate());
+         gregorianDateFormat().format(entry.getCreatedDate());
       boolean admin = checkAssetPermission(principal, entry, ResourceAction.ADMIN);
       String parentPath = entry.getParentPath();
 
@@ -472,9 +472,9 @@ public class DataSetService {
       boolean canWorksheet = securityProvider.checkPermission(
          principal, ResourceType.WORKSHEET, "*", ResourceAction.ACCESS);
       String modifiedDateLabel = entry.getModifiedDate() == null ? "" :
-         new SimpleDateFormat(SreeEnv.getProperty("format.date.time")).format(entry.getModifiedDate());
+         gregorianDateFormat().format(entry.getModifiedDate());
       String createdDateLabel = entry.getCreatedDate() == null ? "" :
-         new SimpleDateFormat(SreeEnv.getProperty("format.date.time")).format(entry.getCreatedDate());
+         gregorianDateFormat().format(entry.getCreatedDate());
 
       String parentPath = entry.getParentPath();
 
@@ -522,6 +522,18 @@ public class DataSetService {
       String val = entry.getProperty(AssetEntry.WORKSHEET_TYPE);
       val = val == null ? Worksheet.TABLE_ASSET + "" : val;
       return Integer.parseInt(val);
+   }
+
+   /**
+    * Bug #77566: a locale-less SimpleDateFormat uses the JVM default locale's calendar (e.g.
+    * Buddhist for th_TH, Japanese imperial for ja_JP_JP) for the modified/created date label
+    * built fresh on each request -- the label is display-only and never parsed back, so forcing
+    * Gregorian here only fixes the displayed year.
+    */
+   private static SimpleDateFormat gregorianDateFormat() {
+      SimpleDateFormat format = new SimpleDateFormat(SreeEnv.getProperty("format.date.time"));
+      format.setCalendar(new GregorianCalendar());
+      return format;
    }
 
    /**
