@@ -292,10 +292,14 @@ class EmailInfo implements Cloneable, Serializable, HttpXMLSerializable {
       if(messageNode != null) {
          message = Tool.getValue(messageNode);
       }
-      else {
+      else if(tag.hasAttribute("message")) {
          // legacy: message was stored as an XML attribute before being moved to a child element
          message = tag.getAttribute("message");
          message = byteDecode(message);
+      }
+      else {
+         // no message at all: keep it null so writeXML does not add an empty one
+         message = null;
       }
 
       messageHtml = "true".equals(tag.getAttribute("messageHtml"));
