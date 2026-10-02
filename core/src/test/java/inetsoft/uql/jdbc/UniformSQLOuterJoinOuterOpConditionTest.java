@@ -200,6 +200,14 @@ class UniformSQLOuterJoinOuterOpConditionTest {
       // an inner join in a case is kept in the case
       "select case when a.k = b.k then 1 else 0 end from a, b | " +
          "select case when a.k = b.k then 1 else 0 END from a, b",
+      // a subquery's own (+) join under a having or a case is checked at its own level
+      "select a.x from a, b where a.id = b.id(+) group by a.x " +
+         "having exists (select 1 from c, d where c.id = d.id(+)) | " +
+         "select a.x from a LEFT OUTER JOIN b ON a.id = b.id group by a.x " +
+         "having EXISTS ( select 1 from c LEFT OUTER JOIN d ON c.id = d.id)",
+      "select case when exists (select 1 from c, d where c.id = d.id(+)) then 1 else 0 end from a | " +
+         "select case when EXISTS ( select 1 from c LEFT OUTER JOIN d ON c.id = d.id) " +
+         "then 1 else 0 END from a",
       "select a.x from a join b on a.id = b.id or a.k = b.k | " +
          "select a.x from a, b where (a.id = b.id or a.k = b.k)",
       "select a.x from a join b on a.id = b.id, c where a.k = c.k(+) | " +
@@ -210,6 +218,31 @@ class UniformSQLOuterJoinOuterOpConditionTest {
          UniformSQL sql = parse(text, ds);
          assertEquals(UniformSQL.PARSE_SUCCESS, sql.getParseResult(), text);
          assertEquals(expected, regenerate(sql));
+      }
+   }
+
+   // a subquery's or derived table's own (+) join under an inner join ON is checked at
+   // its own level. The inner join is generated in the where clause without ANSI joins
+   @ParameterizedTest
+   @CsvSource(delimiter = '|', value = {
+      "select a.x from a join b on a.id = b.id and exists (select 1 from c, d where c.id = d.id(+)) | " +
+         "select a.x from a, b where a.id = b.id and " +
+         "EXISTS ( select 1 from c LEFT OUTER JOIN d ON c.id = d.id) | " +
+         "select a.x from a INNER JOIN b ON a.id = b.id where " +
+         "EXISTS ( select 1 from c LEFT OUTER JOIN d ON c.id = d.id)",
+      "select c.x from c join (select a.x, a.id from a, b where a.id = b.id(+)) t on c.id = t.id | " +
+         "select c.x from c, ( select a.id, a.x from a LEFT OUTER JOIN b ON a.id = b.id) t " +
+         "where c.id = t.id | " +
+         "select c.x from c INNER JOIN ( select a.id, a.x from a LEFT OUTER JOIN b ON a.id = b.id) t " +
+         "ON c.id = t.id"
+   })
+   void subqueryOuterJoinInInnerJoinOnRegenerates(String text, String expected, String ansi) {
+      JDBCDataSource[] list = { null, GenericJDBCDataSource.create(), oracle(true) };
+
+      for(int i = 0; i < list.length; i++) {
+         UniformSQL sql = parse(text, list[i]);
+         assertEquals(UniformSQL.PARSE_SUCCESS, sql.getParseResult(), text);
+         assertEquals(i < 2 ? expected : ansi, regenerate(sql));
       }
    }
 
