@@ -616,17 +616,8 @@ public class DatabaseDatasourcesService {
 
       String type = database.getType();
 
-      if(type.equals(CustomDatabaseType.TYPE)) {
-         CustomDatabaseType.CustomDatabaseInfo customInfo =
-            (CustomDatabaseType.CustomDatabaseInfo) database.getInfo();
-         String testQuery = customInfo.getTestQuery();
-         saveTestQuery(fullName, newSrc.getFullName(), testQuery);
-      }
-      else if(type.equals(AccessDatabaseType.TYPE)) {
-         AccessDatabaseType.AccessDatabaseInfo accessInfo =
-               (AccessDatabaseType.AccessDatabaseInfo) database.getInfo();
-         String testQuery = accessInfo.getTestQuery();
-         saveTestQuery(fullName, newSrc.getFullName(), testQuery);
+      if(type.equals(CustomDatabaseType.TYPE) || type.equals(AccessDatabaseType.TYPE)) {
+         removeLegacyTestQuery(fullName, newSrc.getFullName());
       }
 
       JDBCDataSource currentDataSource = (JDBCDataSource) Tool.clone(jdbcDataSource);
@@ -732,14 +723,13 @@ public class DatabaseDatasourcesService {
       DatabaseInfo info = database.getInfo();
 
       if(info instanceof CustomDatabaseType.CustomDatabaseInfo) {
-         String testQuery = ((CustomDatabaseType.CustomDatabaseInfo) info).getTestQuery();
          String fullName = additionalConnection.getFullName();
 
          try {
-            saveTestQuery(fullName, fullName, testQuery);
+            removeLegacyTestQuery(fullName, fullName);
          }
          catch(Exception e) {
-            LOG.warn("Failed to save test query for {}", fullName);
+            LOG.warn("Failed to remove the legacy test query of {}", fullName);
          }
       }
    }
@@ -823,18 +813,47 @@ public class DatabaseDatasourcesService {
       return false;
    }
 
-   private void saveTestQuery(String oldSource, String newSource, String testQuery) throws Exception {
+   /**
+    * Removes the test query that an older version saved in SreeEnv. The test query is now saved
+    * in the pool properties of the data source by {@link #getPoolProperties}, and the editor
+    * shows the SreeEnv value only until the data source is saved.
+    */
+   private void removeLegacyTestQuery(String oldSource, String newSource) throws Exception {
       JDBCUtil.removeConnectionTestQuery(oldSource);
 
-      // on a rename the registry has already moved the old value to the new name
-      if(testQuery == null || testQuery.isEmpty()) {
+      // on a rename the registry has already moved the old value to the new name, and the
+      // value is now in the pool properties of the data source
+      if(!Tool.equals(oldSource, newSource)) {
          JDBCUtil.removeConnectionTestQuery(newSource);
-      }
-      else {
-         JDBCUtil.setConnectionTestQuery(newSource, testQuery);
       }
 
       SreeEnv.save();
+   }
+
+   /**
+    * Gets the pool properties of a database definition. The test query of a custom or Access
+    * database is saved in the connectionTestQuery pool property, which the connection pool
+    * uses. An empty test query leaves the pool properties as they are, so that the default
+    * test query shown in the editor is never saved.
+    */
+   private static TreeMap<String, String> getPoolProperties(DatabaseInfo info) {
+      String testQuery = null;
+
+      if(info instanceof CustomDatabaseType.CustomDatabaseInfo customInfo) {
+         testQuery = customInfo.getTestQuery();
+      }
+      else if(info instanceof AccessDatabaseType.AccessDatabaseInfo accessInfo) {
+         testQuery = accessInfo.getTestQuery();
+      }
+
+      if(testQuery == null || testQuery.trim().isEmpty()) {
+         return info.getPoolProperties();
+      }
+
+      TreeMap<String, String> poolProperties = info.getPoolProperties() == null ?
+         new TreeMap<>() : new TreeMap<>(info.getPoolProperties());
+      poolProperties.put(JDBCUtil.CONNECTION_TEST_QUERY_PROPERTY, testQuery);
+      return poolProperties;
    }
 
    public DataSourceSettingsModel getDefaultDatabase(Principal principal) {
@@ -1169,7 +1188,7 @@ public class DatabaseDatasourcesService {
       xds.setDescription(definition.getDescription());
       xds.setDriver(databaseType.getDriverClass(definition.getInfo()));
       xds.setRequireLogin(definition.getAuthentication().isRequired());
-      xds.setPoolProperties(definition.getInfo().getPoolProperties());
+      xds.setPoolProperties(getPoolProperties(definition.getInfo()));
       xds.setTableNameOption(definition.getTableNameOption());
       xds.setDefaultDatabase(definition.isChangeDefaultDB() ? definition.getDefaultDatabase() : null);
       xds.setAnsiJoin(definition.isAnsiJoin());

@@ -985,17 +985,25 @@ public class JDBCUtil {
       result.setTransactionIsolation(jdbcDataSource.getTransactionIsolation());
       result.setChangeDefaultDB(!Tool.isEmptyString(jdbcDataSource.getDefaultDatabase()));
 
-      String testQuery = getConnectionTestQuery(jdbcDataSource.getFullName());
-
+      // the test query field of a custom database edits the connectionTestQuery pool
+      // property, so it is not listed in the pool properties table too. The Access editor has
+      // no test query field and keeps the property in the table.
       if(type.getType().equals(CustomDatabaseType.TYPE)) {
+         TreeMap<String, String> poolProperties = jdbcDataSource.getPoolProperties() == null ?
+            null : new TreeMap<>(jdbcDataSource.getPoolProperties());
+         String testQuery = poolProperties == null ?
+            null : poolProperties.remove(CONNECTION_TEST_QUERY_PROPERTY);
+
+         // a test query saved in SreeEnv by an older version is shown, so the user sees it
+         // and moves it to the pool properties when saving the data source
+         if(testQuery == null) {
+            testQuery = getConnectionTestQuery(jdbcDataSource.getFullName());
+         }
+
          CustomDatabaseType.CustomDatabaseInfo customInfo =
             (CustomDatabaseType.CustomDatabaseInfo) result.getInfo();
+         customInfo.setPoolProperties(poolProperties);
          customInfo.setTestQuery(testQuery);
-      }
-      else if(type.getType().equals(AccessDatabaseType.TYPE)) {
-         AccessDatabaseType.AccessDatabaseInfo accessInfo =
-            (AccessDatabaseType.AccessDatabaseInfo) result.getInfo();
-         accessInfo.setTestQuery(testQuery);
       }
 
       return result;
@@ -1662,7 +1670,10 @@ public class JDBCUtil {
    }
 
    /**
-    * Gets the connection test query shown in the data source editor. The value is stored in
+    * Gets the connection test query that an older version saved in SreeEnv. The connection pool
+    * does not read it; the test query is kept in the
+    * {@link #CONNECTION_TEST_QUERY_PROPERTY} pool property of the data source. The data source
+    * editor shows this value only when the pool property is not set. The value is stored in
     * the current organization's scope, because data source names are only unique within an
     * organization. Values saved before the key was organization scoped are global and are
     * attributed to the host organization only.
@@ -1684,7 +1695,10 @@ public class JDBCUtil {
    }
 
    /**
-    * Sets the connection test query of a data source in the current organization's scope.
+    * Sets the legacy SreeEnv connection test query of a data source in the current
+    * organization's scope. It is only used to move a legacy value to a renamed data source; the
+    * data source editor saves the test query in the {@link #CONNECTION_TEST_QUERY_PROPERTY} pool
+    * property.
     *
     * @param fullName  the data source full name.
     * @param testQuery the test query.
@@ -1696,7 +1710,7 @@ public class JDBCUtil {
    /**
     * Removes the connection test query of a data source in the current organization's scope.
     * In the host organization the legacy global key is removed too, so that it is not shown
-    * again after the user clears the test query.
+    * again after the user clears the test query or saves it to the pool properties.
     *
     * @param fullName the data source full name.
     */
@@ -1711,8 +1725,9 @@ public class JDBCUtil {
    }
 
    /**
-    * Moves the connection test query of a renamed or moved data source to its new name in the
-    * current organization's scope. If the old name has no test query, a value left at the new
+    * Moves the legacy SreeEnv connection test query of a renamed or moved data source to its new
+    * name in the current organization's scope, so that the data source editor still shows it
+    * until the data source is saved. If the old name has no test query, a value left at the new
     * name by a data source deleted earlier is removed, so that it is not shown for this one.
     *
     * @param oldName the old data source full name.
@@ -1776,6 +1791,11 @@ public class JDBCUtil {
 
    private static final String [] aggregateFunction =
       {"sum", "count", "avg", "min", "max"};
+
+   /**
+    * The pool property that holds the connection test query of a data source.
+    */
+   public static final String CONNECTION_TEST_QUERY_PROPERTY = "connectionTestQuery";
 
    private static final List<DatabaseType> databaseTypes;
    private static final String MAP_KEY_ACCESS_PATTERN = "([^\\s\\[\\]]+)\\[\\s*'([^\\s']+)'\\s*\\]";

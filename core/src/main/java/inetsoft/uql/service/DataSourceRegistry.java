@@ -841,8 +841,8 @@ public class DataSourceRegistry implements MessageListener {
    }
 
    /**
-    * Moves the connection test query of a renamed or moved JDBC data source, which is kept in
-    * SreeEnv under the data source full name.
+    * Moves the legacy connection test query of a renamed or moved JDBC data source, which older
+    * versions kept in SreeEnv under the data source full name.
     */
    private void renameConnectionTestQuery(String oname, String nname) {
       try {
