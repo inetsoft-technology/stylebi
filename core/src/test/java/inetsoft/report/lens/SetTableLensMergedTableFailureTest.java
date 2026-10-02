@@ -399,6 +399,10 @@ public class SetTableLensMergedTableFailureTest {
    public void mergedTableWithoutTempFileThrowsIOException() throws Exception {
       File cache = new File(FileSystemService.getInstance().getCacheDirectory());
       assertTrue(cache.isDirectory());
+      // a read-only directory attribute does not stop file creation on windows (no posix view)
+      Assumptions.assumeTrue(
+         cache.toPath().getFileSystem().supportedFileAttributeViews().contains("posix"),
+         "posix file permissions are not supported");
       Set<PosixFilePermission> perms = Files.getPosixFilePermissions(cache.toPath());
       assertTrue(cache.setWritable(false, false));
 
