@@ -1391,16 +1391,20 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
     * @param alias the specified table alias.
     */
    public synchronized void removeTable(String alias) {
-      SelectTable table;
+      // resolve the alias the same way as getTableIndex so that tables whose
+      // aliases differ only in case (e.g. "A" and "a") are not confused
+      int index = getTableIndex(alias);
 
-      for(int i = 0; i < tables.size(); i++) {
-         table = tables.elementAt(i);
-
-         if(table.getAlias().equalsIgnoreCase(alias)) {
-            tables.removeElementAt(i);
-            return;
-         }
+      if(index >= 0) {
+         tables.removeElementAt(index);
       }
+   }
+
+   /**
+    * Check if a table name or alias matches the specified string.
+    */
+   private static boolean nameMatches(String name, String str, boolean ignoreCase) {
+      return ignoreCase ? name.equalsIgnoreCase(str) : name.equals(str);
    }
 
    /**
@@ -2174,13 +2178,16 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
    public synchronized String getTableAlias(String name) {
       int size = tables.size();
 
-      for(int i = 0; i < size; i++) {
-         SelectTable table = tables.elementAt(i);
+      // exact match first, then case-insensitive (see getTableIndex)
+      for(boolean ignoreCase : new boolean[] { false, true }) {
+         for(int i = 0; i < size; i++) {
+            SelectTable table = tables.elementAt(i);
 
-         if(table.getName() instanceof String &&
-            name.equalsIgnoreCase((String) table.getName()))
-         {
-            return table.getAlias();
+            if(table.getName() instanceof String &&
+               nameMatches(name, (String) table.getName(), ignoreCase))
+            {
+               return table.getAlias();
+            }
          }
       }
 
@@ -2223,15 +2230,9 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
          return null;
       }
 
-      for(int i = 0; i < tables.size(); i++) {
-         SelectTable table = tables.elementAt(i);
-
-         if(table.getAlias().equalsIgnoreCase(alias)) {
-            return table.getName();
-         }
-      }
-
-      return null;
+      // resolve the alias the same way as getTableIndex
+      int index = getTableIndex(alias);
+      return index >= 0 ? tables.get(index).getName() : null;
    }
 
    /**
@@ -2242,14 +2243,24 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
          return null;
       }
 
-      for(int i = 0; i < tables.size(); i++) {
-         SelectTable table = tables.elementAt(i);
+      // an alias match wins, resolved the same way as getTableIndex, so that
+      // this agrees with getTableIndex and getTableName on which table a name
+      // refers to
+      int index = getTableIndex(alias);
 
-         if(table.getAlias().equalsIgnoreCase(alias)) {
-            return table;
-         }
-         else if(alias.equalsIgnoreCase(table.getName().toString())) {
-            return table;
+      if(index >= 0) {
+         return tables.get(index);
+      }
+
+      // otherwise match the table name, exact match first, then
+      // case-insensitive
+      for(boolean ignoreCase : new boolean[] { false, true }) {
+         for(int i = 0; i < tables.size(); i++) {
+            Object name = tables.elementAt(i).getName();
+
+            if(name != null && nameMatches(alias, name.toString(), ignoreCase)) {
+               return tables.elementAt(i);
+            }
          }
       }
 
@@ -2566,21 +2577,27 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
    public synchronized int getTableIndex(String alias) {
       int size = tables.size();
 
-      for(int i = 0; i < size; i++) {
-         SelectTable stable = tables.get(i);
-         String salias = stable.getAlias();
-         Object sname = stable.getName();
+      // exact match first, then case-insensitive, so that tables whose aliases
+      // differ only in case (e.g. "A" and "a") resolve to the right table. When
+      // only one table matches, the result is the same as a case-insensitive
+      // search.
+      for(boolean ignoreCase : new boolean[] { false, true }) {
+         for(int i = 0; i < size; i++) {
+            SelectTable stable = tables.get(i);
+            String salias = stable.getAlias();
+            Object sname = stable.getName();
 
-         if(salias == null && (sname instanceof String)) {
-            salias = (String) sname;
-         }
+            if(salias == null && (sname instanceof String)) {
+               salias = (String) sname;
+            }
 
-         if(salias == null) {
-            continue;
-         }
+            if(salias == null) {
+               continue;
+            }
 
-         if(salias.equalsIgnoreCase(alias)) {
-            return i;
+            if(nameMatches(salias, alias, ignoreCase)) {
+               return i;
+            }
          }
       }
 

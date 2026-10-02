@@ -107,6 +107,19 @@ class QueryGraphModelServiceTypedSqlTest {
       assertEquals("select a.x from a where a.x > 1", saved);
    }
 
+   // Bug #77544, removing one of two tables whose names differ only in case ("A" and "a")
+   // removes that table, not the first case-insensitive match
+   @Test
+   void removeCaseDistinctTable() throws Exception {
+      typeSql("SELECT \"a\".id\n  FROM \"a\", \"A\"\n WHERE \"a\".id > 1");
+      removeTable("A");
+      assertEquals("select a.id from a where a.id > 1", save());
+
+      typeSql("SELECT \"A\".id\n  FROM \"A\", \"a\"\n WHERE \"A\".id > 1");
+      removeTable("a");
+      assertEquals("select A.id from A where A.id > 1", save());
+   }
+
    @Test
    void createJoinIsSaved() throws Exception {
       typeSql("SELECT a.x, b.z\n  FROM a, b\n WHERE a.x > 1");
@@ -208,6 +221,13 @@ class QueryGraphModelServiceTypedSqlTest {
       // the sorted sql of the cache normalizer would sort the generated select list
       sql.setHint(UniformSQL.HINT_WITHOUT_SORTED_SQL, true);
       return sql.getSQLString().replaceAll("\\s+", " ").trim();
+   }
+
+   private void removeTable(String name) {
+      RemoveGraphTableEvent.RemoveTableInfo table =
+         mock(RemoveGraphTableEvent.RemoveTableInfo.class);
+      when(table.getFullName()).thenReturn(name);
+      graph.removeTables(RID, List.of(table), principal());
    }
 
    private AdvancedSQLQueryModel clientEcho() throws Exception {
