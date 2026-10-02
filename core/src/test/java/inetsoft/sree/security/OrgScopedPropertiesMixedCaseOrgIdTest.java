@@ -156,6 +156,33 @@ class OrgScopedPropertiesMixedCaseOrgIdTest {
       assertNull(SreeEnv.getProperty(LOG_KEY + "^" + fromOrgId));
    }
 
+   @Test
+   void rename_onlyCaseOfOrgIdChangesInTurkishLocale_movesOrgScopedProperties() {
+      // in a Turkish locale the upper case I lower-cases to a dotless i, so the old and the new
+      // org ID of this case-only rename have different property names and the properties must be
+      // moved to the new org's names, not removed
+      Locale locale = Locale.getDefault();
+      Locale.setDefault(Locale.forLanguageTag("tr-TR"));
+
+      try {
+         String fromOrgId = "b77534casei";
+         String toOrgId = "B77534CASEI";
+         writeAs(fromOrgId, "format.date", "MM/dd/yyyy");
+         assertEquals(List.of("inetsoft.org.b77534casei.format.date"), scopedKeys("b77534casei"),
+                      "precondition: the org-scoped property is stored");
+
+         renameOrganization(fromOrgId, toOrgId);
+
+         assertEquals(List.of(), scopedKeys("b77534casei"),
+                      "the old org's properties must be moved");
+         assertEquals("MM/dd/yyyy", SreeEnv.getProperty("inetsoft.org.b77534caseı.format.date"),
+                      "the renamed org must hold the moved property");
+      }
+      finally {
+         Locale.setDefault(locale);
+      }
+   }
+
    /**
     * Writes an org-scoped property through the real org-scoped write path, as a principal of an
     * org whose current org ID keeps its case like the enterprise OrganizationManager's.
@@ -199,6 +226,7 @@ class OrgScopedPropertiesMixedCaseOrgIdTest {
       catch(Exception e) {
          // Tolerated: the end of the rename needs registries that this context does not
          // provide. The property steps run before it, which is verified below.
+         // expected: NoSuchBeanDefinitionException for RepletRegistryManager
       }
 
       verify(identityService).updateOrgProperties(fromOrgId, toOrgId);

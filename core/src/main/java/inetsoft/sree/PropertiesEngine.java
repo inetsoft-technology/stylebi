@@ -573,7 +573,9 @@ public class PropertiesEngine {
     * Get the prefix of an organization's scoped property names as they are stored, i.e.
     * <code>inetsoft.org.&lt;org&gt;.</code> with the case rules applied that every read and write
     * applies to it. Organization IDs are case insensitive, so IDs that differ only in case have
-    * the same prefix.
+    * the same prefix. The org ID is lower-cased in the default locale on purpose: it must match
+    * {@code computePropertyNameCase()} and the readers, which also use the default locale,
+    * so do not change it to {@code Locale.ROOT}.
     */
    public static String getOrgPropertyPrefix(String orgID) {
       return ("inetsoft.org." + orgID + ".").toLowerCase();

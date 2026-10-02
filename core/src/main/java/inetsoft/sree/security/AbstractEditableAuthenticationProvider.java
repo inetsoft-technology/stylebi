@@ -678,12 +678,13 @@ public abstract class AbstractEditableAuthenticationProvider
    protected void clearScopedProperties(String oldOrgId) {
       //loop through properties, delete any containing .thisOrg.
       Properties properties = SreeEnv.getProperties();
-      String oldOrgIdentifier = "inetsoft.org." + oldOrgId.toLowerCase(Locale.ROOT) + ".";
+      // the stored names have the org ID lower case, as the property engine writes them
+      String oldOrgIdentifier = PropertiesEngine.getOrgPropertyPrefix(oldOrgId);
 
       for(Enumeration<?> e = properties.propertyNames(); e.hasMoreElements();) {
          String pName = (String) e.nextElement();
 
-         if(pName.toLowerCase(Locale.ROOT).startsWith(oldOrgIdentifier)) {
+         if(pName.startsWith(oldOrgIdentifier)) {
             SreeEnv.remove(pName);
          }
       }
@@ -789,14 +790,15 @@ public abstract class AbstractEditableAuthenticationProvider
       }
 
       Properties properties = SreeEnv.getProperties();
-      String oldOrgIdentifier = "inetsoft.org." + fromOrgId.toLowerCase(Locale.ROOT) + ".";
-      String newOrgPrefix = "inetsoft.org." + newOrgId.toLowerCase(Locale.ROOT) + ".";
+      // the stored names have the org ID lower case, as the property engine writes them
+      String oldOrgIdentifier = PropertiesEngine.getOrgPropertyPrefix(fromOrgId);
+      String newOrgPrefix = PropertiesEngine.getOrgPropertyPrefix(newOrgId);
       Enumeration<?> enumeration = properties.propertyNames();
 
       while(enumeration.hasMoreElements()) {
          String pName = (String) enumeration.nextElement();
 
-         if(pName.toLowerCase(Locale.ROOT).startsWith(oldOrgIdentifier)) {
+         if(pName.startsWith(oldOrgIdentifier)) {
             String baseName = pName.substring(oldOrgIdentifier.length());
             String updatedName = newOrgPrefix + baseName;
             SreeEnv.setProperty(updatedName, properties.getProperty(pName));
