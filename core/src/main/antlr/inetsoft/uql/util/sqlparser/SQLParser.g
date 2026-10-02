@@ -353,25 +353,25 @@ private int getJoinTableIndex(UniformSQL sql, String table) {
 }
 
 /**
- * Check that a query with an outer join doesn't join a table that isn't in its
- * own from clause, such as a correlated subquery's join to an outer query
- * table. The joins of a query with an outer join are generated in its from
- * clause, which would add the outer table to the subquery and lose the
- * correlation. A query without an outer join keeps the join in its where clause.
+ * Check that an outer join doesn't join a table that isn't in its own from
+ * clause, such as a correlated subquery's outer join to an outer query table.
+ * An outer join is always generated in the from clause, which would add the
+ * outer table to the subquery and lose the correlation. Any other join to an
+ * outer table stays in the where clause (#77480).
  */
 private void checkOuterJoinTables(UniformSQL sql, Token tok)
    throws SemanticException
 {
    List joins = new ArrayList();
    collectJoins(sql.getWhere(), joins);
-   boolean outer = false;
 
-   for(int i = 0; i < joins.size() && !outer; i++) {
-      outer = ((XJoin) joins.get(i)).isOuterJoin();
-   }
-
-   for(int i = 0; i < joins.size() && outer; i++) {
+   for(int i = 0; i < joins.size(); i++) {
       XJoin join = (XJoin) joins.get(i);
+
+      if(!join.isOuterJoin()) {
+         continue;
+      }
+
       String[] tables = { join.getTable1(sql), join.getTable2(sql) };
 
       for(int j = 0; j < tables.length; j++) {

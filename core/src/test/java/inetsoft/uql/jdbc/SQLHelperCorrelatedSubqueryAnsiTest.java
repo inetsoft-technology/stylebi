@@ -253,6 +253,10 @@ class SQLHelperCorrelatedSubqueryAnsiTest {
       SEL + "exists (select 1 from b join c on b.id = c.id where b.id = a.id)",
       SEL + "exists (select 1 from b where b.id = a.id)",
       SEL + "exists (select 1 from a a2 left join b on a2.id = b.id where a2.id = a.id)",
+      // Bug #77440, a correlation and a filter of the null side, and a right join
+      SEL + "not exists (select 1 from c left join d on d.id = c.id where a.id = c.id and " +
+         "d.k = 1)",
+      SEL + "exists (select 1 from c right join d on d.id = c.id where d.id = a.id)",
       "select a.id ai from a where exists (select 1 from b where b.k = a.k and exists " +
          "(select 1 from c left join d on c.id = d.id where c.id = b.id and c.j = a.j))",
    })

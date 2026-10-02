@@ -171,13 +171,15 @@ class UniformSQLOuterJoinTableTest {
    @CsvSource(delimiter = '|', value = {
       "select a.x from a left join b on a.k = b.k left join c on c.id = b.id | " +
          "select a.x from (a LEFT OUTER JOIN b ON a.k = b.k ) LEFT OUTER JOIN c ON b.id = c.id",
+      // a left join to a nested join is generated as a right join in text order (#77475)
       "select a.x from a left join (b left join c on c.id = b.id) on b.id = a.id | " +
-         "LEFT OUTER JOIN b ON a.id = b.id",
+         "(b LEFT OUTER JOIN c ON b.id = c.id ) RIGHT OUTER JOIN a ON a.id = b.id",
       "select a.x from a left join a y on a.id = y.pid | a LEFT OUTER JOIN a y ON a.id = y.pid",
       "select a.x from a right join b on b.id = a.id | a RIGHT OUTER JOIN b ON a.id = b.id",
       // the nested left join stays a left join, it used to be generated as a right join
       "select a.x from (a left join b on a.id = b.id) left join (c left join d on d.id = c.id) " +
-         "on c.id = a.id | (a LEFT OUTER JOIN b ON a.id = b.id ) LEFT OUTER JOIN c ON a.id = c.id",
+         "on c.id = a.id | (a LEFT OUTER JOIN b ON a.id = b.id ) LEFT OUTER JOIN " +
+         "(c LEFT OUTER JOIN d ON c.id = d.id ) ON a.id = c.id",
       // an unaliased quoted table keeps its quotes in the from clause table, and the
       // join column's table doesn't, they must still resolve to the same table
       "select * from \"my a\" left join \"my b\" on \"my b\".\"id\" = \"my a\".\"id\" | " +

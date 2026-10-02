@@ -3346,8 +3346,9 @@ public class SQLHelper implements KeywordProvider {
          return false;
       }
 
-      return uniformSql.getTableIndex(join.getTable1(uniformSql)) >= 0 &&
-         uniformSql.getTableIndex(join.getTable2(uniformSql)) >= 0;
+      // the same table resolution as getJoinedTable, which writes the join
+      return uniformSql.getJoinTableIndex(join.getTable1(uniformSql)) >= 0 &&
+         uniformSql.getJoinTableIndex(join.getTable2(uniformSql)) >= 0;
    }
 
    /**
