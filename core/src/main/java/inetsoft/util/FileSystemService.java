@@ -261,11 +261,13 @@ public class FileSystemService {
       }
 
       // optimization
-      if(CACHE != null && Tool.equals(SREE_CACHE, cdir)) {
-         return CACHE;
+      CacheDirectory cache = this.cache;
+
+      if(cache != null && Tool.equals(cache.property, cdir)) {
+         return cache.directory;
       }
 
-      SREE_CACHE = cdir;
+      String property = cdir;
 
       if(cdir == null) {
          String server = SreeEnv.getProperty("server.type");
@@ -312,7 +314,9 @@ public class FileSystemService {
       }
 
       LOG.info("Cache directory for temporary files: {}", cdir);
-      CACHE = cdir;
+      // publish the property and directory together so a reader never pairs the new
+      // property with the old directory
+      this.cache = new CacheDirectory(property, cdir);
       return cdir;
    }
 
@@ -755,12 +759,14 @@ public class FileSystemService {
       };
 
    private List<FileEntry> list = new ArrayList<>();
-   private String SREE_CACHE = null;
-   private String CACHE = null;
+   private volatile CacheDirectory cache = null;
    private final Cluster cluster;
    private final ApplicationEventPublisher eventPublisher;
 
    private static final AtomicLong TEMP_FILE_INDEX = new AtomicLong(System.currentTimeMillis());
    private static final int MAX_TEMP_FILE_DENIED = 20;
    private static final Logger LOG = LoggerFactory.getLogger(FileSystemService.class);
+
+   private record CacheDirectory(String property, String directory) {
+   }
 }
