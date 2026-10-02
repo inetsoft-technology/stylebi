@@ -989,8 +989,8 @@ table_subquery returns [XExpression exp = null]
 in_value_list returns [XExpression exp = null]
         {XExpression tmp; String str = ""; {checkStatus();}}
         :
-        tmp = value_exp {str = tmp.toString();}
-        ( COMMA tmp = value_exp {str += "," + tmp.toString();})*
+        tmp = value_exp {str = tmp.toQuotedString();}
+        ( COMMA tmp = value_exp {str += "," + tmp.toQuotedString();})*
         {exp = new XExpression(); exp.setValue(str, XExpression.EXPRESSION);}
         ;
 
@@ -1213,8 +1213,8 @@ row_value_constructor_elem returns [XExpression exp = null]
 row_value_const_list returns [XExpression exp = null]
         {String str = ""; XExpression tmp; {checkStatus();}}
         :
-        tmp = row_value_constructor_elem {str = tmp.toString();}
-        ( COMMA tmp = row_value_constructor_elem {str += "," + tmp.toString();})*
+        tmp = row_value_constructor_elem {str = tmp.toQuotedString();}
+        ( COMMA tmp = row_value_constructor_elem {str += "," + tmp.toQuotedString();})*
         {exp = new XExpression(); exp.setValue(str, XExpression.EXPRESSION);}
         ;
 
@@ -1400,7 +1400,8 @@ value_exp_primary_body returns [XExpression exp = null]
         }
         | tmp = case_exp {exp.setValue(tmp,XExpression.EXPRESSION);}
         | OPEN_PAREN exp = value_exp CLOSE_PAREN
-        {exp.setValue("(" + exp.toString() + ")", XExpression.EXPRESSION);}
+        {exp.setValue("(" + exp.toQuotedString() + ")", XExpression.EXPRESSION);
+         exp.setQuote(XExpression.QUOTE_NONE);}
         | tmp = cast_spec {exp.setValue(tmp,XExpression.EXPRESSION);}
         ;
 field_exp returns [String value=""]
@@ -1748,8 +1749,8 @@ query_partition_clause returns [String ret = ""]
         {XExpression exp = null; {checkStatus();}}
         :
         PARTITION BY
-        exp = value_exp {ret = " partition by " + exp.toString();}
-        (COMMA exp = value_exp {ret += ", " + exp.toString();})*
+        exp = value_exp {ret = " partition by " + exp.toQuotedString();}
+        (COMMA exp = value_exp {ret += ", " + exp.toQuotedString();})*
         ;
 
 function_name returns [String fn = ""]
@@ -1786,9 +1787,9 @@ case_abbreviation returns [String cassadd = ""]
         {XExpression exp1, exp2; {checkStatus();}}
         :
         a:NULLIF OPEN_PAREN exp1 = value_exp COMMA exp2 = value_exp CLOSE_PAREN
-        {cassadd = a.getText() + "(" + exp1.toString() + "," + exp2.toString() + ")";}
-        | b:COALESCE OPEN_PAREN exp1 = value_exp {cassadd = b.getText() + "(" + exp1.toString();}
-        ( COMMA exp2 = value_exp {cassadd += "," + exp2.toString();})* CLOSE_PAREN
+        {cassadd = a.getText() + "(" + exp1.toQuotedString() + "," + exp2.toQuotedString() + ")";}
+        | b:COALESCE OPEN_PAREN exp1 = value_exp {cassadd = b.getText() + "(" + exp1.toQuotedString();}
+        ( COMMA exp2 = value_exp {cassadd += "," + exp2.toQuotedString();})* CLOSE_PAREN
         {cassadd += ")";}
         ;
 
@@ -1815,7 +1816,7 @@ simple_case returns [String simpcase = ""]
 case_operand returns [String caseop = null]
         {XExpression exp; {checkStatus();}}
         :
-        exp = value_exp {caseop = exp.toString();}
+        exp = value_exp {caseop = exp.toQuotedString();}
         ;
 
 simple_when_clause returns [String simpwhen = ""]
@@ -1828,7 +1829,7 @@ simple_when_clause returns [String simpwhen = ""]
 when_operand returns [String whenop = ""]
         {XExpression tmp; {checkStatus();}}
         :
-        tmp = value_exp {whenop += tmp.toString();}
+        tmp = value_exp {whenop += tmp.toQuotedString();}
         ;
 
 result returns [String ret = ""]
@@ -1840,7 +1841,7 @@ result returns [String ret = ""]
 result_exp returns [String retexp = ""]
         {XExpression tmp; {checkStatus();}}
         :
-        tmp = value_exp {retexp = tmp.toString();}
+        tmp = value_exp {retexp = tmp.toQuotedString();}
         ;
 
 m_else_clause returns [String elsestr = ""]
@@ -1881,7 +1882,7 @@ cast_spec returns [String cast = ""]
 cast_operand returns [String caseop = ""]
         {XExpression tmp; {checkStatus();}}
         :
-        tmp = value_exp {caseop = tmp.toString();}
+        tmp = value_exp {caseop = tmp.toQuotedString();}
         ;
 
 cast_target returns [String casttar = ""]
@@ -2144,13 +2145,13 @@ char_substring_fct returns [String csf = ""]
 start_position returns [String sp = ""]
         {XExpression exp; {checkStatus();}}
         :
-        exp = num_value_exp {sp = exp.toString();}
+        exp = num_value_exp {sp = exp.toQuotedString();}
         ;
 
 string_length returns [String sl = ""]
         {XExpression exp; {checkStatus();}}
         :
-        exp = num_value_exp {sl = exp.toString();}
+        exp = num_value_exp {sl = exp.toQuotedString();}
         ;
 
 fold returns [String fold = ""]
@@ -2286,7 +2287,7 @@ bit_primary returns [String bitpri = ""]
         {XExpression exp; {checkStatus();}}
         :
         (value_exp_primary)=>
-        exp = value_exp_primary {bitpri = exp.toString();}
+        exp = value_exp_primary {bitpri = exp.toQuotedString();}
         | bitpri = string_value_fct
         ;
 
@@ -2364,7 +2365,7 @@ datetime_factor returns [String dtfactor = ""]
 datetime_primary returns [String dtpri = ""]
         {XExpression exp; {checkStatus();}}
         :
-        exp = value_exp_primary {dtpri = exp.toString();}
+        exp = value_exp_primary {dtpri = exp.toQuotedString();}
         //| dtpri = datetime_value_fct
         ;
 
@@ -2454,13 +2455,13 @@ interval_term returns [String it = ""]
         {String tmp1; XExpression exp; {checkStatus();}}
         :
         (factor STAR ) =>
-        exp = factor a:STAR tmp1 = interval_term_2 {it = exp.toString() + a.getText() + tmp1;}
+        exp = factor a:STAR tmp1 = interval_term_2 {it = exp.toQuotedString() + a.getText() + tmp1;}
         |
         (factor DIV )=>
-        exp = factor b:DIV tmp1 = interval_term_2 {it = exp.toString() + b.getText() + tmp1;}
+        exp = factor b:DIV tmp1 = interval_term_2 {it = exp.toQuotedString() + b.getText() + tmp1;}
         |
         (term STAR)=>
-        exp = term c:STAR tmp1 = interval_factor {it = exp.toString() + c.getText() + tmp1;}
+        exp = term c:STAR tmp1 = interval_factor {it = exp.toQuotedString() + c.getText() + tmp1;}
         | it = interval_factor
         ;
 
@@ -2474,7 +2475,7 @@ interval_factor returns [String ifact = ""]
 interval_primary returns [String ip = ""]
         {String tmp; XExpression exp; {checkStatus();}}
         :
-        exp = value_exp_primary {ip = exp.toString();}
+        exp = value_exp_primary {ip = exp.toQuotedString();}
         ((interval_qualifier)=> tmp = interval_qualifier {ip += " " + tmp;})?
         ;
 
@@ -2733,7 +2734,16 @@ derived_column [JDBCSelection selection, UniformSQL sql]
         :
         (column_name EQ)=>
         aliastmp=column_name EQ exp=value_exp  // to support sybase gramma: select a=b, ....
-        {tmp = exp.toString(); selection.addColumn(tmp); selection.setAlias(selection.getColumnCount() - 1,aliastmp);}
+        {
+           tmp = exp.toString();
+           selection.addColumn(tmp);
+           selection.setAlias(selection.getColumnCount() - 1,aliastmp);
+
+           // a bare quoted identifier ("x y"), stored without its quotes
+           if(exp.isQuotedField()) {
+              selection.setQuoted(tmp, true);
+           }
+        }
         |
         exp = value_exp
         {
@@ -2975,14 +2985,14 @@ group_by_clause [UniformSQL sql]
         GROUP BY
         (ALL {sql.setGroupByAll(true);})?
         (
-        (grouping_column_ref_list)=>
-        group = grouping_column_ref_list
+        (grouping_column_ref_list[sql])=>
+        group = grouping_column_ref_list[sql]
         |(OPEN_PAREN CLOSE_PAREN)=>
         OPEN_PAREN CLOSE_PAREN
         |(grouping_set COMMA grouping_set_list)=>
         grouping_set COMMA grouping_set_list
-        |ROLLUP OPEN_PAREN tmp = grouping_column_ref_list CLOSE_PAREN
-        |CUBE OPEN_PAREN tmp = grouping_column_ref_list CLOSE_PAREN
+        |ROLLUP OPEN_PAREN tmp = grouping_column_ref_list[null] CLOSE_PAREN
+        |CUBE OPEN_PAREN tmp = grouping_column_ref_list[null] CLOSE_PAREN
         |GROUPING SETS OPEN_PAREN grouping_set_list CLOSE_PAREN
         )?
         {sql.setGroupBy(group.toArray());}
@@ -2997,28 +3007,36 @@ grouping_set_list
 grouping_set
         {Vector tmp; String tstr; {checkStatus();}}
         :
-        (OPEN_PAREN grouping_column_ref_list)=>
-        OPEN_PAREN tmp = grouping_column_ref_list CLOSE_PAREN
+        (OPEN_PAREN grouping_column_ref_list[null])=>
+        OPEN_PAREN tmp = grouping_column_ref_list[null] CLOSE_PAREN
         |
-        (grouping_column_ref)=>
-        tstr = grouping_column_ref
-        |ROOLUP OPEN_PAREN tmp = grouping_column_ref_list CLOSE_PAREN
-        |CUBE OPEN_PAREN tmp = grouping_column_ref_list CLOSE_PAREN
+        (grouping_column_ref[null])=>
+        tstr = grouping_column_ref[null]
+        |ROOLUP OPEN_PAREN tmp = grouping_column_ref_list[null] CLOSE_PAREN
+        |CUBE OPEN_PAREN tmp = grouping_column_ref_list[null] CLOSE_PAREN
         |OPEN_PAREN CLOSE_PAREN
         ;
 
-grouping_column_ref_list returns [Vector glist = new Vector()]
+grouping_column_ref_list [UniformSQL sql] returns [Vector glist = new Vector()]
         {String tmp; {checkStatus();}}
         :
-        tmp = grouping_column_ref {glist.add(tmp);}
-        (COMMA tmp = grouping_column_ref {glist.add(tmp);})*
+        tmp = grouping_column_ref[sql] {glist.add(tmp);}
+        (COMMA tmp = grouping_column_ref[sql] {glist.add(tmp);})*
         ;
 
-grouping_column_ref returns [String gcol = ""]
+grouping_column_ref [UniformSQL sql] returns [String gcol = ""]
         {String tmp; XExpression exp = null; {checkStatus();}}
         :
         //gcol = column_ref ( tmp = collate_clause {gcol += " " + tmp;})?
-        exp= value_exp {gcol = exp.toString();}//( tmp = collate_clause {gcol += " " + tmp;})?
+        exp= value_exp
+        {
+           gcol = exp.toString();
+
+           // a bare quoted identifier ("x y"), stored without its quotes
+           if(sql != null && exp.isQuotedField()) {
+              sql.setQuotedField(gcol, true);
+           }
+        }//( tmp = collate_clause {gcol += " " + tmp;})?
         //|a:UNSIGNED_NUM_LIT {gcol = a.getText();}
         ;
 
@@ -3038,8 +3056,8 @@ table_value_constructor returns [XExpression exp = null]
 table_value_const_list returns [XExpression exp = null]
         {XExpression tmp; String str = ""; {checkStatus();}}
         :
-        tmp = row_value_constructor {str = tmp.toString();}
-        ( COMMA tmp = row_value_constructor {str += "," + tmp.toString();})*
+        tmp = row_value_constructor {str = tmp.toQuotedString();}
+        ( COMMA tmp = row_value_constructor {str += "," + tmp.toQuotedString();})*
         {exp = new XExpression(); exp.setValue(str,XExpression.EXPRESSION);}
         ;
 
@@ -3322,31 +3340,38 @@ sort_spec_list [UniformSQL sql] returns [String ret = ""]
       ;
 
 sort_spec [UniformSQL sql] returns [String ret = ""]
-        {Object field; String order = "asc"; String tmp; {checkStatus();}}
+        {Object field; String order = "asc"; String tmp; XExpression exp; {checkStatus();}}
         :
-        field = sort_key
+        exp = sort_key
         //( tmp = collate_clause )?
         ( order = ordering_spec )?
-        {if(sql != null)
+        {
+         try {
+           field = Integer.valueOf(exp.toString());
+         }
+         catch(Exception e) {
+           field = new String(exp.toString());
+
+           // a bare quoted identifier ("x y"), stored without its quotes
+           if(sql != null && exp.isQuotedField()) {
+              sql.setQuotedField((String) field, true);
+           }
+         }
+
+         if(sql != null)
          {
           sql.setOrderBy(field, order);
          }
-         ret = field.toString() + " " + order;
+
+         // the text is used without the sql, e.g. in an over (order by ...) clause
+         ret = (field instanceof Integer ? field.toString() : exp.toQuotedString()) + " " + order;
         }
         ;
 
-sort_key returns [Object field = null]
-        {String tmp; XExpression exp; {checkStatus();}}
+sort_key returns [XExpression exp = null]
+        {checkStatus();}
         :
         exp = value_exp
-        {
-          try {
-            field = Integer.valueOf(exp.toString());
-          }
-          catch(Exception e) {
-            field = new String(exp.toString());
-          }
-        }
         ;
 
 ordering_spec returns [String order = null]

@@ -1437,6 +1437,12 @@ public class SQLHelper implements KeywordProvider {
             column = quoteExpressionCol(column);
          }
 
+         if(!expr && table != null && subalias == null &&
+            ((JDBCSelection) xselect).isQuoted(xselect.getColumn(xIdx)))
+         {
+            column = quoteIdentifier(xselect.getColumn(xIdx), column);
+         }
+
          // if table changed to a subquery, replace reference to table to alias
          if(isTableSubquery()) {
             column = replaceTableByAlias(true, column);
@@ -2741,6 +2747,7 @@ public class SQLHelper implements KeywordProvider {
 
          if(field instanceof String) {
             sfield = (String) field;
+            String qname = getQuotedName(sfield);
             sfield = getOrderByColumn(sfield);
 
             // some dbms (embedded derby) does not support sorting on field
@@ -2824,6 +2831,10 @@ public class SQLHelper implements KeywordProvider {
                sfield = quoteExpressionCol(sfield);
             }
 
+            if(qname != null) {
+               sfield = quoteIdentifier(qname, sfield);
+            }
+
             // table changed to a subquery, replace reference to table to alias
             if(isTableSubquery()) {
                sfield = replaceTableByAlias(true, sfield);
@@ -2894,6 +2905,7 @@ public class SQLHelper implements KeywordProvider {
          Object sfield = groupField[i];
 
          if(sfield instanceof String) {
+            String qname = getQuotedName((String) sfield);
             String column = xselect.getAliasColumn((String) sfield);
             column = column == null ? (String) sfield : column;
             String table = uniformSql.getTable(column);
@@ -2960,6 +2972,10 @@ public class SQLHelper implements KeywordProvider {
             }
             else if(!XUtil.isQualifiedName(column)) {
                column = quoteExpressionCol(column);
+            }
+
+            if(qname != null) {
+               column = quoteIdentifier(qname, column);
             }
 
             // if table changed to a subquery, replace table by alias
@@ -3576,6 +3592,10 @@ public class SQLHelper implements KeywordProvider {
       if(fld || type.equals(XExpression.FIELD)) {
          str = value.toString();
          str = buildFieldExpression(str, fld);
+
+         if(exp.isQuotedField()) {
+            str = quoteIdentifier(value.toString(), str);
+         }
       }
       else if(type.equals(XExpression.SUBQUERY)) {
          UniformSQL sql = (UniformSQL) value;
@@ -4078,6 +4098,58 @@ public class SQLHelper implements KeywordProvider {
       }
 
       return path;
+   }
+
+   /**
+    * Get the name to quote for a group by or order by field written as a quoted identifier
+    * (e.g. "x y"), directly or through the alias of a quoted select column.
+    * @return the unquoted name, or <tt>null</tt> if the field is not quoted.
+    */
+   private String getQuotedName(String field) {
+      JDBCSelection xselect = (JDBCSelection) uniformSql.getSelection();
+      String column = xselect.getAliasColumn(field);
+
+      // an alias is generated as its column, which decides the quoting
+      if(column != null && !column.equals(field)) {
+         return !xselect.isExpression(column) && xselect.isQuoted(column) ? column : null;
+      }
+
+      return uniformSql.isQuotedField(field) ? field : null;
+   }
+
+   /**
+    * Restore the quotes of a name written as a quoted identifier (e.g. "MixedCase") in the
+    * parsed sql, which is stored without its quotes. Only the column segment is quoted, so
+    * a name qualified by its table (t.MixedCase) is generated as t."MixedCase".
+    * @param name the stored name, without quotes.
+    * @param str the sql generated for the name.
+    */
+   private String quoteIdentifier(String name, String str) {
+      String table = uniformSql.getTable(name);
+      int dot = name.lastIndexOf('.');
+      String column = name;
+
+      if(table != null && !table.isEmpty() && name.startsWith(table + ".")) {
+         column = name.substring(table.length() + 1);
+      }
+      // the table may be stored quoted (e.g. postgresql)
+      else if(dot > 0 && (uniformSql.getTableIndex(name.substring(0, dot)) >= 0 ||
+         uniformSql.getTableIndex(getQuote() + name.substring(0, dot) + getQuote()) >= 0))
+      {
+         column = name.substring(dot + 1);
+      }
+
+      String quoted = getQuote() + column + getQuote();
+
+      if(str.equals(column)) {
+         return quoted;
+      }
+      else if(str.endsWith("." + column)) {
+         return str.substring(0, str.length() - column.length()) + quoted;
+      }
+
+      // already quoted, or generated as an alias or a column index
+      return str;
    }
 
    public void setVPMCondition(boolean vpm) {

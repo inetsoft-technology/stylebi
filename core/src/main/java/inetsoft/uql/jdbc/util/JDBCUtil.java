@@ -367,9 +367,14 @@ public class JDBCUtil {
          XField field = sql.getFieldByPath(path);
 
          if(field != null && field.getTable().length() > 0) {
+            boolean quoted = xselect.isQuoted(xselect.getColumn(i));
             xselect.setColumn(i, path);
             xselect.setAlias(i, alias);
             xselect.setTable(path, field.getTable());
+
+            if(quoted) {
+               xselect.setQuoted(path, true);
+            }
 
             // get type
             if(xselect.getType(path) == null) {
