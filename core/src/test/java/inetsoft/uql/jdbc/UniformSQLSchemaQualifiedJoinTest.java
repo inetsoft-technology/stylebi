@@ -20,6 +20,7 @@ package inetsoft.uql.jdbc;
 import antlr.RecognitionException;
 import inetsoft.test.*;
 import inetsoft.uql.XNode;
+import inetsoft.uql.util.XUtil;
 import inetsoft.util.credential.CredentialService;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -34,11 +35,20 @@ import java.util.stream.Stream;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Bug #77518, an outer join between schema-qualified, unaliased tables whose ON qualifies the
+ * Bug #77518, a join between schema-qualified, unaliased tables whose condition qualifies the
  * columns with the bare table names (from s.a left join s.b on a.id = b.id) must be recorded
- * between the FROM tables s.a and s.b. It was recorded between a and b, which are not FROM
- * tables, so it regenerated as "from a LEFT OUTER JOIN b .., s.a, s.b", and "on b.id = a.id"
- * kept b as the preserved side (Oracle "b.id = a.id(+)").
+ * between the FROM tables s.a and s.b, so XJoin.getTable1/2(sql) return s.a and s.b instead of
+ * a and b, which are not FROM tables.
+ * <p>
+ * Before #6034 the reported query regenerated as "from a LEFT OUTER JOIN b .., s.a, s.b". Since
+ * #6034, SQL generation resolves a bare name to the FROM table itself (getJoinTableIndex), so
+ * most of the SQL expectations here also hold on main, and those tests pin getTable1/2(sql)
+ * through the joins() assertions. The SQL differs from main for:
+ * <ul>
+ *    <li>a legacy WHERE outer join with mixed qualifiers, whose WHERE comparison main moves into
+ *    the ON (wrong rows), see whereOuterJoinMixedQualifiersKeepFilterInWhere;</li>
+ *    <li>the mixed-qualifier ON (and c.s.a/c.s.b qualified by s.a/s.b), which main refuses.</li>
+ * </ul>
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class, CredentialService.class },
@@ -50,6 +60,7 @@ class UniformSQLSchemaQualifiedJoinTest {
    private static final String POSTGRESQL = "postgresql";
    private static final String POSTGRESQL_ANSI = "postgresql-ansi";
    private static final String ORACLE = "oracle";
+   private static final String ORACLE_ANSI = "oracle-ansi";
 
    @ParameterizedTest
    @ValueSource(strings = {
@@ -107,6 +118,39 @@ class UniformSQLSchemaQualifiedJoinTest {
       assertEquals(1, conditions(sql).size());
       assertEquals(expected, regenerate(sql));
       assertRoundTrip(sql, helper);
+   }
+
+   // a legacy WHERE outer join ((+) or *=) between schema-qualified tables, with a WHERE
+   // comparison between the same tables that uses the other qualifier spelling. The
+   // comparison is on the outer joined pair, so it must stay a filter after the join (#77478).
+   // Without the bare qualifiers resolved to s.a and s.b, it is not recognized as on the
+   // pair and is folded into the ON, which keeps the null extended rows it should drop
+   static Stream<Arguments> whereOuterJoinMixedQualifiers() {
+      String id = "select * from s.a LEFT OUTER JOIN s.b ON a.id = b.id where s.a.k = s.b.k";
+      String schemaId = "select * from s.a LEFT OUTER JOIN s.b ON s.a.id = s.b.id where a.k = b.k";
+      return Stream.of(
+         Arguments.of(ORACLE_ANSI, "select * from s.a, s.b where a.id = b.id(+) and s.a.k = s.b.k", id),
+         Arguments.of(ORACLE_ANSI, "select * from s.a, s.b where s.a.k = s.b.k and a.id = b.id(+)", id),
+         Arguments.of(ORACLE_ANSI, "select * from s.a, s.b where s.a.id = s.b.id(+) and a.k = b.k", schemaId),
+         Arguments.of(ORACLE_ANSI, "select * from s.a, s.b where a.k = b.k and s.a.id = s.b.id(+)", schemaId),
+         Arguments.of(DEFAULT, "select * from s.a, s.b where a.id = b.id(+) and s.a.k = s.b.k", id),
+         Arguments.of(DEFAULT, "select * from s.a, s.b where a.id *= b.id and s.a.k = s.b.k", id),
+         Arguments.of(DEFAULT, "select * from s.a, s.b where s.a.k = s.b.k and a.id *= b.id", id),
+         Arguments.of(DEFAULT, "select * from s.a, s.b where s.a.id *= s.b.id and a.k = b.k", schemaId),
+         Arguments.of(DEFAULT, "select * from s.a, s.b where a.k = b.k and s.a.id *= s.b.id", schemaId));
+   }
+
+   @ParameterizedTest
+   @MethodSource("whereOuterJoinMixedQualifiers")
+   void whereOuterJoinMixedQualifiersKeepFilterInWhere(String helper, String text, String expected)
+      throws Exception
+   {
+      UniformSQL sql = parse(text, helper);
+      // the sql first: it is what runs, and what main got wrong
+      assertEquals(expected, regenerate(sql));
+      assertRoundTrip(sql, helper);
+      assertEquals(List.of("s.a *= s.b"), joins(sql));
+      assertEquals(1, conditions(sql).size());
    }
 
    @ParameterizedTest
@@ -238,8 +282,8 @@ class UniformSQLSchemaQualifiedJoinTest {
       );
    }
 
-   // Oracle without ANSI joins writes (+) on the null-supplying side, which was b.id = a.id(+)
-   // for "on b.id = a.id"
+   // Oracle without ANSI joins writes (+) on the null-supplying side b, for either ON
+   // orientation
    @ParameterizedTest
    @MethodSource("oracle")
    void oraclePreservesLeftTable(String text, String expected) throws Exception {
@@ -274,8 +318,9 @@ class UniformSQLSchemaQualifiedJoinTest {
       );
    }
 
-   // the parser recorded the join type of "s.a x" under s.a as well, so a qualifier that
-   // resolves to the preserved s.a found it and swapped the preserved side
+   // a self-join keeps the preserved side when the bare qualifier a resolves to s.a. The SQL is
+   // the same on main, which orients outer joins by FROM table index (#6034), so these pin
+   // the join pairs recorded with getTable1/2(sql)
    @ParameterizedTest
    @MethodSource("selfJoins")
    void selfJoinKeepsPreservedSide(String text, String join, String expected) throws Exception {
@@ -391,6 +436,34 @@ class UniformSQLSchemaQualifiedJoinTest {
       sql.setDataSource(dataSource(helper));
       new SQLProcessor(sql).parse(text);
       assertEquals(UniformSQL.PARSE_FAILED, sql.getParseResult());
+      assertEquals(text, sql.getSQLString());
+
+      UniformSQL fresh = new UniformSQL();
+      fresh.setDataSource(dataSource(helper));
+      fresh.setSQLString(text, false);
+      assertEquals(text, fresh.getSQLString());
+
+      // the lazy lossy check of a fresh object runs the grammar only, which refuses the outer
+      // join condition. The nested join is refused after the parse, by the join order check
+      // of UniformSQL.parse (#77434), which the lazy check doesn't run
+      if(message.startsWith("Unsupported outer join condition")) {
+         assertTrue(fresh.isLossy());
+      }
+
+      // a query without a data source is never merged, so check the merge on a real one
+      JDBCDataSource ds = DEFAULT.equals(helper) ? h2DataSource() : dataSource(helper);
+      JDBCQuery query = new JDBCQuery();
+      query.setDataSource(ds);
+      query.setSQLDefinition(sql);
+      assertFalse(XUtil.isQueryMergeable(query));
+   }
+
+   private static JDBCDataSource h2DataSource() {
+      JDBCDataSource ds = new JDBCDataSource();
+      ds.setName("bug77518-h2");
+      ds.setDriver("org.h2.Driver");
+      ds.setURL("jdbc:h2:mem:test");
+      return ds;
    }
 
    // a quoted name that contains a dot is one table, not schema s and table a
@@ -512,12 +585,13 @@ class UniformSQLSchemaQualifiedJoinTest {
       JDBCDataSource ds = new JDBCDataSource();
       ds.setName("bug77518-" + helper);
 
-      if(ORACLE.equals(helper)) {
+      if(ORACLE.equals(helper) || ORACLE_ANSI.equals(helper)) {
          ds.setDriver("oracle.jdbc.OracleDriver");
          ds.setURL("jdbc:oracle:thin:@localhost:1521:orcl");
          ds.setRuntimeProductName("oracle");
          // don't connect to read the version
          ds.setProductVersion("19");
+         ds.setAnsiJoin(ORACLE_ANSI.equals(helper));
       }
       else {
          ds.setDriver("org.postgresql.Driver");
