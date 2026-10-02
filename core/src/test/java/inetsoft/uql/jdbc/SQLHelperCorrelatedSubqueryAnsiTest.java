@@ -97,7 +97,7 @@ class SQLHelperCorrelatedSubqueryAnsiTest {
       "exists (select 1 from a a2 left join b on a2.id = b.id where a2.id = a.id)|" +
          "EXISTS ( select 1 from a a2 LEFT OUTER JOIN b ON a2.id = b.id where a2.id = a.id)",
       // quoted names, the column quotes are kept (#77558), the table quotes are still
-      // dropped on a case-folding database (#77544)
+      // dropped on a case-folding database (#77569)
       "exists (select 1 from \"b\" left join \"c\" on \"b\".\"id\" = \"c\".\"id\" where " +
          "\"b\".\"id\" = \"a\".\"id\")|" +
          "EXISTS ( select 1 from b LEFT OUTER JOIN c ON b.\"id\" = c.\"id\" where b.\"id\" = a.\"id\")",

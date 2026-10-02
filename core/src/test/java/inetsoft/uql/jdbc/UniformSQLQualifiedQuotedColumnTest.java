@@ -111,7 +111,7 @@ class UniformSQLQualifiedQuotedColumnTest {
       // a backtick
       assertEquals("select t.\"MixedCase\" from t where t.\"MixedCase\" = 1",
                    regenerate("select t.`MixedCase` from t where t.`MixedCase` = 1"));
-      // the table quotes are still dropped on a case-folding database (#77544)
+      // the table quotes are still dropped on a case-folding database (#77569)
       assertEquals("select T.\"MixedCase\" from T where T.\"MixedCase\" = 1",
                    regenerate("select \"T\".\"MixedCase\" from \"T\" where \"T\".\"MixedCase\" = 1"));
       // a qualifier that doesn't resolve to a from table
@@ -523,7 +523,7 @@ class UniformSQLQualifiedQuotedColumnTest {
     * t."MixedCase" and t.MixedCase are both stored as t.MixedCase. When both spellings are in
     * the same select or group list, both are generated quoted, so the unquoted one (column
     * b, which is MIXEDCASE on a case-folding database) now takes the quoted column. Before
-    * this change both were generated unquoted. Fixing it needs flags keyed by position.
+    * this change both were generated unquoted. Fixing it needs flags keyed by position (#77573).
     */
    @Test
    void knownRiskBothSpellingsOfANameShareTheFlag() throws Exception {
