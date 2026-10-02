@@ -675,7 +675,7 @@ public class ExtendedDateFormat extends SimpleDateFormat {
             // it the same way as the SMART resolver does from 1901 on (1500-02-30 gives the
             // Julian 1500-02-29). only a pattern with a month and a day can overflow the day,
             // and the overflow always lands in the next month (month % 12 is its 0 based index)
-            date = super.parse(str, new ParsePosition(0));
+            date = parseKeepZone(str, new ParsePosition(0));
 
             if(date != null) {
                Calendar parsed = (Calendar) getCalendar().clone();
