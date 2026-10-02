@@ -21,6 +21,7 @@ import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.report.io.viewsheet.AbstractVSExporter;
 import inetsoft.report.io.viewsheet.VSExporter;
+import inetsoft.sree.internal.Mailer;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.portal.PortalThemesManager;
 import inetsoft.uql.viewsheet.FileFormatInfo;
@@ -33,11 +34,13 @@ import inetsoft.uql.viewsheet.TableVSAssembly;
 import inetsoft.uql.viewsheet.TextInputVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.TableDataVSAssemblyInfo;
+import jakarta.mail.MessagingException;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.MockedStatic;
 import org.springframework.test.annotation.DirtiesContext;
@@ -236,22 +239,8 @@ class VSEmailServiceCreateSandboxTest {
       // variable table to createSandbox. The sentinel stops the export after the first call.
       VariableTable liveVars = new VariableTable();
       liveVars.put("region77246", "East");
-      ViewsheetSandbox liveBox = mock(ViewsheetSandbox.class);
-      when(liveBox.getVariableTable()).thenReturn(liveVars);
-
-      Viewsheet vs = newBookmark(new Worksheet());
-      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
-      when(rvs.getViewsheet()).thenReturn(vs);
-      when(rvs.getViewsheetSandbox()).thenReturn(Optional.of(liveBox));
-      when(rvs.getEntry()).thenReturn(vs.getEntry());
-      when(rvs.getOriginalBookmark(anyString())).thenReturn(vs);
-
-      FileSystemService fs = mock(FileSystemService.class);
-      when(fs.getCacheFile(anyString()))
-         .thenAnswer(inv -> dir.resolve((String) inv.getArgument(0)).toFile());
-
       List<VariableTable> passed = new ArrayList<>();
-      VSEmailService service = new VSEmailService(fs) {
+      VSEmailService service = new VSEmailService(cacheIn(dir)) {
          @Override
          protected ViewsheetSandbox createSandbox(Viewsheet bookmark, int mode,
                                                   Principal principal, AssetEntry entry,
@@ -261,6 +250,93 @@ class VSEmailServiceCreateSandboxTest {
             throw new IllegalStateException("sentinel77246");
          }
       };
+
+      IllegalStateException ex = assertThrows(IllegalStateException.class, () ->
+         email(service, formatType, liveVars));
+      assertEquals("sentinel77246", ex.getMessage());
+
+      assertEquals(1, passed.size(), "createSandbox(..., liveVars) must be the overload called");
+      assertSame(liveVars, passed.get(0),
+         "the email bookmark sandbox must receive the live sandbox's variable table");
+      // Bug #77529: the streams were left open and the partial files left in the cache dir,
+      // which also made the @TempDir cleanup fail on Windows.
+      assertEquals(List.of(), cachedFiles(dir),
+         "a failed export must close and delete its partial attachments");
+   }
+
+   /**
+    * Bug #77529: the attachments are deleted once the email is sent or its send fails. A PNG
+    * email of several bookmarks also opened, and never wrote, closed or deleted, a file with
+    * the base name.
+    */
+   @ParameterizedTest
+   @CsvSource({
+      FileFormatInfo.EXPORT_TYPE_PNG + ", false", FileFormatInfo.EXPORT_TYPE_PNG + ", true",
+      FileFormatInfo.EXPORT_TYPE_PDF + ", false", FileFormatInfo.EXPORT_TYPE_PDF + ", true" })
+   void emailViewsheet_deletesAttachmentsAfterSend(int formatType, boolean sendFails,
+                                                   @TempDir Path dir)
+      throws Exception
+   {
+      Mailer mailer = mock(Mailer.class);
+      List<String> filesAtSend = new ArrayList<>();
+      doAnswer(inv -> {
+         filesAtSend.addAll(cachedFiles(dir));
+
+         if(sendFails) {
+            throw new MessagingException("send77529");
+         }
+
+         return null;
+      }).when(mailer).send(any(), any(), any(), any(), any(), any(), any(File.class), any(),
+                           anyBoolean(), anyBoolean());
+
+      VSEmailService service = new VSEmailService(cacheIn(dir)) {
+         @Override
+         protected ViewsheetSandbox createSandbox(Viewsheet bookmark, int mode,
+                                                  Principal principal, AssetEntry entry,
+                                                  VariableTable vars)
+         {
+            return mock(ViewsheetSandbox.class);
+         }
+
+         @Override
+         protected Mailer createMailer() {
+            return mailer;
+         }
+      };
+
+      if(sendFails) {
+         assertThrows(MessagingException.class, () ->
+            email(service, formatType, new VariableTable()));
+      }
+      else {
+         email(service, formatType, new VariableTable());
+      }
+
+      assertEquals(List.of(), cachedFiles(dir),
+         "the attachments must be closed and deleted after the send");
+      assertEquals(formatType == FileFormatInfo.EXPORT_TYPE_PNG ?
+                      List.of("vs77246.html", "vs77246_1.png", "vs77246_2.png") :
+                      List.of("vs77246.pdf"),
+                   filesAtSend, "the attachments to send");
+   }
+
+   /**
+    * Email the test viewsheet to one address with two bookmarks (so PNG takes the separate
+    * files branch) through mocked exporters.
+    */
+   private static void email(VSEmailService service, int formatType, VariableTable liveVars)
+      throws Exception
+   {
+      ViewsheetSandbox liveBox = mock(ViewsheetSandbox.class);
+      when(liveBox.getVariableTable()).thenReturn(liveVars);
+
+      Viewsheet vs = newBookmark(new Worksheet());
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      when(rvs.getViewsheetSandbox()).thenReturn(Optional.of(liveBox));
+      when(rvs.getEntry()).thenReturn(vs.getEntry());
+      when(rvs.getOriginalBookmark(anyString())).thenReturn(vs);
 
       // PNG needs more than one bookmark to take the separate-files branch.
       String[] bookmarks = { "b1", "b2" };
@@ -278,15 +354,21 @@ class VSEmailServiceCreateSandboxTest {
          exporters.when(() -> AbstractVSExporter.getVSExporter(
                anyInt(), any(), any(), anyBoolean(), any()))
             .thenReturn(mock(VSExporter.class));
-         IllegalStateException ex = assertThrows(IllegalStateException.class, () ->
-            service.emailViewsheet(rvs, formatType, bookmarks, false, false, false, "a@b.c",
-                                   null, null, "s", "b", false, null, null));
-         assertEquals("sentinel77246", ex.getMessage());
+         service.emailViewsheet(rvs, formatType, bookmarks, false, false, false, "a@b.c",
+                                null, null, "s", "b", false, null, null);
       }
+   }
 
-      assertEquals(1, passed.size(), "createSandbox(..., liveVars) must be the overload called");
-      assertSame(liveVars, passed.get(0),
-         "the email bookmark sandbox must receive the live sandbox's variable table");
+   private static FileSystemService cacheIn(Path dir) {
+      FileSystemService fs = mock(FileSystemService.class);
+      when(fs.getCacheFile(anyString()))
+         .thenAnswer(inv -> dir.resolve((String) inv.getArgument(0)).toFile());
+      return fs;
+   }
+
+   private static List<String> cachedFiles(Path dir) {
+      String[] names = dir.toFile().list();
+      return names == null ? List.of() : Arrays.stream(names).sorted().toList();
    }
 
    private static ViewsheetSandbox createSandbox(Viewsheet bookmark) throws Exception {
