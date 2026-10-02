@@ -843,12 +843,19 @@ public class XmlaDatasourceService extends DatasourcesBaseService {
       }
 
       Locale locale = minfo.getLocale();
+      SimpleDateFormat format;
 
       if(locale == null) {
-         locale = Locale.getDefault();
+         format = new SimpleDateFormat(minfo.getDatePattern(), Locale.getDefault());
+         // Bug #77598: without a database locale the member captions are not known to be in
+         // the calendar of the JVM default locale, read them as Gregorian dates
+         format.setCalendar(new GregorianCalendar());
+      }
+      else {
+         format = new SimpleDateFormat(minfo.getDatePattern(), locale);
       }
 
-      return new SimpleDateFormat(minfo.getDatePattern(), locale);
+      return format;
    }
 
    public ConnectionStatus testConnect(DataSourceXmlaDefinition model) {
