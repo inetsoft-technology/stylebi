@@ -1862,6 +1862,22 @@ public abstract class AbstractVSExporter implements VSExporter {
    }
 
    /**
+    * Where a container child's match-layout clip is measured from. A marked list is measured from
+    * where the container draws it, which is where the viewer stacks it too; its stored offset is
+    * an old stacking the container no longer draws. Any other child keeps the stored offset.
+    */
+   private static int getContainerChildTop(CurrentSelectionVSAssembly container, VSAssembly child) {
+      if(child.getAssemblyType() == Viewsheet.SELECTION_LIST_ASSET &&
+         child.getVSAssemblyInfo().getVizMark() != null)
+      {
+         return (int) CoordinateHelper.getContainerChildTop(
+            container, child, container.getPixelOffset().y, null);
+      }
+
+      return child.getPixelOffset().y;
+   }
+
+   /**
     * This method is called before writing the specified assembly.
     */
    protected void prepareAssembly(VSAssembly assembly) {
@@ -1875,11 +1891,10 @@ public abstract class AbstractVSExporter implements VSExporter {
                (CurrentSelectionVSAssembly) container;
             int end = csAssembly.getPixelSize().height + csAssembly.getPixelOffset().y;
             Dimension size = assembly.getPixelSize();
+            int top = getContainerChildTop(csAssembly, assembly);
 
-            if(end - assembly.getPixelOffset().y > 0 &&
-               end - assembly.getPixelOffset().y - size.height < 0)
-            {
-               size.height = end - assembly.getPixelOffset().y;
+            if(end - top > 0 && end - top - size.height < 0) {
+               size.height = end - top;
             }
          }
       }

@@ -150,12 +150,7 @@ public class CoordinateHelper {
          return getBounds(assembly.getVSAssemblyInfo());
       }
 
-      Viewsheet vs = assembly.getViewsheet();
       Rectangle2D cbounds = getBounds(cassembly.getVSAssemblyInfo(), true);
-      CurrentSelectionVSAssemblyInfo cinfo = (CurrentSelectionVSAssemblyInfo)
-         cassembly.getVSAssemblyInfo();
-      // current selection title height
-      float titleH = cinfo.getTitleHeight();
       // children title height
       float cTitleH = (float) AssetUtil.defh;
 
@@ -163,25 +158,7 @@ public class CoordinateHelper {
          cTitleH = ((TitledVSAssemblyInfo) assembly.getVSAssemblyInfo()).getTitleHeight();
       }
 
-      String[] assemblies = cassembly.getAssemblies();
-      int outN = !cassembly.isShowCurrentSelection() ? 0 :
-         cassembly.getOutSelectionTitles().length;
-      float currentY = (float) (cbounds.getY() + titleH + outN * AssetUtil.defh);
-
-      for(int i = 0; i < assemblies.length; i++) {
-         if(assembly.getName().equals(assemblies[i])) {
-            break;
-         }
-
-         VSAssembly ass = (VSAssembly) vs.getAssembly(assemblies[i]);
-
-         if(ass == null) {
-            continue;
-         }
-
-         currentY += getAssemblySize(ass, dim).height;
-      }
-
+      float currentY = getContainerChildTop(cassembly, assembly, cbounds.getY(), dim);
       Rectangle2D bounds = null;
 
       // data should be really bounds, and the object bounds should in
@@ -529,6 +506,42 @@ public class CoordinateHelper {
       }
 
       return new Dimension(lens.getColCount(), rowCnt);
+   }
+
+   /**
+    * The y a selection container draws a child at: under the container's title and any
+    * out-selection rows, after the children above it.
+    * @param containerTop the container's top, in the caller's pixel space.
+    */
+   public static float getContainerChildTop(CurrentSelectionVSAssembly cassembly,
+                                            VSAssembly child, double containerTop,
+                                            Dimension dim)
+   {
+      Viewsheet vs = child.getViewsheet();
+      CurrentSelectionVSAssemblyInfo cinfo = (CurrentSelectionVSAssemblyInfo)
+         cassembly.getVSAssemblyInfo();
+      // current selection title height
+      float titleH = cinfo.getTitleHeight();
+      String[] assemblies = cassembly.getAssemblies();
+      int outN = !cassembly.isShowCurrentSelection() ? 0 :
+         cassembly.getOutSelectionTitles().length;
+      float currentY = (float) (containerTop + titleH + outN * AssetUtil.defh);
+
+      for(int i = 0; i < assemblies.length; i++) {
+         if(child.getName().equals(assemblies[i])) {
+            break;
+         }
+
+         VSAssembly ass = (VSAssembly) vs.getAssembly(assemblies[i]);
+
+         if(ass == null) {
+            continue;
+         }
+
+         currentY += getAssemblySize(ass, dim).height;
+      }
+
+      return currentY;
    }
 
    /**
