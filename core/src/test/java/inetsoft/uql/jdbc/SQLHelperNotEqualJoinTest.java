@@ -20,6 +20,7 @@ package inetsoft.uql.jdbc;
 import inetsoft.test.*;
 import inetsoft.uql.XRepository;
 import inetsoft.util.Plugins;
+import inetsoft.util.Tool;
 import inetsoft.util.credential.CredentialService;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -32,6 +33,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import java.io.*;
 import java.sql.*;
 import java.util.*;
 
@@ -116,7 +118,8 @@ class SQLHelperNotEqualJoinTest {
                    from(generate(generated, ds)));
    }
 
-   // every != join is generated like the same join written with <> (the op itself is kept)
+   // an ON != of a query in text join order (parsed, with an outer join) is generated like the
+   // same join written with <> (the op itself is kept)
    @ParameterizedTest
    @ValueSource(strings = {
       SEL + "from a left join (b join c on b.id = c.id and b.k != c.k) on a.id = b.id",
@@ -124,13 +127,11 @@ class SQLHelperNotEqualJoinTest {
       SEL + "from a left join (b join c on b.id = c.id and not (b.k != c.k)) on a.id = b.id",
       SEL + "from a left join b on a.id = b.id join c on a.id = c.id and a.k != c.k",
       SEL + "from a left join b on a.id = b.id join c on b.id = c.id and b.k != c.k",
-      SEL2 + "from a join b on a.k != b.k",
-      SEL2 + "from a join b on a.id = b.id and a.k != b.k",
-      SEL2 + "from a join b on a.id = b.id and not (a.k != b.k)",
+      SEL + "from a right join b on a.id = b.id join c on b.id = c.id and a.k != c.k",
    })
    void onNotEqualLikeLessGreater(String text) throws Exception {
       for(String type : new String[] { "h2", "h2-ansi", "derby-ansi", "postgresql-ansi",
-                                       "oracle-ansi", "mongo" })
+                                       "oracle-ansi" })
       {
          JDBCDataSource ds = dataSource(type);
          String generated = generate(text, ds);
@@ -138,6 +139,65 @@ class SQLHelperNotEqualJoinTest {
          assertEquals(twin.replace("<>", "!="), generated, type);
          assertRoundTrip(generated, ds);
       }
+   }
+
+   // without text join order (no outer join with the ANSI option, or MongoHelper) a != is
+   // written in place as before. Moving it into the from clause there joins c twice for the
+   // 3-table shapes (as <> does), and with no outer join WHERE and ON are the same rows
+   @ParameterizedTest
+   @CsvSource(delimiter = '|', value = {
+      "h2-ansi|from a join b on a.id = b.id join c on b.id = c.id and a.k != c.k|" +
+         "from (a INNER JOIN b ON a.id = b.id ) INNER JOIN c ON b.id = c.id where a.k != c.k",
+      "derby-ansi|from a join b on a.id = b.id join c on b.id = c.id and a.k != c.k|" +
+         "from (a INNER JOIN b ON a.id = b.id ) INNER JOIN c ON b.id = c.id where a.k != c.k",
+      "h2-ansi|from a join b on a.k != b.k|from a, b where a.k != b.k",
+      "h2-ansi|from a join b on a.id = b.id and not (a.k != b.k)|" +
+         "from a INNER JOIN b ON a.id = b.id where not (a.k != b.k)",
+      "mongo|from a right join b on a.id = b.id join c on b.id = c.id and a.k != c.k|" +
+         "from a RIGHT OUTER JOIN b ON a.id = b.id INNER JOIN c ON b.id = c.id where a.k != c.k",
+      "mongo-ansi|from a right join b on a.id = b.id join c on b.id = c.id and a.k != c.k|" +
+         "from a RIGHT OUTER JOIN b ON a.id = b.id INNER JOIN c ON b.id = c.id where a.k != c.k",
+      "mongo|from a left join b on a.id = b.id join c on a.id = c.id and a.k != c.k|" +
+         "from a INNER JOIN c ON a.id = c.id LEFT OUTER JOIN b ON a.id = b.id where a.k != c.k",
+      "mongo-ansi|from a join b on a.id = b.id join c on b.id = c.id and a.k != c.k|" +
+         "from a INNER JOIN b ON a.id = b.id INNER JOIN c ON b.id = c.id where a.k != c.k",
+   })
+   void notEqualInPlaceWithoutTextJoinOrder(String type, String tail, String expected)
+      throws Exception
+   {
+      JDBCDataSource ds = dataSource(type);
+      String text = select(tail) + tail;
+      String generated = generate(text, ds);
+      assertEquals(expected, from(generated), type);
+      assertRoundTrip(generated, ds);
+      assertEquals(0, RowCompare.diffCount(text, generated, 120), type + ": " + tail);
+   }
+
+   // a query saved before the join clause was recorded loads its joins with no clause. Its
+   // != is written in place as before, so a WHERE != doesn't join c twice
+   @ParameterizedTest
+   @CsvSource(delimiter = '|', value = {
+      "h2-ansi|from a, b, c where a.id = b.id and b.id = c.id and a.k != c.k|" +
+         "from (a INNER JOIN b ON a.id = b.id ) INNER JOIN c ON b.id = c.id where a.k != c.k",
+      "h2|from a left join b on a.id = b.id join c on a.id = c.id where b.k != c.k|" +
+         "from (a INNER JOIN c ON a.id = c.id ) LEFT OUTER JOIN b ON a.id = b.id where b.k != c.k",
+      "h2-ansi|from a left join b on a.id = b.id join c on a.id = c.id where not (b.k != c.k)|" +
+         "from (a INNER JOIN c ON a.id = c.id ) LEFT OUTER JOIN b ON a.id = b.id where " +
+         "not (b.k != c.k)",
+      "derby|from a right join b on a.id = b.id join c on b.id = c.id and a.k != c.k|" +
+         "from (a RIGHT OUTER JOIN b ON a.id = b.id ) INNER JOIN c ON b.id = c.id where a.k != c.k",
+      "mongo|from a left join b on a.id = b.id join c on a.id = c.id where b.k != c.k|" +
+         "from a INNER JOIN c ON a.id = c.id LEFT OUTER JOIN b ON a.id = b.id where b.k != c.k",
+      "h2-ansi|from a, b where a.k != b.k|from a, b where a.k != b.k",
+      "h2-ansi|from a join b on a.id = b.id and not (a.k != b.k)|" +
+         "from a INNER JOIN b ON a.id = b.id where not (a.k != b.k)",
+   })
+   void savedWithoutJoinClause(String type, String tail, String expected) throws Exception {
+      JDBCDataSource ds = dataSource(type);
+      String text = select(tail) + tail;
+      String generated = generateSaved(text, ds);
+      assertEquals(expected, from(generated), type);
+      assertEquals(0, RowCompare.diffCount(text, generated, 120), type + ": " + tail);
    }
 
    // the reporter's two cases, already right on main since #6064/#6080: a WHERE != stays a
@@ -276,6 +336,11 @@ class SQLHelperNotEqualJoinTest {
       }
    }
 
+   // the select list for the tables of a from clause
+   private static String select(String tail) {
+      return tail.contains(" c ") ? SEL : SEL2;
+   }
+
    // the from and where clauses, without the select list (Oracle quotes the aliases)
    private static String from(String generated) {
       return generated.substring(generated.indexOf(" from ") + 1);
@@ -299,6 +364,33 @@ class SQLHelperNotEqualJoinTest {
    // for a nested left join, whose ON operands are swapped once on the first round trip for
    // every op (see nestedRoundTripSwapsOuterOperands), so the second generation is checked
    // to be the fixed point
+   // generate from a model saved before #6080 recorded where each join was parsed: an XML
+   // round trip with the joinClause attribute removed, as in the XML of an older build
+   private static String generateSaved(String text, JDBCDataSource ds) throws Exception {
+      UniformSQL sql = new UniformSQL();
+      sql.parse(text, UniformSQL.PARSE_ALL, UniformSQL.PARSE_PERIOD);
+      assertEquals(UniformSQL.PARSE_SUCCESS, sql.getParseResult(), text);
+      StringWriter buffer = new StringWriter();
+
+      try(PrintWriter writer = new PrintWriter(buffer)) {
+         sql.writeXML(writer);
+      }
+
+      String xml = buffer.toString();
+      assertTrue(xml.contains(" joinClause=\""), xml);
+      xml = xml.replaceAll(" joinClause=\"-?\\d+\"", "");
+      UniformSQL saved = new UniformSQL();
+      saved.parseXML(Tool.parseXML(new StringReader(xml)).getDocumentElement());
+
+      for(XJoin join : saved.getJoins()) {
+         assertEquals(XJoin.UNKNOWN_CLAUSE, join.getJoinClause(), text);
+      }
+
+      saved.setDataSource(ds);
+      saved.clearSQLString();
+      return normalize(saved.getSQLString());
+   }
+
    private static void assertRoundTrip(String generated, JDBCDataSource ds) throws Exception {
       String again = generate(generated, ds);
 
