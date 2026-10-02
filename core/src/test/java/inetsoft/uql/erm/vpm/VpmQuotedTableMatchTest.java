@@ -57,6 +57,8 @@ class VpmQuotedTableMatchTest {
    private static final String DEFAULT = "default";
    private static final String POSTGRESQL = "postgresql";
    private static final String SNOWFLAKE = "snowflake";
+   private static final String H2 = "h2";
+   private static final String SQLSERVER = "sqlserver";
 
    static Stream<Arguments> sameTables() {
       return Stream.of(
@@ -184,6 +186,14 @@ class VpmQuotedTableMatchTest {
                       "db1.sa.t", "y.\"STATE\" = 1"),
          Arguments.of(POSTGRESQL, "select x.id, y.id from db1.sa.t y, sa.t x where x.id = y.id",
                       "db1.sa.t", "y.\"STATE\" = 1"),
+         Arguments.of(H2, "select x.id, y.id from dbo.t x, db1.dbo.t y where x.id = y.id",
+                      "db1.dbo.t", "y.STATE = 1"),
+         Arguments.of(H2, "select x.id, y.id from db1.dbo.t y, dbo.t x where x.id = y.id",
+                      "db1.dbo.t", "y.STATE = 1"),
+         Arguments.of(SQLSERVER, "select x.id, y.id from db2.dbo.t x, dbo.t y where x.id = y.id",
+                      "dbo.t", "y.\"STATE\" = 1"),
+         Arguments.of(SQLSERVER, "select x.id, y.id from dbo.t y, db2.dbo.t x where x.id = y.id",
+                      "dbo.t", "y.\"STATE\" = 1"),
          // control
          Arguments.of(DEFAULT, "select a.id from t a", "t", "a.STATE = 1"));
    }
@@ -298,6 +308,8 @@ class VpmQuotedTableMatchTest {
       return switch(helper) {
          case POSTGRESQL -> PostgreSQLHelper.class;
          case SNOWFLAKE -> SnowflakeHelper.class;
+         case H2 -> H2Helper.class;
+         case SQLSERVER -> SQLServerHelper.class;
          default -> SQLHelper.class;
       };
    }
@@ -320,6 +332,16 @@ class VpmQuotedTableMatchTest {
          ds.setDriver("net.snowflake.client.jdbc.SnowflakeDriver");
          ds.setURL("jdbc:snowflake://account.snowflakecomputing.com");
          ds.setRuntimeProductName("snowflake");
+      }
+      case H2 -> {
+         ds.setDriver("org.h2.Driver");
+         ds.setURL("jdbc:h2:mem:test");
+         ds.setRuntimeProductName("h2");
+      }
+      case SQLSERVER -> {
+         ds.setDriver("com.microsoft.sqlserver.jdbc.SQLServerDriver");
+         ds.setURL("jdbc:sqlserver://localhost:1433;databaseName=db0");
+         ds.setRuntimeProductName("sql server");
       }
       default -> throw new IllegalArgumentException(helper);
       }
