@@ -833,8 +833,8 @@ table_subquery returns [XExpression exp = null]
 in_value_list returns [XExpression exp = null]
         {XExpression tmp; String str = ""; {checkStatus();}}
         :
-        tmp = value_exp {str = tmp.toString();}
-        ( COMMA tmp = value_exp {str += "," + tmp.toString();})*
+        tmp = value_exp {str = tmp.toQuotedString();}
+        ( COMMA tmp = value_exp {str += "," + tmp.toQuotedString();})*
         {exp = new XExpression(); exp.setValue(str, XExpression.EXPRESSION);}
         ;
 
@@ -1057,8 +1057,8 @@ row_value_constructor_elem returns [XExpression exp = null]
 row_value_const_list returns [XExpression exp = null]
         {String str = ""; XExpression tmp; {checkStatus();}}
         :
-        tmp = row_value_constructor_elem {str = tmp.toString();}
-        ( COMMA tmp = row_value_constructor_elem {str += "," + tmp.toString();})*
+        tmp = row_value_constructor_elem {str = tmp.toQuotedString();}
+        ( COMMA tmp = row_value_constructor_elem {str += "," + tmp.toQuotedString();})*
         {exp = new XExpression(); exp.setValue(str, XExpression.EXPRESSION);}
         ;
 
@@ -1593,8 +1593,8 @@ query_partition_clause returns [String ret = ""]
         {XExpression exp = null; {checkStatus();}}
         :
         PARTITION BY
-        exp = value_exp {ret = " partition by " + exp.toString();}
-        (COMMA exp = value_exp {ret += ", " + exp.toString();})*
+        exp = value_exp {ret = " partition by " + exp.toQuotedString();}
+        (COMMA exp = value_exp {ret += ", " + exp.toQuotedString();})*
         ;
 
 function_name returns [String fn = ""]
@@ -1989,13 +1989,13 @@ char_substring_fct returns [String csf = ""]
 start_position returns [String sp = ""]
         {XExpression exp; {checkStatus();}}
         :
-        exp = num_value_exp {sp = exp.toString();}
+        exp = num_value_exp {sp = exp.toQuotedString();}
         ;
 
 string_length returns [String sl = ""]
         {XExpression exp; {checkStatus();}}
         :
-        exp = num_value_exp {sl = exp.toString();}
+        exp = num_value_exp {sl = exp.toQuotedString();}
         ;
 
 fold returns [String fold = ""]
@@ -2131,7 +2131,7 @@ bit_primary returns [String bitpri = ""]
         {XExpression exp; {checkStatus();}}
         :
         (value_exp_primary)=>
-        exp = value_exp_primary {bitpri = exp.toString();}
+        exp = value_exp_primary {bitpri = exp.toQuotedString();}
         | bitpri = string_value_fct
         ;
 
@@ -2209,7 +2209,7 @@ datetime_factor returns [String dtfactor = ""]
 datetime_primary returns [String dtpri = ""]
         {XExpression exp; {checkStatus();}}
         :
-        exp = value_exp_primary {dtpri = exp.toString();}
+        exp = value_exp_primary {dtpri = exp.toQuotedString();}
         //| dtpri = datetime_value_fct
         ;
 
@@ -2299,13 +2299,13 @@ interval_term returns [String it = ""]
         {String tmp1; XExpression exp; {checkStatus();}}
         :
         (factor STAR ) =>
-        exp = factor a:STAR tmp1 = interval_term_2 {it = exp.toString() + a.getText() + tmp1;}
+        exp = factor a:STAR tmp1 = interval_term_2 {it = exp.toQuotedString() + a.getText() + tmp1;}
         |
         (factor DIV )=>
-        exp = factor b:DIV tmp1 = interval_term_2 {it = exp.toString() + b.getText() + tmp1;}
+        exp = factor b:DIV tmp1 = interval_term_2 {it = exp.toQuotedString() + b.getText() + tmp1;}
         |
         (term STAR)=>
-        exp = term c:STAR tmp1 = interval_factor {it = exp.toString() + c.getText() + tmp1;}
+        exp = term c:STAR tmp1 = interval_factor {it = exp.toQuotedString() + c.getText() + tmp1;}
         | it = interval_factor
         ;
 
@@ -2319,7 +2319,7 @@ interval_factor returns [String ifact = ""]
 interval_primary returns [String ip = ""]
         {String tmp; XExpression exp; {checkStatus();}}
         :
-        exp = value_exp_primary {ip = exp.toString();}
+        exp = value_exp_primary {ip = exp.toQuotedString();}
         ((interval_qualifier)=> tmp = interval_qualifier {ip += " " + tmp;})?
         ;
 
@@ -2900,8 +2900,8 @@ table_value_constructor returns [XExpression exp = null]
 table_value_const_list returns [XExpression exp = null]
         {XExpression tmp; String str = ""; {checkStatus();}}
         :
-        tmp = row_value_constructor {str = tmp.toString();}
-        ( COMMA tmp = row_value_constructor {str += "," + tmp.toString();})*
+        tmp = row_value_constructor {str = tmp.toQuotedString();}
+        ( COMMA tmp = row_value_constructor {str += "," + tmp.toQuotedString();})*
         {exp = new XExpression(); exp.setValue(str,XExpression.EXPRESSION);}
         ;
 
@@ -3164,36 +3164,38 @@ sort_spec_list [UniformSQL sql] returns [String ret = ""]
       ;
 
 sort_spec [UniformSQL sql] returns [String ret = ""]
-        {Object field; String order = "asc"; String tmp; {checkStatus();}}
+        {Object field; String order = "asc"; String tmp; XExpression exp; {checkStatus();}}
         :
-        field = sort_key[sql]
+        exp = sort_key
         //( tmp = collate_clause )?
         ( order = ordering_spec )?
-        {if(sql != null)
+        {
+         try {
+           field = Integer.valueOf(exp.toString());
+         }
+         catch(Exception e) {
+           field = new String(exp.toString());
+
+           // a bare quoted identifier ("x y"), stored without its quotes
+           if(sql != null && exp.isQuotedField()) {
+              sql.setQuotedField((String) field, true);
+           }
+         }
+
+         if(sql != null)
          {
           sql.setOrderBy(field, order);
          }
-         ret = field.toString() + " " + order;
+
+         // the text is used without the sql, e.g. in an over (order by ...) clause
+         ret = (field instanceof Integer ? field.toString() : exp.toQuotedString()) + " " + order;
         }
         ;
 
-sort_key [UniformSQL sql] returns [Object field = null]
-        {String tmp; XExpression exp; {checkStatus();}}
+sort_key returns [XExpression exp = null]
+        {checkStatus();}
         :
         exp = value_exp
-        {
-          try {
-            field = Integer.valueOf(exp.toString());
-          }
-          catch(Exception e) {
-            field = new String(exp.toString());
-
-            // a bare quoted identifier ("x y"), stored without its quotes
-            if(sql != null && exp.isQuotedField()) {
-               sql.setQuotedField((String) field, true);
-            }
-          }
-        }
         ;
 
 ordering_spec returns [String order = null]

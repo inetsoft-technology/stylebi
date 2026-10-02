@@ -302,6 +302,31 @@ class UniformSQLQuotedGroupOrderTest {
    }
 
    @Test
+   void windowClauseKeepsQuotes() throws Exception {
+      String query = "select row_number() over (partition by \"x y\", a order by \"MixedCase\" desc, `a b`) " +
+         "as r from t";
+      assertEquals("select row_number() over ( partition by \"x y\", a order by \"MixedCase\" desc ,`a b` asc) " +
+                   "as r from t", regenerate(query));
+
+      // the window text is kept as written, postgresql also quotes the names it knows
+      String generated = regenerate(parse(query, dataSource("org.postgresql.Driver",
+                                                            "jdbc:postgresql://localhost/db", "postgresql")));
+      assertTrue(generated.contains("over ( partition by \"x y\", \"a\" order by \"MixedCase\" desc ,`a b` asc)"),
+                 generated);
+   }
+
+   @Test
+   void malformedQuoteAttributeIsUnquoted() throws Exception {
+      UniformSQL sql = parse("select a from t where \"MixedCase\" = 1 and \"x y\" = 2");
+      String xml = toXML(sql).replaceFirst(" quote=\"1\"", " quote=\"x\"")
+         .replaceFirst(" quote=\"1\"", " quote=\"7\"");
+      UniformSQL loaded = new UniformSQL();
+      loaded.parseXML(Tool.parseXML(new StringReader(xml)).getDocumentElement());
+
+      assertEquals("select a from t where MixedCase = 1 and x y = 2", regenerate(loaded));
+   }
+
+   @Test
    void regeneratedSqlRegeneratesToItself() throws Exception {
       String[] queries = {
          "select a = \"x y\", count(*) from t where \"MixedCase\" = 1 group by \"x y\" " +
@@ -309,6 +334,8 @@ class UniformSQLQuotedGroupOrderTest {
          "select coalesce(`x y`, 0), case when \"x y\" = 1 then 1 end from t where (\"x y\") = 1",
          "select \"x y\" as z from t order by z",
          "select count(*) from t group by \"x y\", a",
+         "select row_number() over (partition by \"x y\" order by \"MixedCase\") as r from t",
+         "select a from t where \"x y\" in (\"MixedCase\", 2)",
       };
 
       for(String query : queries) {

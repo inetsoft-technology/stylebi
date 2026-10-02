@@ -290,8 +290,12 @@ public class XExpression implements Cloneable, Serializable, XMLSerializable {
          value = nval != null ? nval.trim() : nval;
          String quoteAttr = Tool.getAttribute(node, "quote");
 
-         if(quoteAttr != null) {
-            quote = Integer.parseInt(quoteAttr);
+         // a missing or malformed value is unquoted
+         if(String.valueOf(QUOTE_DOUBLE).equals(quoteAttr)) {
+            quote = QUOTE_DOUBLE;
+         }
+         else if(String.valueOf(QUOTE_SINGLE).equals(quoteAttr)) {
+            quote = QUOTE_SINGLE;
          }
       }
       else {
