@@ -20,7 +20,11 @@ package inetsoft.util.swap;
 import com.sun.management.HotSpotDiagnosticMXBean;
 import com.sun.management.VMOption;
 import inetsoft.sree.SreeEnv;
+import inetsoft.sree.security.IdentityID;
+import inetsoft.sree.security.SRPrincipal;
 import inetsoft.test.*;
+import inetsoft.util.ThreadContext;
+import inetsoft.util.Tool;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -28,6 +32,7 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.lang.management.*;
+import java.security.Principal;
 import java.util.List;
 import java.util.function.Supplier;
 
@@ -191,6 +196,27 @@ class XSwapperMemoryStateTest {
    }
 
    @Test
+   void killSwitchIgnoresOrganizationValue() {
+      final Principal oldContext = ThreadContext.getContextPrincipal();
+      final String orgKey = "inetsoft.org." + ORG + "." + PROPERTY;
+
+      try {
+         SreeEnv.setProperty(orgKey, "false");
+         ThreadContext.setContextPrincipal(
+            new SRPrincipal(new IdentityID("admin", ORG), new IdentityID[0], new String[0], ORG,
+                            Tool.getSecureRandom().nextLong()));
+
+         // an organization-scoped read on this thread does see the organization's value
+         assertEquals("false", SreeEnv.getProperty(PROPERTY));
+         assertTrue(XSwapper.isExcludeEden());
+      }
+      finally {
+         ThreadContext.setContextPrincipal(oldContext);
+         SreeEnv.remove(orgKey);
+      }
+   }
+
+   @Test
    void resolvesRealG1EdenPool() {
       assumeTrue(ManagementFactory.getGarbageCollectorMXBeans().stream()
                     .anyMatch(gc -> "G1 Young Generation".equals(gc.getName())), "not G1");
@@ -258,4 +284,5 @@ class XSwapperMemoryStateTest {
    private static final String EDEN = "G1 Eden Space";
    private static final String NEW_SIZE = "NewSize";
    private static final String PROPERTY = "swapper.memory.excludeEden";
+   private static final String ORG = "orga";
 }

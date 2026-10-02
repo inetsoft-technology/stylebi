@@ -278,9 +278,11 @@ public final class XSwapper {
     * <tt>swapper.memory.excludeEden</tt>. Only <tt>false</tt> turns it off.
     */
    static boolean isExcludeEden() {
-      // read every time so a property change takes effect without a restart
+      // read every time so a property change takes effect without a restart. the setting is
+      // JVM-wide, so don't let the principal of the thread that refreshes the memory state
+      // pick an organization's value
       try {
-         final String value = SreeEnv.getProperty("swapper.memory.excludeEden", "true");
+         final String value = SreeEnv.getProperty("swapper.memory.excludeEden", false, false);
          return value == null || !"false".equalsIgnoreCase(value.trim());
       }
       catch(Exception ex) {
