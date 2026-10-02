@@ -77,6 +77,10 @@ class ClusterJobStoreTest {
           MockedStatic<SUtil> sUtil = mockStatic(SUtil.class))
       {
          tool.when(Tool::getIP).thenReturn("127.0.0.1");
+         // Bug #77452, the job picks the principal with SUtil.getScheduleTaskRunPrincipal, run
+         // it for real so that it calls the stubbed methods below
+         sUtil.when(() -> SUtil.getScheduleTaskRunPrincipal(any(), anyString(), anyBoolean()))
+            .thenCallRealMethod();
          scheduleManager.when(() -> ScheduleManager.isInternalTask(anyString())).thenReturn(false);
 
          SecurityEngine engine = mock(SecurityEngine.class);
@@ -109,6 +113,10 @@ class ClusterJobStoreTest {
           MockedStatic<SUtil> sUtil = mockStatic(SUtil.class))
       {
          tool.when(Tool::getIP).thenReturn("127.0.0.1");
+         // Bug #77452, the job picks the principal with SUtil.getScheduleTaskRunPrincipal, run
+         // it for real so that it calls the stubbed methods below
+         sUtil.when(() -> SUtil.getScheduleTaskRunPrincipal(any(), anyString(), anyBoolean()))
+            .thenCallRealMethod();
          scheduleManager.when(() -> ScheduleManager.isInternalTask(anyString())).thenReturn(false);
 
          SecurityEngine engine = mock(SecurityEngine.class);

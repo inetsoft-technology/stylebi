@@ -32,7 +32,8 @@ import java.util.*;
  *    <li>parsing never throws;</li>
  *    <li>a parsed value survives a save and reload unchanged: once the text has been
  *        normalized by the first parse, {@code getData(type, getDataString(v, type))}
- *        equals {@code v} (for times, has the same time of day).</li>
+ *        equals {@code v} (for times, has the same time of day, also as array items; in the
+ *        regular form an empty string array item may reload as null).</li>
  * </ol>
  */
 public final class DataStringProperties {
@@ -73,7 +74,7 @@ public final class DataStringProperties {
          CoreTool.getPersistentDataString(value, type) : CoreTool.getDataString(value, type);
       Object reloaded = parse(where, type, saved, persistent);
 
-      if(!same(value, reloaded)) {
+      if(!same(value, reloaded, persistent)) {
          throw new AssertionError("Value changed on save and reload: " + where +
                                   "\nparsed:   " + describe(value) +
                                   "\nsaved as: \"" + saved + "\"" +
@@ -90,9 +91,31 @@ public final class DataStringProperties {
       }
    }
 
-   private static boolean same(Object a, Object b) {
+   private static boolean same(Object a, Object b, boolean persistent) {
+      // array items are compared by the same rules as top-level values
       if(a instanceof Object[] && b instanceof Object[]) {
-         return Arrays.deepEquals((Object[]) a, (Object[]) b);
+         Object[] arr1 = (Object[]) a;
+         Object[] arr2 = (Object[]) b;
+
+         if(arr1.length != arr2.length) {
+            return false;
+         }
+
+         for(int i = 0; i < arr1.length; i++) {
+            Object item = arr1[i];
+
+            // an item of an unknown type keeps its text, so it may be "" where a reloaded
+            // string item is null, as the regular form saves every empty string
+            if(!persistent && "".equals(item) && arr2[i] == null) {
+               continue;
+            }
+
+            if(!same(item, arr2[i], persistent)) {
+               return false;
+            }
+         }
+
+         return true;
       }
 
       // a parsed time may keep a date part that is not saved, only the time of day matters

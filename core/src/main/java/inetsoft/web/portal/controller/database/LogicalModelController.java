@@ -42,7 +42,6 @@ import inetsoft.web.security.RequiredPermission;
 import inetsoft.web.security.Secured;
 
 import java.io.StringReader;
-import java.rmi.RemoteException;
 import java.security.Principal;
 import java.util.Arrays;
 
@@ -303,9 +302,12 @@ public class LogicalModelController {
    ))
    @GetMapping("/api/data/logicalModel/checkDuplicate")
    public boolean checkLogicalModelDuplicate(@RequestParam("database") String database,
-                                             @RequestParam("name") String name)
+                                             @RequestParam("name") String name,
+                                             Principal principal)
       throws Exception
    {
+      // renaming a logical model needs only DELETE on it, so check no more than the source READ
+      dataSourceService.checkDataSourceReadPermission(database, principal);
       return dataSourceService.isUniqueModelName(database, name);
    }
 
@@ -318,9 +320,11 @@ public class LogicalModelController {
    public boolean checkExtendedModelDuplicate(@RequestParam("database") String database,
                                               @RequestParam("physicalModel") String physicalModel,
                                               @RequestParam("parent") String parent,
-                                              @RequestParam("name") String name)
+                                              @RequestParam("name") String name,
+                                              Principal principal)
       throws Exception
    {
+      dataSourceService.checkDataSourceReadPermission(database, principal);
       return !dataSourceService.isUniqueExtendedLogicalModelName(database, physicalModel, parent,
          name);
    }
@@ -442,9 +446,12 @@ public class LogicalModelController {
       actions = ResourceAction.ACCESS
    ))
    @GetMapping("/api/data/logicalmodel/settings")
-   public LogicalModelSettings getLMHierarchyEnableProperty(@RequestParam("ds") String ds)
-      throws RemoteException
+   public LogicalModelSettings getLMHierarchyEnableProperty(@RequestParam("ds") String ds,
+                                                            Principal principal)
+      throws Exception
    {
+      // the editor is also open to read-only and per-model users, so check only the source READ
+      dataSourceService.checkDataSourceReadPermission(ds, principal);
       XDataSource dataSource = dataSourceService.getDataSource(ds);
       SQLHelper sqlHelper = dataSourceService.getSqlHelper(dataSource, null);
 

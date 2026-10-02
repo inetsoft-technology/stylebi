@@ -1365,7 +1365,7 @@ public class XEmbeddedTable
       }
 
       writer.print(" row=\"" + xtable.getRowCount() +
-                   "\" col=\"" + types.length + "\"" +
+                   "\" col=\"" + types.length +
                    "\" strictNull=\"true\"");
    }
 
@@ -1525,13 +1525,15 @@ public class XEmbeddedTable
    protected void parseContents(Element elem) throws Exception {
       int row = Integer.parseInt(Tool.getAttribute(elem, "row"));
       int col = Integer.parseInt(Tool.getAttribute(elem, "col"));
-      types = new String[col];
       Element tsnode = Tool.getChildNodeByTagName(elem, "types");
       NodeList tnodes = Tool.getChildNodesByTagName(tsnode, "type");
 
+      // validate col against the actual <type> nodes before allocating anything sized by it
       if(tnodes.getLength() != col) {
          throw new Exception("invalid types node found: " + tsnode);
       }
+
+      types = new String[col];
 
       for(int i = 0; i < tnodes.getLength(); i++) {
          Element tnode = (Element) tnodes.item(i);

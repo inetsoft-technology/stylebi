@@ -344,8 +344,12 @@ public class TableFormatAttr extends TableAttr {
       }
 
       @Override
-      public synchronized void invalidate() {
-         map = null;
+      public void invalidate() {
+         synchronized(this) {
+            map = null;
+         }
+
+         // super fires the change event, outside this monitor (bug #77432)
          super.invalidate();
       }
 

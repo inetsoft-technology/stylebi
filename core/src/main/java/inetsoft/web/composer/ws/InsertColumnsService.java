@@ -65,6 +65,7 @@ public class InsertColumnsService extends WorksheetControllerService {
       RuntimeWorksheet rws = super.getRuntimeWorksheet(runtimeId, principal);
       Worksheet ws = rws.getWorksheet();
       String name = event.name();
+      checkCubeTableReadPermission(principal, name);
       TableAssembly assembly = (TableAssembly) ws.getAssembly(name);
 
       if(!(assembly instanceof BoundTableAssembly)) {

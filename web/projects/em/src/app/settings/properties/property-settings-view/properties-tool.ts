@@ -121,6 +121,12 @@ export namespace PropertiesTool {
             {label: "user", value: "user"}
          ]
       },
+      "vpm.unparsed.sql.policy": {
+         options: [
+            {label: "reject", value: "reject"},
+            {label: "warn", value: "warn"}
+         ]
+      },
       "crosstab.dateTime.expandAll.level": {
          options: [
             {label: "Year", value: "Year"},
