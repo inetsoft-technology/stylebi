@@ -62,14 +62,50 @@ class UniformSQLSchemaQualifiedJoinTest {
       assertRoundTrip(sql, DEFAULT);
    }
 
+   // the WHERE comparison is between the outer joined tables s.a and s.b, so it is stored as a
+   // plain condition rather than an XJoin (#77478) and stays in the where clause, where it still
+   // drops the null extended rows. That needs the ON's bare qualifiers resolved to s.a and s.b
    @Test
    void reportedQuery() throws Exception {
       UniformSQL sql = parse(
          "select * from s.a left join s.b on a.id = b.id where s.a.k = s.b.k", DEFAULT);
-      assertEquals(List.of("s.a *= s.b", "s.a = s.b"), joins(sql));
+      assertEquals(List.of("s.a *= s.b"), joins(sql));
+      assertEquals(List.of("s.a.k = s.b.k"), conditions(sql));
       assertEquals("select * from s.a LEFT OUTER JOIN s.b ON a.id = b.id where s.a.k = s.b.k",
                    regenerate(sql));
       assertRoundTrip(sql, DEFAULT);
+   }
+
+   // a WHERE (or later inner join ON) comparison between the outer joined tables, written with
+   // any mix of bare and schema qualifiers, stays a filter after the outer join (#77478)
+   static Stream<Arguments> outerPairComparisons() {
+      return Stream.of(
+         Arguments.of(DEFAULT, "select * from s.a left join s.b on b.id = a.id where s.a.k = s.b.k",
+                      "select * from s.a LEFT OUTER JOIN s.b ON a.id = b.id where s.a.k = s.b.k"),
+         Arguments.of(DEFAULT, "select * from s.a left join s.b on a.id = b.id where a.k = b.k",
+                      "select * from s.a LEFT OUTER JOIN s.b ON a.id = b.id where a.k = b.k"),
+         Arguments.of(DEFAULT, "select * from s.a left join s.b on a.id = b.id where s.a.k = b.k",
+                      "select * from s.a LEFT OUTER JOIN s.b ON a.id = b.id where s.a.k = b.k"),
+         Arguments.of(DEFAULT,
+                      "select * from s.a left join s.b on a.id = b.id join s.c on c.id = a.id " +
+                      "and a.k = b.k",
+                      "select * from (s.a LEFT OUTER JOIN s.b ON a.id = b.id ) INNER JOIN s.c " +
+                      "ON c.id = a.id where a.k = b.k"),
+         Arguments.of(ORACLE, "select * from s.a left join s.b on b.id = a.id where s.a.k = s.b.k",
+                      "select * from s.a, s.b where a.id = b.id(+) and s.a.k = s.b.k"));
+   }
+
+   @ParameterizedTest
+   @MethodSource("outerPairComparisons")
+   void outerPairComparisonStaysInWhere(String helper, String text, String expected)
+      throws Exception
+   {
+      UniformSQL sql = parse(text, helper);
+      assertEquals(List.of("s.a *= s.b"), joins(sql).stream()
+         .filter(join -> join.startsWith("s.a ") && join.endsWith(" s.b")).toList());
+      assertEquals(1, conditions(sql).size());
+      assertEquals(expected, regenerate(sql));
+      assertRoundTrip(sql, helper);
    }
 
    @ParameterizedTest
@@ -392,6 +428,24 @@ class UniformSQLSchemaQualifiedJoinTest {
       }
 
       return joins;
+   }
+
+   // the column comparisons stored as plain conditions instead of XJoins
+   private static List<String> conditions(UniformSQL sql) {
+      List<String> list = new ArrayList<>();
+      collectConditions(sql.getWhere(), list);
+      return list;
+   }
+
+   private static void collectConditions(Object node, List<String> list) {
+      if(node instanceof XBinaryCondition cond && !(node instanceof XJoin)) {
+         list.add(cond.toString());
+      }
+      else if(node instanceof XNode xnode) {
+         for(int i = 0; i < xnode.getChildCount(); i++) {
+            collectConditions(xnode.getChild(i), list);
+         }
+      }
    }
 
    private static void collect(Object node, List<XJoin> list) {
