@@ -53,6 +53,9 @@ public class RestAuthenticatorFactory {
          case KERBEROS:
             restAuth = createKerberosAuth(ds);
             break;
+         case OAUTH_CLIENT_CREDENTIALS:
+            restAuth = createClientCredentialsAuth(ds, client);
+            break;
          default:
             throw new IllegalStateException("Unexpected value: " + authType);
       }
@@ -93,6 +96,30 @@ public class RestAuthenticatorFactory {
             ds.getAuthMethod(), ds.getContentType(), ds.getBody(), ds.getAuthURL(),
             ds.getTokenPattern(), Arrays.asList(ds.getAuthenticationHttpParameters()),
             Arrays.asList(ds.getQueryHttpParameters())), client);
+   }
+
+   private static ClientCredentialsAuthenticator createClientCredentialsAuth(
+      AbstractRestDataSource ds, HttpAsyncClient client)
+   {
+      if(ds.getTokenUri() == null || ds.getTokenUri().isEmpty()) {
+         throw new IllegalArgumentException("Token URI must not be empty");
+      }
+
+      if(ds.getClientId() == null || ds.getClientId().isEmpty()) {
+         throw new IllegalArgumentException("Client ID must not be empty");
+      }
+
+      if(ds.getClientSecret() == null || ds.getClientSecret().isEmpty()) {
+         throw new IllegalArgumentException("Client secret must not be empty");
+      }
+
+      final ClientAuthMethod clientAuthMethod = ds.getClientAuthMethod() != null ?
+         ds.getClientAuthMethod() : ClientAuthMethod.BASIC;
+
+      return new ClientCredentialsAuthenticator(
+         new ClientCredentialsTokenCache.ClientCredentialsRequest(
+            ds.getTokenUri(), ds.getClientId(), ds.getClientSecret(), ds.getScope(),
+            ds.getAudience(), clientAuthMethod), client);
    }
 
    /**

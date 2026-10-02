@@ -17,11 +17,18 @@
  */
 package inetsoft.uql.rest.auth;
 
-public enum AuthType {
-   NONE,
+/**
+ * How the client ID and secret are sent to the token endpoint in the OAuth 2.0 client
+ * credentials grant (RFC 6749 section 2.3.1).
+ */
+public enum ClientAuthMethod {
+   /**
+    * Send the credentials in an HTTP Basic authorization header (client_secret_basic).
+    */
    BASIC,
-   TWO_STEP,
-   OAUTH,
-   KERBEROS,
-   OAUTH_CLIENT_CREDENTIALS
+   /**
+    * Send the credentials as client_id and client_secret form parameters in the request body
+    * (client_secret_post).
+    */
+   POST
 }
