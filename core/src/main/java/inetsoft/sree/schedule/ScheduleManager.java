@@ -1138,6 +1138,9 @@ public class ScheduleManager {
 
       AssetEntry entry = AssetEntry.createAssetEntry(sheet);
 
+      // a legacy identifier with no embedded org (entry.getOrgID() == null) is not checked here
+      // at all -- the stored value is left to the runtime READ check (AbstractAssetEngine.
+      // getSheet/checkAssetPermission0) at load time, the same as it was before this fix.
       if(entry != null && entry.getOrgID() != null &&
          !Tool.equals(entry.getOrgID(), orgID, false) &&
          !(Tool.equals(entry.getOrgID(), Organization.getDefaultOrganizationID(), false) &&
