@@ -90,10 +90,23 @@ class UniformSQLOuterJoinOuterOpConditionTest {
       assertRefused(text);
    }
 
-   // an outer join under an or, is or not set in the on condition of an inner join,
-   // which the ANSI generation hoisted into an outer join, dropping the or, is or not
+   // an outer join in the on condition of an inner join, in any position. (+) in an ANSI
+   // join is ORA-25156, and *= or =* can't be mixed with ANSI joins, so it isn't valid
+   // on any database. The ANSI generation hoisted it into an outer join, which lost the
+   // or, is or not around it and the comparison op ("a.k > b.k(+)" became ON a.k = b.k)
    @ParameterizedTest
    @ValueSource(strings = {
+      "select a.x from a join b on a.k *= b.k",
+      "select a.x from a join b on a.k = b.k(+)",
+      "select a.x from a join b on a.id = b.id and a.k = b.k(+)",
+      "select a.x from a join b on a.id = b.id and a.k =* b.k",
+      "select a.x from a join b on a.id = b.id and a.k > b.k(+)",
+      "select a.x from a join b on a.id = b.id and a.k <> b.k(+)",
+      "select a.x from a join b on a.id(+) = b.id(+)",
+      "select a.x from a join b on a.id = b.id and ((a.k = b.k(+)))",
+      "select a.x from a join b on not (a.k = b.k(+))",
+      "select a.x from a join b on a.id = b.id and not (a.k = b.k(+))",
+      "select a.x from a join b on a.id = b.id and not ((a.k = b.k(+)))",
       "select a.x from a join b on a.id = b.id or a.k *= b.k",
       "select a.x from a join b on a.id = b.id or a.k = b.k(+)",
       "select a.x from a join b on a.id = b.id or a.k =* b.k",
@@ -109,11 +122,44 @@ class UniformSQLOuterJoinOuterOpConditionTest {
       "select a.x from a join b on a.id = b.id and not (a.k = b.k(+) and a.f = 1)",
       "select a.x from a join b on not (a.k *= b.k and a.f = 1)",
       "select a.x from a left join b on a.id = b.id join c on b.id = c.id or c.k *= b.k",
+      "select a.x from a left join b on a.id = b.id join c on b.id = c.id and c.k *= b.k",
       // a subquery's inner join is checked at its own level
       "select a.x from a join b on a.id = b.id and " +
-         "a.k in (select c.k from c join d on c.id = d.id or c.k *= d.k)"
+         "a.k in (select c.k from c join d on c.id = d.id or c.k *= d.k)",
+      "select a.x from a where a.k in (select c.k from c join d on c.id = d.id and c.k *= d.k)"
    })
-   void outerJoinInNonAndOnPositionFailsCleanly(String text) {
+   void outerJoinInInnerJoinOnFailsCleanly(String text) {
+      assertRefused(text);
+   }
+
+   // an outer join in a having clause, which Oracle only allows in a where clause. The
+   // generation dropped it, or printed *= or =*
+   @ParameterizedTest
+   @ValueSource(strings = {
+      "select a.x from a, b where a.id = b.id(+) group by a.x having a.k = b.k(+)",
+      "select a.x from a, b where a.id = b.id(+) group by a.x having a.k > b.k(+)",
+      "select a.x from a, b where a.id = b.id group by a.x having a.k = 1 or a.id *= b.id",
+      "select a.x from a, b group by a.x having a.id = b.id(+)",
+      "select a.x from a, b group by a.x having a.id =* b.id and max(a.k) = 1",
+      "select a.x from a, b group by a.x having not (a.id = b.id(+))"
+   })
+   void outerJoinInHavingFailsCleanly(String text) {
+      assertRefused(text);
+   }
+
+   // an outer join in the search condition of a case, which the generation printed as
+   // *= or =*, or took out of the case and left an empty when
+   @ParameterizedTest
+   @ValueSource(strings = {
+      "select case when a.k = b.k(+) then 1 else 0 end from a, b",
+      "select case when a.k *= b.k then 1 else 0 end from a, b where a.id = b.id",
+      "select case when a.f = 1 and a.k =* b.k then 1 end from a, b",
+      "select a.x from a, b where case when a.k = b.k(+) then 1 else 0 end = 1",
+      "select a.x from a join b on a.id = b.id and case when a.k *= b.k then 1 else 0 end = 1",
+      "select a.x from a, b group by a.x having max(case when a.k = b.k(+) then 1 end) = 1",
+      "select a.x from a, b order by case when a.k = b.k(+) then 1 else 0 end"
+   })
+   void outerJoinInCaseFailsCleanly(String text) {
       assertRefused(text);
    }
 
@@ -151,13 +197,9 @@ class UniformSQLOuterJoinOuterOpConditionTest {
          "select a.x from a LEFT OUTER JOIN b ON a.id = b.id",
       "select e.x from e where e.deptno = any (select d.deptno from d) | " +
          "select e.x from e where e.deptno = any (select d.deptno from d )",
-      // an outer join and'ed with the inner join condition, the where clause keeps
-      // the rows of the inner join
-      "select a.x from a join b on a.id = b.id and a.k = b.k(+) | " +
-         "select a.x from a LEFT OUTER JOIN b ON a.k = b.k where a.id = b.id",
-      // a negated outer join is the join condition, as in a where clause (Bug #77481)
-      "select a.x from a join b on a.id = b.id and not (a.k = b.k(+)) | " +
-         "select a.x from a LEFT OUTER JOIN b ON a.k <> b.k where a.id = b.id",
+      // an inner join in a case is kept in the case
+      "select case when a.k = b.k then 1 else 0 end from a, b | " +
+         "select case when a.k = b.k then 1 else 0 END from a, b",
       "select a.x from a join b on a.id = b.id or a.k = b.k | " +
          "select a.x from a, b where (a.id = b.id or a.k = b.k)",
       "select a.x from a join b on a.id = b.id, c where a.k = c.k(+) | " +
