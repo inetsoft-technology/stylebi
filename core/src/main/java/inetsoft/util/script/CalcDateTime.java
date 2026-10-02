@@ -527,11 +527,14 @@ public class CalcDateTime {
    }
 
    /**
-    * Get the value where the week falls numerically within a year.
+    * Get the value where the week falls numerically within a year, as Excel WEEKNUM does.
     * @param date date to get week identifier
-    * @param return_type
-    * 1 or null --> Week begins on Sunday. Weekdays are numbered 1 through 7.
-    * 2         --> Week begins on Monday. Weekdays are numbered 1 through 7.
+    * @param return_type the day the week begins on:
+    * 1, 17 or null --> Sunday.
+    * 2 or 11       --> Monday.
+    * 12 through 16 --> Tuesday through Saturday.
+    * 21            --> ISO 8601 week (Monday, the week with the first Thursday is week 1).
+    * For all but 21, the week containing January 1 is week 1. Any other value is treated as 1.
     * @return week of the year
     */
    public static int weeknum(Object date, Object return_type) {
@@ -551,17 +554,29 @@ public class CalcDateTime {
       Calendar cal = new GregorianCalendar();
       cal.setTime((Date) date);
 
-      //Default --> Week Begins SUNDAY
-
-      // Week begins MONDAY
-      if(rt == 2) {
+      if(rt == 21) {
          cal.setFirstDayOfWeek(Calendar.MONDAY);
+         cal.setMinimalDaysInFirstWeek(4);
+         return cal.get(Calendar.WEEK_OF_YEAR);
+      }
+
+      int start;
+
+      if(rt == 2 || rt == 11) {
+         start = Calendar.MONDAY;
+      }
+      else if(rt >= 12 && rt <= 16) {
+         start = rt - 9; // Calendar.TUESDAY through Calendar.SATURDAY
       }
       else {
-         cal.setFirstDayOfWeek(Calendar.SUNDAY);
+         start = Calendar.SUNDAY;
       }
 
-      return cal.get(Calendar.WEEK_OF_YEAR);
+      // count weeks from January 1 instead of the locale's WEEK_OF_YEAR, which wraps the last
+      // days of December into the next year and may put January 1 in the previous year
+      int dayOfYear = cal.get(Calendar.DAY_OF_YEAR);
+      int jan1 = Math.floorMod(cal.get(Calendar.DAY_OF_WEEK) - dayOfYear, 7) + 1;
+      return (dayOfYear - 1 + Math.floorMod(jan1 - start, 7)) / 7 + 1;
    }
 
    /**
