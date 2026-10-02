@@ -2954,7 +2954,12 @@ public class SQLHelper implements KeywordProvider {
             {
                int index = xselect.indexOf(column);
                int[] map = JDBCQueryCacheNormalizer.generateSortedColumnMap(uniformSql);
-               index = map == null || index >= map.length ? index : map[index];
+
+               // the select list is written in sorted order, so use the position the column
+               // was written at, not the column at its original position (Bug #77557)
+               if(map != null && index >= 0 && index < map.length) {
+                  index = JDBCQueryCacheNormalizer.generateOriginalColumnMap(map)[index];
+               }
 
                if(index >= 0) {
                   column = Integer.toString(index + 1);
