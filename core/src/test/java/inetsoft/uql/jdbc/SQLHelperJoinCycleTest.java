@@ -228,6 +228,44 @@ class SQLHelperJoinCycleTest {
                      generated);
    }
 
+   static Stream<String> legacyCycleQueries() {
+      return Stream.of(cycleQueries(), rightJoinCycleQueries(), fullJoinCycleQueries())
+         .flatMap(q -> q);
+   }
+
+   @ParameterizedTest
+   @MethodSource("legacyCycleQueries")
+   void legacyCycleKeepsTheSqlString(String text) throws Exception {
+      // a legacy parsed cycle query can't be regenerated from its structure with the right
+      // rows, so it is lossy: the callers that clear the sql string only do so for a query
+      // that is not lossy, and the text, which returns the right rows, is kept
+      UniformSQL legacy = savedQuery(text, true);
+      assertTrue(legacy.isLossy(), text);
+      assertEquals(text, legacy.getSQLString());
+
+      // with the clauses recorded, the structure is regenerated and returns the same rows
+      UniformSQL recorded = savedQuery(text, false);
+      assertFalse(recorded.isLossy(), text);
+   }
+
+   @Test
+   void legacyQueryWithoutCycleIsNotLossy() throws Exception {
+      assertFalse(savedQuery(COLS3 + "from a left join b on a.id = b.id join c on b.id = c.id",
+                             true).isLossy());
+      // two conditions between the same tables are one join step, not a cycle
+      assertFalse(savedQuery(COLS3 + "from a join b on a.id = b.id and a.k = b.k", true)
+                     .isLossy());
+   }
+
+   @Test
+   void legacyCycleIsNotLossyOnceTheSqlStringIsCleared() throws Exception {
+      UniformSQL sql = savedQuery(COLS3 + "from a join b on a.id = b.id join c on b.id = c.id " +
+                                  "and a.k = c.k", true);
+      assertTrue(sql.isLossy());
+      sql.clearSQLString();
+      assertFalse(sql.isLossy());
+   }
+
    @Test
    void legacyCycleKeepsTheOuterLastOrder() throws Exception {
       // Known risk: a parsed query saved before #77475 has no recorded join clauses, so it
@@ -696,6 +734,17 @@ class SQLHelperJoinCycleTest {
    // the generated sql is pretty-printed
    private static String normalize(String sql) {
       return sql.replaceAll("\\s+", " ").trim();
+   }
+
+   /**
+    * A parsed query with its sql string, like one loaded from storage.
+    * @param legacy true to clear the recorded join clauses.
+    */
+   private static UniformSQL savedQuery(String text, boolean legacy) throws Exception {
+      // the structure is parsed (not on the parser pool) and the text is kept, as in a saved query
+      UniformSQL sql = parse(text, legacy);
+      sql.setSQLString(text, false);
+      return sql;
    }
 
    /**
