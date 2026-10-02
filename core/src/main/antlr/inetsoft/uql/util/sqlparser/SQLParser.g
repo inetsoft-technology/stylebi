@@ -3442,6 +3442,12 @@ named_columns_join [UniformSQL sql, String op, String tbl2, int rstart, int rend
               addUsingMerges(sql, list);
            }
 
+           // a RIGHT or FULL join makes the tables before it null supplying, so the
+           // filters in their inner join ON conditions are not where conditions
+           if(outerOp != null) {
+              clearInnerOnJoins(sql, "*=".equals(outerOp) ? "LEFT" : "RIGHT", tbl2);
+           }
+
            markJoins(node, ++onClauseCount);
            sql.combineWhereByAnd(node);
           }
