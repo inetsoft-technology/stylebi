@@ -1,7 +1,10 @@
 # Selection family — card inset, cell padding, and a density-aware default size
 
 **Date:** 2026-10-01
-**Types in scope:** selection list, selection tree, selection container
+**Types in scope:** selection list, selection tree.
+**Scoped out 2026-10-02:** the selection container. It was in scope when this spec was written and
+is no longer; the decision and its consequences are recorded at the points they touch, and §11
+collects them.
 **Not in scope:** slider and range slider. `SliderVSAssemblyInfo` sits in `isCornerSeedTarget()`
 alongside the selection family, but its own javadoc assigns it to form-input modernization, which
 is a separate project.
@@ -106,8 +109,10 @@ Five rows rather than four because five restores legacy parity, and because a ti
 is worse than the problem being fixed — growing by the inset alone yields 3/3/5 across the tiers,
 since dense's 20px cell equals the legacy row.
 
-The selection container keeps its own `3 × defw × 12 × defh` basis grown by its inset. It holds
-child assemblies, not rows, so the five-row rule does not apply to it.
+~~The selection container keeps its own `3 × defw × 12 × defh` basis grown by its inset.~~
+**Withdrawn 2026-10-02.** The container takes no inset, so growing its box by one is incoherent —
+that pairing was itself a defect found and fixed mid-implementation. The container keeps its
+pre-existing `3 × defw × 12 × defh` default, unchanged by this work. See §11.
 
 ### D3 — Cell padding is non-additive, by construction
 
@@ -211,10 +216,11 @@ consistent with chart and table, which is what D2's arithmetic assumes.
 
 **Three branches take their own answer:**
 
-1. **`inContainer`** — a list inside a selection container must not double-inset. The container
-   insets its children; a child then insets its own rows within the space it was given. The existing
-   `inContainer` branch is the seam, and it already skips the border and margin offsets for the same
-   reason.
+1. ~~**`inContainer`** — a list inside a selection container must not double-inset.~~
+   **Reversed 2026-10-02.** This rested on "the container insets its children", which the scope-out
+   falsified. A contained list now insets itself exactly as a standalone one does, on all three
+   surfaces, and the `inContainer` exemption was removed rather than mirrored into export. One rule,
+   no special case. See §11.
 2. **`dropdown && !maxMode`** — this branch computes `cellHeight * listHeight` and never reads
    `objectFormat.height`, so the inset is not implicitly present. **The dropdown panel does not take
    the inset.** It is transient chrome rather than the card, and insetting it costs rows where rows
@@ -232,9 +238,12 @@ Two `PaddingPaneModel` instances — card inset and cell padding — added to th
 property dialogs, with read and write in `SelectionListPropertyDialogService`,
 `SelectionTreePropertyDialogService` and `SelectionContainerPropertyDialogService`.
 
-**Placement follows tables.** Both panes go on the per-type general pane models —
-`SelectionGeneralPaneModel` (shared by the list and tree dialogs) and
-`SelectionContainerGeneralPaneModel` — exactly as tables use `TableViewGeneralPaneModel`.
+**Placement follows tables.** Both panes go on `SelectionGeneralPaneModel`, shared by the list and
+tree dialogs, exactly as tables use `TableViewGeneralPaneModel`.
+
+**Corrected 2026-10-02.** This section also required a pane on
+`SelectionContainerGeneralPaneModel`. The container has no inset, so it has no padding control:
+leaving one would let an author store a value that only print honoured. See §11.
 
 **Corrected 2026-10-01, before planning.** This section first said the panes would go on
 `SizePositionPaneModel` instead, to sit beside `cellHeight` and its `cellHeightFollowsDensity`
@@ -283,7 +292,8 @@ during a release gate.
 - The size rule rewriting only the four recognized sizes; an author size left alone; an author cell
   height taking the assembly out of the set; Revert restoring 100×120; the rule re-firing on a
   density change rather than stranding a seeded size at the old tier.
-- `getBodyHeight()` and `getBodyWidth()` subtracting the inset; `inContainer` not double-insetting;
+- `getBodyHeight()` and `getBodyWidth()` subtracting the inset **and offsetting the body by it** —
+  a shrink without a shift leaves the rows flush to the border, which is the defect §1 names;
   the dropdown branch unchanged.
 - Dialog read and write round trip, including `followsDefault` semantics and a missing flag.
 - Precedence: USER beats CSS beats DEFAULT, resolving wholesale.
@@ -307,7 +317,7 @@ the table captures existed to police.
 |---|---|
 | `SelList` | the plain case, and the five-row size rule |
 | `SelTree` | node indent against the horizontal inset |
-| `SelContainer` | a container holding a list and a tree — the double-inset risk in §5 branch 1 |
+| `SelContainer` | a container holding a list and a tree — **now checks the container is _unchanged_** while its children inset normally (§11) |
 | `SelNoTitle` | hidden title, lane 0, with the inset still drawn |
 
 Plus one unmarked viewsheet holding the same four as the legacy control.
@@ -357,3 +367,38 @@ None. The one item this spec carried — whether to build a selection export fix
 narrower visual check — was **decided on 2026-10-01: build one, scoped lighter than the table's.**
 The scope is §8.1, and the reasoning for each thing it leaves out is recorded there rather than
 here, so a later reader finds it beside the checks it governs.
+
+
+## 11. The container scope-out — decided 2026-10-02
+
+The selection container was in scope when this spec was written and is not in the shipped work. The
+decision was the user's, taken after the whole-branch review established the state below.
+
+**What was found.** Export honoured the container's seeded inset — `VSCurrentSelectionHelper` placed
+its rows through `getContentBounds` — while nothing in the browser read it: no container component
+touches `model.padding`, and container children are positioned by the viewsheet layout engine. So a
+modernized container rendered a box 32px larger with its rows flush as before, and exported the same
+box with its rows indented 16px. That is the live/export mismatch §1 says this work exists to remove,
+which made shipping it the one combination the design ruled out.
+
+**What was removed.** The container's `defaultPadding` override and padding seed; its size rule;
+`VSDensityDefaults.containerSize` / `isSeededContainerSize` / `containerSizeForMode`;
+`VSCurrentSelectionHelper`'s `getContentBounds` usage; its `PaddingPaneModel`, dialog read/write
+blocks and `<padding-pane>`; and the `applyCardInset` wrapper in `addCurrentSelection`. The container
+is byte-identical to pre-branch on seed, model, browser, export, print and dialog, and that is
+pinned by tests rather than left true by omission.
+
+**The size rule went with the inset.** Keeping it would have re-created the exact defect the
+implementation had already found and fixed once: a box grown by an inset that does not exist.
+
+**A contained child now insets itself.** The `inContainer` exemption existed because the container
+was supposed to inset its children. With that false, the consistent rule is that a selection list
+looks the same in or out of a container, so the exemption was removed rather than mirrored into
+export. A contained child insets on browser, export and print alike.
+
+**Still open, and not part of this work.** The container's out-selection row height is not
+density-aware and disagrees across surfaces — `VSSelectionContainerModel` defaults it to 18 while
+`VSCurrentSelectionHelper` uses `AssetUtil.defh` (20) — while the container's title lane already
+follows density at 30/26/20. That 2px discrepancy predates this branch. Whether those rows should
+take the 28/24/20 cell matrix, and whether the container's default size should then grow to keep its
+row count, is a separate slice.
