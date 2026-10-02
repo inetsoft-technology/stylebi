@@ -17,26 +17,35 @@
  */
 package inetsoft.sree.security;
 
+import inetsoft.sree.RepletRegistryManager;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.DataCycleManager;
 import inetsoft.sree.portal.CustomThemesManager;
 import inetsoft.sree.portal.CustomThemesManagerMocks;
 import inetsoft.sree.portal.PortalThemesManager;
+import inetsoft.sree.schedule.ScheduleManager;
+import inetsoft.sree.web.dashboard.DashboardManager;
 import inetsoft.sree.web.dashboard.DashboardRegistryManager;
 import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.SreeHome;
+import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.util.ThreadContext;
+import inetsoft.util.log.LogManager;
+import inetsoft.web.admin.favorites.FavoritesService;
 import inetsoft.web.admin.security.IdentityService;
 import inetsoft.web.admin.security.user.IdentityThemeService;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.MockedStatic;
+import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 
+import java.lang.reflect.Method;
 import java.security.Principal;
 import java.util.*;
 
@@ -82,6 +91,34 @@ class OrgScopedPropertiesMixedCaseOrgIdTest {
       createIdentityService().removeOrgProperties(orgId);
 
       assertEquals(List.of(), scopedKeys("b77534del"),
+                   "the deleted org's scoped properties must be removed");
+      assertNull(SreeEnv.getProperty(LOG_KEY + "^" + orgId),
+                 "the deleted org's log level property must be removed");
+   }
+
+   @Test
+   void delete_syncIdentity_mixedCaseOrgId_removesOrgScopedProperties() throws Exception {
+      String orgId = "B77534SyncDel";
+      writeAs(orgId, "format.date", "MM/dd/yyyy");
+      SreeEnv.setProperty(LOG_KEY + "^" + orgId, "debug");
+      assertEquals(List.of("inetsoft.org.b77534syncdel.format.date"), scopedKeys("b77534syncdel"),
+                   "precondition: the org-scoped property is stored with the org ID lower case");
+
+      IdentityService service = createSyncIdentityService();
+      EditableAuthenticationProvider eprovider = mock(EditableAuthenticationProvider.class);
+      Organization org = new Organization(orgId);
+      when(eprovider.getOrganization(orgId)).thenReturn(org);
+
+      // the org delete branch of IdentityService.syncIdentity(), as reached from deleteIdentities()
+      Method syncIdentity = IdentityService.class.getDeclaredMethod(
+         "syncIdentity", EditableAuthenticationProvider.class, inetsoft.uql.util.Identity.class,
+         IdentityID.class);
+      syncIdentity.setAccessible(true);
+      syncIdentity.invoke(service, eprovider, org, null);
+
+      verify(eprovider).removeOrganization(orgId);
+      verify(service).removeOrgProperties(orgId);
+      assertEquals(List.of(), scopedKeys("b77534syncdel"),
                    "the deleted org's scoped properties must be removed");
       assertNull(SreeEnv.getProperty(LOG_KEY + "^" + orgId),
                  "the deleted org's log level property must be removed");
@@ -249,6 +286,37 @@ class OrgScopedPropertiesMixedCaseOrgIdTest {
          null, null, null, null, null, null, null, null, null, null, null, null, null, null,
          Optional.empty(), null, null, null, null, null, null, null, null, null, null, null,
          null, null, Optional.empty());
+   }
+
+   /**
+    * Creates an IdentityService whose org delete branch of syncIdentity() runs for real, with
+    * removeOrgProperties() real and the unrelated clean-up steps stubbed out.
+    */
+   private static IdentityService createSyncIdentityService() throws Exception {
+      IdentityService service = mock(IdentityService.class, withSettings().defaultAnswer(CALLS_REAL_METHODS));
+      AuthorizationChain authorizationChain = mock(AuthorizationChain.class);
+      SecurityProvider securityProvider = mock(SecurityProvider.class);
+      when(securityProvider.getAuthorizationProvider()).thenReturn(authorizationChain);
+      ReflectionTestUtils.setField(service, "securityProvider", securityProvider);
+      ReflectionTestUtils.setField(service, "dashboardManager", mock(DashboardManager.class));
+      ReflectionTestUtils.setField(service, "scheduleManager", mock(ScheduleManager.class));
+      ReflectionTestUtils.setField(service, "portalThemesManager", mock(PortalThemesManager.class));
+      ReflectionTestUtils.setField(service, "dashboardRegistryManager",
+                                   mock(DashboardRegistryManager.class));
+      ReflectionTestUtils.setField(service, "dataCycleManager", mock(DataCycleManager.class));
+      ReflectionTestUtils.setField(service, "themeService", mock(IdentityThemeService.class));
+      ReflectionTestUtils.setField(service, "favoritesService", mock(FavoritesService.class));
+      ReflectionTestUtils.setField(service, "dataSourceRegistry", mock(DataSourceRegistry.class));
+      ReflectionTestUtils.setField(service, "repletRegistryManager",
+                                   mock(RepletRegistryManager.class));
+      ReflectionTestUtils.setField(service, "logManager", mock(LogManager.class));
+      // LOG is a final instance field set by the constructor, which the mock bypasses
+      ReflectionTestUtils.setField(service, "LOG", LoggerFactory.getLogger(IdentityService.class));
+      doNothing().when(service).removeOrgScopedDataSpaceElements(any());
+      doNothing().when(service).updateRepletRegistry(any(), any());
+      doNothing().when(service).clearDataSourceMetadata();
+      doNothing().when(service).removeStorages(anyString());
+      return service;
    }
 
    private static final String LOG_KEY = "log.level.test77534";
