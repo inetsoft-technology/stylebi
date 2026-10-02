@@ -162,6 +162,23 @@ public abstract class SelectionBaseVSAssemblyInfo extends MaxModeSelectionVSAsse
       this.cellPadding.setValue(cellPadding, type);
    }
 
+   /**
+    * Whether the author set the cell padding. Surfaced in the property dialog as the cell padding
+    * pane's follow-the-default checkbox, inverted.
+    */
+   public boolean isUserCellPadding() {
+      return cellPadding.hasUserValue();
+   }
+
+   /**
+    * Drop the author's cell padding and let the density decide again. What the follow-the-default
+    * checkbox calls when it is checked - writing the density value into the USER tier instead
+    * would pin the current tier.
+    */
+   public void resetUserCellPadding() {
+      cellPadding.resetUserValue();
+   }
+
    @Override
    public double getListHeightScale() {
       return listHeightScale;
