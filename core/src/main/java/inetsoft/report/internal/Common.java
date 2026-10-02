@@ -23,6 +23,7 @@ import inetsoft.report.io.ArabicTextUtil;
 import inetsoft.report.pdf.FontManager;
 import inetsoft.sree.SreeEnv;
 import inetsoft.uql.XConstants;
+import inetsoft.util.DecimalPatternUtil;
 import inetsoft.util.Tool;
 import org.apache.commons.io.IOUtils;
 import org.slf4j.Logger;
@@ -1851,13 +1852,28 @@ public class Common extends Util {
     * Create a format from the format specification.
     */
    public static Format getFormat(String format, String format_spec) {
+      try {
+         return createFormat(format, format_spec);
+      }
+      catch(IllegalArgumentException ex) {
+         // a malformed spec drops this format instead of failing the whole parse of the
+         // containing sheet
+         LOG.warn("Failed to create format \"{}\" for specification \"{}\": {}",
+                  format, format_spec, ex.getMessage());
+         return null;
+      }
+   }
+
+   private static Format createFormat(String format, String format_spec) {
       if(format.equals(SIMPLEDATEFORMAT) || format.equals("SimpleDateFormat") ||
          format.equals(DATEFORMAT) || format.equals("DateFormat"))
       {
          return format_spec != null ? Tool.createDateFormat(format_spec) : Tool.createDateFormat("yyyy-MM-dd");
       }
       else if(format.equals(DECIMALFORMAT) || format.equals("DecimalFormat")) {
-         return format_spec != null ? new DecimalFormat(format_spec) : NumberFormat.getInstance();
+         return format_spec != null ?
+            new DecimalFormat(DecimalPatternUtil.normalizeEmptyPattern(format_spec)) :
+            NumberFormat.getInstance();
       }
       else if(format.equals(CHOICEFORMAT) || format.equals("ChoiceFormat")) {
          return format_spec != null ? new ChoiceFormat(format_spec) : NumberFormat.getInstance();

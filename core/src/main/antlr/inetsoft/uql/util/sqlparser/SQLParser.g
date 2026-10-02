@@ -146,6 +146,7 @@ private Set columns = new HashSet();
 private long ts = -1; // stop timestamp
 private int checkCnt = 0; // optimization
 private Map map = new HashMap(); // sql + table ->op
+private int onClauseCount = 0; // ON clauses parsed so far, in text order
 private boolean catalog = false;
 private boolean schema = true;
 private boolean preferQuote = true;
@@ -222,6 +223,47 @@ private void clearTableOps() {
 }
 
 /**
+ * Set the join type of the tables of a parenthesized joined table on the
+ * right of a join, e.g. b and c in a left join (b join c on ..) on .., so an
+ * ON that names one of them first is still an outer join to the right side.
+ * @param first the index of the first table of the joined table.
+ */
+private void setJoinedTableOps(UniformSQL sql, int first, String op) {
+   if(sql == null || op == null || op.trim().length() == 0) {
+      return;
+   }
+
+   clearTableOps();
+
+   for(int i = first; i < sql.getTableCount(); i++) {
+      String alias = sql.getTableAlias(i);
+      Object name = sql.getSelectTable(i).getName();
+
+      if(alias != null && alias.length() > 0) {
+         setTableOp(sql, alias, op.trim());
+      }
+
+      setTableOp(sql, name, op.trim());
+   }
+}
+
+/**
+ * Record where the joins in a condition were found: the where clause, or the
+ * number of an ON clause in text order. SQLHelper regenerates where clause
+ * joins as where conditions and ON clause joins in text order (#77475).
+ */
+private void markJoins(inetsoft.uql.XNode node, int clause) {
+   if(node instanceof XJoin) {
+      ((XJoin) node).setJoinClause(clause);
+   }
+   else if(node instanceof XSet) {
+      for(int i = 0; i < node.getChildCount(); i++) {
+         markJoins(node.getChild(i), clause);
+      }
+   }
+}
+
+/**
  * Get the joins of an outer join ON condition. An outer join is only
  * represented as XJoin nodes in the where clause, so the condition must be a
  * column = column join, or an AND of such joins between the same two tables.
@@ -287,6 +329,162 @@ private boolean collectOuterJoins(XFilterNode node, List joins) {
    return false;
 }
 
+// sql -> XJoins of inner join ON conditions that are still filters on the
+// result of the joins before them (no later RIGHT/FULL or nested outer join)
+private Map innerOnJoins = new IdentityHashMap();
+
+/**
+ * Remember the column comparisons of an inner join ON condition. Once the
+ * FROM clause is complete, the ones between two outer joined tables are
+ * converted to plain conditions by moveOuterPairJoins().
+ */
+private void addInnerOnJoins(UniformSQL sql, XFilterNode cond) {
+   List joins = (List) innerOnJoins.get(sql);
+
+   if(joins == null) {
+      joins = new ArrayList();
+      innerOnJoins.put(sql, joins);
+   }
+
+   collectInnerJoins(cond, joins);
+}
+
+/**
+ * An outer join can make the tables of the inner joins before it null
+ * supplying (a RIGHT/FULL join, or an outer join of a parenthesized operand).
+ * A filter in their ON conditions is then not the same as a where condition,
+ * so those conditions are left as they are.
+ */
+private void clearInnerOnJoins(UniformSQL sql, String outerType, String tbl2) {
+   if(!"LEFT".equals(outerType) || tbl2 == null || tbl2.length() == 0) {
+      innerOnJoins.remove(sql);
+   }
+}
+
+private void collectInnerJoins(XFilterNode node, List joins) {
+   if(node instanceof XJoin) {
+      if(!((XJoin) node).isOuterJoin()) {
+         joins.add(node);
+      }
+   }
+   else if(node instanceof XSet) {
+      for(int i = 0; i < node.getChildCount(); i++) {
+         collectInnerJoins((XFilterNode) node.getChild(i), joins);
+      }
+   }
+}
+
+/**
+ * Collect the table pairs of the outer joins in a condition. Each pair is the
+ * two table names, sorted and separated by a newline.
+ */
+private void collectOuterPairs(UniformSQL sql, XFilterNode node, Set pairs) {
+   if(node instanceof XJoin) {
+      String pair = getTablePair(sql, (XJoin) node);
+
+      if(((XJoin) node).isOuterJoin() && pair != null) {
+         pairs.add(pair);
+      }
+   }
+   else if(node instanceof XSet && !node.isIsNot() &&
+      XSet.AND.equalsIgnoreCase(((XSet) node).getRelation()))
+   {
+      for(int i = 0; i < node.getChildCount(); i++) {
+         collectOuterPairs(sql, (XFilterNode) node.getChild(i), pairs);
+      }
+   }
+}
+
+private String getTablePair(UniformSQL sql, XJoin join) {
+   String table1 = join.getTable1(sql);
+   String table2 = join.getTable2(sql);
+
+   if(table1 == null || table2 == null || table1.length() == 0 ||
+      table2.length() == 0 || table1.equals(table2))
+   {
+      return null;
+   }
+
+   // SQLHelper matches the tables of a join ignoring case (getTableIndex)
+   table1 = table1.toLowerCase(Locale.ROOT);
+   table2 = table2.toLowerCase(Locale.ROOT);
+
+   return table1.compareTo(table2) < 0 ? table1 + "\n" + table2 :
+      table2 + "\n" + table1;
+}
+
+/**
+ * An XJoin between two outer joined tables is generated in the ON condition
+ * of the outer join, where it no longer drops the null extended rows. Store
+ * a filter between such tables as a plain condition instead (#77478).
+ */
+private XFilterNode toOuterPairCondition(UniformSQL sql, XFilterNode node,
+                                         Set pairs)
+{
+   if(node instanceof XJoin) {
+      XJoin join = (XJoin) node;
+
+      if(!join.isOuterJoin() && pairs.contains(getTablePair(sql, join))) {
+         XBinaryCondition cond = new XBinaryCondition(
+            join.getExpression1(), join.getExpression2(), join.getOp());
+         cond.setName(join.getName());
+         cond.setIsNot(join.isIsNot());
+         cond.setClause(join.getClause());
+         cond.setGroup(join.isGroup());
+         return cond;
+      }
+   }
+   else if(node instanceof XSet) {
+      for(int i = 0; i < node.getChildCount(); i++) {
+         XFilterNode child = (XFilterNode) node.getChild(i);
+         XFilterNode child2 = toOuterPairCondition(sql, child, pairs);
+
+         if(child2 != child) {
+            node.setChild(i, child2);
+         }
+      }
+   }
+
+   return node;
+}
+
+/**
+ * Convert the column comparisons of a where clause between two outer joined
+ * tables to plain conditions. The where clause applies after all the joins,
+ * so this keeps its meaning wherever the outer join is.
+ */
+private XFilterNode whereOuterPairJoins(UniformSQL sql, XFilterNode where) {
+   Set pairs = new HashSet();
+   collectOuterPairs(sql, sql.getWhere(), pairs);
+   collectOuterPairs(sql, where, pairs);
+   return pairs.isEmpty() ? where : toOuterPairCondition(sql, where, pairs);
+}
+
+/**
+ * Convert the remembered inner join ON comparisons between two outer joined
+ * tables to plain conditions once the FROM clause is complete.
+ */
+private void moveOuterPairJoins(UniformSQL sql) {
+   List joins = (List) innerOnJoins.remove(sql);
+   Set pairs = new HashSet();
+   collectOuterPairs(sql, sql.getWhere(), pairs);
+
+   for(int i = 0; joins != null && !pairs.isEmpty() && i < joins.size(); i++) {
+      XJoin join = (XJoin) joins.get(i);
+      inetsoft.uql.XNode parent = join.getParent();
+      XFilterNode cond = toOuterPairCondition(sql, join, pairs);
+
+      for(int j = 0; parent != null && cond != join &&
+             j < parent.getChildCount(); j++)
+      {
+         if(parent.getChild(j) == join) {
+            parent.setChild(j, cond);
+            break;
+         }
+      }
+   }
+}
+
 public boolean hasField(){
    return hasField;
 }
@@ -310,6 +508,102 @@ private void checkStatus() {
       if(ts > 0 && System.currentTimeMillis() >= ts) {
          throw new ParserStoppedException();
       }
+   }
+}
+
+/*
+ * Memoization of rule results while guessing. The syntactic predicates make
+ * every nested parenthesis parse its contents at least twice (once to guess,
+ * once for real), and several times when the guesses fail, so without it the
+ * parse time grows exponentially with the nesting depth. A rule listed below
+ * is split into a wrapper and a "_body" rule; while guessing, the wrapper
+ * records at which token the body stopped, or that it failed, for each start
+ * token, and replays that result the next time the rule is guessed there.
+ * Actions do not run while guessing, so only the stop position matters.
+ * Exception handlers do not run while guessing either, so a failure is
+ * recorded before the body is parsed and replaced when the body matches.
+ * This assumes that no listed rule calls itself again at its start token
+ * without consuming a token first, which would read that recorded failure.
+ */
+private static final int MEMO_SEARCH_CONDITION = 0;
+private static final int MEMO_BOOLEAN_PRIMARY = 1;
+private static final int MEMO_PREDICATE = 2;
+private static final int MEMO_ROW_VALUE_CONSTRUCTOR = 3;
+private static final int MEMO_VALUE_EXP = 4;
+private static final int MEMO_NUM_VALUE_EXP = 5;
+private static final int MEMO_VALUE_EXP_PRIMARY = 6;
+private static final int MEMO_STRING_VALUE_EXP = 7;
+private static final int MEMO_CHAR_VALUE_EXP = 8;
+private static final int MEMO_DATETIME_VALUE_EXP = 9;
+private static final int MEMO_INTERVAL_VALUE_EXP = 10;
+private static final int MEMO_MATCH_VALUE = 11;
+private static final int MEMO_SET_FCT_SPEC = 12;
+private static final int MEMO_RULE_COUNT = 13;
+private static final Object MEMO_FAILED = new Object();
+// start token -> stop token or MEMO_FAILED, one map per rule
+private final List<Map<Token, Object>> memo = createMemo();
+
+private static List<Map<Token, Object>> createMemo() {
+   List<Map<Token, Object>> memo = new ArrayList<>();
+
+   for(int i = 0; i < MEMO_RULE_COUNT; i++) {
+      memo.add(new IdentityHashMap<>());
+   }
+
+   return memo;
+}
+
+/**
+ * Replay a memoized result of a rule while guessing.
+ * @return true if the rule already matched at the start token and the input
+ * was advanced past the match; false if the rule must be parsed, in which case
+ * a failure is recorded until memoSuccess() replaces it.
+ * @throws RecognitionException if the rule already failed at the start token.
+ */
+private boolean memoHit(int rule, Token start)
+   throws RecognitionException, TokenStreamException
+{
+   if(inputState.guessing == 0) {
+      return false;
+   }
+
+   Object stop = memo.get(rule).get(start);
+
+   if(stop == null) {
+      memo.get(rule).put(start, MEMO_FAILED);
+      return false;
+   }
+
+   if(stop == MEMO_FAILED) {
+      throw new RecognitionException("memoized failure");
+   }
+
+   while(LT(1) != stop && LA(1) != Token.EOF_TYPE) {
+      consume();
+   }
+
+   return true;
+}
+
+/**
+ * Record that a rule matched from the start token up to the current token.
+ * Always returns true so that it can be used as a validating predicate.
+ */
+private boolean memoSuccess(int rule, Token start) throws TokenStreamException {
+   if(inputState.guessing > 0) {
+      memo.get(rule).put(start, LT(1));
+   }
+
+   return true;
+}
+
+/**
+ * Forget the memoized results, needed when a token type changes because the
+ * results recorded before the change may no longer hold.
+ */
+private void clearMemo() {
+   for(Map<Token, Object> map : memo) {
+      map.clear();
    }
 }
 
@@ -393,6 +687,10 @@ public static boolean isQualifiedName(String name) {
 public boolean changeType(String targetStr, int type) {
    try {
            if(LT(1).getText().trim().equalsIgnoreCase(targetStr)) {
+                if(LT(1).getType() != type) {
+                   clearMemo();
+                }
+
                 LT(1).setType(type);
                 return true;
            }
@@ -473,6 +771,12 @@ comparison_operator returns [String comp = ""]
 /*  Rebuild the condition  */
 
 search_condition returns [XFilterNode node = null]
+        {Token memoStart = LT(1); if(memoHit(MEMO_SEARCH_CONDITION, memoStart)) {return node;}}
+        :
+        node = search_condition_body {memoSuccess(MEMO_SEARCH_CONDITION, memoStart)}?
+        ;
+
+search_condition_body returns [XFilterNode node = null]
         {XFilterNode tmp, tmp1; {checkStatus();}}
         :
         tmp = boolean_term
@@ -540,6 +844,12 @@ truth_value returns [String tv = ""]
         ;
 
 boolean_primary returns [XFilterNode node = null]
+        {Token memoStart = LT(1); if(memoHit(MEMO_BOOLEAN_PRIMARY, memoStart)) {return node;}}
+        :
+        node = boolean_primary_body {memoSuccess(MEMO_BOOLEAN_PRIMARY, memoStart)}?
+        ;
+
+boolean_primary_body returns [XFilterNode node = null]
         {checkStatus();}
         :
         (OPEN_PAREN (NOT)? boolean_primary)=>
@@ -548,6 +858,12 @@ boolean_primary returns [XFilterNode node = null]
         ;
 
 predicate returns [XFilterNode node = null]
+        {Token memoStart = LT(1); if(memoHit(MEMO_PREDICATE, memoStart)) {return node;}}
+        :
+        node = predicate_body {memoSuccess(MEMO_PREDICATE, memoStart)}?
+        ;
+
+predicate_body returns [XFilterNode node = null]
         {checkStatus();}
         :
         (row_value_constructor comp_op quantifier)=>
@@ -738,6 +1054,12 @@ similar_predicate returns [XFilterNode xnode = null]
 */
 
 match_value returns [XExpression exp = null]
+        {Token memoStart = LT(1); if(memoHit(MEMO_MATCH_VALUE, memoStart)) {return exp;}}
+        :
+        exp = match_value_body {memoSuccess(MEMO_MATCH_VALUE, memoStart)}?
+        ;
+
+match_value_body returns [XExpression exp = null]
         {String str; {checkStatus();}}
         :
         str = char_value_exp {exp = new XExpression(); exp.setValue(str, XExpression.EXPRESSION);}
@@ -851,6 +1173,12 @@ row_value_constructor_2 returns [XExpression exp = null]
         ;
 
 row_value_constructor returns [XExpression exp = null]
+        {Token memoStart = LT(1); if(memoHit(MEMO_ROW_VALUE_CONSTRUCTOR, memoStart)) {return exp;}}
+        :
+        exp = row_value_constructor_body {memoSuccess(MEMO_ROW_VALUE_CONSTRUCTOR, memoStart)}?
+        ;
+
+row_value_constructor_body returns [XExpression exp = null]
         {String str; XExpression tmp; {checkStatus();}}
         :
         (OPEN_PAREN SELECT)=>
@@ -891,6 +1219,12 @@ row_value_const_list returns [XExpression exp = null]
         ;
 
 value_exp returns [XExpression exp = null]
+        {Token memoStart = LT(1); if(memoHit(MEMO_VALUE_EXP, memoStart)) {return exp;}}
+        :
+        exp = value_exp_body {memoSuccess(MEMO_VALUE_EXP, memoStart)}?
+        ;
+
+value_exp_body returns [XExpression exp = null]
         {String str;
         hasField = false;
         {checkStatus();}
@@ -928,6 +1262,12 @@ single_value_exp
         ;
 
 num_value_exp returns [XExpression exp = null]
+        {Token memoStart = LT(1); if(memoHit(MEMO_NUM_VALUE_EXP, memoStart)) {return exp;}}
+        :
+        exp = num_value_exp_body {memoSuccess(MEMO_NUM_VALUE_EXP, memoStart)}?
+        ;
+
+num_value_exp_body returns [XExpression exp = null]
         {XExpression tmp,tmp1; {checkStatus();}}
         //remove all predictions of this rules if don't use subquery_select_list
         :
@@ -1003,13 +1343,25 @@ num_primary returns [XExpression exp = null]
         ;
 
 value_exp_primary returns [XExpression exp = null]
+        {Token memoStart = LT(1); if(memoHit(MEMO_VALUE_EXP_PRIMARY, memoStart)) {return exp;}}
+        :
+        exp = value_exp_primary_body {memoSuccess(MEMO_VALUE_EXP_PRIMARY, memoStart)}?
+        ;
+
+value_exp_primary_body returns [XExpression exp = null]
         {String tmp; exp = new XExpression(); {checkStatus();}}
         :
         // @by vincentx, 2004-08-13
         // parse the date type: date, time and timestamp
         (SPIDENT_BRACKET)=> m:SPIDENT_BRACKET {
-           if(XUtil.parseDate(m.getText()) != null) {
-              exp.setValue(XUtil.parseDate(m.getText()), XExpression.VALUE);
+           String date = XUtil.parseDate(m.getText());
+
+           if(date != null) {
+              exp.setValue(date, XExpression.VALUE);
+           }
+           // keep other escapes, e.g. {fn now()} or a malformed date, instead of dropping them
+           else {
+              exp.setValue(m.getText(), XExpression.EXPRESSION);
            }
         }
         |
@@ -1322,6 +1674,12 @@ column_ref returns [String colref = ""]
         ;
 
 set_fct_spec returns [String setfct = ""]
+        {Token memoStart = LT(1); if(memoHit(MEMO_SET_FCT_SPEC, memoStart)) {return setfct;}}
+        :
+        setfct = set_fct_spec_body {memoSuccess(MEMO_SET_FCT_SPEC, memoStart)}?
+        ;
+
+set_fct_spec_body returns [String setfct = ""]
         {checkStatus();}
         :
         //(COUNT OPEN_PAREN STAR )=>
@@ -1717,6 +2075,12 @@ position_exp returns [String pe = ""]
 */
 
 char_value_exp returns [String cve = ""]
+        {Token memoStart = LT(1); if(memoHit(MEMO_CHAR_VALUE_EXP, memoStart)) {return cve;}}
+        :
+        cve = char_value_exp_body {memoSuccess(MEMO_CHAR_VALUE_EXP, memoStart)}?
+        ;
+
+char_value_exp_body returns [String cve = ""]
         {XExpression exp1, exp2; checkStatus();}
         :
         // @by billh, here prediction is too heavy and occupies too much time,
@@ -1966,6 +2330,12 @@ extract_source returns [String extsou = ""]
 */
 
 datetime_value_exp returns [String dve = ""]
+        {Token memoStart = LT(1); if(memoHit(MEMO_DATETIME_VALUE_EXP, memoStart)) {return dve;}}
+        :
+        dve = datetime_value_exp_body {memoSuccess(MEMO_DATETIME_VALUE_EXP, memoStart)}?
+        ;
+
+datetime_value_exp_body returns [String dve = ""]
         {String tmp, tmp1; {checkStatus();}}
         :
         (interval_value_exp PLUS)=>
@@ -2058,6 +2428,12 @@ time_zone_specifier returns [String tzs = ""]
 */
 
 interval_value_exp returns [String ive = ""]
+        {Token memoStart = LT(1); if(memoHit(MEMO_INTERVAL_VALUE_EXP, memoStart)) {return ive;}}
+        :
+        ive = interval_value_exp_body {memoSuccess(MEMO_INTERVAL_VALUE_EXP, memoStart)}?
+        ;
+
+interval_value_exp_body returns [String ive = ""]
         {String tmp, tmp1, tmp2; {checkStatus();}}
         :
         (interval_term_1 PLUS )=>
@@ -2139,6 +2515,12 @@ char_length_exp returns [String cle = ""]
 */
 
 string_value_exp returns [String sve = ""]
+        {Token memoStart = LT(1); if(memoHit(MEMO_STRING_VALUE_EXP, memoStart)) {return sve;}}
+        :
+        sve = string_value_exp_body {memoSuccess(MEMO_STRING_VALUE_EXP, memoStart)}?
+        ;
+
+string_value_exp_body returns [String sve = ""]
         {checkStatus();}
         :
         (char_value_exp)=>
@@ -2420,8 +2802,8 @@ column_name returns [String colname = ""]
 table_exp [UniformSQL sql]
         {XFilterNode where, having; String nouse; {checkStatus();}}
         :
-        (from_clause[sql])?
-        ( where = where_clause {where.setClause(XFilterNode.WHERE); sql.combineWhereByAnd(where);})?
+        (from_clause[sql] {moveOuterPairJoins(sql);})?
+        ( where = where_clause {where = whereOuterPairJoins(sql, where); where.setClause(XFilterNode.WHERE); markJoins(where, XJoin.WHERE_CLAUSE); sql.combineWhereByAnd(where);})?
         ( group_by_clause[sql] )?
         ( having = having_clause {having.setClause(XFilterNode.HAVING); sql.setHaving(having);})?
         ((ORDER BY)=> nouse = order_by_clause[sql] )?
@@ -2718,7 +3100,7 @@ qualified_join [UniformSQL sql] returns [XExpression exp = null]
         ;
 
 sub_qualified_join [UniformSQL sql] returns [String str = ""]
-        { String tbl2=""; String tmp; String op = ""; String table = ""; XExpression exp = null; {checkStatus();}}
+        { String tbl2=""; String tmp; String op = ""; String table = ""; XExpression exp = null; int first = 0; boolean spec = false; {checkStatus();}}
         :
         (
          (
@@ -2731,15 +3113,31 @@ sub_qualified_join [UniformSQL sql] returns [String str = ""]
         )
         (
           ((joined_table)=>
-            (exp = joined_table_2[sql] {str += exp.toString();})
+            ({first = sql == null ? 0 : sql.getTableCount();}
+             exp = joined_table_2[sql] {str += exp.toString(); setJoinedTableOps(sql, first, op);})
             |(table = table_ref_nojoin[sql, op] {str += " " + table;
                                                  tbl2 = table;
                                                  tbl2 = tbl2.trim();})
           )
           ( (join_spec[null, "", ""])=>
-            tmp = join_spec[sql, op, tbl2] {str += " " + tmp;}
+            tmp = join_spec[sql, op, tbl2] {str += " " + tmp; spec = true;}
             ((sub_qualified_join[sql])=> tmp = sub_qualified_join[sql] {str += " " + tmp;})?
           )?
+          {
+            // an outer join is only recorded by its join condition, so without one it
+            // would be regenerated as a cross join. a union join (rejected by H2, SQLite
+            // and Derby) would be regenerated as a cross or inner join
+            String jop = op.trim();
+
+            if(sql != null && (jop.regionMatches(true, 0, "UNION", 0, 5) ||
+               !spec && (jop.regionMatches(true, 0, "LEFT", 0, 4) ||
+                         jop.regionMatches(true, 0, "RIGHT", 0, 5) ||
+                         jop.regionMatches(true, 0, "FULL", 0, 4))))
+            {
+              throw new SemanticException("Unsupported join: " + jop, getFilename(),
+                                          d.getLine(), d.getColumn());
+            }
+          }
         )
         ;
 
@@ -2815,8 +3213,14 @@ join_condition [UniformSQL sql, String op, String tbl2] returns [String jc = ""]
 
                  join.setOp(outerOp);
               }
+
+              clearInnerOnJoins(sql, outerType, tbl2);
+           }
+           else {
+              addInnerOnJoins(sql, tmp);
            }
 
+           markJoins(tmp, ++onClauseCount);
            sql.combineWhereByAnd(tmp);
         }
 
@@ -2862,6 +3266,7 @@ named_columns_join [UniformSQL sql] returns [String jc = ""]
                         ((XSet)node).addChild(tmpNode);
                 }
            }
+           markJoins(node, ++onClauseCount);
            sql.combineWhereByAnd(node);
           }
          }

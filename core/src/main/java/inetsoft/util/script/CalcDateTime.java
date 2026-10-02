@@ -342,7 +342,7 @@ public class CalcDateTime {
       }
 
       int working_days = 0;
-      Calendar cal = Calendar.getInstance();
+      Calendar cal = new GregorianCalendar();
 
       while(true) {
          int day = start.get(Calendar.DAY_OF_WEEK);
@@ -548,7 +548,7 @@ public class CalcDateTime {
          rt = ((Number) return_type).intValue();
       }
 
-      Calendar cal = Calendar.getInstance();
+      Calendar cal = new GregorianCalendar();
       cal.setTime((Date) date);
 
       //Default --> Week Begins SUNDAY
@@ -598,7 +598,7 @@ public class CalcDateTime {
          days *= -1;
       }
 
-      Calendar cal = Calendar.getInstance();
+      Calendar cal = new GregorianCalendar();
 
       while(days != 0) {
          start.set(Calendar.DATE, start.get(Calendar.DATE) + difference);
@@ -1294,7 +1294,7 @@ public class CalcDateTime {
     * @since 12.0
     */
    private static Calendar createCalendar(Object timeZone) {
-      Calendar calendar = Calendar.getInstance();
+      Calendar calendar = new GregorianCalendar();
 
       if(timeZone != null) {
          calendar.setTimeZone(TimeZone.getTimeZone((String) timeZone));

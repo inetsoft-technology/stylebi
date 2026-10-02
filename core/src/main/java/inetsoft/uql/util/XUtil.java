@@ -3790,13 +3790,31 @@ public final class XUtil {
             boolean noPermission = SreeEnv.getProperty("security.provider").equals("") &&
                !VpmProcessor.useVpmSecurity();
 
+            // Bug #77522: a user-scope (private) worksheet may only be run by its owner or a site
+            // admin. The ASSET path walk below is scope-blind (it checks the global worksheet ACL
+            // of the same path), and ReportWorksheetProcessor loads the sheet without a permission
+            // check, so ask the real asset engine with checkUserAsset=true. This also applies to
+            // report scripts, since the b.c. exemption below was never meant to expose another
+            // user's private worksheet.
+            if(!noPermission && entry.getScope() == AssetRepository.USER_SCOPE) {
+               try {
+                  AssetUtil.getAssetRepository(false).checkAssetPermission(
+                     user, entry, ResourceAction.READ, true);
+               }
+               catch(Exception ex) {
+                  LOG.debug("Permission denied to run user worksheet: {}", entry, ex);
+                  message = Catalog.getCatalog().getString(
+                     "em.common.security.no.permission", entry.getPath());
+               }
+
+               if(message != null) {
+                  throw new ScriptException(message);
+               }
+            }
             // @by jasonshobe, fix bug1400096326732: don't check permissions if
             // being invoked from report (preserve b.c. after bug1368179287358)
-            if(!reportScript) {
-               IdentityID userID = user instanceof SRPrincipal ? ((SRPrincipal) user).getClientUserID() : null;
-               boolean userAsset = entry.getScope() == AssetRepository.USER_SCOPE && Tool.equals(entry.getUser(), userID);
-
-               if(!noPermission && !userAsset && entry.getScope() != AssetRepository.REPORT_SCOPE) {
+            else if(!reportScript) {
+               if(!noPermission && entry.getScope() != AssetRepository.REPORT_SCOPE) {
                   try {
                      AssetEntry parent = entry;
 

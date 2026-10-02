@@ -43,7 +43,28 @@ public final class CSVLoaderProperties {
    private CSVLoaderProperties() {
    }
 
+   /** Delimiters the worksheet CSV import dialog can be given, for the fuzzer to pick from. */
+   public static final String[] DELIMITERS = { ",", ";", "\t", "|", ":", " " };
+
+   /** Charsets the import dialog offers, for the fuzzer to pick from. */
+   public static final String[] ENCODINGS =
+      { "UTF-8", "ISO-8859-1", "UTF-16", "US-ASCII", "windows-1252" };
+
+   /** The reader options the seed corpus uses (matches the dialog defaults). */
+   public static final Options DEFAULTS = new Options(",", "UTF-8", true, false, true);
+
+   /**
+    * The import dialog parameters the fuzzer varies.
+    */
+   public record Options(String delimiter, String encoding, boolean firstRow,
+                         boolean unpivot, boolean detectType) {
+   }
+
    public static void check(byte[] content) throws Exception {
+      check(content, DEFAULTS);
+   }
+
+   public static void check(byte[] content, Options options) throws Exception {
       if(content.length > MAX_INPUT) {
          return;
       }
@@ -52,23 +73,23 @@ public final class CSVLoaderProperties {
 
       try {
          Files.write(file.toPath(), content);
-         load(file, content, true);
-         load(file, content, false);
+         load(file, content, true, options);
+         load(file, content, false, options);
       }
       finally {
          Files.deleteIfExists(file.toPath());
       }
    }
 
-   private static void load(File file, byte[] content, boolean removeQuote) {
-      String where = "removeQuote=" + removeQuote;
+   private static void load(File file, byte[] content, boolean removeQuote, Options options) {
+      String where = "removeQuote=" + removeQuote + " " + options;
       List<String> types = new ArrayList<>();
       XSwappableTable table;
 
       try {
-         table = CSVLoader.readCSV(file, "UTF-8", removeQuote, ",", true, false,
-                                   new HashMap<>(), types, true, null, 50000, 0, -1,
-                                   new DateParseInfo());
+         table = CSVLoader.readCSV(file, options.encoding(), removeQuote, options.delimiter(),
+                                   options.firstRow(), options.unpivot(), new HashMap<>(), types,
+                                   options.detectType(), null, 50000, 0, -1, new DateParseInfo());
       }
       catch(Throwable ex) {
          throw new AssertionError("Loading (" + where + ") threw " + ex, ex);

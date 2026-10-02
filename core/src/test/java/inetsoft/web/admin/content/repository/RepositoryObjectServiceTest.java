@@ -74,6 +74,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.reset;
@@ -109,6 +110,7 @@ class RepositoryObjectServiceTest {
       resourcePermissionService = mock(ResourcePermissionService.class);
       dependencyHandler = mock(DependencyHandler.class);
       dataModel = mock(XDataModel.class);
+      securityProvider = mock(SecurityProvider.class);
 
       when(dataModel.getDataSource()).thenReturn(DATA_SOURCE);
       when(dataSourceRegistry.getDataModel(DATA_SOURCE)).thenReturn(dataModel);
@@ -118,7 +120,7 @@ class RepositoryObjectServiceTest {
 
       service = new RepositoryObjectService(
          mock(RepletRegistryService.class), mock(ContentRepositoryTreeService.class),
-         mock(SecurityProvider.class), resourcePermissionService, mock(XRepository.class),
+         securityProvider, resourcePermissionService, mock(XRepository.class),
          mock(RepositoryDashboardService.class), mock(DataModelFolderManagerService.class),
          dataSourceRegistry, mock(LibManagerProvider.class), mock(RecycleBin.class),
          dependencyHandler, mock(RenameTransformHandler.class), mock(RepletRegistryManager.class),
@@ -234,6 +236,57 @@ class RepositoryObjectServiceTest {
       verify(dataModel, never()).removeLogicalModel(anyString());
       verify(dependencyHandler, never()).deleteDependencies(any());
       verify(dependencyHandler, never()).deleteDependenciesKey(any());
+      verify(securityProvider, never()).removePermission(eq(ResourceType.QUERY), anyString());
+   }
+
+   /*
+    * Bug #77459: deleting a base logical model from the EM content tree left its explicit QUERY
+    * permission behind (the registry's removeObject() never removes one), so a model re-created
+    * with the same name in the same place inherited the old grants/denies. The permission is
+    * stored as XUtil.getLogicalModelResourceName(ds, folder, name), so the folder must be read
+    * from the stored model before it is removed, as the portal delete does.
+    */
+   @Test
+   void deleteLogicalModelRemovesItsPermission() throws Exception {
+      XLogicalModel logicalModel = mock(XLogicalModel.class);
+      when(logicalModel.getLogicalModelNames()).thenReturn(new String[0]);
+      when(dataModel.getLogicalModel(LOGICAL_MODEL_NAME)).thenReturn(logicalModel);
+
+      TreeNodeInfo node = TreeNodeInfo.builder()
+         .label(LOGICAL_MODEL_NAME)
+         .path(DATA_SOURCE + "^" + LOGICAL_MODEL_NAME)
+         .type(RepositoryEntry.LOGIC_MODEL | RepositoryEntry.FOLDER)
+         .build();
+
+      service.deleteNodes(new TreeNodeInfo[]{ node }, principal, false, false);
+
+      verify(dataModel).removeLogicalModel(LOGICAL_MODEL_NAME);
+      verify(securityProvider).removePermission(
+         ResourceType.QUERY, LOGICAL_MODEL_NAME + "::" + DATA_SOURCE);
+   }
+
+   @Test
+   void deleteLogicalModelInFolderRemovesItsFolderQualifiedPermission() throws Exception {
+      XLogicalModel logicalModel = mock(XLogicalModel.class);
+      when(logicalModel.getLogicalModelNames()).thenReturn(new String[0]);
+      when(logicalModel.getFolder()).thenReturn(MODEL_FOLDER);
+      when(dataModel.getLogicalModel(LOGICAL_MODEL_NAME)).thenReturn(logicalModel);
+
+      TreeNodeInfo node = TreeNodeInfo.builder()
+         .label(LOGICAL_MODEL_NAME)
+         .path(DATA_SOURCE + XUtil.DATAMODEL_FOLDER_SPLITER + MODEL_FOLDER + "^" +
+                  LOGICAL_MODEL_NAME)
+         .type(RepositoryEntry.LOGIC_MODEL | RepositoryEntry.FOLDER)
+         .build();
+
+      service.deleteNodes(new TreeNodeInfo[]{ node }, principal, false, false);
+
+      verify(dataModel).removeLogicalModel(LOGICAL_MODEL_NAME);
+      verify(securityProvider).removePermission(
+         ResourceType.QUERY,
+         LOGICAL_MODEL_NAME + "::" + DATA_SOURCE + XUtil.DATAMODEL_FOLDER_SPLITER + MODEL_FOLDER);
+      verify(securityProvider, never()).removePermission(
+         ResourceType.QUERY, LOGICAL_MODEL_NAME + "::" + DATA_SOURCE);
    }
 
    /*
@@ -265,6 +318,8 @@ class RepositoryObjectServiceTest {
          AssetEntry.Type.LOGIC_MODEL, LOGICAL_MODEL_NAME + "/" + EXTENDED_NAME);
       assertEquals(expected, capturedDeletedDependency());
       assertEquals(expected, capturedDeletedDependencyKey());
+      // an extended model has no QUERY permission of its own (Bug #77459)
+      verify(securityProvider, never()).removePermission(eq(ResourceType.QUERY), anyString());
    }
 
    @Test
@@ -333,6 +388,7 @@ class RepositoryObjectServiceTest {
    private DataSourceRegistry dataSourceRegistry;
    private ResourcePermissionService resourcePermissionService;
    private DependencyHandler dependencyHandler;
+   private SecurityProvider securityProvider;
    @Autowired private DependencyStorageService dependencyStorageService;
    private XDataModel dataModel;
    private Principal principal;

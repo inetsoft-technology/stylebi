@@ -23,6 +23,7 @@ import inetsoft.report.composition.execution.AssetQuerySandbox;
 import inetsoft.report.lens.DefaultTableLens;
 import inetsoft.sree.DynamicParameterValue;
 import inetsoft.sree.security.*;
+import inetsoft.sree.security.SecurityException;
 import inetsoft.uql.VariableTable;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
@@ -72,6 +73,8 @@ import static org.mockito.Mockito.*;
 class BatchActionTest {
 
    private SRPrincipal admin;
+   // Bug #77452, the principal the child task runs with, not the principal of the batch task
+   private SRPrincipal child;
 
    private final DefaultTableLens tableLens = new DefaultTableLens(new Object[][] {
       { "col1", "col2", "col3" },
@@ -87,6 +90,12 @@ class BatchActionTest {
          new String[] { "g0" },
          "host-org",
          Tool.getSecureRandom().nextLong());
+      child = new SRPrincipal(
+         new IdentityID("carol", "host-org"),
+         new IdentityID[] { new IdentityID("Everyone", "host-org") },
+         new String[0],
+         "host-org",
+         Tool.getSecureRandom().nextLong());
    }
 
    // -------------------------------------------------------------------------
@@ -95,6 +104,61 @@ class BatchActionTest {
 
    @Nested
    class RunEntryPoint {
+
+      // Bug #77531, a BatchAction may not dispatch to one of the three internal tasks unless
+      // the parent task's principal is a site admin
+      @Test
+      void run_internalTaskTarget_nonSiteAdmin_isRefused() throws Throwable {
+         BatchAction action = new BatchAction();
+         action.setTaskId(InternalScheduledTaskService.UPDATE_ASSETS_DEPENDENCIES);
+         ScheduleTask internalTask =
+            new ScheduleTask(InternalScheduledTaskService.UPDATE_ASSETS_DEPENDENCIES);
+
+         try(MockedStatic<ScheduleManager> scheduleManager = mockStatic(ScheduleManager.class);
+             MockedStatic<OrganizationManager> orgManager = mockStatic(OrganizationManager.class))
+         {
+            ScheduleManager manager = mock(ScheduleManager.class);
+            scheduleManager.when(ScheduleManager::getScheduleManager).thenReturn(manager);
+            when(manager.getScheduleTask(InternalScheduledTaskService.UPDATE_ASSETS_DEPENDENCIES))
+               .thenReturn(internalTask);
+            scheduleManager.when(() -> ScheduleManager.isInternalTask(
+               InternalScheduledTaskService.UPDATE_ASSETS_DEPENDENCIES)).thenReturn(true);
+
+            OrganizationManager organizationManager = mock(OrganizationManager.class);
+            orgManager.when(OrganizationManager::getInstance).thenReturn(organizationManager);
+            when(organizationManager.isSiteAdmin(child)).thenReturn(false);
+
+            assertThrows(SecurityException.class, () -> action.run(child));
+         }
+      }
+
+      // Bug #77531, a site admin may still point a BatchAction at an internal task
+      @Test
+      void run_internalTaskTarget_siteAdmin_isAllowed() throws Throwable {
+         BatchAction action = new BatchAction();
+         action.setTaskId(InternalScheduledTaskService.UPDATE_ASSETS_DEPENDENCIES);
+         ScheduleTask internalTask =
+            new ScheduleTask(InternalScheduledTaskService.UPDATE_ASSETS_DEPENDENCIES);
+
+         try(MockedStatic<ScheduleManager> scheduleManager = mockStatic(ScheduleManager.class);
+             MockedStatic<OrganizationManager> orgManager = mockStatic(OrganizationManager.class))
+         {
+            ScheduleManager manager = mock(ScheduleManager.class);
+            scheduleManager.when(ScheduleManager::getScheduleManager).thenReturn(manager);
+            when(manager.getScheduleTask(InternalScheduledTaskService.UPDATE_ASSETS_DEPENDENCIES))
+               .thenReturn(internalTask);
+            scheduleManager.when(() -> ScheduleManager.isInternalTask(
+               InternalScheduledTaskService.UPDATE_ASSETS_DEPENDENCIES)).thenReturn(true);
+
+            OrganizationManager organizationManager = mock(OrganizationManager.class);
+            orgManager.when(OrganizationManager::getInstance).thenReturn(organizationManager);
+            when(organizationManager.isSiteAdmin(admin)).thenReturn(true);
+
+            // no embedded/query parameters configured, so nothing further is dispatched; this
+            // only confirms the internal-task check itself does not refuse a site admin
+            assertDoesNotThrow(() -> action.run(admin));
+         }
+      }
 
       @Test
       void run_missingScheduleTask_doesNotThrow() throws Throwable {
@@ -109,6 +173,116 @@ class BatchActionTest {
             assertDoesNotThrow(() -> action.run(admin));
             verify(manager).getScheduleTask("missing-task");
             verifyNoMoreInteractions(manager);
+         }
+      }
+
+      // Bug #77452, the child task runs with its own principal, never with the batch task's
+      @Test
+      void run_childTask_runsWithItsOwnPrincipalAsContextPrincipal() throws Throwable {
+         BatchAction action = new BatchAction();
+         action.setTaskId("child-task");
+         action.setEmbeddedParameters(List.of(Map.of("p", "v"), Map.of("p", "w")));
+         ScheduleTask sourceTask = buildTaskWithViewsheetAction("child-task");
+         ScheduleTask clonedTask = spy(buildTaskWithViewsheetAction("child-task"));
+         List<Principal> contextPrincipals = new ArrayList<>();
+         doAnswer(inv -> {
+            contextPrincipals.add(inetsoft.util.ThreadContext.getContextPrincipal());
+            return null;
+         }).when(clonedTask).run(any());
+
+         Principal previous = inetsoft.util.ThreadContext.getContextPrincipal();
+         inetsoft.util.ThreadContext.setContextPrincipal(admin);
+
+         try(MockedStatic<ScheduleManager> scheduleManager = mockStatic(ScheduleManager.class);
+             MockedStatic<inetsoft.sree.internal.SUtil> sUtil =
+                mockStatic(inetsoft.sree.internal.SUtil.class);
+             MockedStatic<ScheduleTask> copyMock = mockStatic(ScheduleTask.class))
+         {
+            ScheduleManager manager = mock(ScheduleManager.class);
+            scheduleManager.when(ScheduleManager::getScheduleManager).thenReturn(manager);
+            when(manager.getScheduleTask("child-task")).thenReturn(sourceTask);
+            sUtil.when(() -> inetsoft.sree.internal.SUtil.getScheduleTaskRunPrincipal(
+               same(sourceTask), any(), eq(true))).thenReturn(child);
+            copyMock.when(() -> ScheduleTask.copyScheduleTask(sourceTask)).thenReturn(clonedTask);
+
+            action.run(admin);
+
+            verify(clonedTask, times(2)).run(child);
+            verify(clonedTask, never()).run(admin);
+            assertEquals(List.of(child, child), contextPrincipals,
+                         "the child's principal is the context principal while it runs");
+            assertSame(admin, inetsoft.util.ThreadContext.getContextPrincipal(),
+                       "the batch task's context principal is restored");
+         }
+         finally {
+            inetsoft.util.ThreadContext.setContextPrincipal(previous);
+         }
+      }
+
+      // Bug #77452, fail closed when the child task has no principal
+      @Test
+      void run_childTaskWithoutPrincipal_isNotRun() throws Throwable {
+         BatchAction action = new BatchAction();
+         action.setTaskId("child-task");
+         action.setEmbeddedParameters(List.of(Map.of("p", "v")));
+         ScheduleTask sourceTask = buildTaskWithViewsheetAction("child-task");
+
+         try(MockedStatic<ScheduleManager> scheduleManager = mockStatic(ScheduleManager.class);
+             MockedStatic<inetsoft.sree.internal.SUtil> sUtil =
+                mockStatic(inetsoft.sree.internal.SUtil.class);
+             MockedStatic<ScheduleTask> copyMock = mockStatic(ScheduleTask.class))
+         {
+            ScheduleManager manager = mock(ScheduleManager.class);
+            scheduleManager.when(ScheduleManager::getScheduleManager).thenReturn(manager);
+            when(manager.getScheduleTask("child-task")).thenReturn(sourceTask);
+            sUtil.when(() -> inetsoft.sree.internal.SUtil.getScheduleTaskRunPrincipal(
+               any(), any(), anyBoolean())).thenReturn(null);
+
+            assertThrows(IllegalStateException.class, () -> action.run(admin));
+            copyMock.verifyNoInteractions();
+         }
+      }
+
+      // Bug #77452, a failing child task runs with its own principal and the batch task's
+      // context principal is still restored
+      @Test
+      void run_childTaskThrows_contextPrincipalIsRestored() throws Throwable {
+         BatchAction action = new BatchAction();
+         action.setTaskId("child-task");
+         action.setEmbeddedParameters(List.of(Map.of("p", "v")));
+         ScheduleTask sourceTask = buildTaskWithViewsheetAction("child-task");
+         ScheduleTask clonedTask = spy(buildTaskWithViewsheetAction("child-task"));
+         List<Principal> contextPrincipals = new ArrayList<>();
+         doAnswer(inv -> {
+            contextPrincipals.add(inetsoft.util.ThreadContext.getContextPrincipal());
+            throw new IllegalStateException("child failed");
+         }).when(clonedTask).run(any());
+
+         Principal previous = inetsoft.util.ThreadContext.getContextPrincipal();
+         inetsoft.util.ThreadContext.setContextPrincipal(admin);
+
+         try(MockedStatic<ScheduleManager> scheduleManager = mockStatic(ScheduleManager.class);
+             MockedStatic<inetsoft.sree.internal.SUtil> sUtil =
+                mockStatic(inetsoft.sree.internal.SUtil.class);
+             MockedStatic<ScheduleTask> copyMock = mockStatic(ScheduleTask.class))
+         {
+            ScheduleManager manager = mock(ScheduleManager.class);
+            scheduleManager.when(ScheduleManager::getScheduleManager).thenReturn(manager);
+            when(manager.getScheduleTask("child-task")).thenReturn(sourceTask);
+            sUtil.when(() -> inetsoft.sree.internal.SUtil.getScheduleTaskRunPrincipal(
+               same(sourceTask), any(), eq(true))).thenReturn(child);
+            copyMock.when(() -> ScheduleTask.copyScheduleTask(sourceTask)).thenReturn(clonedTask);
+
+            IllegalStateException ex =
+               assertThrows(IllegalStateException.class, () -> action.run(admin));
+            assertEquals("child failed", ex.getMessage(), "the child's failure is not swallowed");
+            assertEquals(List.of(child), contextPrincipals,
+                         "the child's principal is the context principal while it runs");
+            assertSame(admin, inetsoft.util.ThreadContext.getContextPrincipal(),
+                       "the batch task's context principal is restored after the child fails");
+         }
+         finally {
+            inetsoft.util.ThreadContext.setContextPrincipal(previous);
          }
       }
    }
@@ -200,14 +374,17 @@ class BatchActionTest {
          {
             stubWorksheetQuery(assetUtil, assetQuery);
             copyMock.when(() -> ScheduleTask.copyScheduleTask(sourceTask)).thenReturn(clonedTask);
-            doNothing().when(clonedTask).run(admin);
+            doNothing().when(clonedTask).run(child);
 
-            invokeQuery(batchAction, sourceTask, admin);
+            invokeQuery(batchAction, sourceTask, admin, child);
 
             ViewsheetAction vsAction = (ViewsheetAction) clonedTask.getAction(0);
             // One clonedTask.run() per data row; RepletRequest keeps the last row's values.
             assertEquals("b", vsAction.getViewsheetRequest().getParameter("key1"));
-            verify(clonedTask, times(2)).run(admin);
+            // Bug #77452, the query (stubbed for admin) runs with the batch task's principal,
+            // the child task with its own
+            verify(clonedTask, times(2)).run(child);
+            verify(clonedTask, never()).run(admin);
          }
       }
 
@@ -251,11 +428,12 @@ class BatchActionTest {
             when(query.getTableLens(any(VariableTable.class))).thenReturn(tableLens);
 
             copyMock.when(() -> ScheduleTask.copyScheduleTask(sourceTask)).thenReturn(clonedTask);
-            doNothing().when(clonedTask).run(admin);
+            doNothing().when(clonedTask).run(child);
 
-            invokeQuery(batchAction, sourceTask, admin);
+            invokeQuery(batchAction, sourceTask, admin, child);
 
-            verify(clonedTask, atLeastOnce()).run(admin);
+            verify(clonedTask, atLeastOnce()).run(child);
+            verify(clonedTask, never()).run(admin);
          }
       }
 
@@ -268,7 +446,7 @@ class BatchActionTest {
          ScheduleTask sourceTask = buildTaskWithViewsheetAction("query-null-entry");
 
          try(MockedStatic<ScheduleTask> copyMock = mockStatic(ScheduleTask.class)) {
-            invokeQuery(batchAction, sourceTask, admin);
+            invokeQuery(batchAction, sourceTask, admin, child);
 
             copyMock.verifyNoInteractions();
          }
@@ -283,7 +461,7 @@ class BatchActionTest {
          ScheduleTask sourceTask = buildTaskWithViewsheetAction("query-empty-map");
 
          try(MockedStatic<ScheduleTask> copyMock = mockStatic(ScheduleTask.class)) {
-            invokeQuery(batchAction, sourceTask, admin);
+            invokeQuery(batchAction, sourceTask, admin, child);
 
             copyMock.verifyNoInteractions();
          }
@@ -385,15 +563,17 @@ class BatchActionTest {
    }
 
    // via: run() -> runScheduleTaskWithQueryParameters
-   private static void invokeQuery(BatchAction action, ScheduleTask task, Principal principal)
+   private static void invokeQuery(BatchAction action, ScheduleTask task, Principal principal,
+                                   Principal childPrincipal)
       throws Throwable
    {
       Method method = BatchAction.class.getDeclaredMethod(
-         "runScheduleTaskWithQueryParameters", ScheduleTask.class, Principal.class);
+         "runScheduleTaskWithQueryParameters", ScheduleTask.class, Principal.class,
+         Principal.class);
       method.setAccessible(true);
 
       try {
-         method.invoke(action, task, principal);
+         method.invoke(action, task, principal, childPrincipal);
       }
       catch(java.lang.reflect.InvocationTargetException e) {
          throw e.getCause();

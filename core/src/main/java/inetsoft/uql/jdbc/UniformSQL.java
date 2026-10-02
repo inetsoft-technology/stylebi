@@ -513,9 +513,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
          parseIt = attr.equals("true");
       }
 
-      if((attr = Tool.getAttribute(node, "lossy")) != null) {
-         lossy = attr.equals("true");
-      }
+      String savedLossy = Tool.getAttribute(node, "lossy");
 
       NodeList nlist = Tool.getChildNodesByTagName(node, "all");
 
@@ -907,6 +905,15 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
       }
       else {
          parseResult = PARSE_SUCCESS;
+      }
+
+      if(savedLossy != null) {
+         // A saved lossy flag may predate a parser change (Bug #77477). Keep it only when
+         // isLossy() can't re-derive it: parsing is off and there is a sql string. Otherwise
+         // leave it null, so isLossy() re-parses the sql string with the current grammar, or,
+         // with no sql string, reports false because the structure is the whole query.
+         // parseResult stays as saved.
+         lossy = !parseIt && sqlstring != null ? Boolean.valueOf(savedLossy.equals("true")) : null;
       }
 
       Element cinode = Tool.getChildNodeByTagName(node, "columnInfo");
@@ -2911,6 +2918,15 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
 
          if(!added) {
             combineWhere(join, merging);
+
+            // a join merged by 'or' with a new pair of tables puts the where tree in an or
+            // set. Mark it as a join group like the 'or' set of createJoinNode(), so ANSI
+            // SQL generation keeps treating the joins in it as joins of the query.
+            if(XSet.OR.equalsIgnoreCase(merging) && where instanceof XSet &&
+               XSet.OR.equalsIgnoreCase(((XSet) where).getRelation()))
+            {
+               where.setGroup(true);
+            }
          }
       }
    }

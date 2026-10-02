@@ -2125,10 +2125,145 @@ public class IdentityService {
             oldIdentity.getIdentityID() + "\" by user " + principal);
       }
 
+      checkOrgAdminGrant(provider, oldIdentity, model, principal);
+
       // Only additions are checked, so roles already stored on the identity that the caller
       // could not assign itself are kept and an unchanged re-save still passes. addedGroups is
       // only set for user edits: in a group edit groupV holds member groups, not parents.
       checkRoleAssignment(provider, addedRoles, addedGroups, oldIdentity.getIdentityID(), principal);
+   }
+
+   /**
+    * Bug #77498, the organization administrator twin of the system administrator checks in
+    * {@link #checkSystemAdminGrant}. Rejects an edit by a caller who is neither a site nor an
+    * organization administrator (OrganizationManager.isOrgAdmin(), role based) when the edit
+    * would grant organization administrator or take over an organization administrator:
+    * <ul>
+    *    <li>setting the isOrgAdmin flag on a role that isn't stored with it;</li>
+    *    <li>adding a member user or member group to a group or role that grants organization
+    *    administrator. Every added member is checked, not only the caller. Members the identity
+    *    already has are not, so an unchanged re-save still passes.</li>
+    * </ul>
+    * Roles and parent groups added to the identity are checked by {@link #checkRoleAssignment}.
+    * Organization members of a role are not checked, setRoleInfo() doesn't store them. A user
+    * that grants organization administrator is protected by the endpoint gate (SECURITY_USER
+    * ADMIN, which DefaultCheckPermissionStrategy only gives site and org admins on such a
+    * user), so an unchanged re-save of such a user stays allowed here (Bug #77381).
+    */
+   private void checkOrgAdminGrant(AuthenticationProvider provider, Identity oldIdentity,
+                                   EntityModel model, Principal principal)
+   {
+      if(OrganizationManager.getInstance().isOrgAdmin(principal)) {
+         return;
+      }
+
+      IdentityID id = oldIdentity.getIdentityID();
+      String reason = null;
+
+      if(oldIdentity instanceof Group group) {
+         if(addsMember(provider, model, id, false) &&
+            isOrgAdminTarget(provider, group.getRoles(), new IdentityID[] { id }))
+         {
+            reason = "add members to organization administrator group";
+         }
+      }
+      else if(oldIdentity instanceof Role role) {
+         boolean storedFlag = role instanceof FSRole fsRole && fsRole.isOrgAdmin();
+
+         if(model instanceof EditRolePaneModel roleModel && roleModel.isOrgAdmin() && !storedFlag) {
+            reason = "set the organization administrator flag on role";
+         }
+         else if(addsMember(provider, model, id, true) &&
+            isOrgAdminTarget(provider, new IdentityID[] { id }, null))
+         {
+            reason = "add members to organization administrator role";
+         }
+      }
+
+      if(reason != null) {
+         throw new java.lang.SecurityException(
+            "Unauthorized attempt to " + reason + " \"" + id + "\" by user " + principal);
+      }
+   }
+
+   /**
+    * Determines if an edited group or role gets a member user or member group it doesn't
+    * already have. Members that don't exist are skipped, they are never written.
+    *
+    * @param target the stored id of the edited group or role.
+    * @param role   true when the target is a role, false when it is a group.
+    */
+   private static boolean addsMember(AuthenticationProvider provider, EntityModel model,
+                                     IdentityID target, boolean role)
+   {
+      for(IdentityModel member : model.members()) {
+         IdentityID memberID = member == null ? null : member.identityID();
+
+         if(memberID == null) {
+            continue;
+         }
+
+         Identity identity;
+
+         if(member.type() == Identity.USER) {
+            identity = provider.getUser(memberID);
+         }
+         else if(member.type() == Identity.GROUP) {
+            identity = provider.getGroup(memberID);
+         }
+         else {
+            continue;
+         }
+
+         if(identity == null) {
+            continue;
+         }
+
+         boolean existing = role ?
+            identity.getRoles() != null && Arrays.asList(identity.getRoles()).contains(target) :
+            identity.getGroups() != null && Arrays.asList(identity.getGroups()).contains(target.name) &&
+               Tool.equals(identity.getOrganizationID(), target.orgID);
+
+         if(!existing) {
+            return true;
+         }
+      }
+
+      return false;
+   }
+
+   /**
+    * Determines if holding the given roles, or being a member of the given groups, makes an
+    * identity an organization administrator, the same as OrganizationManager.isOrgAdmin(): the
+    * built-in Organization Administrator role doesn't count when multi-tenancy is disabled.
+    * Used for the existing identity an edit targets. {@link #grantsOrgAdmin}, used for added
+    * roles and groups, also counts that role when multi-tenancy is disabled.
+    */
+   private static boolean isOrgAdminTarget(AuthenticationProvider provider, IdentityID[] roles,
+                                           IdentityID[] groups)
+   {
+      List<IdentityID> allRoles =
+         roles == null ? new ArrayList<>() : new ArrayList<>(Arrays.asList(roles));
+
+      if(groups != null && groups.length > 0) {
+         for(IdentityID groupID : provider.getAllGroups(groups)) {
+            Group group = provider.getGroup(groupID);
+
+            if(group != null && group.getRoles() != null) {
+               allRoles.addAll(Arrays.asList(group.getRoles()));
+            }
+         }
+      }
+
+      if(allRoles.isEmpty()) {
+         return false;
+      }
+
+      IdentityID[] expanded = provider.getAllRoles(allRoles.toArray(new IdentityID[0]));
+
+      return expanded != null && Arrays.stream(expanded)
+         .anyMatch(role -> role != null && provider.isOrgAdministratorRole(role) &&
+            (!"Organization Administrator".equals(role.name) || SUtil.isMultiTenant()));
    }
 
    /**

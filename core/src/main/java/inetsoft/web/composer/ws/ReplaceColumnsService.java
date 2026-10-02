@@ -49,6 +49,7 @@ public class ReplaceColumnsService extends WorksheetControllerService {
       RuntimeWorksheet rws = super.getWorksheetEngine().getWorksheet(runtimeId, principal);
       Worksheet ws = rws.getWorksheet();
       String tname = event.tableName();
+      checkCubeTableReadPermission(principal, tname);
       TableAssembly table = (TableAssembly) ws.getAssembly(tname);
 
       // just BoundTableAssembly support, that is same with insert.
@@ -109,6 +110,7 @@ public class ReplaceColumnsService extends WorksheetControllerService {
       Worksheet ws = rws.getWorksheet();
       String tname = event.tableName();
       String targetColumn = event.targetColumn();
+      checkCubeTableReadPermission(principal, tname);
       TableAssembly assembly = (TableAssembly) ws.getAssembly(tname);
 
       if(assembly == null || !(assembly instanceof BoundTableAssembly)) {

@@ -987,7 +987,8 @@ public class ScheduleManager {
          }
 
          // Bug #77309, the caller becomes the owner of the task, a task whose owner doesn't
-         // exist runs with the roles of a site admin of the same name in another organization
+         // exist and has the name of a site admin in another organization runs with elevated
+         // roles (the org admin roles of its org since Bug #77452)
          if(!trusted && getSecurityEngine().isSecurityEnabled() &&
             !OrganizationManager.getInstance().isSiteAdmin(principal) &&
             SUtil.getSameNameSiteAdmin(getSecurityEngine().getSecurityProvider(), user) != null)
@@ -1662,8 +1663,9 @@ public class ScheduleManager {
 
    /**
     * Bug #77332, whether the "execute as" of a task may be cleared when its identity is removed,
-    * so that the task runs as its owner. An owner that is not a user runs with the roles of a
-    * site admin of the same name ({@link SUtil#getScheduleTaskOwnerPrincipal}), so for such a
+    * so that the task runs as its owner. An owner that is not a user and has the name of a site
+    * admin runs with elevated roles, the org admin roles of its org since Bug #77452
+    * ({@link SUtil#getScheduleTaskOwnerPrincipal}), so for such a
     * task the removed identity is kept instead: it no longer resolves and the task refuses to
     * run until a new "execute as" is selected. The owner is looked up in the whole security
     * provider chain, not only in the provider the identity is removed from.
