@@ -1,0 +1,14 @@
+<viewsheet>
+<assembly>
+<assemblies>
+<oneAssembly>
+<assembly class="inetsoft.uql.viewsheet.RectangleVSAssembly">
+<assemblyInfo><name><![CDATA[Rect77583Round]]></name><absoluteName><![CDATA[Rect77583Round]]></absoluteName>
+<formatInfo><aFormat><tableDataPath>
+</tableDataPath>
+<VSCompositeFormat><defaultFormat><VSFormat roundCorner="0">
+</VSFormat></defaultFormat>
+</VSCompositeFormat></aFormat></formatInfo></assemblyInfo></assembly></oneAssembly>
+</assemblies>
+</assembly>
+</viewsheet>
