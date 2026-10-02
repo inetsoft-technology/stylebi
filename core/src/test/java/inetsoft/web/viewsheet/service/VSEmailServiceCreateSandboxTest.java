@@ -333,6 +333,45 @@ class VSEmailServiceCreateSandboxTest {
       assertEquals(failAt, calls[0]);
       assertEquals(List.of(), cachedFiles(dir),
          "a failed Excel->CSV export must close and delete the attachment and the .xlsx");
+      assertEquals(List.of(), leftoverDirectories(dir),
+         "a failed Excel->CSV export must also remove its per-call UUID directory, not just " +
+         "the files inside it");
+   }
+
+   /**
+    * Review round 1 on #77565: {@code cachedFiles()} only sees regular files, so it cannot tell
+    * whether {@code excelDir} itself -- the per-call UUID directory {@code createTmpDir()}
+    * creates for the excel->CSV intermediate -- was actually removed. Here the exporter is a
+    * bare {@code VSExporter} mock (not a real {@code CSVVSExporter}), so {@code
+    * removeCSVFiles()} never runs and {@code excelFile} is still sitting in {@code excelDir}
+    * when the export finishes; only the outer {@code finally}'s {@code Tool.deleteFile(excelDir)}
+    * removes it. Without that call this test would still see an empty {@code excelDir} left
+    * behind, which {@link #cachedFiles} cannot detect.
+    */
+   @Test
+   void emailViewsheet_succeededExcelToCsvExportDeletesIntermediateDirectory(@TempDir Path dir)
+      throws Exception
+   {
+      Mailer mailer = mock(Mailer.class);
+      VSEmailService service = new VSEmailService(cacheIn(dir)) {
+         @Override
+         protected ViewsheetSandbox createSandbox(Viewsheet bookmark, int mode,
+                                                  Principal principal, AssetEntry entry,
+                                                  VariableTable vars)
+         {
+            return mock(ViewsheetSandbox.class);
+         }
+
+         @Override
+         protected Mailer createMailer() {
+            return mailer;
+         }
+      };
+
+      email(service, FileFormatInfo.EXPORT_TYPE_EXCEL, new VariableTable(), true);
+
+      assertEquals(List.of(), leftoverDirectories(dir),
+         "a successful Excel->CSV export must not leave its per-call UUID directory behind");
    }
 
    /**
@@ -477,6 +516,29 @@ class VSEmailServiceCreateSandboxTest {
 
       try(Stream<Path> paths = Files.walk(dir)) {
          return paths.filter(Files::isRegularFile)
+            .map(dir::relativize)
+            .map(Path::toString)
+            .sorted()
+            .toList();
+      }
+      catch(IOException e) {
+         throw new RuntimeException(e);
+      }
+   }
+
+   /**
+    * Lists the first-level subdirectories still under {@code dir} (not recursive). Bug #77565,
+    * review round 1: {@link #cachedFiles} filters to regular files, so it cannot see an empty
+    * leftover {@code excelDir} -- the excel->CSV intermediate's per-call UUID directory -- if
+    * the production code's {@code Tool.deleteFile(excelDir)} call were ever removed or skipped.
+    */
+   private static List<String> leftoverDirectories(Path dir) {
+      if(!Files.exists(dir)) {
+         return List.of();
+      }
+
+      try(Stream<Path> paths = Files.list(dir)) {
+         return paths.filter(Files::isDirectory)
             .map(dir::relativize)
             .map(Path::toString)
             .sorted()
