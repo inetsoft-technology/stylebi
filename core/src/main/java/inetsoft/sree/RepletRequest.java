@@ -24,6 +24,7 @@ import inetsoft.uql.VariableTable;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.util.XUtil;
 import inetsoft.util.*;
+import inetsoft.util.script.FormulaContext;
 import inetsoft.util.script.ScriptEnv;
 import inetsoft.util.script.ScriptException;
 import inetsoft.web.composer.model.vs.DynamicValueModel;
@@ -1309,8 +1310,12 @@ public class RepletRequest implements java.io.Serializable, Cloneable, HttpXMLSe
 
       ScriptEnv senv = scope.getScriptEnv();
       Object val;
+      // a schedule parameter expression is written by users with schedule access, run it
+      // restricted (bug #77396)
+      boolean restricted = FormulaContext.isRestricted();
 
       try {
+         FormulaContext.setRestricted(true);
          val = senv.exec(senv.compile(cmd), scope, null, null);
       }
       catch(Exception ex) {
@@ -1327,6 +1332,9 @@ public class RepletRequest implements java.io.Serializable, Cloneable, HttpXMLSe
          }
 
          throw new ScriptException(msg);
+      }
+      finally {
+         FormulaContext.setRestricted(restricted);
       }
 
       return val;

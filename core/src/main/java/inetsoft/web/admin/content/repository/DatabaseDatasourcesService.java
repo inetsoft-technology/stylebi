@@ -826,7 +826,11 @@ public class DatabaseDatasourcesService {
    private void saveTestQuery(String oldSource, String newSource, String testQuery) throws Exception {
       JDBCUtil.removeConnectionTestQuery(oldSource);
 
-      if(testQuery != null && !testQuery.isEmpty()) {
+      // on a rename the registry has already moved the old value to the new name
+      if(testQuery == null || testQuery.isEmpty()) {
+         JDBCUtil.removeConnectionTestQuery(newSource);
+      }
+      else {
          JDBCUtil.setConnectionTestQuery(newSource, testQuery);
       }
 

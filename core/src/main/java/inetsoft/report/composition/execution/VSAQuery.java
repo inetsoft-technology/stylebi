@@ -40,6 +40,7 @@ import inetsoft.uql.viewsheet.internal.DateComparisonUtil;
 import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.util.*;
 import inetsoft.util.log.LogLevel;
+import inetsoft.util.script.FormulaContext;
 import inetsoft.util.script.ScriptEnv;
 import inetsoft.util.script.ScriptException;
 import inetsoft.util.script.ScriptStateLint;
@@ -1396,8 +1397,11 @@ public abstract class VSAQuery {
       Viewsheet vs = vbox == null ? null : vbox.getViewsheet();
       ScriptEnv senv = box.getScriptEnv();
       ScriptScope scope = null;
+      // a condition expression is written by end users, run it restricted (bug #77396)
+      boolean restricted = FormulaContext.isRestricted();
 
       try {
+         FormulaContext.setRestricted(true);
          // in pool mode the shared scope is never given a query's mode (bug #76960), so
          // the script gets a view with this query's own mode (bug #77123)
          scope = box.isScriptPoolMode() ?
@@ -1419,6 +1423,9 @@ public abstract class VSAQuery {
          }
 
          throw new ScriptException(msg);
+      }
+      finally {
+         FormulaContext.setRestricted(restricted);
       }
 
       return PreAssetQuery.getScriptValue(val, cond);

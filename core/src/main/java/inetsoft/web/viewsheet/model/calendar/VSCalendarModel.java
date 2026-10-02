@@ -53,7 +53,7 @@ public class VSCalendarModel extends VSObjectModel<CalendarVSAssembly> {
             assembly.isYearView(), compositeFormat);
       }
       else {
-         Calendar calendar = Calendar.getInstance();
+         Calendar calendar = new GregorianCalendar();
          int yy = calendar.get(Calendar.YEAR);
          int mm = calendar.get(Calendar.MONTH);
 

@@ -35,6 +35,7 @@ import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.util.QueryManager;
 import inetsoft.uql.util.XUtil;
 import inetsoft.util.*;
+import inetsoft.util.script.FormulaContext;
 import inetsoft.util.script.ScriptEnv;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
@@ -439,8 +440,12 @@ public class AssetDataCache extends DataCache<DataKey, TableLens> {
          LOG.warn("failed to merge variable", ex);
       }
 
+      // a variable expression is written by end users, run it restricted (bug #77396)
+      boolean restricted = FormulaContext.isRestricted();
+
       // execute expression values
       try {
+         FormulaContext.setRestricted(true);
          Enumeration<String> keys = vtable.keys();
 
          while(keys.hasMoreElements()) {
@@ -463,6 +468,9 @@ public class AssetDataCache extends DataCache<DataKey, TableLens> {
       }
       catch(Exception ex) {
          LOG.debug("Failed execute expression values", ex);
+      }
+      finally {
+         FormulaContext.setRestricted(restricted);
       }
 
       return vtable;

@@ -278,7 +278,8 @@ public class FormulaTableLens extends AbstractTableLens
 
    /**
     * Set if scripts should be restricted in access to system resources.
-    * For example, restricted from using java packages.
+    * For example, restricted from using java packages. Scripts always run
+    * restricted now (bug #77396), so this flag is only recorded.
     * @param col the column index to set
     * @param restricted true to restrict, false otherwise
     */
@@ -515,6 +516,9 @@ public class FormulaTableLens extends AbstractTableLens
 
             int j = 0;
             Object[] row = new Object[formulas.length];
+            // put back the flag of the caller, which may be a restricted script that
+            // reads this table, instead of clearing it (bug #77396)
+            boolean restricted0 = FormulaContext.isRestricted();
 
             // remove change listener then add change listener, for script might
             // change the table lens(set object), then the process will delegate
@@ -535,8 +539,9 @@ public class FormulaTableLens extends AbstractTableLens
                tableRow.setRowData(row);
 
                for(j = 0; j < scripts.length; j++) {
-                  // disable access to java classes if modified from adhoc
-                  FormulaContext.setRestricted(restricted[j]);
+                  // expression columns are written by end users, so every column runs
+                  // restricted, not only the ones edited ad hoc (bug #77396)
+                  FormulaContext.setRestricted(true);
                   // row[] values are assigned in tableRow.getResult
                   currExec = new Point(ncols + j, i);
                   tableRow.getResult(j);
@@ -571,7 +576,7 @@ public class FormulaTableLens extends AbstractTableLens
                FormulaContext.popTable();
                currExec = null;
                table.addChangeListener(listener);
-               FormulaContext.setRestricted(false);
+               FormulaContext.setRestricted(restricted0);
             }
          }
       }

@@ -180,6 +180,8 @@ public class GraalJavaScriptEngine implements AutoCloseable {
             .allowCreateProcess(false)
             .allowEnvironmentAccess(org.graalvm.polyglot.EnvironmentAccess.NONE)
             .build();
+         // test every Java.type name, not just a context's first lookup (bug #77396)
+         ScriptHostAccess.installTypeLookupCheck(context, classFilter);
 
          // FIX B: reset per-Source error counts on (re)init
          resetErrorCounts();
@@ -533,6 +535,21 @@ public class GraalJavaScriptEngine implements AutoCloseable {
     * being unavailable in minimal/test contexts.
     */
    private void installLibraryFunctions() {
+      // the top level of a library runs here, and the globals it leaves are seen by every
+      // script of this context, restricted ones included, so it runs restricted. A function
+      // body still runs under its caller's flag (bug #77396)
+      boolean restricted = inetsoft.util.script.FormulaContext.isRestricted();
+      inetsoft.util.script.FormulaContext.setRestricted(true);
+
+      try {
+         installLibraryFunctions0();
+      }
+      finally {
+         inetsoft.util.script.FormulaContext.setRestricted(restricted);
+      }
+   }
+
+   private void installLibraryFunctions0() {
       Map<String, String> sources = librarySources();
 
       if(sources != null) {

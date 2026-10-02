@@ -139,6 +139,22 @@ public class XExpression implements Cloneable, Serializable, XMLSerializable {
       }
    }
 
+   /**
+    * Check if this is a bare quoted identifier (e.g. "x y"), which is stored without its
+    * quotes.
+    */
+   public boolean isQuotedField() {
+      return FIELD.equals(type) && quote != QUOTE_NONE;
+   }
+
+   /**
+    * Get the text of this expression to build the text of an enclosing expression. The
+    * quotes of a bare quoted identifier are restored.
+    */
+   public String toQuotedString() {
+      return isQuotedField() ? getQuotedValue() : toString();
+   }
+
    public void setValue(Object value) {
       this.value = (value != null) ? value : "";
    }
@@ -272,6 +288,15 @@ public class XExpression implements Cloneable, Serializable, XMLSerializable {
       else if(type.equals(FIELD)) {
          String nval = Tool.getValue(node);
          value = nval != null ? nval.trim() : nval;
+         String quoteAttr = Tool.getAttribute(node, "quote");
+
+         // a missing or malformed value is unquoted
+         if(String.valueOf(QUOTE_DOUBLE).equals(quoteAttr)) {
+            quote = QUOTE_DOUBLE;
+         }
+         else if(String.valueOf(QUOTE_SINGLE).equals(quoteAttr)) {
+            quote = QUOTE_SINGLE;
+         }
       }
       else {
          String nval = Tool.getValue(node);
@@ -294,6 +319,11 @@ public class XExpression implements Cloneable, Serializable, XMLSerializable {
    public void writeXML(PrintWriter writer) {
       writer.print("<" + XML_TAG + " ");
       writer.print("type=\"" + type + "\"");
+
+      if(isQuotedField()) {
+         writer.print(" quote=\"" + quote + "\"");
+      }
+
       writer.println(">");
 
       if(type.equals(SUBQUERY)) {

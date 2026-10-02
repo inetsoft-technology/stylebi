@@ -367,9 +367,14 @@ public class JDBCUtil {
          XField field = sql.getFieldByPath(path);
 
          if(field != null && field.getTable().length() > 0) {
+            boolean quoted = xselect.isQuoted(xselect.getColumn(i));
             xselect.setColumn(i, path);
             xselect.setAlias(i, alias);
             xselect.setTable(path, field.getTable());
+
+            if(quoted) {
+               xselect.setQuoted(path, true);
+            }
 
             // get type
             if(xselect.getType(path) == null) {
@@ -1703,6 +1708,46 @@ public class JDBCUtil {
       if(orgID != null && isHostOrganization(orgID)) {
          SreeEnv.remove(key);
       }
+   }
+
+   /**
+    * Moves the connection test query of a renamed or moved data source to its new name in the
+    * current organization's scope. If the old name has no test query, a value left at the new
+    * name by a data source deleted earlier is removed, so that it is not shown for this one.
+    *
+    * @param oldName the old data source full name.
+    * @param newName the new data source full name.
+    *
+    * @return <code>true</code> if a property was changed and SreeEnv needs to be saved.
+    */
+   public static boolean renameConnectionTestQuery(String oldName, String newName) {
+      String testQuery = getConnectionTestQuery(oldName);
+      boolean changed = removeConnectionTestQueryIfSet(newName);
+
+      if(testQuery != null) {
+         removeConnectionTestQuery(oldName);
+         setConnectionTestQuery(newName, testQuery);
+         changed = true;
+      }
+
+      return changed;
+   }
+
+   /**
+    * Removes the connection test query of a data source in the current organization's scope
+    * if one is set.
+    *
+    * @param fullName the data source full name.
+    *
+    * @return <code>true</code> if a property was removed and SreeEnv needs to be saved.
+    */
+   public static boolean removeConnectionTestQueryIfSet(String fullName) {
+      if(getConnectionTestQuery(fullName) == null) {
+         return false;
+      }
+
+      removeConnectionTestQuery(fullName);
+      return true;
    }
 
    private static String getConnectionTestQueryKey(String fullName) {

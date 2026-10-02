@@ -2185,34 +2185,7 @@ public final class Tool extends CoreTool {
     * Create a temporary file in the cache directory.
     */
    public static File getCacheTempFile(String prefix, String suffix) {
-      String cdir = getCacheDirectory();
-      long findex = System.currentTimeMillis();
-      prefix = Tool.toFileName(prefix);
-      File file = new File(cdir, prefix + findex++ + "." + suffix);
-
-      while(true) {
-         try {
-            if(file.createNewFile()) {
-               break;
-            }
-         }
-         catch(IOException ex) {
-            // this should not happen and we should terminate here
-            // otherwise it may stuck in an infinite loop
-            LOG.error(
-                        "Creating temp file caused IO Error: " + file, ex);
-            return null;
-         }
-         catch(Exception ex) {
-            LOG.error(
-                        "Failed to create temp file: " + file, ex);
-            return null;
-         }
-
-         file = new File(cdir, prefix + findex++ + "." + suffix);
-      }
-
-      return file;
+      return FileSystemService.getInstance().getCacheTempFile(prefix, suffix);
    }
 
    public static boolean isMyReport(String path) {

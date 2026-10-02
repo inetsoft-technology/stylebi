@@ -183,11 +183,8 @@ class UniformSQLWhereOnOuterPairTest {
     */
    @ParameterizedTest
    @ValueSource(strings = {
-      COLS + "a left join b on a.id = b.id join c on a.k = b.k right join d on c.id = d.id",
-      COLS + "a left join b on a.id = b.id join c on a.k = b.k full join d on c.id = d.id",
       COLS + "a left join b on a.id = b.id join c on a.id = c.id and a.k = b.k full join d on c.id = d.id",
-      COLS + "a left join b on a.id = b.id join c on a.id = c.id and a.k = b.k right join d on c.id = d.id",
-      COLS + "d left join (a left join b on a.id = b.id join c on a.k = b.k) on d.id = a.id"
+      COLS + "a left join b on a.id = b.id join c on a.id = c.id and a.k = b.k right join d on c.id = d.id"
    })
    void onComparisonBeforeNullSupplyingJoinIsUnchanged(String text) throws Exception {
       UniformSQL sql = parse(text, null);
@@ -195,6 +192,26 @@ class UniformSQLWhereOnOuterPairTest {
       assertTrue(Arrays.stream(joins(sql)).anyMatch(
          j -> !j.isOuterJoin() && "a.k = b.k".equals(j.toString())), Arrays.toString(joins(sql)));
       assertFalse(containsCondition(sql.getWhere()), String.valueOf(sql.getWhere()));
+   }
+
+   /**
+    * Bug #77434 (#77515), an inner join ON that doesn't name its joined table (c) leaves c
+    * with no join, so the generated sql joins c outside of the outer join that follows it
+    * and returns other rows. The generated sql doesn't have the same joins, so the parse
+    * fails with every data source.
+    */
+   @ParameterizedTest
+   @ValueSource(strings = {
+      COLS + "a left join b on a.id = b.id join c on a.k = b.k right join d on c.id = d.id",
+      COLS + "a left join b on a.id = b.id join c on a.k = b.k full join d on c.id = d.id",
+      COLS + "d left join (a left join b on a.id = b.id join c on a.k = b.k) on d.id = a.id"
+   })
+   void onComparisonOfUnjoinedTableBeforeNullSupplyingJoinFails(String text) {
+      UniformSQL sql = new UniformSQL();
+      sql.setDataSource(GenericJDBCDataSource.create());
+      new SQLProcessor(sql).parse(text);
+      assertEquals(UniformSQL.PARSE_FAILED, sql.getParseResult(), text);
+      assertEquals(text, sql.getSQLString());
    }
 
    @ParameterizedTest
@@ -331,6 +348,7 @@ class UniformSQLWhereOnOuterPairTest {
    })
    void dataCacheNormalizerRegeneratesSameRows(String text) throws Exception {
       UniformSQL sql = new UniformSQL();
+      sql.setDataSource(GenericJDBCDataSource.create());
 
       synchronized(sql) {
          sql.setSQLString(text);
@@ -460,6 +478,7 @@ class UniformSQLWhereOnOuterPairTest {
       assertFalse(sql.isLossy(), text);
 
       UniformSQL processed = new UniformSQL();
+      processed.setDataSource(GenericJDBCDataSource.create());
       new SQLProcessor(processed).parse(text);
       assertEquals(UniformSQL.PARSE_SUCCESS, processed.getParseResult(), text);
    }
@@ -550,11 +569,9 @@ class UniformSQLWhereOnOuterPairTest {
 
    private static UniformSQL parse(String text, JDBCDataSource ds) throws Exception {
       UniformSQL sql = new UniformSQL();
-
-      if(ds != null) {
-         sql.setDataSource(ds);
-      }
-
+      // Bug #77434 refuses a RIGHT or FULL join mixed with an inner join, and a nested
+      // join on the right of an outer join, without a data source
+      sql.setDataSource(ds != null ? ds : GenericJDBCDataSource.create());
       sql.parse(text, UniformSQL.PARSE_ALL, UniformSQL.PARSE_PERIOD);
       return sql;
    }

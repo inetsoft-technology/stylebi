@@ -269,9 +269,12 @@ public class CalcFieldFormula implements PercentageFormula, Formula2 {
    private Object getResult0() {
       Object result;
       ScriptScope scope = null;
+      // a calculated field is written by end users, run it restricted (bug #77396)
+      boolean restricted = FormulaContext.isRestricted();
 
       // execute the script object
       try {
+         FormulaContext.setRestricted(true);
          result = senv.exec(script, scope = updateParameter(), null, null);
       }
       catch(Exception ex) {
@@ -295,6 +298,9 @@ public class CalcFieldFormula implements PercentageFormula, Formula2 {
          }
 
          throw new ScriptException(msg, ex);
+      }
+      finally {
+         FormulaContext.setRestricted(restricted);
       }
 
       if(result == null) {

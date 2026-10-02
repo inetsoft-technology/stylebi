@@ -19,6 +19,7 @@ package inetsoft.web.admin.security.user;
 
 import inetsoft.mv.MVManager;
 import inetsoft.report.internal.license.LicenseManager;
+import inetsoft.sree.PropertiesEngine;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.DataCycleManager;
 import inetsoft.sree.internal.SUtil;
@@ -1120,7 +1121,7 @@ public class UserTreeService {
       List<PropertyModel> properties = new ArrayList<>();
       IdentityID pId = IdentityID.getIdentityIDFromKey(principal.getName());
       Set<Object> keyset = SreeEnv.getProperties().keySet();
-      String orgPrefix = "inetsoft.org." + orgID.getOrgID().toLowerCase() + ".";
+      String orgPrefix = PropertiesEngine.getOrgPropertyPrefix(orgID.getOrgID());
 
       for(Object key : keyset) {
          String qualifiedName = (String) key;

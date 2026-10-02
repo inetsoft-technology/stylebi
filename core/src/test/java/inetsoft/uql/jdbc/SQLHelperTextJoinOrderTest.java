@@ -94,6 +94,11 @@ class SQLHelperTextJoinOrderTest {
          // an outer join to a parenthesized join whose ON names the nested table first
          COLS3 + "from a left join (b join c on b.id = c.id) on b.id = a.id",
          COLS3 + "from a right join (b join c on b.id = c.id) on b.id = a.id",
+         // Bug #77440, the ON names the earlier table first, and an outer join nested in
+         // the right operand. Only the table range of the right operand orients them
+         COLS3 + "from a left join (b join c on b.id = c.id) on a.id = b.id",
+         COLS3 + "from a left join (b left join c on c.id = b.id) on b.id = a.id",
+         COLS3 + "from a right join (b join c on b.id = c.id) on a.id = c.id",
          // a condition on one table in an ON
          COLS + "from a left join b on a.id = b.id join c on b.id = c.id and c.id = c.id " +
             "left join d on a.id = d.id",
@@ -498,6 +503,9 @@ class SQLHelperTextJoinOrderTest {
 
    private static UniformSQL parse(String text) throws Exception {
       UniformSQL sql = new UniformSQL();
+      // Bug #77434 refuses a RIGHT or FULL join mixed with an inner join, and a nested
+      // join on the right of an outer join, without a data source
+      sql.setDataSource(GenericJDBCDataSource.create());
       sql.parse(text, UniformSQL.PARSE_ALL, UniformSQL.PARSE_PERIOD);
       return sql;
    }

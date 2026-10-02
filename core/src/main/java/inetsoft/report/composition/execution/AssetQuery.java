@@ -4084,10 +4084,13 @@ public abstract class AssetQuery extends PreAssetQuery {
                         }
 
                         AssetQueryScope scope = null;
+                        // a condition expression is written by end users, run it restricted (bug #77396)
+                        boolean restricted = FormulaContext.isRestricted();
 
                         try {
                            ViewsheetSandbox vbox = box.getViewsheetSandbox();
                            Viewsheet vs = vbox == null ? null : vbox.getViewsheet();
+                           FormulaContext.setRestricted(true);
                            val = varName != null && vval == null ? attr :
                               senv.exec(ScriptStateLint.checkCondition(senv.compile(exp), exp,
                                  scope = postConditionScope(box), "post-aggregate condition"),
@@ -4116,6 +4119,9 @@ public abstract class AssetQuery extends PreAssetQuery {
                            }
 
                            throw new ScriptException(scriptMsg);
+                        }
+                        finally {
+                           FormulaContext.setRestricted(restricted);
                         }
 
                         if(val instanceof Object[]) {
