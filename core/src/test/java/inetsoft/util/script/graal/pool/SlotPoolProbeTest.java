@@ -44,6 +44,8 @@ class SlotPoolProbeTest {
       for(WorksheetScriptEnv env : envs) {
          PoolTestSupport.poolHook(env, "handOffHook", null);
          PoolTestSupport.poolHook(env, "takeOverHook", null);
+         PoolTestSupport.poolHook(env, "closeIdleHook", null);
+         PoolTestSupport.poolHook(env, "giveBackHook", null);
          env.retire();
       }
 
@@ -213,9 +215,12 @@ class SlotPoolProbeTest {
                                                   tenant, codec -> fail("saved"));
             boolean interrupted = Thread.interrupted();
 
+            // first that the pull retried as expected: with no retry at all the interrupt that
+            // arrives "during" the wait was never set, so the flag check says nothing
+            assertEquals(during ? 1 : 0, spins.get(), "during " + during + ": retries of " +
+               "the pull while the home is probed (1 = it retried once, then saw the interrupt)");
             assertFalse(pulled, "during " + during);
-            assertTrue(interrupted, "during " + during + ": the interrupt was swallowed");
-            assertEquals(during ? 1 : 0, spins.get(), "during " + during + ": retries");
+            assertTrue(interrupted, "during " + during + ": the interrupt flag was cleared");
          }
          finally {
             Thread.interrupted();
@@ -371,6 +376,190 @@ class SlotPoolProbeTest {
       assertEquals(0, PoolTestSupport.probedSlots(env), how + ": a probe leaked");
       env.retire();
       assertEquals(0, env.getMetrics().getSize(), how + ": a slot leaked");
+   }
+
+   /**
+    * closeIdle's second take of the tenants' locks: a retire takes the locks of the tenants it
+    * sees (none), and before it takes the slot a tenant enrolls on it (here by a holder that
+    * took the slot before the retire) and starts its next batch. The retire must not close the
+    * slot under the busy tenant: it dooms it, the tenant's pull saves its values, and the home
+    * is closed then. Without the second take the retire closed it at once and the tenant's
+    * hand-off was refused (its values unreadable).
+    */
+   @Test
+   void aTenantThatEnrollsWhileARetireTakesTheLocksKeepsItsHome() throws Exception {
+      WorksheetScriptEnv env = PoolTestSupport.env();
+      envs.add(env);
+      env.init();
+      Slot home = env.pool().primary();
+      Tenant tenant = new Tenant();
+      Thread retirer = Thread.currentThread();
+      long doomedCloses = env.getMetrics().getDoomedCloses();
+      CountDownLatch held = new CountDownLatch(1);
+      CountDownLatch paused = new CountDownLatch(1);
+      CountDownLatch enrolled = new CountDownLatch(1);
+      CountDownLatch go = new CountDownLatch(1);
+      List<OwnedValueCodec> saved = new ArrayList<>();
+      PoolTestSupport.poolHook(env, "closeIdleHook", slot -> {
+         if(Thread.currentThread() == retirer && slot == home && paused.getCount() > 0) {
+            paused.countDown();
+            await(enrolled);
+         }
+      });
+
+      Future<?> holder = executor.submit(() -> {
+         assertTrue(home.tryAcquire(), "the slot is not idle");
+         held.countDown();
+         await(paused);
+         // the tenant's batch: enrolls on the slot it holds, then its next batch is busy
+         tenant.lock.lock();
+
+         try {
+            env.pool().enroll(home, tenant);
+            home.release();
+            enrolled.countDown();
+            await(go);
+            assertTrue(OwnedValueCodec.pull(new OwnedValueCodec.Home(env.pool(), home),
+                                            tenant, saved::add), "the pull failed");
+         }
+         finally {
+            tenant.lock.unlock();
+         }
+
+         return null;
+      });
+
+      try {
+         assertTrue(held.await(30, TimeUnit.SECONDS));
+         env.retire();
+         assertEquals(0, paused.getCount(), "the retire did not reach closeIdle's window");
+         assertEquals(0, tenant.refused.get(), "the retire handed off a busy tenant (refused)");
+         assertFalse(home.isClosed(), "the retire closed the home of a busy tenant that " +
+                     "enrolled while it took the locks");
+         assertTrue(home.isDoomed(), "the home is doomed");
+         assertEquals(1, PoolTestSupport.homes(env));
+         go.countDown();
+         holder.get(30, TimeUnit.SECONDS);
+      }
+      finally {
+         enrolled.countDown();
+         go.countDown();
+      }
+
+      assertEquals(1, saved.size(), "pulled");
+      assertTrue(home.isClosed(), "the doomed home was not closed after the pull");
+      assertEquals(0, tenant.refused.get(), "a hand-off was refused");
+      assertEquals(doomedCloses + 1, env.getMetrics().getDoomedCloses(), "doomed closes");
+      assertEquals(0, PoolTestSupport.homes(env));
+      assertEquals(0, PoolTestSupport.probedSlots(env), "a probe leaked");
+      assertEquals(env.pool().slots().size(), env.getMetrics().getSize(), "size");
+   }
+
+   /**
+    * The take-over gives the slot back before it ends its probe: a puller whose tryLock fails
+    * while the take-over still holds the slot (paused right before giveBack's unlock) must see
+    * the probe and wait, then pull. With the probe ended before giveBack, the puller saw no
+    * probe, did not retry, and its pull failed although the slot was freed a moment later.
+    */
+   @Test
+   void aPullerSeesTheProbeUntilTheTakeOverGaveTheSlotBack() throws Exception {
+      WorksheetScriptEnv env = softEnv();
+      Slot home = homeOf(env, new Tenant());
+      PoolTestSupport.collectTenants(env);
+      Tenant table = new Tenant();
+      Thread[] prober = new Thread[1];
+      CountDownLatch atTakeOver = new CountDownLatch(1);
+      CountDownLatch resume1 = new CountDownLatch(1);
+      CountDownLatch holding = new CountDownLatch(1);
+      CountDownLatch resume2 = new CountDownLatch(1);
+      CountDownLatch givingBack = new CountDownLatch(1);
+      CountDownLatch resume3 = new CountDownLatch(1);
+      CountDownLatch proberDone = new CountDownLatch(1);
+      PoolTestSupport.poolHook(env, "takeOverHook", slot -> {
+         if(Thread.currentThread() == prober[0] && slot == home && atTakeOver.getCount() > 0) {
+            atTakeOver.countDown();
+            await(resume1);
+         }
+      });
+      PoolTestSupport.poolHook(env, "handOffHook", slot -> {
+         if(Thread.currentThread() == prober[0] && slot == home && holding.getCount() > 0) {
+            holding.countDown();
+            await(resume2);
+         }
+      });
+      PoolTestSupport.poolHook(env, "giveBackHook", slot -> {
+         if(Thread.currentThread() == prober[0] && slot == home && givingBack.getCount() > 0) {
+            givingBack.countDown();
+            await(resume3);
+         }
+      });
+      AtomicInteger spins = new AtomicInteger();
+      PoolTestSupport.pullSpinHook(slot -> {
+         if(spins.incrementAndGet() == 1) {
+            resume3.countDown();
+            await(proberDone);
+         }
+      });
+
+      Future<?> take = executor.submit(() -> {
+         prober[0] = Thread.currentThread();
+
+         try(SlotClaim ignored = env.claimSlot()) {
+            return null;
+         }
+         finally {
+            proberDone.countDown();
+         }
+      });
+
+      try {
+         assertTrue(atTakeOver.await(30, TimeUnit.SECONDS), "the take-over did not start");
+
+         // the table's batch takes the home (no tenant left) and enrolls on it
+         table.lock.lock();
+
+         try(ScriptSpan batch = env.openSpan()) {
+            PoolTestSupport.run(env, "1");
+            OwnedValueCodec.Home h = OwnedValueCodec.homeOf(batch);
+            assertSame(home, h.slot, "the table's batch took the home");
+            OwnedValueCodec.enroll(h, table);
+         }
+         finally {
+            table.lock.unlock();
+         }
+
+         resume1.countDown();
+         assertTrue(holding.await(30, TimeUnit.SECONDS), "the take-over did not hold the home");
+
+         // the table's next batch holds its lock: the take-over cannot lock it, gives back
+         boolean pulled;
+         int probed;
+         table.lock.lock();
+
+         try {
+            resume2.countDown();
+            assertTrue(givingBack.await(30, TimeUnit.SECONDS), "the take-over did not give back");
+            probed = PoolTestSupport.probedSlots(env);
+            pulled = OwnedValueCodec.pull(new OwnedValueCodec.Home(env.pool(), home), table,
+                                          codec -> { });
+         }
+         finally {
+            table.lock.unlock();
+            resume3.countDown();
+         }
+
+         take.get(30, TimeUnit.SECONDS);
+         assertTrue(pulled && spins.get() >= 1, "the puller saw no probe while the take-over " +
+                    "still held the slot (probed slots " + probed + ", retries " + spins.get() +
+                    ", pulled " + pulled + ")");
+         assertEquals(1, probed, "the slot was not probed while it was still held");
+         assertEquals(0, PoolTestSupport.probedSlots(env), "a probe leaked");
+      }
+      finally {
+         resume1.countDown();
+         resume2.countDown();
+         resume3.countDown();
+      }
    }
 
    /**

@@ -148,6 +148,7 @@ final class SlotPool {
             return false;
          }
 
+         runHook(closeIdleHook, slot);
          probe = new Probe(slot);
 
          if(!slot.tryAcquire()) {
@@ -475,6 +476,7 @@ final class SlotPool {
     * was held (N6).
     */
    private void giveBack(Slot slot) {
+      runHook(giveBackHook, slot);
       slot.unlock();
       closeIfRetired(slot);
    }
@@ -860,6 +862,12 @@ final class SlotPool {
       }
    }
 
+   private static void runHook(java.util.function.Consumer<Slot> hook, Slot slot) {
+      if(hook != null) {
+         hook.accept(slot);
+      }
+   }
+
    private void runTakeOverHook(Slot slot) {
       java.util.function.Consumer<Slot> hook = takeOverHook;
 
@@ -894,6 +902,18 @@ final class SlotPool {
     * it takes the slot's lock (Testing #77123, finding G1); null in production.
     */
    volatile java.util.function.Consumer<Slot> takeOverHook;
+
+   /**
+    * Test hook run by closeIdle (a retire, closeIfRetired) once it holds the locks of the
+    * tenants it saw, before it takes the slot's lock (Testing #77123); null in production.
+    */
+   volatile java.util.function.Consumer<Slot> closeIdleHook;
+
+   /**
+    * Test hook run by giveBack while the pool still holds the slot, right before it unlocks
+    * it (Testing #77123, finding G1); null in production.
+    */
+   volatile java.util.function.Consumer<Slot> giveBackHook;
 
    /**
     * Test hook run right before a slot this pool keeps goes idle (release's keep path and

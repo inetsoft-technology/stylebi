@@ -226,8 +226,9 @@ public final class PoolTestSupport {
    }
 
    /**
-    * Set a test hook of the env's pool: {@code "handOffHook"}, {@code "takeOverHook"} or
-    * {@code "plainTakeHook"}; {@code null} clears it.
+    * Set a test hook of the env's pool: {@code "handOffHook"}, {@code "takeOverHook"},
+    * {@code "plainTakeHook"}, {@code "closeIdleHook"} or {@code "giveBackHook"}; {@code null}
+    * clears it.
     */
    public static void poolHook(WorksheetScriptEnv env, String name,
                                java.util.function.Consumer<Object> hook)
@@ -238,6 +239,8 @@ public final class PoolTestSupport {
       case "handOffHook" -> env.pool().handOffHook = h;
       case "takeOverHook" -> env.pool().takeOverHook = h;
       case "plainTakeHook" -> env.pool().plainTakeHook = h;
+      case "closeIdleHook" -> env.pool().closeIdleHook = h;
+      case "giveBackHook" -> env.pool().giveBackHook = h;
       default -> throw new IllegalArgumentException(name);
       }
    }
