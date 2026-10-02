@@ -34,6 +34,9 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.awt.*;
 import java.io.ByteArrayOutputStream;
+import java.util.ArrayList;
+import java.util.List;
+import java.awt.geom.Rectangle2D;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -74,6 +77,30 @@ class SelectionExportInsetTest {
          seededList("comfortable"), new Rectangle(0, 0, 132, 202), new CSVVSExporter());
 
       assertEquals(new Rectangle(0, 0, 132, 202), bounds);
+   }
+
+   @Test
+   void theRowsMoveInAndTheTitleStays() {
+      Rectangle2D total = new Rectangle2D.Double(0, 0, 132, 202);
+      CoordinateHelper cHelper = Mockito.mock(CoordinateHelper.class);
+      Mockito.when(cHelper.getBounds(null, CoordinateHelper.ALL, true, null)).thenReturn(total);
+      Rectangle2D title = new Rectangle2D.Double(0, 0, 132, 20);
+      VSSelectionListHelper helper = new VSSelectionListHelper();
+      helper.setExporter(new HTMLVSExporter(new ByteArrayOutputStream()));
+      helper.cHelper = cHelper;
+      helper.boundsList = new ArrayList<>(List.of(
+         title,
+         new Rectangle2D.Double(0, 20, 132, 50),
+         new Rectangle2D.Double(0, 70, 132, 50),
+         new Rectangle2D.Double(0, 120, 132, 50),
+         new Rectangle2D.Double(0, 170, 132, 50)));
+
+      helper.insetRowBounds(null, seededList("comfortable"));
+
+      assertEquals(4, helper.boundsList.size(), "the last row's centre falls below the content");
+      assertSame(title, helper.boundsList.get(0), "the title entry is untouched");
+      assertEquals(new Rectangle2D.Double(16, 36, 100, 50), helper.boundsList.get(1));
+      assertEquals(new Rectangle2D.Double(16, 136, 100, 50), helper.boundsList.get(3));
    }
 
    @Test
