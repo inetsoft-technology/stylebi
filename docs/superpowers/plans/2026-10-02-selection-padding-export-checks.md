@@ -382,7 +382,7 @@ poisons every future comparison against this baseline.
     Before the fix, the comfortable Customer child was clipped to 278 - 208 = 70.
   - The export gives a container's list child a 40px body, where the live viewer gives it more.
   - At comfortable, 16 + 16 of inset leaves 8px, so no 28px row fits and the child exports empty.
-- **G. Out-selection rows overlapped a marked container's children in export. Fixed, not yet re-exported.**
+- **G. Out-selection rows overlapped a marked container's children in export. Fixed and verified (15:53 run).**
   - With Show Current Selections on, export draws one collapsed row per outside selection. Since
     `09ca2de2b`, PDF, PowerPoint and SVG draw those rows at the density height (30 / 26 / 20).
   - But the children were stacked as if the rows were 20 (`CoordinateHelper.getContainerChildTop`),
@@ -392,6 +392,23 @@ poisons every future comparison against this baseline.
   - All three now use `getOutSelectionRowHeight(defh)`, which is `defh` for an unmarked container.
   - MC-6 point 4 covers this, and the fixture does not exercise it: `CurrentSelection1` has
     Show Current Selections off.
+  - Verified on `SEL OutRows Comfortable` (a copy with Show Current Selections on, so four outside
+    selections give four out rows).
+    - Pre-fix PDF: the rows sat at 68-188 and the first child at 148-178, overlapping them by 40.
+    - Post-fix: the first child sits at 188-218 in PDF, HTML, PNG and PPTX (141pt). HTML's rows
+      are 30 tall, where they were 20.
+- **H. A marked list child can be left out of a match-layout export. Fixed, not yet re-exported.**
+  - `AbstractVSExporter.needExport` exports a container's list child only when its stored offset
+    lies inside the container (`0 < y - container y < height`).
+  - Turning Show Current Selections on re-runs the container's stored layout with 20px rows, which
+    pushes Customer's stored offset past 240, so PDF, PNG and PPTX skip it.
+  - The container draws it at 218, the viewer shows it, and HTML (which resets the offsets to the
+    drawn positions) exports it.
+  - It is the same stale-offset cause as F.
+  - `needExport` now measures a marked list child from the same drawn top as the clip
+    (`getContainerChildTop`). A marked child is left out only when the container draws it past its
+    bottom.
+  - An unmarked child is still judged by its stored offset.
 
 **Run environment to record with the results:** the commit each server was built from (confirmed by
 `javap`, not timestamp), whether `config/fonts/` existed at JVM start, and the density each fixture

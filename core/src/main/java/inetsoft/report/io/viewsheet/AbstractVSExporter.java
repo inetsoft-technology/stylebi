@@ -1862,9 +1862,10 @@ public abstract class AbstractVSExporter implements VSExporter {
    }
 
    /**
-    * Where a container child's match-layout clip is measured from. A marked list is measured from
-    * where the container draws it, which is where the viewer stacks it too; its stored offset is
-    * an old stacking the container no longer draws. Any other child keeps the stored offset.
+    * Where a container child's match-layout clip and visibility are measured from. A marked list
+    * is measured from where the container draws it, which is where the viewer stacks it too; its
+    * stored offset is an old stacking the container no longer draws. Any other child keeps the
+    * stored offset.
     */
    private static int getContainerChildTop(CurrentSelectionVSAssembly container, VSAssembly child) {
       if(child.getAssemblyType() == Viewsheet.SELECTION_LIST_ASSET &&
@@ -2628,7 +2629,8 @@ public abstract class AbstractVSExporter implements VSExporter {
             if(container instanceof CurrentSelectionVSAssembly) {
                CurrentSelectionVSAssembly csAssembly =
                   (CurrentSelectionVSAssembly) container;
-               int gap = assembly.getPixelOffset().y - csAssembly.getPixelOffset().y;
+               int gap = getContainerChildTop(csAssembly, assembly) -
+                  csAssembly.getPixelOffset().y;
                return gap > 0 && gap < csAssembly.getPixelSize().height;
             }
          }
