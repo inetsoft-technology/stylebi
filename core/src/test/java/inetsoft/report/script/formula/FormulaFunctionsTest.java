@@ -21,6 +21,7 @@ package inetsoft.report.script.formula;
 import inetsoft.report.lens.DefaultTableLens;
 import inetsoft.test.*;
 import inetsoft.uql.XTable;
+import inetsoft.uql.asset.DateRangeRef;
 import inetsoft.uql.util.DefaultTable;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
@@ -34,6 +35,8 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.Date;
 import java.util.Locale;
 import java.util.stream.Stream;
@@ -406,6 +409,45 @@ public class FormulaFunctionsTest {
       }
       finally {
          Locale.setDefault(oldLocale);
+      }
+   }
+
+   // Bug #77526, the date=week option of a freehand table must agree with the Week of Year group
+   // of a crosstab, which the crosstab optimization of the same freehand table may use instead
+   @ParameterizedTest
+   @CsvSource({ "en-US", "de-DE" })
+   void dateWeekOptionMatchesCrosstabWeekOfYear(String tag) throws Exception {
+      Locale oldLocale = Locale.getDefault();
+      Throwable[] error = { null };
+      // a new thread, so the thread-local DateTimeProcessor of DateRangeRef uses this locale
+      Thread thread = new Thread(() -> {
+         try {
+            Locale.setDefault(Locale.forLanguageTag(tag));
+
+            for(LocalDate day = LocalDate.of(2015, 1, 1); day.getYear() <= 2030;
+                day = day.plusDays(1))
+            {
+               Date date = Date.from(day.atStartOfDay(ZoneId.systemDefault()).toInstant());
+               Object[] res = (Object[]) FormulaFunctions.toList(new Object[] { date }, "date=week");
+               assertEquals(DateRangeRef.getData(DateRangeRef.WEEK_OF_YEAR_PART, date), res[0],
+                            tag + " " + day);
+            }
+         }
+         catch(Throwable ex) {
+            error[0] = ex;
+         }
+      });
+
+      try {
+         thread.start();
+         thread.join();
+      }
+      finally {
+         Locale.setDefault(oldLocale);
+      }
+
+      if(error[0] != null) {
+         throw new AssertionError(error[0]);
       }
    }
 }
