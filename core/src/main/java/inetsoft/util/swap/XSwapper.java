@@ -44,6 +44,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.function.BooleanSupplier;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
@@ -301,8 +302,8 @@ public final class XSwapper {
 
       // the flag is JVM-wide, so check it once even if there are several swappers
       if(periodicGCChecked.compareAndSet(false, true)) {
-         enablePeriodicGC(getPeriodicGCInterval(),
-                          isG1GC(ManagementFactory.getGarbageCollectorMXBeans()),
+         enablePeriodicGC(XSwapper::getPeriodicGCInterval,
+                          () -> isG1GC(ManagementFactory.getGarbageCollectorMXBeans()),
                           () -> ManagementFactory.getPlatformMXBean(HotSpotDiagnosticMXBean.class));
       }
    }
@@ -700,20 +701,23 @@ public final class XSwapper {
     * anyway and the periodic collection never fires. ZGC and Shenandoah already collect an
     * idle heap by default. A value set on the command line or by other means is kept.
     *
-    * @param interval the interval in milliseconds, 0 to leave the option alone.
-    * @param g1       <tt>true</tt> if the JVM uses the G1 collector.
+    * @param interval supplies the interval in milliseconds, 0 to leave the option alone.
+    * @param g1       supplies <tt>true</tt> if the JVM uses the G1 collector.
     * @param bean     supplies the HotSpot diagnostic MXBean.
     *
     * @return <tt>true</tt> if the option was set.
     */
-   static boolean enablePeriodicGC(long interval, boolean g1,
+   static boolean enablePeriodicGC(LongSupplier interval, BooleanSupplier g1,
                                    Supplier<HotSpotDiagnosticMXBean> bean)
    {
-      if(interval <= 0 || !g1) {
-         return false;
-      }
-
+      // everything runs inside the try so that a failure can't stop the swapper from starting
       try {
+         final long millis = interval.getAsLong();
+
+         if(millis <= 0 || !g1.getAsBoolean()) {
+            return false;
+         }
+
          final HotSpotDiagnosticMXBean diagnostic = bean.get();
 
          if(diagnostic == null) {
@@ -730,10 +734,11 @@ public final class XSwapper {
             return false;
          }
 
-         diagnostic.setVMOption(PERIODIC_GC_OPTION, Long.toString(interval));
+         diagnostic.setVMOption(PERIODIC_GC_OPTION, Long.toString(millis));
          LOG.info("Enabled G1 periodic garbage collection after {}ms without a collection, " +
-                     "so that the memory of an idle server is reclaimed. Set " +
-                     "swapper.idle.gc.interval to 0 to disable it.", interval);
+                     "so that the memory of an idle server is reclaimed. To disable it, set " +
+                     "swapper.idle.gc.interval to 0 and restart; a change takes effect only " +
+                     "after a restart.", millis);
          return true;
       }
       catch(Exception | LinkageError ex) {

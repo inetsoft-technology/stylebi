@@ -51,7 +51,7 @@ class XSwapperPeriodicGCTest {
    void setsIntervalOnG1WhenOriginIsDefault() {
       final HotSpotDiagnosticMXBean bean = mockBean(VMOption.Origin.DEFAULT, true);
 
-      assertTrue(XSwapper.enablePeriodicGC(300000L, true, () -> bean));
+      assertTrue(XSwapper.enablePeriodicGC(() -> 300000L, () -> true, () -> bean));
       verify(bean).setVMOption(PERIODIC_GC, "300000");
    }
 
@@ -64,7 +64,7 @@ class XSwapperPeriodicGCTest {
       {
          final HotSpotDiagnosticMXBean bean = mockBean(origin, true);
 
-         assertFalse(XSwapper.enablePeriodicGC(300000L, true, () -> bean), origin.name());
+         assertFalse(XSwapper.enablePeriodicGC(() -> 300000L, () -> true, () -> bean), origin.name());
          verify(bean, never()).setVMOption(anyString(), anyString());
       }
    }
@@ -74,7 +74,7 @@ class XSwapperPeriodicGCTest {
       // a second swapper in the same JVM sees the value the first one set
       final HotSpotDiagnosticMXBean bean = mockBean(VMOption.Origin.MANAGEMENT, true);
 
-      assertFalse(XSwapper.enablePeriodicGC(300000L, true, () -> bean));
+      assertFalse(XSwapper.enablePeriodicGC(() -> 300000L, () -> true, () -> bean));
       verify(bean, never()).setVMOption(anyString(), anyString());
    }
 
@@ -82,7 +82,7 @@ class XSwapperPeriodicGCTest {
    void skipsReadOnlyOption() {
       final HotSpotDiagnosticMXBean bean = mockBean(VMOption.Origin.DEFAULT, false);
 
-      assertFalse(XSwapper.enablePeriodicGC(300000L, true, () -> bean));
+      assertFalse(XSwapper.enablePeriodicGC(() -> 300000L, () -> true, () -> bean));
       verify(bean, never()).setVMOption(anyString(), anyString());
    }
 
@@ -90,7 +90,7 @@ class XSwapperPeriodicGCTest {
    void skipsOtherCollectors() {
       final HotSpotDiagnosticMXBean bean = mockBean(VMOption.Origin.DEFAULT, true);
 
-      assertFalse(XSwapper.enablePeriodicGC(300000L, false, () -> bean));
+      assertFalse(XSwapper.enablePeriodicGC(() -> 300000L, () -> false, () -> bean));
       verifyNoInteractions(bean);
    }
 
@@ -98,26 +98,34 @@ class XSwapperPeriodicGCTest {
    void zeroIntervalDisablesIt() {
       final HotSpotDiagnosticMXBean bean = mockBean(VMOption.Origin.DEFAULT, true);
 
-      assertFalse(XSwapper.enablePeriodicGC(0L, true, () -> bean));
+      assertFalse(XSwapper.enablePeriodicGC(() -> 0L, () -> true, () -> bean));
       verifyNoInteractions(bean);
    }
 
    @Test
    void toleratesFailures() {
-      assertFalse(XSwapper.enablePeriodicGC(300000L, true, () -> {
+      assertFalse(XSwapper.enablePeriodicGC(() -> 300000L, () -> true, () -> {
          throw new NoClassDefFoundError("com/sun/management/HotSpotDiagnosticMXBean");
       }));
-      assertFalse(XSwapper.enablePeriodicGC(300000L, true, () -> null));
+      assertFalse(XSwapper.enablePeriodicGC(() -> 300000L, () -> true, () -> null));
 
       final HotSpotDiagnosticMXBean missing = mock(HotSpotDiagnosticMXBean.class);
       when(missing.getVMOption(PERIODIC_GC))
          .thenThrow(new IllegalArgumentException("VM option does not exist"));
-      assertFalse(XSwapper.enablePeriodicGC(300000L, true, () -> missing));
+      assertFalse(XSwapper.enablePeriodicGC(() -> 300000L, () -> true, () -> missing));
+
+      // a failing interval or collector check must not escape into the swapper constructor
+      assertFalse(XSwapper.enablePeriodicGC(() -> {
+         throw new IllegalStateException("property engine unavailable");
+      }, () -> true, () -> mockBean(VMOption.Origin.DEFAULT, true)));
+      assertFalse(XSwapper.enablePeriodicGC(() -> 300000L, () -> {
+         throw new SecurityException("management access denied");
+      }, () -> mockBean(VMOption.Origin.DEFAULT, true)));
 
       final HotSpotDiagnosticMXBean rejected = mockBean(VMOption.Origin.DEFAULT, true);
       doThrow(new IllegalArgumentException("not writeable"))
          .when(rejected).setVMOption(anyString(), anyString());
-      assertFalse(XSwapper.enablePeriodicGC(300000L, true, () -> rejected));
+      assertFalse(XSwapper.enablePeriodicGC(() -> 300000L, () -> true, () -> rejected));
    }
 
    @Test
