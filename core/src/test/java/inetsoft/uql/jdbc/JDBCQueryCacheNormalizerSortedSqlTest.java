@@ -32,6 +32,8 @@ import inetsoft.sree.internal.cluster.Cluster;
 import org.apache.derby.jdbc.EmbeddedDataSource;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -444,6 +446,105 @@ class JDBCQueryCacheNormalizerSortedSqlTest {
    private static int rowCount(TableLens table) {
       table.moreRows(Integer.MAX_VALUE);
       return table.getRowCount();
+   }
+
+   // Bug #77482, a USING join is lossy, so its sql string runs as written and no inverse
+   // map may be applied. The headers and rows must be what the database returns for the
+   // sql, also for select * and an unqualified USING column, whose regenerated select list
+   // has two copies of the column (Derby has no FULL OUTER JOIN)
+   @ParameterizedTest
+   @ValueSource(strings = {
+      "select UB.Y, UA.X from UA join UB using (ID)",
+      "select UB.Y, UA.X from UA inner join UB using (ID)",
+      "select UB.Y, UA.X from UA left join UB using (ID)",
+      "select UB.Y, UA.X from UA right join UB using (ID)",
+      "select UB.Y, UA.X, ID from UA left join UB using (ID)",
+      "select * from UB left join UA using (ID)",
+      "select * from UA right outer join UB using (ID)",
+      "select UB.Y, UA.X from UA left join UB using (ID) where UA.X = 'x'",
+      "select T.Y, T.X from (select UB.Y, UA.X from UA left join UB using (ID)) T"
+   })
+   void usingJoinReturnsDatabaseColumnsAndRows(String sql) throws Exception {
+      try(Connection conn = derby().getConnection(); Statement stmt = conn.createStatement()) {
+         for(String table : new String[] { "UA", "UB" }) {
+            try {
+               stmt.executeUpdate("drop table " + table);
+            }
+            catch(Exception ignore) {
+               // first run
+            }
+         }
+
+         stmt.executeUpdate("create table UA (ID INT, X VARCHAR(10))");
+         stmt.executeUpdate("create table UB (ID INT, Y VARCHAR(10))");
+         stmt.executeUpdate("insert into UA values (1, 'x'), (2, 'x2'), (3, 'x3')");
+         stmt.executeUpdate("insert into UB values (1, 'y'), (2, 'y2'), (4, 'y4')");
+      }
+
+      UniformSQL usql = new UniformSQL();
+      usql.parse(sql, UniformSQL.PARSE_ALL, UniformSQL.PARSE_PERIOD);
+      usql.setSQLString(sql, false);
+      assertEquals(UniformSQL.PARSE_SUCCESS, usql.getParseResult());
+      assertTrue(usql.isLossy());
+
+      Run run = run(newSession(false), usql, null);
+      assertEquals(sql, run.executedSql);
+      assertEquals(direct(sql), rows(run.table));
+   }
+
+   // the headers (unqualified, upper case) and the sorted rows of a direct execution
+   private static List<String> direct(String sql) throws Exception {
+      try(Connection conn = derby().getConnection(); Statement stmt = conn.createStatement();
+          ResultSet rs = stmt.executeQuery(sql))
+      {
+         int count = rs.getMetaData().getColumnCount();
+         StringJoiner header = new StringJoiner(",");
+         List<String> rows = new ArrayList<>();
+
+         for(int i = 1; i <= count; i++) {
+            header.add(rs.getMetaData().getColumnLabel(i).toUpperCase());
+         }
+
+         while(rs.next()) {
+            StringJoiner row = new StringJoiner(",");
+
+            for(int i = 1; i <= count; i++) {
+               row.add(String.valueOf(rs.getObject(i)));
+            }
+
+            rows.add(row.toString());
+         }
+
+         Collections.sort(rows);
+         rows.add(0, header.toString());
+         return rows;
+      }
+   }
+
+   private static List<String> rows(TableLens table) {
+      StringJoiner header = new StringJoiner(",");
+      List<String> rows = new ArrayList<>();
+
+      for(int c = 0; c < table.getColCount(); c++) {
+         String name = String.valueOf(table.getObject(0, c)).toUpperCase();
+         header.add(name.substring(name.lastIndexOf('.') + 1));
+      }
+
+      for(int r = 1; table.moreRows(r); r++) {
+         StringJoiner row = new StringJoiner(",");
+
+         for(int c = 0; c < table.getColCount(); c++) {
+            Object value = table.getObject(r, c);
+            row.add(value instanceof Number ? String.valueOf(((Number) value).intValue()) :
+                       String.valueOf(value));
+         }
+
+         rows.add(row.toString());
+      }
+
+      Collections.sort(rows);
+      rows.add(0, header.toString());
+      return rows;
    }
 
    private static void assertSelectOrder(TableLens table) {

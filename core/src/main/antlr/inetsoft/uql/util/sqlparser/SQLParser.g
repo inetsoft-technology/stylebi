@@ -146,6 +146,8 @@ private Set columns = new HashSet();
 private long ts = -1; // stop timestamp
 private int checkCnt = 0; // optimization
 private Map map = new HashMap(); // sql + table ->op
+// sql -> columns merged by an earlier LEFT/FULL JOIN USING in the current join expression
+private Map usingMerges = new IdentityHashMap();
 private int onClauseCount = 0; // ON clauses parsed so far, in text order
 private boolean catalog = false;
 private boolean schema = true;
@@ -394,6 +396,79 @@ private void collectJoins(XFilterNode node, List joins) {
       for(int i = 0; i < node.getChildCount(); i++) {
          collectJoins((XFilterNode) node.getChild(i), joins);
       }
+   }
+}
+
+/**
+ * Get the outer join op (*=, =* or *=*) of a LEFT, RIGHT or FULL [OUTER] JOIN,
+ * or null if the join is not an outer join.
+ */
+private String getUsingJoinOp(String op) {
+   if(op == null) {
+      return null;
+   }
+   else if(op.length() >= 4 && op.substring(0, 4).equalsIgnoreCase("LEFT")) {
+      return "*=";
+   }
+   else if(op.length() >= 5 && op.substring(0, 5).equalsIgnoreCase("RIGHT")) {
+      return "=*";
+   }
+   else if(op.length() >= 4 && op.substring(0, 4).equalsIgnoreCase("FULL")) {
+      return "*=*";
+   }
+
+   return null;
+}
+
+/**
+ * Get the name of a USING column for comparing it with other USING columns.
+ */
+private String getUsingColumnKey(String column) {
+   return column.replaceAll("[\\\"`\\[\\]]", "").toLowerCase();
+}
+
+/**
+ * Check that no column of a JOIN USING was merged by an earlier LEFT or FULL
+ * JOIN USING of the same join expression. The merged column is the left
+ * table's column (LEFT) or the coalesce of both columns (FULL), which a join
+ * from the last table's column can't represent.
+ */
+private void checkUsingMerges(UniformSQL sql, List columns, String jc, Token tok)
+   throws SemanticException
+{
+   Set merged = (Set) usingMerges.get(sql);
+
+   for(int i = 0; merged != null && i < columns.size(); i++) {
+      if(merged.contains(getUsingColumnKey((String) columns.get(i)))) {
+         throw new SemanticException(
+            "Unsupported USING join, the column is merged by an earlier outer join: " + jc,
+            getFilename(), tok.getLine(), tok.getColumn());
+      }
+   }
+}
+
+/**
+ * Record the columns merged by a LEFT or FULL JOIN USING.
+ */
+private void addUsingMerges(UniformSQL sql, List columns) {
+   Set merged = (Set) usingMerges.get(sql);
+
+   if(merged == null) {
+      merged = new HashSet();
+      usingMerges.put(sql, merged);
+   }
+
+   for(int i = 0; i < columns.size(); i++) {
+      merged.add(getUsingColumnKey((String) columns.get(i)));
+   }
+}
+
+/**
+ * Start a new join expression of a from clause.
+ */
+private void clearUsingMerges(UniformSQL sql) {
+   if(sql != null) {
+      usingMerges.remove(sql);
    }
 }
 
@@ -2902,7 +2977,7 @@ table_exp [UniformSQL sql]
 from_clause [UniformSQL sql]
         {String tmp; {checkStatus();}}
         :
-        FROM tmp = table_ref[sql] ( COMMA tmp = table_ref[sql] )*
+        FROM tmp = table_ref[sql] ( COMMA {clearUsingMerges(sql);} tmp = table_ref[sql] )*
         ;
 
 ansi_joins [UniformSQL sql] returns [String str = ""]
@@ -3260,7 +3335,7 @@ join_spec [UniformSQL sql, String op, String tbl2, int rstart, int rend] returns
         {checkStatus();}
         :
         js = join_condition[sql, op, tbl2, rstart, rend]
-        | js = named_columns_join[sql]
+        | js = named_columns_join[sql, op, tbl2, rstart, rend]
         ;
 
 join_condition [UniformSQL sql, String op, String tbl2, int rstart, int rend] returns [String jc = ""]
@@ -3309,15 +3384,39 @@ join_condition [UniformSQL sql, String op, String tbl2, int rstart, int rend] re
         }
         ;
 
-named_columns_join [UniformSQL sql] returns [String jc = ""]
+named_columns_join [UniformSQL sql, String op, String tbl2, int rstart, int rend] returns [String jc = ""]
         {String tmp; Vector list = null; if(sql != null){list = new Vector();} {checkStatus();}}
         :
         a:USING OPEN_PAREN tmp = join_column_list[list] CLOSE_PAREN
         {jc = a.getText() + "(" + tmp + ")";
          if(sql != null && list.size()>0) {
-          if(sql.getTableCount()>=2) {
-           String t1 = sql.getTableAlias(sql.getTableCount()-2);//get last 2 table
-           String t2 = sql.getTableAlias(sql.getTableCount()-1);
+          // the database merges a USING column, so select * returns one copy and an
+          // unqualified reference resolves. The model has no merged column, so its
+          // regenerated ON join would differ: keep the sql string (Bug #77482).
+          // Consumers read the statement's (uniSql) flag, since a derived table or
+          // subquery has its own UniformSQL. Its own flag is set only for a caller
+          // that parses into sql without the statement rules (uniSql is null)
+          sql.setLossy(true);
+
+          if(uniSql != null) {
+             uniSql.setLossy(true);
+          }
+
+          // the join is between the last table of the left operand and the joined
+          // table, so the joined table (rstart to rend) must be a single table
+          if(rend - rstart != 1) {
+             throw new SemanticException(
+                "Unsupported USING join, the joined table is a nested join: " + jc,
+                getFilename(), a.getLine(), a.getColumn());
+          }
+
+          checkUsingMerges(sql, list, jc, a);
+
+          if(rstart >= 1) {
+           String t1 = sql.getTableAlias(rstart - 1);
+           String t2 = sql.getTableAlias(rstart);
+           String outerOp = getUsingJoinOp(op);
+           String joinOp = outerOp == null ? "=" : outerOp;
            XExpression e1, e2;
            XFilterNode node = ((list.size()>1)?((XFilterNode)new XSet()):((XFilterNode)new XJoin()));
            XJoin tmpNode ;
@@ -3331,7 +3430,7 @@ named_columns_join [UniformSQL sql] returns [String jc = ""]
                                         XExpression.FIELD);
                 ((XJoin)node).setExpression1(e1);
                 ((XJoin)node).setExpression2(e2);
-                ((XJoin)node).setOp("=");
+                ((XJoin)node).setOp(joinOp);
            }
            else {
                 ((XSet)node).setRelation(XSet.AND);
@@ -3343,11 +3442,24 @@ named_columns_join [UniformSQL sql] returns [String jc = ""]
                         tmpNode = new XJoin();
                         tmpNode.setExpression1(e1);
                         tmpNode.setExpression2(e2);
-                        tmpNode.setOp("=");
+                        tmpNode.setOp(joinOp);
                         tmpNode.setName(getUniqueName());
                         ((XSet)node).addChild(tmpNode);
                 }
            }
+
+           // a LEFT or FULL join merges the column to the left table's column or
+           // the coalesce of both, a later USING of the column can't be represented
+           if("*=".equals(outerOp) || "*=*".equals(outerOp)) {
+              addUsingMerges(sql, list);
+           }
+
+           // a RIGHT or FULL join makes the tables before it null supplying, so the
+           // filters in their inner join ON conditions are not where conditions
+           if(outerOp != null) {
+              clearInnerOnJoins(sql, "*=".equals(outerOp) ? "LEFT" : "RIGHT", tbl2);
+           }
+
            markJoins(node, ++onClauseCount);
            sql.combineWhereByAnd(node);
           }
