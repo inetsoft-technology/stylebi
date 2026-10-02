@@ -613,8 +613,11 @@ public class DataSourceRegistry implements MessageListener {
             "Permission denied to delete datasource"));
       }
       try {
-         // read before the additional connections are removed with the data source
-         String[] additionalNames = getAdditionalConnectionNames(dxname);
+         // read before the data source and its additional connections are removed. The test
+         // query of a removed additional connection is kept under its name alone
+         String additionalName = getJDBCAdditionalConnectionName(dxname);
+         String[] additionalNames = additionalName != null ?
+            new String[] { additionalName } : getAdditionalConnectionNames(dxname);
          removeObject(new AssetEntry(AssetRepository.QUERY_SCOPE,
                                      AssetEntry.Type.DATA_SOURCE, dxname, null));
          removeObjects(getEntries(dxname + "/"));
@@ -857,6 +860,23 @@ public class DataSourceRegistry implements MessageListener {
    }
 
    /**
+    * Gets the name of a JDBC additional connection from its path, or null if the path is not
+    * that of a JDBC additional connection.
+    */
+   private String getJDBCAdditionalConnectionName(String dxname) {
+      int index = dxname.lastIndexOf('/');
+
+      if(index <= 0 ||
+         !(getDataSource(dxname.substring(0, index)) instanceof AdditionalConnectionDataSource) ||
+         !(getDataSource(dxname) instanceof JDBCDataSource))
+      {
+         return null;
+      }
+
+      return dxname.substring(index + 1);
+   }
+
+   /**
     * Gets the names of the additional connections of a data source.
     */
    private String[] getAdditionalConnectionNames(String dxname) {
@@ -876,8 +896,9 @@ public class DataSourceRegistry implements MessageListener {
 
    /**
     * Removes the connection test queries of a removed data source and of its additional
-    * connections. The test query of an additional connection is kept under its name alone, so
-    * it is not removed if a data source of that full name exists.
+    * connections, or of a removed additional connection. The test query of an additional
+    * connection is kept under its name alone, so it is not removed if a data source of that full
+    * name exists.
     */
    private void removeConnectionTestQueries(String dxname, String[] additionalNames) {
       try {
