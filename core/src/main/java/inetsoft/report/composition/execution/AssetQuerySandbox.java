@@ -957,8 +957,8 @@ public class AssetQuerySandbox implements Serializable, Cloneable, ActionListene
     * {@code GraalJavaScriptEngine.exec()}), and blocks entering {@code synchronized(table)}
     * here. If this method took {@code synchronized(table)} before the script lock, the two
     * threads would acquire the monitor and the lock in opposite orders -- a classic AB-BA
-    * deadlock, permanent under the default {@code stall.watchdog.mode=alert} because entering a
-    * plain {@code synchronized} block can never time out.
+    * deadlock, permanent in every {@code stall.watchdog.mode} (the default is {@code fail})
+    * because entering a plain {@code synchronized} block can never time out or be interrupted.
     *
     * <p>The same cycle also forms one hop further out, with {@code table} having no expression
     * column of its own at all (review round 1 of this bug's fix): {@code
