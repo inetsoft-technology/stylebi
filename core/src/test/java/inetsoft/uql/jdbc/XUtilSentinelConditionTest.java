@@ -22,6 +22,7 @@ import inetsoft.uql.VariableTable;
 import inetsoft.uql.XConstants;
 import inetsoft.uql.XNode;
 import inetsoft.uql.util.XUtil;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -31,6 +32,8 @@ import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import java.sql.*;
+import java.util.*;
 import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -210,6 +213,129 @@ class XUtilSentinelConditionTest {
       // the vpm path never reports changed
       validate(usql, NULL_VALUE, null, true);
       assertTrue(normalize(usql.toString()).endsWith("max(a.id) IS NULL"), usql.toString());
+   }
+
+   // a HAVING-only rewrite in a derived table must reach the regenerated sql of the outer
+   // query once JDBCHandler drops the outer cached string, even when every string was cached
+   // before validation
+   @Test
+   void derivedTableCachedString() {
+      String sql = "select t.k from (select a.k, max(a.id) m from a group by a.k " +
+         "having count(*) > 1 and max(a.id) = $(p)) t";
+
+      for(boolean forVpm : new boolean[] { false, true }) {
+         UniformSQL usql = parse(sql);
+         usql.setCacheable(true);
+         UniformSQL sub = (UniformSQL) usql.getSelectTable()[0].getName();
+         sub.setCacheable(true);
+         assertTrue(usql.toString().contains("$(p)"), usql.toString());
+         validate(usql, NULL_VALUE, null, forVpm);
+         // as JDBCHandler.execute does before getSQLAsString()
+         usql.clearCachedString();
+         assertTrue(normalize(usql.toString())
+                       .endsWith("having count(*) > 1 and max(a.id) IS NULL) t"),
+                    "forVpm=" + forVpm + " " + usql);
+      }
+   }
+
+   // the regenerated sql returns the rows of the hand-written expected sql
+   static Stream<Arguments> rowCases() {
+      return Stream.of(
+         Arguments.of(SELECT + "where a.k = 1 and a.id = $(p)", NULL_VALUE,
+                      SELECT + "where a.k = 1 and a.id IS NULL"),
+         Arguments.of(SELECT + "where not (a.id = $(p))", NULL_VALUE,
+                      SELECT + "where a.id IS NOT NULL"),
+         Arguments.of(SELECT + "where a.k = 1 or a.id = $(p)", NULL_VALUE,
+                      SELECT + "where a.k = 1 or a.id IS NULL"),
+         Arguments.of(SELECT + "where not (a.k = 2 or a.id = $(p))", NULL_VALUE,
+                      SELECT + "where not (a.k = 2 or a.id IS NULL)"),
+         Arguments.of(SELECT + "where a.k = 1 and a.name = $(p)", EMPTY_STRING,
+                      SELECT + "where a.k = 1 and a.name = ''"),
+         Arguments.of(SELECT + "where a.k = 1 and not (a.name = $(p))", NULL_STRING,
+                      SELECT + "where a.k = 1 and a.name <> 'null'"),
+         Arguments.of("select a.k, count(*) from a group by a.k " +
+                         "having count(*) > 5 and min(a.name) = $(p)", NULL_VALUE,
+                      "select a.k, count(*) from a group by a.k " +
+                         "having count(*) > 5 and min(a.name) IS NULL"));
+   }
+
+   @ParameterizedTest
+   @MethodSource("rowCases")
+   void sameRows(String sql, String p, String expected) throws SQLException {
+      try(Connection conn = DriverManager.getConnection("jdbc:derby:memory:bug77551;create=true")) {
+         createTable(conn);
+
+         for(boolean forVpm : new boolean[] { false, true }) {
+            String generated = validate(parse(sql), p, null, forVpm);
+            assertEquals(rows(conn, expected), rows(conn, generated),
+                         "forVpm=" + forVpm + "\ngenerated: " + generated);
+         }
+      }
+   }
+
+   // the IN (subquery) is only visited on the jdbc path
+   @Test
+   void subquerySameRows() throws SQLException {
+      String sql = SELECT + "where a.k = 1 and a.id IN (select b.id from b where b.k = 2 and b.x = $(p))";
+      String expected = SELECT + "where a.k = 1 and a.id IN " +
+         "(select b.id from b where b.k = 2 and b.x IS NULL)";
+
+      try(Connection conn = DriverManager.getConnection("jdbc:derby:memory:bug77551;create=true")) {
+         createTable(conn);
+         String generated = validate(parse(sql), NULL_VALUE, null, false);
+         assertEquals(rows(conn, expected), rows(conn, generated), generated);
+      }
+   }
+
+   @AfterAll
+   static void dropDatabase() {
+      try {
+         DriverManager.getConnection("jdbc:derby:memory:bug77551;drop=true").close();
+      }
+      catch(SQLException ignore) {
+         // derby reports a dropped database with an exception
+      }
+   }
+
+   private static void createTable(Connection conn) throws SQLException {
+      try(Statement stmt = conn.createStatement()) {
+         try {
+            stmt.executeUpdate("drop table a");
+            stmt.executeUpdate("drop table b");
+         }
+         catch(SQLException ignore) {
+            // first run
+         }
+
+         stmt.executeUpdate("create table a (id int, k int, name varchar(20))");
+         stmt.executeUpdate("create table b (id int, k int, x int)");
+         stmt.executeUpdate("insert into a values (1, 1, 'n1'), (null, 1, ''), (3, 2, null), " +
+                               "(null, 2, 'null'), (5, 1, 'null'), (6, 1, null), " +
+                               "(7, 3, null), (8, 3, null), (9, 2, '')");
+         stmt.executeUpdate("insert into b values (1, 2, null), (3, 2, 7), (5, 3, null), " +
+                               "(6, 2, null)");
+      }
+   }
+
+   private static List<String> rows(Connection conn, String sql) throws SQLException {
+      List<String> rows = new ArrayList<>();
+
+      try(Statement stmt = conn.createStatement(); ResultSet rs = stmt.executeQuery(sql)) {
+         int count = rs.getMetaData().getColumnCount();
+
+         while(rs.next()) {
+            StringBuilder row = new StringBuilder();
+
+            for(int i = 1; i <= count; i++) {
+               row.append(rs.getString(i)).append('|');
+            }
+
+            rows.add(row.toString());
+         }
+      }
+
+      Collections.sort(rows);
+      return rows;
    }
 
    // the condition on the column
