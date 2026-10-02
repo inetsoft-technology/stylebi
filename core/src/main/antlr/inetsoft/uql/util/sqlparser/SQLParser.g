@@ -3545,6 +3545,7 @@ group_by_clause [UniformSQL sql]
         {
          Vector group = new Vector();
          Vector tmp;
+         Token gstart = null;
          sql.setGroupByAll(false);
          {checkStatus();}
         }
@@ -3556,11 +3557,40 @@ group_by_clause [UniformSQL sql]
         group = grouping_column_ref_list[sql]
         |(OPEN_PAREN CLOSE_PAREN)=>
         OPEN_PAREN CLOSE_PAREN
+        // grouping sets (ROLLUP, CUBE, GROUPING SETS, or a list of grouping sets)
+        // can't be represented by UniformSQL. refuse them so the original SQL runs
+        // instead of a regeneration without the GROUP BY. () alone is the same as
+        // no GROUP BY
         |(grouping_set COMMA grouping_set_list)=>
+        {gstart = LT(1);}
         grouping_set COMMA grouping_set_list
-        |ROLLUP OPEN_PAREN tmp = grouping_column_ref_list[null] CLOSE_PAREN
-        |CUBE OPEN_PAREN tmp = grouping_column_ref_list[null] CLOSE_PAREN
-        |GROUPING SETS OPEN_PAREN grouping_set_list CLOSE_PAREN
+        {
+           if(sql != null) {
+              throw new SemanticException("Unsupported GROUP BY grouping set",
+                                          getFilename(), gstart.getLine(), gstart.getColumn());
+           }
+        }
+        |r:ROLLUP OPEN_PAREN tmp = grouping_column_ref_list[null] CLOSE_PAREN
+        {
+           if(sql != null) {
+              throw new SemanticException("Unsupported GROUP BY ROLLUP",
+                                          getFilename(), r.getLine(), r.getColumn());
+           }
+        }
+        |c:CUBE OPEN_PAREN tmp = grouping_column_ref_list[null] CLOSE_PAREN
+        {
+           if(sql != null) {
+              throw new SemanticException("Unsupported GROUP BY CUBE",
+                                          getFilename(), c.getLine(), c.getColumn());
+           }
+        }
+        |g:GROUPING SETS OPEN_PAREN grouping_set_list CLOSE_PAREN
+        {
+           if(sql != null) {
+              throw new SemanticException("Unsupported GROUP BY GROUPING SETS",
+                                          getFilename(), g.getLine(), g.getColumn());
+           }
+        }
         )?
         {sql.setGroupBy(group.toArray());}
         ;
@@ -3579,7 +3609,7 @@ grouping_set
         |
         (grouping_column_ref[null])=>
         tstr = grouping_column_ref[null]
-        |ROOLUP OPEN_PAREN tmp = grouping_column_ref_list[null] CLOSE_PAREN
+        |ROLLUP OPEN_PAREN tmp = grouping_column_ref_list[null] CLOSE_PAREN
         |CUBE OPEN_PAREN tmp = grouping_column_ref_list[null] CLOSE_PAREN
         |OPEN_PAREN CLOSE_PAREN
         ;
