@@ -320,10 +320,22 @@ public class SelectionTreePropertyDialogService {
          size.height = streeInfo.getTitleHeight();
       }
       else if(oldShowType != newShowType) {
-         int minListHeight = streeInfo.getListHeight() * AssetUtil.defh;
+         int minListHeight;
 
-         if(streeInfo.isTitleVisible()) {
-            minListHeight += streeInfo.getCellHeight();
+         if(streeInfo.getVizMark() != null) {
+            // a marked tree's rows and title lane follow the density, and its rows sit inside the
+            // card inset
+            Insets inset = streeInfo.getPadding();
+            minListHeight = streeInfo.getListHeight() * streeInfo.getEffectiveCellHeight() +
+               (streeInfo.isTitleVisible() ? streeInfo.getTitleHeight() : 0) +
+               (inset == null ? 0 : inset.top + inset.bottom);
+         }
+         else {
+            minListHeight = streeInfo.getListHeight() * AssetUtil.defh;
+
+            if(streeInfo.isTitleVisible()) {
+               minListHeight += streeInfo.getCellHeight();
+            }
          }
 
          if(minListHeight > size.height) {

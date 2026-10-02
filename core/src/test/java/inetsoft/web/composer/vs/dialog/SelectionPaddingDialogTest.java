@@ -23,6 +23,7 @@ import inetsoft.sree.SreeEnv;
 import inetsoft.test.*;
 import inetsoft.uql.CompositeValue;
 import inetsoft.uql.asset.Assembly;
+import inetsoft.uql.asset.internal.AssemblyInfo;
 import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.*;
@@ -146,6 +147,22 @@ class SelectionPaddingDialogTest {
       assertFalse(saved.isUserCellPadding(), "all zeros with no checkbox means none, not a pinned 0");
    }
 
+   // comfortable: a 30px lane, six 28px rows and 16 + 16 of inset
+   @Test
+   void switchingAMarkedListToListMakesRoomForItsRowsAndInset() throws Exception {
+      SelectionListVSAssemblyInfo info = seededList("comfortable");
+
+      assertEquals(30 + 6 * 28 + 32, switchedToList(info).getPixelSize().height);
+   }
+
+   // unmarked: a 20px title and six 20px rows, with no inset, exactly as before
+   @Test
+   void switchingAnUnmarkedListToListKeepsTheLegacyHeight() throws Exception {
+      SelectionListVSAssemblyInfo info = new SelectionListVSAssemblyInfo();
+
+      assertEquals(20 + 6 * 20, switchedToList(info).getPixelSize().height);
+   }
+
    private SelectionListVSAssemblyInfo seededList(String density) {
       SreeEnv.setProperty("viewsheet.density", density);
       SelectionListVSAssemblyInfo info = new SelectionListVSAssemblyInfo();
@@ -178,6 +195,28 @@ class SelectionPaddingDialogTest {
       throws Exception
    {
       wire(info);
+      return submit(model);
+   }
+
+   // a dropdown with six list rows switched to a list. The real getPixelSize hands back the info's
+   // own size, which is what the show-type transition resizes in place
+   private SelectionListVSAssemblyInfo switchedToList(SelectionListVSAssemblyInfo info)
+      throws Exception
+   {
+      info.setShowTypeValue(SelectionVSAssemblyInfo.DROPDOWN_SHOW_TYPE);
+      info.setListHeight(6);
+      SelectionListPropertyDialogModel model = load(info);
+      model.getSelectionGeneralPaneModel().setShowType(SelectionVSAssemblyInfo.LIST_SHOW_TYPE);
+      model.getSelectionGeneralPaneModel().setListHeight(6);
+      wire(info);
+      lenient().when(viewsheet.getPixelSize(any()))
+         .thenAnswer(inv -> ((AssemblyInfo) inv.getArgument(0)).getPixelSize());
+      return submit(model);
+   }
+
+   private SelectionListVSAssemblyInfo submit(SelectionListPropertyDialogModel model)
+      throws Exception
+   {
       model.getSelectionGeneralPaneModel().getGeneralPropPaneModel().getBasicGeneralPaneModel()
          .setName("SelectionList1");
       service.setSelectionListPropertyModel("Viewsheet1", "SelectionList1", model, "", null,

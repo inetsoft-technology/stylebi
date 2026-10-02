@@ -62,6 +62,7 @@ class SelectionDensitySizeTest {
                    "a size seeded at comfortable follows to compact rather than stranding");
    }
 
+   // Revert seeds under a transition context, which is what lets it shrink a tier-sized box
    @Test
    void revertRestoresTheLegacySize() {
       SreeEnv.setProperty("viewsheet.density", "comfortable");
@@ -69,7 +70,7 @@ class SelectionDensitySizeTest {
       info.setPixelSize(new Dimension(132, 202));
       info.setVizMark(null);
 
-      info.seedChromeDefaults(VizContext.of(info));
+      info.seedChromeDefaults(VizContext.ofTransition(null, null));
 
       assertEquals(new Dimension(100, 120), info.getPixelSize());
    }
@@ -81,9 +82,22 @@ class SelectionDensitySizeTest {
       info.setPixelSize(new Dimension(300, 400));
       info.setVizMark(null);
 
-      info.seedChromeDefaults(VizContext.of(info));
+      info.seedChromeDefaults(VizContext.ofTransition(null, null));
 
       assertEquals(new Dimension(300, 400), info.getPixelSize());
+   }
+
+   // every open re-runs the seed; an unmarked list that happens to be tier-sized must keep its box
+   @Test
+   void openingAnUnmarkedListLeavesATierSizedBoxAlone() {
+      SreeEnv.setProperty("viewsheet.density", "comfortable");
+      SelectionListVSAssemblyInfo info = new SelectionListVSAssemblyInfo();
+      info.setPixelSize(new Dimension(132, 202));
+      info.setVizMark(null);
+
+      VizModernizeUtil.reseedAfterRestore(info);
+
+      assertEquals(new Dimension(132, 202), info.getPixelSize());
    }
 
    @Test

@@ -984,8 +984,13 @@ public abstract class SelectionBaseVSAssemblyInfo extends MaxModeSelectionVSAsse
       // Guarded on a size this rule could itself have written, so an author who sized the
       // assembly keeps their size through a Modernize or a density change. Revert reverses it,
       // or a reverted list keeps a box sized for rows it no longer has. Last, because it sizes
-      // against the inset seeded above
-      if(VSDensityDefaults.isSeededSelectionSize(getPixelSize())) {
+      // against the inset seeded above.
+      //
+      // Unmarked, only Revert's transition may reset the box: an open or a density re-seed runs
+      // this too, and must not shrink an unmarked list that merely happens to sit at a tier size
+      if((ctx.modern || ctx.transition) &&
+         VSDensityDefaults.isSeededSelectionSize(getPixelSize()))
+      {
          setPixelSize(VSDensityDefaults.selectionSize(ctx));
       }
    }
