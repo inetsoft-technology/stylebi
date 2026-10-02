@@ -648,12 +648,13 @@ public class MVCreatorUtil {
          cinfo.setMax(max);
 
          if(min instanceof Date && max instanceof Date) {
-            // mvcol (and its min0/max0 range fields) is shared, unsynchronized,
-            // across every per-core MVCompositeDispatcher thread of a parallel
-            // MV build (see MVDispatcher.processDispatch()). Synchronize this
-            // mutation on the column itself, matching resetDateRange()/
-            // resetNumRange() above, so it can't interleave with MVDef.write()
-            // snapshotting this same column mid-build. Bug #76971.
+            // mvcol (and its min0/max0 range fields) is shared across every
+            // per-core MVCompositeDispatcher thread of a parallel MV build (see
+            // MVDispatcher.processDispatch()). Each convert() already locks the
+            // column (DateMVColumn.updateRange(), Bug #77154), holding the column
+            // monitor here also makes the min and max update one step with
+            // respect to MVDef.write() snapshotting this same column mid-build.
+            // Bug #76971.
             synchronized(mvcol) {
                mvcol.convert(min);
                mvcol.convert(max);

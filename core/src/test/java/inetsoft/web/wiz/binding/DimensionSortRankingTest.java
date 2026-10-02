@@ -86,6 +86,43 @@ class DimensionSortRankingTest {
       assertEquals(3, dimension.getManualOrder().size());
    }
 
+   /**
+    * Bug #77036: a manualOrder left behind by an earlier manual sort is not inert -- the
+    * Composer's sort popup forces the sort back to Manual whenever it is non-empty.
+    */
+   @Test
+   void switchingAwayFromManualClearsTheManualOrder() {
+      BDimensionRefModel dimension = new BDimensionRefModel();
+      DimensionSortRanking.applySort(dimension, sort("manual", null, List.of("West", "East")));
+
+      DimensionSortRanking.applySort(dimension, sort("asc", null, null));
+
+      assertEquals(XConstants.SORT_ASC, dimension.getOrder());
+      assertNull(dimension.getManualOrder());
+   }
+
+   @Test
+   void switchingAwayFromAByValueSortClearsTheSortField() {
+      BDimensionRefModel dimension = new BDimensionRefModel();
+      DimensionSortRanking.applySort(dimension, sort("value_desc", "Sales", null));
+
+      DimensionSortRanking.applySort(dimension, sort("desc", null, null));
+
+      assertEquals(XConstants.SORT_DESC, dimension.getOrder());
+      assertNull(dimension.getSortByCol());
+   }
+
+   @Test
+   void aByValueSortIgnoresAStrayManualOrderAndClearsTheOldOne() {
+      BDimensionRefModel dimension = new BDimensionRefModel();
+      DimensionSortRanking.applySort(dimension, sort("manual", null, List.of("West", "East")));
+
+      DimensionSortRanking.applySort(dimension, sort("value_asc", "Sales", List.of("East")));
+
+      assertEquals("Sales", dimension.getSortByCol());
+      assertNull(dimension.getManualOrder());
+   }
+
    @Test
    void refusesManualWithNoOrder() {
       assertThrows(IllegalArgumentException.class,

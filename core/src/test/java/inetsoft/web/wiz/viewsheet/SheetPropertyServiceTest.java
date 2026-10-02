@@ -122,6 +122,41 @@ class SheetPropertyServiceTest {
       verify(sessions, times(1)).mutate(anyString(), any(Principal.class), any());
    }
 
+   /**
+    * Regression for bug #77041: {@code maxRows: 5000.7} used to be silently truncated onto
+    * {@code 5000} through PropertyPath.coerce's int branch, reporting success for a value the
+    * caller never asked for.
+    */
+   @Test
+   void refusesANonIntegralMaxRowsRatherThanTruncating() throws Exception {
+      ViewsheetPropertyDialogService dialog = mock(ViewsheetPropertyDialogService.class);
+      when(dialog.getViewsheetInfo(anyString(), any(Principal.class))).thenReturn(modelWith(20, "old"));
+      SheetPropertyService service = new SheetPropertyService(sessionsMock(), dialog);
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> service.set("tok", principal(), Map.of("maxRows", 5000.7), ""));
+
+      assertTrue(thrown.getMessage().contains("maxRows"));
+      verify(dialog, never()).setViewsheetInfo(anyString(), any(), any(Principal.class), any(),
+                                               anyString(), any());
+   }
+
+   /**
+    * Regression for bug #77041: {@code maxRows: 1e12} used to be silently clamped onto
+    * {@code Integer.MAX_VALUE} through PropertyPath.coerce's int branch.
+    */
+   @Test
+   void refusesAnOutOfRangeMaxRowsRatherThanClamping() throws Exception {
+      ViewsheetPropertyDialogService dialog = mock(ViewsheetPropertyDialogService.class);
+      when(dialog.getViewsheetInfo(anyString(), any(Principal.class))).thenReturn(modelWith(20, "old"));
+      SheetPropertyService service = new SheetPropertyService(sessionsMock(), dialog);
+
+      assertThrows(
+         IllegalArgumentException.class,
+         () -> service.set("tok", principal(), Map.of("maxRows", 1e12), ""));
+   }
+
    /*
     * There was a test here proving that set() rebuilds the root when the written field is a
     * top-level Immutables scalar, driven through the "width" alias.
@@ -198,7 +233,8 @@ class SheetPropertyServiceTest {
          Exception thrown = assertThrows(Exception.class,
             () -> service.set("tok", principal(), Map.of(key, value), ""), "refuse " + value);
 
-         assertTrue(thrown.getMessage().contains("'" + key + "' expects Date"),
+         // Since #77077 the whole data source subtree is refused before coercion is reached.
+         assertTrue(thrown.getMessage().contains("set_viewsheet_data_source"),
                     thrown.getMessage());
       }
 
@@ -482,6 +518,122 @@ class SheetPropertyServiceTest {
                                       anyString(), any());
       assertNull(
          captor.getValue().vsOptionsPane().getSelectDataSourceDialogModel().getDataSource());
+   }
+
+   // ── live base entry (Redmine #77077) ────────────────────────────────────────
+
+   /** A raw write into the data source subtree is refused before anything is written, and the
+    *  live base entry is left exactly as it was. */
+   @Test
+   void refusesARawDataSourcePathWriteAndLeavesTheLiveEntryUntouched() throws Exception {
+      AssetEntry live = liveBaseEntry();
+      ViewsheetPropertyDialogService dialog = mock(ViewsheetPropertyDialogService.class);
+      when(dialog.getViewsheetInfo(anyString(), any(Principal.class)))
+         .thenReturn(modelWithBase(live));
+      SheetPropertyService service = new SheetPropertyService(sessionsMock(), dialog);
+
+      for(String key : List.of("vsOptionsPane.selectDataSourceDialogModel.dataSource.path",
+                               "vsOptionsPane.SelectDataSourceDialogModel.DataSource.path",
+                               "vsOptionsPane.selectDataSourceDialogModel.dataSource.Alias"))
+      {
+         Exception thrown = assertThrows(IllegalArgumentException.class,
+            () -> service.set("tok", principal(), Map.of(key, "sakila/staff"), ""), key);
+         assertTrue(thrown.getMessage().contains("set_viewsheet_data_source"),
+                    thrown.getMessage());
+      }
+
+      assertEquals("sakila/TABLE/public/rental", live.getPath());
+      assertNull(live.getAlias());
+      verify(dialog, never()).setViewsheetInfo(anyString(), any(), any(), any(), anyString(),
+                                               any());
+   }
+
+   /** An ordinary patch must still hand setViewsheetInfo the SAME live entry: its rebind block
+    *  is guarded by equals(getBaseEntry()), and anything else would trigger a rebind. */
+   @Test
+   void anOrdinaryPatchStillPassesTheLiveBaseEntryThrough() throws Exception {
+      AssetEntry live = liveBaseEntry();
+      ViewsheetPropertyDialogService dialog = mock(ViewsheetPropertyDialogService.class);
+      when(dialog.getViewsheetInfo(anyString(), any(Principal.class)))
+         .thenReturn(modelWithBase(live));
+      SheetPropertyService service = new SheetPropertyService(sessionsMock(), dialog);
+
+      service.set("tok", principal(), Map.of("desc", "new"), "");
+
+      ArgumentCaptor<ViewsheetPropertyDialogModel> captor =
+         ArgumentCaptor.forClass(ViewsheetPropertyDialogModel.class);
+      verify(dialog).setViewsheetInfo(eq("rt1"), captor.capture(), any(Principal.class), any(),
+                                      anyString(), any());
+      assertSame(live,
+         captor.getValue().vsOptionsPane().getSelectDataSourceDialogModel().getDataSource());
+      assertEquals("new", captor.getValue().vsOptionsPane().getDesc());
+   }
+
+   /** Defense in depth: whatever spelling a future refusal list misses, a PropertyPath write that
+    *  reaches the base entry lands on a detached copy, and reattaching refuses it -- the live
+    *  entry is never mutated, so nothing half-applied survives. */
+   @Test
+   void guardRefusesAnyWriteThatReachedTheDetachedBaseEntry() {
+      for(String leaf : List.of("path", "alias", "createdUsername", "orgID")) {
+         AssetEntry live = liveBaseEntry();
+         ViewsheetPropertyDialogModel model = modelWithBase(live);
+         SheetPropertyService.BaseEntryGuard guard = SheetPropertyService.BaseEntryGuard.detach(model);
+         PropertyPath.set(model, "vsOptionsPane.selectDataSourceDialogModel.dataSource." + leaf,
+                          "hacked");
+
+         Exception thrown = assertThrows(IllegalArgumentException.class,
+                                         () -> guard.reattach(model), leaf);
+         assertTrue(thrown.getMessage().contains("set_viewsheet_data_source"),
+                    thrown.getMessage());
+         assertEquals("sakila/TABLE/public/rental", live.getPath(), leaf);
+         assertNull(live.getAlias(), leaf);
+         assertNull(live.getCreatedUsername(), leaf);
+      }
+   }
+
+   @Test
+   void guardRefusesAReplacedOrClearedBaseEntry() {
+      AssetEntry live = liveBaseEntry();
+      ViewsheetPropertyDialogModel model = modelWithBase(live);
+      SheetPropertyService.BaseEntryGuard guard = SheetPropertyService.BaseEntryGuard.detach(model);
+      model.vsOptionsPane().getSelectDataSourceDialogModel().setDataSource(null);
+
+      assertThrows(IllegalArgumentException.class, () -> guard.reattach(model));
+   }
+
+   @Test
+   void guardReattachesTheLiveEntryWhenNothingTouchedIt() {
+      AssetEntry live = liveBaseEntry();
+      ViewsheetPropertyDialogModel model = modelWithBase(live);
+      SheetPropertyService.BaseEntryGuard guard = SheetPropertyService.BaseEntryGuard.detach(model);
+
+      assertNotSame(live, model.vsOptionsPane().getSelectDataSourceDialogModel().getDataSource());
+      guard.reattach(model);
+      assertSame(live, model.vsOptionsPane().getSelectDataSourceDialogModel().getDataSource());
+   }
+
+   @Test
+   void guardToleratesAModelWithNoBaseEntry() {
+      ViewsheetPropertyDialogModel model = modelWith(20, "old");
+      SheetPropertyService.BaseEntryGuard guard = SheetPropertyService.BaseEntryGuard.detach(model);
+      guard.reattach(model);
+      assertNull(model.vsOptionsPane().getSelectDataSourceDialogModel().getDataSource());
+   }
+
+   private static AssetEntry liveBaseEntry() {
+      AssetEntry entry = new AssetEntry(AssetRepository.GLOBAL_SCOPE,
+         AssetEntry.Type.PHYSICAL_TABLE, "sakila/TABLE/public/rental", null);
+      entry.setProperty("source", "public.rental");
+      return entry;
+   }
+
+   private static ViewsheetPropertyDialogModel modelWithBase(AssetEntry base) {
+      SelectDataSourceDialogModel dataSource = new SelectDataSourceDialogModel();
+      dataSource.setDataSource(base);
+      VSOptionsPaneModel options = new VSOptionsPaneModel();
+      options.setDesc("old");
+      options.setSelectDataSourceDialogModel(dataSource);
+      return ViewsheetPropertyDialogModel.builder().vsOptionsPane(options).build();
    }
 
    // ── convertDataSourceToWorksheet (Redmine #76739) ───────────────────────────

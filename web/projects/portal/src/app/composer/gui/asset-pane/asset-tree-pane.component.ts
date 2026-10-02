@@ -148,8 +148,13 @@ export class AssetTreePane implements OnChanges, OnInit {
          });
    }
 
-   @HostListener("keyup.delete")
-   deleteEntries() {
+   @HostListener("keyup.delete", ["$event"])
+   deleteEntries(event?: KeyboardEvent) {
+      // Ignore Delete typed in a text field inside the pane (e.g. the tree search box).
+      if(event && Tool.isEventTargetTextEditor(event)) {
+         return;
+      }
+
       if(!this.inactive) {
          if(this.selectedNodes.length > 0) {
             const entries: AssetEntry[] = this.selectedNodes.map((treeNode) => treeNode.data);

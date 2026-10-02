@@ -19,6 +19,7 @@ package inetsoft.report.script.formula;
 
 import inetsoft.uql.XTable;
 import inetsoft.util.script.graal.ScriptScope;
+import inetsoft.util.stall.LockStallException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -109,6 +110,14 @@ public abstract class RangeProcessor {
                }
             }
             catch(Throwable ex) {
+               // a stalled condition is not a failed one: the row must be neither selected nor
+               // dropped (#77123)
+               LockStallException stall = LockStallException.find(ex);
+
+               if(stall != null) {
+                  throw stall;
+               }
+
                LOG.error("Error occurred when finding rows matching condition: " +
                   cond, ex);
             }

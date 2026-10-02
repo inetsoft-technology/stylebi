@@ -20,6 +20,7 @@ package inetsoft.web.admin.ai.schedule;
 import inetsoft.sree.schedule.ScheduleManager;
 import inetsoft.sree.schedule.ScheduleTask;
 import inetsoft.sree.schedule.TimeRange;
+import inetsoft.sree.security.OrganizationManager;
 import inetsoft.util.Tool;
 import inetsoft.web.admin.schedule.ScheduleService;
 import inetsoft.web.security.auth.MissingResourceException;
@@ -69,18 +70,24 @@ public class ScheduleTaskTransferService {
    // ---------------------------------------------------------------- export
 
    /**
+    * Tasks are resolved in {@code principal}'s organization and must pass the same visibility
+    * check as the EM task export ({@link ScheduleService#getExportTasks}, Bug #77060).
+    *
     * @throws IllegalArgumentException naming any task id in {@code taskIds} that does not resolve
-    *         to a real, currently-existing task.
+    *         to a real, currently-existing task the caller may export.
     */
-   public ScheduleTaskExportResult export(List<String> taskIds, boolean includeDependencies)
+   public ScheduleTaskExportResult export(List<String> taskIds, boolean includeDependencies,
+                                          Principal principal)
       throws Exception
    {
       if(taskIds == null || taskIds.isEmpty()) {
          throw new IllegalArgumentException("taskIds: at least one task id is required");
       }
 
+      String orgID = OrganizationManager.getInstance().getCurrentOrgID(principal);
+
       for(String taskId : taskIds) {
-         if(scheduleManager.getScheduleTask(taskId) == null) {
+         if(getExportTask(taskId, orgID, principal) == null) {
             throw new IllegalArgumentException(
                "taskIds: no schedule task found for \"" + taskId + "\"");
          }
@@ -90,7 +97,7 @@ public class ScheduleTaskTransferService {
       Map<String, String> requiredBy = new LinkedHashMap<>();
 
       for(String taskId : taskIds) {
-         collectDependencies(taskId, requiredBy, selected);
+         collectDependencies(taskId, requiredBy, selected, orgID, principal);
       }
 
       List<String> includedDependencyIds = new ArrayList<>();
@@ -109,8 +116,11 @@ public class ScheduleTaskTransferService {
          exportIds.addAll(requiredBy.keySet());
       }
 
+      // re-checks every task (including the dependencies) before anything is written
+      List<ScheduleTask> exportTasks =
+         scheduleService.getExportTasks(exportIds.toArray(new String[0]), principal);
       ByteArrayOutputStream out = new ByteArrayOutputStream();
-      scheduleService.exportScheduledTasks(exportIds.toArray(new String[0]), out);
+      scheduleService.exportScheduledTasks(exportTasks, out);
       String xml = Base64.getEncoder().encodeToString(out.toByteArray());
       return new ScheduleTaskExportResult(xml, List.copyOf(exportIds),
          List.copyOf(includedDependencyIds), List.copyOf(missingDependencyIds));
@@ -121,8 +131,10 @@ public class ScheduleTaskTransferService {
     * through that controller. {@code requiredBy} accumulates every transitively-required task id
     * not already in {@code selected}, mapped to a comma-joined list of the selected task id(s) that
     * (transitively) need it. */
-   private void collectDependencies(String taskId, Map<String, String> requiredBy, Set<String> selected) {
-      ScheduleTask task = scheduleManager.getScheduleTask(taskId);
+   private void collectDependencies(String taskId, Map<String, String> requiredBy,
+                                    Set<String> selected, String orgID, Principal principal)
+   {
+      ScheduleTask task = getExportTask(taskId, orgID, principal);
 
       if(task == null) {
          return;
@@ -133,7 +145,10 @@ public class ScheduleTaskTransferService {
       while(dependencies.hasMoreElements()) {
          String dependency = dependencies.nextElement();
 
-         if(selected.contains(dependency)) {
+         // only offer dependencies that the user is allowed to export
+         if(selected.contains(dependency) ||
+            getExportTask(dependency, orgID, principal) == null)
+         {
             continue;
          }
 
@@ -141,13 +156,22 @@ public class ScheduleTaskTransferService {
 
          if(existing == null) {
             requiredBy.put(dependency, taskId);
-            collectDependencies(dependency, requiredBy, selected);
+            collectDependencies(dependency, requiredBy, selected, orgID, principal);
          }
          else if(existing.indexOf(taskId) < 0) {
             requiredBy.put(dependency, existing + "," + taskId);
-            collectDependencies(dependency, requiredBy, selected);
+            collectDependencies(dependency, requiredBy, selected, orgID, principal);
          }
       }
+   }
+
+   /**
+    * Gets a task in the user's organization, or null if it does not exist or the user is not
+    * allowed to export it. Mirrors {@code ExportTaskController.getExportTask}.
+    */
+   private ScheduleTask getExportTask(String taskId, String orgID, Principal principal) {
+      ScheduleTask task = scheduleManager.getScheduleTask(taskId, orgID);
+      return task != null && scheduleService.canExportTask(task, principal) ? task : null;
    }
 
    // ---------------------------------------------------------------- import staging

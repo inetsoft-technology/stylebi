@@ -28,8 +28,16 @@ import inetsoft.test.SreeHome;
 import inetsoft.uql.asset.AssetContent;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
+import inetsoft.uql.asset.SourceInfo;
+import inetsoft.uql.erm.ExpressionRef;
+import inetsoft.uql.viewsheet.AbstractSelectionVSAssembly;
+import inetsoft.uql.viewsheet.CalculateRef;
 import inetsoft.uql.viewsheet.CalendarVSAssembly;
 import inetsoft.uql.viewsheet.ChartVSAssembly;
+import inetsoft.uql.viewsheet.ComboBoxVSAssembly;
+import inetsoft.uql.viewsheet.GaugeVSAssembly;
+import inetsoft.uql.viewsheet.OutputVSAssembly;
+import inetsoft.uql.viewsheet.ScalarBindingInfo;
 import inetsoft.uql.viewsheet.SelectionListVSAssembly;
 import inetsoft.uql.viewsheet.TextVSAssembly;
 import inetsoft.uql.viewsheet.TimeSliderVSAssembly;
@@ -175,6 +183,132 @@ class WizVisualizationServiceTest {
          any(Viewsheet.class), any(AssetEntry.class), eq(principal), eq(true), eq(true));
    }
 
+   // ── saveVisualization carries forward calc fields for the saved assembly's table (#77143) ────
+   //
+   // The calc-field copy used to run only for DataVSAssembly (SourceInfo), so a Text/Gauge bound
+   // through a ScalarBindingInfo to a table with calc fields was saved without them, and a binding
+   // to one of those calc fields no longer resolved on reopen.
+
+   @Test
+   void savingATextCarriesOverTheCalcFieldsOfItsBoundTable() throws Exception {
+      Viewsheet sourceVs = new Viewsheet();
+      TextVSAssembly text = new TextVSAssembly(sourceVs, "Text1");
+      bindScalar(text, "Query1");
+      sourceVs.addAssembly(text);
+      sourceVs.addCalcField("Query1", calc("Margin", "field['PRICE'] - field['COST']"));
+
+      Viewsheet newVs = saveAndCapture(sourceVs, "Text1");
+
+      CalculateRef[] calcs = newVs.getCalcFields("Query1");
+      assertNotNull(calcs, "the Text's table calc fields must be carried into the saved viewsheet");
+      assertEquals("Margin", calcs[0].getName());
+   }
+
+   @Test
+   void savingAGaugeCarriesOverTheCalcFieldsOfItsBoundTable() throws Exception {
+      Viewsheet sourceVs = new Viewsheet();
+      GaugeVSAssembly gauge = new GaugeVSAssembly(sourceVs, "Gauge1");
+      bindScalar(gauge, "Query1");
+      sourceVs.addAssembly(gauge);
+      sourceVs.addCalcField("Query1", calc("Margin", "field['PRICE'] - field['COST']"));
+
+      Viewsheet newVs = saveAndCapture(sourceVs, "Gauge1");
+
+      assertNotNull(newVs.getCalcFields("Query1"),
+                    "the Gauge's table calc fields must be carried into the saved viewsheet");
+   }
+
+   /** The pre-existing DataVSAssembly (SourceInfo) path must keep copying. */
+   @Test
+   void savingAChartStillCarriesOverTheCalcFieldsOfItsSource() throws Exception {
+      Viewsheet sourceVs = new Viewsheet();
+      ChartVSAssembly chart = new ChartVSAssembly(sourceVs, "Chart1");
+      chart.setSourceInfo(new SourceInfo(SourceInfo.ASSET, null, "Query1"));
+      sourceVs.addAssembly(chart);
+      sourceVs.addCalcField("Query1", calc("Range@PRICE", "field['PRICE']"));
+
+      Viewsheet newVs = saveAndCapture(sourceVs, "Chart1");
+
+      assertNotNull(newVs.getCalcFields("Query1"));
+   }
+
+   /**
+    * A chart whose source is not ASSET/VS_ASSEMBLY has a null getTableName(), so only the
+    * SourceInfo branch can find its calc fields. Guards the DataVSAssembly-first branch order.
+    */
+   @Test
+   void savingAChartWithANonAssetSourceStillCarriesOverItsCalcFields() throws Exception {
+      Viewsheet sourceVs = new Viewsheet();
+      ChartVSAssembly chart = new ChartVSAssembly(sourceVs, "Chart1");
+      chart.setSourceInfo(new SourceInfo(SourceInfo.MODEL, "Orders", "Sales"));
+      sourceVs.addAssembly(chart);
+      sourceVs.addCalcField("Sales", calc("Margin", "field['PRICE'] - field['COST']"));
+
+      Viewsheet newVs = saveAndCapture(sourceVs, "Chart1");
+
+      assertNotNull(newVs.getCalcFields("Sales"));
+   }
+
+   /** Only the saved Text's own table is carried over, not every calc-field table. */
+   @Test
+   void savingATextDoesNotCarryOverCalcFieldsOfOtherTables() throws Exception {
+      Viewsheet sourceVs = new Viewsheet();
+      TextVSAssembly text = new TextVSAssembly(sourceVs, "Text1");
+      bindScalar(text, "Query1");
+      sourceVs.addAssembly(text);
+      sourceVs.addCalcField("Query1", calc("Margin", "field['PRICE'] - field['COST']"));
+      sourceVs.addCalcField("Query2", calc("Other", "field['PRICE']"));
+
+      Viewsheet newVs = saveAndCapture(sourceVs, "Text1");
+
+      assertNotNull(newVs.getCalcFields("Query1"));
+      assertNull(newVs.getCalcFields("Query2"));
+   }
+
+   private static void bindScalar(OutputVSAssembly assembly, String table) {
+      ScalarBindingInfo binding = new ScalarBindingInfo();
+      binding.setTableName(table);
+      binding.setColumnValue("Margin");
+      assembly.setScalarBindingInfo(binding);
+   }
+
+   private static CalculateRef calc(String name, String expression) {
+      ExpressionRef inner = new ExpressionRef();
+      inner.setName(name);
+      inner.setExpression(expression);
+
+      CalculateRef ref = new CalculateRef(true);
+      ref.setDataRef(inner);
+      return ref;
+   }
+
+   private Viewsheet saveAndCapture(Viewsheet sourceVs, String assemblyName) throws Exception {
+      ViewsheetService viewsheetService = mock(ViewsheetService.class);
+      AssetRepository assetRepository = mock(AssetRepository.class);
+      WizVisualizationService service = createService(viewsheetService, assetRepository);
+
+      AssetEntry insideEntry = new AssetEntry(
+         AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.VIEWSHEET,
+         WizVisualizationService.VISUALIZATION_COMPONENTS_FOLDER_PATH + "/vs1", null);
+
+      WizVisualizationSaveEvent event = new WizVisualizationSaveEvent();
+      event.setSourceViewsheetIdentifier(insideEntry.toIdentifier());
+      event.setAssemblyName(assemblyName);
+
+      Principal principal = mock(Principal.class);
+      when(principal.getName()).thenReturn("admin" + IdentityID.KEY_DELIMITER + "host-org");
+      when(assetRepository.getSheet(
+         any(AssetEntry.class), eq(principal), eq(true), any(AssetContent.class)))
+         .thenReturn(sourceVs);
+
+      service.saveVisualization(event, principal);
+
+      var captor = ArgumentCaptor.forClass(Viewsheet.class);
+      verify(viewsheetService).setViewsheet(
+         captor.capture(), any(AssetEntry.class), eq(principal), eq(true), eq(true));
+      return captor.getValue();
+   }
+
    // ── saveVisualization carries forward filter-control assemblies (07-fix-r3.md) ───────────────
    //
    // WizVisualizationService.saveVisualization historically cloned ONLY the one named chart
@@ -199,6 +333,7 @@ class WizVisualizationServiceTest {
       ChartVSAssembly chart = new ChartVSAssembly(sourceVs, "Chart1");
       chart.setPixelOffset(new Point(0, 0));
       chart.setPixelSize(new Dimension(400, 240));
+      chart.setSourceInfo(new SourceInfo(SourceInfo.ASSET, null, "SALES_FULL"));
       sourceVs.addAssembly(chart);
 
       WizVisualizationSaveEvent event = new WizVisualizationSaveEvent();
@@ -235,6 +370,7 @@ class WizVisualizationServiceTest {
       ChartVSAssembly chart = new ChartVSAssembly(sourceVs, "Chart1");
       chart.setPixelOffset(new Point(0, 0));
       chart.setPixelSize(new Dimension(400, 240));
+      chart.setSourceInfo(new SourceInfo(SourceInfo.ASSET, null, "SALES_FULL"));
       sourceVs.addAssembly(chart);
 
       SelectionListVSAssembly selectionList = new SelectionListVSAssembly(sourceVs, "SelectionList1");
@@ -308,6 +444,7 @@ class WizVisualizationServiceTest {
       ChartVSAssembly chart = new ChartVSAssembly(sourceVs, "Chart1");
       chart.setPixelOffset(new Point(0, 0));
       chart.setPixelSize(new Dimension(400, 240));
+      chart.setSourceInfo(new SourceInfo(SourceInfo.ASSET, null, "SALES_FULL"));
       sourceVs.addAssembly(chart);
 
       SelectionListVSAssembly selectionList = new SelectionListVSAssembly(sourceVs, "SelectionList1");
@@ -338,6 +475,157 @@ class WizVisualizationServiceTest {
       assertNotNull(clonedSelectionList);
       assertEquals(List.of("SALES_FULL"), clonedSelectionList.getTableNames(),
                    "the control's table binding must survive clone(), not just its geometry");
+   }
+
+   // ── only the saved chart's own-table controls are carried over (#77143 follow-up F1) ─────────
+   //
+   // Every wiz chart in a session viewsheet sits at the default geometry, so the geometry-only
+   // findExistingFilterControls also returns the controls of sibling charts. A control on another
+   // table must not be carried: that table is trimmed out of the saved worksheet and the control
+   // would reopen empty. A control on the chart's own table filters the chart and is carried.
+
+   @Test
+   void savingAChartDoesNotCarryOverASiblingChartsControlOnAnotherTable() throws Exception {
+      Viewsheet sourceVs = new Viewsheet();
+      sourceVs.addAssembly(chartOn(sourceVs, "ChartA", "T_A"));
+      sourceVs.addAssembly(chartOn(sourceVs, "ChartB", "T_B"));
+      sourceVs.addAssembly(selectionListOn(sourceVs, "SelA", 0, List.of("T_A")));
+      sourceVs.addAssembly(selectionListOn(sourceVs, "SelB", 100, List.of("T_B")));
+
+      Viewsheet newVs = saveAndCapture(sourceVs, "ChartB");
+
+      assertNull(newVs.getAssembly("SelA"),
+                 "a sibling chart's control on another table must not be carried into the saved viz");
+      assertNotNull(newVs.getAssembly("SelB"), "the saved chart's own control is still carried");
+      assertEquals(2, newVs.getAssemblies().length);
+   }
+
+   /** The table filter applies to range sliders and calendars too, not only selection lists. */
+   @Test
+   void savingAChartFiltersSiblingRangeSlidersAndCalendarsByTable() throws Exception {
+      Viewsheet sourceVs = new Viewsheet();
+      sourceVs.addAssembly(chartOn(sourceVs, "ChartA", "T_A"));
+      sourceVs.addAssembly(chartOn(sourceVs, "ChartB", "T_B"));
+      sourceVs.addAssembly(controlOn(new TimeSliderVSAssembly(sourceVs, "SliderA"), 0, "T_A"));
+      sourceVs.addAssembly(controlOn(new CalendarVSAssembly(sourceVs, "CalendarA"), 100, "T_A"));
+      sourceVs.addAssembly(controlOn(new TimeSliderVSAssembly(sourceVs, "SliderB"), 200, "T_B"));
+      sourceVs.addAssembly(controlOn(new CalendarVSAssembly(sourceVs, "CalendarB"), 300, "T_B"));
+
+      Viewsheet newVs = saveAndCapture(sourceVs, "ChartB");
+
+      assertNull(newVs.getAssembly("SliderA"), "a sibling's range slider on another table is dropped");
+      assertNull(newVs.getAssembly("CalendarA"), "a sibling's calendar on another table is dropped");
+      assertNotNull(newVs.getAssembly("SliderB"));
+      assertNotNull(newVs.getAssembly("CalendarB"));
+      assertEquals(3, newVs.getAssemblies().length);
+   }
+
+   private static AbstractSelectionVSAssembly controlOn(AbstractSelectionVSAssembly control, int x,
+                                                        String table)
+   {
+      control.setPixelOffset(new Point(x, 250));
+      control.setPixelSize(new Dimension(100, 120));
+      control.setTableNames(List.of(table));
+      return control;
+   }
+
+   /** A sibling chart's control on the same table already filters the saved chart, so it is kept. */
+   @Test
+   void savingAChartCarriesOverASiblingChartsControlOnTheSameTable() throws Exception {
+      Viewsheet sourceVs = new Viewsheet();
+      sourceVs.addAssembly(chartOn(sourceVs, "ChartA", "SALES_FULL"));
+      sourceVs.addAssembly(chartOn(sourceVs, "ChartB", "SALES_FULL"));
+      sourceVs.addAssembly(selectionListOn(sourceVs, "SelA", 0, List.of("SALES_FULL")));
+
+      Viewsheet newVs = saveAndCapture(sourceVs, "ChartB");
+
+      assertNotNull(newVs.getAssembly("SelA"));
+   }
+
+   /** A multi-table control is kept when one of its tables is the chart's. */
+   @Test
+   void savingAChartCarriesOverAMultiTableControlThatIncludesItsTable() throws Exception {
+      Viewsheet sourceVs = new Viewsheet();
+      sourceVs.addAssembly(chartOn(sourceVs, "Chart1", "T_B"));
+      sourceVs.addAssembly(selectionListOn(sourceVs, "Sel1", 0, List.of("T_A", "T_B")));
+
+      Viewsheet newVs = saveAndCapture(sourceVs, "Chart1");
+
+      assertNotNull(newVs.getAssembly("Sel1"));
+   }
+
+   /** A control with no table and a chart with no table both carry nothing. */
+   @Test
+   void unboundControlsAndUnboundChartsCarryNoControls() throws Exception {
+      Viewsheet sourceVs = new Viewsheet();
+      sourceVs.addAssembly(chartOn(sourceVs, "Chart1", "SALES_FULL"));
+      sourceVs.addAssembly(selectionListOn(sourceVs, "Unbound", 0, List.of()));
+
+      assertNull(saveAndCapture(sourceVs, "Chart1").getAssembly("Unbound"),
+                 "a control with no table does not filter the chart and is dropped");
+
+      Viewsheet noTableVs = new Viewsheet();
+      ChartVSAssembly noTableChart = new ChartVSAssembly(noTableVs, "Chart1");
+      noTableVs.addAssembly(noTableChart);
+      noTableVs.addAssembly(selectionListOn(noTableVs, "Sel1", 0, List.of("SALES_FULL")));
+
+      assertEquals(1, saveAndCapture(noTableVs, "Chart1").getAssemblies().length,
+                   "a chart with no table has nothing to bind a control to");
+   }
+
+   /** A chart at the wiz default geometry (never positioned) bound to {@code table}. */
+   private static ChartVSAssembly chartOn(Viewsheet vs, String name, String table) {
+      ChartVSAssembly chart = new ChartVSAssembly(vs, name);
+      chart.setSourceInfo(new SourceInfo(SourceInfo.ASSET, null, table));
+      return chart;
+   }
+
+   /** A selection list packed below the default chart geometry. */
+   private static SelectionListVSAssembly selectionListOn(Viewsheet vs, String name, int x,
+                                                          List<String> tables)
+   {
+      SelectionListVSAssembly selectionList = new SelectionListVSAssembly(vs, name);
+      selectionList.setPixelOffset(new Point(x, 250));
+      selectionList.setPixelSize(new Dimension(100, 120));
+      selectionList.setTableNames(tables);
+      return selectionList;
+   }
+
+   // ── F3: calc fields of an Input/Selection assembly's table are carried (#77143 follow-up) ────
+
+   @Test
+   void savingAComboBoxCarriesOverTheCalcFieldsOfItsTable() throws Exception {
+      Viewsheet sourceVs = new Viewsheet();
+      ComboBoxVSAssembly comboBox = new ComboBoxVSAssembly(sourceVs, "ComboBox1");
+      comboBox.setTableName("Query1");
+      sourceVs.addAssembly(comboBox);
+      sourceVs.addCalcField("Query1", calc("Margin", "field['PRICE'] - field['COST']"));
+      sourceVs.addCalcField("Query2", calc("Other", "field['PRICE']"));
+
+      Viewsheet newVs = saveAndCapture(sourceVs, "ComboBox1");
+
+      CalculateRef[] calcs = newVs.getCalcFields("Query1");
+      assertNotNull(calcs, "the ComboBox's table calc fields must be carried into the saved viewsheet");
+      assertEquals("Margin", calcs[0].getName());
+      assertNull(newVs.getCalcFields("Query2"));
+   }
+
+   @Test
+   void savingASelectionListCarriesOverTheCalcFieldsOfItsTable() throws Exception {
+      Viewsheet sourceVs = new Viewsheet();
+      SelectionListVSAssembly selectionList = new SelectionListVSAssembly(sourceVs, "SelectionList1");
+      selectionList.setTableNames(List.of("Query1"));
+      sourceVs.addAssembly(selectionList);
+      sourceVs.addCalcField("Query1", calc("Margin", "field['PRICE'] - field['COST']"));
+      sourceVs.addCalcField("Query2", calc("Other", "field['PRICE']"));
+
+      Viewsheet newVs = saveAndCapture(sourceVs, "SelectionList1");
+
+      CalculateRef[] calcs = newVs.getCalcFields("Query1");
+      assertNotNull(calcs,
+                    "the SelectionList's table calc fields must be carried into the saved viewsheet");
+      assertEquals("Margin", calcs[0].getName());
+      assertNull(newVs.getCalcFields("Query2"));
    }
 
    // ── createVisualizationFolder ─────────────────────────────────────────────────

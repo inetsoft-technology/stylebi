@@ -357,6 +357,8 @@
 
 **已确认缺陷 2（新发现，落地 5a-5e 时实测确认，不在原场景清单里）：** `getDataCycleIds(String orgId)`（私有，`DataCycleManager.java:741-756`）调用的是 `IndexedStorage.getKeys(Filter)` 的**单参**重载，内部（`BlobIndexedStorage.getMetadataStorage(null)`）落回 `OrganizationManager.getCurrentOrgID()`（当前线程组织上下文），完全不使用传入的 `orgId` 参数去限定查询范围——这个参数只在拿到 key 集合之后，用来给结果 `DataCycleId` 贴标签。`migrateDataCycles()`/`clearDataCycles()` 的两个真实调用方——`AbstractEditableAuthenticationProvider.copyOrganizationInternal()`（`:273`）、`IdentityService.syncIdentity()`（`:622`）——都**没有**像同一方法里其它步骤那样把这次调用包在 `OrganizationManager.runInOrgScope(oldOrgId, ...)` 里。
 
+**已修复（Bug #77194）：** `getDataCycleIds(orgId)` 改为调用 `storage.getKeys(filter, orgId)`（与同类 `generateTasks()` 已有写法一致），按传入的组织读取桶，不再依赖当前线程组织上下文。5f/5h 已翻转为断言修复后行为，并新增 5g/5i/5j。下文可达性分析与"待确认"说明保留为修复前的历史记录；其中人工复测"没复现丢失"的原因已查清：生产环境里 `IdentityService.copyStorages()` → `indexedStorage.copyStorageData()` 会先把源组织的 `DATA_CYCLE` 条目原样复制到新组织，所以新组织里能看到 cycle，但复制品的 `orgId`/`CycleInfo`（`createdBy`/`lastModifiedBy`）仍指向源组织；若当前组织里有源组织没有的同名 cycle，`migrateDataCycles()` 还会 NPE，`generateTasks()`/`ScheduleManager.reloadExtensions()` 被跳过。删除方向的残留会被紧随其后的 `removeStorages(orgID)` 整桶删除覆盖，不会真正留下孤儿。
+
 **可达性分析（2026-07-23 补充，逐条核实 EM 前端调用链，结论：改名不可达，复制/删除可达）：** "当前组织"是挂在会话级 `XPrincipal` 上的真实状态——`EmPageHeaderController.setCurrOrg()`（`POST /api/em/pageheader/organization`，右上角组织选择器触发）把选中的 orgId 写进 `((XPrincipal) principal).setProperty("curr_org_id", orgID)`，`XPrincipal.getCurrentOrgId()` 优先读这个值；`page-header.service.ts` 的 `orgPages` 列表里 `"Security Settings Users"`/`"Data Cycles"` 都要求先选中一个组织。这解释了为什么普通的 Data Cycle 增删改（`ScheduleCycleService`）不受这个缺陷影响——那些方法走的是显式 `orgId` 参数的存储 API，且调用前 EM 已经强制切好了组织。但组织本身的改名/复制/删除是否也满足"当前组织==目标组织"这个前提，三条路径答案不一样：
 - **改名——不可达，不按产品缺陷跟踪**：`setOrganization()` → `POST edit-organization` → `syncIdentity()` → `copyOrganizationInternal(replace=true)`。要打开 org0 的"编辑组织"面板，站点管理员必须先在右上角切到 org0（跟编辑 org0 的 Data Cycle 是同一个约束），因此 `migrateDataCycles(fromOrg, newOrg, true)` 执行时 `curr_org_id` 天然等于 `fromOrg`——跟三、3.2 节 Dashboard 注册表 4e 场景最终的结论同一性质：代码行为如实描述，前端到不了，不算产品缺陷。5b 场景因此不需要修改。
 - **复制（Add Organization → "duplicate from"）——代码分析与实测结果矛盾，`[待确认]`，后续处理**：`CreateOrganizationDialogComponent` 的"复制来源"下拉框自己独立调用 `get-all-organizations` 拿全部组织列表，跟右上角 `PageHeaderService.currentOrgId`/会话的 `curr_org_id` **没有任何耦合**（组件代码里完全不引用它）。站点管理员可以停留在任意当前组织（包括从未手动切换过的默认组织）下，在弹窗里选 org0 作为复制来源——按代码分析，`migrateDataCycles(org0, newOrg, replace=false)` 执行时 `curr_org_id` 大概率跟 org0 对不上，应该会静默缺失源组织的 Data Cycle。5f 直接调 `migrateDataCycles()`、5h 往上多走一层驱动 `UserTreeService.createOrganization()` 实际调用的 `AbstractEditableAuthenticationProvider.copyOrganization(...)` 整条链路，两个单元测试结论一致，且已核实生产环境真实装配的 `IndexedStorage` bean（`EngineConfiguration.java:260-264`，即 `BlobIndexedStorage`）与测试用的完全相同，`enterprise/`/`server/` 也没有找到任何覆盖 `copyOrganization`/`DataCycleManager`/加 `runInOrgScope` 的代码。
@@ -366,9 +368,11 @@
 
 | # | 场景 | 预期 | 测试状态 |
 |---|---|---|---|
-| 5f | 复制方向（内层）：`migrateDataCycles(replace=false)` 在当前组织上下文≠源组织时被调用（不包 `runInOrgScope`，对应 Add Organization "duplicate from" 独立于右上角选择器这一真实可达路径） | 静默不复制任何内容：目标组织读不到该 Data Cycle，源组织的原始条目也不受影响（不是崩溃，也不是数据损坏） | `[已落地]` `DataCycleManagerOrgLifecycleTest#migrateDataCycles_calledOutsideSourceOrgContext_silentlyMigratesNothing`（单元测试本身通过、断言的是方法级隔离行为）——`[待确认]` 与下方真实人工测试结果矛盾，尚未查清原因，见上方说明 |
-| 5h | 复制方向（真实入口）：驱动 `AbstractEditableAuthenticationProvider.copyOrganization(...)`——`UserTreeService.createOrganization()` 处理 Add Organization "duplicate from" 时实际调用的同一个方法，而非直接调 `migrateDataCycles()` | 新建组织读不到源组织的 Data Cycle，跟 5f 结论一致，证明不是"只调内层方法才触发"的人为现象 | `[已落地]` `DataCycleManagerOrgLifecycleTest#cloneOrganization_viaRealCopyOrganizationEntryPoint_newOrgSilentlyMissingSourceDataCycle`——`[待确认]` 同上，跟真实人工测试结果矛盾，见上方说明 |
-| 5g | 删除方向：`clearDataCycles(orgId)` 在当前组织上下文≠被删组织时被调用（不包 `runInOrgScope`，对应组织列表删除这一默认可达路径） | 静默不清理：被删组织的 Data Cycle 资产在组织本身删除后依然留在存储里，成为孤儿 | `[待补]` |
+| 5f | 复制方向（内层）：`migrateDataCycles(replace=false)` 在当前组织上下文≠源组织时被调用（不包 `runInOrgScope`，对应 Add Organization "duplicate from" 独立于右上角选择器这一真实可达路径） | 修复后（Bug #77194）：目标组织得到该 Data Cycle，`orgId` 改写为目标组织，源组织条目不受影响 | `[已落地]` `DataCycleManagerOrgLifecycleTest#migrateDataCycles_calledOutsideSourceOrgContext_migratesSourceCycle` |
+| 5h | 复制方向（真实入口）：驱动 `AbstractEditableAuthenticationProvider.copyOrganization(...)`——`UserTreeService.createOrganization()` 处理 Add Organization "duplicate from" 时实际调用的同一个方法，而非直接调 `migrateDataCycles()` | 修复后（Bug #77194）：新建组织得到源组织的 Data Cycle，`orgId` 指向新组织 | `[已落地]` `DataCycleManagerOrgLifecycleTest#cloneOrganization_viaRealCopyOrganizationEntryPoint_newOrgGetsSourceDataCycle` |
+| 5g | 删除方向：`clearDataCycles(orgId)` 在当前组织上下文≠被删组织时被调用（不包 `runInOrgScope`，对应组织列表删除这一默认可达路径） | 修复后（Bug #77194）：被删组织的 Data Cycle 被清除，当前组织的 Data Cycle 保留 | `[已落地]` `DataCycleManagerOrgLifecycleTest#clearDataCycles_calledOutsideTargetOrgContext_removesTargetOrgCycles` |
+| 5i | 列表/计数：当前组织=A 时调用 `getDataCycles("B")`、`getDataCycles()`、`getDataCycleCount()` | 只列出 B 自己的 cycle；全组织列表中每个 cycle 只挂在自己的组织下；计数等于各组织 cycle 数之和 | `[已落地]` `DataCycleManagerOrgLifecycleTest#getDataCycles_otherOrgFromCurrentOrgContext_listsThatOrgsOwnCycles` |
+| 5j | 复制方向（生产顺序）：先 `indexedStorage.copyStorageData(src, dst)` 原样复制，再在另一个组织（含源组织没有的 cycle 名）上下文中调用 `migrateDataCycles(src, dst, false)` | 不抛 NPE；复制品的 `orgId`、`CycleInfo.orgId`/`createdBy`/`lastModifiedBy` 均改写为目标组织；当前组织的 cycle 不会泄漏到目标组织 | `[已落地]` `DataCycleManagerOrgLifecycleTest#copyOrg_rawCopyThenMigrateOutsideSourceContext_rewritesCopiedCycleToTargetOrg` |
 
 **Task Save 文件 — Rename 场景**（copy 不涉及；机制说明见上方"分工说明"）
 
@@ -376,7 +380,7 @@
 |---|---|---|---|
 | 7a | `updateTaskSaveFiles()` → `externalStorageService.renameFolder()`，仅 rename 调用 | 组织 id 不同才调用 `renameFolder(oorg, norg)`；id 相同时直接跳过（`Tool.equals(oorg,norg)` 早退） | `[已落地]`（方法自身行为）——`updateTaskSaveFiles_orgsDiffer_renamesExternalStorageFolder`、`updateTaskSaveFiles_sameOrgId_noOp`；copy 路径确实不调用这一事实来自直接通读 `copyOrganizationInternal()`（`updateTaskSaveFiles()` 只出现在 `:154`，位于 `if(replace)` 分支内，copy 分支没有对应调用），未额外走 `copyOrganization()` 真实入口重新验证。`[待确认]`——copy 场景不复制 Task Save 文件是否符合预期，仍待产品/业务确认 |
 
-**测试覆盖：** 8 个场景（5a-5f、5h、7a）已落地，`DataCycleManagerOrgLifecycleTest.java`（`community/core/src/test/java/inetsoft/sree/internal/`）共 7 个 `@Test`，全部通过；5g（`clearDataCycles()` 的同类场景）待补。7a 的测试方法实际落在三、3.4 的测试文件 `IdentityServiceAutoSaveOrgLifecycleTest.java` 里（跟 `updateAutoSaveFiles()`/`updateTaskSaveFiles()` 是 `IdentityService` 上两个相邻方法、代码邻接顺手一起测了，不是本节机制的一部分）——按文档主题挪到这里说明，测试代码本身不搬。
+**测试覆盖：** 11 个场景（5a-5j、7a）已落地，`DataCycleManagerOrgLifecycleTest.java`（`community/core/src/test/java/inetsoft/sree/internal/`）共 10 个 `@Test`，全部通过。7a 的测试方法实际落在三、3.4 的测试文件 `IdentityServiceAutoSaveOrgLifecycleTest.java` 里（跟 `updateAutoSaveFiles()`/`updateTaskSaveFiles()` 是 `IdentityService` 上两个相邻方法、代码邻接顺手一起测了，不是本节机制的一部分）——按文档主题挪到这里说明，测试代码本身不搬。
 
 ---
 
@@ -695,7 +699,7 @@ sreeUserData 这个缺陷找到后带出了一个自然的问题：`getOrgScoped
 | `OrgLifecycleAssetContentMigrationTest.java` | 二（2a-2j、10a-10c） |
 | `OrgLifecycleThemeIntegrationTest.java` | 三、3.1（3a、3c、3d） |
 | `OrgLifecycleDashboardMigrationTest.java` | 三、3.2（4a-4f） |
-| `DataCycleManagerOrgLifecycleTest.java`（已建，`inetsoft.sree.internal`） | 三、3.3（5a-5f、5h 已落地，5g 待补；Bug #75756 已修复——5e 断言修复后行为，5a/5e 粒度不同不合并；7a 场景文档在此章节，但测试方法落在 `IdentityServiceAutoSaveOrgLifecycleTest.java`，见下一行） |
+| `DataCycleManagerOrgLifecycleTest.java`（已建，`inetsoft.sree.internal`） | 三、3.3（5a-5j 已落地，Bug #77194 已修复；Bug #75756 已修复——5e 断言修复后行为，5a/5e 粒度不同不合并；7a 场景文档在此章节，但测试方法落在 `IdentityServiceAutoSaveOrgLifecycleTest.java`，见下一行） |
 | `IdentityServiceAutoSaveOrgLifecycleTest.java`（已建，`inetsoft.web.admin.security`） | 三、3.4（6a/6b/6d 已落地，6c 不写 unit case 改走人工验证）+ 三、3.3（7a 已落地，代码邻接，测试未搬） |
 | `AutoSaveServiceOrgLifecycleTest.java`（已建，`inetsoft.web`） | 三、3.4 Copy/Rename 场景（6g/6i 对应 Issue #75827，已随 PR #4459（2026-07-31 合并）修复并落地，见该节说明）+ 三、3.4 其他场景（6e 已写好但 `@Disabled` 待产品/后续确认；6h 对应 **Bug #75887**，同样 `@Disabled` 待处理，均临时启用手动验证过能跑通） |
 | `ContentRepositoryTreeServiceTest.java`（已建，`inetsoft.web.admin.content.repository`，`ContentRepositoryTreeService` 通用测试文件，非仅 autosave 专用，后续该类的其它场景可继续加在这里） | 三、3.4（6f 已写好但 `@Disabled` 待确认，同上验证过能跑通；已确认与 Issue #75777（已修复，PR #4408）是独立问题，见该节；现有 `ContentRepositoryTreeControllerTest` 是另一个类——controller 层、`treeService` 全 mock，未触达这里测的真实逻辑） |
@@ -717,7 +721,6 @@ sreeUserData 这个缺陷找到后带出了一个自然的问题：`getOrgScoped
 |---|---|---|
 | 7a | Task Save 文件：copy 场景不复制是否符合预期 | 三、3.3 |
 | — | 无锁执行顺序窗口是否会被生产并发场景实际触发 | 共享背景 |
-| 5f/5h | Data Cycle 克隆场景：`getDataCycleIds()` 当前组织上下文耦合缺陷——单元测试 + 真实 Spring 装配核查都证实代码里确实这样写，但用户在真实运行环境里刻意避开"当前组织==源组织"这个前提后手动复测，克隆结果依然正确（含下游的 MV 调度——克隆后新组织下确实存在"DataCycle Task: cycle2"），两轮独立代码排查（含 enterprise/server 是否有覆盖实现）都没找到能解释这个矛盾的机制。原因未知，后续处理——留意是否是环境/构建版本差异，或是遗漏了某条实际调用路径 | 三、3.3 |
 | Issue #75800（PR #4469，OPEN 未合并） | `logoEntries`/`faviconEntries` 在组织 copy/rename 下仍不同步——新组织不继承源组织的 Logo/Favicon，rename 后旧组织条目原地残留成孤儿；`welcomePageEntries`（含登录横幅）与三者的 delete 分支已修复，见三、3.8.1 | 三、3.8.1 |
 | `[待确认]` | Legacy 报表部署导入的全局模板路径（`templates/{fname}`、`ReportFiles/{fname}` 等，`DeployManagerService.java:213-244`）完全不含 orgId——如果这条（前多租户时代的）导入功能在当前多租户环境下仍可达，会是跟 sreeUserData 同类的"该隔离没隔离"缺陷；未能确认该功能当前是否还真的可达，暂不计入已确认缺陷 | 三、3.5 附录 |
 | `[设计如此，非缺陷]` | `userformat.xml`（数字/小数格式设置）所有组织共享同一份全局文件，从设计上就没有 per-org 隔离，不属于"改名/删除后丢失"这类生命周期缺陷；仅记录以防被误当成 sreeUserData 同类问题 | 三、3.5 附录 |

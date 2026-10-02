@@ -325,18 +325,10 @@ export class UsersSettingsPageComponent implements OnInit, OnDestroy {
                      return this.errorService.showSnackBar(error);
                   }),
                   finalize(() => this.orgBusy.endOrgSave())
-               ).subscribe((msg) => {
-                  if(msg) {
-                     this.dialog.open(MessageDialog, {
-                        data: {
-                           title: "_#(js:Confirm)",
-                           content: "_#(js:em.organization.renameIssue)",
-                           type: MessageDialogType.CONFIRMATION
-                        }
-                     });
-                  }
-
-                  window.open("../logout?fromEm=true", "_self");
+               ).subscribe((msg: string) => {
+                  // log out only after the message is closed, or the user never sees it
+                  this.showOrganizationSaveMessage(msg)
+                     .subscribe(() => window.open("../logout?fromEm=true", "_self"));
                });
             }
          });
@@ -353,17 +345,10 @@ export class UsersSettingsPageComponent implements OnInit, OnDestroy {
             }),
             tap(() => this.refreshTree({name: model.name, orgID: (model as EditOrganizationPaneModel).id}, IdentityType.ORGANIZATION)),
             finalize(() => this.orgBusy.endOrgSave())
-         ).subscribe((msg) => {
-            if(msg) {
-               this.dialog.open(MessageDialog, {
-                  data: {
-                     title: "_#(js:Confirm)",
-                     content: "_#(js:em.organization.renameIssue)",
-                     type: MessageDialogType.CONFIRMATION
-                  }
-               });
-            }
-
+         ).subscribe((msg: string) => {
+            // no need to subscribe: dialog.open() shows the message right away and there is
+            // no logout here that has to wait for it to be closed
+            this.showOrganizationSaveMessage(msg);
             this.loading = false;
 
             if(orgNameChanged) {
@@ -371,6 +356,28 @@ export class UsersSettingsPageComponent implements OnInit, OnDestroy {
             }
          });
       }
+   }
+
+   /**
+    * Shows the message returned by an organization save. The server returns only localized
+    * text for this save, including the rename issue when the organization's server files could
+    * not be renamed, so it is shown as is.
+    *
+    * @return an observable that emits once the message dialog is closed, or right away when
+    *         there is no message to show.
+    */
+   private showOrganizationSaveMessage(msg: string): Observable<unknown> {
+      if(!msg) {
+         return of(null);
+      }
+
+      return this.dialog.open(MessageDialog, {
+         data: {
+            title: "_#(js:Warning)",
+            content: msg,
+            type: MessageDialogType.WARNING
+         }
+      }).afterClosed();
    }
 
    private postUserInfo(model: EditIdentityPaneModel, logout: boolean) {

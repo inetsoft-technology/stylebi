@@ -34,7 +34,7 @@ public class ListKeysTask implements SingletonCallableTask<String[]> {
 
    @Override
    public String[] call() throws Exception {
-      return KeyValueEngine.getInstance().stream(id)
+      return KeyValueTask.getServiceBean(KeyValueEngine.class).stream(id)
          .map(KeyValuePair::getKey)
          .toArray(String[]::new);
    }

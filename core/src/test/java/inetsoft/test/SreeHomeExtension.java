@@ -30,6 +30,8 @@ import inetsoft.web.admin.content.repository.MVSupportService;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
 import org.junit.jupiter.api.extension.*;
+import org.springframework.context.ApplicationContext;
+import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.io.*;
@@ -50,6 +52,20 @@ public class SreeHomeExtension implements BeforeAllCallback, AfterAllCallback {
       }
 
       ExtensionContext.Store store = context.getStore(NAMESPACE);
+
+      // the values in the configuration context outlive the application context, e.g. the
+      // early-loaded properties still hold the security.enabled that the previous class stored.
+      // Once that class's context is closed, they must not be seen by this class's context. A
+      // context that is still open is cached for a later class, which still needs the values its
+      // beans stored when they were created. This is checked here, not in afterAll(), because
+      // the context is closed after this extension's afterAll() runs
+      if(previousApplicationContext instanceof ConfigurableApplicationContext previous &&
+         !previous.isActive())
+      {
+         ConfigurationContext.getContext().clearValues();
+      }
+
+      previousApplicationContext = null;
 
       System.setProperty(
          "inetsoft.sree.internal.cluster.implementation", MockCluster.class.getName());
@@ -73,7 +89,9 @@ public class SreeHomeExtension implements BeforeAllCallback, AfterAllCallback {
       Files.createDirectories(homePath);
 //      writeConfig(homePath);
       ConfigurationContext.getContext().setHome(home);
-      ConfigurationContext.getContext().setApplicationContext(SpringExtension.getApplicationContext(context));
+      ApplicationContext applicationContext = SpringExtension.getApplicationContext(context);
+      store.put(APPLICATION_CONTEXT, applicationContext);
+      ConfigurationContext.getContext().setApplicationContext(applicationContext);
       Tool.setServer(true);
 
       if(annotation != null) {
@@ -143,6 +161,7 @@ public class SreeHomeExtension implements BeforeAllCallback, AfterAllCallback {
       MVSupportService mvSupport = store.remove(MV_SUPPORT, MVSupportService.class);
       List<String> mvNames = store.remove(MV_NAMES, List.class);
       Path clusterDir = store.remove(CLUSTER_DIR, Path.class);
+      previousApplicationContext = store.remove(APPLICATION_CONTEXT, ApplicationContext.class);
 
       if(mvSupport != null && mvNames != null) {
          mvSupport.dispose(mvNames);
@@ -396,5 +415,8 @@ public class SreeHomeExtension implements BeforeAllCallback, AfterAllCallback {
    private static final String MV_SUPPORT = "MVSupportService";
    private static final String MV_NAMES = "MVNames";
    private static final String CLUSTER_DIR = "ClusterDir";
+   private static final String APPLICATION_CONTEXT = "ApplicationContext";
    private static String deadlockThreadDump;
+   // the application context of the last test class, whose values are cleared once it is closed
+   private static ApplicationContext previousApplicationContext;
 }

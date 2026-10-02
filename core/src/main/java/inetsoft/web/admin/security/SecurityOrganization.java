@@ -94,7 +94,13 @@ public class SecurityOrganization {
     *
     * @return the theme used by the organization.
     */
-   @Schema(description = "The theme used by the organization.", example = "")
+   @Schema(description = "The ID of the theme used by the organization. When an organization " +
+      "is created or updated, a theme name is also accepted and resolved to the ID of an " +
+      "eligible (global or own-organization) theme. The name must match exactly (case-sensitive). " +
+      "An empty string or the reserved ID \"default\" (exact case) means the default theme: " +
+      "an update clears the organization's theme and a create stores none. A theme named " +
+      "\"default\" is reachable only by its own ID (e.g. default1). " +
+      "User, group and role theme fields accept only an ID.", example = "")
    public String getTheme() {
       return theme;
    }
@@ -258,8 +264,9 @@ public class SecurityOrganization {
     *
     * @return the default password.
     */
-   @Schema(description = "The default password assigned to cloned users when copying from an existing organization. " +
-      "Required when copyFromOrgID is provided. Must be 8-72 characters and contain uppercase, lowercase, a digit, and a special character.",
+   @Schema(description = "The default password assigned to cloned users when copying from an existing organization, " +
+      "or to the memberUsers created with a new organization. Required when copyFromOrgID is provided, or when " +
+      "memberUsers is not empty without copyFromOrgID. Must be 8-72 characters and contain uppercase, lowercase, a digit, and a special character.",
       example = "P@ssw0rd!")
    public String getDefaultPassword() {
       return defaultPassword;

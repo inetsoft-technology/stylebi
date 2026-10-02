@@ -1,6 +1,6 @@
 /*
  * This file is part of StyleBI.
- * Copyright (C) 2024  InetSoft Technology
+ * Copyright (C) 2026  InetSoft Technology
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -17,6 +17,30 @@
  */
 package inetsoft.web.admin.presentation;
 
+/*
+ * Test strategy
+ *
+ * PortalIntegrationViewSettingsService.setModel() used to write the portal tool buttons and
+ * portal tabs to the global PortalThemesManager even when globalSettings=false (an org admin in
+ * a multi-tenant deployment), so an org admin could add a tab to every organization's portal
+ * (Bug #77054). resetSettings() already guarded the same writes with globalSettings.
+ *
+ * Behavioral guarantees covered:
+ *
+ * [G1] An org-scoped save does not change the global portal buttons or tabs.
+ * [G2] An org-scoped save still writes the org-scoped loading text and home links.
+ * [G3] A global save still writes the portal buttons and tabs.
+ *
+ * setModel also resolves a submitted tab by a caller-echoed originalIndex into the manager's
+ * live, shared tab list. If another request reordered or shrank that list between when the
+ * caller read the model and when it submitted, the stale index either threw a raw
+ * IndexOutOfBoundsException or silently applied the edit to the wrong tab:
+ *
+ * [G4] An out-of-range or identity-mismatched index fails with a clean MessageException and
+ *      does not write the tabs.
+ * [G5] A non-racing edit of an editable tab is still applied.
+ */
+
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.portal.PortalTab;
 import inetsoft.sree.portal.PortalThemesManager;
@@ -24,50 +48,78 @@ import inetsoft.util.MessageException;
 import inetsoft.web.admin.presentation.model.PortalIntegrationSettingsModel;
 import inetsoft.web.admin.presentation.model.PortalTabModel;
 import org.junit.jupiter.api.*;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.*;
-import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.MockedStatic;
 
+import java.lang.reflect.Field;
 import java.security.Principal;
-import java.util.Arrays;
-import java.util.List;
+import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
-/**
- * setModel resolves a submitted tab by a caller-echoed originalIndex into the manager's live,
- * shared tab list. If another request reordered or shrank that list between when the caller read
- * the model and when it submitted, the stale index either throws a raw IndexOutOfBoundsException
- * or silently applies the edit to the wrong tab. These tests pin the fix: an out-of-range or
- * identity-mismatched index must fail loud with a clean, field-named error instead.
- *
- * Tier: [mock] -- PortalThemesManager is mocked directly and field-injected, no Spring context.
- */
 @Tag("core")
-@ExtendWith(MockitoExtension.class)
 class PortalIntegrationViewSettingsServiceTest {
-   @Mock private PortalThemesManager manager;
-   @Mock private Principal principal;
-
-   @InjectMocks
    private PortalIntegrationViewSettingsService service;
-
-   private MockedStatic<SreeEnv> sreeEnv;
+   private PortalThemesManager manager;
+   private MockedStatic<SreeEnv> sreeEnvStatic;
 
    @BeforeEach
-   void setUp() {
-      sreeEnv = Mockito.mockStatic(SreeEnv.class);
+   void setUp() throws Exception {
+      manager = mock(PortalThemesManager.class);
+      when(manager.getPortalTabs()).thenReturn(new ArrayList<>());
+      sreeEnvStatic = mockStatic(SreeEnv.class, withSettings().lenient());
+
+      service = new PortalIntegrationViewSettingsService();
+      Field field = PortalIntegrationViewSettingsService.class.getDeclaredField("portalThemesManager");
+      field.setAccessible(true);
+      field.set(service, manager);
    }
 
    @AfterEach
    void tearDown() {
-      sreeEnv.close();
+      sreeEnvStatic.close();
+   }
+
+   @Test
+   void orgScopedSaveDoesNotChangeGlobalButtonsOrTabs() throws Exception {
+      service.setModel(model(), mock(Principal.class), false);
+
+      verify(manager, never()).setButtonVisible(anyInt(), anyBoolean());
+      verify(manager, never()).setPortalTabs(any());
+      verify(manager, never()).save();
+   }
+
+   @Test
+   void orgScopedSaveStillWritesOrgScopedProperties() throws Exception {
+      service.setModel(model(), mock(Principal.class), false);
+
+      sreeEnvStatic.verify(() -> SreeEnv.setProperty("portal.customLoadingText", "Loading", true));
+      sreeEnvStatic.verify(() -> SreeEnv.setProperty("portal.home.link", "https://home", true));
+      sreeEnvStatic.verify(() -> SreeEnv.setProperty("em.home.link", "https://em", true));
+      sreeEnvStatic.verify(SreeEnv::save);
+   }
+
+   @Test
+   @SuppressWarnings("unchecked")
+   void globalSaveStillWritesButtonsAndTabs() throws Exception {
+      service.setModel(model(), mock(Principal.class), true);
+
+      verify(manager).setButtonVisible(PortalThemesManager.HELP_BUTTON, false);
+      verify(manager).setButtonVisible(PortalThemesManager.HOME_BUTTON, true);
+      verify(manager).save();
+
+      var captor = org.mockito.ArgumentCaptor.forClass(List.class);
+      verify(manager).setPortalTabs(captor.capture());
+      List<PortalTab> tabs = captor.getValue();
+      assertEquals(1, tabs.size());
+      assertEquals("X", tabs.get(0).getName());
+      sreeEnvStatic.verify(() -> SreeEnv.setProperty("portal.home.link", "https://home", false));
    }
 
    @Test
    void setModel_staleIndexOutOfBounds_throwsCleanError() throws Exception {
-      List<PortalTab> currentTabs = Arrays.asList(
+      List<PortalTab> currentTabs = List.of(
          new PortalTab("Dashboard", "/dashboard", true, false),
          new PortalTab("Report", "/report", true, false));
       when(manager.getPortalTabs()).thenReturn(currentTabs);
@@ -85,7 +137,7 @@ class PortalIntegrationViewSettingsServiceTest {
          .addTabs(staleTabModel)
          .build();
 
-      assertThrows(MessageException.class, () -> service.setModel(model, principal, true));
+      assertThrows(MessageException.class, () -> service.setModel(model, mock(Principal.class), true));
       verify(manager, never()).setPortalTabs(any());
    }
 
@@ -93,7 +145,7 @@ class PortalIntegrationViewSettingsServiceTest {
    void setModel_staleIndexPointsAtDifferentBuiltInTab_throwsCleanError() throws Exception {
       // caller read [Dashboard(0), Report(1)] but another request reordered it to
       // [Dashboard(0), Schedule(1)] before this submission arrived
-      List<PortalTab> currentTabs = Arrays.asList(
+      List<PortalTab> currentTabs = List.of(
          new PortalTab("Dashboard", "/dashboard", true, false),
          new PortalTab("Schedule", "/schedule", true, false));
       when(manager.getPortalTabs()).thenReturn(currentTabs);
@@ -111,14 +163,15 @@ class PortalIntegrationViewSettingsServiceTest {
          .addTabs(staleTabModel)
          .build();
 
-      assertThrows(MessageException.class, () -> service.setModel(model, principal, true));
+      assertThrows(MessageException.class, () -> service.setModel(model, mock(Principal.class), true));
       verify(manager, never()).setPortalTabs(any());
    }
 
    @Test
+   @SuppressWarnings("unchecked")
    void setModel_nonRacingBaseline_appliesNormally() throws Exception {
       PortalTab editableTab = new PortalTab("OldName", "/old-uri", true, true);
-      List<PortalTab> currentTabs = Arrays.asList(
+      List<PortalTab> currentTabs = List.of(
          new PortalTab("Dashboard", "/dashboard", true, false),
          editableTab);
       when(manager.getPortalTabs()).thenReturn(currentTabs);
@@ -146,14 +199,35 @@ class PortalIntegrationViewSettingsServiceTest {
          .addTabs(builtInTabModel, renamedTabModel)
          .build();
 
-      service.setModel(model, principal, true);
+      service.setModel(model, mock(Principal.class), true);
 
-      ArgumentCaptor<List<PortalTab>> captor = ArgumentCaptor.forClass(List.class);
+      org.mockito.ArgumentCaptor<List<PortalTab>> captor = org.mockito.ArgumentCaptor.forClass(List.class);
       verify(manager).setPortalTabs(captor.capture());
       List<PortalTab> saved = captor.getValue();
       assertEquals(2, saved.size());
       assertEquals("NewName", saved.get(1).getName());
       assertEquals("/new-uri", saved.get(1).getURI());
+   }
+
+   private PortalIntegrationSettingsModel model() {
+      return PortalIntegrationSettingsModel.builder()
+         .addTabs(PortalTabModel.builder()
+                     .name("X")
+                     .label("X")
+                     .uri("https://example.com")
+                     .visible(true)
+                     .editable(true)
+                     .build())
+         .help(false)
+         .preference(true)
+         .logout(true)
+         .search(true)
+         .dashboardAvailable(true)
+         .home(true)
+         .customLoadingText("Loading")
+         .homeLink("https://home")
+         .emHomeLink("https://em")
+         .build();
    }
 
    private PortalIntegrationSettingsModel.Builder baseModelBuilder() {

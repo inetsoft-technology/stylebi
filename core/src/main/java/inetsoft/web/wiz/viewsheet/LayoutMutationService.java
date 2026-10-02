@@ -27,6 +27,7 @@ import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
 import inetsoft.uql.viewsheet.vslayout.AbstractLayout;
 import inetsoft.uql.viewsheet.vslayout.VSAssemblyLayout;
 import inetsoft.uql.viewsheet.vslayout.VSEditableAssemblyLayout;
+import inetsoft.uql.viewsheet.vslayout.ViewsheetLayout;
 import inetsoft.web.composer.vs.controller.VSLayoutControllerServiceProxy;
 import inetsoft.web.composer.vs.controller.VSLayoutService;
 import inetsoft.web.composer.vs.event.AddVSLayoutObjectEvent;
@@ -190,6 +191,23 @@ public class LayoutMutationService {
             "get_layout to see which objects report supportsTableLayout: true.");
       }
 
+      // Bug 77045 #6: supportTableLayout above checks only the ASSEMBLY's own type -- it never
+      // checks which kind of layout layoutName resolves to. VSAssemblyLayout.tableLayout is only
+      // ever consumed by VsToReportConverter (whose own layout field is declared PrintLayout-typed
+      // and therefore structurally cannot hold a device layout reference), so a write here on a
+      // device layout would silently persist and never be read at render time. Refused up front,
+      // before mutateLayout opens a mutation seam, matching this method's own established
+      // convention for the assembly-type guard above.
+      if(requireLayout(master, layoutName) instanceof ViewsheetLayout) {
+         throw new IllegalArgumentException(
+            "set_layout_table_options: \"" + layoutName + "\" is a device layout -- table layout " +
+            "options only apply within the print layout. VsToReportConverter, the only consumer " +
+            "of this setting, converts a viewsheet to a printed/exported report through the print " +
+            "layout exclusively, so a write on a device layout would be silently ignored at " +
+            "render time rather than genuinely effective. Call list_layouts to find the print " +
+            "layout's name.");
+      }
+
       layoutSessions.mutateLayout(sessionToken, agent, layoutName,
          (clone, mutMaster, cloneRuntimeId, dispatcher) -> {
             AbstractLayout layout = requireLayout(mutMaster, layoutName);
@@ -277,6 +295,19 @@ public class LayoutMutationService {
 
             for(Map<String, Object> object : objects) {
                String name = requireName(object);
+
+               // Bug 77045 #7: no existing-entry check before layouts.add(...) below (contrast
+               // removeObjects, whose own removeIf already dedups by name) -- re-adding an
+               // already-placed object, or a brand-new layout-only object under an
+               // already-used new name, silently created a second, duplicate entry.
+               if(layouts.stream().anyMatch(l -> name.equals(l.getName()))) {
+                  throw new IllegalArgumentException(
+                     "edit_layout_objects add: \"" + name + "\" is already placed in layout \"" +
+                     layoutName + "\" -- re-adding it would create a duplicate entry. Use op " +
+                     "\"move_resize\" to reposition it instead, or \"remove\" it first if you " +
+                     "mean to place it again.");
+               }
+
                AddVSLayoutObjectEvent event = new AddVSLayoutObjectEvent();
                int xOffset = toInt(object.getOrDefault("x", 0));
                int yOffset = toInt(object.getOrDefault("y", 0));
@@ -290,7 +321,39 @@ public class LayoutMutationService {
                VSAssembly assembly = masterVs.getAssembly(name);
                boolean existAssembly = assembly != null;
 
+               // Bug 77045 #8: a container's child is positioned only through its container's
+               // own single layout entry (createAssemblyLayout/getVSTabSize computes size from
+               // the container, never from a child's own independent entry) -- adding a child
+               // here directly creates an entry the render logic never consults. Neither the
+               // interactive Composer's own object tree offers a child as a draggable node
+               // (components-pane.component.ts builds it from top-level assemblies only), so this
+               // mirrors that same restriction here instead of silently accepting a dead entry.
+               if(existAssembly && assembly.getContainer() != null) {
+                  throw new IllegalArgumentException(
+                     "edit_layout_objects add: \"" + name + "\" is inside container \"" +
+                     assembly.getContainer().getAbsoluteName() + "\" -- a container's child is " +
+                     "positioned only through its container's own single layout entry, so " +
+                     "adding it independently would create an entry the render logic never " +
+                     "consults. Add \"" + assembly.getContainer().getAbsoluteName() +
+                     "\" itself instead.");
+               }
+
                if(!existAssembly) {
+                  // Bug 77045 #5: a brand-new layout-only object (text/image/pagebreak) has no
+                  // device-layout renderer to consume it, and "pagebreak" in particular crashes
+                  // with a raw ClassCastException below (createVSAssembly's own unconditional
+                  // (PrintLayout) cast) rather than a named refusal -- refused here, before ever
+                  // reaching that cast, uniformly for all three types rather than crashing on one
+                  // and silently no-op'ing the others.
+                  if(layout instanceof ViewsheetLayout) {
+                     throw new IllegalArgumentException(
+                        "edit_layout_objects add: \"" + layoutName + "\" is a device layout -- " +
+                        "a new text/image/pagebreak layout-only object cannot be created there " +
+                        "(no device-layout renderer consumes it, and \"pagebreak\" has no " +
+                        "meaning outside a print layout's own pages). Add it to the print " +
+                        "layout instead.");
+                  }
+
                   event.setType(parseAssetType(object.get("type"), name));
                   assembly = vsLayoutService.createVSAssembly(event, layout, masterVs, name);
 

@@ -53,12 +53,17 @@ import java.util.concurrent.TimeUnit;
 
 import static inetsoft.report.composition.execution.lockcycle.LockCycleHarness.*;
 import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
 /**
  * The known lock cycles of the #76966 suite, run with the lock-stall watchdog at
  * {@code noProgressMillis=2000} (bug #76967): in fail mode each cycle ends with a
  * {@link LockStallException} within the cap instead of hanging, the engine lock is free and
  * no wait stays registered afterwards. A slow but progressing pipeline is not failed.
+ *
+ * <p>The cycles run with the default rule of fail mode (Feature #77123), which fails a wait
+ * once the watchdog confirms its cycle; {@code StallWatchdogCycleFailOnTimeoutTest} runs them
+ * with {@code stall.watchdog.failOnTimeout}, which fails on the timeout alone.
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class, LibManagerTestConfiguration.class, PluginsTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
@@ -69,10 +74,18 @@ public class StallWatchdogCycleTest {
    @BeforeEach
    public void setUp() {
       StallTestSupport.resetGlobalStallState();
-      StallPolicy.setOverride(new StallPolicy(StallPolicy.Mode.FAIL, 2000, 500, dumpDir));
+      StallPolicy.setOverride(new StallPolicy(StallPolicy.Mode.FAIL, 2000, 500, dumpDir,
+                                              StallPolicy.DEFAULT_MAX_DUMPS, failOnTimeout()));
       // the hung threads of known cases run earlier in this JVM stay registered
       preexisting.addAll(WaitRegistry.global().getActive());
       harness = new LockCycleHarness();
+   }
+
+   /**
+    * Whether the fail-mode policy of the cycles fails on the timeout alone.
+    */
+   protected boolean failOnTimeout() {
+      return false;
    }
 
    @AfterEach
@@ -82,19 +95,27 @@ public class StallWatchdogCycleTest {
    }
 
    /**
-    * #76960 A2: the holder waits in the join's XSwappableTable holding the engine lock, the
-    * JoinThreads wait for the lock in their input condition filters.
+    * #76960 A2 with a script join key: the holder, the joined table's condition filter over
+    * its expression column, waits in the join's XSwappableTable holding the engine lock; the
+    * JoinThreads wait for the lock in {@code exec}, which computes the key of every row they
+    * read. Since #77273 a join computes formula inputs before its workers start, so the cycle
+    * over filtered formula inputs this case used to stall on is gone; a script run per read
+    * cannot be computed ahead.
     */
    @Test
-   public void hashJoinFilteredInputsFailsInsteadOfHanging() throws Exception {
+   public void hashJoinExecKeyFailsInsteadOfHanging() throws Exception {
+      assumeFalse(POOL, "pool off only: the JoinThreads' exec() of the join key must wait for " +
+                  "the engine lock the holder holds; pooled, each exec() claims its own " +
+                  "context, so the join completes and nothing stalls " +
+                  "(RelPooledCompletionTest.hashJoinExecKeyCompletesPooled)");
       harness.forceHashJoin();
       Sandbox s = harness.sandbox();
       Future<TableLens> built = harness.submit(() -> {
-         TableLens left = s.filteredFormula(new SlowTable(ROWS, Slow.WORKERS));
-         TableLens right = s.filteredFormula(new SlowTable(ROWS, Slow.WORKERS));
+         TableLens left = s.execTable(ROWS, Slow.WORKERS);
+         TableLens right = s.execTable(ROWS, Slow.WORKERS);
          JoinTableLens join = new JoinTableLens(left, right, new int[] { 1 }, new int[] { 1 },
                                                 JoinTableLens.INNER_JOIN, true);
-         return harness.track(cf2(harness.track(join), s.box));
+         return harness.track(cf2(s.formula(harness.track(join)), s.box));
       });
       TableLens outer = harness.await(built, ACTIVE_CAP, "build");
       Future<List<List<Object>>> holder = harness.submit(() -> drain(outer));
@@ -111,10 +132,15 @@ public class StallWatchdogCycleTest {
     * <p>The gate parks T1 between the lens and its filtered base: inside the lens monitor but
     * before the inner condition filter takes the engine lock. T2 then takes the lock and
     * blocks on the monitor before T1 goes on, so the cycle forms on every run.
+    *
+    * <p>Not MAX_ROWS: since bug #77311 {@code MaxRowsTableLens} reads its base without its
+    * monitor, so there is no cycle to stall (see
+    * {@code MonitorFirstLensCycleTest.maxRowsOverFilteredFormula}).
     */
    @ParameterizedTest
-   @EnumSource(MonitorKind.class)
+   @EnumSource(value = MonitorKind.class, names = "MAX_ROWS", mode = EnumSource.Mode.EXCLUDE)
    public void monitorFirstLensFailsOneReader(MonitorKind kind) throws Exception {
+      assumeFalse(POOL, MONITOR_FIRST_POOL_OFF);
       Gate gate = harness.gate();
       Sandbox control = harness.control();
       TableLens controlLens = harness.track(build(kind, control, gate));
@@ -164,14 +190,96 @@ public class StallWatchdogCycleTest {
    }
 
    /**
+    * Bug #77152: {@code alert} mode (the default before Feature #77123) never fails a stalled
+    * wait (by design, see {@link StallPolicy}), so with only the pre-#77152 detection, the
+    * exact same #76960 B (R2) cycle as {@link #monitorFirstLensFailsOneReader} never turns
+    * health DOWN: T1 (the lock waiter) never fails and so never releases the lens monitor,
+    * and T2 (the lock holder, JVM-{@code BLOCKED} on that monitor) never completes either —
+    * a genuine, permanent deadlock that {@code /health/liveness} reported UP for.
+    * {@link StallWatchdog} must find this wait-for cycle and report it unreleased regardless of the per-record alert/fail mode,
+    * the same way a JVM-visible deadlock always does.
+    *
+    * <p>The cycle is reported once T1 is stalled (the 2000 ms limit) and found again on the
+    * next scan. The reason must name this cycle's own threads: other cases of this JVM may
+    * have left other stalls or cycles registered.
+    *
+    * <p>Unlike {@link #monitorFirstLensFailsOneReader}, this test never joins T1/T2's futures:
+    * in {@code alert} mode neither ever completes, so their daemon threads are intentionally
+    * left stuck, and the cycle stays reported by the global watchdog, for the rest of this JVM,
+    * the same as an actual, still-open lock cycle would (see {@code MonitorFirstLensCycleTest}'s
+    * {@code known-deadlock} cases). That is acceptable, as an alert-mode cycle cannot be
+    * released at all: no test of this module asserts that the global watchdog reports nothing
+    * or that no wait is registered, each only checks its own threads' waits and reasons (e.g.
+    * {@code LendableReentrantLockReclaimStallTest}, {@code XSwappableTableStallTest}, and this
+    * class's {@code preexisting}).
+    */
+   @Test
+   public void monitorFirstLensAlertModeTurnsHealthDown() throws Exception {
+      assumeFalse(POOL, MONITOR_FIRST_POOL_OFF);
+      StallPolicy.setOverride(new StallPolicy(StallPolicy.Mode.ALERT, 2000, 500, dumpDir,
+                                              StallPolicy.DEFAULT_MAX_DUMPS, false));
+      Gate gate = harness.gate();
+      Sandbox s = harness.sandbox();
+      TableLens lens = harness.track(build(MonitorKind.SORT, s, gate));
+      TableLens outer = harness.track(cf2(lens, s.box));
+      CountDownLatch headerRead = new CountDownLatch(1);
+      CountDownLatch t1Parked = new CountDownLatch(1);
+      Started<List<List<Object>>> t2 = harness.start(() -> {
+         List<List<Object>> rows = new ArrayList<>();
+         assertTrue(outer.moreRows(0));
+         rows.add(row(outer, 0));
+         headerRead.countDown();
+         assertTrue(t1Parked.await(KNOWN_CAP, TimeUnit.SECONDS), "T1 never parked");
+
+         for(int r = 1; outer.moreRows(r); r++) {
+            rows.add(row(outer, r));
+         }
+
+         return rows;
+      });
+      assertTrue(headerRead.await(KNOWN_CAP, TimeUnit.SECONDS), "T2 never read the header");
+      Started<List<List<Object>>> t1 = harness.startGated(gate, () -> drain(lens));
+      assertTrue(gate.awaitEntered(KNOWN_CAP), "T1 never read the lens's base");
+      t1Parked.countDown();
+      awaitBlockedBy(t2, t1, s, KNOWN_CAP);
+      // lets T1 go on to register its wait for the engine lock: the cycle is now complete
+      // and permanent, alert mode never releases either side of it
+      gate.release();
+
+      String t1Name = "\"" + t1.thread.getName() + "\"(" + t1.thread.threadId() + ")";
+      String t2Name = "\"" + t2.thread.getName() + "\"(" + t2.thread.threadId() + ")";
+      StallTestSupport.awaitTrue(() -> {
+         StallWatchdog.global().scan();
+         String reason = StallWatchdog.global().getUnreleasedStall();
+         return reason != null && java.util.Arrays.stream(reason.split("; ")).anyMatch(
+            part -> part.startsWith("wait-for cycle") && part.contains(t1Name) &&
+               part.contains(t2Name));
+      }, KNOWN_CAP, "the wait-for cycle of T1 and T2 never turned health DOWN under alert mode");
+   }
+
+   /**
     * No false positive: a worker lent the engine lock reads a base that costs 1 s a row, for
     * 10 s, longer than the 8 s limit, and the holder completes. The limit is above the up to
     * 5 s a queued SummaryFilter worker may wait for an idle on-demand pool thread in its
     * clean-up hold (ThreadPool.cleanUp) plus one row, so no pool state makes this a stall.
+    *
+    * <p>The summary's base needs no engine lock, so building it starts the worker (bug
+    * #77223: over a base that needs the lock, the first reader would process the rows itself
+    * and nothing would be lent).
+    *
+    * <p>Pool off only: a pooled condition filter takes no engine lock, so there is nothing to
+    * lend. The pooled shape, a slow summary worker read by a condition filter, is covered in
+    * both modes by RelSlowSummaryCreditTest.
     */
    @Test
    public void slowProgressingSummaryUnderLockCompletes() throws Exception {
-      StallPolicy.setOverride(new StallPolicy(StallPolicy.Mode.FAIL, 8000, 500, dumpDir));
+      assumeFalse(POOL, "pool off only: the holder lends the engine lock to the summary " +
+                  "worker, which pool mode never does (RelSlowSummaryCreditTest covers the " +
+                  "pooled slow summary)");
+      // failOnTimeout: the strict rule, a pipeline that earns no progress credit for 8 s fails
+      // even without a confirmed cycle
+      StallPolicy.setOverride(new StallPolicy(StallPolicy.Mode.FAIL, 8000, 500, dumpDir,
+                                              StallPolicy.DEFAULT_MAX_DUMPS, true));
       Sandbox control = harness.control();
       List<List<Object>> expected = harness.await(harness.submit(
          () -> drain(cf2(summary(control, new StallTestSupport.SlowTable(10, 0)), null))),
@@ -183,13 +291,15 @@ public class StallWatchdogCycleTest {
       // start the worker unlocked (query build time), then drain under the lock
       harness.await(harness.submit(() -> summary.getRowCount()), ACTIVE_CAP, "getRowCount");
       Future<List<List<Object>>> holder = harness.submit(() -> drain(outer));
+      StallTestSupport.awaitTrue(s.lock::isLent, ACTIVE_CAP,
+                                 "the holder never lent the engine lock to the worker");
 
       assertEquals(expected, harness.await(holder, ACTIVE_CAP, "slow holder"));
       assertLocksFree(s);
    }
 
    private SummaryFilter summary(Sandbox s, TableLens base) {
-      return harness.track(new SummaryFilter(s.filteredFormula(base), new int[] { 0 },
+      return harness.track(new SummaryFilter(cf2(base, s.box), new int[] { 0 },
                                              new int[] { 1 }, new SumFormula(), null));
    }
 
@@ -322,6 +432,10 @@ public class StallWatchdogCycleTest {
       SORT, MAX_ROWS, UNION_ALL, RANKING
    }
 
+   private static final String MONITOR_FIRST_POOL_OFF =
+      "pool off only: the R2 cycle needs T2 to hold the engine lock while BLOCKED on the lens " +
+      "monitor; a pooled condition filter takes no engine lock, so the cycle cannot form " +
+      "(RelPooledCompletionTest.monitorFirstLens*Pooled)";
    private static final int ROWS = 120;
    @TempDir
    File dumpDir;

@@ -241,7 +241,7 @@ export class UsersSettingsViewComponent implements OnInit {
          node => node.type === IdentityType.USER || node.type === IdentityType.GROUP);
 
       if(!affectsTasks) {
-         this.confirmDelete({ ownedTasks: [], executeAsTasks: [] });
+         this.confirmDelete({ ownedTasks: [], executeAsTasks: [], refusedTasks: [] });
          return;
       }
 
@@ -255,7 +255,7 @@ export class UsersSettingsViewComponent implements OnInit {
       // warn about scheduled tasks that will be deleted or have their "execute as" reset; on
       // failure fall back to the plain confirmation rather than blocking the delete
       this.http.post<DeleteIdentitiesTaskImpact>(uri, identities).pipe(
-         catchError(() => of(<DeleteIdentitiesTaskImpact>{ ownedTasks: [], executeAsTasks: [] }))
+         catchError(() => of(<DeleteIdentitiesTaskImpact>{ ownedTasks: [], executeAsTasks: [], refusedTasks: [] }))
       ).subscribe(impact => this.confirmDelete(impact));
    }
 
@@ -272,7 +272,13 @@ export class UsersSettingsViewComponent implements OnInit {
             impact.executeAsTasks.map(task => "• " + task).join("\n");
       }
 
-      const hasImpact = !!(impact?.ownedTasks?.length || impact?.executeAsTasks?.length);
+      if(impact?.refusedTasks?.length) {
+         content += "\n\n_#(js:em.security.delete.refusedTasksWarning)\n" +
+            impact.refusedTasks.map(task => "• " + task).join("\n");
+      }
+
+      const hasImpact = !!(impact?.ownedTasks?.length || impact?.executeAsTasks?.length ||
+         impact?.refusedTasks?.length);
 
       let dialogRef = this.dialog.open(MessageDialog, {
          width: hasImpact ? "500px" : "350px",

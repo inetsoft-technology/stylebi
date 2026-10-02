@@ -40,18 +40,30 @@ public interface ScriptSpan extends AutoCloseable {
    };
 
    /**
-    * @return the minimum number of rows a lens should populate under this span, so that one
-    * context clean is shared by a batch of rows; 0 for no minimum.
+    * @return above 0 if a lens should batch its rows under this span, so that one context
+    * clean is shared by a batch of rows; 0 for no batching.
     */
    int batchRows();
 
    /**
-    * @return the most rows one batch may read ahead: under sequential access a consumer's
-    * batches grow geometrically from {@link #batchRows()} up to this (bug #76960, spec
+    * @return the most rows one batch may read ahead: under sequential access a lens's
+    * batches grow geometrically from the pool-off look-ahead up to this (bug #76960, spec
     * §14.14). Equal to {@link #batchRows()} when not adaptive, so 0 for {@link #NONE}.
     */
    default int maxBatchRows() {
       return batchRows();
+   }
+
+   /**
+    * Re-enter this span on its own thread, while it is open, for work nested in it that must
+    * run on its context even if another span of the thread was opened since (Testing #77123,
+    * cond-home: a batch of a formula table nested in another table's batch that is nested in
+    * this table's own batch). Close the result like any span, before this one.
+    *
+    * @return the span to close; {@link #NONE} for a span without a pooled context.
+    */
+   default ScriptSpan reenter() {
+      return NONE;
    }
 
    @Override

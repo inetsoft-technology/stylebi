@@ -62,7 +62,7 @@ public class ReplaceAllKeyValueTask<T extends Serializable>
          getEngine().removeAll(getId(), keysToRemove);
 
          DistributedMap<String, T> map = getMap();
-         Cluster cluster = Cluster.getInstance();
+         Cluster cluster = getCluster();
 
          try(DistributedTransaction tx = cluster.startTx()) {
             if(!keysToRemove.isEmpty()) {

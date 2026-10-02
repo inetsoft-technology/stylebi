@@ -20,12 +20,14 @@ package inetsoft.report.filter;
 import inetsoft.util.Tool;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Tests for SumFormula.
  */
+@Tag("core")
 public class SumFormulaTest {
 
    private SumFormula formula;

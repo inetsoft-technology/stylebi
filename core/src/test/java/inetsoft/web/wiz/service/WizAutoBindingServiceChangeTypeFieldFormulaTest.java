@@ -28,7 +28,9 @@ import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.viewsheet.VSDimensionRef;
 import inetsoft.uql.viewsheet.ChartVSAssembly;
 import inetsoft.uql.viewsheet.CrosstabVSAssembly;
+import inetsoft.uql.viewsheet.GaugeVSAssembly;
 import inetsoft.uql.viewsheet.TableVSAssembly;
+import inetsoft.uql.viewsheet.TextVSAssembly;
 import inetsoft.uql.viewsheet.VSAggregateRef;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.VSCrosstabInfo;
@@ -1064,6 +1066,32 @@ class WizAutoBindingServiceChangeTypeFieldFormulaTest {
          assertNull(WizAutoBindingService.sourceTableName(target));
          assertNull(WizAutoBindingService.sourceTableName(null));
          assertNull(WizAutoBindingService.sourceTableName(mock(TableVSAssembly.class)));
+      }
+
+      /**
+       * Bug #76592: a Gauge or Text (OutputVSAssembly) keeps its table in BindingInfo, read through
+       * getTableName(), not a SourceInfo -- a rebuild must still read its own table.
+       */
+      @Test
+      void readsAnOutputAssemblysOwnWorksheetTable() {
+         GaugeVSAssembly gauge = mock(GaugeVSAssembly.class);
+         when(gauge.getTableName()).thenReturn("ORDERS1");
+         TextVSAssembly text = mock(TextVSAssembly.class);
+         when(text.getTableName()).thenReturn("ORDERS1");
+
+         assertEquals("ORDERS1", WizAutoBindingService.sourceTableName(gauge));
+         assertEquals("ORDERS1", WizAutoBindingService.sourceTableName(text));
+      }
+
+      @Test
+      void unboundOutputAssemblyLeavesTheTableUnnamed() {
+         GaugeVSAssembly unbound = mock(GaugeVSAssembly.class);
+         when(unbound.getTableName()).thenReturn(null);
+         GaugeVSAssembly blank = mock(GaugeVSAssembly.class);
+         when(blank.getTableName()).thenReturn("");
+
+         assertNull(WizAutoBindingService.sourceTableName(unbound));
+         assertNull(WizAutoBindingService.sourceTableName(blank));
       }
 
       private static ColumnRef wsColumn(String name) {

@@ -35,8 +35,10 @@ import inetsoft.util.*;
 import inetsoft.util.audit.ExecutionBreakDownRecord;
 import inetsoft.util.profile.ProfileUtils;
 import inetsoft.util.script.*;
+import inetsoft.util.script.graal.GraalJavaScriptEngine;
 import inetsoft.util.script.graal.GraalJavaScriptEnv;
 import inetsoft.util.script.graal.ScriptScope;
+import inetsoft.util.script.graal.pool.WorksheetScriptEnv;
 import inetsoft.util.stall.LockStallException;
 import inetsoft.util.stall.WaitRecord;
 import inetsoft.util.stall.WaitRegistry;
@@ -48,6 +50,7 @@ import java.io.*;
 import java.lang.reflect.Method;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
@@ -63,7 +66,8 @@ import java.util.concurrent.locks.ReentrantLock;
  * @author InetSoft Technology Corp
  */
 public class FormulaTableLens extends AbstractTableLens
-   implements TableFilter, CachedTableLens, DFWrapper, CancellableTableLens
+   implements TableFilter, CachedTableLens, DFWrapper, CancellableTableLens,
+   ChainScriptLock.Source
 {
    /**
     * Construct a formula table.
@@ -94,7 +98,14 @@ public class FormulaTableLens extends AbstractTableLens
       rows.setObjectPooled(true);
       // add header
       rows.addRow(new Object[table.getColCount() + formulas.length]);
+      XSwappableTable initial = rows;
       setTable(table);
+
+      // invalidate() does not dispose the row table it replaces, since a reader may hold it,
+      // but no reader has seen this one yet (bug #77243)
+      if(rows != initial) {
+         initial.dispose();
+      }
    }
 
    /**
@@ -288,20 +299,33 @@ public class FormulaTableLens extends AbstractTableLens
    /**
     * Invalidate the table filter forcely, and the table filter will perform
     * filtering calculation to validate itself.
+    *
+    * <p>This does not take the lens lock: it is called from the base's change event, under
+    * the base's monitor (e.g. a condition filter's), while a batch holding the lens lock
+    * enters that monitor on every base read, so taking it here would deadlock. Instead the new
+    * row table is built completely before it is published, and a batch or reader works on the
+    * row table it read once (bug #77243). The old row table is not disposed here: a batch or
+    * reader may still hold it. Its finalizer frees it once none does.
     */
    @Override
    public void invalidate() {
       synchronized(this) {
-         if(rows != null) {
-            rows.dispose();
-            rows = new XSwappableTable(formulas.length, false);
-            // add header
-            rows.addRow(new Object[table.getColCount() + formulas.length]);
-         }
-
-         tableRow = null;
          hrows = table.getHeaderRowCount(); // optimization
          ncols = table.getColCount(); // optimization
+
+         if(rows != null) {
+            XSwappableTable nrows = new XSwappableTable(formulas.length, false);
+            // add header before the table is published, a batch reading a header-only table
+            // would compute the base header as the first data row (bug #77243)
+            nrows.addRow(new Object[table.getColCount() + formulas.length]);
+            rows = nrows;
+         }
+
+         // the compiled scripts and row scriptable are rebuilt by the next batch, since they
+         // belong to the old row table (TableRow2.batchRows); an in-flight batch keeps its own.
+         // completed is not reset: once the lens has computed all its rows, cancel() leaves
+         // it alone, as a lens shared or cached by several consumers must not be emptied for
+         // all of them by one consumer's cancel, and cancelled is never reset (bug #77243)
       }
 
       fireChangeEvent();
@@ -332,16 +356,55 @@ public class FormulaTableLens extends AbstractTableLens
       long start = System.currentTimeMillis();
       // advance at least 10 to avoid going through this once per row
       final int advance = Math.min(Math.max(r / 100, 10), 100);
-      // the last row processed in this pass, see lockForRow()
-      final int lastRow = Math.max(r, getProcessedRowCount() + hrows + advance);
-      Lock execLock = lockForRow(r, lastRow);
+      // the last row processed in this pass, see lockForRow(); in pool mode the end of the
+      // pooled batch, whose base rows are loaded before the lens lock (finding F1)
+      final int lastRow = Math.max(r, getProcessedRowCount() + hrows +
+                                      Math.max(advance, peekPoolBatch(r)));
+      LockedRows locked = lockForRow(r, lastRow);
+      Lock execLock = locked.execLock();
+      // no row remains to compute, and none is computed without the engine lock
+      boolean computed = locked.computed();
       ScriptSpan span = ScriptSpan.NONE;
+      // the home of this table's objects, which this batch's checkout prefers (Testing #77123)
+      Object homeHint = TableRowScope.NO_HINT;
+      // whether a batch of this table that took a context of its own is open on this thread,
+      // read and restored under the lens lock
+      final boolean inOwnBatch = ownBatch;
+      // the span of that batch, restored with ownBatch
+      final ScriptSpan inOwnSpan = ownSpan;
+      // whether this batch took a context of its own (Testing #77123, cond-home)
+      boolean own = false;
+      // set when this batch ends in a lock stall: the rows past the stall are not computed,
+      // so the row table is not complete even if the base has no more rows (bug #77123)
+      boolean stalled = false;
+      // set when this batch ends in any other exception, such as a script error of one row:
+      // the rows past it are not computed yet, so the row table is not complete (bug #77123)
+      boolean failed = false;
+      // the row table this batch computes, the one lockForRow() read under the lock and chose
+      // the engine lock for: invalidate() may publish a new one at any time without the lock,
+      // and the rows computed here belong to this one only (bug #77243)
+      XSwappableTable target = locked.rows();
 
       try {
-         int nrows = getProcessedRowCount();
+         // disposed
+         if(target == null) {
+            return more;
+         }
 
-         if(r < nrows) {
+         // written by invalidate() before it published target
+         final int hrows = this.hrows;
+         final int ncols = this.ncols;
+         int nrows = getProcessedRowCount(target);
+
+         // lens rows hrows..nrows + hrows - 1 are computed. Off the pool lockForRow() already
+         // answers them as COMPUTED; in pool mode a re-read of the last computed row must not
+         // count as a sequential read that starts the next batch (context-pool regression D1)
+         if(r >= hrows ? r < nrows + hrows : r < nrows) {
             return true;
+         }
+
+         if(computed) {
+            return more;
          }
 
 
@@ -349,16 +412,41 @@ public class FormulaTableLens extends AbstractTableLens
             senv = report.getScriptEnv();
          }
 
-         // pool mode: one claimed span for this whole batch, including the base population
-         // below, so a script global lives for the batch and the context is cleaned once at
-         // its end (bug #76960, spec §5.3); nested batches share the claim
-         span = senv == null ? ScriptSpan.NONE : senv.openSpan();
+         // pool mode: one claimed span for this whole batch, so a script global lives for the
+         // batch and the context is cleaned once at its end (bug #76960, spec §5.3); nested
+         // batches share the claim. The batch's base rows were loaded before the lens lock
+         // (finding F1), so a pooled formula base computed them under its own claim
+         homeHint = tableRow == null ? TableRowScope.NO_HINT : tableRow.thisScope.preferHome();
+         // a resident table, whose vars hold arrays or objects on a home, takes a context of
+         // its own for the batch, also inside another span of this thread (a condition
+         // filter's population, another table's batch, a query build): that context, the home
+         // of the objects, is given back at the batch end, while this thread may still hold
+         // the outer span, so a batch of this table on another thread, which holds this lens's
+         // lock, takes the home instead of losing the objects (Testing #77123, A1). A batch of
+         // a table that is not resident yet (its first one, or one of primitives or Dates
+         // only) shares the span it runs in, as a batch always did; if its vars hold objects
+         // at its end and that span outlives it, they are saved as a tree there instead of
+         // staying on the span's context (snapshotOwnedObjects). A batch nested in an own
+         // batch of this table re-enters that batch's span, also below a batch of another
+         // table nested in it (A -> B -> A): the objects live on its context
+         own = senv != null && !inOwnBatch && tableRow != null &&
+            tableRow.batchRows == target && tableRow.thisScope.takesOwnSpan();
+         span = senv == null ? ScriptSpan.NONE : own ? senv.openOwnSpan()
+            : inOwnBatch ? inOwnSpan.reenter() : senv.openSpan();
+         ownBatch = inOwnBatch || own;
+         ownSpan = own ? span : inOwnSpan;
 
-         if(tableRow == null) {
+         if(tableRow == null || tableRow.batchRows != target) {
             scripts = new Object[formulas.length];
             String contextName = report != null && report.getContextName() != null
                ? "Report: " + report.getContextName() : null;
             boolean builtinDate = false;
+            // the vars the row table below owns: a read-before-write of one of them is a
+            // supported accumulator, not a state hazard for the lint (Testing #77123). Without
+            // a scope the row scope is not in the chain, so it owns nothing (main's behaviour)
+            Set<String> owned = scope == null ? null
+               : GraalJavaScriptEngine.collectOwnedVarNames(Arrays.asList(formulas));
+            boolean pooled = senv instanceof WorksheetScriptEnv;
 
             for(int i = 0; i < scripts.length; i++) {
                String colName = getColName(i + ncols);
@@ -368,6 +456,8 @@ public class FormulaTableLens extends AbstractTableLens
                try {
                   scripts[i] = compile(formulas[i], senv, contextName, colName,
                                        ncols + i, tableName, mergeables == null || mergeables[i]);
+                  ScriptStateLint.checkColumn(formulas[i], scripts[i], this, hrows, colName,
+                                              tableName, contextName, owned, pooled);
                }
                // allow other scripts to proceed if one script failed. (58626)
                catch(ExpressionFailedException ex) {
@@ -375,28 +465,36 @@ public class FormulaTableLens extends AbstractTableLens
                }
             }
 
-            // this scriptable is reused for all rows
-            tableRow = new TableRow2(this, hrows);
+            // this scriptable is reused for all rows of target
+            tableRow = new TableRow2(this, hrows, ncols, target);
             tableRow.thisScope.setBuiltinDate(builtinDate);
             iterator = new TableIteratorScriptable();
             senv.addTopLevelParentScope(iterator);
             senv.addTopLevelParentScope(tableRow);
          }
 
+         // this batch's own, a nested batch for a newer row table may replace the fields
+         final TableRow2 tableRow = this.tableRow;
+         final TableIteratorScriptable iterator = this.iterator;
+         final Object[] scripts = this.scripts;
          boolean first = true;
          // advance at least 10 to avoid going through this once per row; in pool mode at
          // least one pooled batch, so one context clean serves a batch (spec §14.8).
          // Design cost (spec §14.14): in pool mode the lens lock is held for up to
          // maxBatchRows rows of script evaluation, so a concurrent reader of an already
-         // computed row can wait that long for this batch to finish
+         // computed row can wait that long for this batch to finish. A condition filter
+         // reads this lens in reads of at most maxBatchRows rows; a direct far or EOT read
+         // computes through r in one batch, as off the pool
          final int batch = Math.max(advance, nextPoolBatch(span, r, nrows + hrows));
-         // under the engine lock, stop at the rows whose base was loaded before taking it,
-         // see lockForRow(); a pooled env takes no engine lock, so its batch is not capped
-         final int maxr = execLock != null
-            ? Math.min(Math.max(r, nrows + hrows + advance), lastRow)
-            : Math.max(r, nrows + hrows + batch);
+         // stop at the rows whose base was loaded before taking the locks, see lockForRow()
+         final int maxr = Math.min(Math.max(r, nrows + hrows +
+                                               (execLock != null ? advance : batch)), lastRow);
 
-         for(int i = nrows + hrows; i <= maxr && table.moreRows(i) && scripts != null; i++) {
+         // stop once invalidate() published a new row table: the rest of the rows belong to it,
+         // and the next read computes them there (bug #77243)
+         for(int i = nrows + hrows; i <= maxr && table.moreRows(i) && scripts != null &&
+                rows == target; i++)
+         {
             // optimization, don't call get/put if never in the loop
             if(first) {
                 runtime = true;
@@ -417,7 +515,6 @@ public class FormulaTableLens extends AbstractTableLens
 
             int j = 0;
             Object[] row = new Object[formulas.length];
-            boolean stalled = false;
 
             // remove change listener then add change listener, for script might
             // change the table lens(set object), then the process will delegate
@@ -464,9 +561,11 @@ public class FormulaTableLens extends AbstractTableLens
                // add empty row even if script failed since getObject() assumes rows contains
                // the same number of rows as formula table after moreRows is called.
                // a stalled row is not kept: its cells are not values, and a later read
-               // computes the row again (bug #76967)
-               if(!stalled) {
-                  rows.addRow(row);
+               // computes the row again (bug #76967). a row of a row table that was replaced
+               // while it was computed is not kept either: it may be half-computed, and its
+               // position is past the rows the replaced table's readers use (bug #77243)
+               if(!stalled && rows == target) {
+                  target.addRow(row);
                }
 
                FormulaContext.popTable();
@@ -476,10 +575,47 @@ public class FormulaTableLens extends AbstractTableLens
             }
          }
       }
+      catch(LockStallException ex) {
+         // also a stall of the base read in the loop condition, outside the row's catch
+         stalled = true;
+         throw ex;
+      }
+      catch(RuntimeException | Error ex) {
+         failed = true;
+         throw ex;
+      }
       finally {
          // the lock is released even if closing the span throws
          try {
-            span.close();
+            // a complete row table runs no formula until it is computed again in a new
+            // row scope: don't keep a context alive by its vars' objects (Testing #77123)
+            // read the field once: a nested batch for a row table invalidate() published
+            // meanwhile can replace it, and only the scriptable of target is complete (bug #77243)
+            TableRow2 completedRow = tableRow;
+
+            // span.close() in its own finally: nothing here may skip it or the unlock
+            try {
+               if(!more && !stalled && !failed && completedRow != null &&
+                  completedRow.batchRows == target)
+               {
+                  completedRow.thisScope.releaseOwnedObjects();
+               }
+               // still on the slot this batch claimed, whatever ended the batch: a later batch
+               // may run on another slot, which rebuilds a Date var from this snapshot
+               else if(completedRow != null) {
+                  completedRow.thisScope.snapshotOwnedObjects(span, !own && !inOwnBatch);
+               }
+            }
+            finally {
+               try {
+                  span.close();
+               }
+               finally {
+                  ownBatch = inOwnBatch;
+                  ownSpan = inOwnSpan;
+                  TableRowScope.restoreHome(homeHint);
+               }
+            }
          }
          finally {
             lock.unlock();
@@ -490,11 +626,12 @@ public class FormulaTableLens extends AbstractTableLens
             execLock.unlock();
          }
 
-         if(!more) {
-            if(rows != null) {
-               rows.complete();
-            }
-
+         // a stalled or failed batch leaves the row table open: a completed one may be swapped
+         // out, and the rows a resumed read appends to it would be lost (bug #77123)
+         // a replaced row table is not completed, nor is the lens: the current row table has
+         // not been computed by this batch (bug #77243)
+         if(!more && !stalled && !failed && target != null && rows == target) {
+            target.complete();
             completed = true;
          }
 
@@ -523,26 +660,50 @@ public class FormulaTableLens extends AbstractTableLens
     * loaded before the engine lock is acquired, so the base (e.g. an async lens whose
     * worker needs the engine) is not waited for while holding it (bug #76935).
     *
+    * <p>If no row remains to compute, i.e. row {@code r} is computed or the base has no row
+    * past the computed rows, only this lens's lock is acquired. Such a read, e.g. the
+    * end-of-table probe that ends every scan, must not wait for the engine lock: a join
+    * worker probing a computed lens would wait for a thread that holds the engine lock and
+    * waits for the joined rows (bug #77215).
+    *
     * @param r the row to compute.
     * @param lastRow the last row computed in this pass.
     *
     * @return the acquired engine lock, which must be released after this lens's lock,
-    *         or {@code null} if none was acquired.
+    *         or {@code null} if none was acquired, whether no row remains to compute, and the
+    *         row table read under this lens's lock that both were decided for. The batch
+    *         computes that row table, not the one invalidate() may publish after it was read,
+    *         whose rows it would compute without the engine lock (bug #77243).
     */
-   private Lock lockForRow(int r, int lastRow) {
+   private LockedRows lockForRow(int r, int lastRow) {
       ScriptEnv env = getScriptEnv();
 
       if(env == null || !env.usesExecutionLock()) {
          // a pooled env never makes a script wait for another thread's script, so there is
-         // no engine lock to order against (bug #76960)
+         // no engine lock to order against (bug #76960). The base is still read before this
+         // lens's lock, as below: a batch waiting for a base row under the lock deadlocks
+         // against a thread that holds the base's monitor and reads this lens (finding F1)
+         if(r >= getProcessedRowCount() + hrows) {
+            table.moreRows(lastRow);
+         }
+
          lockBounded();
-         return null;
+         return new LockedRows(null, false, rows);
       }
 
       Lock execLock = null;
 
       while(true) {
-         if(execLock == null && r >= getProcessedRowCount()) {
+         // the base is read before this lens's lock is acquired, see above. the formulas are
+         // compiled under the engine lock even for an empty base, which reports their errors.
+         // the scriptable of an older row table does not count: invalidate() does not clear
+         // it, and the row table it published has no row computed (bug #77243)
+         XSwappableTable checked = rows;
+         int nrows = getProcessedRowCount(checked);
+         boolean computed = isRowScriptable(checked) &&
+            (r < nrows + hrows || !table.moreRows(nrows + hrows));
+
+         if(execLock == null && !computed) {
             table.moreRows(lastRow);
             execLock = getScriptExecutionLock();
 
@@ -565,16 +726,50 @@ public class FormulaTableLens extends AbstractTableLens
             throw ex;
          }
 
-         // rows may have been reset by invalidate() after the check above, don't
-         // compute them without the engine lock
-         if(execLock != null || r < getProcessedRowCount() ||
-            getScriptExecutionLock() == null)
+         // the row table read here is the one the batch computes: one published after this
+         // read has none of its rows computed, and the decisions below are for this one
+         XSwappableTable locked = rows;
+
+         if(execLock != null || locked == null) {
+            return new LockedRows(execLock, false, locked);
+         }
+
+         // rows may have been computed, or reset by invalidate(), after the check above,
+         // don't compute them without the engine lock. the base was read at nrows above
+         int nrows2 = getProcessedRowCount(locked);
+
+         if(computed && locked == checked && isRowScriptable(locked) &&
+            (r < nrows2 + hrows || nrows2 == nrows))
          {
-            return execLock;
+            return new LockedRows(null, true, locked);
+         }
+
+         if(!computed && (r < nrows2 || getScriptExecutionLock() == null)) {
+            return new LockedRows(null, false, locked);
          }
 
          lock.unlock();
       }
+   }
+
+   /**
+    * The locks lockForRow() acquired and the row table it chose them for.
+    *
+    * @param execLock the engine lock, or {@code null} if none was acquired.
+    * @param computed {@code true} if no row of {@code rows} remains to compute, so only this
+    *                 lens's lock was acquired (bug #77215).
+    * @param rows the row table read under this lens's lock, {@code null} if disposed.
+    */
+   private record LockedRows(Lock execLock, boolean computed, XSwappableTable rows) {
+   }
+
+   /**
+    * Check if the row scriptable, and the scripts compiled with it, are for the row table.
+    * invalidate() does not clear them, so after it they are for the row table it replaced.
+    */
+   private boolean isRowScriptable(XSwappableTable rows) {
+      TableRow2 tableRow = this.tableRow;
+      return rows != null && tableRow != null && tableRow.batchRows == rows;
    }
 
    /**
@@ -596,6 +791,28 @@ public class FormulaTableLens extends AbstractTableLens
       }
 
       return execLock;
+   }
+
+   /**
+    * Get the engine lock that computing this lens's rows takes while a row remains to
+    * compute, see lockForRow() (bug #77223). A computed lens is read without the engine lock
+    * (bug #77215), so a lens over it keeps a worker that never needs the lock. The check
+    * neither blocks nor reads the base: rows that are computed but not yet known to be the
+    * last count as remaining. An env without an engine has no script running on it, so no
+    * engine is created for the check.
+    */
+   @Override
+   public Lock getScriptLock() {
+      XSwappableTable rows = this.rows;
+
+      // the row table is completed only when the base has no row past the computed rows
+      // the scriptable of an older row table does not count, as in lockForRow() (bug #77243)
+      if(isRowScriptable(rows) && rows.getRowCount() >= 0) {
+         return null;
+      }
+
+      ScriptEnv env = getScriptEnv();
+      return env == null || !env.usesExecutionLock() ? null : env.getExecutionLock();
    }
 
    /**
@@ -922,35 +1139,48 @@ public class FormulaTableLens extends AbstractTableLens
          return headers[c - ncols];
       }
 
-      // @by jasons, this is an artifact of old source code. rows should never
-      //             be null, and invalidate() is called whenever setTable() is
-      //             called. I left this here as a sanity check in case rows is
-      //             ever null.
-      if(rows == null) {
-         invalidate();
-      }
-
       int row = r - hrows;
 
-      // @by jasons, moved the call to moreRows() outside of the previous if
-      //             block because it should be called regardless of the state
-      //             of rows. If this is not done, this method will always return
-      //             null for non-header rows unless moreRows() is explicitly
-      //             called before this method is called.
-      if(row >= getProcessedRowCount()) {
-         moreRows(r);
-      }
+      // the row table is read once for both the count check and the read, and read again
+      // after moreRows(): invalidate() may publish a new one at any time, which does not hold
+      // the row yet (bug #77243)
+      for(int retry = 0; ; retry++) {
+         XSwappableTable rows = this.rows;
 
-      try {
-         if(isCancelled()) {
+         // disposed
+         if(rows == null) {
             return null;
          }
 
-         return rows.getObject(row + 1, c - ncols);
-      }
-      catch(Exception ex) {
-         // row is out of bound
-         return null;
+         // @by jasons, moreRows() should be called regardless of the state of rows. If this
+         //             is not done, this method will always return null for non-header rows
+         //             unless moreRows() is explicitly called before this method is called.
+         if(row >= getProcessedRowCount(rows)) {
+            if(retry < MAX_READ_RETRIES) {
+               moreRows(r);
+
+               // the row table was replaced while the row was computed, read the new one
+               if(this.rows != rows) {
+                  continue;
+               }
+            }
+            else {
+               LOG.warn("Formula row {} not computed: the formula table was invalidated {} " +
+                        "times while it was computed", r, MAX_READ_RETRIES);
+            }
+         }
+
+         try {
+            if(isCancelled()) {
+               return null;
+            }
+
+            return rows.getObject(row + 1, c - ncols);
+         }
+         catch(Exception ex) {
+            // row is out of bound
+            return null;
+         }
       }
    }
 
@@ -1095,7 +1325,9 @@ public class FormulaTableLens extends AbstractTableLens
       else if(r >= hrows && c >= ncols && moreRows(r)) {
          int c2 = c - ncols;
 
-         if(c2 < rows.getColCount()) {
+         XSwappableTable rows = this.rows;
+
+         if(rows != null && c2 < rows.getColCount()) {
             // row[c2] = val;
             // fireChangeEvent();
             throw new RuntimeException("Unsupported method called!");
@@ -1144,10 +1376,23 @@ public class FormulaTableLens extends AbstractTableLens
    public synchronized void dispose() {
       senv = null;
       table.dispose();
+      XSwappableTable rows = this.rows;
+
+      // a disposed table that was read in part keeps no context alive by its vars' objects;
+      // only if no batch runs now (Testing #77123)
+      if(tableRow != null && !lock.isHeldByCurrentThread() && lock.tryLock()) {
+         try {
+            tableRow.thisScope.releaseOwnedObjects();
+         }
+         finally {
+            lock.unlock();
+         }
+      }
 
       if(rows != null) {
+         // unpublish before disposing, a reader of the disposed table gets null
+         this.rows = null;
          rows.dispose();
-         rows = null;
       }
    }
 
@@ -1169,9 +1414,21 @@ public class FormulaTableLens extends AbstractTableLens
 
    // this class allows other formula columns to be accessed by formulas
    class TableRow2 extends TableRow {
-      public TableRow2(XTable table, int row) {
+      /**
+       * @param rows the row table this scriptable computes rows of, with the header row count
+       *             and base column count it was created for (bug #77243).
+       */
+      public TableRow2(XTable table, int row, int ncols, XSwappableTable rows) {
          super(table, row);
          thisScope = new TableRowScope(this, "field");
+         // the pool takes it without waiting to hand off the vars' objects (Testing #77123)
+         thisScope.setLensLock(lock);
+         // the formulas' top-level vars live for this row table (Testing #77123)
+         thisScope.setOwnedVars(
+            GraalJavaScriptEngine.collectOwnedVarNames(Arrays.asList(formulas)));
+         this.batchHrows = row;
+         this.batchNcols = ncols;
+         this.batchRows = rows;
       }
 
       // set the array to hold the results
@@ -1188,24 +1445,41 @@ public class FormulaTableLens extends AbstractTableLens
       // called by TableRow to get a cell value
       @Override
       protected Object get(XTable table, Method getMethod, int row, int col) throws Exception {
-         if(col < ncols || table != FormulaTableLens.this) {
+         if(col < batchNcols || table != FormulaTableLens.this) {
             return super.get(table, getMethod, row, col);
          }
 
          if(row < getRow()) {
-            return FormulaTableLens.this.getObject(row, col);
+            if(row < batchHrows) {
+               return FormulaTableLens.this.getObject(row, col);
+            }
+
+            // an earlier row of this batch's own row table, where it is computed: after an
+            // invalidate() the lens's current row table does not hold it, and reading that
+            // would compute rows into it from inside this batch (bug #77243)
+            try {
+               return isCancelled() ? null
+                  : batchRows.getObject(row - batchHrows + 1, col - batchNcols);
+            }
+            catch(Exception ex) {
+               return null;
+            }
          }
          else if(row > getRow()) {
             LOG.warn("Formula column can't forward reference other rows.");
             return null;
          }
 
+         // restore, not clear: this read may be inside the exec of the same cell, whose
+         // assignment to its own column must still set the result (setObject)
+         Point prev = currExec;
+
          try {
             currExec = new Point(col, row);
-            return getResult(col - ncols);
+            return getResult(col - batchNcols);
          }
          finally {
-            currExec = null;
+            currExec = prev;
          }
       }
 
@@ -1276,6 +1550,9 @@ public class FormulaTableLens extends AbstractTableLens
          return row[col];
       }
 
+      private final XSwappableTable batchRows;
+      private final int batchHrows;
+      private final int batchNcols;
       private TableRowScope thisScope;
       private Object[] row;
       private boolean[] exec;
@@ -1523,24 +1800,60 @@ public class FormulaTableLens extends AbstractTableLens
    }
 
    /**
-    * The rows of the next pooled batch (bug #76960, spec §14.14), under {@link #lock}: batches
-    * start at batchRows and double, up to maxBatchRows, while this lens is read sequentially,
-    * that is while each batch starts at the first row not yet computed; any other access
-    * starts over at batchRows. 0 off the pool, where batchRows is 0.
+    * The rows of the next pooled batch (bug #76960, spec §14.14), under {@link #lock}. A first
+    * batch, or one that does not start at the first row not yet computed, is what pool off
+    * computes (0 here, so the caller's look-ahead applies), so a bounded or random read runs
+    * scripts for no more rows than pool off (context-pool regression D1). While each batch
+    * starts at the first row not yet computed (a sequential read), batches double from there,
+    * up to maxBatchRows (never below batchRows, see PoolConfig), so a row-by-row reader of N
+    * rows computes at most about 2N + 10. A batch computes its read-ahead plus the row that
+    * asked for it, as pool off does, so a capped batch is maxBatchRows + 1 rows. 0 off the
+    * pool, where batchRows is 0. {@link #peekPoolBatch} predicts this before the lens lock;
+    * keep the two in step, although a mismatch only shortens a batch.
     *
     * @param next the first row not yet computed.
     */
    private int nextPoolBatch(ScriptSpan span, int r, int next) {
-      int min = span.batchRows();
-
-      if(min <= 0) {
+      if(span.batchRows() <= 0) {
          return 0;
       }
 
-      int max = Math.max(min, span.maxBatchRows());
-      int batch = poolBatch > 0 && r <= next ? (poolBatch >= max / 2 ? max : poolBatch * 2) : min;
-      poolBatch = Math.min(Math.max(batch, min), max);
-      return poolBatch;
+      // next == hrows: no row computed, as after invalidate(), so a reset lens starts over like
+      // a fresh one (review r2 minor A)
+      if(poolBatch > 0 && r <= next && next > hrows) {
+         int max = Math.max(span.batchRows(), span.maxBatchRows());
+         poolBatch = poolBatch >= max / 2 ? max : poolBatch * 2;
+         return poolBatch;
+      }
+
+      // the pool-off look-ahead of moreRows()
+      poolBatch = Math.min(Math.max(r / 100, 10), 100);
+      return 0;
+   }
+
+   /**
+    * The look-ahead {@link #nextPoolBatch} would take for row {@code r}, without updating it,
+    * so that moreRows() loads the base rows of a pooled batch before it takes the lens lock
+    * (finding F1). It reads {@link #poolBatch} without the lock, so it may differ from the
+    * batch's own; the batch stops at the rows loaded here and the next read continues it.
+    * Keep it in step with nextPoolBatch(); a mismatch only shortens a batch.
+    */
+   private int peekPoolBatch(int r) {
+      if(!(getScriptEnv() instanceof WorksheetScriptEnv wenv) ||
+         wenv.getConfig().batchRows() <= 0)
+      {
+         return 0;
+      }
+
+      int next = getProcessedRowCount() + hrows;
+      int prev = poolBatch;
+
+      if(prev <= 0 || r > next || next <= hrows) {
+         return 0;
+      }
+
+      int max = Math.max(wenv.getConfig().batchRows(), wenv.getConfig().maxBatchRows());
+      return prev >= max / 2 ? max : prev * 2;
    }
 
    /**
@@ -1592,8 +1905,11 @@ public class FormulaTableLens extends AbstractTableLens
 
    // Get the number of rows already processed
    private int getProcessedRowCount() {
-      XSwappableTable rows = this.rows;
+      return getProcessedRowCount(rows);
+   }
 
+   // Get the number of rows already processed in the row table
+   private static int getProcessedRowCount(XSwappableTable rows) {
       if(rows == null) {
          return 0;
       }
@@ -1665,6 +1981,9 @@ public class FormulaTableLens extends AbstractTableLens
    }
 
    private static final Thread[] NO_THREADS = new Thread[0];
+   // the reads of a row that invalidate() keeps replacing the row table under, after which
+   // the current row table is read as it is (bug #77243)
+   private static final int MAX_READ_RETRIES = 100;
 
    @Serial
    private void readObject(ObjectInputStream in) throws ClassNotFoundException, IOException {
@@ -1685,12 +2004,18 @@ public class FormulaTableLens extends AbstractTableLens
    private transient ReportSheet report;
    private transient ScriptEnv senv;
    private transient Object scope;
-   private XSwappableTable rows;
+   // set while a batch of this table that took a context of its own is open, under the lock
+   private transient boolean ownBatch;
+   // that batch's span, while ownBatch is set
+   private transient ScriptSpan ownSpan;
+   // volatile: getObject reads it without the lock, and invalidate() publishes it without
+   // the lock (bug #77243)
+   private volatile XSwappableTable rows;
    private int hrows, ncols;
    private transient TableDataDescriptor descriptor;
    private Point currExec;
    private List<FormulaHeaderInfo> hinfos;
-   private boolean completed;       // completed flag
+   private volatile boolean completed;       // completed flag
    private volatile boolean cancelled;       // cancelled flag
    private transient Lock cancelLock = new ReentrantLock();
 
@@ -1700,7 +2025,7 @@ public class FormulaTableLens extends AbstractTableLens
    private transient TableChangeListener listener = null;
    private transient TableIteratorScriptable iterator = null;
    private transient OwnedLock lock = new OwnedLock();
-   // the rows of the last pooled batch, 0 before the first; guarded by lock (bug #76960)
+   // the look-ahead of the last pooled batch, 0 before the first; guarded by lock (bug #76960)
    private transient int poolBatch;
    private transient boolean forceType = Drivers.getInstance().isDataCached();
    private transient String reportName;

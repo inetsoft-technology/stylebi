@@ -79,6 +79,14 @@ public class DatabaseAuthenticationProvider extends AbstractAuthenticationProvid
          return false;
       }
 
+      if(!caseSensitive && isAmbiguousUserID(username)) {
+         // several stored users match the name ignoring case and none exactly; which one's
+         // password the users query checks is up to the database, so refuse (Bug #77081)
+         LOG.warn("Failed to authenticate, user name \"{}\" matches more than one user " +
+                     "ignoring case.", username);
+         return false;
+      }
+
       try {
          Optional<UserCredential> passwordAndSalt = dao.getUserCredential(username);
 
@@ -166,20 +174,103 @@ public class DatabaseAuthenticationProvider extends AbstractAuthenticationProvid
 
    @Override
    public User getUser(IdentityID userIdentity) {
+      IdentityID userName = getStoredUserID(userIdentity);
+
+      if(userName == null) {
+         return null;
+      }
+
+      // build from the stored id, not the argument: a case-insensitive match must not
+      // echo the caller's case into the user's name/org id (Bug #77081)
+      return new User(userName, getEmails(userName),
+                      getStoredUserGroups(userName), getRoles(userName), "", "");
+   }
+
+   /**
+    * Gets the groups of a stored user. A group member row always matches the stored id
+    * exactly. When user names are not case sensitive, a member row that is not itself a
+    * stored user also matches if it resolves to this user by the same rule as
+    * {@link #getStoredUserID(IdentityID)}, i.e. this user is the only stored id that matches
+    * it ignoring case (e.g. member <tt>Carol</tt> for stored user <tt>carol</tt>). A member row
+    * naming a different stored user (e.g. <tt>BOB</tt>) never matches <tt>bob</tt>, and a
+    * member row that matches several stored ids ignoring case matches none of them
+    * (Bug #77132).
+    */
+   private String[] getStoredUserGroups(IdentityID storedID) {
+      if(caseSensitive) {
+         return getUserGroups(storedID);
+      }
+
+      // read the user list once. Matching ignoring case is an equivalence, so the stored ids
+      // that match a member row ignoring case are exactly the ones that match storedID; the
+      // row resolves uniquely to storedID only if storedID has no other stored case variant
+      Set<IdentityID> storedUsers = new HashSet<>(Arrays.asList(getUsers()));
+      boolean hasVariant = storedUsers.stream()
+         .anyMatch(u -> !storedID.equals(u) && storedID.equalsIgnoreCase(u));
+      List<String> result = new ArrayList<>();
+
+      for(IdentityID group : getGroups()) {
+         if(!Objects.equals(group.orgID, storedID.orgID)) {
+            continue;
+         }
+
+         for(IdentityID member : getUsers(group)) {
+            if(storedID.equals(member) || !hasVariant && !storedUsers.contains(member) &&
+               Objects.equals(storedID.orgID, member.orgID) &&
+               storedID.name != null && storedID.name.equalsIgnoreCase(member.name))
+            {
+               result.add(group.name);
+               break;
+            }
+         }
+      }
+
+      return result.toArray(new String[0]);
+   }
+
+   private boolean isAmbiguousUserID(IdentityID userIdentity) {
+      int matches = 0;
+
+      for(IdentityID userName : getUsers()) {
+         if(userIdentity.equals(userName)) {
+            return false;
+         }
+
+         if(userIdentity.equalsIgnoreCase(userName)) {
+            matches++;
+         }
+      }
+
+      return matches > 1;
+   }
+
+   /**
+    * Gets the stored id of a user. An exact match always wins. Otherwise, when user names are
+    * not case sensitive, the one stored id that matches ignoring case is returned. If several
+    * stored ids (e.g. <tt>bob</tt> and <tt>BOB</tt>) match ignoring case and none exactly, the
+    * requested id is ambiguous and <tt>null</tt> is returned, so a log in can never be mapped
+    * to a different user than the one whose password is checked (Bug #77081).
+    */
+   private IdentityID getStoredUserID(IdentityID userIdentity) {
       if(userIdentity == null) {
          return null;
       }
 
+      IdentityID match = null;
+      boolean ambiguous = false;
+
       for(IdentityID userName : getUsers()) {
-         if(caseSensitive && userIdentity.equals(userName) ||
-            !caseSensitive && userIdentity.equalsIgnoreCase(userName))
-         {
-            return new User(userIdentity, getEmails(userIdentity),
-                            getUserGroups(userIdentity, caseSensitive), getRoles(userIdentity), "", "");
+         if(userIdentity.equals(userName)) {
+            return userName;
+         }
+
+         if(!caseSensitive && userIdentity.equalsIgnoreCase(userName)) {
+            ambiguous = match != null;
+            match = match == null ? userName : match;
          }
       }
 
-      return null;
+      return ambiguous ? null : match;
    }
 
    @Override
@@ -188,15 +279,27 @@ public class DatabaseAuthenticationProvider extends AbstractAuthenticationProvid
          return null;
       }
 
+      // prefer the exact id, then the stored id that matches ignoring case; return the
+      // stored org id, not the argument's case (Bug #77081)
+      String match = null;
+
       for(String orgID : this.getOrganizationIDs()) {
-         if(caseSensitive && id.equals(orgID) ||
-            !caseSensitive && id.equalsIgnoreCase(orgID))
-         {
-            return new Organization(getOrganizationName(id), id, getOrganizationMembers(id), "", true);
+         if(id.equals(orgID)) {
+            match = orgID;
+            break;
+         }
+
+         if(match == null && !caseSensitive && id.equalsIgnoreCase(orgID)) {
+            match = orgID;
          }
       }
 
-      return null;
+      if(match == null) {
+         return null;
+      }
+
+      return new Organization(getOrganizationName(match), match,
+                              getOrganizationMembers(match), "", true);
    }
 
    @Override

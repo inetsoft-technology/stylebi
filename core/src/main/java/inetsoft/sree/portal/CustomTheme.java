@@ -17,6 +17,8 @@
  */
 package inetsoft.sree.portal;
 
+import inetsoft.sree.internal.SUtil;
+import inetsoft.sree.security.Organization;
 import inetsoft.util.Tool;
 import inetsoft.util.XMLSerializable;
 import org.w3c.dom.Element;
@@ -285,6 +287,84 @@ public final class CustomTheme implements XMLSerializable, Cloneable {
     */
    public void setRoles(List<String> roles) {
       this.roles = roles;
+   }
+
+   /**
+    * Determines if the bare names in this theme's users, groups and roles lists can refer to
+    * an identity of the given organization. Identity names are only unique within an
+    * organization, so an organization-private theme only refers to identities of its own
+    * organization and a global theme only refers to identities of the default organization
+    * (which keeps single-tenant data working). Global identities (e.g. global roles, which have
+    * no organization) are referenced by every theme.
+    *
+    * @param identityOrgID the organization ID of the identity, or <tt>null</tt> for a global
+    *                      identity.
+    *
+    * @return <tt>true</tt> if the identity may be referenced by this theme.
+    */
+   public boolean isIdentityOrganization(String identityOrgID) {
+      if(identityOrgID == null) {
+         return true;
+      }
+
+      return Tool.isEmptyString(orgID) ?
+         identityOrgID.equals(Organization.getDefaultOrganizationID()) :
+         orgID.equals(identityOrgID);
+   }
+
+   /**
+    * Determines whether this theme may be served to an organization. A global theme
+    * ("Visible to All Organizations", no organization ID) is visible to every organization, an
+    * organization-private theme only to its own organization. This is the same rule that the
+    * theme list in the Enterprise Manager applies. In single-tenant mode every theme is visible,
+    * because themes keep their organization ID after multi-tenancy is turned off.
+    *
+    * @param viewerOrgID the ID of the organization that is being themed.
+    *
+    * @return {@code true} if the theme is visible to the organization.
+    */
+   public boolean isVisibleToOrganization(String viewerOrgID) {
+      // multi-tenancy is only checked when it matters, it is not a cheap test
+      return Tool.isEmptyString(orgID) || orgID.equals(viewerOrgID) || !SUtil.isMultiTenant();
+   }
+
+   /**
+    * Determines whether a theme pointer (a selected-theme property or {@code Organization.theme})
+    * names a theme that exists but is not visible to an organization, see
+    * {@link #isVisibleToOrganization(String)}. Such a pointer was left by a change that pre-dates
+    * the checks on the pointer writers, or by a writer that does not check the scope, and must not
+    * be served: the next step of the theme resolution applies instead.
+    * <p>
+    * A pointer that names no theme at all is <em>not</em> hidden: it is left to the resource
+    * layer, which already falls back to the built-in theme for a theme that does not exist.
+    *
+    * @param themes      the custom themes of every organization.
+    * @param themeId     the theme ID named by the pointer.
+    * @param viewerOrgID the ID of the organization that is being themed.
+    *
+    * @return {@code true} if a theme with the ID exists but none of them is visible to the
+    *         organization.
+    */
+   public static boolean isHiddenFromOrganization(Collection<CustomTheme> themes, String themeId,
+                                                  String viewerOrgID)
+   {
+      if(themes == null || Tool.isEmptyString(themeId) || isReservedId(themeId)) {
+         return false;
+      }
+
+      boolean found = false;
+
+      for(CustomTheme theme : themes) {
+         if(theme != null && themeId.equals(theme.getId())) {
+            if(theme.isVisibleToOrganization(viewerOrgID)) {
+               return false;
+            }
+
+            found = true;
+         }
+      }
+
+      return found;
    }
 
 

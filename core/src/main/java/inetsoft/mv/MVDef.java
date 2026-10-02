@@ -500,7 +500,7 @@ public final class MVDef implements Comparable, XMLSerializable, Serializable, C
    /**
     * Remove one column from columns, may be caused by vpm.
     */
-   public MVColumn removeColumn(int index) {
+   public synchronized MVColumn removeColumn(int index) {
       List<MVColumn> columns = getColumns();
       MVColumn removed = columns.remove(index);
 
@@ -1489,10 +1489,13 @@ public final class MVDef implements Comparable, XMLSerializable, Serializable, C
     * same {@code MVColumn}/{@code DateMVColumn} instances, see
     * {@code MVDispatcher.processDispatch()}). While one dispatcher thread is
     * serializing this {@code MVDef}, another may still be calling
-    * {@code DateMVColumn.convert()} (now synchronized on the column, see
-    * {@code MVCreatorUtil.setDateMVRange()}) on the very same column
-    * instance, flipping its {@code min0}/{@code max0} fields from
-    * {@code null} to non-null.
+    * {@code DateMVColumn.convert()} on the very same column instance,
+    * flipping its {@code min0}/{@code max0} fields from {@code null} to
+    * non-null, or {@code MVColumn.setRange()} (e.g. the range reset in
+    * {@code MVBuilder}). Every reader and writer of a column's range state
+    * is synchronized on the column's own monitor, the monitor held here (see
+    * {@code DateMVColumn.updateRange()} and {@code MVColumn.setRange()},
+    * Bug #77154).
     * <p>
     * Computing the class-name length + {@link MVColumn#getDataLength()} and
     * writing the corresponding bytes within a single {@code synchronized(col)}

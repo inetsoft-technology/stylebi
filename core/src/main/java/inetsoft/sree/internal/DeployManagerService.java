@@ -23,6 +23,8 @@ import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.report.io.viewsheet.snapshot.ViewsheetAsset2;
 import inetsoft.report.io.viewsheet.snapshot.WorksheetAsset2;
 import inetsoft.sree.*;
+import inetsoft.sree.schedule.ScheduleManager;
+import inetsoft.sree.schedule.ScheduleTask;
 import inetsoft.sree.security.*;
 import inetsoft.sree.web.dashboard.*;
 import inetsoft.uql.*;
@@ -44,6 +46,9 @@ import inetsoft.util.audit.ActionRecord;
 import inetsoft.util.audit.Audit;
 import inetsoft.util.dep.*;
 import inetsoft.web.admin.deploy.*;
+import inetsoft.web.admin.schedule.ScheduleSecretIdChecker;
+import inetsoft.web.admin.schedule.ScheduleTaskIdentityChecker;
+import inetsoft.web.portal.data.SecretIdAuthorizer;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
@@ -60,6 +65,7 @@ import java.security.Principal;
 import java.sql.Timestamp;
 import java.util.*;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.jar.JarEntry;
 import java.util.jar.JarInputStream;
@@ -1752,6 +1758,41 @@ public class DeployManagerService {
                }
             }
 
+            if(asset instanceof XDataSourceAsset dataSourceAsset && principal != null &&
+               !isImportedSecretIdsAllowed(dataSourceAsset, file, principal))
+            {
+               String msg = catalog.getString("em.import.file.failed.secretIdNotAllowed",
+                  asset.getType() + " " + path);
+               failedList.add(msg);
+               LOG.warn(msg);
+               return false;
+            }
+
+            if(asset instanceof ScheduleTaskAsset && principal != null &&
+               !isImportedScheduleSecretIdsAllowed(file, principal))
+            {
+               String msg = catalog.getString("em.import.file.failed.secretIdNotAllowed",
+                  asset.getType() + " " + path);
+               failedList.add(msg);
+               LOG.warn(msg);
+               return false;
+            }
+
+            // Bug #77281, the owner and execute-as identity of the task xml are not trusted
+            if(asset instanceof ScheduleTaskAsset scheduleTaskAsset && principal != null &&
+               !new ScheduleTaskIdentityChecker(securityEngine).isUnrestricted(principal))
+            {
+               if(!isImportedScheduleTaskAllowed(file, principal)) {
+                  String msg = catalog.getString("em.import.file.failed.noPermission",
+                     asset.getType() + " " + path);
+                  failedList.add(msg);
+                  LOG.warn(msg);
+                  return false;
+               }
+
+               scheduleTaskAsset.setRestrictedImporter(principal);
+            }
+
             if(ViewsheetAsset.VIEWSHEET.equals(type) && path.contains("/")) {
                String folder = path.substring(0, path.lastIndexOf("/"));
                setFolderProperty(folder, asset.getUser(), jarInfo);
@@ -1938,6 +1979,120 @@ public class DeployManagerService {
             if(actionRecord != null) {
                Audit.getInstance().auditAction(actionRecord, principal);
             }
+         }
+      }
+
+      return true;
+   }
+
+   /**
+    * Determines if the importer may use the cloud secret ids that an imported data source
+    * references. The ids are read from the imported XML before it is parsed, so that a rejected
+    * id is never resolved.
+    */
+   boolean isImportedSecretIdsAllowed(XDataSourceAsset asset, File file, Principal principal)
+      throws Exception
+   {
+      Set<String> secretIds;
+
+      try(InputStream input = new FileInputStream(file)) {
+         Document doc = input.available() > 0 ? Tool.parseXML(input) : null;
+
+         if(doc == null) {
+            return true;
+         }
+
+         secretIds = SecretIdAuthorizer.getCloudSecretIds(doc.getDocumentElement());
+      }
+
+      if(secretIds.isEmpty()) {
+         return true;
+      }
+
+      XDataSource stored = dataSourceRegistry.getDataSource(asset.getDatasource());
+      Predicate<String> check = new SecretIdAuthorizer(securityEngine, dataSourceRegistry)
+         .createCheck(stored, principal);
+      return secretIds.stream().allMatch(check);
+   }
+
+   /**
+    * Determines if the importer may use the cloud secret ids that an imported schedule task
+    * references. Parsing a task does not resolve its secret ids.
+    */
+   boolean isImportedScheduleSecretIdsAllowed(File file, Principal principal) throws Exception {
+      if(!Tool.isCloudSecrets()) {
+         return true;
+      }
+
+      ScheduleTask task;
+
+      try(InputStream input = new FileInputStream(file)) {
+         Document doc = input.available() > 0 ? Tool.parseXML(input) : null;
+         Element taskElem = doc == null ? null :
+            Tool.getChildNodeByTagName(doc.getDocumentElement(), "Task");
+
+         if(taskElem == null) {
+            return true;
+         }
+
+         task = new ScheduleTask();
+         task.parseXML(taskElem);
+      }
+
+      ScheduleTask existing = ScheduleManager.getScheduleManager().getScheduleTask(task.getTaskId());
+      return new ScheduleSecretIdChecker(securityEngine).isAllowed(task, existing, principal);
+   }
+
+   /**
+    * Bug #77281, determines if an importer that is not a site admin may import a schedule
+    * task. The task is parsed the same way ScheduleTaskAsset.parseContent stores it for such
+    * an importer, with the owner and execute-as identity moved to the importer's organization,
+    * and it gets the same checks as the schedule task import (ImportTaskController): the
+    * scheduler permission regardless of the removable flag, no internal task or internal task
+    * content, and an owner and execute-as identity the task editor lets the importer pick.
+    */
+   boolean isImportedScheduleTaskAllowed(File file, Principal principal) throws Exception {
+      Element taskElem;
+
+      try(InputStream input = new FileInputStream(file)) {
+         Document doc = input.available() > 0 ? Tool.parseXML(input) : null;
+         taskElem = doc == null ? null :
+            Tool.getChildNodeByTagName(doc.getDocumentElement(), "Task");
+      }
+
+      if(taskElem == null) {
+         return true;
+      }
+
+      if(!securityEngine.checkPermission(principal, ResourceType.SCHEDULER, "*",
+                                         ResourceAction.ACCESS))
+      {
+         LOG.warn("Schedule task is not imported, the user doesn't have the scheduler permission");
+         return false;
+      }
+
+      ScheduleTaskIdentityChecker checker = new ScheduleTaskIdentityChecker(securityEngine);
+      ScheduleTask task = checker.parseImportedTask(taskElem, principal);
+      String taskId = task.getTaskId();
+
+      if(task.getType() == ScheduleTask.Type.INTERNAL_TASK ||
+         ScheduleManager.isInternalTask(taskId) || ScheduleManager.isInternalTask(task.getName()))
+      {
+         LOG.warn("Internal task {} is not imported, it's not allowed for the user", taskId);
+         return false;
+      }
+
+      if(!checker.isAllowed(task, taskId, principal)) {
+         return false;
+      }
+
+      for(String internalTask : ScheduleTaskIdentityChecker.getInternalTaskContents(task)) {
+         if(!securityEngine.checkPermission(principal, ResourceType.SCHEDULE_TASK, internalTask,
+                                            ResourceAction.WRITE))
+         {
+            LOG.warn("Task {} is not imported, it contains the actions or conditions of " +
+                     "the internal task {}", taskId, internalTask);
+            return false;
          }
       }
 

@@ -27,6 +27,7 @@ import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.*;
+import inetsoft.util.Tool;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.test.annotation.DirtiesContext;
@@ -39,6 +40,7 @@ import java.lang.reflect.Field;
 import java.util.Set;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.doReturn;
@@ -215,6 +217,453 @@ class CrosstabVSAssemblySourceLockOrderingTest {
       runAgainstWriter(false, 2);
    }
 
+   /**
+    * Bug #77156: a binding edit switches the source without the sandbox lock
+    * ({@code VSAssemblyInfoHandler.apply -> setVSAssemblyInfo}). A crosstab whose source is not
+    * a VS assembly when the gather reads it, and is one by the time prepare runs, must not fetch
+    * the new source inside the crosstab info monitor: it leaves the monitor and gathers again.
+    */
+   @Test
+   void nonVSToVSSwitchDuringGatherDoesNotFetchUnderMonitor() throws Exception {
+      crosstab.setSourceInfo(new SourceInfo(SourceInfo.ASSET, null, "Query1"));
+      box.gatherHook = () -> switchSource(SOURCE);
+      Future<TableLens> reader = pool.submit(() -> {
+         box.reader = Thread.currentThread();
+         return query().getTableLens();
+      });
+
+      TableLens result = await(reader, "crosstab query with a source switched during the gather");
+      assertEquals(0, box.fetchesUnderMonitor.get(),
+                   "the switched-to source was executed while holding the VSCrosstabInfo monitor");
+      assertEquals(1, box.fetches.get(), "the switched-to source must be fetched once");
+      assertNotNull(result, "the crosstab query returned no table after the switch");
+   }
+
+   /**
+    * Bug #77156 refute: a cube crosstab gathers nothing, so a switch from CUBE to a VS assembly
+    * after the first read of the source reached prepare with no gathered sources, which
+    * fetched the source (and refreshed any brushing chart) inside the monitor.
+    */
+   @Test
+   void cubeToVSSwitchAfterFirstReadDoesNotFetchUnderMonitor() throws Exception {
+      crosstab.setSourceInfo(new SourceInfo(SourceInfo.CUBE, null, "Cube1"));
+      HookedQuery query = new HookedQuery();
+      query.onCubeDrill = () -> switchSource(SOURCE);
+      Future<TableLens> reader = pool.submit(() -> {
+         box.reader = Thread.currentThread();
+         return query.getTableLens();
+      });
+
+      await(reader, "crosstab query with a cube source switched after the first read");
+      assertEquals(0, box.fetchesUnderMonitor.get(),
+                   "the switched-to source was executed while holding the VSCrosstabInfo monitor");
+      assertEquals(0, box.updatesUnderMonitor.get(),
+                   "an assembly was refreshed while holding the VSCrosstabInfo monitor");
+      assertEquals(1, box.fetches.get(), "the switched-to source must be fetched once");
+   }
+
+   /**
+    * Bug #77156 deadlock: the source switches from non-VS to VS during the gather, and a thread
+    * that holds the sandbox read lock then needs the crosstab info monitor
+    * ({@code refreshMetaData -> VSCrosstabInfo.update()}, the shape of the binding apply's own
+    * {@code updateAssembly}). If the reader fetched the new source inside the monitor, its
+    * write-lock upgrade would wait for that read lock while the other thread waits for the
+    * monitor.
+    */
+   @Test
+   void sourceSwitchDoesNotDeadlockWithReadLockHolderInCrosstabInfoUpdate() throws Exception {
+      crosstab.setSourceInfo(new SourceInfo(SourceInfo.ASSET, null, "Query1"));
+      Started reading = new Started();
+      Started other = new Started();
+      CountDownLatch otherHoldsRead = new CountDownLatch(1);
+
+      box.gatherHook = () -> {
+         switchSource(SOURCE);
+         other.future = pool.submit(() -> {
+            other.thread = Thread.currentThread();
+            box.lockRead();
+
+            try {
+               otherHoldsRead.countDown();
+               // wait until the reader blocks on its write-lock upgrade for the fetch
+               awaitParkedOrDone(reading);
+               crosstab.getVSCrosstabInfo().update(crosstab.getViewsheet(), columns, null, true,
+                                                   null, null);
+            }
+            finally {
+               box.unlockRead();
+            }
+
+            return null;
+         });
+
+         assertTrue(otherHoldsRead.await(CAP, TimeUnit.SECONDS),
+                    "the other thread never took the read lock");
+      };
+
+      Future<TableLens> reader = pool.submit(() -> {
+         box.reader = Thread.currentThread();
+         reading.thread = Thread.currentThread();
+         return query().getTableLens();
+      });
+      reading.future = reader;
+
+      TableLens result = await(reader, "reader (crosstab prepare after a source switch)");
+      assertTrue(other.future != null, "the source was never switched");
+      await(other.future, "read-lock holder (VSCrosstabInfo.update)");
+      assertEquals(0, box.fetchesUnderMonitor.get(),
+                   "the switched-to source was executed while holding the VSCrosstabInfo monitor");
+      assertNotNull(result, "the crosstab query returned no table");
+   }
+
+   /**
+    * Bug #77156: a switch from one VS assembly source to another while prepare runs inside the
+    * monitor must not produce a table built from the old source for the new binding; prepare
+    * is redone from the new source, fetched outside the monitor.
+    */
+   @Test
+   void sourceSwitchDuringPrepareRebuildsFromTheNewSource() throws Exception {
+      // period calendars make prepare append a period row header, which it must undo
+      addPeriodCalendar(SOURCE);
+      addPeriodCalendar(SOURCE2);
+      DataRef[] rows = (DataRef[]) Tool.clone(crosstab.getVSCrosstabInfo().getRuntimeRowHeaders());
+      HookedQuery query = new HookedQuery();
+      AtomicInteger executedRows = new AtomicInteger();
+      query.onExecute = () ->
+         executedRows.set(crosstab.getVSCrosstabInfo().getRuntimeRowHeaders().length);
+      AtomicInteger prepares = new AtomicInteger();
+      query.onPostSort = () -> {
+         if(prepares.incrementAndGet() == 1) {
+            switchSource(SOURCE2);
+         }
+      };
+      Future<TableLens> reader = pool.submit(() -> {
+         box.reader = Thread.currentThread();
+         return query.getTableLens();
+      });
+
+      TableLens result = await(reader, "crosstab query with a source switched during prepare");
+      assertEquals(0, box.fetchesUnderMonitor.get(),
+                   "a source was executed while holding the VSCrosstabInfo monitor");
+      assertEquals(SOURCE2, box.lastFetched, "the new source was never fetched");
+      assertEquals(2, prepares.get(), "prepare was not redone for the new source");
+      Set<String> names = tableNames(query.executed);
+      assertTrue(names.contains(SOURCE2), "the executed table is not built from the new source: " +
+                 names);
+      assertFalse(names.contains(SOURCE), "the executed table is built from the old source: " +
+                  names);
+      assertEquals(2, executedRows.get(), "prepare did not append exactly one period row header, " +
+                   "so the undo below is not exercised");
+      assertArrayEquals(rows, crosstab.getVSCrosstabInfo().getRuntimeRowHeaders(),
+                        "the query left its runtime ref rewrite on the crosstab info");
+      assertNotNull(result, "the crosstab query returned no table");
+   }
+
+   /**
+    * Bug #77156 review: a binding edit that replaces only the crosstab info while prepare runs
+    * (the source info stays equal) must be detected by its identity: the abandoned prepare's
+    * runtime ref rewrite is undone on the crosstab info it prepared, the attempt is redone from a
+    * new snapshot, and the executed attempt prepares the new crosstab info under its own monitor
+    * without the abandoned attempt having touched it.
+    */
+   @Test
+   void crosstabInfoReplacedDuringPrepareIsPreparedAgainFromTheNewInfo() throws Exception {
+      // a period calendar makes prepare append a period row header, which it must undo
+      addPeriodCalendar(SOURCE);
+      VSCrosstabInfo old = crosstab.getVSCrosstabInfo();
+      DataRef[] oldRows = (DataRef[]) Tool.clone(old.getRuntimeRowHeaders());
+      DataRef[] oldAggrs = (DataRef[]) Tool.clone(old.getRuntimeAggregates());
+      // an equal binding, which records the query's reads of its runtime refs
+      RecordingInfo replacement = new RecordingInfo();
+      replacement.setDesignRowHeaders((DataRef[]) Tool.clone(old.getDesignRowHeaders()));
+      replacement.update(crosstab.getViewsheet(), columns, null, true, null, null);
+      DataRef[] newRows = (DataRef[]) Tool.clone(replacement.getRuntimeRowHeaders());
+      HookedQuery query = new HookedQuery();
+      AtomicInteger prepares = new AtomicInteger();
+      AtomicInteger gathers = new AtomicInteger();
+      AtomicReference<DataRef[]> newRowsAtRedo = new AtomicReference<>();
+      AtomicReference<Boolean> redoHoldsNew = new AtomicReference<>();
+      AtomicReference<Boolean> redoHoldsOld = new AtomicReference<>();
+      AtomicInteger executedRows = new AtomicInteger();
+
+      query.onPostSort = () -> {
+         if(prepares.incrementAndGet() == 1) {
+            // what apply() does to the crosstab info, with an equal source info
+            replacement.reader = Thread.currentThread();
+            crosstab.setVSCrosstabInfo(replacement);
+            // the redo's gather: the abandoned attempt must not have used the new info
+            box.gatherHook = () -> {
+               gathers.incrementAndGet();
+               replacement.reader = null;
+               newRowsAtRedo.set((DataRef[]) Tool.clone(replacement.getRuntimeRowHeaders()));
+            };
+         }
+         else {
+            redoHoldsNew.set(Thread.holdsLock(replacement));
+            redoHoldsOld.set(Thread.holdsLock(old));
+         }
+      };
+      query.onExecute = () -> executedRows.set(replacement.getRuntimeRowHeaders().length);
+      Future<TableLens> reader = pool.submit(() -> {
+         box.reader = Thread.currentThread();
+         return query.getTableLens();
+      });
+
+      TableLens result = await(reader, "crosstab query with the crosstab info replaced in prepare");
+      assertNotNull(result, "the crosstab query returned no table");
+      assertEquals(2, prepares.get(), "prepare was not redone for the new crosstab info");
+      assertEquals(1, gathers.get(), "the redo did not gather again");
+      assertEquals(2, box.fetches.get(), "each attempt gathers its source once");
+      assertEquals(0, box.fetchesUnderMonitor.get(),
+                   "a source was executed while holding the VSCrosstabInfo monitor");
+      assertEquals(1, query.executions.get(), "only the redo is executed");
+      assertEquals(Boolean.TRUE, redoHoldsNew.get(),
+                   "the redo did not prepare under the new crosstab info's monitor");
+      assertEquals(Boolean.FALSE, redoHoldsOld.get(),
+                   "the redo prepared under the replaced crosstab info's monitor");
+      assertEquals(0, replacement.reads.get(), "the abandoned attempt read the runtime refs " +
+                   "of the new crosstab info instead of its snapshot");
+      assertArrayEquals(newRows, newRowsAtRedo.get(),
+                        "the abandoned attempt rewrote the runtime refs of the new crosstab info");
+      assertEquals(2, executedRows.get(), "the redo did not prepare the new crosstab info " +
+                   "(period row header not appended)");
+      assertSame(replacement, crosstab.getVSCrosstabInfo(), "the edit was reverted");
+      assertArrayEquals(oldRows, old.getRuntimeRowHeaders(),
+                        "the abandoned prepare left its runtime row header rewrite");
+      assertArrayEquals(oldAggrs, old.getRuntimeAggregates(),
+                        "the abandoned prepare left its runtime aggregates");
+      assertArrayEquals(newRows, replacement.getRuntimeRowHeaders(),
+                        "the executed prepare left its runtime row header rewrite");
+   }
+
+   /**
+    * Bug #77156: a binding that keeps switching while prepare runs is retried a bounded number
+    * of times, then the query answers from its last consistent snapshot instead of throwing or
+    * spinning, still without executing anything inside the monitor.
+    */
+   @Test
+   void continuousSourceSwitchingIsRetriedBoundedly() throws Exception {
+      HookedQuery query = new HookedQuery();
+      AtomicInteger prepares = new AtomicInteger();
+      query.onPostSort = () ->
+         switchSource(prepares.incrementAndGet() % 2 == 1 ? SOURCE2 : SOURCE);
+      Future<TableLens> reader = pool.submit(() -> {
+         box.reader = Thread.currentThread();
+         return query.getTableLens();
+      });
+
+      TableLens result = await(reader, "crosstab query with a continuously switching source");
+      assertEquals(0, box.fetchesUnderMonitor.get(),
+                   "a source was executed while holding the VSCrosstabInfo monitor");
+      assertEquals(3, prepares.get(), "prepare attempts are not bounded at 3");
+      assertEquals(3, box.fetches.get(), "each attempt gathers its source once");
+      assertEquals(1, query.executions.get(), "the last snapshot was not executed");
+      assertNotNull(result, "the crosstab query returned no table after the retries");
+   }
+
+   /**
+    * Bug #77156: when the retries run out, the query answers from the last attempt's snapshot as
+    * a whole: the table is built from that snapshot's source and grouped by that snapshot's
+    * crosstab info, never the old source with the new crosstab info (or the reverse), and the
+    * edit that landed after the snapshot is left in place, neither reverted nor rewritten.
+    */
+   @Test
+   void exhaustedRetryAnswersFromOneConsistentSnapshot() throws Exception {
+      HookedQuery query = new HookedQuery();
+      AtomicInteger gathers = new AtomicInteger();
+      AtomicInteger prepares = new AtomicInteger();
+      AtomicReference<VSCrosstabInfo> lastSnapshotInfo = new AtomicReference<>();
+      // every attempt: a binding edit replacing both the source and the crosstab info, as
+      // apply() does, between the attempt's snapshot and its monitor
+      box.gatherHook = new Window() {
+         @Override
+         public void run() {
+            int n = gathers.incrementAndGet();
+            lastSnapshotInfo.set(crosstab.getVSCrosstabInfo());
+            // alternate the source type too, so a build from the live source cannot pass
+            crosstab.setSourceInfo(n % 2 == 1 ? new SourceInfo(SourceInfo.ASSET, null, QUERY) :
+                                   new SourceInfo(SourceInfo.VS_ASSEMBLY, null, SOURCE));
+            crosstab.setVSCrosstabInfo(n % 2 == 1 ? crosstabInfo("sales", "state") :
+                                       crosstabInfo("state", null));
+
+            if(n < 3) {
+               box.gatherHook = this;
+            }
+         }
+      };
+      query.onPostSort = prepares::incrementAndGet;
+      Future<TableLens> reader = pool.submit(() -> {
+         box.reader = Thread.currentThread();
+         return query.getTableLens();
+      });
+
+      TableLens result = await(reader, "crosstab query with a continuously changing binding");
+      assertNotNull(result, "the crosstab query returned no table after the retries");
+      assertEquals(3, gathers.get(), "each of the 3 attempts gathers once");
+      // attempts 1 and 2 see the change on entering the monitor and skip prepare
+      assertEquals(1, prepares.get(), "only the last attempt prepares");
+      assertEquals(0, box.fetchesUnderMonitor.get(),
+                   "a source was executed while holding the VSCrosstabInfo monitor");
+      assertEquals(1, query.executions.get(), "the last snapshot was not executed");
+
+      // the last attempt snapshotted what edit 2 set: SOURCE grouped by state; live is now
+      // the worksheet query grouped by sales with a Count(state)
+      Set<String> names = tableNames(query.executed);
+      assertTrue(names.contains(SOURCE), "the executed table is not built from the snapshot " +
+                 "source: " + names);
+      assertFalse(names.contains(QUERY), "the executed table is built from the live source, " +
+                  "not the snapshot: " + names);
+      Set<String> built = new java.util.HashSet<>();
+      ColumnSelection selection = query.executed.getColumnSelection(true);
+
+      for(int i = 0; i < selection.getAttributeCount(); i++) {
+         built.add(selection.getAttribute(i).getAttribute());
+      }
+
+      assertTrue(built.contains("state"), "the executed table is not built for the " +
+                 "snapshot crosstab info: " + built);
+      assertFalse(built.contains("sales"), "the executed table is built for the live " +
+                  "crosstab info, not the snapshot: " + built);
+
+      // the edit made after the snapshot is left alone
+      assertEquals(new SourceInfo(SourceInfo.ASSET, null, QUERY), crosstab.getSourceInfo(),
+                   "the query reverted the source edit made after its last snapshot");
+      VSCrosstabInfo live = crosstab.getVSCrosstabInfo();
+      assertNotSame(lastSnapshotInfo.get(), live, "crosstab info edit");
+      assertEquals(1, live.getRuntimeRowHeaders().length, "live row headers");
+      assertEquals("sales", live.getRuntimeRowHeaders()[0].getAttribute(),
+                   "the query rewrote the runtime refs of the crosstab info it did not prepare");
+      assertEquals(1, live.getRuntimeAggregates().length,
+                   "the query restored another crosstab info's runtime aggregates on the live one");
+      // and the snapshot's rewrite was undone
+      assertEquals(1, lastSnapshotInfo.get().getRuntimeRowHeaders().length,
+                   "the prepared crosstab info kept its runtime ref rewrite");
+   }
+
+   /**
+    * A crosstab info as a binding edit creates it, grouped by a row header, with a Count
+    * aggregate of another column or none, runtime refs filled in.
+    */
+   private VSCrosstabInfo crosstabInfo(String row, String count) {
+      VSCrosstabInfo cinfo = new VSCrosstabInfo();
+      VSDimensionRef dim = new VSDimensionRef(new ColumnRef(new AttributeRef(null, row)));
+      dim.setGroupColumnValue(row);
+      cinfo.setDesignRowHeaders(new DataRef[] { dim });
+
+      if(count != null) {
+         VSAggregateRef agg = new VSAggregateRef();
+         agg.setColumnValue(count);
+         agg.setFormulaValue("Count");
+         cinfo.setDesignAggregates(new DataRef[] { agg });
+      }
+
+      cinfo.update(crosstab.getViewsheet(), columns, null, true, null, null);
+      return cinfo;
+   }
+
+   /**
+    * Bug #77156: a binding edit that lands after prepare, while the base table runs outside the
+    * monitor, must not be reverted by the query restoring the source info it cloned in prepare.
+    */
+   @Test
+   void queryDoesNotRevertAConcurrentSourceSwitch() throws Exception {
+      HookedQuery query = new HookedQuery();
+      query.onExecute = () -> switchSource(SOURCE2);
+      Future<TableLens> reader = pool.submit(() -> {
+         box.reader = Thread.currentThread();
+         return query.getTableLens();
+      });
+
+      await(reader, "crosstab query with a source switched during execution");
+      assertEquals(SOURCE2, crosstab.getSourceInfo().getSource(),
+                   "the query reverted the concurrent source switch");
+   }
+
+   /**
+    * What a binding edit does to the source: replace the live SourceInfo, with no sandbox lock.
+    */
+   private void switchSource(String source) {
+      crosstab.setSourceInfo(new SourceInfo(SourceInfo.VS_ASSEMBLY, null, source));
+   }
+
+   private static Set<String> tableNames(TableAssembly table) {
+      Set<String> names = new java.util.HashSet<>();
+      collectTableNames(table, names);
+      return names;
+   }
+
+   private static void collectTableNames(TableAssembly table, Set<String> names) {
+      if(table == null) {
+         return;
+      }
+
+      names.add(table.getName());
+
+      if(table instanceof ComposedTableAssembly composed) {
+         for(TableAssembly child : composed.getTableAssemblies(false)) {
+            collectTableNames(child, names);
+         }
+      }
+   }
+
+   /**
+    * A crosstab info that counts the reads of its runtime refs by one thread, made directly by
+    * the crosstab query's prepare. Helpers it calls that take the assembly rather than the
+    * crosstab info (the AOA check's {@code VSUtil.getAggregates()}, {@code replaceGroupValues()})
+    * still read the live binding; they only decide the push-down and resolve detail conditions,
+    * and the retry re-checks the binding after prepare.
+    */
+   private static final class RecordingInfo extends VSCrosstabInfo {
+      @Override
+      public DataRef[] getRuntimeAggregates() {
+         record();
+         return super.getRuntimeAggregates();
+      }
+
+      @Override
+      public DataRef[] getRuntimeColHeaders() {
+         record();
+         return super.getRuntimeColHeaders();
+      }
+
+      @Override
+      public DataRef[] getRuntimeRowHeaders() {
+         record();
+         return super.getRuntimeRowHeaders();
+      }
+
+      private void record() {
+         if(reader != null && Thread.currentThread() == reader && StackWalker.getInstance()
+            .walk(frames -> frames.skip(2).findFirst())
+            .map(frame -> frame.getClassName().equals(AbstractCrosstabVSAQuery.class.getName()) ||
+               frame.getClassName().equals(CubeVSAQuery.class.getName()))
+            .orElse(false))
+         {
+            reads.incrementAndGet();
+         }
+      }
+
+      volatile Thread reader;
+      final AtomicInteger reads = new AtomicInteger();
+   }
+
+   /**
+    * A period calendar on a crosstab source, which makes prepare append a period row header
+    * to the runtime row headers (and dispose() remove it).
+    */
+   private void addPeriodCalendar(String source) {
+      Viewsheet vs = crosstab.getViewsheet();
+      CalendarVSAssembly calendar =
+         new CalendarVSAssembly(vs, "Calendar" + (vs.getAssemblies().length + 1));
+      calendar.setTableName(source);
+      calendar.setDataRef(new AttributeRef(null, "sales"));
+      calendar.setPeriod(true);
+      calendar.setDates(new String[] { "y2026" });
+      vs.addAssembly(calendar);
+      assertSame(calendar, inetsoft.uql.viewsheet.internal.VSUtil.getPeriodCalendar(vs, source),
+                 "period calendar");
+   }
+
    private void addBrushingChart() {
       Viewsheet vs = crosstab.getViewsheet();
       ChartVSAssembly chart = new ChartVSAssembly(vs, "Chart1");
@@ -308,6 +757,56 @@ class CrosstabVSAssemblySourceLockOrderingTest {
       };
    }
 
+   /**
+    * {@link #query()} with hooks at points of the query that bracket the phases a binding edit
+    * can land in: before the gather ({@code isCubeDrill}), inside prepare ({@code isPostSort},
+    * under the monitor) and during the base table execution (outside it).
+    */
+   private final class HookedQuery extends CrosstabVSAQuery {
+      HookedQuery() {
+         super(CrosstabVSAssemblySourceLockOrderingTest.this.box, CROSSTAB, false);
+      }
+
+      @Override
+      protected boolean isCubeDrill() {
+         Runnable hook = onCubeDrill;
+         onCubeDrill = null;
+
+         if(hook != null) {
+            hook.run();
+         }
+
+         return super.isCubeDrill();
+      }
+
+      @Override
+      protected boolean isPostSort() {
+         if(onPostSort != null) {
+            onPostSort.run();
+         }
+
+         return super.isPostSort();
+      }
+
+      @Override
+      protected TableLens getTableLens(TableAssembly table) {
+         executions.incrementAndGet();
+         executed = table;
+
+         if(onExecute != null) {
+            onExecute.run();
+         }
+
+         return sourceRows();
+      }
+
+      volatile Runnable onCubeDrill;
+      volatile Runnable onPostSort;
+      volatile Runnable onExecute;
+      volatile TableAssembly executed;
+      final AtomicInteger executions = new AtomicInteger();
+   }
+
    private static TableLens sourceRows() {
       return new DefaultTableLens(new Object[][] {
          { "state", "sales" },
@@ -396,6 +895,28 @@ class CrosstabVSAssemblySourceLockOrderingTest {
          super.updateAssembly(assembly, out);
       }
 
+      /**
+       * The gather resolves the brushing chart after reading the source type; a hook here
+       * lands a binding edit between the gather's read and prepare (bug #77156).
+       */
+      @Override
+      public ChartVSAssembly getBrushingChart(String vname) {
+         Window hook = gatherHook;
+
+         if(hook != null && Thread.currentThread() == reader) {
+            gatherHook = null;
+
+            try {
+               hook.run();
+            }
+            catch(Exception ex) {
+               throw new RuntimeException(ex);
+            }
+         }
+
+         return super.getBrushingChart(vname);
+      }
+
       @Override
       public TableLens getTableData(String name) throws Exception {
          fetches.incrementAndGet();
@@ -434,6 +955,7 @@ class CrosstabVSAssemblySourceLockOrderingTest {
       volatile Thread reader;
       volatile String lastFetched;
       volatile Window readerWindow;
+      volatile Window gatherHook;
    }
 
    @FunctionalInterface
@@ -448,6 +970,8 @@ class CrosstabVSAssemblySourceLockOrderingTest {
 
    private static final String CROSSTAB = "Crosstab1";
    private static final String SOURCE = Assembly.TABLE_VS_BOUND + "Table1";
+   private static final String SOURCE2 = Assembly.TABLE_VS_BOUND + "Table2";
+   private static final String QUERY = "Query1";
    private static final long CAP = 10;
    private static final AtomicInteger SEQ = new AtomicInteger();
 

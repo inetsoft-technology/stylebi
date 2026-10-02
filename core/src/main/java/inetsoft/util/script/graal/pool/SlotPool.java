@@ -26,6 +26,7 @@ import java.lang.ref.WeakReference;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.*;
+import java.util.concurrent.locks.Lock;
 
 /**
  * The contexts of one pooled worksheet env (bug #76960, spec §4.3-§4.5): a primary and any
@@ -57,10 +58,16 @@ final class SlotPool {
       // (env reset/drop) lands between create() stamping its epoch and prepare(), so every
       // extra pass needs another retire. Never waits, so no backoff.
       while(true) {
-         Slot slot = takePrimary();
+         // a formula table whose objects live on a home takes it first (B1 residual part 2)
+         SlotTenant hint = homes.isEmpty() ? null : SlotClaim.homeHint();
+         Slot slot = hint == null ? null : takeHome(hint);
 
          if(slot == null) {
-            slot = takePooled();
+            slot = takePrimary(hint);
+         }
+
+         if(slot == null) {
+            slot = takePooled(hint);
          }
 
          if(slot == null) {
@@ -84,6 +91,7 @@ final class SlotPool {
       try {
          if(!slot.isDoomed() && slot.epoch() >= epoch.get()) {
             keep = slot.clean().reusable(config.cleanThreshold()) &&
+               (!PoolParanoia.enabled() || PoolParanoia.accept(slot)) &&
                !slot.isDoomed() && slot.epoch() >= epoch.get();
          }
       }
@@ -167,8 +175,13 @@ final class SlotPool {
     * never a context it cannot tryLock.
     */
    void evictIdle(long now) {
+      if(!homes.isEmpty()) {
+         expireHomes(now);
+      }
+
       for(Slot slot : new ArrayList<>(pooled)) {
-         if(!isEvictable(slot, now) || !slot.tryAcquire()) {
+         // a home whose tenants could not hand off yet is kept for the next tick
+         if(!isEvictable(slot, now) || homes.contains(slot) || !slot.tryAcquire()) {
             continue;
          }
 
@@ -186,7 +199,7 @@ final class SlotPool {
       return slot.epoch() < epoch.get() || now - slot.idleSince() >= config.idleMillis();
    }
 
-   private Slot takePrimary() {
+   private Slot takePrimary(SlotTenant hint) {
       Slot current = primary.get();
 
       if(current == null) {
@@ -199,17 +212,344 @@ final class SlotPool {
          return created;
       }
 
-      return current.tryAcquire() ? current : null;
+      return take(current, hint) ? current : null;
    }
 
-   private Slot takePooled() {
+   private Slot takePooled(SlotTenant hint) {
       for(Slot slot : pooled) {
-         if(slot.tryAcquire()) {
+         if(take(slot, hint)) {
             return slot;
          }
       }
 
       return null;
+   }
+
+   // ---- homes of formula tables' objects (Testing #77123, B1 residual part 2) -------------
+   //
+   // A formula table whose owned vars hold arrays or objects keeps them live on the context of
+   // its last batch, its home. While the home is idle, a claim of another thread or table:
+   // - skips it if it is one of the pool's exclusive homes (at most maxHomes per sandbox and
+   //   maxHomesPerNode per node);
+   // - otherwise takes it over after every tenant handed off (saved its values as a tree under
+   //   its own table lock, taken without waiting), or skips it if one could not.
+   // The evictor hands off a home idle for idleMillis (and then evicts it as usual); closing a
+   // home hands off first, and a tenant that cannot loses its values (a warning on read).
+
+   /**
+    * Take the idle home of {@code hint}, never waiting.
+    */
+   private Slot takeHome(SlotTenant hint) {
+      for(Slot slot : homes) {
+         if(slot.hasTenant(hint) && isLive(slot) && slot.tryAcquire()) {
+            if(slot.hasTenant(hint)) {
+               return slot;
+            }
+
+            giveBack(slot);
+         }
+      }
+
+      return null;
+   }
+
+   /**
+    * Take {@code slot} for a claim that prefers the home of {@code hint} (or none), never
+    * waiting: a home of other tenants only if it is not exclusive and all of them hand off.
+    */
+   private boolean take(Slot slot, SlotTenant hint) {
+      if(homes.isEmpty() || !homes.contains(slot)) {
+         return slot.tryAcquire();
+      }
+
+      if(slot.exclusiveHome != null && (hint == null || !slot.hasTenant(hint))) {
+         return false;
+      }
+
+      TenantLocks locks = new TenantLocks();
+
+      try {
+         // a take-over holds the tenants' locks before the slot (B1-R2-1); the claim's own
+         // home needs none
+         if(!(hint != null && slot.hasTenant(hint)) && !locks.take(slot) ||
+            !slot.tryAcquire())
+         {
+            return false;
+         }
+
+         // under the slot's lock no batch can enroll on it: this is the authoritative check
+         if(hint != null && slot.hasTenant(hint)) {
+            return true;
+         }
+
+         runHandOffHook(slot);
+         boolean exclusive;
+
+         synchronized(homesLock) {
+            purge(slot);
+            exclusive = slot.exclusiveHome != null;
+         }
+
+         // a home whose tenants were only collected is no take-over
+         boolean tenants = slot.hasTenants();
+
+         // a tenant that enrolled before the slot was taken is locked now, or the home is
+         // skipped before anything is handed off
+         if(!exclusive && (!tenants || locks.take(slot) && handOffAll(slot)) &&
+            !homes.contains(slot))
+         {
+            if(tenants) {
+               metrics.tookOver();
+            }
+
+            return true;
+         }
+
+         // given back while the tenants' locks are still held: none of their batches saw it
+         giveBack(slot);
+         return false;
+      }
+      finally {
+         locks.release();
+      }
+   }
+
+   /**
+    * The locks of an idle home's tenants, which a hand-off by the pool (a take-over, the
+    * expiry) takes without waiting BEFORE the slot, and releases only after it gave the slot
+    * back (Testing #77123, finding B1-R2-1). A tenant's batch holds its lock (the formula
+    * table's lens lock) from before it takes a context until after it pulled its values from
+    * its home, so while the pool holds a home for a hand-off no batch of a locked tenant runs:
+    * none can miss its home because of the hand-off and then fail to pull from it, which lost
+    * every object var of the home (a warning "... another thread is using"). This is the order
+    * every batch takes them in (a table's lock, then its context), and every lock here is only
+    * tryLocked, so the pool never waits and no cycle can form; a batch that wants its table's
+    * lock meanwhile waits no longer than the hand-off, as it did when the hand-off took the
+    * lock itself.
+    */
+   private static final class TenantLocks {
+      /**
+       * TryLock the lock of every tenant of {@code slot} not locked yet.
+       *
+       * @return false if another thread holds one: skip the home (nothing was handed off).
+       */
+      boolean take(Slot slot) {
+         for(SlotTenant tenant : slot.tenants()) {
+            Lock lock = tenant.handOffLock();
+
+            if(lock == null || held.contains(lock)) {
+               continue;
+            }
+
+            if(!lock.tryLock()) {
+               return false;
+            }
+
+            held.add(lock);
+         }
+
+         return true;
+      }
+
+      void release() {
+         for(int i = held.size() - 1; i >= 0; i--) {
+            held.get(i).unlock();
+         }
+
+         held.clear();
+      }
+
+      private final List<Lock> held = new ArrayList<>();
+   }
+
+   /**
+    * Give back a slot this pool took without a claim (a refused take, a hand-off), never
+    * waiting: close it if a retire() doomed it meanwhile, which could only doom it while it
+    * was held (N6).
+    */
+   private void giveBack(Slot slot) {
+      slot.unlock();
+      closeIfRetired(slot);
+   }
+
+   private boolean isLive(Slot slot) {
+      return primary.get() == slot || pooled.contains(slot);
+   }
+
+   /**
+    * Record that {@code tenant}'s objects live on {@code slot}, which the caller holds.
+    */
+   void enroll(Slot slot, SlotTenant tenant) {
+      synchronized(homesLock) {
+         slot.addTenant(tenant);
+         homes.add(slot);
+
+         if(slot.exclusiveHome == null && exclusiveHomes < config.maxHomes()) {
+            // the node cap is granted atomically across the node's pools
+            slot.exclusiveHome = PoolMetrics.tryGrantHome(slot, config.maxHomesPerNode());
+
+            if(slot.exclusiveHome != null) {
+               exclusiveHomes++;
+            }
+         }
+      }
+   }
+
+   /**
+    * {@code tenant}'s objects no longer live on {@code slot}. Never waits.
+    */
+   void leave(Slot slot, SlotTenant tenant) {
+      synchronized(homesLock) {
+         slot.removeTenant(tenant);
+         purge(slot);
+      }
+   }
+
+   // a slot without tenants (left, or collected) is no home; caller holds homesLock
+   private void purge(Slot slot) {
+      if(!slot.hasTenants()) {
+         homes.remove(slot);
+
+         if(slot.exclusiveHome != null) {
+            slot.exclusiveHome.clean();
+            slot.exclusiveHome = null;
+            exclusiveHomes--;
+         }
+      }
+   }
+
+   /**
+    * Hand off every tenant of {@code slot}, which the calling thread holds.
+    *
+    * @return whether no tenant is left on it.
+    */
+   private boolean handOffAll(Slot slot) {
+      OwnedValueCodec codec = slot.isClosed() ? null : OwnedValueCodec.of(slot);
+      boolean all = true;
+
+      for(SlotTenant tenant : slot.tenants()) {
+         boolean done;
+
+         try {
+            done = codec == null || tenant.handOff(codec);
+         }
+         catch(RuntimeException ex) {
+            LOG.debug("Failed to hand off the objects of a formula table", ex);
+            done = false;
+         }
+
+         if(done) {
+            leave(slot, tenant);
+         }
+         else {
+            all = false;
+         }
+      }
+
+      return all;
+   }
+
+   /**
+    * Hand off the homes idle for longer than idleMillis (amendment A5), or stale ones, at most
+    * {@link #HAND_OFFS_PER_PASS} per pass: the evictor thread is shared by every pool of the
+    * node, so the rest waits for the next tick. A home whose tenant cannot take its lock now
+    * is kept for the next tick too.
+    */
+   private void expireHomes(long now) {
+      int budget = HAND_OFFS_PER_PASS;
+
+      for(Slot slot : new ArrayList<>(homes)) {
+         synchronized(homesLock) {
+            purge(slot);
+         }
+
+         if(budget <= 0 || !homes.contains(slot) || !isEvictable(slot, now)) {
+            continue;
+         }
+
+         TenantLocks locks = new TenantLocks();
+
+         try {
+            // the tenants' locks before the slot, see TenantLocks
+            if(!locks.take(slot) || !slot.tryAcquire()) {
+               continue;
+            }
+
+            budget--;
+
+            try {
+               runHandOffHook(slot);
+
+               if(locks.take(slot)) {
+                  handOffAll(slot);
+               }
+            }
+            finally {
+               giveBack(slot);
+            }
+         }
+         finally {
+            locks.release();
+         }
+      }
+   }
+
+   /**
+    * Give back a home a pull took (never waiting): close it if it was retired meanwhile.
+    */
+   void returnPulled(Slot slot) {
+      slot.unlock();
+      closeIfRetired(slot);
+   }
+
+   /**
+    * Test hook: hand off every idle home now, as a take-over or expiry would.
+    *
+    * @return the homes handed off.
+    */
+   int handOffIdleHomes() {
+      int n = 0;
+
+      for(Slot slot : new ArrayList<>(homes)) {
+         TenantLocks locks = new TenantLocks();
+
+         try {
+            // the tenants' locks before the slot, see TenantLocks
+            if(locks.take(slot) && slot.tryAcquire()) {
+               try {
+                  runHandOffHook(slot);
+
+                  if(locks.take(slot) && handOffAll(slot)) {
+                     n++;
+                  }
+               }
+               finally {
+                  giveBack(slot);
+               }
+            }
+         }
+         finally {
+            locks.release();
+         }
+      }
+
+      return n;
+   }
+
+   /**
+    * @return the exclusive homes of this pool.
+    */
+   int exclusiveHomes() {
+      synchronized(homesLock) {
+         return exclusiveHomes;
+      }
+   }
+
+   /**
+    * @return the homes of this pool, exclusive or not.
+    */
+   int homes() {
+      return homes.size();
    }
 
    private Slot create() {
@@ -225,6 +565,7 @@ final class SlotPool {
                                    ex.getMessage());
       }
 
+      slot.setConfig(config);
       checkAlarms();
       return slot;
    }
@@ -259,7 +600,7 @@ final class SlotPool {
          slot.engine().setSQL(source.isSQL());
          return true;
       }
-      catch(RuntimeException ex) {
+      catch(RuntimeException | Error ex) {
          discard(slot);
          throw ex;
       }
@@ -270,10 +611,32 @@ final class SlotPool {
     * holds its lock, which this releases.
     */
    private void discard(Slot slot) {
+      if(homes.contains(slot)) {
+         try {
+            // a tenant that cannot hand off now loses its objects (a warning on read)
+            handOffAll(slot);
+         }
+         catch(RuntimeException ex) {
+            LOG.debug("Failed to hand off the objects of a closed home", ex);
+         }
+         finally {
+            synchronized(homesLock) {
+               slot.clearTenants();
+               purge(slot);
+            }
+         }
+      }
+
       pooled.remove(slot);
       primary.compareAndSet(slot, null);
-      slot.close();
-      slot.unlock();
+
+      try {
+         slot.close();
+      }
+      finally {
+         // Slot.close catches Exception only: an Error there must not leak the lock
+         slot.unlock();
+      }
    }
 
    private void checkAlarms() {
@@ -308,7 +671,7 @@ final class SlotPool {
             try {
                PoolMetrics.logNodeSummary();
             }
-            catch(RuntimeException ex) {
+            catch(RuntimeException | Error ex) {
                LOG.debug("Failed to log the worksheet script pool metrics", ex);
             }
          }, minutes, minutes, TimeUnit.MINUTES);
@@ -327,7 +690,7 @@ final class SlotPool {
          try {
             pool.evictIdle(System.currentTimeMillis());
          }
-         catch(RuntimeException ex) {
+         catch(RuntimeException | Error ex) {
             LOG.warn("Failed to evict idle worksheet script contexts", ex);
          }
       }, period, period, TimeUnit.MILLISECONDS);
@@ -340,7 +703,7 @@ final class SlotPool {
     * would stay open, counted in the node's slots. Never waits: if the tryLock fails, the new
     * holder closes it at its own release or its checkout's prepare.
     */
-   private void closeIfRetired(Slot slot) {
+   void closeIfRetired(Slot slot) {
       if((slot.isDoomed() || slot.epoch() < epoch.get()) && slot.tryAcquire()) {
          if(slot.isDoomed()) {
             metrics.doomedClosed();
@@ -358,6 +721,21 @@ final class SlotPool {
       }
    }
 
+   private void runHandOffHook(Slot slot) {
+      java.util.function.Consumer<Slot> hook = handOffHook;
+
+      if(hook != null) {
+         hook.accept(slot);
+      }
+   }
+
+   /**
+    * Test hook run by a take-over, an expiry or {@link #handOffIdleHomes} once it holds an idle
+    * home without a claim, before it hands off the tenants (Testing #77123, B1-R2-1); null in
+    * production.
+    */
+   volatile java.util.function.Consumer<Slot> handOffHook;
+
    /**
     * Test hook run right before a slot this pool keeps goes idle (release's keep path and
     * ensurePrimary), while the caller still holds its lock; null in production.
@@ -371,6 +749,8 @@ final class SlotPool {
          return thread;
       });
    private static final AtomicBoolean NODE_WARNED = new AtomicBoolean();
+   // the most homes one pool's evictor pass hands off (Testing #77123, B1 residual part 2)
+   static final int HAND_OFFS_PER_PASS = 4;
    // the node-wide metrics log (PoolMetrics.logNodeSummary) starts with the first pool
    private static final AtomicBoolean NODE_LOG_STARTED = new AtomicBoolean();
 
@@ -382,6 +762,10 @@ final class SlotPool {
    private final AtomicLong epoch = new AtomicLong();
    private final AtomicBoolean evictorStarted = new AtomicBoolean();
    private final AtomicBoolean sandboxWarned = new AtomicBoolean();
+   // the slots formula tables' objects live on (homes), and the exclusive ones among them
+   private final Set<Slot> homes = ConcurrentHashMap.newKeySet();
+   private final Object homesLock = new Object();
+   private int exclusiveHomes; // guarded by homesLock
 
    private static final Logger LOG = LoggerFactory.getLogger(SlotPool.class);
 }

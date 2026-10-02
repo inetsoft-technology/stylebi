@@ -22,6 +22,7 @@ import inetsoft.uql.XConstants;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.*;
+import inetsoft.web.viewsheet.controller.VSCalendarService;
 import inetsoft.web.viewsheet.event.ApplySelectionListEvent;
 import inetsoft.web.viewsheet.service.VSSelectionService;
 import org.junit.jupiter.api.Tag;
@@ -1197,6 +1198,40 @@ class SelectionRuntimeServiceTest {
       verifyNoInteractions(h.selections);
    }
 
+   // ── calendar ──────────────────────────────────────────────────────────────
+   //
+   // Only the refusals live here: they fire before anything reads the calendar's info, so a bare
+   // CalendarVSAssembly mock is enough. CalendarVSAssemblyInfo cannot be mocked without a Spring
+   // context, so clear_selection's calendar branch is covered in the Spring-backed
+   // SelectionRuntimeServiceSubtreeDomainTest instead.
+
+   /**
+    * doApplySelection's Calendar branch only acts on a null event, so a values apply used to be a
+    * silent no-op that still reported valuesSelected -- refused now, pointing at
+    * set_calendar_dates.
+    */
+   @Test
+   void refusesValuesOnACalendarInsteadOfReportingANoOpAsSuccess() {
+      Harness h = harness(mock(CalendarVSAssembly.class));
+
+      Exception thrown = assertThrows(IllegalArgumentException.class, () ->
+         h.service.setSelection("tok", principal(), "Calendar1", List.of(List.of("2024-01-01")),
+                                null, null, null, null, ""));
+
+      assertTrue(thrown.getMessage().contains("set_calendar_dates"));
+      verifyNoInteractions(h.selections);
+   }
+
+   @Test
+   void refusesDeselectOnACalendar() {
+      Harness h = harness(mock(CalendarVSAssembly.class));
+
+      assertThrows(IllegalArgumentException.class, () ->
+         h.service.setSelection("tok", principal(), "Calendar1", null,
+                                List.of(List.of("2024-01-01")), null, null, null, ""));
+      verifyNoInteractions(h.selections);
+   }
+
    // ── subtree ───────────────────────────────────────────────────────────────
 
    /** selectSubtree NPEs on a non-tree, so a list has to be refused before dispatch. */
@@ -1808,7 +1843,7 @@ class SelectionRuntimeServiceTest {
 
    /** Package-visible -- see {@link #tree(int, boolean)}'s own note. */
    record Harness(SelectionRuntimeService service, ViewsheetSessionService sessions,
-                  VSSelectionService selections) {}
+                  VSSelectionService selections, VSCalendarService calendars) {}
 
    /** Package-visible -- see {@link #tree(int, boolean)}'s own note. */
    static Harness harness(VSAssembly assembly) {
@@ -1834,7 +1869,9 @@ class SelectionRuntimeServiceTest {
       }
 
       VSSelectionService selections = mock(VSSelectionService.class);
-      return new Harness(new SelectionRuntimeService(sessions, selections), sessions, selections);
+      VSCalendarService calendars = mock(VSCalendarService.class);
+      return new Harness(new SelectionRuntimeService(sessions, selections, calendars), sessions,
+                         selections, calendars);
    }
 
    /** Package-visible -- see {@link #tree(int, boolean)}'s own note. */

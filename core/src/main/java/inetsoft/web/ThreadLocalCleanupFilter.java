@@ -20,6 +20,7 @@ package inetsoft.web;
 
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.OrganizationContextHolder;
+import inetsoft.util.CoreTool;
 import inetsoft.util.ThreadContext;
 import jakarta.servlet.*;
 import jakarta.servlet.http.HttpServletRequest;
@@ -32,7 +33,15 @@ public class ThreadLocalCleanupFilter implements Filter {
    public void doFilter(ServletRequest request, ServletResponse response, FilterChain chain)
       throws IOException, ServletException
    {
+      // user messages are thread-local, clear them only around the top-level dispatch so that a
+      // nested forward/include does not drop messages added by the enclosing request
+      boolean topLevel = request.getDispatcherType() == DispatcherType.REQUEST;
+
       try {
+         if(topLevel) {
+            CoreTool.clearUserMessage();
+         }
+
          Principal principal = SUtil.getPrincipal((HttpServletRequest) request);
 
          if(principal != null) {
@@ -47,6 +56,10 @@ public class ThreadLocalCleanupFilter implements Filter {
          OrganizationContextHolder.clear();
          ThreadContext.setLocale(null);
          ThreadContext.setProfiling(null);
+
+         if(topLevel) {
+            CoreTool.clearUserMessage();
+         }
       }
    }
 }

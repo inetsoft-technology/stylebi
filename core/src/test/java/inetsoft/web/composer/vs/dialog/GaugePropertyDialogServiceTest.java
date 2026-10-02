@@ -20,7 +20,8 @@ package inetsoft.web.composer.vs.dialog;
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.test.*;
-import inetsoft.uql.viewsheet.*;
+import inetsoft.uql.viewsheet.GaugeVSAssembly;
+import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.GaugeVSAssemblyInfo;
 import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
 import inetsoft.web.composer.model.vs.GaugePropertyDialogModel;
@@ -38,108 +39,85 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import java.awt.*;
 import java.security.Principal;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.mockito.ArgumentMatchers.*;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.mock;
 
-/**
- * Write-coordination wiring (2026-08-17-write-coordination-implementation.md, Phase 1): confirms
- * the dialog's own revision -- read at open time, held by the browser, sent back on commit --
- * reaches {@link VSObjectPropertyService#editObjectProperty} unchanged. The refusal logic itself
- * is {@link inetsoft.web.composer.vs.objects.controller.VSObjectPropertyServiceTest}'s job; this
- * only proves Gauge threads the value through rather than dropping it.
- */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @SreeHome()
-@ExtendWith(MockitoExtension.class)
+@ExtendWith({MockitoExtension.class})
 @Tag("core")
 class GaugePropertyDialogServiceTest {
    @BeforeEach
-   void setup() {
-      service = new GaugePropertyDialogService(
-         vsObjectPropertyService,
-         vsOutputService,
-         dialogService,
-         engine,
-         trapService,
-         assemblyInfoHandler);
+   void setup() throws Exception {
+      // the real property service; with no sandbox it returns right after merging the dialog
+      // info into the live assembly (setVSAssemblyInfo -> copyInfo)
+      VSObjectPropertyService propertyService = new VSObjectPropertyService(
+         mock(CoreLifecycleService.class), null, null, null, null, null, null, null);
+      service = new GaugePropertyDialogService(propertyService, vsOutputService, dialogService,
+                                               engine, trapService, assemblyInfoHandler);
+
+      viewsheet = new Viewsheet();
+      gauge = new GaugeVSAssembly(viewsheet, "Gauge1");
+      viewsheet.addAssembly(gauge);
+
+      lenient().when(engine.getViewsheet(anyString(), nullable(Principal.class))).thenReturn(rvs);
+      lenient().when(rvs.getViewsheet()).thenReturn(viewsheet);
+      lenient().when(dialogService.getAssemblyPosition(any(), any())).thenReturn(new Point(0, 0));
+      lenient().when(dialogService.getAssemblySize(any(), any()))
+         .thenReturn(new Dimension(200, 200));
    }
 
+   /**
+    * Bug #77205: deleting a range-shrinking script through the real Gauge property dialog
+    * GET/SET round trip (Advanced tab untouched) must restore the design ranges on the live
+    * assembly.
+    */
    @Test
-   void forwardsTheModelsRevisionToEditObjectProperty() throws Exception {
-      when(engine.getViewsheet(anyString(), nullable(Principal.class))).thenReturn(rvs);
-      when(rvs.getViewsheet()).thenReturn(viewsheet);
-      when(viewsheet.getAssembly(anyString())).thenReturn(gaugeAssembly);
-      when(gaugeAssembly.getVSAssemblyInfo()).thenReturn(new GaugeVSAssemblyInfo());
+   void deletingRangeScriptRestoresDesignRanges() throws Exception {
+      GaugeVSAssemblyInfo live = (GaugeVSAssemblyInfo) gauge.getVSAssemblyInfo();
+      live.setRangeValues(new String[] { "500", "1000", "1500", "", "" });
+      live.setRangeColorsValue(new Color[] { Color.RED, Color.YELLOW, Color.GREEN });
 
-      GaugePropertyDialogModel model = new GaugePropertyDialogModel();
-      model.setRevision(42);
-      model.setVsAssemblyScriptPaneModel(
-         VSAssemblyScriptPaneModel.builder().scriptEnabled(false).expression("").build());
+      saveWithScript("this.ranges = [520]; this.rangeColors = [\"#0000FF\"];");
+      // executeView runs the new script
+      live.setRanges(new Object[] { "520" });
+      live.setRangeColors(new Color[] { Color.BLUE });
+      assertArrayEquals(new double[] { 520.0 }, live.getRanges(), 1e-6);
 
-      service.setGaugePropertyDialogModel("Viewsheet1", "Gauge1", model, "", null,
-                                          commandDispatcher);
+      saveWithScript("");
 
-      verify(vsObjectPropertyService).editObjectProperty(
-         any(RuntimeViewsheet.class), any(GaugeVSAssemblyInfo.class), eq("Gauge1"),
-         nullable(String.class), any(String.class), nullable(Principal.class),
-         any(CommandDispatcher.class), eq(true), eq(42));
+      assertArrayEquals(new double[] { 500.0, 1000.0, 1500.0, Double.NaN, Double.NaN },
+                        live.getRanges(), 1e-6);
+      assertArrayEquals(new Color[] { Color.RED, Color.YELLOW, Color.GREEN, null, null, null },
+                        live.getRangeColors());
    }
 
-   @Test
-   void forwardsANullRevisionUnchanged() throws Exception {
-      when(engine.getViewsheet(anyString(), nullable(Principal.class))).thenReturn(rvs);
-      when(rvs.getViewsheet()).thenReturn(viewsheet);
-      when(viewsheet.getAssembly(anyString())).thenReturn(gaugeAssembly);
-      when(gaugeAssembly.getVSAssemblyInfo()).thenReturn(new GaugeVSAssemblyInfo());
-
-      // A model built by a client that doesn't yet round-trip a revision leaves it null --
-      // editObjectProperty must see null, not some invented default, so it does not participate
-      // in the conflict check at all (today's unconditional-commit behavior).
-      GaugePropertyDialogModel model = new GaugePropertyDialogModel();
-      model.setVsAssemblyScriptPaneModel(
-         VSAssemblyScriptPaneModel.builder().scriptEnabled(false).expression("").build());
-
-      service.setGaugePropertyDialogModel("Viewsheet1", "Gauge1", model, "", null,
-                                          commandDispatcher);
-
-      verify(vsObjectPropertyService).editObjectProperty(
-         any(RuntimeViewsheet.class), any(GaugeVSAssemblyInfo.class), eq("Gauge1"),
-         nullable(String.class), any(String.class), nullable(Principal.class),
-         any(CommandDispatcher.class), eq(true), isNull());
-   }
-
-   @Test
-   void readSideAttachesTheCurrentWriteRevision() throws Exception {
-      when(engine.getViewsheet(anyString(), nullable(Principal.class))).thenReturn(rvs);
-      when(rvs.getViewsheet()).thenReturn(viewsheet);
-      when(viewsheet.getAssembly(anyString())).thenReturn(gaugeAssembly);
-      when(gaugeAssembly.getVSAssemblyInfo()).thenReturn(new GaugeVSAssemblyInfo());
-      when(rvs.getWriteRevision()).thenReturn(7);
-      when(dialogService.getAssemblyPosition(any(), any())).thenReturn(new java.awt.Point(0, 0));
-      when(dialogService.getAssemblySize(any(), any()))
-         .thenReturn(new java.awt.Dimension(100, 100));
-
-      GaugePropertyDialogModel result =
+   private void saveWithScript(String script) throws Exception {
+      GaugePropertyDialogModel model =
          service.getGaugePropertyDialogModel("Viewsheet1", "Gauge1", null);
-
-      org.junit.jupiter.api.Assertions.assertEquals(7, result.getRevision());
+      model.setVsAssemblyScriptPaneModel(VSAssemblyScriptPaneModel.builder()
+                                            .scriptEnabled(true)
+                                            .expression(script)
+                                            .build());
+      service.setGaugePropertyDialogModel("Viewsheet1", "Gauge1", model, "", null,
+                                          commandDispatcher);
    }
 
-   @Mock VSObjectPropertyService vsObjectPropertyService;
    @Mock VSOutputService vsOutputService;
    @Mock VSDialogService dialogService;
    @Mock ViewsheetService engine;
    @Mock VSTrapService trapService;
    @Mock VSAssemblyInfoHandler assemblyInfoHandler;
-   @Mock CommandDispatcher commandDispatcher;
    @Mock RuntimeViewsheet rvs;
-   @Mock Viewsheet viewsheet;
-   @Mock GaugeVSAssembly gaugeAssembly;
-
+   @Mock CommandDispatcher commandDispatcher;
+   private Viewsheet viewsheet;
+   private GaugeVSAssembly gauge;
    private GaugePropertyDialogService service;
 }

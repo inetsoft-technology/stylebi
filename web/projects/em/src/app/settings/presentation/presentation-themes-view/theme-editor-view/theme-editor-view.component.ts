@@ -66,6 +66,7 @@ export class ThemeEditorViewComponent implements OnInit {
    @Output() themeReset = new EventEmitter<void>();
    @Output() cancel = new EventEmitter<void>();
    @ViewChild("cssView", { static: false }) cssView: ThemeCssViewComponent;
+   @ViewChild("editorPanel") editorPanel: EditorPanelComponent;
 
    selectedTab = 0;
    selectedTabLabel: string;
@@ -128,6 +129,14 @@ export class ThemeEditorViewComponent implements OnInit {
       if(!!this.cssView) {
          this.cssView.clear();
       }
+   }
+
+   /**
+    * The editor panel disables apply when it is clicked and only re-enables it when the
+    * applyDisabled binding changes, which does not happen when the save is rejected.
+    */
+   saveFailed(): void {
+      this.editorPanel?.changeApplyDisabledState(!this.themeValid);
    }
 
    reset(): void {

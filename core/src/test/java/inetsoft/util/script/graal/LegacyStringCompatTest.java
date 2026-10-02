@@ -123,6 +123,60 @@ class LegacyStringCompatTest {
       assertEquals(9, num(eval("({ length: function(n){ return n; } }).length(9)")));
    }
 
+   // Bug #77184: the reporter's original repro. A plain JS object whose own
+   // `length` is a zero-arg method that reads `this` must see its own receiver,
+   // not a detached function bound to nothing (or the JS global object).
+   @Test
+   void lengthMethodReadingThisSeesItsOwnReceiver() throws Exception {
+      Object result = eval(
+         "var o = {items:[1,2], length:function(){return this.items.length}}; o.length()");
+      assertEquals(2, num(result));
+   }
+
+   // Bug #77184: the receiver must be preserved through a longer member-access
+   // chain, not just a bare identifier, and through a call-expression receiver —
+   // neither is a simple identifier the rewrite could special-case.
+   @Test
+   void lengthMethodReceiverIsPreservedForChainedAndCallExpressionReceivers() throws Exception {
+      Object chained = eval(
+         "var a = {b: {items:[1,2,3], length:function(){return this.items.length}}};" +
+         "a.b.length()");
+      assertEquals(3, num(chained));
+
+      Object callExpr = eval(
+         "function f(){ return {items:[1,2,3,4], length:function(){return this.items.length}}; }" +
+         "f().length()");
+      assertEquals(4, num(callExpr));
+   }
+
+   // Bug #77184: rewriteJavaLengthCalls's own regex-vs-division decision lacked
+   // the `afterHead` override #76980 added to the sibling top-level scanners, so
+   // a regex literal immediately after an `if`/`while`/`for`/`with` head was
+   // misread as division and the tokenizer walked into the regex's own source
+   // text, corrupting any `.length()`-shaped substring inside the pattern.
+   @Test
+   void regexAfterControlHeadIsNotCorrupted() throws Exception {
+      assertEquals(Boolean.TRUE,
+                   eval("if(true) /a.length()/.test('a.length()')"));
+   }
+
+   // Bug #77184 (tester-added, independent verification): the call-expression
+   // rewrite `X.__jlen('length')` copies the receiver's source text verbatim
+   // exactly once into the output (see rewriteJavaLengthCalls's emission,
+   // `out.append(cmd, copied, i)`); confirm at runtime, not just by reading the
+   // code, that a receiver expression with an observable side effect
+   // (`make()` incrementing a counter) is evaluated exactly once by a rewritten
+   // `.length()` call site — not skipped, and not duplicated.
+   @Test
+   void lengthCallEvaluatesSideEffectingReceiverExactlyOnce() throws Exception {
+      Object result = eval(
+         "var calls = 0;\n" +
+         "function make(){ calls++; return {items:[1,2,3], length:function(){return this.items.length;}}; }\n" +
+         "var v = make().length();\n" +
+         "'' + v + '|' + calls");
+      assertEquals("3|1", result);
+   }
+
    @Test
    void javaStringMethodsAbsentFromJsAreRestored() throws Exception {
       assertEquals(Boolean.TRUE, eval("selected[0].equals('m2020-7')"));

@@ -35,6 +35,15 @@ public interface SessionExpirationModel {
 
    boolean nodeProtection();
 
+   /**
+    * If the session belongs to a guest (anonymous user). A guest must not be logged out when
+    * the warning timer ends, because logging out sends the guest to the login page.
+    */
+   @Value.Default
+   default boolean guest() {
+      return false;
+   }
+
    public static SessionExpirationModel.Builder builder() {
       return new SessionExpirationModel.Builder();
    }

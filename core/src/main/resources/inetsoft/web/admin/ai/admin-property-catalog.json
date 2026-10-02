@@ -549,5 +549,3361 @@
     "description": "schedule.status.check.email.message is the Message field under Notification: the body of the scheduler-down alert only (the task-failure alert composes its own body). Clearing the field stores an empty string rather than restoring the shipped default. Takes effect on the next scheduler-down alert.",
     "risk": "low",
     "snapshotScope": "value"
+  },
+  {
+    "name": "accessibility.enabled",
+    "aliases": [],
+    "type": "boolean",
+    "description": "accessibility.enabled has no Enterprise Manager field: set to the exact string true, it turns on accessibility support in the Viewer, the Portal, and PDF export, and is unset by default (there is no defaults.properties entry, so an unset value reads as absent and every reader treats that as off).",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "ai.assistant.visible",
+    "aliases": [],
+    "type": "boolean",
+    "description": "ai.assistant.visible is the Show AI Assistant Chat Link in Navigation Bars checkbox in the AI Integration section of Enterprise Manager's Settings > Presentation page.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "ai.snapshot.count",
+    "aliases": [],
+    "type": "int",
+    "description": "ai.snapshot.count is how many AI snapshot archives StyleBI keeps before deleting the oldest.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "always.warn.joinmaxrows",
+    "aliases": [],
+    "type": "boolean",
+    "description": "always.warn.joinmaxrows has no Enterprise Manager field: the Settings > All Properties default of false (from defaults.properties) makes each of the three join table lenses (regular, cross, and self join) show the \"join results limited to N rows\" warning only once per lens instance; setting it to the exact string true makes the same lens re-show it every time the row limit is hit again.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "annotations.disabled",
+    "aliases": [],
+    "type": "boolean",
+    "description": "annotations.disabled has no Enterprise Manager field: set to the exact string true, it hides the Annotation, Annotate Cell, Annotate Component and Annotate Point actions on every viewsheet assembly's toolbar and context menu, and is unset by default (no defaults.properties entry, so an unset value reads as absent and annotations stay visible).",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "anonymous.userdata.save",
+    "aliases": [],
+    "type": "boolean",
+    "description": "anonymous.userdata.save is rendered as a checkbox on Enterprise Manager's Settings > All Properties page (via the properties editor's own booleanProperties list), and defaults to false: an anonymous (not-logged-in) viewer session's per-user preferences, such as whether annotations are shown, are neither loaded from nor saved to disk, only kept in memory for that request.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "asset.backup.count",
+    "aliases": [],
+    "type": "int",
+    "description": "asset.backup.count has no Enterprise Manager field of its own: it is how many backup archives StyleBI keeps in the backup/ folder that the Back Up Now button fills, in the Data Space section of Settings > General.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "asset.max.undoes",
+    "aliases": [],
+    "type": "int",
+    "description": "asset.max.undoes has no Enterprise Manager field: it is how many undo points StyleBI keeps for a worksheet or dashboard open in Composer, and so how far back an undo can step.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "asset.preview.pagecount",
+    "aliases": [],
+    "type": "int",
+    "description": "asset.preview.pagecount has no Enterprise Manager field: it is how tall the previewed table is laid out in the throwaway worksheet StyleBI builds behind Show Details and Show Data \u2014 BaseTableShowDetailsService, VSChartShowDetailsService and VSChartShowDataService \u2014 and it ships as 30.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "asset.sample.maxrows",
+    "aliases": [],
+    "type": "int",
+    "description": "asset.sample.maxrows has no Enterprise Manager field: it is the design-mode row cap a newly created dashboard or worksheet starts with \u2014 how many detail rows the sheet retrieves while it is being designed, shown on a dashboard as the Design mode sample data size field in Composer's Viewsheet Options.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "asset.worksheet.max",
+    "aliases": [],
+    "type": "int",
+    "description": "asset.worksheet.max has no Enterprise Manager field: it is the number of runtime sheets one server node holds in memory before it starts evicting, and it ships as 500.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "barcode.resolution",
+    "aliases": [],
+    "type": "int",
+    "description": "barcode.resolution sets the resolution StyleBI passes to the barcode-rendering library when drawing a barcode field, and it has no declared default.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "bigdecimal.as.double",
+    "aliases": [],
+    "type": "boolean",
+    "description": "bigdecimal.as.double has no Enterprise Manager field: it is rendered as a checkbox on Enterprise Manager's Settings > All Properties page (as bigDecimal.as.double, the properties editor's own booleanProperties list), and defaults to true \u2014 a query result column typed BigDecimal (SQL NUMERIC/DECIMAL) is stored internally as primitive double values rather than as BigDecimal objects.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "cache.localized.templates",
+    "aliases": [],
+    "type": "boolean",
+    "description": "cache.localized.templates has no Enterprise Manager field.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "calc.change.missingaszero",
+    "aliases": [],
+    "type": "boolean",
+    "description": "calc.change.missingaszero has no Enterprise Manager field: it controls whether a Chart's built-in Value Change / Percent Change calculation treats a missing (no matching row) comparison value as zero, and defaults to true \u2014 its own source comment calls it \"undocumented...",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "calendar.datecompare.enabled",
+    "aliases": [],
+    "type": "boolean",
+    "description": "calendar.datecompare.enabled is rendered as a checkbox on Enterprise Manager's Settings > All Properties page (as calendar.dateCompare.enabled, the properties editor's own booleanProperties list), and defaults to false: it shows or hides the date-range comparison toggle on a viewsheet's Calendar selection assembly.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "chart.image.resolution",
+    "aliases": [],
+    "type": "int",
+    "description": "chart.image.resolution has no Enterprise Manager field: it is the supersampling multiplier ChartPainter.paint0 uses when rendering a chart onto an off-screen raster image rather than exporting it, and defaults to 2 (each chart is rendered at twice its pixel dimensions, then scaled down) so that fractional-pixel lines are not lost to rounding.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "chat.app.internal.url",
+    "aliases": [],
+    "type": "string",
+    "description": "chat.app.internal.url is the AI Assistant Internal URL field in the AI Integration section of Enterprise Manager's Settings > Presentation page \u2014 the server-to-server address StyleBI itself uses to reach the AI Assistant.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "chat.app.logo.url",
+    "aliases": [],
+    "type": "string",
+    "description": "chat.app.logo.url is the AI Assistant Logo URL field in the AI Integration section of Enterprise Manager's Settings > Presentation page \u2014 a custom logo image for the AI Assistant header.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "chat.app.server.ssl.verify",
+    "aliases": [],
+    "type": "boolean",
+    "description": "chat.app.server.ssl.verify decides whether StyleBI verifies the AI Assistant server's TLS certificate on the connections StyleBI itself makes to it.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "chat.app.server.url",
+    "aliases": [],
+    "type": "string",
+    "description": "chat.app.server.url is the AI Assistant Server URL field in the AI Integration section of Enterprise Manager's Settings > Presentation page \u2014 the public, browser-facing address of the AI Assistant.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "chat.app.title",
+    "aliases": [],
+    "type": "string",
+    "description": "chat.app.title is the AI Assistant Title field in the AI Integration section of Enterprise Manager's Settings > Presentation page \u2014 the name shown for the assistant in its history sidebar.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "chat.app.vendor.name",
+    "aliases": [],
+    "type": "string",
+    "description": "chat.app.vendor.name is the AI Assistant Vendor Name field in the AI Integration section of Enterprise Manager's Settings > Presentation page \u2014 the vendor name shown in the assistant header.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "cluster.pause.enabled",
+    "aliases": [],
+    "type": "boolean",
+    "description": "cluster.pause.enabled decides whether Enterprise Manager's Monitoring > Cluster page offers Pause/Resume controls for cluster nodes, and it is off by default.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "comm.block.size",
+    "aliases": [],
+    "type": "int",
+    "description": "comm.block.size has no Enterprise Manager field: it is the size, in bytes, of the ByteBuffer CommUtil.createBlockBuffer allocates for reading a materialized-view block file from local disk when no caller-supplied buffer is available, and defaults to 32768 (32 KB).",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "composer.vs.create.messsage",
+    "aliases": [],
+    "type": "string",
+    "description": "composer.vs.create.messsage is the Dashboard Create Message field \u2014 spelled messsage, with three s, in the property name itself \u2014 in the Composer Messages section of Enterprise Manager's Settings > Presentation > Presentation Settings page: custom text shown in place of the default prompt on Composer's empty New tab when no dashboard has been chosen yet.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "composer.vs.edit.messsage",
+    "aliases": [],
+    "type": "string",
+    "description": "composer.vs.edit.messsage is the Dashboard Edit Message field \u2014 spelled messsage, with three s, in the property name itself \u2014 in the Composer Messages section of Enterprise Manager's Settings > Presentation > Presentation Settings page: custom text shown in place of the default prompt on Composer's empty Edit tab when no existing dashboard has been chosen yet.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "composer.ws.create.messsage",
+    "aliases": [],
+    "type": "string",
+    "description": "composer.ws.create.messsage is the Data Worksheet Create Message field \u2014 spelled messsage, with three s, in the property name itself \u2014 in the Composer Messages section of Enterprise Manager's Settings > Presentation > Presentation Settings page: custom text shown in place of the default prompt on Composer's empty New tab when no data worksheet has been chosen yet.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "composer.ws.edit.messsage",
+    "aliases": [],
+    "type": "string",
+    "description": "composer.ws.edit.messsage is the Data Worksheet Edit Message field \u2014 spelled messsage, with three s, in the property name itself \u2014 in the Composer Messages section of Enterprise Manager's Settings > Presentation > Presentation Settings page: custom text shown in place of the default prompt on Composer's empty Edit tab when no existing data worksheet has been chosen yet.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "crossjoin.maxcellcount",
+    "aliases": [],
+    "type": "int",
+    "description": "crossjoin.maxcellcount has no Enterprise Manager field: it is the hard limit on a cross join's total cell count \u2014 left row count times right row count times the combined column count of both sides \u2014 and defaults to 50000000.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "crosstab.datetime.expandall.level",
+    "aliases": [],
+    "type": "enum",
+    "allowedValues": [
+      "Year",
+      "Quarter",
+      "Month",
+      "Week",
+      "Day",
+      "Hour",
+      "Minute",
+      "Second",
+      "QuarterOfYear",
+      "MonthOfYear",
+      "WeekOfYear",
+      "DayOfMonth",
+      "DayOfWeek",
+      "HourOfDay",
+      "MinuteOfHour",
+      "SecondOfMinute",
+      "None",
+      "DayOfYear",
+      "DayOfQUARTER",
+      "WeekOfMonth",
+      "WeekOfQuarter",
+      "MonthOfQuarter",
+      "MonthOfQuarterOfWeek",
+      "MonthOfWeek",
+      "MonthOfWeekN",
+      "QuarterOfWeekN",
+      "QuarterOfWeek",
+      "YearOfWeek"
+    ],
+    "description": "crosstab.datetime.expandall.level has no Enterprise Manager field: it is the deepest date level a cube-bound crosstab's date or datetime dimension may reach when a user drills down or expands all, and defaults to DayOfMonth.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "csrf.filter.enabled",
+    "aliases": [],
+    "type": "boolean",
+    "description": "csrf.filter.enabled has no Enterprise Manager field: it is the switch for StyleBI's cross-site request forgery protection, and it is true unless set, so the protection is on out of the box.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "csv.import.max",
+    "aliases": [],
+    "type": "int",
+    "description": "csv.import.max is the maximum size, in bytes, StyleBI accepts for a file uploaded as a CSV (or other delimited-text) import \u2014 unset by default, so no cap applies unless a value is set.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "dashboard.enabled",
+    "aliases": [],
+    "type": "boolean",
+    "description": "dashboard.enabled is the Enable Dashboard checkbox in the Dashboard section of Enterprise Manager's Settings > Presentation page, and defaults.properties declares it true.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "dashboard.mydashboard.disabled",
+    "aliases": [],
+    "type": "boolean",
+    "description": "dashboard.mydashboard.disabled hides the My Dashboard folder from the repository tree, and defaults.properties declares it false.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "dashboard.tabs.top",
+    "aliases": [],
+    "type": "boolean",
+    "description": "dashboard.tabs.top is the Dashboard Tabs Top checkbox in the Dashboard section of Enterprise Manager's Settings > Presentation page, and defaults.properties declares it true.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "data.cache.file.limit",
+    "aliases": [],
+    "type": "int",
+    "description": "data.cache.file.limit has no Enterprise Manager field: it bounds, in bytes, how large StyleBI lets the on-disk data cache directory grow before old files are deleted.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "data.temp.file.threshold",
+    "aliases": [],
+    "type": "int",
+    "description": "data.temp.file.threshold has no Enterprise Manager field: it is the size, in bytes, past which a binary payload StyleBI is transferring is written to a temporary file instead of held in memory.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "datasource.cache.parameters",
+    "aliases": [],
+    "type": "boolean",
+    "description": "datasource.cache.parameters decides whether StyleBI skips re-prompting for a data source's connection parameters (such as a login) when a different user reuses a session that already connected to that data source.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "datasource.clouderror",
+    "aliases": [],
+    "type": "string",
+    "description": "datasource.clouderror is extra text an operator can supply to append to the message a user sees whenever a database connection fails, with no Enterprise Manager control.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "db.casesensitive",
+    "aliases": [],
+    "type": "boolean",
+    "description": "db.casesensitive is rendered as a checkbox on Enterprise Manager's Settings > All Properties page (as db.caseSensitive, the properties editor's own booleanProperties list), and defaults to false.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "debug.data",
+    "aliases": [],
+    "type": "boolean",
+    "description": "debug.data has no Enterprise Manager field: set to the exact string true, it forces every query and viewsheet data read this server performs to skip whatever cache would otherwise answer it.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "debug.endpoints",
+    "aliases": [],
+    "type": "boolean",
+    "description": "debug.endpoints has no Enterprise Manager field: set to the exact string true, it makes each REST connector datasource re-read its endpoints.json definitions from source on every query, instead of the copy parsed once when the connector class loaded \u2014 but only when the running classfile happens to sit under a runner/build/plugins path, a build-plugin sandbox layout, not a packaged install.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "debug.json",
+    "aliases": [],
+    "type": "boolean",
+    "description": "debug.json has no Enterprise Manager field: set to the exact string true, it saves a copy of every REST connector's raw JSON response body to a temporary file before parsing it, for inspection.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "debug.scheduler",
+    "aliases": [],
+    "type": "boolean",
+    "description": "debug.scheduler has no Enterprise Manager field: set to the exact string true, it makes the scheduler subprocess start with a remote-debug agent listening, so a developer can attach a debugger to it.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "debug.viewsheet",
+    "aliases": [],
+    "type": "boolean",
+    "description": "debug.viewsheet has no Enterprise Manager field: set to the exact string true, it turns on a diagnostic aid for a specific class of bug \u2014 an assembly that goes missing from a viewsheet and is then looked up by name and not found \u2014 by recording removals and dumping a thread state file the next time that lookup misses and something elsewhere logs a NullPointerException.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "default.data.cycle",
+    "aliases": [],
+    "type": "string",
+    "description": "default.data.cycle names the data cycle that Enterprise Manager's Materialized Views settings treat as the default one for scheduling and analysis, and it has no declared default.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "default.font.family",
+    "aliases": [],
+    "type": "string",
+    "description": "default.font.family names the font family StyleBI treats as its own default typeface, and it is Roboto by default.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "distincttablelens.maxrow",
+    "aliases": [],
+    "type": "int",
+    "description": "distincttablelens.maxrow has no Enterprise Manager field.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "distributed.table.cache.flush.timeout.seconds",
+    "aliases": [],
+    "type": "int",
+    "description": "distributed.table.cache.flush.timeout.seconds has no Enterprise Manager field: it is the number of seconds a node will spend copying its local query-result cache into the shared distributed store before giving up, and it is 90 unless set.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "drill.tabs.top",
+    "aliases": [],
+    "type": "boolean",
+    "description": "drill.tabs.top is the Drill Tabs Top checkbox in the Dashboard section of Enterprise Manager's Settings > Presentation > Presentation Settings page, and defaults to false: it places a report or dashboard's drill-down result tabs at the top of the display instead of their normal position.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "em.home.link",
+    "aliases": [],
+    "type": "string",
+    "description": "em.home.link is the EM Home Link field in the Portal Integration section of Enterprise Manager's Settings > Presentation page \u2014 the URL or relative path Enterprise Manager's top navigation bar's Home link points to \u2014 and defaults.properties declares it empty.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "em.locale",
+    "aliases": [],
+    "type": "string",
+    "description": "em.locale is a fallback locale DataSourceBrowserService.getLocale uses to localise catalog strings when the caller's own Principal cannot supply one, and defaults.properties declares it empty.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "em.mail.defaultemailfromself",
+    "aliases": [],
+    "type": "boolean",
+    "description": "em.mail.defaultemailfromself decides whether an email dialog \u2014 export by email, share by email, a schedule task's status-check or notification email \u2014 pre-fills the From address with the current user's own email instead of the system's configured mail.from.address, and defaults.properties declares it true.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "excel.import.max",
+    "aliases": [],
+    "type": "int",
+    "description": "excel.import.max is the maximum size, in bytes, StyleBI accepts for a file uploaded as an Excel import \u2014 unset by default, so no cap applies unless a value is set.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "excel.sheet.maxrows",
+    "aliases": [],
+    "type": "int",
+    "description": "excel.sheet.maxrows caps how many rows a single Excel worksheet may hold when StyleBI exports a dashboard to Excel \u2014 unset by default, so an export has no row limit unless a value is set.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "excel.table.datatab",
+    "aliases": [],
+    "type": "boolean",
+    "description": "excel.table.datatab controls whether StyleBI's Excel export adds a second, unformatted sheet holding a table's full underlying data alongside its formatted one \u2014 enabled by default, so an export gets the extra sheet unless the property is explicitly turned off.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "excel.vs.export.grid.show",
+    "aliases": [],
+    "type": "boolean",
+    "description": "excel.vs.export.grid.show controls whether StyleBI's Excel export shows Excel's own cell gridlines on the generated sheet \u2014 off by default, so exported sheets show no gridlines unless the property is turned on.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "export.csv.delimiter",
+    "aliases": [],
+    "type": "string",
+    "description": "export.csv.delimiter sets the field delimiter used when a worksheet is exported to CSV, and CSVWSExporter.write falls back to a comma when it is unset.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "export.expandcomponents",
+    "aliases": [],
+    "type": "boolean",
+    "description": "export.expandcomponents is the deployment-wide default for whether a viewsheet export \"expands components\" \u2014 writes overflowing table rows in full rather than clipping each table to its print layout region \u2014 and defaults.properties declares it false.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "filename.strict",
+    "aliases": [],
+    "type": "boolean",
+    "description": "filename.strict has no Enterprise Manager field: it controls how permissive Tool.toFileName is when sanitizing a string into a safe filename, and defaults to true \u2014 only letters and digits survive; everything else is replaced.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "filter.debug",
+    "aliases": [],
+    "type": "boolean",
+    "description": "filter.debug has no Enterprise Manager field: it turns on extra diagnostic logging in two unrelated internal table-filtering classes, XSwappableObjectList (the swap-to-disk backing store for large in-memory table data) and AbstractConditionFilter (the base class for row-condition table filters), and defaults to false.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "flash.wmode",
+    "aliases": [],
+    "type": "string",
+    "description": "flash.wmode has no Enterprise Manager field: it is a legacy value, from when the Portal welcome page could embed a Flash object, that HTMLUtil.copyTemplate makes available to a custom welcome page HTML template as the WMODE template variable.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "font.afm.path",
+    "aliases": [],
+    "type": "string",
+    "description": "font.afm.path is the AFM Font Path field in the PDF Generation section of Enterprise Manager's Settings > Presentation > Presentation Settings page \u2014 a ;-separated list of directories FontManager scans for Adobe Font Metrics (.afm) files, declared in defaults.properties as an empty string, so it ships with no directories configured.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "font.cmap.path",
+    "aliases": [],
+    "type": "string",
+    "description": "font.cmap.path has no Enterprise Manager field.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "font.metrics.source",
+    "aliases": [],
+    "type": "string",
+    "description": "font.metrics.source has no Enterprise Manager field.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "font.preload",
+    "aliases": [],
+    "type": "boolean",
+    "description": "font.preload has no Enterprise Manager field.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "font.ratio.x",
+    "aliases": [],
+    "type": "string",
+    "description": "font.ratio.x has no Enterprise Manager field.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "font.ratio.y",
+    "aliases": [],
+    "type": "string",
+    "description": "font.ratio.y has no Enterprise Manager field.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "font.truetype.path",
+    "aliases": [],
+    "type": "string",
+    "description": "font.truetype.path is the CID Font Path field in the PDF Generation section of Enterprise Manager's Settings > Presentation > Presentation Settings page \u2014 a ;-separated list of directories FontManager scans for TrueType/OpenType font files, with a declared default of c:/winnt/fonts;c:/windows/fonts;$(sree.home)/fonts.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "format.auto.downgrade",
+    "aliases": [],
+    "type": "boolean",
+    "description": "format.auto.downgrade has no Enterprise Manager field.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "format.date",
+    "aliases": [],
+    "type": "string",
+    "description": "format.date is the Date Format field in the General Format section of Enterprise Manager's Settings > Presentation > Presentation Settings page \u2014 the pattern StyleBI uses to render Date values with no format of their own, defaulting to yyyy-MM-dd.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "format.date.time",
+    "aliases": [],
+    "type": "string",
+    "description": "format.date.time is the Date/Time Format field in the General Format section of Enterprise Manager's Settings > Presentation > Presentation Settings page \u2014 the pattern StyleBI uses to render Timestamp and combined date-time values with no format of their own, defaulting to yyyy-MM-dd HH:mm:ss.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "format.number",
+    "aliases": [],
+    "type": "string",
+    "description": "format.number has no Enterprise Manager field.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "format.number.round",
+    "aliases": [],
+    "type": "enum",
+    "allowedValues": [
+      "ROUND_UP",
+      "ROUND_DOWN",
+      "ROUND_CEILING",
+      "ROUND_FLOOR",
+      "ROUND_HALF_UP",
+      "ROUND_HALF_DOWN",
+      "ROUND_HALF_EVEN",
+      "ROUND_UNNECESSARY"
+    ],
+    "description": "format.number.round has no Enterprise Manager field.",
+    "risk": "high",
+    "snapshotScope": "value"
+  },
+  {
+    "name": "format.percent.round",
+    "aliases": [],
+    "type": "enum",
+    "allowedValues": [
+      "ROUND_UP",
+      "ROUND_DOWN",
+      "ROUND_CEILING",
+      "ROUND_FLOOR",
+      "ROUND_HALF_UP",
+      "ROUND_HALF_DOWN",
+      "ROUND_HALF_EVEN",
+      "ROUND_UNNECESSARY"
+    ],
+    "description": "format.percent.round has no Enterprise Manager field.",
+    "risk": "high",
+    "snapshotScope": "value"
+  },
+  {
+    "name": "format.time",
+    "aliases": [],
+    "type": "string",
+    "description": "format.time is the Time Format field in the General Format section of Enterprise Manager's Settings > Presentation > Presentation Settings page \u2014 the pattern StyleBI uses to render Time values and schedule times with no format of their own, defaulting to HH:mm:ss.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "formula.avg.keep.type",
+    "aliases": [],
+    "type": "boolean",
+    "description": "formula.avg.keep.type makes the AVG aggregate formula return a result in the input column's own numeric type \u2014 an average of integers stays an integer \u2014 matching how SQL's own AVG behaves, instead of StyleBI's default of always producing a double.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "formula.min.number",
+    "aliases": [],
+    "type": "boolean",
+    "description": "formula.min.number decides whether the MIN aggregate formula compares two string values as numbers when they look like numbers, rather than as plain text.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "formula.parse.number",
+    "aliases": [],
+    "type": "boolean",
+    "description": "formula.parse.number decides whether the MAX and NthLargest aggregate formulas compare two string values as numbers when they look like numbers, rather than as plain text.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "fs.desktop",
+    "aliases": [],
+    "type": "boolean",
+    "description": "fs.desktop puts the materialized-view file system in desktop mode, in which a materialized view's data is kept whole instead of being divided into block files that can be built and read in parallel.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "getting.started",
+    "aliases": [],
+    "type": "string",
+    "description": "getting.started has no Enterprise Manager field: its own code comment calls it a testing hook that bypasses the Portal's normal per-user \"show the Getting Started dialog once\" logic.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "global.parameter.provider",
+    "aliases": [],
+    "type": "string",
+    "description": "global.parameter.provider has no Enterprise Manager field: it names the fully-qualified Java class of a custom GlobalParameterProvider implementation, an extension point for supplying global (cross-report) prompted parameters when a report or viewsheet is opened.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "google.maps.key",
+    "aliases": [],
+    "type": "string",
+    "description": "google.maps.key is the API Key field, shown only when Web Map Service is set to Google Maps, in the Web Map Configuration section of Enterprise Manager's Settings > Presentation > Presentation Settings page.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "googlemaps.max.size",
+    "aliases": [],
+    "type": "int",
+    "description": "googlemaps.max.size has no Enterprise Manager field: it is the largest pixel dimension (width or height) GoogleMapsService will request a Google Static Maps background image at, and defaults to 640 \u2014 matching the Google Static Maps API's own free-tier image size limit.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "graph.3dbar.maxcount",
+    "aliases": [],
+    "type": "int",
+    "description": "graph.3dbar.maxcount is the largest number of data rows StyleBI will draw shapes for on 3D Bar and 3D Stack Bar charts, beyond which the chart is truncated.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "graph.3dpie.maxcount",
+    "aliases": [],
+    "type": "int",
+    "description": "graph.3dpie.maxcount is the largest number of data rows StyleBI will draw shapes for on 3D Pie charts, beyond which the chart is truncated.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "graph.area.maxcount",
+    "aliases": [],
+    "type": "int",
+    "description": "graph.area.maxcount is the largest number of data rows StyleBI will draw shapes for on Area, Stack Area, Step Area and Stack Step Area charts, beyond which the chart is truncated.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "graph.axis.inplot",
+    "aliases": [],
+    "type": "boolean",
+    "description": "graph.axis.inplot reserves room for the outermost axis label so it does not have to be shifted to fit inside the plot.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "graph.axislabel.maxcount",
+    "aliases": [],
+    "type": "int",
+    "description": "graph.axislabel.maxcount is the largest number of distinct values StyleBI will keep for a categorical or time axis.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "graph.bar.maxcount",
+    "aliases": [],
+    "type": "int",
+    "description": "graph.bar.maxcount is the largest number of data rows StyleBI will draw shapes for on Bar and Stack Bar charts, beyond which the chart is truncated.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "graph.candle.maxcount",
+    "aliases": [],
+    "type": "int",
+    "description": "graph.candle.maxcount is the largest number of data rows StyleBI will draw shapes for on Candle charts, beyond which the chart is truncated.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "graph.circle.packing",
+    "aliases": [],
+    "type": "enum",
+    "allowedValues": [
+      "circle",
+      "fill_x",
+      "fill"
+    ],
+    "description": "graph.circle.packing chooses how a Circle Packing chart fills its plot area.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "graph.fm.uniform",
+    "aliases": [],
+    "type": "boolean",
+    "description": "graph.fm.uniform has no Enterprise Manager field: it makes chart text on screen use the same font metrics StyleBI uses when generating PDF, and it is false unless set.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "graph.ggraph.maxcount",
+    "aliases": [],
+    "type": "int",
+    "description": "graph.ggraph.maxcount bounds how many nested geometry graphs one chart may build \u2014 one per coordinate, so a facet multiplies them.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "graph.legend.maxcount",
+    "aliases": [],
+    "type": "int",
+    "description": "graph.legend.maxcount is the largest number of entries StyleBI will build for a chart legend.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "graph.line.maxcount",
+    "aliases": [],
+    "type": "int",
+    "description": "graph.line.maxcount is the largest number of data rows StyleBI will draw shapes for on Line, Stack Line, Step Line, Stack Step Line and Jump Line charts, beyond which the chart is truncated.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "graph.max.nodes",
+    "aliases": [],
+    "type": "int",
+    "description": "graph.max.nodes is the largest number of nodes StyleBI will lay out in a relation chart \u2014 the Tree, Network and Circular Network types.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "graph.pareto.maxcount",
+    "aliases": [],
+    "type": "int",
+    "description": "graph.pareto.maxcount is the largest number of data rows StyleBI will draw shapes for on Pareto charts, beyond which the chart is truncated.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "graph.pie.maxcount",
+    "aliases": [],
+    "type": "int",
+    "description": "graph.pie.maxcount is the largest number of data rows StyleBI will draw shapes for on Pie, Donut, Sunburst, Treemap, Circle Packing and Icicle charts, beyond which the chart is truncated.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "graph.point.maxcount",
+    "aliases": [],
+    "type": "int",
+    "description": "graph.point.maxcount is the largest number of data rows StyleBI will draw shapes for on Point and Stack Point charts \u2014 and on most Map charts' point layers \u2014 beyond which the chart is truncated.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "graph.radar.maxcount",
+    "aliases": [],
+    "type": "int",
+    "description": "graph.radar.maxcount is the largest number of data rows StyleBI will draw shapes for on Radar and Filled Radar charts, beyond which the chart is truncated.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "graph.script.action.support",
+    "aliases": [],
+    "type": "boolean",
+    "description": "graph.script.action.support keeps chart actions working on a chart whose structure a script has changed.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "graph.stock.maxcount",
+    "aliases": [],
+    "type": "int",
+    "description": "graph.stock.maxcount is the largest number of data rows StyleBI will draw shapes for on Stock charts, beyond which the chart is truncated.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "graph.subgraph.maxcount",
+    "aliases": [],
+    "type": "int",
+    "description": "graph.subgraph.maxcount bounds how many sub-graphs a faceted chart may create.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "graph.textlayout.maxcount",
+    "aliases": [],
+    "type": "int",
+    "description": "graph.textlayout.maxcount is the number of text labels above which StyleBI stops trying to resolve overlaps between them.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "graph.textlayout.maxstep",
+    "aliases": [],
+    "type": "int",
+    "description": "graph.textlayout.maxstep is how many positions StyleBI will try in each direction when moving a chart label out from under another.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "graph.waterfall.maxcount",
+    "aliases": [],
+    "type": "int",
+    "description": "graph.waterfall.maxcount is the largest number of data rows StyleBI will draw shapes for on Waterfall charts, beyond which the chart is truncated.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "graphics.image.scalesmooth",
+    "aliases": [],
+    "type": "boolean",
+    "description": "graphics.image.scalesmooth has no Enterprise Manager field: it controls how an embedded image is resized when its target display size differs from its native size, and is unset by default \u2014 resizing uses each renderer's own faster, lower-quality scaling instead of an explicit smooth resample.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "grid.min.height",
+    "aliases": [],
+    "type": "int",
+    "description": "grid.min.height has no Enterprise Manager field: it is the minimum height, in points, a classic Report's tabular grid layout (TabularSheet) gives a row, and defaults to 10.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "health.cacheswap.excessivewaitingthreads",
+    "aliases": [],
+    "type": "int",
+    "description": "health.cacheswap.excessivewaitingthreads has no Enterprise Manager field: it is how many threads may be blocked waiting on the cache swapper for memory before StyleBI starts timing the condition.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "health.filesystem.enabled",
+    "aliases": [],
+    "type": "boolean",
+    "description": "health.filesystem.enabled has no Enterprise Manager field: it is the switch that turns on StyleBI's file-system health check, which tries to read the attributes of each path in health.filesystem.paths and reports the server DOWN if any of them cannot be reached.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "health.reportfailure.threshold",
+    "aliases": [],
+    "type": "int",
+    "description": "health.reportfailure.threshold has no Enterprise Manager field: it is the number of distinct assets that may currently be in a failed state before StyleBI reports the server DOWN, and it defaults to 20.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "health.securityproviders.enabled",
+    "aliases": [],
+    "type": "boolean",
+    "description": "health.securityproviders.enabled has no Enterprise Manager field: it is the switch that turns on StyleBI's security-provider health check, which asks each authentication provider in the chain whether it is reachable, reporting the server DOWN if one is not.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "help.url",
+    "aliases": [],
+    "type": "string",
+    "description": "help.url has no dedicated Enterprise Manager field: it is the base URL every contextual help link in Enterprise Manager, the Composer, the script editor, and the Portal's own Help menu item is built from, and defaults to the empty string \u2014 which falls back to InetSoft's own hosted documentation site.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "helper.map.max",
+    "aliases": [],
+    "type": "int",
+    "description": "helper.map.max has no Enterprise Manager field: it is the maximum number of entries ReportHelper's version-helper class-name cache holds before trimming, and defaults to 120.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "html.character.encode",
+    "aliases": [],
+    "type": "string",
+    "description": "html.character.encode is the character encoding the portal's welcome page is written and declared with, and the charset used to URL-decode classpath entries when StyleBI assembles the schedule server's classpath.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "html.loading.icon",
+    "aliases": [],
+    "type": "string",
+    "description": "html.loading.icon replaces the file served as the portal's loading spinner.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "htmlpresenter.fitline",
+    "aliases": [],
+    "type": "boolean",
+    "description": "htmlpresenter.fitline is rendered as a checkbox on Enterprise Manager's Settings > All Properties page (the properties editor's own booleanProperties list), and defaults to true: a classic Report's HTML Presenter cell (a report element that renders formatted HTML content) that would otherwise be cut off mid-page breaks at the nearest line boundary above the cut, instead of mid-line.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "http.session.maxperclient",
+    "aliases": [],
+    "type": "int",
+    "description": "http.session.maxperclient is the maximum number of simultaneous sessions one client \u2014 a given user and host \u2014 may hold.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "http.session.maxwebsocketperuser",
+    "aliases": [],
+    "type": "int",
+    "description": "http.session.maxwebsocketperuser is the maximum number of WebSocket connections a single HTTP session may hold open, beyond which a further upgrade request is refused.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "http.session.timeout",
+    "aliases": [],
+    "type": "int",
+    "description": "http.session.timeout is how long, in seconds, a user's HTTP session survives without activity before StyleBI expires it and returns the user to the login screen.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "hyperlink.indicator",
+    "aliases": [],
+    "type": "boolean",
+    "description": "hyperlink.indicator is rendered as a checkbox on Enterprise Manager's Settings > All Properties page (the properties editor's own booleanProperties list), and defaults to true: a cell or chart element that carries a hyperlink is underlined to indicate it is clickable.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "ignore.swapper.memory.state",
+    "aliases": [],
+    "type": "boolean",
+    "description": "ignore.swapper.memory.state has no declared default and no Enterprise Manager field; unset, it reads as null, which is not the literal string \"true\", so its effect \u2014 suppressing the BUSY status this server reports for itself \u2014 stays off by default.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "image.antialias",
+    "aliases": [],
+    "type": "boolean",
+    "description": "image.antialias turns on Java2D anti-aliased rendering (RenderingHints.KEY_ANTIALIASING) when StyleBI paints a chart or shape to an image, and defaults.properties declares it true.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "image.filtered",
+    "aliases": [],
+    "type": "boolean",
+    "description": "image.filtered turns on per-scanline PNG filtering when StyleBI encodes an image to PNG, and defaults.properties declares it false.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "image.png.alpha",
+    "aliases": [],
+    "type": "boolean",
+    "description": "image.png.alpha is the default alpha (transparency) flag Common.writePNG uses when it encodes an image to PNG and the caller has not specified one explicitly, and defaults.properties declares it false.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "inbound.channel.pool.size",
+    "aliases": [],
+    "type": "int",
+    "description": "inbound.channel.pool.size has no declared default; unset, WebSocketConfig.getEventThreadPoolSize falls back to Runtime.getRuntime().availableProcessors()  8.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "inetsoft.sree.security.userprovider",
+    "aliases": [],
+    "type": "string",
+    "description": "inetsoft.sree.security.userprovider has no Enterprise Manager field: it is the fully qualified class name of an inetsoft.sree.security.UserProvider implementation that supplies user information from an external source when StyleBI is running under SSO.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "inetsoft.uql.jdbc.connectionpoolfactory",
+    "aliases": [],
+    "type": "string",
+    "description": "inetsoft.uql.jdbc.connectionpoolfactory has no Enterprise Manager field: it is the fully qualified class name of the inetsoft.uql.jdbc.ConnectionPoolFactory implementation that supplies the DataSource for every JDBC data source \u2014 your own class, or one of the two the product ships.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "input.autorefresh.defaultvalue",
+    "aliases": [],
+    "type": "boolean",
+    "description": "input.autorefresh.defaultvalue has no declared default; InputVSAssemblyInfo falls back to \"true\" when it is unset.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "java.version",
+    "aliases": [],
+    "type": "string",
+    "description": "java.version has no declared default and no code path anywhere writes it into StyleBI's property store, so SreeEnv.getProperty(\"java.version\") returns null on every real install.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "javascript.getimagefunction.disabled",
+    "aliases": [],
+    "type": "boolean",
+    "description": "javascript.getimagefunction.disabled turns off the getImage() function available to StyleBI formula and expression scripts, with no Enterprise Manager control.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "javascript.java.com_org",
+    "aliases": [],
+    "type": "boolean",
+    "description": "javascript.java.com_org controls whether StyleBI formula and expression scripts can reach any Java class whose package starts with com.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "javascript.legacy.compatibility",
+    "aliases": [],
+    "type": "boolean",
+    "description": "javascript.legacy.compatibility gates a compatibility shim that restores the old Rhino-era Java-interop syntax in StyleBI's formula and expression scripts \u2014 package-root navigation (java.awt.Color), constructor calls without new (java.awt.Color(0xaed581)), static member access, and importClass/importPackage.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "jdbc.blob.type",
+    "aliases": [],
+    "type": "string",
+    "description": "jdbc.blob.type has no Enterprise Manager field: it decides whether StyleBI reads binary database columns as images or as text.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "jdbc.connection.jndi.prefix",
+    "aliases": [],
+    "type": "string",
+    "description": "jdbc.connection.jndi.prefix has no Enterprise Manager field: it is the path prepended to a data source's name when StyleBI looks that data source up in JNDI.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "jdbc.connection.pool",
+    "aliases": [],
+    "type": "string",
+    "description": "jdbc.connection.pool has no Enterprise Manager field: it is the fully qualified class name of the connection pool implementation StyleBI uses for every JDBC data source.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "jdbc.fetch.size",
+    "aliases": [],
+    "type": "int",
+    "description": "jdbc.fetch.size has no Enterprise Manager field: it is the JDBC fetch size StyleBI sets on every statement it executes, the number of rows the driver is asked to bring back per round trip.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "join.table.forcehash",
+    "aliases": [],
+    "type": "boolean",
+    "description": "join.table.forcehash forces StyleBI's in-memory table join to always use a hash-based join strategy, and it is off by default.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "join.table.maxrows",
+    "aliases": [],
+    "type": "int",
+    "description": "join.table.maxrows caps how many rows a single table join may produce, and it is unset by default, which is treated as unlimited.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "legacy.excel.largetable.export",
+    "aliases": [],
+    "type": "boolean",
+    "description": "legacy.excel.largetable.export has no declared default; unset or any value other than the literal \"true\" leaves the newer behavior active.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "limit.alias.length",
+    "aliases": [],
+    "type": "boolean",
+    "description": "limit.alias.length declares an empty default in defaults.properties, which is not the literal \"true\", so alias-length limiting is off by default for the dialects that consult it.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "local.host.name",
+    "aliases": [],
+    "type": "string",
+    "description": "local.host.name manually overrides the host name StyleBI reports for the machine it is running on, and it has no declared default.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "local.ip.addr",
+    "aliases": [],
+    "type": "string",
+    "description": "local.ip.addr manually overrides the IP address StyleBI reports for the machine it is running on, and it has no declared default.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "locale.available",
+    "aliases": [],
+    "type": "string",
+    "description": "locale.available lists the locale codes StyleBI offers as language choices, colon-separated, and it is unset by default, which every reader treats as \"just the JVM's own default locale.\"",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "log.file.discriminator",
+    "aliases": [],
+    "type": "string",
+    "description": "log.file.discriminator is the string a cluster node stamps into its own log file names, with no declared default \u2014 every reader falls back to this node's own IP address when unset, and there is no Enterprise Manager control for it.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "log.fluentd.connecttimeout",
+    "aliases": [],
+    "type": "int",
+    "description": "log.fluentd.connecttimeout is the Connect Timeout field on Enterprise Manager's Settings > Logging page \u2014 the milliseconds StyleBI waits when connecting to the Fluentd/Fluent Bit collector \u2014 with no declared default, falling back to 10000 (ten seconds).",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "log.fluentd.host",
+    "aliases": [],
+    "type": "string",
+    "description": "log.fluentd.host is the Host field on Enterprise Manager's Settings > Logging page \u2014 the hostname or IP address of the Fluentd/Fluent Bit collector StyleBI forwards log records to \u2014 with no declared default, falling back to localhost.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "log.fluentd.logviewurl",
+    "aliases": [],
+    "type": "string",
+    "description": "log.fluentd.logviewurl is the Log View URL field on Enterprise Manager's Settings > Logging page \u2014 the external link StyleBI shows for viewing logs at the collector's own UI \u2014 read only while log.provider is the exact literal fluentd, with no declared default, so unset shows no link.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "log.fluentd.orgadminaccess",
+    "aliases": [],
+    "type": "boolean",
+    "description": "log.fluentd.orgadminaccess is the Allow organization administrators to access logging checkbox on Enterprise Manager's Settings > Logging page, shown only when the server is multi-tenant and log.provider is fluentd; ActionPermissionService.isOrgAdminAction reads it to decide whether organization admins everywhere get the monitoring/log viewing permission, with no declared default, so unset behaves as off.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "log.fluentd.port",
+    "aliases": [],
+    "type": "int",
+    "description": "log.fluentd.port is the Port field on Enterprise Manager's Settings > Logging page \u2014 the TCP port the Fluentd/Fluent Bit collector listens on \u2014 with no declared default, falling back to 24224, Fluentd's own default port.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "log.fluentd.security.userauthenticationenabled",
+    "aliases": [],
+    "type": "boolean",
+    "description": "log.fluentd.security.userauthenticationenabled is the User Authentication Enabled checkbox on Enterprise Manager's Settings > Logging page \u2014 it turns on username/password authentication in addition to the shared key when StyleBI connects to the Fluentd/Fluent Bit collector \u2014 with no declared default, so unset behaves as off.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "log.fluentd.security.username",
+    "aliases": [],
+    "type": "string",
+    "description": "log.fluentd.security.username is the Username field on Enterprise Manager's Settings > Logging page \u2014 the account name StyleBI presents when authenticating to the Fluentd/Fluent Bit collector \u2014 with no declared default.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "log.fluentd.securityenabled",
+    "aliases": [],
+    "type": "boolean",
+    "description": "log.fluentd.securityenabled is the Security Enabled checkbox on Enterprise Manager's Settings > Logging page \u2014 it turns on shared-key (and optionally username/password) authentication when StyleBI connects to the Fluentd/Fluent Bit collector \u2014 with no declared default, so unset behaves as off.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "log.fluentd.tls.cacertificatefile",
+    "aliases": [],
+    "type": "string",
+    "description": "log.fluentd.tls.cacertificatefile is the CA Certificate File field on Enterprise Manager's Settings > Logging page \u2014 the filesystem path to the CA certificate StyleBI trusts when connecting to the Fluentd/Fluent Bit collector over TLS.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "log.fluentd.tlsenabled",
+    "aliases": [],
+    "type": "boolean",
+    "description": "log.fluentd.tlsenabled is the TLS Enabled checkbox on Enterprise Manager's Settings > Logging page \u2014 it turns on an encrypted connection when StyleBI forwards log records to the Fluentd/Fluent Bit collector \u2014 with no declared default of its own, so unset is off.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "log.level.inetsoft.performance",
+    "aliases": [],
+    "type": "enum",
+    "allowedValues": [
+      "debug",
+      "info",
+      "warn",
+      "error",
+      "off",
+      "warning",
+      "fine",
+      "finer",
+      "finest"
+    ],
+    "description": "log.level.inetsoft.performance turns on StyleBI's performance log \u2014 the per-asset execution timings recorded by LogUtil.logPerformance \u2014 and is OFF by default, so nothing is written until it is raised.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "log.message.pattern",
+    "aliases": [],
+    "type": "string",
+    "description": "log.message.pattern is the Logback layout pattern StyleBI writes each log-file and console line with \u2014 the string every non-Fluentd appender's encoder uses \u2014 defaulting to %d %level %property{LOCAL_IP_ADDR} [%mdc] %c{1}: %message %n%ex, the exact literal StyleBI's own LogbackInitializer hard-codes for its pre-Spring startup encoder.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "log.output.file",
+    "aliases": [],
+    "type": "string",
+    "description": "log.output.file is the base path StyleBI's main server log is written to \u2014 the appender inserts -<log.file.discriminator>, defaulting to this node's IP address, before the extension, so a value of sree.log produces sree-<discriminator>.log on disk and sree.log itself never exists \u2014 shown read-only in the Log File field on Enterprise Manager's Settings > Logging page \u2014 defaulting to sree.log.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "log.output.stderr",
+    "aliases": [],
+    "type": "boolean",
+    "description": "log.output.stderr is the Output to standard output checkbox on Enterprise Manager's Settings > Logging page \u2014 it also echoes log records to the console, in addition to the log file \u2014 defaulting to true.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "log.provider",
+    "aliases": [],
+    "type": "enum",
+    "allowedValues": [
+      "fluentd",
+      "file"
+    ],
+    "description": "log.provider is the Log Type field on Enterprise Manager's Settings > Logging page that decides where StyleBI sends log records \u2014 its own log files, or a Fluent Bit/Fluentd collector \u2014 with no declared default, so unset behaves as file logging.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "mail.attachment.maxbytes",
+    "aliases": [],
+    "type": "int",
+    "description": "mail.attachment.maxbytes is the maximum size, in bytes, of the file StyleBI inlines into an MHTML message body.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "mail.from.address",
+    "aliases": [],
+    "type": "string",
+    "description": "mail.from.address is the default 'From' email address StyleBI uses when sending mail, and it defaults to reportserver@inetsoft.com.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "mail.from.enabled",
+    "aliases": [],
+    "type": "boolean",
+    "description": "mail.from.enabled controls whether a user can type a custom 'From' address when scheduling or emailing a viewsheet, instead of being limited to their own account email; mail.from.enabled defaults to false (not editable).",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "mail.history.enabled",
+    "aliases": [],
+    "type": "boolean",
+    "description": "mail.history.enabled controls whether StyleBI remembers and autocompletes previously used email addresses in email/share dialogs; mail.history.enabled has no default in defaults.properties, so it behaves as disabled until an operator turns it on.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "mail.jndi.url",
+    "aliases": [],
+    "type": "string",
+    "description": "mail.jndi.url is the JNDI name of a pre-configured javax.mail.Session StyleBI should use to send mail, instead of building one from the mail.smtp.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "mail.mime.charset",
+    "aliases": [],
+    "type": "string",
+    "description": "mail.mime.charset is the character encoding StyleBI uses for outgoing mail MIME content; mail.mime.charset has no configured default, and when it is unset StyleBI falls back to the JVM's platform default charset.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "mail.notification.subject.format",
+    "aliases": [],
+    "type": "string",
+    "description": "mail.notification.subject.format is the subject-line template for scheduled-task notification emails (the emails sent to task owners about task status, as opposed to delivered report emails); mail.notification.subject.format defaults to the empty string.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "mail.smtp.authuri",
+    "aliases": [],
+    "type": "string",
+    "description": "mail.smtp.authuri is the OAuth2 authorization endpoint URI used to obtain SMTP access when mail.smtp.auth is saslXOauth2; mail.smtp.authuri has no configured default.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "mail.smtp.clientid",
+    "aliases": [],
+    "type": "string",
+    "description": "mail.smtp.clientid is the OAuth2 client id StyleBI presents when authenticating SMTP with saslXOauth2 or googleAuth; mail.smtp.clientid has no configured default.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "mail.smtp.oauthflags",
+    "aliases": [],
+    "type": "string",
+    "description": "mail.smtp.oauthflags holds the SMTP OAuth2 flags entered in the OAuth Flags field of the Email section on Settings > General.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "mail.smtp.oauthscopes",
+    "aliases": [],
+    "type": "string",
+    "description": "mail.smtp.oauthscopes holds the OAuth2 scope string StyleBI requests when authorizing SMTP with SASL XOAuth2; mail.smtp.oauthscopes has no configured default and round-trips correctly through Enterprise Manager (unlike its neighbor mail.smtp.oauthflags).",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "mail.smtp.outhflags",
+    "aliases": [],
+    "type": "string",
+    "description": "mail.smtp.outhflags is a misspelled legacy property name that Mailer.getSmtpOAuthFlags still reads as a migration fallback for the OAuth Flags setting; mail.smtp.outhflags has no configured default, no code stores a value under it, and saving the Email section deletes it.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "mail.smtp.port",
+    "aliases": [],
+    "type": "int",
+    "description": "mail.smtp.port overrides the SMTP port StyleBI connects to; mail.smtp.port has no configured default, so when it is unset the standard JavaMail default applies (25 for plain SMTP, 465 for SMTPS).",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "mail.smtp.ssl.protocols",
+    "aliases": [],
+    "type": "string",
+    "description": "mail.smtp.ssl.protocols overrides the SSL/TLS protocol list StyleBI's SMTP connection will negotiate; mail.smtp.ssl.protocols has no configured default, so when it is unset JavaMail's own default protocol list applies.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "mail.smtp.tokenexpiration",
+    "aliases": [],
+    "type": "int",
+    "description": "mail.smtp.tokenexpiration is the epoch-millisecond timestamp when mail.smtp.accesstoken expires; mail.smtp.tokenexpiration has no configured default and is populated automatically, not typed in.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "mail.smtp.tokenuri",
+    "aliases": [],
+    "type": "string",
+    "description": "mail.smtp.tokenuri is the OAuth2 token endpoint URL StyleBI calls to refresh the SMTP access token when mail.smtp.auth is saslXOauth2; mail.smtp.tokenuri has no configured default.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "mail.smtp.user",
+    "aliases": [],
+    "type": "string",
+    "description": "mail.smtp.user is the SMTP account username (or the SASL XOAuth2/Google OAuth2 identity) StyleBI authenticates with when sending mail; mail.smtp.user defaults to the empty string.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "mail.ssl",
+    "aliases": [],
+    "type": "boolean",
+    "description": "mail.ssl selects whether StyleBI connects to the SMTP server over implicit SSL (smtps) instead of plain SMTP; mail.ssl defaults to false.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "mail.subject.format",
+    "aliases": [],
+    "type": "string",
+    "description": "mail.subject.format is a java.text.MessageFormat pattern used to build the subject line of emailed and scheduled viewsheet mail; mail.subject.format defaults to the empty string.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "mail.tls",
+    "aliases": [],
+    "type": "boolean",
+    "description": "mail.tls selects whether StyleBI issues a STARTTLS command when connecting to the SMTP server; mail.tls has no entry in defaults.properties, and unset behaves as false (no STARTTLS).",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "map.border.color",
+    "aliases": [],
+    "type": "string",
+    "description": "map.border.color sets the outline color drawn around polygon (region/shape) map elements in a chart \u2014 geographic maps such as filled countries or states \u2014 and has no declared default, so GraphUtil.getMapBorderColor returns null when it is unset.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "map.default.color",
+    "aliases": [],
+    "type": "string",
+    "description": "map.default.color sets the fill color for map shapes that contain data \u2014 a filled country or region on a geographic chart \u2014 and has no declared default, so GraphUtil.getMapDefaultColor falls back to a coded constant, MAP_DEFAULT_COLOR (#FBD29A), whenever the property is unset or its value cannot be parsed as a color.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "map.empty.color",
+    "aliases": [],
+    "type": "string",
+    "description": "map.empty.color sets the fill color for map shapes that have no matching data \u2014 a country or region on a geographic chart with nothing bound to it \u2014 and has no declared default, so GraphUtil.getMapEmptyColor falls back to a coded constant, MAP_EMPTY_DATA_COLOR (#F2EFE9), whenever the property is unset or its value cannot be parsed as a color.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "map.selection.enabled",
+    "aliases": [],
+    "type": "boolean",
+    "description": "map.selection.enabled controls whether a viewer can select a region on a map-type chart \u2014 click or drag a shape to highlight it \u2014 and defaults.properties declares it true.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "mapbox.style",
+    "aliases": [],
+    "type": "string",
+    "description": "mapbox.style is the Mapbox Style dropdown in the Web Map section of Enterprise Manager's Settings > Presentation page \u2014 the Mapbox map style ID web-map tiles are rendered with \u2014 and it has no declared default.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "mapbox.user",
+    "aliases": [],
+    "type": "string",
+    "description": "mapbox.user is the User field in the Web Map section of Enterprise Manager's Settings > Presentation page \u2014 the Mapbox account username StyleBI authenticates web-map tile requests as \u2014 and it has no declared default.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "max.cell.size",
+    "aliases": [],
+    "type": "int",
+    "description": "max.cell.size is the Max Cell Size entry an administrator can add to the Properties table when editing an organization on Enterprise Manager's Settings > Security > Users page.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "max.col.count",
+    "aliases": [],
+    "type": "int",
+    "description": "max.col.count is the Max Column Count entry an administrator can add to the Properties table when editing an organization on Enterprise Manager's Settings > Security > Users page.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "max.row.count",
+    "aliases": [],
+    "type": "int",
+    "description": "max.row.count is the Max Row Count entry an administrator can add to the Properties table when editing an organization on Enterprise Manager's Settings > Security > Users page.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "max.user.count",
+    "aliases": [],
+    "type": "int",
+    "description": "max.user.count is the Max User Count entry an administrator can add to the Properties table when editing an organization on Enterprise Manager's Settings > Security > Users page.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "metric.cacheswap.excessivewaitingthreads",
+    "aliases": [],
+    "type": "int",
+    "description": "metric.cacheswap.excessivewaitingthreads sets the number of threads waiting on the swap cache that StyleBI treats as maximum load for its autoscaling signal, and it is 10 by default.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "mixed.bidi.enabled",
+    "aliases": [],
+    "type": "boolean",
+    "description": "mixed.bidi.enabled has no declared default; unset, mixed-direction text renders as a single string in generated PDFs.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "modeltrap.context.debug",
+    "aliases": [],
+    "type": "boolean",
+    "description": "modeltrap.context.debug turns on console tracing for the logical data model \"trap\" detector \u2014 the chasm-trap/fan-trap analysis that warns when a data model's join graph can double-count or drop rows \u2014 and it is off by default.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "modeltrap.helper.debug",
+    "aliases": [],
+    "type": "boolean",
+    "description": "modeltrap.helper.debug turns on console tracing for the table-relationship traversal the logical data model's chasm-trap/fan-trap detector walks, and it is off by default.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "monitor.dataset.size",
+    "aliases": [],
+    "type": "int",
+    "description": "monitor.dataset.size caps how many historical data points Enterprise Manager's monitoring pages keep for server and cluster status metrics, and it is 300 by default.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "mv.benchmark",
+    "aliases": [],
+    "type": "boolean",
+    "description": "mv.benchmark turns on timing instrumentation around materialized-view query execution, recording how long each named stage took and how many rows it handled, and appending the results to CSV files in the StyleBI home directory.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "mv.cache.association",
+    "aliases": [],
+    "type": "boolean",
+    "description": "mv.cache.association stops StyleBI defining a materialized view for selection associations \u2014 the greying-out of selection-list values that have no matching rows.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "mv.cache.data",
+    "aliases": [],
+    "type": "boolean",
+    "description": "mv.cache.data decides whether result sets that came from a materialized view may be held in the shared data cache, where dashboards using the same data reuse one copy.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "mv.debug",
+    "aliases": [],
+    "type": "boolean",
+    "description": "mv.debug turns on detailed logging about why a dashboard query was or was not served by a materialized view \u2014 which groups could not be merged, what the transformer produced, which table the query ended up against.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "mv.detail.data",
+    "aliases": [],
+    "type": "boolean",
+    "description": "mv.detail.data decides whether detail data \u2014 the row-level data behind a chart or table, shown by Show Details and by drilling into a summary \u2014 is served from the materialized view or read from the source.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "mv.dim.max.size",
+    "aliases": [],
+    "type": "int",
+    "description": "mv.dim.max.size is how many distinct values a dimension column may have before a materialized view stops supporting grouping and filtering on it.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "mv.dispatcher.count",
+    "aliases": [],
+    "type": "int",
+    "description": "mv.dispatcher.count is how many parallel workers StyleBI uses to build one materialized view \u2014 both the size of the thread pool and the number of slices the source data is split into.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "mv.dispatcher.interval",
+    "aliases": [],
+    "type": "int",
+    "description": "mv.dispatcher.interval is how many months of data each parallel worker takes when a materialized view is built in slices and the column it is split on is a date.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "mv.dispatcher.number.maximum",
+    "aliases": [],
+    "type": "int",
+    "description": "mv.dispatcher.number.maximum is the highest value StyleBI assumes a numeric split column holds when it divides a materialized-view build between parallel workers \u2014 the range that gets cut into one slice per worker.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "mv.double.precision",
+    "aliases": [],
+    "type": "boolean",
+    "description": "mv.double.precision decides whether numeric measures are stored in a materialized view at double precision or single.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "mv.enabled.all",
+    "aliases": [],
+    "type": "boolean",
+    "description": "mv.enabled.all is the Enable MV On-demand by Default checkbox in the Materialized View section of Enterprise Manager's Settings > General page \u2014 the initial value of the per-dashboard Create MV On-demand flag for dashboards created from now on.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "mv.ignore.nestedselection",
+    "aliases": [],
+    "type": "boolean",
+    "description": "mv.ignore.nestedselection decides whether a nested selection on a parent table stops a dashboard's filter from being moved up the query tree when StyleBI rewrites a query to run against a materialized view.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "mv.info.warning",
+    "aliases": [],
+    "type": "boolean",
+    "description": "mv.info.warning makes the materialized-view query transformer report more about what it did \u2014 it records an entry for every selection column moved up the query tree, and stops shortening table names in those reports.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "mv.max.block",
+    "aliases": [],
+    "type": "int",
+    "description": "mv.max.block is the greatest number of rows a materialized-view block may grow to while StyleBI looks ahead for a break that keeps a distinct-count group whole.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "mv.merge.deletecond",
+    "aliases": [],
+    "type": "boolean",
+    "description": "mv.merge.deletecond controls whether the delete condition of an incremental materialized view is merged into the query's pre-conditions, so that rows the incremental update is meant to remove are excluded when the view is rebuilt.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "mv.metadata",
+    "aliases": [],
+    "type": "boolean",
+    "description": "mv.metadata is the Use meta-data for editing if MV is not available checkbox in the Materialized View section of Enterprise Manager's Settings > General page \u2014 it lets a dashboard open in the Composer against column metadata alone, with no data, when its materialized view could not be created.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "mv.ondemand",
+    "aliases": [],
+    "type": "boolean",
+    "description": "mv.ondemand is the Enable MV On-demand checkbox in the Materialized View section of Enterprise Manager's Settings > General page \u2014 the server-wide switch that lets StyleBI build a materialized view when a dashboard needs one and none exists.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "mv.outer.moveup",
+    "aliases": [],
+    "type": "boolean",
+    "description": "mv.outer.moveup allows a dashboard's selection filter to move up past an outer join \u2014 to be applied to the outer table too, rather than only to the side the condition names \u2014 when StyleBI rewrites a query to run against a materialized view.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "mv.preferred.block",
+    "aliases": [],
+    "type": "int",
+    "description": "mv.preferred.block is the target number of rows in one materialized-view block file \u2014 the unit StyleBI splits a materialized view into so that blocks can be built and scanned in parallel.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "mv.required",
+    "aliases": [],
+    "type": "boolean",
+    "description": "mv.required is the Fail if MV is not available at runtime checkbox in the Materialized View section of Enterprise Manager's Settings > General page \u2014 it makes a dashboard whose materialized view is missing fail outright instead of falling back to querying the source data.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "mv.run.background",
+    "aliases": [],
+    "type": "boolean",
+    "description": "mv.run.background decides whether the Run in Background checkbox starts ticked on Enterprise Manager's Settings > Content > Materialized Views page and on the MV tab of a dashboard or worksheet under Settings > Content > Repository \u2014 that is, whether building materialized views is queued as a background task by default rather than run while the operator waits.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "mv.table.metadata",
+    "aliases": [],
+    "type": "boolean",
+    "description": "mv.table.metadata decides how the metadata behind selection lists \u2014 the distinct values a selection offers, and their associations \u2014 is assembled: by querying the materialized view for each request, or by loading the data once and answering from that.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "mv.union.moveup",
+    "aliases": [],
+    "type": "boolean",
+    "description": "mv.union.moveup allows a dashboard's selection filter to be applied to a union of tables as a whole rather than to each table underneath it, when StyleBI rewrites a query to run against a materialized view.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "mvmanager.dates.ages",
+    "aliases": [],
+    "type": "boolean",
+    "description": "mvmanager.dates.ages is the Show Dates as Ages checkbox on Enterprise Manager's Settings > Content > Materialized Views page \u2014 a per-server display preference, not a per-user one, that switches the last-updated column in the materialized-view list between an absolute date and a relative age (for example, \"3 days ago\").",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "mysql.local.timezone",
+    "aliases": [],
+    "type": "string",
+    "description": "mysql.local.timezone names the time zone StyleBI converts MySQL date/time values into when mysql.server.timezone is set, and it has no declared default \u2014 the JVM's own default time zone is used when it is unset.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "mysql.server.timezone",
+    "aliases": [],
+    "type": "string",
+    "description": "mysql.server.timezone names the time zone a MySQL server itself stores timestamps in, and it has no declared default; leaving it unset disables StyleBI's time-zone conversion for MySQL date/time SQL functions entirely.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "olap.cancel.enabled",
+    "aliases": [],
+    "type": "boolean",
+    "description": "olap.cancel.enabled controls whether StyleBI attempts to cancel an in-flight XMLA (OLAP) request on the remote OLAP server, not just locally, and it has no Enterprise Manager control.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "olap.drillthrough.maxrows",
+    "aliases": [],
+    "type": "int",
+    "description": "olap.drillthrough.maxrows is the row limit StyleBI puts on a generated OLAP drill-through MDX statement, with no Enterprise Manager control and a declared default of 10.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "olap.security.enabled",
+    "aliases": [],
+    "type": "boolean",
+    "description": "olap.security.enabled turns on per-user authentication and cache isolation for OLAP (XMLA) data sources, and has no Enterprise Manager control.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "olap.table.originalcontent",
+    "aliases": [],
+    "type": "boolean",
+    "description": "olap.table.originalcontent decides whether OLAP cube member captions display their full, original qualified name or a shortened one, and it defaults to false (shortened).",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "os.name",
+    "aliases": [],
+    "type": "string",
+    "description": "os.name has no declared default and no code path anywhere writes it into StyleBI's property store, so SreeEnv.getProperty(\"os.name\") returns null on every real install.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "output.null.to.zero",
+    "aliases": [],
+    "type": "boolean",
+    "description": "output.null.to.zero declares a default of true in defaults.properties, so a bound Output assembly (Gauge, Slider, Thermometer, Cylinder and similar value-display components \u2014 not Text or Image) whose query returns no result shows 0 by default, rather than staying blank.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "pdf.compress.image",
+    "aliases": [],
+    "type": "boolean",
+    "description": "pdf.compress.image is the Compress Image checkbox under Compress Options on Enterprise Manager's Settings > Presentation page, in the PDF Generation section.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "pdf.compress.text",
+    "aliases": [],
+    "type": "boolean",
+    "description": "pdf.compress.text is the Compress Text checkbox under Compress Options on Enterprise Manager's Settings > Presentation page, in the PDF Generation section.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "pdf.embed.cmap",
+    "aliases": [],
+    "type": "boolean",
+    "description": "pdf.embed.cmap is the Embed CMap in PDF checkbox under Font Options on Enterprise Manager's Settings > Presentation page, in the PDF Generation section.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "pdf.embed.font",
+    "aliases": [],
+    "type": "boolean",
+    "description": "pdf.embed.font is the Embed Font in PDF checkbox under Font Options on Enterprise Manager's Settings > Presentation page, in the PDF Generation section.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "pdf.font.mapping",
+    "aliases": [],
+    "type": "string",
+    "description": "pdf.font.mapping is the Font Mapping table on Enterprise Manager's Settings > Presentation page \u2014 each row a TrueType Font name and the CID Font name to write in its place \u2014 and it has no declared default, so unmapped is the shipped state.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "pdf.font.ratio",
+    "aliases": [],
+    "type": "string",
+    "description": "pdf.font.ratio corrects the width StyleBI measures for text in a named font, as a ;-separated list of font-name:ratio pairs.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "pdf.generate.links",
+    "aliases": [],
+    "type": "boolean",
+    "description": "pdf.generate.links is the Keep Hyperlinks in PDF checkbox under Other Options on Enterprise Manager's Settings > Presentation page, in the PDF Generation section.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "pdf.map.symbols",
+    "aliases": [],
+    "type": "boolean",
+    "description": "pdf.map.symbols is the Map Symbols checkbox under Font Options on Enterprise Manager's Settings > Presentation page, in the PDF Generation section.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "pdf.open.bookmark",
+    "aliases": [],
+    "type": "boolean",
+    "description": "pdf.open.bookmark is the Open Bookmark radio option under Other Options on Enterprise Manager's Settings > Presentation page, in the PDF Generation section.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "pdf.open.thumbnail",
+    "aliases": [],
+    "type": "boolean",
+    "description": "pdf.open.thumbnail is the Open Thumbnail First radio option under Other Options on Enterprise Manager's Settings > Presentation page, in the PDF Generation section.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "pdf.output.ascii",
+    "aliases": [],
+    "type": "boolean",
+    "description": "pdf.output.ascii is the ASCII Only checkbox under Compress Options on Enterprise Manager's Settings > Presentation page, in the PDF Generation section.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "pdf.output.attachment",
+    "aliases": [],
+    "type": "string",
+    "description": "pdf.output.attachment is the Embed PDF in Browser checkbox under Other Options on Enterprise Manager's Settings > Presentation page, in the PDF Generation section.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "pdf.text.avoidoverlap",
+    "aliases": [],
+    "type": "boolean",
+    "description": "pdf.text.avoidoverlap limits how tightly StyleBI may squeeze characters together when fitting a string into a PDF, and defaults.properties declares it true.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "pdf.text.usedefaultcharacterspacing",
+    "aliases": [],
+    "type": "boolean",
+    "description": "pdf.text.usedefaultcharacterspacing turns off the per-character spacing adjustment StyleBI applies when writing text into a PDF, leaving every string at the font's own metrics, and defaults.properties declares it false.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "pdf.transcode.jpeg",
+    "aliases": [],
+    "type": "boolean",
+    "description": "pdf.transcode.jpeg re-encodes a source JPEG through Java's JPEG writer on its way into the PDF, at the compression quality pdf.jpeg.quality names, instead of copying the original file's bytes through untouched.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "portal.customcss",
+    "aliases": [],
+    "type": "string",
+    "description": "portal.customcss is the URL of a single extra stylesheet StyleBI links from the <head> of every page of the StyleBI application shell \u2014 the portal, the Visual Composer, the Viewer, the Wizard and embedded views.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "portal.customloadinglogo",
+    "aliases": [],
+    "type": "string",
+    "description": "portal.customloadinglogo is the URL of an image shown on the User Portal's loading splash \u2014 the screen a user sees between requesting the portal and the application appearing.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "portal.customloadingtext",
+    "aliases": [],
+    "type": "string",
+    "description": "portal.customloadingtext is the Custom Loading Text field in the Portal Integration section of Enterprise Manager's Settings > Presentation page \u2014 a line of text shown on the User Portal's loading splash, under the built-in Please wait, the application is loading...",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "portal.history.bar",
+    "aliases": [],
+    "type": "boolean",
+    "description": "portal.history.bar decides whether the User Portal shows the history bar \u2014 the strip listing recently opened dashboards \u2014 for users who have not chosen for themselves.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "portal.home.link",
+    "aliases": [],
+    "type": "string",
+    "description": "portal.home.link is the Home Link field in the Portal Integration section of Enterprise Manager's Settings > Presentation page \u2014 where the User Portal's Home button takes the user.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "portal.logout.url",
+    "aliases": [],
+    "type": "string",
+    "description": "portal.logout.url is where StyleBI sends the browser after a user logs out.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "qrcode.width",
+    "aliases": [],
+    "type": "int",
+    "description": "qrcode.width has no defaults.properties entry; Abstract2DCodePresenter's constructor falls back to \"70\" when it is unset.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "query.analysis.maxrow",
+    "aliases": [],
+    "type": "int",
+    "description": "query.analysis.maxrow is the number of rows the Visualization Recommender samples when suggesting how to chart a dataset.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "query.cache.data",
+    "aliases": [],
+    "type": "boolean",
+    "description": "query.cache.data is the Dataset Caching checkbox in the Performance section of Enterprise Manager's Settings > General page \u2014 whether StyleBI reuses a query's result set across worksheets and dashboards instead of re-running the query.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "query.cache.limit",
+    "aliases": [],
+    "type": "int",
+    "description": "query.cache.limit is the Data Cache Size field in the Performance section of Enterprise Manager's Settings > General page \u2014 how many query result sets StyleBI keeps cached.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "query.preview.maxrow",
+    "aliases": [],
+    "type": "int",
+    "description": "query.preview.maxrow is the Query Design Time Maximum Row Count Default field in the Performance section of Enterprise Manager's Settings > General page \u2014 the ceiling on rows a query returns for a design-time view rather than for a running dashboard.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "query.preview.timeout",
+    "aliases": [],
+    "type": "int",
+    "description": "query.preview.timeout is the Query Design Time Timeout [s] field in the Performance section of Enterprise Manager's Settings > General page \u2014 the limit, in seconds, on a query run for a design-time view rather than for a running dashboard.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "query.runtime.timeout",
+    "aliases": [],
+    "type": "int",
+    "description": "query.runtime.timeout is the Query Timeout (s) field in the Performance section of Enterprise Manager's Settings > General page \u2014 the server-wide limit, in seconds, on how long a query may run while a dashboard is running.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "query.variable.unique",
+    "aliases": [],
+    "type": "boolean",
+    "description": "query.variable.unique decides whether two query variables that share a name are one variable or two.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "remove.outerjoin.only",
+    "aliases": [],
+    "type": "boolean",
+    "description": "remove.outerjoin.only narrows StyleBI's useless-join-table removal so it only ever drops a table that was joined with an outer join, and it is false by default.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "remove.useless.jointable",
+    "aliases": [],
+    "type": "boolean",
+    "description": "remove.useless.jointable enables a query-plan optimization that drops tables from a generated SQL query when nothing in the query actually needs them, and it is off by default.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "replet.browsedata.nocache",
+    "aliases": [],
+    "type": "string",
+    "description": "replet.browsedata.nocache turns off caching of the value lists that populate condition and selection browse dialogs.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "replet.browsedata.timeout",
+    "aliases": [],
+    "type": "int",
+    "description": "replet.browsedata.timeout is how long a cached browse-data value list may sit unused before it is discarded, in milliseconds \u2014 the lists that fill condition and selection browse dialogs.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "replet.cache.clean",
+    "aliases": [],
+    "type": "boolean",
+    "description": "replet.cache.clean is the Clean Cache on Startup toggle on Enterprise Manager's Settings > General page, in the Cache card.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "replet.cache.concurrency",
+    "aliases": [],
+    "type": "int",
+    "description": "replet.cache.concurrency caps the number of report pagination threads ReportCache will run at once.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "replet.cache.directory",
+    "aliases": [],
+    "type": "string",
+    "description": "replet.cache.directory is the Directory field on Enterprise Manager's Settings > General page, in the Cache card \u2014 the filesystem directory the server writes its cache files to.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "replet.cache.workset",
+    "aliases": [],
+    "type": "int",
+    "description": "replet.cache.workset is how many report pages go in one page group \u2014 the unit ReportCache swaps to and from disk.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "replet.optimize.network",
+    "aliases": [],
+    "type": "boolean",
+    "description": "replet.optimize.network has no observable effect.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "replet.repository.file",
+    "aliases": [],
+    "type": "string",
+    "description": "replet.repository.file names the data-space file the repository registry is loaded from and saved to \u2014 the folder tree Enterprise Manager renders through ContentRepositoryTreeService.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "replet.repository.servlet",
+    "aliases": [],
+    "type": "string",
+    "description": "replet.repository.servlet is the base URL the server puts in links it generates \u2014 the address it believes clients reach it at, rather than the one a request happened to arrive on.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "replet.streaming",
+    "aliases": [],
+    "type": "boolean",
+    "description": "replet.streaming decides whether query results are loaded on a background thread while the caller carries on, or pulled in on the calling thread.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "report.cache.file.limit",
+    "aliases": [],
+    "type": "int",
+    "description": "report.cache.file.limit has no Enterprise Manager field.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "report.font",
+    "aliases": [],
+    "type": "string",
+    "description": "report.font has no Enterprise Manager field.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "report.log.count",
+    "aliases": [],
+    "type": "int",
+    "description": "report.log.count is the BackUp Log File Count field (Enterprise Manager's catalog resolves the label to Number of backup log files) on Enterprise Manager's Settings > Logging page \u2014 how many rolled-over copies of the server log file StyleBI keeps once the active file reaches report.log.max, defaulting to 2.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "report.log.max",
+    "aliases": [],
+    "type": "int",
+    "description": "report.log.max is the Max Log File Size field (Enterprise Manager's catalog resolves the label to Maximum log file size) on Enterprise Manager's Settings > Logging page \u2014 the size, in kilobytes, at which StyleBI rolls the server log file over to a new one, defaulting to 10240 (10 MB).",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "report.output.maxpages",
+    "aliases": [],
+    "type": "int",
+    "description": "report.output.maxpages has no Enterprise Manager field.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "report.stringwidth.fontmetrics",
+    "aliases": [],
+    "type": "boolean",
+    "description": "report.stringwidth.fontmetrics has no Enterprise Manager field.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "reportcache.thread.count",
+    "aliases": [],
+    "type": "int",
+    "description": "reportcache.thread.count has no Enterprise Manager field.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "repository.asset.backup.time",
+    "aliases": [],
+    "type": "string",
+    "description": "repository.asset.backup.time has no Enterprise Manager field: it is the time of day the built-in __asset file backup__ scheduled task is first given, the task the Schedule Backup button in the Data Space section of Settings > General opens.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "repository.tree.sort",
+    "aliases": [],
+    "type": "enum",
+    "allowedValues": [
+      "Ascending",
+      "Descending",
+      "none"
+    ],
+    "description": "repository.tree.sort is the Sort Repository Tree dropdown in the Look & Feel section of Enterprise Manager's Settings > Presentation page \u2014 whether repository and asset trees are ordered A-to-Z or Z-to-A.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "repository.tree.sort.pathonly",
+    "aliases": [],
+    "type": "boolean",
+    "description": "repository.tree.sort.pathonly has no Enterprise Manager field: it makes the portal's repository and asset trees sort by each entry's stored name rather than by the alias shown on it.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "repository.tree.sorter",
+    "aliases": [],
+    "type": "string",
+    "description": "repository.tree.sorter has no Enterprise Manager field: it is the fully qualified name of a java.util.Comparator class that replaces the ordering of the portal's Repository tree.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "rest.query.timeout.minutes",
+    "aliases": [],
+    "type": "int",
+    "description": "rest.query.timeout.minutes is how many minutes a REST connector waits for an HTTP response before giving up, declared as 30 in defaults.properties, with no Enterprise Manager control.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "rest.sample.rows",
+    "aliases": [],
+    "type": "int",
+    "description": "rest.sample.rows is the ceiling on how many rows of a connector's data StyleBI is allowed to sample when a query asks for a row-count-limited sample, and it defaults to 20.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "rmi.localhost.ip",
+    "aliases": [],
+    "type": "boolean",
+    "description": "rmi.localhost.ip declares a default of false in defaults.properties, so Tool.getRmiIP advertises this server's real network IP address by default.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "same.site",
+    "aliases": [],
+    "type": "string",
+    "description": "same.site has no defaults.properties entry; all four readers fall back to \"Lax\" when it is unset.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "schedule.auto.down",
+    "aliases": [],
+    "type": "boolean",
+    "description": "schedule.auto.down has no Enterprise Manager field: it decides whether StyleBI stops the scheduler when the server itself shuts down.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "schedule.auto.start",
+    "aliases": [],
+    "type": "boolean",
+    "description": "schedule.auto.start has no Enterprise Manager field: it decides whether StyleBI starts the scheduler itself, as a local subprocess, when the server starts.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "schedule.condition.taskdefaulttime",
+    "aliases": [],
+    "type": "boolean",
+    "description": "schedule.condition.taskdefaulttime has no Enterprise Manager field: it decides whether the Start Time on a new scheduled task or data cycle is pre-filled with a default, or left empty so the user must enter one.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "schedule.java.opts",
+    "aliases": [],
+    "type": "string",
+    "description": "schedule.java.opts has no Enterprise Manager field: it is the extra Java command-line options StyleBI passes to the scheduler JVM, declared as an empty value in defaults.properties.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "schedule.log.file",
+    "aliases": [],
+    "type": "string",
+    "description": "schedule.log.file is the path of the scheduler's log file, shown as Scheduler Log File on Settings > Schedule > Settings and declared as $(sree.home)/schedule.log in defaults.properties.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "schedule.mail.service",
+    "aliases": [],
+    "type": "string",
+    "description": "schedule.mail.service has no Enterprise Manager field: it is the fully qualified name of a class that replaces StyleBI's built-in delivery of scheduled-task emails.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "schedule.show.tasks.as.list",
+    "aliases": [],
+    "type": "boolean",
+    "description": "schedule.show.tasks.as.list is the installation-wide default for whether scheduled tasks are listed flat or shown in the folder tree, on Enterprise Manager's Settings > Schedule > Tasks page and on the portal's Schedule tab.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "schedule.task.listener",
+    "aliases": [],
+    "type": "string",
+    "description": "schedule.task.listener has no Enterprise Manager field: it is the fully qualified name of a class the scheduler instantiates and notifies at the start and end of every scheduled task.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "schedule.task.timeout",
+    "aliases": [],
+    "type": "int",
+    "description": "schedule.task.timeout has no Enterprise Manager field: it is the maximum time in milliseconds a scheduled task, or a materialized-view creation, may run before the scheduler cancels it.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "schedule.time.12hours",
+    "aliases": [],
+    "type": "boolean",
+    "description": "schedule.time.12hours is the Schedule Time 12 Hours checkbox under Time Settings on Enterprise Manager's Presentation settings page \u2014 whether scheduled-task times are shown and entered on a 12-hour clock rather than a 24-hour one \u2014 declared false in defaults.properties.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "schedule.time.ranges",
+    "aliases": [],
+    "type": "string",
+    "description": "schedule.time.ranges is the Time Ranges card on Enterprise Manager's Settings > Schedule > Settings page \u2014 the named windows a scheduled task may be assigned to instead of a fixed start time \u2014 declared in defaults.properties as Morning 06:00\u201312:00, Afternoon 12:00\u201318:00 and Overnight 18:00\u201306:00, the last marked default.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "scheduler.restart.auto",
+    "aliases": [],
+    "type": "boolean",
+    "description": "scheduler.restart.auto has no Enterprise Manager field: it decides whether startServer kills and relaunches an already-running local scheduler subprocess instead of leaving it alone, declared as true in defaults.properties.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "scheduletask.thread.count",
+    "aliases": [],
+    "type": "int",
+    "description": "scheduletask.thread.count has no declared default; unset, ScheduleTask.getThreadPool falls back to twice the licensed CPU count times three (licenseManager.getAvailableCpuCount()  3  2).",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "script.cursor.top",
+    "aliases": [],
+    "type": "boolean",
+    "description": "script.cursor.top has no Enterprise Manager field: it decides where the text cursor sits when an author opens StyleBI's script-editor pane \u2014 at the very start of the script when true, and at the end of the existing script text when false, which is the defaults.properties value.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "script.execution.timeout",
+    "aliases": [],
+    "type": "int",
+    "description": "script.execution.timeout has no Enterprise Manager field: it is the number of seconds a single script execution may run in the Graal JavaScript engine before it is interrupted, and defaults.properties declares it as 600 \u2014 ten minutes.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "script.max.errors",
+    "aliases": [],
+    "type": "int",
+    "description": "script.max.errors has no Enterprise Manager field: it caps how many times the same thing may fail before StyleBI stops retrying it.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "enable.changepassword",
+    "aliases": [],
+    "type": "boolean",
+    "description": "enable.changepassword decides whether users may change their own password, and defaults to true.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "login.loginas",
+    "aliases": [],
+    "type": "string",
+    "description": "login.loginas turns on login-as: the ability for an authorised user to authenticate with their own credentials and be logged in as somebody else.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "secure.cookie",
+    "aliases": [],
+    "type": "boolean",
+    "description": "secure.cookie marks StyleBI's cookies Secure, so a browser sends them only over HTTPS.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "security.allow.iframe",
+    "aliases": [],
+    "type": "boolean",
+    "description": "security.allow.iframe allows StyleBI pages to be embedded in an IFrame on another site, and defaults to false per its security.allow.iframe entry in defaults.properties.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "security.cache",
+    "aliases": [],
+    "type": "boolean",
+    "description": "security.cache controls the authentication provider's identity cache and defaults to true per its security.cache entry in defaults.properties.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "security.datasource.everyone",
+    "aliases": [],
+    "type": "boolean",
+    "description": "security.datasource.everyone decides whether data sources, data model and query folders, queries and cubes with no explicit grant are readable by everyone, and falls back to true when unset.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "security.enablecontenttypeoptions",
+    "aliases": [],
+    "type": "boolean",
+    "description": "security.enablecontenttypeoptions has no Enterprise Manager field: it decides whether StyleBI adds the X-Content-Type-Options: nosniff header to every HTTP response, and it is false unless set, so the header is absent on a stock install.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "security.enabled",
+    "aliases": [],
+    "type": "boolean",
+    "description": "security.enabled decides whether StyleBI authenticates and authorises anyone at all, and is unset by default, which counts as off.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "security.enablexssprotection",
+    "aliases": [],
+    "type": "boolean",
+    "description": "security.enablexssprotection has no Enterprise Manager field: it decides whether StyleBI adds the X-XSS-Protection: 1 header to every HTTP response, and it is false unless set, so the header is absent on a stock install.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "security.googlesignin.enabled",
+    "aliases": [],
+    "type": "boolean",
+    "description": "security.googlesignin.enabled turns on the Sign In With Google button and the OpenID SSO filter behind it, and defaults to true per its entry in defaults.properties.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "security.login.orglocation",
+    "aliases": [],
+    "type": "enum",
+    "allowedValues": [
+      "domain",
+      "path"
+    ],
+    "description": "security.login.orglocation says where in a request StyleBI looks for the organization being signed in to \u2014 the host name or the URL path \u2014 and falls back to domain when unset.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "security.provider",
+    "aliases": [],
+    "type": "string",
+    "description": "security.provider is a legacy flag telling older code paths that security is configured, and defaults to the empty string per its entry in defaults.properties.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "security.robotstag",
+    "aliases": [],
+    "type": "string",
+    "description": "security.robotstag has no Enterprise Manager field: it is the value StyleBI sends in the X-Robots-Tag header on every HTTP response, and unlike its two siblings it is on by default \u2014 noindex, nofollow, which asks search engines not to index the application.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "security.scheduletask.everyone",
+    "aliases": [],
+    "type": "boolean",
+    "description": "security.scheduletask.everyone decides whether a schedule task folder with no explicit permission grant is readable by everyone, and falls back to true when unset.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "security.script.everyone",
+    "aliases": [],
+    "type": "boolean",
+    "description": "security.script.everyone decides whether script functions and the script library with no explicit grant are readable by everyone, and falls back to true when unset.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "security.selfsignup.enabled",
+    "aliases": [],
+    "type": "boolean",
+    "description": "security.selfsignup.enabled lets a visitor who is not already a StyleBI user create an account, and defaults to false per its security.selfsignup.enabled entry in defaults.properties.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "security.tablestyle.everyone",
+    "aliases": [],
+    "type": "boolean",
+    "description": "security.tablestyle.everyone decides whether table styles and the table style library with no explicit grant are readable by everyone, and falls back to true when unset.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "security.user.casesensitive",
+    "aliases": [],
+    "type": "boolean",
+    "description": "security.user.casesensitive decides whether the database security provider matches user names and organization IDs case-sensitively, and falls back to true when it is unset.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "security.users.multitenant",
+    "aliases": [],
+    "type": "boolean",
+    "description": "security.users.multitenant makes the server host several organizations, not one, and falls back to false when unset.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "selectionlist.maxrow",
+    "aliases": [],
+    "type": "int",
+    "description": "selectionlist.maxrow declares a default of 50000 in defaults.properties.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "server.type",
+    "aliases": [],
+    "type": "string",
+    "description": "server.type identifies the deployment mode of the current StyleBI server node, and every subsystem that reads it checks specifically for the value server_cluster; it is empty by default.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "share.email.enabled",
+    "aliases": [],
+    "type": "boolean",
+    "description": "share.email.enabled is the Enable sharing in email checkbox in the Social Sharing section of Enterprise Manager's Settings > Presentation page \u2014 it decides whether a user may mail a link to a dashboard from the share menu.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "share.facebook.enabled",
+    "aliases": [],
+    "type": "boolean",
+    "description": "share.facebook.enabled is the Enable sharing with Facebook checkbox in the Social Sharing section of Enterprise Manager's Settings > Presentation page \u2014 it decides whether the Facebook entry of a dashboard's share menu can be used.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "share.googlechat.enabled",
+    "aliases": [],
+    "type": "boolean",
+    "description": "share.googlechat.enabled is the Enable sharing in Google Hangouts Chat room checkbox in the Social Sharing section of Enterprise Manager's Settings > Presentation page \u2014 it decides whether a user may post a link to a dashboard into a Google Chat room from the share menu.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "share.link.enabled",
+    "aliases": [],
+    "type": "boolean",
+    "description": "share.link.enabled is the Enable copying link for embedding checkbox in the Social Sharing section of Enterprise Manager's Settings > Presentation page \u2014 it decides whether the Copy Link entry of a dashboard's share menu can be used, which opens a dialog offering the dashboard's URL and an HTML snippet for embedding it in a page.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "share.linkedin.enabled",
+    "aliases": [],
+    "type": "boolean",
+    "description": "share.linkedin.enabled is the Enable sharing with LinkedIn checkbox in the Social Sharing section of Enterprise Manager's Settings > Presentation page \u2014 it decides whether the LinkedIn entry of a dashboard's share menu can be used.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "share.opengraph.description",
+    "aliases": [],
+    "type": "string",
+    "description": "share.opengraph.description is the Open Graph Description field in the Social Sharing section of Enterprise Manager's Settings > Presentation page \u2014 the fallback og:description meta tag StyleBI puts in the portal page's <head>, which is the summary line a social network shows under the headline when someone posts a dashboard link.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "share.opengraph.image",
+    "aliases": [],
+    "type": "string",
+    "description": "share.opengraph.image is the Open Graph Image URL field in the Social Sharing section of Enterprise Manager's Settings > Presentation page \u2014 the og:image meta tag StyleBI puts in the portal page's <head>, which is the thumbnail a social network shows on the preview when someone posts a dashboard link.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "share.opengraph.sitename",
+    "aliases": [],
+    "type": "string",
+    "description": "share.opengraph.sitename is the Open Graph Site Name field in the Social Sharing section of Enterprise Manager's Settings > Presentation page \u2014 the og:site_name meta tag StyleBI puts in the portal page's <head>, which is the site name a social network shows above the preview when someone posts a dashboard link.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "share.opengraph.title",
+    "aliases": [],
+    "type": "string",
+    "description": "share.opengraph.title is the Open Graph Title field in the Social Sharing section of Enterprise Manager's Settings > Presentation page \u2014 the fallback og:title meta tag StyleBI puts in the portal page's <head>, which is the headline a social network shows on the preview when someone posts a dashboard link.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "share.slack.enabled",
+    "aliases": [],
+    "type": "boolean",
+    "description": "share.slack.enabled is the Enable sharing in Slack channel checkbox in the Social Sharing section of Enterprise Manager's Settings > Presentation page \u2014 it decides whether a user may post a link to a dashboard into a Slack channel from the share menu.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "share.twitter.enabled",
+    "aliases": [],
+    "type": "boolean",
+    "description": "share.twitter.enabled is the Enabled sharing with Twitter checkbox in the Social Sharing section of Enterprise Manager's Settings > Presentation page \u2014 it decides whether the Twitter entry of a dashboard's share menu can be used.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "show.license.exception",
+    "aliases": [],
+    "type": "boolean",
+    "description": "show.license.exception has no declared default; unset, LicenseException suppresses its own stack trace everywhere it would normally be printed.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "selfsignuppost.header",
+    "aliases": [],
+    "type": "string",
+    "description": "selfsignuppost.header is the name of an extra HTTP header StyleBI adds when posting a record of a newly self-registered user to selfsignuppost.url, carrying selfsignuppost.secretkey as its value.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "selfsignuppost.url",
+    "aliases": [],
+    "type": "string",
+    "description": "selfsignuppost.url is the endpoint StyleBI posts a record of each newly self-registered user to, and has no declared default.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "selfsignuppost.username",
+    "aliases": [],
+    "type": "string",
+    "description": "selfsignuppost.username is the user name StyleBI presents in HTTP Basic authentication when posting a record of a newly self-registered user to selfsignuppost.url, and has no declared default.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "signup.mail.from.address",
+    "aliases": [],
+    "type": "string",
+    "description": "signup.mail.from.address is the From address on the verification-code email StyleBI sends to a visitor signing themselves up, and has no declared default.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "signup.mail.message",
+    "aliases": [],
+    "type": "string",
+    "description": "signup.mail.message is the body of the verification-code email StyleBI sends to a visitor signing themselves up, and has no Enterprise Manager control.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "signup.mail.subject",
+    "aliases": [],
+    "type": "string",
+    "description": "signup.mail.subject is the Subject line of the verification-code email StyleBI sends to a visitor signing themselves up, and defaults to Your Inetsoft StyleBI verification code.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "single.preview.enabled",
+    "aliases": [],
+    "type": "boolean",
+    "description": "single.preview.enabled has no declared default; unset, a Composer worksheet may have more than one preview worksheet open against it at once.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "sort.crosstab.aggregate",
+    "aliases": [],
+    "type": "boolean",
+    "description": "sort.crosstab.aggregate sets whether a viewsheet crosstab's binding model reports its aggregate (measure) columns as sortable by header click, and it is false by default.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "sort.crosstab.dimension",
+    "aliases": [],
+    "type": "boolean",
+    "description": "sort.crosstab.dimension sets whether a viewsheet crosstab's binding model reports its dimension columns as sortable by header click, and it is true by default.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "sql.format",
+    "aliases": [],
+    "type": "boolean",
+    "description": "sql.format has no defaults.properties entry; SQLHelper falls back to \"true\" when it is unset, so generated SQL is pretty-printed across multiple lines by default.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "sree.bundle",
+    "aliases": [],
+    "type": "string",
+    "description": "sree.bundle has no Enterprise Manager field: it names the base resource bundle StyleBI's Catalog.REPORT catalog type loads its localized strings from, declared as SreeBundle in defaults.properties.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "sree.collator",
+    "aliases": [],
+    "type": "string",
+    "description": "sree.collator has no Enterprise Manager field: it names a java.text.Collator subclass to instantiate by reflection for string comparisons, declared as an empty string in defaults.properties.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "sreebundle",
+    "aliases": [],
+    "type": "string",
+    "description": "sreebundle has no defaults.properties entry, but its own accessor call supplies its name back as its default, so it effectively defaults to the literal string \"SreeBundle\" \u2014 the name of StyleBI's own base resource bundle (Catalog.DEFAULT_BUNDLE).",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "sro.debug.max",
+    "aliases": [],
+    "type": "int",
+    "description": "sro.debug.max has no declared default; unset, or set to an empty string, a legacy report's Table element displays every row of the TableLens it is bound to.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "string.compare.casesensitive",
+    "aliases": [],
+    "type": "boolean",
+    "description": "string.compare.casesensitive declares a default of false in defaults.properties, so string values are compared case-insensitively unless changed, taking effect on the very next comparison.",
+    "risk": "high",
+    "snapshotScope": "value"
+  },
+  {
+    "name": "stylereport.chart.painter",
+    "aliases": [],
+    "type": "string",
+    "description": "stylereport.chart.painter names a custom ChartPainter implementation class to use when rendering a legacy StyleReport-format chart element, and it has no declared default.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "stylereport.locale.resource",
+    "aliases": [],
+    "type": "string",
+    "description": "stylereport.locale.resource names the base resource bundle StyleBI's built-in StyleReport catalog loads its translated text from, and it is inetsoft/util/srinter by default.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "swappable.alive.period",
+    "aliases": [],
+    "type": "int",
+    "description": "swappable.alive.period has no Enterprise Manager field.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "swapper.count",
+    "aliases": [],
+    "type": "int",
+    "description": "swapper.count has no Enterprise Manager field.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "table.cachedcell.threshold",
+    "aliases": [],
+    "type": "int",
+    "description": "table.cachedcell.threshold has no Enterprise Manager field: it bounds the size of a per-table cache TablePaintable keeps while laying out wrapped cell text for print and PDF output, clearing the cache once it grows past the threshold.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "table.export.cell.threshold.forcetocsv",
+    "aliases": [],
+    "type": "int",
+    "description": "table.export.cell.threshold.forcetocsv has no Enterprise Manager field: it forces the Export Data action on a viewsheet table, or a worksheet table export, to CSV once the table's cell count \u2014 rows times columns \u2014 exceeds the configured number.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "table.export.format",
+    "aliases": [],
+    "type": "string",
+    "description": "table.export.format has no Enterprise Manager field: it forces the Export Data action on a viewsheet table, or a worksheet table export, to produce a CSV file instead of an Excel workbook.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "table.export.hiddencolumns",
+    "aliases": [],
+    "type": "boolean",
+    "description": "table.export.hiddencolumns has no Enterprise Manager field: it decides whether the Export Data action on a viewsheet table includes columns the table has hidden by width.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "table.mergedcell.repeat",
+    "aliases": [],
+    "type": "boolean",
+    "description": "table.mergedcell.repeat has no Enterprise Manager field: it decides whether a merged (spanned) table cell's content repeats at the top of every page it spans, when a report or print/PDF output paginates a table.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "table.output.maxcol",
+    "aliases": [],
+    "type": "int",
+    "description": "table.output.maxcol has no Enterprise Manager field: it caps how many columns of a viewsheet table are rendered in the web viewer and in PDF/SVG/print-layout export, clamped between 1 and 500.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "table.output.maxrow",
+    "aliases": [],
+    "type": "int",
+    "description": "table.output.maxrow is the Table Maximum Row Count field in the Performance section of Enterprise Manager's Settings > General page.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "text.encoding.export",
+    "aliases": [],
+    "type": "string",
+    "description": "text.encoding.export names the character encoding StyleBI writes a CSV export in \u2014 unset by default, in which case its sibling text.encoding.utf8 decides the effective encoding instead.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "text.encoding.utf8",
+    "aliases": [],
+    "type": "boolean",
+    "description": "text.encoding.utf8 picks the fallback character encoding for a CSV export when text.encoding.export itself is not set \u2014 true by default, so a CSV export encodes as UTF-8 unless either property says otherwise.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "text.wordwrap.122",
+    "aliases": [],
+    "type": "boolean",
+    "description": "text.wordwrap.122 \u2014 named after the issue it was added for, not a byte or character count \u2014 turns on a breakAll flag when building a Text viewsheet assembly's model, unset (off) by default.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "textbox.shadow.width",
+    "aliases": [],
+    "type": "int",
+    "description": "textbox.shadow.width has no defaults.properties entry; TextPainter's hardcoded field default of 4 applies when it is unset.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "ucc128.application.identifier",
+    "aliases": [],
+    "type": "string",
+    "description": "ucc128.application.identifier declares a default of \"report\" in defaults.properties.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "user.name",
+    "aliases": [],
+    "type": "string",
+    "description": "user.name is a StyleBI property store key \u2014 distinct from the identically-named JVM system property \u2014 read only by PDF3PrinterJob.getUserName, the print-job requestor name StyleBI reports through the standard java.awt.print.PrinterJob API when a report is rendered via that job.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "viewer.locale",
+    "aliases": [],
+    "type": "string",
+    "description": "viewer.locale declares an empty default in defaults.properties, so an empty or unset value falls through to the JVM's own default locale.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "viewsheet.chart.adhoc",
+    "aliases": [],
+    "type": "boolean",
+    "description": "viewsheet.chart.adhoc sets the initial state of Enable Ad Hoc Editing on the Advanced tab of a dashboard chart's property dialog.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "viewsheet.font.size",
+    "aliases": [],
+    "type": "string",
+    "description": "viewsheet.font.size sets the default font size dashboard assemblies are created with, either as an absolute point size or as a relative adjustment.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "viewsheet.hyperlink.singleclick",
+    "aliases": [],
+    "type": "boolean",
+    "description": "viewsheet.hyperlink.singleclick makes a click on a table, crosstab or Freehand Table cell that has exactly one hyperlink follow that link straight away, instead of opening the one-item menu that would otherwise list it.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "viewsheet.maxrows.warning.text",
+    "aliases": [],
+    "type": "boolean",
+    "description": "viewsheet.maxrows.warning.text supplies the Max Rows Warning checkbox on a dashboard's options pane for stored dashboards that do not carry that setting themselves.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "viewsheet.user.instance.limit",
+    "aliases": [],
+    "type": "int",
+    "description": "viewsheet.user.instance.limit caps how many dashboards one login session may have open at once.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "viewsheet.viewer.advancedfeatures",
+    "aliases": [],
+    "type": "boolean",
+    "description": "viewsheet.viewer.advancedfeatures puts the Conditions\u2026 and Highlight\u2026 actions on dashboard assemblies in the viewer, where they are otherwise absent.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "viewsheet.virtual.scroll",
+    "aliases": [],
+    "type": "boolean",
+    "description": "viewsheet.virtual.scroll makes the viewer render a dashboard assembly only once it has been scrolled into view, rather than rendering all of them up front.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "vs.annotation.cleanup.interval",
+    "aliases": [],
+    "type": "int",
+    "description": "vs.annotation.cleanup.interval is how many days an annotation survives, since it was last carried forward, before StyleBI drops it from its dashboard's saved state.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "vs.auto.refresh.enabled",
+    "aliases": [],
+    "type": "boolean",
+    "description": "vs.auto.refresh.enabled decides whether the Server-Side Update checkbox in the composer's Viewsheet Property dialog can be operated at all.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "vs.bookmark.button",
+    "aliases": [],
+    "type": "boolean",
+    "description": "vs.bookmark.button is the Bookmark checkbox in the Dashboard Toolbar Options section of Enterprise Manager's Settings > Presentation page.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "vs.close.button",
+    "aliases": [],
+    "type": "boolean",
+    "description": "vs.close.button is the Close checkbox in the Dashboard Toolbar Options section of Enterprise Manager's Settings > Presentation page.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "vs.crosstab.keepspan",
+    "aliases": [],
+    "type": "boolean",
+    "description": "vs.crosstab.keepspan keeps the merged header cells of a crosstab intact when the crosstab is sorted.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "vs.crosstab.sortonheader",
+    "aliases": [],
+    "type": "boolean",
+    "description": "vs.crosstab.sortonheader puts sorting controls on a crosstab's header cells in the viewer.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "vs.edit.button",
+    "aliases": [],
+    "type": "boolean",
+    "description": "vs.edit.button is the Edit checkbox in the Dashboard Toolbar Options section of Enterprise Manager's Settings > Presentation page.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "vs.email.button",
+    "aliases": [],
+    "type": "boolean",
+    "description": "vs.email.button is the Email checkbox in the Dashboard Toolbar Options section of Enterprise Manager's Settings > Presentation page.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "vs.export.button",
+    "aliases": [],
+    "type": "boolean",
+    "description": "vs.export.button is the Export checkbox in the Dashboard Toolbar Options section of Enterprise Manager's Settings > Presentation page.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "vs.font.asdefault",
+    "aliases": [],
+    "type": "boolean",
+    "description": "vs.font.asdefault makes a table use the dashboard's default font in place of the font its table style supplies.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "vs.form.enabled",
+    "aliases": [],
+    "type": "boolean",
+    "description": "vs.form.enabled switches off form tables and everything that depends on them.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "vs.fullscreen.button",
+    "aliases": [],
+    "type": "boolean",
+    "description": "vs.fullscreen.button is the Full Screen checkbox in the Dashboard Toolbar Options section of Enterprise Manager's Settings > Presentation page.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "vs.import.button",
+    "aliases": [],
+    "type": "boolean",
+    "description": "vs.import.button is the Import checkbox in the Dashboard Toolbar Options section of Enterprise Manager's Settings > Presentation page.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "vs.next.button",
+    "aliases": [],
+    "type": "boolean",
+    "description": "vs.next.button is the Redo checkbox in the Dashboard Toolbar Options section of Enterprise Manager's Settings > Presentation page.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "vs.previous.button",
+    "aliases": [],
+    "type": "boolean",
+    "description": "vs.previous.button is the Undo checkbox in the Dashboard Toolbar Options section of Enterprise Manager's Settings > Presentation page.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "vs.print.button",
+    "aliases": [],
+    "type": "boolean",
+    "description": "vs.print.button is the Print checkbox in the Dashboard Toolbar Options section of Enterprise Manager's Settings > Presentation page.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "vs.refresh.button",
+    "aliases": [],
+    "type": "boolean",
+    "description": "vs.refresh.button is the Refresh checkbox in the Dashboard Toolbar Options section of Enterprise Manager's Settings > Presentation page.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "vs.schedule.button",
+    "aliases": [],
+    "type": "boolean",
+    "description": "vs.schedule.button is the Schedule checkbox in the Dashboard Toolbar Options section of Enterprise Manager's Settings > Presentation page.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "vs.share.button",
+    "aliases": [],
+    "type": "boolean",
+    "description": "vs.share.button is the Social Sharing checkbox in the Dashboard Toolbar Options section of Enterprise Manager's Settings > Presentation page.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "vs.zoom",
+    "aliases": [],
+    "type": "boolean",
+    "description": "vs.zoom is the Zoom checkbox in the Dashboard Toolbar Options section of Enterprise Manager's Settings > Presentation page.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "wallboarding.enabled",
+    "aliases": [],
+    "type": "boolean",
+    "description": "wallboarding.enabled has no declared default; unset, a viewsheet session times out normally after its usual inactivity period even when auto-refresh is on.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "warning.position.onheader",
+    "aliases": [],
+    "type": "boolean",
+    "description": "warning.position.onheader has no declared default; unset, a legacy report's rendering-warning indicator (for example, an element that overflowed its space) is placed near the bottom of the printed page.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "weblogic.cp.host",
+    "aliases": [],
+    "type": "string",
+    "description": "weblogic.cp.host has no Enterprise Manager field: it is the host name or IP address of the WebLogic server whose JNDI tree StyleBI looks JDBC data sources up in, defaulting to localhost.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "weblogic.cp.port",
+    "aliases": [],
+    "type": "int",
+    "description": "weblogic.cp.port has no Enterprise Manager field: it is the port of the WebLogic server whose JNDI tree StyleBI looks JDBC data sources up in, defaulting to 7001, WebLogic's own default listen port.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "webmap.default",
+    "aliases": [],
+    "type": "boolean",
+    "description": "webmap.default is the Use Web Map By Default checkbox in the Web Map section of Enterprise Manager's Settings > Presentation page, and it has no declared default, which PlotDescriptor's field initialiser treats as false: a chart's own webMap field starts false unless the property is exactly \"true\" at the moment that chart's PlotDescriptor is constructed.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "webmap.service",
+    "aliases": [],
+    "type": "enum",
+    "allowedValues": [
+      "mapbox",
+      "googlemaps"
+    ],
+    "description": "webmap.service is the Web Map Service toggle in the Web Map section of Enterprise Manager's Settings > Presentation page, choosing which tile-image provider StyleBI uses to render a chart as a real geographic web map: mapbox or googlemaps (the EM control's third option, None, is not a stored value \u2014 it is simply an unset property).",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "webmap.suspend.until",
+    "aliases": [],
+    "type": "int",
+    "description": "webmap.suspend.until is an epoch-millisecond timestamp StyleBI itself sets to temporarily disable web-map rendering after a Mapbox or Google Maps quota error, and it has no declared default and no Enterprise Manager field \u2014 it is not an operator setting.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "week.start",
+    "aliases": [],
+    "type": "enum",
+    "allowedValues": [
+      "sunday",
+      "monday",
+      "tuesday",
+      "wednesday",
+      "thursday",
+      "friday",
+      "saturday"
+    ],
+    "description": "week.start declares an empty default in defaults.properties, so which day a week starts on falls back to the current locale's own convention until an operator sets it.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "wiz.agent.pairing.enabled",
+    "aliases": [],
+    "type": "boolean",
+    "description": "wiz.agent.pairing.enabled is the off-by-default gate on the wiz sheet-agent pairing capability \u2014 the mechanism by which an agent joins a live editing session on a sheet.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "wiz.agent.script.require.script.pane",
+    "aliases": [],
+    "type": "boolean",
+    "description": "wiz.agent.script.require.script.pane tightens how narrowly a wiz agent session must be paired before it may act on a script.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "wiz.auth.enabled",
+    "aliases": [],
+    "type": "boolean",
+    "description": "wiz.auth.enabled decides whether WizServiceAuthenticationFilter validates the JWT bearer token that the wiz service presents.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "wiz.service.url",
+    "aliases": [],
+    "type": "string",
+    "description": "wiz.service.url is the address of the wiz service.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "ws.export.page.max.cell",
+    "aliases": [],
+    "type": "int",
+    "description": "ws.export.page.max.cell caps how many cells a single Excel sheet gets when exporting a worksheet to Excel, and it is 500000 by default.",
+    "risk": "high",
+    "snapshotScope": "storage"
+  },
+  {
+    "name": "ws.mv.enabled",
+    "aliases": [],
+    "type": "boolean",
+    "description": "ws.mv.enabled decides whether worksheets are eligible for materialized-view (MV) creation and analysis at all, and it is off by default.",
+    "risk": "high",
+    "snapshotScope": "storage"
   }
 ]

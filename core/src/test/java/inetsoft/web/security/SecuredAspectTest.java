@@ -93,7 +93,7 @@ class SecuredAspectTest {
       when(signature.getMethod()).thenReturn(method);
       ProceedingJoinPoint joinPoint = mock(ProceedingJoinPoint.class);
       when(joinPoint.getSignature()).thenReturn(signature);
-      when(joinPoint.getArgs()).thenReturn(new Object[] { user });
+      lenient().when(joinPoint.getArgs()).thenReturn(new Object[] { user });
       return joinPoint;
    }
 
@@ -124,6 +124,65 @@ class SecuredAspectTest {
          eq("secured-resource"), eq(ResourceAction.READ))).thenReturn(true);
       Principal user = () -> "alice";
       ProceedingJoinPoint joinPoint = joinPointFor("securedMethod", user);
+
+      assertDoesNotThrow(() -> aspect.authorize(joinPoint));
+      verify(joinPoint).proceed();
+   }
+
+   // ── Bug #77270: no thread-bound request (e.g. a @ClusterProxyMethod run on a remote node) ──
+
+   @Test
+   void noRequestBound_permissionUserAllowed_proceeds() throws Throwable {
+      RequestContextHolder.resetRequestAttributes();
+      Principal user = () -> "alice";
+      when(repletRepository.checkPermission(same(user), eq(ResourceType.REPORT),
+         eq("secured-resource"), eq(ResourceAction.READ))).thenReturn(true);
+      ProceedingJoinPoint joinPoint = joinPointFor("securedMethod", user);
+
+      assertDoesNotThrow(() -> aspect.authorize(joinPoint),
+         "with no request bound the @PermissionUser principal must be checked instead of " +
+            "failing with IllegalStateException: No thread-bound request found");
+      verify(joinPoint).proceed();
+   }
+
+   @Test
+   void noRequestBound_permissionUserDenied_throwsSecurityException() throws Throwable {
+      RequestContextHolder.resetRequestAttributes();
+      Principal user = () -> "alice";
+      when(repletRepository.checkPermission(same(user), eq(ResourceType.REPORT),
+         eq("secured-resource"), eq(ResourceAction.READ))).thenReturn(false);
+      ProceedingJoinPoint joinPoint = joinPointFor("securedMethod", user);
+
+      java.lang.SecurityException thrown = assertThrows(java.lang.SecurityException.class,
+         () -> aspect.authorize(joinPoint));
+
+      assertTrue(thrown.getMessage().contains(SecuredFixture.class.getName() + ".securedMethod"),
+         "the method description replaces the request URI in the denial message: " +
+            thrown.getMessage());
+      verify(joinPoint, never()).proceed();
+   }
+
+   @Test
+   void noRequestBound_noPermissionUser_deniedWithNullUser() throws Throwable {
+      RequestContextHolder.resetRequestAttributes();
+      Principal user = () -> "alice";
+      ProceedingJoinPoint joinPoint = joinPointFor("unannotatedUserMethod", user);
+
+      assertThrows(java.lang.SecurityException.class, () -> aspect.authorize(joinPoint),
+         "with no request and no @PermissionUser there is no principal to check, so access " +
+            "must be denied through the normal path rather than an IllegalStateException");
+      verify(repletRepository).checkPermission(isNull(), eq(ResourceType.REPORT),
+         eq("secured-resource"), eq(ResourceAction.READ));
+      verify(joinPoint, never()).proceed();
+   }
+
+   @Test
+   void requestBound_noPermissionUser_usesRequestPrincipal() throws Throwable {
+      Principal requestUser = () -> "bob";
+      when(request.getUserPrincipal()).thenReturn(requestUser);
+      when(repletRepository.checkPermission(same(requestUser), eq(ResourceType.REPORT),
+         eq("secured-resource"), eq(ResourceAction.READ))).thenReturn(true);
+      ProceedingJoinPoint joinPoint = joinPointFor("unannotatedUserMethod", () -> "alice");
 
       assertDoesNotThrow(() -> aspect.authorize(joinPoint));
       verify(joinPoint).proceed();
@@ -160,6 +219,13 @@ class SecuredAspectTest {
             actions = ResourceAction.READ)
       })
       public void securedMethod(@PermissionUser Principal user) {
+      }
+
+      @Secured({
+         @RequiredPermission(resourceType = ResourceType.REPORT, resource = "secured-resource",
+            actions = ResourceAction.READ)
+      })
+      public void unannotatedUserMethod(Principal user) {
       }
    }
 }

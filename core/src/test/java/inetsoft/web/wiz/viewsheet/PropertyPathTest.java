@@ -18,6 +18,7 @@
 package inetsoft.web.wiz.viewsheet;
 
 import inetsoft.test.*;
+import inetsoft.uql.viewsheet.GradientColor;
 import inetsoft.web.composer.model.vs.DynamicValueModel;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -49,8 +50,12 @@ class PropertyPathTest {
       public void setTitle(String title) { this.title = title; }
       public int getMax() { return max; }
       public void setMax(int max) { this.max = max; }
+      public long getBigMax() { return bigMax; }
+      public void setBigMax(long bigMax) { this.bigMax = bigMax; }
       public double getRatio() { return ratio; }
       public void setRatio(double ratio) { this.ratio = ratio; }
+      public float getScale() { return scale; }
+      public void setScale(float scale) { this.scale = scale; }
       public Alignment getAlign() { return align; }
       public void setAlign(Alignment align) { this.align = align; }
       public String getReadOnly() { return "fixed"; }
@@ -58,7 +63,9 @@ class PropertyPathTest {
       private boolean visible;
       private String title;
       private int max;
+      private long bigMax;
       private double ratio;
+      private float scale;
       private Alignment align;
    }
 
@@ -447,12 +454,52 @@ class PropertyPathTest {
    }
 
    @Test
+   void acceptsAnIntegerStringOntoALongField() {
+      Root root = new Root();
+
+      PropertyPath.set(root, "middle.leaf.bigMax", "5000");
+
+      assertEquals(5000L, root.getMiddle().getLeaf().getBigMax());
+   }
+
+   @Test
+   void acceptsAnIntegralDoubleOntoALongField() {
+      Root root = new Root();
+
+      PropertyPath.set(root, "middle.leaf.bigMax", 5000.0);
+
+      assertEquals(5000L, root.getMiddle().getLeaf().getBigMax());
+   }
+
+   @Test
    void widensAnIntOntoADoubleField() {
       Root root = new Root();
 
       PropertyPath.set(root, "middle.leaf.ratio", 2);
 
       assertEquals(2.0, root.getMiddle().getLeaf().getRatio());
+   }
+
+   /**
+    * double/float targets are untouched by the whole-number guard -- they have no narrower
+    * range to clamp into and are meant to hold a fraction.
+    */
+   @Test
+   void acceptsAFractionalDoubleOntoADoubleField() {
+      Root root = new Root();
+
+      PropertyPath.set(root, "middle.leaf.ratio", 5000.7);
+
+      assertEquals(5000.7, root.getMiddle().getLeaf().getRatio());
+   }
+
+   @Test
+   void acceptsAFractionalValueOntoAFloatField() {
+      Root root = new Root();
+
+      PropertyPath.set(root, "middle.leaf.scale", "5000.7");
+
+      assertEquals(5000.7f, root.getMiddle().getLeaf().getScale());
    }
 
    @Test
@@ -483,6 +530,57 @@ class PropertyPathTest {
          () -> PropertyPath.set(new Root(), "middle.leaf.max", "lots"));
 
       assertTrue(thrown.getMessage().contains("lots"));
+   }
+
+   /**
+    * Regression for bug #77041: {@code maxRows: 5000.7} used to be silently truncated onto
+    * {@code 5000} with no error -- a plausible-looking number, reported as a success, that was
+    * not what the caller asked for.
+    */
+   @Test
+   void refusesANonIntegralDoubleOntoAnIntFieldRatherThanTruncating() {
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> PropertyPath.set(new Root(), "middle.leaf.max", 5000.7));
+
+      assertTrue(thrown.getMessage().contains("middle.leaf.max"));
+      assertTrue(thrown.getMessage().contains("5000.7"));
+      assertEquals(0, new Root().getMiddle().getLeaf().getMax());
+   }
+
+   @Test
+   void refusesANonIntegralNumericStringOntoAnIntField() {
+      assertThrows(
+         IllegalArgumentException.class,
+         () -> PropertyPath.set(new Root(), "middle.leaf.max", "5000.7"));
+   }
+
+   /**
+    * Regression for bug #77041: {@code 1e12} used to be silently clamped onto
+    * {@code Integer.MAX_VALUE} with no error -- again a plausible-looking number that was not
+    * what the caller asked for.
+    */
+   @Test
+   void refusesAnOutOfRangeDoubleOntoAnIntFieldRatherThanClamping() {
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> PropertyPath.set(new Root(), "middle.leaf.max", 1e12));
+
+      assertTrue(thrown.getMessage().contains("middle.leaf.max"));
+   }
+
+   @Test
+   void refusesANonIntegralDoubleOntoALongField() {
+      assertThrows(
+         IllegalArgumentException.class,
+         () -> PropertyPath.set(new Root(), "middle.leaf.bigMax", 5000.7));
+   }
+
+   @Test
+   void refusesAnOutOfRangeDoubleOntoALongField() {
+      assertThrows(
+         IllegalArgumentException.class,
+         () -> PropertyPath.set(new Root(), "middle.leaf.bigMax", 1e30));
    }
 
    @Test
@@ -809,6 +907,82 @@ class PropertyPathTest {
 
       assertTrue(thrown.getMessage().contains("dimensions[0]"), "name the offending index");
       assertTrue(thrown.getMessage().contains("VSDimensionModel"), "name the bean type");
+   }
+
+   // ── bug #76929: GradientColor is a named exception to the String-ctor gate ──
+   //
+   // GradientColor (Oval/Rectangle's Fill tab gradient) has no public String constructor, so it
+   // used to fall all the way through to the generic "expects GradientColor, which '...' is not"
+   // throw -- the same shape as VSDimensionModel above, but here the target is a plain,
+   // non-relational value object with nothing to resolve against a pane's own catalog, so it is
+   // now built directly by class identity rather than refused. This must not reopen
+   // aBeanArrayElementFromAJsonObjectIsRefusedNamingTheBeanTypeAndIndex above or
+   // aJsonObjectForABeanWithNoStringConstructorIsStillRefused below -- neither VSDimensionModel
+   // nor NoStringConstructor is GradientColor or GradientColor.ColorStop, so both stay refused.
+
+   public static class GradientColorHolder {
+      public GradientColor getGradientColor() { return gradientColor; }
+      public void setGradientColor(GradientColor gradientColor) {
+         this.gradientColor = gradientColor;
+      }
+
+      private GradientColor gradientColor;
+   }
+
+   @Test
+   void buildsAGradientColorFromAJsonObjectIncludingItsColorStopArray() {
+      GradientColorHolder target = new GradientColorHolder();
+
+      PropertyPath.set(target, "gradientColor", Map.of(
+         "apply", true,
+         "direction", "linear",
+         "angle", "90",
+         "colors", List.of(
+            Map.of("color", "#FF0000", "offset", "0"),
+            Map.of("color", "#FFFF00", "offset", "100"))));
+
+      GradientColor result = target.getGradientColor();
+      assertTrue(result.isApply());
+      assertEquals("linear", result.getDirection());
+      assertEquals(90, result.getAngle());
+      assertEquals(2, result.getColors().length);
+      assertEquals("#FF0000", result.getColors()[0].getColor());
+      assertEquals(0, result.getColors()[0].getOffset());
+      assertEquals("#FFFF00", result.getColors()[1].getColor());
+      assertEquals(100, result.getColors()[1].getOffset());
+   }
+
+   @Test
+   void aGradientColorRoundTripsThroughGetAndSet() {
+      GradientColorHolder target = new GradientColorHolder();
+
+      PropertyPath.set(target, "gradientColor",
+                       Map.of("apply", true, "colors", List.of(Map.of("color", "#000000",
+                                                                      "offset", "0"))));
+
+      Object readBack = PropertyPath.get(target, "gradientColor");
+      assertInstanceOf(GradientColor.class, readBack);
+      assertTrue(((GradientColor) readBack).isApply());
+   }
+
+   @Test
+   void anUnrecognizedKeyOnAGradientColorJsonObjectIsRefusedRatherThanSilentlyIgnored() {
+      GradientColorHolder target = new GradientColorHolder();
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> PropertyPath.set(target, "gradientColor", Map.of("bogus", "x")));
+
+      assertTrue(thrown.getMessage().contains("bogus"), "name the offending key");
+      assertTrue(thrown.getMessage().contains("GradientColor"), "name the bean type");
+   }
+
+   @Test
+   void aNonObjectValueForAGradientColorIsRefused() {
+      GradientColorHolder target = new GradientColorHolder();
+
+      assertThrows(IllegalArgumentException.class,
+                   () -> PropertyPath.set(target, "gradientColor", "not-an-object"));
    }
 
    // ── bug #76888: DynamicValueModel bean targets ────────────────────────────

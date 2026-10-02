@@ -34,6 +34,8 @@ import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -59,11 +61,11 @@ public class CalcFieldService {
    /**
     * The tables worth asking about.
     *
-    * <p>{@code Viewsheet.getCalcFields} answers per table and its backing map is private with no
-    * key accessor, so there is no supported way to ask which tables have calc fields. Every calc
-    * field belongs to a table something is bound to, so the bound assemblies are the honest source
-    * -- and it keeps this change inside the script package rather than reaching into
-    * {@code uql/viewsheet} for an accessor.
+    * <p>Calc fields are keyed by table, not by assembly, so a table can carry calc fields while
+    * only a Gauge/Text binds it, or while nothing binds it at all (e.g. one created through the
+    * agent's calc-field endpoint). Tables bound by data assemblies come first, in assembly order,
+    * followed by every other key of {@link Viewsheet#getCalcFieldSources()}, sorted, so the
+    * output is deterministic. Blank names are dropped: a blank table cannot form a script target.
     */
    public List<String> tablesWithCalcFields(Viewsheet vs) {
       if(vs == null) {
@@ -86,10 +88,17 @@ public class CalcFieldService {
          }
       }
 
+      // getCalcFieldSources() is a live view of a concurrent map, so copy it before sorting.
+      Collection<String> sources = vs.getCalcFieldSources();
+      List<String> rest = sources == null ? new ArrayList<>() : new ArrayList<>(sources);
+      rest.removeIf(table -> table == null || table.isBlank() || tables.contains(table));
+      Collections.sort(rest);
+      tables.addAll(rest);
+
       return tables;
    }
 
-   /** Every calc field on every bound table. */
+   /** Every calc field on the viewsheet, grouped by table in {@link #tablesWithCalcFields} order. */
    public List<Found> list(Viewsheet vs) {
       List<Found> found = new ArrayList<>();
 

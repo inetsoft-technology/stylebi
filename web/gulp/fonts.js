@@ -63,7 +63,7 @@ const generateSassVariables = function() {
 };
 
 gulp.task("fonts:stage", function() {
-   return gulp.src("node_modules/roboto-fontface/fonts/roboto/*")
+   return gulp.src("node_modules/roboto-fontface/fonts/roboto/*", {encoding: false})
       .pipe(gulp.dest("target/generated-resources/gulp/inetsoft/web/resources/app/assets/roboto"));
 });
 
@@ -106,13 +106,13 @@ gulp.task("fonts:generate:ttf", function() {
 });
 
 gulp.task("fonts:generate:eot", function() {
-   return gulp.src("projects/portal/src/assets/ineticons/fonts/*.ttf")
+   return gulp.src("projects/portal/src/assets/ineticons/fonts/*.ttf", {encoding: false})
       .pipe(ttf2eot())
       .pipe(gulp.dest("projects/portal/src/assets/ineticons/fonts"))
 });
 
 gulp.task("fonts:generate:woff", function() {
-   return gulp.src("projects/portal/src/assets/ineticons/fonts/*.ttf")
+   return gulp.src("projects/portal/src/assets/ineticons/fonts/*.ttf", {encoding: false})
       .pipe(ttf2woff())
       .pipe(gulp.dest("projects/portal/src/assets/ineticons/fonts"))
 });

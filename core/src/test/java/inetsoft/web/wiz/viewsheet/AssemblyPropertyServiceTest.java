@@ -19,10 +19,13 @@ package inetsoft.web.wiz.viewsheet;
 
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.test.*;
+import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.XConstants;
+import inetsoft.uql.asset.ColumnRef;
 import inetsoft.uql.asset.DefaultVariableAssembly;
 import inetsoft.uql.asset.EmbeddedTableAssembly;
 import inetsoft.uql.asset.Worksheet;
+import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.util.XEmbeddedTable;
 import inetsoft.uql.viewsheet.*;
@@ -41,6 +44,7 @@ import inetsoft.web.composer.model.vs.ImagePropertyDialogModel;
 import inetsoft.web.composer.model.vs.StaticImagePaneModel;
 import inetsoft.web.composer.model.vs.RadioButtonPropertyDialogModel;
 import inetsoft.web.composer.model.vs.RangeSliderPropertyDialogModel;
+import inetsoft.web.composer.model.vs.SelectionContainerPropertyDialogModel;
 import inetsoft.web.composer.model.vs.SelectionListPropertyDialogModel;
 import inetsoft.web.composer.model.vs.SelectionTreePropertyDialogModel;
 import inetsoft.web.composer.model.vs.TableViewPropertyDialogModel;
@@ -49,6 +53,7 @@ import inetsoft.web.composer.model.vs.TipCustomizeDialogModel;
 import inetsoft.web.composer.vs.dialog.*;
 import inetsoft.uql.viewsheet.internal.ImageVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.SelectionTreeVSAssemblyInfo;
+import inetsoft.web.viewsheet.service.VSOutputService;
 import org.mockito.ArgumentCaptor;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -232,6 +237,55 @@ class AssemblyPropertyServiceTest {
          Exception.class, () -> service.list("tok", principal(), "Annotation1"));
 
       assertTrue(thrown.getMessage().contains("gauge"), "name what is covered");
+   }
+
+   /**
+    * The Selection Container's class is CurrentSelectionVSAssembly, which strips to
+    * "currentselection" -- a key nothing registers. It must resolve to "selectioncontainer", the
+    * key PropertyAliases and the bindings use, or none of its aliases are reachable.
+    */
+   @Test
+   @SuppressWarnings("unchecked")
+   void resolvesACurrentSelectionAssemblyAsSelectionContainer() throws Exception {
+      SelectionContainerPropertyDialogModel model = new SelectionContainerPropertyDialogModel();
+      AssemblyPropertyService service =
+         serviceWith(mock(CurrentSelectionVSAssembly.class), model);
+
+      Map<String, Object> listed = service.list("tok", principal(), "SelectionContainer1");
+
+      assertEquals("selectioncontainer", listed.get("assemblyType"));
+      java.util.List<String> names =
+         ((java.util.List<Map<String, Object>>) listed.get("properties")).stream()
+            .map(p -> (String) p.get("name"))
+            .toList();
+      assertTrue(names.contains("showCurrentSelection"), "listed: " + names);
+      assertTrue(names.contains("adhocEnabled"), "listed: " + names);
+   }
+
+   @Test
+   @SuppressWarnings("unchecked")
+   void getsSelectionContainerValues() throws Exception {
+      SelectionContainerPropertyDialogModel model = new SelectionContainerPropertyDialogModel();
+      model.getSelectionContainerGeneralPaneModel().setShowCurrentSelection(true);
+      AssemblyPropertyService service =
+         serviceWith(mock(CurrentSelectionVSAssembly.class), model);
+
+      Map<String, Object> values =
+         (Map<String, Object>) service.get("tok", principal(), "SelectionContainer1", false);
+
+      assertEquals(true, values.get("showCurrentSelection"));
+      assertEquals(false, values.get("adhocEnabled"));
+   }
+
+   @Test
+   void setsASelectionContainerAlias() throws Exception {
+      SelectionContainerPropertyDialogModel model = new SelectionContainerPropertyDialogModel();
+      AssemblyPropertyService service =
+         serviceWith(mock(CurrentSelectionVSAssembly.class), model);
+
+      service.set("tok", principal(), "SelectionContainer1", Map.of("adhocEnabled", true), "");
+
+      assertTrue(model.getSelectionContainerGeneralPaneModel().isAdhocEnabled());
    }
 
    /** Image is covered now — the Immutables write path is what made it reachable. */
@@ -1601,6 +1655,26 @@ class AssemblyPropertyServiceTest {
       assertEquals(XConstants.SORT_SPECIFIC, model.getSelectionGeneralPaneModel().getSortType());
    }
 
+   /**
+    * Regression for bug #77041: {@code canonicalIntEnum} parses a numeric {@code sortType}
+    * before {@code PropertyPath.coerce} ever runs, so coerce's own whole-number guard never sees
+    * this path -- {@code sortType: 1.9} used to truncate to {@code 1} (an in-domain value,
+    * {@code XConstants.SORT_ASC}) and silently succeed. Demonstrated live against a real
+    * StyleBI build 2026-09-27 (docs/teams .../bug-77041/02-refute.md, finding P2-A) before this
+    * fix; must be refused the same as an out-of-domain or non-numeric sortType.
+    */
+   @Test
+   void refusesAFractionalSortTypeThatWouldTruncateOntoAnInDomainValue() {
+      SelectionListPropertyDialogModel model = new SelectionListPropertyDialogModel();
+      AssemblyPropertyService service =
+         serviceWithSelectionList(mock(SelectionListVSAssembly.class), model);
+
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> service.set("tok", principal(), "Selection1", Map.of("sortType", 1.9), ""));
+
+      assertTrue(thrown.getMessage().contains("1.9"));
+   }
+
    // ── rangeSliderAdvancedPaneModel.rangeSliderSizePaneModel.rangeType (bug #76936) ─────────
    //
    // rangeType is a closed int-enum too (TimeInfo.YEAR/MONTH/NUMBER/MEMBER/DAY/HOUR/MINUTE/
@@ -2220,6 +2294,76 @@ class AssemblyPropertyServiceTest {
                                            Map.of(GROUP_SELECTED_IMAGE_PATH, ""), ""));
    }
 
+   /**
+    * Bug #77028: switching a Gauge's {@code column} to one with a different real type must
+    * re-derive {@code dataOutputPaneModel.columnType} from that column's actual data type --
+    * mirroring what the native Composer's own {@code data-output-pane.component.ts} does
+    * client-side (see {@code AssemblyPropertyService.deriveColumnTypeFromRealColumn}'s own doc
+    * comment). Before this fix, the write left {@code columnType} at the OLD column's type
+    * (STRING here), which {@code GaugePropertyDialogService.setGaugePropertyDialogModel} would
+    * then persist verbatim into {@code ScalarBindingInfo.columnType}.
+    */
+   @Test
+   void rederivesColumnTypeWhenColumnChanges() throws Exception {
+      GaugePropertyDialogModel model = new GaugePropertyDialogModel();
+      model.getDataOutputPaneModel().setTable("Table1");
+      model.getDataOutputPaneModel().setColumn("OldStringCol");
+      model.getDataOutputPaneModel().setColumnType(XSchema.STRING);
+
+      GaugePropertyDialogService gaugeService = mock(GaugePropertyDialogService.class);
+      VSOutputService outputService = mock(VSOutputService.class);
+      when(outputService.getOutputTableColumns(any(), eq("Table1"), eq(true), any()))
+         .thenReturn(columnsWithType("OldStringCol", XSchema.STRING,
+                                     "NewNumCol", XSchema.INTEGER));
+
+      AssemblyPropertyService service =
+         serviceWithGauge(mock(GaugeVSAssembly.class), model, gaugeService, outputService);
+
+      service.set("tok", principal(), "Gauge1", Map.of("column", "NewNumCol"), "");
+
+      ArgumentCaptor<GaugePropertyDialogModel> captor =
+         ArgumentCaptor.forClass(GaugePropertyDialogModel.class);
+      verify(gaugeService).setGaugePropertyDialogModel(anyString(), anyString(), captor.capture(),
+                                                       any(), any(), any());
+      assertEquals(XSchema.INTEGER, captor.getValue().getDataOutputPaneModel().getColumnType(),
+                  "columnType must reflect the newly-picked column's real type, not the old one");
+   }
+
+   /**
+    * A caller who sets {@code dataOutputPaneModel.columnType} explicitly, in the same patch as
+    * {@code column}, must always win -- the same "forgiving where intent is unambiguous, never
+    * override an explicit value" rule {@code impliedSibling} already follows.
+    */
+   @Test
+   void doesNotOverrideAnExplicitColumnType() throws Exception {
+      GaugePropertyDialogModel model = new GaugePropertyDialogModel();
+      model.getDataOutputPaneModel().setTable("Table1");
+      model.getDataOutputPaneModel().setColumn("OldStringCol");
+      model.getDataOutputPaneModel().setColumnType(XSchema.STRING);
+
+      GaugePropertyDialogService gaugeService = mock(GaugePropertyDialogService.class);
+      VSOutputService outputService = mock(VSOutputService.class);
+      when(outputService.getOutputTableColumns(any(), eq("Table1"), eq(true), any()))
+         .thenReturn(columnsWithType("OldStringCol", XSchema.STRING,
+                                     "NewNumCol", XSchema.INTEGER));
+
+      AssemblyPropertyService service =
+         serviceWithGauge(mock(GaugeVSAssembly.class), model, gaugeService, outputService);
+
+      Map<String, Object> patch = new LinkedHashMap<>();
+      patch.put("column", "NewNumCol");
+      patch.put("dataOutputPaneModel.columnType", XSchema.DOUBLE);
+      service.set("tok", principal(), "Gauge1", patch, "");
+
+      ArgumentCaptor<GaugePropertyDialogModel> captor =
+         ArgumentCaptor.forClass(GaugePropertyDialogModel.class);
+      verify(gaugeService).setGaugePropertyDialogModel(anyString(), anyString(), captor.capture(),
+                                                       any(), any(), any());
+      assertEquals(XSchema.DOUBLE, captor.getValue().getDataOutputPaneModel().getColumnType(),
+                  "an explicit columnType in the same patch must not be overridden");
+      verify(outputService, never()).getOutputTableColumns(any(), any(), anyBoolean(), any());
+   }
+
    private void assertRefusedAsUnknownGroupContainerImage(String value) {
       AssemblyPropertyService service =
          serviceWith(mock(GroupContainerVSAssembly.class), groupContainerModelWithTree());
@@ -2324,6 +2468,42 @@ class AssemblyPropertyServiceTest {
       return serviceWith(assembly, model, null, null, imageService);
    }
 
+   /**
+    * Bug #77028: lets a test both capture the written {@code GaugePropertyDialogModel} (via a
+    * caller-supplied {@code gaugeService} mock, the same shape {@link #serviceWithImage} already
+    * uses) and stub {@code outputService.getOutputTableColumns} to return a real column list, so
+    * the {@code columnType} re-derivation has real column metadata to look up.
+    */
+   private static AssemblyPropertyService serviceWithGauge(
+      VSAssembly assembly, GaugePropertyDialogModel model,
+      GaugePropertyDialogService gaugeService, VSOutputService outputService)
+   {
+      try {
+         when(gaugeService.getGaugePropertyDialogModel(anyString(), anyString(),
+                                                       any(Principal.class)))
+            .thenReturn(model);
+      }
+      catch(Exception e) {
+         throw new IllegalStateException(e);
+      }
+
+      return serviceWith(assembly, model, null, null, mock(ImagePropertyDialogService.class),
+                         gaugeService, outputService);
+   }
+
+   /** A {@code ColumnSelection} of alternating (name, dataType) pairs, for {@link #serviceWithGauge}. */
+   private static ColumnSelection columnsWithType(String... nameThenType) {
+      ColumnSelection selection = new ColumnSelection();
+
+      for(int i = 0; i < nameThenType.length; i += 2) {
+         ColumnRef ref = new ColumnRef(new AttributeRef(null, nameThenType[i]));
+         ref.setDataType(nameThenType[i + 1]);
+         selection.addAttribute(ref);
+      }
+
+      return selection;
+   }
+
    private static AssemblyPropertyService serviceWithCalcTable(
       VSAssembly assembly, CalcTablePropertyDialogModel model)
    {
@@ -2341,6 +2521,15 @@ class AssemblyPropertyServiceTest {
    private static AssemblyPropertyService serviceWith(
       VSAssembly assembly, Object model, Object inputModel,
       Worksheet baseWorksheet, ImagePropertyDialogService imageService)
+   {
+      return serviceWith(assembly, model, inputModel, baseWorksheet, imageService,
+                         mock(GaugePropertyDialogService.class), mock(VSOutputService.class));
+   }
+
+   private static AssemblyPropertyService serviceWith(
+      VSAssembly assembly, Object model, Object inputModel,
+      Worksheet baseWorksheet, ImagePropertyDialogService imageService,
+      GaugePropertyDialogService gauge, VSOutputService outputService)
    {
       Viewsheet vs = mock(Viewsheet.class);
       when(vs.getAssembly(anyString())).thenReturn(assembly);
@@ -2362,8 +2551,6 @@ class AssemblyPropertyServiceTest {
       catch(Exception e) {
          throw new IllegalStateException(e);
       }
-
-      GaugePropertyDialogService gauge = mock(GaugePropertyDialogService.class);
 
       if(model instanceof GaugePropertyDialogModel gaugeModel) {
          try {
@@ -2513,6 +2700,20 @@ class AssemblyPropertyServiceTest {
          }
       }
 
+      SelectionContainerPropertyDialogService selectionContainer =
+         mock(SelectionContainerPropertyDialogService.class);
+
+      if(model instanceof SelectionContainerPropertyDialogModel selectionContainerModel) {
+         try {
+            when(selectionContainer.getSelectionContainerPropertyModel(anyString(), anyString(),
+                                                                        any(Principal.class)))
+               .thenReturn(selectionContainerModel);
+         }
+         catch(Exception e) {
+            throw new IllegalStateException(e);
+         }
+      }
+
       return new AssemblyPropertyService(
          sessions, gauge, imageService,
          mock(TextPropertyDialogService.class),
@@ -2527,8 +2728,9 @@ class AssemblyPropertyServiceTest {
          groupContainer,
          mock(LinePropertyDialogService.class), mock(OvalPropertyDialogService.class),
          mock(RectanglePropertyDialogService.class),
-         mock(SelectionContainerPropertyDialogService.class),
-         mock(SubmitPropertyDialogService.class));
+         selectionContainer,
+         mock(SubmitPropertyDialogService.class),
+         outputService);
    }
 
    private static Principal principal() {

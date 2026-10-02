@@ -425,10 +425,17 @@ public abstract class SessionLicenseService implements SessionLicenseManager {
             .findFirst()
             .orElse(null);
 
-         if(license != null) {
+         // the hosted session is keyed by toIdentifier(), which is the same for all logins of a
+         // user with a normal (internal) login, so only stop it when the last such login ends
+         if(license != null && !hasSameIdentifier(srPrincipal)) {
             HostedLicenseService service = HostedLicenseService.getInstance();
             service.stopSession(license.key(), srPrincipal);
          }
+      }
+
+      private boolean hasSameIdentifier(SRPrincipal srPrincipal) {
+         String identifier = srPrincipal.toIdentifier();
+         return principals.stream().anyMatch(p -> Objects.equals(identifier, p.toIdentifier()));
       }
 
       @Override

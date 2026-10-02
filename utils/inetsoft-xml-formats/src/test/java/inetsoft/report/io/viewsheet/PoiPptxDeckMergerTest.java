@@ -17,12 +17,17 @@
  */
 package inetsoft.report.io.viewsheet;
 
+import inetsoft.report.StyleFont;
 import inetsoft.web.wiz.service.PptxDeckMerger;
 import org.apache.poi.xslf.usermodel.XMLSlideShow;
 import org.apache.poi.xslf.usermodel.XSLFPictureShape;
 import org.apache.poi.xslf.usermodel.XSLFSlide;
 import org.apache.poi.xslf.usermodel.XSLFTextBox;
+import org.apache.poi.xslf.usermodel.XSLFTextParagraph;
+import org.apache.poi.xslf.usermodel.XSLFTextRun;
 import org.junit.jupiter.api.Tag;
+import org.openxmlformats.schemas.drawingml.x2006.main.CTRegularTextRun;
+import org.openxmlformats.schemas.drawingml.x2006.main.CTTextCharacterProperties;
 import org.junit.jupiter.api.Test;
 
 import java.awt.geom.Rectangle2D;
@@ -351,6 +356,54 @@ class PoiPptxDeckMergerTest {
          assertTrue(slideText.contains("Board"), "board title present: " + slideText);
          assertTrue(slideText.toLowerCase().contains("failed"), "placeholder text present: " + slideText);
          assertTrue(slideText.contains("Broken"), "chart title present in placeholder: " + slideText);
+      }
+   }
+
+   /**
+    * bug-76535: the "Failed to render" placeholder run was the one merger-created run #76110's
+    * fix missed -- its rPr carried no typeface, so it inherited the theme font (Calibri). Covers
+    * both anchor branches: the only chart (shares the board header's slide) and a later chart.
+    * Asserts the raw rPr's latin typeface, not just getFontFamily(), so the check does not depend
+    * on POI's first-character font-slot lookup.
+    */
+   @Test
+   void failedChartPlaceholderRunCarriesExplicitFontFamily() throws Exception {
+      String family = StyleFont.getDefaultFontFamily();
+
+      byte[] onlyChart = merger.mergeSlides("Board", null, List.of(
+         new PptxDeckMerger.ChartSlide("Broken Chart", "n/a", null, true)
+      ));
+      assertPlaceholderRunsCarryFamily(onlyChart, 0, family);
+
+      byte[] laterChart = merger.mergeSlides("Board", null, List.of(
+         new PptxDeckMerger.ChartSlide("Fine", "ok", oneSlideDeckWithText("CHART_MARKER"), false),
+         new PptxDeckMerger.ChartSlide("Broken Chart", "n/a", null, true)
+      ));
+      assertPlaceholderRunsCarryFamily(laterChart, 1, family);
+   }
+
+   private static void assertPlaceholderRunsCarryFamily(byte[] merged, int slideIndex,
+                                                        String family) throws Exception
+   {
+      try(XMLSlideShow result = new XMLSlideShow(new ByteArrayInputStream(merged))) {
+         XSLFTextBox placeholder = result.getSlides().get(slideIndex).getShapes().stream()
+            .filter(sh -> sh instanceof XSLFTextBox tb && tb.getText().startsWith("Failed to render"))
+            .map(sh -> (XSLFTextBox) sh)
+            .findFirst().orElseThrow();
+         int runs = 0;
+
+         for(XSLFTextParagraph paragraph : placeholder.getTextParagraphs()) {
+            for(XSLFTextRun run : paragraph.getTextRuns()) {
+               CTTextCharacterProperties rPr = ((CTRegularTextRun) run.getXmlObject()).getRPr();
+               assertTrue(rPr != null && rPr.isSetLatin(),
+                  "placeholder run must carry an explicit latin typeface: " + run.getRawText());
+               assertEquals(family, rPr.getLatin().getTypeface());
+               assertEquals(family, run.getFontFamily());
+               runs++;
+            }
+         }
+
+         assertTrue(runs > 0, "expected at least one placeholder run");
       }
    }
 

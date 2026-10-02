@@ -21,9 +21,18 @@ import java.io.Serializable;
 
 public class CloudJobResult implements Serializable {
    public CloudJobResult(String taskName, boolean success, String message) {
+      this(taskName, success, message, null);
+   }
+
+   /**
+    * @param executionId the id of the execution that started the container, as passed to it in
+    *                    {@link CloudJobFactory#EXECUTION_ID_ARG}, or {@code null} if none was.
+    */
+   public CloudJobResult(String taskName, boolean success, String message, String executionId) {
       this.taskName = taskName;
       this.success = success;
       this.message = message;
+      this.executionId = executionId;
    }
 
    public String getTaskName() {
@@ -38,7 +47,16 @@ public class CloudJobResult implements Serializable {
       return message;
    }
 
+   /**
+    * Gets the id of the execution this result belongs to. It is {@code null} when the result was
+    * sent by a cloud runner that does not know the id, e.g. an older runner image.
+    */
+   public String getExecutionId() {
+      return executionId;
+   }
+
    private final String taskName;
    private final boolean success;
    private final String message;
+   private final String executionId;
 }

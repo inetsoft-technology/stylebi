@@ -64,6 +64,7 @@ import java.sql.Timestamp;
 import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 /**
@@ -919,8 +920,12 @@ public class SUtil {
                         // Create a principal with the site admin's roles but the originally-
                         // requested org as context so org-scoped lookups (task map, assets)
                         // continue to use the correct org.
-                        LOG.debug("Resolved cross-org site admin {} (from {}) for task owner {}",
-                                  candidateId, candidateId.orgID, owner);
+                        // Bug #77281, the owner is in another organization than the site admin
+                        // whose roles it gets, log it so that a task whose owner was forged
+                        // before the owner was checked on every write path can be found
+                        LOG.warn("Schedule task owner {} does not exist, running it with the " +
+                                 "roles of the site admin {} of organization {}",
+                                 owner, candidateId, candidateId.orgID);
                         principal = new SRPrincipal(
                            new ClientInfo(owner, addr, null, null),
                            candidate.getRoles(), new String[0], owner.orgID,
@@ -3087,15 +3092,25 @@ public class SUtil {
     * initialized, transient backend hiccup), so a storage blip degrades to the old staleness
     * window instead of throwing out of a permission check exercised on every folder listing and
     * viewsheet open.
+    * <p>
+    * A property that is not stored falls back to the sources that never hold stored values: an
+    * {@code INETSOFT_*} environment variable, a system property, or the built-in default, so a
+    * value supplied by {@code -D} or the environment is honored as it is by the cached read. The
+    * cached read is not used for that, because it can still hold a value another node already
+    * removed from the storage (Bug #77323).
     */
    private static String getPropertyBypassingCache(String name) {
+      String value;
+
       try {
-         return SreeEnv.getPropertyFromStorage(name);
+         value = SreeEnv.getPropertyFromStorage(name);
       }
       catch(Exception ex) {
          LOG.debug("Falling back to cached property value for {}", name, ex);
          return SreeEnv.getProperty(name, "false");
       }
+
+      return value != null ? value : SreeEnv.getPropertyFromNonStorageSources(name);
    }
 
    public static boolean isSharedDefaultOrgDashboard(AssetEntry entry) {
@@ -3255,6 +3270,21 @@ public class SUtil {
          currOrgId = organizationManager.getCurrentOrgID();
       }
 
+      return getOwnerForNewTask(user, currOrgId);
+   }
+
+   /**
+    * Gets the owner of a new task of an organization, the user itself if it's in the
+    * organization, otherwise an admin of the organization, or the user's name in the
+    * organization if the organization has no admin (a site admin owning a task of another
+    * organization, see {@link #getScheduleTaskOwnerPrincipal}).
+    *
+    * @param user      the user creating the task.
+    * @param currOrgId the id of the organization the task is stored in.
+    */
+   public static IdentityID getOwnerForNewTask(IdentityID user, String currOrgId) {
+      OrganizationManager organizationManager = OrganizationManager.getInstance();
+
       if(user != null && !Tool.equals(user.getOrgID(), currOrgId)) {
          SecurityEngine security = SecurityEngine.getSecurity();
          IdentityID[] orgUsers = security.getOrgUsers(currOrgId);
@@ -3339,55 +3369,64 @@ public class SUtil {
          return path;
       }
 
-      String dir = null;
-      String file = path;
-      int idx = path.lastIndexOf("/");
-
-      if(idx != -1) {
-         dir = path.substring(0, idx);
-         file = path.substring(idx + 1);
-      }
-
       StringBuilder stringBuilder = new  StringBuilder();
+      boolean multiTenant = SUtil.isMultiTenant();
+      String orgID = null;
 
-      if(SUtil.isMultiTenant()) {
-         stringBuilder.append(IdentityID.getIdentityIDFromKey(principal.getName()).getOrgID());
+      if(multiTenant) {
+         orgID = String.valueOf(IdentityID.getIdentityIDFromKey(principal.getName()).getOrgID());
+         stringBuilder.append(orgID);
          stringBuilder.append("/");
       }
 
       boolean internalUser = SUtil.isInternalUser(principal);
+      String userName;
 
       if(internalUser || principal.getName().contains(IdentityID.KEY_DELIMITER)) {
-         stringBuilder.append(IdentityID.getIdentityIDFromKey(principal.getName()).getName());
+         userName = IdentityID.getIdentityIDFromKey(principal.getName()).getName();
       }
       else {
-         stringBuilder.append(principal.getName());
+         userName = principal.getName();
       }
 
+      stringBuilder.append(userName);
       String prefix = stringBuilder.toString();
 
-      if(!StringUtils.isEmpty(SreeEnv.getProperty("server.save.locations"))) {
-         List<ServerLocation> serverLocations = SUtil.getServerLocations();
-         String serverPath = "";
-
-         for(ServerLocation serverLocation : serverLocations) {
-            if(dir != null && dir.startsWith(serverLocation.path())) {
-               serverPath = serverLocation.path();
-               dir = dir.substring(serverLocation.path().length());
-               break;
-            }
-         }
-         if(dir == null) {
-            dir = prefix;
-         }
-         else {
-            dir = serverPath + "/" + prefix + dir;
-         }
-
-         return dir + "/" + file;
+      // the org id and user name come from the security provider unchecked, and the path from
+      // the user, so none of them may step out of the user's folder
+      if(multiTenant && !isUserSpaceSegment(orgID) || !isUserSpaceSegment(userName) ||
+         hasParentSegment(path))
+      {
+         throw rejectUserSpacePath(principal, path, "invalid path segment");
       }
 
-      if(path.startsWith(prefix)) {
+      if(!StringUtils.isEmpty(SreeEnv.getProperty("server.save.locations"))) {
+         // the filesystem storage passes the path relative to the root, so match the location
+         // without the leading slashes, on a segment boundary as the portal does
+         String relativePath = path.replaceAll("^/+", "");
+
+         for(ServerLocation serverLocation : SUtil.getServerLocations()) {
+            String location = serverLocation.path();
+            String relativeLocation = location.replaceAll("^/+", "");
+
+            if(!relativeLocation.isEmpty() && relativePath.startsWith(relativeLocation + "/")) {
+               // keep the leading slash form of the path, so that a relative path never gets an
+               // absolute key, which the filesystem storage would resolve outside of its folder
+               String serverPath = path.startsWith("/") ? location : relativeLocation;
+               return serverPath + "/" + prefix +
+                  relativePath.substring(relativeLocation.length());
+            }
+         }
+      }
+
+      // here the org id, or the user name without multi-tenancy, is the top-level folder of the
+      // key, so it must not be a folder the system writes to
+      if(OrganizationIdRules.isStorageSystemFolder(multiTenant ? orgID : userName)) {
+         throw rejectUserSpacePath(principal, path, "system storage folder");
+      }
+
+      // on a segment boundary, so the user "al" does not write into the folder of "alice"
+      if(path.startsWith(prefix + "/") || path.startsWith(prefix + "\\")) {
          return path;
       }
       else {
@@ -3398,6 +3437,29 @@ public class SUtil {
             return prefix + "/" + path;
          }
       }
+   }
+
+   private static boolean isUserSpaceSegment(String segment) {
+      return segment != null && !segment.isEmpty() && !".".equals(segment) &&
+         !"..".equals(segment) && segment.indexOf('/') < 0 && segment.indexOf('\\') < 0;
+   }
+
+   private static boolean hasParentSegment(String path) {
+      for(String segment : path.split("[/\\\\]")) {
+         if("..".equals(segment)) {
+            return true;
+         }
+      }
+
+      return false;
+   }
+
+   private static MessageException rejectUserSpacePath(Principal principal, String path,
+                                                       String reason)
+   {
+      LOG.warn("Refused to save {} to external storage for {}: {}", path, principal.getName(),
+               reason);
+      return new MessageException(Catalog.getCatalog().getString("schedule.saveToServer.userSpaceRejected"));
    }
 
    public static List<ServerLocation> getServerLocations() {
@@ -3634,12 +3696,22 @@ public class SUtil {
    }
 
    public static String getOrganizationId(String indexedStorageId) {
+      return getOrganizationId(indexedStorageId, SecurityEngine::getSecurity);
+   }
+
+   /**
+    * Gets the organization of an indexed storage, getting the security engine from the given
+    * supplier, which is only called for an indexed storage.
+    */
+   public static String getOrganizationId(String indexedStorageId,
+                                          Supplier<SecurityEngine> securityEngine)
+   {
       if(indexedStorageId == null || !indexedStorageId.endsWith("__indexedStorage")) {
          return null;
       }
 
       String lowcase_orgID = indexedStorageId.substring(0, indexedStorageId.length() - 16);
-      SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
+      SecurityProvider provider = securityEngine.get().getSecurityProvider();
       String[] ids = provider.getOrganizationIDs();
 
       return Arrays.stream(ids)
@@ -3656,7 +3728,7 @@ public class SUtil {
 
       return securityEnabled &&
          "true".equals(SreeEnv.getProperty("enable.changePassword")) &&
-         !"anonymous".equals(principal.getName()) &&
+         !XPrincipal.isAnonymous(principal) &&
          userExistsInEditableSecurityProvider(principal) && SUtil.isInternalUser(principal);
    }
 

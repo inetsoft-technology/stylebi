@@ -24,8 +24,13 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.Tag;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
+import org.springframework.core.io.DefaultResourceLoader;
+import org.springframework.core.io.Resource;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
+import org.springframework.web.servlet.resource.ResourceHandlerUtils;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
@@ -83,5 +88,52 @@ class DataSpaceProtocolResolverTest {
          new DataSpaceProtocolResolver.DataSpaceResource("config", "missing.xml", mockDataSpace);
 
       assertFalse(resource.isReadable());
+   }
+
+   /**
+    * A directory location such as the "dataspace:/web-assets/" static resource location must
+    * keep its trailing slash in its URL, otherwise Spring 6.2.19+ rejects it when initializing
+    * the resource handler ("Resource location does not end with slash").
+    */
+   @Test
+   void resolve_directoryLocation_passesSpringResourceLocationCheck() throws Exception {
+      Resource resource = new DataSpaceProtocolResolver()
+         .resolve("dataspace:/web-assets/", new DefaultResourceLoader());
+
+      assertEquals("dataspace://web-assets/", resource.getURL().toExternalForm());
+      assertDoesNotThrow(() -> ResourceHandlerUtils.assertResourceLocation(resource));
+   }
+
+   /**
+    * Resources resolved relative to a directory location must not get a trailing slash.
+    */
+   @Test
+   void createRelative_fromDirectoryLocation_hasNoTrailingSlash() throws Exception {
+      Resource location = new DataSpaceProtocolResolver()
+         .resolve("dataspace:/web-assets/", new DefaultResourceLoader());
+      Resource relative = location.createRelative("css/theme.css");
+
+      assertEquals("dataspace://web-assets/css/theme.css", relative.getURL().toExternalForm());
+   }
+
+   /**
+    * When the "web-assets" folder does not exist in the data space, a resource requested under
+    * the static resource location must still resolve under "web-assets" and must not escape to a
+    * file of the same name in the data space root.
+    */
+   @Test
+   void createRelative_fromMissingDirectoryLocation_doesNotResolveToDataSpaceRoot()
+      throws Exception
+   {
+      DataSpace mockDataSpace = mock(DataSpace.class);
+      when(mockDataSpace.exists(null, "web-assets")).thenReturn(false);
+      when(mockDataSpace.exists(null, "authc-chain.json")).thenReturn(true);
+
+      DataSpaceProtocolResolver.DataSpaceResource location =
+         new DataSpaceProtocolResolver.DataSpaceResource(null, "web-assets", mockDataSpace, true);
+      Resource relative = location.createRelative("authc-chain.json");
+
+      assertEquals("dataspace://web-assets/authc-chain.json", relative.getURL().toExternalForm());
+      assertFalse(relative.exists());
    }
 }

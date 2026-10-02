@@ -200,6 +200,11 @@ public class QueryGraphModelService {
    public void clearTable(String runtimeId) {
       RuntimeQueryService.RuntimeXQuery runtimeQuery =
          runtimeQueryService.getRuntimeQuery(runtimeId);
+
+      if(runtimeQuery == null) {
+         return;
+      }
+
       runtimeQuery.setSelectedTables(null);
       JDBCQuery query = runtimeQuery.getQuery();
 

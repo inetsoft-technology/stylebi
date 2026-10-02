@@ -36,9 +36,12 @@ import java.io.File;
 import java.io.Serializable;
 import java.nio.file.Path;
 import java.util.Collection;
+import java.time.Duration;
+import java.util.Set;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.awaitility.Awaitility.await;
 import static org.junit.jupiter.api.Assertions.*;
 
 @Disabled
@@ -53,7 +56,7 @@ public class IgniteClusterTest {
 
    @BeforeAll
    static void setup() {
-      TcpDiscoveryIpFinder ipFinder = new TcpDiscoveryVmIpFinder(true);
+      ipFinder = new TcpDiscoveryVmIpFinder(true);
       ignite1 = IgniteClusterTestUtils.getIgniteCluster("ignite1", ipFinder, clusterDir);
       ignite2 = IgniteClusterTestUtils.getIgniteCluster("ignite2", ipFinder, clusterDir, true);
    }
@@ -113,6 +116,38 @@ public class IgniteClusterTest {
 
       assertNotNull(result);
       assertEquals("exchange", result.text);
+   }
+
+   /**
+    * Bug #77245: node ids are unique per node, include every node, and a node that is started
+    * again gets a new id while its old id leaves the cluster.
+    */
+   @Test
+   void nodeIds() {
+      String id1 = ignite1.getLocalNodeId();
+      String id2 = ignite2.getLocalNodeId();
+
+      assertNotEquals(id1, id2);
+      assertEquals(ignite1.getIgniteInstance().cluster().localNode().id().toString(), id1);
+      assertEquals(Set.of(id1, id2), ignite1.getClusterNodeIds());
+      assertEquals(Set.of(id1, id2), ignite2.getClusterNodeIds());
+
+      IgniteCluster ignite3 = IgniteClusterTestUtils.getIgniteCluster("ignite3", ipFinder, clusterDir);
+      String id3 = ignite3.getLocalNodeId();
+      await().atMost(Duration.ofSeconds(10))
+         .until(() -> ignite1.getClusterNodeIds().equals(Set.of(id1, id2, id3)));
+      ignite3.close();
+      ignite3 = IgniteClusterTestUtils.getIgniteCluster("ignite3", ipFinder, clusterDir);
+
+      try {
+         String restartedId3 = ignite3.getLocalNodeId();
+         assertNotEquals(id3, restartedId3, "a restarted node kept its id");
+         await().atMost(Duration.ofSeconds(10))
+            .until(() -> ignite1.getClusterNodeIds().equals(Set.of(id1, id2, restartedId3)));
+      }
+      finally {
+         ignite3.close();
+      }
    }
 
    @Test
@@ -209,6 +244,7 @@ public class IgniteClusterTest {
       ignite3.close();
    }
 
+   private static TcpDiscoveryIpFinder ipFinder;
    private static IgniteCluster ignite1;
    private static IgniteCluster ignite2;
 

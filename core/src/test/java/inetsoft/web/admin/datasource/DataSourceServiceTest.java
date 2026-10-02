@@ -14,6 +14,7 @@ import inetsoft.uql.asset.AssetObject;
 import inetsoft.uql.asset.DependencyException;
 import inetsoft.uql.asset.sync.DependencyTool;
 import inetsoft.uql.jdbc.JDBCDataSource;
+import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.util.audit.ActionRecord;
 import inetsoft.util.audit.Audit;
 import inetsoft.web.admin.content.database.DatabaseTypeService;
@@ -72,7 +73,8 @@ class DataSourceServiceTest {
       SecurityEngine securityEngine = mock(SecurityEngine.class);
       DatabaseTypeService databaseTypeService = mock(DatabaseTypeService.class);
       ids = mock(MD5IdentifierGenerator.class);
-      service = new DataSourceService(repository, securityEngine, databaseTypeService, ids);
+      service = new DataSourceService(repository, securityEngine, databaseTypeService, ids,
+                                      mock(DataSourceRegistry.class));
 
       ds = mock(JDBCDataSource.class);
       when(ds.getType()).thenReturn(XDataSource.JDBC);
@@ -254,7 +256,8 @@ class DataSourceServiceTest {
       // Rebuild service with a SecurityEngine mock this test controls directly (the
       // @BeforeEach one always returns true for ResourceType.DATA_SOURCE only).
       DatabaseTypeService databaseTypeService = mock(DatabaseTypeService.class);
-      service = new DataSourceService(repository, securityEngine, databaseTypeService, ids);
+      service = new DataSourceService(repository, securityEngine, databaseTypeService, ids,
+                                      mock(DataSourceRegistry.class));
       when(securityEngine.checkPermission(
          eq(principal), eq(ResourceType.DATA_SOURCE_FOLDER), eq("A/B"), eq(ResourceAction.WRITE)))
          .thenReturn(true);
@@ -275,7 +278,8 @@ class DataSourceServiceTest {
       when(repository.getDataSourceFolder("A/B")).thenReturn(null);
       SecurityEngine securityEngine = mock(SecurityEngine.class);
       DatabaseTypeService databaseTypeService = mock(DatabaseTypeService.class);
-      service = new DataSourceService(repository, securityEngine, databaseTypeService, ids);
+      service = new DataSourceService(repository, securityEngine, databaseTypeService, ids,
+                                      mock(DataSourceRegistry.class));
       when(securityEngine.checkPermission(
          eq(principal), eq(ResourceType.DATA_SOURCE_FOLDER), eq("A/B"), eq(ResourceAction.WRITE)))
          .thenReturn(true);
@@ -289,7 +293,8 @@ class DataSourceServiceTest {
    void createDataSourceFolderThrowsWithoutWritePermission() throws Exception {
       SecurityEngine securityEngine = mock(SecurityEngine.class);
       DatabaseTypeService databaseTypeService = mock(DatabaseTypeService.class);
-      service = new DataSourceService(repository, securityEngine, databaseTypeService, ids);
+      service = new DataSourceService(repository, securityEngine, databaseTypeService, ids,
+                                      mock(DataSourceRegistry.class));
       when(securityEngine.checkPermission(
          eq(principal), eq(ResourceType.DATA_SOURCE_FOLDER), eq("A"), eq(ResourceAction.WRITE)))
          .thenReturn(false);

@@ -2031,13 +2031,23 @@ public class ViewsheetAction extends AbstractAction implements ViewsheetSupport 
             RangeOutputVSAssemblyInfo info =
                (RangeOutputVSAssemblyInfo) assembly.getInfo();
             double value = info.getDoubleValue();
+            double[] ranges = info.getRanges();
 
             for(ScheduleAlert alert : alerts) {
                int index = Integer.parseInt(
                   alert.getHighlightName().substring(18)) - 1;
 
-               double min = index == 0 ? 0D : info.getRanges()[index - 1];
-               double max = info.getRanges()[index];
+               // the alert id is based on the design ranges, but a script may have set
+               // fewer ranges at runtime. a removed range can't contain the value (#77182)
+               if(ranges == null || index < 0 || index >= ranges.length) {
+                  LOG.debug("Skipping alert {} on {}, the range does not exist at runtime " +
+                               "(range count: {})", alert.getHighlightName(),
+                            assembly.getAbsoluteName(), ranges == null ? 0 : ranges.length);
+                  continue;
+               }
+
+               double min = index == 0 ? 0D : ranges[index - 1];
+               double max = ranges[index];
 
                if(value >= min && value < max) {
                   alertTriggered.set(true);

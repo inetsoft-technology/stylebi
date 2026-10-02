@@ -165,6 +165,22 @@ public class PhysicalGraphModelController {
                                  @RequestParam("newRuntimeId") String newRuntimeId,
                                  @RequestParam(value="save", required = false) boolean save)
    {
+      if(save) {
+         RuntimePartitionService.RuntimeXPartition rp =
+            this.runtimePartitionService.getRuntimePartition(newRuntimeId);
+         XPartition partition = rp == null ? null : rp.getPartition();
+
+         // the pane keeps the auto-alias of a deleted join so that re-creating it keeps the
+         // same alias, remove the ones that are not joined anymore
+         if(partition != null) {
+            physicalModelManager.removeOrphanAutoAliases(partition);
+            // tables joined in the pane (created or dragged) keep the alias the user chose,
+            // don't restore the auto-aliases removed from them earlier
+            rp.forgetJoinedRemovedIncomingJoins();
+            runtimePartitionService.saveRuntimePartition(rp);
+         }
+      }
+
       this.runtimePartitionService.closeRuntimePartition(originRuntimeId, newRuntimeId, save);
    }
 
@@ -245,10 +261,13 @@ public class PhysicalGraphModelController {
    ))
    @DeleteMapping("/api/data/physicalmodel/table/{runtimeId}")
    public void clearTable(@PathVariable("runtimeId") String runtimeId) {
-      XPartition partition = this.runtimePartitionService.getPartition(runtimeId);
+      RuntimePartitionService.RuntimeXPartition rp =
+         this.runtimePartitionService.getRuntimePartition(runtimeId);
+      XPartition partition = rp.getPartition();
       partition.clearTable();
       partition.clearRelationship();
-      runtimePartitionService.updatePartition(runtimeId, partition);
+      rp.clearRemovedIncomingJoins();
+      runtimePartitionService.saveRuntimePartition(rp);
    }
 
    @Secured(@RequiredPermission(
@@ -258,10 +277,13 @@ public class PhysicalGraphModelController {
    ))
    @DeleteMapping("/api/data/physicalmodel/join/{runtimeId}")
    public void clearJoin(@PathVariable("runtimeId") String runtimeId) {
-      XPartition partition = this.runtimePartitionService.getPartition(runtimeId);
+      RuntimePartitionService.RuntimeXPartition rp =
+         this.runtimePartitionService.getRuntimePartition(runtimeId);
+      XPartition partition = rp.getPartition();
       partition.clearRelationship();
       partition.removeAllAutoAliases();
-      runtimePartitionService.updatePartition(runtimeId, partition);
+      rp.clearRemovedIncomingJoins();
+      runtimePartitionService.saveRuntimePartition(rp);
    }
 
    @Secured(@RequiredPermission(
@@ -271,7 +293,8 @@ public class PhysicalGraphModelController {
    ))
    @PostMapping("/api/data/physicalmodel/join/delete")
    public void deleteJoin(@RequestBody TableDetailJoinInfo joinInfo) {
-      deleteJoins(joinInfo);
+      // called by the join edit pane, keep the auto-alias until the pane is closed
+      deleteJoins(joinInfo, false);
    }
 
    @Secured(@RequiredPermission(
@@ -282,6 +305,10 @@ public class PhysicalGraphModelController {
    @PostMapping("/api/data/physicalmodel/joins/delete")
    public void deleteJoins(@RequestBody TableJoinInfo joinInfo)
    {
+      deleteJoins(joinInfo, true);
+   }
+
+   private void deleteJoins(TableJoinInfo joinInfo, boolean removeAutoAlias) {
       XPartition partition = this.runtimePartitionService.getPartition(joinInfo.getRuntimeId());
 
       // fix source and target table as design mode table.
@@ -293,7 +320,7 @@ public class PhysicalGraphModelController {
 
       List<XRelationship> joins = this.findJoin(partition, joinInfo);
 
-      joins.forEach(join -> physicalModelManager.deleteJoin(partition, join));
+      joins.forEach(join -> physicalModelManager.deleteJoin(partition, join, removeAutoAlias));
       runtimePartitionService.updatePartition(joinInfo.getRuntimeId(), partition);
    }
 

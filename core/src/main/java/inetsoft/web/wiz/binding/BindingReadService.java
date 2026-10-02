@@ -267,18 +267,22 @@ public class BindingReadService {
       int runtime = aesthetic.getRTChartType();
       boolean resolved = runtime != stored && runtime != GraphTypes.CHART_AUTO;
 
-      // The 9-arg FieldRef constructor below predates `label`/`secondaryY` (see its own javadoc:
-      // "kept so those additions did not touch every call site that already named
-      // calculateInfo") and silently defaults BOTH to null -- this call site was never updated
-      // when secondaryY was added, so any y/x measure on a MULTI-STYLE chart (the only case this
-      // method is invoked for at all) lost its secondaryY on every read, even though the actual
-      // ChartAggregateRef/render correctly carried it. Bug #76689, VCS-004. Call the canonical
-      // 11-component constructor directly and thread both fields through from the original ref
-      // instead.
+      // The 9-arg FieldRef constructor previously used here predated `label`/`secondaryY` and
+      // silently defaulted both to null -- this call site was never updated when secondaryY was
+      // added, so any y/x measure on a MULTI-STYLE chart (the only case this method is invoked
+      // for at all) lost its secondaryY on every read, even though the actual
+      // ChartAggregateRef/render correctly carried it. Bug #76689, VCS-004. Fixed at the time to
+      // call the then-canonical 11-component constructor -- but FieldRef has since grown three
+      // more components (visible, timeSeries, secondaryColumn), and that "canonical" 11-arg
+      // overload silently dropped those too (bug #77012). Thread every component through from
+      // the original ref via FieldRef's actual current constructor (see its own javadoc for the
+      // full component list) rather than naming a specific arity here, so this comment cannot go
+      // stale again the next time the record grows.
       return new FieldRef(ref.column(), ref.type(), ref.aggregate(), ref.dateLevel(),
                           ref.namedGroup(), stored, resolved ? runtime : null,
                           ref.namedGroupValues(), ref.calculateInfo(), ref.label(),
-                          ref.secondaryY());
+                          ref.secondaryY(), ref.visible(), ref.timeSeries(),
+                          ref.secondaryColumn());
    }
 
    private final VSBindingService binding;

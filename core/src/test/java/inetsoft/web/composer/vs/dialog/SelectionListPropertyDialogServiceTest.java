@@ -28,7 +28,6 @@ import inetsoft.web.binding.service.DataRefModelFactoryService;
 import inetsoft.web.composer.model.vs.SelectionListPropertyDialogModel;
 import inetsoft.web.composer.vs.objects.controller.VSObjectPropertyService;
 import inetsoft.web.composer.vs.objects.controller.VSTrapService;
-import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
 import inetsoft.web.viewsheet.service.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -38,6 +37,12 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.awt.*;
 import java.security.Principal;
+import inetsoft.test.BaseTestConfiguration;
+import inetsoft.test.ConfigurationContextInitializer;
+import org.junit.jupiter.api.Tag;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.*;
@@ -45,8 +50,12 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @SreeHome()
 @ExtendWith(MockitoExtension.class)
+@Tag("core")
 class SelectionListPropertyDialogServiceTest {
    @BeforeEach
    void setup() {
@@ -189,7 +198,6 @@ class SelectionListPropertyDialogServiceTest {
       when(selectionListAssembly.getContainer()).thenReturn(tabAssembly);
       when(selectionListAssembly.getVSAssemblyInfo()).thenReturn(info);
 
-      when(runtimeViewsheetRef.getRuntimeId()).thenReturn("Viewsheet1");
       when(engine.getViewsheet(anyString(), nullable(Principal.class))).thenReturn(rvs);
       when(rvs.getViewsheet()).thenReturn(viewsheet);
       when(viewsheet.getAssembly(anyString())).thenReturn(selectionListAssembly);
@@ -234,7 +242,6 @@ class SelectionListPropertyDialogServiceTest {
    }
 
    @Mock VSOutputService vsOutputService;
-   @Mock RuntimeViewsheetRef runtimeViewsheetRef;
    @Mock CommandDispatcher commandDispatcher;
    @Mock RuntimeViewsheet rvs;
    @Mock ViewsheetService engine;

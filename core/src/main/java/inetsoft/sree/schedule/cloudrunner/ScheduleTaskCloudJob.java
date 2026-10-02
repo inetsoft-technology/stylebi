@@ -34,6 +34,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.ServiceLoader;
+import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Lock;
@@ -55,7 +56,13 @@ public class ScheduleTaskCloudJob implements InterruptableJob {
 
       MessageListener listener = event -> {
          if(event.getMessage() instanceof CloudJobResult jobResult) {
-            if(Tool.equals(taskName, jobResult.getTaskName())) {
+            // the result is broadcast to every node, so it must be matched to this execution and
+            // not to any execution of the same task. A result without an execution id comes from
+            // a runner that does not know it, and can only be matched by task name.
+            if(Tool.equals(taskName, jobResult.getTaskName()) &&
+               (jobResult.getExecutionId() == null ||
+                  executionId.equals(jobResult.getExecutionId())))
+            {
                this.result = jobResult;
                latch.countDown();
             }
@@ -89,7 +96,7 @@ public class ScheduleTaskCloudJob implements InterruptableJob {
                }
 
                job = factory.createCloudJob(
-                  UriUtils.encode(taskName, StandardCharsets.UTF_8), cycle, orgID);
+                  UriUtils.encode(taskName, StandardCharsets.UTF_8), cycle, orgID, executionId);
                job.start();
                LOG.debug("Started cloud job: {}", job.getClass().getName());
                break;
@@ -136,7 +143,7 @@ public class ScheduleTaskCloudJob implements InterruptableJob {
 
       if(taskName != null) {
          try {
-            cluster.sendMessage(new CancelCloudJob(taskName));
+            cluster.sendMessage(new CancelCloudJob(taskName, executionId));
          }
          catch(Exception e) {
             LOG.error("Failed to send a cancel cloud job message", e);
@@ -267,6 +274,9 @@ public class ScheduleTaskCloudJob implements InterruptableJob {
    private CloudJob job;
    private final Cluster cluster;
    private String taskName;
+   // assigned on construction, so that interrupt() never sends a cancel without it. Quartz creates
+   // a new job instance for each execution.
+   private final String executionId = UUID.randomUUID().toString();
    private boolean interrupted = false;
    private CloudJobResult result;
    private final CountDownLatch latch = new CountDownLatch(1);

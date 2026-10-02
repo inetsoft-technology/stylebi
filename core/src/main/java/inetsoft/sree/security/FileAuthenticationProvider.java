@@ -62,6 +62,18 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
          organizationStorage = KeyValueStorageManager.getInstance().getStorage(
             "defaultSecurityOrganizations",
             new LoadOrganizationsTask("defaultSecurityOrganizations"));
+
+         // the caches are node-local, so they must also be invalidated when another cluster node
+         // changes a user, group or role (Bug #76973). The listeners are added again whenever a
+         // storage is re-opened; re-adding the same listener to an open storage is a no-op.
+         roleStorage.addListener(roleCacheListener);
+         userStorage.addListener(userCacheListener);
+         groupStorage.addListener(groupCacheListener);
+
+         // a change made while a storage was closed (e.g. by another provider's tearDown()) fired no
+         // listener, so drop what was cached before the re-open. This is done after the listeners
+         // are added so that a change arriving in between is not missed (Bug #77204)
+         clearCache();
       }
    }
 
@@ -104,20 +116,29 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
    public void setOrganization(String oid, Organization org) {
       init();
       lock.lock();
+      boolean removingOld = false;
 
       try {
          String oldOrgName = getOrganization(oid) != null ? getOrganization(oid).getName() : null;
-         organizationStorage.remove(oid).get(10L, TimeUnit.SECONDS);
+
+         // write the new record first so a failed write can't delete the existing organization
+         organizationStorage.put(org.getId(), (FSOrganization) org).get(10L, TimeUnit.SECONDS);
+
+         if(!oid.equals(org.getId())) {
+            removingOld = true;
+            organizationStorage.remove(oid).get(10L, TimeUnit.SECONDS);
+         }
 
          if(!oid.equals(org.getId()) || !org.getName().equals(oldOrgName)) {
             processAuthenticationChange(new IdentityID(oldOrgName, oid), org.getIdentityID(),
                                         oid, org.getId(), Identity.ORGANIZATION, false);
          }
-
-         organizationStorage.put(org.getId(), (FSOrganization) org).get(10L, TimeUnit.SECONDS);
       }
       catch(Exception e) {
-         LOG.error("Failed to update organization {}", oid, e);
+         // if removingOld, the new record was saved but the old one may still exist
+         throw storageWriteFailure(removingOld ?
+            renameFailureMessage("organization", oid, org.getId()) :
+            "Failed to update organization " + oid, e);
       }
       finally {
          lock.unlock();
@@ -352,8 +373,18 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
             algorithm = "MD5";
          }
 
-         return Tool.checkHashedPassword(
+         boolean authenticated = Tool.checkHashedPassword(
             savedPasswd, passwd, algorithm, uobj.getPasswordSalt(), uobj.isAppendPasswordSalt());
+
+         if(authenticated) {
+            // on every successful password check, so that a login principal built from getRoles()
+            // and getUserGroups() is loaded from storage instead of an entry that a change on
+            // another node may not have invalidated yet (Bug #76973)
+            userGroupCache.invalidate(userIdentity);
+            userRoleCache.invalidate(userIdentity);
+         }
+
+         return authenticated;
       }
    }
 
@@ -380,6 +411,13 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
          synchronized(this) {
             if(userStorage != null) {
                try {
+                  userStorage.removeListener(userCacheListener);
+               }
+               catch(Exception e) {
+                  LOG.warn("Failed to remove user cache listener", e);
+               }
+
+               try {
                   userStorage.close();
                }
                catch(Exception e) {
@@ -391,6 +429,13 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
 
             if(groupStorage != null) {
                try {
+                  groupStorage.removeListener(groupCacheListener);
+               }
+               catch(Exception e) {
+                  LOG.warn("Failed to remove group cache listener", e);
+               }
+
+               try {
                   groupStorage.close();
                }
                catch(Exception e) {
@@ -401,6 +446,13 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
             }
 
             if(roleStorage != null) {
+               try {
+                  roleStorage.removeListener(roleCacheListener);
+               }
+               catch(Exception e) {
+                  LOG.warn("Failed to remove role cache listener", e);
+               }
+
                try {
                   roleStorage.close();
                }
@@ -424,6 +476,14 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
          }
       }
 
+      clearCache();
+   }
+
+   /**
+    * {@inheritDoc}
+    */
+   @Override
+   public void clearCache() {
       userGroupCache.invalidateAll();
       userRoleCache.invalidateAll();
    }
@@ -509,26 +569,29 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
    @Override
    public void setUser(IdentityID oldIdentity, User user) {
       init();
+      IdentityID newUserIdentity = user.getIdentityID();
+      boolean removingOld = false;
       lock.lock();
 
       try {
-         userStorage.remove(oldIdentity.convertToKey()).get(10L, TimeUnit.SECONDS);
+         // write the new record first so a failed write can't delete the existing user
+         userStorage.put(newUserIdentity.convertToKey(), (FSUser) user).get(10L, TimeUnit.SECONDS);
          userRoleCache.invalidateAll();
 
-         IdentityID newUserIdentity = user.getIdentityID();
-
-         if(!oldIdentity.equals(user.getIdentityID())) {
+         if(!oldIdentity.equals(newUserIdentity)) {
+            removingOld = true;
+            userStorage.remove(oldIdentity.convertToKey()).get(10L, TimeUnit.SECONDS);
             processAuthenticationChange(oldIdentity, newUserIdentity, null, null, Identity.USER, false);
          }
 
-         IdentityID userIdentity = user.getIdentityID();
-
-         userStorage.put(userIdentity.convertToKey(), (FSUser) user).get(10L, TimeUnit.SECONDS);
          userGroupCache.invalidate(newUserIdentity);
          userRoleCache.invalidateAll();
       }
       catch(Exception e) {
-         LOG.error("Failed to update user {}", oldIdentity, e);
+         // if removingOld, the new record was saved but the old one may still exist
+         throw storageWriteFailure(removingOld ?
+            renameFailureMessage("user", oldIdentity.getLabel(), newUserIdentity.getLabel()) :
+            "Failed to update user " + oldIdentity.getLabel(), e);
       }
       finally {
          lock.unlock();
@@ -545,6 +608,8 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
 
       try {
          userStorage.remove(userIdentity.convertToKey()).get(10L, TimeUnit.SECONDS);
+         userGroupCache.invalidate(userIdentity);
+         userRoleCache.invalidateAll();
          processAuthenticationChange(userIdentity, null, null, null, Identity.USER, true);
       }
       catch(Exception e) {
@@ -578,22 +643,27 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
    @Override
    public void setGroup(IdentityID oldIdentity, Group group) {
       init();
+      IdentityID newIdentity = group.getIdentityID();
+      boolean removingOld = false;
       lock.lock();
 
       try {
-         groupStorage.remove(oldIdentity.convertToKey()).get(10L, TimeUnit.SECONDS);
+         // write the new record first so a failed write can't delete the existing group
+         groupStorage.put(newIdentity.convertToKey(), (FSGroup) group).get(10L, TimeUnit.SECONDS);
          userGroupCache.invalidateAll();
          userRoleCache.invalidateAll();
-         IdentityID newIdentity = group.getIdentityID();
 
-         if(!(oldIdentity.equals(group.getIdentityID()))) {
+         if(!oldIdentity.equals(newIdentity)) {
+            removingOld = true;
+            groupStorage.remove(oldIdentity.convertToKey()).get(10L, TimeUnit.SECONDS);
             processAuthenticationChange(oldIdentity, newIdentity, null, null, Identity.GROUP, false);
          }
-
-         groupStorage.put(newIdentity.convertToKey(), (FSGroup) group).get(10L, TimeUnit.SECONDS);
       }
       catch(Exception e) {
-         LOG.error("Failed to update group {}", group.getName(), e);
+         // if removingOld, the new record was saved but the old one may still exist
+         throw storageWriteFailure(removingOld ?
+            renameFailureMessage("group", oldIdentity.getLabel(), newIdentity.getLabel()) :
+            "Failed to update group " + oldIdentity.getLabel(), e);
       }
       finally {
          lock.unlock();
@@ -650,21 +720,26 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
    @Override
    public void setRole(IdentityID oldIdentity, Role role) {
       init();
+      IdentityID newIdentity = role.getIdentityID();
+      boolean removingOld = false;
       lock.lock();
 
       try {
-         roleStorage.remove(oldIdentity.convertToKey()).get(10L, TimeUnit.SECONDS);
+         // write the new record first so a failed write can't delete the existing role
+         roleStorage.put(newIdentity.convertToKey(), (FSRole) role).get(10L, TimeUnit.SECONDS);
          userRoleCache.invalidateAll();
-         IdentityID newIdentity = role.getIdentityID();
 
-         if(!oldIdentity.equals(role.getIdentityID())) {
+         if(!oldIdentity.equals(newIdentity)) {
+            removingOld = true;
+            roleStorage.remove(oldIdentity.convertToKey()).get(10L, TimeUnit.SECONDS);
             processAuthenticationChange(oldIdentity, newIdentity, null, null, Identity.ROLE, false);
          }
-
-         roleStorage.put(newIdentity.convertToKey(), (FSRole) role).get(10L, TimeUnit.SECONDS);
       }
       catch(Exception e) {
-         LOG.error("Failed to update role {}", oldIdentity, e);
+         // if removingOld, the new record was saved but the old one may still exist
+         throw storageWriteFailure(removingOld ?
+            renameFailureMessage("role", oldIdentity.getLabel(), newIdentity.getLabel()) :
+            "Failed to update role " + oldIdentity.getLabel(), e);
       }
       finally {
          lock.unlock();
@@ -853,12 +928,10 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
 
             for(FSUser user : userList) {
                IdentityID[] roles = user.getRoles();
-               String[] groups = user.getGroups();
                IdentityID userIdentity = user.getIdentityID();
 
                if(Arrays.asList(roles).contains(newID) || removed) {
                   user.setRoles(Tool.remove(roles, oldID));
-                  user.setGroups(Tool.remove(groups, oldID.name));
                   userStorage.put(userIdentity.convertToKey(), user).get(10L, TimeUnit.SECONDS);
                   userGroupCache.invalidate(userIdentity);
                   userRoleCache.invalidateAll();
@@ -917,7 +990,13 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
                }
                else {
                   user.setOrganization(newID.orgID);
-                  setUser(user.getIdentityID(),user);
+
+                  try {
+                     setUser(user.getIdentityID(),user);
+                  }
+                  catch(RuntimeException e) {
+                     // already logged by setUser, keep updating the other members
+                  }
                }
             }
 
@@ -927,7 +1006,13 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
                }
                else {
                   group.setOrganization(newID.orgID);
-                  setGroup(group.getIdentityID(),group);
+
+                  try {
+                     setGroup(group.getIdentityID(),group);
+                  }
+                  catch(RuntimeException e) {
+                     // already logged by setGroup, keep updating the other members
+                  }
                }
             }
 
@@ -937,7 +1022,13 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
                }
                else {
                   role.setOrganization(newID.orgID);
-                  setRole(role.getIdentityID(), role);
+
+                  try {
+                     setRole(role.getIdentityID(), role);
+                  }
+                  catch(RuntimeException e) {
+                     // already logged by setRole, keep updating the other members
+                  }
                }
             }
          }
@@ -965,24 +1056,81 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
       List<String> members = new ArrayList<>(Arrays.asList(org.getMembers()));
       members.remove(oldIdentity.name);
       org.setMembers(members.toArray(new String[0]));
-      setOrganization(oldIdentity.orgID, org);
+
+      try {
+         setOrganization(oldIdentity.orgID, org);
+      }
+      catch(RuntimeException e) {
+         // already logged by setOrganization. Don't let it skip the rest of the reference cleanup
+         // in processAuthenticationChange, or users would keep references to a deleted group/role
+      }
+   }
+
+   /**
+    * Logs a failed identity storage write and returns an unchecked exception to report it to the
+    * caller, because the setters in EditableAuthenticationProvider declare no checked exceptions.
+    */
+   private static RuntimeException storageWriteFailure(String message, Exception cause) {
+      if(cause instanceof InterruptedException) {
+         Thread.currentThread().interrupt();
+      }
+
+      LOG.error(message, cause);
+      return new MessageException(message, cause);
+   }
+
+   /**
+    * The new record of a rename was saved but the old one could not be removed. The new record is
+    * not rolled back: a failed or timed out remove may still have completed, so removing the new
+    * record could delete the only copy of the identity.
+    */
+   private static String renameFailureMessage(String type, String oldName, String newName) {
+      return "The " + type + " " + newName + " was saved, but the old " + type + " " + oldName +
+         " could not be removed. The old " + type + " still exists and must be deleted.";
    }
 
    private KeyValueStorage<FSUser> userStorage;
    private KeyValueStorage<FSGroup> groupStorage;
    private KeyValueStorage<FSRole> roleStorage;
    private KeyValueStorage<FSOrganization> organizationStorage;
+   // expire after write, not after access, so that an entry which missed an invalidation (e.g. a
+   // load racing a change on another node) is not kept alive by a busy session (Bug #76973)
    private final LoadingCache<IdentityID, String[]> userGroupCache = Caffeine.newBuilder()
-      .expireAfterAccess(1L, TimeUnit.HOURS)
+      .expireAfterWrite(5L, TimeUnit.MINUTES)
       .maximumSize(500L)
       .build(this::doGetUserGroups);
    private final LoadingCache<IdentityID, IdentityID[]> userRoleCache = Caffeine.newBuilder()
-      .expireAfterAccess(1L, TimeUnit.HOURS)
+      .expireAfterWrite(5L, TimeUnit.MINUTES)
       .maximumSize(500L)
       .build(this::doGetRoles);
+   private final KeyValueStorage.Listener<FSUser> userCacheListener = new CacheListener<>();
+   private final KeyValueStorage.Listener<FSGroup> groupCacheListener = new CacheListener<>();
+   private final KeyValueStorage.Listener<FSRole> roleCacheListener = new CacheListener<>();
    private final Lock lock = new ReentrantLock();
 
    private static final Logger LOG = LoggerFactory.getLogger(FileAuthenticationProvider.class);
+
+   /**
+    * Invalidates the user role and group caches when a user, group or role is changed on any
+    * cluster node. The events may be delivered out of order, so the caches are only invalidated
+    * and never updated from the event values.
+    */
+   private final class CacheListener<T> implements KeyValueStorage.Listener<T> {
+      @Override
+      public void entryAdded(KeyValueStorage.Event<T> event) {
+         clearCache();
+      }
+
+      @Override
+      public void entryUpdated(KeyValueStorage.Event<T> event) {
+         clearCache();
+      }
+
+      @Override
+      public void entryRemoved(KeyValueStorage.Event<T> event) {
+         clearCache();
+      }
+   }
 
    private static final class LoadUsersTask extends LoadKeyValueTask<FSUser> {
       public LoadUsersTask(String id) {
@@ -1005,7 +1153,16 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
 
       @Override
       protected void validate(Map<String, FSUser> map) {
-         LicenseManager manager = LicenseManager.getInstance();
+         // the named-user count may load the license under the license strategy's lock, and the
+         // license load reads SreeEnv. While main creates PropertiesEngine it holds the singleton
+         // lock, and then takes the license lock when it creates SecurityEngine, so this check
+         // would deadlock with it. Main loads the license before SecurityEngine is created, and
+         // the check only logs a warning, so skip it until then (Bug #76975)
+         if(!ConfigurationContext.getContext().isSingletonAvailable(SecurityEngine.class)) {
+            return;
+         }
+
+         LicenseManager manager = getServiceBean(LicenseManager.class);
          int namedUserCount =
             manager.getNamedUserCount() + manager.getNamedUserViewerSessionCount();
 

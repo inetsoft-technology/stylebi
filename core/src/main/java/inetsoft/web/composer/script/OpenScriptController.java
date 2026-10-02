@@ -71,19 +71,29 @@ public class OpenScriptController {
             change = true;
          }
 
-         if(!Tool.isEmptyString(comment) && !Tool.equals(comment, lib.getScriptComment(name))) {
-            lib.setScriptComment(name, comment);
+         boolean commentChanged = !Tool.isEmptyString(comment) &&
+            !Tool.equals(comment, lib.getScriptComment(name));
+
+         if(commentChanged) {
             change = true;
          }
 
          if(change) {
             try {
-               assetRepository.checkAssetPermission(principal, entry, ResourceAction.WRITE);
+               // build from trusted data: the client-supplied id could decode to REPORT_SCOPE,
+               // which skips the check entirely, and the actual write target is `name`, not entry
+               AssetEntry permissionEntry = new AssetEntry(AssetRepository.COMPONENT_SCOPE,
+                  AssetEntry.Type.SCRIPT, name, null);
+               assetRepository.checkAssetPermission(principal, permissionEntry, ResourceAction.WRITE);
             }
             catch(Exception ex) {
                permissionDenied = catalog.getString(
                   "security.nopermission.create", scriptModel.getLabel());
                return permissionDenied;
+            }
+
+            if(commentChanged) {
+               lib.setScriptComment(name, comment);
             }
 
             lib.setScript(name, scriptModel.getText());
@@ -125,6 +135,11 @@ public class OpenScriptController {
          "Script Function/" + name, ActionRecord.OBJECT_TYPE_SCRIPT);
 
       try {
+         // build from trusted data: the client-supplied scope could be REPORT_SCOPE, which skips the check
+         AssetEntry permissionEntry = new AssetEntry(AssetRepository.COMPONENT_SCOPE,
+            AssetEntry.Type.SCRIPT, name, null);
+         assetRepository.checkAssetPermission(principal, permissionEntry, ResourceAction.WRITE);
+
          LibManager lib = libManagerProvider.getManager(principal);
          String scriptText = scriptModel.getText();
          scriptText = scriptText == null ? "" : scriptText;

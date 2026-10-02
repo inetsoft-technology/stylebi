@@ -177,6 +177,57 @@ public class ViewsheetPropertyDialogServiceTest {
    }
 
    /**
+    * Bug 77045 NEW-1: a persisted device layout whose id is null (legacy data, or one created
+    * before every caller that constructs a VSDeviceLayoutDialogModel started assigning an id)
+    * must not NPE every later write. ViewsheetLayout.getID().equals(...) used to throw
+    * unconditionally on a null receiver rather than simply comparing unequal -- and since the
+    * predicate runs once per oldLayouts entry for EVERY incoming layout, a single null-id entry
+    * anywhere in oldLayouts took down every write on the viewsheet, not just one involving it.
+    */
+   @Test
+   public void aPersistedDeviceLayoutWithANullIdDoesNotNpeOnANewWrite() throws Exception {
+      when(viewsheetService.getViewsheet(anyString(), nullable(Principal.class))).thenReturn(rvs);
+      when(rvs.getViewsheet()).thenReturn(viewsheet);
+      when(rvs.getViewsheetSandbox()).thenReturn(Optional.of(viewsheetSandbox));
+      ViewsheetInfo viewsheetInfo = new ViewsheetInfo();
+      when(viewsheet.getViewsheetInfo()).thenReturn(viewsheetInfo);
+
+      LayoutInfo layoutInfo = new LayoutInfo();
+      ViewsheetLayout poisoned = new ViewsheetLayout(); // id left null -- the pre-existing state
+      poisoned.setName("Phone");
+      poisoned.setVSAssemblyLayouts(new ArrayList<>());
+      layoutInfo.setViewsheetLayouts(new ArrayList<>(List.of(poisoned)));
+      when(viewsheet.getLayoutInfo()).thenReturn(layoutInfo);
+
+      ViewsheetPropertyDialogModel model = ViewsheetPropertyDialogModel.builder().build();
+      ScreensPaneModel screensPaneModel = model.screensPane();
+      // A DIFFERENT, brand-new device layout with its own real id -- must not NPE against, or
+      // silently collide with, the poisoned entry above.
+      VSDeviceLayoutDialogModel newLayout = new VSDeviceLayoutDialogModel();
+      newLayout.setId("ViewsheetLayout-real-id");
+      newLayout.setName("Tablet");
+      newLayout.setSelectedDevices(new ArrayList<>());
+      screensPaneModel.getDeviceLayouts().add(newLayout);
+      model.vsOptionsPane().getViewsheetParametersDialogModel().setDisabledParameters(new String[0]);
+      model.filtersPane().setSharedFilters(new ArrayList<>());
+      model.filtersPane().setFilters(new ArrayList<>());
+      screensPaneModel.setDevices(new ArrayList<>());
+
+      if(model.localizationPane() != null) {
+         model.localizationPane().setLocalized(new ArrayList<>());
+      }
+
+      // Must not throw -- this is the reported NPE (getID() null -> String.equals NPE).
+      assertDoesNotThrow(() ->
+         service.setViewsheetInfo("Viewsheet1", model, null, commandDispatcher, null, null));
+
+      List<ViewsheetLayout> written = layoutInfo.getViewsheetLayouts();
+      assertEquals(1, written.size());
+      assertEquals("Tablet", written.get(0).getName());
+      assertEquals("ViewsheetLayout-real-id", written.get(0).getID());
+   }
+
+   /**
     * Write coordination (2026-08-17-write-coordination-design.md / -implementation.md): this
     * dialog has no defensive clone at all -- it mutates ViewsheetInfo live -- so the revision
     * check matters even more here than in dialogs that at least clone before patching. A stale

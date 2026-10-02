@@ -63,6 +63,7 @@ public class DataCycleManager
     * Data Cycle task.
     */
    public static final String TASK_PREFIX = "DataCycle Task: ";
+   private static final String STAGE2_SUFFIX = " Stage 2";
 
    /**
     * Spring constructor — ScheduleManager and IndexedStorage are injected, ensuring correct
@@ -241,7 +242,7 @@ public class DataCycleManager
       return tasks;
    }
 
-   public void clearOrgTasks(String orgId) {
+   public synchronized void clearOrgTasks(String orgId) {
       if(pregeneratedTasksMap.containsKey(orgId)) {
          pregeneratedTasksMap.remove(orgId);
          orgPregeneratedTaskLoadedStatus.remove(orgId);
@@ -373,7 +374,7 @@ public class DataCycleManager
       }
 
       ScheduleTask task2 = new ScheduleTask(
-         TASK_PREFIX + cycle + " Stage 2", ScheduleTask.Type.CYCLE_TASK);
+         TASK_PREFIX + cycle + STAGE2_SUFFIX, ScheduleTask.Type.CYCLE_TASK);
       task2.setEditable(false);
       task2.setRemovable(false);
       task2.setEnabled(task.isEnabled());
@@ -429,7 +430,7 @@ public class DataCycleManager
    @Override
    public boolean setEnable(String name, String orgId, boolean enable) {
       IndexedStorage storage = getIndexedStorage();
-      String entry = getCycleEntry(name, orgId).toIdentifier();
+      String entry = getCycleEntry(getCycleName(name, orgId), orgId).toIdentifier();
 
       if(storage.contains(entry, orgId)) {
          try {
@@ -451,7 +452,7 @@ public class DataCycleManager
    @Override
    public boolean isEnable(String name, String orgId) {
       IndexedStorage storage = getIndexedStorage();
-      String entry = getCycleEntry(name, orgId).toIdentifier();
+      String entry = getCycleEntry(getCycleName(name, orgId), orgId).toIdentifier();
 
       if(storage.contains(entry, orgId)) {
          try {
@@ -472,6 +473,48 @@ public class DataCycleManager
    @Override
    public boolean containsTask(String name, String orgId) {
       return findTask(name, orgId) != null;
+   }
+
+   /**
+    * Get the data cycle name for isEnable/setEnable. The name is either a data cycle name
+    * (MVService, ScheduleCycleService) or, per the ScheduleExt contract, the id of one of the
+    * tasks generated for a data cycle (ScheduleManager), e.g.
+    * "INETSOFT_SYSTEM~;~host-org__DataCycle Task: c1 Stage 2" for data cycle "c1".
+    */
+   private String getCycleName(String name, String orgId) {
+      IndexedStorage storage = getIndexedStorage();
+
+      if(name == null || storage.contains(getCycleEntry(name, orgId).toIdentifier(), orgId)) {
+         return name;
+      }
+
+      ScheduleTask task = findTask(name, orgId);
+
+      if(task != null && task.getCycleInfo() != null && task.getCycleInfo().getName() != null) {
+         return task.getCycleInfo().getName();
+      }
+
+      // the task may not carry a cycle info (legacy asset), parse the cycle name from the id
+      String taskName = name;
+      int idx = taskName.indexOf("__" + TASK_PREFIX);
+
+      if(idx >= 0) {
+         taskName = taskName.substring(idx + 2);
+      }
+
+      if(!taskName.startsWith(TASK_PREFIX)) {
+         return name;
+      }
+
+      String cycle = taskName.substring(TASK_PREFIX.length());
+
+      if(cycle.endsWith(STAGE2_SUFFIX) &&
+         !storage.contains(getCycleEntry(cycle, orgId).toIdentifier(), orgId))
+      {
+         cycle = cycle.substring(0, cycle.length() - STAGE2_SUFFIX.length());
+      }
+
+      return cycle;
    }
 
    private void loadOldConfig() {
@@ -744,7 +787,7 @@ public class DataCycleManager
       Set<String> assetIds = storage.getKeys(key -> {
          AssetEntry entry = AssetEntry.createAssetEntry(key);
          return entry != null && entry.getType() == AssetEntry.Type.DATA_CYCLE;
-      });
+      }, orgId);
 
       for(String assetId : assetIds) {
          AssetEntry entry = AssetEntry.createAssetEntry(assetId);
@@ -890,25 +933,48 @@ public class DataCycleManager
       String orgId = OrganizationManager.getInstance().getCurrentOrgID();
       String suffix = isUser ? Identity.USER_SUFFIX : Identity.GROUP_SUFFIX;
 
+      boolean changed = false;
+
       for(String cycle : Collections.list(getDataCycles(orgId))) {
          CycleInfo cycleInfo = getCycleInfo(cycle, orgId);
 
-         updateEmailField(cycleInfo.endNotify, cycleInfo.endEmail, oldIdentity, newIdentity,
-                          suffix, cycleInfo::setEndEmail);
-         updateEmailField(cycleInfo.startNotify, cycleInfo.startEmail, oldIdentity, newIdentity,
-                          suffix, cycleInfo::setStartEmail);
-         updateEmailField(cycleInfo.exceedNotify, cycleInfo.exceedEmail, oldIdentity, newIdentity,
-                          suffix, cycleInfo::setExceedEmail);
-         updateEmailField(cycleInfo.failureNotify, cycleInfo.failureEmail, oldIdentity, newIdentity,
-                          suffix, cycleInfo::setFailureEmail);
+         if(cycleInfo == null) {
+            continue;
+         }
+
+         // non-short-circuit | so that every field is updated
+         boolean cycleChanged =
+            updateEmailField(cycleInfo.endNotify, cycleInfo.endEmail, oldIdentity, newIdentity,
+                             suffix, cycleInfo::setEndEmail) |
+            updateEmailField(cycleInfo.startNotify, cycleInfo.startEmail, oldIdentity, newIdentity,
+                             suffix, cycleInfo::setStartEmail) |
+            updateEmailField(cycleInfo.exceedNotify, cycleInfo.exceedEmail, oldIdentity,
+                             newIdentity, suffix, cycleInfo::setExceedEmail) |
+            updateEmailField(cycleInfo.failureNotify, cycleInfo.failureEmail, oldIdentity,
+                             newIdentity, suffix, cycleInfo::setFailureEmail);
+
+         // getCycleInfo() returns a copy read from storage, so write the change back
+         if(cycleChanged) {
+            setCycleInfo(cycle, orgId, cycleInfo);
+            changed = true;
+         }
       }
 
-      save();
+      if(changed) {
+         save();
+      }
    }
 
-   private void updateEmailField(boolean notify, String emailAddresses, String oldIdentity,
-                                 String newIdentity, String suffix, Consumer<String> setter)
+   /**
+    * Replaces the renamed identity in an email field.
+    *
+    * @return {@code true} if the field was changed.
+    */
+   private boolean updateEmailField(boolean notify, String emailAddresses, String oldIdentity,
+                                    String newIdentity, String suffix, Consumer<String> setter)
    {
+      boolean changed = false;
+
       if(notify && emailAddresses != null) {
          List<String> emailList = new ArrayList<>();
 
@@ -924,14 +990,20 @@ public class DataCycleManager
 
             if(emailName.equals(oldIdentity)) {
                emailList.add(newIdentity + suffix);
+               changed = true;
             }
             else {
                emailList.add(email);
             }
          }
 
-         setter.accept(String.join(",", emailList));
+         // an unmatched field keeps its original string (separators are not normalized to ",")
+         if(changed) {
+            setter.accept(String.join(",", emailList));
+         }
       }
+
+      return changed;
    }
 
    private void migrateCycleInfo(CycleInfo cycleInfo, Organization oorg, Organization norg) {
@@ -984,7 +1056,9 @@ public class DataCycleManager
     */
    @Override
    public void identityRemoved(Identity identity) {
-      // do nothing
+      if(identity != null) {
+         updateCycleRecipients(identity, identity.getName(), null);
+      }
    }
 
    /**
@@ -994,7 +1068,81 @@ public class DataCycleManager
     */
    @Override
    public void identityRenamed(String oname, Identity identity) {
-      // do nothing
+      if(identity != null) {
+         updateCycleRecipients(identity, oname, identity.getName());
+      }
+   }
+
+   /**
+    * Removes (nname is null) or renames the tokens that denote a user or a group in the start,
+    * end, failure and exceed notification recipients of the data cycles of the identity's
+    * organization. All four lists are updated regardless of their notify flags, because a
+    * disabled notification keeps its recipients and they apply again when it is enabled.
+    * Other identity types are ignored. Errors are logged and not thrown.
+    */
+   private void updateCycleRecipients(Identity identity, String oname, String nname) {
+      int type = identity.getType();
+      IdentityID id = identity.getIdentityID();
+
+      if((type != Identity.USER && type != Identity.GROUP) || oname == null || id == null ||
+         id.getOrgID() == null)
+      {
+         return;
+      }
+
+      String orgId = id.getOrgID();
+
+      try {
+         // the data cycles are listed and regenerated for the current org, so run in the
+         // identity's org, which may differ from the org of the (site admin) caller
+         OrganizationManager.runInOrgScope(orgId, () -> {
+            boolean changed = false;
+
+            for(String cycle : Collections.list(getDataCycles(orgId))) {
+               CycleInfo info = getCycleInfo(cycle, orgId);
+
+               if(info == null) {
+                  continue;
+               }
+
+               // non-short-circuit, every list is updated
+               boolean cycleChanged =
+                  updateRecipients(info.getStartEmail(), oname, nname, type, info::setStartEmail) |
+                  updateRecipients(info.getEndEmail(), oname, nname, type, info::setEndEmail) |
+                  updateRecipients(info.getFailureEmail(), oname, nname, type,
+                                   info::setFailureEmail) |
+                  updateRecipients(info.getExceedEmail(), oname, nname, type,
+                                   info::setExceedEmail);
+
+               if(cycleChanged) {
+                  setCycleInfo(cycle, orgId, info);
+                  changed = true;
+               }
+            }
+
+            if(changed) {
+               save();
+            }
+
+            return null;
+         });
+      }
+      catch(Exception e) {
+         LOG.error("Failed to update the data cycle notification recipients of {}", id, e);
+      }
+   }
+
+   private static boolean updateRecipients(String list, String oname, String nname, int type,
+                                           Consumer<String> setter)
+   {
+      String result = ScheduleManager.updateNotifications(list, oname, nname, type);
+
+      if(result == null) {
+         return false;
+      }
+
+      setter.accept(result);
+      return true;
    }
 
    /**
@@ -1310,6 +1458,47 @@ public class DataCycleManager
             return null;
          }
       }
+
+      /**
+       * Value-based equality over the fields used when the cycle task runs (notification
+       * flags, recipients, threshold, name, org). The audit fields (created/modified and
+       * their users) are excluded so that a change to them alone does not force the cycle
+       * task to be re-registered with the scheduler.
+       */
+      @Override
+      public boolean equals(Object obj) {
+         if(this == obj) {
+            return true;
+         }
+
+         if(obj == null || getClass() != obj.getClass()) {
+            return false;
+         }
+
+         CycleInfo that = (CycleInfo) obj;
+         return startNotify == that.startNotify &&
+            endNotify == that.endNotify &&
+            failureNotify == that.failureNotify &&
+            exceedNotify == that.exceedNotify &&
+            threshold == that.threshold &&
+            Objects.equals(startEmail, that.startEmail) &&
+            Objects.equals(endEmail, that.endEmail) &&
+            Objects.equals(failureEmail, that.failureEmail) &&
+            Objects.equals(exceedEmail, that.exceedEmail) &&
+            Objects.equals(name, that.name) &&
+            Objects.equals(orgId, that.orgId);
+      }
+
+      @Override
+      public int hashCode() {
+         return Objects.hash(startNotify, startEmail, endNotify, endEmail, failureNotify,
+                             failureEmail, exceedNotify, exceedEmail, threshold, name, orgId);
+      }
+
+      // pinned to the default value computed before equals/hashCode were added, so that
+      // CycleInfo instances serialized by earlier builds (e.g. inside a ScheduleTask in a
+      // Quartz JobDataMap) can still be deserialized
+      private static final long serialVersionUID = 7512519551353610073L;
 
       private boolean startNotify;
       private String startEmail;

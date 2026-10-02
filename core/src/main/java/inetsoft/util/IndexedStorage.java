@@ -17,8 +17,10 @@
  */
 package inetsoft.util;
 
+import inetsoft.sree.security.IdentityID;
 import inetsoft.sree.security.Organization;
 import inetsoft.uql.util.AbstractIdentity;
+import inetsoft.uql.util.Identity;
 import org.w3c.dom.Document;
 
 import java.beans.PropertyChangeListener;
@@ -358,8 +360,31 @@ public interface IndexedStorage {
     * @param nname the nname
     *
     * @since 14.0
+    * @deprecated a bare name does not tell a user from a same-named group. Use
+    *             {@link #migrateStorageData(IdentityID, IdentityID, int)}, which this method
+    *             is equivalent to for a user of the current organization.
     */
+   @Deprecated
    void migrateStorageData(String  oname, String nname) throws Exception;
+
+   /**
+    * Updates the stored data that references a renamed user or group. A user rename moves the
+    * user's private assets and rewrites every user reference to the old name. A group rename only
+    * rewrites the schedule task references that are marked as a group (the "execute as" group
+    * and the <tt>(Group)</tt> email recipients), so a same-named user's data is left untouched.
+    *
+    * @param oldID        the old identity ID, which also gives the organization to update.
+    * @param newID        the new identity ID.
+    * @param identityType the type of the renamed identity, {@link Identity#USER} or
+    *                     {@link Identity#GROUP}.
+    */
+   default void migrateStorageData(IdentityID oldID, IdentityID newID, int identityType)
+      throws Exception
+   {
+      if(identityType == Identity.USER) {
+         migrateStorageData(oldID.getName(), newID.getName());
+      }
+   }
 
    /**
     * Copies data over from one store to another

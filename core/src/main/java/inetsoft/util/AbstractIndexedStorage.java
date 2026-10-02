@@ -587,6 +587,13 @@ public abstract class AbstractIndexedStorage implements IndexedStorage {
    }
 
    @Override
+   public void migrateStorageData(IdentityID oldID, IdentityID newID, int identityType)
+      throws Exception
+   {
+      // no-op
+   }
+
+   @Override
    public void copyStorageData(Organization oOrg, Organization nOrg, boolean rename) throws Exception {
       // no-op
    }

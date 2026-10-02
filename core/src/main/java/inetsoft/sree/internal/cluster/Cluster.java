@@ -81,6 +81,24 @@ public interface Cluster extends AutoCloseable {
    Set<String> getClusterNodes(boolean includeClients);
 
    /**
+    * Gets the unique id of the local node. Unlike the node name, the id is unique across hosts
+    * and is assigned each time the node joins the cluster: it changes when the JVM is restarted
+    * (and when a client node reconnects), but not while the node stays in the cluster.
+    *
+    * @return the local node id.
+    */
+   String getLocalNodeId();
+
+   /**
+    * Gets the ids of all the nodes of this cluster, including client nodes.
+    *
+    * @return the cluster node ids.
+    *
+    * @see #getLocalNodeId()
+    */
+   Set<String> getClusterNodeIds();
+
+   /**
     * Gets the server nodes of this cluster.
     *
     * @return the server cluster nodes.

@@ -96,6 +96,8 @@ public class SQLQueryDialogController extends WorksheetController {
             Catalog.getCatalog().getString("composer.nopermission.physicalTable"));
       }
 
+      // Bug #77163, the name is echoed back as the only selectable source.
+      queryManagerService.checkDataSourceReadPermission(dataSource, principal);
       SQLQueryDialogModel model = new SQLQueryDialogModel();
       model.setAdvancedEdit(false);
       model.setDataSource(dataSource);
@@ -165,6 +167,8 @@ public class SQLQueryDialogController extends WorksheetController {
    {
       BasicSQLQueryModel sqlQueryModel = model.getSimpleModel();
       String dataSource = model.getDataSource();
+      // Bug #77163, the named data source is loaded to generate the SQL in its dialect.
+      queryManagerService.checkDataSourceReadPermission(dataSource, principal);
       String[] selectedColumns = sqlQueryModel.getSelectedColumns();
       XJoin[] joins = sqlQueryModel.toXJoins();
       JDBCDataSource jdbcDataSource =
@@ -203,6 +207,9 @@ public class SQLQueryDialogController extends WorksheetController {
                                        Principal principal)
       throws Exception
    {
+      // Bug #77163, the children of a physical entry are read from the data source in its
+      // prefix, which the asset engine does not check.
+      queryManagerService.checkQueryEntryReadPermission(tableEntry, principal);
       WorksheetService engine = getWorksheetEngine();
       return engine.getAssetRepository().getEntries(tableEntry, principal, ResourceAction.READ);
    }

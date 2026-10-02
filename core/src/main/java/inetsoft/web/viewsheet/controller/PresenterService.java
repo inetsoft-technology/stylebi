@@ -73,8 +73,9 @@ public class PresenterService {
       VSTableLens lens = null;
 
       if(box.isPresent()) {
+         box.get().lockWrite();
+
          try {
-            box.get().lockWrite();
             lens = box.get().getVSTableLens(assembly, false);
          }
          finally {

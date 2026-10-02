@@ -61,25 +61,30 @@ public class DashboardAssetDependencyTransformer extends DependencyTransformer {
             DashboardRegistry registry = dashboard.getUser() == null ?
                DashboardRegistryManager.getInstance().getRegistry(dashboard.getOrgID()) :
                DashboardRegistryManager.getInstance().getRegistry(dashboard.getUser());
-            VSDashboard dash = (VSDashboard) registry.getDashboard(dashboard.getName());
+            // changed in the registry file, not in the cached registry (Bug #77272)
+            registry.updateDashboard(dashboard.getName(), d -> {
+               VSDashboard dash = (VSDashboard) d;
 
-            if(dash == null || dash.getViewsheet() == null) {
-               return null;
-            }
-
-            String id = dash.getViewsheet().getIdentifier();
-
-            for(int i = 0; i < infos.size(); i++) {
-               RenameInfo info = infos.get(i);
-
-               if(Tool.equals(info.getOldName(), id)) {
-                  AssetEntry vs = AssetEntry.createAssetEntry(info.getNewName());
-                  dash.getViewsheet().setIdentifier(info.getNewName());
-                  dash.getViewsheet().setPath(vs.getPath());
+               if(dash.getViewsheet() == null) {
+                  return false;
                }
-            }
 
-            registry.save();
+               String id = dash.getViewsheet().getIdentifier();
+               boolean changed = false;
+
+               for(int i = 0; i < infos.size(); i++) {
+                  RenameInfo info = infos.get(i);
+
+                  if(Tool.equals(info.getOldName(), id)) {
+                     AssetEntry vs = AssetEntry.createAssetEntry(info.getNewName());
+                     dash.getViewsheet().setIdentifier(info.getNewName());
+                     dash.getViewsheet().setPath(vs.getPath());
+                     changed = true;
+                  }
+               }
+
+               return changed;
+            });
          }
       }
       catch(Exception e) {

@@ -24,7 +24,12 @@ import inetsoft.uql.viewsheet.TableVSAssembly;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.TableVSAssemblyInfo;
+import inetsoft.util.Tool;
+import inetsoft.web.binding.handler.VSColumnHandler;
 import inetsoft.web.composer.model.vs.ColumnOptionDialogModel;
+import inetsoft.web.composer.model.vs.ComboBoxEditorModel;
+import inetsoft.web.composer.model.vs.DateEditorModel;
+import inetsoft.web.composer.model.vs.SelectionListEditorModel;
 import inetsoft.web.composer.model.vs.EditorModel;
 import inetsoft.web.viewsheet.service.VSInputService;
 import org.springframework.stereotype.Service;
@@ -53,9 +58,12 @@ import java.util.stream.IntStream;
  */
 @Service
 public class ColumnOptionService {
-   public ColumnOptionService(ViewsheetSessionService sessions, VSInputService inputs) {
+   public ColumnOptionService(ViewsheetSessionService sessions, VSInputService inputs,
+                              VSColumnHandler vsColumnHandler)
+   {
       this.sessions = sessions;
       this.inputs = inputs;
+      this.vsColumnHandler = vsColumnHandler;
    }
 
    /** {@code get_column_options}. */
@@ -84,14 +92,26 @@ public class ColumnOptionService {
             "set_column_options requires 'inputControl' when 'enableColumnEditing' is true.");
       }
 
+      if(enableColumnEditing && editor instanceof DateEditorModel dateEditor) {
+         requireParsableDate(dateEditor.getMinimum(), "minimum");
+         requireParsableDate(dateEditor.getMaximum(), "maximum");
+      }
+
       ColumnOptionDialogModel model = new ColumnOptionDialogModel();
       model.setEnableColumnEditing(enableColumnEditing);
       model.setInputControl(inputControl);
       model.setEditor(editor);
 
       sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
-         TableVSAssemblyInfo info = requireTable(rvs, assemblyName);
+         TableVSAssemblyInfo info = requireFormTable(rvs, assemblyName);
          int index = resolveColumn(info, col, "set_column_options");
+
+         if(enableColumnEditing && editor instanceof ComboBoxEditorModel comboEditor &&
+            comboEditor.isQuery())
+         {
+            requireResolvableComboSource(rvs, user, comboEditor);
+         }
+
          inputs.setColumnOptionDialogModel(runtimeId, assemblyName, index, model, user, dispatcher,
                                            linkUri);
       });
@@ -112,6 +132,109 @@ public class ColumnOptionService {
       }
 
       return (TableVSAssemblyInfo) assembly.getVSAssemblyInfo();
+   }
+
+   /**
+    * The native Composer only shows the "Column Options" menu item at all for a Form table
+    * ({@code SimpleTableModel.java}'s {@code form = info.isForm()} -> {@code VSTableModel.form}
+    * -> {@code table-actions.ts}'s {@code columnOptionsVisible}) -- mirrors
+    * {@link FormTableRowService#requireForm}'s exact guard for the same assembly type, since a
+    * column option written on a non-form table does not survive (discarded on write, or
+    * clobbered by a later form-flip's own column-selection reset) rather than merely being
+    * unread.
+    */
+   private static TableVSAssemblyInfo requireFormTable(RuntimeViewsheet rvs, String assemblyName) {
+      TableVSAssemblyInfo info = requireTable(rvs, assemblyName);
+
+      if(!info.isForm()) {
+         throw new IllegalArgumentException(
+            "'" + assemblyName + "' is not a Form table -- enable Table > Form Options > Form " +
+            "in the Composer before column options can be set.");
+      }
+
+      return info;
+   }
+
+   /**
+    * {@code DateColumnOption.validate()} parses {@code minimum}/{@code maximum} with
+    * {@link Tool#parseDate} on every call and swallows a {@code ParseException} into an
+    * unconditional {@code return false} -- an unparseable bound therefore rejects every value,
+    * permanently, once stored. Reusing {@code Tool.parseDate} itself here (rather than a
+    * hand-rolled format check) guarantees this rejects exactly the strings {@code validate()}
+    * would later choke on, and none that it would have accepted (it also feeds
+    * {@code org.pojava.datetime.DateTime}'s lenient multi-format parsing, not just one literal
+    * shape).
+    */
+   private static void requireParsableDate(String value, String field) {
+      if(value == null || value.isBlank()) {
+         return;
+      }
+
+      try {
+         Tool.parseDate(value);
+      }
+      catch(Exception ex) {
+         throw new IllegalArgumentException(
+            "set_column_options: 'editor." + field + "' is not a recognizable date -- '" +
+            value + "'.", ex);
+      }
+   }
+
+   /**
+    * {@code VSInputService.updateBindingInfo} silently leaves a ComboBox query source's
+    * {@code labelColumn}/{@code valueColumn} unset when the named table isn't a sibling assembly
+    * of this viewsheet's base worksheet, or when the named column/value isn't one of that
+    * table's columns -- no exception, {@code ok:true}, an editor with no options. Resolving the
+    * SAME way here, via the SAME {@code vsColumnHandler.getTableColumns} call, before ever
+    * persisting the editor, turns that into a named refusal instead.
+    */
+   private void requireResolvableComboSource(RuntimeViewsheet rvs, Principal user,
+                                             ComboBoxEditorModel comboEditor) throws Exception
+   {
+      SelectionListEditorModel source =
+         comboEditor.getSelectionListDialogModel().getSelectionListEditorModel();
+      String table = source.getTable();
+      String column = source.getColumn();
+      String value = source.getValue();
+
+      if(table == null || table.isBlank()) {
+         throw new IllegalArgumentException(
+            "set_column_options: inputControl:\"ComboBox\" with query:true requires " +
+            "'editor.selectionListDialogModel.selectionListEditorModel.table'.");
+      }
+
+      ColumnSelection selection = vsColumnHandler.getTableColumns(rvs, table, user);
+
+      if(selection.getAttributeCount() == 0) {
+         throw new IllegalArgumentException(
+            "set_column_options: '" + table + "' does not resolve to a table assembly in this " +
+            "viewsheet's base worksheet -- inputControl:\"ComboBox\" query source must name an " +
+            "existing worksheet table.");
+      }
+
+      if(column != null && !column.isBlank() && findAttribute(selection, column) == null) {
+         throw new IllegalArgumentException(
+            "set_column_options: '" + table + "' has no column named '" + column + "' -- " +
+            "valid columns are " + columnNames(selection) + ".");
+      }
+
+      if(value != null && !value.isBlank() && findAttribute(selection, value) == null) {
+         throw new IllegalArgumentException(
+            "set_column_options: '" + table + "' has no column named '" + value + "' -- " +
+            "valid columns are " + columnNames(selection) + ".");
+      }
+   }
+
+   private static DataRef findAttribute(ColumnSelection selection, String name) {
+      for(int i = 0; i < selection.getAttributeCount(); i++) {
+         DataRef ref = selection.getAttribute(i);
+
+         if(name.equals(ref.getName())) {
+            return ref;
+         }
+      }
+
+      return null;
    }
 
    /**
@@ -169,4 +292,5 @@ public class ColumnOptionService {
 
    private final ViewsheetSessionService sessions;
    private final VSInputService inputs;
+   private final VSColumnHandler vsColumnHandler;
 }

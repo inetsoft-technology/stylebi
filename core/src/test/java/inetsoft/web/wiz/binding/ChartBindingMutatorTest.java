@@ -840,6 +840,87 @@ class ChartBindingMutatorTest {
          "an explicit false must clear a previously-true timeSeries, not be treated as omitted");
    }
 
+   // ── secondaryColumn survives a shelf rewrite (bug #77014, VCS-020) ────────────────────────
+   //
+   // toChartRef only sets secondaryColumnValue when the incoming FieldRef explicitly carries one
+   // -- the identical shape as calculateInfo/secondaryY above -- so without a matching
+   // preserveAggregateState branch, a Covariance/Correlation/WeightedAverage measure's second
+   // column silently reverted to null on the very next ordinary set_chart_shelf call that omitted
+   // it (ChartBindingMutatorTest review round 1 on stylebi#5736).
+
+   private static FieldRef measureWithSecondaryColumn(String column, String aggregate,
+                                                       String secondaryColumn)
+   {
+      return new FieldRef(column, "measure", aggregate, null, null, null, null, null, null, null,
+                          null, null, null, secondaryColumn);
+   }
+
+   @Test
+   void resubmittingTheIdenticalYShelfPreservesAMeasuresSecondaryColumn() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "y",
+         List.of(measureWithSecondaryColumn("DISCOUNT", "Covariance", "PAID")));
+
+      // The incoming field omits secondaryColumn entirely on the resubmit.
+      ChartBindingMutator.setShelf(model, "y",
+         List.of(new FieldRef("DISCOUNT", "measure", "Covariance", null, null)));
+
+      assertEquals("PAID",
+         ((ChartAggregateRefModel) model.getYFields().get(0)).getSecondaryColumnValue(),
+         "an omitted secondaryColumn must preserve the measure's previous value, not reset to null");
+   }
+
+   /** secondaryColumn has no shelf restriction (unlike secondaryY) -- confirm x survives too. */
+   @Test
+   void resubmittingTheIdenticalXShelfPreservesAMeasuresSecondaryColumn() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "x",
+         List.of(measureWithSecondaryColumn("DISCOUNT", "Covariance", "PAID")));
+
+      ChartBindingMutator.setShelf(model, "x",
+         List.of(new FieldRef("DISCOUNT", "measure", "Covariance", null, null)));
+
+      assertEquals("PAID",
+         ((ChartAggregateRefModel) model.getXFields().get(0)).getSecondaryColumnValue(),
+         "secondaryColumn has no shelf restriction -- must survive on x too");
+   }
+
+   @Test
+   void newSecondaryColumnOnResubmitOverridesThePreservedOne() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "y",
+         List.of(measureWithSecondaryColumn("DISCOUNT", "Covariance", "PAID")));
+
+      ChartBindingMutator.setShelf(model, "y",
+         List.of(measureWithSecondaryColumn("DISCOUNT", "Covariance", "TAX")));
+
+      assertEquals("TAX",
+         ((ChartAggregateRefModel) model.getYFields().get(0)).getSecondaryColumnValue(),
+         "an explicitly-supplied secondaryColumn must override the preserved one, not be ignored");
+   }
+
+   /**
+    * Switching a resubmitted measure to a single-column formula changes its {@code formula},
+    * which fails {@code sameMeasure}'s column+formula match -- the resubmit builds a brand-new,
+    * unmatched aggregate rather than reusing the Covariance one, so there is no previous ref to
+    * preserve from in the first place. This is the natural, already-existing "clear" path: no
+    * special-case code is needed for it, and none should be added -- without this test a stale
+    * secondaryColumnValue left over from a since-abandoned two-column formula could linger
+    * unnoticed if a future change altered the matching rule.
+    */
+   @Test
+   void changingToASingleColumnFormulaOnResubmitDoesNotCarryOverAStaleSecondaryColumn() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "y",
+         List.of(measureWithSecondaryColumn("DISCOUNT", "Covariance", "PAID")));
+
+      ChartBindingMutator.setShelf(model, "y",
+         List.of(new FieldRef("DISCOUNT", "measure", "Sum", null, null)));
+
+      assertNull(((ChartAggregateRefModel) model.getYFields().get(0)).getSecondaryColumnValue(),
+         "a formula change to a single-column aggregate must not carry over a stale secondaryColumn");
+   }
+
    // ── measure per-measure visual frames survive a shelf rewrite (bug #76904) ───────────────
    //
    // set_visual_frame/reset_visual_frame (ChartAestheticMutator.assignAggregateFrame) write

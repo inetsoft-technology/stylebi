@@ -29,6 +29,7 @@ import inetsoft.util.*;
 import inetsoft.web.RecycleUtils;
 import jakarta.annotation.PostConstruct;
 import org.apache.commons.lang3.ArrayUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -42,6 +43,8 @@ import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 /**
@@ -149,6 +152,39 @@ public class ScheduleManager {
       return tasks.stream().filter(Objects::nonNull).distinct().collect(Collectors.toList());
    }
 
+   /**
+    * Gets the schedule tasks of all organizations, including the extension tasks, by the
+    * organization they're stored in. Unlike {@link #getScheduleTasks()}, a task stored in more
+    * than one organization is in the tasks of each of them.
+    */
+   Map<String, List<ScheduleTask>> getScheduleTasksByOrganization() {
+      Map<String, List<ScheduleTask>> tasks = new LinkedHashMap<>();
+
+      for(Map.Entry<String, ScheduleTaskMap> entry : new ArrayList<>(taskMap.entrySet())) {
+         List<ScheduleTask> orgTasks = tasks.computeIfAbsent(entry.getKey(), k -> new ArrayList<>());
+         entry.getValue().values().stream().filter(Objects::nonNull).forEach(orgTasks::add);
+      }
+
+      extensionLock.lock();
+
+      try {
+         for(Map.Entry<ExtTaskKey, ScheduleTask> entry : extensionTasks.entrySet()) {
+            ScheduleTask task = entry.getValue();
+            List<ScheduleTask> orgTasks =
+               tasks.computeIfAbsent(entry.getKey().orgId(), k -> new ArrayList<>());
+
+            if(orgTasks.stream().noneMatch(t -> t.getTaskId().equals(task.getTaskId()))) {
+               orgTasks.add(task);
+            }
+         }
+      }
+      finally {
+         extensionLock.unlock();
+      }
+
+      return tasks;
+   }
+
    public ScheduleTaskMap getOrgTaskMap(String orgID) {
       ScheduleTaskMap map = taskMap.get(orgID);
 
@@ -244,8 +280,13 @@ public class ScheduleManager {
             if(!extensionTasks.containsKey(key)) {
                ScheduleTask oldTask = oldExtensionTasks.remove(key);
                extensionTasks.put(key, task);
+               extensionTaskOwners.put(key, ext);
 
-               if(!scheduler && !task.equals(oldTask)) {
+               // ScheduleTask.equals() ignores cycleInfo, so compare it explicitly to
+               // push notification changes of data cycle tasks to the scheduler
+               if(!scheduler && (!task.equals(oldTask) ||
+                  !Objects.equals(task.getCycleInfo(), oldTask.getCycleInfo())))
+               {
                   try {
                      scheduleClient.taskAdded(task);
                   }
@@ -308,31 +349,102 @@ public class ScheduleManager {
       return new ExtTaskKey(taskId, orgId);
    }
 
-   private boolean updateExtensionEnabled(ScheduleTask task) {
-      boolean changed = false;
-      String orgId;
-      if(task.getCycleInfo() != null) {
-         orgId = task.getCycleInfo().getOrgId();
-      }
-      else {
-         orgId = OrganizationManager.getInstance().getCurrentOrgID();
+   private String getExtensionTaskOrgId(ScheduleTask task, String defaultOrgId) {
+      return task.getCycleInfo() != null ? task.getCycleInfo().getOrgId() : defaultOrgId;
+   }
+
+   /**
+    * Get the schedule extension that owns a task, or null if the task is not an extension task.
+    * Only data cycle tasks are extension tasks, any other task never calls into the extensions
+    * (their task lists are not thread safe). The ownership is taken from the extension tasks
+    * loaded by reloadExtensions0(). If the task is not found there, e.g. while a reload is in
+    * progress or before the org is loaded, the extensions are asked under extensionLock and the
+    * extension monitor, so a concurrent reload or task generation is not observed half done.
+    * Lock order: ScheduleManager monitor (caller) -> extensionLock -> extension monitor.
+    */
+   private ScheduleExt getTaskExtension(ScheduleTask task, String orgId) {
+      if(task.getType() != ScheduleTask.Type.CYCLE_TASK) {
+         return null;
       }
 
-      for(ScheduleExt ext : extensions) {
-         // for a schedule task in a schedule extension, we
-         // should not save it but only change enable option
-         if(ext.containsTask(task.getTaskId(), orgId)) {
-            if(ext.isEnable(task.getTaskId(), orgId) != task.isEnabled())
-            {
-               ext.setEnable(task.getTaskId(), orgId, task.isEnabled());
-               changed = true;
+      ExtTaskKey key = new ExtTaskKey(task.getTaskId(), orgId);
+      ScheduleExt owner = extensionTaskOwners.get(key);
+
+      if(owner != null) {
+         return owner;
+      }
+
+      extensionLock.lock();
+
+      try {
+         owner = extensionTaskOwners.get(key);
+
+         if(owner != null) {
+            return owner;
+         }
+
+         for(ScheduleExt ext : extensions) {
+            synchronized(ext) {
+               if(ext.containsTask(task.getTaskId(), orgId)) {
+                  return ext;
+               }
             }
-
-            break;
          }
       }
+      finally {
+         extensionLock.unlock();
+      }
 
-      return changed;
+      return null;
+   }
+
+   /**
+    * Only the enabled state of an extension task can be changed, log any other change that is
+    * dropped (e.g. conditions or actions edited through the task editor or the REST API).
+    */
+   private void logIgnoredExtensionTaskChanges(ScheduleTask task, String orgId) {
+      ScheduleTask current = extensionTasks.get(new ExtTaskKey(task.getTaskId(), orgId));
+
+      if(current != null && current != task) {
+         ScheduleTask expected = current.clone();
+         expected.setEnabled(task.isEnabled());
+
+         if(!expected.equals(task)) {
+            LOG.warn("Only the enabled state of data cycle task {} can be changed, other " +
+                        "changes are ignored", task.getTaskId());
+         }
+      }
+   }
+
+   /**
+    * For a schedule task in a schedule extension, we should not save it but only change the
+    * enable option in the extension.
+    *
+    * @return <tt>true</tt> if the extension changed, <tt>false</tt> otherwise.
+    */
+   private boolean updateExtensionEnabled(ScheduleExt ext, ScheduleTask task, String orgId) {
+      if(ext.isEnable(task.getTaskId(), orgId) != task.isEnabled()) {
+         ext.setEnable(task.getTaskId(), orgId, task.isEnabled());
+         return true;
+      }
+
+      return false;
+   }
+
+   /**
+    * A data cycle task is generated from its data cycle and is never stored as an ordinary
+    * schedule task. One that no extension owns (e.g. read back from XML, which mangles its id
+    * and drops the cycle info) is stale and must be dropped, the data cycle is the source of
+    * truth.
+    */
+   private boolean isUnownedCycleTask(ScheduleTask task) {
+      if(task.getType() == ScheduleTask.Type.CYCLE_TASK) {
+         LOG.warn("Data cycle task {} does not belong to an existing data cycle, " +
+                     "it is not saved as a schedule task", task.getTaskId());
+         return true;
+      }
+
+      return false;
    }
 
    /**
@@ -362,8 +474,17 @@ public class ScheduleManager {
     * Save the all the schedule task.
     */
    private boolean save(ScheduleTask task, String orgID) throws Exception {
-      if(updateExtensionEnabled(task)) {
-         return true;
+      String extOrgId = getExtensionTaskOrgId(
+         task, OrganizationManager.getInstance().getCurrentOrgID());
+      ScheduleExt ext = getTaskExtension(task, extOrgId);
+
+      if(ext != null) {
+         logIgnoredExtensionTaskChanges(task, extOrgId);
+         return updateExtensionEnabled(ext, task, extOrgId);
+      }
+
+      if(isUnownedCycleTask(task)) {
+         return false;
       }
 
       ScheduleTaskMessage.Action action;
@@ -515,10 +636,44 @@ public class ScheduleManager {
 
       // older version (pre 13.1) doesn't have user name as part of the task name (48791).
       if(task == null && taskId != null && taskId.contains(":")) {
-         task = getOrgTaskMap(orgID).get(getTaskIdentifier(taskId.substring(taskId.indexOf(':') + 1), orgID));
+         int index = taskId.indexOf(':');
+         ScheduleTask legacyTask =
+            getOrgTaskMap(orgID).get(getTaskIdentifier(taskId.substring(index + 1), orgID));
+
+         // Bug #77356: don't resolve an owner prefix of another organization to a task of this
+         // organization
+         if(legacyTask != null &&
+            isLegacyTaskIdPrefix(taskId.substring(0, index), orgID, taskId, legacyTask))
+         {
+            task = legacyTask;
+         }
       }
 
       return task;
+   }
+
+   /**
+    * Whether the owner prefix stripped by the legacy task id fallback may match a task stored
+    * with an owner-less id in the given organization: a prefix without an organization (pre 13.1
+    * owner name), a prefix naming that organization, or the found task's own id (e.g. a legacy
+    * owner of another organization, the host organization system user).
+    */
+   private static boolean isLegacyTaskIdPrefix(String prefix, String orgID, String taskId,
+                                               ScheduleTask legacyTask)
+   {
+      if(!prefix.contains(IdentityID.KEY_DELIMITER)) {
+         return true;
+      }
+
+      String prefixOrgID = IdentityID.getIdentityIDFromKey(prefix).getOrgID();
+
+      if(prefixOrgID != null && prefixOrgID.equalsIgnoreCase(orgID)) {
+         return true;
+      }
+
+      // a data cycle task without an owner has no id
+      return (legacyTask.getType() != ScheduleTask.Type.CYCLE_TASK ||
+              legacyTask.getOwner() != null) && taskId.equals(legacyTask.getTaskId());
    }
 
    /**
@@ -641,19 +796,145 @@ public class ScheduleManager {
                                             boolean internal, Principal principal)
       throws Exception
    {
+      setScheduleTask(taskId, task, parent, internal, principal, false);
+   }
+
+   /**
+    * Replaces a stored task with a task, i.e. removes the task stored under the old id and saves
+    * the task under its own id. Bug #77359, the owner organization of the task is checked before
+    * the old task is removed, against the task stored before this change, so a task that is
+    * refused isn't lost and a task that already is owned by another organization (stored before
+    * the check) can still be modified.
+    *
+    * @param oldTaskId the id of the stored task.
+    * @param task      the task to save under its own id.
+    */
+   public synchronized void replaceScheduleTask(String oldTaskId, ScheduleTask task,
+                                                AssetEntry parent, Principal principal)
+      throws Exception
+   {
       if(task == null) {
          return;
       }
 
-      task.setLastModified(System.currentTimeMillis());
+      String taskId = task.getTaskId();
+      boolean ownerChecked = task.getOwner() != null;
 
-      final RepletRepository engine = internal ? null : SUtil.getRepletRepository();
+      if(ownerChecked) {
+         checkReplaceOwnerOrganization(oldTaskId, taskId, task, principal);
+      }
+
+      removeScheduleTask(oldTaskId, principal);
+      setScheduleTask(taskId, task, parent, isInternalTask(taskId), principal, ownerChecked);
+   }
+
+   /**
+    * Checks, before a stored task is removed to save a task in its place (e.g. to rename it),
+    * that the task will not be refused because its owner is in another organization than the
+    * one it's stored in.
+    *
+    * @param oldTaskId the id of the stored task, which is removed.
+    * @param taskId    the id the task is saved under.
+    *
+    * @throws IOException if the task would be refused.
+    */
+   public synchronized void checkReplaceOwnerOrganization(String oldTaskId, String taskId,
+                                                          ScheduleTask task, Principal principal)
+      throws IOException
+   {
+      if(task == null || taskId == null) {
+         return;
+      }
+
+      boolean internal = isInternalTask(taskId);
+      String orgID = internal ? Organization.getDefaultOrganizationID() :
+         OrganizationManager.getInstance().getCurrentOrgID(principal);
+      ScheduleTask stored = oldTaskId == null || orgID == null ? null :
+         getScheduleTask(oldTaskId, orgID);
+      checkOwnerOrganization(taskId, task, stored, orgID, internal);
+   }
+
+   /**
+    * Saves a schedule task, that was read from an organization, back to that organization, e.g.
+    * a task changed by the task balancer, which balances the tasks of all organizations. Like an
+    * internal save, the scheduler permission and the owner organization aren't checked and the
+    * owner isn't granted permissions, the task is saved as it's stored. An internal task is
+    * saved in the host organization.
+    *
+    * @param orgID the organization the task was read from.
+    */
+   synchronized void setScheduleTask(String taskId, ScheduleTask task, AssetEntry parent,
+                                     String orgID, Principal principal)
+      throws Exception
+   {
+      if(isInternalTask(taskId)) {
+         setScheduleTask(taskId, task, parent, true, principal);
+      }
+      else {
+         setScheduleTask(taskId, task, parent, orgID, false, true, principal, false);
+      }
+   }
+
+   private synchronized void setScheduleTask(String taskId, ScheduleTask task, AssetEntry parent,
+                                             boolean internal, Principal principal,
+                                             boolean ownerChecked)
+      throws Exception
+   {
+      if(task == null) {
+         return;
+      }
+
       final String orgID;
       if(internal) {
          orgID = Organization.getDefaultOrganizationID();
       }
       else {
          orgID = OrganizationManager.getInstance().getCurrentOrgID(principal);
+      }
+
+      setScheduleTask(taskId, task, parent, orgID, internal, internal, principal, ownerChecked);
+   }
+
+   /**
+    * Saves a schedule task in an organization.
+    *
+    * @param internal if the task is saved as an internal task, the owner of an owner-less task
+    *                 isn't moved to the organization.
+    * @param trusted  if the scheduler permission and the owner organization aren't checked and
+    *                 the owner isn't granted permissions.
+    */
+   private synchronized void setScheduleTask(String taskId, ScheduleTask task, AssetEntry parent,
+                                             String orgID, boolean internal, boolean trusted,
+                                             Principal principal, boolean ownerChecked)
+      throws Exception
+   {
+      if(task == null) {
+         return;
+      }
+
+      task.setLastModified(System.currentTimeMillis());
+
+      final RepletRepository engine = trusted ? null : SUtil.getRepletRepository();
+
+      // Bug #77213: an extension (data cycle) task is derived from the extension's own asset.
+      // Only its enabled state can change and that belongs to the extension, it must never be
+      // stored as an ordinary task. Lock order: this monitor -> extensionLock (reload) ->
+      // extension monitor.
+      String extOrgId = getExtensionTaskOrgId(task, orgID);
+      ScheduleExt ext = getTaskExtension(task, extOrgId);
+
+      if(ext != null) {
+         logIgnoredExtensionTaskChanges(task, extOrgId);
+
+         if(updateExtensionEnabled(ext, task, extOrgId)) {
+            reloadExtensions(extOrgId);
+         }
+
+         return;
+      }
+
+      if(isUnownedCycleTask(task)) {
+         return;
       }
 
       if(principal == null) {
@@ -679,7 +960,7 @@ public class ScheduleManager {
       // tasks (such as MV ondemand) are created without user intervention, and the originating
       // task (such as creating MV) is already controlled by a permission, so we shouldn't
       // check the permission here again.
-      if(!internal && task.isRemovable() &&
+      if(!trusted && task.isRemovable() &&
          !engine.checkPermission(principal, ResourceType.SCHEDULER, "*", ResourceAction.ACCESS))
       {
          throw new IOException("User '" + user.getName() + "' doesn't have schedule permission.");
@@ -695,8 +976,22 @@ public class ScheduleManager {
       user = SUtil.getOwnerForNewTask(user);
 
       if(task.getOwner() == null) {
+         // Bug #77359, the owner organization is part of the task id, which is the scheduler
+         // (quartz) key of the task in all organizations, keep it the organization the task is
+         // stored in (e.g. a site admin working in another organization), the same as a
+         // materialized view task (MVSupportService)
+         if(!internal && user != null && user.orgID != null && orgID != null &&
+            !user.orgID.equalsIgnoreCase(orgID))
+         {
+            user = SUtil.getOwnerForNewTask(user, orgID);
+         }
+
          task.setOwner(user);
          taskId = task.getTaskId();
+      }
+
+      if(!ownerChecked) {
+         checkOwnerOrganization(taskId, task, orgID, trusted);
       }
 
       ScheduleTaskMessage.Action action;
@@ -707,6 +1002,16 @@ public class ScheduleManager {
       }
       else {
          action = ScheduleTaskMessage.Action.ADDED;
+      }
+
+      // Bug #77379, the parent folder entry may come from the client or be created in another
+      // organization than the one the task is stored in (e.g. by a thread without a context
+      // principal). The folder is written in the organization of its entry, so keep it in the
+      // organization the task is stored in. The organization id of a default entry is lower case.
+      if(parent != null && orgID != null && !orgID.equalsIgnoreCase(parent.getOrgID())) {
+         parent = new AssetEntry(AssetRepository.GLOBAL_SCOPE,
+                                 AssetEntry.Type.SCHEDULE_TASK_FOLDER, parent.getPath(), null,
+                                 orgID);
       }
 
       getOrgTaskMap(orgID).put(getTaskIdentifier(taskId, orgID), task, parent, orgID);
@@ -721,7 +1026,7 @@ public class ScheduleManager {
       IdentityID owner = task.getOwner();
 
       try {
-         if(!internal && Tool.equals(owner.orgID, OrganizationManager.getInstance().getCurrentOrgID())) {
+         if(!trusted && Tool.equals(owner.orgID, OrganizationManager.getInstance().getCurrentOrgID())) {
             Permission perm = new Permission();
             String orgId = getTaskOrgID(taskId);
             Set<Permission.PermissionIdentity> users = Collections.singleton(new Permission.PermissionIdentity(owner.name, orgId));
@@ -735,6 +1040,98 @@ public class ScheduleManager {
          LOG.error("Failed to set permission on scheduled task " +
                task.getTaskId() + " for user " + owner.getName(), e);
       }
+   }
+
+   /**
+    * Bug #77359, the task id embeds the owner and it's the scheduler (quartz) job key of the task
+    * in all organizations, so a task whose owner is in another organization than the one it's
+    * stored in can have the same id as a task of that organization, and running, stopping or
+    * saving one of them affects the other. Refuses to store a task that way, unless the stored
+    * task already is (a task saved before this check, e.g. to change its enabled state).
+    */
+   private void checkOwnerOrganization(String taskId, ScheduleTask task, String orgID,
+                                       boolean internal)
+      throws IOException
+   {
+      if(isOwnerOrganizationUnchecked(task, orgID, internal)) {
+         return;
+      }
+
+      // the stored task, including one stored under its pre 13.1 owner-less id
+      checkOwnerOrganization(taskId, task, getScheduleTask(taskId, orgID), orgID, internal);
+   }
+
+   /**
+    * Checks the owner organization of a task against the task stored before it's saved.
+    *
+    * @param stored the task stored before the change, if any.
+    */
+   private void checkOwnerOrganization(String taskId, ScheduleTask task, ScheduleTask stored,
+                                       String orgID, boolean internal)
+      throws IOException
+   {
+      if(isOwnerOrganizationUnchecked(task, orgID, internal)) {
+         return;
+      }
+
+      IdentityID owner = task.getOwner();
+      IdentityID storedOwner = stored == null ? null : stored.getOwner();
+
+      // the task and the id it's saved under must both be the stored task's, the id of a task
+      // with an owner is its scheduler job key
+      if(storedOwner == null || storedOwner.orgID == null ||
+         storedOwner.orgID.equalsIgnoreCase(orgID) || !taskId.equals(stored.getTaskId()) ||
+         !taskId.equals(task.getTaskId()))
+      {
+         throw new IOException(
+            "Schedule task " + taskId + " is not saved in organization " + orgID +
+            ", its owner " + owner.convertToKey() + " is in another organization.");
+      }
+
+      LOG.warn("Schedule task {} of organization {} is owned by {} of another organization, " +
+               "it has the same scheduler job as a task of that organization with the same id",
+               taskId, orgID, owner.convertToKey());
+   }
+
+   private static boolean isOwnerOrganizationUnchecked(ScheduleTask task, String orgID,
+                                                       boolean internal)
+   {
+      IdentityID owner = task.getOwner();
+      return internal || task.getType() == ScheduleTask.Type.INTERNAL_TASK || owner == null ||
+         owner.orgID == null || orgID == null || owner.orgID.equalsIgnoreCase(orgID);
+   }
+
+   /**
+    * Logs the tasks of different organizations that have the same id. A task id is the scheduler
+    * (quartz) job key of the task in all organizations, only one of them is scheduled.
+    *
+    * @return the ids of the tasks stored in more than one organization.
+    */
+   public Set<String> logDuplicateTaskIds() {
+      Map<String, String> taskOrgs = new HashMap<>();
+      Set<String> duplicates = new TreeSet<>();
+
+      for(Map.Entry<String, ScheduleTaskMap> entry : new ArrayList<>(taskMap.entrySet())) {
+         String orgID = entry.getKey();
+
+         for(ScheduleTask task : entry.getValue().values()) {
+            if(task == null || task.getType() == ScheduleTask.Type.INTERNAL_TASK) {
+               continue;
+            }
+
+            String otherOrgID = taskOrgs.putIfAbsent(task.getTaskId(), orgID);
+
+            if(otherOrgID != null && !otherOrgID.equals(orgID)) {
+               duplicates.add(task.getTaskId());
+               LOG.warn("Schedule task {} is stored in organizations {} and {}, it's one " +
+                        "scheduler job and only one of the tasks is scheduled. Its owner " +
+                        "should be in the organization it's stored in.",
+                        task.getTaskId(), otherOrgID, orgID);
+            }
+         }
+      }
+
+      return duplicates;
    }
 
    /**
@@ -777,6 +1174,16 @@ public class ScheduleManager {
    {
       String orgID = getTaskOrgID(taskName);
       RepletRepository engine = SUtil.getRepletRepository();
+
+      // Bug #77284: the org of the task is taken from the owner key prefix of the id, which may
+      // come from the client. The quartz job key is global, so an id that names another
+      // organization would unschedule that organization's task. Only trusted callers may act on
+      // a task outside their current organization.
+      if(isOtherOrgTaskId(taskName, orgID, principal) && !isCrossOrgRemoveAllowed(principal)) {
+         throw new IOException(principal.getName() +
+                               " doesn't have delete permission for: " + taskName);
+      }
+
       ScheduleTask task = getScheduleTask(taskName, orgID);
 
       //possible site admin created in other organization
@@ -792,7 +1199,7 @@ public class ScheduleManager {
             throw new IOException("Task is not removable: " + task.getName());
          }
 
-         boolean isSiteAdminInOtherOrg = isSiteAdminOtherOrg(task.getOwner());
+         boolean isSiteAdminInOtherOrg = isSiteAdminOtherOrg(task.getOwner(), principal);
 
          boolean adminPermission = getSecurityEngine().checkPermission(
             principal, ResourceType.SECURITY_USER, task.getOwner(), ResourceAction.ADMIN);
@@ -822,6 +1229,10 @@ public class ScheduleManager {
          }
       }
 
+      // act on the id of the resolved task, the raw name may have been matched by the legacy
+      // fallback in getScheduleTask() and name a different quartz job
+      String taskId = task != null ? task.getTaskId() : taskName;
+
       // not an ext task? check if a normal task
       if(!ext) {
          if(task != null) {
@@ -832,9 +1243,9 @@ public class ScheduleManager {
             getOrgTaskMap(orgID).remove(getTaskIdentifier(taskName, orgID));
          }
 
-         scheduleClient.taskRemoved(taskName);
+         scheduleClient.taskRemoved(taskId);
          ScheduleTaskMessage message = new ScheduleTaskMessage();
-         message.setTaskName(taskName);
+         message.setTaskName(taskId);
          // Bug #74338: include the task in the REMOVED message so that
          // shouldHandleReceivedMessage() can fall back to task.getOwner() when
          // getTaskOwner(taskId) returns null (e.g. for MV tasks whose IDs lack the
@@ -845,10 +1256,10 @@ public class ScheduleManager {
       }
 
       try {
-         engine.setPermission(principal, ResourceType.SCHEDULE_TASK, taskName, null);
+         engine.setPermission(principal, ResourceType.SCHEDULE_TASK, taskId, null);
       }
       catch(Exception ex) {
-         LOG.error("Failed to clear permissions for schedule task {}", taskName, ex);
+         LOG.error("Failed to clear permissions for schedule task {}", taskId, ex);
       }
 
       if(extChanged) {
@@ -856,11 +1267,75 @@ public class ScheduleManager {
       }
    }
 
-   //return true if user does not actually exist and a site admin of the same name exists
-   private boolean isSiteAdminOtherOrg(IdentityID principalID) {
+   /**
+    * Whether the task id carries an owner key prefix with an explicit organization that is not
+    * the current organization of the caller.
+    */
+   private boolean isOtherOrgTaskId(String taskId, String taskOrgID, Principal principal) {
+      if(taskId == null || taskOrgID == null) {
+         return false;
+      }
+
+      int index = taskId.indexOf(':');
+
+      // an owner key without an organization is resolved in the caller's organization
+      if(index < 0 || !taskId.substring(0, index).contains(IdentityID.KEY_DELIMITER)) {
+         return false;
+      }
+
+      String callerOrgID = OrganizationManager.getInstance().getCurrentOrgID(principal);
+      return !taskOrgID.equalsIgnoreCase(callerOrgID);
+   }
+
+   /**
+    * Whether the caller may remove a task of another organization: callers without a user
+    * (scheduler cleanup), the virtual group/role execute-as principals built by the scheduler,
+    * the system principal and site administrators.
+    */
+   private boolean isCrossOrgRemoveAllowed(Principal principal) {
+      // Bug #77284: do not exempt SUtil.isInternalUser() principals, SecurityEngine.authenticate()
+      // marks every login principal as __internal__
+      if(principal == null ||
+         principal instanceof XPrincipal &&
+         "true".equals(((XPrincipal) principal).getProperty("virtual")))
+      {
+         return true;
+      }
+
+      IdentityID callerID = IdentityID.getIdentityIDFromKey(principal.getName());
+
+      if(callerID != null && XPrincipal.SYSTEM.equals(callerID.name) &&
+         getSecurityEngine().getSecurityProvider().getUser(callerID) == null)
+      {
+         return true;
+      }
+
+      return OrganizationManager.getInstance().isSiteAdmin(principal);
+   }
+
+   //return true if user does not actually exist, a site admin of the same name exists and the
+   //caller is that site admin (e.g. site admin created the task while in another organization)
+   //or the owner identity itself
+   private boolean isSiteAdminOtherOrg(IdentityID principalID, Principal caller) {
       if(getSecurityEngine().isSecurityEnabled() &&
          getSecurityEngine().getSecurityProvider().getUser(principalID) == null)
       {
+         // Bug #77284: the bypass must depend on the caller, not only on the task owner,
+         // otherwise any user could delete a task owned by a site admin in another organization.
+         // A caller whose full identity (name and organization) is the owner itself is accepted:
+         // the owner is not a user, such a principal is built by the server from the stored
+         // owner (the import overwrite in ScheduleTaskAsset uses new SRPrincipal(owner), which
+         // carries no site admin roles)
+         IdentityID callerID = caller == null ? null :
+            IdentityID.getIdentityIDFromKey(caller.getName());
+
+         if(callerID == null || !Tool.equals(principalID.name, callerID.name) ||
+            (!principalID.equals(callerID) &&
+             !OrganizationManager.getInstance().isSiteAdmin(caller)))
+         {
+            return false;
+         }
+
          for(IdentityID user : getSecurityEngine().getUsers()) {
             if(Tool.equals(principalID.name,user.name) && OrganizationManager.getInstance().isSiteAdmin(user)) {
                return true;
@@ -1059,9 +1534,20 @@ public class ScheduleManager {
     * Method will be invoked when a user is removed.
     */
    public synchronized void identityRemoved(Identity identity, EditableAuthenticationProvider eprovider) {
-      Set<ScheduleTask> changedTasks = new HashSet<>();
       int type = identity.getType();
       IdentityID identityID = identity.getIdentityID();
+
+      if(type == Identity.ROLE) {
+         roleRemoved(identityID);
+
+         for(ScheduleExt ext : extensions) {
+            ext.identityRemoved(identity);
+         }
+
+         return;
+      }
+
+      Set<ScheduleTask> changedTasks = new HashSet<>();
       String orgID;
 
       switch(identity.getType()) {
@@ -1088,21 +1574,23 @@ public class ScheduleManager {
             continue;
          }
 
-         if((type == Identity.USER || type == Identity.GROUP) && identityID.equals(task.getOwner())) {
+         if(type == Identity.USER && identityID.equals(task.getOwner())) {
             i.remove();
             continue;
          }
 
          Identity iden = task.getIdentity();
 
-         if(iden != null && type == iden.getType() && identityID.equals(iden.getIdentityID())) {
+         if(iden != null && type == iden.getType() && identityID.equals(iden.getIdentityID()) &&
+            canResetToOwner(task))
+         {
             task.setIdentity(null);
             changedTasks.add(task);
          }
 
          for(int j = 0; j < task.getActionCount(); j++) {
             ScheduleAction action = task.getAction(j);
-            updateNotifications(action, identityID, task, changedTasks);
+            updateNotifications(action, identityID.name, null, type, task, changedTasks);
          }
       }
 
@@ -1120,17 +1608,92 @@ public class ScheduleManager {
    }
 
    /**
+    * Clears the "execute as" of tasks that run as the removed role. An org role is only
+    * referenced by tasks in its own org; a global role (null org) may be referenced in any org.
+    * Notifications are left alone: a role is never a notification recipient, and a bare token
+    * with the role's name denotes a user of that name.
+    */
+   private void roleRemoved(IdentityID identityID) {
+      String[] orgIDs = identityID.orgID != null ?
+         new String[] { identityID.orgID } : getSecurityEngine().getOrganizations();
+
+      for(String orgID : orgIDs) {
+         if(orgID == null) {
+            continue;
+         }
+
+         Set<ScheduleTask> changedTasks = new HashSet<>();
+
+         for(ScheduleTask task : getOrgTaskMap(orgID).values()) {
+            if(task == null) {
+               continue;
+            }
+
+            Identity iden = task.getIdentity();
+
+            if(iden != null && iden.getType() == Identity.ROLE &&
+               identityID.equals(iden.getIdentityID()) && canResetToOwner(task))
+            {
+               task.setIdentity(null);
+               changedTasks.add(task);
+            }
+         }
+
+         try {
+            save(changedTasks, orgID);
+         }
+         catch(Exception ex) {
+            LOG.error("Failed to save schedule task file after " +
+                  "identity was removed: " + identityID, ex);
+         }
+      }
+   }
+
+   /**
+    * Bug #77332, whether the "execute as" of a task may be cleared when its identity is removed,
+    * so that the task runs as its owner. An owner that is not a user runs with the roles of a
+    * site admin of the same name ({@link SUtil#getScheduleTaskOwnerPrincipal}), so for such a
+    * task the removed identity is kept instead: it no longer resolves and the task refuses to
+    * run until a new "execute as" is selected. The owner is looked up in the whole security
+    * provider chain, not only in the provider the identity is removed from.
+    */
+   private boolean canResetToOwner(ScheduleTask task) {
+      IdentityID owner = task.getOwner();
+
+      // same exclusions as the site admin fallback in getScheduleTaskOwnerPrincipal, internal
+      // tasks run as the system user and must keep running
+      if(owner == null || owner.orgID == null || XPrincipal.ANONYMOUS.equals(owner.name) ||
+         XPrincipal.SYSTEM.equals(owner.name) || isInternalTask(task.getTaskId()))
+      {
+         return true;
+      }
+
+      try {
+         return !getSecurityEngine().isSecurityEnabled() ||
+            getSecurityEngine().getSecurityProvider().getUser(owner) != null;
+      }
+      catch(Exception ex) {
+         LOG.warn("Failed to check the owner {} of schedule task {}, keeping its execute-as",
+                  owner, task.getTaskId(), ex);
+         return false;
+      }
+   }
+
+   /**
     * Compute, without modifying anything, which scheduled tasks would be affected if the
     * given identity were removed: tasks owned by a user (which
     * {@link #identityRemoved(Identity, EditableAuthenticationProvider)} deletes) and tasks where
-    * the identity is the "execute as" (which it resets). The notification-list cleanup that
-    * identityRemoved also performs is not reported here.
+    * the identity is the "execute as" (which it resets, or keeps when the task owner is not a
+    * user so that the task refuses to run). The recipient cleanup that
+    * identityRemoved also performs (removing the identity's tokens from the notification and the
+    * delivery to, cc and bcc lists) is not reported here.
     */
    public synchronized IdentityTaskImpact getIdentityRemovalImpact(Identity identity,
                                                                    EditableAuthenticationProvider eprovider)
    {
       List<String> ownedTasks = new ArrayList<>();
       List<String> executeAsTasks = new ArrayList<>();
+      List<String> refusedTasks = new ArrayList<>();
       int type = identity.getType();
       IdentityID identityID = identity.getIdentityID();
       // the identity carries its own org; prefer it so a site/host admin deleting a user in a
@@ -1154,7 +1717,7 @@ public class ScheduleManager {
       }
 
       if(orgID == null) {
-         return new IdentityTaskImpact(ownedTasks, executeAsTasks);
+         return new IdentityTaskImpact(ownedTasks, executeAsTasks, refusedTasks);
       }
 
       for(ScheduleTask task : getOrgTaskMap(orgID).values()) {
@@ -1162,7 +1725,7 @@ public class ScheduleManager {
             continue;
          }
 
-         if((type == Identity.USER || type == Identity.GROUP) && identityID.equals(task.getOwner())) {
+         if(type == Identity.USER && identityID.equals(task.getOwner())) {
             ownedTasks.add(task.getName());
             continue;
          }
@@ -1170,18 +1733,22 @@ public class ScheduleManager {
          Identity iden = task.getIdentity();
 
          if(iden != null && type == iden.getType() && identityID.equals(iden.getIdentityID())) {
-            executeAsTasks.add(task.getName());
+            (canResetToOwner(task) ? executeAsTasks : refusedTasks).add(task.getName());
          }
       }
 
-      return new IdentityTaskImpact(ownedTasks, executeAsTasks);
+      return new IdentityTaskImpact(ownedTasks, executeAsTasks, refusedTasks);
    }
 
    /**
     * The scheduled tasks affected by removing an identity: tasks the identity owns
-    * (which are deleted) and tasks where the identity is the "execute as" (which is reset).
+    * (which are deleted), tasks where the identity is the "execute as" (which is reset), and
+    * tasks where the identity is the "execute as" of a task whose owner is not a user (which is
+    * kept, so the task refuses to run).
     */
-   public record IdentityTaskImpact(List<String> ownedTasks, List<String> executeAsTasks) {
+   public record IdentityTaskImpact(List<String> ownedTasks, List<String> executeAsTasks,
+                                    List<String> refusedTasks)
+   {
    }
 
    /**
@@ -1202,7 +1769,7 @@ public class ScheduleManager {
             continue;
          }
 
-         if((type == Identity.USER || type == Identity.GROUP) && oname.equals(task.getOwner())) {
+         if(type == Identity.USER && oname.equals(task.getOwner())) {
             String oldTaskId = task.getTaskId();
             this.getOrgTaskMap(orgID).remove(getTaskIdentifier(oldTaskId, orgID));
             task.setOwner(id);
@@ -1218,54 +1785,62 @@ public class ScheduleManager {
             changedTasks.add(task);
          }
 
-         //completion condition relies on user name, change if user changes
-         for(int c = 0; c < task.getConditionCount(); c++) {
-            ScheduleCondition condition = task.getCondition(c);
+         // the task ids in the completion conditions, the dependencies and the batch actions,
+         // the private viewsheets and the bookmarks are owned by a user, so a group rename must
+         // not change the ones of a same-named user
+         if(type == Identity.USER) {
+            //completion condition relies on user name, change if user changes
+            for(int c = 0; c < task.getConditionCount(); c++) {
+               ScheduleCondition condition = task.getCondition(c);
 
-            if(condition instanceof CompletionCondition) {
-               CompletionCondition completeCondition = (CompletionCondition) condition;
-               String taskName = completeCondition.getTaskName();
-               int colonIdx = taskName == null ? -1 : taskName.indexOf(":");
+               if(condition instanceof CompletionCondition) {
+                  CompletionCondition completeCondition = (CompletionCondition) condition;
+                  String taskName = completeCondition.getTaskName();
+                  int colonIdx = taskName == null ? -1 : taskName.indexOf(":");
+
+                  if(colonIdx < 0) {
+                     continue;
+                  }
+
+                  String userName = taskName.substring(0, colonIdx);
+
+                  if(Tool.equals(userName, oname.getName()) ||
+                     Tool.equals(IdentityID.getIdentityIDFromKey(userName).name, oname.getName()))
+                  {
+                     completeCondition.setTaskName(taskName.replace(oname.getName(), name));
+                     changedTasks.add(task);
+                  }
+               }
+            }
+
+            Enumeration<String> taskDependencies = task.getDependency();
+
+            while(taskDependencies.hasMoreElements()) {
+               String taskDep = taskDependencies.nextElement();
+               int colonIdx = taskDep == null ? -1 : taskDep.indexOf(":");
 
                if(colonIdx < 0) {
                   continue;
                }
 
-               String userName = taskName.substring(0, colonIdx);
+               String userName = taskDep.substring(0, colonIdx);
 
                if(Tool.equals(userName, oname.getName()) ||
                   Tool.equals(IdentityID.getIdentityIDFromKey(userName).name, oname.getName()))
                {
-                  completeCondition.setTaskName(taskName.replace(oname.getName(), name));
+                  task.renameDependency(taskDep, taskDep.replace(oname.getName(), name));
                   changedTasks.add(task);
                }
             }
          }
 
-         Enumeration<String> taskDependencies = task.getDependency();
-
-         while(taskDependencies.hasMoreElements()) {
-            String taskDep = taskDependencies.nextElement();
-            int colonIdx = taskDep == null ? -1 : taskDep.indexOf(":");
-
-            if(colonIdx < 0) {
-               continue;
-            }
-
-            String userName = taskDep.substring(0, colonIdx);
-
-            if(Tool.equals(userName, oname.getName()) ||
-               Tool.equals(IdentityID.getIdentityIDFromKey(userName).name, oname.getName()))
-            {
-               task.renameDependency(taskDep, taskDep.replace(oname.getName(), name));
-               changedTasks.add(task);
-            }
-         }
-
          for(int j = 0; j < task.getActionCount(); j++) {
             ScheduleAction action = task.getAction(j);
-            updateNotifications(action, id, task, changedTasks);
-            updateScheduleAction(action, oname, id, task, changedTasks);
+            updateNotifications(action, oname.name, name, type, task, changedTasks);
+
+            if(type == Identity.USER) {
+               updateScheduleAction(action, oname, id, task, changedTasks);
+            }
          }
       }
 
@@ -1308,10 +1883,21 @@ public class ScheduleManager {
       // clear cache
       this.getOrgTaskMap(orgID).clearCache();
       this.taskMap.remove(orgID);
-      removeExtensionTasksOfOrg(orgID);
+      extensionLock.lock();
+
+      try {
+         removeExtensionTasksOfOrg(orgID);
+      }
+      finally {
+         extensionLock.unlock();
+      }
    }
 
-   private synchronized void removeExtensionTasksOfOrg(String orgID) {
+   /**
+    * Callers must hold extensionLock. Must not be synchronized, see the lock ordering note
+    * on extensionLock.
+    */
+   private void removeExtensionTasksOfOrg(String orgID) {
       for(ScheduleExt ext : extensions) {
          if(!(ext instanceof DataCycleManager)) {
             continue;
@@ -1330,6 +1916,8 @@ public class ScheduleManager {
             extensionTasks.remove(key);
          }
       }
+
+      extensionTaskOwners.keySet().removeIf(key -> Tool.equals(key.orgId, orgID));
    }
 
    private void updateScheduleAction(ScheduleAction action,
@@ -1354,24 +1942,159 @@ public class ScheduleManager {
    }
 
 
-   private void updateNotifications(ScheduleAction action, IdentityID id,
-                                    ScheduleTask task,
-                                    Set<ScheduleTask> changedTasks)
+   /**
+    * Removes (nname is null) or renames the recipients that denote the identity in the
+    * notification list and in the delivery (to, cc and bcc) lists of the action. A list is only
+    * set back, and the task only marked as changed, when a token of it denotes the identity.
+    */
+   private void updateNotifications(ScheduleAction action, String oname, String nname, int type,
+                                    ScheduleTask task, Set<ScheduleTask> changedTasks)
    {
       if(action instanceof AbstractAction) {
          AbstractAction aaction = (AbstractAction) action;
+         String notifies = updateNotifications(aaction.getNotifications(), oname, nname, type);
 
-         if(aaction.getNotifications() != null && aaction.getNotifications().length() > 0) {
-            String oldNotifies = aaction.getNotifications();
-            String newNotifies = Tool.arrayToString(
-               Tool.remove(Tool.split(oldNotifies, ','), id.name));
+         if(notifies != null) {
+            aaction.setNotifications(notifies);
+            changedTasks.add(task);
+         }
 
-            if(!Tool.equals(oldNotifies, newNotifies)) {
-               aaction.setNotifications(newNotifies);
-               changedTasks.add(task);
-            }
+         String emails = updateNotifications(aaction.getEmails(), oname, nname, type);
+
+         if(emails != null) {
+            aaction.setEmails(emails);
+            changedTasks.add(task);
+         }
+
+         String ccAddresses = updateNotifications(aaction.getCCAddresses(), oname, nname, type);
+
+         if(ccAddresses != null) {
+            aaction.setCCAddresses(ccAddresses);
+            changedTasks.add(task);
+         }
+
+         String bccAddresses = updateNotifications(aaction.getBCCAddresses(), oname, nname, type);
+
+         if(bccAddresses != null) {
+            aaction.setBCCAddresses(bccAddresses);
+            changedTasks.add(task);
          }
       }
+   }
+
+   /**
+    * Removes (nname is null) or renames the recipients that denote the identity in a recipient
+    * list, which is a notification list or a delivery (to, cc or bcc) list. A bare name that is
+    * not an email address denotes a user, name(User) a user and name(Group) a group, so a user
+    * matches a bare or a (User) token and a group matches only a (Group) token. A renamed token
+    * keeps its form. The other tokens, the delimiters and the spacing are kept.
+    * <p>
+    * This is the shared helper for any stored recipient list (it is also used for the data
+    * cycle notification recipients), not to be confused with the private
+    * {@code updateNotifications(ScheduleAction, ...)} overload, which applies it to the lists
+    * of a schedule action.
+    *
+    * @param notifies the recipient list, tokens separated by ',' or ';'.
+    * @param oname    the old (or removed) name of the identity.
+    * @param nname    the new name of the identity, or null to remove its tokens.
+    * @param type     the identity type, {@link Identity#USER} or {@link Identity#GROUP}.
+    *
+    * @return the new list, or null if the list is null or empty or no token denotes the
+    *         identity.
+    */
+   public static String updateNotifications(String notifies, String oname, String nname,
+                                            int type)
+   {
+      if(notifies == null || notifies.isEmpty()) {
+         return null;
+      }
+
+      List<String> tokens = new ArrayList<>();
+      List<String> delimiters = new ArrayList<>();
+      Matcher matcher = NOTIFICATION_DELIMITER.matcher(notifies);
+      int start = 0;
+
+      while(matcher.find()) {
+         tokens.add(notifies.substring(start, matcher.start()));
+         delimiters.add(matcher.group());
+         start = matcher.end();
+      }
+
+      tokens.add(notifies.substring(start));
+      boolean matched = false;
+
+      for(int i = 0; i < tokens.size(); i++) {
+         String token = tokens.get(i);
+         String suffix = getNotificationSuffix(StringUtils.normalizeSpace(token), oname, type);
+
+         if(suffix == null) {
+            continue;
+         }
+
+         matched = true;
+
+         if(nname == null) {
+            tokens.set(i, null);
+         }
+         else {
+            // a bare email address is not a user, so a user renamed to one is written typed
+            if(suffix.isEmpty() && Tool.matchEmail(nname)) {
+               suffix = Identity.USER_SUFFIX;
+            }
+
+            String trimmed = token.trim();
+            int lead = token.indexOf(trimmed);
+            tokens.set(i, token.substring(0, lead) + nname + suffix +
+               token.substring(lead + trimmed.length()));
+         }
+      }
+
+      if(!matched) {
+         return null;
+      }
+
+      StringBuilder result = new StringBuilder();
+      boolean first = true;
+
+      for(int i = 0; i < tokens.size(); i++) {
+         if(tokens.get(i) == null) {
+            continue;
+         }
+
+         if(!first) {
+            result.append(delimiters.get(i - 1));
+         }
+
+         result.append(tokens.get(i));
+         first = false;
+      }
+
+      return result.toString();
+   }
+
+   /**
+    * Gets the suffix of the notification token if it denotes the identity: an empty string for a
+    * bare user name, the user or group suffix for a typed one, or null if it does not denote it.
+    */
+   private static String getNotificationSuffix(String token, String name, int type) {
+      if(name == null || token.isEmpty()) {
+         return null;
+      }
+
+      if(type == Identity.USER) {
+         if(token.equals(name) && !Tool.matchEmail(token)) {
+            return "";
+         }
+
+         if(token.equals(name + Identity.USER_SUFFIX)) {
+            return Identity.USER_SUFFIX;
+         }
+      }
+      else if(type == Identity.GROUP && token.equals(name + Identity.GROUP_SUFFIX)) {
+         return Identity.GROUP_SUFFIX;
+      }
+
+      return null;
    }
 
    private void updateViewsheets(ScheduleAction action,
@@ -1422,7 +2145,7 @@ public class ScheduleManager {
                AssetSupport action = (AssetSupport) task.getAction(j);
                AssetEntry entry2 = action.getEntry();
 
-               if(entry2.equals(oentry)) {
+               if(Tool.equals(entry2, oentry)) {
                   action.setEntry(nentry);
                   LOG.debug(
                      "Schedule action in task " + task.getTaskId() +
@@ -1811,6 +2534,8 @@ public class ScheduleManager {
    private final Map<String, ScheduleTaskMap> taskMap = new HashMap<>();
    private final Vector<ScheduleExt> extensions = new Vector<>();
    private final Map<ExtTaskKey, ScheduleTask> extensionTasks = new ConcurrentHashMap<>();
+   // the extension that generated each of extensionTasks, guarded like extensionTasks
+   private final Map<ExtTaskKey, ScheduleExt> extensionTaskOwners = new ConcurrentHashMap<>();
    private final Set<String> extensionTasksLoadedOrgs = ConcurrentHashMap.newKeySet();
    // Local lock — intentionally NOT a distributed Ignite lock. The state it guards
    // (extensions, extensionTasks, extensionTasksLoadedOrgs) is per-node local data.
@@ -1818,8 +2543,14 @@ public class ScheduleManager {
    // stall waiting for the lock's volatile-DS-group transaction, blocking TRANSACTIONAL
    // cache writes (including the runtime-sheet cache) and causing ExpiredSheetException
    // under concurrent load when a topology change coincided with a getScheduleTasks() call.
+   // Lock ordering (Bug #77195): RepletRegistry monitor -> ScheduleManager monitor ->
+   // extensionLock -> DataCycleManager monitor. Holding the ScheduleManager monitor while
+   // acquiring extensionLock is allowed (e.g. save() -> reloadExtensions()), but code holding
+   // extensionLock must never enter a synchronized ScheduleManager method or take the
+   // RepletRegistry monitor.
    private final Lock extensionLock = new ReentrantLock();
 
+   private static final Pattern NOTIFICATION_DELIMITER = Pattern.compile("[;,]");
    private static final Logger LOG = LoggerFactory.getLogger(ScheduleManager.class);
 
    private record ExtTaskKey(String name, String orgId) { }

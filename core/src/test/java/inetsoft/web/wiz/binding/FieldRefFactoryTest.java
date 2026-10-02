@@ -409,6 +409,41 @@ class FieldRefFactoryTest {
       assertNull(ref.secondaryColumn());
    }
 
+   /**
+    * Bug #77014 (VCS-020): the write-side mirror of {@link #readsAMeasuresSecondaryColumn} was
+    * missing on the chart path -- {@code toChartRef}'s MEASURE branch never read
+    * {@code field.secondaryColumn()} at all, so a Covariance/Correlation/WeightedAverage measure
+    * bound via {@code set_chart_shelf}/{@code set_aesthetic_field} reached
+    * {@code get_binding}/{@code get_chart_aesthetics} reporting {@code null}, and the rendered
+    * axis text embedded a literal Java "null" (traced to
+    * {@code VSAggregateRef#getFullName}'s unconditional {@code StringBuilder.append} of the unset
+    * second operand -- asserted here on {@code getSecondaryColumnValue()} directly, the property
+    * that method reads, not on {@code BAggregateRefModel#getCurrentFormula()}, which has an
+    * empty-string fallback and would not reproduce the symptom). The crosstab/table write path
+    * (`TableBindingMutator`) already wired this in #5534 (bug #76931, VTB-034); this pins the
+    * parallel chart write path that #5534 missed.
+    */
+   @Test
+   void toChartRefAppliesSecondaryColumnOntoTheAggregate() {
+      FieldRef field = new FieldRef("DISCOUNT", "measure", "Covariance", null, null, null, null,
+                                    null, null, null, null, null, null, "PAID");
+
+      ChartRefModel ref = FieldRefFactory.toChartRef(field);
+
+      assertInstanceOf(ChartAggregateRefModel.class, ref);
+      assertEquals("PAID", ((ChartAggregateRefModel) ref).getSecondaryColumnValue());
+   }
+
+   /** The unconditional-apply default: absent/null leaves the aggregate's value unset. */
+   @Test
+   void toChartRefLeavesSecondaryColumnNullWhenAbsent() {
+      FieldRef field = new FieldRef("Sales", "measure", "Sum", null, null);
+
+      ChartRefModel ref = FieldRefFactory.toChartRef(field);
+
+      assertNull(((ChartAggregateRefModel) ref).getSecondaryColumnValue());
+   }
+
    @Test
    void requireTypeRejectsAMissingDiscriminatorNamingTheField() {
       FieldRef ref = new FieldRef("Sales", null, null, null, null);

@@ -71,55 +71,102 @@ public final class MVBuilder {
    public MVBuilder(final XTable lens, final MVDef def,
                     final boolean aggregated, final MV omv)
    {
+      this(lens, def, aggregated, omv, null);
+   }
+
+   /**
+    * Create an instance of MVBuilder.
+    * @param resetColumns the columns whose range has already been reset for the
+    * current mv build. The builders of a parallel mv build share one MVDef, so they
+    * share this set and each shared column is reset only by the first builder that
+    * reaches it, instead of every builder wiping the range the other builders have
+    * already accumulated. Null to always reset the columns of this builder.
+    */
+   public MVBuilder(final XTable lens, final MVDef def,
+                    final boolean aggregated, final MV omv,
+                    final Set<MVColumn> resetColumns)
+   {
       super();
 
       XTable data = lens;
-      // expand data by appending dynamic mv column
-      data = MVCreatorUtil.expand(def, data);
+      int[] dims;
+      int[] measures;
+      MVColumn[] mvcols;
 
-      if(def != null && def.getBreakColumn() != null) {
-         breakcol = checkBlockBounds(data, def.getBreakColumn());
-      }
+      // the builders of a parallel mv build share one MVDef, so the pruning of the
+      // columns missing from the data (in expand and below) and the collection of this
+      // builder's columns are done as one step under the def's monitor. Block building
+      // in init() stays outside the lock (Bug #77247).
+      synchronized(def) {
+         // expand data by appending dynamic mv column
+         data = MVCreatorUtil.expand(def, data);
 
-      XIntList dlist = new XIntList(); // dimension
-      XIntList mlist = new XIntList(); // measure
-      List<MVColumn> cols = def.getColumns();
-      List<MVColumn> dcolList = new ArrayList<>();
-      List<MVColumn> mcolList = new ArrayList<>();
+         if(def != null && def.getBreakColumn() != null) {
+            breakcol = checkBlockBounds(data, def.getBreakColumn());
+         }
 
-      for(int i = 0; i < cols.size(); i++) {
-         MVColumn col = cols.get(i);
-         ColumnRef vcol = col.getColumn();
-         int index = getColIndex(data, vcol);
+         XIntList dlist = new XIntList(); // dimension
+         XIntList mlist = new XIntList(); // measure
+         List<MVColumn> cols = def.getColumns();
+         List<MVColumn> dcolList = new ArrayList<>();
+         List<MVColumn> mcolList = new ArrayList<>();
 
-         if(index < 0) {
-            // calculated column will be processed at runtime and is not needed in mv,
-            // so don't warn it.
-            if(!(vcol instanceof CalculateRef)) {
-               LOG.warn("Materialized view column not found: " + col);
+         for(int i = 0; i < cols.size(); i++) {
+            MVColumn col = cols.get(i);
+            ColumnRef vcol = col.getColumn();
+            int index = getColIndex(data, vcol);
+
+            if(index < 0) {
+               // calculated column will be processed at runtime and is not needed in mv,
+               // so don't warn it.
+               if(!(vcol instanceof CalculateRef)) {
+                  LOG.warn("Materialized view column not found: " + col);
+               }
+
+               def.removeColumn(i);
+               i--;
+               continue;
             }
 
-            def.removeColumn(i);
-            i--;
-            continue;
+            if(col.isDimension()) {
+               dlist.add(index);
+               dcolList.add(col);
+            }
+            else {
+               mlist.add(index);
+               mcolList.add(col);
+            }
          }
 
-         if(col.isDimension()) {
-            dlist.add(index);
-            dcolList.add(col);
-         }
-         else {
-            mlist.add(index);
-            mcolList.add(col);
-         }
+         dims = dlist.toArray();
+         measures = mlist.toArray();
+         dcolList.addAll(mcolList);
+         mvcols = new MVColumn[dcolList.size()];
+         dcolList.toArray(mvcols);
       }
 
-      int[] dims = dlist.toArray();
-      int[] measures = mlist.toArray();
-      dcolList.addAll(mcolList);
-      MVColumn[] mvcols = new MVColumn[dcolList.size()];
-      dcolList.toArray(mvcols);
-      init(data, dims, measures, mvcols, def, aggregated, omv);
+      init(data, dims, measures, mvcols, def, aggregated, omv, resetColumns);
+   }
+
+   /**
+    * Clear the range of a mv column before this builder accumulates into it. When
+    * resetColumns is given (parallel mv build), the column is shared with the other
+    * builders of the same build and is reset only once, by the first builder to reach
+    * it. The check and the reset are one step under the column's monitor (the monitor
+    * that guards the column's range state), so no builder can accumulate into the
+    * column before its single reset has happened (Bug #77154).
+    */
+   private static void resetRange(MVColumn col, Set<MVColumn> resetColumns) {
+      if(resetColumns == null) {
+         col.setRange(null, null);
+         return;
+      }
+
+      synchronized(col) {
+         if(resetColumns.add(col)) {
+            col.setRange(null, null);
+         }
+      }
    }
 
    /**
@@ -451,7 +498,7 @@ public final class MVBuilder {
                      final MVDef def,
                      final boolean aggregated)
    {
-      init(lens, dimensions, measures, mvcols, def, aggregated, null);
+      init(lens, dimensions, measures, mvcols, def, aggregated, null, null);
    }
 
    /**
@@ -460,7 +507,8 @@ public final class MVBuilder {
    private void init(final XTable lens, final int[] dimensions,
                      final int[] measures, final MVColumn[] mvcols,
                      final MVDef def,
-                     final boolean aggregated, final MV omv)
+                     final boolean aggregated, final MV omv,
+                     final Set<MVColumn> resetColumns)
    {
       final int dcnt = dimensions.length;
       final int mcnt = measures.length;
@@ -476,7 +524,7 @@ public final class MVBuilder {
       // Clear the range of mv columns since the values from
       // a previous run may no longer apply here.
       for(MVColumn mvColumn : mvcols) {
-         mvColumn.setRange(null, null);
+         resetRange(mvColumn, resetColumns);
       }
 
       // init MV

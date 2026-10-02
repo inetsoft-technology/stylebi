@@ -103,8 +103,30 @@ public class VSRectangle extends VSShape {
       ((Graphics2D) g).setPaint(color);
       Dimension size = getShapePixelSize();
       int corner = getRoundCorner();
-      // make sure background left and top painted in the border.
-      g.fillRoundRect(1, 1, size.width - 1, size.height - 1, corner * 2, corner * 2);
+
+      if(corner > 0) {
+         // fill the same outline paintShape() strokes. a translated fill pokes out of a
+         // curved border on the bottom/right (seen as a second border over a shadow) and
+         // leaves a gap inside it on the top/left
+         int style = getLineStyle();
+
+         if(style == 0) {
+            g.fillRoundRect(0, 0, size.width, size.height, corner * 2, corner * 2);
+         }
+         else if(style == StyleConstants.DOUBLE_LINE) {
+            g.fillRoundRect(0, 0, size.width - 1, size.height - 1, corner * 2, corner * 2);
+         }
+         else {
+            int linew = (int) GTool.getLineWidth(style);
+            int halfw = linew / 2;
+            g.fillRoundRect(halfw, halfw, size.width - linew, size.height - linew,
+                            corner * 2, corner * 2);
+         }
+      }
+      else {
+         // make sure background left and top painted in the border.
+         g.fillRoundRect(1, 1, size.width - 1, size.height - 1, corner * 2, corner * 2);
+      }
    }
 
    /**

@@ -82,6 +82,12 @@ public class ContentRepositoryTreeController {
    {
       List<ContentRepositoryTreeNode> nodes = new ArrayList<>();
 
+      // refuse an owner from another organization before any registry is loaded
+      for(CommonKVModel<String, String> user : users) {
+         RepositoryOwnerOrgCheck.checkOwnerOrg(
+            IdentityID.getIdentityIDFromKey(user.getKey()), principal);
+      }
+
       for(CommonKVModel<String, String> user : users) {
          IdentityID owner = IdentityID.getIdentityIDFromKey(user.getKey());
          String path = user.getValue();
@@ -112,6 +118,7 @@ public class ContentRepositoryTreeController {
                                                        Principal principal) throws Exception
    {
       IdentityID ownerID = IdentityID.getIdentityIDFromKey(owner);
+      RepositoryOwnerOrgCheck.checkOwnerOrg(ownerID, principal);
       List<ContentRepositoryTreeNode> nodes = null;
       RepletRegistry registry = repletRegistryManager.getRegistry(ownerID);
 

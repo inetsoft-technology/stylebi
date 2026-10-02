@@ -60,6 +60,9 @@ export class SecurityTableViewComponent implements OnChanges, AfterViewInit {
    @Input() pasteContexts: IdentityCopyPasteContext | IdentityCopyPasteContext[] | null = null;
    @Input() pasteTypeFilter: IdentityType[] | null = null;
    @Input() pasteExcludeIdentities: IdentityModel[] | null = null;
+   // True when a paste keeps the entries of organizations the pasted identities do not belong to
+   // (a site admin pasting into a global role's members table, Bug #77314).
+   @Input() pasteKeepsOtherOrgs = false;
    @Output() addIdentities = new EventEmitter<IdentityModel[]>();
    @Output() removeSelection = new EventEmitter<IdentityModel[]>();
    @Output() dropOnTable = new EventEmitter<IdentityModel>();
@@ -259,7 +262,9 @@ export class SecurityTableViewComponent implements OnChanges, AfterViewInit {
          width: "350px",
          data: {
             title: "_#(js:em.security.pasteIdentities)",
-            content: "_#(js:em.security.pasteIdentities.confirm)",
+            content: this.pasteKeepsOtherOrgs ?
+               "_#(js:em.security.pasteIdentities.confirmKeepOtherOrgs)" :
+               "_#(js:em.security.pasteIdentities.confirm)",
             type: MessageDialogType.CONFIRMATION
          }
       }).afterClosed().pipe(take(1)).subscribe(confirmed => {

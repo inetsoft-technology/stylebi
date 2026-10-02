@@ -93,11 +93,12 @@ public class AdminMvGateway {
       return result.getId();
    }
 
-   /** Wraps {@code MVSupportService.getAnalysisResult} -- the returned handle throws {@code
-    * IllegalStateException} from its own accessors once the analysis is unknown/expired; callers
-    * in this package translate that into {@link AnalysisExpiredException}. */
-   public MVSupportService.AnalysisResult getAnalysisResult(String analysisId) {
-      return mvSupportService.getAnalysisResult(analysisId);
+   /** Wraps {@code MVSupportService.getAnalysisResult} -- throws {@code IllegalStateException}
+    * when the analysis is unknown/expired or was not started by {@code user}, and the returned
+    * handle throws it from its own accessors once the analysis expires later; callers in this
+    * package translate that into {@link AnalysisExpiredException}. */
+   public MVSupportService.AnalysisResult getAnalysisResult(String analysisId, Principal user) {
+      return mvSupportService.getAnalysisResult(analysisId, user);
    }
 
    public List<NameLabelTuple> getDataCycles(Principal user) throws Exception {
@@ -148,10 +149,11 @@ public class AdminMvGateway {
     * @throws AnalysisExpiredException if {@code analysisId} is unknown or has expired.
     */
    public MvAnalysisView getAnalysis(String analysisId, Principal user) throws Exception {
-      MVSupportService.AnalysisResult analysisResult = mvSupportService.getAnalysisResult(analysisId);
+      MVSupportService.AnalysisResult analysisResult;
       boolean completed;
 
       try {
+         analysisResult = mvSupportService.getAnalysisResult(analysisId, user);
          completed = analysisResult.isCompleted();
       }
       catch(IllegalStateException e) {

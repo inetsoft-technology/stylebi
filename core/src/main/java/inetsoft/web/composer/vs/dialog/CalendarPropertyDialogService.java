@@ -272,42 +272,49 @@ public class CalendarPropertyDialogService {
       info.setViewModeValue(mode);
 
       // adjust position for bottom-tabs container when show type or height changes
-      if(oldType != type) {
-         Viewsheet vs = viewsheet.getViewsheet();
-         CalendarVSAssembly calAssembly =
-            (CalendarVSAssembly) vs.getAssembly(objectId);
+      Viewsheet vs = viewsheet.getViewsheet();
+      CalendarVSAssembly calAssembly =
+         (CalendarVSAssembly) vs.getAssembly(objectId);
 
-         if(calAssembly != null &&
-            calAssembly.getContainer() instanceof TabVSAssembly tabContainer)
+      if(calAssembly != null &&
+         calAssembly.getContainer() instanceof TabVSAssembly tabContainer)
+      {
+         TabVSAssemblyInfo tabInfo =
+            (TabVSAssemblyInfo) tabContainer.getVSAssemblyInfo();
+
+         if(tabInfo.getBottomTabsValue() && tabInfo.getPixelOffset() != null
+            && info.getPixelOffset() != null)
          {
-            TabVSAssemblyInfo tabInfo =
-               (TabVSAssemblyInfo) tabContainer.getVSAssemblyInfo();
+            int tabTop = tabInfo.getPixelOffset().y;
+            int x = info.getPixelOffset().x;
 
-            if(tabInfo.getBottomTabsValue() && tabInfo.getPixelOffset() != null
-               && info.getPixelOffset() != null)
-            {
-               int tabTop = tabInfo.getPixelOffset().y;
-               int x = info.getPixelOffset().x;
+            if(type == CalendarVSAssemblyInfo.DROPDOWN_SHOW_TYPE) {
+               info.setPixelOffset(new Point(x, tabTop - info.getTitleHeight()));
+            }
+            else {
+               Dimension size = info.getPixelSize();
 
-               if(type == CalendarVSAssemblyInfo.DROPDOWN_SHOW_TYPE) {
-                  info.setPixelOffset(new Point(x, tabTop - info.getTitleHeight()));
+               // only apply the default calendar height when switching from dropdown, keep
+               // the current (user) height otherwise. set the size directly instead of
+               // setShowType() + fixCalendarSize(), which would leak the runtime show type
+               // flag into the assembly and reset later resizes on writeXML
+               if(oldType != type || size == null) {
+                  size = new Dimension(size != null ? size.width : 3 * 70,
+                                       CalendarVSAssemblyInfo.DEFAULT_CALENDAR_HEIGHT);
+                  info.setPixelSize(size);
                }
-               else {
-                  // set runtime value so fixCalendarSize() reads the correct show type
-                  info.setShowType(CalendarVSAssemblyInfo.CALENDAR_SHOW_TYPE);
 
-                  try {
-                     info.fixCalendarSize();
-                     Dimension size = info.getPixelSize();
-                     // fall back if no prior pixel size assigned
-                     int calendarHeight = size != null ? size.height :
-                        CalendarVSAssemblyInfo.DEFAULT_CALENDAR_HEIGHT;
-                     info.setPixelOffset(new Point(x, tabTop - calendarHeight));
-                  }
-                  finally {
-                     info.setShowType(type);
-                  }
+               // the title is drawn inside the calendar height, grow the calendar
+               // when the title leaves no room for the body so it does not render
+               // past its height and cover the tabs
+               int fitHeight = info.fitCalendarHeightToTitle(size.height);
+
+               if(fitHeight != size.height) {
+                  size = new Dimension(size.width, fitHeight);
+                  info.setPixelSize(size);
                }
+
+               info.setPixelOffset(new Point(x, tabTop - size.height));
             }
          }
       }

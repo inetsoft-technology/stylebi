@@ -20,8 +20,8 @@ package inetsoft.web.admin.schedule;
 import inetsoft.sree.AnalyticRepository;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.schedule.*;
-import inetsoft.sree.security.ResourceAction;
-import inetsoft.sree.security.ResourceType;
+import inetsoft.sree.security.*;
+import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.util.Tool;
@@ -32,6 +32,8 @@ import inetsoft.web.security.Secured;
 import inetsoft.web.viewsheet.service.LinkUri;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.web.bind.annotation.*;
 import org.w3c.dom.*;
 
@@ -44,10 +46,14 @@ import java.util.*;
 public class ImportTaskController {
    public ImportTaskController(ScheduleManager scheduleManager,
                                ScheduleTaskFolderService scheduleTaskFolderService,
-                               AnalyticRepository analyticRepository) {
+                               AnalyticRepository analyticRepository,
+                               SecurityEngine securityEngine) {
       this.scheduleManager = scheduleManager;
       this.scheduleTaskFolderService = scheduleTaskFolderService;
       this.analyticRepository = analyticRepository;
+      this.securityEngine = securityEngine;
+      this.secretIdChecker = new ScheduleSecretIdChecker(securityEngine);
+      this.identityChecker = new ScheduleTaskIdentityChecker(securityEngine);
    }
 
    @Secured(
@@ -58,7 +64,10 @@ public class ImportTaskController {
       )
    )
    @PostMapping("/api/em/content/schedule/set-task-file")
-   public ImportTaskDialogModel setTaskFile(@RequestBody FileData file, HttpServletRequest request) throws Exception {
+   public ImportTaskDialogModel setTaskFile(@RequestBody FileData file, HttpServletRequest request,
+                                            Principal principal)
+      throws Exception
+   {
       HttpSession session = request.getSession(true);
       InputStream is = new ByteArrayInputStream(Base64.getDecoder().decode(file.content()));
       Document doc = Tool.parseXML(is, "utf-8");
@@ -71,11 +80,12 @@ public class ImportTaskController {
          Element ele = (Element) list.item(i);
          String name = Tool.getAttribute(ele,"name");
 
-         ScheduleTask task = new ScheduleTask();
-         task.parseXML(ele);
+         ScheduleTask task = parseTask(ele, principal);
 
          TaskDependencyModel model = TaskDependencyModel.builder()
                  .task(name)
+                 // Bug #77283, the import matches the selection against the parsed task id
+                 .taskId(task.getTaskId())
                  .dependency(getDependency(task))
                  .build();
          tasklistModel.add(model);
@@ -83,6 +93,8 @@ public class ImportTaskController {
       }
 
       session.setAttribute(INFO_ATTR, tasklist);
+      // Bug #77259, the global time ranges are only applied when the import is confirmed
+      session.removeAttribute(TIME_RANGES_ATTR);
 
       final Optional<Element> timeRanges =
          Optional.ofNullable(Tool.getChildNodeByTagName(doc, "schedule"))
@@ -102,7 +114,7 @@ public class ImportTaskController {
                }
             }
 
-            TimeRange.setTimeRanges(ranges);
+            session.setAttribute(TIME_RANGES_ATTR, ranges);
          }
       }
 
@@ -129,6 +141,19 @@ public class ImportTaskController {
 
       List<ScheduleTask> tasklist = (ArrayList<ScheduleTask>)session.getAttribute(INFO_ATTR);
       session.removeAttribute(INFO_ATTR);
+      List<TimeRange> timeRanges = (List<TimeRange>) session.getAttribute(TIME_RANGES_ATTR);
+      session.removeAttribute(TIME_RANGES_ATTR);
+
+      // Bug #77360, no uploaded task file in the session (never uploaded, or already imported)
+      if(tasklist == null) {
+         LOG.warn("No uploaded task file found in the session, the tasks are not imported");
+         return ImportTaskResponse.builder()
+            .failedTasks(selectedTasks == null ? new ArrayList<>() : new ArrayList<>(selectedTasks))
+            .failed(true)
+            .build();
+      }
+
+      applyTimeRanges(timeRanges, principal);
 
       for(int i=0; i < tasklist.size(); i++) {
          ScheduleTask task = tasklist.get(i);
@@ -138,8 +163,24 @@ public class ImportTaskController {
          ScheduleTask oldTask =  scheduleManager.getScheduleTask(taskId);
          Boolean taskExists = oldTask != null;
 
-         if(taskExists && overwriting && oldTask.isEditable() &&
+         // Bug #77259, check regardless of the stored task's editable flag, internal and MV
+         // tasks are not editable
+         if(taskExists && overwriting &&
             !analyticRepository.checkPermission(principal, ResourceType.SCHEDULER, taskId, ResourceAction.ACCESS))
+         {
+            failedList.add(taskId);
+            continue;
+         }
+
+         if(selectedTasks.contains(taskId) && (!taskExists || overwriting) &&
+            !isImportAllowed(task, taskId, principal))
+         {
+            failedList.add(taskId);
+            continue;
+         }
+
+         if(selectedTasks.contains(taskId) && (!taskExists || overwriting) &&
+            !secretIdChecker.isAllowed(task, oldTask, principal))
          {
             failedList.add(taskId);
             continue;
@@ -148,12 +189,14 @@ public class ImportTaskController {
          if(selectedTasks.contains(taskId) && (!taskExists || overwriting)) {
             updateTaskInfo(task, linkURI);
             scheduleManager.setScheduleTask(taskId, task, principal);
-         }
 
-         if(path != null &&
-            scheduleTaskFolderService.checkFolderExists(path))
-         {
-            moveTask(task, path, principal);
+            // Bug #77350, only a task imported here is moved from the root folder, where
+            // setScheduleTask put it, to its folder in the xml
+            if(path != null &&
+               scheduleTaskFolderService.checkFolderExists(path))
+            {
+               moveTask(task, path, principal);
+            }
          }
       }
 
@@ -162,16 +205,108 @@ public class ImportTaskController {
               .build();
    }
 
+   /**
+    * Parses an uploaded task. The owner, execute-as identity, completion conditions and actions
+    * are moved to the caller's current organization, the same as a site admin deploy import.
+    */
+   private ScheduleTask parseTask(Element ele, Principal principal) throws Exception {
+      return identityChecker.parseImportedTask(ele, principal);
+   }
+
+   /**
+    * Bug #77259, the uploaded xml is not trusted. Checks the parts of an imported task that the
+    * task editor never lets the caller set.
+    */
+   private boolean isImportAllowed(ScheduleTask task, String taskId, Principal principal)
+      throws Exception
+   {
+      // the task editor requires the scheduler permission regardless of the removable flag
+      if(!analyticRepository.checkPermission(principal, ResourceType.SCHEDULER, "*", ResourceAction.ACCESS)) {
+         LOG.warn("Task {} is not imported, the user doesn't have the scheduler permission", taskId);
+         return false;
+      }
+
+      boolean internalType = task.getType() == ScheduleTask.Type.INTERNAL_TASK;
+
+      if(internalType || ScheduleManager.isInternalTask(taskId)) {
+         if(!internalType || !ScheduleManager.isInternalTask(task.getName()) ||
+            !canWriteInternalTask(task.getName(), principal))
+         {
+            LOG.warn("Internal task {} is not imported, it's not allowed for the user", taskId);
+            return false;
+         }
+
+         // internal tasks belong to the host organization and run as the system user
+         task.setOwner(new IdentityID(XPrincipal.SYSTEM, Organization.getDefaultOrganizationID()));
+         return true;
+      }
+
+      if(!identityChecker.isAllowed(task, taskId, principal)) {
+         return false;
+      }
+
+      for(String internalTask : ScheduleTaskIdentityChecker.getInternalTaskContents(task)) {
+         if(!canWriteInternalTask(internalTask, principal)) {
+            LOG.warn("Task {} is not imported, it contains the actions or conditions of " +
+                     "the internal task {}", taskId, internalTask);
+            return false;
+         }
+      }
+
+      return true;
+   }
+
+   /**
+    * Same check as editing an internal task in the task editor, org admins are refused.
+    */
+   private boolean canWriteInternalTask(String name, Principal principal) throws Exception {
+      return analyticRepository.checkPermission(
+         principal, ResourceType.SCHEDULE_TASK, name, ResourceAction.WRITE);
+   }
+
+   private boolean isSiteAdmin(Principal principal) {
+      return !securityEngine.isSecurityEnabled() ||
+         OrganizationManager.getInstance().isSiteAdmin(principal);
+   }
+
+   /**
+    * Bug #77259, the time ranges are global, only a user allowed to edit the scheduler settings
+    * (and in the host organization when multi-tenant) may replace them.
+    */
+   private void applyTimeRanges(List<TimeRange> ranges, Principal principal) throws Exception {
+      if(ranges == null || ranges.isEmpty()) {
+         return;
+      }
+
+      boolean allowed = analyticRepository.checkPermission(
+         principal, ResourceType.EM_COMPONENT, "settings/schedule/settings", ResourceAction.ACCESS) &&
+         (!SUtil.isMultiTenant() || (isSiteAdmin(principal) &&
+            Tool.equals(OrganizationManager.getInstance().getCurrentOrgID(principal),
+                        Organization.getDefaultOrganizationID())));
+
+      if(!allowed) {
+         LOG.debug("Time ranges in the imported file are ignored, the user can't edit them");
+         return;
+      }
+
+      TimeRange.setTimeRanges(ranges);
+   }
+
    private void moveTask(ScheduleTask task, String path, Principal principal) throws Exception {
+      String taskId = task.getTaskId();
+      // Bug #77350, internal tasks are never moved into a folder, and the removable flag of
+      // the xml isn't trusted for them
+      boolean internal = task.getType() == ScheduleTask.Type.INTERNAL_TASK ||
+         ScheduleManager.isInternalTask(taskId);
       ScheduleTaskModel model = ScheduleTaskModel.builder()
-         .name(task.getTaskId())
+         .name(taskId)
          .owner(task.getOwner())
          .ownerAlias(SUtil.getUserAlias(task.getOwner()))
          .path("/")
          .label("")
          .description("")
          .editable(true)
-         .removable(true)
+         .removable(task.isRemovable() && !internal)
          .enabled(true)
          .schedule("")
          .build();
@@ -208,5 +343,10 @@ public class ImportTaskController {
    private final ScheduleManager scheduleManager;
    private final ScheduleTaskFolderService scheduleTaskFolderService;
    private final AnalyticRepository analyticRepository;
+   private final SecurityEngine securityEngine;
+   private final ScheduleSecretIdChecker secretIdChecker;
+   private final ScheduleTaskIdentityChecker identityChecker;
    static final String INFO_ATTR = "__private_scheduleXmlInfo";
+   static final String TIME_RANGES_ATTR = "__private_scheduleXmlTimeRanges";
+   private static final Logger LOG = LoggerFactory.getLogger(ImportTaskController.class);
 }

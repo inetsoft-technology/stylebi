@@ -53,6 +53,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * Applies assembly-level formatting through the Composer's own format service.
@@ -90,9 +91,11 @@ public class ViewsheetFormatService {
     *                   is {@code "data"} or {@code "header"}: scopes the write to one named
     *                   column of a plain Table's body/header cells (matched against that
     *                   column's currently rendered header text) instead of the whole
-    *                   body/header; null/blank keeps today's whole-table behavior. Not
-    *                   supported against a Crosstab under {@code "data"} or {@code "header"} --
-    *                   refused rather than silently ignored. Unused for any other target.
+    *                   body/header; null/blank keeps today's whole-table behavior. Against a
+    *                   Crosstab it names one aggregate (its rendered measure header, its data
+    *                   path header, or its base column when unambiguous) and scopes the write to
+    *                   that measure's body cells (including totals) or header cells. Unused for
+    *                   any other target.
     */
    public record FormatRequest(List<String> assemblies,
                                VSObjectFormatInfoModel format,
@@ -505,14 +508,16 @@ public class ViewsheetFormatService {
     * header -- so resolving to an index once and filtering by that same index on both sides is
     * what keeps the two notions from ever needing to agree with each other.
     *
-    * <p>Column-scoping via {@code field} is only supported for a plain Table -- a Crosstab's
-    * body region is refused loud rather than silently ignoring {@code field} or attempting a
-    * filter that doesn't map onto its structurally nested body.
+    * <p>On a Crosstab, {@code isColDataPath} is meaningless ({@code CrossFilterDataDescriptor}
+    * always answers false) and one measure repeats across many rendered columns or rows, so
+    * {@code field} instead names one aggregate: it is resolved to that aggregate's data header
+    * ({@link #resolveCrosstabMeasureKey}) and only the {@code SUMMARY}/{@code GRAND_TOTAL}
+    * paths ending in that header are kept -- the other measures' cells and the dimension
+    * {@code GROUP_HEADER} cells are left alone.
     *
     * @throws IllegalArgumentException if {@code name} does not resolve to a Crosstab or Table,
-    *                                  if {@code field} is given against a Crosstab, or if
-    *                                  {@code field} matches zero or more than one rendered
-    *                                  column
+    *                                  or if {@code field} matches zero or more than one rendered
+    *                                  column (Table) or aggregate (Crosstab)
     */
    private static TableDataPath[] computeDataRegionPaths(RuntimeViewsheet rvs, String name,
                                                           String field)
@@ -529,13 +534,6 @@ public class ViewsheetFormatService {
       }
 
       boolean hasField = field != null && !field.isBlank();
-
-      if(hasField && assembly instanceof CrosstabVSAssembly) {
-         throw new IllegalArgumentException(
-            "set_format: 'field' is only supported for a plain Table body under target " +
-            "'data', not a Crosstab ('" + name + "'); omit 'field' to format the whole body.");
-      }
-
       Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
 
       if(box.isEmpty()) {
@@ -551,7 +549,6 @@ public class ViewsheetFormatService {
       TableDataDescriptor desc = lens.getDescriptor();
       LinkedHashSet<TableDataPath> paths = new LinkedHashSet<>();
       int colCount = lens.getColCount();
-      Integer resolvedCol = hasField ? resolveColumnIndex(lens, field, name) : null;
 
       // Bounded defensively against a pathological lens that never stops reporting more rows --
       // the distinct path SET is small regardless of row count (a body path encodes structural
@@ -567,6 +564,9 @@ public class ViewsheetFormatService {
       // (DefaultTableDataDescriptor) never emits those reused types -- only HEADER, DETAIL and
       // TRAILER -- so the original type-only check is kept for it unchanged.
       boolean isCrosstab = assembly instanceof CrosstabVSAssembly;
+      String measureKey = hasField && isCrosstab ?
+         resolveCrosstabMeasureKey(lens, field, name) : null;
+      Integer resolvedCol = hasField && !isCrosstab ? resolveColumnIndex(lens, field, name) : null;
 
       for(int row = 0; row < MAX_DATA_REGION_ROWS && lens.moreRows(row); row++) {
          for(int col = 0; col < colCount; col++) {
@@ -579,7 +579,11 @@ public class ViewsheetFormatService {
             boolean isBody = isCrosstab ? isBodyCell(lens, row, col) :
                path.getType() != TableDataPath.HEADER;
 
-            if(isBody) {
+            // Field-scoped on a Crosstab: within the body band, keep only this measure's value
+            // cells (normal summary and sub/grand totals) -- see resolveCrosstabMeasureKey.
+            if(isBody && (measureKey == null || isMeasureBodyType(path.getType()) &&
+               measureKey.equals(lastPathElement(path))))
+            {
                paths.add(path);
             }
          }
@@ -609,13 +613,14 @@ public class ViewsheetFormatService {
     * separately, since doing so would need distinguishing them from a genuine header cell by
     * more than type alone.
     *
-    * <p>Same {@code field} column-scoping support and restriction as
-    * {@link #computeDataRegionPaths}: only for a plain Table, refused loud against a Crosstab.
+    * <p>Same {@code field} scoping as {@link #computeDataRegionPaths}: a plain Table column by
+    * resolved index; on a Crosstab, one aggregate -- keeping only the {@code HEADER}-typed
+    * measure-header paths ending in that aggregate's data header. Scoping a Crosstab's
+    * dimension header by name is not supported; {@code field} there always names an aggregate.
     *
     * @throws IllegalArgumentException if {@code name} does not resolve to a Crosstab or Table,
-    *                                  if {@code field} is given against a Crosstab, or if
-    *                                  {@code field} matches zero or more than one rendered
-    *                                  column
+    *                                  or if {@code field} matches zero or more than one rendered
+    *                                  column (Table) or aggregate (Crosstab)
     */
    private static TableDataPath[] computeHeaderRegionPaths(RuntimeViewsheet rvs, String name,
                                                             String field)
@@ -632,14 +637,6 @@ public class ViewsheetFormatService {
       }
 
       boolean hasField = field != null && !field.isBlank();
-
-      if(hasField && assembly instanceof CrosstabVSAssembly) {
-         throw new IllegalArgumentException(
-            "set_format: 'field' is only supported for a plain Table header under target " +
-            "'header', not a Crosstab ('" + name + "'); omit 'field' to format the whole " +
-            "header.");
-      }
-
       Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
 
       if(box.isEmpty()) {
@@ -655,13 +652,15 @@ public class ViewsheetFormatService {
       TableDataDescriptor desc = lens.getDescriptor();
       LinkedHashSet<TableDataPath> paths = new LinkedHashSet<>();
       int colCount = lens.getColCount();
-      Integer resolvedCol = hasField ? resolveColumnIndex(lens, field, name) : null;
 
       // Mirror image of computeDataRegionPaths's own isCrosstab split -- see its comment. Kept
       // as the exact logical negation (isBodyCell for a Crosstab, isHeaderFamilyType for a
       // plain Table) so the two methods still exactly partition every rendered cell: body XOR
       // header, never both, never neither.
       boolean isCrosstab = assembly instanceof CrosstabVSAssembly;
+      String measureKey = hasField && isCrosstab ?
+         resolveCrosstabMeasureKey(lens, field, name) : null;
+      Integer resolvedCol = hasField && !isCrosstab ? resolveColumnIndex(lens, field, name) : null;
 
       // Same defensive row cap as computeDataRegionPaths -- see its own comment.
       for(int row = 0; row < MAX_DATA_REGION_ROWS && lens.moreRows(row); row++) {
@@ -675,7 +674,11 @@ public class ViewsheetFormatService {
             boolean isHeader = isCrosstab ? !isBodyCell(lens, row, col) :
                isHeaderFamilyType(path.getType());
 
-            if(isHeader) {
+            // Field-scoped on a Crosstab: within the header band, keep only this measure's own
+            // HEADER-typed measure-header cells.
+            if(isHeader && (measureKey == null || path.getType() == TableDataPath.HEADER &&
+               measureKey.equals(lastPathElement(path))))
+            {
                paths.add(path);
             }
          }
@@ -687,6 +690,109 @@ public class ViewsheetFormatService {
    private static boolean isHeaderFamilyType(int type) {
       return type == TableDataPath.HEADER || type == TableDataPath.GROUP_HEADER ||
          type == TableDataPath.SUMMARY_HEADER;
+   }
+
+   /** A Crosstab measure's value cells -- a normal summary cell or a (sub/grand) total cell. */
+   private static boolean isMeasureBodyType(int type) {
+      return type == TableDataPath.SUMMARY || type == TableDataPath.GRAND_TOTAL;
+   }
+
+   private static String lastPathElement(TableDataPath path) {
+      String[] parts = path.getPath();
+      return parts == null || parts.length == 0 ? null : parts[parts.length - 1];
+   }
+
+   /**
+    * Resolves a caller-typed aggregate name on a Crosstab to that aggregate's data header -- the
+    * last path element {@code CrossFilterDataDescriptor.getCellDataPath} appends to every one of
+    * that measure's {@code SUMMARY}/{@code GRAND_TOTAL} body paths and its {@code HEADER}-typed
+    * measure-header paths (the same convention {@code WizVsService.findHighlightCell} relies on).
+    *
+    * <p>The measure set is read from the live lens's body-band paths only ({@link #isBodyCell}):
+    * a header-band subtotal/grand-total label cell shares the {@code SUMMARY}/{@code GRAND_TOTAL}
+    * type but ends in a dimension value, not a data header (bug 76981), so it must never be
+    * offered or matched as a measure. Each measure-header cell's
+    * rendered text is also recorded as a label for its key, since a calc header, duplicate-suffix
+    * or relabel can make the rendered text differ from the path header (the same
+    * rendered-vs-path divergence {@link #resolveColumnIndex} guards against for a plain Table).
+    * {@code field} is matched exactly against either first; only when nothing matches exactly is
+    * the base-column form tried ({@code "Total"} for {@code "Sum(Total)"}).
+    *
+    * @throws IllegalArgumentException if {@code field} matches no aggregate, or more than one
+    */
+   private static String resolveCrosstabMeasureKey(VSTableLens lens, String field,
+                                                   String assemblyName)
+   {
+      TableDataDescriptor desc = lens.getDescriptor();
+      int colCount = lens.getColCount();
+      Map<String, Set<String>> labels = new LinkedHashMap<>();
+      List<int[]> headerCells = new ArrayList<>();
+
+      for(int row = 0; row < MAX_DATA_REGION_ROWS && lens.moreRows(row); row++) {
+         for(int col = 0; col < colCount; col++) {
+            TableDataPath path = desc.getCellDataPath(row, col);
+            String key = path == null ? null : lastPathElement(path);
+
+            if(key == null) {
+               continue;
+            }
+
+            if(isMeasureBodyType(path.getType()) && isBodyCell(lens, row, col)) {
+               labels.computeIfAbsent(key, k -> new LinkedHashSet<>()).add(key);
+            }
+            else if(path.getType() == TableDataPath.HEADER) {
+               headerCells.add(new int[]{ row, col });
+            }
+         }
+      }
+
+      for(int[] cell : headerCells) {
+         Set<String> keyLabels = labels.get(lastPathElement(desc.getCellDataPath(cell[0], cell[1])));
+         Object val = lens.getObject(cell[0], cell[1]);
+
+         if(keyLabels != null && val != null) {
+            keyLabels.add(val.toString());
+         }
+      }
+
+      List<String> matches = new ArrayList<>();
+
+      for(Map.Entry<String, Set<String>> entry : labels.entrySet()) {
+         if(entry.getValue().contains(field)) {
+            matches.add(entry.getKey());
+         }
+      }
+
+      if(matches.isEmpty()) {
+         for(Map.Entry<String, Set<String>> entry : labels.entrySet()) {
+            for(String label : entry.getValue()) {
+               int open = label.indexOf('(');
+               int close = label.lastIndexOf(')');
+
+               if(open > 0 && close > open && label.substring(open + 1, close).equals(field)) {
+                  matches.add(entry.getKey());
+                  break;
+               }
+            }
+         }
+      }
+
+      if(matches.isEmpty()) {
+         throw new IllegalArgumentException(
+            "'" + field + "' is not an aggregate on Crosstab '" + assemblyName + "' right now; " +
+            "on a Crosstab 'field' names one measure. " + (labels.isEmpty() ?
+            "No aggregates are currently rendered." :
+            "Available: " + String.join(", ", labels.keySet()) + "."));
+      }
+
+      if(matches.size() > 1) {
+         throw new IllegalArgumentException(
+            "'" + field + "' matches " + matches.size() + " aggregates on Crosstab '" +
+            assemblyName + "' (" + String.join(", ", matches) + ") -- pass the full measure " +
+            "name to pick one.");
+      }
+
+      return matches.get(0);
    }
 
    /**

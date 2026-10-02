@@ -17,6 +17,7 @@
  */
 package inetsoft.util.script.graal.pool;
 
+import inetsoft.util.script.ScriptStateLint;
 import inetsoft.util.stall.StallWatchdog;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -72,6 +73,124 @@ public final class PoolMetrics {
    void executed() {
       execs.incrementAndGet();
       NODE_EXECS.incrementAndGet();
+   }
+
+   // one per claim that took a context (G10 piece Q: one per query build)
+   void checkedOut() {
+      checkouts.incrementAndGet();
+   }
+
+   void swapped() {
+      swaps.incrementAndGet();
+   }
+
+   void buildYielded() {
+      buildYields.incrementAndGet();
+   }
+
+   /**
+    * @return the contexts a query build gave back before its end, because a formula table
+    * batch made them the home of the table's script objects (G10 piece Q, round 2).
+    */
+   public long getBuildYields() {
+      return buildYields.get();
+   }
+
+   /**
+    * @return the contexts taken by claims, one per claim that ran a script: with a query build
+    * claim (G10 piece Q) one per build, however many formulas and conditions it runs.
+    */
+   public long getCheckouts() {
+      return checkouts.get();
+   }
+
+   /**
+    * @return the contexts a query build left for a fresh one because an interrupt could not
+    * stop one of its scripts (G10 piece Q, amendment 1).
+    */
+   public long getSwaps() {
+      return swaps.get();
+   }
+
+   // lens-owned objects across contexts (Testing #77123, B1 residual part 2)
+   void handedOff(long nanos) {
+      handOffs.incrementAndGet();
+      handOffNanos.addAndGet(nanos);
+      NODE_HAND_OFFS.incrementAndGet();
+   }
+
+   void rebuilt() {
+      rebuilds.incrementAndGet();
+   }
+
+   void pulled() {
+      pulls.incrementAndGet();
+   }
+
+   void crossRead() {
+      crossReads.incrementAndGet();
+   }
+
+   void tookOver() {
+      takeOvers.incrementAndGet();
+   }
+
+   /** @return the tree snapshots of lens-owned objects taken at a hand-off. */
+   public long getHandOffs() {
+      return handOffs.get();
+   }
+
+   /** @return the time spent in those snapshots, in nanoseconds. */
+   public long getHandOffNanos() {
+      return handOffNanos.get();
+   }
+
+   /** @return the tree snapshots rebuilt on another context. */
+   public long getRebuilds() {
+      return rebuilds.get();
+   }
+
+   /** @return the hand-offs pulled from an idle home by a batch on another context. */
+   public long getPulls() {
+      return pulls.get();
+   }
+
+   /** @return the reads of a lens-owned object made on another context. */
+   public long getCrossReads() {
+      return crossReads.get();
+   }
+
+   /** @return the idle homes another claim took over after a hand-off. */
+   public long getTakeOvers() {
+      return takeOvers.get();
+   }
+
+   /** @return the exclusive homes of this node. */
+   public static int nodeHomes() {
+      return NODE_HOMES.get();
+   }
+
+   /**
+    * Count an exclusive home of this node, if the node has fewer than {@code max}, until the
+    * handle is cleaned or the slot collected. Atomic across the node's pools.
+    *
+    * @return the handle, or {@code null} if the node already has {@code max} homes.
+    */
+   static Cleaner.Cleanable tryGrantHome(Object slot, int max) {
+      while(true) {
+         int n = NODE_HOMES.get();
+
+         if(n >= max) {
+            return null;
+         }
+
+         if(NODE_HOMES.compareAndSet(n, n + 1)) {
+            break;
+         }
+      }
+
+      // the action must not reference the slot
+      return CLEANER.register(slot, NODE_HOMES::decrementAndGet);
    }
 
    public int getSize() {
@@ -162,6 +281,22 @@ public final class PoolMetrics {
    }
 
    /**
+    * Count a host copy of a worksheet script value that Java changed on the script's thread
+    * while the script ran (bug #77123, C1): the script does not see that change.
+    */
+   static void copyMutated() {
+      NODE_COPY_MUTATIONS.incrementAndGet();
+   }
+
+   /**
+    * @return the host copies of script values passed to Java that Java changed on the
+    *         script's thread during the script run, which the script did not see (C1).
+    */
+   public static long nodeCopyMutations() {
+      return NODE_COPY_MUTATIONS.get();
+   }
+
+   /**
     * @return the execs of this node whose timeout interrupt could not stop them.
     */
    public static long nodeInterruptTimeouts() {
@@ -195,9 +330,12 @@ public final class PoolMetrics {
       long execs = NODE_EXECS.get();
       return String.format(
          "slots=%d, maxSandboxSlots=%d, creations=%d, evictions=%d, doomedCloses=%d, " +
-         "execs=%d, cleans=%d, cleansPerExec=%.4f", NODE_SLOTS.get(),
-         NODE_MAX_SANDBOX_SLOTS.get(), NODE_CREATIONS.get(), NODE_EVICTIONS.get(),
-         NODE_DOOMED_CLOSES.get(), execs, cleans, ratio(cleans, execs));
+         "execs=%d, cleans=%d, cleansPerExec=%.4f, stateHazards=%d, copyMutations=%d, " +
+         "homes=%d, handOffs=%d",
+         NODE_SLOTS.get(), NODE_MAX_SANDBOX_SLOTS.get(), NODE_CREATIONS.get(),
+         NODE_EVICTIONS.get(), NODE_DOOMED_CLOSES.get(), execs, cleans, ratio(cleans, execs),
+         ScriptStateLint.nodeStateHazardScripts(), NODE_COPY_MUTATIONS.get(), NODE_HOMES.get(),
+         NODE_HAND_OFFS.get());
    }
 
    /**
@@ -236,6 +374,9 @@ public final class PoolMetrics {
    private static final AtomicLong NODE_EXECS = new AtomicLong();
    private static final AtomicLong NODE_INTERRUPT_TIMEOUTS = new AtomicLong();
    private static final AtomicLong NODE_LEAKED_CLAIMS = new AtomicLong();
+   private static final AtomicLong NODE_COPY_MUTATIONS = new AtomicLong();
+   private static final AtomicInteger NODE_HOMES = new AtomicInteger();
+   private static final AtomicLong NODE_HAND_OFFS = new AtomicLong();
    // read by the lock-stall probe, which must not read properties (bug #76967)
    private static volatile int nodeSlotWarnThreshold = Integer.MAX_VALUE;
    private final AtomicInteger size = new AtomicInteger();
@@ -245,4 +386,13 @@ public final class PoolMetrics {
    private final AtomicLong doomedCloses = new AtomicLong();
    private final AtomicLong cleans = new AtomicLong();
    private final AtomicLong execs = new AtomicLong();
+   private final AtomicLong checkouts = new AtomicLong();
+   private final AtomicLong swaps = new AtomicLong();
+   private final AtomicLong buildYields = new AtomicLong();
+   private final AtomicLong handOffs = new AtomicLong();
+   private final AtomicLong handOffNanos = new AtomicLong();
+   private final AtomicLong rebuilds = new AtomicLong();
+   private final AtomicLong pulls = new AtomicLong();
+   private final AtomicLong crossReads = new AtomicLong();
+   private final AtomicLong takeOvers = new AtomicLong();
 }

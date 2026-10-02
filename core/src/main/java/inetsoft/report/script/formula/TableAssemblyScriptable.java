@@ -26,6 +26,7 @@ import inetsoft.uql.XTable;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.util.XEmbeddedTable;
 import inetsoft.util.script.ScriptUtil;
+import inetsoft.util.stall.LockStallException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -142,6 +143,13 @@ public class TableAssemblyScriptable extends TableArray {
          return table;
       }
       catch(Exception ex) {
+         // a lock stall is not a missing table, which TableArray reads as an empty one (#77123)
+         LockStallException stall = LockStallException.find(ex);
+
+         if(stall != null) {
+            throw stall;
+         }
+
          // ignore if box has been disposed
          if(!box.isDisposed()) {
             LOG.warn("Failed to get table", ex);

@@ -187,6 +187,13 @@ export class AppComponent implements OnInit, OnDestroy {
       });
 
       expirationDialog.onTimerFinished.subscribe(() => {
+         // logging a guest out sends it to the login page, which a guest has no use for.
+         // Just close the dialog, the connection is handled when the server goes away.
+         if(model.guest) {
+            expirationDialog.closeDialog();
+            return;
+         }
+
          this.setExpirationDialog(null, model.nodeProtection);
          this.logoutService.logout();
       });

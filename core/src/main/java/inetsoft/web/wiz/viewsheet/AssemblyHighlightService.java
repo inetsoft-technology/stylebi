@@ -17,6 +17,10 @@
  */
 package inetsoft.web.wiz.viewsheet;
 
+import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.uql.viewsheet.VSAssembly;
+import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.uql.viewsheet.internal.RangeOutputVSAssemblyInfo;
 import inetsoft.web.adhoc.model.FontInfo;
 import inetsoft.web.wiz.binding.VisualFrameAliases;
 import inetsoft.web.composer.model.vs.HighlightDialogModel;
@@ -114,7 +118,8 @@ public class AssemblyHighlightService {
    }
 
    /**
-    * Adds a highlight, or updates one by name when {@code replace} is set.
+    * Adds a highlight, or updates one by name when {@code replace} is set. With {@code replace}
+    * set, the name must already exist; a name that matches nothing is refused rather than added.
     *
     * <p>One {@code sessions.mutate}, so one undo checkpoint.
     */
@@ -124,6 +129,7 @@ public class AssemblyHighlightService {
       requireName(highlight);
 
       sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+         requireHighlightRenderable(rvs, assemblyName);
          HighlightDialogModel model = read(runtimeId, assemblyName, region, user);
 
          if(model == null) {
@@ -163,6 +169,25 @@ public class AssemblyHighlightService {
          }
 
          if(!found) {
+            // replace:true is a request to update, so a name that matches nothing is almost
+            // always a misspelling -- adding it would leave the intended highlight unchanged and
+            // stack a second one next to it, while the caller is told the update succeeded.
+            if(replace) {
+               List<String> names = new ArrayList<>();
+
+               for(HighlightModel existing : highlights) {
+                  if(existing != null) {
+                     names.add(existing.getName());
+                  }
+               }
+
+               throw new IllegalArgumentException(
+                  "'" + assemblyName + "' has no highlight named '" + highlight.name() +
+                  "' to replace. It has: " +
+                  (names.isEmpty() ? "(none)" : String.join(", ", names)) +
+                  ". Drop replace:true to add it as a new highlight.");
+            }
+
             highlights.add(build(highlight, model));
          }
 
@@ -408,6 +433,35 @@ public class AssemblyHighlightService {
          "cells, not header rows/columns -- and for a crosstab with 2+ aggregates the first data " +
          "cell is not always (1, 1). Call list_highlights with no region at all; it resolves to " +
          "the first data cell automatically.");
+   }
+
+   /**
+    * Refuses a highlight on a range output (Gauge, Cylinder, Thermometer, SlidingScale).
+    *
+    * <p>{@code HighlightDialogService} accepts every {@code OutputVSAssemblyInfo}, but an output's
+    * highlight colour/font is only ever applied for Text and Image ({@code VSFormatModel},
+    * {@code VSImage}); a range output is painted without it. The Composer offers no Highlight
+    * action for these types either. Without this the write reported success, read back correctly
+    * via list_highlights, and never rendered.
+    */
+   private static void requireHighlightRenderable(RuntimeViewsheet rvs, String assemblyName) {
+      Viewsheet vs = rvs == null ? null : rvs.getViewsheet();
+      VSAssembly assembly = vs == null ? null : vs.getAssembly(assemblyName);
+
+      if(assembly == null ||
+         !(assembly.getVSAssemblyInfo() instanceof RangeOutputVSAssemblyInfo info))
+      {
+         return;
+      }
+
+      String type = info.getClass().getSimpleName().replaceFirst("VSAssemblyInfo$", "");
+
+      throw new IllegalArgumentException(
+         "'" + assemblyName + "' is a " + type + ", which does not render highlights -- only " +
+         "Text and Image outputs apply a highlight's colour or font, and the Composer offers no " +
+         "Highlight for this type. Use its range colour properties (rangeValues/" +
+         "rangeColorValues) for a similar effect, or highlight a Text, Table, Crosstab or Chart " +
+         "instead.");
    }
 
    /**

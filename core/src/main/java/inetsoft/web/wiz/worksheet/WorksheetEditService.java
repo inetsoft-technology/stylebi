@@ -436,10 +436,47 @@ public class WorksheetEditService {
        *
        * @param table the assembly name
        * @param col   the column attribute name to remove
-       * @throws PairingException if no {@link TableAssembly} with {@code table} exists, or if
-       *                          a dependent join/composite table still uses this column
+       * @throws PairingException if no {@link TableAssembly} with {@code table} exists, if a
+       *                          dependent join/composite table still uses this column as a
+       *                          join key, or if a downstream table's own condition, ranking,
+       *                          expression, or aggregate/group-by references this column (see
+       *                          the {@code confirmed} overload)
        */
       public void removeColumn(String table, String col) throws PairingException {
+         removeColumn(table, col, false);
+      }
+
+      /**
+       * Removes the named column from the table's public {@link ColumnSelection}, with an
+       * explicit {@code confirmed} override for the "downstream table's own condition, ranking,
+       * expression, or aggregate/group-by references this column" conflict (Bug #77005 /
+       * WBS-093/094). No-ops if the column does not exist.
+       *
+       * <p>Unlike {@code rename_column} (Bug #77005), which can safely PROPAGATE the change into
+       * every downstream reference ({@link RenameColumnController#renameTableColumn}), a removal
+       * has no rewrite target -- the column is simply gone. The shared post-mutation refresh
+       * cascade every mutator runs through ({@code WorksheetEditService#apply} -&gt;
+       * {@code refreshAssemblies}) then silently drops any downstream pre/post/ranking condition
+       * that can no longer resolve ({@link inetsoft.uql.asset.internal.AssetUtil#validateConditions}),
+       * with no refusal or warning of its own -- and never touches a downstream expression
+       * column's raw script text at all, which simply evaluates to {@code null} once its
+       * referenced column is gone. This follows the same precheck-and-refuse model {@code
+       * set_column_visibility} already uses for the aggregate/group-by axis (Bug #77001 /
+       * WBS-088), extended to the condition/ranking/expression axis a removal also breaks.</p>
+       *
+       * @param table     the assembly name
+       * @param col       the column attribute name to remove
+       * @param confirmed {@code true} to proceed anyway despite a downstream table's own
+       *                  condition, ranking, expression, or aggregate/group-by losing the
+       *                  column it references (not a join key -- that case is always refused
+       *                  via {@code allowsDeletion})
+       * @throws PairingException if no {@link TableAssembly} with {@code table} exists, if a
+       *                          dependent join/composite table still uses this column as a
+       *                          join key, or if removal would break a downstream table's own
+       *                          condition, ranking, expression, or aggregate/group-by and
+       *                          {@code confirmed} is not {@code true}
+       */
+      public void removeColumn(String table, String col, boolean confirmed) throws PairingException {
          TableAssembly t = requireTable(table);
          ColumnSelection cs = t.getColumnSelection();
          DataRef toRemove = WorksheetMutationSupport.resolveFieldOrNull(t, col, false);
@@ -452,6 +489,18 @@ public class WorksheetEditService {
             {
                throw new PairingException(Catalog.getCatalog().getString(
                   "common.columnDependency", col));
+            }
+
+            if(toRemove instanceof ColumnRef cr && !confirmed) {
+               List<WorksheetControllerService.AggregateInputLossConflict> aggregateConflicts =
+                  WorksheetControllerService.findAggregateInputLossConflicts(ws, t, cr);
+               List<WorksheetControllerService.ColumnReferenceLossConflict> referenceConflicts =
+                  WorksheetControllerService.findColumnReferenceLossConflicts(ws, t, cr);
+
+               if(!aggregateConflicts.isEmpty() || !referenceConflicts.isEmpty()) {
+                  throw new PairingException(describeRemoveColumnConflicts(
+                     aggregateConflicts, referenceConflicts));
+               }
             }
 
             // For embedded tables, also remove the data column from XEmbeddedTable.
@@ -474,6 +523,40 @@ public class WorksheetEditService {
             cs.removeAttribute(toRemove);
             t.setColumnSelection(cs);
          }
+      }
+
+      /**
+       * Builds a field-named conflict message for {@link #removeColumn(String, String, boolean)},
+       * listing every downstream table and consumer kind (aggregate/group-by, and/or
+       * condition/ranking/expression) that would silently break.
+       */
+      private static String describeRemoveColumnConflicts(
+         List<WorksheetControllerService.AggregateInputLossConflict> aggregateConflicts,
+         List<WorksheetControllerService.ColumnReferenceLossConflict> referenceConflicts)
+      {
+         StringBuilder sb = new StringBuilder();
+
+         for(WorksheetControllerService.AggregateInputLossConflict conflict : aggregateConflicts) {
+            if(sb.length() > 0) {
+               sb.append("; ");
+            }
+
+            sb.append("'").append(conflict.dependentAssemblyName()).append("' (aggregate/group-by on ")
+               .append(String.join(", ", conflict.lostColumns())).append(")");
+         }
+
+         for(WorksheetControllerService.ColumnReferenceLossConflict conflict : referenceConflicts) {
+            if(sb.length() > 0) {
+               sb.append("; ");
+            }
+
+            sb.append("'").append(conflict.dependentAssemblyName()).append("' (")
+               .append(String.join(", ", conflict.references())).append(")");
+         }
+
+         return "This change would break the following downstream table(s), which reference " +
+            "the removed column: " + sb + ". Confirm with the user before retrying with " +
+            "confirmed:true -- this changes what those OTHER tables show, not just this one.";
       }
 
       /**
@@ -563,14 +646,26 @@ public class WorksheetEditService {
       }
 
       /**
-       * Sets the alias of an existing column, effectively renaming it in the output.
-       * No-ops if the column does not exist or is not a {@link ColumnRef}.
+       * Sets the alias of an existing column, effectively renaming it in the output, and
+       * propagates the rename into every downstream mirror/join's own conditions, ranking,
+       * sort, aggregates and expression-column script text -- the same propagation
+       * {@link RenameColumnController#renameTableColumn} gives the native Composer UI's rename
+       * dialog (Bug #77005 / WBS-092/093/094: without this, a downstream table's reference to
+       * the old name is silently dropped by the shared post-mutation
+       * {@code refreshAssemblies}/{@code AssetUtil.validateConditions} cascade, or -- for an
+       * expression column's raw script text, which nothing else ever re-validates -- simply
+       * left pointing at a column that no longer exists). No-ops if the column does not exist
+       * or is not a {@link ColumnRef}.
        *
        * @param table   the assembly name
        * @param col     the column attribute name to rename
        * @param newName the new alias
-       * @throws PairingException if no {@link TableAssembly} with {@code table} exists, or if
-       *                          a dependent join/composite table still uses this column
+       * @throws PairingException if no {@link TableAssembly} with {@code table} exists, if a
+       *                          dependent join/composite table still uses this column as a
+       *                          join key ({@code allowsDeletion}), or if {@code newName}
+       *                          collides with another column already on {@code table} (the
+       *                          same alias-conflict check the native rename dialog runs,
+       *                          adapted from {@link RenameColumnController#findRenameConflict})
        */
       public void renameColumn(String table, String col, String newName) throws PairingException {
          TableAssembly t = requireTable(table);
@@ -582,7 +677,72 @@ public class WorksheetEditService {
                   "common.columnDependency", col));
             }
 
-            cr.setAlias(newName);
+            // No CommandDispatcher exists on this headless bridge -- renameColumn(Worksheet,
+            // CommandDispatcher, ...) tolerates a null one (see its own comment) and simply
+            // skips dispatching a MessageCommand on conflict; findRenameConflict() re-derives
+            // the SAME conflict (read-only, no mutation happens either way) so this can still
+            // report a field-named PairingException instead of silently failing.
+            boolean failed = RenameColumnController.renameColumn(ws, null, t, cr, newName);
+
+            if(failed) {
+               ColumnRef conflict = RenameColumnController.findRenameConflict(t, cr, newName);
+               String message = conflict != null
+                  ? RenameColumnController.createColumnConflictErrorMessage(newName, conflict)
+                  : Catalog.getCatalog().getString("common.duplicateName");
+               throw new PairingException(message);
+            }
+
+            refreshColumnSelectionFastLookup(ws);
+         }
+      }
+
+      /**
+       * Bug #77005: re-touches every table's column selections (private and public) via
+       * {@link ColumnSelection#setAttribute} after a propagated rename, to invalidate a stale
+       * {@link inetsoft.util.ListWithFastLookup} index cache that {@link RenameColumnController
+       * #renameTableColumn}'s propagation can otherwise leave behind.
+       *
+       * <p>{@code renameMirrorConditionList} rewrites a downstream mirror's condition IN PLACE
+       * ({@code ((ColumnRef) ref).setDataRef(...)}) when that condition's own attribute happens
+       * to be the EXACT SAME {@link ColumnRef} object already sitting in the mirror's own column
+       * selection -- which it is here, since {@code addFilter} builds a condition by reusing the
+       * live, resolved column reference rather than cloning it. Mutating that shared object's
+       * underlying attribute changes its {@code hashCode()}/{@code equals()} identity WITHOUT
+       * going through any of {@code ListWithFastLookup}'s own structural mutators (its {@code
+       * add}/{@code remove}/{@code set}), so the column selection's cached index map keeps the
+       * object filed under its PRE-rename hash bucket. A subsequent {@code containsAttribute}/
+       * {@code indexOf} lookup under the object's NEW (correct) hash then reports "not found" --
+       * even though a direct {@code .equals()} call on the same two references returns {@code
+       * true} -- and {@code AssetUtil#validateConditions} (run by the shared post-mutation
+       * {@code refreshAssemblies} cascade, immediately after this propagation, on every table)
+       * silently drops the condition as a result.</p>
+       *
+       * <p>Calling {@code setAttribute(i, getAttribute(i))} for every entry is a genuine
+       * structural write from {@code ListWithFastLookup}'s own point of view (its {@code set}
+       * always invalidates the cached index), even though the value at each index is unchanged
+       * -- unlike rebuilding a fresh {@link ColumnSelection}, which would also work but silently
+       * drop that selection's own {@code Properties} (a column selection carries more state than
+       * just its list of attributes). Scoped to every table in the worksheet, not just the
+       * renamed table's own mirrors, since {@code renameTableColumn} propagates transitively and
+       * a further-downstream table's OWN condition can share the same object-identity hazard
+       * with ITS immediate upstream, one hop removed from {@code table} itself.</p>
+       */
+      private void refreshColumnSelectionFastLookup(Worksheet ws) {
+         for(Assembly assembly : ws.getAssemblies()) {
+            if(assembly instanceof TableAssembly ta) {
+               retouchColumnSelection(ta.getColumnSelection(false));
+               retouchColumnSelection(ta.getColumnSelection(true));
+            }
+         }
+      }
+
+      private void retouchColumnSelection(ColumnSelection cs) {
+         if(cs == null) {
+            return;
+         }
+
+         for(int i = 0; i < cs.getAttributeCount(); i++) {
+            cs.setAttribute(i, cs.getAttribute(i));
          }
       }
 

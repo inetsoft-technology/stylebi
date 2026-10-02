@@ -46,7 +46,7 @@ public abstract class BlobTask<T extends Serializable> extends KeyValueTask<Blob
     * @return the reference map.
     */
    protected Map<String, Set<String>> getReferenceMap() {
-      Cluster cluster = Cluster.getInstance();
+      Cluster cluster = getCluster();
       return cluster.getReplicatedMap("inetsoft.storage.kv." + getId() + "Refs");
    }
 
@@ -56,7 +56,7 @@ public abstract class BlobTask<T extends Serializable> extends KeyValueTask<Blob
     * @return the last modified timestamp.
     */
    protected DistributedLong getLastModified() {
-      Cluster cluster = Cluster.getInstance();
+      Cluster cluster = getCluster();
       return cluster.getLong("inetsoft.storage.blob.ts." + getId());
    }
 }

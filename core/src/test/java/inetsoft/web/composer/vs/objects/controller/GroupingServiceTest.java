@@ -31,12 +31,22 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.awt.*;
+import inetsoft.test.BaseTestConfiguration;
+import inetsoft.test.ConfigurationContextInitializer;
+import org.junit.jupiter.api.Tag;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @SreeHome()
 @ExtendWith(MockitoExtension.class)
+@Tag("core")
 class GroupingServiceTest {
    @Mock RuntimeViewsheet rvs;
    @Mock CommandDispatcher dispatcher;

@@ -20,6 +20,10 @@ package inetsoft.sree.security;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
+import java.io.ObjectStreamClass;
+import java.util.HashSet;
+import java.util.Set;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 @Tag("core")
@@ -55,5 +59,64 @@ class PermissionIdentityTest {
       Permission.PermissionIdentity right = new Permission.PermissionIdentity("ALICE", "org-b");
 
       assertFalse(left.equalsIgnoreCase(right));
+   }
+
+   // Bug #77382: equal instances must have equal hash codes, including null fields
+   @Test
+   void hashCode_equalInstances_sameHashCode() {
+      Permission.PermissionIdentity left = new Permission.PermissionIdentity("alice", "org-a");
+      Permission.PermissionIdentity right = new Permission.PermissionIdentity("alice", "org-a");
+
+      assertEquals(left, right);
+      assertEquals(left.hashCode(), right.hashCode());
+   }
+
+   @Test
+   void hashCode_nullNameAndOrg_sameHashCode() {
+      Permission.PermissionIdentity left = new Permission.PermissionIdentity(null, null);
+      Permission.PermissionIdentity right = new Permission.PermissionIdentity(null, null);
+      Permission.PermissionIdentity fromNullId =
+         new Permission.PermissionIdentity((IdentityID) null);
+
+      assertEquals(left, right);
+      assertEquals(left.hashCode(), right.hashCode());
+      assertEquals(left, fromNullId);
+      assertEquals(left.hashCode(), fromNullId.hashCode());
+   }
+
+   @Test
+   void hashCode_nullOrg_sameHashCode() {
+      Permission.PermissionIdentity left = new Permission.PermissionIdentity("alice", null);
+      Permission.PermissionIdentity right = new Permission.PermissionIdentity("alice", null);
+
+      assertEquals(left, right);
+      assertEquals(left.hashCode(), right.hashCode());
+   }
+
+   // Bug #77382: HashSet membership must use value equality, not object identity
+   @Test
+   void hashSet_containsEqualInstance() {
+      Set<Permission.PermissionIdentity> set = new HashSet<>();
+      set.add(new Permission.PermissionIdentity("alice", "org-a"));
+
+      assertTrue(set.contains(new Permission.PermissionIdentity("alice", "org-a")));
+      assertFalse(set.contains(new Permission.PermissionIdentity("alice", "org-b")));
+   }
+
+   @Test
+   void hashSet_addEqualInstance_doesNotDuplicate() {
+      Set<Permission.PermissionIdentity> set = new HashSet<>();
+      set.add(new Permission.PermissionIdentity("alice", "org-a"));
+      set.add(new Permission.PermissionIdentity("alice", "org-a"));
+
+      assertEquals(1, set.size());
+   }
+
+   // The serialVersionUID is pinned to the value computed before hashCode() was added, so that
+   // Java-serialized permissions stay compatible across nodes of a mixed-version cluster.
+   @Test
+   void serialVersionUID_pinnedToPreHashCodeValue() {
+      assertEquals(-5948321699001649918L,
+                   ObjectStreamClass.lookup(Permission.PermissionIdentity.class).getSerialVersionUID());
    }
 }

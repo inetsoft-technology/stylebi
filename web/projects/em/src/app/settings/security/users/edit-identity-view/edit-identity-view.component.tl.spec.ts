@@ -70,6 +70,10 @@ import {
 } from "../edit-identity-pane/edit-identity-pane.model";
 import { SecurityBusyService } from "../security-busy.service";
 import { OrganizationDropdownService } from "../../../../navbar/organization-dropdown.service";
+import { By } from "@angular/platform-browser";
+import { IdentityModel } from "../../security-table-view/identity-model";
+import { SecurityTreeNode } from "../../security-tree-view/security-tree-node";
+import { IdentityTablesPaneComponent } from "../identity-tables-pane/identity-tables-pane.component";
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -162,6 +166,7 @@ async function renderComponent(props: {
    type?: IdentityType;
    provider?: string;
    isSysAdmin?: boolean;
+   treeData?: SecurityTreeNode[];
 } = {}) {
    const editableSubject = new Subject<boolean>();
    const orgBusySpy = {
@@ -187,7 +192,7 @@ async function renderComponent(props: {
          type: props.type ?? IdentityType.USER,
          model: props.model,
          isSysAdmin: props.isSysAdmin ?? false,
-         treeData: [],
+         treeData: props.treeData ?? [],
       },
    });
 
@@ -883,4 +888,63 @@ describe("EditIdentityViewComponent — add(): member and role insertion", () =>
       expect(comp.members).toHaveLength(0);
    });
 
+});
+
+// ================================================================
+// Bug #77314 — paste into a global role's members, then Apply: the role model emitted for
+// POST /api/em/security/user/edit-role/{provider} must still hold other organizations' members,
+// because the server treats a site admin's list as authoritative for them (#77165).
+// ================================================================
+
+describe("EditIdentityViewComponent — global role paste then apply (Bug #77314)", () => {
+   const user = (name: string, orgID: string): IdentityModel =>
+      ({ identityID: { name, orgID }, type: IdentityType.USER });
+   const hostAdmin = user("admin", "host-org");
+   const bob = user("bob", "host-org");
+   const g7coa = user("g7coa", "g7d");
+   const oa = user("oa", "g5a");
+
+   async function renderGlobalRole(isSysAdmin: boolean) {
+      const rendered = await renderComponent({
+         model: makeRoleModel({
+            name: "Organization Administrator",
+            organization: null,
+            enterprise: true,
+            members: [hostAdmin, g7coa, oa],
+         }),
+         type: IdentityType.ROLE,
+         isSysAdmin,
+         // multi-tenant: the security tree has organization nodes
+         treeData: [<SecurityTreeNode> { identityID: { name: "host-org", orgID: "host-org" },
+                                         type: IdentityType.ORGANIZATION }],
+      });
+      const pane: IdentityTablesPaneComponent = rendered.fixture.debugElement
+         .query(By.directive(IdentityTablesPaneComponent)).componentInstance;
+      return { ...rendered, pane };
+   }
+
+   it("should keep other organizations' members in the applied role model after a paste", async () => {
+      const { comp, pane } = await renderGlobalRole(true);
+      const roleEvents: EditRolePaneModel[] = [];
+      comp.roleSettingsChanged.subscribe(e => roleEvents.push(e));
+
+      expect(pane.globalRole).toBe(true);
+      pane.pasteMembers([bob]);
+      comp.apply();
+
+      expect(roleEvents).toHaveLength(1);
+      expect(roleEvents[0].members).toEqual([g7coa, oa, bob]);
+   });
+
+   it("should still replace the whole list when the viewer is not a site admin", async () => {
+      const { comp, pane } = await renderGlobalRole(false);
+      const roleEvents: EditRolePaneModel[] = [];
+      comp.roleSettingsChanged.subscribe(e => roleEvents.push(e));
+
+      expect(pane.globalRole).toBe(false);
+      pane.pasteMembers([bob]);
+      comp.apply();
+
+      expect(roleEvents[0].members).toEqual([bob]);
+   });
 });

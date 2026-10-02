@@ -424,19 +424,25 @@ public class MVSupportService {
     */
    public void dispose(List<String> mvs) {
       String orgID = OrganizationManager.getInstance().getCurrentOrgID();
+      // names whose definition belongs to the caller's org, the analysis status map is shared
+      // by all orgs, so only these names may be used to remove analysis entries
+      List<String> removed = new ArrayList<>();
 
       for(String mv : mvs) {
+         // must run before mvManager.remove(), it reads the XFile block list that remove deletes.
+         // it only touches the current org's storage, so a foreign name is a no-op here
          ClusterUtil.deleteClusterMV(mv);
          MVDef def = mvManager.get(mv, orgID);
 
          if(def != null) {
             mvManager.remove(def, false, orgID);
+            removed.add(mv);
          }
       }
 
       ClusterUtil.clearRemovedMVFiles();
       mvManager.fireEvent("mvmanager_", MVManager.MV_CHANGE_EVENT, null, null);
-      removeAnalysisStatusEntries(mvs);
+      removeAnalysisStatusEntries(removed);
    }
 
    private void removeAnalysisStatusEntries(List<String> mvNames) {
@@ -545,10 +551,12 @@ public class MVSupportService {
       }
 
       // update the analysis status in the distributed map after setting the data cycle
+      Map<String, AnalysisStatus> map = cluster.getMap(ANALYSIS_STATUS_MAP);
+      // copy the owner stamp through, otherwise the owner is locked out of the analysis
+      AnalysisStatus old = map.get(result.getId());
       AnalysisStatus status = new AnalysisStatus(result.getCandidates(), result.getExceptions(),
                                                  result.getPlans(), result.getStatus(),
-                                                 result.getError());
-      Map<String, AnalysisStatus> map = cluster.getMap(ANALYSIS_STATUS_MAP);
+                                                 result.getError(), old);
       map.put(result.getId(), status);
       mvManager.fireEvent("mvmanager_", MVManager.MV_CHANGE_EVENT, null, null);
    }
@@ -674,7 +682,10 @@ public class MVSupportService {
    }
 
    /**
-    * Get the sheet.
+    * Get the sheet. The identifier may be client-supplied, and its org segment selects the
+    * storage that is read, so the caller's access is checked before the sheet is loaded. A
+    * sheet the caller may not analyze and a sheet that does not exist are refused with the same
+    * exception, so the refusal does not reveal whether the sheet exists.
     * @param identifier the specified identifier.
     * @param entry the specified entry.
     */
@@ -688,7 +699,63 @@ public class MVSupportService {
       }
 
       AssetRepository repository = AssetUtil.getAssetRepository(false);
-      return repository.getSheet(entry, user, false, AssetContent.ALL);
+
+      if(!canAnalyzeSheet(repository, entry, user)) {
+         throw sheetUnavailable(entry);
+      }
+
+      // the caller's access was checked above; READ with checkUserAsset=true would refuse the
+      // admin of the owning user, who may analyze that user's private viewsheets
+      AbstractSheet sheet = repository.getSheet(entry, user, false, AssetContent.ALL);
+
+      if(sheet == null) {
+         throw sheetUnavailable(entry);
+      }
+
+      return sheet;
+   }
+
+   /**
+    * Checks whether the user may open the sheet for MV analysis: READ as the caller, and the
+    * sheet must be in the caller's own organization unless the caller is a site admin. The
+    * explicit organization check is needed because READ alone admits host-org viewsheets when
+    * they are globally visible, and that read-only share does not extend to MV analysis.
+    */
+   private static boolean canAnalyzeSheet(AssetRepository repository, AssetEntry entry,
+                                          Principal user) throws Exception
+   {
+      // AbstractAssetEngine.checkAssetPermission() grants everything to a null user
+      if(!(user instanceof XPrincipal)) {
+         return false;
+      }
+
+      String userOrg = ((XPrincipal) user).getOrgId();
+      // an entry without an organization is read from the caller's organization
+      String entryOrg = entry.getOrgID() == null ? userOrg : entry.getOrgID();
+
+      if(!OrganizationManager.getInstance().isSiteAdmin(user) &&
+         (userOrg == null || !userOrg.equalsIgnoreCase(entryOrg)))
+      {
+         return false;
+      }
+
+      // the user-scope permission check dereferences the owner, fail closed without one
+      if(entry.getScope() == AssetRepository.USER_SCOPE && entry.getUser() == null) {
+         return false;
+      }
+
+      try {
+         repository.checkAssetPermission(user, entry, ResourceAction.READ);
+         return true;
+      }
+      catch(MessageException ex) {
+         return false;
+      }
+   }
+
+   private static MessageException sheetUnavailable(AssetEntry entry) {
+      return new MessageException(Catalog.getCatalog().getString(
+         "em.common.security.no.permission", entry.getPath()));
    }
 
    private static void saveViewsheet(String identifier, Principal user) {
@@ -780,12 +847,40 @@ public class MVSupportService {
       currentPath.removeLast();
    }
 
-   public AnalysisResult getAnalysisResult(String analysisId) {
+   /**
+    * Gets the result of an analysis started by the specified user. The analysis status map is
+    * shared by all organizations and keyed only by the analysis id, so every lookup by a
+    * client-supplied id must go through this method, which refuses the id unless the caller is
+    * the user (in the same organization) that started the analysis.
+    *
+    * @param analysisId the analysis identifier.
+    * @param principal  the principal that identifies the current user.
+    *
+    * @return the analysis result.
+    *
+    * @throws IllegalStateException if the analysis does not exist or was not started by the
+    *                               caller.
+    */
+   public AnalysisResult getAnalysisResult(String analysisId, Principal principal) {
+      Map<String, AnalysisStatus> map = cluster.getMap(ANALYSIS_STATUS_MAP);
+      AnalysisStatus status = analysisId == null ? null : map.get(analysisId);
+
+      // report a foreign analysis exactly like a missing one so that the response does not
+      // reveal whether the id exists
+      if(status == null || !status.isOwnedBy(principal)) {
+         if(status != null) {
+            LOG.warn("Refused access to MV analysis {} by {}", analysisId,
+                     principal == null ? null : principal.getName());
+         }
+
+         throw new IllegalStateException("The analysis job is not valid");
+      }
+
       return new AnalysisResult(analysisId);
    }
 
-   public List<MVStatus> getMVStatusList(String analysisId) {
-      return getAnalysisResult(analysisId).getStatus();
+   public List<MVStatus> getMVStatusList(String analysisId, Principal principal) {
+      return getAnalysisResult(analysisId, principal).getStatus();
    }
 
    @Scheduled(initialDelay = ANALYSIS_STATUS_MAP_CLEANUP_INTERVAL, fixedDelay = ANALYSIS_STATUS_MAP_CLEANUP_INTERVAL)
@@ -966,6 +1061,72 @@ public class MVSupportService {
          this.results = results;
          this.error = error;
          this.createdTime = System.currentTimeMillis();
+         this.stamped = false;
+         this.orgId = null;
+         this.owner = null;
+      }
+
+      /**
+       * Creates a status stamped with the user and organization that started the analysis.
+       *
+       * @param orgId the organization of the user that started the analysis.
+       * @param owner the name of the principal that started the analysis, or <tt>null</tt> if
+       *              there was no principal.
+       */
+      public AnalysisStatus(List<MVCandidate> candidates, List<UserInfo> exceptions,
+                            Map<MVCandidate, StringBuffer> plans, List<MVStatus> results,
+                            Exception error, String orgId, String owner)
+      {
+         this.candidates = candidates;
+         this.exceptions = exceptions;
+         this.plans = plans;
+         this.results = results;
+         this.error = error;
+         this.createdTime = System.currentTimeMillis();
+         this.stamped = true;
+         this.orgId = orgId;
+         this.owner = owner;
+      }
+
+      /**
+       * Creates a status that keeps the owner stamp of a previous status of the same analysis.
+       */
+      AnalysisStatus(List<MVCandidate> candidates, List<UserInfo> exceptions,
+                     Map<MVCandidate, StringBuffer> plans, List<MVStatus> results,
+                     Exception error, AnalysisStatus previous)
+      {
+         this.candidates = candidates;
+         this.exceptions = exceptions;
+         this.plans = plans;
+         this.results = results;
+         this.error = error;
+         this.createdTime = System.currentTimeMillis();
+         this.stamped = previous != null && previous.stamped;
+         this.orgId = previous == null ? null : previous.orgId;
+         this.owner = previous == null ? null : previous.owner;
+      }
+
+      public String getOrgId() {
+         return orgId;
+      }
+
+      public String getOwner() {
+         return owner;
+      }
+
+      /**
+       * Determines if the specified principal is the user, in the same organization, that
+       * started the analysis. A status without an owner stamp is never owned by anyone.
+       */
+      boolean isOwnedBy(Principal principal) {
+         if(!stamped) {
+            return false;
+         }
+
+         String callerName = principal == null ? null : principal.getName();
+         String callerOrg = OrganizationManager.getInstance().getCurrentOrgID(principal);
+         return Objects.equals(owner, callerName) &&
+            (orgId == null ? callerOrg == null : orgId.equalsIgnoreCase(callerOrg));
       }
 
       public List<MVCandidate> getCandidates() {
@@ -994,6 +1155,9 @@ public class MVSupportService {
       private final List<MVStatus> results;
       private final Exception error;
       private final long createdTime;
+      private final boolean stamped;
+      private final String orgId;
+      private final String owner;
    }
 
    /**
@@ -1118,6 +1282,10 @@ public class MVSupportService {
          throws Exception
       {
          this.id = id;
+         // stamp the owner before the first status write below, which is what the first
+         // check-analysis poll reads
+         this.orgId = OrganizationManager.getInstance().getCurrentOrgID(principal);
+         this.owner = principal == null ? null : principal.getName();
          this.candidates = candidates;
          this.exceptions = exceptions;
          this.plans = plans;
@@ -1245,11 +1413,14 @@ public class MVSupportService {
          }
 
          Map<String, AnalysisStatus> map = cluster.getMap(ANALYSIS_STATUS_MAP);
-         AnalysisStatus status = new AnalysisStatus(candidates, exceptions, plans, results, error);
+         AnalysisStatus status =
+            new AnalysisStatus(candidates, exceptions, plans, results, error, orgId, owner);
          map.put(id, status);
       }
 
       private final String id;
+      private final String orgId;
+      private final String owner;
       private final List<MVCandidate> candidates;
       private final boolean reanalyze;
       private final AnalysisJob[] jobs;

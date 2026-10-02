@@ -436,7 +436,23 @@ public class HierarchyDimensionService {
       return "none";
    }
 
-   /** The {@link DateRangeRef} grouping levels a member can request, named. */
+   /**
+    * The {@link DateRangeRef} grouping levels a member can request, named -- read AND write, by
+    * both {@link #dateLevelName} and {@link #dateLevel}. This is deliberately one shared map, not
+    * two: {@link #dateLevelName} (bug #77041) previously recognized only the 8 basic *interval*
+    * levels below and returned {@code "none"} for any of the 8 *part* levels a member's option
+    * could actually hold (built by the same native {@code CrosstabPropertyDialogService}/
+    * {@code ChartPropertyDialogService} this class delegates to, which the Composer's own
+    * Hierarchy dialog already offers). Extending the read side to recognize a part option
+    * necessarily means {@link #dateLevel} -- the write side {@link #add} calls -- also accepts
+    * that same name, closing the matching capability gap (no tool could previously *create* a
+    * part-level member either). 16 names total, matching the Composer UI's own 16-level date
+    * menu for a hierarchy member. The 8 part names are {@code bindingTools.ts}'s existing
+    * snake_case spelling for the same 8 concepts (that file's own comment explains why a second,
+    * differently-spelled vocabulary for the same thing is itself a defect worth avoiding) --
+    * NOT the {@code QUARTER_OF_YEAR}-style upper-snake-case `add_date_range_column` happens to
+    * use, and not invented camelCase.
+    */
    private static final Map<String, Integer> DATE_LEVELS;
 
    static {
@@ -449,6 +465,14 @@ public class HierarchyDimensionService {
       levels.put("hour", DateRangeRef.HOUR_INTERVAL);
       levels.put("minute", DateRangeRef.MINUTE_INTERVAL);
       levels.put("second", DateRangeRef.SECOND_INTERVAL);
+      levels.put("quarter_of_year", DateRangeRef.QUARTER_OF_YEAR_PART);
+      levels.put("month_of_year", DateRangeRef.MONTH_OF_YEAR_PART);
+      levels.put("week_of_year", DateRangeRef.WEEK_OF_YEAR_PART);
+      levels.put("day_of_month", DateRangeRef.DAY_OF_MONTH_PART);
+      levels.put("day_of_week", DateRangeRef.DAY_OF_WEEK_PART);
+      levels.put("hour_of_day", DateRangeRef.HOUR_OF_DAY_PART);
+      levels.put("minute_of_hour", DateRangeRef.MINUTE_OF_HOUR_PART);
+      levels.put("second_of_minute", DateRangeRef.SECOND_OF_MINUTE_PART);
       DATE_LEVELS = Collections.unmodifiableMap(levels);
    }
 

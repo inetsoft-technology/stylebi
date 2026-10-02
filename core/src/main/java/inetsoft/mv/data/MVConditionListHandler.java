@@ -28,6 +28,7 @@ import inetsoft.uql.jdbc.*;
 import inetsoft.uql.jdbc.util.ConditionListHandler;
 import inetsoft.util.script.ScriptEnv;
 import inetsoft.util.script.ScriptException;
+import inetsoft.util.script.ScriptStateLint;
 import inetsoft.util.script.graal.ScriptScope;
 
 import java.util.HashMap;
@@ -148,11 +149,13 @@ public class MVConditionListHandler extends ConditionListHandler {
             // pool mode: MV is this exec's own name, not an env global that every pooled
             // context would replay (bug #76960, spec §6.6)
             ScriptScope scope = new MVExecScope(scriptable, box.getScope());
-            val = senv.exec(senv.compile(exp), scope, null, box.getWorksheet());
+            val = senv.exec(ScriptStateLint.checkCondition(senv.compile(exp), exp, scope, "MV condition"),
+                            scope, null, box.getWorksheet());
          }
          else {
             senv.put("MV", scriptable);
-            val = senv.exec(senv.compile(exp), box.getScope(), null, box.getWorksheet());
+            val = senv.exec(ScriptStateLint.checkCondition(senv.compile(exp), exp, box.getScope(),
+               "MV condition"), box.getScope(), null, box.getWorksheet());
          }
       }
       catch(Exception ex) {

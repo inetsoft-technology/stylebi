@@ -214,13 +214,15 @@ public class VSCollectParametersService {
     * @param user the user name will used to set property.
     * @param vsName the name of the edited viewsheet.
     */
-   private void fillVariableTable(List<VariableAssemblyModelInfo> variables,
+   void fillVariableTable(List<VariableAssemblyModelInfo> variables,
                                   VariableTable vtable, Principal user,
                                   String vsName) throws Exception
    {
       Set dbs = new HashSet();
 
       variables.stream()
+         // Bug #77329, the identity variables are set from the user, never from the client
+         .filter(variable -> !VariableTable.isContextVariable(variable.getName()))
          .forEach((variable) -> {
             if(variable.getValue() != null && variable.getValue().length > 0) {
                Object[] values = new Object[variable.getValue().length];

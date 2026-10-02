@@ -35,6 +35,8 @@ import inetsoft.util.audit.ActionRecord;
 import inetsoft.util.audit.Audit;
 import inetsoft.web.admin.content.repository.model.*;
 import inetsoft.web.admin.model.NameLabelTuple;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -70,9 +72,19 @@ public class MVService {
       throws Throwable
    {
       if(createId != null) {
-         CreateMVResponse createMVResponse = createMVMap.get(createId);
+         MVJobStatus status = createMVMap.get(createId);
 
-         if(createMVResponse != null) {
+         if(status != null) {
+            if(!status.isOwnedBy(principal)) {
+               // validate the caller's analysis just like a new job would, then report the
+               // foreign job as still running without touching it, so the response matches
+               // the one for a job the caller just started
+               support.getAnalysisResult(analysisId, principal);
+               return refuseForeignJob("create", createId, principal);
+            }
+
+            CreateMVResponse createMVResponse = status.toResponse();
+
             if(createMVResponse.complete()) {
                createMVMap.remove(createId);
             }
@@ -90,21 +102,23 @@ public class MVService {
          return CreateMVResponse.builder().complete(true).build();
       }
       else if(createMVMap.get(createId) == null) {
-         createMVMap.put(createId, CreateMVResponse.builder().complete(false).build());
+         // refuse a foreign analysis on the request thread, before the background job starts
+         support.getAnalysisResult(analysisId, principal);
+         // capture the owner stamp on the request thread, before the first status write
+         String owner = getOwnerName(principal);
+         String orgId = OrganizationManager.getInstance().getCurrentOrgID(principal);
+         createMVMap.put(createId, new MVJobStatus(owner, orgId, false, false, null));
          ThreadPool.addOnDemand(() -> {
             Principal oPrincipal = ThreadContext.getPrincipal();
             ThreadContext.setPrincipal(principal);
 
             try {
                create0(analysisId, createUpdateMVRequest, principal);
-               createMVMap.put(createId, CreateMVResponse.builder().complete(true).build());
+               createMVMap.put(createId, new MVJobStatus(owner, orgId, true, false, null));
             }
             catch(Throwable e) {
-               createMVMap.put(createId, CreateMVResponse.builder()
-                  .complete(true)
-                  .failed(true)
-                  .error(e.getMessage())
-                  .build());
+               createMVMap.put(createId,
+                               new MVJobStatus(owner, orgId, true, true, e.getMessage()));
             }
             finally {
                ThreadContext.setPrincipal(oPrincipal);
@@ -142,7 +156,7 @@ public class MVService {
          }
 
          String orgId = OrganizationManager.getInstance().getCurrentOrgID(principal);
-         List<MVSupportService.MVStatus> mvstatus = support.getMVStatusList(analysisId);
+         List<MVSupportService.MVStatus> mvstatus = support.getMVStatusList(analysisId, principal);
          dataCycleManager.setEnable(createUpdateMVRequest.cycle(), orgId, true);
 
          if(principal instanceof XPrincipal) {
@@ -176,9 +190,15 @@ public class MVService {
       throws Throwable
    {
       if(updateId != null) {
-         CreateMVResponse cached = updateMVMap.get(updateId);
+         MVJobStatus status = updateMVMap.get(updateId);
 
-         if(cached != null) {
+         if(status != null) {
+            if(!status.isOwnedBy(principal)) {
+               return refuseForeignJob("update", updateId, principal);
+            }
+
+            CreateMVResponse cached = status.toResponse();
+
             if(cached.complete()) {
                updateMVMap.remove(updateId);
             }
@@ -196,21 +216,21 @@ public class MVService {
          return CreateMVResponse.builder().complete(true).build();
       }
       else if(updateMVMap.get(updateId) == null) {
-         updateMVMap.put(updateId, CreateMVResponse.builder().complete(false).build());
+         // capture the owner stamp on the request thread, before the first status write
+         String owner = getOwnerName(principal);
+         String orgId = OrganizationManager.getInstance().getCurrentOrgID(principal);
+         updateMVMap.put(updateId, new MVJobStatus(owner, orgId, false, false, null));
          ThreadPool.addOnDemand(() -> {
             Principal oPrincipal = ThreadContext.getPrincipal();
             ThreadContext.setPrincipal(principal);
 
             try {
                update0(mvNames, runInBackground, principal);
-               updateMVMap.put(updateId, CreateMVResponse.builder().complete(true).build());
+               updateMVMap.put(updateId, new MVJobStatus(owner, orgId, true, false, null));
             }
             catch(Throwable e) {
-               updateMVMap.put(updateId, CreateMVResponse.builder()
-                  .complete(true)
-                  .failed(true)
-                  .error(e.getMessage())
-                  .build());
+               updateMVMap.put(updateId,
+                               new MVJobStatus(owner, orgId, true, true, e.getMessage()));
             }
             finally {
                ThreadContext.setPrincipal(oPrincipal);
@@ -226,6 +246,21 @@ public class MVService {
       }
 
       return CreateMVResponse.builder().complete(false).build();
+   }
+
+   /**
+    * Handles a poll for a create or update job that was started by another user or in another
+    * organization. The job's entry is neither read, removed nor replaced, and the caller gets
+    * the same "still running" response it would get for a job it had just started, so the
+    * response does not reveal whether the id belongs to someone else.
+    */
+   private CreateMVResponse refuseForeignJob(String type, String id, Principal principal) {
+      LOG.warn("Refused access to MV {} job {} by {}", type, id, getOwnerName(principal));
+      return CreateMVResponse.builder().complete(false).build();
+   }
+
+   private static String getOwnerName(Principal principal) {
+      return principal == null ? null : principal.getName();
    }
 
    private void update0(String[] mvNames, boolean runInBackground, Principal principal)
@@ -386,7 +421,7 @@ public class MVService {
    public AnalyzeMVResponse checkAnalyzeStatus(String analysisId, Principal principal)
       throws Exception
    {
-      return checkAnalyzeStatus(new MVSupportService.AnalysisResult(analysisId), principal);
+      return checkAnalyzeStatus(support.getAnalysisResult(analysisId, principal), principal);
    }
 
    public AnalyzeMVResponse checkAnalyzeStatus(MVSupportService.AnalysisResult analysisResult,
@@ -705,8 +740,50 @@ public class MVService {
    private final DataCycleManager dataCycleManager;
    private final SecurityEngine securityEngine;
    private final MVStorage mvStorage;
-   private final Map<String, CreateMVResponse> createMVMap;
-   private final Map<String, CreateMVResponse> updateMVMap;
+   private final Map<String, MVJobStatus> createMVMap;
+   private final Map<String, MVJobStatus> updateMVMap;
    private static final String CREATE_MV_STATUS_MAP = "CREATE_MV_STATUS_MAP";
    private static final String UPDATE_MV_STATUS_MAP = "UPDATE_MV_STATUS_MAP";
+   private static final Logger LOG = LoggerFactory.getLogger(MVService.class);
+
+   /**
+    * The status of a background create or update job, stamped with the user and organization
+    * that started it. The status maps are shared by all organizations and keyed by a client
+    * generated id, so an entry may only be used by its owner. The fields are kept flat so that
+    * the entry does not depend on the serializability of {@link CreateMVResponse}.
+    */
+   static final class MVJobStatus {
+      MVJobStatus(String owner, String orgId, boolean complete, boolean failed, String error) {
+         this.owner = owner;
+         this.orgId = orgId;
+         this.complete = complete;
+         this.failed = failed;
+         this.error = error;
+      }
+
+      /**
+       * Determines if the specified principal is the user, in the same organization, that
+       * started the job.
+       */
+      boolean isOwnedBy(Principal principal) {
+         String callerName = getOwnerName(principal);
+         String callerOrg = OrganizationManager.getInstance().getCurrentOrgID(principal);
+         return Objects.equals(owner, callerName) &&
+            (orgId == null ? callerOrg == null : orgId.equalsIgnoreCase(callerOrg));
+      }
+
+      CreateMVResponse toResponse() {
+         return CreateMVResponse.builder()
+            .complete(complete)
+            .failed(failed)
+            .error(error)
+            .build();
+      }
+
+      private final String owner;
+      private final String orgId;
+      private final boolean complete;
+      private final boolean failed;
+      private final String error;
+   }
 }

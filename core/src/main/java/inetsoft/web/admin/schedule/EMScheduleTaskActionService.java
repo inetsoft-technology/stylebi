@@ -44,11 +44,18 @@ public class EMScheduleTaskActionService {
       Principal principal) throws Exception
    {
       AssetEntry entry = AssetEntry.createAssetEntry(identifier);
-      String runtimeId = viewsheetService.openViewsheet(entry, null, false);
-      List<String> assemblies = actionServiceProxy.getViewsheetTableDataAssemblies(runtimeId, principal);
-      viewsheetService.closeViewsheet(identifier, null);
+      String runtimeId = viewsheetService.openViewsheet(entry, principal, false);
 
-      return assemblies;
+      try {
+         return actionServiceProxy.getViewsheetTableDataAssemblies(runtimeId, principal);
+      }
+      finally {
+         // this method is routed by the asset identifier, so close through the proxy, which
+         // routes by the runtime id to the node that owns the runtime sheet
+         if(runtimeId != null) {
+            actionServiceProxy.closeViewsheet(runtimeId, principal);
+         }
+      }
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)

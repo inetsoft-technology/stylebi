@@ -2200,11 +2200,15 @@ public class AssetUtil {
       AbstractSheet sheet, Assembly assembly, List<Assembly> assemblies,
       Set<Assembly> visited, boolean included, boolean view, boolean out)
    {
-      if(!visited.add(assembly)) {
+      if(visited.contains(assembly)) {
          return;
       }
 
+      // visited must mirror the output list: when the root is not included it must stay
+      // unvisited, so that a path leading back to it is recorded and checkDependency() can
+      // detect the cycle
       if(included) {
+         visited.add(assembly);
          assemblies.add(assembly);
       }
 

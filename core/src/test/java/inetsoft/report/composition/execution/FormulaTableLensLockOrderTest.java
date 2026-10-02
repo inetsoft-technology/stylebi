@@ -227,6 +227,13 @@ class FormulaTableLensLockOrderTest {
    }
 
    private static void injectSenv(AssetQuerySandbox box, GraalJavaScriptEnv senv) throws Exception {
+      // a plain engine-locked env belongs to a pool-off sandbox; the pool is on by default
+      // (Feature #77123), so pin this sandbox off to match the env this case asserts on
+      Field mode = AssetQuerySandbox.class.getDeclaredField("scriptPoolMode");
+      mode.setAccessible(true);
+      mode.set(box, false);
+      assertFalse(box.isScriptPoolMode());
+
       Field field = AssetQuerySandbox.class.getDeclaredField("senv");
       field.setAccessible(true);
       field.set(box, senv);

@@ -22,6 +22,9 @@ import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.SourceInfo;
 import inetsoft.uql.viewsheet.ChartVSAssembly;
+import inetsoft.uql.viewsheet.GaugeVSAssembly;
+import inetsoft.uql.viewsheet.TextVSAssembly;
+import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.web.binding.service.VSBindingTreeService;
 import inetsoft.web.composer.model.TreeNodeModel;
@@ -422,6 +425,42 @@ class BindableFieldsServiceTest {
 
       assertEquals(Boolean.FALSE, byName(tables, "ORDERS1").current());
       assertEquals(Boolean.FALSE, byName(tables, "ORDER_DETAILS1").current());
+   }
+
+   /**
+    * Bug #76592: a Gauge or Text is an OutputVSAssembly, not a DataVSAssembly, and keeps its table
+    * in BindingInfo (read through getTableName()) rather than a SourceInfo. Its bound table must
+    * still come back current, exactly as a Chart's does.
+    */
+   @Test
+   void marksTheTableAnOutputAssemblyIsCurrentlyBoundTo() throws Exception {
+      GaugeVSAssembly gauge = mock(GaugeVSAssembly.class);
+      when(gauge.getTableName()).thenReturn("ORDERS1");
+      TextVSAssembly text = mock(TextVSAssembly.class);
+      when(text.getTableName()).thenReturn("ORDERS1");
+
+      for(VSAssembly output : List.of(gauge, text)) {
+         List<BindableTable> tables = serviceFor(twoTableTree(), "Output1", output)
+            .list("rt1", "Output1", principal());
+
+         assertEquals(Boolean.TRUE, byName(tables, "ORDERS1").current(), output.getClass().getName());
+         assertEquals(Boolean.FALSE, byName(tables, "ORDER_DETAILS1").current());
+      }
+   }
+
+   /** An unbound Gauge — nothing is current. */
+   @Test
+   void marksNothingCurrentWhenTheOutputAssemblyIsUnbound() throws Exception {
+      for(String table : new String[] { null, "" }) {
+         GaugeVSAssembly gauge = mock(GaugeVSAssembly.class);
+         when(gauge.getTableName()).thenReturn(table);
+
+         List<BindableTable> tables = serviceFor(twoTableTree(), "Gauge1", gauge)
+            .list("rt1", "Gauge1", principal());
+
+         assertEquals(Boolean.FALSE, byName(tables, "ORDERS1").current());
+         assertEquals(Boolean.FALSE, byName(tables, "ORDER_DETAILS1").current());
+      }
    }
 
    private static BindableTable byName(List<BindableTable> tables, String name) {

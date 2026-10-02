@@ -17,6 +17,7 @@
  */
 package inetsoft.util.stall;
 
+import java.io.File;
 import java.io.Serial;
 import java.util.*;
 
@@ -30,7 +31,8 @@ public class LockStallException extends RuntimeException {
     * @param site          the wait site, e.g. {@code SummaryFilter.waitForRow}.
     * @param threadName    the waiting thread.
     * @param stalledMillis how long the wait saw no progress.
-    * @param dumpPath      the thread dump file, or {@code null} if none could be written.
+    * @param dumpPath      the thread dump file, or {@code null} if none could be written. The
+    *                      message names only its file name, see {@link #getDumpPath()}.
     */
    public LockStallException(String site, String threadName, long stalledMillis, String dumpPath) {
       super(buildMessage(site, threadName, stalledMillis, dumpPath));
@@ -80,6 +82,10 @@ public class LockStallException extends RuntimeException {
       return stalledMillis;
    }
 
+   /**
+    * The full path of the thread dump file, for server logs. It is kept out of the message,
+    * which the error handlers show to users.
+    */
    public String getDumpPath() {
       return dumpPath;
    }
@@ -89,7 +95,9 @@ public class LockStallException extends RuntimeException {
    {
       return "Query stalled: no progress for " + stalledMillis + " ms waiting in " + site +
          " on thread \"" + threadName + "\"" +
-         (dumpPath != null ? ", thread dump: " + dumpPath : "");
+         // users see this message, so the dump's file name only (bug #77123), as the health
+         // check does; the server log has its full path
+         (dumpPath != null ? ", thread dump: " + new File(dumpPath).getName() : "");
    }
 
    private final String site;

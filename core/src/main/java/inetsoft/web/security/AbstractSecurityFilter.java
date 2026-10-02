@@ -17,6 +17,7 @@
  */
 package inetsoft.web.security;
 
+import com.google.common.util.concurrent.Striped;
 import inetsoft.report.internal.LicenseException;
 import inetsoft.report.internal.UnlicensedUserNameException;
 import inetsoft.sree.*;
@@ -37,6 +38,7 @@ import java.io.IOException;
 import java.lang.reflect.Method;
 import java.security.Principal;
 import java.util.*;
+import java.util.concurrent.locks.Lock;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -304,6 +306,9 @@ public abstract class AbstractSecurityFilter
       HttpSession session = httpRequest.getSession(true);
       SessionLicenseManager sessionLicenseManager =
          sessionLicenseServiceProvider.getSessionLicenseManager();
+      DestinationUserNameProviderPrincipal bound = null;
+      Lock bindLock = null;
+      boolean created = false;
 
       try {
          if(sessionLicenseManager != null) {
@@ -338,6 +343,27 @@ public abstract class AbstractSecurityFilter
                .forEach(p -> authenticationService.logout(p, p.getUser().getIPAddress(), ""));
          }
 
+         // Bind the principal to its HTTP session before the license manager takes its copy.
+         // In a cluster the license map serializes the principal on put, and only a copy that
+         // carries the session id reads the distributed lastAccess kept current by
+         // RequestPrincipalFilter. An unbound copy stays frozen at the login time and the sweep
+         // above logs out active users (Bug #77029). setAttribute() below repeats this as a no-op.
+         // Binding copies the principal's properties into the session attribute map, so it is
+         // undone below if the session is not created, e.g. the license rejects the user. A
+         // later login in the same HTTP session would read them otherwise (Bug #77219). Logins
+         // in the same HTTP session are serialized so that one does not take the entries of
+         // another login in progress as the values to put back.
+         if(principal instanceof DestinationUserNameProviderPrincipal dunpp) {
+            if(session.getId() != null) {
+               bindLock = SESSION_BIND_LOCKS.get(session.getId());
+               bindLock.lock();
+            }
+
+            if(dunpp.bindHttpSession(session.getId())) {
+               bound = dunpp;
+            }
+         }
+
          if(sessionIdToReplace != null) {
             authenticationService.addSession(principal, sessionIdToReplace);
          }
@@ -346,6 +372,11 @@ public abstract class AbstractSecurityFilter
          }
 
          session.setAttribute(RepletRepository.PRINCIPAL_COOKIE, principal);
+         created = true;
+
+         if(bound != null) {
+            bound.commitHttpSession();
+         }
 
          // Mark anonymous sessions as fresh so they can be invalidated on error responses
          if(isAnonymousPrincipal(principal)) {
@@ -374,6 +405,22 @@ public abstract class AbstractSecurityFilter
          throw new AuthenticationFailureException(
             AuthenticationFailureReason.GENERIC_ERROR,
             Catalog.getCatalog(principal).getString("login.error.sessions.failed"), thrown);
+      }
+      finally {
+         try {
+            if(!created && bound != null) {
+               bound.unbindHttpSession();
+            }
+         }
+         catch(Exception e) {
+            // keep the reason the session was not created
+            LOG.error("Failed to unbind the principal from HTTP session {}", session.getId(), e);
+         }
+         finally {
+            if(bindLock != null) {
+               bindLock.unlock();
+            }
+         }
       }
 
       if(isNonlocalClient(principal)) {
@@ -947,5 +994,7 @@ public abstract class AbstractSecurityFilter
     * {@link DefaultAuthorizationFilter} after processing the request.
     */
    protected static final String FRESH_ANONYMOUS_SESSION_ATTR = "inetsoft.fresh.anonymous.session";
+   // serializes the logins of an HTTP session on this node, see createSession()
+   private static final Striped<Lock> SESSION_BIND_LOCKS = Striped.lock(64);
    private static final Logger LOG = LoggerFactory.getLogger(AbstractSecurityFilter.class);
 }

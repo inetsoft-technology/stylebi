@@ -161,7 +161,8 @@ public class PPTVSExporter extends AbstractVSExporter {
 
       this.coordinator = new PPTCoordinateHelper();
       coordinator.setViewsheet(vsheet);
-      Dimension size = coordinator.getOutputSize(viewsheet.getPreferredSize());
+      Dimension size = coordinator.getOutputSize(
+         adjustSizeForShapeShadows(viewsheet, viewsheet.getPreferredSize(), false));
       Dimension pptSize = show.getPageSize();
       // fix bug1374173407396, scale the min ppt default size.
       pptSize.width = (int) (pptSize.width * 0.82);
@@ -212,6 +213,16 @@ public class PPTVSExporter extends AbstractVSExporter {
       else {
          return width;
       }
+   }
+
+   /**
+    * fix bug#77287 PowerPoint does not clip a table at its design pixel height, so every
+    * row of the region lens is written. Count every crosstab row toward the design height,
+    * as for freehand and plain tables.
+    */
+   @Override
+   protected boolean isBlankRowHeightExempt(TableDataVSAssembly table) {
+      return false;
    }
 
    /**

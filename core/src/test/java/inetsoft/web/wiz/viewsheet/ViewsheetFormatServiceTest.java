@@ -44,6 +44,7 @@ import org.mockito.ArgumentCaptor;
 import java.security.Principal;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -969,22 +970,116 @@ class ViewsheetFormatServiceTest {
    }
 
    /**
-    * A Crosstab's body region is structurally nested (row/col dimension levels, subtotal/
-    * grand-total rows) in a way a single named column doesn't map onto -- refused loud rather
-    * than silently ignoring {@code field} or attempting an unsupported filter.
+    * Bug 76957: on a Crosstab, {@code field} names one aggregate. Only that measure's
+    * SUMMARY/GRAND_TOTAL paths (keyed by the path's last element, the aggregate's data header)
+    * are written -- the other measure's cells and the dimension GROUP_HEADER cells keep their
+    * own format.
     */
    @Test
-   void targetDataWithFieldRefusesAgainstACrosstab() throws Exception {
-      RuntimeViewsheet rvs = crosstabRvs("Crosstab1", lens -> { });
+   void targetDataWithFieldOnACrosstabKeepsOnlyThatMeasuresBodyPaths() throws Exception {
+      FormatPainterService painter = mock(FormatPainterService.class);
+      Map<String, TableDataPath> p = new HashMap<>();
+      RuntimeViewsheet rvs = crosstabRvs("Crosstab1",
+         lens -> twoMeasureCrosstab(lens, "Sum(Total)", "Revenue", "Sum(Qty)", "Sum(Qty)", p));
+
+      assertArrayEquals(new TableDataPath[]{ p.get("Sum(Qty).body"), p.get("Sum(Qty).grand") },
+                        crosstabPaths(painter, rvs, "data", "Sum(Qty)"));
+   }
+
+   /**
+    * The rendered measure-header text can differ from the path's data header (calc header,
+    * relabel) -- the caller's typed field is matched against either.
+    */
+   @Test
+   void targetDataWithFieldOnACrosstabMatchesTheRenderedMeasureLabel() throws Exception {
+      FormatPainterService painter = mock(FormatPainterService.class);
+      Map<String, TableDataPath> p = new HashMap<>();
+      RuntimeViewsheet rvs = crosstabRvs("Crosstab1",
+         lens -> twoMeasureCrosstab(lens, "Sum(Total)", "Revenue", "Sum(Qty)", "Sum(Qty)", p));
+
+      assertArrayEquals(new TableDataPath[]{ p.get("Sum(Total).body"), p.get("Sum(Total).grand") },
+                        crosstabPaths(painter, rvs, "data", "Revenue"));
+   }
+
+   @Test
+   void targetDataWithFieldOnACrosstabFallsBackToAnUnambiguousBaseColumn() throws Exception {
+      FormatPainterService painter = mock(FormatPainterService.class);
+      Map<String, TableDataPath> p = new HashMap<>();
+      RuntimeViewsheet rvs = crosstabRvs("Crosstab1",
+         lens -> twoMeasureCrosstab(lens, "Sum(Total)", "Revenue", "Sum(Qty)", "Sum(Qty)", p));
+
+      assertArrayEquals(new TableDataPath[]{ p.get("Sum(Qty).body"), p.get("Sum(Qty).grand") },
+                        crosstabPaths(painter, rvs, "data", "Qty"));
+   }
+
+   @Test
+   void targetDataWithFieldOnACrosstabRefusesAnUnknownMeasure() throws Exception {
+      RuntimeViewsheet rvs = crosstabRvs("Crosstab1", lens -> twoMeasureCrosstab(
+         lens, "Sum(Total)", "Sum(Total)", "Sum(Qty)", "Sum(Qty)", new HashMap<>()));
 
       Exception thrown = assertThrows(
          IllegalArgumentException.class,
-         () -> serviceWith(mock(FormatPainterService.class), rvs).setFormat(
-            "tok", principal(),
-            new ViewsheetFormatService.FormatRequest(
-               List.of("Crosstab1"), new VSObjectFormatInfoModel(), false, "data", "state"), ""));
-      assertTrue(thrown.getMessage().contains("Crosstab"), thrown.getMessage());
-      assertTrue(thrown.getMessage().contains("field"), thrown.getMessage());
+         () -> crosstabPaths(mock(FormatPainterService.class), rvs, "data", "Discount"));
+      assertTrue(thrown.getMessage().contains("Crosstab1"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("Sum(Total), Sum(Qty)"), thrown.getMessage());
+   }
+
+   @Test
+   void targetDataWithFieldOnACrosstabRefusesAnAmbiguousBaseColumn() throws Exception {
+      RuntimeViewsheet rvs = crosstabRvs("Crosstab1", lens -> twoMeasureCrosstab(
+         lens, "Sum(Sales)", "Sum(Sales)", "Avg(Sales)", "Avg(Sales)", new HashMap<>()));
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> crosstabPaths(mock(FormatPainterService.class), rvs, "data", "Sales"));
+      assertTrue(thrown.getMessage().contains("matches 2 aggregates"), thrown.getMessage());
+   }
+
+   /**
+    * Bug 76957 / 76981 boundary: a subtotal row's header-band label cell reuses the
+    * {@code SUMMARY} type of the measure's body cells but ends in the row dimension's name, not
+    * a data header. Field-scoping keeps the subtotal's value cells and leaves its label alone.
+    */
+   @Test
+   void targetDataWithFieldOnACrosstabKeepsSubtotalValuesButNotTheSubtotalLabel()
+      throws Exception
+   {
+      FormatPainterService painter = mock(FormatPainterService.class);
+      Map<String, TableDataPath> p = new HashMap<>();
+      RuntimeViewsheet rvs = crosstabRvs("Crosstab1", lens -> subtotalCrosstab(lens, p));
+
+      assertArrayEquals(new TableDataPath[]{ p.get("Sum(Qty).body"), p.get("Sum(Qty).subtotal") },
+                        crosstabPaths(painter, rvs, "data", "Sum(Qty)"));
+   }
+
+   /**
+    * A header-band subtotal label's last path element (the row dimension's name) is not a
+    * measure -- it is neither offered nor matched as one.
+    */
+   @Test
+   void targetDataWithFieldOnACrosstabRefusesASubtotalLabelsDimensionName() throws Exception {
+      RuntimeViewsheet rvs = crosstabRvs("Crosstab1",
+         lens -> subtotalCrosstab(lens, new HashMap<>()));
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> crosstabPaths(mock(FormatPainterService.class), rvs, "data", "Region"));
+      assertTrue(thrown.getMessage().contains("Available: Sum(Total), Sum(Qty)."),
+                 thrown.getMessage());
+   }
+
+   @Test
+   void targetDataWithFieldOnACrosstabWithNoRenderedBodySaysSo() throws Exception {
+      RuntimeViewsheet rvs = crosstabRvs("Crosstab1", lens -> {
+         when(lens.getColCount()).thenReturn(3);
+         when(lens.moreRows(0)).thenReturn(false);
+      });
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> crosstabPaths(mock(FormatPainterService.class), rvs, "data", "Sum(Qty)"));
+      assertTrue(thrown.getMessage().contains("No aggregates are currently rendered."),
+                 thrown.getMessage());
    }
 
    /**
@@ -1180,22 +1275,16 @@ class ViewsheetFormatServiceTest {
       assertArrayEquals(new TableDataPath[]{ headerPathB }, captor.getValue().getData().get(0));
    }
 
+   /** Bug 76957: header + field on a Crosstab keeps only that measure's header paths. */
    @Test
-   void targetHeaderRefusesFieldAgainstACrosstab() {
-      Viewsheet viewsheet = mock(Viewsheet.class);
-      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
-      when(rvs.getViewsheet()).thenReturn(viewsheet);
-      when(viewsheet.getAssembly("Crosstab1")).thenReturn(mock(CrosstabVSAssembly.class));
+   void targetHeaderWithFieldOnACrosstabKeepsOnlyThatMeasuresHeaderPaths() throws Exception {
+      FormatPainterService painter = mock(FormatPainterService.class);
+      Map<String, TableDataPath> p = new HashMap<>();
+      RuntimeViewsheet rvs = crosstabRvs("Crosstab1",
+         lens -> twoMeasureCrosstab(lens, "Sum(Total)", "Revenue", "Sum(Qty)", "Sum(Qty)", p));
 
-      Exception thrown = assertThrows(
-         IllegalArgumentException.class,
-         () -> serviceWith(mock(FormatPainterService.class), rvs).setFormat(
-            "tok", principal(),
-            new ViewsheetFormatService.FormatRequest(
-               List.of("Crosstab1"), new VSObjectFormatInfoModel(), false, "header", "state"),
-            ""));
-      assertTrue(thrown.getMessage().contains("field"), thrown.getMessage());
-      assertTrue(thrown.getMessage().contains("Crosstab1"), thrown.getMessage());
+      assertArrayEquals(new TableDataPath[]{ p.get("Sum(Qty).header") },
+                        crosstabPaths(painter, rvs, "header", "Sum(Qty)"));
    }
 
    // ── set_calc_cell_format / get_calc_cell_format (bug 76679) ────────────────────────────
@@ -1364,6 +1453,125 @@ class ViewsheetFormatServiceTest {
       throws Exception
    {
       return dataAssemblyRvs(name, mock(CrosstabVSAssembly.class), configure);
+   }
+
+   /**
+    * A measures-in-rows Crosstab (not side-by-side) with one row dimension and two aggregates,
+    * shaped like {@code CrossFilterDataDescriptor.getCellDataPath}'s output: col 0 is the
+    * dimension, col 1 the measure header (last path element = the aggregate's data header,
+    * rendered as its label), col 2 the value; rows 2-3 are the grand total. Cols 0-1 are the
+    * header col band and there is no header row band, as the lens's own
+    * {@code getHeaderRowCount()}/{@code getHeaderColCount()} report it.
+    */
+   private static void twoMeasureCrosstab(VSTableLens lens, String key1, String label1,
+                                          String key2, String label2,
+                                          Map<String, TableDataPath> out)
+   {
+      TableDataDescriptor desc = lens.getDescriptor();
+      TableDataPath group = new TableDataPath(-1, TableDataPath.GROUP_HEADER, XSchema.STRING,
+         new String[]{ "Category" });
+      String[] keys = { key1, key2 };
+      String[] labels = { label1, label2 };
+
+      when(lens.getColCount()).thenReturn(3);
+      when(lens.getHeaderRowCount()).thenReturn(0);
+      when(lens.getHeaderColCount()).thenReturn(2);
+
+      for(int i = 0; i < 2; i++) {
+         TableDataPath header = new TableDataPath(-1, TableDataPath.HEADER, XSchema.STRING,
+            new String[]{ "Category", keys[i] });
+         TableDataPath body = new TableDataPath(-1, TableDataPath.SUMMARY, XSchema.DOUBLE,
+            new String[]{ "Category", keys[i] });
+         TableDataPath grand = new TableDataPath(-1, TableDataPath.GRAND_TOTAL, XSchema.DOUBLE,
+            new String[]{ "ROW_GRAND_TOTAL", keys[i] });
+         out.put(keys[i] + ".header", header);
+         out.put(keys[i] + ".body", body);
+         out.put(keys[i] + ".grand", grand);
+
+         when(lens.moreRows(i)).thenReturn(true);
+         when(lens.moreRows(i + 2)).thenReturn(true);
+         when(desc.getCellDataPath(i, 0)).thenReturn(group);
+         when(desc.getCellDataPath(i, 1)).thenReturn(header);
+         when(desc.getCellDataPath(i, 2)).thenReturn(body);
+         when(desc.getCellDataPath(i + 2, 1)).thenReturn(header);
+         when(desc.getCellDataPath(i + 2, 2)).thenReturn(grand);
+         when(lens.getObject(i, 1)).thenReturn(labels[i]);
+         when(lens.getObject(i + 2, 1)).thenReturn(labels[i]);
+      }
+
+      when(lens.moreRows(4)).thenReturn(false);
+   }
+
+   /**
+    * A measures-in-rows Crosstab with two row dimensions (Region, Category), two aggregates
+    * ({@code Sum(Total)}, {@code Sum(Qty)}) and a Region subtotal, shaped like
+    * {@code CrossFilterDataDescriptor.getCellDataPath}'s output. Cols 0-2 are the header col
+    * band (Region, Category, measure header), col 3 the value; rows 0-1 are one detail group,
+    * rows 2-3 its subtotal. The subtotal's col 1 label cell is {@code SUMMARY}-typed with path
+    * {@code [Region]} -- the same type as the body value cells, told apart only by position.
+    */
+   private static void subtotalCrosstab(VSTableLens lens, Map<String, TableDataPath> out) {
+      TableDataDescriptor desc = lens.getDescriptor();
+      TableDataPath region = new TableDataPath(-1, TableDataPath.GROUP_HEADER, XSchema.STRING,
+         new String[]{ "Region" });
+      TableDataPath category = new TableDataPath(-1, TableDataPath.GROUP_HEADER, XSchema.STRING,
+         new String[]{ "Region", "Category" });
+      TableDataPath subtotalLabel = new TableDataPath(-1, TableDataPath.SUMMARY, XSchema.STRING,
+         new String[]{ "Region" });
+      String[] keys = { "Sum(Total)", "Sum(Qty)" };
+      out.put("subtotalLabel", subtotalLabel);
+
+      when(lens.getColCount()).thenReturn(4);
+      when(lens.getHeaderRowCount()).thenReturn(0);
+      when(lens.getHeaderColCount()).thenReturn(3);
+
+      for(int i = 0; i < 2; i++) {
+         TableDataPath header = new TableDataPath(-1, TableDataPath.HEADER, XSchema.STRING,
+            new String[]{ "Region", "Category", keys[i] });
+         TableDataPath body = new TableDataPath(-1, TableDataPath.SUMMARY, XSchema.DOUBLE,
+            new String[]{ "Region", "Category", keys[i] });
+         TableDataPath subHeader = new TableDataPath(-1, TableDataPath.HEADER, XSchema.STRING,
+            new String[]{ "Region", keys[i] });
+         TableDataPath subtotal = new TableDataPath(-1, TableDataPath.SUMMARY, XSchema.DOUBLE,
+            new String[]{ "Region", keys[i] });
+         out.put(keys[i] + ".body", body);
+         out.put(keys[i] + ".subtotal", subtotal);
+
+         when(lens.moreRows(i)).thenReturn(true);
+         when(lens.moreRows(i + 2)).thenReturn(true);
+         when(desc.getCellDataPath(i, 0)).thenReturn(region);
+         when(desc.getCellDataPath(i, 1)).thenReturn(category);
+         when(desc.getCellDataPath(i, 2)).thenReturn(header);
+         when(desc.getCellDataPath(i, 3)).thenReturn(body);
+         when(desc.getCellDataPath(i + 2, 0)).thenReturn(region);
+         when(desc.getCellDataPath(i + 2, 1)).thenReturn(subtotalLabel);
+         when(desc.getCellDataPath(i + 2, 2)).thenReturn(subHeader);
+         when(desc.getCellDataPath(i + 2, 3)).thenReturn(subtotal);
+         when(lens.getObject(i, 2)).thenReturn(keys[i]);
+         when(lens.getObject(i + 2, 2)).thenReturn(keys[i]);
+      }
+
+      when(lens.moreRows(4)).thenReturn(false);
+   }
+
+   /** Runs a field-scoped set_format on {@code Crosstab1} and returns the painted paths. */
+   private static TableDataPath[] crosstabPaths(FormatPainterService painter,
+                                                RuntimeViewsheet rvs, String target,
+                                                String field)
+      throws Exception
+   {
+      VSObjectFormatInfoModel format = new VSObjectFormatInfoModel();
+      format.setFormat("PercentFormat");
+      serviceWith(painter, rvs).setFormat(
+         "tok", principal(),
+         new ViewsheetFormatService.FormatRequest(
+            List.of("Crosstab1"), format, false, target, field), "");
+
+      ArgumentCaptor<FormatVSObjectEvent> captor =
+         ArgumentCaptor.forClass(FormatVSObjectEvent.class);
+      verify(painter).setFormat(eq("rt1"), captor.capture(), any(Principal.class), any(),
+                                anyString());
+      return captor.getValue().getData().get(0);
    }
 
    /** A plain Table assembly whose {@code VSTableLens}/descriptor {@code configure} sets up. */

@@ -25,6 +25,7 @@ import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetFolder;
 import inetsoft.uql.asset.sync.*;
 import inetsoft.uql.util.AbstractIdentity;
+import inetsoft.uql.util.Identity;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.util.migrate.*;
 import org.apache.commons.io.IOUtils;
@@ -453,7 +454,23 @@ public class BlobIndexedStorage extends AbstractIndexedStorage {
    }
 
    @Override
+   @Deprecated
    public void migrateStorageData(String oname, String nname) throws Exception {
+      String orgID = OrganizationManager.getInstance().getCurrentOrgID();
+      migrateStorageData(new IdentityID(oname, orgID), new IdentityID(nname, orgID), Identity.USER);
+   }
+
+   @Override
+   public void migrateStorageData(IdentityID oldID, IdentityID newID, int identityType)
+      throws Exception
+   {
+      if(identityType != Identity.USER && identityType != Identity.GROUP) {
+         throw new IllegalArgumentException("Unsupported identity type: " + identityType);
+      }
+
+      String oname = oldID.getName();
+      String nname = newID.getName();
+      String orgID = oldID.getOrgID();
       int numThreads = Runtime.getRuntime().availableProcessors();
       ExecutorService executor = Executors.newFixedThreadPool(numThreads, r -> {
          Thread t = new Thread(r, "BlobStorageMigrateUser");
@@ -461,14 +478,20 @@ public class BlobIndexedStorage extends AbstractIndexedStorage {
          return t;
       });
       Organization currOrg = SecurityEngine.getSecurity().getSecurityProvider()
-                              .getOrganization(OrganizationManager.getInstance().getCurrentOrgID());
+                              .getOrganization(orgID);
 
-      for(String key : getKeys(null)) {
+      for(String key : getKeys(null, orgID)) {
          final AssetEntry entry = AssetEntry.createAssetEntry(key);
          boolean viewsheet = entry.isViewsheet() || entry.getType() == AssetEntry.Type.VIEWSHEET_BOOKMARK;
 
          if(entry.isScheduleTask() && !ScheduleManager.isInternalTask(entry.getName())) {
-            executor.submit(() -> new MigrateScheduleTask(entry, oname, nname, currOrg).updateNameProcess());
+            executor.submit(() -> new MigrateScheduleTask(entry, oname, nname, currOrg, identityType)
+               .updateNameProcess());
+         }
+         else if(identityType == Identity.GROUP) {
+            // a group owns no asset and only a schedule task can reference a group, the other
+            // references to the old name belong to a same-named user
+            continue;
          }
          else if(entry.getUser() != null && entry.getUser().name.equals(oname) || viewsheet) {
             if(viewsheet) {
@@ -488,7 +511,7 @@ public class BlobIndexedStorage extends AbstractIndexedStorage {
                // done by mv manager.
             }
             else {
-               XMLSerializable data = getXMLSerializable(key, null);
+               XMLSerializable data = getXMLSerializable(key, null, orgID);
                AssetEntry nentry = entry.cloneAssetEntry(entry.getOrgID(), nname);
                fixRightUser(oname, nname, nentry);
                String identifier = nentry.toIdentifier();
@@ -517,7 +540,7 @@ public class BlobIndexedStorage extends AbstractIndexedStorage {
             }
          }
          else if((entry.getType().id() & AssetEntry.Type.FOLDER.id()) == AssetEntry.Type.FOLDER.id()) {
-            XMLSerializable data = getXMLSerializable(key, null);
+            XMLSerializable data = getXMLSerializable(key, null, orgID);
 
             if(entry.isFolder() && data instanceof AssetFolder folder) {
                for(AssetEntry folderEntry : folder.getEntries()) {

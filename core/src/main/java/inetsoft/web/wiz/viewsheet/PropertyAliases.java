@@ -121,7 +121,15 @@ public final class PropertyAliases {
       "crosstab", Set.of("shadow", "editable", "container", "crosstabInfoNull",
                          "sortOthersLastEnabled", "dateComparisonSupport", "cellHeight",
                          "scaleVertical"),
-      "calctable", Set.of("cellHeight", "scaleVertical"));
+      "calctable", Set.of("cellHeight", "scaleVertical"),
+      // groupcontainer (bug #77028): `enabled` here resolves to
+      // groupContainerGeneralPane.generalPropPane.enabled (GeneralPropPaneModel.enabled) -- live
+      // for most dataGeneral()/outputGeneral() types, but GroupContainerPropertyDialogService's
+      // apply method (setGroupContainerPropertyDialogModel) never reads it back, and its own
+      // getGroupContainerPropertyDialogModel() explicitly sets showEnabledGroup(false), so the
+      // native Composer UI never even renders the Enabled checkbox for this type
+      // (general-prop-pane.component.html gates the whole control on *ngIf="showEnabledGroup").
+      "groupcontainer", Set.of("enabled"));
 
    /**
     * textinput/combobox/slider/spinner/checkbox/radiobutton's {@code dataInputPaneModel.variable}
@@ -152,16 +160,33 @@ public final class PropertyAliases {
       Set.of("checkbox", "combobox", "radiobutton");
 
    /**
+    * The three types registered through the shared {@link #dataOutput} helper -- used by
+    * {@code AssemblyPropertyService} to scope its {@code columnType} re-derivation (bug #77028) to
+    * exactly the types that share {@code dataOutputPaneModel}.
+    */
+   private static final Set<String> DATA_OUTPUT_TYPES = Set.of("gauge", "text", "image");
+
+   /**
     * {@code refresh} is aliased through the shared {@link #basicGeneral} helper because it is
     * genuinely applied for the input assemblies (checkbox/combobox/radiobutton/slider/spinner/
     * textinput, via {@code VSInputService}) and for submit (via
-    * {@code SubmitPropertyDialogService}). It is not applied at all for these four types --
-    * their apply methods never call {@code basicGeneralPaneModel.isRefresh()}. Refused here by
-    * type rather than removed from the shared helper, which would also remove it from the types
-    * where it is real.
+    * {@code SubmitPropertyDialogService}). It is not applied at all for the remaining types
+    * reached through {@link #basicGeneral} (via {@link #outputGeneral}/{@link #dataGeneral}) or
+    * the direct {@link #groupContainer} call -- their apply methods never call
+    * {@code basicGeneralPaneModel.isRefresh()} back. Confirmed by exhaustive grep for
+    * {@code isRefresh()}/{@code setRefresh(}/{@code getRefreshValue} across
+    * {@code core/src/main/java}: the only hits are the seven live types above (six routed through
+    * {@code VSInputService}, plus submit via {@code SubmitPropertyDialogService}). Independently
+    * confirmed by the native Composer UI itself never rendering the Refresh checkbox for any of
+    * these types -- {@code basic-general-pane.component.html}'s Refresh control is gated on
+    * {@code BasicGeneralPaneModel.showRefreshCheckbox}, which only the seven live types' own
+    * model classes ever set {@code true} (bug #77028). Refused here by type rather than removed
+    * from the shared helper, which would also remove it from the types where it is real.
     */
    private static final Set<String> REFRESH_DEAD_TYPES =
-      Set.of("table", "crosstab", "text", "selectionlist");
+      Set.of("table", "crosstab", "text", "selectionlist", "chart", "gauge", "image",
+             "selectiontree", "timeslider", "calendar", "tab", "calctable", "groupcontainer",
+             "selectioncontainer");
 
    /**
     * Human-readable captions for the handful of aliases whose own name carries no lexical
@@ -185,7 +210,12 @@ public final class PropertyAliases {
       // srinter.properties may still rebrand what its own Composer UI renders (this deployment's
       // rebrands it to "Visible in External Dashboards"), but the underlying English key is the
       // best static source of truth this class can offer.
-      "primary", "Visible in External Viewsheets");
+      "primary", "Visible in External Viewsheets",
+      // TextPaneModel.url / TextVSAssemblyInfo.isUrl()/setUrl() (bug #76929). Its own name has no
+      // lexical connection to the Composer's own caption for the checkbox --
+      // text-pane.component.html's `_#(Embed content from URL)` -- the same category of gap
+      // "primary" fixed above.
+      "embedUrl", "Embed content from URL");
 
    /**
     * {@code basicGeneralPaneModel.enabled} is aliased through the shared {@link #basicGeneral}
@@ -241,6 +271,11 @@ public final class PropertyAliases {
    /** Whether {@code assemblyType} is one of the three types {@link #listInput} registers. */
    public static boolean isListInputType(String assemblyType) {
       return LIST_INPUT_TYPES.contains(normalize(assemblyType));
+   }
+
+   /** Whether {@code assemblyType} is one of the three types {@link #dataOutput} registers. */
+   public static boolean isDataOutputType(String assemblyType) {
+      return DATA_OUTPUT_TYPES.contains(normalize(assemblyType));
    }
 
    /**
@@ -497,6 +532,20 @@ public final class PropertyAliases {
             "scalar write.";
       }
 
+      // Lowercased as a whole: PropertyPath accepts a capitalized first letter on any segment
+      // (getX + capitalize), so a case-sensitive prefix here would be bypassed by
+      // "SelectDataSourceDialogModel.DataSource.path" and still reach the live entry.
+      if(isOrUnder(pathOrKey.toLowerCase(Locale.ROOT), DATA_SOURCE_DIALOG.toLowerCase(Locale.ROOT))) {
+         return "'" + DATA_SOURCE_DIALOG + "' is not settable through " +
+            "set_viewsheet_properties. Its dataSource is the viewsheet's live base AssetEntry, " +
+            "shared by reference with the dialog model: a leaf write edits that entry in place " +
+            "(path no longer matching its identifier) without ever rebinding the viewsheet, and " +
+            "the stale entry is then saved with the sheet. Use set_viewsheet_data_source to " +
+            "rebind or clear the base (it resolves a real, permission-checked entry), or " +
+            "attach_base_worksheet for a viewsheet with no base yet. Reading it is fine -- call " +
+            "get_viewsheet_properties with raw=true.";
+      }
+
       if(isOrUnder(pathOrKey, "screensPane")) {
          return "'screensPane' is not settable through set_viewsheet_properties. Device " +
             "layouts, print layout and screen sizing are their own capability, not a corner of " +
@@ -505,6 +554,9 @@ public final class PropertyAliases {
 
       return null;
    }
+
+   /** The Options dialog's Data Source sub-model; see {@link #viewsheetWriteRefusal}. */
+   private static final String DATA_SOURCE_DIALOG = "vsOptionsPane.selectDataSourceDialogModel";
 
    private static boolean isOrUnder(String path, String prefix) {
       return path.equals(prefix) || path.startsWith(prefix + ".");
@@ -593,9 +645,9 @@ public final class PropertyAliases {
       register(registry, "calctable", CalcTablePropertyDialogModel.class, calcTable());
       register(registry, "groupcontainer", GroupContainerPropertyDialogModel.class,
                groupContainer());
-      register(registry, "line", LinePropertyDialogModel.class, shape());
-      register(registry, "oval", OvalPropertyDialogModel.class, shape());
-      register(registry, "rectangle", RectanglePropertyDialogModel.class, shape());
+      register(registry, "line", LinePropertyDialogModel.class, line());
+      register(registry, "oval", OvalPropertyDialogModel.class, oval());
+      register(registry, "rectangle", RectanglePropertyDialogModel.class, rectangle());
       register(registry, "selectioncontainer", SelectionContainerPropertyDialogModel.class,
                selectionContainer());
       register(registry, "submit", SubmitPropertyDialogModel.class, submit());
@@ -775,6 +827,27 @@ public final class PropertyAliases {
       aliases.put("alpha", "textGeneralPaneModel.alpha");
       aliases.put("popComponent", "textGeneralPaneModel.popComponent");
       aliases.put("text", "textGeneralPaneModel.textPaneModel.text");
+      // Bug #76929: autoSize/embedUrl ("Embed content from URL", see LABELS) were only reachable
+      // via get_assembly_properties(raw:true) -- both are genuinely applied by
+      // TextPropertyDialogService (textAssemblyInfo.getAutoSizeValue()/getUrlValue() on read,
+      // setAutoSizeValue()/setUrlValue() on write).
+      aliases.put("autoSize", "textGeneralPaneModel.textPaneModel.autoSize");
+      aliases.put("embedUrl", "textGeneralPaneModel.textPaneModel.url");
+      // Bug #76929: scaleVertical is the one Text case DEAD_FIELDS's own comment already
+      // documents as genuinely live (unlike table/crosstab's dead copy of the same field) --
+      // TextPropertyDialogService reads/writes textAssemblyInfo.isScaleVerticalValue() /
+      // setScaleVerticalValue() -- but it had no alias of its own here yet.
+      aliases.put("scaleVertical", "textGeneralPaneModel.sizePositionPaneModel.scaleVertical");
+      // Bug #76929: the "Pop Location" dropdown next to popComponent/alpha above, applied by
+      // TextPropertyDialogService via textAssemblyInfo.getPopLocationValue()/setPopLocationValue().
+      aliases.put("popLocation", "textGeneralPaneModel.popLocation");
+      // Bug #76929: the Padding pane, applied by TextPropertyDialogService via
+      // textAssemblyInfo.getPadding().{top,left,bottom,right}.
+      String padding = "textGeneralPaneModel.paddingPaneModel";
+      aliases.put("paddingTop", padding + ".top");
+      aliases.put("paddingLeft", padding + ".left");
+      aliases.put("paddingBottom", padding + ".bottom");
+      aliases.put("paddingRight", padding + ".right");
       // Same shape as gauge()/image() (see gauge()'s comment) -- "tipOption" here predates this
       // ticket and stays as-is for compatibility; "tooltip"/"tooltipMode" are the missing half of
       // the same feature, added now.
@@ -1216,12 +1289,77 @@ public final class PropertyAliases {
       return aliases;
    }
 
-   /** Line, oval and rectangle share {@code ShapeGeneralPaneModel}. */
-   private static Map<String, String> shape() {
+   /**
+    * Line, oval and rectangle share {@code ShapeGeneralPaneModel} (name/visible/primary,
+    * size/position) but otherwise have three genuinely different dialogs -- a single shared
+    * alias set here (the previous {@code shape()}) left every one of those type-specific panes
+    * reachable only through {@code get_assembly_properties(raw:true)} (bug #76929). Confirmed
+    * field-by-field against {@code LinePropertyDialogService}/{@code OvalPropertyDialogService}/
+    * {@code RectanglePropertyDialogService}'s get/set methods -- every alias below is genuinely
+    * read and written back by its own type's service.
+    */
+   private static Map<String, String> line() {
       Map<String, String> aliases = new LinkedHashMap<>();
       shapeGeneral(aliases, "shapeGeneralPaneModel");
       sizePosition(aliases, "shapeGeneralPaneModel");
+      // Genuinely applied only for Line -- LinePropertyDialogService reads/writes
+      // basicGeneralPaneModel.isShadow()/setShadow() directly, a plain on/off toggle. This is a
+      // different, simpler mechanism from Oval/Rectangle's own shadowPropPaneModel below (color/
+      // alpha/direction/distance/blur) -- their dialog services never read this field back at
+      // all, so it stays out of shapeGeneral(), which the three types still share.
+      aliases.put("shadow", "shapeGeneralPaneModel.basicGeneralPaneModel.shadow");
+      String linePane = "linePropertyPaneModel";
+      aliases.put("lineColor", linePane + ".linePropPaneModel.color");
+      aliases.put("lineColorValue", linePane + ".linePropPaneModel.colorValue");
+      aliases.put("lineStyle", linePane + ".linePropPaneModel.style");
+      // The arrowhead dropdowns at each end of the line (line-property-pane.component.html's
+      // "Begin"/"End").
+      aliases.put("beginArrow", linePane + ".begin");
+      aliases.put("endArrow", linePane + ".end");
       return aliases;
+   }
+
+   private static Map<String, String> oval() {
+      Map<String, String> aliases = new LinkedHashMap<>();
+      shapeGeneral(aliases, "shapeGeneralPaneModel");
+      sizePosition(aliases, "shapeGeneralPaneModel");
+      shapeFillLineShadow(aliases, "ovalPropertyPaneModel");
+      return aliases;
+   }
+
+   private static Map<String, String> rectangle() {
+      Map<String, String> aliases = new LinkedHashMap<>();
+      shapeGeneral(aliases, "shapeGeneralPaneModel");
+      sizePosition(aliases, "shapeGeneralPaneModel");
+      shapeFillLineShadow(aliases, "rectanglePropertyPaneModel");
+      // Rectangle-only -- neither Line's nor Oval's dialog model has a "Round Corner" concept.
+      aliases.put("radius", "rectanglePropertyPaneModel.radius");
+      return aliases;
+   }
+
+   /**
+    * Oval and Rectangle's shared Line/Fill/Shadow tabs — identical shape and identical
+    * apply-method behavior on both, confirmed against both services (bug #76929).
+    *
+    * <p>{@code gradientColor} (the Fill tab's gradient checkbox+stops) is deliberately not
+    * aliased here: it is a whole nested {@code GradientColor} object, not a scalar leaf, so it is
+    * reached through the raw dotted path instead (e.g.
+    * {@code ovalPropertyPaneModel.fillPropPaneModel.gradientColor}) -- {@link PropertyPath} now
+    * builds that bean directly from a JSON object.
+    */
+   private static void shapeFillLineShadow(Map<String, String> aliases, String prefix) {
+      aliases.put("lineColor", prefix + ".linePropPaneModel.color");
+      aliases.put("lineColorValue", prefix + ".linePropPaneModel.colorValue");
+      aliases.put("lineStyle", prefix + ".linePropPaneModel.style");
+      aliases.put("fillColor", prefix + ".fillPropPaneModel.color");
+      aliases.put("fillColorValue", prefix + ".fillPropPaneModel.colorValue");
+      aliases.put("fillAlpha", prefix + ".fillPropPaneModel.alpha");
+      aliases.put("shadowApply", prefix + ".shadowPropPaneModel.apply");
+      aliases.put("shadowColor", prefix + ".shadowPropPaneModel.color");
+      aliases.put("shadowAlpha", prefix + ".shadowPropPaneModel.alpha");
+      aliases.put("shadowDirection", prefix + ".shadowPropPaneModel.direction");
+      aliases.put("shadowDistance", prefix + ".shadowPropPaneModel.distance");
+      aliases.put("shadowBlur", prefix + ".shadowPropPaneModel.blur");
    }
 
    private static Map<String, String> selectionContainer() {

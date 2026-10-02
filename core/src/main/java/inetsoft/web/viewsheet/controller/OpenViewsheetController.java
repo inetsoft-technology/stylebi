@@ -36,6 +36,8 @@ import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
 import inetsoft.web.viewsheet.model.ViewsheetRouteDataModel;
 import inetsoft.web.viewsheet.service.*;
 import inetsoft.web.wiz.service.WizViewsheetServiceProxy;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
@@ -80,9 +82,19 @@ public class OpenViewsheetController {
       boolean scaleToScreen = false;
       boolean fitToWidth = false;
       AssetEntry entry = AssetEntry.createAssetEntry(identifier);
-      Viewsheet vs = (Viewsheet) viewsheetService.getAssetRepository().getSheet(
-         entry, principal, false, AssetContent.CONTEXT);
+      Viewsheet vs = null;
       boolean hasBaseEntry = false;
+
+      // the id is client supplied and its orgID is kept, so check READ (including the
+      // cross-org check). A sheet the caller cannot read gets the defaults, the same as a
+      // missing one; opening it reports the actual error.
+      try {
+         vs = (Viewsheet) viewsheetService.getAssetRepository().getSheet(
+            entry, principal, true, AssetContent.CONTEXT);
+      }
+      catch(MessageException ex) {
+         LOG.debug("Failed to read viewsheet route data: {}", identifier, ex);
+      }
 
       if(vs != null) {
          ViewsheetInfo info = vs.getViewsheetInfo();
@@ -221,4 +233,5 @@ public class OpenViewsheetController {
    private final ViewsheetService viewsheetService;
    private final SecurityEngine securityEngine;
    private final WizViewsheetServiceProxy wizViewsheetServiceProxy;
+   private static final Logger LOG = LoggerFactory.getLogger(OpenViewsheetController.class);
 }

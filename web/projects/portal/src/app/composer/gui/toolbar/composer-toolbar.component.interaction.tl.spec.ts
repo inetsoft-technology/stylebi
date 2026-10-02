@@ -22,6 +22,9 @@
  * Risk-first coverage:
  *   Group 1  [Risk 3]  — save0: routing emits correct @Output per focusedTab.type × newSheet;
  *                         wrong emit causes silent save-as/save/close misrouting
+ *   Group 1b [Risk 3]  — saveAs: Table Style / Script (sheet = null, new + saved) route to
+ *                         onSaveTableStyleAs / onSaveScriptAs without throwing (Bug #76713);
+ *                         viewsheet / wiz / worksheet unchanged
  *   Group 2  [Risk 2]  — isPreview: viewsheet.preview / viewsheet.linkview both set flag;
  *                         flag gates cut/copy/paste/undo/format-painter enabled states
  *   Group 3  [Risk 2]  — layoutAlignEnabled / layoutDistributeEnabled / layoutResizeEnabled:
@@ -57,6 +60,7 @@
 import "@angular/compiler";
 import { Viewsheet } from "../../data/vs/viewsheet";
 import { Worksheet } from "../../data/ws/worksheet";
+import { WizDashboard } from "../../data/vs/wizDashboard";
 import { ComposerTabModel } from "../composer-tab-model";
 import { TestUtils } from "../../../common/test/test-utils";
 import { makeMocks, renderComponent } from "./composer-toolbar.spec-helpers";
@@ -142,6 +146,88 @@ describe("ComposerToolbarComponent — save0: @Output routing", () => {
       (comp as any).save0();
 
       expect(spy).toHaveBeenCalledWith(ws);
+   });
+});
+
+// ---------------------------------------------------------------------------
+// Group 1b: saveAs routing (Bug #76713)
+// ---------------------------------------------------------------------------
+
+describe("ComposerToolbarComponent — saveAs: @Output routing (Bug #76713)", () => {
+   // 🔁 Regression-sensitive: for Table Style / Script tabs the composer passes sheet = null.
+   // saveAs() must not dereference sheet.type outside the null guard (the "wiz" clause did),
+   // otherwise it throws "Cannot read properties of null (reading 'type')" and no dialog opens.
+   function libraryTab(type: "tableStyle" | "script", newAsset: boolean): ComposerTabModel {
+      return new ComposerTabModel(type, { type, newAsset, id: `${type}-1` } as any);
+   }
+
+   for(const newAsset of [true, false]) {
+      const label = newAsset ? "new" : "saved";
+
+      it(`should emit onSaveTableStyleAs for a ${label} Table Style with a null sheet`, async () => {
+         const tab = libraryTab("tableStyle", newAsset);
+         const { comp } = await renderComponent({ focusedTab: tab, sheet: null });
+         const spy = vi.fn();
+         comp.onSaveTableStyleAs.subscribe(spy);
+
+         expect(() => comp.saveAs()).not.toThrow();
+         expect(spy).toHaveBeenCalledWith(tab.asset);
+      });
+
+      it(`should emit onSaveScriptAs for a ${label} Script with a null sheet`, async () => {
+         const tab = libraryTab("script", newAsset);
+         const { comp } = await renderComponent({ focusedTab: tab, sheet: null });
+         const spy = vi.fn();
+         comp.onSaveScriptAs.subscribe(spy);
+
+         expect(() => comp.saveAs()).not.toThrow();
+         expect(spy).toHaveBeenCalledWith(tab.asset);
+      });
+   }
+
+   it("should emit onSaveViewsheetAs for a viewsheet", async () => {
+      const { comp } = await renderComponent();
+      const vs = new Viewsheet();
+      comp.focusedTab = new ComposerTabModel("viewsheet", vs);
+      comp.sheet = vs;
+      const spy = vi.fn();
+      comp.onSaveViewsheetAs.subscribe(spy);
+
+      comp.saveAs();
+
+      expect(spy).toHaveBeenCalledWith(vs);
+   });
+
+   it("should emit onSaveViewsheetAs for a wiz dashboard", async () => {
+      const { comp } = await renderComponent();
+      const wiz = new WizDashboard();
+      comp.focusedTab = new ComposerTabModel("wiz", wiz);
+      comp.sheet = wiz;
+      const vsSpy = vi.fn();
+      const wsSpy = vi.fn();
+      comp.onSaveViewsheetAs.subscribe(vsSpy);
+      comp.onSaveWorksheetAs.subscribe(wsSpy);
+
+      comp.saveAs();
+
+      expect(vsSpy).toHaveBeenCalledWith(wiz);
+      expect(wsSpy).not.toHaveBeenCalled();
+   });
+
+   it("should emit onSaveWorksheetAs for a worksheet", async () => {
+      const { comp } = await renderComponent();
+      const ws = new Worksheet();
+      comp.focusedTab = new ComposerTabModel("worksheet", ws);
+      comp.sheet = ws;
+      const vsSpy = vi.fn();
+      const wsSpy = vi.fn();
+      comp.onSaveViewsheetAs.subscribe(vsSpy);
+      comp.onSaveWorksheetAs.subscribe(wsSpy);
+
+      comp.saveAs();
+
+      expect(wsSpy).toHaveBeenCalledWith(ws);
+      expect(vsSpy).not.toHaveBeenCalled();
    });
 });
 

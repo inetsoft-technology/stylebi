@@ -81,13 +81,16 @@ import inetsoft.util.PasswordEncryption;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mindrot.BCrypt;
+import org.mockito.*;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import java.io.IOException;
 import java.lang.reflect.Field;
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -701,6 +704,206 @@ public class FileAuthenticationProviderTest {
       assertFalse(Arrays.asList(updatedOrg.getMembers()).contains("testUser"),
                   "Organization members should not contain removed user");
    }
+
+   // Bug #77070: a failed write during an update must not delete the existing record
+   // Bug #77354: and must be reported to the caller instead of being swallowed
+   @Test
+   void setUser_putFails_existingUserNotDeleted() throws Exception {
+      IdentityID id = new IdentityID("keepUser", "testOrg");
+      provider.addUser(new FSUser(id));
+
+      withFailingPut("userStorage", () -> assertThrows(
+         RuntimeException.class, () -> provider.setUser(id, new FSUser(id))));
+
+      assertNotNull(provider.getUser(id), "user must survive a failed update write");
+   }
+
+   @Test
+   void setGroup_putFails_existingGroupNotDeleted() throws Exception {
+      IdentityID id = new IdentityID("keepGroup", "testOrg");
+      provider.addGroup(new FSGroup(id));
+
+      withFailingPut("groupStorage", () -> assertThrows(
+         RuntimeException.class, () -> provider.setGroup(id, new FSGroup(id))));
+
+      assertNotNull(provider.getGroup(id), "group must survive a failed update write");
+   }
+
+   @Test
+   void setRole_putFails_existingRoleNotDeleted() throws Exception {
+      IdentityID id = new IdentityID("keepRole", "testOrg");
+      provider.addRole(new FSRole(id));
+
+      withFailingPut("roleStorage", () -> assertThrows(
+         RuntimeException.class, () -> provider.setRole(id, new FSRole(id))));
+
+      assertNotNull(provider.getRole(id), "role must survive a failed update write");
+   }
+
+   @Test
+   void setOrganization_putFails_existingOrganizationNotDeleted() throws Exception {
+      FSOrganization org = new FSOrganization("keepOrg");
+      org.setName("Keep Org");
+      provider.addOrganization(org);
+
+      withFailingPut("organizationStorage", () -> assertThrows(
+         RuntimeException.class, () -> provider.setOrganization("keepOrg", org)));
+
+      assertNotNull(provider.getOrganization("keepOrg"),
+                    "organization must survive a failed update write");
+   }
+
+   @Test
+   void setUser_sameIdentity_updatesInPlace() {
+      IdentityID id = new IdentityID("sameUser", "testOrg");
+      provider.addUser(new FSUser(id));
+
+      FSUser updated = new FSUser(id);
+      updated.setAlias("updated");
+      provider.setUser(id, updated);
+
+      assertEquals("updated", provider.getUser(id).getAlias());
+   }
+
+   @Test
+   void setUser_rename_removesOldKey() {
+      IdentityID oldId = new IdentityID("oldName", "testOrg");
+      IdentityID newId = new IdentityID("newName", "testOrg");
+      provider.addUser(new FSUser(oldId));
+
+      provider.setUser(oldId, new FSUser(newId));
+
+      assertNotNull(provider.getUser(newId), "renamed user must exist under the new key");
+      assertNull(provider.getUser(oldId), "old key must be removed after a rename");
+   }
+
+   /**
+    * Runs the action with the named storage replaced by one whose put() always fails and whose
+    * other operations delegate to the real storage.
+    */
+   @SuppressWarnings({ "unchecked", "rawtypes" })
+   private void withFailingPut(String fieldName, Runnable action) throws Exception {
+      KeyValueStorage real = captureStorage(fieldName);
+      KeyValueStorage failing =
+         Mockito.mock(KeyValueStorage.class, AdditionalAnswers.delegatesTo(real));
+      Mockito.doReturn(CompletableFuture.failedFuture(new IOException("simulated write failure")))
+         .when(failing).put(ArgumentMatchers.anyString(), ArgumentMatchers.any());
+      Field f = FileAuthenticationProvider.class.getDeclaredField(fieldName);
+      f.setAccessible(true);
+      f.set(provider, failing);
+
+      try {
+         action.run();
+      }
+      finally {
+         f.set(provider, real);
+      }
+   }
+
+   // Bug #77164: removing or renaming a role must not drop a group that happens to share its name
+   @Test
+   void testRemoveRole_keepsSameNamedGroup() {
+      setUpRoleGroupNameClash(new IdentityID[0]);
+
+      provider.removeRole(CLASH_ROLE);
+
+      assertUserKeepsClashGroup();
+   }
+
+   // Bug #77164
+   @Test
+   void testRemoveRole_userHoldsRole_removesRoleKeepsSameNamedGroup() {
+      setUpRoleGroupNameClash(new IdentityID[]{ CLASH_ROLE });
+
+      provider.removeRole(CLASH_ROLE);
+
+      assertFalse(Arrays.asList(provider.getUser(CLASH_USER).getRoles()).contains(CLASH_ROLE),
+                  "Removed role should be dropped from the user");
+      assertUserKeepsClashGroup();
+   }
+
+   // Bug #77164: role rename in the order IdentityService.syncIdentity performs it
+   @Test
+   void testRenameRole_syncIdentityOrder_keepsSameNamedGroup() {
+      setUpRoleGroupNameClash(new IdentityID[0]);
+      IdentityID renamed = new IdentityID("sales2", CLASH_ORG);
+
+      provider.setRole(renamed, new FSRole(renamed));
+      provider.removeRole(CLASH_ROLE);
+
+      assertUserKeepsClashGroup();
+   }
+
+   // Bug #77164
+   @Test
+   void testSetRole_userAlreadyHoldsNewId_keepsSameNamedGroup() {
+      IdentityID renamed = new IdentityID("sales2", CLASH_ORG);
+      setUpRoleGroupNameClash(new IdentityID[]{ CLASH_ROLE, renamed });
+
+      provider.setRole(CLASH_ROLE, new FSRole(renamed));
+
+      assertUserKeepsClashGroup();
+   }
+
+   // Bug #77164 guard: the reverse direction must keep a same-named role
+   @Test
+   void testRemoveGroup_keepsSameNamedRole() {
+      setUpRoleGroupNameClash(new IdentityID[]{ CLASH_ROLE });
+
+      provider.removeGroup(CLASH_GROUP);
+
+      assertFalse(Arrays.asList(provider.getUser(CLASH_USER).getGroups()).contains("sales"),
+                  "Removed group should be dropped from the user");
+      assertTrue(Arrays.asList(provider.getUser(CLASH_USER).getRoles()).contains(CLASH_ROLE),
+                 "Same-named role should be kept after removeGroup");
+   }
+
+   // Bug #77164 guard
+   @Test
+   void testRenameGroup_keepsSameNamedRole() {
+      setUpRoleGroupNameClash(new IdentityID[]{ CLASH_ROLE });
+
+      provider.setGroup(CLASH_GROUP, new FSGroup(new IdentityID("sales2", CLASH_ORG)));
+
+      assertTrue(Arrays.asList(provider.getUser(CLASH_USER).getGroups()).contains("sales2"),
+                 "User's group reference should follow the rename");
+      assertTrue(Arrays.asList(provider.getUser(CLASH_USER).getRoles()).contains(CLASH_ROLE),
+                 "Same-named role should be kept after group rename");
+   }
+
+   // Org CLASH_ORG with role "sales" and group "sales"; the group grants role "groupPerm", and
+   // CLASH_USER is a member of the group with the given direct roles.
+   private void setUpRoleGroupNameClash(IdentityID[] userRoles) {
+      FSOrganization org = new FSOrganization(CLASH_ORG);
+      org.setName(CLASH_ORG);
+      org.setMembers(new String[]{ "u1", "sales" });
+      provider.addOrganization(org);
+
+      provider.addRole(new FSRole(CLASH_ROLE));
+      provider.addRole(new FSRole(CLASH_GROUP_ROLE));
+
+      FSGroup group = new FSGroup(CLASH_GROUP);
+      group.setRoles(new IdentityID[]{ CLASH_GROUP_ROLE });
+      provider.addGroup(group);
+
+      FSUser user = new FSUser(CLASH_USER);
+      user.setGroups(new String[]{ "sales" });
+      user.setRoles(userRoles);
+      provider.addUser(user);
+   }
+
+   private void assertUserKeepsClashGroup() {
+      assertTrue(Arrays.asList(provider.getUser(CLASH_USER).getGroups()).contains("sales"),
+                 "Same-named group membership should be kept");
+      assertTrue(Arrays.asList(provider.getRoles(CLASH_USER)).contains(CLASH_GROUP_ROLE),
+                 "Role inherited through the same-named group should be kept");
+   }
+
+   private static final String CLASH_ORG = "orgB";
+   private static final IdentityID CLASH_USER = new IdentityID("u1", CLASH_ORG);
+   private static final IdentityID CLASH_ROLE = new IdentityID("sales", CLASH_ORG);
+   private static final IdentityID CLASH_GROUP = new IdentityID("sales", CLASH_ORG);
+   private static final IdentityID CLASH_GROUP_ROLE = new IdentityID("groupPerm", CLASH_ORG);
 
    @SuppressWarnings("unchecked")
    private KeyValueStorage<?> captureStorage(String fieldName) throws Exception {

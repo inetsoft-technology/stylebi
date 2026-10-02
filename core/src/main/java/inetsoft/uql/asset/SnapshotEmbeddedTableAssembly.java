@@ -785,14 +785,14 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly {
             ReentrantLock lock = SnapshotEmbeddedTableDataCache.getInstance().getLock(cacheKey);
             lock.lock();
 
-            cacheTable = SnapshotEmbeddedTableDataCache.getInstance().get(cacheKey);
-
-            if(cacheTable != null) {
-               stable = cacheTable;
-               return;
-            }
-
             try {
+               cacheTable = SnapshotEmbeddedTableDataCache.getInstance().get(cacheKey);
+
+               if(cacheTable != null) {
+                  stable = cacheTable;
+                  return;
+               }
+
                String[] paths = new String[dataPaths.length];
                Map<String, String> absolutePathsLoadVersion = new HashMap<>();
                List<File> tempFiles = new ArrayList<>();

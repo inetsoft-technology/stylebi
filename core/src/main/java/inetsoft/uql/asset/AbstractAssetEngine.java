@@ -2795,22 +2795,45 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
                sheet.setLastModifiedBy(entry.getModifiedUsername());
             }
 
-            Principal bookmarkUser = user;
+            Principal readBookmarkUser = user;
+            Principal writeBookmarkUser = user;
+            boolean copyBookmarks = true;
 
             if(sheet instanceof Viewsheet) {
                Viewsheet vs = (Viewsheet) sheet;
                ViewsheetInfo vsInfo = vs.getViewsheetInfo();
+               AssetEntry runtimeEntry = vs.getRuntimeEntry();
+               AssetEntry source = runtimeEntry != null ? runtimeEntry : entry;
+               IdentityID owner = source.getScope() == USER_SCOPE ? source.getUser() : null;
 
-               // no security, logged in as admin and saving a composed dashboard
+               // no security, logged in as admin and saving a composed dashboard owned by
+               // anonymous (with a null org since Bug #74247). The source's bookmarks can only be
+               // read as its owner. Write them as the owner only back to the owner's own private
+               // asset; any other target gets them under the saver, who can read them there (a
+               // null-org owner key on a global asset is unreadable and never cleaned up). Skip the
+               // copy when the target is a third user's private asset (Bug #77345)
                if(vsInfo.isComposedDashboard() && !SecurityEngine.getSecurity().isSecurityEnabled()
-                       && user != null && Tool.equals(XPrincipal.ANONYMOUS, entry.getUser()))
+                  && user != null && owner != null && XPrincipal.ANONYMOUS.equals(owner.getName()))
                {
-                  bookmarkUser = new XPrincipal(new IdentityID(XPrincipal.ANONYMOUS, Organization.getDefaultOrganizationID()));
+                  IdentityID saver = IdentityID.getIdentityIDFromKey(user.getName());
+
+                  if(!owner.equals(saver)) {
+                     readBookmarkUser = new XPrincipal(owner);
+
+                     if(entry.getScope() == USER_SCOPE && owner.equals(entry.getUser())) {
+                        writeBookmarkUser = readBookmarkUser;
+                     }
+                     else if(entry.getScope() == USER_SCOPE && !saver.equals(entry.getUser())) {
+                        copyBookmarks = false;
+                     }
+                  }
                }
             }
 
             // fixed bug1219747176468
-            overwriteBookmarks(sheet, entry, bookmarkUser);
+            if(copyBookmarks) {
+               overwriteBookmarks(sheet, entry, readBookmarkUser, writeBookmarkUser);
+            }
             // for feature #9005, update dependencies of the binding sources.
 
             if(updateDependency) {
@@ -3614,7 +3637,8 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
       //reject if non site admin accessing another's private repo
       if(checkUserAsset && !OrganizationManager.getInstance().isSiteAdmin(user) && user != null &&
          entry.getScope() == AssetRepository.USER_SCOPE &&
-         !(user.getName().equals(entry.getUser().convertToKey())) )
+         !(user.getName().equals(entry.getUser().convertToKey())) &&
+         !isSecurityOffAnonymousOwned(entry))
       {
          return false;
       }
@@ -3630,6 +3654,7 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
       }
       else if(entry.getScope() == USER_SCOPE) {
          return (user.getName().equals(entry.getUser().convertToKey()) ||
+            isSecurityOffAnonymousOwned(entry) ||
             checkPermission(user, ResourceType.SECURITY_USER, entry.getUser(), EnumSet.of(ResourceAction.ADMIN))) &&
             checkPermission(user, ResourceType.MY_DASHBOARDS, "*", EnumSet.of(ResourceAction.READ));
       }
@@ -4444,7 +4469,13 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
       if(entry.getScope() == USER_SCOPE && !ignoreUserName &&
          !Tool.equals(entry.getUser(), user))
       {
-         return null;
+         // with security off, an anonymous-owned viewsheet's bookmarks are shared by every
+         // caller and stay under the stored owner, which clearVSBookmark removes (Bug #77357)
+         if(user == null || !isSecurityOffAnonymousOwned(entry)) {
+            return null;
+         }
+
+         user = entry.getUser();
       }
 
       String bookmarkId = entry.getProperty("__bookmark_id__");
@@ -4457,6 +4488,18 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
       }
 
       return new AssetEntry(USER_SCOPE, AssetEntry.Type.VIEWSHEET_BOOKMARK, bookmarkId, user, orgID);
+   }
+
+   /**
+    * Check if a user-scope viewsheet is owned by anonymous while security is off. Since
+    * Bug #74247 composed dashboards created with security off are owned by anonymous with a null
+    * org, which no principal matches, and every security-off principal is the anonymous user or
+    * the virtual admin. Such a viewsheet is treated as owned by the caller (Bug #77357).
+    */
+   private static boolean isSecurityOffAnonymousOwned(AssetEntry entry) {
+      return entry.getScope() == USER_SCOPE && entry.getType() == AssetEntry.Type.VIEWSHEET &&
+         entry.getUser() != null && XPrincipal.ANONYMOUS.equals(entry.getUser().getName()) &&
+         !SecurityEngine.getSecurity().isSecurityEnabled();
    }
 
    /**
@@ -4651,10 +4694,11 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
    }
 
    /**
-    * For view sheet, overwrite bookmarks as well.
+    * For view sheet, overwrite bookmarks as well, reading the source bookmarks as
+    * <tt>readUser</tt> and writing them to the target as <tt>user</tt>.
     */
    private void overwriteBookmarks(AbstractSheet sheet, AssetEntry entry2,
-                                   Principal user)
+                                   Principal readUser, Principal user)
       throws Exception
    {
       if(!(sheet instanceof Viewsheet)) {
@@ -4684,7 +4728,15 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
       cluster.lockKey(lockKey);
 
       try {
-         VSBookmark book1 = getVSBookmark(entry1, user, true);
+         VSBookmark book1 = getVSBookmark(entry1, readUser, true);
+
+         // readUser cannot see the source bookmarks (e.g. a site admin saving another user's
+         // private viewsheet). Skip the copy instead of failing the save, and leave the owner's
+         // bookmarks untouched (Bug #77363)
+         if(book1 == null) {
+            return;
+         }
+
          setVSBookmark(entry2, book1, user);
       }
       finally {

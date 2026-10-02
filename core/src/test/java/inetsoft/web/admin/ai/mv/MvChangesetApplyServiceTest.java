@@ -245,12 +245,12 @@ class MvChangesetApplyServiceTest {
    @Test void createPreMutationThrowDoesNotForceRollbackFailedWhenRollbackIsClean() throws Throwable {
       AtomicInteger a1Calls = new AtomicInteger();
       AtomicInteger a2Calls = new AtomicInteger();
-      lenient().when(mvGateway.getAnalysisResult("A1"))
+      lenient().when(mvGateway.getAnalysisResult(eq("A1"), any()))
          .thenAnswer(inv -> analysisResultFor(a1Calls.incrementAndGet(), 0, "MV1"));
       // Calls 1-2 (this test's own hash-computing resolve(), then apply()'s own internal resolve())
       // succeed; call 3 (applyCreate's own re-fetch, strictly before mutationEntered is set) throws
       // -- MV2's own createMV must never be reached.
-      lenient().when(mvGateway.getAnalysisResult("A2"))
+      lenient().when(mvGateway.getAnalysisResult(eq("A2"), any()))
          .thenAnswer(inv -> analysisResultFor(a2Calls.incrementAndGet(), 3, "MV2"));
       wireCreateAndDispose();
 
@@ -283,11 +283,11 @@ class MvChangesetApplyServiceTest {
       mvCycles.put("MV2", "cycle-old");
       AtomicInteger a1Calls = new AtomicInteger();
       AtomicInteger a2Calls = new AtomicInteger();
-      lenient().when(mvGateway.getAnalysisResult("A1"))
+      lenient().when(mvGateway.getAnalysisResult(eq("A1"), any()))
          .thenAnswer(inv -> analysisResultFor(a1Calls.incrementAndGet(), 0, "MV1"));
       // Call 3 for A2 is applySetCycle's own new explicit first-statement getStatus() check --
       // strictly before mvGateway.setDataCycle is ever called for MV2.
-      lenient().when(mvGateway.getAnalysisResult("A2"))
+      lenient().when(mvGateway.getAnalysisResult(eq("A2"), any()))
          .thenAnswer(inv -> analysisResultFor(a2Calls.incrementAndGet(), 3, "MV2"));
       wireSetDataCycle();
 
@@ -317,11 +317,11 @@ class MvChangesetApplyServiceTest {
    @Test void createMutationEnteredFailureStillForcesRollbackFailed() throws Throwable {
       AtomicInteger a1Calls = new AtomicInteger();
       AtomicInteger a2Calls = new AtomicInteger();
-      lenient().when(mvGateway.getAnalysisResult("A1"))
+      lenient().when(mvGateway.getAnalysisResult(eq("A1"), any()))
          .thenAnswer(inv -> analysisResultFor(a1Calls.incrementAndGet(), 0, "MV1"));
       // A2's own analysis freshness check never fails here -- the throw instead comes from
       // createMV itself, strictly AFTER mutationEntered has been set.
-      lenient().when(mvGateway.getAnalysisResult("A2"))
+      lenient().when(mvGateway.getAnalysisResult(eq("A2"), any()))
          .thenAnswer(inv -> analysisResultFor(a2Calls.incrementAndGet(), 0, "MV2"));
       wireCreateAndDispose();
       doThrow(new IllegalStateException("boom during real create"))
@@ -355,7 +355,7 @@ class MvChangesetApplyServiceTest {
 
    @Test void deleteThrowStillForcesRollbackFailedEvenThoughRollbackIsClean() throws Throwable {
       AtomicInteger a1Calls = new AtomicInteger();
-      lenient().when(mvGateway.getAnalysisResult("A1"))
+      lenient().when(mvGateway.getAnalysisResult(eq("A1"), any()))
          .thenAnswer(inv -> analysisResultFor(a1Calls.incrementAndGet(), 0, "MV1"));
       existingMvs.add("MV2");
       wireCreateAndDispose();
@@ -411,7 +411,7 @@ class MvChangesetApplyServiceTest {
                                        boolean expectedBackground) throws Throwable
    {
       AtomicInteger a1Calls = new AtomicInteger();
-      lenient().when(mvGateway.getAnalysisResult("A1"))
+      lenient().when(mvGateway.getAnalysisResult(eq("A1"), any()))
          .thenAnswer(inv -> analysisResultFor(a1Calls.incrementAndGet(), 0, "MV1"));
       wireCreateAndDispose();
 

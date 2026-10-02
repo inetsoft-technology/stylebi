@@ -17,6 +17,7 @@
  */
 package inetsoft.web.admin.logviewer;
 
+import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.*;
 import inetsoft.sree.security.SecurityException;
 import inetsoft.web.admin.monitoring.MonitoringDataService;
@@ -52,7 +53,8 @@ public class LogMonitoringController {
       )
    )
    @GetMapping("/em/monitoring/logviewer/all-logs")
-   public LogMonitoringModel getLogs() {
+   public LogMonitoringModel getLogs(Principal principal) {
+      checkFileLogAccess(principal);
       return logMonitoringService.getLogs();
    }
 
@@ -68,7 +70,10 @@ public class LogMonitoringController {
       @PathVariable("clusterNode") String clusterNode,
       @PathVariable("logFileName") String logFileName,
       @PathVariable("offset") int offset,
-      @PathVariable("length") int length) {
+      @PathVariable("length") int length,
+      Principal principal)
+   {
+      checkFileLogAccess(principal);
       return logMonitoringService.getLog(clusterNode, logFileName, offset, length);
    }
 
@@ -82,7 +87,8 @@ public class LogMonitoringController {
       throws SecurityException
    {
       if(!securityEngine.getSecurityProvider().checkPermission(
-         principal, ResourceType.EM_COMPONENT, "monitoring/log", ResourceAction.ACCESS))
+         principal, ResourceType.EM_COMPONENT, "monitoring/log", ResourceAction.ACCESS) ||
+         !isFileLogAccessAllowed(principal))
       {
          throw new SecurityException("Unauthorized access to log viewer by user " + principal.getName());
       }
@@ -107,8 +113,10 @@ public class LogMonitoringController {
    @GetMapping("/em/monitoring/logviewer/rotate")
    public LogMonitoringModel rotateLogFile(
       @RequestParam("clusterNode") String clusterNode,
-      @RequestParam("logFileName") String logFileName) throws Exception
+      @RequestParam("logFileName") String logFileName,
+      Principal principal) throws Exception
    {
+      checkFileLogAccess(principal);
       return logMonitoringService.rotateLogFile(clusterNode, logFileName);
    }
 
@@ -121,8 +129,11 @@ public class LogMonitoringController {
    )
    @GetMapping("/em/monitoring/logviewer/download")
    public void downloadLogs(HttpServletResponse response,
-                            @RequestParam(value = "clusterNode", required = false) String clusterNode)
+                            @RequestParam(value = "clusterNode", required = false) String clusterNode,
+                            Principal principal)
    {
+      checkFileLogAccess(principal);
+
       try {
          logMonitoringService.downloadLogs(response, clusterNode);
       }
@@ -153,6 +164,24 @@ public class LogMonitoringController {
    @GetMapping("/api/em/monitoring/audit/links")
    public LogViewLinks getAuditLinks(@SuppressWarnings("unused") Principal principal) {
       return logMonitoringService.getLinks(principal);
+   }
+
+   /**
+    * The log files served by the file endpoints are global to the server (they contain the log
+    * records of every organization), so in a multi-tenant deployment only site administrators may
+    * access them. The monitoring/log permission alone is not sufficient, because it is granted to
+    * organization administrators when fluentd logging with log.fluentd.orgAdminAccess is enabled,
+    * which is only intended to expose the organization-scoped external log viewer link.
+    */
+   private static boolean isFileLogAccessAllowed(Principal principal) {
+      return !SUtil.isMultiTenant() || OrganizationManager.getInstance().isSiteAdmin(principal);
+   }
+
+   private static void checkFileLogAccess(Principal principal) {
+      if(!isFileLogAccessAllowed(principal)) {
+         // unchecked java.lang.SecurityException is mapped to a sanitized 403 by AdminExceptionHandler
+         throw new java.lang.SecurityException("Unauthorized access to server log files");
+      }
    }
 
    private final LogMonitoringService logMonitoringService;

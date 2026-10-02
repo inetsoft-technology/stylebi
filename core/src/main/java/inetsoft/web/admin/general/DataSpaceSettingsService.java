@@ -46,6 +46,8 @@ import java.sql.Timestamp;
 import java.util.*;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @Service
 public class DataSpaceSettingsService extends BackupSupport {
@@ -125,14 +127,25 @@ public class DataSpaceSettingsService extends BackupSupport {
             // changeset apply. A pruning failure must never discard a snapshot that exists.
             // This mirrors the per-file handling inside deleteRedundantAiSnapshotFiles, and
             // catches Exception rather than IOException because ExternalStorageService.listFiles
-            // declares no checked exception. deleteRedundantBackupFiles is deliberately NOT
-            // guarded this way: it runs BEFORE the write, where a failure legitimately fails the
-            // whole operation.
+            // declares no checked exception.
             try {
                deleteRedundantAiSnapshotFiles();
             }
             catch(Exception e) {
                LOG.error("Failed to prune old AI snapshots; the new snapshot at {} is unaffected",
+                         path, e);
+            }
+         }
+         else {
+            // Trims the file just added back down to asset.backup.count (#75898). Unlike main,
+            // this post-write call is guarded like the AI branch: AdminFileBackupService turns a
+            // null path into an IOException, so a prune failure must not discard a backup that
+            // was already written. The pre-write call stays unguarded, where failing is right.
+            try {
+               deleteRedundantBackupFiles();
+            }
+            catch(Exception e) {
+               LOG.error("Failed to prune old backups; the new backup at {} is unaffected",
                          path, e);
             }
          }
@@ -178,14 +191,12 @@ public class DataSpaceSettingsService extends BackupSupport {
          return;
       }
 
+      // only the files named as getBackFile() names them, any other file in the folder is not a
+      // backup and must neither be counted nor deleted
       List<String> zips = this.externalStorageService.listFiles(BACKUP_FOLDER).stream()
-         .filter(f -> f.endsWith(".zip") && f.contains(BACKUP_PATH_SPLIT))
-         .sorted((z1, z2) -> {
-            long z1Time = getTimestamp(z1);
-            long z2Time = getTimestamp(z2);
-
-            return Long.compare(z1Time, z2Time);
-         })
+         .filter(f -> BACKUP_FILE_NAME.matcher(f).matches())
+         .sorted(Comparator.comparingLong(DataSpaceSettingsService::getTimestamp)
+                    .thenComparingInt(DataSpaceSettingsService::getCopyNumber))
          .toList();
 
 
@@ -197,7 +208,9 @@ public class DataSpaceSettingsService extends BackupSupport {
 
       for(int i = 0; i < deleteCount; i++) {
          try {
-            this.externalStorageService.delete(BACKUP_FOLDER + File.separator + zips.get(i));
+            // external storage keys always use "/" (as getBackFile() writes them); File.separator
+            // is "\\" on Windows, which S3/GCS treat as a different key
+            this.externalStorageService.delete(BACKUP_FOLDER + "/" + zips.get(i));
          }
          catch(IOException e) {
             LOG.error("Failed to delete backup file {}", zips.get(i), e);
@@ -344,6 +357,8 @@ public class DataSpaceSettingsService extends BackupSupport {
    }
 
    private static long getTimestamp(String fileName) {
+      // getAvailableFile() adds "(n)" to a name that is already taken
+      fileName = fileName.replaceFirst("\\(\\d+\\)(\\.zip)$", "$1");
       int index = fileName.lastIndexOf(".");
 
       if(index >= 0 && fileName.substring(0, index).contains(BACKUP_PATH_SPLIT)) {
@@ -371,6 +386,19 @@ public class DataSpaceSettingsService extends BackupSupport {
       }
 
       return -1;
+   }
+
+   // the "(n)" getAvailableFile() adds to a name, 0 without it
+   private static int getCopyNumber(String fileName) {
+      Matcher matcher = BACKUP_FILE_NAME.matcher(fileName);
+
+      try {
+         return matcher.matches() && matcher.group(1) != null ?
+            Integer.parseInt(matcher.group(1)) : 0;
+      }
+      catch(NumberFormatException e) {
+         return Integer.MAX_VALUE;
+      }
    }
 
    private String getBackFile(String name, String timestamp, boolean aiSnapshot) {
@@ -420,6 +448,9 @@ public class DataSpaceSettingsService extends BackupSupport {
    private static final int DEFAULT_AI_SNAPSHOT_COUNT = 10;
 
    private static final String BACKUP_PATH_SPLIT = "-";
+   // name-yyyyMMddHHmmss.zip, as written by getBackFile(), with the "(n)" of getAvailableFile()
+   private static final Pattern BACKUP_FILE_NAME =
+      Pattern.compile("^.+-\\d{14}(?:\\((\\d+)\\))?\\.zip$");
 
    private static final Lock backupLock = new ReentrantLock();
    private static final Logger LOG = LoggerFactory.getLogger(DataSpaceSettingsService.class);

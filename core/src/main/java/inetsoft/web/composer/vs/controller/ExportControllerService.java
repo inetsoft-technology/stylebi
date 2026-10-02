@@ -77,54 +77,67 @@ public class ExportControllerService {
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
       rvs.getViewsheet().getViewsheetInfo().setMVOnDemand(false);
 
-      CommandDispatcher.withDummyDispatcher(principal, d -> {
-         ChangedAssemblyList clist = this.coreLifecycleService.createList(false, d, rvs, null);
-         // do not reset the form table.
-         ViewsheetSandbox.exportRefresh.set(true);
-         coreLifecycleService.refreshViewsheet(rvs, rvs.getID(), null, d, false, true, true, clist);
-         ViewsheetSandbox.exportRefresh.set(false);
-         return null;
-      });
-
-      Viewsheet vs = rvs.getViewsheet();
-
-      if("CSV".equalsIgnoreCase(type) && vs != null) {
-         boolean foundTable = VSUtil.getTableDataAssemblies(vs, true).stream()
-            .anyMatch(CSVUtil::needExport);
-
-         if(!foundTable) {
-            throw new MessageException(Catalog.getCatalog().getString("common.repletAction.exportFailed.cvs"));
-         }
-      }
-
-      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
-
-      if(box.isPresent() && vs != null) {
-         for(Assembly assembly : vs.getAssemblies()) {
-            if(assembly instanceof TableDataVSAssembly) {
-               box.get().resetDataMap(assembly.getAbsoluteName());
-            }
-         }
-      }
-
-      boolean embedded = "embed".equalsIgnoreCase(SreeEnv.getProperty("pdf.output.attachment"))
-         && !matchesAssetIdFormat;
-      // shared with VSExportService so the two export paths cannot disagree
-      String disposition =
-         VSExportService.getContentDisposition(format, rvs.isPreview(), embedded, print);
-
-      String key = "/" + ExportControllerService.class.getName() + "_" + runtimeId + "_" + format;
-      BinaryTransfer data = binaryTransferService.createBinaryTransfer(key);
-      DeferredFileOutputStream out = binaryTransferService.createOutputStream(data);
-
-      // Bug #76576: guard the real export work with __EXPORTING__ so that
+      // Bug #76576: guard the export with __EXPORTING__ so that
       // ViewsheetEngine.closeViewsheet() (called below, and possibly by a concurrent request
       // for the same runtime viewsheet) defers disposing this rvs via _CLOSE_AFTER_EXPORT_
       // instead of closing it out from under an export still in the synchronized(rvs) block
       // in writeViewsheetExport(), which otherwise NPEs on the now-null viewsheet.
-      rvs.setProperty("__EXPORTING__", "true");
+      // Bug #77217: set it before the refresh so that export/check reports the export as in
+      // progress (keeping the viewer's exporting tip up and blocking a second export) while
+      // the viewsheet is still being refreshed.
+      // Bug #77227: claim the export atomically, before the refresh, and reject a concurrent
+      // export (or print) of the same runtime viewsheet instead of letting both reset and
+      // refresh the shared sandbox. This is outside the try so a rejected request neither
+      // clears the running export's flag nor closes its viewsheet.
+      VSExportService.beginExport(rvs, principal);
 
       try {
+         CommandDispatcher.withDummyDispatcher(principal, d -> {
+            ChangedAssemblyList clist = this.coreLifecycleService.createList(false, d, rvs, null);
+            // do not reset the form table.
+            ViewsheetSandbox.exportRefresh.set(true);
+
+            try {
+               coreLifecycleService.refreshViewsheet(rvs, rvs.getID(), null, d, false, true, true, clist);
+            }
+            finally {
+               ViewsheetSandbox.exportRefresh.set(false);
+            }
+
+            return null;
+         });
+
+         Viewsheet vs = rvs.getViewsheet();
+
+         if("CSV".equalsIgnoreCase(type) && vs != null) {
+            boolean foundTable = VSUtil.getTableDataAssemblies(vs, true).stream()
+               .anyMatch(CSVUtil::needExport);
+
+            if(!foundTable) {
+               throw new MessageException(Catalog.getCatalog().getString("common.repletAction.exportFailed.cvs"));
+            }
+         }
+
+         Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+         if(box.isPresent() && vs != null) {
+            for(Assembly assembly : vs.getAssemblies()) {
+               if(assembly instanceof TableDataVSAssembly) {
+                  box.get().resetDataMap(assembly.getAbsoluteName());
+               }
+            }
+         }
+
+         boolean embedded = "embed".equalsIgnoreCase(SreeEnv.getProperty("pdf.output.attachment"))
+            && !matchesAssetIdFormat;
+         // shared with VSExportService so the two export paths cannot disagree
+         String disposition =
+            VSExportService.getContentDisposition(format, rvs.isPreview(), embedded, print);
+
+         String key = "/" + ExportControllerService.class.getName() + "_" + runtimeId + "_" + format;
+         BinaryTransfer data = binaryTransferService.createBinaryTransfer(key);
+         DeferredFileOutputStream out = binaryTransferService.createOutputStream(data);
+
          writeViewsheetExport(rvs, out, principal, format, previewPrintLayout, print, match,
                               expandSelections, current, bookmarks, onlyDataComponents,
                               csvConfig, null, false, exportAllTabbedTables);
@@ -141,7 +154,7 @@ public class ExportControllerService {
          throw ex;
       }
       finally {
-         rvs.setProperty("__EXPORTING__", null);
+         rvs.endExport();
 
          if(!previewPrintLayout && (matchesAssetIdFormat ||
             "true".equals(rvs.getProperty("_CLOSE_AFTER_EXPORT_"))))

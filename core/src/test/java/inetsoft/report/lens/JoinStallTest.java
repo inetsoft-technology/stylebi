@@ -51,7 +51,8 @@ public class JoinStallTest {
    @BeforeEach
    public void setUp() {
       resetGlobalStallState();
-      StallPolicy.setOverride(new StallPolicy(StallPolicy.Mode.FAIL, 1000, 200, dumpDir));
+      StallPolicy.setOverride(new StallPolicy(StallPolicy.Mode.FAIL, 1000, 200, dumpDir,
+                                              StallPolicy.DEFAULT_MAX_DUMPS, true));
       pool = readerPool();
    }
 

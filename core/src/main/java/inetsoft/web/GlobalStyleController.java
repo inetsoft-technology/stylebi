@@ -155,8 +155,11 @@ public class GlobalStyleController implements ApplicationContextAware {
          {
             themeId = provider.getOrganization(currOrgID).getTheme();
 
+            // the themes of every organization are in the set, so the theme must also be
+            // visible to this organization: a pointer left on it to another organization's
+            // private theme falls back to the selected theme below (Bug #77285)
             for(CustomTheme theme : customThemesManager.getCustomThemes()) {
-               if(theme.getId().equals(themeId)) {
+               if(theme.getId().equals(themeId) && theme.isVisibleToOrganization(currOrgID)) {
                   hasTheme = true;
                   break;
                }

@@ -104,6 +104,22 @@ describe("UsersSettingsViewComponent", () => {
       expect(emitSpy).toHaveBeenCalled();
    });
 
+   it("lists tasks whose execute-as is kept because the owner is not a user", () => {
+      component.selectedProvider = "provider1";
+      component.selectedNodes = [
+         { identityID: { name: "u1", orgID: "o1" }, type: IdentityType.USER } as any
+      ];
+
+      component.delete();
+
+      const req = httpMock.expectOne(r => r.url.endsWith("/affected-tasks"));
+      req.flush({ ownedTasks: [], executeAsTasks: [], refusedTasks: ["Site Admin Job"] });
+
+      expect(dialogData.content).toContain("em.security.delete.refusedTasksWarning");
+      expect(dialogData.content).toContain("Site Admin Job");
+      expect(dialogData.content).not.toContain("em.security.delete.executeAsTasksWarning");
+   });
+
    it("falls back to the plain confirm and still deletes when the impact check fails", () => {
       component.selectedProvider = "provider1";
       component.selectedNodes = [

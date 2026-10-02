@@ -20,9 +20,11 @@ package inetsoft.report.internal;
 import org.junit.jupiter.api.Test;
 
 import java.awt.*;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+@Tag("core")
 class BoundsTest {
 
    // ── Constructors ──────────────────────────────────────────────────────

@@ -659,9 +659,11 @@ public class TabVSAssemblyInfo extends ContainerVSAssemblyInfo {
     * of the pending-reposition flag, leaving the tab bar at its stale pre-restore pixel
     * position even though the restored flag itself is correct (Bug #76927).</p>
     *
-    * <p>Gated strictly on {@link #isPositionNeedsSync()}, which only {@link #restoreBottomTabs}
-    * ever sets -- never on a value comparison -- so an ordinary refresh can't fight a tab
-    * position the user or a script established.</p>
+    * <p>Gated strictly on {@link #isPositionNeedsSync()}, which is only set when a restore
+    * (or a design-time script, see {@link #updateDesignPositionNeedsSync()}) actually changed the
+    * effective value without repositioning -- the sweep itself never compares positions -- so
+    * an ordinary refresh (including the INITIAL_STATE round-trip every runtime open performs)
+    * can't fight a tab position the user or a script established (Bug #77179).</p>
     */
    public static void syncPendingBottomTabsPositions(Viewsheet vs) {
       if(vs == null) {
@@ -774,15 +776,57 @@ public class TabVSAssemblyInfo extends ContainerVSAssemblyInfo {
     * reposition-capable caller that a reposition is still owed even though, from that caller's
     * point of view, the value may appear unchanged (e.g. the tab's own script re-running on
     * every refresh with a value that already matches the just-restored rValue).
+    *
+    * <p>The flag is raised only when the restored value differs from the effective value
+    * before the restore: an equal value means the current pixel positions already belong to
+    * it, so no reposition is owed. This matters because every runtime open writes the
+    * INITIAL_STATE bookmark from the live viewsheet and immediately parses it back; flagging
+    * unconditionally made the open-time sweep re-anchor every tab, moving non-flush layouts
+    * and undoing onInit/onLoad position changes (Bug #77179). The flag is sticky -- an equal
+    * restore never clears one raised earlier (e.g. by a preceding restore in the same open, or
+    * by a design-time script, see {@link #updateDesignPositionNeedsSync()}).</p>
     */
    public void restoreBottomTabs(boolean bottomTabs) {
+      boolean changed = isBottomTabs() != bottomTabs;
       this.bottomTabs.setRValue(bottomTabs);
+
+      if(changed) {
+         positionNeedsSync = true;
+      }
+   }
+
+   /**
+    * Mark that the bottomTabs rValue was changed without a matching reposition, so the next
+    * runtime script run or open-time sweep settles it. Design-time scripts use {@link
+    * #updateDesignPositionNeedsSync()}, which also clears a flag that is no longer owed.
+    */
+   public void markPositionNeedsSync() {
       positionNeedsSync = true;
    }
 
    /**
-    * True if bottomTabs' rValue was restored (e.g. from a bookmark) without a matching
-    * reposition of the tab bar and its children's pixel position.
+    * Design-time counterpart of {@link #restoreBottomTabs}:
+    * in a design (non-runtime) viewsheet the pixel positions are laid out for the design value
+    * ({@link #getBottomTabsValue()}) -- the property dialog repositions for it and design-time
+    * scripts never move anything -- so a reposition is owed exactly when the effective value
+    * ({@link #isBottomTabs()}, which a design-time script's rValue overrides) differs from it.
+    * Sets or clears {@link #isPositionNeedsSync()} accordingly. Used by
+    * {@link inetsoft.report.script.viewsheet.TabVSAScriptable#setBottomTabs} in a design
+    * sandbox, so the flag carried into Composer Preview is neither lost nor stale (Bug #77179).
+    * (The tab property dialog can simply clear the flag after its reposition: changing the
+    * dValue via {@link #setBottomTabsValue} drops any rValue, so the effective value is then
+    * the design value it repositioned for.)
+    */
+   public void updateDesignPositionNeedsSync() {
+      positionNeedsSync = isBottomTabs() != getBottomTabsValue();
+   }
+
+   /**
+    * True if the tab bar and its children's pixel positions may not match {@link
+    * #isBottomTabs()}: the bottomTabs rValue was changed without a matching reposition, either
+    * by a restore that changed it (e.g. from a bookmark, see {@link #restoreBottomTabs}) or at
+    * design time, where a script's rValue differs from the design value the positions were laid
+    * out for (see {@link #markPositionNeedsSync()} and {@link #updateDesignPositionNeedsSync()}).
     */
    public boolean isPositionNeedsSync() {
       return positionNeedsSync;
@@ -815,7 +859,9 @@ public class TabVSAssemblyInfo extends ContainerVSAssemblyInfo {
    private boolean roundBottomCornersOnly;
    // runtime-only: not written to asset/bookmark XML (see writeAttributes/parseAttributes),
    // not touched by resetRuntimeValues() -- must survive across a refresh so the reposition
-   // owed by a bookmark restore isn't lost before the tab's script re-runs.
+   // owed by a bookmark restore isn't lost before the tab's script re-runs. Also set at design
+   // time when a script's rValue differs from the design value (updateDesignPositionNeedsSync),
+   // and carried by the viewsheet clone into Composer Preview.
    private transient boolean positionNeedsSync;
 
    public static final TableDataPath ACTIVE_TAB_PATH =

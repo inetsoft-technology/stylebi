@@ -76,6 +76,46 @@ class CalcFieldServiceTest {
       assertEquals(List.of("Query1"), service.tablesWithCalcFields(vsWithCalcFields()));
    }
 
+   /**
+    * #77143: calc fields are keyed by table, so a table bound only by a Text (ScalarBindingInfo,
+    * not a DataVSAssemblyInfo) must still be enumerated.
+    */
+   @Test
+   void listsCalcFieldsOfATableBoundOnlyByAText() {
+      Viewsheet vs = new Viewsheet();
+      TextVSAssembly text = new TextVSAssembly(vs, "Text1");
+      ScalarBindingInfo binding = new ScalarBindingInfo();
+      binding.setTableName("Query1");
+      text.setScalarBindingInfo(binding);
+      vs.addAssembly(text);
+      vs.addCalcField("Query1", calc("Margin", "field['PRICE'] - field['COST']", false));
+
+      List<CalcFieldService.Found> found = service.list(vs);
+
+      assertEquals(1, found.size());
+      assertEquals("Query1", found.get(0).table());
+      assertEquals("Margin", found.get(0).name());
+   }
+
+   /** #77143: a calc field on a table no assembly binds (e.g. created by the agent) is listed too. */
+   @Test
+   void listsCalcFieldsOfATableNothingIsBoundTo() {
+      Viewsheet vs = new Viewsheet();
+      vs.addCalcField("Unbound", calc("Margin", "field['PRICE'] - field['COST']", false));
+
+      assertEquals(List.of("Unbound"), service.tablesWithCalcFields(vs));
+      assertEquals(1, service.list(vs).size());
+   }
+
+   /** Bound tables keep their assembly order; the other calc-field tables follow, sorted, once. */
+   @Test
+   void boundTablesComeFirstThenTheRemainingCalcFieldTablesSorted() {
+      Viewsheet vs = vsWithCalcFields();
+      when(vs.getCalcFieldSources()).thenReturn(List.of("Zeta", "", "Query1", "Alpha"));
+
+      assertEquals(List.of("Query1", "Alpha", "Zeta"), service.tablesWithCalcFields(vs));
+   }
+
    @Test
    void listsEveryCalcFieldWithItsTableAndFlags() {
       List<CalcFieldService.Found> found = service.list(vsWithCalcFields());

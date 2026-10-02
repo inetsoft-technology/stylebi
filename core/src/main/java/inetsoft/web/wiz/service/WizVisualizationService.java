@@ -316,9 +316,26 @@ public class WizVisualizationService {
       // sourceVs (the ORIGINAL runtime), not newVs, which only has the chart clone so far. Unlike
       // the chart clone above, a control's pixelOffset/pixelSize is preserved as-is: it must stay
       // positioned relative to the chart it was packed under, not reset to the viewsheet's origin.
+      //
+      // Only the controls that filter this chart are carried: those bound to the chart's own table
+      // (getTableName(), the key add_visualization_filters binds its controls to and the root
+      // saveWorksheet keeps). findExistingFilterControls matches by geometry alone, and every wiz
+      // chart in a session viewsheet shares the default geometry, so it also returns controls that
+      // belong to sibling charts on other tables -- those tables are trimmed out of the saved
+      // worksheet and the control would reopen empty. A sibling chart's control on the SAME table is
+      // kept on purpose: it already filters this chart in the session. A chart with no table, or a
+      // control with no table, carries nothing.
       if(assembly instanceof ChartVSAssembly sourceChart) {
-         for(VSAssembly control : WizVsService.findExistingFilterControls(sourceVs, sourceChart)) {
-            newVs.addAssembly((VSAssembly) control.clone());
+         String chartTable = sourceChart.getTableName();
+
+         if(!Tool.isEmptyString(chartTable)) {
+            for(VSAssembly control : WizVsService.findExistingFilterControls(sourceVs, sourceChart)) {
+               if(control instanceof SelectionVSAssembly sel &&
+                  sel.getTableNames().contains(chartTable))
+               {
+                  newVs.addAssembly((VSAssembly) control.clone());
+               }
+            }
          }
       }
 
@@ -326,9 +343,20 @@ public class WizVisualizationService {
       // materialized "Range@<measure>" range field) so the cloned chart's calc-field-backed bindings
       // still resolve when the saved viz is reopened. Without this the new single-assembly viewsheet
       // has no such calc field and reopen fails with ColumnNotFoundException: Range@<col>.
-      if(assembly instanceof DataVSAssembly dataAsm && dataAsm.getSourceInfo() != null) {
-         String calcSrc = dataAsm.getSourceInfo().getSource();
-         CalculateRef[] srcCalcs = calcSrc != null ? sourceVs.getCalcFields(calcSrc) : null;
+      // Output (Gauge/Text/Image), input and selection assemblies bind through BindingInfo rather
+      // than SourceInfo; getTableName() returns the same key their calc fields are stored under.
+      // DataVSAssembly is also bindable, so it must be checked first to keep its SourceInfo path.
+      String calcSrc = null;
+
+      if(assembly instanceof DataVSAssembly dataAsm) {
+         calcSrc = dataAsm.getSourceInfo() != null ? dataAsm.getSourceInfo().getSource() : null;
+      }
+      else {
+         calcSrc = assembly.getTableName();
+      }
+
+      if(calcSrc != null && !calcSrc.isBlank()) {
+         CalculateRef[] srcCalcs = sourceVs.getCalcFields(calcSrc);
 
          if(srcCalcs != null) {
             for(CalculateRef calc : srcCalcs) {

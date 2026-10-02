@@ -323,6 +323,14 @@ public class PoiPptxDeckMerger implements PptxDeckMerger {
       XSLFTextBox box = slide.createTextBox();
       box.setAnchor(new Rectangle2D.Double(MARGIN_PT, topPt, SLIDE_WIDTH_PT - 2 * MARGIN_PT, 60));
       box.setText("Failed to render: " + (title == null ? "" : title));
+
+      // Family only (not styleBox): keep the placeholder's default size/color, but don't leave
+      // its typeface to theme inheritance either (see styleBox).
+      for(XSLFTextParagraph paragraph : box.getTextParagraphs()) {
+         for(XSLFTextRun run : paragraph.getTextRuns()) {
+            run.setFontFamily(StyleFont.getDefaultFontFamily());
+         }
+      }
    }
 
    /** Places a chart's insightsMarkdown as far as it fits into the reserved region below its own

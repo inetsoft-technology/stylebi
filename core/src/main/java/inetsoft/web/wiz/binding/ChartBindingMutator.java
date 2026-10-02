@@ -250,19 +250,27 @@ public final class ChartBindingMutator {
    }
 
    /**
-    * Carries a matched measure's {@code calculateInfo} (Trend/Calculator) and {@code secondaryY}
-    * across a shelf rewrite -- the aggregate-ref sibling of {@link #preserveDimensionState},
-    * closing the gap left after bug #76881 fixed only the dimension case in this file (bug
-    * #76896). {@code toChartRef} already coerces an incoming {@code null} {@code secondaryY} to
-    * {@code false} before this runs, so this reads {@code field.secondaryY()} directly (the raw
-    * incoming value), not {@code aggregate.isSecondaryY()} -- the only way to tell "the caller
-    * said nothing" apart from "the caller explicitly said false".
+    * Carries a matched measure's {@code calculateInfo} (Trend/Calculator), {@code secondaryY} and
+    * {@code secondaryColumn} across a shelf rewrite -- the aggregate-ref sibling of
+    * {@link #preserveDimensionState}, closing the gap left after bug #76881 fixed only the
+    * dimension case in this file (bug #76896). {@code toChartRef} already coerces an incoming
+    * {@code null} {@code secondaryY} to {@code false} before this runs, so this reads
+    * {@code field.secondaryY()} directly (the raw incoming value), not
+    * {@code aggregate.isSecondaryY()} -- the only way to tell "the caller said nothing" apart from
+    * "the caller explicitly said false".
     *
     * <p>{@code secondaryY} preservation runs unconditionally on every shelf, with no {@code x}/
     * {@code group} gate: the plugin layer already refuses {@code secondaryY} outright on any
     * shelf but {@code y} (bug #76608), so {@code previous.isSecondaryY()} can never be
     * {@code true} on {@code x}/{@code group} -- this branch is a permanent no-op there, not a
     * case needing its own shelf guard.
+    *
+    * <p>{@code secondaryColumn} (bug #77014, VCS-020): {@code toChartRef} only sets
+    * {@code secondaryColumnValue} when the incoming {@code FieldRef} explicitly carries one --
+    * the identical shape as {@code calculateInfo}/{@code secondaryY} above -- so without this
+    * branch a Covariance/Correlation/WeightedAverage measure's second column silently reverted to
+    * {@code null} on the very next ordinary {@code set_chart_shelf} call that omitted it (e.g.
+    * adding an unrelated field to the same shelf), even though the caller never asked to clear it.
     */
    private static void preserveAggregateState(ChartAggregateRefModel previous,
                                                ChartAggregateRefModel aggregate, FieldRef field)
@@ -273,6 +281,10 @@ public final class ChartBindingMutator {
 
       if(field.secondaryY() == null) {
          aggregate.setSecondaryY(previous.isSecondaryY());
+      }
+
+      if(field.secondaryColumn() == null) {
+         aggregate.setSecondaryColumnValue(previous.getSecondaryColumnValue());
       }
    }
 

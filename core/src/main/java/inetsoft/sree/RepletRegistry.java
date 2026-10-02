@@ -20,6 +20,7 @@ package inetsoft.sree;
 import inetsoft.report.PropertyChangeEvent;
 import inetsoft.report.internal.Util;
 import inetsoft.sree.internal.SUtil;
+import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.sree.security.Organization;
 import inetsoft.uql.XPrincipal;
@@ -35,8 +36,11 @@ import java.beans.PropertyChangeListener;
 import java.io.*;
 import java.lang.ref.WeakReference;
 import java.nio.charset.StandardCharsets;
+import java.security.DigestOutputStream;
+import java.security.MessageDigest;
 import java.security.Principal;
 import java.util.*;
+import java.util.concurrent.locks.Lock;
 
 /**
  * RepletRegistry handles registration of replets. It loads the registration
@@ -193,22 +197,29 @@ public class RepletRegistry implements Serializable {
     * Init the registry.
     */
    protected synchronized void init() throws Exception {
+      DataSpace space = DataSpace.getDataSpace();
+      String prop = SreeEnv.getProperty("dashboard.mydashboard.disabled");
+      noMyreports = Tool.equals(prop, "true", false);
+      String repfiles = SreeEnv.getProperty("replet.repository.file");
+      StringTokenizer tokens = new StringTokenizer(repfiles, ";", false);
+
+      LocalChanges changes = getLocalChanges();
       // clear out the current in memory copy
       folders.clear();
 //      filemap.clear();
 //      filefoldermap.clear();
 
-      DataSpace space = DataSpace.getDataSpace();
-      String prop = SreeEnv.getProperty("dashboard.mydashboard.disabled");
-      noMyreports = Tool.equals(prop, "true", false);
-      String repfiles = SreeEnv.getProperty("replet.repository.file");
-
       // always add root folder
       getFolderMap().put("/", "/");
-
-      StringTokenizer tokens = new StringTokenizer(repfiles, ";", false);
+      long readDate = STALE_DATE;
+      String readDigest = STALE_DIGEST;
 
       try {
+         // taken before the content is read, so that a commit landing during the read leaves date
+         // older than what was read and the next save() reads storage again (Bug #76977)
+         long lastModified = space.getLastModified(null, getRegistryPath());
+         String digest = space.getDigest(null, getRegistryPath());
+
          while(tokens.hasMoreTokens()) {
             String repfile = getRegistryPath(Tool.convertUserFileName(tokens.nextToken()));
 
@@ -225,20 +236,44 @@ public class RepletRegistry implements Serializable {
                load(repository);
             }
          }
+
+         readDate = lastModified;
+         readDigest = digest;
       }
       catch(Exception ex) {
          LOG.error("Failed to initialize the registry", ex);
       }
       finally {
-         date = space.getLastModified(null, getRegistryPath());
+         // a copy that was not read completely counts as behind storage
+         date = readDate;
+         storedDigest = readDigest;
          loaded = date != 0;
-      }
 
-      // always add My Reports folder
-      if(!getFolderMap().containsKey(Tool.MY_DASHBOARD)) {
-         getFolderMap().put(Tool.MY_DASHBOARD, Tool.MY_DASHBOARD);
-         getFolderContextmap().put(Tool.MY_DASHBOARD, new FolderContext(Tool.MY_DASHBOARD));
+         // always add My Reports folder
+         if(!getFolderMap().containsKey(Tool.MY_DASHBOARD)) {
+            getFolderMap().put(Tool.MY_DASHBOARD, Tool.MY_DASHBOARD);
+            getFolderContextmap().put(Tool.MY_DASHBOARD, new FolderContext(Tool.MY_DASHBOARD));
+         }
+
+         applyLocalChanges(changes);
       }
+   }
+
+   /**
+    * Gets the changes made to this copy since it was last read from or written to storage.
+    */
+   synchronized LocalChanges getLocalChanges() {
+      return storedState == null ?
+         new LocalChanges() : storedState.diff(getFolderMap(), getFolderContextmap());
+   }
+
+   /**
+    * Records the copy just read from storage and applies the unsaved local changes over it, so
+    * that reading a commit made by another node never discards them (Bug #76977).
+    */
+   synchronized void applyLocalChanges(LocalChanges changes) {
+      storedState = new StoredState(getFolderMap(), getFolderContextmap());
+      changes.applyTo(getFolderMap(), getFolderContextmap());
    }
 
    private String getRegistryPath(String originPath) {
@@ -707,42 +742,79 @@ public class RepletRegistry implements Serializable {
    public synchronized void save() throws Exception {
       DataSpace space = DataSpace.getDataSpace();
       String repfile = getRegistryPath();
-
-      if(!loaded) {
-         // repository.xml exists in the data space but wasn't loaded so reload the registry
-         if(space.exists(null, repfile)) {
-            reload();
-         }
-
-         loaded = true;
-      }
-
-      int idx = repfile.lastIndexOf('.');
-      String repb = ((idx > 0) ? repfile.substring(0, idx) : repfile) + ".bak";
-
-      try(InputStream istream = space.getInputStream(null, repfile)) {
-         if(istream != null) {
-            space.withOutputStream(null, repb, ostream -> Tool.fileCopy(istream, ostream));
-         }
-      }
-      catch(Throwable exc) {
-         throw new Exception("Failed to save repository.xml", exc);
-      }
-
-      dmgr.removeChangeListener(space, getRegistryDir(), getRegistryFileName(), changeListener);
+      // Bug #76977, each cluster node keeps its own copy and writes the whole file, so saves of
+      // the file are serialized across the cluster and a copy that is behind storage is reloaded
+      // (keeping its unsaved changes) before it is written. The lock is always taken while holding
+      // this registry's monitor, and only here (the change listener's init() never takes it), so
+      // nothing done while holding it may fire an event, call a listener or wait for a monitor.
+      Lock lock = Cluster.getInstance().getLock(SAVE_LOCK_PREFIX + repfile);
+      boolean reloaded = false;
+      lock.lock();
 
       try {
-         space.withOutputStream(null, repfile, this::save);
-      }
-      catch(Throwable exc) {
-         throw new Exception("Failed to save repository.xml", exc);
+         // Bug #77339, the digest and not the last modified time tells whether storage changed
+         // since this copy read or wrote it, as two commits can share the same millisecond
+         if(!loaded || !Objects.equals(space.getDigest(null, repfile), storedDigest)) {
+            // repository.xml exists in the data space but wasn't loaded, or was saved by another
+            // node since it was loaded, so reload the registry
+            if(space.exists(null, repfile)) {
+               reload();
+               reloaded = true;
+
+               if(date == STALE_DATE) {
+                  // the copy now holds only part of the stored file, so writing it would drop
+                  // the rest. Its unsaved changes are kept, and the next save reads again.
+                  throw new Exception("Failed to re-read repository.xml before saving; not " +
+                                      "saved to avoid overwriting other nodes' changes");
+               }
+            }
+
+            loaded = true;
+         }
+
+         int idx = repfile.lastIndexOf('.');
+         String repb = ((idx > 0) ? repfile.substring(0, idx) : repfile) + ".bak";
+
+         try(InputStream istream = space.getInputStream(null, repfile)) {
+            if(istream != null) {
+               space.withOutputStream(null, repb, ostream -> Tool.fileCopy(istream, ostream));
+            }
+         }
+         catch(Throwable exc) {
+            throw new Exception("Failed to save repository.xml", exc);
+         }
+
+         dmgr.removeChangeListener(space, getRegistryDir(), getRegistryFileName(), changeListener);
+
+         try {
+            MessageDigest written = MessageDigest.getInstance("MD5");
+            // digest of the bytes this copy wrote, so that a commit of another writer landing
+            // before the token would be read is not taken for this copy's own
+            space.withOutputStream(null, repfile, out -> {
+               DigestOutputStream digestOut = new DigestOutputStream(out, written);
+               save(digestOut);
+               digestOut.flush();
+            });
+            date = space.getLastModified(null, repfile);
+            storedDigest = toDigestString(written.digest());
+            storedState = new StoredState(getFolderMap(), getFolderContextmap());
+         }
+         catch(Throwable exc) {
+            throw new Exception("Failed to save repository.xml", exc);
+         }
+         finally {
+            if(uptodate()) {
+               dmgr.addChangeListener(space, getRegistryDir(), getRegistryFileName(), changeListener);
+            }
+         }
       }
       finally {
-         date = space.getLastModified(null, repfile);
+         lock.unlock();
+      }
 
-         if(uptodate()) {
-            dmgr.addChangeListener(space, getRegistryDir(), getRegistryFileName(), changeListener);
-         }
+      if(reloaded) {
+         fireEvent("registry_", RELOAD_EVENT, null, null);
+         fireEvent("registry_", CHANGE_EVENT, null, null);
       }
    }
 
@@ -772,6 +844,19 @@ public class RepletRegistry implements Serializable {
       }
 
       return date;
+   }
+
+   /**
+    * Encodes a digest the way the blob storage does for {@link DataSpace#getDigest}.
+    */
+   private static String toDigestString(byte[] digest) {
+      StringBuilder digestString = new StringBuilder();
+
+      for(byte b : digest) {
+         digestString.append(String.format("%02x", ((int) b) & 0xff));
+      }
+
+      return digestString.toString();
    }
 
    /**
@@ -896,20 +981,35 @@ public class RepletRegistry implements Serializable {
       }
 
       private void init0() throws Exception {
+         LocalChanges changes = getLocalChanges();
          // clear out the current in memory copy
          folders.clear();
 //         filemap.clear();
 //         filefoldermap.clear();
 
-         load();
+         boolean read = false;
 
-         // always add My Reports folder
-         if(!folders.containsKey(Tool.MY_DASHBOARD)) {
-            folders.put(Tool.MY_DASHBOARD, Tool.MY_DASHBOARD);
+         try {
+            load();
+            read = true;
          }
+         finally {
+            if(!read) {
+               // a copy that was not read completely counts as behind storage
+               date = STALE_DATE;
+               storedDigest = STALE_DIGEST;
+            }
 
-         if(!folders.containsKey("/")) {
-            folders.put("/", "/");
+            // always add My Reports folder
+            if(!folders.containsKey(Tool.MY_DASHBOARD)) {
+               folders.put(Tool.MY_DASHBOARD, Tool.MY_DASHBOARD);
+            }
+
+            if(!folders.containsKey("/")) {
+               folders.put("/", "/");
+            }
+
+            applyLocalChanges(changes);
          }
 
          if(uptodate()) {
@@ -920,10 +1020,14 @@ public class RepletRegistry implements Serializable {
 
       synchronized void load() throws Exception {
          String file = getRegistryPath();
-         DataSpace space = null;
+         long lastModified = 0;
+         String digest = null;
 
          try {
-            space = DataSpace.getDataSpace();
+            DataSpace space = DataSpace.getDataSpace();
+            // taken before the content is read, as in init() (Bug #76977)
+            lastModified = space.getLastModified(null, file);
+            digest = space.getDigest(null, file);
 
             if(!space.exists(null, file)) {
                return;
@@ -938,7 +1042,8 @@ public class RepletRegistry implements Serializable {
             }
          }
          finally {
-            date = space == null ? 0 : space.getLastModified(null, file);
+            date = lastModified;
+            storedDigest = digest;
             loaded = date != 0;
          }
       }
@@ -987,9 +1092,10 @@ public class RepletRegistry implements Serializable {
          String file = getRegistryPath();
 
          try {
-            long ndate = DataSpace.getDataSpace().getLastModified(null, file);
+            // Bug #77339, compare digests, as a commit can share the millisecond of the last one
+            String ndigest = DataSpace.getDataSpace().getDigest(null, file);
 
-            if(ndate != date) {
+            if(!Objects.equals(ndigest, storedDigest)) {
                init0();
             }
          }
@@ -999,6 +1105,107 @@ public class RepletRegistry implements Serializable {
       }
 
       private final String user;
+   }
+
+   /**
+    * The folders and folder contexts of a registry as last read from or written to storage.
+    */
+   private static final class StoredState {
+      StoredState(Map<String, String> folders, Map<String, FolderContext> contexts) {
+         this.folders = new HashSet<>(folders.keySet());
+         contexts.forEach((name, context) -> this.contexts.put(name, copyContext(context)));
+      }
+
+      /**
+       * Gets the changes of an in-memory copy relative to this stored state.
+       */
+      LocalChanges diff(Map<String, String> folders, Map<String, FolderContext> contexts) {
+         LocalChanges changes = new LocalChanges();
+         changes.localFolders.addAll(folders.keySet());
+
+         folders.forEach((folder, value) -> {
+            if(!this.folders.contains(folder)) {
+               changes.addedFolders.put(folder, value);
+            }
+         });
+
+         for(String folder : this.folders) {
+            if(!folders.containsKey(folder)) {
+               changes.removedFolders.add(folder);
+            }
+         }
+
+         contexts.forEach((name, context) -> {
+            if(!isSameContext(this.contexts.get(name), context)) {
+               changes.changedContexts.put(name, copyContext(context));
+            }
+         });
+
+         for(String name : this.contexts.keySet()) {
+            if(!contexts.containsKey(name)) {
+               changes.removedContexts.add(name);
+            }
+         }
+
+         return changes;
+      }
+
+      private static boolean isSameContext(FolderContext context1, FolderContext context2) {
+         return context1 != null && context2 != null &&
+            Objects.equals(context1.getName(), context2.getName()) &&
+            Objects.equals(context1.getAlias(), context2.getAlias()) &&
+            Objects.equals(context1.getDescription(), context2.getDescription()) &&
+            Objects.equals(context1.getFavoritesUser(), context2.getFavoritesUser());
+      }
+
+      private final Set<String> folders;
+      private final Map<String, FolderContext> contexts = new HashMap<>();
+   }
+
+   /**
+    * The changes made to an in-memory copy of a registry since it was last read from or written
+    * to storage, applied again over a copy read from storage.
+    */
+   private static final class LocalChanges {
+      void applyTo(Map<String, String> folders, Map<String, FolderContext> contexts) {
+         // a removed folder takes the folders inside it along, as removeFolder does
+         for(String folder : removedFolders) {
+            String prefix = folder + "/";
+            folders.keySet().removeIf(name -> name.equals(folder) ||
+               name.startsWith(prefix) && !localFolders.contains(name));
+         }
+
+         addedFolders.forEach((folder, value) -> {
+            folders.put(folder, value);
+
+            // create parents, as addFolder does
+            for(int idx = folder.lastIndexOf('/'); idx > 0; idx = folder.lastIndexOf('/', idx - 1)) {
+               String parent = folder.substring(0, idx);
+               folders.putIfAbsent(parent, parent);
+            }
+         });
+
+         removedContexts.forEach(contexts::remove);
+         changedContexts.forEach((name, context) -> contexts.put(name, copyContext(context)));
+      }
+
+      private final Set<String> localFolders = new HashSet<>();
+      private final Map<String, String> addedFolders = new HashMap<>();
+      private final Set<String> removedFolders = new HashSet<>();
+      private final Map<String, FolderContext> changedContexts = new HashMap<>();
+      private final Set<String> removedContexts = new HashSet<>();
+   }
+
+   private static FolderContext copyContext(FolderContext context) {
+      FolderContext copy =
+         new FolderContext(context.getName(), context.getDescription(), context.getAlias());
+      String favoritesUser = context.getFavoritesUser();
+
+      if(!favoritesUser.isEmpty()) {
+         copy.addFavoritesUser(favoritesUser);
+      }
+
+      return copy;
    }
 
    class XMLHandler extends DefaultHandler {
@@ -1122,6 +1329,17 @@ public class RepletRegistry implements Serializable {
    protected DataChangeListenerManager dmgr = new DataChangeListenerManager();
    protected long date = -2L; // last modified
    protected boolean loaded;
+   // digest of repository.xml as this copy last read or wrote it, null if it did not exist
+   protected String storedDigest = STALE_DIGEST;
+   // what this copy last read from or wrote to storage, to tell its unsaved changes
+   private transient StoredState storedState;
+
+   private static final String SAVE_LOCK_PREFIX = RepletRegistry.class.getName() + ".save:";
+   // date of a copy that is behind storage whatever storage holds, as no stored file has it
+   private static final long STALE_DATE = -3L;
+   // digest of a copy that is behind storage whatever storage holds: neither null (no file) nor
+   // any stored digest, which are hexadecimal
+   private static final String STALE_DIGEST = "stale";
 
    static final String GLOBAL_LISTENERS = RepletRegistry.class.getName() + ".globalListeners";
    private static final Logger LOG = LoggerFactory.getLogger(RepletRegistry.class);

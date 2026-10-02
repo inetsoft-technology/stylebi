@@ -18,6 +18,7 @@
 package inetsoft.web.wiz.viewsheet;
 
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.ChartVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.graph.*;
@@ -159,6 +160,245 @@ class ChartRegionPropertyServiceTest {
       verify(h.regions).setAxisPropertyDialogModel(anyString(), anyString(), anyString(), anyInt(),
                                                    any(), any(), anyString(), any(Principal.class),
                                                    any());
+   }
+
+   /**
+    * Bug #77027 item 1: the model {@code regions.getAxisPropertyDialogModel} returns can itself
+    * already be mis-flagged {@code linear: true} for a genuinely non-linear (dimension-bound)
+    * axis -- the area-index-0 mechanism this test simulates directly. Before the fix, {@code
+    * set()} left that flag untouched, so {@code ignoreNull} would land on the pane's own bean
+    * field (this test's write does reach that far) but {@code
+    * AxisPropertyDialogModel.updateAxisPropertyDialogModel}'s real {@code if(this.linear)} branch
+    * -- exercised only by the model itself, not by this mocked-service test -- would then never
+    * read it back out into the real {@code AxisDescriptor}. Fixed by independently re-deriving
+    * {@code linear} off the actual binding and correcting the model before it is ever written to.
+    */
+   @Test
+   void correctsAMisclassifiedLinearFlagBeforeWriting() throws Exception {
+      Harness h = harness();
+      AxisPropertyDialogModel model = axisModel();
+      model.setLinear(true); // simulates the area-index-0 misclassification for a dimension axis
+      when(h.regions.getAxisPropertyDialogModel(anyString(), anyString(), anyString(), anyString(),
+                                                any(), anyString(), any(Principal.class)))
+         .thenReturn(model);
+
+      h.service.set("tok", principal(), "Chart1", "axis", "x", null,
+                    Map.of("ignoreNull", true), "");
+
+      ArgumentCaptor<AxisPropertyDialogModel> captor =
+         ArgumentCaptor.forClass(AxisPropertyDialogModel.class);
+      verify(h.regions).setAxisPropertyDialogModel(anyString(), anyString(), anyString(), anyInt(),
+                                                   any(), captor.capture(), anyString(),
+                                                   any(Principal.class), any());
+      assertFalse(captor.getValue().getLinear(),
+                  "linear must be corrected off the real binding before the write, or " +
+                  "ignoreNull/truncate never reach updateAxisPropertyDialogModel's non-linear " +
+                  "branch");
+      assertTrue(captor.getValue().getAxisLinePaneModel().isIgnoreNull());
+   }
+
+   /**
+    * Bug #77027 item 1, round r1 addendum B3: correcting {@code linear} alone does not fix
+    * {@code list()} -- the model's constructor already populated {@code ignoreNull}/
+    * {@code truncate} (or skipped them) under the wrong value before {@code readModel()} ever
+    * sees the object, so every fresh {@code list_chart_region_properties} call on a
+    * previously-misclassified axis reported the stale default FOREVER, not just until the next
+    * write -- reproducing the original bug's symptom through the read path. This pins the fix:
+    * {@code list()} on a fresh, still-misclassified model must report the value the REAL,
+    * already-persisted {@code AxisDescriptor} holds (simulating a prior successful write), not
+    * the wrongly-constructed model's Java-default {@code false}.
+    */
+   @Test
+   void listsBackfilledIgnoreNullOnAPreviouslyMisclassifiedAxis() throws Exception {
+      VSChartDimensionRef dimension = mock(VSChartDimensionRef.class);
+      when(dimension.getFullName()).thenReturn("STATE");
+      when(dimension.getName()).thenReturn("STATE");
+      AxisDescriptor persistedDescriptor = mock(AxisDescriptor.class);
+      when(persistedDescriptor.isNoNull()).thenReturn(true);
+      when(persistedDescriptor.isTruncate()).thenReturn(true);
+      when(dimension.getAxisDescriptor()).thenReturn(persistedDescriptor);
+
+      Harness h = harness(mixedShelfViewsheet(new ChartRef[] { dimension }));
+      // A fresh model, misclassified linear:true by the area-index-0 mechanism (as every real
+      // request reconstructs), so the constructor's own `if(!linear) {setIgnoreNull(...);
+      // setTruncate(...)}` branch never ran and the pane's ignoreNull/truncate are stuck at the
+      // bean's Java default (false) -- exactly what a real server response would look like for
+      // this axis before this fix.
+      AxisPropertyDialogModel model = axisModel();
+      model.setLinear(true);
+      when(h.regions.getAxisPropertyDialogModel(anyString(), anyString(), anyString(), anyString(),
+                                                any(), anyString(), any(Principal.class)))
+         .thenReturn(model);
+
+      Map<String, Object> listed = h.service.list("tok", principal(), "Chart1", "axis", "x", null);
+
+      @SuppressWarnings("unchecked")
+      List<Map<String, Object>> props = (List<Map<String, Object>>) listed.get("properties");
+      Object ignoreNull = props.stream()
+         .filter(p -> "ignoreNull".equals(p.get("name")))
+         .findFirst()
+         .map(p -> p.get("value"))
+         .orElse(null);
+      Object truncate = props.stream()
+         .filter(p -> "truncate".equals(p.get("name")))
+         .findFirst()
+         .map(p -> p.get("value"))
+         .orElse(null);
+
+      assertEquals(true, ignoreNull,
+                   "list() must backfill ignoreNull from the real, already-persisted " +
+                   "AxisDescriptor, not report the wrongly-constructed model's stale default");
+      assertEquals(true, truncate,
+                   "list() must backfill truncate from the real, already-persisted " +
+                   "AxisDescriptor too, not just ignoreNull");
+   }
+
+   /**
+    * The companion negative case: when the shelf has more than one field of this axis type and no
+    * {@code field} was given to disambiguate, there is no reliable column name to backfill from --
+    * the model still gets its `linear` flag corrected (so a subsequent write is not silently
+    * dropped), but the pane's stale default is left alone rather than guessed at.
+    */
+   @Test
+   void skipsTheBackfillWhenTheShelfIsAmbiguousWithNoFieldGiven() throws Exception {
+      VSChartDimensionRef dimensionOne = mock(VSChartDimensionRef.class);
+      when(dimensionOne.getFullName()).thenReturn("STATE");
+      VSChartDimensionRef dimensionTwo = mock(VSChartDimensionRef.class);
+      when(dimensionTwo.getFullName()).thenReturn("REGION");
+
+      Harness h = harness(mixedShelfViewsheet(new ChartRef[] { dimensionOne, dimensionTwo }));
+      AxisPropertyDialogModel model = axisModel();
+      model.setLinear(true);
+      when(h.regions.getAxisPropertyDialogModel(anyString(), anyString(), anyString(), anyString(),
+                                                any(), anyString(), any(Principal.class)))
+         .thenReturn(model);
+
+      Map<String, Object> listed = h.service.list("tok", principal(), "Chart1", "axis", "x", null);
+
+      @SuppressWarnings("unchecked")
+      List<Map<String, Object>> props = (List<Map<String, Object>>) listed.get("properties");
+      Object ignoreNull = props.stream()
+         .filter(p -> "ignoreNull".equals(p.get("name")))
+         .findFirst()
+         .map(p -> p.get("value"))
+         .orElse(null);
+
+      // Not backfilled (ambiguous, no field) -- but this must not throw, and the (still
+      // corrected) linear flag still protects a subsequent write from being silently dropped.
+      assertEquals(false, ignoreNull);
+      verifyNoInteractions(dimensionOne);
+      verifyNoInteractions(dimensionTwo);
+   }
+
+   /**
+    * Bug #77027 item 2: {@code increment} is neither refused nor covered by
+    * {@code LINEAR_ONLY_AXIS_KEYS} -- it applies to a linear axis OR a non-linear time-series
+    * date axis, so on a genuinely non-linear, non-time-series dimension axis it used to be
+    * silently accepted and dropped, exactly the shape {@code LINEAR_ONLY_AXIS_KEYS} exists to
+    * prevent for its own key set.
+    */
+   @Test
+   void refusesIncrementOnANonLinearNonTimeSeriesDimensionAxis() {
+      Harness h = harness();
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.set("tok", principal(), "Chart1", "axis", "x", null,
+                             Map.of("increment", "5"), ""));
+
+      assertTrue(thrown.getMessage().contains("increment"));
+      verifyNoInteractions(h.regions);
+   }
+
+   /** The genuinely linear y-axis must still accept {@code increment}, unaffected by item 2's
+    * new guard. */
+   @Test
+   void stillAcceptsIncrementOnAMeasureAxis() throws Exception {
+      Harness h = harness();
+      when(h.regions.getAxisPropertyDialogModel(anyString(), anyString(), anyString(), anyString(),
+                                                any(), anyString(), any(Principal.class)))
+         .thenReturn(axisModel());
+
+      h.service.set("tok", principal(), "Chart1", "axis", "y", null,
+                    Map.of("increment", "5"), "");
+
+      verify(h.regions).setAxisPropertyDialogModel(anyString(), anyString(), anyString(), anyInt(),
+                                                   any(), any(), anyString(), any(Principal.class),
+                                                   any());
+   }
+
+   /**
+    * Bug #77027 item 2, round r1 (reviewer B2): the success half of the compound condition --
+    * a genuinely non-linear, TIME-SERIES date axis must still accept {@code increment}, not just
+    * be refused when it is neither linear nor time-series. Exercises the whole
+    * {@code requireLinearOrTimeSeriesAxisForIncrement} branch this bug's own guard added
+    * (matched ref -> {@code XDimensionRef} -> {@code isTimeSeries()} ->
+    * {@code GraphUtil.isTimeSeriesVisible}), which the item-2 refusal test alone never touches.
+    */
+   @Test
+   void stillAcceptsIncrementOnANonLinearTimeSeriesDateAxis() throws Exception {
+      VSChartDimensionRef dateDimension = mock(VSChartDimensionRef.class);
+      when(dateDimension.getFullName()).thenReturn("Year(ORDER_DATE)");
+      when(dateDimension.getName()).thenReturn("ORDER_DATE");
+      when(dateDimension.getDataType()).thenReturn(XSchema.DATE);
+      when(dateDimension.isTimeSeries()).thenReturn(true);
+
+      Harness h = harness(mixedShelfViewsheet(new ChartRef[] { dateDimension }));
+      when(h.regions.getAxisPropertyDialogModel(anyString(), anyString(), anyString(), anyString(),
+                                                any(), anyString(), any(Principal.class)))
+         .thenReturn(axisModel());
+
+      h.service.set("tok", principal(), "Chart1", "axis", "x", null,
+                    Map.of("increment", "5"), "");
+
+      verify(h.regions).setAxisPropertyDialogModel(anyString(), anyString(), anyString(), anyInt(),
+                                                   any(), any(), anyString(), any(Principal.class),
+                                                   any());
+   }
+
+   /**
+    * The non-time-series companion: a plain (non-date) dimension on the very same shelf shape
+    * must still be refused, so this new success case is not accidentally widening the guard to
+    * accept every dimension axis.
+    */
+   @Test
+   void stillRefusesIncrementOnANonTimeSeriesDimensionOfTheSameShelfShape() {
+      VSChartDimensionRef plainDimension = mock(VSChartDimensionRef.class);
+      when(plainDimension.getFullName()).thenReturn("STATE");
+      when(plainDimension.getName()).thenReturn("STATE");
+      when(plainDimension.getDataType()).thenReturn(XSchema.STRING);
+      when(plainDimension.isTimeSeries()).thenReturn(false);
+
+      Harness h = harness(mixedShelfViewsheet(new ChartRef[] { plainDimension }));
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.set("tok", principal(), "Chart1", "axis", "x", null,
+                             Map.of("increment", "5"), ""));
+
+      assertTrue(thrown.getMessage().contains("increment"));
+      verifyNoInteractions(h.regions);
+   }
+
+   /**
+    * Bug #77027 item 3: a raw dotted-path key that happens to alias exactly onto a linear-only
+    * property used to bypass {@code requireLinearAxisForLinearOnlyKeys} entirely -- the guard
+    * only ever checked bare alias names, never the raw path form {@code set()}'s own resolve loop
+    * has always accepted as an escape hatch. Reproduces the exact G3-8 corruption
+    * ({@code minimum} written to a categorical axis) using the raw-path spelling instead of the
+    * alias.
+    */
+   @Test
+   void refusesARawPathThatAliasesOntoALinearOnlyKey() {
+      Harness h = harness();
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.set("tok", principal(), "Chart1", "axis", "x", null,
+                             Map.of("axisLinePaneModel.minimum", "5"), ""));
+
+      assertTrue(thrown.getMessage().contains("minimum"));
+      verifyNoInteractions(h.regions);
    }
 
    /**
@@ -783,6 +1023,13 @@ class ChartRegionPropertyServiceTest {
       when(info.getXFields()).thenReturn(xFields);
       when(info.getYFields()).thenReturn(new ChartRef[] { y });
       when(info.isInvertedGraph()).thenReturn(false);
+      // ChartRegionHandler.getAxisDescriptor -> getChartRef -> findDataRef reads this
+      // unconditionally (round r1 addendum B3's backfill path reaches it); an unstubbed mock
+      // returns null, not an empty array, which NPEs Arrays.stream.
+      when(info.getRuntimeDateComparisonRefs()).thenReturn(new ChartRef[0]);
+      // Same reason: a shared (non-per-ref) measure axis descriptor falls through to
+      // info.getAxisDescriptor() in that dispatch; an unstubbed mock returns null.
+      when(info.getAxisDescriptor()).thenReturn(mock(AxisDescriptor.class));
       ChartVSAssembly chart = mock(ChartVSAssembly.class);
       when(chart.getVSChartInfo()).thenReturn(info);
       Viewsheet vs = mock(Viewsheet.class);
@@ -798,7 +1045,7 @@ class ChartRegionPropertyServiceTest {
          .thenReturn(legendModel());
 
       h.service.set("tok", principal(), "Chart1", "legend", "0", null,
-                    Map.of("visible", false), "");
+                    Map.of("titleVisible", false), "");
 
       ArgumentCaptor<LegendFormatDialogModel> captor =
          ArgumentCaptor.forClass(LegendFormatDialogModel.class);
@@ -806,6 +1053,183 @@ class ChartRegionPropertyServiceTest {
                                                    captor.capture(), anyString(),
                                                    any(Principal.class), any());
       assertFalse(captor.getValue().getLegendFormatGeneralPaneModel().isVisible());
+   }
+
+   /**
+    * Bug #77027 item 4: the legend's own {@code visible} property only ever toggled the legend's
+    * TITLE caption ({@code LegendDescriptor.isTitleVisible()}), never the whole legend -- and
+    * collided with {@code set_chart_element_visibility}'s own, differently-scoped {@code visible}
+    * that really does hide the whole legend. Renamed to {@code titleVisible}; the old name must
+    * fail loud naming the replacement and the real whole-legend tool, not silently keep working
+    * under a misleading name.
+    */
+   @Test
+   void refusesTheOldLegendVisibleNameNamingTheReplacement() throws Exception {
+      Harness h = harness();
+      when(h.regions.getLegendFormatDialogModel(anyString(), anyString(), anyString(), anyString(),
+                                                any(Principal.class)))
+         .thenReturn(legendModel());
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.set("tok", principal(), "Chart1", "legend", "0", null,
+                             Map.of("visible", false), ""));
+
+      assertTrue(thrown.getMessage().contains("titleVisible"));
+      assertTrue(thrown.getMessage().contains("set_chart_element_visibility"));
+      verify(h.regions, never()).setLegendFormatDialogModel(anyString(), anyString(), anyInt(),
+                                                            any(), anyString(),
+                                                            any(Principal.class), any());
+   }
+
+   /**
+    * Bug #77027 item 5: {@code fillColor} was a historical misnomer -- it only ever maps to
+    * {@code LegendsDescriptor.setBorderColor}, there is no separate fill-color concept on that
+    * class. Renamed to {@code borderColor}; the old name must fail loud naming the replacement.
+    */
+   @Test
+   void writesLegendBorderColorUnderItsRenamedKey() throws Exception {
+      Harness h = harness();
+      when(h.regions.getLegendFormatDialogModel(anyString(), anyString(), anyString(), anyString(),
+                                                any(Principal.class)))
+         .thenReturn(legendModel());
+
+      h.service.set("tok", principal(), "Chart1", "legend", "0", null,
+                    Map.of("borderColor", "#ff0000"), "");
+
+      ArgumentCaptor<LegendFormatDialogModel> captor =
+         ArgumentCaptor.forClass(LegendFormatDialogModel.class);
+      verify(h.regions).setLegendFormatDialogModel(anyString(), anyString(), anyInt(),
+                                                   captor.capture(), anyString(),
+                                                   any(Principal.class), any());
+      assertEquals("#ff0000", captor.getValue().getLegendFormatGeneralPaneModel().getFillColor());
+   }
+
+   @Test
+   void refusesTheOldLegendFillColorNameNamingTheReplacement() throws Exception {
+      Harness h = harness();
+      when(h.regions.getLegendFormatDialogModel(anyString(), anyString(), anyString(), anyString(),
+                                                any(Principal.class)))
+         .thenReturn(legendModel());
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.set("tok", principal(), "Chart1", "legend", "0", null,
+                             Map.of("fillColor", "#ff0000"), ""));
+
+      assertTrue(thrown.getMessage().contains("borderColor"));
+      verify(h.regions, never()).setLegendFormatDialogModel(anyString(), anyString(), anyInt(),
+                                                            any(), anyString(),
+                                                            any(Principal.class), any());
+   }
+
+   /**
+    * Bug #77027 item 6, round r1 (reviewer B1): {@code LegendDescriptor.setSymbolSize}
+    * unconditionally clamps to {@code [6, 50]} with no indication -- refused loudly here rather
+    * than let the value reach that clamp, per the lead's dispatched decision. Server-side so the
+    * refusal applies to every caller, not only the wiz plugin's own client-side check.
+    */
+   @Test
+   void refusesSymbolSizeAboveTheSupportedRange() throws Exception {
+      Harness h = harness();
+      when(h.regions.getLegendFormatDialogModel(anyString(), anyString(), anyString(), anyString(),
+                                                any(Principal.class)))
+         .thenReturn(legendModel());
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.set("tok", principal(), "Chart1", "legend", "0", null,
+                             Map.of("symbolSize", 100), ""));
+
+      assertTrue(thrown.getMessage().contains("symbolSize"));
+      assertTrue(thrown.getMessage().contains("50"));
+      verify(h.regions, never()).setLegendFormatDialogModel(anyString(), anyString(), anyInt(),
+                                                            any(), anyString(),
+                                                            any(Principal.class), any());
+   }
+
+   @Test
+   void refusesSymbolSizeBelowTheSupportedRange() {
+      Harness h = harness();
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.set("tok", principal(), "Chart1", "legend", "0", null,
+                             Map.of("symbolSize", 1), ""));
+
+      assertTrue(thrown.getMessage().contains("6"));
+      verifyNoInteractions(h.regions);
+   }
+
+   @Test
+   void refusesANonNumericSymbolSize() {
+      Harness h = harness();
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.set("tok", principal(), "Chart1", "legend", "0", null,
+                             Map.of("symbolSize", "big"), ""));
+
+      assertTrue(thrown.getMessage().contains("symbolSize"));
+      verifyNoInteractions(h.regions);
+   }
+
+   /** Item 3's raw-path escape hatch must hit this refusal too, not just the plain alias form. */
+   @Test
+   void refusesARawPathSymbolSizeOutsideTheSupportedRange() {
+      Harness h = harness();
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.set("tok", principal(), "Chart1", "legend", "0", null,
+                             Map.of("legendFormatGeneralPaneModel.symbolSize", 100), ""));
+
+      assertTrue(thrown.getMessage().contains("50"));
+      verifyNoInteractions(h.regions);
+   }
+
+   @Test
+   void stillAcceptsSymbolSizeWithinTheSupportedRange() throws Exception {
+      Harness h = harness();
+      when(h.regions.getLegendFormatDialogModel(anyString(), anyString(), anyString(), anyString(),
+                                                any(Principal.class)))
+         .thenReturn(legendModel());
+
+      h.service.set("tok", principal(), "Chart1", "legend", "0", null,
+                    Map.of("symbolSize", 20), "");
+
+      ArgumentCaptor<LegendFormatDialogModel> captor =
+         ArgumentCaptor.forClass(LegendFormatDialogModel.class);
+      verify(h.regions).setLegendFormatDialogModel(anyString(), anyString(), anyInt(),
+                                                   captor.capture(), anyString(),
+                                                   any(Principal.class), any());
+      assertEquals(20, captor.getValue().getLegendFormatGeneralPaneModel().getSymbolSize());
+   }
+
+   /**
+    * Regression for bug #77041: {@code set_chart_region_properties} is a third caller into the
+    * shared {@code PropertyPath.coerce} (alongside set_viewsheet_properties/
+    * set_assembly_properties) -- this exercises a plain {@code int} field
+    * ({@code legendFormatGeneralPaneModel.style}, unrelated to symbolSize's own dedicated
+    * range guard) through this service specifically, confirming coerce's whole-number check
+    * applies here too rather than silently truncating {@code 2.5} to {@code 2}.
+    */
+   @Test
+   void refusesANonIntegralRawPathNumberOnThisServiceToo() throws Exception {
+      Harness h = harness();
+      when(h.regions.getLegendFormatDialogModel(anyString(), anyString(), anyString(), anyString(),
+                                                any(Principal.class)))
+         .thenReturn(legendModel());
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.set("tok", principal(), "Chart1", "legend", "0", null,
+                             Map.of("legendFormatGeneralPaneModel.style", 2.5), ""));
+
+      assertTrue(thrown.getMessage().contains("legendFormatGeneralPaneModel.style"));
+      verify(h.regions, never()).setLegendFormatDialogModel(anyString(), anyString(), anyInt(),
+                                                            any(), anyString(),
+                                                            any(Principal.class), any());
    }
 
    /**
@@ -1031,6 +1455,12 @@ class ChartRegionPropertyServiceTest {
 
       assertTrue(thrown.getMessage().contains("hidden"));
       assertTrue(thrown.getMessage().contains("set_chart_element_visibility"));
+      // Bug #77027 item 8: the message used to suggest showing this ONE title with a target --
+      // dead end, ChartElementService.titleFields refuses that for anything but "chart". The
+      // fixed message names only the real remedy: show every title (no target).
+      assertFalse(thrown.getMessage().contains("target: 'y'"),
+                  "must not promise a single-title-target remedy that CES itself refuses");
+      assertTrue(thrown.getMessage().contains("visible: true"));
       verifyNoInteractions(h.regions);
    }
 
@@ -1233,6 +1663,11 @@ class ChartRegionPropertyServiceTest {
       when(info.getXFields()).thenReturn(x);
       when(info.getYFields()).thenReturn(y);
       when(info.isInvertedGraph()).thenReturn(false);
+      // See mixedShelfViewsheet's identical stubs for why these are needed once a test's ref has
+      // getFullName() stubbed and reaches ChartRegionHandler.getAxisDescriptor's real dispatch
+      // (round r1 addendum B3's backfill path).
+      when(info.getRuntimeDateComparisonRefs()).thenReturn(new ChartRef[0]);
+      when(info.getAxisDescriptor()).thenReturn(mock(AxisDescriptor.class));
 
       ChartVSAssemblyInfo assemblyInfo = chartAssemblyInfo(hiddenTitleType);
       ChartVSAssembly chart = mock(ChartVSAssembly.class);
