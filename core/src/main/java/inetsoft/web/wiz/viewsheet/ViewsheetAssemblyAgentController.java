@@ -346,15 +346,20 @@ public class ViewsheetAssemblyAgentController {
       editService.apply(sessionToken, user, request, linkUri);
    }
 
+   /**
+    * Returns the format call's warnings (bug #77597) instead of an empty 200, so an applied but
+    * partly dropped format is visible to the caller. Returned as-is: never dereferenced here.
+    */
    @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/format")
-   public void format(@PathVariable String sessionToken,
-                      @RequestBody ViewsheetFormatService.FormatRequest request,
-                      @RequestParam(required = false, defaultValue = "") String linkUri,
-                      Principal user)
+   public ViewsheetFormatService.FormatResult format(
+      @PathVariable String sessionToken,
+      @RequestBody ViewsheetFormatService.FormatRequest request,
+      @RequestParam(required = false, defaultValue = "") String linkUri,
+      Principal user)
       throws Exception
    {
       requireEnabled();
-      formatService.setFormat(sessionToken, user, request, linkUri);
+      return formatService.setFormat(sessionToken, user, request, linkUri);
    }
 
    public record ImageResponse(String image, String format, int width, int height, String note) {}

@@ -39,14 +39,19 @@ import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.viewsheet.CalcTableVSAssembly;
 import inetsoft.uql.viewsheet.CrosstabVSAssembly;
 import inetsoft.uql.viewsheet.FormatInfo;
+import inetsoft.uql.viewsheet.SelectionTreeVSAssembly;
 import inetsoft.uql.viewsheet.TableDataVSAssembly;
 import inetsoft.uql.viewsheet.TableVSAssembly;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.VSCompositeFormat;
 import inetsoft.uql.viewsheet.VSCrosstabInfo;
 import inetsoft.uql.viewsheet.VSDataRef;
+import inetsoft.uql.viewsheet.VSFormat;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
+import inetsoft.util.CoreTool;
+import inetsoft.util.UserMessage;
+import inetsoft.web.adhoc.model.FormatInfoModel;
 import inetsoft.web.adhoc.model.chart.ChartFormatConstants;
 import inetsoft.web.composer.model.vs.VSObjectFormatInfoModel;
 import inetsoft.web.composer.vs.controller.FormatPainterService;
@@ -54,7 +59,6 @@ import inetsoft.web.composer.vs.objects.command.SetCurrentFormatCommand;
 import inetsoft.web.composer.vs.objects.event.FormatVSObjectEvent;
 import inetsoft.web.composer.vs.objects.event.GetVSObjectFormatEvent;
 import inetsoft.web.wiz.binding.CalcTableService;
-import inetsoft.util.CoreTool;
 import inetsoft.web.wiz.dispatch.CapturingCommandDispatcher;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -510,8 +514,20 @@ public class ViewsheetFormatService {
 
    private static final ObjectMapper MAPPER = new ObjectMapper();
 
-   public void setFormat(String sessionToken, Principal user, FormatRequest request,
-                         String linkUri) throws Exception
+   /**
+    * What a {@code set_format} call reports back.
+    *
+    * @param warnings things the call applied only partly or could not confirm: messages the
+    *                 Composer's format engine raised (e.g. a number format on a string column),
+    *                 a read-back that found a written cell without the requested format, and
+    *                 the session's own post-write warnings. Empty when nothing warned. A request
+    *                 that cannot take effect at all is refused with a 400 instead.
+    */
+   public record FormatResult(List<String> warnings) {
+   }
+
+   public FormatResult setFormat(String sessionToken, Principal user, FormatRequest request,
+                                 String linkUri) throws Exception
    {
       if(request.assemblies() == null || request.assemblies().isEmpty()) {
          throw new IllegalArgumentException(
@@ -554,7 +570,10 @@ public class ViewsheetFormatService {
          }
       }
 
-      sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+      Set<String> warnings = new LinkedHashSet<>();
+
+      List<String> sessionWarnings = sessions.mutate(sessionToken, user, (rvs, runtimeId,
+                                                                          dispatcher) -> {
          FormatVSObjectEvent event = new FormatVSObjectEvent();
          event.setFormat(request.format());
          event.setReset(request.reset());
@@ -604,7 +623,8 @@ public class ViewsheetFormatService {
                ArrayList<TableDataPath[]> data = new ArrayList<>();
 
                for(String name : request.assemblies()) {
-                  data.add(computeDataRegionPaths(rvs, name, request.field()));
+                  data.add(requirePaths(computeDataRegionPaths(rvs, name, request.field()),
+                                        name, "body"));
                }
 
                event.setData(data);
@@ -618,15 +638,176 @@ public class ViewsheetFormatService {
                ArrayList<TableDataPath[]> data = new ArrayList<>();
 
                for(String name : request.assemblies()) {
-                  data.add(computeHeaderRegionPaths(rvs, name, request.field()));
+                  data.add(requirePaths(computeHeaderRegionPaths(rvs, name, request.field()),
+                                        name, "header"));
                }
 
                event.setData(data);
             }
          }
 
-         painter.setFormat(runtimeId, event, user, dispatcher, linkUri);
+         // Snapshot what was asked for before the painter runs: it can null the request's own
+         // format in place (FormatPainterService.handleHeaderFormats), and that object is
+         // request.format().
+         Requested requested = Requested.of(request.format(), request.reset());
+
+         // Stale messages from an earlier request on this pooled thread are not this call's.
+         CoreTool.clearUserMessage();
+
+         try {
+            painter.setFormat(runtimeId, event, user, dispatcher, linkUri);
+         }
+         finally {
+            drainUserMessages(warnings);
+         }
+
+         if(requested != null && !"text".equals(target)) {
+            readBack(rvs, request.assemblies(), target, event, requested, warnings);
+         }
       });
+
+      if(sessionWarnings != null) {
+         warnings.addAll(sessionWarnings);
+      }
+
+      return new FormatResult(new ArrayList<>(warnings));
+   }
+
+   /**
+    * Bug #77597: a {@code data}/{@code header} write that found no cells is refused.
+    * {@code FormatPainterService} treats an empty path list as "no paths" and falls through to a
+    * whole-object write, so the request used to be applied to something else (headers included)
+    * and reported as a success. The paths are empty when the assembly has no rendered rows, no
+    * sandbox, or no table lens.
+    */
+   private static TableDataPath[] requirePaths(TableDataPath[] paths, String name,
+                                               String region)
+   {
+      if(paths == null || paths.length == 0) {
+         throw new IllegalArgumentException(
+            "set_format: could not find any " + region + " cells on '" + name + "' to format " +
+            "(it has no rendered rows, or its data could not be computed); the request was not " +
+            "applied as a whole-table format. Render or refresh the viewsheet and try again, " +
+            "or use target 'object'.");
+      }
+
+      return paths;
+   }
+
+   /** Moves the Composer format engine's user messages (Tool.addUserMessage) into warnings. */
+   private static void drainUserMessages(Set<String> warnings) {
+      UserMessage message = CoreTool.getUserMessage();
+
+      if(message != null && message.getMessage() != null) {
+         message.getMessage().lines()
+            .map(String::trim)
+            .filter(line -> !line.isEmpty())
+            .forEach(warnings::add);
+      }
+   }
+
+   /**
+    * The value format a caller asked for, captured before the painter runs.
+    *
+    * @param type       the format type as the painter stores it (CommaFormat is stored as
+    *                   DecimalFormat, DurationFormat as its padding variant)
+    * @param customDate the caller's pattern when it asked for a custom date pattern, else null
+    */
+   private record Requested(String type, String customDate) {
+      static Requested of(VSObjectFormatInfoModel format, boolean reset) {
+         if(reset || format == null || format.getFormat() == null ||
+            format.getFormat().isEmpty())
+         {
+            return null;
+         }
+
+         String type = FormatInfoModel.getDurationFormat(format.getFormat(),
+                                                         format.isDurationPadZeros());
+
+         if(XConstants.COMMA_FORMAT.equals(type)) {
+            type = XConstants.DECIMAL_FORMAT;
+         }
+
+         String spec = format.getFormatSpec();
+         boolean customDate = XConstants.DATE_FORMAT.equals(type) &&
+            CUSTOM_DATE_SPEC.equals(format.getDateSpec()) && spec != null && !spec.isEmpty();
+         return new Requested(type, customDate ? spec : null);
+      }
+   }
+
+   /**
+    * Bug #77597: a safety net for silent drops. Reads each written path's stored user format
+    * with the non-mutating {@link FormatInfo#getFormat(TableDataPath)} -- never
+    * {@code getFormat(path, false)}, which rewrites path defaults in place -- and warns when a
+    * written path holds no format of the requested type, or holds a requested custom date
+    * pattern's type without the pattern (the #2 failure). Only the type is compared, plus that
+    * one pattern check, so this cannot drift from the painter's own spec translations.
+    */
+   private static void readBack(RuntimeViewsheet rvs, List<String> assemblies, String target,
+                                FormatVSObjectEvent event, Requested requested,
+                                Set<String> warnings)
+   {
+      Viewsheet viewsheet = rvs == null ? null : rvs.getViewsheet();
+
+      if(viewsheet == null) {
+         return;
+      }
+
+      for(int i = 0; i < assemblies.size(); i++) {
+         String name = assemblies.get(i);
+         VSAssembly assembly = viewsheet.getAssembly(name);
+         VSAssemblyInfo info = assembly == null ? null : assembly.getVSAssemblyInfo();
+         FormatInfo formatInfo = info == null ? null : info.getFormatInfo();
+
+         // An ID-mode selection tree has its non-object paths rewritten by the painter, so the
+         // path written is not the path asked for.
+         if(formatInfo == null || assembly instanceof SelectionTreeVSAssembly tree &&
+            tree.isIDMode() && !"object".equals(target))
+         {
+            continue;
+         }
+
+         TableDataPath[] paths = "object".equals(target) ?
+            new TableDataPath[]{ VSAssemblyInfo.OBJECTPATH } :
+            event.getData() != null && event.getData().size() > i ? event.getData().get(i) : null;
+
+         if(paths == null) {
+            continue;
+         }
+
+         int missing = 0;
+         int noPattern = 0;
+         String stored = null;
+
+         for(TableDataPath path : paths) {
+            VSCompositeFormat format = path == null ? null : formatInfo.getFormat(path);
+            VSFormat user = format == null ? null : format.getUserDefinedFormat();
+            String type = user == null ? null : user.getFormatValue();
+
+            if(!requested.type().equals(type)) {
+               missing++;
+               stored = type;
+            }
+            else if(requested.customDate() != null && user.getFormatExtentValue() == null) {
+               noPattern++;
+            }
+         }
+
+         if(missing > 0) {
+            warnings.add(
+               "set_format: requested " + requested.type() + " on '" + name + "', but " +
+               missing + " of " + paths.length + " written " + regionName(target) +
+               " path(s) stored " + (stored == null ? "no format" : stored) +
+               "; those cells will not show it.");
+         }
+
+         if(noPattern > 0) {
+            warnings.add(
+               "set_format: requested DateFormat '" + requested.customDate() + "' on '" + name +
+               "', but " + noPattern + " of " + paths.length + " written path(s) stored " +
+               "DateFormat with no pattern; those cells will show the default yyyy-MM-dd.");
+         }
+      }
    }
 
    /**
@@ -788,7 +969,8 @@ public class ViewsheetFormatService {
 
    private static String regionName(String target) {
       return "data".equals(target) ? "body cells" :
-         "header".equals(target) ? "header cells" : "whole assembly";
+         "header".equals(target) ? "header cells" :
+         "title".equals(target) ? "title" : "whole assembly";
    }
 
    private static DataRef[] runtimeOrDesign(DataRef[] runtime, DataRef[] design) {

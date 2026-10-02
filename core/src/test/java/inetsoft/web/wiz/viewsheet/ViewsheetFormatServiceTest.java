@@ -864,9 +864,14 @@ class ViewsheetFormatServiceTest {
       assertTrue(thrown.getMessage().contains("Text1"), thrown.getMessage());
    }
 
-   /** No sandbox (e.g. an unloaded/disposed viewsheet) degrades to an empty path list. */
+   /**
+    * No sandbox (e.g. an unloaded/disposed viewsheet) means no body cells were found. Bug
+    * #77597 reversed this test: it used to assert an empty path list was handed to the painter,
+    * which FormatPainterService treats as "no paths" and turns into a whole-OBJECT write -- the
+    * request silently became a different one. It is now refused before the painter runs.
+    */
    @Test
-   void targetDataIsEmptyWhenNoSandboxIsAvailable() throws Exception {
+   void targetDataIsRefusedWhenNoSandboxIsAvailable() {
       FormatPainterService painter = mock(FormatPainterService.class);
       Viewsheet viewsheet = mock(Viewsheet.class);
       RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
@@ -874,16 +879,34 @@ class ViewsheetFormatServiceTest {
       when(viewsheet.getAssembly("Crosstab1")).thenReturn(mock(CrosstabVSAssembly.class));
       when(rvs.getViewsheetSandbox()).thenReturn(Optional.empty());
 
-      serviceWith(painter, rvs).setFormat(
-         "tok", principal(),
-         new ViewsheetFormatService.FormatRequest(
-            List.of("Crosstab1"), new VSObjectFormatInfoModel(), false, "data"), "");
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> serviceWith(painter, rvs).setFormat(
+            "tok", principal(),
+            new ViewsheetFormatService.FormatRequest(
+               List.of("Crosstab1"), new VSObjectFormatInfoModel(), false, "data"), ""));
 
-      ArgumentCaptor<FormatVSObjectEvent> captor =
-         ArgumentCaptor.forClass(FormatVSObjectEvent.class);
-      verify(painter).setFormat(eq("rt1"), captor.capture(), any(Principal.class), any(),
-                                anyString());
-      assertArrayEquals(new TableDataPath[0], captor.getValue().getData().get(0));
+      assertTrue(thrown.getMessage().contains("could not find any body cells"),
+                 thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("Crosstab1"), thrown.getMessage());
+      verifyNoInteractions(painter);
+   }
+
+   /** A reset over no body cells is refused the same way: nothing would be reset. */
+   @Test
+   void targetDataResetIsRefusedWhenNoSandboxIsAvailable() {
+      Viewsheet viewsheet = mock(Viewsheet.class);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(viewsheet);
+      when(viewsheet.getAssembly("Crosstab1")).thenReturn(mock(CrosstabVSAssembly.class));
+      when(rvs.getViewsheetSandbox()).thenReturn(Optional.empty());
+
+      assertThrows(
+         IllegalArgumentException.class,
+         () -> serviceWith(mock(FormatPainterService.class), rvs).setFormat(
+            "tok", principal(),
+            new ViewsheetFormatService.FormatRequest(List.of("Crosstab1"), null, true,
+                                                     "data"), ""));
    }
 
    // ── target: "data" + 'field' column scoping (bug 76868) ────────────────────────────────
@@ -1225,9 +1248,14 @@ class ViewsheetFormatServiceTest {
       assertTrue(thrown.getMessage().contains("Text1"), thrown.getMessage());
    }
 
-   /** No sandbox (e.g. an unloaded/disposed viewsheet) degrades to an empty path list. */
+   /**
+    * No sandbox (e.g. an unloaded/disposed viewsheet) means no header cells were found. Bug
+    * #77597 reversed this test: it used to assert an empty path list was handed to the painter,
+    * which FormatPainterService treats as "no paths" and turns into a whole-OBJECT write -- the
+    * request silently became a different one. It is now refused before the painter runs.
+    */
    @Test
-   void targetHeaderIsEmptyWhenNoSandboxIsAvailable() throws Exception {
+   void targetHeaderIsRefusedWhenNoSandboxIsAvailable() {
       FormatPainterService painter = mock(FormatPainterService.class);
       Viewsheet viewsheet = mock(Viewsheet.class);
       RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
@@ -1235,16 +1263,34 @@ class ViewsheetFormatServiceTest {
       when(viewsheet.getAssembly("Crosstab1")).thenReturn(mock(CrosstabVSAssembly.class));
       when(rvs.getViewsheetSandbox()).thenReturn(Optional.empty());
 
-      serviceWith(painter, rvs).setFormat(
-         "tok", principal(),
-         new ViewsheetFormatService.FormatRequest(
-            List.of("Crosstab1"), new VSObjectFormatInfoModel(), false, "header"), "");
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> serviceWith(painter, rvs).setFormat(
+            "tok", principal(),
+            new ViewsheetFormatService.FormatRequest(
+               List.of("Crosstab1"), new VSObjectFormatInfoModel(), false, "header"), ""));
 
-      ArgumentCaptor<FormatVSObjectEvent> captor =
-         ArgumentCaptor.forClass(FormatVSObjectEvent.class);
-      verify(painter).setFormat(eq("rt1"), captor.capture(), any(Principal.class), any(),
-                                anyString());
-      assertArrayEquals(new TableDataPath[0], captor.getValue().getData().get(0));
+      assertTrue(thrown.getMessage().contains("could not find any header cells"),
+                 thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("Crosstab1"), thrown.getMessage());
+      verifyNoInteractions(painter);
+   }
+
+   /** A reset over no header cells is refused the same way: nothing would be reset. */
+   @Test
+   void targetHeaderResetIsRefusedWhenNoSandboxIsAvailable() {
+      Viewsheet viewsheet = mock(Viewsheet.class);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(viewsheet);
+      when(viewsheet.getAssembly("Crosstab1")).thenReturn(mock(CrosstabVSAssembly.class));
+      when(rvs.getViewsheetSandbox()).thenReturn(Optional.empty());
+
+      assertThrows(
+         IllegalArgumentException.class,
+         () -> serviceWith(mock(FormatPainterService.class), rvs).setFormat(
+            "tok", principal(),
+            new ViewsheetFormatService.FormatRequest(List.of("Crosstab1"), null, true,
+                                                     "header"), ""));
    }
 
    /** Mirrors "data"'s own field-scoping (bug 76868): narrows to just the resolved column. */
@@ -1805,6 +1851,158 @@ class ViewsheetFormatServiceTest {
 
       assertTrue(thrown.getMessage().contains("Revenue"), thrown.getMessage());
       assertTrue(thrown.getMessage().contains("set_calc_cell_format"), thrown.getMessage());
+   }
+
+   // ── Bug #77597 part D: the response carries warnings ─────────────────────────────────
+
+   /** A Gauge-like assembly with a real FormatInfo the painter mock can write into. */
+   static RuntimeViewsheet assemblyWithFormatInfo(String name, FormatInfo formatInfo) {
+      inetsoft.uql.viewsheet.VSAssembly assembly = mock(inetsoft.uql.viewsheet.VSAssembly.class);
+      VSAssemblyInfo info = mock(VSAssemblyInfo.class);
+      when(assembly.getVSAssemblyInfo()).thenReturn(info);
+      when(info.getFormatInfo()).thenReturn(formatInfo);
+      return rvsWith(name, assembly);
+   }
+
+   private static VSObjectFormatInfoModel decimalFormat() {
+      VSObjectFormatInfoModel format = new VSObjectFormatInfoModel();
+      format.setFormat("DecimalFormat");
+      format.setFormatSpec("#,##0");
+      return format;
+   }
+
+   /** Stores {@code type}/{@code spec} on the OBJECT path, as the painter would. */
+   private static org.mockito.stubbing.Answer<Void> stores(FormatInfo formatInfo, String type,
+                                                          String spec)
+   {
+      return invocation -> {
+         VSCompositeFormat stored = new VSCompositeFormat();
+         stored.getUserDefinedFormat().setFormatValue(type);
+         stored.getUserDefinedFormat().setFormatExtentValue(spec);
+         formatInfo.setFormat(VSAssemblyInfo.OBJECTPATH, stored);
+         return null;
+      };
+   }
+
+   @Test
+   void aStoredFormatComesBackWithNoWarnings() throws Exception {
+      FormatPainterService painter = mock(FormatPainterService.class);
+      FormatInfo formatInfo = new FormatInfo();
+      doAnswer(stores(formatInfo, "DecimalFormat", "#,##0")).when(painter)
+         .setFormat(anyString(), any(), any(Principal.class), any(), anyString());
+
+      ViewsheetFormatService.FormatResult result =
+         serviceWith(painter, assemblyWithFormatInfo("Gauge1", formatInfo)).setFormat(
+            "tok", principal(),
+            new ViewsheetFormatService.FormatRequest(List.of("Gauge1"), decimalFormat(), false),
+            "");
+
+      assertEquals(List.of(), result.warnings());
+   }
+
+   /** The painter wrote nothing: the read-back reports it instead of a bare ok. */
+   @Test
+   void aFormatThePainterDidNotStoreIsReportedAsAWarning() throws Exception {
+      ViewsheetFormatService.FormatResult result =
+         serviceWith(mock(FormatPainterService.class),
+                     assemblyWithFormatInfo("Gauge1", new FormatInfo())).setFormat(
+            "tok", principal(),
+            new ViewsheetFormatService.FormatRequest(List.of("Gauge1"), decimalFormat(), false),
+            "");
+
+      assertEquals(1, result.warnings().size(), result.warnings().toString());
+      assertTrue(result.warnings().get(0).contains("DecimalFormat") &&
+                 result.warnings().get(0).contains("Gauge1") &&
+                 result.warnings().get(0).contains("no format"), result.warnings().get(0));
+   }
+
+   /** The #2 shape: DateFormat stored, custom pattern dropped. */
+   @Test
+   void aDroppedCustomDatePatternIsReportedAsAWarning() throws Exception {
+      FormatPainterService painter = mock(FormatPainterService.class);
+      FormatInfo formatInfo = new FormatInfo();
+      doAnswer(stores(formatInfo, "DateFormat", null)).when(painter)
+         .setFormat(anyString(), any(), any(Principal.class), any(), anyString());
+      VSObjectFormatInfoModel format = new VSObjectFormatInfoModel();
+      format.setFormat("DateFormat");
+      format.setDateSpec("Custom");
+      format.setFormatSpec("MMM dd, yyyy");
+
+      ViewsheetFormatService.FormatResult result =
+         serviceWith(painter, assemblyWithFormatInfo("Text1", formatInfo)).setFormat(
+            "tok", principal(),
+            new ViewsheetFormatService.FormatRequest(List.of("Text1"), format, false), "");
+
+      assertEquals(1, result.warnings().size(), result.warnings().toString());
+      assertTrue(result.warnings().get(0).contains("MMM dd, yyyy") &&
+                 result.warnings().get(0).contains("yyyy-MM-dd"), result.warnings().get(0));
+   }
+
+   /** CommaFormat is stored as DecimalFormat; that translation is not a mismatch. */
+   @Test
+   void theCommaToDecimalTranslationIsNotAMismatch() throws Exception {
+      FormatPainterService painter = mock(FormatPainterService.class);
+      FormatInfo formatInfo = new FormatInfo();
+      doAnswer(stores(formatInfo, "DecimalFormat", "#,##0")).when(painter)
+         .setFormat(anyString(), any(), any(Principal.class), any(), anyString());
+      VSObjectFormatInfoModel format = new VSObjectFormatInfoModel();
+      format.setFormat("CommaFormat");
+
+      assertEquals(List.of(),
+         serviceWith(painter, assemblyWithFormatInfo("Gauge1", formatInfo)).setFormat(
+            "tok", principal(),
+            new ViewsheetFormatService.FormatRequest(List.of("Gauge1"), format, false), "")
+            .warnings());
+   }
+
+   /** A user message the Composer's format engine raised comes back as a warning. */
+   @Test
+   void aFormatEngineUserMessageComesBackAsAWarning() throws Exception {
+      FormatPainterService painter = mock(FormatPainterService.class);
+      doAnswer(invocation -> {
+         inetsoft.util.CoreTool.addUserMessage("Format does not apply to string column");
+         return null;
+      }).when(painter).setFormat(anyString(), any(), any(Principal.class), any(), anyString());
+
+      ViewsheetFormatService.FormatResult result = serviceWith(painter).setFormat(
+         "tok", principal(),
+         new ViewsheetFormatService.FormatRequest(List.of("Gauge1"),
+                                                  new VSObjectFormatInfoModel(), false), "");
+
+      assertEquals(List.of("Format does not apply to string column"), result.warnings());
+   }
+
+   /** A message left on this thread by an earlier request is not this call's warning. */
+   @Test
+   void aStaleUserMessageIsNotReported() throws Exception {
+      inetsoft.util.CoreTool.addUserMessage("left over from another request");
+
+      ViewsheetFormatService.FormatResult result =
+         serviceWith(mock(FormatPainterService.class)).setFormat(
+            "tok", principal(),
+            new ViewsheetFormatService.FormatRequest(List.of("Gauge1"),
+                                                     new VSObjectFormatInfoModel(), false), "");
+
+      assertEquals(List.of(), result.warnings());
+   }
+
+   /** The session's own post-write warnings are merged into the result. */
+   @Test
+   void theSessionsWarningsAreMergedIn() throws Exception {
+      ViewsheetSessionService sessions = sessionsFor(null);
+      doAnswer(invocation -> {
+         ViewsheetSessionService.Mutation mutation = invocation.getArgument(2);
+         mutation.run(null, "rt1", null);
+         return List.of("refresh step was contained");
+      }).when(sessions).mutate(anyString(), any(Principal.class), any());
+
+      ViewsheetFormatService.FormatResult result =
+         service(sessions, mock(FormatPainterService.class), mock(CalcTableService.class))
+            .setFormat("tok", principal(),
+                       new ViewsheetFormatService.FormatRequest(
+                          List.of("Gauge1"), new VSObjectFormatInfoModel(), false), "");
+
+      assertEquals(List.of("refresh step was contained"), result.warnings());
    }
 
    private static ViewsheetFormatService serviceWith(FormatPainterService painter) {
