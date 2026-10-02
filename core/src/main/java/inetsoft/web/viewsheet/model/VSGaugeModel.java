@@ -34,7 +34,9 @@ public class VSGaugeModel extends VSOutputModel<GaugeVSAssembly> {
       GaugeVSAssemblyInfo info = (GaugeVSAssemblyInfo) assembly.getVSAssemblyInfo();
       Hyperlink.Ref[] hrefs = info.getHyperlinks();
       this.face = info.getFace();
-      this.padding = info.getPadding();
+      // defensive copy: Insets is mutable, and the assembly's stored instance must not be aliased
+      Insets infoPadding = info.getPadding();
+      this.padding = infoPadding == null ? null : (Insets) infoPadding.clone();
 
       if(hrefs == null) {
          this.hyperlinks = new HyperlinkModel[0];

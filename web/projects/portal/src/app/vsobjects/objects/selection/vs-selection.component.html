@@ -43,6 +43,8 @@
   <div class="selection-list">
     @let bodyWidth = getBodyWidth();
     @let bodyHeight = getBodyHeight();
+    @let contentLeft = getContentLeft();
+    @let contentTop = getContentTop();
     @let titleWidth = getTitleWidth();
     @let titleHeight = getTitleHeight();
     @if (model.titleVisible || !controller.isAdhocFilter() && !(viewer && !model.dropdown && model.containerType !== 'VSSelectionContainer')) {
@@ -203,6 +205,8 @@
       [class.selection-list-body-contained]="model.container == 'VSSelectionContainer'"
       [style.width.px]="bodyWidth"
       [style.height.px]="bodyHeight"
+      [style.left.px]="contentLeft"
+      [style.top.px]="contentTop"
       [style.margin-left.px]="(model.containerType !== 'VSSelectionContainer') ? leftMargin : null"
       (wheel)="wheelScrollHandler($event)">
       <div #cellContent>

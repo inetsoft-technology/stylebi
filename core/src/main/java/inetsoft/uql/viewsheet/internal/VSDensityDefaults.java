@@ -191,7 +191,7 @@ public final class VSDensityDefaults {
     */
    public static Dimension selectionSize(VizContext ctx) {
       if(!ctx.modern) {
-         return new Dimension(AssetUtil.defw, AssetUtil.defh * (SELECTION_ROWS + 1));
+         return legacySelectionSize();
       }
 
       return selectionSizeForMode(ctx.density);
@@ -210,13 +210,19 @@ public final class VSDensityDefaults {
          return false;
       }
 
-      if(size.width == AssetUtil.defw && size.height == AssetUtil.defh * (SELECTION_ROWS + 1)) {
-         return true;
-      }
-
-      return size.equals(selectionSizeForMode(COMFORTABLE))
+      return size.equals(legacySelectionSize())
+         || size.equals(selectionSizeForMode(COMFORTABLE))
          || size.equals(selectionSizeForMode(COMPACT))
          || size.equals(selectionSizeForMode(DENSE));
+   }
+
+   /**
+    * The pre-density default. Read by both the producer and the recogniser, so the two cannot
+    * drift: were they to disagree, every legacy-sized assembly would fall outside the recognised
+    * set and silently stop being resized.
+    */
+   private static Dimension legacySelectionSize() {
+      return new Dimension(AssetUtil.defw, AssetUtil.defh * (SELECTION_ROWS + 1));
    }
 
    private static Dimension selectionSizeForMode(String mode) {
@@ -224,43 +230,6 @@ public final class VSDensityDefaults {
       return new Dimension(inset.left + AssetUtil.defw + inset.right,
                            inset.top + titleHeightForMode(mode)
                               + SELECTION_ROWS * rowHeightForMode(mode) + inset.bottom);
-   }
-
-   /**
-    * The default size of a selection container: its legacy size grown by the card inset. The
-    * container holds child assemblies, not rows, so the five-row rule that sizes a list does not
-    * apply to it.
-    */
-   public static Dimension containerSize(VizContext ctx) {
-      if(!ctx.modern) {
-         return new Dimension(3 * AssetUtil.defw, 12 * AssetUtil.defh);
-      }
-
-      return containerSizeForMode(ctx.density);
-   }
-
-   /**
-    * Whether a size is one containerSize() could have written - the legacy default, or a tier
-    * default. Anything else is an author size, and the seed must leave it alone.
-    */
-   public static boolean isSeededContainerSize(Dimension size) {
-      if(size == null) {
-         return false;
-      }
-
-      if(size.width == 3 * AssetUtil.defw && size.height == 12 * AssetUtil.defh) {
-         return true;
-      }
-
-      return size.equals(containerSizeForMode(COMFORTABLE))
-         || size.equals(containerSizeForMode(COMPACT))
-         || size.equals(containerSizeForMode(DENSE));
-   }
-
-   private static Dimension containerSizeForMode(String mode) {
-      Insets inset = chartPaddingForMode(mode);
-      return new Dimension(inset.left + 3 * AssetUtil.defw + inset.right,
-                           inset.top + 12 * AssetUtil.defh + inset.bottom);
    }
 
    /**

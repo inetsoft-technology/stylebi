@@ -80,7 +80,7 @@ class SelectionPrintInsetTest {
    }
 
    @Test
-   void thePrintedContainerTakesItsInset() throws Exception {
+   void thePrintedContainerIsUnchanged() throws Exception {
       SreeEnv.setProperty("viewsheet.density", "comfortable");
       CurrentSelectionVSAssembly container = new CurrentSelectionVSAssembly(vs, "Container1");
       place(container);
@@ -90,7 +90,11 @@ class SelectionPrintInsetTest {
       vs.addAssembly(child);
       mark(container.getVSAssemblyInfo());
 
-      assertEquals(new Insets(16, 16, 16, 16), convertedBoxFor(container).getPadding());
+      // the container takes no inset of its own, so its box keeps its own default padding
+      Insets baseline = new TextBoxElementDef(new TabularSheet(null, null),
+                                              new DefaultTextLens("x")).getPadding();
+
+      assertEquals(baseline, convertedBoxFor(container).getPadding());
    }
 
    @Test

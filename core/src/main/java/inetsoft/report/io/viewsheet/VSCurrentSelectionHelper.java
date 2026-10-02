@@ -119,14 +119,12 @@ public abstract class VSCurrentSelectionHelper extends ExporterHelper {
       Point position = info.getViewsheet().getPixelPosition(info);
       Dimension size = info.getPixelSize();
       Rectangle2D cbounds = cHelper.createBounds(position, size);
-      // the rows sit inside the card inset; the card itself was drawn on the full bounds
-      Rectangle2D content = getContentBounds(info, cbounds);
 
       size = new Dimension(size.width, AssetUtil.defh);
       Point startPos = info.getViewsheet().getPixelPosition(info);
       startPos = new Point(startPos.x, startPos.y + info.getTitleHeight());
       Rectangle2D tbounds = cHelper.createBounds(startPos, size);
-      double currentY = tbounds.getY() + (content.getY() - cbounds.getY());
+      double currentY = tbounds.getY();
       double theight = tbounds.getHeight();
       VSCompositeFormat format = info.getFormat() == null ?
          new VSCompositeFormat() : info.getFormat().clone();
@@ -134,14 +132,16 @@ public abstract class VSCurrentSelectionHelper extends ExporterHelper {
       format.getUserDefinedFormat().setWrapping(false);
 
       for(int i = 0; i < titles.length; i++) {
-         Rectangle2D bounds = new Rectangle2D.Double(content.getX(), currentY,
-            content.getWidth(), theight);
+         Rectangle2D bounds = new Rectangle2D.Double(cbounds.getX(), currentY,
+            cbounds.getWidth(), theight);
 
-         if(bounds.getY() + bounds.getHeight() / 2 > content.getMaxY()) {
+         if(bounds.getY() + bounds.getHeight() / 2 >
+            cbounds.getY() + cbounds.getHeight())
+         {
             break;
          }
 
-         double maxH = content.getMaxY() - bounds.getY();
+         double maxH = cbounds.getHeight() + cbounds.getY() - bounds.getY();
          maxH = Math.min(maxH, bounds.getHeight());
          bounds.setFrame(bounds.getX(), bounds.getY(), bounds.getWidth(), maxH);
          String title = titles[i];

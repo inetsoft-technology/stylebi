@@ -2309,6 +2309,13 @@ public abstract class AbstractVSExporter implements VSExporter {
          newHeight += rowHeights.get(i);
       }
 
+      // the rows are drawn inside the card inset, so the expanded box has to carry the inset as
+      // well - sized to the rows alone, the last row falls past the content bottom and the helper
+      // drops it, which is exactly what Expand exists to prevent. Zero where the format draws no
+      // inset, and zero for an unmarked selection
+      Insets inset = getSelectionCardInset(info);
+      newHeight += inset.top + inset.bottom;
+
       return newHeight;
    }
 

@@ -69,7 +69,9 @@ public class VSChartModel extends VSObjectModel<ChartVSAssembly> implements Char
       this.empty = info.getTableName() == null;
       //Edited only through wizard
       this.editedByWizard = info.isEditedByWizard();
-      this.padding = info.getPadding();
+      // defensive copy: Insets is mutable, and the assembly's stored instance must not be aliased
+      Insets infoPadding = info.getPadding();
+      this.padding = infoPadding == null ? null : (Insets) infoPadding.clone();
       setHasDynamic(containsDynamic(assembly));
       this.isWordCloud = GraphTypeUtil.isWordCloud(assembly.getVSChartInfo());
       this.scatterMatrix = GraphTypeUtil.isScatterMatrix(assembly.getVSChartInfo());

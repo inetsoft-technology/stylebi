@@ -44,7 +44,9 @@ public class VSTextModel extends VSOutputModel<TextVSAssembly> {
       url = info.isUrl();
       presenter = VSUtil.createPainter(assembly) != null;
       parameters = (new ParameterTool()).getParameters(rvs);
-      this.padding = info.getPadding();
+      // defensive copy: Insets is mutable, and the assembly's stored instance must not be aliased
+      Insets infoPadding = info.getPadding();
+      this.padding = infoPadding == null ? null : (Insets) infoPadding.clone();
       expressionText = info.getTextValue() != null && info.getTextValue().startsWith("=");
 
       if("true".equals(SreeEnv.getProperty("text.wordwrap.122"))) {

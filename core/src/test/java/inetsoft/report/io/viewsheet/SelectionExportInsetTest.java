@@ -131,6 +131,52 @@ class SelectionExportInsetTest {
       assertEquals(16, info.getPadding().left);
    }
 
+   @Test
+   void expandSizesTheBoxForTheInsetBandAsWellAsTheRows() {
+      SelectionListVSAssemblyInfo info = seededList("comfortable");
+      info.setTitleVisible(true);
+      info.setTitleHeight(30);
+
+      double height = new HTMLVSExporter(new ByteArrayOutputStream())
+         .getSelectionHeight(info, rowHeights(10, 28), false);
+
+      assertEquals(30 + 10 * 28 + 32, height,
+                   "a box sized to the rows alone loses its last row to insetRowBounds");
+   }
+
+   @Test
+   void expandSizesAnUnmarkedSelectionExactlyAsBefore() {
+      SelectionListVSAssemblyInfo info = new SelectionListVSAssemblyInfo();
+      info.setTitleVisible(true);
+      info.setTitleHeight(20);
+
+      double height = new HTMLVSExporter(new ByteArrayOutputStream())
+         .getSelectionHeight(info, rowHeights(10, 20), false);
+
+      assertEquals(20 + 10 * 20, height);
+   }
+
+   @Test
+   void expandTakesNoInsetWhereTheFormatDrawsNone() {
+      SelectionListVSAssemblyInfo info = seededList("comfortable");
+      info.setTitleVisible(true);
+      info.setTitleHeight(30);
+
+      double height = new CSVVSExporter().getSelectionHeight(info, rowHeights(10, 28), false);
+
+      assertEquals(30 + 10 * 28, height, "insetsTableCard() is false, so there is no band to add");
+   }
+
+   private List<Double> rowHeights(int count, double height) {
+      List<Double> rows = new ArrayList<>();
+
+      for(int i = 0; i < count; i++) {
+         rows.add(height);
+      }
+
+      return rows;
+   }
+
    private Rectangle contentBoundsFor(SelectionBaseVSAssemblyInfo info, Rectangle bounds) {
       return contentBoundsFor(info, bounds, new HTMLVSExporter(new ByteArrayOutputStream()));
    }

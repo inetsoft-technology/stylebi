@@ -107,28 +107,9 @@ public class CurrentSelectionVSAssemblyInfo extends ContainerVSAssemblyInfo
          def.setForeground(null);
       }
 
-      // the card inset the container's children draw inside. A format.css padding on the
-      // assembly class installed its own through setCSSDefaults and keeps it, which is what
-      // isCssPaddingDefined guards. Both branches write, because Revert calls this with an
-      // unmarked context and needs the legacy zero restored. Before the size rule below, which
-      // sizes the box against this inset. No cell padding: the container holds child
-      // assemblies, not cells
-      if(!isUserPadding() && !isCssPaddingDefined()) {
-         setPadding(VSDensityDefaults.tablePadding(ctx));
-      }
-
-      // the box grows by the card inset, which the container's own basis then keeps. Not the
-      // five-row rule that sizes a list: the container holds child assemblies, not rows. Guarded
-      // on a size this rule could have written, so an author size survives, and Revert reverses
-      // it
-      if(VSDensityDefaults.isSeededContainerSize(getPixelSize())) {
-         setPixelSize(VSDensityDefaults.containerSize(ctx));
-      }
-   }
-
-   @Override
-   protected Insets defaultPadding(VizContext ctx) {
-      return VSDensityDefaults.tablePadding(ctx);
+      // no card inset and no size rule: the container is a frame around child assemblies that
+      // inset themselves, so a second inset here would only indent them twice. Its box therefore
+      // keeps the legacy basis at every tier
    }
 
    /**

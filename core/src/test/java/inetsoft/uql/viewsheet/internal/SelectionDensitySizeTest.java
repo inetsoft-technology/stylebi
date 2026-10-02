@@ -31,7 +31,6 @@ import org.w3c.dom.Element;
 
 import javax.xml.parsers.DocumentBuilderFactory;
 import java.awt.Dimension;
-import java.awt.Insets;
 import java.io.ByteArrayInputStream;
 import java.io.PrintWriter;
 import java.io.StringWriter;
@@ -103,79 +102,18 @@ class SelectionDensitySizeTest {
    }
 
    @Test
-   void theContainerKeepsItsOwnBasis() {
+   void aModernizedContainerIsUnchanged() {
       SreeEnv.setProperty("viewsheet.density", "comfortable");
-      CurrentSelectionVSAssemblyInfo info = new CurrentSelectionVSAssemblyInfo();
-      Dimension before = info.getPixelSize();
-      info.setVizMark(VizMark.MODERN_LIGHT);
+      CurrentSelectionVSAssemblyInfo unmarked = new CurrentSelectionVSAssemblyInfo();
+      CurrentSelectionVSAssemblyInfo marked = new CurrentSelectionVSAssemblyInfo();
+      marked.setVizMark(VizMark.MODERN_LIGHT);
 
-      info.seedChromeDefaults(VizContext.of(info));
+      marked.seedChromeDefaults(VizContext.of(marked));
 
-      assertEquals(new Dimension(before.width + 32, before.height + 32), info.getPixelSize(),
-                   "the container grows by its inset; the five-row rule is not its rule");
-   }
-
-   @Test
-   void theContainerSeedsTheTierInset() {
-      assertEquals(new Insets(16, 16, 16, 16), seededContainer("comfortable").getPadding());
-      assertEquals(new Insets(12, 12, 12, 12), seededContainer("compact").getPadding());
-      assertEquals(new Insets(8, 8, 8, 8), seededContainer("dense").getPadding());
-   }
-
-   @Test
-   void revertingTheContainerRestoresZeroInset() {
-      CurrentSelectionVSAssemblyInfo info = seededContainer("comfortable");
-      info.setVizMark(null);
-
-      info.seedChromeDefaults(VizContext.of(info));
-
-      assertEquals(new Insets(0, 0, 0, 0), info.getPadding());
-   }
-
-   @Test
-   void anAuthorContainerInsetIsKept() {
-      SreeEnv.setProperty("viewsheet.density", "comfortable");
-      CurrentSelectionVSAssemblyInfo info = new CurrentSelectionVSAssemblyInfo();
-      info.setPadding(new Insets(3, 3, 3, 3));
-      info.setUserPadding(true);
-      info.setVizMark(VizMark.MODERN_LIGHT);
-
-      info.seedChromeDefaults(VizContext.of(info));
-
-      assertEquals(new Insets(3, 3, 3, 3), info.getPadding());
-   }
-
-   private CurrentSelectionVSAssemblyInfo seededContainer(String density) {
-      SreeEnv.setProperty("viewsheet.density", density);
-      CurrentSelectionVSAssemblyInfo info = new CurrentSelectionVSAssemblyInfo();
-      info.setVizMark(VizMark.MODERN_LIGHT);
-      info.seedChromeDefaults(VizContext.of(info));
-      return info;
-   }
-
-   @Test
-   void containerAuthorSizeIsLeftAlone() {
-      SreeEnv.setProperty("viewsheet.density", "comfortable");
-      CurrentSelectionVSAssemblyInfo info = new CurrentSelectionVSAssemblyInfo();
-      info.setPixelSize(new Dimension(500, 400));
-      info.setVizMark(VizMark.MODERN_LIGHT);
-
-      info.seedChromeDefaults(VizContext.of(info));
-
-      assertEquals(new Dimension(500, 400), info.getPixelSize());
-   }
-
-   @Test
-   void containerRevertRestoresLegacy() {
-      SreeEnv.setProperty("viewsheet.density", "comfortable");
-      CurrentSelectionVSAssemblyInfo info = new CurrentSelectionVSAssemblyInfo();
-      Dimension legacy = info.getPixelSize();
-      info.setPixelSize(new Dimension(legacy.width + 32, legacy.height + 32));
-      info.setVizMark(null);
-
-      info.seedChromeDefaults(VizContext.of(info));
-
-      assertEquals(legacy, info.getPixelSize());
+      // the container is a frame around children that inset themselves; it takes no inset of its
+      // own, so neither its box nor its padding moves when it is modernized
+      assertEquals(unmarked.getPixelSize(), marked.getPixelSize());
+      assertEquals(unmarked.getPadding(), marked.getPadding());
    }
 
    private Dimension sizeAfterSeed(String density, Dimension start) {
