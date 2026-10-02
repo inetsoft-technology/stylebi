@@ -696,6 +696,9 @@ public class DataSourceRegistry implements MessageListener {
             getEntries(name + "/", AssetEntry.Type.DATA_SOURCE);
          AssetEntry[] allFolderChildren =
             getEntries(name + "/", AssetEntry.Type.DATA_SOURCE_FOLDER);
+         // a data source before its additional connections, which removeDataSource reads to
+         // remove their connection test queries
+         Arrays.sort(allDSChildren, Comparator.comparing(AssetEntry::getPath));
 
          for(AssetEntry entry : allDSChildren) {
             removeDataSource(entry.getPath());

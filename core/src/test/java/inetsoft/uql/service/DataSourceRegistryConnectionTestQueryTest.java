@@ -26,6 +26,7 @@ import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.jdbc.JDBCDataSource;
 import inetsoft.uql.jdbc.util.JDBCUtil;
+import inetsoft.uql.xmla.XMLADataSource;
 import inetsoft.util.ThreadContext;
 import inetsoft.util.Tool;
 import inetsoft.util.credential.CredentialService;
@@ -65,12 +66,15 @@ class DataSourceRegistryConnectionTestQueryTest {
    private DataSourceRegistry registry;
    private Map<String, XDataSource> sources;
    private Principal oldContext;
+   // the order of the registry entries, which is the unspecified order of a HashMap in storage
+   private Comparator<String> entryOrder;
 
    @BeforeEach
    void setUp() {
       oldContext = ThreadContext.getContextPrincipal();
       ThreadContext.setContextPrincipal(null);
       sources = new HashMap<>();
+      entryOrder = Comparator.naturalOrder();
       registry = mock(DataSourceRegistry.class, withSettings().defaultAnswer(CALLS_REAL_METHODS));
 
       // an in-memory registry storage, so that the real rename and remove methods run
@@ -207,6 +211,39 @@ class DataSourceRegistryConnectionTestQueryTest {
    }
 
    @Test
+   void folderRemoveRemovesTheAdditionalConnectionKeysWhenTheyAreVisitedFirst() {
+      asOrg("orga");
+      addSource("f/ds");
+      addSource("f/ds/add1");
+      JDBCUtil.setConnectionTestQuery("f/ds", "SELECT A");
+      JDBCUtil.setConnectionTestQuery("add1", "SELECT ADD1");
+      entryOrder = Comparator.reverseOrder();
+
+      registry.removeDataSourceFolder("f");
+
+      assertTrue(sources.isEmpty());
+      assertNull(JDBCUtil.getConnectionTestQuery("f/ds"));
+      assertNull(JDBCUtil.getConnectionTestQuery("add1"),
+                 "the additional connection's connection test query was left behind");
+   }
+
+   @Test
+   void nonJdbcRenameDoesNotMoveTheKey() {
+      asOrg("orga");
+      sources.put("f/ds", new XMLADataSource());
+      sources.get("f/ds").setName("f/ds");
+      JDBCUtil.setConnectionTestQuery("f/ds", "SELECT A");
+      JDBCUtil.setConnectionTestQuery("moved", "SELECT MOVED");
+
+      registry.renameDatasource("f/ds", "moved");
+
+      assertTrue(sources.containsKey("moved"));
+      assertEquals("SELECT A", JDBCUtil.getConnectionTestQuery("f/ds"));
+      assertEquals("SELECT MOVED", JDBCUtil.getConnectionTestQuery("moved"),
+                   "the rename of a non-JDBC data source changed a connection test query");
+   }
+
+   @Test
    void removeAndRenameDoNotTouchOtherOrgs() {
       asOrg("orga");
       JDBCUtil.setConnectionTestQuery("f/ds", "SELECT A");
@@ -280,7 +317,7 @@ class DataSourceRegistryConnectionTestQueryTest {
    private AssetEntry[] entries(String prefix) {
       return sources.keySet().stream()
          .filter(path -> path.startsWith(prefix))
-         .sorted()
+         .sorted(entryOrder)
          .map(path -> new AssetEntry(AssetRepository.QUERY_SCOPE, AssetEntry.Type.DATA_SOURCE,
                                      path, null))
          .toArray(AssetEntry[]::new);
