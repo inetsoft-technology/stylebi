@@ -167,60 +167,67 @@ public class VSEmailService {
             }
          }
 
-         OutputStream output = new FileOutputStream(file);
-
          if(FileFormatInfo.EXPORT_TYPE_SNAPSHOT == formatType) {
-            SnapshotVSExporter exporter = new SnapshotVSExporter(rvs);
-            exporter.setLogExport(true);
-            exporter.write(output);
+            try(OutputStream output = new FileOutputStream(file)) {
+               SnapshotVSExporter exporter = new SnapshotVSExporter(rvs);
+               exporter.setLogExport(true);
+               exporter.write(output);
+            }
          }
          else {
             if(!multipleFiles) {
-               if(excelToCSV) {
-                  File excelFile = fileSystemService.getCacheFile(fname + ".xlsx");
-                  FileOutputStream out = new FileOutputStream(excelFile);
-                  exportViewsheet(rvs, principal, FileFormatInfo.EXPORT_TYPE_EXCEL, bookmarks, out,
-                     csvConfig, matchLayout, expandSelections, onlyDataComponent, includeCurrent,
-                     null, exportAllTabbedCrosstab);
-                  exportViewsheet(rvs, principal, formatType, bookmarks, output, csvConfig,
-                     false, expandSelections, onlyDataComponent, includeCurrent,
-                     excelFile, exportAllTabbedCrosstab);
-               }
-               else {
-                  exportViewsheet(rvs, principal, formatType, bookmarks, output, csvConfig,
-                     matchLayout, expandSelections, onlyDataComponent, includeCurrent, null,
-                     exportAllTabbedCrosstab);
+               try(OutputStream output = new FileOutputStream(file)) {
+                  if(excelToCSV) {
+                     File excelFile = fileSystemService.getCacheFile(fname + ".xlsx");
+
+                     // the excel file must be closed before the csv export zips and deletes it
+                     try(FileOutputStream out = new FileOutputStream(excelFile)) {
+                        exportViewsheet(rvs, principal, FileFormatInfo.EXPORT_TYPE_EXCEL,
+                           bookmarks, out, csvConfig, matchLayout, expandSelections,
+                           onlyDataComponent, includeCurrent, null, exportAllTabbedCrosstab);
+                     }
+
+                     exportViewsheet(rvs, principal, formatType, bookmarks, output, csvConfig,
+                        false, expandSelections, onlyDataComponent, includeCurrent,
+                        excelFile, exportAllTabbedCrosstab);
+                  }
+                  else {
+                     exportViewsheet(rvs, principal, formatType, bookmarks, output, csvConfig,
+                        matchLayout, expandSelections, onlyDataComponent, includeCurrent, null,
+                        exportAllTabbedCrosstab);
+                  }
                }
             }
             else {
                for(int i = 0; i < fileList.size(); i++) {
                   File f = fileList.get(i);
-                  OutputStream output0 = new FileOutputStream(f);
-                  VSExporter exporter = AbstractVSExporter.getVSExporter(
-                     formatType, PortalThemesManager.getColorTheme(), output0, false,
-                     csvConfig);
-                  exporter.setLogExport(true);
-                  exporter.setMatchLayout(matchLayout);
-                  exporter.setExpandSelections(expandSelections);
-                  exporter.setAssetEntry(rvs.getEntry());
-                  exporter.setOnlyDataComponents(onlyDataComponent && !matchLayout);
-                  VSPortalHelper helper = new VSPortalHelper();
 
-                  if(includeCurrent && i >= bookmarks.length) {
-                     exporter.export(box.get(), catalog.getString("Current View"), helper);
+                  try(OutputStream output0 = new FileOutputStream(f)) {
+                     VSExporter exporter = AbstractVSExporter.getVSExporter(
+                        formatType, PortalThemesManager.getColorTheme(), output0, false,
+                        csvConfig);
+                     exporter.setLogExport(true);
+                     exporter.setMatchLayout(matchLayout);
+                     exporter.setExpandSelections(expandSelections);
+                     exporter.setAssetEntry(rvs.getEntry());
+                     exporter.setOnlyDataComponents(onlyDataComponent && !matchLayout);
+                     VSPortalHelper helper = new VSPortalHelper();
+
+                     if(includeCurrent && i >= bookmarks.length) {
+                        exporter.export(box.get(), catalog.getString("Current View"), helper);
+                     }
+                     else {
+                        int vmode = Viewsheet.SHEET_RUNTIME_MODE;
+
+                        ViewsheetSandbox sandbox = createSandbox(
+                           rvs.getOriginalBookmark(bookmarks[i]), vmode, principal,
+                           rvs.getEntry(), box.get().getVariableTable());
+                        exporter.export(sandbox, bookmarks[i], (i + 1), helper);
+                        sandbox.dispose();
+                     }
+
+                     exporter.write();
                   }
-                  else {
-                     int vmode = Viewsheet.SHEET_RUNTIME_MODE;
-
-                     ViewsheetSandbox sandbox = createSandbox(
-                        rvs.getOriginalBookmark(bookmarks[i]), vmode, principal,
-                        rvs.getEntry(), box.get().getVariableTable());
-                     exporter.export(sandbox, bookmarks[i], (i + 1), helper);
-                     sandbox.dispose();
-                  }
-
-                  exporter.write();
-                  output0.close();
                }
             }
          }
