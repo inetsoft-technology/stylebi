@@ -21,6 +21,7 @@ import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.report.io.viewsheet.AbstractVSExporter;
 import inetsoft.report.io.viewsheet.VSExporter;
+import inetsoft.report.io.viewsheet.excel.CSVUtil;
 import inetsoft.sree.internal.Mailer;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.portal.PortalThemesManager;
@@ -363,10 +364,96 @@ class VSEmailServiceCreateSandboxTest {
          assertEquals("sentinel77446", ex.getMessage());
       }
 
+      assertEquals(List.of(), openFilesIn(dir),
+         "emailViewsheet must close every export stream it opens");
+   }
+
+   @ParameterizedTest
+   @ValueSource(booleans = { true, false })
+   void emailViewsheet_closesExcelToCsvStreams(boolean excelExportFails, @TempDir Path dir)
+      throws Exception
+   {
+      // Bug #77446: a large Excel export is written to an .xlsx file and then exported again as
+      // CSV, which zips and deletes the .xlsx. The .xlsx stream must be closed before the CSV
+      // export, and neither stream may stay open when either export fails.
+      assumeTrue(Files.isDirectory(Path.of("/proc/self/fd")),
+                 "needs /proc/self/fd to list open files");
+
+      ViewsheetSandbox liveBox = mock(ViewsheetSandbox.class);
+      when(liveBox.getVariableTable()).thenReturn(new VariableTable());
+
+      Viewsheet vs = newBookmark(new Worksheet());
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      when(rvs.getViewsheetSandbox()).thenReturn(Optional.of(liveBox));
+      when(rvs.getEntry()).thenReturn(vs.getEntry());
+      when(rvs.getOriginalBookmark(anyString())).thenReturn(vs);
+
+      FileSystemService fs = mock(FileSystemService.class);
+      when(fs.getCacheFile(anyString()))
+         .thenAnswer(inv -> dir.resolve((String) inv.getArgument(0)).toFile());
+
+      VSEmailService service = new VSEmailService(fs) {
+         @Override
+         protected ViewsheetSandbox createSandbox(Viewsheet bookmark, int mode,
+                                                  Principal principal, AssetEntry entry,
+                                                  VariableTable vars)
+         {
+            return mock(ViewsheetSandbox.class);
+         }
+      };
+
+      List<String> openAtCsvExport = new ArrayList<>();
+
+      try(MockedStatic<SUtil> sutil = mockStatic(SUtil.class, CALLS_REAL_METHODS);
+          MockedStatic<PortalThemesManager> themes = mockStatic(PortalThemesManager.class);
+          MockedStatic<CSVUtil> csv = mockStatic(CSVUtil.class, CALLS_REAL_METHODS);
+          MockedStatic<AbstractVSExporter> exporters =
+             mockStatic(AbstractVSExporter.class, CALLS_REAL_METHODS))
+      {
+         sutil.when(() -> SUtil.localize(anyString(), any(), anyBoolean(), any()))
+            .thenReturn("vs77446");
+         themes.when(PortalThemesManager::getColorTheme).thenReturn(null);
+         csv.when(() -> CSVUtil.hasLargeDataTable(rvs)).thenReturn(true);
+         exporters.when(() -> AbstractVSExporter.getVSExporter(
+               anyInt(), any(), any(), anyBoolean(), any()))
+            .thenAnswer(inv -> {
+               if((int) inv.getArgument(0) == FileFormatInfo.EXPORT_TYPE_EXCEL) {
+                  if(excelExportFails) {
+                     throw new IllegalStateException("sentinel77446");
+                  }
+
+                  return mock(VSExporter.class);
+               }
+
+               openAtCsvExport.addAll(openFilesIn(dir));
+               throw new IllegalStateException("sentinel77446");
+            });
+         IllegalStateException ex = assertThrows(IllegalStateException.class, () ->
+            service.emailViewsheet(rvs, FileFormatInfo.EXPORT_TYPE_EXCEL, new String[] { "b1" },
+                                   false, false, false, "a@b.c", null, null, "s", "b", false,
+                                   null, null));
+         assertEquals("sentinel77446", ex.getMessage());
+      }
+
+      if(!excelExportFails) {
+         assertFalse(openAtCsvExport.isEmpty(), "the csv export must have been reached");
+         assertTrue(openAtCsvExport.stream().noneMatch(f -> f.contains(".xlsx")),
+            "the xlsx stream must be closed before the csv export: " + openAtCsvExport);
+      }
+
+      assertEquals(List.of(), openFilesIn(dir),
+         "emailViewsheet must close the xlsx and csv streams it opens");
+   }
+
+   /**
+    * Lists the files under {@code dir} that this process has open, from /proc/self/fd.
+    */
+   private static List<String> openFilesIn(Path dir) throws IOException {
       List<String> open = new ArrayList<>();
       Path realDir = dir.toRealPath();
 
-      try(DirectoryStream<Path> links = Files.newDirectoryStream(fds)) {
+      try(DirectoryStream<Path> links = Files.newDirectoryStream(Path.of("/proc/self/fd"))) {
          for(Path link : links) {
             try {
                Path target = Files.readSymbolicLink(link);
@@ -381,7 +468,7 @@ class VSEmailServiceCreateSandboxTest {
          }
       }
 
-      assertEquals(List.of(), open, "emailViewsheet must close every export stream it opens");
+      return open;
    }
 
    private static ViewsheetSandbox createSandbox(Viewsheet bookmark) throws Exception {
