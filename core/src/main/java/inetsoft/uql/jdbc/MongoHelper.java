@@ -109,11 +109,21 @@ public class MongoHelper extends SQLHelper {
    */
 
    /**
+    * unity driver don't support parentheses in multi joins. (56305)
+    * Joins parsed from sql text are generated in text order too (#77581), and
+    * a join between two groups of joined tables is written as one flat chain
+    * when that keeps its meaning.
+    */
+   @Override
+   protected boolean isJoinParenthesesSupported() {
+      return false;
+   }
+
+   /**
     * Append the join clause to the from.
     * unity driver don't support parentheses in multi joins. (56305)
-    * Joins parsed from sql text are generated in text order too (#77581): a step
-    * that adds one table is written here, so a left-deep chain such as
-    * a LEFT JOIN b .. JOIN c .. LEFT JOIN d .. has no parentheses.
+    * A text order step that adds one table is written here too, so a left-deep
+    * chain such as a LEFT JOIN b .. JOIN c .. LEFT JOIN d .. has no parentheses.
     */
    @Override
    protected void appendJoinClause(StringBuilder from,

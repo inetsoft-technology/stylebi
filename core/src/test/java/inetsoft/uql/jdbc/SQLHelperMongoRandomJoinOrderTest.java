@@ -99,11 +99,8 @@ class SQLHelperMongoRandomJoinOrderTest {
             String generated = normalize(sql.getSQLString());
             String message = "ansi=" + ansi + "\ntext: " + text + "\ngenerated: " + generated;
 
-            if(!text.contains("(")) {
-               String from = generated.substring(generated.indexOf(" from "));
-               int where = from.indexOf(" where ");
-               assertFalse((where < 0 ? from : from.substring(0, where)).contains("("), message);
-            }
+            // no parentheses beyond those of the text, which the unity driver rejects (56305)
+            assertTrue(fromParentheses(generated) <= fromParentheses(text), message);
 
             String again = generate(generated, ds);
             assertEquals(again, generate(again, ds), message);
@@ -113,6 +110,13 @@ class SQLHelperMongoRandomJoinOrderTest {
 
       // the shapes must mostly parse, or the test checks nothing
       assertTrue(parsed > 700, "parsed " + parsed);
+   }
+
+   // the number of opening parentheses in the from clause
+   private static long fromParentheses(String sql) {
+      String from = sql.substring(sql.indexOf(" from "));
+      int where = from.indexOf(" where ");
+      return (where < 0 ? from : from.substring(0, where)).chars().filter(c -> c == '(').count();
    }
 
    private static String randomQuery(Random random) {

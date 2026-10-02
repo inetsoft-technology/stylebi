@@ -192,31 +192,85 @@ class SQLHelperMongoJoinOrderTest {
       }
    }
 
-   // a parenthesized join of two tables on the right of a join with a group of tables. No
-   // flat chain keeps its meaning, so it's written with parentheses, which the unity driver
-   // may reject (56305) instead of returning wrong rows. The join order check of the parse
-   // refused the first three before, because the walk changed them (it returned wrong rows for
-   // the first two when the structure was generated anyway); the fourth was written flat
-   static Stream<String> nestedGroupQueries() {
+   // a parenthesized join of two tables on the right of a join with a group of tables. If no
+   // flat chain keeps its meaning, only the right group is written with parentheses, as in the
+   // text, which the unity driver may reject (56305) instead of returning wrong rows. The join
+   // order check of the parse refused the first three before, because the walk changed them
+   // (it returned wrong rows for the first two when the structure was generated anyway)
+   static Stream<Arguments> nestedGroupQueries() {
       return Stream.of(
-         COLS + "from a join b on a.id = b.id left join (c join d on c.id = d.id) on b.id = c.id",
-         COLS + "from a left join b on a.id = b.id left join (c join d on c.id = d.id) on " +
-            "b.id = c.id",
-         COLS + "from a left join b on a.id = b.id left join (c join d on c.id = d.id) on " +
-            "a.id = c.id",
-         COLS + "from a left join b on a.id = b.id join (c left join d on c.id = d.id) on " +
-            "b.id = c.id"
+         Arguments.of(COLS + "from a join b on a.id = b.id left join (c join d on c.id = d.id) " +
+                         "on b.id = c.id",
+                      "from a INNER JOIN b ON a.id = b.id LEFT OUTER JOIN (c INNER JOIN d ON " +
+                         "c.id = d.id ) ON b.id = c.id"),
+         Arguments.of(COLS + "from a left join b on a.id = b.id left join (c join d on " +
+                         "c.id = d.id) on b.id = c.id",
+                      "from a LEFT OUTER JOIN b ON a.id = b.id LEFT OUTER JOIN (c INNER JOIN d ON " +
+                         "c.id = d.id ) ON b.id = c.id"),
+         Arguments.of(COLS + "from a left join b on a.id = b.id left join (c join d on " +
+                         "c.id = d.id) on a.id = c.id",
+                      "from a LEFT OUTER JOIN b ON a.id = b.id LEFT OUTER JOIN (c INNER JOIN d ON " +
+                         "c.id = d.id ) ON a.id = c.id"),
+         // the inner join references the null-supplying table of the group
+         Arguments.of(COLS + "from a join b on a.id = b.id join (c left join d on c.id = d.id) " +
+                         "on b.id = d.id",
+                      "from a INNER JOIN b ON a.id = b.id INNER JOIN (c LEFT OUTER JOIN d ON " +
+                         "c.id = d.id ) ON b.id = d.id")
       );
    }
 
    @ParameterizedTest
    @MethodSource("nestedGroupQueries")
-   void nestedGroupIsNotSilentlyWrong(String text) throws Exception {
+   void nestedGroupIsNotSilentlyWrong(String text, String expected) throws Exception {
       for(String type : new String[] { "mongo", "mongo-ansi" }) {
          String generated = generate(text, dataSource(type));
+         assertEquals(expected, from(generated), type);
          assertSameRows(text, generated);
-         assertTrue(from(generated).contains(") ON "), generated);
       }
+   }
+
+   // an inner join of a group and a chain of inner and left joins that only references the
+   // first table of the chain is the same as the flat chain. MongoHelper wrote these flat
+   // before (the walk found the order), and writes them flat in text order
+   static Stream<Arguments> flatGroupQueries() {
+      return Stream.of(
+         Arguments.of(COLS + "from a left join b on a.id = b.id join (c left join d on " +
+                         "c.id = d.id) on b.id = c.id",
+                      "from a LEFT OUTER JOIN b ON a.id = b.id INNER JOIN c ON b.id = c.id " +
+                         "LEFT OUTER JOIN d ON c.id = d.id"),
+         Arguments.of(COLS + "from a join b on a.id = b.id join (c left join d on c.id = d.id) " +
+                         "on b.id = c.id",
+                      "from a INNER JOIN b ON a.id = b.id INNER JOIN c ON b.id = c.id " +
+                         "LEFT OUTER JOIN d ON c.id = d.id"),
+         // the step condition written from the right group
+         Arguments.of(COLS + "from a left join b on a.id = b.id join (c left join d on " +
+                         "c.id = d.id) on c.id = b.id",
+                      "from a LEFT OUTER JOIN b ON a.id = b.id INNER JOIN c ON c.id = b.id " +
+                         "LEFT OUTER JOIN d ON c.id = d.id"),
+         Arguments.of(COLS + ", a2.id from a join b on a.id = b.id join (c join d on " +
+                         "c.id = d.id) on b.id = c.id left join a a2 on a.id = a2.id",
+                      "from a INNER JOIN b ON a.id = b.id INNER JOIN c ON b.id = c.id " +
+                         "INNER JOIN d ON c.id = d.id LEFT OUTER JOIN a a2 ON a.id = a2.id")
+      );
+   }
+
+   @ParameterizedTest
+   @MethodSource("flatGroupQueries")
+   void flatGroupIsWrittenFlat(String text, String expected) throws Exception {
+      for(String type : new String[] { "mongo", "mongo-ansi" }) {
+         String generated = generate(text, dataSource(type));
+         assertEquals(expected, from(generated), type);
+         assertSameRows(text, generated);
+      }
+   }
+
+   @ParameterizedTest
+   @MethodSource("flatGroupQueries")
+   void otherDatabasesKeepTheNestedGroup(String text) throws Exception {
+      // the flat chain is only for helpers without parentheses
+      String generated = generate(text, dataSource("h2-ansi"));
+      assertTrue(from(generated).contains(") INNER JOIN ("), generated);
+      assertSameRows(text, generated);
    }
 
    @Test
