@@ -472,7 +472,11 @@ public class VpmCondition extends VpmObject {
 
       if(find_step == -1) {
          for(int i = 0; i < tables.length; i++) {
-            if(tables[i] != null && field.toLowerCase().startsWith(tables[i].toLowerCase())) {
+            // the field is the table name and a column, not the table name alone
+            if(tables[i] != null && field.length() > tables[i].length() + 1 &&
+               field.charAt(tables[i].length()) == '.' &&
+               field.toLowerCase().startsWith(tables[i].toLowerCase()))
+            {
                tpart = tables[i];
                alias = taliases[i];
                alias = alias == null || alias.length() == 0 ? tpart : alias;
