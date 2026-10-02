@@ -66,6 +66,7 @@ import {
    makeDailyCondition,
    makeWeeklyCondition,
    makeMonthlyCondition,
+   makeHourlyCondition,
    makeModel,
    modalMock,
    taskNamesMock,
@@ -496,39 +497,81 @@ describe("Group 11 — changeServerTimeZone: no-op on same value, localStorage",
       expect(localStorage.getItem(TZ_LS_KEY)).toBe("false");
    });
 
-   // Bug #75325: toggling "Show Server Time Zone" while editing one condition must also convert
-   // all sibling conditions so that when the user later edits them they already show server time.
-   it("converts ALL conditions (including siblings) when switching timezone in both directions (Bug #75325)", async () => {
-      const utcOffset = 0;
-      const easternOffset = -4 * 60 * 60 * 1000; // EDT = UTC-4
+   // Shared setup for the server time zone tests: conditions stored in New York (EDT, UTC-4)
+   // and a server in UTC. The convertTime stub shifts the hour by (newTz - oldTz).
+   async function renderEasternConditions(...conditions: TimeConditionModel[]) {
+      const easternOffset = -4 * 60 * 60 * 1000;
+      const timeZoneOptions: TimeZoneModel[] = [
+         { timeZoneId: "UTC", label: "UTC (Local)", hourOffset: "+00:00", minuteOffset: 0 },
+         { timeZoneId: "America/New_York", label: "Eastern Time", hourOffset: "-04:00", minuteOffset: -240 },
+      ];
+      const result = await renderTaskConditionPane({ model: makeModel({ conditions }), timeZoneOptions });
+      const comp = result.comp;
 
-      const cond1 = makeDailyCondition({ timeZone: "America/New_York", hour: 2, minute: 30, second: 0 });
-      const cond2 = makeDailyCondition({ timeZone: "America/New_York", hour: 2, minute: 30, second: 0 });
-      const { comp } = await renderTaskConditionPane({ model: makeModel({ conditions: [cond1, cond2] }) });
-
-      // Deterministic stub: shift hour by (newTz − oldTz) expressed in ms
       comp.convertTime = vi.fn().mockImplementation((value, oldTz, newTz) => {
          const shifted = value.hour + (newTz - oldTz) / (60 * 60 * 1000);
          return { hour: ((shifted % 24) + 24) % 24, minute: value.minute, second: value.second };
       });
 
-      (comp as any).conditionIndex = 0;
-      comp.serverTimeZone = false;
-      (comp as any).serverTimeZoneOffset = utcOffset;
+      (comp as any).serverTimeZoneOffset = 0;
       (comp as any).localTimeZoneOffset = easternOffset;
       comp["timeZoneService"].calculateTimezoneOffset = vi.fn(() => easternOffset);
+      return result;
+   }
 
-      // Switch to server timezone: 02:30 EDT → 06:30 UTC — both conditions must convert
+   // Bug #75325: toggling "Show Server Time Zone" while editing one condition must also show
+   // the sibling conditions in server time when the user later edits them.
+   it("shows ALL conditions (including siblings) in the toggled time zone without changing them (Bug #75325)", async () => {
+      const cond1 = makeDailyCondition({ timeZone: "America/New_York", hour: 2, minute: 30, second: 0 });
+      const cond2 = makeDailyCondition({ timeZone: "America/New_York", hour: 4, minute: 0, second: 0 });
+      const { comp } = await renderEasternConditions(cond1, cond2);
+
+      // Switch to server timezone: 02:30 EDT is displayed as 06:30 UTC
       comp.changeServerTimeZone(true);
-      expect(cond1.hour).toBe(6);
-      expect(cond1.minute).toBe(30);
-      expect(cond2.hour).toBe(6);
-      expect(cond2.minute).toBe(30);
+      expect(comp.startTime).toEqual({ hour: 6, minute: 30, second: 0 });
 
-      // Switch back to local: 06:30 UTC → 02:30 EDT — both conditions must restore
+      // the sibling is displayed in server time when it is edited: 04:00 EDT → 08:00 UTC
+      comp.selectedConditions = [1];
+      comp.editCondition();
+      expect(comp.startTime).toEqual({ hour: 8, minute: 0, second: 0 });
+
+      // Switch back to local: displayed in EDT again
       comp.changeServerTimeZone(false);
-      expect(cond1.hour).toBe(2);
-      expect(cond2.hour).toBe(2);
+      expect(comp.startTime).toEqual({ hour: 4, minute: 0, second: 0 });
+
+      // the conditions themselves keep their times in their own time zone
+      expect([cond1.hour, cond1.minute, cond1.timeZone]).toEqual([2, 30, "America/New_York"]);
+      expect([cond2.hour, cond2.minute, cond2.timeZone]).toEqual([4, 0, "America/New_York"]);
+   });
+
+   it("saves an unedited condition unchanged while the server time zone is shown", async () => {
+      const cond = makeDailyCondition({
+         timeZone: "America/New_York", hour: 1, minute: 30, second: 0, hourEnd: 2, minuteEnd: 30
+      });
+      const { comp, saveTask } = await renderEasternConditions(cond);
+
+      comp.changeServerTimeZone(true);
+      expect(comp.startTime).toEqual({ hour: 5, minute: 30, second: 0 });
+      comp.save(true);
+
+      expect(saveTask).toHaveBeenCalled();
+      expect([cond.hour, cond.minute, cond.second]).toEqual([1, 30, 0]);
+      expect([cond.hourEnd, cond.minuteEnd]).toEqual([2, 30]);
+      expect(cond.timeZone).toBe("America/New_York");
+   });
+
+   it("stores a time entered in server time in the condition's own time zone", async () => {
+      const cond = makeHourlyCondition({ timeZone: "America/New_York", hour: 1, minute: 0, second: 0 });
+      const { comp } = await renderEasternConditions(cond);
+
+      comp.changeServerTimeZone(true);
+      comp.formStartTime = { hour: 14, minute: 15, second: 0 };
+      comp.formEndTime = { hour: 20, minute: 0, second: 0 };
+
+      // 14:15 / 20:00 UTC → 10:15 / 16:00 EDT
+      expect([cond.hour, cond.minute, cond.second]).toEqual([10, 15, 0]);
+      expect([cond.hourEnd, cond.minuteEnd, cond.secondEnd]).toEqual([16, 0, 0]);
+      expect(cond.timeZone).toBe("America/New_York");
    });
 });
 

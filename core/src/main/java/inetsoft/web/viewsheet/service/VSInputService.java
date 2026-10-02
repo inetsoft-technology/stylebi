@@ -48,6 +48,7 @@ import inetsoft.web.composer.model.TreeNodeModel;
 import inetsoft.web.composer.model.vs.*;
 import inetsoft.web.composer.vs.dialog.DataInputController;
 import inetsoft.web.composer.vs.objects.controller.*;
+import inetsoft.web.portal.controller.database.QueryManagerService;
 import inetsoft.web.viewsheet.command.MessageCommand;
 import inetsoft.web.viewsheet.event.*;
 import inetsoft.web.vswizard.model.VSWizardConstants;
@@ -79,7 +80,8 @@ public class VSInputService {
                          VSTrapService trapService,
                          DataRefModelFactoryService dataRefModelFactoryService,
                          VSAssemblyInfoHandler vsAssemblyInfoHandler,
-                         VSColumnHandler vsColumnHandler)
+                         VSColumnHandler vsColumnHandler,
+                         QueryManagerService queryManagerService)
    {
       this.vsObjectService = vsObjectService;
       this.coreLifecycleService = coreLifecycleService;
@@ -90,6 +92,7 @@ public class VSInputService {
       this.dataRefModelFactoryService = dataRefModelFactoryService;
       this.vsAssemblyInfoHandler = vsAssemblyInfoHandler;
       this.vsColumnHandler = vsColumnHandler;
+      this.queryManagerService = queryManagerService;
    }
 
    /**
@@ -1372,8 +1375,13 @@ public class VSInputService {
                                                 Principal principal) throws Exception
    {
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
-      ColumnSelection selection = vsColumnHandler.getTableColumns(rvs,Tool.byteDecode(table),
-                                                                  true, principal);
+      table = Tool.byteDecode(table);
+      // a cube table is resolved from its data source without a permission check, so a cube
+      // that no assembly of the viewsheet is bound to is checked before its columns are
+      // listed (Bug #77462)
+      queryManagerService.checkNewCubeTablesReadPermission(
+         Collections.singletonList(table), VSUtil.getBoundTables(rvs.getViewsheet()), principal);
+      ColumnSelection selection = vsColumnHandler.getTableColumns(rvs, table, true, principal);
       String[] columnList = new String[selection.getAttributeCount()];
       String[] descriptionList = new String[selection.getAttributeCount()];
 
@@ -1722,6 +1730,10 @@ public class VSInputService {
             }
 
             if(editorModel.isQuery()) {
+               ListBindingInfo obinding =
+                  formRef.getOption() instanceof ComboBoxColumnOption option ?
+                     option.getListBindingInfo() : null;
+               checkNewListTable(selectionListEditorModel.getTable(), obinding, principal);
                ListBindingInfo listBindingInfo = new ListBindingInfo();
                listBindingInfo.setTableName(selectionListEditorModel.getTable());
                listBindingInfo = updateBindingInfo(listBindingInfo, selectionListEditorModel.getColumn(),
@@ -1940,6 +1952,8 @@ public class VSInputService {
       assemblyInfo.setListData(listData);
 
       assemblyInfo.setForm(selectionListEditorModel.isForm());
+      checkNewListTable(selectionListEditorModel.getTable(), assemblyInfo.getListBindingInfo(),
+                        principal);
       ListBindingInfo listBindingInfo = new ListBindingInfo();
       listBindingInfo.setTableName(selectionListEditorModel.getTable());
       listBindingInfo = updateBindingInfo(listBindingInfo, selectionListEditorModel.getColumn(),
@@ -2081,6 +2095,8 @@ public class VSInputService {
          SelectionListEditorModel selectionListEditorModel = model.getSelectionListDialogModel().getSelectionListEditorModel();
 
          if(model.isQuery()) {
+            checkNewListTable(selectionListEditorModel.getTable(),
+                              comboBoxVSAssembly.getListBindingInfo(), principal);
             ListBindingInfo listBindingInfo = new ListBindingInfo();
             listBindingInfo.setTableName(selectionListEditorModel.getTable());
             listBindingInfo = updateBindingInfo(listBindingInfo, selectionListEditorModel.getColumn(),
@@ -2386,6 +2402,8 @@ public class VSInputService {
       assemblyInfo.setForm(selectionListEditorModel.isForm());
 
       if(comboBoxEditorModel.isQuery()) {
+         checkNewListTable(selectionListEditorModel.getTable(), assemblyInfo.getListBindingInfo(),
+                           principal);
          ListBindingInfo listBindingInfo = new ListBindingInfo();
          listBindingInfo.setTableName(selectionListEditorModel.getTable());
          listBindingInfo = updateBindingInfo(listBindingInfo, selectionListEditorModel.getColumn(),
@@ -2485,6 +2503,8 @@ public class VSInputService {
       assemblyInfo.setListData(listData);
 
       assemblyInfo.setForm(selectionListEditorModel.isForm());
+      checkNewListTable(selectionListEditorModel.getTable(), assemblyInfo.getListBindingInfo(),
+                        principal);
       ListBindingInfo listBindingInfo = new ListBindingInfo();
       listBindingInfo.setTableName(selectionListEditorModel.getTable());
       listBindingInfo = this.updateBindingInfo(listBindingInfo, selectionListEditorModel.getColumn(),
@@ -3889,6 +3909,15 @@ public class VSInputService {
    }
 
 
+   /**
+    * A cube table is resolved from its data source without a permission check, so a list
+    * binding to a newly bound one is checked before it is set (Bug #77427).
+    */
+   private void checkNewListTable(String table, ListBindingInfo obinding, Principal principal) {
+      queryManagerService.checkNewCubeTableReadPermission(
+         table, obinding == null ? null : obinding.getTableName(), principal);
+   }
+
    private final DataRefModelFactoryService dataRefModelFactoryService;
    private VSAssemblyInfoHandler vsAssemblyInfoHandler;
    private final VSObjectPropertyService vsObjectPropertyService;
@@ -3898,6 +3927,7 @@ public class VSInputService {
    private final CoreLifecycleService coreLifecycleService;
    private final ViewsheetService viewsheetService;
    private final VSColumnHandler vsColumnHandler;
+   private final QueryManagerService queryManagerService;
    private static final Pattern WALL_CLOCK_DATE = Pattern.compile("\\d{4}-\\d{2}-\\d{2}");
    private static final Logger LOG = LoggerFactory.getLogger(VSInputService.class);
 }

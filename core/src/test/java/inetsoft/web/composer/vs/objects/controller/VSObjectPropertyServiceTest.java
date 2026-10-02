@@ -24,6 +24,7 @@ import inetsoft.uql.viewsheet.*;
 import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
 import inetsoft.web.binding.handler.VSColumnHandler;
 import inetsoft.web.composer.vs.VSObjectTreeService;
+import inetsoft.web.portal.controller.database.QueryManagerService;
 import inetsoft.web.viewsheet.service.*;
 import inetsoft.web.vswizard.service.VSWizardTemporaryInfoService;
 import org.junit.jupiter.api.BeforeEach;
@@ -38,6 +39,7 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.anyBoolean;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(SpringExtension.class)
@@ -57,7 +59,8 @@ class VSObjectPropertyServiceTest {
                                                temporaryInfoService,
                                                vsCompositionService,
                                                sharedFilterService,
-                                               dataSourceRegistry);
+                                               dataSourceRegistry,
+                                               mock(QueryManagerService.class));
    }
 
    @Test

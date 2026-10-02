@@ -48,8 +48,10 @@ import java.rmi.RemoteException;
 import java.security.Principal;
 import java.util.List;
 import java.util.*;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -151,7 +153,26 @@ public class QueryManagerService {
 
       UniformSQL sql = (UniformSQL) query.getSQLDefinition();
 
-      if(DatabaseQueryTabs.FIELDS.getTab().equals(tab) || all) {
+      // The structure cannot represent this sql string (parse off, parse not a full success,
+      // or a lossy parse such as TOP), so regenerating it from the structure would silently
+      // drop part of the user's sql. Keep the sql string. The editor disables the graphical
+      // tabs for such a query, so the only callers reaching here are save and the switch to
+      // simple mode, and their pane models are echoes of the structure, not user edits.
+      if(isSqlOnly(sql)) {
+         LOG.debug("Keep the sql string of a sql-only query, skip updating it from the {} pane",
+                   all ? "all" : tab);
+         saveRuntimeQuery(runtimeQuery);
+         return;
+      }
+
+      // Bug #77487, #77496, apply a pane and clear the sql string only when the pane differs
+      // from the echo of the current structure. Tab-leave and save post every pane, also the
+      // unchanged ones, and regenerating the sql would replace the sql the user typed.
+      XDataSource dataSource = query.getDataSource();
+
+      if((DatabaseQueryTabs.FIELDS.getTab().equals(tab) || all) &&
+         isFieldPaneChanged(sql, queryModel.getFieldPaneModel()))
+      {
          // only need to update the order of fields and 'distinct' property
          QueryFieldPaneModel fieldPaneModel = queryModel.getFieldPaneModel();
          JDBCSelection newSelection = new JDBCSelection();
@@ -185,16 +206,20 @@ public class QueryManagerService {
          QueryConditionPaneModel conditionPaneModel = queryModel.getConditionPaneModel();
          List<DataConditionItem> conditions = conditionPaneModel.getConditions();
 
-         if(conditions != null && conditions.size() > 0) {
-            XFilterNode filterNode = createConditionXFilterNode(conditions);
-            setQueryCondition(sql, filterNode, CONDITION_WHERE);
-         }
-         else {
-            setQueryCondition(sql, null, CONDITION_WHERE);
+         if(isConditionChanged(sql, dataSource, conditions, CONDITION_WHERE)) {
+            if(conditions != null && conditions.size() > 0) {
+               XFilterNode filterNode = createConditionXFilterNode(conditions);
+               setQueryCondition(sql, filterNode, CONDITION_WHERE);
+            }
+            else {
+               setQueryCondition(sql, null, CONDITION_WHERE);
+            }
          }
       }
 
-      if(DatabaseQueryTabs.SORT.getTab().equals(tab) || all) {
+      if((DatabaseQueryTabs.SORT.getTab().equals(tab) || all) &&
+         isSortPaneChanged(sql, queryModel.getSortPaneModel()))
+      {
          QuerySortPaneModel sortPaneModel = queryModel.getSortPaneModel();
          List<String> fields = sortPaneModel.getFields();
          List<String> orders = sortPaneModel.getOrders();
@@ -214,33 +239,169 @@ public class QueryManagerService {
 
       if(DatabaseQueryTabs.GROUPING.getTab().equals(tab) || all) {
          QueryGroupingPaneModel groupingPaneModel = queryModel.getGroupingPaneModel();
-         List<String> groupByFields = groupingPaneModel.getGroupByFields();
-         List<String> groups = new ArrayList<>();
-         sql.clearGroupDBFields();
 
-         for(int i = 0; groupByFields != null && i < groupByFields.size(); i++) {
-            String groupName = groupByFields.get(i);
+         if(isGroupByChanged(sql, groupingPaneModel)) {
+            List<String> groupByFields = groupingPaneModel.getGroupByFields();
+            List<String> groups = new ArrayList<>();
+            sql.clearGroupDBFields();
 
-            if(!sql.isTableColumn(groupName) && !sql.getSelection().isAlias(groupName)) {
-               sql.addGroupDBField(groupName);
+            for(int i = 0; groupByFields != null && i < groupByFields.size(); i++) {
+               String groupName = groupByFields.get(i);
+
+               if(!sql.isTableColumn(groupName) && !sql.getSelection().isAlias(groupName)) {
+                  sql.addGroupDBField(groupName);
+               }
+
+               groups.add(groupName);
             }
 
-            groups.add(groupName);
+            sql.setGroupBy(groups.toArray());
+            sql.clearSQLString();
          }
-
-         sql.setGroupBy(groups.toArray());
-         sql.clearSQLString();
 
          QueryConditionPaneModel havingConditionsModel = groupingPaneModel.getHavingConditions();
          List<DataConditionItem> conditions = havingConditionsModel.getConditions();
 
-         if(conditions != null) {
+         if(conditions != null &&
+            isConditionChanged(sql, dataSource, conditions, CONDITION_HAVING))
+         {
             XFilterNode filterNode = createConditionXFilterNode(conditions);
             setQueryCondition(sql, filterNode, CONDITION_HAVING);
          }
       }
 
       saveRuntimeQuery(runtimeQuery);
+   }
+
+   /**
+    * Check if the sql string of the query cannot be regenerated from its structure without
+    * losing information: parsing is off, the parse was not a full success, or the parse is
+    * lossy (e.g. TOP). The sql string must then be kept as is.
+    */
+   static boolean isSqlOnly(UniformSQL sql) {
+      return sql.hasSQLString() &&
+         (!sql.isParseSQL() || sql.getParseResult() != UniformSQL.PARSE_SUCCESS || sql.isLossy());
+   }
+
+   /**
+    * Check if the fields pane differs from the pane getAdvancedQueryModel() echoes for the
+    * current structure, in what updateQuery() applies from it: the field names and aliases
+    * in order, and distinct.
+    */
+   static boolean isFieldPaneChanged(UniformSQL sql, QueryFieldPaneModel pane) {
+      if(pane == null || pane.isDistinct() != sql.isDistinct()) {
+         return true;
+      }
+
+      JDBCSelection selection = (JDBCSelection) sql.getSelection();
+      List<QueryFieldModel> fields = pane.getFields();
+      int count = fields == null ? 0 : fields.size();
+
+      if(selection == null || count != selection.getColumnCount()) {
+         return true;
+      }
+
+      for(int i = 0; i < count; i++) {
+         QueryFieldModel field = fields.get(i);
+
+         if(field == null || !Tool.equals(field.getName(), selection.getColumn(i)) ||
+            !Tool.equals(field.getAlias(), selection.getAlias(i)))
+         {
+            return true;
+         }
+      }
+
+      return false;
+   }
+
+   /**
+    * Check if the sort pane differs from the pane getAdvancedQueryModel() echoes for the
+    * current structure.
+    */
+   static boolean isSortPaneChanged(UniformSQL sql, QuerySortPaneModel pane) {
+      if(pane == null) {
+         return true;
+      }
+
+      List<String> fields = new ArrayList<>();
+      List<String> orders = new ArrayList<>();
+      getSortFields(sql, fields, orders);
+
+      return !Objects.equals(fields, emptyIfNull(pane.getFields())) ||
+         !Objects.equals(orders, emptyIfNull(pane.getOrders()));
+   }
+
+   /**
+    * Check if the group by fields differ from the ones getAdvancedQueryModel() echoes for the
+    * current structure.
+    */
+   static boolean isGroupByChanged(UniformSQL sql, QueryGroupingPaneModel pane) {
+      return pane == null ||
+         !Objects.equals(getGroupByFields(sql), emptyIfNull(pane.getGroupByFields()));
+   }
+
+   /**
+    * Check if the conditions differ from the ones getAdvancedQueryModel() echoes for the
+    * current structure. The condition items have no equals(), so their json trees are
+    * compared. They can't be compared by the generated sql: applying an unchanged where
+    * condition appends the joins after it, which reorders the generated where clause.
+    */
+   private boolean isConditionChanged(UniformSQL sql, XDataSource dataSource,
+                                      List<DataConditionItem> conditions, int conditionType)
+   {
+      try {
+         List<DataConditionItem> current = createConditions(sql, dataSource, conditionType);
+         return !CONDITION_MAPPER.valueToTree(current)
+            .equals(CONDITION_MAPPER.valueToTree(emptyIfNull(conditions)));
+      }
+      catch(Exception ex) {
+         // can't tell, apply the pane as before
+         LOG.debug("Failed to compare the conditions with the current structure", ex);
+         return true;
+      }
+   }
+
+   private static <T> List<T> emptyIfNull(List<T> list) {
+      return list == null ? Collections.emptyList() : list;
+   }
+
+   private static void getSortFields(UniformSQL sql, List<String> fields, List<String> orders) {
+      OrderByItem[] orderByItems = sql.getOrderByItems();
+
+      for(OrderByItem item : orderByItems) {
+         fields.add(Tool.toString(item.getField()));
+         orders.add(item.getOrder());
+      }
+   }
+
+   private static List<String> getGroupByFields(UniformSQL sql) {
+      List<String> groupByFields = new ArrayList<>();
+      Object[] groups = sql.getGroupBy();
+
+      if(groups != null) {
+         for(Object group : groups) {
+            groupByFields.add(Tool.toString(group));
+         }
+      }
+
+      return groupByFields;
+   }
+
+   /**
+    * Run an action with the sorted sql of the query cache normalizer turned off. The normalizer
+    * clears the sql string of a parsed query when it generates the sorted sql.
+    */
+   private static <T> T withoutSortedSql(UniformSQL sql, Supplier<T> action) {
+      Object oldHint = sql.getHint(UniformSQL.HINT_WITHOUT_SORTED_SQL, false);
+      sql.setHint(UniformSQL.HINT_WITHOUT_SORTED_SQL, true);
+
+      try {
+         return action.get();
+      }
+      finally {
+         // UniformSQL can't remove a hint, false is what an unset hint means here
+         sql.setHint(UniformSQL.HINT_WITHOUT_SORTED_SQL, oldHint != null ? oldHint : false);
+      }
    }
 
    public AdvancedSQLQueryModel getQueryModel(String runtimeId, Principal principal) {
@@ -340,40 +501,28 @@ public class QueryManagerService {
       XTypeNode metadata = runtimeQuery.getMetadata();
       FreeFormSQLPaneModel freeFormSQLPaneModel = new FreeFormSQLPaneModel();
       freeFormSQLPaneModel.setHasSqlString(sql.hasSQLString());
-      sql.setHint(UniformSQL.HINT_WITHOUT_SORTED_SQL, true);
-      freeFormSQLPaneModel.setSqlString(sql.getSQLString());
-      sql.setHint(UniformSQL.HINT_WITHOUT_SORTED_SQL, false);
+      freeFormSQLPaneModel.setSqlString(withoutSortedSql(sql, sql::getSQLString));
       freeFormSQLPaneModel.setParseSql(sql.isParseSQL());
       freeFormSQLPaneModel.setParseResult(sql.getParseResult());
+      // isLossy() may re-parse the sql string once, the result is cached on the object
+      freeFormSQLPaneModel.setLossy(sql.isLossy());
       freeFormSQLPaneModel.setHasColumnInfo(metadata != null && metadata.getChildCount() > 0);
       SQLHelper helper = SQLHelper.getSQLHelper(sql);
-      freeFormSQLPaneModel.setGeneratedSqlString(helper.generateSentence());
+      // Bug #77487, without the hint the sorted column map of the cache normalizer clears the
+      // sql string the user typed, so every model fetch would make a save regenerate it
+      freeFormSQLPaneModel.setGeneratedSqlString(withoutSortedSql(sql, helper::generateSentence));
       model.setFreeFormSQLPaneModel(freeFormSQLPaneModel);
 
       QuerySortPaneModel sortPaneModel = new QuerySortPaneModel();
       List<String> sortFields = new ArrayList<>();
       List<String> orders = new ArrayList<>();
-      OrderByItem[] orderByItems = sql.getOrderByItems();
-
-      for(int i = 0; i < orderByItems.length; i++) {
-         OrderByItem item = orderByItems[i];
-         sortFields.add(Tool.toString(item.getField()));
-         orders.add(item.getOrder());
-      }
-
+      getSortFields(sql, sortFields, orders);
       sortPaneModel.setFields(sortFields);
       sortPaneModel.setOrders(orders);
       model.setSortPaneModel(sortPaneModel);
 
       QueryGroupingPaneModel groupingPaneModel = new QueryGroupingPaneModel();
-      List<String> groupByFields = new ArrayList<>();
-      Object[] groups = sql.getGroupBy();
-
-      if(groups != null) {
-         for(Object group : groups) {
-            groupByFields.add(Tool.toString(group));
-         }
-      }
+      List<String> groupByFields = getGroupByFields(sql);
 
       List<Column> havingFields = new ArrayList<>();
 
@@ -1099,6 +1248,8 @@ public class QueryManagerService {
          result =  editExpression(sql, selection, expression, columnName, columnAlias);
       }
 
+      // a structure edit, regenerate the sql string (Bug #77487)
+      sql.clearSQLString();
       saveRuntimeQuery(runtimeQuery);
       return result;
    }
@@ -1473,9 +1624,12 @@ public class QueryManagerService {
          String folder = logicalModel.getFolder();
          // the stored form of the logical model permission (Bug #77400)
          String resource = XUtil.getLogicalModelResourceName(dataSource, folder, lmodel);
+         // a model in the root folder has no data model folder, its parent is the data source
+         boolean root = Tool.isEmptyString(folder);
+         ResourceType parentType = root ? ResourceType.DATA_SOURCE : ResourceType.DATA_MODEL_FOLDER;
+         String parent = root ? dataSource : dataSource + "/" + folder;
          allowed = securityEngine != null &&
-            securityEngine.checkPermission(principal, ResourceType.DATA_MODEL_FOLDER,
-                                           dataSource + "/" + folder, ResourceAction.READ) &&
+            securityEngine.checkPermission(principal, parentType, parent, ResourceAction.READ) &&
             securityEngine.checkPermission(principal, ResourceType.QUERY, resource,
                                            ResourceAction.READ);
       }
@@ -1552,6 +1706,92 @@ public class QueryManagerService {
             "Unauthorized access to cube \"" + cube + "\" by user " +
             (principal == null ? null : principal.getName()));
       }
+   }
+
+   /**
+    * Checks a table name that an authoring or data browsing endpoint is about to resolve in a
+    * viewsheet. A cube table name (<tt>___inetsoft_cube_&lt;data source&gt;/&lt;cube&gt;</tt>) is
+    * resolved by the worksheet straight from the data source, outside the base worksheet and
+    * without a permission check, so it requires READ on its data source and the cube READ
+    * that the asset tree's cube listing requires. Any other name is a table of the base
+    * worksheet, whose source is checked when it is bound, and is not checked here. Callers
+    * must not call this for a table that is already bound, so an existing viewsheet keeps
+    * working (Bug #77427).
+    *
+    * @param tableName the table name, or null.
+    * @param principal the current user.
+    *
+    * @throws java.lang.SecurityException if a permission is not granted.
+    */
+   public void checkCubeTableReadPermission(String tableName, Principal principal) {
+      if(tableName == null || !tableName.startsWith(Assembly.CUBE_VS)) {
+         return;
+      }
+
+      // parsed the same way as Worksheet.getCubeTableAssembly
+      String name = tableName.substring(Assembly.CUBE_VS.length());
+      int idx = name.lastIndexOf('/');
+
+      if(idx < 0) {
+         return;
+      }
+
+      String dataSource = name.substring(0, idx);
+      String cube = name.substring(idx + 1);
+      checkDataSourceReadPermission(dataSource, principal);
+      checkCubeReadPermission(dataSource, cube, principal);
+   }
+
+   /**
+    * Checks <tt>newTable</tt> as {@link #checkCubeTableReadPermission} does, unless it is the
+    * already bound <tt>oldTable</tt> (Bug #77427).
+    *
+    * @throws java.lang.SecurityException if a permission is not granted.
+    */
+   public void checkNewCubeTableReadPermission(String newTable, String oldTable,
+                                               Principal principal)
+   {
+      if(!Tool.equals(newTable, oldTable)) {
+         checkCubeTableReadPermission(newTable, principal);
+      }
+   }
+
+   /**
+    * Checks the cube table names in <tt>newTables</tt> that are not in <tt>oldTables</tt>, as
+    * {@link #checkCubeTableReadPermission} does. A table that is already bound is not checked
+    * (Bug #77427).
+    *
+    * @throws java.lang.SecurityException if a permission is not granted.
+    */
+   public void checkNewCubeTablesReadPermission(Collection<String> newTables,
+                                                Collection<String> oldTables,
+                                                Principal principal)
+   {
+      if(newTables == null) {
+         return;
+      }
+
+      for(String table : newTables) {
+         if(oldTables == null || !oldTables.contains(table)) {
+            checkCubeTableReadPermission(table, principal);
+         }
+      }
+   }
+
+   /**
+    * Checks the first and additional tables of a selection that are not in
+    * <tt>oldTables</tt>, as {@link #checkCubeTableReadPermission} does (Bug #77427).
+    *
+    * @throws java.lang.SecurityException if a permission is not granted.
+    */
+   public void checkNewCubeTablesReadPermission(String firstTable,
+                                                Collection<String> additionalTables,
+                                                Collection<String> oldTables,
+                                                Principal principal)
+   {
+      checkNewCubeTablesReadPermission(
+         Collections.singletonList(firstTable), oldTables, principal);
+      checkNewCubeTablesReadPermission(additionalTables, oldTables, principal);
    }
 
    /**
@@ -1923,6 +2163,17 @@ public class QueryManagerService {
       runtimeQuery.setMetadata(parseResult);
       SQLDefinition sqlDefinition = query.getSQLDefinition();
       UniformSQL sql = (UniformSQL) sqlDefinition;
+      GetColumnInfoResult result = new GetColumnInfoResult();
+
+      // Bug #77496, the "Parse SQL" checkbox is client-only until a parse/save call, so the
+      // runtime sql may still be parse-on here. Don't re-parse it or clear its selection: the
+      // client still holds the parsed model, and the next parse/save with parse off applies the
+      // column info from runtimeQuery.getMetadata() (see parseSqlString).
+      if(sql.isParseSQL()) {
+         result.setHasColumnInfo(parseResult != null && parseResult.getChildCount() > 0);
+         runtimeQueryService.saveRuntimeQuery(runtimeQuery);
+         return result;
+      }
 
       synchronized(sql) {
          sql.setSQLString(sqlString);
@@ -1936,8 +2187,6 @@ public class QueryManagerService {
             }
          }
       }
-
-      GetColumnInfoResult result = new GetColumnInfoResult();
 
       if(parseResult != null && parseResult.getChildCount() > 0) {
          XField[] flds = new XField[parseResult.getChildCount()];
@@ -2174,7 +2423,9 @@ public class QueryManagerService {
 
       UniformSQL sql = (UniformSQL) query.getSQLDefinition();
 
-      if(sql.isParseSQL() && !sql.isLossy()) {
+      // only regenerate the preview sql when the structure fully represents the sql string,
+      // a refused or partial parse holds only part of the query (e.g. part of the FROM list)
+      if(!isSqlOnly(sql)) {
          query = query.clone();
          sql = (UniformSQL) query.getSQLDefinition();
          sql.clearSQLString();
@@ -3056,4 +3307,6 @@ public class QueryManagerService {
    private final DataSourceService dataSourceService;
    private final ColumnCache columnCache;
    private static final Logger LOG = LoggerFactory.getLogger(QueryManagerService.class);
+   // compares the condition pane items of the client with the ones of the current structure
+   private static final ObjectMapper CONDITION_MAPPER = new ObjectMapper();
 }

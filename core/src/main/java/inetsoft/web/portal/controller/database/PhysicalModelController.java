@@ -82,9 +82,11 @@ public class PhysicalModelController {
    ))
    @GetMapping("/api/data/physicalModel/checkDuplicate")
    public boolean checkLogicalModelDuplicate(@RequestParam("database") String database,
-                                             @RequestParam("name") String name)
+                                             @RequestParam("name") String name,
+                                             Principal principal)
       throws Exception
    {
+      dataSourceService.checkDataSourceReadPermission(database, principal);
       return dataSourceService.isUniqueModelName(database, name);
    }
 
@@ -96,9 +98,11 @@ public class PhysicalModelController {
    @GetMapping("/api/data/physicalModel/extended/checkDuplicate")
    public boolean checkExtendedModelDuplicate(@RequestParam("database") String database,
                                               @RequestParam("parent") String parent,
-                                              @RequestParam("name") String name)
+                                              @RequestParam("name") String name,
+                                              Principal principal)
       throws Exception
    {
+      dataSourceService.checkDataSourceReadPermission(database, principal);
       return !dataSourceService.isUniqueExtendedPhysicalModelName(database, parent, name);
    }
 
@@ -620,8 +624,10 @@ public class PhysicalModelController {
       method = RequestMethod.GET)
    public boolean supportFullOuterJoin(
       @RequestParam("database") String database,
-      @RequestParam(value = "additional", required = false) String additional) throws Exception
+      @RequestParam(value = "additional", required = false) String additional,
+      Principal principal) throws Exception
    {
+      dataSourceService.checkDataModelEditPermission(database, additional, principal);
       JDBCDataSource dataSource = (JDBCDataSource) dataSourceService
          .getDataSource(database);
 

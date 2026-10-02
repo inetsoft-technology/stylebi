@@ -145,6 +145,25 @@ public class DataSourceService {
    }
 
    /**
+    * Checks that the current user may read a data source, which the Data tab requires before it
+    * shows the source or any of its models and folders. Used by the name checks and dialect
+    * settings of the Data tab dialogs, whose every legitimate caller has this right.
+    *
+    * @param databasePath the database path.
+    * @param principal    current login user.
+    *
+    * @throws SecurityException if the user does not have the required permission.
+    */
+   public void checkDataSourceReadPermission(String databasePath, Principal principal)
+      throws Exception
+   {
+      if(!checkPermission(databasePath, ResourceAction.READ, principal)) {
+         throw new SecurityException(
+            "Unauthorized access to resource \"" + databasePath + "\" by user " + principal);
+      }
+   }
+
+   /**
     * Check if a data source with the given name is already present.
     * @param name the name to check
     * @return  true if a data source with that name is present

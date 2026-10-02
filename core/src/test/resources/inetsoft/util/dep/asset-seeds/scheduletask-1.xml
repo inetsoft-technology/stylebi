@@ -1,0 +1,15 @@
+<ScheduleTask><Task name="FuzzSeed-1" owner="admin~;~host-org" enabled="true" editable="true" removable="true" delNotRun="false" durable="false" path="/" lastModified="1790802845265" type="NORMAL_TASK">
+<Condition type="TimeCondition" timeType="1" timezone="-18000000:America/New_York" hour="1" minute="30" second="0" hour_end="23" minute_end="-1" second_end="-1" weekday="false" interval="1"></Condition><Action type="Viewsheet" viewsheet="1^128^__NULL__^Examples/Sales Summary^host-org" bookmarkReadOnly="false">
+<MailTo  email="fuzzseed@example.com" from="reportserver@example.com" ccAddresses="" bccAddresses="" format="Excel" compressFile="false" matched="true" expandSelections="false" onlyDataComponents="false" exportAllTabbedTables="false" useCredential="false" messageHtml="true" attachmentName="Examples_Sales_Summary" subject="">
+<message><![CDATA[]]></message>
+</MailTo>
+<Bookmark name="(Home)" type="1" user="admin~;~host-org"/>
+<LinkURI uri="http://localhost:8080/sree/"></LinkURI>
+<Notify email="" onError="false" link="false"/>
+<Deliver deliverLink="false"/>
+<SaveToServer match="true" expandSelections="false" saveExportAllTabbedTables="false" onlyDataComponents="false"/>
+<Request>
+</Request>
+</Action>
+</Task>
+</ScheduleTask>

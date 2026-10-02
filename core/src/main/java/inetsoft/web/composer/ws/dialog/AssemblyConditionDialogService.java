@@ -27,6 +27,7 @@ import inetsoft.report.composition.event.AssetEventUtil;
 import inetsoft.report.composition.execution.AssetQuerySandbox;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
+import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.erm.DataRefWrapper;
 import inetsoft.uql.schema.UserVariable;
@@ -49,6 +50,7 @@ import inetsoft.web.composer.model.ws.MVConditionPaneModel;
 import inetsoft.web.composer.ws.WorksheetControllerService;
 import inetsoft.web.composer.ws.assembly.WorksheetEventUtil;
 import inetsoft.web.composer.ws.joins.JoinUtil;
+import inetsoft.web.portal.controller.database.QueryManagerService;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Service;
@@ -65,12 +67,14 @@ public class AssemblyConditionDialogService extends WorksheetControllerService {
                                          DataRefModelFactoryService dataRefModelFactoryService,
                                          XRepository xrepository,
                                          VSScriptableController scriptController,
-                                         DataSourceRegistry dataSourceRegistry)
+                                         DataSourceRegistry dataSourceRegistry,
+                                         QueryManagerService queryManagerService)
    {
       super(viewsheetService, dataSourceRegistry);
       this.dataRefModelFactoryService = dataRefModelFactoryService;
       this.xrepository = xrepository;
       this.scriptController = scriptController;
+      this.queryManagerService = queryManagerService;
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
@@ -79,6 +83,7 @@ public class AssemblyConditionDialogService extends WorksheetControllerService {
    {
       RuntimeWorksheet rws = super.getWorksheetEngine().getWorksheet(runtimeId, principal);
       Worksheet ws = rws.getWorksheet();
+      checkCubeTableReadPermission(principal, assemblyName);
       final TableAssembly tableAssembly = (TableAssembly) ws.getAssembly(assemblyName);
       return createAssemblyConditionDialogModel(rws, tableAssembly, principal);
    }
@@ -239,6 +244,7 @@ public class AssemblyConditionDialogService extends WorksheetControllerService {
       final String tableAssemblyName = Tool.byteDecode(assemblyName);
       RuntimeWorksheet rws = super.getRuntimeWorksheet(runtimeId, principal);
       Worksheet ws = rws.getWorksheet();
+      checkCubeTableReadPermission(principal, tableAssemblyName);
       final TableAssembly tableAssembly = (TableAssembly) ws.getAssembly(tableAssemblyName);
       updateByModel(rws, tableAssembly, tableAssemblyName, model, principal, commandDispatcher);
       return null;
@@ -277,6 +283,8 @@ public class AssemblyConditionDialogService extends WorksheetControllerService {
       ConditionList mvDeletePostConds = ConditionUtil.fromModelToConditionList(
          mvPaneModel.getDeletePostAggregateConditionList(), sourceInfo, super.getWorksheetEngine(),
          principal, rws);
+      checkSubqueryTables(ws, principal, preConds, postConds, rankConds, mvUpdatePreConds,
+                          mvUpdatePostConds, mvDeletePreConds, mvDeletePostConds);
       VSUtil.removeVariable(variableTable, (ConditionList) tableAssembly.getPreConditionList(), preConds);
       VSUtil.removeVariable(variableTable, (ConditionList) tableAssembly.getPostConditionList(), postConds);
       VSUtil.removeVariable(variableTable, (ConditionList) tableAssembly.getRankingConditionList(), rankConds);
@@ -342,10 +350,30 @@ public class AssemblyConditionDialogService extends WorksheetControllerService {
       AssetEventUtil.refreshTableLastModified(ws, assemblyName, true);
    }
 
+   /**
+    * Checks the tables that the subqueries of the conditions name, before the conditions are
+    * stored. A subquery resolves its table by name, so a cube table name in one is checked like
+    * any other client-supplied table name (Bug #77462).
+    */
+   private void checkSubqueryTables(Worksheet ws, Principal principal, ConditionList... lists) {
+      Set<AssemblyRef> refs = new HashSet<>();
+
+      for(ConditionList list : lists) {
+         AssetUtil.getConditionDependeds(ws, list, refs);
+      }
+
+      checkCubeTableReadPermission(
+         principal, refs.stream().map(ref -> ref.getEntry().getName()).toArray(String[]::new));
+   }
+
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public BrowseDataModel browseData(@ClusterProxyKey String runtimeId, String assemblyName, DataRefModel dataRefModel, Principal principal) throws Exception
    {
       RuntimeWorksheet rws = getWorksheetEngine().getWorksheet(runtimeId, principal);
+      // Worksheet.getAssembly resolves a cube table name from its data source, ahead of any
+      // worksheet table of that name and without a permission check, so it is checked
+      // (Bug #77427)
+      queryManagerService.checkCubeTableReadPermission(assemblyName, principal);
       BrowseDataController browseDataController = new BrowseDataController();
       DataRef dataRef = dataRefModel.createDataRef();
 
@@ -580,4 +608,5 @@ public class AssemblyConditionDialogService extends WorksheetControllerService {
    private DataRefModelFactoryService dataRefModelFactoryService;
    private XRepository xrepository;
    private VSScriptableController scriptController;
+   private final QueryManagerService queryManagerService;
 }

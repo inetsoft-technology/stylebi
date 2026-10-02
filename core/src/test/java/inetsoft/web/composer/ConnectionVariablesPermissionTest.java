@@ -31,6 +31,7 @@ import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.util.XUtil;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.util.ColumnCache;
+import inetsoft.util.ThreadContext;
 import inetsoft.web.composer.model.LoadAssetTreeNodesEvent;
 import inetsoft.web.composer.model.LoadAssetTreeNodesValidator;
 import inetsoft.web.composer.ws.assembly.VariableAssemblyModelInfo;
@@ -39,6 +40,7 @@ import inetsoft.web.viewsheet.event.CollectParametersOverEvent;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.function.Executable;
+import org.mockito.ArgumentCaptor;
 import org.mockito.MockedStatic;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
@@ -207,6 +209,122 @@ class ConnectionVariablesPermissionTest {
          ALLOWED.equals(ds.getFullName())), any());
       verify(repository).connect(same(session), eq(":" + ALLOWED), any());
       assertEquals("u", principal.getProperty(XUtil.DB_USER_PREFIX + ALLOWED));
+   }
+
+   // ---- Bug #77423: identity variables sent to set-connection-variables ----
+
+   private static final String[] IDENTITY_NAMES =
+      { "_USER_", "_ROLES_", "_GROUPS_", "__principal__" };
+   private static final String CUSTOM = "region";
+
+   private static List<VariableAssemblyModelInfo> identityAndCustom() {
+      List<VariableAssemblyModelInfo> vars = new ArrayList<>();
+
+      for(String name : IDENTITY_NAMES) {
+         vars.add(info(name, "alice"));
+      }
+
+      vars.add(info(CUSTOM, "east"));
+      return vars;
+   }
+
+   @Test
+   void identityVariablesNotWrittenToPrincipal() throws Exception {
+      treeController.setConnectionVariables(
+         CollectParametersOverEvent.builder().variables(identityAndCustom()).build(), principal);
+
+      for(String name : IDENTITY_NAMES) {
+         assertNull(principal.getParameter(name), name);
+      }
+
+      assertEquals("east", principal.getParameter(CUSTOM));
+   }
+
+   @Test
+   void identityVariablesNotPassedToTestOrConnect() throws Exception {
+      List<VariableAssemblyModelInfo> vars = identityAndCustom();
+      vars.add(info(XUtil.DB_USER_PREFIX + ALLOWED, "u"));
+      vars.add(info(XUtil.DB_PASSWORD_PREFIX + ALLOWED, "p"));
+
+      treeController.setConnectionVariables(
+         CollectParametersOverEvent.builder().variables(vars).build(), principal);
+
+      ArgumentCaptor<VariableTable> tested = ArgumentCaptor.forClass(VariableTable.class);
+      ArgumentCaptor<VariableTable> connected = ArgumentCaptor.forClass(VariableTable.class);
+      verify(repository).testDataSource(same(session), any(), tested.capture());
+      verify(repository).connect(same(session), eq(":" + ALLOWED), connected.capture());
+
+      for(VariableTable vtable : List.of(tested.getValue(), connected.getValue())) {
+         for(String name : IDENTITY_NAMES) {
+            assertFalse(vtable.contains(name), name);
+         }
+
+         assertEquals("east", vtable.get(CUSTOM));
+         assertEquals("p", vtable.get(XUtil.DB_PASSWORD_PREFIX + ALLOWED));
+      }
+
+      for(String name : IDENTITY_NAMES) {
+         assertNull(principal.getParameter(name), name);
+      }
+
+      assertEquals("east", principal.getParameter(CUSTOM));
+   }
+
+   @Test
+   void identityVariablesNotPrompted() throws Exception {
+      // a tabular source with $(_USER_) in a property lists _USER_ as a connection parameter
+      when(repository.getConnectionParameters(any(), eq(":" + ALLOWED)))
+         .thenReturn(new UserVariable[] { variable("_USER_"), variable(CUSTOM) });
+      AssetEntry entry = new AssetEntry(AssetRepository.QUERY_SCOPE, AssetEntry.Type.DATA_SOURCE,
+                                        ALLOWED, null);
+      entry.setProperty("prefix", ALLOWED);
+
+      LoadAssetTreeNodesValidator result = expand(entry);
+
+      assertNotNull(result.parameters());
+      assertEquals(List.of(CUSTOM),
+                   result.parameters().stream().map(VariableAssemblyModelInfo::getName).toList());
+   }
+
+   @Test
+   void onlyIdentityVariablesExpandWithoutPrompt() throws Exception {
+      // a tabular source whose only variable is $(_USER_) is expanded, not prompted
+      when(repository.getConnectionParameters(any(), eq(":" + ALLOWED)))
+         .thenReturn(new UserVariable[] { variable("_USER_") });
+      AssetEntry entry = new AssetEntry(AssetRepository.QUERY_SCOPE, AssetEntry.Type.DATA_SOURCE,
+                                        ALLOWED, null);
+      entry.setProperty("prefix", ALLOWED);
+
+      LoadAssetTreeNodesValidator result = expand(entry);
+
+      assertTrue(result.parameters() == null || result.parameters().isEmpty());
+      verify(assetRepository).getEntries(same(entry), same(principal), eq(ResourceAction.READ), any());
+   }
+
+   @Test
+   void identityVariablesResolveToCallerInTestAndConnect() throws Exception {
+      List<VariableAssemblyModelInfo> vars = identityAndCustom();
+      vars.add(info(XUtil.DB_PASSWORD_PREFIX + ALLOWED, "p"));
+      Principal oldPrincipal = ThreadContext.getContextPrincipal();
+      ThreadContext.setContextPrincipal(principal);
+
+      try {
+         treeController.setConnectionVariables(
+            CollectParametersOverEvent.builder().variables(vars).build(), principal);
+
+         ArgumentCaptor<VariableTable> tested = ArgumentCaptor.forClass(VariableTable.class);
+         ArgumentCaptor<VariableTable> connected = ArgumentCaptor.forClass(VariableTable.class);
+         verify(repository).testDataSource(same(session), any(), tested.capture());
+         verify(repository).connect(same(session), eq(":" + ALLOWED), connected.capture());
+
+         // $(_USER_) in the source resolves to the session user, not the client value
+         assertEquals("bob", tested.getValue().get("_USER_"));
+         assertEquals("bob", connected.getValue().get("_USER_"));
+         assertSame(principal, connected.getValue().get("__principal__"));
+      }
+      finally {
+         ThreadContext.setContextPrincipal(oldPrincipal);
+      }
    }
 
    // ---- B: asset tree, CUBE_TABLE entry ----

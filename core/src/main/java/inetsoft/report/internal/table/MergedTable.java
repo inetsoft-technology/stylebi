@@ -24,6 +24,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.Properties;
@@ -44,14 +45,27 @@ public class MergedTable {
 
       tables = new XTable[0];
       file = FileSystemService.getInstance().getCacheTempFile("mergedTable", "dat");
-      Properties prop = new Properties();
-      prop.setProperty(BTreeFile.CONFIG_PAGESIZE, "256");
-      prop.setProperty(BTreeFile.CONFIG_DIRTYSIZE_MAX, "131072");
-      btree = new BTreeFile(file, prop);
-      btree.setCached(true);
 
-      if(!btree.open(true)) {
-         throw new Exception("Can not open file: " + file);
+      // getCacheTempFile() logs an I/O error and returns null (bug #77524)
+      if(file == null) {
+         throw new IOException("Cannot create the cache temp file of a merged table");
+      }
+
+      try {
+         Properties prop = new Properties();
+         prop.setProperty(BTreeFile.CONFIG_PAGESIZE, "256");
+         prop.setProperty(BTreeFile.CONFIG_DIRTYSIZE_MAX, "131072");
+         btree = new BTreeFile(file, prop);
+         btree.setCached(true);
+
+         if(!btree.open(true)) {
+            throw new IOException("Can not open file: " + file);
+         }
+      }
+      catch(Exception ex) {
+         // remove the temp file now, don't leave it to the finalizer (bug #77524)
+         dispose();
+         throw ex;
       }
    }
 
@@ -261,16 +275,18 @@ public class MergedTable {
          disposed = true;
       }
 
-      try {
-         btree.close();
-      }
-      catch(Exception ex) {
-         LOG.error("Failed to close B-tree", ex);
+      // a constructor that failed leaves no btree or no file, and the instance is still
+      // finalized (bug #77524)
+      if(btree != null) {
+         try {
+            btree.close();
+         }
+         catch(Exception ex) {
+            LOG.error("Failed to close B-tree", ex);
+         }
       }
 
-      boolean removed = file.delete();
-
-      if(!removed) {
+      if(file != null && !file.delete()) {
          FileSystemService.getInstance().remove(file, 60000);
       }
    }

@@ -106,7 +106,8 @@ public class VSCalcTableDndService {
 
       // Handle source changed.
       if(sourceChanged(assembly, event.getTable())) {
-         assemblyInfoHandler.changeSource(assembly, event.getTable(), event.getSourceType());
+         assemblyInfoHandler.changeSource(assembly, event.getTable(), event.getSourceType(),
+                                          principal);
          CalcTableVSAssemblyInfo vsCalcTableInfo =
             (CalcTableVSAssemblyInfo) nassembly.getVSAssemblyInfo();
 

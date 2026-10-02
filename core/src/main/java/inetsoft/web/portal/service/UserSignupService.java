@@ -219,8 +219,16 @@ public class UserSignupService {
          }
       }
       else {
-         createUser(new IdentityID(userEmail, autoRegisterOrg), null, userEmail,
-            true, googleUserId, principal);
+         // the postprocessor runs after the SSO session was created, a failed save must not fail
+         // the login. The user isn't found on the next login, so the registration is retried then
+         try {
+            createUser(new IdentityID(userEmail, autoRegisterOrg), null, userEmail,
+                       true, googleUserId, principal);
+         }
+         catch(RuntimeException e) {
+            LOG.warn("Failed to register the SSO user {} in organization {}",
+                     userEmail, autoRegisterOrg, e);
+         }
       }
    }
 

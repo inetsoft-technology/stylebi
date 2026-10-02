@@ -152,8 +152,9 @@ class UniformSQLUsingJoinTest {
    }
 
    /**
-    * A correlated subquery with an outer USING join is refused like the ON form, since
-    * the subquery's joins are generated in its from clause and the correlation is lost.
+    * A correlated subquery with an outer USING join keeps its correlation in its where
+    * clause, as the ON form does (#77480), instead of joining the outer table in its
+    * from clause.
     */
    @ParameterizedTest
    @ValueSource(strings = {
@@ -161,14 +162,14 @@ class UniformSQLUsingJoinTest {
          "(select 1 from c left join d using (id) where c.id = a.id)",
       "select a.x from a where exists (select 1 from c left join b using (id) where c.id = a.id)"
    })
-   void correlatedSubqueryWithOuterUsingJoinFailsCleanly(String text) {
-      RecognitionException ex = assertThrows(RecognitionException.class, () -> parse(text));
-      assertTrue(ex.getMessage().contains("Unsupported join to a table outside the from clause"),
-                 ex.getMessage());
+   void correlatedSubqueryWithOuterUsingJoinKeepsCorrelation(String text) throws Exception {
+      UniformSQL sql = parse(text);
+      assertEquals(UniformSQL.PARSE_SUCCESS, sql.getParseResult());
 
-      UniformSQL sql = new UniformSQL();
-      new SQLProcessor(sql).parse(text);
-      assertEquals(UniformSQL.PARSE_FAILED, sql.getParseResult());
+      String generated = normalize(sql.getSQLString());
+      assertTrue(generated.contains("LEFT OUTER JOIN") && generated.contains("where c.id = a.id)"),
+                 generated);
+      assertFalse(generated.contains("JOIN a "), generated);
    }
 
    /**
@@ -184,7 +185,19 @@ class UniformSQLUsingJoinTest {
       "select a.x, c.z from a left join b on a.id = b.id join c using (k)",
       "select a.x, c.z from a join b using (id) left join c using (id)",
       "select b.y, c.z from a right join b using (id) left join c using (id)",
-      "select a.x, t.z from (select b.id, c.z from b left join c using (id)) t left join a using (id)"
+      "select a.x, t.z from (select b.id, c.z from b left join c using (id)) t left join a using (id)",
+      // a correlated subquery with an outer USING join
+      "select a.x from a join b using (id) where exists " +
+         "(select 1 from c left join d using (id) where c.id = a.id)",
+      "select a.x from a where exists (select 1 from c left join b using (id) where c.id = a.id)",
+      // an inner join filter between outer joined tables before a RIGHT USING join is not
+      // a where condition (#77478)
+      "select a.x, b.y, c.z, d.w from a left join b on a.id = b.id " +
+         "join c on c.k = b.k and b.y = a.x right join d using (z)",
+      "select a.x, b.y, c.z, d.w from a left join b using (id) " +
+         "join c on c.k = b.k and b.y = a.x right join d using (z)",
+      "select a.x, b.y, c.z, d.w from a left join b on a.id = b.id " +
+         "join c on c.k = b.k and b.y = a.x left join d using (z)"
    })
    void usingJoinGeneratesSameRows(String text) throws Exception {
       String generated = normalize(parse(text).getSQLString());
@@ -197,7 +210,7 @@ class UniformSQLUsingJoinTest {
 
    private static void createTables(Connection conn) throws SQLException {
       try(Statement stmt = conn.createStatement()) {
-         for(String table : new String[] { "a", "b", "c" }) {
+         for(String table : new String[] { "a", "b", "c", "d" }) {
             try {
                stmt.execute("drop table " + table);
             }
@@ -209,9 +222,11 @@ class UniformSQLUsingJoinTest {
          stmt.execute("create table a (id int, x int)");
          stmt.execute("create table b (id int, k int, y int)");
          stmt.execute("create table c (id int, k int, z int)");
+         stmt.execute("create table d (id int, z int, w int)");
          stmt.execute("insert into a values (1, 10), (2, 20), (3, 30)");
          stmt.execute("insert into b values (1, 5, 100), (2, 6, 200), (4, 7, 400)");
          stmt.execute("insert into c values (1, 5, 1000), (4, 6, 4000)");
+         stmt.execute("insert into d values (1, 1000, 1), (2, 9000, 2)");
       }
    }
 

@@ -125,6 +125,7 @@
     <mat-tab label="_#(Options)">
       <em-task-options-pane [timeZoneOptions]="model?.timeZoneOptions"
         [model]="model?.taskOptionsPaneModel" [internal]="model?.internalTask"
+        [originalOwner]="originalModel?.taskOptionsPaneModel?.owner"
         (modelChanged)="onOptionsChanged($event)"
         >
       </em-task-options-pane>

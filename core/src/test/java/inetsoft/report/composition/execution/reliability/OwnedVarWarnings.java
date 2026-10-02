@@ -95,6 +95,27 @@ final class OwnedVarWarnings {
    }
 
    /**
+    * Start recording the warnings of every thread, e.g. of a table several threads read: a
+    * shared table's rows are computed by whichever reader gets there first, so its warnings
+    * belong to the whole read, not to one thread. One such recording at a time;
+    * {@link Recording#close()} stops it. Threads that record for themselves still do.
+    */
+   static Recording recordAllThreads() {
+      install();
+      Recording recording = new Recording();
+
+      synchronized(OwnedVarWarnings.class) {
+         if(all != null) {
+            throw new IllegalStateException("already recording every thread");
+         }
+
+         all = recording;
+      }
+
+      return recording;
+   }
+
+   /**
     * @return the warnings logged on a thread that was not recording, e.g. by a thread a run
     * did not expect to read its vars.
     */
@@ -116,6 +137,15 @@ final class OwnedVarWarnings {
       }
 
       /**
+       * @return the warnings per kind of loss (a var's kind as {@link #lost()} gives it).
+       */
+      Map<String, Integer> kinds() {
+         synchronized(lost) {
+            return new LinkedHashMap<>(kinds);
+         }
+      }
+
+      /**
        * @return the warnings per var (TableRowScope logs one per var of a table).
        */
       Map<String, Integer> counts() {
@@ -126,6 +156,13 @@ final class OwnedVarWarnings {
 
       @Override
       public void close() {
+         synchronized(OwnedVarWarnings.class) {
+            if(all == this) {
+               all = null;
+               return;
+            }
+         }
+
          RECORDINGS.remove(Thread.currentThread(), this);
       }
 
@@ -133,11 +170,13 @@ final class OwnedVarWarnings {
          synchronized(lost) {
             lost.putIfAbsent(var, kind);
             counts.merge(var, 1, Integer::sum);
+            kinds.merge(kind, 1, Integer::sum);
          }
       }
 
       private final Map<String, String> lost = new LinkedHashMap<>();
       private final Map<String, Integer> counts = new LinkedHashMap<>();
+      private final Map<String, Integer> kinds = new LinkedHashMap<>();
    }
 
    private static final class Capture extends AppenderBase<ILoggingEvent> {
@@ -149,8 +188,9 @@ final class OwnedVarWarnings {
 
          Object[] args = event.getArgumentArray();
          Recording recording = RECORDINGS.get(Thread.currentThread());
+         Recording every = all;
 
-         if(recording == null || args == null || args.length == 0) {
+         if(recording == null && every == null || args == null || args.length == 0) {
             UNATTRIBUTED.incrementAndGet();
             return;
          }
@@ -161,7 +201,14 @@ final class OwnedVarWarnings {
          String kind = message.contains("another thread") ? HOME_IN_USE
             : message.contains("holds a Date") ? "a Date " + args[1]
             : args.length > 1 ? String.valueOf(args[1]) : message;
-         recording.add(String.valueOf(args[0]), kind);
+
+         if(recording != null) {
+            recording.add(String.valueOf(args[0]), kind);
+         }
+
+         if(every != null) {
+            every.add(String.valueOf(args[0]), kind);
+         }
       }
    }
 
@@ -171,6 +218,8 @@ final class OwnedVarWarnings {
    private static final Capture APPENDER = new Capture();
    // the logger's level and additivity before install()
    private static Object[] saved;
+   // the recording of every thread's warnings, if any
+   private static volatile Recording all;
    private static final Map<Thread, Recording> RECORDINGS = new ConcurrentHashMap<>();
    private static final AtomicLong UNATTRIBUTED = new AtomicLong();
 }

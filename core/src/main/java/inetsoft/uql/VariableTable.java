@@ -929,7 +929,16 @@ public class VariableTable implements ContentObject, Serializable, Cloneable {
                else {
                   generator.writeObjectFieldStart(entry.getKey());
                   generator.writeStringField("type", entry.getValue().getClass().getName());
-                  generator.writeObjectField("value", entry.getValue());
+                  generator.writeFieldName("value");
+                  writeValue(entry.getValue(), generator);
+
+                  // the elements of a multi-value parameter have no type in the value, they
+                  // are kept in a field that the reader before Bug #77472 ignores
+                  if(entry.getValue().getClass() == Object[].class) {
+                     generator.writeFieldName("elementTypes");
+                     writeElementTypes((Object[]) entry.getValue(), generator);
+                  }
+
                   generator.writeEndObject();
                }
             }
@@ -966,6 +975,48 @@ public class VariableTable implements ContentObject, Serializable, Cloneable {
          generator.writeNumberField("copyParameterTS", table.copyParameterTS);
          generator.writeEndObject();
       }
+
+      private static void writeValue(Object value, JsonGenerator generator) throws IOException {
+         // a decimal number is read back as a double, a string keeps the scale and precision
+         if(value instanceof java.math.BigDecimal) {
+            generator.writeString(value.toString());
+         }
+         else if(value instanceof Object[] array) {
+            generator.writeStartArray();
+
+            for(Object element : array) {
+               writeValue(element, generator);
+            }
+
+            generator.writeEndArray();
+         }
+         else {
+            generator.writeObject(value);
+         }
+      }
+
+      // a nested Object[] is written as the array of its element types
+      private static void writeElementTypes(Object[] array, JsonGenerator generator)
+         throws IOException
+      {
+         generator.writeStartArray();
+
+         for(Object element : array) {
+            String type = element == null ? null : element.getClass().getName();
+
+            if(element != null && element.getClass() == Object[].class) {
+               writeElementTypes((Object[]) element, generator);
+            }
+            else if(type != null && Deserializer.VALUE_TYPES.containsKey(type)) {
+               generator.writeString(type);
+            }
+            else {
+               generator.writeNull();
+            }
+         }
+
+         generator.writeEndArray();
+      }
    }
 
    public static final class Deserializer extends StdDeserializer<VariableTable> {
@@ -988,17 +1039,29 @@ public class VariableTable implements ContentObject, Serializable, Cloneable {
             }
             else if(e.getValue().get("type") != null) {
                String type = e.getValue().get("type").asText();
-               Class<?> valueClass;
+               Class<?> valueClass = VALUE_TYPES.get(type);
 
-               try {
-                  valueClass = Class.forName(type);
-               }
-               catch(Exception ex) {
-                  throw new JsonMappingException(parser, "Failed to create class " + type, ex);
+               // the type name is never loaded, a value of any other type is kept as the
+               // plain JSON value (string, number, boolean, list or map)
+               if(valueClass == null) {
+                  LOG.debug("Variable {} has unsupported type {}", e.getKey(), type);
+                  valueClass = Object.class;
                }
 
                JsonNode valueNode = e.getValue().get("value");
-               Object value = ((ObjectMapper) parser.getCodec()).convertValue(valueNode, valueClass);
+               JsonNode elementTypes = e.getValue().get("elementTypes");
+               ObjectMapper mapper = (ObjectMapper) parser.getCodec();
+               Object value;
+
+               if(valueClass == Object[].class && valueNode != null && valueNode.isArray() &&
+                  elementTypes != null && elementTypes.isArray())
+               {
+                  value = readElements(valueNode, elementTypes, mapper);
+               }
+               else {
+                  value = mapper.convertValue(valueNode, valueClass);
+               }
+
                table.vartable.put(e.getKey(), value);
             }
          }
@@ -1029,5 +1092,56 @@ public class VariableTable implements ContentObject, Serializable, Cloneable {
          table.copyParameterTS = node.get("copyParameterTS").asLong();
          return table;
       }
+
+      // an element type is only looked up in VALUE_TYPES, an element without a known type
+      // or that can't be converted to it is kept as the plain JSON value
+      private static Object[] readElements(JsonNode array, JsonNode types, ObjectMapper mapper) {
+         Object[] elements = new Object[array.size()];
+
+         for(int i = 0; i < elements.length; i++) {
+            JsonNode element = array.get(i);
+            JsonNode type = types.get(i);
+
+            if(type != null && type.isArray() && element.isArray()) {
+               elements[i] = readElements(element, type, mapper);
+               continue;
+            }
+
+            Class<?> elementClass = type != null && type.isTextual() ?
+               VALUE_TYPES.get(type.asText()) : null;
+
+            if(elementClass != null && !element.isNull()) {
+               try {
+                  elements[i] = mapper.convertValue(element, elementClass);
+                  continue;
+               }
+               catch(IllegalArgumentException ex) {
+                  LOG.debug("Failed to convert element {} to {}", element, elementClass, ex);
+               }
+            }
+
+            elements[i] = mapper.convertValue(element, Object.class);
+         }
+
+         return elements;
+      }
+
+      private static Map<String, Class<?>> createTypeMap(Class<?>... types) {
+         Map<String, Class<?>> map = new HashMap<>();
+
+         for(Class<?> type : types) {
+            map.put(type.getName(), type);
+            map.put(type.arrayType().getName(), type.arrayType());
+         }
+
+         return Collections.unmodifiableMap(map);
+      }
+
+      // the parameter value types and their arrays, Object[] holds multi-value parameters
+      private static final Map<String, Class<?>> VALUE_TYPES = createTypeMap(
+         Object.class, String.class, Boolean.class, Character.class, Byte.class, Short.class,
+         Integer.class, Long.class, Float.class, Double.class, java.math.BigInteger.class,
+         java.math.BigDecimal.class, Date.class, java.sql.Date.class, java.sql.Time.class,
+         java.sql.Timestamp.class);
    }
 }

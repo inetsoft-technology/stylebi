@@ -37,7 +37,7 @@ public class GeoColorFrame extends ColorFrame {
     * @param color brush color.
     */
    public GeoColorFrame(Color color) {
-      this(color, CategoricalColorFrame.COLOR_PALETTE[0]);
+      this(color, CategoricalColorFrame.COLOR_PALETTE.get(0));
    }
 
    /**

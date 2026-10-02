@@ -63,8 +63,11 @@ class ScheduleTaskServiceSecretIdTest {
       securityEngine = mock(SecurityEngine.class);
       when(securityEngine.isSecurityEnabled()).thenReturn(true);
       scheduleManager = mock(ScheduleManager.class);
+      // the save checks the owner with the security provider (Bug #77405), the task owner is
+      // not a site admin
       service = new ScheduleTaskService(mock(AnalyticRepository.class), scheduleManager,
-                                        scheduleService, null, null, null, securityEngine);
+                                        scheduleService, null, mock(SecurityProvider.class),
+                                        null, securityEngine);
       principal = mock(XPrincipal.class);
       when(principal.getName()).thenReturn(new IdentityID("alice", "orga").convertToKey());
    }

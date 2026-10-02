@@ -157,6 +157,7 @@ public class XBinaryCondition extends XFilterNode {
       }
 
       this.setClause(getClause());
+      parseAttributes(node);
 
       NodeList nlist;
 
@@ -200,6 +201,20 @@ public class XBinaryCondition extends XFilterNode {
    }
 
    /**
+    * Write the attributes a subclass adds to the XML tag.
+    */
+   void writeAttributes(PrintWriter writer) {
+      // no attributes
+   }
+
+   /**
+    * Parse the attributes a subclass adds to the XML tag.
+    */
+   void parseAttributes(Element node) {
+      // no attributes
+   }
+
+   /**
     * Write XML definition.
     */
    @Override
@@ -210,6 +225,7 @@ public class XBinaryCondition extends XFilterNode {
       writer.print(" clause=" + "\"" + getClause() + "\"");
       boolean cnull = "true".equals(getAttribute("containsNull"));
       writer.print(" containsNull=" + "\"" + cnull + "\"");
+      writeAttributes(writer);
       writer.println(">");
 
       writer.println("<expression1>");
