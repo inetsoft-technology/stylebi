@@ -3270,7 +3270,15 @@ sub_qualified_join [UniformSQL sql] returns [String str = ""]
         :
         (
          (
-          ( c:NATURAL {str += " " + c.getText();})?
+          ( c:NATURAL {
+            // a natural join has no join columns in the text, and UniformSQL
+            // can't record one, so it would regenerate as a cross join
+            if(sql != null) {
+               throw new SemanticException("Unsupported natural join",
+                  getFilename(), c.getLine(), c.getColumn());
+            }
+
+            str += " " + c.getText();})?
           ( tmp = join_type { op = tmp + " JOIN";
           str += " " + tmp;})?
           d:JOIN {str += " " + d.getText(); }
