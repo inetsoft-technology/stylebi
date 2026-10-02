@@ -284,7 +284,7 @@ public class VSExportService {
                                Principal principal)
       throws Exception
    {
-      rvs.setProperty("__EXPORTING__", "true");
+      beginExport(rvs, principal);
 
       try {
          boolean expandEnabled = securityEngine.checkPermission(
@@ -300,7 +300,20 @@ public class VSExportService {
             embedded, onlyDataComponents, csvConfig, exportAllTabbedCrosstab, response, principal);
       }
       finally {
-         rvs.setProperty("__EXPORTING__", null);
+         rvs.endExport();
+      }
+   }
+
+   /**
+    * Claims the export of a runtime viewsheet, rejecting the request if another export of
+    * it is already in progress (Bug #77227). Shared with ExportControllerService so the
+    * viewer and API export paths cannot overlap on one runtime viewsheet. On success the
+    * caller must call {@link RuntimeViewsheet#endExport()} in a finally.
+    */
+   public static void beginExport(RuntimeViewsheet rvs, Principal principal) {
+      if(!rvs.beginExport()) {
+         throw new MessageException(Catalog.getCatalog(principal).getString(
+            "viewer.viewsheet.exporting"), LogLevel.INFO, false);
       }
    }
 
@@ -329,8 +342,14 @@ public class VSExportService {
          ChangedAssemblyList clist = this.coreLifecycleService.createList(false, d, rvs, null);
          // do not reset the form table.
          ViewsheetSandbox.exportRefresh.set(true);
-         coreLifecycleService.refreshViewsheet(rvs, rvs.getID(), null, d, false, true, true, clist);
-         ViewsheetSandbox.exportRefresh.set(false);
+
+         try {
+            coreLifecycleService.refreshViewsheet(rvs, rvs.getID(), null, d, false, true, true, clist);
+         }
+         finally {
+            ViewsheetSandbox.exportRefresh.set(false);
+         }
+
          return null;
       });
 

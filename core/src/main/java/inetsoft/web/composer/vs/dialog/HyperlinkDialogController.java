@@ -23,6 +23,7 @@ import inetsoft.sree.security.ResourceAction;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.*;
+import inetsoft.util.MessageException;
 import inetsoft.web.composer.model.TreeNodeModel;
 import inetsoft.web.composer.model.vs.*;
 import inetsoft.web.factory.RemainingPath;
@@ -31,6 +32,8 @@ import inetsoft.web.viewsheet.LoadingMask;
 import inetsoft.web.viewsheet.Undoable;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
 import inetsoft.web.viewsheet.service.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.handler.annotation.*;
 import org.springframework.stereotype.Controller;
@@ -105,8 +108,18 @@ public class HyperlinkDialogController {
       throws Exception
    {
       AssetEntry entry = AssetEntry.createAssetEntry(assetId);
-      Viewsheet vs = (Viewsheet)
-         assetRepository.getSheet(entry, principal, false, AssetContent.NO_DATA);
+      Viewsheet vs;
+
+      // the id is client supplied and its orgID is kept, so check READ (including the
+      // cross-org check) and treat a sheet the caller cannot read like a missing one
+      try {
+         vs = (Viewsheet)
+            assetRepository.getSheet(entry, principal, true, AssetContent.NO_DATA);
+      }
+      catch(MessageException ex) {
+         LOG.debug("Failed to read hyperlink target viewsheet: {}", assetId, ex);
+         return new String[0];
+      }
 
       if(vs == null) {
          return new String[0];
@@ -145,9 +158,24 @@ public class HyperlinkDialogController {
    @ResponseBody
    public List<String> getBookmarks(@RemainingPath String id, Principal principal) throws Exception
    {
-      IdentityID pId = IdentityID.getIdentityIDFromKey(principal.getName());
-      VSBookmarkInfo[] bookmarks = VSUtil.getBookmarks(id, pId);
       List<String> bookmarkNames = new ArrayList<>();
+      AssetEntry entry = AssetEntry.createAssetEntry(id);
+
+      if(entry == null) {
+         return bookmarkNames;
+      }
+
+      // the id is client supplied and its orgID is kept, so check READ (including the
+      // cross-org check) and list no bookmarks for a viewsheet the caller cannot read
+      try {
+         assetRepository.checkAssetPermission(principal, entry, ResourceAction.READ);
+      }
+      catch(MessageException ex) {
+         return bookmarkNames;
+      }
+
+      IdentityID pId = IdentityID.getIdentityIDFromKey(principal.getName());
+      VSBookmarkInfo[] bookmarks = VSUtil.getBookmarks(entry, pId);
 
       for(VSBookmarkInfo bookmark: bookmarks) {
          bookmarkNames.add(bookmark.getName() + "(" + VSUtil.getUserAlias(bookmark.getOwner()) + ")");
@@ -203,4 +231,5 @@ public class HyperlinkDialogController {
    private final HyperlinkDialogServiceProxy hyperlinkDialogServiceProxy;
    private final RepositoryTreeService repositoryTreeService;
    private final AssetRepository assetRepository;
+   private static final Logger LOG = LoggerFactory.getLogger(HyperlinkDialogController.class);
 }

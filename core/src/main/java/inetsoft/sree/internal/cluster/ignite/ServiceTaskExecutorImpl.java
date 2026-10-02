@@ -47,8 +47,27 @@ public class ServiceTaskExecutorImpl implements Service {
    @Override
    public void init() {
       // The queue is created by IgniteCluster.ensureServiceDeployed() before this service is
-      // started, so passing null here retrieves the existing distributed queue.
-      this.queue = ignite.queue(QUEUE_PREFIX + serviceId, 0, null);
+      // started, so passing null here retrieves the existing distributed queue. When all nodes
+      // use a new service id at the same moment, the queue may not be visible on this node yet
+      // (Bug #77383), so retry briefly. Deployment waits on init(), so the wait is bounded;
+      // execute() keeps looking for the queue if it is still missing.
+      for(int i = 0; i < INIT_QUEUE_ATTEMPTS && queue == null; i++) {
+         if(i > 0) {
+            try {
+               Thread.sleep(INIT_QUEUE_RETRY_MILLIS);
+            }
+            catch(InterruptedException e) {
+               Thread.currentThread().interrupt();
+               break;
+            }
+         }
+
+         queue = ignite.queue(QUEUE_PREFIX + serviceId, 0, null);
+      }
+
+      if(queue == null) {
+         warnQueueMissing();
+      }
    }
 
    @Override
@@ -59,9 +78,17 @@ public class ServiceTaskExecutorImpl implements Service {
 
       while(running) {
          try {
+            IgniteQueue<ServiceTaskRequest> taskQueue = getQueue();
+
+            if(taskQueue == null) {
+               // Tasks offered in the meantime stay in the distributed queue until it is found.
+               Thread.sleep(1000L);
+               continue;
+            }
+
             // poll() blocks until a task arrives or 1 second elapses, then returns
             // immediately — no artificial sleep between consecutive tasks.
-            ServiceTaskRequest request = queue.poll(1L, TimeUnit.SECONDS);
+            ServiceTaskRequest request = taskQueue.poll(1L, TimeUnit.SECONDS);
 
             if(request != null) {
                processRequest(request, loader);
@@ -69,6 +96,10 @@ public class ServiceTaskExecutorImpl implements Service {
          }
          catch(IgniteInterruptedException e) {
             // Normal service shutdown — Ignite interrupted the thread when the node stopped.
+            Thread.currentThread().interrupt();
+            break;
+         }
+         catch(InterruptedException e) {
             Thread.currentThread().interrupt();
             break;
          }
@@ -116,6 +147,44 @@ public class ServiceTaskExecutorImpl implements Service {
       }
    }
 
+   /**
+    * Gets the task queue, looking it up again if it was not found yet or has been removed. The
+    * lookup passes a null configuration so that it follows the queue the submitters created
+    * instead of creating a separate one.
+    */
+   private IgniteQueue<ServiceTaskRequest> getQueue() {
+      if(queue != null && queue.removed()) {
+         queue = null;
+      }
+
+      if(queue == null) {
+         queue = ignite.queue(QUEUE_PREFIX + serviceId, 0, null);
+
+         if(queue == null) {
+            warnQueueMissing();
+         }
+         else if(queueMissing) {
+            queueMissing = false;
+            lastQueueMissingWarning = 0L;
+            LOG.info("Found the task queue for service {}, resuming", serviceId);
+         }
+      }
+
+      return queue;
+   }
+
+   private void warnQueueMissing() {
+      queueMissing = true;
+      long now = System.currentTimeMillis();
+
+      if(now - lastQueueMissingWarning >= QUEUE_MISSING_WARNING_INTERVAL) {
+         lastQueueMissingWarning = now;
+         LOG.warn(
+            "The task queue {} for service {} was not found on this node, tasks submitted to " +
+            "the service will wait until it is found", QUEUE_PREFIX + serviceId, serviceId);
+      }
+   }
+
    private void sendResult(ServiceTaskRequest request, ServiceTaskResult result) {
       try {
          ignite.message(ignite.cluster().forNodeId(request.getCallerNodeId()))
@@ -133,11 +202,17 @@ public class ServiceTaskExecutorImpl implements Service {
    // Ignite messaging topic used to deliver task results back to the caller node.
    static final String RESULT_TOPIC = IgniteCluster.class.getName() + ".serviceTaskResult";
 
+   private static final int INIT_QUEUE_ATTEMPTS = 5;
+   private static final long INIT_QUEUE_RETRY_MILLIS = 200L;
+   private static final long QUEUE_MISSING_WARNING_INTERVAL = TimeUnit.MINUTES.toMillis(1L);
+
    @IgniteInstanceResource
    private transient Ignite ignite;
 
    private volatile boolean running;
-   private transient IgniteQueue<ServiceTaskRequest> queue;
+   private transient volatile IgniteQueue<ServiceTaskRequest> queue;
+   private transient volatile boolean queueMissing;
+   private transient volatile long lastQueueMissingWarning;
    private final String serviceId;
 
    private static final Logger LOG = LoggerFactory.getLogger(ServiceTaskExecutorImpl.class);

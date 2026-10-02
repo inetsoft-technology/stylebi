@@ -2185,34 +2185,7 @@ public final class Tool extends CoreTool {
     * Create a temporary file in the cache directory.
     */
    public static File getCacheTempFile(String prefix, String suffix) {
-      String cdir = getCacheDirectory();
-      long findex = System.currentTimeMillis();
-      prefix = Tool.toFileName(prefix);
-      File file = new File(cdir, prefix + findex++ + "." + suffix);
-
-      while(true) {
-         try {
-            if(file.createNewFile()) {
-               break;
-            }
-         }
-         catch(IOException ex) {
-            // this should not happen and we should terminate here
-            // otherwise it may stuck in an infinite loop
-            LOG.error(
-                        "Creating temp file caused IO Error: " + file, ex);
-            return null;
-         }
-         catch(Exception ex) {
-            LOG.error(
-                        "Failed to create temp file: " + file, ex);
-            return null;
-         }
-
-         file = new File(cdir, prefix + findex++ + "." + suffix);
-      }
-
-      return file;
+      return FileSystemService.getInstance().getCacheTempFile(prefix, suffix);
    }
 
    public static boolean isMyReport(String path) {
@@ -4052,6 +4025,44 @@ public final class Tool extends CoreTool {
    }
 
    /**
+    * Load a class named in stored or imported data, such as an asset XML
+    * <tt>class</tt> attribute, and check that it is the expected type before
+    * it is initialized or constructed. The class is loaded by the core class
+    * loader without running its static initializer, and it is not instantiated.
+    *
+    * @param name     the class name.
+    * @param expected the type the named class must extend or implement.
+    *
+    * @return the loaded class.
+    *
+    * @throws ClassNotFoundException if the class could not be found.
+    * @throws ClassCastException     if the class is not a subtype of the expected type.
+    */
+   public static <T> Class<? extends T> loadSubclass(String name, Class<T> expected)
+      throws ClassNotFoundException
+   {
+      return checkSubclass(Class.forName(name, false, Tool.class.getClassLoader()), expected);
+   }
+
+   /**
+    * Check that a loaded class is a subtype of the expected type.
+    *
+    * @param cls      the loaded class.
+    * @param expected the type the class must extend or implement.
+    *
+    * @return the class as a subclass of the expected type.
+    *
+    * @throws ClassCastException if the class is not a subtype of the expected type.
+    */
+   public static <T> Class<? extends T> checkSubclass(Class<?> cls, Class<T> expected) {
+      if(!expected.isAssignableFrom(cls)) {
+         throw new ClassCastException(cls.getName() + " is not a " + expected.getName());
+      }
+
+      return cls.asSubclass(expected);
+   }
+
+   /**
     * Convert user specifield file name.
     */
    public static String convertUserFileName(String fname) {
@@ -4456,11 +4467,18 @@ public final class Tool extends CoreTool {
    }
 
    public static void dumpAllThreads() {
+      dumpAllThreads(System.err);
+   }
+
+   /**
+    * Print the stack traces of all threads, e.g. into a lock stall dump (bug #76967).
+    */
+   public static void dumpAllThreads(PrintStream out) {
       ThreadInfo[] threads = ManagementFactory.getThreadMXBean().dumpAllThreads(true, true);
       Arrays.sort(threads, Comparator.comparing(ThreadInfo::getThreadName));
 
       for(ThreadInfo info : threads) {
-         System.err.print(getThreadInfoStr(info));
+         out.print(getThreadInfoStr(info));
       }
    }
 

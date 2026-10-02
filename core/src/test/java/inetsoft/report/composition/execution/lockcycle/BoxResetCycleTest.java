@@ -28,7 +28,6 @@ import inetsoft.uql.Condition;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.util.script.ScriptEnv;
 import org.junit.jupiter.api.*;
-import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
@@ -85,12 +84,10 @@ public class BoxResetCycleTest {
 
    /**
     * Bug #76961: the sandbox is reset or disposed after the filter was built, and optionally
-    * gets a new env. Flips to active when PR #5548 merges.
+    * gets a new env. Fixed by PR #5548: the filter locks the env it was built with.
     */
    @ParameterizedTest
    @EnumSource(After.class)
-   @Tag("known-deadlock")
-   @EnabledIfSystemProperty(named = "lockcycle.known", matches = "true")
    public void boxChangedAfterBuild(After after) throws Exception {
       Setup setup = setup();
 
@@ -111,7 +108,7 @@ public class BoxResetCycleTest {
          throw new IllegalArgumentException(after.name());
       }
 
-      race(setup, KNOWN_CAP);
+      race(setup, ACTIVE_CAP);
    }
 
    private static Setup setup() throws Exception {
@@ -120,6 +117,12 @@ public class BoxResetCycleTest {
       Field field = AssetQuerySandbox.class.getDeclaredField("lock");
       field.setAccessible(true);
       field.set(setup.box, new Object());
+
+      // pinned to pool off (bug #76960, spec §14.9): this case asserts the filter takes the
+      // captured env's lock; PoolModeCycleTest.boxResetPooled is its pool-on equivalent.
+      // The assertion documents intent: the mock skips field initializers, so the box's
+      // pool mode is always off here and it cannot fail.
+      assertFalse(setup.box.isScriptPoolMode());
 
       // AssetQuery builds the formula lens with box.getScriptEnv() before the filter
       setup.env = setup.box.getScriptEnv();

@@ -20,9 +20,11 @@ package inetsoft.graph.scale;
 import inetsoft.graph.data.DefaultDataSet;
 import inetsoft.graph.element.GraphtDataSelector;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+@Tag("core")
 class LinearRangeTest {
 
    // Build a single-column dataset with column "value"
@@ -78,12 +80,13 @@ class LinearRangeTest {
    // ---- Empty dataset ----
 
    @Test
-   void emptyDataSetReturnsZeroRange() {
+   void emptyDataSetReturnsNaNSentinel() {
       DefaultDataSet data = new DefaultDataSet(new Object[][]{{"value"}});
       LinearRange range = new LinearRange();
       double[] result = range.calculate(data, new String[]{"value"}, null);
-      assertEquals(0.0, result[0]);
-      assertEquals(0.0, result[1]);
+      // no usable data -> {NaN, NaN} sentinel (Bug #74473), not {0, 0}
+      assertTrue(Double.isNaN(result[0]));
+      assertTrue(Double.isNaN(result[1]));
    }
 
    // ---- Null value filtering ----
@@ -98,12 +101,13 @@ class LinearRangeTest {
    }
 
    @Test
-   void allNullValuesReturnZeroRange() {
+   void allNullValuesReturnNaNSentinel() {
       DefaultDataSet data = singleCol(null, null, null);
       LinearRange range = new LinearRange();
       double[] result = range.calculate(data, new String[]{"value"}, null);
-      assertEquals(0.0, result[0]);
-      assertEquals(0.0, result[1]);
+      // no usable data -> {NaN, NaN} sentinel (Bug #74473), not {0, 0}
+      assertTrue(Double.isNaN(result[0]));
+      assertTrue(Double.isNaN(result[1]));
    }
 
    @Test
@@ -132,14 +136,15 @@ class LinearRangeTest {
    }
 
    @Test
-   void selectorRejectsAllRowsReturnsZeroRange() {
+   void selectorRejectsAllRowsReturnsNaNSentinel() {
       DefaultDataSet data = singleCol(1.0, 2.0, 3.0);
       LinearRange range = new LinearRange();
       String[] cols = new String[]{"value"};
       GraphtDataSelector selector = (ds, row, c) -> false; // reject all
       double[] result = range.calculate(data, cols, selector);
-      assertEquals(0.0, result[0]);
-      assertEquals(0.0, result[1]);
+      // no usable data -> {NaN, NaN} sentinel (Bug #74473), not {0, 0}
+      assertTrue(Double.isNaN(result[0]));
+      assertTrue(Double.isNaN(result[1]));
    }
 
    @Test

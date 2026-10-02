@@ -22,6 +22,7 @@ import inetsoft.report.script.TableRowScope;
 import inetsoft.sree.security.OrganizationManager;
 import inetsoft.util.script.*;
 import inetsoft.util.script.graal.ScriptScope;
+import inetsoft.util.stall.LockStallException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -158,16 +159,28 @@ public class FormulaEvaluator {
          }
 
          DEPTH.set(DEPTH.get() + 1);
+         // a table formula expression is written by end users, run it restricted (bug #77396)
+         boolean restricted = FormulaContext.isRestricted();
 
          try {
+            FormulaContext.setRestricted(true);
             Object rc = senv.exec(script, scope, scope, null);
             return JavaScriptEngine.unwrap(rc);
          }
          finally {
+            FormulaContext.setRestricted(restricted);
             DEPTH.set(DEPTH.get() - 1);
          }
       }
       catch(Exception ex) {
+         // a stalled table has no value to return: a stall under a rowValue[...] read must not
+         // turn into a null value or a false row condition (#77123)
+         LockStallException stall = LockStallException.find(ex);
+
+         if(stall != null) {
+            throw stall;
+         }
+
          LOG.error("Failed to execute formula script: " + expr, ex);
       }
 

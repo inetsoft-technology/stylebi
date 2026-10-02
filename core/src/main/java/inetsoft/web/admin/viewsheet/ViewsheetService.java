@@ -17,13 +17,16 @@
  */
 package inetsoft.web.admin.viewsheet;
 
+import inetsoft.report.composition.RuntimeSheet;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.WorksheetEngine;
 import inetsoft.sree.internal.cluster.*;
 import inetsoft.sree.schedule.ScheduleClient;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.sree.security.OrganizationManager;
+import inetsoft.uql.XPrincipal;
 import inetsoft.uql.viewsheet.*;
+import inetsoft.util.ThreadContext;
 import inetsoft.util.Tool;
 import inetsoft.web.admin.monitoring.*;
 import inetsoft.web.admin.schedule.ScheduleMetrics;
@@ -159,7 +162,7 @@ public class ViewsheetService
 
    private void handleDestroyViewsheetMessage(DestroyViewsheetMessage reqMsg) {
       try {
-         destroy(reqMsg.getIds());
+         destroyClusterNodeViewsheets(null, reqMsg.getIds(), reqMsg.getOrgID());
       }
       catch(Exception e) {
          LOG.warn("Failed to destroy the viewsheet", e);
@@ -215,6 +218,14 @@ public class ViewsheetService
     * Destroy the viewsheet.
     */
    public void destroy(String id) throws Exception {
+      destroy(id, OrganizationManager.getInstance()
+              .getCurrentOrgID(ThreadContext.getContextPrincipal()));
+   }
+
+   /**
+    * Destroy the viewsheet if it belongs to the specified organization.
+    */
+   private void destroy(String id, String orgID) throws Exception {
       if(id == null || id.trim().isEmpty()) {
          throw new IllegalArgumentException("The viewsheet ID is required");
       }
@@ -222,6 +233,14 @@ public class ViewsheetService
       checkVSExisted(id);
 
       if(engine != null) {
+         RuntimeSheet rs = engine.getSheet(id, null);
+
+         if(!(rs instanceof RuntimeViewsheet rvs) || !Tool.equals(getOrgID(rvs), orgID)) {
+            LOG.warn("Viewsheet {} is not open or does not belong to organization {}, " +
+                     "it will not be closed", id, orgID);
+            return;
+         }
+
          engine.closeViewsheet(id, null);
       }
    }
@@ -230,7 +249,12 @@ public class ViewsheetService
     * Destroy the viewsheet.
     */
    public void destroy(String[] ids, String node) throws Exception {
-      DestroyViewsheetMessage reqMsg = new DestroyViewsheetMessage(ids);
+      destroy(ids, node, OrganizationManager.getInstance()
+              .getCurrentOrgID(ThreadContext.getContextPrincipal()));
+   }
+
+   private void destroy(String[] ids, String node, String orgID) throws Exception {
+      DestroyViewsheetMessage reqMsg = new DestroyViewsheetMessage(ids, orgID);
       cluster.sendMessage(node, reqMsg);
    }
 
@@ -242,18 +266,40 @@ public class ViewsheetService
    }
 
    public void destroyClusterNodeViewsheets(String address, String[] ids) throws Exception {
+      destroyClusterNodeViewsheets(
+         address, ids, OrganizationManager.getInstance()
+            .getCurrentOrgID(ThreadContext.getContextPrincipal()));
+   }
+
+   private void destroyClusterNodeViewsheets(String address, String[] ids, String orgID)
+      throws Exception
+   {
       if(ObjectUtils.isEmpty(ids)) {
          throw new IllegalArgumentException("One or more viewsheet IDs is required");
       }
 
       if(StringUtils.isBlank(address)) {
          for(String id : ids) {
-            destroy(id);
+            destroy(id, orgID);
          }
       }
       else {
-         destroy(ids, address);
+         destroy(ids, address, orgID);
       }
+   }
+
+   /**
+    * Get the organization of the runtime viewsheet from its user, falling back to the
+    * organization of its asset entry when it has no user.
+    */
+   private static String getOrgID(RuntimeViewsheet rvs) {
+      Principal user = rvs.getUser();
+
+      if(user instanceof XPrincipal) {
+         return IdentityID.getIdentityIDFromKey(user.getName()).getOrgID();
+      }
+
+      return rvs.getEntry() != null ? rvs.getEntry().getOrgID() : null;
    }
 
    /**
@@ -368,7 +414,8 @@ public class ViewsheetService
          }
 
          // Filter viewsheets
-         String orgID = OrganizationManager.getInstance().getCurrentOrgID();
+         String orgID = OrganizationManager.getInstance()
+            .getCurrentOrgID(ThreadContext.getContextPrincipal());
          viewsheets = viewsheets.stream()
             .filter(vs -> vs.monitorUser() != null &&
                Tool.equals(vs.monitorUser().getOrgID(), orgID))
@@ -399,7 +446,8 @@ public class ViewsheetService
       }
 
       // Filter viewsheets
-      String orgID = OrganizationManager.getInstance().getCurrentOrgID();
+      String orgID = OrganizationManager.getInstance()
+         .getCurrentOrgID(ThreadContext.getContextPrincipal());
       viewsheets = viewsheets.stream()
          .filter(vs -> vs.monitorUser() != null &&
             Tool.equals(vs.monitorUser().getOrgID(), orgID))
@@ -436,7 +484,8 @@ public class ViewsheetService
    }
 
    List<ViewsheetMonitoringTableModel> getOpenViewsheets(String server, Principal principal) {
-      String orgID = OrganizationManager.getInstance().getCurrentOrgID();
+      String orgID = OrganizationManager.getInstance()
+         .getCurrentOrgID(ThreadContext.getContextPrincipal());
 
       return getViewsheets(ViewsheetModel.State.OPEN, server).stream()
          .filter(vs -> vs.user() != null && Tool.equals(vs.user().getOrgID(), orgID))

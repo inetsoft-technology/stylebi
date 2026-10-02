@@ -690,7 +690,7 @@ public class SortOrder implements Comparer, Cloneable, Comparator, XConstants {
       Calendar calendar = cal0.get();
       Calendar c1 = cal1.get();
       Calendar c2 = cal2.get();
-      // cal0/cal1/cal2 are static ThreadLocals constructed with Calendar.getInstance() (the
+      // cal0/cal1/cal2 are static ThreadLocals constructed with new GregorianCalendar() (the
       // JVM default locale's first day of week) and never re-synced -- without this, a pooled
       // thread keeps whichever first day of week was in effect (or the JVM default) the first
       // time it ever ran this comparator, for its entire lifetime, regardless of week.start.
@@ -1248,19 +1248,19 @@ public class SortOrder implements Comparer, Cloneable, Comparator, XConstants {
    private static ThreadLocal<Calendar> cal0 = new ThreadLocal<Calendar>() {
       @Override
       public Calendar initialValue() {
-         return Calendar.getInstance();
+         return new GregorianCalendar();
       }
    };
    private static ThreadLocal<Calendar> cal1 = new ThreadLocal<Calendar>() {
       @Override
       public Calendar initialValue() {
-         return Calendar.getInstance();
+         return new GregorianCalendar();
       }
    };
    private static ThreadLocal<Calendar> cal2 = new ThreadLocal<Calendar>() {
       @Override
       public Calendar initialValue() {
-         return Calendar.getInstance();
+         return new GregorianCalendar();
       }
    };
 

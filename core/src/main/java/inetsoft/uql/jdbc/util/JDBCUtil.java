@@ -21,6 +21,8 @@ import inetsoft.analytic.composition.ViewsheetEngine;
 import inetsoft.report.internal.Util;
 import inetsoft.uql.erm.vpm.VpmProcessor;
 import inetsoft.sree.SreeEnv;
+import inetsoft.sree.security.Organization;
+import inetsoft.sree.security.OrganizationManager;
 import inetsoft.sree.security.ResourceAction;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.AssetEntry;
@@ -356,18 +358,24 @@ public class JDBCUtil {
       for(int i = 0; i < xselect.getColumnCount(); i++) {
          String path = xselect.getColumn(i);
          String alias = xselect.getAlias(i);
-         String fp = getFullPathOf(sql, path);
+         boolean quoted = xselect.isQuoted(path);
+         String fp = getFullPathOf(sql, path, quoted);
 
          if(fp != null) {
             path = fp;
          }
 
-         XField field = sql.getFieldByPath(path);
+         XField field = sql.getFieldByPath(path, quoted);
 
          if(field != null && field.getTable().length() > 0) {
+            String qseg = xselect.getQuotedColumn(xselect.getColumn(i));
             xselect.setColumn(i, path);
             xselect.setAlias(i, alias);
             xselect.setTable(path, field.getTable());
+
+            if(quoted) {
+               xselect.setQuoted(path, qseg);
+            }
 
             // get type
             if(xselect.getType(path) == null) {
@@ -383,6 +391,18 @@ public class JDBCUtil {
     * @param path column name
     */
    public static String getFullPathOf(UniformSQL sql, String path) {
+      return getFullPathOf(sql, path, false);
+   }
+
+   /**
+    * Get full path of column.
+    * @param sql Uniform SQL object
+    * @param path column name
+    * @param quoted <tt>true</tt> if the column was written as a quoted identifier
+    *               ("MixedCase" or t."MixedCase"), its case is only changed if no column has
+    *               the same case.
+    */
+   public static String getFullPathOf(UniformSQL sql, String path, boolean quoted) {
       String res = null;
       int idx = path.lastIndexOf('.');
       String table, col;
@@ -416,7 +436,7 @@ public class JDBCUtil {
       }
 
       res = table + "." + col;
-      XField field = sql.getFieldByPath(res);
+      XField field = sql.getFieldByPath(res, quoted);
 
       if(field != null && field.getTable().length() > 0) {
          if(!field.getName().equals(col)) {
@@ -490,6 +510,7 @@ public class JDBCUtil {
          newSelect.setType(path, select.getType(path));
          newSelect.setDescription(path, select.getDescription(path));
          newSelect.setTable(path, select.getTable(path));
+         newSelect.copyQuoted(path, select, path);
          newSelect.setXMetaInfo(aidx, select.getXMetaInfo(i));
          newSelect.setExpression(aidx, select.isExpression(i));
       }
@@ -519,7 +540,7 @@ public class JDBCUtil {
     */
    private static void normalizeExpression(XExpression exp, UniformSQL sql) {
       String ex1 = exp.toString();
-      String fullPath1 = getFullPathOf(sql, ex1);
+      String fullPath1 = getFullPathOf(sql, ex1, exp.isQuotedField());
 
       if(fullPath1 != null) {
          String type = sql.isTableColumn(fullPath1) ? XExpression.FIELD :
@@ -545,6 +566,8 @@ public class JDBCUtil {
             ((XJoin) root).getExpression2(), ((XJoin) root).getOp());
 
          newNode.setName(root.getName());
+         // keep the negation, e.g. "a.k = 1 or not (a.id = b.k)"
+         newNode.setIsNot(root.isIsNot());
          fixFakeJoins(sql, newNode, hash);
          return newNode;
       }
@@ -975,18 +998,25 @@ public class JDBCUtil {
       result.setTransactionIsolation(jdbcDataSource.getTransactionIsolation());
       result.setChangeDefaultDB(!Tool.isEmptyString(jdbcDataSource.getDefaultDatabase()));
 
-      String testQuery = SreeEnv.getProperty(
-         "inetsoft.uql.jdbc.pool." + jdbcDataSource.getFullName() + ".connectionTestQuery");
-
+      // the test query field of a custom database edits the connectionTestQuery pool
+      // property, so it is not listed in the pool properties table too. The Access editor has
+      // no test query field and keeps the property in the table.
       if(type.getType().equals(CustomDatabaseType.TYPE)) {
+         TreeMap<String, String> poolProperties = jdbcDataSource.getPoolProperties() == null ?
+            null : new TreeMap<>(jdbcDataSource.getPoolProperties());
+         String testQuery = poolProperties == null ?
+            null : poolProperties.remove(CONNECTION_TEST_QUERY_PROPERTY);
+
+         // a test query saved in SreeEnv by an older version is shown, so the user sees it
+         // and moves it to the pool properties when saving the data source
+         if(testQuery == null) {
+            testQuery = getConnectionTestQuery(jdbcDataSource.getFullName());
+         }
+
          CustomDatabaseType.CustomDatabaseInfo customInfo =
             (CustomDatabaseType.CustomDatabaseInfo) result.getInfo();
+         customInfo.setPoolProperties(poolProperties);
          customInfo.setTestQuery(testQuery);
-      }
-      else if(type.getType().equals(AccessDatabaseType.TYPE)) {
-         AccessDatabaseType.AccessDatabaseInfo accessInfo =
-            (AccessDatabaseType.AccessDatabaseInfo) result.getInfo();
-         accessInfo.setTestQuery(testQuery);
       }
 
       return result;
@@ -1652,11 +1682,133 @@ public class JDBCUtil {
       return result.toString();
    }
 
+   /**
+    * Gets the connection test query that an older version saved in SreeEnv. The connection pool
+    * does not read it; the test query is kept in the
+    * {@link #CONNECTION_TEST_QUERY_PROPERTY} pool property of the data source. The data source
+    * editor shows this value only when the pool property is not set. The value is stored in
+    * the current organization's scope, because data source names are only unique within an
+    * organization. Values saved before the key was organization scoped are global and are
+    * attributed to the host organization only.
+    *
+    * @param fullName the data source full name.
+    *
+    * @return the test query or <code>null</code> if none is set.
+    */
+   public static String getConnectionTestQuery(String fullName) {
+      String key = getConnectionTestQueryKey(fullName);
+      String orgID = getConnectionTestQueryOrgID();
+
+      if(orgID == null || isHostOrganization(orgID)) {
+         // the organization key first, then the legacy global key
+         return SreeEnv.getProperty(key);
+      }
+
+      return SreeEnv.getProperty("inetsoft.org." + orgID + "." + key, false, false);
+   }
+
+   /**
+    * Sets the legacy SreeEnv connection test query of a data source in the current
+    * organization's scope. It is only used to move a legacy value to a renamed data source; the
+    * data source editor saves the test query in the {@link #CONNECTION_TEST_QUERY_PROPERTY} pool
+    * property.
+    *
+    * @param fullName  the data source full name.
+    * @param testQuery the test query.
+    */
+   public static void setConnectionTestQuery(String fullName, String testQuery) {
+      SreeEnv.setProperty(getConnectionTestQueryKey(fullName), testQuery, true);
+   }
+
+   /**
+    * Removes the connection test query of a data source in the current organization's scope.
+    * In the host organization the legacy global key is removed too, so that it is not shown
+    * again after the user clears the test query or saves it to the pool properties.
+    *
+    * @param fullName the data source full name.
+    */
+   public static void removeConnectionTestQuery(String fullName) {
+      String key = getConnectionTestQueryKey(fullName);
+      String orgID = getConnectionTestQueryOrgID();
+      SreeEnv.remove(key, true);
+
+      if(orgID != null && isHostOrganization(orgID)) {
+         SreeEnv.remove(key);
+      }
+   }
+
+   /**
+    * Moves the legacy SreeEnv connection test query of a renamed or moved data source to its new
+    * name in the current organization's scope, so that the data source editor still shows it
+    * until the data source is saved. If the old name has no test query, a value left at the new
+    * name by a data source deleted earlier is removed, so that it is not shown for this one.
+    *
+    * @param oldName the old data source full name.
+    * @param newName the new data source full name.
+    *
+    * @return <code>true</code> if a property was changed and SreeEnv needs to be saved.
+    */
+   public static boolean renameConnectionTestQuery(String oldName, String newName) {
+      String testQuery = getConnectionTestQuery(oldName);
+      boolean changed = removeConnectionTestQueryIfSet(newName);
+
+      if(testQuery != null) {
+         removeConnectionTestQuery(oldName);
+         setConnectionTestQuery(newName, testQuery);
+         changed = true;
+      }
+
+      return changed;
+   }
+
+   /**
+    * Removes the connection test query of a data source in the current organization's scope
+    * if one is set.
+    *
+    * @param fullName the data source full name.
+    *
+    * @return <code>true</code> if a property was removed and SreeEnv needs to be saved.
+    */
+   public static boolean removeConnectionTestQueryIfSet(String fullName) {
+      if(getConnectionTestQuery(fullName) == null) {
+         return false;
+      }
+
+      removeConnectionTestQuery(fullName);
+      return true;
+   }
+
+   private static String getConnectionTestQueryKey(String fullName) {
+      return "inetsoft.uql.jdbc.pool." + fullName + ".connectionTestQuery";
+   }
+
+   /**
+    * Gets the organization that SreeEnv scopes the test query to, or <code>null</code> if
+    * the thread has no principal and SreeEnv uses the global key.
+    */
+   private static String getConnectionTestQueryOrgID() {
+      if(ThreadContext.getPrincipal() == null && ThreadContext.getContextPrincipal() == null) {
+         return null;
+      }
+
+      return OrganizationManager.getInstance().getCurrentOrgID();
+   }
+
+   private static boolean isHostOrganization(String orgID) {
+      // the enterprise organization manager does not lower case the organization ID
+      return Organization.getDefaultOrganizationID().equalsIgnoreCase(orgID);
+   }
+
    // table xnode->XTypeNode(columns)
    private static Hashtable<Pair, XTypeNode> tablemeta = new Hashtable<>();
 
    private static final String [] aggregateFunction =
       {"sum", "count", "avg", "min", "max"};
+
+   /**
+    * The pool property that holds the connection test query of a data source.
+    */
+   public static final String CONNECTION_TEST_QUERY_PROPERTY = "connectionTestQuery";
 
    private static final List<DatabaseType> databaseTypes;
    private static final String MAP_KEY_ACCESS_PATTERN = "([^\\s\\[\\]]+)\\[\\s*'([^\\s']+)'\\s*\\]";

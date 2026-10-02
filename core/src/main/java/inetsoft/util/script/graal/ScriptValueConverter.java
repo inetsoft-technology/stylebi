@@ -17,8 +17,11 @@
  */
 package inetsoft.util.script.graal;
 
+import inetsoft.util.script.graal.pool.ForeignRef;
+import inetsoft.util.script.graal.pool.WsValueCopier;
 import org.graalvm.polyglot.Context;
 import org.graalvm.polyglot.Value;
+import java.security.Principal;
 import java.time.Instant;
 import java.util.*;
 
@@ -48,6 +51,10 @@ public final class ScriptValueConverter {
     * {@code === undefined}.
     */
    public static Object toGuest(Object value) {
+      if(value == OwnedVarScope.UNDEFINED) {
+         return undefinedValue();
+      }
+
       if(value instanceof ScriptArrayScope) {
          return new ArrayProxy((ScriptArrayScope) value);
       }
@@ -61,6 +68,21 @@ public final class ScriptValueConverter {
       // exposes only the raw getX/isX/setX accessor methods. (#75577)
       if(HostBeanProxy.shouldWrap(value)) {
          return HostBeanProxy.wrap(value);
+      }
+
+      // The session principal (parameter.__principal__ / ThreadContext principal)
+      // is handed to scripts read-only: its public setters and the mutable
+      // internals its getters expose would otherwise let a script change the live
+      // identity the rest of the session -- permission checks, the query sandbox,
+      // VPM -- trusts. (Bug #77255, Bug #77256)
+      if(value instanceof Principal) {
+         return ReadOnlyPrincipalProxy.wrap((Principal) value);
+      }
+
+      // inside a pooled worksheet exec, a value of another context is marked foreign (bug
+      // #76960, spec §14.11); with no pooled exec on this thread it is returned unchanged
+      if(value instanceof Value v) {
+         return WsValueCopier.markForeign(v);
       }
 
       return value;
@@ -118,6 +140,19 @@ public final class ScriptValueConverter {
             return ((HostBeanProxy) proxy).getTarget();
          }
 
+         // a script that passes the principal back to one of our functions, or
+         // stores it in a scope, gets the real principal on the host side; only
+         // the script's own reads/writes are constrained. (Bug #77255, #77256)
+         if(proxy instanceof ReadOnlyPrincipalProxy principalProxy) {
+            return principalProxy.getTarget();
+         }
+
+         // a pooled worksheet context's reference to another context's value is that live
+         // value, never a copy (bug #76960, spec §14.11); pool-off never creates one
+         if(proxy instanceof ForeignRef ref) {
+            return WsValueCopier.foreign(ref);
+         }
+
          return proxy;
       }
 
@@ -137,7 +172,76 @@ public final class ScriptValueConverter {
          return arr;
       }
 
+      // a pooled worksheet context's plain object becomes a host copy (bug #76960, spec
+      // §14.12 A1/A3); everywhere else, and for functions/non-plain objects, main's raw Value
+      return WsValueCopier.detach(v);
+   }
+
+   /**
+    * Convert a guest value that host code keeps (a scope, array or chain write). Outside a
+    * pooled worksheet context this is {@link #toHost(Value)}; inside one, a function or
+    * non-plain object, which cannot be kept apart from its context, is rejected with a clear
+    * error (bug #76960, spec §14.12 A2).
+    */
+   public static Object toHostStored(Value v) {
+      return WsValueCopier.checkStorable(toHost(v));
+   }
+
+   /**
+    * The stored form of a script write of a var an {@link OwnedVarScope} owns (Testing
+    * #77123): a primitive as its Java value, a number as a {@code Double} that keeps NaN and
+    * Infinity (which {@link #toHost} turns into null), a host or proxy value unwrapped, and a
+    * script object (Date, array, object, function) as the guest value itself, so it keeps its
+    * identity and in-place changes. A guest value is valid only on its own context.
+    */
+   public static Object toOwnedVar(Value v) {
+      if(v == null) {
+         return null;
+      }
+
+      // undefined stays undefined (Testing #77123 B-1): both read isNull()
+      if(v.isNull()) {
+         return isUndefined(v) ? OwnedVarScope.UNDEFINED : null;
+      }
+
+      if(v.isBoolean() || v.isString() || v.isHostObject() || v.isProxyObject()) {
+         return toHost(v);
+      }
+
+      if(v.isNumber() && v.fitsInDouble()) {
+         return v.asDouble();
+      }
+
       return v;
+   }
+
+   /**
+    * @return whether {@code v} is JS {@code undefined}, not {@code null}: both are
+    * {@link Value#isNull()}, only their string forms differ.
+    */
+   static boolean isUndefined(Value v) {
+      return v.isNull() && "undefined".equals(v.toString());
+   }
+
+   /**
+    * @return the {@code undefined} of the context executing on this thread, so a
+    * proxy member reads as {@code undefined} and not as {@code null} (a Java
+    * {@code null} member reads as {@code null}); {@code null} when no context is entered.
+    */
+   private static Object undefinedValue() {
+      try {
+         return Context.getCurrent().getBindings("js").getMember("undefined");
+      }
+      catch(IllegalStateException ex) {
+         return null;
+      }
+   }
+
+   /**
+    * Convert an exec result, which lenses and conditions keep (spec §14.12 A4).
+    */
+   public static Object toHostResult(Value v) {
+      return toHostStored(v);
    }
 
    /**

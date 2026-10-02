@@ -26,8 +26,11 @@ import inetsoft.uql.asset.*;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.jdbc.*;
 import inetsoft.uql.jdbc.util.ConditionListHandler;
+import inetsoft.util.script.FormulaContext;
 import inetsoft.util.script.ScriptEnv;
 import inetsoft.util.script.ScriptException;
+import inetsoft.util.script.ScriptStateLint;
+import inetsoft.util.script.graal.ScriptScope;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -141,13 +144,30 @@ public class MVConditionListHandler extends ConditionListHandler {
       String exp = eval.getExpression();
       ScriptEnv senv = box.getScriptEnv();
       MVScriptable scriptable = new MVScriptable(mvdef, mvcol, mv);
+      // a condition expression is written by end users, run it restricted (bug #77396)
+      boolean restricted = FormulaContext.isRestricted();
 
       try {
-         senv.put("MV", scriptable);
-         val = senv.exec(senv.compile(exp), box.getScope(), null, box.getWorksheet());
+         FormulaContext.setRestricted(true);
+
+         if(box.isScriptPoolMode()) {
+            // pool mode: MV is this exec's own name, not an env global that every pooled
+            // context would replay (bug #76960, spec §6.6)
+            ScriptScope scope = new MVExecScope(scriptable, box.getScope());
+            val = senv.exec(ScriptStateLint.checkCondition(senv.compile(exp), exp, scope, "MV condition"),
+                            scope, null, box.getWorksheet());
+         }
+         else {
+            senv.put("MV", scriptable);
+            val = senv.exec(ScriptStateLint.checkCondition(senv.compile(exp), exp, box.getScope(),
+               "MV condition"), box.getScope(), null, box.getWorksheet());
+         }
       }
       catch(Exception ex) {
          throw new ScriptException("MV Script error: " + ex.getMessage());
+      }
+      finally {
+         FormulaContext.setRestricted(restricted);
       }
 
       val = PreAssetQuery.getScriptValue(val, cond);
@@ -267,4 +287,45 @@ public class MVConditionListHandler extends ConditionListHandler {
    private MV mv;
    private VariableTable vars;
    private AssetQuerySandbox box;
+
+   /**
+    * The exec scope of a pooled MV condition script: {@code MV}, then the sandbox scope. A
+    * write to any other name goes to the sandbox scope, as it did when that was the root.
+    */
+   static final class MVExecScope implements ScriptScope {
+      MVExecScope(Object mv, ScriptScope parent) {
+         this.mv = mv;
+         this.parent = parent;
+      }
+
+      @Override
+      public Object getMember(String name) {
+         return "MV".equals(name) ? mv : null;
+      }
+
+      @Override
+      public boolean hasMember(String name) {
+         return "MV".equals(name);
+      }
+
+      @Override
+      public void putMember(String name, Object value) {
+         if(!"MV".equals(name)) {
+            parent.putMember(name, value);
+         }
+      }
+
+      @Override
+      public Object[] getMemberKeys() {
+         return new Object[] { "MV" };
+      }
+
+      @Override
+      public ScriptScope getParentScope() {
+         return parent;
+      }
+
+      private final Object mv;
+      private final ScriptScope parent;
+   }
 }

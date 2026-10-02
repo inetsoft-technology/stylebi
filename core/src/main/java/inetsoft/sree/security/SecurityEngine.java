@@ -71,6 +71,22 @@ public class SecurityEngine implements MessageListener, AutoCloseable {
    public void handleApplicationPropertiesChanged(ApplicationPropertiesChangedEvent event) {
       if(event.isSecurityProviderChanged()) {
          init();
+         return;
+      }
+
+      initLock.lock();
+
+      try {
+         // the reloaded properties enable security, but the engine was initialized with security
+         // disabled and no provider was created since, e.g. when it was initialized before the
+         // stored properties were loaded (Bug #76975). Checked under the lock, because enabling
+         // security saves the property before it creates the provider
+         if(isSecurityEnabled() && provider == null && !initSecurityEnabled) {
+            doInit();
+         }
+      }
+      finally {
+         initLock.unlock();
       }
    }
 
@@ -92,6 +108,7 @@ public class SecurityEngine implements MessageListener, AutoCloseable {
    private void doInit() {
       XUtil.setXIdentityFinder(new SRIdentityFinder());
       boolean secEnabled = isSecurityEnabled();
+      initSecurityEnabled = secEnabled;
       int userCount = licenseManager.getNamedUserCount();
 
       if(provider != null) {
@@ -1843,6 +1860,8 @@ public class SecurityEngine implements MessageListener, AutoCloseable {
    private SecurityProvider vpm_provider = null;
    private Map<ClientInfo, SRPrincipal> users;
    private final Set<LoginListener> loginListeners = new LinkedHashSet<>();
+   // whether security was enabled when the engine was last initialized, guarded by initLock
+   private boolean initSecurityEnabled;
    private final Set<AuthenticationChangeListener> authenticationChangeListeners =
       new LinkedHashSet<>();
    private final Lock initLock = new ReentrantLock();

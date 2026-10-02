@@ -1,0 +1,1 @@
+select "Schema"."Table"."Col", t.[col 2], `x` from "Schema"."Table" t

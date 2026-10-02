@@ -28,6 +28,8 @@ import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * {@code StorageService} allows data space files to be accessed directly in a configured storage.
@@ -84,16 +86,19 @@ public class StorageService extends AbstractStorageService {
    }
 
    /**
-    * Writes a file to the data space.
+    * Writes a file to the data space. A directory is created for each ancestor of the path that
+    * does not exist, an existing ancestor is never replaced.
     *
     * @param path the path, relative to the data space root, where the file will be written.
     * @param file the file to write.
     *
-    * @throws IOException if an I/O error occurs.
+    * @throws IOException if an ancestor of the path is an existing file, in which case nothing is
+    *                     written, or if an I/O error occurs.
     */
    public void write(String path, File file) throws IOException {
-      String digest = digest(file);
       String cleanPath = path.replace('\\', '/');
+      List<String> missingAncestors = getMissingAncestors(cleanPath);
+      String digest = digest(file);
 
       blobEngine.write("dataSpace", digest, file.toPath());
 
@@ -102,6 +107,52 @@ public class StorageService extends AbstractStorageService {
          cleanPath, digest, file.length(), Instant.ofEpochMilli(file.lastModified()),
          metadata);
       keyValueEngine.put("dataSpace", cleanPath, blob);
+
+      // without a directory marker, a folder is not listed and is not treated as a directory
+      for(String ancestor : missingAncestors) {
+         createDirectory(ancestor);
+      }
+   }
+
+   /**
+    * Gets the ancestors of a data space path that do not exist, from the root down. Empty and
+    * {@code .} segments are skipped.
+    *
+    * @param path the normalized path of a file.
+    *
+    * @return the missing ancestor paths.
+    *
+    * @throws IOException if an ancestor of the path is an existing file.
+    */
+   private List<String> getMissingAncestors(String path) throws IOException {
+      List<String> missing = new ArrayList<>();
+      String[] segments = path.split("/");
+      StringBuilder ancestor = new StringBuilder();
+
+      for(int i = 0; i < segments.length - 1; i++) {
+         if(segments[i].isEmpty() || segments[i].equals(".")) {
+            continue;
+         }
+
+         if(ancestor.length() > 0) {
+            ancestor.append('/');
+         }
+
+         ancestor.append(segments[i]);
+         String ancestorPath = ancestor.toString();
+         Blob<DataSpace.Metadata> blob = keyValueEngine.get("dataSpace", ancestorPath);
+
+         // never replace an existing key, a directory marker over a file orphans its content
+         if(blob == null) {
+            missing.add(ancestorPath);
+         }
+         else if(blob.getDigest() != null) {
+            throw new IOException(
+               "Cannot write " + path + ", " + ancestorPath + " is a file and not a directory");
+         }
+      }
+
+      return missing;
    }
 
    /**

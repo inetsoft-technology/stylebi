@@ -45,6 +45,11 @@ package inetsoft.web.admin.general;
  *      steady-state count, not about that failure case.)
  * [G6] The second prune must not run when the write fails, since that is precisely the
  *      case the extra prune call exists to protect.
+ * [G7] Redmine #77159: the delete key must use "/" (the same separator getBackFile() writes
+ *      with and cloud stores such as S3/GCS require), never the host File.separator. On a
+ *      Windows host the old code produced "backup\x.zip", a different key, so the delete
+ *      was a silent no-op. (On a "/" host the old and new code are indistinguishable, so
+ *      this guards regressions there and reproduces the defect on Windows.)
  */
 
 import inetsoft.sree.SreeEnv;
@@ -131,12 +136,11 @@ class DataSpaceSettingsServiceTest {
 
       service.deleteRedundantBackupFiles();
 
-      verify(externalStorageService, times(1)).delete("backup" + java.io.File.separator +
-                                                        "data-20260101000000.zip");
+      verify(externalStorageService, times(1)).delete("backup/data-20260101000000.zip");
       verify(externalStorageService, never())
-         .delete("backup" + java.io.File.separator + "data-20260102000000.zip");
+         .delete("backup/data-20260102000000.zip");
       verify(externalStorageService, never())
-         .delete("backup" + java.io.File.separator + "data-20260103000000.zip");
+         .delete("backup/data-20260103000000.zip");
    }
 
    // [G3] a pair of timestamps whose long difference overflows int must not invert the sort
@@ -150,9 +154,21 @@ class DataSpaceSettingsServiceTest {
       service.deleteRedundantBackupFiles();
 
       verify(externalStorageService, times(1))
-         .delete("backup" + java.io.File.separator + "data-20230101000000.zip");
+         .delete("backup/data-20230101000000.zip");
       verify(externalStorageService, never())
-         .delete("backup" + java.io.File.separator + "data-20260101000000.zip");
+         .delete("backup/data-20260101000000.zip");
+   }
+
+   // [G7] delete keys are joined with "/" regardless of the host File.separator
+   @Test
+   void deleteKeysUseForwardSlashRegardlessOfHostSeparator() throws Exception {
+      stubBackupCount(1);
+      stubZips("data-20260101000000.zip", "data-20260102000000.zip");
+
+      service.deleteRedundantBackupFiles();
+
+      verify(externalStorageService, times(1)).delete("backup/data-20260101000000.zip");
+      verify(externalStorageService, never()).delete(contains("\\"));
    }
 
    // [G4] pruning is disabled unless asset.backup.count is a positive integer
@@ -194,6 +210,69 @@ class DataSpaceSettingsServiceTest {
 
       assertTrue(status.contains("Failed"));
       verify(spyService, times(1)).deleteRedundantBackupFiles();
+   }
+
+   // Bug #77160: files in backup/ that are not named as a backup (a tenant file, a manual
+   // copy) were counted, so they were deleted or pushed genuine backups out of the retention
+   @Test
+   void filesNotNamedAsBackupsAreNeitherCountedNorDeleted() throws Exception {
+      stubBackupCount(2);
+      stubZips("data-20260101000000.zip", "my-assets.zip", "notes-x.zip",
+               "report-20991231000000.pdf", "data-20260102000000.zip");
+
+      service.deleteRedundantBackupFiles();
+
+      verify(externalStorageService, never()).delete(anyString());
+   }
+
+   @Test
+   void fileNotNamedAsBackupDoesNotDisplaceGenuineBackups() throws Exception {
+      stubBackupCount(2);
+      stubZips("data-20260101000000.zip", "data-20260102000000.zip", "data-20260103000000.zip",
+               "my-assets.zip");
+
+      service.deleteRedundantBackupFiles();
+
+      verify(externalStorageService, times(1))
+         .delete(backupKey("data-20260101000000.zip"));
+      verify(externalStorageService, times(1)).delete(anyString());
+   }
+
+   // Bug #77160: a backup renamed "(n)" by getAvailableFile() is dated by its base name and sorts after
+   // its twin without the suffix, so the newest backup survives
+   @Test
+   void duplicateBackupIsDatedByItsBaseName() throws Exception {
+      stubBackupCount(2);
+      stubZips("data-20260103000000(1).zip", "data-20260101000000.zip",
+               "data-20260103000000.zip", "data-20260102000000.zip");
+
+      service.deleteRedundantBackupFiles();
+
+      verify(externalStorageService, times(1))
+         .delete(backupKey("data-20260101000000.zip"));
+      verify(externalStorageService, times(1))
+         .delete(backupKey("data-20260102000000.zip"));
+      verify(externalStorageService, times(2)).delete(anyString());
+   }
+
+   @Test
+   void duplicateBackupSortsAfterItsTwin() throws Exception {
+      stubBackupCount(1);
+      stubZips("data-20260103000000(2).zip", "data-20260103000000(1).zip",
+               "data-20260103000000.zip");
+
+      service.deleteRedundantBackupFiles();
+
+      verify(externalStorageService, times(1))
+         .delete(backupKey("data-20260103000000.zip"));
+      verify(externalStorageService, times(1))
+         .delete(backupKey("data-20260103000000(1).zip"));
+      verify(externalStorageService, times(2)).delete(anyString());
+   }
+
+   // the delete key of a backup, with either separator (#77159 changes it to "/")
+   private static String backupKey(String name) {
+      return argThat(key -> key != null && key.replace('\\', '/').equals("backup/" + name));
    }
 
    private void stubBackupCount(int count) {

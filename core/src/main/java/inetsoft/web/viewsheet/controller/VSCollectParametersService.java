@@ -26,6 +26,7 @@ import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.sree.security.SRPrincipal;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
+import inetsoft.uql.schema.UserVariable;
 import inetsoft.uql.util.XSessionService;
 import inetsoft.uql.util.XUtil;
 import inetsoft.uql.viewsheet.*;
@@ -91,7 +92,10 @@ public class VSCollectParametersService {
                              execType, execTimestamp, ExecutionRecord.EXEC_STATUS_SUCCESS,
                              null);
       try {
-         fillVariableTable(event.variables(), vtable, user, vsName);
+         // Bug #77429, only the db login variables this viewsheet prompts for are accepted
+         Set<String> dbVariables = new HashSet<>();
+         collectDbVariables(rvs.getViewsheetSandbox().orElse(null), vs, dbVariables);
+         fillVariableTable(event.variables(), vtable, user, vsName, dbVariables);
       }
       catch(Exception ex) {
          this.coreLifecycleService.sendMessage(ex.toString(), MessageCommand.Type.ERROR,
@@ -213,14 +217,21 @@ public class VSCollectParametersService {
     * @param vtable store all the variables.
     * @param user the user name will used to set property.
     * @param vsName the name of the edited viewsheet.
+    * @param dbVariables the db login variable names the viewsheet prompts for.
     */
-   private void fillVariableTable(List<VariableAssemblyModelInfo> variables,
+   void fillVariableTable(List<VariableAssemblyModelInfo> variables,
                                   VariableTable vtable, Principal user,
-                                  String vsName) throws Exception
+                                  String vsName, Set<String> dbVariables) throws Exception
    {
       Set dbs = new HashSet();
 
       variables.stream()
+         // Bug #77329, the identity variables are set from the user, never from the client
+         .filter(variable -> !VariableTable.isContextVariable(variable.getName()))
+         // Bug #77429, a db login for a data source the viewsheet did not prompt for would
+         // let the client test credentials against any data source
+         .filter(variable -> !isDbVariable(variable.getName()) ||
+            dbVariables.contains(variable.getName()))
          .forEach((variable) -> {
             if(variable.getValue() != null && variable.getValue().length > 0) {
                Object[] values = new Object[variable.getValue().length];
@@ -268,7 +279,7 @@ public class VSCollectParametersService {
          String db = (String) iterator.next();
          XDataSource ds = xRepository.getDataSource(db);
 
-         if(db != null) {
+         if(ds != null) {
             xRepository.testDataSource(session, ds, vtable);
             String name = (String) vtable.get(XUtil.DB_USER_PREFIX + db);
             String pass = (String) vtable.get(XUtil.DB_PASSWORD_PREFIX + db);
@@ -284,6 +295,41 @@ public class VSCollectParametersService {
             xRepository.connect(session, ":" + db, vtable);
          }
       }
+   }
+
+   /**
+    * Collect the db login variable names of the worksheets of the viewsheet and its embedded
+    * viewsheets, walked the same way VSEventUtil.refreshParameters walks them to prompt.
+    */
+   private void collectDbVariables(ViewsheetSandbox vbox, Viewsheet vs, Set<String> names) {
+      if(vbox == null || vs == null) {
+         return;
+      }
+
+      for(Assembly assembly : vs.getAssemblies()) {
+         if(assembly instanceof Viewsheet) {
+            collectDbVariables(vbox.getSandbox(assembly.getAbsoluteName()),
+                               (Viewsheet) assembly, names);
+         }
+      }
+
+      AssetQuerySandbox box = vbox.getAssetQuerySandbox();
+      Worksheet ws = box == null ? null : box.getWorksheet();
+
+      if(ws == null) {
+         return;
+      }
+
+      for(UserVariable var : ws.getAllVariables()) {
+         if(var != null && isDbVariable(var.getName())) {
+            names.add(var.getName());
+         }
+      }
+   }
+
+   private static boolean isDbVariable(String name) {
+      return name != null && (name.startsWith(XUtil.DB_USER_PREFIX) ||
+         name.startsWith(XUtil.DB_PASSWORD_PREFIX));
    }
 
    private void resetVariable(ViewsheetSandbox vbox, Viewsheet vs,

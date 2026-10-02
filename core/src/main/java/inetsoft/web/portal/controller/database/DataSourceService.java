@@ -102,6 +102,68 @@ public class DataSourceService {
    }
 
    /**
+    * Checks that the current user may edit the data models of a data source: READ on the
+    * source and WRITE on the source or on one of its data model folders, which is what the Data
+    * tab requires before it offers to create or edit a physical view or logical model there. An
+    * additional connection, if named, also needs READ. Used by model-editor endpoints that take
+    * the data source from the request and carry no model or folder to check instead.
+    *
+    * @param databasePath the database path.
+    * @param additional   the additional connection, or {@code null} for the default one.
+    * @param principal    current login user.
+    *
+    * @throws SecurityException if the user does not have the required permission.
+    */
+   public void checkDataModelEditPermission(String databasePath, String additional,
+                                            Principal principal)
+      throws Exception
+   {
+      boolean allowed = checkPermission(databasePath, ResourceAction.READ, principal);
+
+      if(allowed && !checkPermission(databasePath, ResourceAction.WRITE, principal)) {
+         XDataModel dataModel = repository.getDataModel(databasePath);
+         String[] folders = dataModel == null ? null : dataModel.getFolders();
+         allowed = false;
+
+         for(int i = 0; folders != null && i < folders.length && !allowed; i++) {
+            allowed = checkPermission(databasePath, folders[i], ResourceAction.WRITE, principal);
+         }
+      }
+
+      if(allowed && !StringUtils.isEmpty(additional) &&
+         !XUtil.OUTER_MOSE_LAYER_DATABASE.equals(additional) &&
+         !XDataModel.DEFAULTCONNECTION.equals(additional))
+      {
+         allowed = checkPermission(databasePath + "::" + additional, ResourceAction.READ,
+                                   principal);
+      }
+
+      if(!allowed) {
+         throw new SecurityException(
+            "Unauthorized access to resource \"" + databasePath + "\" by user " + principal);
+      }
+   }
+
+   /**
+    * Checks that the current user may read a data source, which the Data tab requires before it
+    * shows the source or any of its models and folders. Used by the name checks and dialect
+    * settings of the Data tab dialogs, whose every legitimate caller has this right.
+    *
+    * @param databasePath the database path.
+    * @param principal    current login user.
+    *
+    * @throws SecurityException if the user does not have the required permission.
+    */
+   public void checkDataSourceReadPermission(String databasePath, Principal principal)
+      throws Exception
+   {
+      if(!checkPermission(databasePath, ResourceAction.READ, principal)) {
+         throw new SecurityException(
+            "Unauthorized access to resource \"" + databasePath + "\" by user " + principal);
+      }
+   }
+
+   /**
     * Check if a data source with the given name is already present.
     * @param name the name to check
     * @return  true if a data source with that name is present

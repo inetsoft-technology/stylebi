@@ -47,6 +47,7 @@ import org.slf4j.LoggerFactory;
 import java.io.FileNotFoundException;
 import java.security.Principal;
 import java.util.*;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 public abstract class DatasourcesBaseService {
@@ -61,6 +62,7 @@ public abstract class DatasourcesBaseService {
       this.dataSourceStatusService = dataSourceStatusService;
       this.dataSourceRegistry = dataSourceRegistry;
       this.uqlConfig = uqlConfig;
+      this.secretIdAuthorizer = new SecretIdAuthorizer(securityEngine, dataSourceRegistry);
    }
 
    protected XRepository getRepository() {
@@ -137,12 +139,19 @@ public abstract class DatasourcesBaseService {
    }
 
    public DataSourceDefinition refreshTabularView(DataSourceDefinition definition) {
-      refreshAndGetDataSource(definition);
+      DraftDataSource draft = refreshDraftDataSource(definition);
+
+      // the OAuth button can't be used until the secret id is resolved, tell the user why
+      if(isAuthorizeBlocked(draft, definition)) {
+         CoreTool.addUserMessage(getSecretIdWithheldMessage(draft.principal()));
+      }
+
       return definition;
    }
 
    public TabularOAuthParams getOAuthParams(DataSourceOAuthParamsRequest request) {
-      Object ds = refreshAndGetDataSource(request.dataSource());
+      DraftDataSource draft = refreshDraftDataSource(request.dataSource());
+      Object ds = draft.dataSource();
       String license = SreeEnv.getProperty("license.key");
       int index = license.indexOf(',');
 
@@ -156,6 +165,10 @@ public abstract class DatasourcesBaseService {
       if(!LicenseManager.isEnterprise() && (license == null || license.isEmpty())) {
          return builder.error(Catalog.getCatalog().getString("em.license.communityAPIKeyMissing"))
             .build();
+      }
+
+      if(isAuthorizeBlocked(draft, request.dataSource())) {
+         return builder.error(getSecretIdWithheldMessage(draft.principal())).build();
       }
 
       if(ds != null) {
@@ -190,7 +203,7 @@ public abstract class DatasourcesBaseService {
    }
 
    public DataSourceDefinition setOAuthTokens(DataSourceOAuthTokens tokens) {
-      Object ds = refreshAndGetDataSource(tokens.dataSource());
+      Object ds = refreshDraftDataSource(tokens.dataSource()).dataSource();
 
       if(ds != null) {
          Tokens params = Tokens.builder()
@@ -206,6 +219,133 @@ public abstract class DatasourcesBaseService {
       }
 
       return tokens.dataSource();
+   }
+
+   /**
+    * Creates a data source from a definition that was supplied by the client and refreshes its
+    * view. The definition may reference any secret id, so a secret is only resolved if the caller
+    * can already see it through a saved data source.
+    */
+   private DraftDataSource refreshDraftDataSource(DataSourceDefinition definition) {
+      Principal principal = ThreadContext.getContextPrincipal();
+      Map<String, Boolean> authorized = new HashMap<>();
+      Object ds = TabularDataSource.withCredentialFetchGate(
+         secretId -> authorized.computeIfAbsent(
+            secretId, id -> isSecretIdAuthorized(definition, id, principal)),
+         () -> refreshAndGetDataSource(definition));
+      // only the data source's own secret id counts, not those of its additional connections
+      boolean withheld = ds instanceof TabularDataSource<?> tabular &&
+         tabular.isUseCredentialId() && !Tool.isEmptyString(tabular.getCredentialId()) &&
+         Boolean.FALSE.equals(authorized.get(tabular.getCredentialId()));
+      return new DraftDataSource(ds, withheld, principal);
+   }
+
+   /**
+    * Gets the message that explains why the secret id of a draft data source was not resolved.
+    * Saving the data source resolves it only if the caller may introduce new secret ids.
+    */
+   private String getSecretIdWithheldMessage(Principal principal) {
+      return Catalog.getCatalog().getString(
+         secretIdAuthorizer.canIntroduceSecretIds(principal) ?
+            "data.datasources.saveBeforeAuthorize" : "data.datasources.secretIdNotAllowed");
+   }
+
+   /**
+    * Determines if the OAuth button of a draft data source can't be used because its secret id
+    * was withheld. A button that uses a hosted OAuth service does not need the secret.
+    */
+   private static boolean isAuthorizeBlocked(DraftDataSource draft,
+                                             DataSourceDefinition definition)
+   {
+      return draft.secretIdWithheld() && definition.getTabularView() != null &&
+         hasVisibleClientOAuthButton(definition.getTabularView().getViews());
+   }
+
+   private static boolean hasVisibleClientOAuthButton(TabularView[] views) {
+      if(views != null) {
+         for(TabularView view : views) {
+            TabularButton button = view.getButton();
+
+            if(view.isVisible() && (button != null && button.getType() == ButtonType.OAUTH &&
+               Tool.isEmptyString(button.getOauthServiceName()) ||
+               hasVisibleClientOAuthButton(view.getViews())))
+            {
+               return true;
+            }
+         }
+      }
+
+      return false;
+   }
+
+   /**
+    * Determines if a secret id referenced by a client-supplied definition may be resolved. Secret
+    * ids are not scoped to a data source or organization, so an id may only be resolved if a saved
+    * data source in the current organization that the caller can write, or one of its additional
+    * connections, already references it. The caller can already see the secret by editing that
+    * data source.
+    */
+   private boolean isSecretIdAuthorized(DataSourceDefinition definition, String secretId,
+                                        Principal principal)
+   {
+      return secretIdAuthorizer.isStoredOnWritableDataSource(
+         secretId, getSavedDataSourcePath(definition), principal);
+   }
+
+   private static String getSavedDataSourcePath(DataSourceDefinition definition) {
+      String name = definition.getParentDataSource() != null ?
+         definition.getParentDataSource() :
+         (definition.getOldName() != null ? definition.getOldName() : definition.getName());
+
+      if(StringUtils.isEmpty(name)) {
+         return null;
+      }
+
+      String parentPath = definition.getParentPath();
+      return StringUtils.isEmpty(parentPath) || "/".equals(parentPath) ?
+         name : parentPath + "/" + name;
+   }
+
+   /**
+    * Creates the data source that a client-supplied definition describes, and its additional
+    * connections, so that they can be saved. Each secret id that the definition or one of its
+    * additional connections references is only resolved if the caller may use it, and the
+    * definition is rejected before anything is saved if the caller may not.
+    *
+    * @param definition the data source definition.
+    * @param ds         the data source to update, or {@code null} to create a new one.
+    * @param stored     the data source that is stored at the path being saved, if any.
+    * @param principal  the caller.
+    *
+    * @return the data source and the additional connections to save with it.
+    */
+   private AuthorizedDataSource createAuthorizedDataSource(BaseDataSourceDefinition definition,
+                                                           XDataSource ds, XDataSource stored,
+                                                           Principal principal)
+   {
+      Predicate<String> check = secretIdAuthorizer.createCheck(stored, principal);
+
+      return TabularDataSource.withCredentialFetchGate(check, () -> {
+         XDataSource result = createDataSource(definition, ds);
+         SecretIdAuthorizer.checkSecretId(SecretIdAuthorizer.getCloudSecretId(result), check);
+         List<AdditionalConnectionDataSource<?>> additionals = null;
+
+         // additional connections are added after the data source is saved, so create them now
+         // and check the secret ids they reference. The same objects are saved later, so each
+         // definition is only applied once.
+         if(result instanceof AdditionalConnectionDataSource<?> parent &&
+            definition instanceof DataSourceDefinition dsDefinition)
+         {
+            additionals = createAdditionalConnections(dsDefinition, parent);
+
+            for(AdditionalConnectionDataSource<?> child : additionals) {
+               SecretIdAuthorizer.checkSecretId(
+                  SecretIdAuthorizer.getCloudSecretId(child), check);
+            }
+         }
+
+         return new AuthorizedDataSource(result, additionals);
+      });
    }
 
    private Object refreshAndGetDataSource(DataSourceDefinition definition) {
@@ -260,16 +400,24 @@ public abstract class DatasourcesBaseService {
    {
       repository.removeDataSource(path, force);
       securityEngine.removePermission(ResourceType.DATA_SOURCE, path);
-      SreeEnv.remove("inetsoft.uql.jdbc.pool." + path + ".connectionTestQuery");
+      JDBCUtil.removeConnectionTestQuery(path);
       SreeEnv.save();
       return null;
    }
 
-   public void checkDataSourceFolderOuterDependencies(String fname) throws Exception {
+   public void checkDataSourceFolderOuterDependencies(String fname, Principal principal)
+      throws Exception
+   {
       String[] sources = repository.getSubDataSourceNames(fname);
 
       for(String source : sources) {
-         checkDataSourceOuterDependencies(source);
+         // the folder delete refuses a source the user can't delete, so don't report its
+         // dependencies
+         if(securityEngine.checkPermission(
+            principal, ResourceType.DATA_SOURCE, source, ResourceAction.DELETE))
+         {
+            checkDataSourceOuterDependencies(source);
+         }
       }
    }
 
@@ -356,7 +504,9 @@ public abstract class DatasourcesBaseService {
                principal);
       }
 
-      XDataSource ds = createDataSource(definition, null);
+      AuthorizedDataSource authorized =
+         createAuthorizedDataSource(definition, null, null, principal);
+      XDataSource ds = authorized.dataSource();
 
       if(ds != null) {
          String name = ds.getName();
@@ -399,11 +549,9 @@ public abstract class DatasourcesBaseService {
             updateDataSourceAssetEntry(entry);
          }
 
-         if(ds instanceof AdditionalConnectionDataSource &&
-            definition instanceof DataSourceDefinition)
-         {
+         if(authorized.additionalConnections() != null) {
             saveAdditionalConnections((DataSourceDefinition) definition,
-               (AdditionalConnectionDataSource<?>) ds);
+               (AdditionalConnectionDataSource<?>) ds, authorized.additionalConnections());
          }
       }
    }
@@ -426,7 +574,9 @@ public abstract class DatasourcesBaseService {
       String nName = parentPath + definition.getName();
       XDataSource oldSrc = repository.getDataSource(oldName);
       checkUpdateDatasourcePermission(nName, oldSrc, principal);
-      XDataSource newSrc = createDataSource(definition, (XDataSource) Tool.clone(oldSrc));
+      AuthorizedDataSource authorized = createAuthorizedDataSource(
+         definition, (XDataSource) Tool.clone(oldSrc), oldSrc, principal);
+      XDataSource newSrc = authorized.dataSource();
 
       if(newSrc != null) {
          if(oldSrc == null) {
@@ -434,11 +584,9 @@ public abstract class DatasourcesBaseService {
                "data.datasources.saveDataSourceLost"));
          }
 
-         if(newSrc instanceof AdditionalConnectionDataSource &&
-            definition instanceof DataSourceDefinition)
-         {
+         if(authorized.additionalConnections() != null) {
             saveAdditionalConnections((DataSourceDefinition) definition,
-               (AdditionalConnectionDataSource<?>) newSrc);
+               (AdditionalConnectionDataSource<?>) newSrc, authorized.additionalConnections());
          }
 
          updateDatasource(oldName, newSrc, definition);
@@ -508,14 +656,17 @@ public abstract class DatasourcesBaseService {
       }
    }
 
-   private void saveAdditionalConnections(DataSourceDefinition definition,
-                                          AdditionalConnectionDataSource<?> parent)
+   /**
+    * Creates the additional connections that a definition describes, without adding them to the
+    * parent data source.
+    */
+   private List<AdditionalConnectionDataSource<?>> createAdditionalConnections(
+      DataSourceDefinition definition, AdditionalConnectionDataSource<?> parent)
    {
-      Set<String> updated = new HashSet<>();
+      List<AdditionalConnectionDataSource<?>> additionals = new ArrayList<>();
 
       if(definition.getAdditionalConnections() != null) {
          for(DataSourceDefinition additional : definition.getAdditionalConnections()) {
-            updated.add(additional.getName());
             additional.setParentPath(definition.getParentPath());
             additional.setParentDataSource(definition.getName());
 
@@ -528,7 +679,29 @@ public abstract class DatasourcesBaseService {
                child = (AdditionalConnectionDataSource<?>) createDataSource(additional, child);
             }
 
-            parent.addDatasource(child);
+            additionals.add(child);
+         }
+      }
+
+      return additionals;
+   }
+
+   /**
+    * Saves the additional connections created by
+    * {@link #createAdditionalConnections(DataSourceDefinition, AdditionalConnectionDataSource)}
+    * and removes the ones that the definition no longer contains.
+    */
+   private void saveAdditionalConnections(DataSourceDefinition definition,
+                                          AdditionalConnectionDataSource<?> parent,
+                                          List<AdditionalConnectionDataSource<?>> additionals)
+   {
+      Set<String> updated = new HashSet<>();
+
+      if(definition.getAdditionalConnections() != null) {
+         for(int i = 0; i < additionals.size(); i++) {
+            DataSourceDefinition additional = definition.getAdditionalConnections().get(i);
+            updated.add(additional.getName());
+            parent.addDatasource(additionals.get(i));
             updateAdditionalPermission(definition, additional);
          }
       }
@@ -648,5 +821,24 @@ public abstract class DatasourcesBaseService {
    private final DataSourceStatusService dataSourceStatusService;
    private final DataSourceRegistry dataSourceRegistry;
    private final Config uqlConfig;
+   private final SecretIdAuthorizer secretIdAuthorizer;
+
+   /**
+    * A data source created from a client-supplied definition.
+    *
+    * @param dataSource       the data source, or {@code null} if it could not be created.
+    * @param secretIdWithheld {@code true} if the secret id of the data source was not resolved
+    *                         because the caller may not use it yet.
+    * @param principal        the caller.
+    */
+   private record DraftDataSource(Object dataSource, boolean secretIdWithheld,
+                                  Principal principal)
+   {
+   }
+
+   private record AuthorizedDataSource(XDataSource dataSource,
+                                       List<AdditionalConnectionDataSource<?>> additionalConnections)
+   {
+   }
    private static final Logger LOG = LoggerFactory.getLogger(DatasourcesBaseService.class);
 }

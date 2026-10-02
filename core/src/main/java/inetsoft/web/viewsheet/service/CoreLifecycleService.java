@@ -555,6 +555,10 @@ public class CoreLifecycleService {
       // anything else.
       Dimension viewSize = sheet.getPreferredSize(true, false);
       Assembly[] assemblies;
+      // a nested restoreLocks() that fails leaves this thread without the write lock taken
+      // here while the frames below catch the error, checked after the unlock (77153)
+      long lostLocks = box.get().getLockLostCount();
+      Throwable failure = null;
       box.get().lockWrite();
 
       try {
@@ -745,6 +749,10 @@ public class CoreLifecycleService {
                         catch(ScriptException scriptException) {
                            // ScriptException should be logged at appropriate level when created
                         }
+                        catch(LockRestoreException ex) {
+                           // the write lock taken above was lost, stop the refresh (77153)
+                           throw ex;
+                        }
                         catch(Exception ex) {
                            LOG.warn("Failed to update chart assembly during initialization", ex);
                         }
@@ -881,10 +889,20 @@ public class CoreLifecycleService {
             box.get().setRefreshing(false);
          }
       }
+      catch(Throwable ex) {
+         failure = ex;
+         throw ex;
+      }
       finally {
          box.get().clearDelayedVisibilityAssemblies();
          box.get().unlockWrite();
          viewsheetService.removeExecution(id);
+
+         // after the cleanup, and only if no other exception is on its way out, so it
+         // replaces neither (the early returns above are covered too)
+         if(failure == null) {
+            box.get().checkLockNotLostSince(lostLocks);
+         }
       }
 
       // loading table can take a long time, move it out of the locked block
@@ -1240,6 +1258,11 @@ public class CoreLifecycleService {
             }
          }
 
+         // a nested restoreLocks() that fails (e.g. while initializing a chart for its
+         // annotations) leaves this thread without the write lock taken here while the frames
+         // below catch the error, checked after the unlock as in refreshViewsheet() (77227)
+         long lostLocks = box.get().getLockLostCount();
+         Throwable failure = null;
          box.get().lockWrite();
 
          try {
@@ -1274,8 +1297,17 @@ public class CoreLifecycleService {
                                     dispatcher, new ArrayList<>());
             }
          }
+         catch(Throwable ex) {
+            failure = ex;
+            throw ex;
+         }
          finally {
             box.get().unlockWrite();
+
+            // only if no other exception is on its way out, so it doesn't replace it
+            if(failure == null) {
+               box.get().checkLockNotLostSince(lostLocks);
+            }
          }
       }
    }
@@ -1477,6 +1509,10 @@ public class CoreLifecycleService {
       }
       catch(ConfirmException | ScriptException ex) {
          // ScriptException should be logged at appropriate level when created
+      }
+      catch(LockRestoreException ex) {
+         // the caller's sandbox lock was lost, don't go on as if it were held (77153)
+         throw ex;
       }
       catch(Exception ex) {
          LOG.warn("Failed to update a viewsheet assembly after deleting children", ex);

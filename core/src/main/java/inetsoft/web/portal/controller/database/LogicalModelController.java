@@ -25,6 +25,7 @@ import inetsoft.uql.asset.*;
 import inetsoft.uql.erm.*;
 import inetsoft.uql.jdbc.SQLHelper;
 import inetsoft.uql.schema.XVariable;
+import inetsoft.uql.util.XUtil;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.util.*;
 import inetsoft.web.adhoc.model.FormatInfoModel;
@@ -32,14 +33,14 @@ import inetsoft.web.composer.model.TreeNodeModel;
 import inetsoft.web.portal.data.DatasourcesService;
 import inetsoft.web.portal.model.database.*;
 import inetsoft.web.portal.model.database.events.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 import inetsoft.web.security.RequiredPermission;
 import inetsoft.web.security.Secured;
 
-import java.io.StringReader;
-import java.rmi.RemoteException;
 import java.security.Principal;
 import java.util.Arrays;
 
@@ -176,12 +177,65 @@ public class LogicalModelController {
       actions = ResourceAction.ACCESS
    ))
    @PostMapping("/api/data/logicalModel/tables/nodes")
-   public TreeNodeModel getPhysicalModelTablesTree(@RequestBody GetModelEvent event)
+   public TreeNodeModel getPhysicalModelTablesTree(@RequestBody GetModelEvent event,
+                                                   Principal principal)
       throws Exception
    {
+      checkPhysicalModelTablesPermission(event, principal);
       return treeService.getPhysicalModelTree(
          event.getDatasource(), event.getPhysicalName(), event.getLogicalName(), event.getParent(),
          event.getAdditional());
+   }
+
+   /**
+    * The tables tree lists the tables and columns of a physical view. For an existing logical
+    * model built on that view, READ on the model is enough (the model editor shows the same
+    * tables); otherwise the caller must be able to edit data models of the data source, as
+    * when creating a new logical model.
+    */
+   private void checkPhysicalModelTablesPermission(GetModelEvent event, Principal principal)
+      throws Exception
+   {
+      String database = event.getDatasource();
+      String additional = event.getAdditional();
+      XDataModel dataModel = modelService.getDataModel(database);
+      String name = event.getLogicalName();
+      String parent = event.getParent();
+      XLogicalModel logicalModel = null;
+
+      if(!Tool.isEmptyString(name)) {
+         if(Tool.isEmptyString(parent)) {
+            logicalModel = dataModel.getLogicalModel(name);
+         }
+         else {
+            XLogicalModel parentModel = dataModel.getLogicalModel(parent);
+            logicalModel = parentModel == null ? null : parentModel.getLogicalModel(name);
+         }
+      }
+
+      if(logicalModel != null &&
+         Tool.equals(logicalModel.getPartition(), event.getPhysicalName()) &&
+         modelService.checkPermission(database, getModelFolder(logicalModel), name,
+                                      logicalModel.getConnection(), ResourceAction.READ,
+                                      principal) &&
+         (!isAdditionalConnection(additional) ||
+            Tool.equals(additional, logicalModel.getConnection())))
+      {
+         return;
+      }
+
+      dataSourceService.checkDataModelEditPermission(database, additional, principal);
+   }
+
+   private static String getModelFolder(XLogicalModel logicalModel) {
+      XLogicalModel base = logicalModel.getBaseModel();
+      return base == null ? logicalModel.getFolder() : base.getFolder();
+   }
+
+   private static boolean isAdditionalConnection(String additional) {
+      return !Tool.isEmptyString(additional) &&
+         !XUtil.OUTER_MOSE_LAYER_DATABASE.equals(additional) &&
+         !XDataModel.DEFAULTCONNECTION.equals(additional);
    }
 
    /**
@@ -206,13 +260,10 @@ public class LogicalModelController {
 
       String result = null;
 
-      inetsoft.uql.util.sqlparser.SQLLexer lexer =
-         new inetsoft.uql.util.sqlparser.SQLLexer(new StringReader(expressionString));
-      inetsoft.uql.util.sqlparser.SQLParser parser =
-         new inetsoft.uql.util.sqlparser.SQLParser(lexer);
+      inetsoft.uql.util.sqlparser.SQLLexer lexer;
 
       try {
-         parser.value_exp();
+         lexer = XUtil.parseSQLExpressionSyntax(expressionString);
       }
       catch(Exception ex) {
          result = ex.toString();
@@ -247,9 +298,12 @@ public class LogicalModelController {
    ))
    @GetMapping("/api/data/logicalModel/checkDuplicate")
    public boolean checkLogicalModelDuplicate(@RequestParam("database") String database,
-                                             @RequestParam("name") String name)
+                                             @RequestParam("name") String name,
+                                             Principal principal)
       throws Exception
    {
+      // renaming a logical model needs only DELETE on it, so check no more than the source READ
+      dataSourceService.checkDataSourceReadPermission(database, principal);
       return dataSourceService.isUniqueModelName(database, name);
    }
 
@@ -262,9 +316,11 @@ public class LogicalModelController {
    public boolean checkExtendedModelDuplicate(@RequestParam("database") String database,
                                               @RequestParam("physicalModel") String physicalModel,
                                               @RequestParam("parent") String parent,
-                                              @RequestParam("name") String name)
+                                              @RequestParam("name") String name,
+                                              Principal principal)
       throws Exception
    {
+      dataSourceService.checkDataSourceReadPermission(database, principal);
       return !dataSourceService.isUniqueExtendedLogicalModelName(database, physicalModel, parent,
          name);
    }
@@ -358,8 +414,18 @@ public class LogicalModelController {
       throws Exception
    {
       AssetEntry entry = AssetEntry.createAssetEntry(assetId);
-      Viewsheet vs = (Viewsheet)
-         assetRepository.getSheet(entry, principal, false, AssetContent.NO_DATA);
+      Viewsheet vs;
+
+      // the id is client supplied and its orgID is kept, so check READ (including the
+      // cross-org check) and treat a sheet the caller cannot read like a missing one
+      try {
+         vs = (Viewsheet)
+            assetRepository.getSheet(entry, principal, true, AssetContent.NO_DATA);
+      }
+      catch(MessageException ex) {
+         LOG.debug("Failed to read auto drill target viewsheet: {}", assetId, ex);
+         return new String[0];
+      }
 
       if(vs == null) {
          return new String[0];
@@ -376,9 +442,12 @@ public class LogicalModelController {
       actions = ResourceAction.ACCESS
    ))
    @GetMapping("/api/data/logicalmodel/settings")
-   public LogicalModelSettings getLMHierarchyEnableProperty(@RequestParam("ds") String ds)
-      throws RemoteException
+   public LogicalModelSettings getLMHierarchyEnableProperty(@RequestParam("ds") String ds,
+                                                            Principal principal)
+      throws Exception
    {
+      // the editor is also open to read-only and per-model users, so check only the source READ
+      dataSourceService.checkDataSourceReadPermission(ds, principal);
       XDataSource dataSource = dataSourceService.getDataSource(ds);
       SQLHelper sqlHelper = dataSourceService.getSqlHelper(dataSource, null);
 
@@ -403,7 +472,8 @@ public class LogicalModelController {
       value = "/api/data/logicalmodel/checkOuterDependencies",
       method = RequestMethod.POST
    )
-   public StringWrapper checkOuterDependencies(@RequestBody CheckDependenciesEvent event)
+   public StringWrapper checkOuterDependencies(@RequestBody CheckDependenciesEvent event,
+                                               Principal principal)
       throws Exception
    {
       if(event.isNewCreate()) {
@@ -441,6 +511,8 @@ public class LogicalModelController {
          throw new MessageException(
             catalog.getString("data.logicalmodel.cannotFind", modelName));
       }
+
+      modelService.checkModelPermission(dataSource, logicalModel, ResourceAction.READ, principal);
 
       try {
          if(elems == null) {
@@ -497,4 +569,5 @@ public class LogicalModelController {
    private final DatasourcesService datasourcesService;
    private final LogicalModelTreeService treeService;
    private final AssetDataCache assetDataCache;
+   private static final Logger LOG = LoggerFactory.getLogger(LogicalModelController.class);
 }

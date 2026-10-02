@@ -1,0 +1,71 @@
+/*
+ * This file is part of StyleBI.
+ * Copyright (C) 2026  InetSoft Technology
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+package inetsoft.util.script;
+
+/**
+ * A span of script work that one thread runs against one script environment (bug #76960). It
+ * is opened with {@link ScriptEnv#openSpan()} and closed in a try-with-resources or finally
+ * on the same thread. An env with pooled worksheet contexts keeps one context for the whole
+ * span, so script globals live for the span and the context is cleaned once at its end.
+ * Other envs return {@link #NONE}.
+ */
+public interface ScriptSpan extends AutoCloseable {
+   /**
+    * The span of an env without pooled contexts: nothing to hold, no read-ahead.
+    */
+   ScriptSpan NONE = new ScriptSpan() {
+      @Override
+      public int batchRows() {
+         return 0;
+      }
+
+      @Override
+      public void close() {
+      }
+   };
+
+   /**
+    * @return above 0 if a lens should batch its rows under this span, so that one context
+    * clean is shared by a batch of rows; 0 for no batching.
+    */
+   int batchRows();
+
+   /**
+    * @return the most rows one batch may read ahead: under sequential access a lens's
+    * batches grow geometrically from the pool-off look-ahead up to this (bug #76960, spec
+    * §14.14). Equal to {@link #batchRows()} when not adaptive, so 0 for {@link #NONE}.
+    */
+   default int maxBatchRows() {
+      return batchRows();
+   }
+
+   /**
+    * Re-enter this span on its own thread, while it is open, for work nested in it that must
+    * run on its context even if another span of the thread was opened since (Testing #77123,
+    * cond-home: a batch of a formula table nested in another table's batch that is nested in
+    * this table's own batch). Close the result like any span, before this one.
+    *
+    * @return the span to close; {@link #NONE} for a span without a pooled context.
+    */
+   default ScriptSpan reenter() {
+      return NONE;
+   }
+
+   @Override
+   void close();
+}

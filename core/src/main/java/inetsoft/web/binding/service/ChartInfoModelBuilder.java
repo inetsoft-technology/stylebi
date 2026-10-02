@@ -275,7 +275,7 @@ public abstract class ChartInfoModelBuilder {
    }
 
    private static void fixColorChanged(ChartBindingModel model, List<ChartRefModel> yfields) {
-      final int n = CategoricalColorFrame.COLOR_PALETTE.length;
+      final int n = CategoricalColorFrame.COLOR_PALETTE.size();
 
       for(int i = 0; i < yfields.size(); i++ ) {
          ColorFrameModel colorFrame = ((ChartAggregateRefModel) yfields.get(i)).getColorFrame();
@@ -287,11 +287,11 @@ public abstract class ChartInfoModelBuilder {
             // should be applied on image. this condition matches the logic for applyColor.
             // (61437)
             if(model.isMultiStyles()) {
-               if(!color.equals(Tool.toString(CategoricalColorFrame.COLOR_PALETTE[0]))) {
+               if(!color.equals(Tool.toString(CategoricalColorFrame.COLOR_PALETTE.get(0)))) {
                   colorFrame.setChanged(true);
                }
             }
-            else if(!color.equals(Tool.toString(CategoricalColorFrame.COLOR_PALETTE[i % n]))) {
+            else if(!color.equals(Tool.toString(CategoricalColorFrame.COLOR_PALETTE.get(i % n)))) {
                colorFrame.setChanged(true);
             }
          }

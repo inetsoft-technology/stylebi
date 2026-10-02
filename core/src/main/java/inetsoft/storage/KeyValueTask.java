@@ -18,9 +18,11 @@
 package inetsoft.storage;
 
 import inetsoft.sree.internal.cluster.*;
+import inetsoft.util.ConfigurationContext;
 
 import java.io.*;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 /**
  * {@code KeyValueTask} is the base class for implementations of {@link SingletonCallableTask} that
@@ -53,7 +55,25 @@ public abstract class KeyValueTask<T extends Serializable> implements Serializab
     * @return the engine.
     */
    protected final KeyValueEngine getEngine() {
-      return KeyValueEngine.getInstance();
+      return getServiceBean(KeyValueEngine.class);
+   }
+
+   /**
+    * Gets the blob storage engine instance.
+    *
+    * @return the engine.
+    */
+   protected final BlobEngine getBlobEngine() {
+      return getServiceBean(BlobEngine.class);
+   }
+
+   /**
+    * Gets the cluster instance.
+    *
+    * @return the cluster.
+    */
+   protected final Cluster getCluster() {
+      return getServiceBean(Cluster.class);
    }
 
    /**
@@ -62,8 +82,23 @@ public abstract class KeyValueTask<T extends Serializable> implements Serializab
     * @return the map.
     */
    protected final DistributedMap<String, T> getMap() {
-      Cluster cluster = Cluster.getInstance();
-      return cluster.getReplicatedMap("inetsoft.storage.kv." + id);
+      return getCluster().getReplicatedMap("inetsoft.storage.kv." + id);
+   }
+
+   /**
+    * Gets a Spring bean for a task running on a cluster singleton-service thread. The service can
+    * start on a node before that node's main thread created the bean, while the main thread holds
+    * the Spring singleton lock and goes on to wait for the service. A plain lookup would park on
+    * that lock until the main thread gives up, so wait for the bean to be created instead
+    * (Bug #76975).
+    *
+    * @param type the bean type.
+    *
+    * @return the bean.
+    */
+   protected static <B> B getServiceBean(Class<B> type) {
+      return ConfigurationContext.getContext()
+         .awaitSpringBean(type, SERVICE_BEAN_TIMEOUT_SECONDS, TimeUnit.SECONDS);
    }
 
    /**
@@ -106,4 +141,5 @@ public abstract class KeyValueTask<T extends Serializable> implements Serializab
    }
 
    private final String id;
+   private static final long SERVICE_BEAN_TIMEOUT_SECONDS = 60L;
 }

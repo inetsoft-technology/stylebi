@@ -338,14 +338,9 @@ public class VSCalendar extends VSFloatable {
       else if(values.length == 1) {
          if(!isSecond) {
             start = week;
-            Calendar calendar = Calendar.getInstance();
-            calendar.set(Calendar.YEAR, year);
-
-            if(!info.isDaySelection()) {
-               calendar.set(Calendar.DATE, 1);
-            }
-
-            calendar.set(Calendar.MONTH, month);
+            // the year comes from the Gregorian selection value, and the date starts at 1 so
+            // today's day of month can't roll a short month over into the next one
+            Calendar calendar = new GregorianCalendar(year, month, 1);
             calendar.setFirstDayOfWeek(firstDayOfWeek);
             end = calendar.getActualMaximum(Calendar.WEEK_OF_MONTH);
 

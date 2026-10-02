@@ -1779,6 +1779,24 @@ public final class VSUtil {
    }
 
    /**
+    * Gets the tables that the assemblies of the viewsheet are bound to.
+    */
+   public static List<String> getBoundTables(Viewsheet vs) {
+      List<String> tables = new ArrayList<>();
+
+      for(Assembly assembly : vs.getAssemblies()) {
+         if(assembly instanceof SelectionVSAssembly selection) {
+            tables.addAll(selection.getTableNames());
+         }
+         else if(assembly instanceof VSAssembly vsAssembly) {
+            tables.add(vsAssembly.getTableName());
+         }
+      }
+
+      return tables;
+   }
+
+   /**
     * Check if is worksheet cube.
     */
    public static boolean isWorksheetCube(VSAssembly table) {
@@ -5074,7 +5092,7 @@ public final class VSUtil {
 
       if(style == null) {
          try {
-            style = (TableStyle) Class.forName(name).newInstance();
+            style = (TableStyle) Tool.loadSubclass(name, TableStyle.class).newInstance();
          }
          catch(Exception ex) {
             LOG.debug(

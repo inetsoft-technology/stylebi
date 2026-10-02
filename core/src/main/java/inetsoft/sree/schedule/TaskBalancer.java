@@ -18,9 +18,12 @@
 package inetsoft.sree.schedule;
 
 import inetsoft.sree.SreeEnv;
+import inetsoft.sree.security.OrganizationManager;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.util.ThreadContext;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.util.StringUtils;
 
 import java.security.Principal;
@@ -53,30 +56,42 @@ public class TaskBalancer {
       }
 
       Set<TimeRange> ranges = new HashSet<>(TimeRange.getTimeRanges());
-      List<ScheduleTask> tasks = new ArrayList<>();
+      List<OrgTask> tasks = new ArrayList<>();
       List<TimeCondition> conditions = new ArrayList<>();
       boolean currentTaskAdded = false;
+      // the updated task is saved in the caller's organization
+      String updatedOrgID = OrganizationManager.getInstance()
+         .getCurrentOrgID(ThreadContext.getContextPrincipal());
 
       // add all conditions for the time range whose current start time is after the current time
-      for(ScheduleTask task : ScheduleManager.getScheduleManager().getScheduleTasks()) {
-         boolean currentTask = task.equals(updatedTask);
-         currentTaskAdded = currentTaskAdded || currentTask;
-         boolean taskAdded = false;
+      for(Map.Entry<String, List<ScheduleTask>> entry :
+         ScheduleManager.getScheduleManager().getScheduleTasksByOrganization().entrySet())
+      {
+         String orgID = entry.getKey();
 
-         for(int i = 0; i < task.getConditionCount(); i++) {
-            ScheduleCondition condition = task.getCondition(i);
+         for(ScheduleTask task : entry.getValue()) {
+            // Bug #77380, a task with the same id may be stored in another organization, match
+            // the organization too
+            boolean currentTask = orgID != null && orgID.equalsIgnoreCase(updatedOrgID) &&
+               Objects.equals(task.getTaskId(), updatedTask.getTaskId());
+            currentTaskAdded = currentTaskAdded || currentTask;
+            boolean taskAdded = false;
 
-            if(condition instanceof TimeCondition) {
-               TimeCondition timeCondition = (TimeCondition) condition;
+            for(int i = 0; i < task.getConditionCount(); i++) {
+               ScheduleCondition condition = task.getCondition(i);
 
-               if(isMatchingTimeRange(timeCondition, range, ranges) &&
-                  (currentTask || getStartTime(timeCondition).isAfter(now)))
-               {
-                  conditions.add(timeCondition);
+               if(condition instanceof TimeCondition) {
+                  TimeCondition timeCondition = (TimeCondition) condition;
 
-                  if(!taskAdded) {
-                     tasks.add(task);
-                     taskAdded = true;
+                  if(isMatchingTimeRange(timeCondition, range, ranges) &&
+                     (currentTask || getStartTime(timeCondition).isAfter(now)))
+                  {
+                     conditions.add(timeCondition);
+
+                     if(!taskAdded) {
+                        tasks.add(new OrgTask(orgID, task));
+                        taskAdded = true;
+                     }
                   }
                }
             }
@@ -97,7 +112,7 @@ public class TaskBalancer {
             }
          }
 
-         tasks.add(updatedTask);
+         tasks.add(new OrgTask(updatedOrgID, updatedTask));
       }
 
       balanceTasks(range, tasks, conditions);
@@ -149,26 +164,30 @@ public class TaskBalancer {
    void balanceTasks(TimeRange range) throws Exception {
       ScheduleManager scheduleManager = ScheduleManager.getScheduleManager();
       Set<TimeRange> ranges = new HashSet<>(TimeRange.getTimeRanges());
-      List<ScheduleTask> tasks = new ArrayList<>();
+      List<OrgTask> tasks = new ArrayList<>();
       List<TimeCondition> conditions = new ArrayList<>();
 
-      for(ScheduleTask task : scheduleManager.getScheduleTasks()) {
-         boolean taskAdded = false;
+      for(Map.Entry<String, List<ScheduleTask>> entry :
+         scheduleManager.getScheduleTasksByOrganization().entrySet())
+      {
+         for(ScheduleTask task : entry.getValue()) {
+            boolean taskAdded = false;
 
-         for(int i = 0; i < task.getConditionCount(); i++) {
-            ScheduleCondition condition = task.getCondition(i);
+            for(int i = 0; i < task.getConditionCount(); i++) {
+               ScheduleCondition condition = task.getCondition(i);
 
-            if(condition instanceof TimeCondition) {
-               TimeCondition timeCondition = (TimeCondition) condition;
+               if(condition instanceof TimeCondition) {
+                  TimeCondition timeCondition = (TimeCondition) condition;
 
-               if(timeCondition.getTimeRange() != null &&
-                  isMatchingTimeRange(timeCondition, range, ranges))
-               {
-                  conditions.add(timeCondition);
+                  if(timeCondition.getTimeRange() != null &&
+                     isMatchingTimeRange(timeCondition, range, ranges))
+                  {
+                     conditions.add(timeCondition);
 
-                  if(!taskAdded) {
-                     tasks.add(task);
-                     taskAdded = true;
+                     if(!taskAdded) {
+                        tasks.add(new OrgTask(entry.getKey(), task));
+                        taskAdded = true;
+                     }
                   }
                }
             }
@@ -182,12 +201,12 @@ public class TaskBalancer {
     * Balances the tasks in a time range.
     *
     * @param range      the time range.
-    * @param tasks      the tasks to balance.
+    * @param tasks      the tasks to balance, with the organizations they're stored in.
     * @param conditions the time range conditions.
     *
     * @throws Exception if the tasks could not be saved.
     */
-   private void balanceTasks(TimeRange range,  List<ScheduleTask> tasks,
+   private void balanceTasks(TimeRange range,  List<OrgTask> tasks,
                              List<TimeCondition> conditions) throws Exception
    {
       if(conditions.isEmpty()) {
@@ -221,6 +240,7 @@ public class TaskBalancer {
 
       // fill slots taken by hard-coded start times
       tasks.stream()
+         .map(OrgTask::task)
          .flatMap(ScheduleTask::getConditionStream)
          .filter(TimeCondition.class::isInstance)
          .map(TimeCondition.class::cast)
@@ -281,16 +301,25 @@ public class TaskBalancer {
       // save tasks
       ScheduleManager scheduleManager = ScheduleManager.getScheduleManager();
 
-      for(ScheduleTask task : tasks) {
+      for(OrgTask orgTask : tasks) {
+         ScheduleTask task = orgTask.task();
          AssetEntry folderEntry = null;
 
          if(!StringUtils.isEmpty(task.getPath())) {
             folderEntry = new AssetEntry( AssetRepository.GLOBAL_SCOPE,
-               AssetEntry.Type.SCHEDULE_TASK_FOLDER, task.getPath(), null);
+               AssetEntry.Type.SCHEDULE_TASK_FOLDER, task.getPath(), null, orgTask.orgID());
          }
 
-         scheduleManager.setScheduleTask(task.getTaskId(), task, folderEntry, true,
-            ThreadContext.getContextPrincipal());
+         // Bug #77380, save the task in the organization it's stored in, not as an internal task
+         // (in the host organization), and don't let one task that isn't saved stop the others
+         try {
+            scheduleManager.setScheduleTask(task.getTaskId(), task, folderEntry, orgTask.orgID(),
+                                            ThreadContext.getContextPrincipal());
+         }
+         catch(Exception e) {
+            LOG.error("Failed to save balanced schedule task {} of organization {}",
+                      task.getTaskId(), orgTask.orgID(), e);
+         }
       }
    }
 
@@ -656,4 +685,12 @@ public class TaskBalancer {
 
       return time;
    }
+
+   /**
+    * A task and the organization it's stored in.
+    */
+   private record OrgTask(String orgID, ScheduleTask task) {
+   }
+
+   private static final Logger LOG = LoggerFactory.getLogger(TaskBalancer.class);
 }

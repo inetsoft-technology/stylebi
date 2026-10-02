@@ -164,7 +164,11 @@ public final class RecycleUtils {
 
       ResourceType otype = getAssetResourceType(oldEntry);
       String opath = oldEntry.getPath();
-      Permission originalPermission = getEntryPermission(otype, opath);
+      // Permissions are only keyed by path for global-scope assets. A private asset shares its
+      // path namespace with a same-named global asset, so the lookup would return the global
+      // asset's (or its ancestor's) permission. See AbstractAssetEngine.updatePermission().
+      boolean globalScope = oldEntry.getScope() == AssetRepository.GLOBAL_SCOPE;
+      Permission originalPermission = globalScope ? getEntryPermission(otype, opath) : null;
 
       newEntry.setCreatedDate(oldEntry.getCreatedDate());
       newEntry.setCreatedUsername(oldEntry.getCreatedUsername());
@@ -178,7 +182,9 @@ public final class RecycleUtils {
          oldEntry.isViewsheet() ? RepositoryEntry.VIEWSHEET :
          RepositoryEntry.WORKSHEET, oldEntry.getScope(), oldEntry.getUser());
 
-      SecurityEngine.getSecurity().setPermission(otype, newEntry.getPath(), originalPermission);
+      if(globalScope) {
+         SecurityEngine.getSecurity().setPermission(otype, newEntry.getPath(), originalPermission);
+      }
    }
 
    public static void moveAssetFolderToRecycleBin(String oldPath, IdentityID owner, Principal principal,
@@ -228,14 +234,19 @@ public final class RecycleUtils {
 
       ResourceType otype = getAssetResourceType(oldEntry);
       String opath = oldEntry.getPath();
-      Permission originalPermission = getEntryPermission(otype, opath);
+      // Permissions are only keyed by path for global-scope assets; see the same guard in
+      // moveSheetToRecycleBin() and AbstractAssetEngine.updatePermission().
+      boolean globalScope = oldEntry.getScope() == AssetRepository.GLOBAL_SCOPE;
+      Permission originalPermission = globalScope ? getEntryPermission(otype, opath) : null;
 
       repository.changeFolder(oldEntry, newEntry, principal, true);
       recycleBin.addEntry(newEntry.getPath(), oldEntry.getPath(), oldEntry.getName(),
          originalPermission, RepositoryEntry.WORKSHEET_FOLDER, oldEntry.getScope(),
          oldEntry.getUser());
 
-      SecurityEngine.getSecurity().setPermission(otype, newEntry.getPath(), originalPermission);
+      if(globalScope) {
+         SecurityEngine.getSecurity().setPermission(otype, newEntry.getPath(), originalPermission);
+      }
    }
 
    public static void restoreSheet(RecycleBin.Entry rEntry, boolean overwrite,
@@ -299,7 +310,8 @@ public final class RecycleUtils {
       recycleBinFile.removeEntry(path);
       ResourceType otype = getAssetResourceType(oldEntry);
       String opath = oldEntry.getPath();
-      fixMoveEntryPermission(otype, opath, newEntry.getPath(), rEntry.getPermission());
+      fixMoveEntryPermission(otype, opath, newEntry.getPath(), rEntry.getPermission(),
+                             rEntry.getOriginalScope());
    }
 
    public static String restoreWSFolder(RecycleBin.Entry rEntry, boolean overwrite,
@@ -344,7 +356,8 @@ public final class RecycleUtils {
       recycleBinFile.removeEntry(path);
       ResourceType otype = getAssetResourceType(oldEntry);
       String opath = oldEntry.getPath();
-      fixMoveEntryPermission(otype, opath, newEntry.getPath(), rEntry.getPermission());
+      fixMoveEntryPermission(otype, opath, newEntry.getPath(), rEntry.getPermission(),
+                             rEntry.getOriginalScope());
 
       return null;
    }
@@ -457,12 +470,25 @@ public final class RecycleUtils {
       }
    }
 
+   /**
+    * Moves the permission of a restored entry from its recycle bin path to its original path.
+    *
+    * @param originalScope the scope the entry is restored to. Permissions are only keyed by path
+    *                      for global-scope assets, so for any other scope the permission is not
+    *                      written to the original path, which would otherwise overwrite (or clear)
+    *                      the permission of a same-named global asset. The recycle bin path is
+    *                      unique, so its permission is always removed.
+    */
    private static void fixMoveEntryPermission(ResourceType type, String oldPath, String newPath,
-      Permission newPermission)
+                                              Permission newPermission, int originalScope)
    {
       SecurityEngine sengine = SecurityEngine.getSecurity();
       sengine.removePermission(type, oldPath);
-      sengine.setPermission(type, newPath, newPermission);
+
+      if(originalScope == AssetRepository.GLOBAL_SCOPE) {
+         sengine.setPermission(type, newPath, newPermission);
+      }
+
       SecurityEngine.touch();
    }
 

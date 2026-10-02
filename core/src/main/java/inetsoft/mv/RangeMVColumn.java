@@ -147,7 +147,7 @@ public final class RangeMVColumn extends MVColumn implements XDynamicMVColumn {
     * Reset the range mv column.
     */
    @Override
-   public void setRange(Number min, Number max) {
+   public synchronized void setRange(Number min, Number max) {
       super.setRange(min, max);
       this.min = min;
       this.max = max;
@@ -220,7 +220,7 @@ public final class RangeMVColumn extends MVColumn implements XDynamicMVColumn {
    }
 
    @Override
-   public int getDataLength() {
+   public synchronized int getDataLength() {
       int len = super.getDataLength() + base.getDataLength();
       String[] datas = getData();
       len += 1; // datas is null?
@@ -243,7 +243,7 @@ public final class RangeMVColumn extends MVColumn implements XDynamicMVColumn {
    }
 
    @Override
-   public void write(ByteBuffer buf) {
+   public synchronized void write(ByteBuffer buf) {
       super.write(buf);
       base.write(buf);
 

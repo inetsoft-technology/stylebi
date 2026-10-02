@@ -17,12 +17,16 @@
  */
 package inetsoft.web.portal.controller;
 
+import inetsoft.sree.schedule.ScheduleTask;
+import inetsoft.sree.security.IdentityID;
 import inetsoft.sree.security.ResourceAction;
 import inetsoft.sree.security.ResourceType;
+import inetsoft.sree.security.SecurityException;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.asset.internal.AssetFolder;
 import inetsoft.util.Catalog;
+import inetsoft.util.MessageException;
 import inetsoft.util.Tool;
 import inetsoft.web.admin.schedule.*;
 import inetsoft.web.admin.schedule.model.*;
@@ -68,7 +72,14 @@ public class ScheduleTaskFolderController {
          "" : path + "/";
       folderName += req.getFolderName();
 
-      return scheduleTaskFolderService.checkAddDuplicate(req.getParent(), folderName,
+      // Bug #77523, the same WRITE check addFolder makes, so the endpoint doesn't tell a user
+      // who can't add to the folder which schedule folders exist
+      if(!scheduleTaskFolderService.checkFolderPermission(path, principal, ResourceAction.WRITE)) {
+         throw new SecurityException(
+            "Unauthorized access to resource \"" + path + "\" by user " + principal);
+      }
+
+      return scheduleTaskFolderService.checkAddDuplicate(getParentFolderEntry(path), folderName,
          AssetRepository.GLOBAL_SCOPE, principal);
    }
 
@@ -90,7 +101,17 @@ public class ScheduleTaskFolderController {
       folderName += req.getFolderName();
 
       scheduleTaskFolderService.addFolder(
-         req.getParent(), folderName, path, AssetRepository.GLOBAL_SCOPE, principal);
+         getParentFolderEntry(path), folderName, path, AssetRepository.GLOBAL_SCOPE, principal);
+   }
+
+   /**
+    * Bug #77523, only the path of the client's parent entry is used. The scope, type, user and
+    * organization are the server's, as in the EM controller, so the parent written to is always
+    * the schedule task folder the permission was checked on.
+    */
+   private AssetEntry getParentFolderEntry(String path) {
+      return new AssetEntry(
+         AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.SCHEDULE_TASK_FOLDER, path, null);
    }
 
    @Secured({
@@ -258,9 +279,55 @@ public class ScheduleTaskFolderController {
    {
       ScheduleTaskModel[] taskModels = request.getTasks();
       String[] folders = request.getFolders();
-      AssetEntry targetEntry = request.getTarget();
+      AssetEntry target = request.getTarget();
+      // Bug #77379, the organization of the client's target entry isn't trusted, the target is
+      // a folder of the user's organization, the same as for a folder move and in the EM
+      AssetEntry targetEntry = target == null ? null :
+         new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.SCHEDULE_TASK_FOLDER,
+                        target.getPath(), null);
 
+      checkMoveTaskPermission(taskModels, principal);
       scheduleTaskFolderService.moveScheduleItems(taskModels, folders, targetEntry, principal);
+   }
+
+   /**
+    * Bug #77379, checks that the user can move each stored task that is moved, the same way the
+    * portal offers the move: the task is the user's own or shared with the user's group, can be
+    * deleted by the user and is in a folder the user can read. Tasks that can't be moved at all
+    * (e.g. data cycle and internal tasks) are skipped by the move.
+    */
+   private void checkMoveTaskPermission(ScheduleTaskModel[] taskModels, Principal principal)
+      throws Exception
+   {
+      if(taskModels == null) {
+         return;
+      }
+
+      IdentityID user = IdentityID.getIdentityIDFromKey(principal.getName());
+
+      for(ScheduleTaskModel taskModel : taskModels) {
+         ScheduleTask task = scheduleTaskFolderService.getMovableTask(taskModel);
+
+         if(task == null) {
+            continue;
+         }
+
+         boolean allowed = (Objects.equals(user, task.getOwner()) ||
+            scheduleService.isGroupShareTask(task, principal)) &&
+            scheduleService.canDeleteTask(task, principal);
+
+         if(!allowed) {
+            throw new MessageException(Catalog.getCatalog().getString(
+               "common.writeAuthority", task.getName()));
+         }
+
+         String folder = ScheduleTaskFolderService.getTaskFolderPath(task);
+
+         if(!scheduleTaskFolderService.checkFolderPermission(folder, principal, ResourceAction.READ)) {
+            throw new MessageException(Catalog.getCatalog().getString(
+               "common.readAuthority", folder));
+         }
+      }
    }
 
    @Secured({

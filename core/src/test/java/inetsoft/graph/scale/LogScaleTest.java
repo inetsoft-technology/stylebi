@@ -21,9 +21,11 @@ import inetsoft.graph.data.DefaultDataSet;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+@Tag("core")
 class LogScaleTest {
 
    private static final double DELTA = 1e-6;

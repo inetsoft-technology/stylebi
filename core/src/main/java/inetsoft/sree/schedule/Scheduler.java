@@ -646,6 +646,14 @@ public class Scheduler {
                }
             }
 
+            // Bug #77359, the tasks of different organizations with the same id are one job
+            try {
+               ScheduleManager.getScheduleManager().logDuplicateTaskIds();
+            }
+            catch(Exception ex) {
+               LOG.warn("Failed to check the schedule task ids", ex);
+            }
+
             if(isCloudRun) {
                cluster.setLocalNodeProperty(CLOUD_RUNNER_SCHEDULER_TASK_LOADED, "true");
             }
@@ -889,7 +897,7 @@ public class Scheduler {
    {
       Date time = new Date(next);
       Date startDate = getDate(time, task.getStartDate(), task.getTimeZone());
-      Date endDate = task.getEndDate() != null ? getDate(time, task.getEndDate(), task.getTimeZone()) : null;
+      Date endDate = getTriggerEndTime(time, task.getEndDate(), task.getTimeZone());
       startDate = time.getTime() > startDate.getTime() ? time : startDate;
       trigger.setStartTime(startDate);
       trigger.setEndTime(endDate);
@@ -898,6 +906,25 @@ public class Scheduler {
       LOG.debug(
          "Task scheduled at " + startDate + ": " +
             task.getTaskId());
+   }
+
+   /**
+    * Gets the end time of a trigger that first fires at the given time. The end date is moved to
+    * the fire time of day, so a "stop on" date (midnight of that day) ends the trigger before it
+    * fires on that day. Bug #77297, the end time is never earlier than the end date itself, else an
+    * end date later on the same day as the fire gave an end time equal to the fire time, and the
+    * trigger was never scheduled or fired.
+    *
+    * @param time    the first fire time.
+    * @param endDate the end date of the task, or null if it has none.
+    */
+   static Date getTriggerEndTime(Date time, Date endDate, String timeZone) {
+      if(endDate == null) {
+         return null;
+      }
+
+      Date endTime = getDate(time, endDate, timeZone);
+      return endTime.getTime() < endDate.getTime() ? endDate : endTime;
    }
 
    /**

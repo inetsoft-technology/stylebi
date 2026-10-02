@@ -26,13 +26,16 @@ import inetsoft.sree.RepletRequest;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.sree.security.OrganizationManager;
+import inetsoft.sree.security.SecurityException;
 import inetsoft.uql.VariableTable;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.asset.internal.ColumnIndexMap;
 import inetsoft.uql.util.XUtil;
+import inetsoft.util.ThreadContext;
 import inetsoft.util.Tool;
 import inetsoft.util.script.ScriptEnv;
+import inetsoft.web.AutoSaveUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.w3c.dom.Element;
@@ -43,40 +46,114 @@ import java.security.Principal;
 import java.util.*;
 
 public class BatchAction extends AbstractAction {
+   /**
+    * Runs the child task once per embedded parameter map and once per row of the query. The
+    * query is the content of the task that holds this action, so it runs with that task's
+    * principal. Bug #77452, the child task runs with its own principal, the same principal it
+    * runs with when it is scheduled ({@link SUtil#getScheduleTaskRunPrincipal}), never with the
+    * principal of the task that holds this action: anyone who may change the child task would
+    * otherwise run its actions with the roles of that task. A nested batch action of the child
+    * task gets the child's principal and in turn runs its own child task with that task's
+    * principal.
+    *
+    * @param principal the principal of the task that holds this action.
+    */
    @Override
    public void run(Principal principal) throws Throwable {
       ScheduleManager scheduleManager = ScheduleManager.getScheduleManager();
       ScheduleTask task = scheduleManager.getScheduleTask(taskId);
 
       if(task != null) {
-         runScheduleTaskWithEmbeddedParameters(task, principal);
-         runScheduleTaskWithQueryParameters(task, principal);
+         // Bug #77531, run-time backstop: refuse to dispatch to one of the three internal tasks
+         // (asset file backup, task balancer, update assets dependencies) unless the principal of
+         // the task that holds this action is a site admin. Those internal actions ignore the
+         // principal they are run with and perform no permission check of their own, so a
+         // BatchAction saved (or imported) before this fix, or through any path the save-time
+         // checks miss, must still be refused here.
+         if(ScheduleManager.isInternalTask(task.getTaskId()) &&
+            !OrganizationManager.getInstance().isSiteAdmin(principal))
+         {
+            throw new SecurityException(String.format(
+               "Unauthorized access to resource \"%s\" by %s", task.getTaskId(), principal));
+         }
+
+         Principal childPrincipal = getChildPrincipal(task);
+         runScheduleTaskWithEmbeddedParameters(task, childPrincipal);
+         runScheduleTaskWithQueryParameters(task, principal, childPrincipal);
       }
    }
 
-   private void runScheduleTaskWithQueryParameters(ScheduleTask task, Principal principal) throws Throwable {
+   /**
+    * Runs a copy of the child task with its principal, which is also the context principal of
+    * this thread while it runs (the actions' pooled threads inherit it). The context principal
+    * of the task that holds this action is restored afterwards.
+    */
+   private static void runChildTask(ScheduleTask clonedTask, Principal childPrincipal)
+      throws Throwable
+   {
+      Principal contextPrincipal = ThreadContext.getContextPrincipal();
+
+      try {
+         ThreadContext.setContextPrincipal(childPrincipal);
+         clonedTask.run(childPrincipal);
+      }
+      finally {
+         ThreadContext.setContextPrincipal(contextPrincipal);
+      }
+   }
+
+   /**
+    * Gets the principal the child task runs with, the same as ScheduleTaskJob: none for an
+    * internal task, otherwise its execute-as identity or its owner, with the locale of the task.
+    */
+   private Principal getChildPrincipal(ScheduleTask task) {
+      if(ScheduleManager.isInternalTask(task.getTaskId())) {
+         return null;
+      }
+
+      Principal childPrincipal = SUtil.getScheduleTaskRunPrincipal(task, Tool.getIP(), true);
+
+      if(childPrincipal == null) {
+         // fail closed, never fall back to the principal of the task that holds this action
+         throw new IllegalStateException(
+            "Cannot get the principal of the batch action task " + task.getTaskId() +
+            ", the task was not run");
+      }
+
+      // the child runs with its own locale, the same as when it is run (SUtil.runTask)
+      SUtil.applyScheduleTaskLocale(childPrincipal, task.getLocale());
+      return childPrincipal;
+   }
+
+   private void runScheduleTaskWithQueryParameters(ScheduleTask task, Principal principal,
+                                                   Principal childPrincipal)
+      throws Throwable
+   {
       if(queryEntry == null || queryParameters == null || queryParameters.size() == 0) {
          return;
       }
 
+      // Bug #77549, the auto-save properties are also removed here in case the entry was changed
+      // in place or deserialized without going through setQueryEntry() or parseXML()
+      AssetEntry entry = removeAutoSaveProperties(queryEntry);
       AssetRepository assetRepository = AssetUtil.getAssetRepository(false);
       TableAssembly tableAssembly = null;
       TableLens queryTable = null;
       Worksheet sheet = null;
 
-      if(queryEntry.isTable()) {
-         AssetEntry wsEntry = new AssetEntry(queryEntry.getScope(), AssetEntry.Type.WORKSHEET,
-                                             queryEntry.getParentPath(), queryEntry.getUser());
+      if(entry.isTable()) {
+         AssetEntry wsEntry = new AssetEntry(entry.getScope(), AssetEntry.Type.WORKSHEET,
+                                             entry.getParentPath(), entry.getUser());
          sheet = (Worksheet) assetRepository.getSheet(wsEntry, principal, true,
                                                       AssetContent.ALL);
-         Assembly assembly = sheet.getAssembly(queryEntry.getName());
+         Assembly assembly = sheet.getAssembly(entry.getName());
 
          if(assembly instanceof TableAssembly) {
             tableAssembly = (TableAssembly) assembly;
          }
       }
-      else if(queryEntry.isWorksheet()) {
-         sheet = (Worksheet) assetRepository.getSheet(queryEntry, principal, true,
+      else if(entry.isWorksheet()) {
+         sheet = (Worksheet) assetRepository.getSheet(entry, principal, true,
                                                       AssetContent.ALL);
          Assembly assembly = sheet.getPrimaryAssembly();
 
@@ -134,12 +211,15 @@ public class BatchAction extends AbstractAction {
                replaceVariablesInScheduleAction((AbstractAction) action, vars);
             }
 
-            clonedTask.run(principal);
+            runChildTask(clonedTask, childPrincipal);
          }
       }
    }
 
-   private void runScheduleTaskWithEmbeddedParameters(ScheduleTask task, Principal principal) throws Throwable {
+   private void runScheduleTaskWithEmbeddedParameters(ScheduleTask task,
+                                                      Principal childPrincipal)
+      throws Throwable
+   {
       if(embeddedParameters != null) {
          for(Map<String, Object> map : embeddedParameters) {
             ScheduleTask clonedTask = ScheduleTask.copyScheduleTask(task);
@@ -181,7 +261,7 @@ public class BatchAction extends AbstractAction {
                replaceVariablesInScheduleAction((AbstractAction) action, vars);
             }
 
-            clonedTask.run(principal);
+            runChildTask(clonedTask, childPrincipal);
          }
       }
    }
@@ -208,7 +288,28 @@ public class BatchAction extends AbstractAction {
    }
 
    public void setQueryEntry(AssetEntry queryEntry) {
-      this.queryEntry = queryEntry;
+      this.queryEntry = removeAutoSaveProperties(queryEntry);
+   }
+
+   /**
+    * Bug #77549, gets a copy of a query entry without the auto-save properties. The entry comes
+    * from the client (the task editor or an imported task) with its properties as sent, and an
+    * entry with openAutoSaved reads the auto-saved file named by autoFileName without any
+    * permission check (AbstractAssetEngine.getSheet), e.g. another user's unsaved worksheet. A
+    * batch action query is always a saved worksheet.
+    *
+    * @return the entry itself if it has none of them.
+    */
+   public static AssetEntry removeAutoSaveProperties(AssetEntry entry) {
+      if(entry == null || AutoSaveUtils.AUTO_SAVE_PROPERTIES.stream()
+         .allMatch(p -> entry.getProperty(p) == null))
+      {
+         return entry;
+      }
+
+      AssetEntry copy = (AssetEntry) entry.clone();
+      AutoSaveUtils.AUTO_SAVE_PROPERTIES.forEach(p -> copy.setProperty(p, null));
+      return copy;
    }
 
    public Map<String, Object> getQueryParameters() {
@@ -278,8 +379,9 @@ public class BatchAction extends AbstractAction {
       Element queryEntryElem = Tool.getChildNodeByTagName(tag, "queryEntry");
 
       if(queryEntryElem != null) {
-         queryEntry = new AssetEntry();
-         queryEntry.parseXML(Tool.getChildNodeByTagName(queryEntryElem, "assetEntry"), isImportAsSiteAdmin);
+         AssetEntry entry = new AssetEntry();
+         entry.parseXML(Tool.getChildNodeByTagName(queryEntryElem, "assetEntry"), isImportAsSiteAdmin);
+         queryEntry = removeAutoSaveProperties(entry);
       }
 
       Element queryParametersElem = Tool.getChildNodeByTagName(tag, "queryParameters");

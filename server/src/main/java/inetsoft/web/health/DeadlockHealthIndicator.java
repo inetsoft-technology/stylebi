@@ -20,25 +20,41 @@ package inetsoft.web.health;
 import inetsoft.util.StatusDumpService;
 import inetsoft.util.health.*;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.actuate.health.Health;
 import org.springframework.boot.actuate.health.HealthIndicator;
 import org.springframework.stereotype.Component;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
 @Component
 public class DeadlockHealthIndicator implements HealthIndicator {
+   @Autowired
    public DeadlockHealthIndicator(DeadlockHealthService service, StatusDumpService statusDumpService) {
+      this(service, statusDumpService, new StatusDumpLimiter());
+   }
+
+   DeadlockHealthIndicator(DeadlockHealthService service, StatusDumpService statusDumpService,
+                           StatusDumpLimiter dumpLimiter)
+   {
       this.service = service;
       this.statusDumpService = statusDumpService;
+      this.dumpLimiter = dumpLimiter;
    }
 
    @Override
    public Health health() {
       DeadlockStatus status = service.getStatus();
 
-      if(status.getDeadlockedThreadCount() > 0) {
+      boolean deadlocked = status.getDeadlockedThreadCount() > 0;
+      boolean down = deadlocked || status.isStalled();
+      // the full status zip: a JVM deadlock is dumped on every poll as before, a lock stall
+      // alone is not (bug #76967)
+      boolean dump = deadlocked || dumpLimiter.shouldDump(status.isStalled());
+
+      if(down) {
          Map<String, Map<String, String>> details = new HashMap<>();
 
          for(DeadlockedThread thread : status.getDeadlockedThreads()) {
@@ -48,9 +64,19 @@ public class DeadlockHealthIndicator implements HealthIndicator {
             threadDetails.put("lockOwnerName", thread.getLockOwnerName());
          }
 
+         // a lock stall that its timeout did not release, e.g. a thread that cannot unwind
+         // (bug #76967)
+         if(status.isStalled()) {
+            details.put("lockStall", Collections.singletonMap("reason", status.getStallReason()));
+         }
+
          LoggerFactory.getLogger(getClass()).error(
             "DeadlockHealthIndicator DOWN: details={}", details);
-         statusDumpService.dumpStatus();
+
+         if(dump) {
+            statusDumpService.dumpStatus();
+         }
+
          return Health.down().withDetails(details).build();
       }
 
@@ -59,4 +85,5 @@ public class DeadlockHealthIndicator implements HealthIndicator {
 
    private final DeadlockHealthService service;
    private final StatusDumpService statusDumpService;
+   private final StatusDumpLimiter dumpLimiter;
 }

@@ -779,10 +779,19 @@ public class MVAssetQuery extends AssetQuery {
 
       if(harr != null && harr.length > 0) {
          AssetQueryScope scope = box.getScope();
-         scope.setMode(mode);
+
+         if(box.isScriptPoolMode()) {
+            // this query's own mode (bug #76960)
+            scope = scope.queryView(box.getVariableTable(), mode);
+         }
+         else {
+            scope.setMode(mode);
+         }
+
          ScriptEnv env = box.getScriptEnv();
          int baseColCount = data.getColCount();
-         FormulaTableLens ftbl = new FormulaTableLens(data, harr, sarr, env, box.getScope());
+         FormulaTableLens ftbl = new FormulaTableLens(
+            data, harr, sarr, env, box.isScriptPoolMode() ? scope : box.getScope());
 
          // register the declared column type for each materialized calc-field column,
          // mirroring PostProcessor.formula(), so PostProcessor.formula()'s later

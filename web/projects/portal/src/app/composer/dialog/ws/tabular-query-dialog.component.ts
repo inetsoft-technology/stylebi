@@ -61,8 +61,8 @@ export class TabularQueryDialog implements OnInit {
    private readonly CONTROLLER_SOCKET = "/events/ws/dialog/tabular-query-dialog-model";
    private readonly CONTROLLER_REFRESH_VIEW: string = "../api/composer/ws/tabular-query-dialog/refreshView";
    private readonly CONTROLLER_BROWSE: string = "../api/composer/ws/tabular-query-dialog/browse";
-   private readonly CONTROLLER_OAUTH_PARAMS = "../api/composer/tabular-query-dialog/oauth-params";
-   private readonly CONTROLLER_OAUTH_TOKENS = "../api/composer/tabular-query-dialog/oauth-tokens";
+   private readonly CONTROLLER_OAUTH_PARAMS = "../api/composer/ws/tabular-query-dialog/oauth-params";
+   private readonly CONTROLLER_OAUTH_TOKENS = "../api/composer/ws/tabular-query-dialog/oauth-tokens";
    model: TabularQueryDialogModel;
    headers: HttpHeaders;
    valid: boolean;

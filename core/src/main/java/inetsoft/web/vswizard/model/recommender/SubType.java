@@ -97,7 +97,7 @@ public interface SubType extends Serializable, XMLSerializable {
       SubType subType = null;
 
       try {
-         subType = (SubType) Class.forName(cls).newInstance();
+         subType = (SubType) Tool.loadSubclass(cls, SubType.class).newInstance();
          subType.parseXML(elem);
       }
       catch(InstantiationException ex) {

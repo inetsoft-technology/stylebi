@@ -77,6 +77,8 @@ public class TabularQueryDialogService extends WorksheetControllerService {
 
          if(query.getDataSource() != null) {
             dataSource = query.getDataSource().getFullName();
+            // refreshView runs connector code against the bound source
+            checkDataSourceReadPermission(securityEngine, dataSource, principal);
          }
 
          List<String> records = getThreadRecords(runtimeId, tableName, principal);
@@ -121,6 +123,9 @@ public class TabularQueryDialogService extends WorksheetControllerService {
                         Principal principal, CommandDispatcher commandDispatcher) throws Exception
    {
       String dataSource = model.getDataSource();
+      // Bug #77149, the name is used to create a new query or to (re)bind an existing
+      // assembly's query, including a same-name rebind, so check it on every apply.
+      checkDataSourceReadPermission(securityEngine, dataSource, principal);
       TabularView tabularView = model.getTabularView();
       String name = model.getTableName();
 
@@ -255,6 +260,44 @@ public class TabularQueryDialogService extends WorksheetControllerService {
       }
 
       return records;
+   }
+
+   /**
+    * Fails closed unless the principal has READ on the named data source. This is the
+    * same decision (raw full name, DATA_SOURCE, READ) as the data source list filter in
+    * {@link #getModel}, so a source that is not offered in the dialog cannot be used by
+    * name either (Bug #77149).
+    *
+    * @param securityEngine the security engine.
+    * @param dataSource     the full name of the data source.
+    * @param principal      the current user.
+    *
+    * @throws java.lang.SecurityException if the name is null or blank, if READ is not
+    *                                     granted, or if the check itself fails.
+    */
+   static void checkDataSourceReadPermission(SecurityEngine securityEngine, String dataSource,
+                                             Principal principal)
+   {
+      if(dataSource == null || dataSource.isBlank()) {
+         throw new java.lang.SecurityException("Missing data source name");
+      }
+
+      boolean allowed;
+
+      try {
+         allowed = securityEngine != null && securityEngine.checkPermission(
+            principal, ResourceType.DATA_SOURCE, dataSource, ResourceAction.READ);
+      }
+      catch(Exception e) {
+         LOG.debug("Failed to check data source permission: {}", dataSource, e);
+         allowed = false;
+      }
+
+      if(!allowed) {
+         throw new java.lang.SecurityException(
+            "Unauthorized access to data source \"" + dataSource + "\" by user " +
+            (principal == null ? null : principal.getName()));
+      }
    }
 
    private void setUpTable(TabularTableAssembly assembly,

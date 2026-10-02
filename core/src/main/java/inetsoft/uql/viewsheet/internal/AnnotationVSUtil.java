@@ -95,6 +95,10 @@ public final class AnnotationVSUtil {
          try {
             lens = box.getTableData(base.getAbsoluteName());
          }
+         catch(LockRestoreException ex) {
+            // the sandbox lock was lost, not a missing annotation target (77227)
+            throw ex;
+         }
          catch(Exception ex) {
             return null;
          }
@@ -354,6 +358,10 @@ public final class AnnotationVSUtil {
             return pair.getData();
          }
       }
+      catch(LockRestoreException e) {
+         // the sandbox lock was lost, not a chart without data (77227)
+         throw e;
+      }
       catch(Exception e) {
          LOG.warn("Failed to get data set: " + base, e);
       }
@@ -388,6 +396,9 @@ public final class AnnotationVSUtil {
                box.getScope().resetChartScriptable(ass);
             }
          }
+      }
+      catch(LockRestoreException e) {
+         throw e;
       }
       catch(Exception e) {
          LOG.warn("Failed to get data set: " + base, e);
@@ -592,6 +603,10 @@ public final class AnnotationVSUtil {
          try {
             lens = lens == null ?
                box.getTableData(base.getAbsoluteName()) : lens;
+         }
+         catch(LockRestoreException ex) {
+            // the sandbox lock was lost, not a missing annotation target (77227)
+            throw ex;
          }
          catch(Exception ex) {
             return null;
@@ -1807,6 +1822,11 @@ public final class AnnotationVSUtil {
                resetDataAnnotation(
                   rvs, assembly, data, area, dispatcher, coreLifecycleService, false,
                   false);
+            }
+            catch(LockRestoreException ex) {
+               // not a chart area that isn't ready: the sandbox lock this thread's callers
+               // hold was lost, so they must not go on as if it were held (77227)
+               throw ex;
             }
             catch(Exception ex) {
                // chart area maybe not ready, just ignore it, we will

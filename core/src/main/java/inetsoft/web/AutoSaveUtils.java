@@ -48,6 +48,17 @@ import java.util.stream.Collectors;
  * @version 13.4
  */
 public final class AutoSaveUtils {
+   /**
+    * The entry properties that make {@code AbstractAssetEngine.getSheet} read an auto save file
+    * instead of the sheet, without the permission check of the sheet. Removed from an entry that
+    * must be a saved sheet (Bug #77549, {@code BatchAction.removeAutoSaveProperties}).
+    */
+   public static final String OPEN_AUTO_SAVED = "openAutoSaved";
+   public static final String AUTO_FILE_NAME = "autoFileName";
+   public static final String IS_RECYCLE = "isRecycle";
+   public static final List<String> AUTO_SAVE_PROPERTIES =
+      List.of(OPEN_AUTO_SAVED, AUTO_FILE_NAME, IS_RECYCLE);
+
    // Create asset entry according to auto save file's file name
    // property file name will get right file to open
    // isCycle means get auto save file from recycle bin.
@@ -70,9 +81,9 @@ public final class AutoSaveUtils {
       // than the temporary scope, the ip address would be parsed as the organization id.
       AssetEntry entry = AssetEntry.createAssetEntryForCurrentOrg(
          scope + typeStr + ouser + "^" + name + "^" + ip);
-      entry.setProperty("openAutoSaved", "true");
-      entry.setProperty("autoFileName", autoFile);
-      entry.setProperty("isRecycle", "true");
+      entry.setProperty(OPEN_AUTO_SAVED, "true");
+      entry.setProperty(AUTO_FILE_NAME, autoFile);
+      entry.setProperty(IS_RECYCLE, "true");
 
       return entry;
    }
@@ -83,8 +94,8 @@ public final class AutoSaveUtils {
    // from the entry and the current user.
    // Otherwise, create the file name from the entry and the current user.
    public static String getAutoSavedFile(AssetEntry entry, Principal user) {
-      String fileName = entry.getProperty("autoFileName");
-      boolean isRecycle = "true".equals(entry.getProperty("isRecycle"));
+      String fileName = entry.getProperty(AUTO_FILE_NAME);
+      boolean isRecycle = "true".equals(entry.getProperty(IS_RECYCLE));
 
       if(fileName != null) {
          fileName = SUtil.addAutoSaveOrganization(fileName);
@@ -362,7 +373,11 @@ public final class AutoSaveUtils {
       }
 
       Date date = new Date(time);
+      // Bug #77566: a locale-less SimpleDateFormat uses the JVM default locale's calendar (e.g.
+      // Buddhist for th_TH, Japanese imperial for ja_JP_JP) for a value that is only ever
+      // displayed, never parsed back -- force Gregorian so the displayed year is correct.
       SimpleDateFormat format = new SimpleDateFormat(SreeEnv.getProperty("format.date.time"));
+      format.setCalendar(new GregorianCalendar());
       format.setTimeZone(TimeZone.getTimeZone(clientTimeZone));
       return format.format(date);
    }

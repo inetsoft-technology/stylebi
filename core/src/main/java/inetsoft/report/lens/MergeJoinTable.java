@@ -23,7 +23,11 @@ import inetsoft.report.filter.SortFilter;
 import inetsoft.report.filter.SortedTable;
 import inetsoft.report.internal.ComparatorComparer;
 import inetsoft.util.*;
+import inetsoft.util.script.JavaScriptEngine;
+import inetsoft.util.stall.LockStallException;
 import org.roaringbitmap.RoaringBitmap;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
 
 import java.util.Map;
@@ -37,6 +41,35 @@ class MergeJoinTable extends JoinTable {
          leftTable, rightTable, leftCols, rightCols, joinType, includeRightJoinCols,
          maxRows);
       joinThread = new JoinThread(leftTable, rightTable, leftCols, rightCols, joinType);
+
+      // if this is called from JavaScriptEngine.exec() or a condition filter, the script
+      // engine is already locked. joining in the join thread would deadlock if it needs the
+      // engine, e.g. for a formula, while this thread waits for the joined rows (bug #77215)
+      if(JavaScriptEngine.holdsScriptLock()) {
+         Map<String, String> context = MDC.getCopyOfContextMap();
+
+         try {
+            joinThread.doRun();
+         }
+         catch(RuntimeException ex) {
+            // as on the join thread, the join has the rows so far and a stall is rethrown
+            // by the reader
+            if(LockStallException.find(ex) == null) {
+               LOG.error("Failed to merge the join tables", ex);
+            }
+         }
+         finally {
+            if(context != null) {
+               MDC.setContextMap(context);
+            }
+            else {
+               MDC.clear();
+            }
+         }
+
+         return;
+      }
+
       joinThread.start();
    }
 
@@ -57,7 +90,13 @@ class MergeJoinTable extends JoinTable {
       return false;
    }
 
+   @Override
+   protected Thread[] getWorkerThreads() {
+      return new Thread[] { joinThread };
+   }
+
    private JoinThread joinThread;
+   private static final Logger LOG = LoggerFactory.getLogger(MergeJoinTable.class);
 
    private final class JoinThread extends GroupedThread {
       JoinThread(TableLens leftTable, TableLens rightTable,
@@ -103,6 +142,9 @@ class MergeJoinTable extends JoinTable {
             RoaringBitmap rJoined = new RoaringBitmap();
 
             while(!isCancelled()) {
+               // progress for the lock-stall watchdog, even if the rows join nothing
+               addScannedRow();
+
                if(leftTable.moreRows(l) && rightTable.moreRows(r)) {
                   Object[] lTuple = getTuple(leftTable, l);
                   Object[] rTuple = getTuple(rightTable, r);
@@ -256,6 +298,21 @@ class MergeJoinTable extends JoinTable {
                else {
                   break;
                }
+            }
+         }
+         catch(RuntimeException ex) {
+            // a stall is logged by the wait site; the reader rethrows it rather than take the
+            // rows so far for the whole join. it may reach the worker wrapped (bug #76967)
+            LockStallException stall = LockStallException.find(ex);
+
+            if(stall == null) {
+               throw ex;
+            }
+
+            setStallFailure(stall);
+
+            if(stall != ex) {
+               throw ex;
             }
          }
          finally {

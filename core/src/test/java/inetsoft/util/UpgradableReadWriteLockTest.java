@@ -20,9 +20,12 @@ package inetsoft.util;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
+import java.lang.reflect.Field;
+import java.util.Arrays;
 import java.util.EmptyStackException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -483,6 +486,422 @@ class UpgradableReadWriteLockTest {
       assertFalse(writer.isAlive());
       assertLockFree(lock);
    }
+
+   /**
+    * Bug #76986: restoring an upgrade ({@code [READ, WRITE]}) while another thread holds a read
+    * lock times out on the bounded write. The read locks rewound for it used to be taken back
+    * with a plain lock(), which parks behind a writer that queued during the bounded wait: the
+    * bound fired but the thread never returned.
+    */
+   @Test
+   void upgradeRestoreFailsWithinBoundWhenWriterQueuesDuringWait() throws Exception {
+      UpgradableReadWriteLock lock = new UpgradableReadWriteLock(BOUND_MS);
+      Restorer restorer = new Restorer(lock, () -> {
+         lock.lockRead();
+         lock.lockWrite();
+         lock.unlockAll();
+      }, () -> {
+         lock.unlockWrite();
+         lock.unlockRead();
+      });
+
+      restorer.awaitSaved();
+      // released by the test, not when the restore returns: the writer then queues behind the
+      // reader even if the bound expired first (the outcome is the same either way)
+      CountDownLatch release = new CountDownLatch(1);
+      Peer reader = new Peer(lock::lockRead, lock::unlockRead, release);
+      reader.awaitHolds();
+      restorer.restore();
+      restorer.awaitInBoundedWait();
+      Peer writer = new Peer(lock::lockWrite, lock::unlockWrite, release);
+      awaitState(writer.thread, Thread.State.WAITING);
+
+      try {
+         restorer.assertFailedWithinBound();
+      }
+      finally {
+         release.countDown();
+      }
+
+      reader.join();
+      writer.join();
+      assertLockFree(lock);
+   }
+
+   /**
+    * Bug #76986: for an upgrade the saved read level was re-locked with a plain lock() before
+    * the bounded write was attempted at all, so a writer that was already queued behind
+    * another reader parked the restore before any bound applied.
+    */
+   @Test
+   void upgradeRestoreFailsWithinBoundWhenWriterAlreadyQueued() throws Exception {
+      UpgradableReadWriteLock lock = new UpgradableReadWriteLock(BOUND_MS);
+      Restorer restorer = new Restorer(lock, () -> {
+         lock.lockRead();
+         lock.lockWrite();
+         lock.unlockAll();
+      }, () -> {
+         lock.unlockWrite();
+         lock.unlockRead();
+      });
+
+      restorer.awaitSaved();
+      Peer reader = new Peer(lock::lockRead, lock::unlockRead, restorer.done);
+      reader.awaitHolds();
+      Peer writer = new Peer(lock::lockWrite, lock::unlockWrite, restorer.done);
+      awaitState(writer.thread, Thread.State.WAITING);
+      restorer.restore();
+
+      restorer.assertFailedWithinBound();
+      reader.join();
+      writer.join();
+      assertLockFree(lock);
+   }
+
+   /**
+    * Bug #76986: same as above with a writer that holds the write lock when the upgrade is
+    * restored. The restore cannot get the read back either, so it must leave this thread
+    * holding nothing, with every entry recorded (and counted) as skipped.
+    */
+   @Test
+   void upgradeRestoreFailsWithinBoundWhenWriterHoldsLock() throws Exception {
+      UpgradableReadWriteLock lock = new UpgradableReadWriteLock(BOUND_MS);
+      Restorer restorer = new Restorer(lock, () -> {
+         lock.lockRead();
+         lock.lockWrite();
+         lock.unlockAll();
+      }, () -> {
+         ReentrantReadWriteLock raw = rawLock(lock);
+         assertEquals(0, raw.getReadHoldCount(), "physical reads after the failed restore");
+         assertFalse(raw.isWriteLockedByCurrentThread());
+         assertEquals(2, lock.getSkippedCount(), "the read and the write were not restored");
+         lock.unlockWrite();
+         lock.unlockRead();
+         assertThrows(EmptyStackException.class, lock::unlockRead);
+      });
+
+      restorer.awaitSaved();
+      Peer writer = new Peer(lock::lockWrite, lock::unlockWrite, restorer.done);
+      writer.awaitHolds();
+      restorer.restore();
+
+      restorer.assertFailedWithinBound();
+      writer.join();
+      assertLockFree(lock);
+   }
+
+   /**
+    * Bug #76986: every read level below the write is recorded, not only the one the restore
+    * started from, so each frame unwinds its own entry.
+    */
+   @Test
+   void upgradeRestoreOfTwoReadsFailsWithinBoundWhenWriterHoldsLock() throws Exception {
+      UpgradableReadWriteLock lock = new UpgradableReadWriteLock(BOUND_MS);
+      Restorer restorer = new Restorer(lock, () -> {
+         lock.lockRead();
+         lock.lockRead();
+         lock.lockWrite();
+         lock.unlockAll();
+      }, () -> {
+         assertEquals(0, rawLock(lock).getReadHoldCount(), "physical reads after the failed restore");
+         assertEquals(3, lock.getSkippedCount(), "the two reads and the write were not restored");
+         lock.unlockWrite();
+         lock.unlockRead();
+         lock.unlockRead();
+         assertThrows(EmptyStackException.class, lock::unlockRead);
+      });
+
+      restorer.awaitSaved();
+      Peer writer = new Peer(lock::lockWrite, lock::unlockWrite, restorer.done);
+      writer.awaitHolds();
+      restorer.restore();
+
+      restorer.assertFailedWithinBound();
+      writer.join();
+      assertLockFree(lock);
+   }
+
+   /**
+    * Bug #76986: the reads a bounded write restore rewinds must not be taken back with a
+    * blocking lock() when a writer took the lock during the bounded wait. They are recorded as
+    * skipped instead, and the thread holds nothing.
+    *
+    * <p>The bounded wait is ended by an interrupt, which takes the same failure path as a
+    * timeout, once the writer is known to hold the lock. With a short bound the writer would
+    * have to win a race against it.</p>
+    */
+   @Test
+   void rewoundReadsAreSkippedWhenWriterTakesLockDuringWait() throws Exception {
+      ThreadLocal<Boolean> inScript = ThreadLocal.withInitial(() -> false);
+      UpgradableReadWriteLock lock = new UpgradableReadWriteLock(60_000, inScript::get);
+      Restorer restorer = new Restorer(lock, () -> {
+         // an NB_READ is restored by a non-blocking tryLock(), so the bounded write below has
+         // a physically held read to rewind
+         inScript.set(true);
+         lock.lockRead();
+         inScript.set(false);
+         lock.lockWrite();
+         lock.unlockAll();
+      }, () -> {
+         assertEquals(0, rawLock(lock).getReadHoldCount(), "physical reads after the failed restore");
+         assertEquals(2, lock.getSkippedCount(), "the rewound read and the write were not restored");
+         lock.unlockWrite();
+         lock.unlockRead();
+         assertThrows(EmptyStackException.class, lock::unlockRead);
+      });
+
+      restorer.awaitSaved();
+      CountDownLatch releaseReader = new CountDownLatch(1);
+      Peer reader = new Peer(lock::lockRead, lock::unlockRead, releaseReader);
+      reader.awaitHolds();
+      Peer writer = new Peer(lock::lockWrite, lock::unlockWrite, restorer.done);
+      awaitState(writer.thread, Thread.State.WAITING);
+      restorer.restore();
+      restorer.awaitInBoundedWait();
+      // the queued writer gets the lock while the restore is inside its bounded wait
+      releaseReader.countDown();
+      writer.awaitHolds();
+
+      restorer.assertFailedAfterInterrupt();
+      reader.join();
+      writer.join();
+      assertLockFree(lock);
+   }
+
+   /**
+    * Bug #76986: entries a failed restore records as skipped are counted, so a caller that
+    * catches the exception and continues knows it ran without the lock
+    * (ViewsheetSandbox.isLockSkippedSince()).
+    */
+   @Test
+   void failedRestoreCountsSkippedEntries() throws InterruptedException {
+      UpgradableReadWriteLock lock = new UpgradableReadWriteLock(200);
+      lock.lockWrite();
+      lock.lockWrite();
+      lock.unlockAll();
+
+      runWhileAnotherThreadHoldsRead(lock, () ->
+         assertThrows(IllegalStateException.class, lock::restoreLocks));
+
+      assertEquals(2, lock.getSkippedCount());
+      lock.unlockWrite();
+      lock.unlockWrite();
+      assertLockFree(lock);
+   }
+
+   /**
+    * An uncontended upgrade restore takes the write first and records the read below it
+    * without a physical read, the state lockWrite() leaves after rewinding it; unlockWrite()
+    * takes the read back as a downgrade.
+    */
+   @Test
+   void upgradeRestoreEndsInUpgradedState() {
+      UpgradableReadWriteLock lock = new UpgradableReadWriteLock(BOUND_MS);
+      ReentrantReadWriteLock raw = rawLock(lock);
+      lock.lockRead();
+      lock.lockWrite();
+      lock.unlockAll();
+      assertEquals(0, raw.getReadHoldCount());
+      assertFalse(raw.isWriteLockedByCurrentThread());
+
+      lock.restoreLocks();
+      assertTrue(raw.isWriteLockedByCurrentThread());
+      assertEquals(0, raw.getReadHoldCount());
+      assertEquals(0, lock.getSkippedCount());
+
+      lock.unlockWrite();
+      assertFalse(raw.isWriteLocked());
+      assertEquals(1, raw.getReadHoldCount());
+
+      lock.unlockRead();
+      assertEquals(0, raw.getReadHoldCount());
+      assertLockFree(lock);
+   }
+
+   private static ReentrantReadWriteLock rawLock(UpgradableReadWriteLock lock) {
+      return getField(lock, "thisLock");
+   }
+
+   @SuppressWarnings("unchecked")
+   private static <T> T getField(UpgradableReadWriteLock lock, String name) {
+      try {
+         Field field = UpgradableReadWriteLock.class.getDeclaredField(name);
+         field.setAccessible(true);
+         return (T) field.get(lock);
+      }
+      catch(ReflectiveOperationException ex) {
+         throw new AssertionError(ex);
+      }
+   }
+
+   private static void awaitState(Thread thread, Thread.State state) throws InterruptedException {
+      long deadline = System.currentTimeMillis() + 5000;
+
+      while(thread.getState() != state && System.currentTimeMillis() < deadline) {
+         Thread.sleep(5);
+      }
+
+      assertEquals(state, thread.getState(), thread.getName() + " state");
+   }
+
+   private static void awaitQuietly(CountDownLatch latch, long timeoutMs) {
+      try {
+         latch.await(timeoutMs, TimeUnit.MILLISECONDS);
+      }
+      catch(InterruptedException ex) {
+         Thread.currentThread().interrupt();
+      }
+   }
+
+   /**
+    * Another thread that takes a lock and holds it until {@code release} opens, capped so a
+    * test that fails with a parked restore still ends.
+    */
+   private static final class Peer {
+      Peer(Runnable lock, Runnable unlock, CountDownLatch release) {
+         thread = new Thread(() -> {
+            lock.run();
+            holds.countDown();
+
+            try {
+               awaitQuietly(release, PEER_CAP_MS);
+            }
+            finally {
+               unlock.run();
+            }
+         }, "peer");
+         thread.setDaemon(true);
+         thread.start();
+      }
+
+      void awaitHolds() throws InterruptedException {
+         assertTrue(holds.await(5, TimeUnit.SECONDS), "peer never acquired the lock");
+      }
+
+      void join() throws InterruptedException {
+         thread.join(PEER_CAP_MS + 5000);
+         assertFalse(thread.isAlive(), "peer thread did not exit");
+      }
+
+      final CountDownLatch holds = new CountDownLatch(1);
+      final Thread thread;
+   }
+
+   /**
+    * The thread under test: saves its locks with {@code save}, restores them on
+    * {@link #restore()}, then unwinds its frames with {@code unwind}, all on one thread since
+    * the lock state is per thread.
+    */
+   private static final class Restorer {
+      Restorer(UpgradableReadWriteLock lock, Runnable save, Runnable unwind) {
+         bound = getField(lock, "restoreWriteLockTimeoutMs");
+         thread = new Thread(() -> {
+            try {
+               save.run();
+               saved.countDown();
+               awaitQuietly(go, PEER_CAP_MS);
+               long start = System.nanoTime();
+
+               try {
+                  lock.restoreLocks();
+               }
+               catch(RuntimeException ex) {
+                  restoreError = ex;
+               }
+
+               restoreMs = (System.nanoTime() - start) / 1_000_000;
+               unwind.run();
+            }
+            catch(Throwable ex) {
+               error = ex;
+            }
+            finally {
+               done.countDown();
+            }
+         }, "restorer");
+         thread.setDaemon(true);
+         thread.start();
+      }
+
+      void awaitSaved() throws InterruptedException {
+         assertTrue(saved.await(5, TimeUnit.SECONDS), "restorer never saved its locks");
+      }
+
+      void restore() {
+         go.countDown();
+      }
+
+      /**
+       * Wait until the restore is parked in the bounded write wait (not in the wait for
+       * {@link #restore()}, which is timed too).
+       */
+      void awaitInBoundedWait() throws InterruptedException {
+         long deadline = System.currentTimeMillis() + 5000;
+
+         while(!isInBoundedWait() && System.currentTimeMillis() < deadline) {
+            Thread.sleep(2);
+         }
+
+         assertTrue(isInBoundedWait(), "restore never reached the bounded write wait");
+      }
+
+      // matches UpgradableReadWriteLock.lockWriteBounded() by name, update it on a rename
+      private boolean isInBoundedWait() {
+         return thread.getState() == Thread.State.TIMED_WAITING &&
+            Arrays.stream(thread.getStackTrace())
+               .anyMatch(frame -> frame.getMethodName().equals("lockWriteBounded"));
+      }
+
+      /**
+       * The restore must throw IllegalStateException about when its bound expires (not park
+       * after it), and the frames must unwind cleanly.
+       */
+      void assertFailedWithinBound() throws InterruptedException {
+         assertFinished(bound + HANG_GUARD_MS, "a " + bound + "ms bound");
+         assertInstanceOf(IllegalStateException.class, restoreError);
+         assertTrue(restoreMs < bound + 1000, "restoreLocks() took " + restoreMs + "ms");
+      }
+
+      /**
+       * Interrupt the bounded wait: the restore must throw IllegalStateException right away
+       * (not park after it), and the frames must unwind cleanly.
+       */
+      void assertFailedAfterInterrupt() throws InterruptedException {
+         assertTrue(isInBoundedWait(), "restore left the bounded wait before the interrupt");
+         thread.interrupt();
+         assertFinished(HANG_GUARD_MS, "the interrupt");
+         assertInstanceOf(IllegalStateException.class, restoreError);
+         assertInstanceOf(InterruptedException.class, restoreError.getCause());
+      }
+
+      private void assertFinished(long timeoutMs, String after) throws InterruptedException {
+         thread.join(timeoutMs);
+
+         if(thread.isAlive()) {
+            fail("restoreLocks() still parked " + timeoutMs + "ms after " + after + ", at " +
+                 Arrays.toString(thread.getStackTrace()));
+         }
+
+         if(error != null) {
+            throw new AssertionError("restorer failed", error);
+         }
+      }
+
+      final long bound;
+      final Thread thread;
+      final CountDownLatch saved = new CountDownLatch(1);
+      final CountDownLatch go = new CountDownLatch(1);
+      final CountDownLatch done = new CountDownLatch(1);
+      volatile RuntimeException restoreError;
+      volatile Throwable error;
+      volatile long restoreMs;
+   }
+
+   private static final long BOUND_MS = 300;
+   // how long a restore may still be parked after its bound (or interrupt) before it counts
+   // as hung
+   private static final long HANG_GUARD_MS = 2700;
+   private static final long PEER_CAP_MS = 6000;
 
    private static void runWhileAnotherThreadHoldsWrite(UpgradableReadWriteLock lock,
                                                        Runnable action)

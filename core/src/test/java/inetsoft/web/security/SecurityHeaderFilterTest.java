@@ -91,7 +91,7 @@ class SecurityHeaderFilterTest {
       sreeEnvMock = mockStatic(SreeEnv.class, withSettings().strictness(Strictness.LENIENT));
       filter = new SecurityHeaderFilter(licenseProvider, authService);
       // AbstractSecurityFilter.securityAllowIframe is a *static* SreeEnv.Value shared across every
-      // filter test in the JVM, cached for 10s. Without resetting its internal timestamp here,
+      // filter test in the JVM, cached for 10s. Without invalidating it here,
       // whichever value a previous test (in this class or another AbstractSecurityFilter subclass
       // test) last resolved can leak into this test if it runs within the cache window -- do not
       // rely on execution order to avoid that, force a fresh read every time instead.
@@ -99,9 +99,7 @@ class SecurityHeaderFilterTest {
    }
 
    private static void resetStaticSreeEnvValueCache(SreeEnv.Value value) throws Exception {
-      java.lang.reflect.Field tsField = SreeEnv.Value.class.getDeclaredField("ts");
-      tsField.setAccessible(true);
-      tsField.setLong(value, 0L);
+      value.updateValue();
    }
 
    @AfterEach

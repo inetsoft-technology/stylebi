@@ -664,6 +664,8 @@ public class VSAssemblyInfo extends AssemblyInfo implements FloatableVSAssemblyI
 
       if(!Tool.equals(getPixelOffset(), info.getPixelOffset())) {
          setPixelOffset(info.getPixelOffset());
+         // the position now comes from the other info, so is only script-set if it was there
+         positionByScript = info.positionByScript;
          result = true;
       }
 
@@ -1562,6 +1564,23 @@ public class VSAssemblyInfo extends AssemblyInfo implements FloatableVSAssemblyI
    }
 
    /**
+    * Check if the pixel position was set by a script (e.g. {@code Assembly.position = [x, y]}).
+    * This is a runtime-only flag and is not written to XML. It is not cleared by
+    * {@link #resetRuntimeValues()}, because the script-set pixel offset persists across
+    * refreshes (and onInit only runs once).
+    */
+   public boolean isPositionByScript() {
+      return positionByScript;
+   }
+
+   /**
+    * Set whether the pixel position was set by a script.
+    */
+   public void setPositionByScript(boolean positionByScript) {
+      this.positionByScript = positionByScript;
+   }
+
+   /**
     * Parse attribute properly.
     * @param elem the specified xml element.
     * @param prop the old property name.
@@ -1849,6 +1868,7 @@ public class VSAssemblyInfo extends AssemblyInfo implements FloatableVSAssemblyI
    private boolean wizardEditing = false;
    private ObjectOpenHashSet<String> actionNames = new ObjectOpenHashSet<>(0);
    private boolean controlByScript = false; // visible is control by script
+   private boolean positionByScript = false; // pixel position is set by script
    private Insets padding = new Insets(0, 0, 0, 0);
    // whether the author set the padding. Distinguishes a deliberate inset from the creation
    // default, so the seed substitutes for the latter only. Lives here rather than on the chart,

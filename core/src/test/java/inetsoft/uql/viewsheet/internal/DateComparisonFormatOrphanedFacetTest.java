@@ -62,10 +62,9 @@ import static inetsoft.test.XTableUtil.date;
  * The actual fix for this bug (see DateComparisonFormat.initPartDate()) stops removing
  * partDates entries at all in this class: every entry partDates can ever contain is, by
  * construction, already backed by a real row with a real plotted value, so there is nothing
- * "orphaned" left to discover and strip once a part has made it into that map -- the
- * legitimate "hide a genuinely future/unreached bucket" behavior (Bug #75152/#76389) is
- * still enforced upstream, at the row level, by
- * DateComparisonUtil.applyDateRange()'s ValidPartsSelector.
+ * "orphaned" left to discover and strip once a part has made it into that map. (Bug #77236
+ * later removed the row-level ValidPartsSelector from applyDateRange() too: the query layer
+ * already bounds every period, so it only ever dropped real rows.)
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)

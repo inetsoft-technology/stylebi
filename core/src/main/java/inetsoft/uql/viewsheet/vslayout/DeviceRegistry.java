@@ -42,7 +42,29 @@ public final class DeviceRegistry {
     * Creates a new instance of <tt>DeviceRegistry</tt>.
     */
    public DeviceRegistry(KeyValueStorageManager kvStorageManager) {
+      this.kvStorageManager = kvStorageManager;
       storage = kvStorageManager.getStorage("devices", new LoadDevicesTask("devices"));
+   }
+
+   /**
+    * Gets the "devices" storage, re-fetching it if the cached reference is null or has been
+    * closed. The shared "devices" KeyValueStorage can be LRU-evicted and closed by
+    * KeyValueStorageManager once more than 50 stores are open at once (easily reached in
+    * multi-tenant setups after creating several organizations). A closed store's stream()/
+    * keys() return empty while get()/put()/replaceAll() still mutate the underlying replicated
+    * map, so holding on to a closed instance makes getDevices() silently read empty and the
+    * next setDevices() wipe every device. All callers of this method are already
+    * synchronized, so the closed instance could in theory be evicted again between this check
+    * and its use by an unrelated thread's cache maintenance -- that only causes one transient
+    * empty read (never data loss, since writes don't check isClosed), so it doesn't need
+    * further guarding.
+    */
+   private KeyValueStorage<DeviceInfo> getStorage() {
+      if(storage == null || storage.isClosed()) {
+         storage = kvStorageManager.getStorage("devices", new LoadDevicesTask("devices"));
+      }
+
+      return storage;
    }
 
    /**
@@ -61,7 +83,7 @@ public final class DeviceRegistry {
     * @return the mobile devices.
     */
    public synchronized DeviceInfo[] getDevices() {
-      return storage.stream()
+      return getStorage().stream()
          .map(KeyValuePair::getValue)
          .toArray(DeviceInfo[]::new);
    }
@@ -79,7 +101,7 @@ public final class DeviceRegistry {
       }
 
       try {
-         storage.replaceAll(map).get(60L, TimeUnit.SECONDS);
+         getStorage().replaceAll(map).get(60L, TimeUnit.SECONDS);
       }
       catch(InterruptedException | ExecutionException | TimeoutException e) {
          LOG.error("Failed to save devices", e);
@@ -88,7 +110,7 @@ public final class DeviceRegistry {
 
    public synchronized void setDevice(DeviceInfo device) {
       try {
-         storage.put(device.getId(), device).get(10L, TimeUnit.SECONDS);
+         getStorage().put(device.getId(), device).get(10L, TimeUnit.SECONDS);
       }
       catch(InterruptedException | ExecutionException | TimeoutException e) {
          throw new RuntimeException(e);
@@ -97,7 +119,7 @@ public final class DeviceRegistry {
 
    public synchronized void deleteDevice(String id) {
       try {
-         storage.remove(id).get(10L, TimeUnit.SECONDS);
+         getStorage().remove(id).get(10L, TimeUnit.SECONDS);
       }
       catch(InterruptedException | ExecutionException | TimeoutException e) {
          throw new RuntimeException(e);
@@ -112,7 +134,7 @@ public final class DeviceRegistry {
     * @return the matching device or <tt>null</tt> if not found.
     */
    public synchronized DeviceInfo getDevice(String id) {
-      return storage.get(id);
+      return getStorage().get(id);
    }
 
    /**
@@ -133,7 +155,8 @@ public final class DeviceRegistry {
             .equals(Organization.getDefaultOrganizationID());
    }
 
-   private final KeyValueStorage<DeviceInfo> storage;
+   private final KeyValueStorageManager kvStorageManager;
+   private KeyValueStorage<DeviceInfo> storage;
 
    private static final Logger LOG = LoggerFactory.getLogger(DeviceRegistry.class);
 

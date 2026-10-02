@@ -27,6 +27,7 @@ import inetsoft.util.algo.*;
 import inetsoft.util.audit.ExecutionBreakDownRecord;
 import inetsoft.util.profile.ProfileUtils;
 import inetsoft.util.script.ExpressionFailedException;
+import inetsoft.util.stall.LockStallException;
 import inetsoft.util.swap.XSwappableIntList;
 import inetsoft.util.swap.XSwapper;
 import org.slf4j.Logger;
@@ -174,14 +175,14 @@ public class SortFilter extends AbstractTableLens
    /**
     * Invalidate the table filter forcely, and the table filter will perform
     * filtering calculation to validate itself.
+    *
+    * <p>The old row map is not disposed here: a reader outside the lock may still hold it
+    * (bug #77242, as bug #76972). Its finalizer frees it once no reader does.
     */
    @Override
    public void invalidate() {
       synchronized(lock) {
-         if(rowmap != null) {
-            rowmap.dispose();
-            rowmap = null;
-         }
+         rowmap = null;
       }
 
       fireChangeEvent();
@@ -203,10 +204,29 @@ public class SortFilter extends AbstractTableLens
          //sort(asc);
       }
       catch(ExpressionFailedException scriptException) {
+         // the failed expression keeps its cause as the original exception, not in getCause()
+         LockStallException stall = LockStallException.find(scriptException);
+
+         if(stall == null) {
+            stall = LockStallException.find(scriptException.getOriginalException());
+         }
+
+         if(stall != null) {
+            throw stall;
+         }
+
          LOG.warn("Failed to process sort filter: {}", scriptException.getMessage());
          CoreTool.addUserMessage(scriptException.getMessage());
       }
       catch(Exception ex) {
+         // a lock stall of the base must not look like the end of the table, e.g. of a merge
+         // join over this filter; the rows stay unsorted and a later read tries again (bug #76967)
+         LockStallException stall = LockStallException.find(ex);
+
+         if(stall != null) {
+            throw stall;
+         }
+
          LOG.error("Failed to process sort filter", ex);
       }
    }
@@ -365,8 +385,10 @@ public class SortFilter extends AbstractTableLens
       rowmap = mergeSort(rowmap, asc, hrow, rowmap.length - 1 - trow);
       cache = null;
 
-      this.rowmap = new XSwappableIntList(rowmap);
-      this.rowmap.complete();
+      // complete the map before it is published to readers outside the lock (bug #77242)
+      XSwappableIntList map = new XSwappableIntList(rowmap);
+      map.complete();
+      this.rowmap = map;
       completed = true;
    }
 
@@ -1319,7 +1341,8 @@ public class SortFilter extends AbstractTableLens
    private ColumnList[] cache; // cache of the sorting keys
    private final Object lock = new String("lock");
    private transient Comparer[] comparers;
-   private transient XSwappableIntList rowmap;
+   // volatile: getBaseRowIndex and moreRows read it outside the lock (bug #77242)
+   private transient volatile XSwappableIntList rowmap;
    private transient IntArraySort sortObj;
    private boolean completed;       // completed flag
    private volatile boolean cancelled;       // cancelled flag

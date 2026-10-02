@@ -188,7 +188,13 @@ public class TabularUtil {
     */
    private static String replaceJSDateVariables(String val, VariableTable vars) {
       TimeZone tz = TimeZone.getTimeZone("UTC");
+      // Bug #77566: this ISO-8601 string is sent to an external REST/tabular connector endpoint
+      // that expects Gregorian digits, and is never parsed back locally -- a locale-less
+      // SimpleDateFormat would otherwise emit the wrong calendar system's year under a
+      // non-Gregorian JVM default locale (e.g. Buddhist for th_TH, Japanese imperial for
+      // ja_JP_JP).
       DateFormat df = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'");
+      df.setCalendar(new GregorianCalendar());
       df.setTimeZone(tz);
 
       try {
@@ -423,7 +429,8 @@ public class TabularUtil {
       Class cls;
 
       try {
-         cls = Class.forName(className);
+         // the class is only classified, so don't run its static initializer
+         cls = Class.forName(className, false, TabularUtil.class.getClassLoader());
       }
       catch(ClassNotFoundException e) {
          return TabularEditor.Type.TEXT;
@@ -687,6 +694,19 @@ public class TabularUtil {
                                                         String tokenUriProperty,
                                                         String flagsProperty, Object bean)
    {
+      // the property names come from the client, only read the ones that the bean's own OAuth
+      // buttons declare
+      if(!isOAuthButtonProperties(
+         new LayoutCreator().createLayout(bean).getViews(), userProperty, passwordProperty,
+         clientIdProperty, clientSecretProperty, scopeProperty, authorizationUriProperty,
+         tokenUriProperty, flagsProperty))
+      {
+         LOG.warn(
+            "Rejected OAuth parameter names that are not declared by an OAuth button of {}",
+            bean.getClass().getName());
+         return null;
+      }
+
       Map<String, PropertyMeta> properties = getPropertyMap(bean.getClass());
       String user = getOAuthParameter(userProperty, properties, bean);
       String password = getOAuthParameter(passwordProperty, properties, bean);
@@ -726,6 +746,50 @@ public class TabularUtil {
       }
 
       return null;
+   }
+
+   /**
+    * Determines if the requested OAuth property names match an OAuth button in a view. A name
+    * that is not requested matches any button.
+    */
+   private static boolean isOAuthButtonProperties(TabularView[] views, String user,
+                                                  String password, String clientId,
+                                                  String clientSecret, String scope,
+                                                  String authorizationUri, String tokenUri,
+                                                  String flags)
+   {
+      if(views == null) {
+         return false;
+      }
+
+      for(TabularView view : views) {
+         TabularButton button = view.getButton();
+
+         if(button != null && button.getType() == ButtonType.OAUTH &&
+            isOAuthButtonProperty(user, button.getOauthUser()) &&
+            isOAuthButtonProperty(password, button.getOauthPassword()) &&
+            isOAuthButtonProperty(clientId, button.getOauthClientId()) &&
+            isOAuthButtonProperty(clientSecret, button.getOauthClientSecret()) &&
+            isOAuthButtonProperty(scope, button.getOauthScope()) &&
+            isOAuthButtonProperty(authorizationUri, button.getOauthAuthorizationUri()) &&
+            isOAuthButtonProperty(tokenUri, button.getOauthTokenUri()) &&
+            isOAuthButtonProperty(flags, button.getOauthFlags()))
+         {
+            return true;
+         }
+
+         if(isOAuthButtonProperties(view.getViews(), user, password, clientId, clientSecret,
+                                    scope, authorizationUri, tokenUri, flags))
+         {
+            return true;
+         }
+      }
+
+      return false;
+   }
+
+   private static boolean isOAuthButtonProperty(String requested, String declared) {
+      return requested == null || requested.isEmpty() || requested.equals(declared);
    }
 
    public static void setOAuthTokens(Tokens tokens, Object bean,

@@ -188,10 +188,10 @@ public abstract class GraphGenerator {
       String[] names = new String[vars.size()];
       vars.toArray(names);
       Color[] colors = new Color[names.length];
-      int max = CategoricalColorFrame.COLOR_PALETTE.length;
+      int max = CategoricalColorFrame.COLOR_PALETTE.size();
 
       for(int i = 0; i < colors.length; i++) {
-         colors[i] = CategoricalColorFrame.COLOR_PALETTE[i % max];
+         colors[i] = CategoricalColorFrame.COLOR_PALETTE.get(i % max);
       }
 
       CategoricalColorFrame frame = new CategoricalColorFrame();
@@ -5427,7 +5427,7 @@ public abstract class GraphGenerator {
             if(!applyColor) {
                if(info.isMultiAesthetic()) {
                   // or if color has changed.
-                  applyColor = !colors.getColor(elem.getVar(0)).equals(CategoricalColorFrame.COLOR_PALETTE[0]);
+                  applyColor = !colors.getColor(elem.getVar(0)).equals(CategoricalColorFrame.COLOR_PALETTE.get(0));
                }
                else {
                   // must cast to MultiMeasureColorFrame to call getColor(int), otherwise it
@@ -5438,7 +5438,7 @@ public abstract class GraphGenerator {
                   // (on combined-color-pane) for their corresponding index, so we compare
                   // the color with the color at that index. (59286)
                   applyColor = !mcolors.getColor(measureIdx)
-                     .equals(CategoricalColorFrame.COLOR_PALETTE[measureIdx]);
+                     .equals(CategoricalColorFrame.COLOR_PALETTE.get(measureIdx));
                }
             }
          }

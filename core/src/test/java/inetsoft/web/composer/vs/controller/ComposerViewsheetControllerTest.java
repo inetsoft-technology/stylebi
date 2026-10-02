@@ -41,7 +41,7 @@ class ComposerViewsheetControllerTest {
    @BeforeEach
    void setup() {
       controller = new ComposerViewsheetController(
-         runtimeViewsheetRef, viewsheetService, composerViewsheetService, securityEngine);
+         runtimeViewsheetRef, viewsheetService, composerViewsheetService, securityEngine, null);
    }
 
    // Bug #76615, saving without an attached runtime viewsheet must not NPE.

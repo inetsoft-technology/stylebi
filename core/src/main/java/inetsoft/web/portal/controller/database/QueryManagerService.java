@@ -18,6 +18,7 @@
 package inetsoft.web.portal.controller.database;
 
 import inetsoft.report.composition.RuntimeWorksheet;
+import inetsoft.report.composition.event.AssetEventUtil;
 import inetsoft.report.composition.execution.AssetQuerySandbox;
 import inetsoft.report.internal.Util;
 import inetsoft.report.lens.xnode.XNodeTableLens;
@@ -32,7 +33,6 @@ import inetsoft.uql.jdbc.util.*;
 import inetsoft.uql.schema.*;
 import inetsoft.uql.util.*;
 import inetsoft.uql.util.sqlparser.SQLLexer;
-import inetsoft.uql.util.sqlparser.SQLParser;
 import inetsoft.util.*;
 import inetsoft.web.adhoc.model.FormatInfoModel;
 import inetsoft.web.composer.model.TreeNodeModel;
@@ -42,13 +42,14 @@ import inetsoft.web.portal.model.database.*;
 import inetsoft.web.portal.model.database.events.RemoveQueryColumnEvent;
 
 import java.awt.*;
-import java.io.StringReader;
 import java.rmi.RemoteException;
 import java.security.Principal;
 import java.util.List;
 import java.util.*;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -76,6 +77,8 @@ public class QueryManagerService {
                            String datasource, Principal principal)
       throws Exception
    {
+      // Bug #77163, the named data source is bound into the runtime query below.
+      checkDataSourceReadPermission(datasource, principal);
       RuntimeQueryService.RuntimeXQuery runtimeQuery =
          runtimeQueryService.getRuntimeQuery(runtimeId);
 
@@ -136,7 +139,8 @@ public class QueryManagerService {
       RuntimeQueryService.RuntimeXQuery runtimeQuery = getRuntimeQuery(runtimeId);
 
       if(runtimeQuery == null) {
-         return;
+         throw new MessageException(
+            Catalog.getCatalog().getString("common.sqlquery.sessionExpired"));
       }
 
       JDBCQuery query = runtimeQuery.getQuery();
@@ -147,7 +151,26 @@ public class QueryManagerService {
 
       UniformSQL sql = (UniformSQL) query.getSQLDefinition();
 
-      if(DatabaseQueryTabs.FIELDS.getTab().equals(tab) || all) {
+      // The structure cannot represent this sql string (parse off, parse not a full success,
+      // or a lossy parse such as TOP), so regenerating it from the structure would silently
+      // drop part of the user's sql. Keep the sql string. The editor disables the graphical
+      // tabs for such a query, so the only callers reaching here are save and the switch to
+      // simple mode, and their pane models are echoes of the structure, not user edits.
+      if(isSqlOnly(sql)) {
+         LOG.debug("Keep the sql string of a sql-only query, skip updating it from the {} pane",
+                   all ? "all" : tab);
+         saveRuntimeQuery(runtimeQuery);
+         return;
+      }
+
+      // Bug #77487, #77496, apply a pane and clear the sql string only when the pane differs
+      // from the echo of the current structure. Tab-leave and save post every pane, also the
+      // unchanged ones, and regenerating the sql would replace the sql the user typed.
+      XDataSource dataSource = query.getDataSource();
+
+      if((DatabaseQueryTabs.FIELDS.getTab().equals(tab) || all) &&
+         isFieldPaneChanged(sql, queryModel.getFieldPaneModel()))
+      {
          // only need to update the order of fields and 'distinct' property
          QueryFieldPaneModel fieldPaneModel = queryModel.getFieldPaneModel();
          JDBCSelection newSelection = new JDBCSelection();
@@ -164,6 +187,7 @@ public class QueryManagerService {
                int newIndex = newSelection.addColumn(name);
                newSelection.setAlias(newIndex, alias);
                newSelection.setTable(name, oldSelection.getTable(name));
+               newSelection.copyQuoted(name, oldSelection, name);
                newSelection.setType(name, oldSelection.getType(name));
                newSelection.setXMetaInfo(newIndex, oldSelection.getXMetaInfo(columnIndex));
                newSelection.setDescription(name, oldSelection.getDescription(name));
@@ -180,16 +204,20 @@ public class QueryManagerService {
          QueryConditionPaneModel conditionPaneModel = queryModel.getConditionPaneModel();
          List<DataConditionItem> conditions = conditionPaneModel.getConditions();
 
-         if(conditions != null && conditions.size() > 0) {
-            XFilterNode filterNode = createConditionXFilterNode(conditions);
-            setQueryCondition(sql, filterNode, CONDITION_WHERE);
-         }
-         else {
-            setQueryCondition(sql, null, CONDITION_WHERE);
+         if(isConditionChanged(sql, dataSource, conditions, CONDITION_WHERE)) {
+            if(conditions != null && conditions.size() > 0) {
+               XFilterNode filterNode = createConditionXFilterNode(conditions);
+               setQueryCondition(sql, filterNode, CONDITION_WHERE);
+            }
+            else {
+               setQueryCondition(sql, null, CONDITION_WHERE);
+            }
          }
       }
 
-      if(DatabaseQueryTabs.SORT.getTab().equals(tab) || all) {
+      if((DatabaseQueryTabs.SORT.getTab().equals(tab) || all) &&
+         isSortPaneChanged(sql, queryModel.getSortPaneModel()))
+      {
          QuerySortPaneModel sortPaneModel = queryModel.getSortPaneModel();
          List<String> fields = sortPaneModel.getFields();
          List<String> orders = sortPaneModel.getOrders();
@@ -209,33 +237,169 @@ public class QueryManagerService {
 
       if(DatabaseQueryTabs.GROUPING.getTab().equals(tab) || all) {
          QueryGroupingPaneModel groupingPaneModel = queryModel.getGroupingPaneModel();
-         List<String> groupByFields = groupingPaneModel.getGroupByFields();
-         List<String> groups = new ArrayList<>();
-         sql.clearGroupDBFields();
 
-         for(int i = 0; groupByFields != null && i < groupByFields.size(); i++) {
-            String groupName = groupByFields.get(i);
+         if(isGroupByChanged(sql, groupingPaneModel)) {
+            List<String> groupByFields = groupingPaneModel.getGroupByFields();
+            List<String> groups = new ArrayList<>();
+            sql.clearGroupDBFields();
 
-            if(!sql.isTableColumn(groupName) && !sql.getSelection().isAlias(groupName)) {
-               sql.addGroupDBField(groupName);
+            for(int i = 0; groupByFields != null && i < groupByFields.size(); i++) {
+               String groupName = groupByFields.get(i);
+
+               if(!sql.isTableColumn(groupName) && !sql.getSelection().isAlias(groupName)) {
+                  sql.addGroupDBField(groupName);
+               }
+
+               groups.add(groupName);
             }
 
-            groups.add(groupName);
+            sql.setGroupBy(groups.toArray());
+            sql.clearSQLString();
          }
-
-         sql.setGroupBy(groups.toArray());
-         sql.clearSQLString();
 
          QueryConditionPaneModel havingConditionsModel = groupingPaneModel.getHavingConditions();
          List<DataConditionItem> conditions = havingConditionsModel.getConditions();
 
-         if(conditions != null) {
+         if(conditions != null &&
+            isConditionChanged(sql, dataSource, conditions, CONDITION_HAVING))
+         {
             XFilterNode filterNode = createConditionXFilterNode(conditions);
             setQueryCondition(sql, filterNode, CONDITION_HAVING);
          }
       }
 
       saveRuntimeQuery(runtimeQuery);
+   }
+
+   /**
+    * Check if the sql string of the query cannot be regenerated from its structure without
+    * losing information: parsing is off, the parse was not a full success, or the parse is
+    * lossy (e.g. TOP). The sql string must then be kept as is.
+    */
+   static boolean isSqlOnly(UniformSQL sql) {
+      return sql.hasSQLString() &&
+         (!sql.isParseSQL() || sql.getParseResult() != UniformSQL.PARSE_SUCCESS || sql.isLossy());
+   }
+
+   /**
+    * Check if the fields pane differs from the pane getAdvancedQueryModel() echoes for the
+    * current structure, in what updateQuery() applies from it: the field names and aliases
+    * in order, and distinct.
+    */
+   static boolean isFieldPaneChanged(UniformSQL sql, QueryFieldPaneModel pane) {
+      if(pane == null || pane.isDistinct() != sql.isDistinct()) {
+         return true;
+      }
+
+      JDBCSelection selection = (JDBCSelection) sql.getSelection();
+      List<QueryFieldModel> fields = pane.getFields();
+      int count = fields == null ? 0 : fields.size();
+
+      if(selection == null || count != selection.getColumnCount()) {
+         return true;
+      }
+
+      for(int i = 0; i < count; i++) {
+         QueryFieldModel field = fields.get(i);
+
+         if(field == null || !Tool.equals(field.getName(), selection.getColumn(i)) ||
+            !Tool.equals(field.getAlias(), selection.getAlias(i)))
+         {
+            return true;
+         }
+      }
+
+      return false;
+   }
+
+   /**
+    * Check if the sort pane differs from the pane getAdvancedQueryModel() echoes for the
+    * current structure.
+    */
+   static boolean isSortPaneChanged(UniformSQL sql, QuerySortPaneModel pane) {
+      if(pane == null) {
+         return true;
+      }
+
+      List<String> fields = new ArrayList<>();
+      List<String> orders = new ArrayList<>();
+      getSortFields(sql, fields, orders);
+
+      return !Objects.equals(fields, emptyIfNull(pane.getFields())) ||
+         !Objects.equals(orders, emptyIfNull(pane.getOrders()));
+   }
+
+   /**
+    * Check if the group by fields differ from the ones getAdvancedQueryModel() echoes for the
+    * current structure.
+    */
+   static boolean isGroupByChanged(UniformSQL sql, QueryGroupingPaneModel pane) {
+      return pane == null ||
+         !Objects.equals(getGroupByFields(sql), emptyIfNull(pane.getGroupByFields()));
+   }
+
+   /**
+    * Check if the conditions differ from the ones getAdvancedQueryModel() echoes for the
+    * current structure. The condition items have no equals(), so their json trees are
+    * compared. They can't be compared by the generated sql: applying an unchanged where
+    * condition appends the joins after it, which reorders the generated where clause.
+    */
+   private boolean isConditionChanged(UniformSQL sql, XDataSource dataSource,
+                                      List<DataConditionItem> conditions, int conditionType)
+   {
+      try {
+         List<DataConditionItem> current = createConditions(sql, dataSource, conditionType);
+         return !CONDITION_MAPPER.valueToTree(current)
+            .equals(CONDITION_MAPPER.valueToTree(emptyIfNull(conditions)));
+      }
+      catch(Exception ex) {
+         // can't tell, apply the pane as before
+         LOG.debug("Failed to compare the conditions with the current structure", ex);
+         return true;
+      }
+   }
+
+   private static <T> List<T> emptyIfNull(List<T> list) {
+      return list == null ? Collections.emptyList() : list;
+   }
+
+   private static void getSortFields(UniformSQL sql, List<String> fields, List<String> orders) {
+      OrderByItem[] orderByItems = sql.getOrderByItems();
+
+      for(OrderByItem item : orderByItems) {
+         fields.add(Tool.toString(item.getField()));
+         orders.add(item.getOrder());
+      }
+   }
+
+   private static List<String> getGroupByFields(UniformSQL sql) {
+      List<String> groupByFields = new ArrayList<>();
+      Object[] groups = sql.getGroupBy();
+
+      if(groups != null) {
+         for(Object group : groups) {
+            groupByFields.add(Tool.toString(group));
+         }
+      }
+
+      return groupByFields;
+   }
+
+   /**
+    * Run an action with the sorted sql of the query cache normalizer turned off. The normalizer
+    * clears the sql string of a parsed query when it generates the sorted sql.
+    */
+   private static <T> T withoutSortedSql(UniformSQL sql, Supplier<T> action) {
+      Object oldHint = sql.getHint(UniformSQL.HINT_WITHOUT_SORTED_SQL, false);
+      sql.setHint(UniformSQL.HINT_WITHOUT_SORTED_SQL, true);
+
+      try {
+         return action.get();
+      }
+      finally {
+         // UniformSQL can't remove a hint, false is what an unset hint means here
+         sql.setHint(UniformSQL.HINT_WITHOUT_SORTED_SQL, oldHint != null ? oldHint : false);
+      }
    }
 
    public AdvancedSQLQueryModel getQueryModel(String runtimeId, Principal principal) {
@@ -335,40 +499,28 @@ public class QueryManagerService {
       XTypeNode metadata = runtimeQuery.getMetadata();
       FreeFormSQLPaneModel freeFormSQLPaneModel = new FreeFormSQLPaneModel();
       freeFormSQLPaneModel.setHasSqlString(sql.hasSQLString());
-      sql.setHint(UniformSQL.HINT_WITHOUT_SORTED_SQL, true);
-      freeFormSQLPaneModel.setSqlString(sql.getSQLString());
-      sql.setHint(UniformSQL.HINT_WITHOUT_SORTED_SQL, false);
+      freeFormSQLPaneModel.setSqlString(withoutSortedSql(sql, sql::getSQLString));
       freeFormSQLPaneModel.setParseSql(sql.isParseSQL());
       freeFormSQLPaneModel.setParseResult(sql.getParseResult());
+      // isLossy() may re-parse the sql string once, the result is cached on the object
+      freeFormSQLPaneModel.setLossy(sql.isLossy());
       freeFormSQLPaneModel.setHasColumnInfo(metadata != null && metadata.getChildCount() > 0);
       SQLHelper helper = SQLHelper.getSQLHelper(sql);
-      freeFormSQLPaneModel.setGeneratedSqlString(helper.generateSentence());
+      // Bug #77487, without the hint the sorted column map of the cache normalizer clears the
+      // sql string the user typed, so every model fetch would make a save regenerate it
+      freeFormSQLPaneModel.setGeneratedSqlString(withoutSortedSql(sql, helper::generateSentence));
       model.setFreeFormSQLPaneModel(freeFormSQLPaneModel);
 
       QuerySortPaneModel sortPaneModel = new QuerySortPaneModel();
       List<String> sortFields = new ArrayList<>();
       List<String> orders = new ArrayList<>();
-      OrderByItem[] orderByItems = sql.getOrderByItems();
-
-      for(int i = 0; i < orderByItems.length; i++) {
-         OrderByItem item = orderByItems[i];
-         sortFields.add(Tool.toString(item.getField()));
-         orders.add(item.getOrder());
-      }
-
+      getSortFields(sql, sortFields, orders);
       sortPaneModel.setFields(sortFields);
       sortPaneModel.setOrders(orders);
       model.setSortPaneModel(sortPaneModel);
 
       QueryGroupingPaneModel groupingPaneModel = new QueryGroupingPaneModel();
-      List<String> groupByFields = new ArrayList<>();
-      Object[] groups = sql.getGroupBy();
-
-      if(groups != null) {
-         for(Object group : groups) {
-            groupByFields.add(Tool.toString(group));
-         }
-      }
+      List<String> groupByFields = getGroupByFields(sql);
 
       List<Column> havingFields = new ArrayList<>();
 
@@ -404,14 +556,17 @@ public class QueryManagerService {
                                          boolean advancedEdit, Principal principal)
       throws Exception
    {
+      // Bug #77163, the named data source is bound into a new runtime query below.
+      checkDataSourceReadPermission(dataSource, principal);
       SQLQueryDialogModel model = new SQLQueryDialogModel();
-      model.setRuntimeId(runtimeId);
       model.setName(tableName);
       model.setDataSource(dataSource);
       model.setAdvancedEdit(advancedEdit);
 
+      // Bug #77190, a blank id gets a new id, and another session's id is refused.
       RuntimeQueryService.RuntimeXQuery runtimeQuery =
-         createNewRuntimeQuery(runtimeId, tableName, dataSource);
+         createNewRuntimeQuery(runtimeId, tableName, dataSource, principal);
+      model.setRuntimeId(runtimeQuery.getId());
 
       if(advancedEdit) {
          AdvancedSQLQueryModel advancedModel = getAdvancedQueryModel(runtimeQuery, principal);
@@ -562,6 +717,7 @@ public class QueryManagerService {
          if(!remove) {
             int index = newSelection.addColumn(selectionName);
             newSelection.setTable(selectionName, selection.getTable(selectionName));
+            newSelection.copyQuoted(selectionName, selection, selectionName);
             newSelection.setAlias(index, selectionAlias);
             newSelection.setType(selectionName, selection.getType(selectionName));
             newSelection.setXMetaInfo(index, selection.getXMetaInfo(i));
@@ -769,6 +925,22 @@ public class QueryManagerService {
       if(assembly != null) {
          SQLBoundTableAssemblyInfo info = (SQLBoundTableAssemblyInfo) assembly.getTableInfo();
          query = info.getQuery();
+      }
+
+      // Bug #77163, check the source the dialog is opened on before it is bound into a
+      // runtime query: the existing assembly's bound source (failing closed when it is
+      // missing), otherwise the requested source for a new query.
+      if(query != null) {
+         XDataSource bound = query.getDataSource();
+         String boundName = bound == null ? null : bound.getFullName();
+         checkDataSourceReadPermission(boundName, principal);
+
+         if(!StringUtils.isBlank(dataSource) && !dataSource.equals(boundName)) {
+            checkDataSourceReadPermission(dataSource, principal);
+         }
+      }
+      else {
+         checkDataSourceReadPermission(dataSource, principal);
       }
 
       query = query == null ? createNewQuery(null, dataSource) : query;
@@ -1016,11 +1188,10 @@ public class QueryManagerService {
 
    public boolean checkExpression(String expression) {
       expression = expression.trim();
-      SQLLexer lexer = new SQLLexer(new StringReader(expression));
-      SQLParser parser = new SQLParser(lexer);
+      SQLLexer lexer;
 
       try {
-         parser.value_exp();
+         lexer = XUtil.parseSQLExpressionSyntax(expression);
       }
       catch(Exception ex) {
          return false;
@@ -1074,6 +1245,8 @@ public class QueryManagerService {
          result =  editExpression(sql, selection, expression, columnName, columnAlias);
       }
 
+      // a structure edit, regenerate the sql string (Bug #77487)
+      sql.clearSQLString();
       saveRuntimeQuery(runtimeQuery);
       return result;
    }
@@ -1180,8 +1353,8 @@ public class QueryManagerService {
       runtimeQueryService.destroy(runtimeId);
    }
 
-   public void clearRuntimeQuery() {
-      runtimeQueryService.clear();
+   public void destroyRuntimeQuery(String runtimeId, Principal principal) {
+      runtimeQueryService.destroy(runtimeId, principal);
    }
 
    private JDBCQuery createNewQuery(String name, String database) {
@@ -1279,6 +1452,393 @@ public class QueryManagerService {
 
    public void saveRuntimeQuery(RuntimeQueryService.RuntimeXQuery runtimeQuery) {
       runtimeQueryService.saveRuntimeQuery(runtimeQuery);
+   }
+
+   /**
+    * Fails closed unless the principal has READ on the named data source. This is the same
+    * decision (raw full name, DATA_SOURCE, READ) as the data source list filter in
+    * {@link #getSqlQueryDialogModel} and {@link #clearQuery}, so a source that is not offered
+    * in the SQL query dialog cannot be used by name either (Bug #77163).
+    *
+    * @param dataSource the full name of the data source.
+    * @param principal  the current user.
+    *
+    * @throws java.lang.SecurityException if the name is null or blank, if READ is not
+    *                                     granted, or if the check itself fails.
+    */
+   public void checkDataSourceReadPermission(String dataSource, Principal principal) {
+      if(dataSource == null || dataSource.isBlank()) {
+         throw new java.lang.SecurityException("Missing data source name");
+      }
+
+      boolean allowed;
+
+      try {
+         allowed = securityEngine != null && securityEngine.checkPermission(
+            principal, ResourceType.DATA_SOURCE, dataSource, ResourceAction.READ);
+      }
+      catch(Exception e) {
+         LOG.debug("Failed to check data source permission: {}", dataSource, e);
+         allowed = false;
+      }
+
+      if(!allowed) {
+         throw new java.lang.SecurityException(
+            "Unauthorized access to data source \"" + dataSource + "\" by user " +
+            (principal == null ? null : principal.getName()));
+      }
+   }
+
+   /**
+    * Checks READ on the data source that a runtime query is actually bound to, failing closed
+    * when the bound source is missing. A runtime query that no longer exists is left to the
+    * caller, which reports the expired session (Bug #77163).
+    */
+   public void checkRuntimeQueryReadPermission(RuntimeQueryService.RuntimeXQuery runtimeQuery,
+                                               Principal principal)
+   {
+      if(runtimeQuery == null) {
+         return;
+      }
+
+      JDBCQuery query = runtimeQuery.getQuery();
+      XDataSource bound = query == null ? null : query.getDataSource();
+      checkDataSourceReadPermission(bound == null ? null : bound.getFullName(), principal);
+   }
+
+   /**
+    * Checks READ on the data source named by the {@code prefix} property of a client-supplied
+    * query-scope entry (data source, physical folder/table, logical model, entity, ...). The
+    * asset engine resolves the children of such an entry from the data source in its prefix
+    * without checking it, so the prefix is required and must be readable. Only the root and
+    * data source folders are exempt, because the engine lists their data sources READ-filtered
+    * (Bug #77163). A logical model or entity also requires READ on the logical model, and a
+    * physical folder or table requires PHYSICAL_TABLE ACCESS (Bug #77189).
+    *
+    * @throws java.lang.SecurityException if the prefix is missing, if READ is not granted, or
+    *                                     if the check itself fails.
+    */
+   public void checkQueryEntryReadPermission(AssetEntry entry, Principal principal) {
+      if(entry != null && entry.getScope() == AssetRepository.QUERY_SCOPE &&
+         !entry.isRoot() && !entry.isDataSourceFolder())
+      {
+         checkDataSourceReadPermission(entry.getProperty("prefix"), principal);
+         checkModelEntryReadPermission(entry, principal);
+         checkPhysicalEntryAccess(entry, principal);
+      }
+   }
+
+   /**
+    * Checks a client-supplied query-scope entry that the composer asset tree or grouping tree
+    * expands. Unlike {@link #checkQueryEntryReadPermission}, an entry without a prefix is
+    * allowed, because the server itself sends such entries to the tree (the Cubes folder, cube
+    * tables and dimensions) and the asset engine resolves nothing from a missing prefix. A data
+    * source entry must name a readable source in both its prefix and its path, which keys the
+    * connection parameter lookup. A physical folder or table requires the same PHYSICAL_TABLE
+    * ACCESS that listing the physical tables of a data source does, and a logical model or
+    * entity requires READ on the logical model (Bug #77189).
+    *
+    * @throws java.lang.SecurityException if a permission is not granted.
+    */
+   public void checkAssetTreeEntryPermission(AssetEntry entry, Principal principal) {
+      if(entry == null || entry.getScope() != AssetRepository.QUERY_SCOPE ||
+         entry.isRoot() || entry.isDataSourceFolder())
+      {
+         return;
+      }
+
+      String prefix = entry.getProperty("prefix");
+
+      if(entry.isDataSource()) {
+         checkDataSourceReadPermission(prefix, principal);
+
+         if(!Tool.equals(prefix, entry.getPath())) {
+            checkDataSourceReadPermission(entry.getPath(), principal);
+         }
+      }
+      else if(!StringUtils.isEmpty(prefix)) {
+         checkDataSourceReadPermission(prefix, principal);
+         checkModelEntryReadPermission(entry, principal);
+      }
+
+      checkPhysicalEntryAccess(entry, principal);
+   }
+
+   /**
+    * A physical folder or table entry requires the same PHYSICAL_TABLE ACCESS that listing the
+    * physical tables of a data source does, which the asset engine checks only at the data
+    * source level (Bug #77189).
+    */
+   private void checkPhysicalEntryAccess(AssetEntry entry, Principal principal) {
+      if(entry.isPhysicalFolder() || entry.isPhysicalTable()) {
+         checkPhysicalTableAccess(principal);
+      }
+   }
+
+   private void checkPhysicalTableAccess(Principal principal) {
+      boolean allowed;
+
+      try {
+         allowed = securityEngine != null && securityEngine.checkPermission(
+            principal, ResourceType.PHYSICAL_TABLE, "*", ResourceAction.ACCESS);
+      }
+      catch(Exception e) {
+         LOG.debug("Failed to check physical table permission", e);
+         allowed = false;
+      }
+
+      if(!allowed) {
+         throw new java.lang.SecurityException(
+            "Unauthorized access to physical tables by user " +
+            (principal == null ? null : principal.getName()));
+      }
+   }
+
+   /**
+    * Checks READ on the logical model of a model or entity entry, the same permissions (data
+    * model folder READ and QUERY READ) that the data source listing filters its logical models
+    * by. The folder is read from the server's data model, never from the entry. A model that
+    * does not exist is left alone, because nothing is listed for it (Bug #77189). The QUERY
+    * resource is the name the permission editors store the model's permission under, so an
+    * explicit permission on a model in a folder is honored (Bug #77400).
+    *
+    * @throws java.lang.SecurityException if READ is not granted, or if the check itself fails.
+    */
+   public void checkLogicalModelReadPermission(String dataSource, String lmodel,
+                                               Principal principal)
+   {
+      boolean allowed;
+
+      try {
+         XDataModel model = dataSource == null || lmodel == null ?
+            null : repository.getDataModel(dataSource);
+         XLogicalModel logicalModel = model == null ? null : model.getLogicalModel(lmodel);
+
+         if(logicalModel == null) {
+            return;
+         }
+
+         String folder = logicalModel.getFolder();
+         // the stored form of the logical model permission (Bug #77400)
+         String resource = XUtil.getLogicalModelResourceName(dataSource, folder, lmodel);
+         // a model in the root folder has no data model folder, its parent is the data source
+         boolean root = Tool.isEmptyString(folder);
+         ResourceType parentType = root ? ResourceType.DATA_SOURCE : ResourceType.DATA_MODEL_FOLDER;
+         String parent = root ? dataSource : dataSource + "/" + folder;
+         allowed = securityEngine != null &&
+            securityEngine.checkPermission(principal, parentType, parent, ResourceAction.READ) &&
+            securityEngine.checkPermission(principal, ResourceType.QUERY, resource,
+                                           ResourceAction.READ);
+      }
+      catch(Exception e) {
+         LOG.debug("Failed to check logical model permission: {}::{}", lmodel, dataSource, e);
+         allowed = false;
+      }
+
+      if(!allowed) {
+         throw new java.lang.SecurityException(
+            "Unauthorized access to logical model \"" + lmodel + "\" by user " +
+            (principal == null ? null : principal.getName()));
+      }
+   }
+
+   /**
+    * Checks a source that an authoring endpoint is about to newly bind into a worksheet table or
+    * a viewsheet base worksheet. The source is built from the client's entry properties and
+    * neither the asset engine nor query execution checks it, so the permission the composer
+    * asset tree requires to list the source is checked here. A logical model requires READ on
+    * its data source and on the model, a physical table requires READ on its data source and
+    * PHYSICAL_TABLE ACCESS, a cube requires READ on its data source and the cube READ that the
+    * asset tree's cube listing requires, and any other source with a data source in its prefix
+    * requires READ on that data source (Bug #77189, Bug #77400).
+    *
+    * @param source    the source to check, or null if nothing is bound.
+    * @param principal the current user.
+    *
+    * @throws java.lang.SecurityException if a permission is not granted.
+    */
+   public void checkSourceReadPermission(SourceInfo source, Principal principal) {
+      if(source == null) {
+         return;
+      }
+
+      if(source.getType() == SourceInfo.MODEL) {
+         checkDataSourceReadPermission(source.getPrefix(), principal);
+         checkLogicalModelReadPermission(source.getPrefix(), source.getSource(), principal);
+      }
+      else if(source.getType() == SourceInfo.PHYSICAL_TABLE) {
+         checkDataSourceReadPermission(source.getPrefix(), principal);
+         checkPhysicalTableAccess(principal);
+      }
+      else if(AssetEventUtil.isCubeType(source.getType())) {
+         checkDataSourceReadPermission(source.getPrefix(), principal);
+         checkCubeReadPermission(source.getPrefix(), source.getSource(), principal);
+      }
+      else if(!StringUtils.isEmpty(source.getPrefix())) {
+         checkDataSourceReadPermission(source.getPrefix(), principal);
+      }
+   }
+
+   /**
+    * Checks READ on a cube with the same decision that the asset tree's cube listing makes
+    * ({@link AssetEventUtil#getXCube}): CUBE READ on an OLAP cube, or QUERY READ on a model
+    * cube. A cube that cannot be resolved is refused, because nothing can be bound to it
+    * (Bug #77400).
+    *
+    * @throws java.lang.SecurityException if READ is not granted, or if the check itself fails.
+    */
+   private void checkCubeReadPermission(String dataSource, String cube, Principal principal) {
+      boolean allowed;
+
+      try {
+         allowed = AssetEventUtil.getXCube(dataSource, cube, principal) != null;
+      }
+      catch(Exception e) {
+         LOG.debug("Failed to check cube permission: {}::{}", dataSource, cube, e);
+         allowed = false;
+      }
+
+      if(!allowed) {
+         throw new java.lang.SecurityException(
+            "Unauthorized access to cube \"" + cube + "\" by user " +
+            (principal == null ? null : principal.getName()));
+      }
+   }
+
+   /**
+    * Checks a table name that an authoring or data browsing endpoint is about to resolve in a
+    * viewsheet. A cube table name (<tt>___inetsoft_cube_&lt;data source&gt;/&lt;cube&gt;</tt>) is
+    * resolved by the worksheet straight from the data source, outside the base worksheet and
+    * without a permission check, so it requires READ on its data source and the cube READ
+    * that the asset tree's cube listing requires. Any other name is a table of the base
+    * worksheet, whose source is checked when it is bound, and is not checked here. Callers
+    * must not call this for a table that is already bound, so an existing viewsheet keeps
+    * working (Bug #77427).
+    *
+    * @param tableName the table name, or null.
+    * @param principal the current user.
+    *
+    * @throws java.lang.SecurityException if a permission is not granted.
+    */
+   public void checkCubeTableReadPermission(String tableName, Principal principal) {
+      if(tableName == null || !tableName.startsWith(Assembly.CUBE_VS)) {
+         return;
+      }
+
+      // parsed the same way as Worksheet.getCubeTableAssembly
+      String name = tableName.substring(Assembly.CUBE_VS.length());
+      int idx = name.lastIndexOf('/');
+
+      if(idx < 0) {
+         return;
+      }
+
+      String dataSource = name.substring(0, idx);
+      String cube = name.substring(idx + 1);
+      checkDataSourceReadPermission(dataSource, principal);
+      checkCubeReadPermission(dataSource, cube, principal);
+   }
+
+   /**
+    * Checks <tt>newTable</tt> as {@link #checkCubeTableReadPermission} does, unless it is the
+    * already bound <tt>oldTable</tt> (Bug #77427).
+    *
+    * @throws java.lang.SecurityException if a permission is not granted.
+    */
+   public void checkNewCubeTableReadPermission(String newTable, String oldTable,
+                                               Principal principal)
+   {
+      if(!Tool.equals(newTable, oldTable)) {
+         checkCubeTableReadPermission(newTable, principal);
+      }
+   }
+
+   /**
+    * Checks the cube table names in <tt>newTables</tt> that are not in <tt>oldTables</tt>, as
+    * {@link #checkCubeTableReadPermission} does. A table that is already bound is not checked
+    * (Bug #77427).
+    *
+    * @throws java.lang.SecurityException if a permission is not granted.
+    */
+   public void checkNewCubeTablesReadPermission(Collection<String> newTables,
+                                                Collection<String> oldTables,
+                                                Principal principal)
+   {
+      if(newTables == null) {
+         return;
+      }
+
+      for(String table : newTables) {
+         if(oldTables == null || !oldTables.contains(table)) {
+            checkCubeTableReadPermission(table, principal);
+         }
+      }
+   }
+
+   /**
+    * Checks the first and additional tables of a selection that are not in
+    * <tt>oldTables</tt>, as {@link #checkCubeTableReadPermission} does (Bug #77427).
+    *
+    * @throws java.lang.SecurityException if a permission is not granted.
+    */
+   public void checkNewCubeTablesReadPermission(String firstTable,
+                                                Collection<String> additionalTables,
+                                                Collection<String> oldTables,
+                                                Principal principal)
+   {
+      checkNewCubeTablesReadPermission(
+         Collections.singletonList(firstTable), oldTables, principal);
+      checkNewCubeTablesReadPermission(additionalTables, oldTables, principal);
+   }
+
+   /**
+    * Checks a client-supplied entry that is about to be newly bound as the base source of a
+    * viewsheet (new viewsheet, wizard, properties dialog, Save-As). A worksheet requires READ on
+    * the worksheet, which the viewsheet opens without a permission check. A query, physical
+    * table or logical model entry requires the permissions of both the entry, whose children
+    * are listed for the base table columns, and the source that is built from its
+    * <tt>prefix</tt>, <tt>source</tt> and <tt>type</tt> properties. Callers must not call this
+    * for a base entry that is unchanged, so an existing viewsheet keeps working (Bug #77400).
+    *
+    * @param entry           the new base entry, or null if the base source is cleared.
+    * @param assetRepository the asset repository that checks worksheet permissions.
+    * @param principal       the current user.
+    *
+    * @throws Exception if a permission is not granted.
+    */
+   public void checkViewsheetBaseEntryPermission(AssetEntry entry,
+                                                 AssetRepository assetRepository,
+                                                 Principal principal)
+      throws Exception
+   {
+      if(entry == null) {
+         return;
+      }
+
+      if(entry.isWorksheet()) {
+         assetRepository.checkAssetPermission(principal, entry, ResourceAction.READ);
+      }
+      else if(entry.isQuery() || entry.isPhysicalTable() || entry.isLogicModel()) {
+         SourceInfo source;
+
+         try {
+            source = new SourceInfo(Integer.parseInt(entry.getProperty("type")),
+                                    entry.getProperty("prefix"), entry.getProperty("source"));
+         }
+         catch(NumberFormatException e) {
+            throw new java.lang.SecurityException("Invalid data source type");
+         }
+
+         checkAssetTreeEntryPermission(entry, principal);
+         checkSourceReadPermission(source, principal);
+      }
+   }
+
+   private void checkModelEntryReadPermission(AssetEntry entry, Principal principal) {
+      if(entry.isLogicModel() || entry.isTable()) {
+         checkLogicalModelReadPermission(
+            entry.getProperty("prefix"), entry.getProperty("source"), principal);
+      }
    }
 
    private AutoDrillInfo getAutoDrillInfo(XMetaInfo metaInfo) {
@@ -1600,6 +2160,17 @@ public class QueryManagerService {
       runtimeQuery.setMetadata(parseResult);
       SQLDefinition sqlDefinition = query.getSQLDefinition();
       UniformSQL sql = (UniformSQL) sqlDefinition;
+      GetColumnInfoResult result = new GetColumnInfoResult();
+
+      // Bug #77496, the "Parse SQL" checkbox is client-only until a parse/save call, so the
+      // runtime sql may still be parse-on here. Don't re-parse it or clear its selection: the
+      // client still holds the parsed model, and the next parse/save with parse off applies the
+      // column info from runtimeQuery.getMetadata() (see parseSqlString).
+      if(sql.isParseSQL()) {
+         result.setHasColumnInfo(parseResult != null && parseResult.getChildCount() > 0);
+         runtimeQueryService.saveRuntimeQuery(runtimeQuery);
+         return result;
+      }
 
       synchronized(sql) {
          sql.setSQLString(sqlString);
@@ -1613,8 +2184,6 @@ public class QueryManagerService {
             }
          }
       }
-
-      GetColumnInfoResult result = new GetColumnInfoResult();
 
       if(parseResult != null && parseResult.getChildCount() > 0) {
          XField[] flds = new XField[parseResult.getChildCount()];
@@ -1851,7 +2420,9 @@ public class QueryManagerService {
 
       UniformSQL sql = (UniformSQL) query.getSQLDefinition();
 
-      if(sql.isParseSQL() && !sql.isLossy()) {
+      // only regenerate the preview sql when the structure fully represents the sql string,
+      // a refused or partial parse holds only part of the query (e.g. part of the FROM list)
+      if(!isSqlOnly(sql)) {
          query = query.clone();
          sql = (UniformSQL) query.getSQLDefinition();
          sql.clearSQLString();
@@ -2480,21 +3051,12 @@ public class QueryManagerService {
    }
 
    private RuntimeQueryService.RuntimeXQuery createNewRuntimeQuery(String runtimeId, String tableName,
-                                                                   String dataSource)
+                                                                   String dataSource,
+                                                                   Principal principal)
       throws Exception
    {
       JDBCQuery newQuery = createNewQuery(tableName, dataSource);
-      RuntimeQueryService.RuntimeXQuery runtimeQuery =
-         runtimeQueryService.createRuntimeQuery(null, newQuery, dataSource, null);
-
-      if(runtimeId != null) {
-         String newId = runtimeQuery.getId();
-         destroyRuntimeQuery(newId);
-         runtimeQuery.setId(runtimeId);
-         runtimeQueryService.saveRuntimeQuery(runtimeQuery);
-      }
-
-      return runtimeQuery;
+      return runtimeQueryService.resetRuntimeQuery(runtimeId, newQuery, dataSource, principal);
    }
 
    private DataRef getOldAttributeRef(String oldAlias, String fullname, ColumnSelection oldColumns,
@@ -2514,6 +3076,10 @@ public class QueryManagerService {
                                               Principal principal)
       throws Exception
    {
+      // Bug #77163, the expanded entry's children are resolved from the data source in its
+      // prefix, which need not be the one named by the dataSource parameter, so check both.
+      checkDataSourceReadPermission(dataSource, principal);
+      checkQueryEntryReadPermission(expandedEntry, principal);
       AssetRepository assetRepository = AssetUtil.getAssetRepository(false);
       List<TreeNodeModel> children = null;
 
@@ -2795,4 +3361,6 @@ public class QueryManagerService {
    private final DataSourceService dataSourceService;
    private final ColumnCache columnCache;
    private static final Logger LOG = LoggerFactory.getLogger(QueryManagerService.class);
+   // compares the condition pane items of the client with the ones of the current structure
+   private static final ObjectMapper CONDITION_MAPPER = new ObjectMapper();
 }

@@ -1086,7 +1086,7 @@ public class VSDimensionRef extends AbstractDataRef implements ContentObject, XD
 
       if(node != null) {
          String cls = Tool.getAttribute(node, "class");
-         groupInfo = cls != null ? (SNamedGroupInfo) Class.forName(cls).newInstance() :
+         groupInfo = cls != null ? (SNamedGroupInfo) Tool.loadSubclass(cls, SNamedGroupInfo.class).newInstance() :
             new SNamedGroupInfo();
          groupInfo.parseXML(node);
       }

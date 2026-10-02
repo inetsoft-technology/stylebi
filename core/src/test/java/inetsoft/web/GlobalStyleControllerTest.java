@@ -33,6 +33,11 @@ package inetsoft.web;
  *  ├─ [B] unauthenticated + request names no organization → current (default) org's theme
  *  ├─ [C] authenticated                                   → current org's theme, request ignored
  *  └─ [D] any of the above                                → org context is left clean afterwards
+ *
+ * --- Organization.theme visibility (Bug #77285) ---
+ *
+ *  ├─ [E] Organization.theme names another org's private theme → falls back to the selected theme
+ *  └─ [F] Organization.theme names the org's own private theme → served
  */
 
 import inetsoft.sree.internal.SUtil;
@@ -78,6 +83,7 @@ class GlobalStyleControllerTest {
    private static final String TENANT_ORG = "organization0";
    private static final String HOST_ORG_THEME = "def2";
    private static final String TENANT_ORG_THEME = "test2";
+   private static final String GLOBAL_THEME = "global1";
 
    @BeforeEach
    void setUp() throws Exception {
@@ -168,6 +174,37 @@ class GlobalStyleControllerTest {
       assertNull(OrganizationContextHolder.getCurrentOrgId());
    }
 
+   // [Path E] a pointer left on the organization to another organization's private theme is not
+   // served; the selected theme (which applies the same visibility rule) is used instead
+   @Test
+   void getStyle_orgThemeOfOtherOrg_fallsBackToSelectedTheme() throws Exception {
+      threadContextStatic.when(ThreadContext::getContextPrincipal).thenReturn(null);
+      sUtilStatic.when(() -> SUtil.getLoginOrganization(any())).thenReturn(TENANT_ORG);
+      when(customThemesManager.getCustomThemes()).thenReturn(Set.of(
+         theme(HOST_ORG_THEME), theme(TENANT_ORG_THEME, HOST_ORG), theme(GLOBAL_THEME)));
+      when(customThemesManager.getSelectedTheme(any())).thenReturn(GLOBAL_THEME);
+
+      getStyle(null);
+
+      assertEquals("theme:" + GLOBAL_THEME + "/inetsoft/web/resources" + CSS_PATH,
+                   capturedLocation());
+   }
+
+   // [Path F] the organization's own private theme is visible to it and still served
+   @Test
+   void getStyle_orgThemeOfOwnOrg_served() throws Exception {
+      threadContextStatic.when(ThreadContext::getContextPrincipal).thenReturn(null);
+      sUtilStatic.when(() -> SUtil.getLoginOrganization(any())).thenReturn(TENANT_ORG);
+      when(customThemesManager.getCustomThemes()).thenReturn(Set.of(
+         theme(HOST_ORG_THEME), theme(TENANT_ORG_THEME, TENANT_ORG)));
+
+      getStyle(null);
+
+      assertEquals("theme:" + TENANT_ORG_THEME + "/inetsoft/web/resources" + CSS_PATH,
+                   capturedLocation());
+      verify(customThemesManager, never()).getSelectedTheme(any());
+   }
+
    private void getStyle(Principal user) throws Exception {
       MockHttpServletRequest request = new MockHttpServletRequest("GET", CSS_PATH);
       request.setServletPath(CSS_PATH);
@@ -187,9 +224,14 @@ class GlobalStyleControllerTest {
    }
 
    private static CustomTheme theme(String id) {
+      return theme(id, null);
+   }
+
+   private static CustomTheme theme(String id, String orgID) {
       CustomTheme theme = new CustomTheme();
       theme.setId(id);
       theme.setName(id);
+      theme.setOrgID(orgID);
       return theme;
    }
 }

@@ -29,6 +29,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.*;
 import java.net.*;
+import java.nio.charset.StandardCharsets;
 
 /**
  * Utility class for FTP related methods
@@ -45,32 +46,22 @@ public class FTPUtil {
    public static void uploadToFTP(String url, File file, ServerPathInfo pathInfo, boolean append)
       throws Throwable
    {
-      String parseURL = pathInfo.isSFTP() ? url.substring(7) :
-         url.startsWith("ftp://") ? url.substring(6) : url;
-
-      // @by stephenwebster, For Bug #6218.
-      // The URL coming in may have URL unsafe characters causing the URL to be
-      // parsed incorrectly.  For now, just manually parse and encode the user
-      // password portion so it parses correctly.
-      // A better solution would be to have separate inputs on the GUI side and
-      // then passed here as an object, i.e. FTPInfo.
-      if(parseURL.contains("@")) {
-         String userPasswordString =
-            URLEncoder.encode(parseURL.substring(0, parseURL.lastIndexOf("@")), "UTF-8");
-         String hostPortion = parseURL.substring(parseURL.lastIndexOf("@"));
-         parseURL = "ftp://" + userPasswordString + hostPortion;
-      }
-      else {
-         parseURL = "ftp://" + parseURL;
-      }
-
-      URL ftpURL = new URL(parseURL);
-      String host = ftpURL.getHost();
-      int port = ftpURL.getPort();
-      String ftpPath = ftpURL.getPath();
-      String userInfo = ftpURL.getUserInfo() == null ? null : URLDecoder.decode(ftpURL.getUserInfo(), "UTF-8");
+      Endpoint endpoint = parseEndpoint(url, pathInfo.isSFTP());
+      String host = endpoint.host();
+      int port = endpoint.port();
+      String ftpPath = endpoint.path();
+      String userInfo = endpoint.userInfo();
       String user = null;
       String pass = null;
+
+      // the formatted path may contain parameter values, so make sure that a stored credential
+      // is only sent to the server that the saved path names
+      if((pathInfo.isUseCredential() || !Tool.isEmptyString(pathInfo.getPassword())) &&
+         !endpoint.isSameServer(parseEndpoint(pathInfo)))
+      {
+         throw new Exception("Failed to save file to FTP server: " + host +
+            ", the server does not match the saved path");
+      }
 
       if(pathInfo.isUseCredential()) {
          JsonNode credentials = Tool.loadCredentials(pathInfo.getSecretId());
@@ -212,6 +203,71 @@ public class FTPUtil {
                }
             }
          }
+      }
+   }
+
+   /**
+    * Parses the server that a saved path points to, in the same way that the file is uploaded.
+    */
+   public static Endpoint parseEndpoint(ServerPathInfo pathInfo) throws MalformedURLException {
+      return parseEndpoint(pathInfo.getPath(), pathInfo.isSFTP());
+   }
+
+   /**
+    * Parses the server that an FTP or SFTP path points to, in the same way that the file is
+    * uploaded.
+    */
+   public static Endpoint parseEndpoint(String url) throws MalformedURLException {
+      return parseEndpoint(url, url.toLowerCase().startsWith("sftp://"));
+   }
+
+   private static Endpoint parseEndpoint(String url, boolean sftp) throws MalformedURLException {
+      String parseURL = sftp ? url.substring(7) :
+         url.startsWith("ftp://") ? url.substring(6) : url;
+
+      // @by stephenwebster, For Bug #6218.
+      // The URL coming in may have URL unsafe characters causing the URL to be
+      // parsed incorrectly.  For now, just manually parse and encode the user
+      // password portion so it parses correctly.
+      // A better solution would be to have separate inputs on the GUI side and
+      // then passed here as an object, i.e. FTPInfo.
+      if(parseURL.contains("@")) {
+         String userPasswordString = URLEncoder.encode(
+            parseURL.substring(0, parseURL.lastIndexOf("@")), StandardCharsets.UTF_8);
+         String hostPortion = parseURL.substring(parseURL.lastIndexOf("@"));
+         parseURL = "ftp://" + userPasswordString + hostPortion;
+      }
+      else {
+         parseURL = "ftp://" + parseURL;
+      }
+
+      URL ftpURL = new URL(parseURL);
+      String userInfo = ftpURL.getUserInfo() == null ? null :
+         URLDecoder.decode(ftpURL.getUserInfo(), StandardCharsets.UTF_8);
+      return new Endpoint(sftp, ftpURL.getHost(), ftpURL.getPort(), ftpURL.getPath(), userInfo);
+   }
+
+   /**
+    * The server and file that an FTP or SFTP path points to.
+    *
+    * @param sftp     {@code true} if SFTP is used.
+    * @param host     the host name.
+    * @param port     the port, or -1 if the default port is used.
+    * @param path     the file path on the server.
+    * @param userInfo the user name and password in the path, or {@code null} if none.
+    */
+   public record Endpoint(boolean sftp, String host, int port, String path, String userInfo) {
+      /**
+       * Determines if another endpoint connects to the same server, using the same protocol, host
+       * and port.
+       */
+      public boolean isSameServer(Endpoint other) {
+         return other != null && sftp == other.sftp && !Tool.isEmptyString(host) &&
+            host.equalsIgnoreCase(other.host) && getEffectivePort() == other.getEffectivePort();
+      }
+
+      private int getEffectivePort() {
+         return port != -1 ? port : sftp ? 22 : 21;
       }
    }
 

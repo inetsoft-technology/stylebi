@@ -32,6 +32,7 @@ import inetsoft.uql.util.DefaultIdentity;
 import inetsoft.uql.util.Identity;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.util.Catalog;
+import inetsoft.util.MessageException;
 import inetsoft.util.Tool;
 import inetsoft.util.audit.ActionRecord;
 import inetsoft.util.audit.Audit;
@@ -122,8 +123,9 @@ public class DashboardController {
                return getDashboardModel(d, principal);
             }
             catch(FileNotFoundException ex) {
-               LOG.error("Missing dashboard: {}", d, ex);
-               dashboardManager.removeDashboard(d);
+               // not removed from the selections of all identities, it may only be missing from
+               // this node's cached registry for a moment (Bug #77272)
+               LOG.warn("Missing dashboard: {}", d, ex);
                return null;
             }
             catch(Exception ex) {
@@ -300,7 +302,9 @@ public class DashboardController {
          }
          else {
             entry = AssetEntry.createAssetEntry(identifier);
-            owner = Objects.requireNonNull(entry).getUser();
+            checkViewsheetReadable(AssetUtil.getAssetRepository(false), entry, identifier,
+               principal);
+            owner = entry.getUser();
          }
 
          ViewsheetEntry viewsheet = owner != null ?
@@ -309,13 +313,12 @@ public class DashboardController {
 
          viewsheet.setIdentifier(identifier);
          dashboard.setViewsheet(viewsheet);
-         registry.addDashboard(dashboardModel.name(), dashboard);
          dashboard.setCreated(System.currentTimeMillis());
          dashboard.setLastModified(System.currentTimeMillis());
          IdentityID identityID = IdentityID.getIdentityIDFromKey(principal.getName());
          dashboard.setCreatedBy(identityID.getName());
          dashboard.setLastModifiedBy(identityID.getName());
-         registry.save();
+         registry.putDashboard(dashboardModel.name(), dashboard);
 
          // if this dashboard is created by a user on the viewer, then the
          // dashboard should be automatically selected.
@@ -429,7 +432,9 @@ public class DashboardController {
          }
          else {
             entry = AssetEntry.createAssetEntry(identifier);
-            owner = Objects.requireNonNull(entry).getUser();
+            checkViewsheetReadable(viewsheetService.getAssetRepository(), entry, identifier,
+               principal);
+            owner = entry.getUser();
          }
 
          ViewsheetEntry viewsheet = owner != null ?
@@ -466,12 +471,11 @@ public class DashboardController {
             ViewsheetEntry v2 = ((VSDashboard) odashboard).getViewsheet();
 
             if(!Tool.equals(v1, v2)) {
-               removeDashboardViewsheet((VSDashboard) odashboard);
+               removeDashboardViewsheet((VSDashboard) odashboard, principal);
             }
          }
 
-         registry.addDashboard(dashboardModel.name(), dashboard);
-         registry.save();
+         registry.putDashboard(dashboardModel.name(), dashboard);
          dependencyHandler.updateDashboardDependencies(user, dashboardModel.name(),
             true);
 
@@ -578,12 +582,11 @@ public class DashboardController {
          Dashboard dashboard = registry.getDashboard(dashboardName);
          dependencyHandler.updateDashboardDependencies(user, dashboardName, false);
          registry.removeDashboard(dashboardName);
-         registry.save();
          dashboardManager.removeDashboard(dashboardName);
 
          // remove the underlying vs if it's created for this dashboard
          if(dashboard instanceof VSDashboard) {
-            removeDashboardViewsheet((VSDashboard) dashboard);
+            removeDashboardViewsheet((VSDashboard) dashboard, principal);
          }
 
          actionRecord.setActionStatus(ActionRecord.ACTION_STATUS_SUCCESS);
@@ -629,7 +632,10 @@ public class DashboardController {
             principal.getRoles(), null, null);
       }
       else if(!securityEnabled) {
-         identity = new DefaultIdentity(XPrincipal.ANONYMOUS, Identity.USER);
+         // the security-off user is anonymous in the default org, which also owns the composed
+         // dashboards created here (Bug #77357)
+         identity = new DefaultIdentity(XPrincipal.ANONYMOUS,
+            Organization.getDefaultOrganizationID(), Identity.USER);
       }
       else {
          identity = user != null ? new DefaultIdentity(user, Identity.USER) :
@@ -648,9 +654,24 @@ public class DashboardController {
    }
 
    /**
-    * Remove the viewsheet of a vs dashboard.
+    * Make sure the caller can read the client-supplied dashboard viewsheet.
     */
-   private void removeDashboardViewsheet(VSDashboard dashboard) {
+   private void checkViewsheetReadable(AssetRepository engine, AssetEntry entry,
+                                       String identifier, Principal principal)
+      throws Exception
+   {
+      if(entry == null) {
+         throw new MessageException(Catalog.getCatalog().getString("common.invalidEntry", identifier));
+      }
+
+      engine.checkAssetPermission(principal, entry, ResourceAction.READ, true);
+   }
+
+   /**
+    * Remove the viewsheet of a vs dashboard. The caller's principal is used so the asset
+    * engine enforces org and owner checks on the removal.
+    */
+   private void removeDashboardViewsheet(VSDashboard dashboard, Principal principal) {
       ViewsheetEntry ve = dashboard.getViewsheet();
       AssetRepository engine = AssetUtil.getAssetRepository(false);
       AssetEntry entry = (ve == null) ? null
@@ -658,12 +679,11 @@ public class DashboardController {
 
       if(entry != null && entry.getScope() == AssetRepository.USER_SCOPE) {
          try {
-            Principal user = new XPrincipal(entry.getUser());
-            Viewsheet vs = (Viewsheet) engine.getSheet(entry, user, false,
+            Viewsheet vs = (Viewsheet) engine.getSheet(entry, principal, false,
                AssetContent.ALL);
 
             if(vs.getViewsheetInfo().isComposedDashboard()) {
-               engine.removeSheet(entry, user, false);
+               engine.removeSheet(entry, principal, false);
             }
          }
          catch(Exception ex) {

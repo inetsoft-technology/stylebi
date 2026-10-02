@@ -19,6 +19,7 @@ package inetsoft.report.filter;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -32,6 +33,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * <p>NullFormula has package-private visibility, so tests must reside in
  * the same package.
  */
+@Tag("core")
 public class NullFormulaTest {
 
    private NullFormula formula;

@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { HttpClient } from "@angular/common/http";
+import { HttpClient, HttpParams } from "@angular/common/http";
 import {
    ChangeDetectorRef,
    Component,
@@ -198,7 +198,6 @@ export class EditIdentityViewComponent implements OnInit, OnChanges, OnDestroy {
    }
 
    ngOnInit(): void {
-      this.getThemes().subscribe(themes => this.themes = themes);
       this.editableSubscription = this.identityEditableChanges.subscribe((editable) => {
          this.identityEditable = editable;
       });
@@ -219,6 +218,10 @@ export class EditIdentityViewComponent implements OnInit, OnChanges, OnDestroy {
    init(): void {
       this.showPwd = [false, false];
       this.setIsEnterprise();
+      // an organization lists its own themes, which are not those of the current organization
+      // when a site admin edits another organization
+      this.getThemes(this.organization ? this.organizationModel.id : null)
+         .subscribe(themes => this.themes = themes);
 
       const nameValidator = this.type == IdentityType.USER ? FormValidators.validUserName :
          this.type == IdentityType.ORGANIZATION ? FormValidators.containsDashboardSpecialCharsForName :
@@ -646,8 +649,10 @@ export class EditIdentityViewComponent implements OnInit, OnChanges, OnDestroy {
       this.updateModel();
    }
 
-   getThemes(): Observable<IdentityTheme[]> {
-      return this.http.get<IdentityThemeList>("../api/em/security/themes")
+   getThemes(orgId: string = null): Observable<IdentityTheme[]> {
+      const params = orgId ? new HttpParams().set("orgId", orgId) : undefined;
+
+      return this.http.get<IdentityThemeList>("../api/em/security/themes", {params})
          .pipe(map(result => result.themes?.sort((a, b) => {
             return a.name.localeCompare(b.name);
          })));

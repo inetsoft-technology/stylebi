@@ -922,7 +922,7 @@ public class JDBCDataSource extends AdditionalConnectionDataSource<JDBCDataSourc
 
       if(credentialNode != null) {
          String className = Tool.getAttribute(credentialNode, "class");
-         Class<?> clazz = Class.forName(className);
+         Class<?> clazz = Tool.loadSubclass(className, PasswordCredential.class);
          credential = (PasswordCredential) clazz.getDeclaredConstructor().newInstance();
          credential.setDBType(SQLHelper.getProductName(this));
          credential.parseXML(credentialNode);

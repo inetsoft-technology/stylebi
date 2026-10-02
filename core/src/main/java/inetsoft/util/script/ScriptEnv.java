@@ -173,4 +173,32 @@ public interface ScriptEnv {
    default java.util.concurrent.locks.Lock getExecutionLock() {
       return null;
    }
+
+   /**
+    * @return {@code false} if this env never has an execution lock to order against, even
+    *         after {@link #init()}, so a caller must not create an engine just to look for
+    *         one (a pooled worksheet env, bug #76960).
+    */
+   default boolean usesExecutionLock() {
+      return true;
+   }
+
+   /**
+    * Open a span of script work on this thread (see {@link ScriptSpan}). Environments without
+    * pooled contexts return {@link ScriptSpan#NONE}.
+    */
+   default ScriptSpan openSpan() {
+      return ScriptSpan.NONE;
+   }
+
+   /**
+    * Open a span of script work on this thread that takes a context of its own, even inside
+    * another span of this thread or a query build, for one batch of a resident formula table,
+    * whose vars hold arrays or objects on a home (Testing #77123, cond-home): its context is
+    * given back when it closes. Environments without pooled contexts return {@link
+    * #openSpan()}.
+    */
+   default ScriptSpan openOwnSpan() {
+      return openSpan();
+   }
 }

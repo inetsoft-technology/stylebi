@@ -308,6 +308,7 @@ public class RangeOutputVSAssemblyInfo extends OutputVSAssemblyInfo {
    public void setRangeValues(Object[] val) {
       this.rangeValues = val == null ? null : new DynamicValue[val.length];
       this.rangeCount = rangeValues == null ? 0 : rangeValues.length;
+      this.rangeDesignCount = rangeCount;
 
       for(int i = 0; rangeValues != null && i < rangeValues.length; i++) {
          rangeValues[i] = new DynamicValue((String) val[i], XSchema.DOUBLE);
@@ -458,6 +459,7 @@ public class RangeOutputVSAssemblyInfo extends OutputVSAssemblyInfo {
 
       rangeColorsValue = new DynamicValue2[Math.max(colors.length, 4)];
       rangeColorCount = rangeColorsValue.length;
+      rangeColorDesignCount = rangeColorCount;
 
       // populate every padded slot (not just colors.length) with a real DynamicValue2 --
       // leaving a raw null gap at the padded indices caused an NPE in setRangeColors() when a
@@ -676,6 +678,27 @@ public class RangeOutputVSAssemblyInfo extends OutputVSAssemblyInfo {
    }
 
    /**
+    * Get the text persisted for a range color design value. A value in integer/hex syntax is
+    * normalized to its RGB int as before; any other value (a color name, a {@code $(var)} or
+    * {@code =expr} dynamic value, ...) is written as-is, since parseContents() accepts any text
+    * and the read path resolves it leniently (#77585). The result is safe inside CDATA.
+    */
+   private static String getRangeColorDesignText(String dvalue) {
+      if(dvalue == null || dvalue.isEmpty()) {
+         return "null";
+      }
+
+      try {
+         return Integer.toString(Color.decode(dvalue).getRGB());
+      }
+      catch(NumberFormatException ignore) {
+         // not a numeric color, keep the design value as-is
+      }
+
+      return dvalue.replace("]]>", "]]]]><![CDATA[>");
+   }
+
+   /**
     * Write contents.
     * @param writer the specified writer.
     */
@@ -713,16 +736,19 @@ public class RangeOutputVSAssemblyInfo extends OutputVSAssemblyInfo {
          writer.println("</targetValue>");
       }
 
-      // only persist the logical (last-set) length -- rangeValues/rangeColorsValue may be
-      // physically longer than the currently-active count if a script grew them and then
-      // shrank the logical length again; persisting the extra "zombie" slots would write
-      // stale/placeholder values into the asset (#76909)
+      // the design (DValue) block and the runtime (RValue) block are persisted with different
+      // bounds: the design block must persist the full design-time length even if a script has
+      // since shrunk the logical count, or those design values would be permanently lost from
+      // the asset on save (#76968); the runtime block legitimately reflects "whatever the
+      // script had set at save time" so it keeps using the logical (last-set) length, which may
+      // be shorter than the physical array if a script grew it and then shrank it again (#76909)
+      int rnDesign = rangeValues == null ? 0 : Math.min(rangeDesignCount, rangeValues.length);
       int rn = rangeValues == null ? 0 : Math.min(rangeCount, rangeValues.length);
 
-      if(rangeValues != null && rn > 0) {
+      if(rangeValues != null && rnDesign > 0) {
          writer.print("<rangeValues>");
 
-         for(int i = 0; i < rn; i++) {
+         for(int i = 0; i < rnDesign; i++) {
             writer.print("<rangeValue>");
             String dvalue = rangeValues[i].getDValue();
             dvalue = dvalue == null ? "" : dvalue;
@@ -731,7 +757,9 @@ public class RangeOutputVSAssemblyInfo extends OutputVSAssemblyInfo {
          }
 
          writer.println("</rangeValues>");
+      }
 
+      if(rangeValues != null && rn > 0) {
          writer.print("<ranges>");
 
          for(int i = 0; i < rn; i++) {
@@ -745,33 +773,16 @@ public class RangeOutputVSAssemblyInfo extends OutputVSAssemblyInfo {
          writer.println("</ranges>");
       }
 
-      Color[] color;
-
       if(rangeColorsValue != null) {
-         int cn = Math.min(rangeColorCount, rangeColorsValue.length);
-         color = new Color[cn];
+         int cnDesign = Math.min(rangeColorDesignCount, rangeColorsValue.length);
 
-         for(int i = 0; i < cn; i++) {
-            if(rangeColorsValue[i].getDValue() != null &&
-               !"".equals(rangeColorsValue[i].getDValue()))
-            {
-               color[i] = Color.decode(rangeColorsValue[i].getDValue());
-            }
-         }
-
-         if(color != null && color.length > 0) {
+         if(cnDesign > 0) {
             writer.print("<rangeColorsValue>");
 
-            for(int i = 0; i < color.length; i++) {
+            for(int i = 0; i < cnDesign; i++) {
                writer.print("<rangeColor>");
-
-               if(color[i] != null) {
-                  writer.print("<![CDATA[" + color[i].getRGB() + "]]>");
-               }
-               else {
-                  writer.print("<![CDATA[null]]>");
-               }
-
+               writer.print("<![CDATA[" +
+                  getRangeColorDesignText(rangeColorsValue[i].getDValue()) + "]]>");
                writer.print("</rangeColor>");
             }
 
@@ -779,7 +790,7 @@ public class RangeOutputVSAssemblyInfo extends OutputVSAssemblyInfo {
          }
       }
 
-      color = getRangeColors();
+      Color[] color = getRangeColors();
 
       if(color != null && color.length > 0) {
          writer.print("<rangeColors>");
@@ -835,6 +846,10 @@ public class RangeOutputVSAssemblyInfo extends OutputVSAssemblyInfo {
          if(rangeValuesList != null && rangeValuesList.getLength() > 0) {
             rangeValues = new DynamicValue[rangeValuesList.getLength()];
             rangeCount = rangeValues.length;
+            // re-establish the design-time count on reload so a script shrink+removal cycle
+            // with no intervening Advanced-tab edit restores to the reloaded length, not a
+            // stale count left over from this object's field initializer (#76968)
+            rangeDesignCount = rangeValues.length;
 
             for(int i = 0; i < rangeValuesList.getLength(); i++) {
                rangeValues[i] = new DynamicValue(
@@ -855,6 +870,8 @@ public class RangeOutputVSAssemblyInfo extends OutputVSAssemblyInfo {
          if(rangeColorsList != null && rangeColorsList.getLength() > 0) {
             rangeColorsValue = new DynamicValue2[rangeColorsList.getLength()];
             rangeColorCount = rangeColorsValue.length;
+            // see rangeDesignCount comment above (#76968)
+            rangeColorDesignCount = rangeColorsValue.length;
 
             for(int i = 0; i < rangeColorsList.getLength(); i++) {
                String val = Tool.getValue(rangeColorsList.item(i));
@@ -928,10 +945,17 @@ public class RangeOutputVSAssemblyInfo extends OutputVSAssemblyInfo {
          result = true;
       }
 
-      if(!Tool.equals(rangeValues, cinfo.rangeValues)) {
+      // also compare the runtime ranges (like the colors below), since DynamicValue.equals()
+      // ignores a script-set value/count and the design values alone may be unchanged (#77205)
+      if(!Tool.equals(rangeValues, cinfo.rangeValues) ||
+         !Tool.equals(getRanges(), cinfo.getRanges()))
+      {
          rangeValues = cinfo.rangeValues;
          // keep the logical length in sync with the array reference it now describes (#76909)
          rangeCount = cinfo.rangeCount;
+         // keep the design-time length in sync too, or a Composer Advanced-tab edit
+         // (clone -> design setter -> merge via copyViewInfo) leaves it stale (#76968)
+         rangeDesignCount = cinfo.rangeDesignCount;
          result = true;
       }
 
@@ -941,6 +965,9 @@ public class RangeOutputVSAssemblyInfo extends OutputVSAssemblyInfo {
          rangeColorsValue = cinfo.rangeColorsValue;
          // keep the logical length in sync with the array reference it now describes (#76909)
          rangeColorCount = cinfo.rangeColorCount;
+         // keep the design-time length in sync too, or a Composer Advanced-tab edit
+         // (clone -> design setter -> merge via copyViewInfo) leaves it stale (#76968)
+         rangeColorDesignCount = cinfo.rangeColorDesignCount;
          result = true;
       }
 
@@ -1134,6 +1161,12 @@ public class RangeOutputVSAssemblyInfo extends OutputVSAssemblyInfo {
       for(DynamicValue range : rangeValues) {
          range.setRValue(null);
       }
+
+      // restore the logical length to the design-time count so a script that shrank it is
+      // fully undone once the script is removed, instead of leaving getRanges()/getRangeColors()
+      // truncated at the script's last-set (now-stale) length (#76968)
+      rangeCount = rangeDesignCount;
+      rangeColorCount = rangeColorDesignCount;
    }
 
    private DynamicValue targetValue = new DynamicValue("80", XSchema.DOUBLE);
@@ -1159,6 +1192,14 @@ public class RangeOutputVSAssemblyInfo extends OutputVSAssemblyInfo {
    // range/color count within the same session (#76909)
    private int rangeCount = rangeValues.length;
    private int rangeColorCount = rangeColorsValue.length;
+   // authoritative design-time lengths, set only by setRangeValues()/setRangeColorsValue()
+   // (the Composer Advanced-tab setters) and restored into rangeCount/rangeColorCount by
+   // resetRuntimeValues() once a shrinking script is removed; rangeCount/rangeColorCount alone
+   // can't serve this purpose since a script may have grown rangeValues/rangeColorsValue past
+   // the design count within the same session, leaving fabricated placeholder entries at the
+   // tail that must not be resurrected as if they were designed (#76968)
+   private int rangeDesignCount = rangeValues.length;
+   private int rangeColorDesignCount = rangeColorsValue.length;
    private DynamicValue gradientValue =
       new DynamicValue("true", XSchema.BOOLEAN);
    private double defMax = 100;

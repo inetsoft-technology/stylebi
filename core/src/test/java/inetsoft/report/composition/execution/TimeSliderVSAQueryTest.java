@@ -20,6 +20,7 @@ package inetsoft.report.composition.execution;
 
 import inetsoft.report.lens.DefaultTableLens;
 import inetsoft.test.*;
+import inetsoft.uql.util.XSourceInfo;
 import inetsoft.uql.XTable;
 import inetsoft.uql.asset.ColumnRef;
 import inetsoft.uql.erm.AttributeRef;
@@ -162,6 +163,8 @@ public class TimeSliderVSAQueryTest {
          ref.setDataType(XSchema.DOUBLE);
          tinfo.setDataRef(ref);
          assembly.setTimeInfo(tinfo);
+         // the nearest-tick rescue only applies to ad hoc VS_ASSEMBLY sliders
+         assembly.setSourceType(XSourceInfo.VS_ASSEMBLY);
       }
 
       /**
@@ -306,6 +309,244 @@ public class TimeSliderVSAQueryTest {
          SelectionList stateList = new SelectionList();
          stateList.addSelectionValue(sval);
          assembly.setStateSelectionList(stateList);
+      }
+   }
+
+   /**
+    * When the data max drops below a selection on the top bucket, a slider bound to a
+    * worksheet table resets to the full range (bug1295840324493). #76942's nearest-tick
+    * rescue must not snap it to the grid's last tick, which starts no bucket and so shows
+    * no data.
+    */
+   @Nested
+   class DataShrinkBelowSelection {
+      @BeforeEach
+      void setUpNumberRange() {
+         SingleTimeInfo tinfo = new SingleTimeInfo();
+         tinfo.setRangeTypeValue(TimeInfo.NUMBER);
+         ColumnRef ref = createRef(MEASURE);
+         ref.setDataType(XSchema.DOUBLE);
+         tinfo.setDataRef(ref);
+         assembly.setTimeInfo(tinfo);
+      }
+
+      @Test
+      void keepsSelectionWhenGridIsUnchanged() throws Exception {
+         double[] ticks = selectLastTick();
+         double step = ticks[1] - ticks[0];
+         double top = ticks[ticks.length - 1];
+
+         invokeRefreshSingleSelectionValue(query, new Object[] { 0.0, 1.0 - step * 0.5 },
+                                           NORMAL_HINT);
+
+         SelectionList state = assembly.getStateSelectionList();
+
+         assertNotNull(state);
+         assertTrue(state.getSelectionValueCount() > 0);
+         assertEquals(Tool.toString(top), state.getSelectionValue(0).getValue());
+      }
+
+      @Test
+      void resetsToFullRangeWhenMaxDropsOneStep() throws Exception {
+         double[] ticks = selectLastTick();
+         double step = ticks[1] - ticks[0];
+
+         invokeRefreshSingleSelectionValue(query, new Object[] { 0.0, 1.0 - step },
+                                           NORMAL_HINT);
+
+         assertFullRange();
+      }
+
+      @Test
+      void resetsToFullRangeWhenMaxDropsOneAndAHalfSteps() throws Exception {
+         double[] ticks = selectLastTick();
+         double step = ticks[1] - ticks[0];
+
+         invokeRefreshSingleSelectionValue(query, new Object[] { 0.0, 1.0 - step * 1.5 },
+                                           NORMAL_HINT);
+
+         assertFullRange();
+      }
+
+      /**
+       * An ad hoc VS_ASSEMBLY slider keeps the nearest-tick rescue, but never lands on the
+       * grid-closing last tick.
+       */
+      @Test
+      void vsAssemblyRescueDoesNotLandOnLastTick() throws Exception {
+         assembly.setSourceType(XSourceInfo.VS_ASSEMBLY);
+         double[] ticks = selectLastTick();
+         double step = ticks[1] - ticks[0];
+
+         invokeRefreshSingleSelectionValue(query, new Object[] { 0.0, 1.0 - step * 1.5 },
+                                           NORMAL_HINT);
+
+         SelectionList newTicks = assembly.getSelectionList();
+         String lastTick = newTicks.getSelectionValue(
+            newTicks.getSelectionValueCount() - 1).getValue();
+         SelectionList state = assembly.getStateSelectionList();
+
+         assertNotNull(state);
+         assertTrue(state.getSelectionValueCount() > 0);
+         assertNotEquals(lastTick, state.getSelectionValue(0).getValue());
+      }
+
+      /**
+       * Settles the [0, 1] grid and selects its last tick as the previous min, as the
+       * issue's probe does.
+       */
+      private double[] selectLastTick() throws Exception {
+         invokeRefreshSingleSelectionValue(query, new Object[] { 0.0, 1.0 }, NORMAL_HINT);
+         invokeRefreshSingleSelectionValue(query, new Object[] { 0.0, 1.0 }, NORMAL_HINT);
+         SelectionList list = assembly.getSelectionList();
+         double[] ticks = new double[list.getSelectionValueCount()];
+
+         for(int i = 0; i < ticks.length; i++) {
+            ticks[i] = Double.parseDouble(list.getSelectionValue(i).getValue());
+         }
+
+         String top = Tool.toString(ticks[ticks.length - 1]);
+         SelectionValue sval = new SelectionValue(top, top);
+         sval.setState(SelectionValue.STATE_SELECTED);
+         SelectionList stateList = new SelectionList();
+         stateList.addSelectionValue(sval);
+         assembly.setStateSelectionList(stateList);
+
+         return ticks;
+      }
+
+      // pos stays -1, so no sub-range is selected and the entire range is in effect
+      private void assertFullRange() {
+         SelectionList state = assembly.getStateSelectionList();
+
+         assertNotNull(state);
+         assertEquals(0, state.getSelectionValueCount(),
+            "a selection above the new data max should reset to the full range, not snap " +
+            "to the grid's last tick");
+      }
+   }
+
+   /**
+    * Bug #76942 (round 5 -- Finish/settle window, {@code slist} corruption): round 4's fix
+    * above ({@link NumberRangeTickGridRecomputeDrift}) is real but, per
+    * docs/teams/2026-09-23-bugs-76942-wizard-filter-loss/bug-76942/13-diagnosis-round4-insufficient.md,
+    * insufficient on its own -- {@code refreshSelectionValue0()} computes an {@code ALL} hint
+    * from the assembly's *pre-query* {@code getCurrentPos()}/{@code getTotalLength()}, and
+    * {@code refreshSingleSelectionValue()}'s {@code (hint & ALL) == ALL} branch
+    * unconditionally overrides whatever {@code pos} the NUMBER branch above it computed --
+    * including round 4's own nearest-tick rescue -- forcing a full-range selection regardless.
+    * <p>
+    * {@code getTotalLength()} (in {@code TimeSliderVSAssemblyInfo}) returns 0 whenever the
+    * assembly's own {@code slist} is null, and {@code refreshSelectionValue0()} substitutes a
+    * degenerate default ({@code total = 2}) in that case -- which, combined with any positive
+    * leftover {@code tinfo.getLength()}, satisfies {@code length >= total - 1} and computes
+    * {@code hint = ALL} even though nothing about the user's actual selection was ever "select
+    * everything". This is exactly what was captured live: {@code curr} correctly recomputed
+    * from {@code TimeSliderVSAssembly.getRuntimeMin()} (a plain field, independent of
+    * {@code slist}) while {@code hint} was already locked to {@code ALL} from a degraded prior
+    * {@code slist} read.
+    * <p>
+    * The fix ({@code TimeSliderVSAQuery.refreshSingleSelectionValue()}): only let a recovered
+    * NUMBER-branch {@code pos} win over the {@code ALL} override when the {@code ALL} hint
+    * itself was derived from that degraded prior state ({@code priorTotalDegraded}, captured
+    * from {@code assembly.getTotalLength() <= 1} before this call rebuilds the slist) -- a
+    * genuinely fully-populated prior selection (the assembly's own slist really did already
+    * span the whole range) must still be preserved as {@code ALL} unchanged.
+    */
+   @Nested
+   class AllHintOverride {
+      private static final int ALL_HINT = 1;
+
+      @BeforeEach
+      void setUpNumberRange() {
+         SingleTimeInfo tinfo = new SingleTimeInfo();
+         tinfo.setRangeTypeValue(TimeInfo.NUMBER);
+         ColumnRef ref = createRef(MEASURE);
+         ref.setDataType(XSchema.DOUBLE);
+         tinfo.setDataRef(ref);
+         assembly.setTimeInfo(tinfo);
+      }
+
+      /**
+       * Direct reproduction of the live-captured mechanism: the assembly's own {@code slist} was
+       * never (yet) meaningfully populated going into this call -- {@code getTotalLength() <= 1}
+       * -- so an {@code ALL} hint computed from it is a false "preserve full range" signal, not
+       * a real one. But {@code runtimeMin} (an independent, non-{@code slist}-derived field --
+       * exactly what a right-click-bar ad hoc {@code VS_ASSEMBLY} range filter's previously
+       * selected value survives in through the Wizard Finish/settle window) still correctly
+       * carries the real previously-selected value, and the NUMBER branch's own tick-matching
+       * (including round 4's nearest-tick rescue) is able to recover a real position from it.
+       * That recovered position must not be discarded for "select everything".
+       */
+      @Test
+      void recoveredNumberPositionSurvivesAllHintWhenPriorStateWasDegraded() throws Exception {
+         assertEquals(0, assembly.getTotalLength(),
+            "test setup invariant: the assembly's slist must be genuinely unpopulated " +
+            "(getTotalLength() <= 1) going into this call, matching the live-captured " +
+            "'first query since Finish' state, not a hand-picked flag");
+
+         assembly.setRuntimeMin(30.0);
+         invokeRefreshSingleSelectionValue(query, new Object[] { 0.0, 100.0 }, ALL_HINT);
+
+         SelectionList state = assembly.getStateSelectionList();
+         int fullRangeCount = assembly.getSelectionList().getSelectionValueCount();
+
+         assertNotNull(state);
+         assertTrue(state.getSelectionValueCount() > 0 &&
+            state.getSelectionValueCount() < fullRangeCount,
+            "an ALL hint computed from a merely-degraded prior slist (bug #76942) must not " +
+            "discard a position the NUMBER branch was able to recover from the real prior " +
+            "selection (runtimeMin=30.0); got " + state.getSelectionValueCount() +
+            " of " + fullRangeCount + " selected");
+      }
+
+      /**
+       * Side-effect guard, the mirror image of the test above: when the assembly's slist really
+       * was already meaningfully populated (a genuine prior selection existed, not a degraded/
+       * unpopulated one) and that prior state genuinely covered the whole range, an ALL hint on
+       * the next query must still select the entire freshly recomputed range exactly as before
+       * this fix -- this fix only ever skips the override when the ALL signal itself was
+       * spurious (degraded prior slist), never for a real full-range selection.
+       */
+      @Test
+      void allHintStillSelectsFullRangeWhenPriorStateWasGenuinelyPopulated() throws Exception {
+         invokeRefreshSingleSelectionValue(query, new Object[] { 0.0, 100.0 }, NORMAL_HINT);
+         assertTrue(assembly.getTotalLength() > 1,
+            "test setup invariant: the first call must leave a genuinely populated slist " +
+            "behind, or this test would not be exercising priorTotalDegraded == false");
+         int fullRangeCount = assembly.getSelectionList().getSelectionValueCount();
+
+         invokeRefreshSingleSelectionValue(query, new Object[] { 0.0, 100.0 }, ALL_HINT);
+
+         SelectionList state = assembly.getStateSelectionList();
+
+         assertNotNull(state);
+         assertEquals(fullRangeCount, state.getSelectionValueCount(),
+            "a genuine ALL hint (prior slist was already meaningfully populated) must still " +
+            "select the entire range -- this fix only skips the override when the prior state " +
+            "was degraded, per bug #76942 round 5");
+      }
+
+      /**
+       * Guard against the fix accidentally becoming a blanket "NUMBER always wins" rule: when
+       * the prior slist was degraded (so the ALL hint is suspect, same as the first test above)
+       * but the NUMBER branch is unable to recover any position at all (no runtimeMin/
+       * selectedMin -- pos stays -1), the pre-existing bug1295840324493 fallback must still
+       * apply and select the full range, exactly as it always has.
+       */
+      @Test
+      void allHintStillFallsBackToFullRangeWhenNumberBranchRecoversNothing() throws Exception {
+         assertEquals(0, assembly.getTotalLength());
+
+         invokeRefreshSingleSelectionValue(query, new Object[] { 0.0, 100.0 }, ALL_HINT);
+
+         SelectionList state = assembly.getStateSelectionList();
+         int fullRangeCount = assembly.getSelectionList().getSelectionValueCount();
+
+         assertNotNull(state);
+         assertEquals(fullRangeCount, state.getSelectionValueCount(),
+            "with no recoverable prior value at all, an ALL hint (even from a degraded prior " +
+            "slist) must still fall back to selecting the full range");
       }
    }
 

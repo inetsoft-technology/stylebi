@@ -25,7 +25,8 @@ import java.util.List;
 
 /**
  * Scheduled tasks affected by deleting the selected identities: tasks that will be deleted
- * because the identity owns them, and tasks whose "execute as" will be reset to the task owner.
+ * because the identity owns them, tasks whose "execute as" will be reset to the task owner, and
+ * tasks whose "execute as" will be kept because the task owner is not a user, so they won't run.
  */
 @Value.Immutable
 @JsonSerialize(as = ImmutableDeleteIdentitiesTaskImpactResponse.class)
@@ -34,6 +35,8 @@ public interface DeleteIdentitiesTaskImpactResponse {
    List<String> ownedTasks();
 
    List<String> executeAsTasks();
+
+   List<String> refusedTasks();
 
    static Builder builder() {
       return new Builder();

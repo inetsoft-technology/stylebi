@@ -32,6 +32,7 @@ import java.io.IOException;
 import java.nio.file.*;
 import java.nio.file.attribute.FileTime;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.Lock;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -260,11 +261,13 @@ public class FileSystemService {
       }
 
       // optimization
-      if(CACHE != null && Tool.equals(SREE_CACHE, cdir)) {
-         return CACHE;
+      CacheDirectory cache = this.cache;
+
+      if(cache != null && Tool.equals(cache.property, cdir)) {
+         return cache.directory;
       }
 
-      SREE_CACHE = cdir;
+      String property = cdir;
 
       if(cdir == null) {
          String server = SreeEnv.getProperty("server.type");
@@ -311,7 +314,9 @@ public class FileSystemService {
       }
 
       LOG.info("Cache directory for temporary files: {}", cdir);
-      CACHE = cdir;
+      // publish the property and directory together so a reader never pairs the new
+      // property with the old directory
+      this.cache = new CacheDirectory(property, cdir);
       return cdir;
    }
 
@@ -349,20 +354,33 @@ public class FileSystemService {
    public File getCacheTempFile(String prefix, String suffix) {
       try {
          String cdir = getCacheDirectory();
-         long findex = System.currentTimeMillis();
          prefix = Tool.toFileName(prefix);
-         Path tempFile = getPath(cdir).resolve(prefix + findex++ + "." + suffix);
+         int deniedCount = 0;
 
          while(true) {
+            // the index is never reused in this jvm, so a thread can't try to create a name
+            // that another thread is still deleting, which fails with access denied on windows
+            Path tempFile = getPath(cdir).resolve(
+               prefix + TEMP_FILE_INDEX.getAndIncrement() + "." + suffix);
+
             try {
                Files.createFile(tempFile);
 
                if(Files.exists(tempFile)) {
-                  break;
+                  return tempFile.toFile();
                }
             }
             catch(FileAlreadyExistsException aeException) {
-               //If file already exists, retry with modified suffix.
+               //If file already exists, retry with the next index.
+            }
+            catch(AccessDeniedException deniedException) {
+               // another jvm sharing the cache directory may be deleting a file with this
+               // name, retry with the next index but stop if the directory is not writable
+               if(++deniedCount >= MAX_TEMP_FILE_DENIED) {
+                  LOG.error("Creating temp file caused IO Error: " + tempFile.getFileName(),
+                            deniedException);
+                  return null;
+               }
             }
             catch(IOException ex) {
                // this should not happen and we should terminate here
@@ -374,11 +392,7 @@ public class FileSystemService {
                LOG.error("Failed to create temp file: " + tempFile.getFileName(), ex);
                return null;
             }
-
-            tempFile = getPath(cdir).resolve(prefix + findex++ + "." + suffix);
          }
-
-         return tempFile.toFile();
       }
       catch (IOException ioException) {
          LOG.error("Creating temp file caused IO Error ", ioException);
@@ -745,10 +759,14 @@ public class FileSystemService {
       };
 
    private List<FileEntry> list = new ArrayList<>();
-   private String SREE_CACHE = null;
-   private String CACHE = null;
+   private volatile CacheDirectory cache = null;
    private final Cluster cluster;
    private final ApplicationEventPublisher eventPublisher;
 
+   private static final AtomicLong TEMP_FILE_INDEX = new AtomicLong(System.currentTimeMillis());
+   private static final int MAX_TEMP_FILE_DENIED = 20;
    private static final Logger LOG = LoggerFactory.getLogger(FileSystemService.class);
+
+   private record CacheDirectory(String property, String directory) {
+   }
 }

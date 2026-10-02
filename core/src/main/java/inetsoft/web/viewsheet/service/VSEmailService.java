@@ -18,7 +18,10 @@
 package inetsoft.web.viewsheet.service;
 
 import inetsoft.analytic.composition.VSPortalHelper;
+import inetsoft.analytic.composition.event.VSEventUtil;
+import inetsoft.report.composition.ChangedAssemblyList;
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.report.composition.execution.AssetQuerySandbox;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.report.io.csv.CSVConfig;
 import inetsoft.report.io.viewsheet.*;
@@ -30,6 +33,7 @@ import inetsoft.sree.internal.Mailer;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.portal.PortalThemesManager;
 import inetsoft.sree.security.*;
+import inetsoft.uql.VariableTable;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
@@ -39,6 +43,8 @@ import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.util.*;
 import inetsoft.util.log.LogLevel;
 import org.apache.commons.lang3.StringUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 import java.io.*;
@@ -161,61 +167,114 @@ public class VSEmailService {
             }
          }
 
-         OutputStream output = new FileOutputStream(file);
-
-         if(FileFormatInfo.EXPORT_TYPE_SNAPSHOT == formatType) {
-            SnapshotVSExporter exporter = new SnapshotVSExporter(rvs);
-            exporter.setLogExport(true);
-            exporter.write(output);
+         if(multipleFiles) {
+            // the images are written to fileList; the base name is only a naming seed and may
+            // be another export's file, so it must not be opened, truncated or deleted here
+            file = null;
          }
-         else {
-            if(!multipleFiles) {
-               if(excelToCSV) {
-                  File excelFile = fileSystemService.getCacheFile(fname + ".xlsx");
-                  FileOutputStream out = new FileOutputStream(excelFile);
-                  exportViewsheet(rvs, principal, FileFormatInfo.EXPORT_TYPE_EXCEL, bookmarks, out,
-                     csvConfig, matchLayout, expandSelections, onlyDataComponent, includeCurrent,
-                     null, exportAllTabbedCrosstab);
-                  exportViewsheet(rvs, principal, formatType, bookmarks, output, csvConfig,
-                     false, expandSelections, onlyDataComponent, includeCurrent,
-                     excelFile, exportAllTabbedCrosstab);
+
+         File excelFile = null;
+         // the excel intermediate's own unique directory (excelToCSV only); kept separate from
+         // the attachment file's cache path so two concurrent emails of the same viewsheet entry
+         // can never collide on the same ".xlsx" name
+         File excelDir = null;
+         // the files this export opened; names picked but not yet reached may since have been
+         // picked and written by a concurrent email of the same viewsheet
+         List<File> created = new ArrayList<>();
+         boolean exported = false;
+
+         try {
+            if(FileFormatInfo.EXPORT_TYPE_SNAPSHOT == formatType) {
+               try(OutputStream output = new FileOutputStream(file)) {
+                  created.add(file);
+                  SnapshotVSExporter exporter = new SnapshotVSExporter(rvs);
+                  exporter.setLogExport(true);
+                  exporter.write(output);
                }
-               else {
-                  exportViewsheet(rvs, principal, formatType, bookmarks, output, csvConfig,
-                     matchLayout, expandSelections, onlyDataComponent, includeCurrent, null,
-                     exportAllTabbedCrosstab);
+            }
+            else if(!multipleFiles) {
+               try(OutputStream output = new FileOutputStream(file)) {
+                  created.add(file);
+
+                  if(excelToCSV) {
+                     // @by stephenwebster, fix bug1395938669865 (same fix, applied here too)
+                     // put the excel intermediate in its own unique directory, keeping the
+                     // ".xlsx" base name, so two concurrent emails of the same viewsheet never
+                     // collide on the same cache path
+                     excelDir = createTmpDir();
+                     excelFile = fileSystemService.getFile(excelDir.getPath(), fname + ".xlsx");
+
+                     try(FileOutputStream out = new FileOutputStream(excelFile)) {
+                        created.add(excelFile);
+                        exportViewsheet(rvs, principal, FileFormatInfo.EXPORT_TYPE_EXCEL,
+                           bookmarks, out, csvConfig, matchLayout, expandSelections,
+                           onlyDataComponent, includeCurrent, null, exportAllTabbedCrosstab);
+                     }
+
+                     exportViewsheet(rvs, principal, formatType, bookmarks, output, csvConfig,
+                        false, expandSelections, onlyDataComponent, includeCurrent,
+                        excelFile, exportAllTabbedCrosstab);
+                  }
+                  else {
+                     exportViewsheet(rvs, principal, formatType, bookmarks, output, csvConfig,
+                        matchLayout, expandSelections, onlyDataComponent, includeCurrent, null,
+                        exportAllTabbedCrosstab);
+                  }
                }
             }
             else {
                for(int i = 0; i < fileList.size(); i++) {
                   File f = fileList.get(i);
-                  OutputStream output0 = new FileOutputStream(f);
-                  VSExporter exporter = AbstractVSExporter.getVSExporter(
-                     formatType, PortalThemesManager.getColorTheme(), output0, false,
-                     csvConfig);
-                  exporter.setLogExport(true);
-                  exporter.setMatchLayout(matchLayout);
-                  exporter.setExpandSelections(expandSelections);
-                  exporter.setAssetEntry(rvs.getEntry());
-                  exporter.setOnlyDataComponents(onlyDataComponent && !matchLayout);
-                  VSPortalHelper helper = new VSPortalHelper();
 
-                  if(includeCurrent && i >= bookmarks.length) {
-                     exporter.export(box.get(), catalog.getString("Current View"), helper);
+                  try(OutputStream output0 = new FileOutputStream(f)) {
+                     created.add(f);
+                     VSExporter exporter = AbstractVSExporter.getVSExporter(
+                        formatType, PortalThemesManager.getColorTheme(), output0, false,
+                        csvConfig);
+                     exporter.setLogExport(true);
+                     exporter.setMatchLayout(matchLayout);
+                     exporter.setExpandSelections(expandSelections);
+                     exporter.setAssetEntry(rvs.getEntry());
+                     exporter.setOnlyDataComponents(onlyDataComponent && !matchLayout);
+                     VSPortalHelper helper = new VSPortalHelper();
+
+                     if(includeCurrent && i >= bookmarks.length) {
+                        exporter.export(box.get(), catalog.getString("Current View"), helper);
+                     }
+                     else {
+                        int vmode = Viewsheet.SHEET_RUNTIME_MODE;
+
+                        ViewsheetSandbox sandbox = createSandbox(
+                           rvs.getOriginalBookmark(bookmarks[i]), vmode, principal,
+                           rvs.getEntry(), box.get().getVariableTable());
+
+                        try {
+                           exporter.export(sandbox, bookmarks[i], (i + 1), helper);
+                        }
+                        finally {
+                           sandbox.dispose();
+                        }
+                     }
+
+                     exporter.write();
                   }
-                  else {
-                     int vmode = Viewsheet.SHEET_RUNTIME_MODE;
-
-                     ViewsheetSandbox sandbox = createSandbox(
-                        rvs.getOriginalBookmark(bookmarks[i]), vmode, principal,
-                        rvs.getEntry());
-                     exporter.export(sandbox, bookmarks[i], (i + 1), helper);
-                     sandbox.dispose();
-                  }
-
-                  exporter.write();
-                  output0.close();
                }
+            }
+
+            exported = true;
+         }
+         finally {
+            if(!exported) {
+               // a failed export must not leave its partial attachments in the cache dir
+               created.forEach(this::deleteCacheFile);
+            }
+
+            if(excelDir != null) {
+               // on success, CSVVSExporter.removeCSVFiles() has already deleted excelFile
+               // itself, leaving an empty directory; on failure, excelFile may still exist.
+               // Tool.deleteFile recursively removes the directory (and anything left in it)
+               // either way.
+               Tool.deleteFile(excelDir);
             }
          }
       }
@@ -355,6 +414,8 @@ public class VSEmailService {
 
                images = new ArrayList<>();
                images.add(pngFile.getName());
+               // deleted with the other images in the finally, also when the send fails
+               fileList.add(pngFile);
                htmlMime = true;
                file = htmlFile;
             }
@@ -388,30 +449,36 @@ public class VSEmailService {
 
          mailer.send(toaddrs, ccaddrs, bccaddrs, from, subject, body, file,
                      images, htmlMime, true);
-
-         if(images != null) {
-            for(String image : images) {
-               final File imageFile = fileSystemService.getCacheFile(image);
-
-               if(imageFile != null) {
-                  final boolean removed = imageFile.delete();
-
-                  if(!removed) {
-                     fileSystemService.remove(imageFile, 60000);
-                  }
-               }
-            }
-         }
       }
       finally {
-         if(file != null) {
-            boolean removed = file.delete();
-
-            if(!removed) {
-               fileSystemService.remove(file, 60000);
-            }
-         }
+         deleteCacheFile(file);
+         // the png images, which are attached through the html file
+         fileList.forEach(this::deleteCacheFile);
       }
+   }
+
+   private void deleteCacheFile(File file) {
+      if(file != null && file.exists() && !file.delete()) {
+         fileSystemService.remove(file, 60000);
+      }
+   }
+
+   /**
+    * Create a unique, per-call cache subdirectory, mirroring the pattern already used by
+    * {@code ViewsheetAction} and {@code VSExportService.createTmpDir()} for the same purpose:
+    * giving an exported intermediate file a unique path while keeping its own file name, so
+    * concurrent exports of the same viewsheet never collide on a shared cache path.
+    */
+   private File createTmpDir() throws IOException {
+      String uuid = UUID.randomUUID().toString();
+      String dir = fileSystemService.getCacheDirectory() + File.separator + uuid;
+      File tmpDir = fileSystemService.getFile(dir);
+
+      if(!tmpDir.mkdir()) {
+         LOG.warn("Failed to create temporary directory: {}", tmpDir);
+      }
+
+      return tmpDir;
    }
 
    private void exportViewsheet(RuntimeViewsheet rvs, Principal principal, int formatType,
@@ -455,9 +522,14 @@ public class VSEmailService {
       for(int i = 0; bookmarks != null && i < bookmarks.length; i++) {
          ViewsheetSandbox sandbox = createSandbox(
                  rvs.getOriginalBookmark(bookmarks[i]), vmode, principal,
-                 rvs.getEntry());
-         exporter.export(sandbox, bookmarks[i], (i + 1), helper); //!!! maybe the pictures aren't being written out become of overwriting?
-         sandbox.dispose();
+                 rvs.getEntry(), box.get().getVariableTable());
+
+         try {
+            exporter.export(sandbox, bookmarks[i], (i + 1), helper); //!!! maybe the pictures aren't being written out become of overwriting?
+         }
+         finally {
+            sandbox.dispose();
+         }
       }
 
       exporter.write();
@@ -472,7 +544,70 @@ public class VSEmailService {
                                              Principal principal, AssetEntry entry)
       throws Exception
    {
-      return new ViewsheetSandbox(bookmark, mode, principal, entry);
+      return createSandbox(bookmark, mode, principal, entry, null);
+   }
+
+   /**
+    * Create the sandbox used to export a bookmark. Keep the step order in sync with the bookmark
+    * loop in VSExportService (clearScale, construct, refreshVariableTable, clear input variables,
+    * onInit, reset with onLoad) so an emailed bookmark matches an exported one. (77246)
+    *
+    * @param liveVars the variable table of the viewer's live sandbox, or null if none.
+    */
+   protected ViewsheetSandbox createSandbox(Viewsheet bookmark, int mode,
+                                             Principal principal, AssetEntry entry,
+                                             VariableTable liveVars)
+      throws Exception
+   {
+      // The bookmark is a clone of the live (possibly scaled-to-screen) viewsheet, so clear the
+      // scaled positions/sizes and runtime column widths like export does. (77246)
+      if(bookmark != null) {
+         VSEventUtil.clearScale(bookmark);
+      }
+
+      // Run onInit/onLoad in this thread like bookmark export does (VSExportService), instead
+      // of the constructor's reset without onLoad. Otherwise a wrapper's onLoad never runs when
+      // the bookmark is exported through a print layout, which skips prepareForExport(). (77180)
+      ViewsheetSandbox sandbox = new ViewsheetSandbox(bookmark, mode, principal, false, entry);
+
+      // Copy the viewer's variables (URL/prompted parameters) before onInit/onLoad and the
+      // queries run. This must happen before the input variable clearing below, otherwise the
+      // viewer's current input values would overwrite the bookmark's. (77246)
+      AssetQuerySandbox abox = sandbox.getAssetQuerySandbox();
+
+      if(abox != null && liveVars != null) {
+         abox.refreshVariableTable(liveVars);
+      }
+
+      // Clear input assembly variables from the sandbox variable table before reset.
+      // During reset, applyParameterToInput() reads from this table and would otherwise
+      // overwrite bookmark-restored assembly selections (checkbox, radio button, etc.).
+      // Also clear the bare variable-name key used by $(varname)-bound assemblies. (74212)
+      VariableTable sandboxVars = sandbox.getVariableTable();
+
+      if(sandboxVars != null) {
+         for(Assembly assembly : bookmark.getAssemblies()) {
+            if(assembly instanceof InputVSAssembly inputAssembly) {
+               sandboxVars.remove(assembly.getName());
+               String varKey = inputAssembly.getVariableTableKey();
+
+               if(varKey != null) {
+                  sandboxVars.remove(varKey);
+               }
+            }
+         }
+      }
+
+      try {
+         sandbox.processOnInit();
+         sandbox.reset(null, bookmark.getAssemblies(),
+                       new ChangedAssemblyList(), true, true, null);
+      }
+      catch(Exception ex) {
+         LOG.error("Failed to execute onInit() and onLoad() scripts", ex);
+      }
+
+      return sandbox;
    }
 
    /*
@@ -634,4 +769,5 @@ public class VSEmailService {
    }
 
    private final FileSystemService fileSystemService;
+   private static final Logger LOG = LoggerFactory.getLogger(VSEmailService.class);
 }

@@ -1945,7 +1945,7 @@ public class PlotDescriptor implements AssetObject, ContentObject {
    private boolean includeParentLabels = false;
    private Color borderColor = GDefaults.DEFAULT_LINE_COLOR;
    private CompositeValue<Color> paretoLineColor =
-      new CompositeValue<>(Color.class, CategoricalColorFrame.COLOR_PALETTE[0]);
+      new CompositeValue<>(Color.class, CategoricalColorFrame.COLOR_PALETTE.get(0));
    private boolean applyAestheticsToSource = false;
    private Map<Integer, CompositeTextFormat> circleFormats = new HashMap<>();
    private boolean fillGapWithDash = true;

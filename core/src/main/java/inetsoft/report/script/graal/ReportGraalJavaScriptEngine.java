@@ -34,6 +34,7 @@ import inetsoft.util.script.*;
 import inetsoft.util.script.graal.GraalJavaScriptEngine;
 import inetsoft.util.script.graal.ScriptScope;
 import inetsoft.util.script.graal.ScriptValueConverter;
+import inetsoft.util.stall.LockStallException;
 import org.graalvm.polyglot.Value;
 import org.graalvm.polyglot.proxy.ProxyExecutable;
 import org.slf4j.Logger;
@@ -426,6 +427,13 @@ public class ReportGraalJavaScriptEngine extends GraalJavaScriptEngine {
             reg = ((PositionalCellRange) range).getCellRegion(table);
          }
          catch(Exception ex) {
+            // a stalled table has no value to return, the stall is not a script value (#77123)
+            LockStallException stall = LockStallException.find(ex);
+
+            if(stall != null) {
+               throw stall;
+            }
+
             LOG.error("Failed to get cell region from range: " + range, ex);
             return null;
          }
@@ -471,6 +479,13 @@ public class ReportGraalJavaScriptEngine extends GraalJavaScriptEngine {
             }
          }
          catch(Exception ex) {
+            // a stalled table has no value to return, the stall is not a script value (#77123)
+            LockStallException stall = LockStallException.find(ex);
+
+            if(stall != null) {
+               throw stall;
+            }
+
             LOG.error("Failed to calculate sum for range: " + range, ex);
             return null;
          }

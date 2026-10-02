@@ -19,6 +19,7 @@ package inetsoft.util.script.graal;
 
 import org.graalvm.polyglot.Context;
 import org.graalvm.polyglot.Value;
+import org.graalvm.polyglot.proxy.ProxyExecutable;
 import org.graalvm.polyglot.proxy.ProxyObject;
 import java.util.*;
 import java.util.function.Predicate;
@@ -39,6 +40,7 @@ public class BindingRootProxy implements ProxyObject {
    private LegacyJavaShim.ImportScope imports;
    private ScriptScope builtinScope;
    private Map<String, Object> assigned;
+   private LocalsSource locals;
 
    public BindingRootProxy(ScriptScope global, Supplier<ScriptScope> execScopeSupplier) {
       this(global, execScopeSupplier, null, null);
@@ -121,6 +123,32 @@ public class BindingRootProxy implements ProxyObject {
       }
 
       return assigned;
+   }
+
+   /**
+    * The members a script reads its var stores from (Bug #77595, see
+    * GraalJavaScriptEngine.localsFor), supplied per exec by the engine:
+    * {@code __scope__.__inetsoft_locals__} is the store the script reads (its scope's,
+    * else its nearest ancestor scope's), {@code __scope__.__inetsoft_own_locals__} the
+    * store of its own scope, made on first read, for a script that declares vars.
+    */
+   public static final String LOCALS_MEMBER = "__inetsoft_locals__";
+   public static final String OWN_LOCALS_MEMBER = "__inetsoft_own_locals__";
+
+   /** The var stores of the current exec (Bug #77595). */
+   public interface LocalsSource {
+      /** The store the script reads. */
+      Object view();
+
+      /** The store of the script's own scope, made on first read. */
+      Object own();
+   }
+
+   /** Swap the var stores of the current exec (Bug #77595). */
+   public LocalsSource swapLocals(LocalsSource newLocals) {
+      LocalsSource prev = locals;
+      locals = newLocals;
+      return prev;
    }
 
    /** Swap the per-exec script-local shadow state (reset to null for a fresh exec). */
@@ -229,6 +257,27 @@ public class BindingRootProxy implements ProxyObject {
       return present;
    }
 
+   /**
+    * Evicts {@code name} from the exact-name global-binding cache. Must be called
+    * whenever a real global is removed (e.g. {@code GraalJavaScriptEngine#remove}),
+    * so a subsequent probe recomputes {@link #hasGlobalBinding} fresh instead of
+    * forever treating a removed global as still present -- which would permanently
+    * block the case-insensitive CALC-builtin fallback in {@link #findInChain} for
+    * that name. Only removes a cached 'true' entry; does not cache 'false', so this
+    * does not reintroduce the stale-'false' problem fixed for #75676. (#77008)
+    */
+   void forgetGlobal(String name) {
+      globalBindingCache.remove(name);
+   }
+
+   /**
+    * Drop the cached "is a global" answers. A pooled worksheet context deletes foreign
+    * globals when it is cleaned (bug #76960), which the cache otherwise assumes never happens.
+    */
+   public void invalidateGlobalBindingCache() {
+      globalBindingCache.clear();
+   }
+
    // Per-chain-root cache of "is name provided by the scope chain?" The calc table
    // swaps in a fresh root scope per evaluation, so the cache is keyed on the root
    // identity and dropped when the root changes; within one root the same names
@@ -268,10 +317,13 @@ public class BindingRootProxy implements ProxyObject {
       return found;
    }
 
-   /** Resolve a name through the full chain; returns null if not found. */
+   /**
+    * Resolve a name through the full chain; returns null if not found, or if it is an owned
+    * var that reads as undefined.
+    */
    public Object resolve(String name) {
       Object result = findInChain(name);
-      return result == NOT_FOUND ? null : result;
+      return result == NOT_FOUND || result == OwnedVarScope.UNDEFINED ? null : result;
    }
 
    private boolean resolves(String name) {
@@ -306,16 +358,54 @@ public class BindingRootProxy implements ProxyObject {
       return a == null ? new Object[0] : a;
    }
 
-   @Override public Object getMember(String key) {
-      return ScriptValueConverter.toGuest(resolve(key));
+   /**
+    * The member the declaration hoist asks whether a name is a var an {@link OwnedVarScope}
+    * of the current chain owns, {@code this.__inetsoft_owned_var__("n")}: such a var
+    * stays in its owner and is never copied to the global scope (Testing #77123).
+    */
+   public static final String OWNED_VAR_PROBE = "__inetsoft_owned_var__";
+   private final ProxyExecutable ownedVarProbe =
+      args -> args.length > 0 && args[0].isString() && ownsVar(args[0].asString());
+
+   private boolean ownsVar(String name) {
+      for(ScriptScope s = global; s != null; s = s.getParentScope()) {
+         if(s instanceof OwnedVarScope o && o.ownsVar(name)) {
+            return true;
+         }
+      }
+
+      return execScopeSupplier.get() instanceof OwnedVarScope o && o.ownsVar(name);
    }
-   @Override public boolean hasMember(String key) { return resolves(key); }
+
+   @Override public Object getMember(String key) {
+      if(OWNED_VAR_PROBE.equals(key)) {
+         return ownedVarProbe;
+      }
+
+      if(locals != null) {
+         if(LOCALS_MEMBER.equals(key)) {
+            return locals.view();
+         }
+
+         if(OWN_LOCALS_MEMBER.equals(key)) {
+            return locals.own();
+         }
+      }
+
+      Object result = findInChain(key);
+      // an owned var's OwnedVarScope.UNDEFINED reads as the context's undefined (Testing #77123)
+      return ScriptValueConverter.toGuest(result == NOT_FOUND ? null : result);
+   }
+   @Override public boolean hasMember(String key) {
+      return OWNED_VAR_PROBE.equals(key) ||
+         locals != null && (LOCALS_MEMBER.equals(key) || OWN_LOCALS_MEMBER.equals(key)) ||
+         resolves(key);
+   }
    @Override public Object getMemberKeys() { return enumerate().toArray(new String[0]); }
    @Override public void putMember(String key, Value value) {
       // a write can create a new name on a chain scope, so the "is name in chain?"
       // answer for the current root may change; drop the cache. (#75676)
       invalidateChainCache();
-      Object host = ScriptValueConverter.toHost(value);
 
       // Rhino scope-chain write semantics: an unqualified assignment to a name
       // that already exists in the chain writes to the scope that OWNS it
@@ -323,17 +413,29 @@ public class BindingRootProxy implements ProxyObject {
       // exists nowhere is created on the root scope. Writing unconditionally to
       // `global` would shadow a parent/exec-scope variable, so a read from the
       // owning scope (Java side or another script) would see a stale value.
+      // Each write converts with toHostStored: the owning scope keeps the value (#76960).
+      // A var an OwnedVarScope owns is stored there as the guest value (Testing #77123).
       for(ScriptScope s = global; s != null; s = s.getParentScope()) {
+         if(s instanceof OwnedVarScope o && o.ownsVar(key)) {
+            o.putOwnedVar(key, value);
+            return;
+         }
+
          if(s.hasMember(key)) {
-            s.putMember(key, host);
+            s.putMember(key, ScriptValueConverter.toHostStored(value));
             return;
          }
       }
 
       ScriptScope exec = execScopeSupplier.get();
 
+      if(exec instanceof OwnedVarScope o && o.ownsVar(key)) {
+         o.putOwnedVar(key, value);
+         return;
+      }
+
       if(exec != null && exec.hasMember(key)) {
-         exec.putMember(key, host);
+         exec.putMember(key, ScriptValueConverter.toHostStored(value));
          return;
       }
 
@@ -369,6 +471,6 @@ public class BindingRootProxy implements ProxyObject {
          return;
       }
 
-      global.putMember(key, host);
+      global.putMember(key, ScriptValueConverter.toHostStored(value));
    }
 }

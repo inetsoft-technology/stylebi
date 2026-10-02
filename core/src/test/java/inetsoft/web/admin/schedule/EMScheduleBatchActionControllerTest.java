@@ -30,6 +30,12 @@ package inetsoft.web.admin.schedule;
  * Coverage scope:
  *   [getParameters: task not found]    scheduleManager returns null → RuntimeException
  *   [getParameters: permission denied] ScheduleManager.hasTaskPermission() false → SecurityException
+ *   [getParameters: open/close]        each viewsheet is opened as the caller and closed by
+ *                                      runtime id (Bug #77058)
+ *   [getParameters: unreadable vs]     one viewsheet the caller cannot open is skipped; the
+ *                                      others and the action's own variables still returned
+ *   [getQueryColumns: auto-save props] the client entry's openAutoSaved/autoFileName/isRecycle
+ *                                      are removed before the worksheet is read (Bug #77549)
  *
  * ScheduleManager.hasTaskPermission() is a static method intercepted with
  * Mockito.mockStatic() using lenient() to suppress UnnecessaryStubbingException.
@@ -38,14 +44,16 @@ package inetsoft.web.admin.schedule;
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.sree.schedule.*;
 import inetsoft.sree.security.*;
-import inetsoft.uql.asset.AssetRepository;
+import inetsoft.uql.asset.*;
 import inetsoft.web.admin.content.repository.ContentRepositoryTreeService;
+import inetsoft.web.admin.schedule.model.BatchParameterListModel;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.*;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.security.Principal;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -109,5 +117,94 @@ class EMScheduleBatchActionControllerTest {
 
       assertThrows(inetsoft.sree.security.SecurityException.class,
          () -> controller.getParameters("myTask", principal));
+   }
+
+   private ViewsheetAction viewsheetAction(String identifier, String subject) {
+      ViewsheetAction action = new ViewsheetAction();
+      action.setViewsheet(identifier);
+      action.setSubject(subject);
+      return action;
+   }
+
+   private void stubPermittedTask(ScheduleAction... actions) {
+      IdentityID owner = new IdentityID("owner", "host-org");
+      when(scheduleManager.getScheduleTask("myTask")).thenReturn(scheduleTask);
+      when(scheduleTask.getOwner()).thenReturn(owner);
+      when(scheduleTask.getActionCount()).thenReturn(actions.length);
+
+      for(int i = 0; i < actions.length; i++) {
+         when(scheduleTask.getAction(i)).thenReturn(actions[i]);
+      }
+
+      scheduleManagerStatic.when(
+         () -> ScheduleManager.hasTaskPermission(eq(owner), eq(principal), eq(ResourceAction.READ)))
+         .thenReturn(true);
+   }
+
+   // [open/close] Bug #77058: open as the caller and close by runtime id
+   @Test
+   void getParameters_opensAsCallerAndClosesByRuntimeId() throws Exception {
+      String vsId = "1^128^__NULL__^Sales^host-org";
+      stubPermittedTask(viewsheetAction(vsId, "Report $(region)"));
+      when(viewsheetService.openViewsheet(any(AssetEntry.class), any(), anyBoolean()))
+         .thenReturn("Sales-1");
+      when(actionServiceProxy.getViewsheetParameters("Sales-1", principal))
+         .thenReturn(List.of("year"));
+
+      BatchParameterListModel result = controller.getParameters("myTask", principal);
+
+      assertEquals(List.of("year", "region"), List.copyOf(result.parameterNames()));
+      verify(viewsheetService).openViewsheet(any(AssetEntry.class), same(principal), eq(false));
+      verify(emActionServiceProxy).closeViewsheet(eq("Sales-1"), same(principal));
+      verify(emActionServiceProxy, never()).closeViewsheet(eq(vsId), any());
+   }
+
+   // [unreadable vs] one viewsheet the caller cannot open must not fail the whole request
+   @Test
+   void getParameters_unreadableViewsheet_isSkipped() throws Exception {
+      String deniedId = "1^128^__NULL__^Secret^host-org";
+      String okId = "1^128^__NULL__^Sales^host-org";
+      stubPermittedTask(viewsheetAction(deniedId, "Denied $(deniedVar)"),
+                        viewsheetAction(okId, null));
+      when(viewsheetService.openViewsheet(
+         argThat(e -> e != null && "Secret".equals(e.getPath())), any(), anyBoolean()))
+         .thenThrow(new inetsoft.util.MessageException("denied"));
+      when(viewsheetService.openViewsheet(
+         argThat(e -> e != null && "Sales".equals(e.getPath())), any(), anyBoolean()))
+         .thenReturn("Sales-1");
+      when(actionServiceProxy.getViewsheetParameters("Sales-1", principal))
+         .thenReturn(List.of("year"));
+
+      BatchParameterListModel result = controller.getParameters("myTask", principal);
+
+      assertEquals(List.of("deniedVar", "year"), List.copyOf(result.parameterNames()));
+      verify(emActionServiceProxy).closeViewsheet(eq("Sales-1"), same(principal));
+      verify(emActionServiceProxy, times(1)).closeViewsheet(any(), any());
+   }
+
+   // -------------------------------------------------------------------------
+   // getQueryColumns()
+   // -------------------------------------------------------------------------
+
+   // Bug #77549, with openAutoSaved the worksheet would be read from the auto-saved file named
+   // by autoFileName (e.g. another user's unsaved worksheet) without a permission check
+   @Test
+   void getQueryColumns_autoSaveProperties_areRemovedBeforeTheWorksheetIsRead() throws Exception {
+      AssetEntry entry = AssetEntry.createAssetEntry("1^2^__NULL__^ws1^host-org");
+      entry.setProperty("openAutoSaved", "true");
+      entry.setProperty("autoFileName", "4^WORKSHEET^victim~;~host-org^Private^~");
+      entry.setProperty("isRecycle", "true");
+      when(assetRepository.getSheet(any(AssetEntry.class), eq(principal), eq(true),
+                                    eq(AssetContent.ALL))).thenReturn(mock(Worksheet.class));
+
+      controller.getQueryColumns(entry, principal);
+
+      ArgumentCaptor<AssetEntry> read = ArgumentCaptor.forClass(AssetEntry.class);
+      verify(assetRepository).getSheet(read.capture(), eq(principal), eq(true),
+                                       eq(AssetContent.ALL));
+      assertNull(read.getValue().getProperty("openAutoSaved"));
+      assertNull(read.getValue().getProperty("autoFileName"));
+      assertNull(read.getValue().getProperty("isRecycle"));
+      assertEquals("1^2^__NULL__^ws1^host-org", read.getValue().toIdentifier());
    }
 }

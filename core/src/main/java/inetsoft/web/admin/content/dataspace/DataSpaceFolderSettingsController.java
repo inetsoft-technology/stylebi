@@ -104,6 +104,7 @@ public class DataSpaceFolderSettingsController {
                                                    ActionRecord.ACTION_STATUS_SUCCESS, null);
 
       if(model.newFolder()) {
+         DataSpaceContentSettingsService.validateName(model.newName());
          newPath = dataSpaceContentSettingsService.getPath(model.path(), model.newName());
          actionRecord.setActionName(ActionRecord.ACTION_NAME_CREATE);
          actionRecord.setObjectName(model.newName());
@@ -117,11 +118,19 @@ public class DataSpaceFolderSettingsController {
       }
       else {
          if(!model.name().equals(model.newName())) {
+            DataSpaceContentSettingsService.validateName(model.newName());
             newPath = model.path().substring(0, model.path().lastIndexOf(model.name())) + model.newName();
-            boolean success = space.rename(model.path(), newPath);
             actionRecord.setActionName(ActionRecord.ACTION_NAME_RENAME);
             actionRecord.setObjectName(newPath);
             actionRecord.setActionError("new name:" + newPath);
+
+            // rename overwrites an existing target, so refuse it here
+            if(space.exists(null, newPath)) {
+               actionRecord.setActionStatus(ActionRecord.ACTION_STATUS_FAILURE);
+               throw new ResourceExistsException(newPath);
+            }
+
+            boolean success = space.rename(model.path(), newPath);
 
             if(!success) {
                actionRecord.setActionStatus(ActionRecord.ACTION_STATUS_FAILURE);
@@ -184,6 +193,13 @@ public class DataSpaceFolderSettingsController {
       StringBuilder files = new StringBuilder();
 
       try {
+         // check every name before writing any file
+         for(UploadedFile uploadedFile : uploadedFiles) {
+            if(!extract || DataSpaceFolderSettingsService.getArchiveFormat(uploadedFile.file()) == null) {
+               DataSpaceContentSettingsService.validateUploadFileName(uploadedFile.fileName());
+            }
+         }
+
          for(UploadedFile uploadedFile : uploadedFiles) {
             String format;
             files.append(uploadedFile.fileName()).append(",");
@@ -330,6 +346,12 @@ public class DataSpaceFolderSettingsController {
                   "settings/presentation/settings", ResourceAction.ACCESS) ||
                securityEngine.checkPermission(principal, ResourceType.EM_COMPONENT,
                   "settings/presentation/org-settings", ResourceAction.ACCESS);
+         }
+
+         // The global shapes folder is shared by all organizations, only a site admin
+         // may modify it in multi-tenant mode.
+         if(SUtil.isMultiTenant() && !OrganizationManager.getInstance().isSiteAdmin(principal)) {
+            return false;
          }
 
          return securityEngine.checkPermission(principal, ResourceType.EM_COMPONENT,

@@ -1,0 +1,221 @@
+/*
+ * This file is part of StyleBI.
+ * Copyright (C) 2026  InetSoft Technology
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+package inetsoft.util.script.graal.pool;
+
+import java.util.List;
+
+/**
+ * The decisions of the Task 0 host-boundary audit (docs audit-task0.md, spec §14.12) that
+ * worksheet scripts running on pooled contexts are built on. The audit found no corpus
+ * script that needs an allow-list exception: 454 worksheet scripts and 12 library bodies,
+ * 0 affected uses.
+ */
+final class WsBoundaryPolicy {
+   private WsBoundaryPolicy() {
+   }
+
+   /**
+    * A1: ScriptValueConverter.toHost keeps main's shapes (Object[], Double, java.util.Date).
+    * Only its plain-object fallthrough becomes a copy; the HostAccess mappings apply only to
+    * direct calls on Java objects.
+    */
+   static final boolean TO_HOST_KEEPS_MAIN_SHAPES = true;
+
+   /**
+    * A2: a function or non-plain object is rejected only where the value is kept (scope and
+    * array writes, HostAccess parameters), never when passed to a transient global function.
+    */
+   static final boolean REJECT_AT_STORE_ONLY = true;
+
+   /**
+    * A3: copies are LinkedHashMap/ArrayList subclasses that are also ProxyObject/ProxyArray.
+    */
+   static final boolean PROXY_BACKED_COPIES = true;
+
+   /**
+    * A4: an exec result that is a function or non-plain object is an error.
+    */
+   static final boolean REJECT_UNSTORABLE_EXEC_RESULT = true;
+
+   /**
+    * A5: a JS array passed to a Map-typed parameter is rejected, not index-mapped.
+    */
+   static final boolean REJECT_ARRAY_FOR_MAP_PARAMETER = true;
+
+   /**
+    * The release note for script.ws.contextPool (spec §3.2, §14.5, §14.12 A6,
+    * §14.13, §14.14), one entry per line. The PR description's "Release note" is
+    * String.join("\n", RELEASE_NOTE), word for word.
+    */
+   static final List<String> RELEASE_NOTE = List.of(
+      "Worksheet script context pool (script.ws.contextPool, on by default from this release)",
+      "",
+      "The pool is on unless script.ws.contextPool=false is set (see Turning it off below).",
+      "With the pool on, worksheet scripts (expression columns, script conditions, calc",
+      "fields, variable defaults, MV and R pre/post scripts) run on pooled script contexts, so",
+      "a script never waits for another thread's script and the worksheet script-lock",
+      "deadlocks (#76960, #76961, #76964, #76965, #76972) cannot occur. Behaviour changes with",
+      "the pool on (the default):",
+      "- Worksheet script globals (an assignment to an undeclared name, a function, or a",
+      "  top-level var of a script that is not an expression column's formula) are",
+      "  guaranteed only within one claimed span (one formula or filter batch, one summary or",
+      "  crosstab aggregation, one condition build, one variable default); they no longer",
+      "  carry over between batches, tables or queries. An expression column's top-level",
+      "  var is kept for its whole table (see below). A number, string or boolean in it is",
+      "  always kept. A Date, array or plain object in it is kept as well: a table's arrays",
+      "  and objects stay on one pooled context, kept for the table while it is idle, and are",
+      "  copied to another context only at a hand-off (another thread needs that context, it",
+      "  idles for .idleMillis, or it closes), with aliases, cycles and nested Dates. Two",
+      "  concurrent reads lose the arrays and objects of such a table (a table whose vars",
+      "  hold only Dates keeps them, see below), because a script never waits for another",
+      "  thread's: a read by one thread while another thread's claim still holds the table's",
+      "  context (e.g. another thread reads the same table inside its condition filter or",
+      "  aggregation), and a read while another table's batch runs on a context the two",
+      "  tables share (their batches ran nested in one claim, e.g. a formula table over a",
+      "  formula table or a join under a post condition). Each var that held such a value",
+      "  then logs one warning of its own, reads as undefined and starts over; it never",
+      "  reads an older value (but see the alias caveat below). A function, a class",
+      "  instance (new X, a Map, an Intl formatter), a Proxy or a getter is kept only",
+      "  while the table stays on one",
+      "  context: after a hand-off it reads as undefined and logs one warning, and so",
+      "  does each var holding an object it shares with such a value (one it reached only",
+      "  through a closure, a getter or a WeakMap is not seen, and can keep an older copy).",
+      "  A table whose vars hold only Dates copies them at every batch",
+      "  end instead: a Date is rebuilt from its time value on another pooled context,",
+      "  without its own properties or subclass (with one warning if it had any).",
+      "  A hand-off is bounded by .handOffMillis (5000) and .handOffEntries (200000). Past",
+      "  the time bound every var of the table that holds a Date, array or object is lost;",
+      "  past the entry cap, the var that passed it and each var sharing an object with it",
+      "  are lost (every such var of the table if checking the lost values for shared",
+      "  objects passes four times the cap), each with one warning. At most .maxHomes (4)",
+      "  contexts of a sandbox and .maxHomesPerNode (128) of the node are kept for idle",
+      "  tables;",
+      "  further ones are handed off when another claim needs them.",
+      "  A first formula batch is only about 10 rows and later ones double, so an accumulator",
+      "  kept in an undeclared global (acc = ...) restarts at each batch, the first time after",
+      "  about 10 rows; one kept in a function- or class-valued var restarts at a hand-off.",
+      "  Keep accumulators in a top-level var holding a number, string, boolean, Date, array",
+      "  or plain object.",
+      "- Scripts can run for rows nobody asked for. A first or random read of a table (a",
+      "  page, a count) evaluates what pool off would; while a table is read row by row,",
+      "  formula batches double from there, up to .maxBatchRows rows past the one requested,",
+      "  so a reader that stops after N rows can have evaluated up to about 2N + 10 rows, and",
+      "  at most about .maxBatchRows rows past N. Side effects (log calls, counters, host",
+      "  writes) run for those rows, their script errors surface earlier, and they count",
+      "  toward script.max.errors.",
+      "- script.max.errors is counted per worksheet script environment (one per sandbox), not",
+      "  per shared script engine.",
+      "- A patch of a builtin prototype or static (Array.prototype.x = ..., JSON.stringify =",
+      "  ...) stays only on the pooled context that ran it, so a later script may or may not",
+      "  see it, depending on which context it runs on.",
+      "- Known limitation: a JS array or object passed to a Java method parameter typed",
+      "  Object, Map or List is a copy, so Java changes to it (out parameters,",
+      "  java.util.Collections sort/reverse/swap/fill on a JS array) are not seen by the",
+      "  script. Such a change made while the script runs is logged at WARN once per script",
+      "  and counted (copyMutations in the pool summary). Return the changed value from the",
+      "  Java method and assign it in the script instead. A Java object that keeps the copy",
+      "  sees the value as passed, on any thread.",
+      "- Object identity is lost across the Java boundary: a JS object stored in a Java",
+      "  collection comes back as a copy.",
+      "- Java toString() of a copied JS object now reads {a=1} instead of {a: 1}.",
+      "- A JS function, Map, Set, RegExp, Promise or class instance cannot be stored in a",
+      "  Java object or scope or in a viewsheet object (for example vsObj.f = function(){}),",
+      "  passed to a Java method parameter typed Object, Map or List, or returned as a",
+      "  worksheet expression result; this raises a clear script error. A function passed",
+      "  to a callback parameter (java.util.Comparator and similar) still works.",
+      "- A worksheet plain object or Date written into a viewsheet object arrives there as a",
+      "  host copy (a Java map copy, a java.util.Date), and a worksheet array as a Java",
+      "  Object[], not a JS array.",
+      "- A JS callback (comparator and similar) that a Java object keeps and calls after the",
+      "  worksheet script run that created it runs outside that run, on cleaned globals: a",
+      "  global it reads can be quietly undefined (typeof g is 'undefined', no error), and it",
+      "  fails when its context is busy or retired. Chart and viewsheet callbacks are not",
+      "  affected.",
+      "- javaDate.equals(jsDate) can now be true, because a JS Date passed to a Java method",
+      "  arrives as java.util.Date.",
+      "- A parameter added to a query's variable table mid-query (by VPM or a worksheet",
+      "  script) is still seen as parameter.x by that query's formula, calc-field and",
+      "  embedded-table scripts; a script that reads it without parameter. (for example a",
+      "  post-condition) sees the sandbox's variable table instead, so the value can differ.",
+      "- Binding and event code (AssetEventUtil, VSBindingService) still sets parameters on",
+      "  the sandbox's shared scope for a moment, as before; a pooled query of the same",
+      "  sandbox that runs at that moment can see them.",
+      "- A formula table holds its lock for up to .maxBatchRows rows of script evaluation, so",
+      "  a concurrent reader of already computed rows can wait that long.",
+      "Turning it off: set script.ws.contextPool=false in sree.properties (any case), or as a",
+      "JVM option in lowercase only, -Dscript.ws.contextpool=false: SREE lowercases property",
+      "names before it reads system properties, so -Dscript.ws.contextPool=false is ignored.",
+      "Any value other than true (any case) turns the pool off; an unset or blank value keeps",
+      "it on. With the pool off, a sandbox's worksheet scripts share one script context under",
+      "its engine lock, as before this release, and the script-lock deadlocks above can occur",
+      "again, as can the engine-lock hangs of #77016 (HashJoin, MergeJoin and CrossJoin join",
+      "workers; two engine locks). Keep stall.watchdog.mode=fail, the default from this",
+      "release, so such a hang fails the query instead of hanging. The flag is read when a",
+      "worksheet sandbox is created, so a change applies to new sessions.",
+      "Lock-stall watchdog (Feature #77123): stall.watchdog.mode now defaults to fail (was",
+      "alert). A query wait with no progress for stall.watchdog.noProgressMillis (300000)",
+      "is dumped and logged; it fails with a \"Query stalled\" error only once the watchdog",
+      "confirms it can never progress: a lock cycle, found on two scans",
+      "(stall.watchdog.scanMillis, 30000), where one query per cycle fails, or a wait for a",
+      "JVM deadlock. If the chosen query cannot react within two wait slices",
+      "(noProgressMillis / 4 each), the next query of the cycle is chosen instead, one at a",
+      "time. A long but live wait, such as a lock owner in a slow query, is",
+      "only logged and goes on, as with alert, and so is a cycle the watchdog cannot see",
+      "(e.g. through read-held locks or Object.wait). A thread in a timed lock wait, such as",
+      "tryLock(timeout), is never part of a cycle, since its wait ends by itself, so a cycle",
+      "closed by a retry loop like while(!tryLock(t)) is not detected either (as before this",
+      "release). A confirmed cycle fails about noProgressMillis plus one to two scans after",
+      "it forms.",
+      "stall.watchdog.failOnTimeout=true also fails an unconfirmed wait (fail before",
+      "this release); stall.watchdog.mode=alert restores the old default. A cycle of plain",
+      "Java monitors alone (\"JVM deadlock of threads\") cannot be broken by any mode.",
+      "Tuning: script.ws.contextPool.idleMillis (60000), .cleanThreshold (256),",
+      ".warnSlotsPerSandbox (16), .warnSlotsPerNode (2000), .batchRows (256),",
+      ".maxBatchRows (8192). .batchRows 0 turns script batching off; with any other value a",
+      "first or random batch is what pool off computes, and batches double while a table is",
+      "read sequentially, up to .maxBatchRows. The node's pool totals are logged at INFO",
+      "every 5 minutes while the pool is in use (slots, cleansPerExec and more).",
+      "Changes that apply with the pool on or off (§6.1-6.3):",
+      "- The AssetQueryScope maps are concurrent, so worksheet scope keys (for...in,",
+      "  Object.keys, autocomplete) no longer keep insertion order.",
+      "- The condition-filter row map is a snapshot (#76972): a read past the last row of a",
+      "  condition-filtered table raises IndexOutOfBoundsException instead of returning a",
+      "  wrong row, and a crosstab condition's last-row span is no longer over-counted.",
+      "- A top-level var of an expression column's formula belongs to its table (#77123): it",
+      "  keeps its value from row to row for the whole table, on every script path (formulas",
+      "  using this or several statements reset it on every row before) and however the table",
+      "  is read, and starts over when the table is computed again. Other tables and scripts",
+      "  no longer see it. Two patterns change: a var without initializer that is assigned",
+      "  only under a condition (var r; if(c) { r = x; } r), or only inside try/catch, now",
+      "  keeps the previous row's value on the rows where it is not assigned. Use let for a",
+      "  variable that must start empty on every row. With the pool on, a number, string,",
+      "  boolean, Date, array or plain object in it is kept across batches of rows, except",
+      "  in the two concurrent reads above; a function or class instance only while the",
+      "  table stays on one context (see above).",
+      "  A read retried after a",
+      "  lock-stall error (stall watchdog in FAIL mode) runs that row's formulas again, so",
+      "  an accumulator can count the row twice.",
+      "- Script timeouts use per-exec tokens (pool on or off, when script.execution.timeout",
+      "  is set): after a real timeout an exec can take up to 3 s longer to return, and it",
+      "  holds its script engine lock meanwhile, so other scripts waiting on that engine",
+      "  wait with it. Its interrupt no longer reaches a later script, except",
+      "  in the rare case where the interrupt itself cannot finish within its bound: then",
+      "  the Context is flagged unknown, and with the pool on the slot is closed instead of",
+      "  reused."
+   );
+}

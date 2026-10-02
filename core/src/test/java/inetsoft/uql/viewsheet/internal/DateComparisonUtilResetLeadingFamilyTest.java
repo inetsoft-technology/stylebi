@@ -64,12 +64,13 @@ import static inetsoft.test.XTableUtil.date;
  * mean the older period's data is "in the future" -- it belongs to a different period
  * instance's cycle entirely.
  *
- * <p>The fix (see the {@code differentLeadingFamily} branch in
- * {@code DateComparisonUtil.computeValidParts()}) treats a part whose leading family differs
- * from maxPart's own leading family as never excludable by this heuristic, regardless of how
- * it sorts against maxPart. It does not special-case any one period/context-level
- * combination: both the reported QUARTER-period/MONTH-context shape and the previously
- * untested YEAR-period/MONTH-context shape from the #76391 family are exercised here, using
+ * <p>Bug #76945 originally fixed this with a MergePartCell-only rescue inside
+ * {@code DateComparisonUtil.computeValidParts()}. Bug #77236 removed that heuristic from
+ * {@code applyDateRange()} altogether, since the query layer already bounds every period and
+ * the heuristic only ever dropped real rows. These tests still guard the same outcome. They don't
+ * special-case any one period/context-level combination: both the reported
+ * QUARTER-period/MONTH-context shape and the previously untested YEAR-period/MONTH-context
+ * shape from the #76391 family are exercised here, using
  * the real {@link DCMergeDatePartFilter}/{@code MergePartCell} construction and real
  * {@link DateComparisonInfo}/{@link StandardPeriods}/{@link DateComparisonInterval} wiring
  * through the production {@code DateComparisonUtil.applyDateRange()} entry point (not just
@@ -154,9 +155,9 @@ class DateComparisonUtilResetLeadingFamilyTest {
     * round-1 recheck identified as untested against this exact defect class under
     * {@code isToDate()==false} -- #76391's own regression test never exercises
     * {@link DateComparisonInfo} at all, so it never had the chance to reach the query-level
-    * condition that would let this shape occur. If the fix in computeValidParts() were
-    * special-cased to the QUARTER-period/MONTH-context combination above, this test would
-    * still fail -- it must pass too, on the same general leading-family logic.
+    * condition that would let this shape occur. If the fix were special-cased to the
+    * QUARTER-period/MONTH-context combination above, this test would still fail -- it must
+    * pass too, on the same general rule.
     */
    @Test
    void yearPeriodMonthContextToDateFalseKeepsOlderYearsRealData() {

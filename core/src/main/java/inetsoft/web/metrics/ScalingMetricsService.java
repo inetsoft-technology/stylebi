@@ -60,9 +60,11 @@ public class ScalingMetricsService {
 
       if(config == null) {
          enabledMetrics = List.of(jvmCpu, scheduler, cacheSwapMemory, cacheSwapWait);
+         activeSessionsEnabled = false;
       }
       else {
          enabledMetrics = new ArrayList<>();
+         activeSessionsEnabled = config.isActiveSessions();
 
          if(config.isJvmCpu()) {
             enabledMetrics.add(jvmCpu);
@@ -126,7 +128,14 @@ public class ScalingMetricsService {
       scheduler.update();
       cacheSwapMemory.update();
       cacheSwapWait.update();
-      activeSession.update();
+
+      // ActiveSessionScalingMetric.calculate() performs a full scan of the distributed
+      // session cache (IgniteSessionRepository.getActiveSessions()), which also resets
+      // the Ignite-native TTL of every session it touches (bug #77319). Only pay that
+      // cost when the activeSessions metric is actually enabled/consumed.
+      if(activeSessionsEnabled) {
+         activeSession.update();
+      }
 
       if(publisher != null) {
          ScalingMetricData data = new ScalingMetricData(
@@ -226,6 +235,7 @@ public class ScalingMetricsService {
    private CacheSwapMemoryScalingMetric cacheSwapMemory;
    private CacheSwapWaitScalingMetric cacheSwapWait;
    private ActiveSessionScalingMetric activeSession;
+   private boolean activeSessionsEnabled;
    private List<ScalingMetric> enabledMetrics;
    private ScheduledExecutorService executor;
    private ScalingMetricPublisher publisher;

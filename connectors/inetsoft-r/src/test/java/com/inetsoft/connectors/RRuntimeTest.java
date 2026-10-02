@@ -17,10 +17,21 @@
  */
 package com.inetsoft.connectors;
 
+import inetsoft.report.composition.execution.AssetQuerySandbox;
+import inetsoft.uql.VariableTable;
+import inetsoft.uql.asset.internal.WSExecution;
+import inetsoft.util.script.graal.pool.PoolTestSupport;
+import inetsoft.util.script.graal.pool.SlotClaim;
+import inetsoft.util.script.graal.pool.WorksheetScriptEnv;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.rosuda.REngine.Rserve.RConnection;
 
 import java.io.File;
+
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.*;
 
 /**
  * Unit test cases for <tt>RRuntime</tt>.
@@ -58,5 +69,51 @@ class RRuntimeTest {
     */
    @Test
    void testTestDataSource() throws Exception {
+   }
+
+   /**
+    * Bug #76960: on a pooled worksheet env, runQuery holds one span from the pre-script
+    * through the R round trip to the post-script, so the pre-script's globals are still there
+    * while R runs, and the context is cleaned once, when the span closes. Fails if the span
+    * is removed: the pre-script's own claim would then be closed and cleaned before R runs.
+    */
+   @Test
+   void preScriptStateLastsThroughTheRRoundTrip() throws Exception {
+      WorksheetScriptEnv env = PoolTestSupport.env();
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      when(box.getScriptEnv()).thenReturn(env);
+      RConnection connection = mock(RConnection.class);
+      Object[] duringEval = new Object[2];
+
+      when(connection.eval(anyString())).thenAnswer(invocation -> {
+         duringEval[0] = SlotClaim.openClaims();
+         duringEval[1] = PoolTestSupport.run(env, "typeof globalThis.rstate");
+         throw new IllegalStateException("no R server in this test");
+      });
+
+      RRuntime runtime = new RRuntime() {
+         @Override
+         public RConnection createConnection(RDataSource dataSource) {
+            return connection;
+         }
+      };
+
+      RQuery query = new RQuery();
+      query.setPreExecute("globalThis.rstate = 1; 1");
+      query.setScript("df");
+      WSExecution.setAssetQuerySandbox(box);
+
+      try {
+         assertNull(runtime.runQuery(query, new VariableTable()));
+      }
+      finally {
+         WSExecution.setAssetQuerySandbox(null);
+      }
+
+      assertEquals(1, duringEval[0], "claims open during the R round trip");
+      assertEquals("number", duringEval[1], "the pre-script's global during the R round trip");
+      assertEquals(0, SlotClaim.openClaims());
+      assertEquals(1, env.getMetrics().getCleans());
+      verify(connection).close();
    }
 }

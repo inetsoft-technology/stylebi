@@ -71,6 +71,17 @@ export class VSTextInput extends NavigationComponent<VSTextInputModel>
    implements OnInit, OnChanges, OnDestroy
 {
    @Input() set model(value: VSTextInputModel) {
+      const serverText = value?.text;
+
+      // a refresh (e.g. server-side update) replaces the model while the user may be typing.
+      // keep the text that has not been submitted yet instead of resetting it.
+      if(value && this._model && this.isTyping() &&
+         this._model.absoluteName == value.absoluteName && this._model.text != this.serverText)
+      {
+         value.text = this._model.text;
+      }
+
+      this.serverText = serverText;
       this._model = value;
       this.updateSelectedDate();
    }
@@ -91,6 +102,8 @@ export class VSTextInput extends NavigationComponent<VSTextInputModel>
    submittedForm: Subscription;
    private invalidMessageShown = false;
    private unappliedSelection = false;
+   // the text last received from the server
+   private serverText: string;
    FocusRegions = FocusRegions;
    focused: FocusRegions = FocusRegions.NONE;
    minDate: NgbDateStruct = {year: 1900, month: 1, day: 1};
@@ -202,6 +215,7 @@ export class VSTextInput extends NavigationComponent<VSTextInputModel>
                ": " + this.errorString).then(
             () => {
                this.model.text = "";
+               this.serverText = this.model.text;
                this.invalidMessageShown = false;
                this.validInput = true;
             },
@@ -210,6 +224,8 @@ export class VSTextInput extends NavigationComponent<VSTextInputModel>
       }
 
       this.unappliedSelection = true;
+      // the text is submitted, a new value from the server should replace it
+      this.serverText = this.model.text;
 
       if(this.model.refresh || this.model.writeBackDirectly) {
          this.applySelection();
@@ -362,6 +378,14 @@ export class VSTextInput extends NavigationComponent<VSTextInputModel>
       if(this.model.editing && this.textAreaElementRef != null) {
          this.textAreaElementRef.nativeElement.focus();
       }
+   }
+
+   /**
+    * Check if the user is typing in the input, i.e. it has focus.
+    */
+   private isTyping(): boolean {
+      const element = this.textAreaElementRef?.nativeElement;
+      return !!element && element === document.activeElement;
    }
 
    isInputDisabled(): boolean {

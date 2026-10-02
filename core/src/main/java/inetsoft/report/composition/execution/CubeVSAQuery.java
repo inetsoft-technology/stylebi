@@ -61,23 +61,52 @@ public abstract class CubeVSAQuery extends DataVSAQuery {
    protected final TableAssembly createBaseTableAssembly0(boolean analysis)
       throws Exception
    {
+      return createBaseTableAssembly0(analysis, null);
+   }
+
+   /**
+    * Create the base plain table assembly.
+    * @param analysis true if for analysis, false for runtime.
+    * @param sources the inputs that execute other assemblies, gathered with
+    *                {@link #prepareBaseTableSources(SourceInfo)} before the caller entered a
+    *                monitor, or null to gather them here. With sources, the table is built
+    *                from the source info they were gathered for, and nothing is executed.
+    * @return the created base plain table assembly.
+    */
+   protected final TableAssembly createBaseTableAssembly0(boolean analysis,
+                                                          BaseTableSources sources)
+      throws Exception
+   {
       Worksheet ws = getWorksheet();
 
       if(ws == null) {
          return null;
       }
 
-      String tname = VSUtil.getTableName(getSourceTable());
+      // A binding edit replaces the source info without taking the sandbox lock
+      // (VSAssemblyInfoHandler.apply -> setVSAssemblyInfo), so holding the read lock does not
+      // keep it from changing after the sources were gathered. Build from the snapshot the
+      // sources were gathered for, never from a re-read, or a source that became a vs
+      // assembly in between would be fetched here, inside the caller's monitor. (77156)
+      SourceInfo sourceInfo = sources != null ? sources.sourceInfo() :
+         ((DataVSAssembly) getAssembly()).getSourceInfo();
+      boolean vsAssembly = sourceInfo != null && sourceInfo.getType() == SourceInfo.VS_ASSEMBLY;
+      AssemblyTableData vsSource = sources == null ? null : sources.vsSource();
+      // build from the table the data was fetched for, as when fetching it here
+      String tname = vsAssembly && vsSource != null ?
+         vsSource.boundName() : VSUtil.getTableName(getSourceTable(sourceInfo));
 
       if(tname == null || tname.length() == 0) {
          return null;
       }
 
-      SourceInfo sourceInfo = ((DataVSAssembly) getAssembly()).getSourceInfo();
       TableAssembly table;
 
-      if(sourceInfo.getType() == SourceInfo.VS_ASSEMBLY) {
-         table = createAssemblyTable(tname);
+      if(vsAssembly) {
+         // with sources, never fetch: the caller may hold a monitor a sandbox writer also takes
+         // (77030). They were gathered for this same vs assembly source, so vsSource is set.
+         table = vsSource != null ? buildAssemblyTable(vsSource) :
+            sources == null ? createAssemblyTable(tname) : null;
 
          if(table == null) {
             throw new BoundTableNotFoundException(Catalog.getCatalog().getString
@@ -122,11 +151,65 @@ public abstract class CubeVSAQuery extends DataVSAQuery {
       appendCalcFieldWithType(table, tname, true, true, vsForCalc);
 
       if(!analysis) {
-         ChartVSAssembly chart = box.getBrushingChart(vname);
-         setSharedCondition(chart, table);
+         if(sources != null) {
+            // the chart was resolved and refreshed with the sources, only apply it here
+            applySharedCondition(sources.brushChart(), table, true);
+         }
+         else {
+            ChartVSAssembly chart = box.getBrushingChart(vname);
+            setSharedCondition(chart, table);
+         }
       }
 
       return table;
+   }
+
+   /**
+    * Gather the inputs of {@link #createBaseTableAssembly0(boolean, BaseTableSources)} for
+    * runtime that execute other assemblies: the data of a vs assembly source, and the
+    * brushing chart, refreshed. Both release and re-acquire the sandbox lock when they miss
+    * the data cache (and refreshing the chart can run its scripts), so a caller that builds
+    * the base table while holding a monitor a sandbox writer also takes must gather them
+    * before entering it. (77030)
+    * @param sourceInfo the snapshot of the assembly's source info to gather for, which the
+    *                   table is then built from. (77156)
+    * @return the sources, never null; with no data and no chart if there is no base table.
+    */
+   protected final BaseTableSources prepareBaseTableSources(SourceInfo sourceInfo)
+      throws Exception
+   {
+      String tname = VSUtil.getTableName(getSourceTable(sourceInfo));
+
+      if(getWorksheet() == null || tname == null || tname.length() == 0) {
+         return new BaseTableSources(sourceInfo, null, null);
+      }
+
+      // fetch the source first, as building the table does before applying the brush
+      AssemblyTableData vsSource = sourceInfo.getType() == SourceInfo.VS_ASSEMBLY ?
+         getAssemblyTableData(tname) : null;
+      ChartVSAssembly chart = box.getBrushingChart(vname);
+      updateSharedChart(chart);
+
+      return new BaseTableSources(sourceInfo, vsSource, chart);
+   }
+
+   /**
+    * Get the source table name of a source info.
+    */
+   private static String getSourceTable(SourceInfo sinfo) {
+      return sinfo == null || sinfo.isEmpty() ? null : sinfo.getSource();
+   }
+
+   /**
+    * The inputs of the base table gathered by {@link #prepareBaseTableSources(SourceInfo)}.
+    *
+    * @param sourceInfo the snapshot of the source info they were gathered for.
+    * @param vsSource   the data of a vs assembly source, or null for other sources.
+    * @param brushChart the brushing chart, already refreshed, or null.
+    */
+   protected record BaseTableSources(SourceInfo sourceInfo, AssemblyTableData vsSource,
+                                     ChartVSAssembly brushChart)
+   {
    }
 
    protected boolean isPostSort() {

@@ -623,6 +623,9 @@ public class XNodeTable implements XTable {
       // Load from table node
       private void loadTable0() {
          boolean baseTableCancelBreakLoad = false;
+         // a reader waiting for the first row credits this thread while it runs, e.g. in the
+         // socket read of a slow query (bug #76967)
+         setProducer(Thread.currentThread());
 
          try {
             int result = 0;

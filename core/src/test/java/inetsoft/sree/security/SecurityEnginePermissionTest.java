@@ -23,6 +23,7 @@ import inetsoft.sree.internal.SUtil;
 import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.SreeHome;
+import inetsoft.util.ThreadContext;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -34,6 +35,7 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.security.Principal;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Stream;
@@ -232,6 +234,46 @@ class SecurityEnginePermissionTest {
                                                "/", ResourceAction.READ);
 
       assertTrue(allowed);
+   }
+
+   // [Scenario: everyone mode, per org] Bug #77277: an org override of security.datasource.everyone
+   // applies only to requests in that org, whichever org refreshed the cached flag last
+   // Setup: global flag false, orga override true, provider denies direct checks, blank root
+   @Test
+   void checkPermission_datasourceEveryoneOrgOverride_doesNotLeakAcrossOrgs() throws Exception {
+      SecurityProvider provider = mock(SecurityProvider.class);
+      setProvider(provider);
+      SRPrincipal orgaUser = loggedInPrincipal(new IdentityID("alice", "orga"), 11L);
+      SRPrincipal orgbUser = loggedInPrincipal(new IdentityID("bob", "orgb"), 12L);
+      String orgKey = "inetsoft.org.orga.security.datasource.everyone";
+      Principal oldContext = ThreadContext.getContextPrincipal();
+
+      when(provider.checkPermission(any(), eq(ResourceType.DATA_SOURCE_FOLDER), eq("/"), any()))
+         .thenReturn(false);
+      when(provider.getPermission(ResourceType.DATA_SOURCE_FOLDER, "/")).thenReturn(null);
+
+      try {
+         SreeEnv.setProperty(orgKey, "true");
+         // invalidated from the org that owns the override, as a save by its admin would be
+         ThreadContext.setContextPrincipal(orgaUser);
+         SecurityEngine.updateSecurityDatasourceEveryoneValue();
+
+         assertTrue(engine.checkPermission(orgaUser, ResourceType.DATA_SOURCE_FOLDER, "/",
+                                           ResourceAction.READ));
+
+         ThreadContext.setContextPrincipal(orgbUser);
+         assertFalse(engine.checkPermission(orgbUser, ResourceType.DATA_SOURCE_FOLDER, "/",
+                                            ResourceAction.READ));
+
+         ThreadContext.setContextPrincipal(orgaUser);
+         assertTrue(engine.checkPermission(orgaUser, ResourceType.DATA_SOURCE_FOLDER, "/",
+                                           ResourceAction.READ));
+      }
+      finally {
+         ThreadContext.setContextPrincipal(oldContext);
+         SreeEnv.remove(orgKey);
+         SecurityEngine.updateSecurityDatasourceEveryoneValue();
+      }
    }
 
    // [Scenario: special library everyone mode] blank library permission under everyone mode -> READ allowed

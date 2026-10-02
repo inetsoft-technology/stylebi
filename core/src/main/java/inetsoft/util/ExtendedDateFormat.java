@@ -25,7 +25,7 @@ import java.time.*;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoField;
 import java.time.temporal.TemporalAccessor;
-import java.time.zone.ZoneRules;
+import java.time.temporal.WeekFields;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -45,6 +45,7 @@ public class ExtendedDateFormat extends SimpleDateFormat {
     */
    public ExtendedDateFormat() {
       super();
+      defaultLocale = Locale.getDefault(Locale.Category.FORMAT);
    }
 
    /**
@@ -53,6 +54,7 @@ public class ExtendedDateFormat extends SimpleDateFormat {
     */
    public ExtendedDateFormat(String pattern) {
       super(ExtendedDateFormat.createPattern(pattern));
+      defaultLocale = Locale.getDefault(Locale.Category.FORMAT);
    }
 
    /**
@@ -490,49 +492,105 @@ public class ExtendedDateFormat extends SimpleDateFormat {
 
    @Override
    public Object parseObject(String str) throws ParseException {
-      // if joda parsing failed, use default java parsing since it could
+      // if java.time parsing failed, use default java parsing since it could
       // be caused by incompatibility. for example, with pattern yyyy-MM-dd
-      // java can parse '2011-01-02 10:01:02' but joda throws exception
-      if(!formatterError) {
+      // java can parse '2011-01-02 10:01:02' but java.time throws exception.
+      // the fallback is decided for each call, so the parser used for a string does
+      // not depend on what this instance (or the instance it was cloned from) parsed before
+      if(getFormatter() != null) {
          try {
             return parse(str, null);
          }
          catch(Exception ex) {
-            // try as milliseconds from epoch. we don't invent a new format type since it's
-            // unlikely that a user will know to use it. so we just try it and see if it works
-            if(tryMS) {
-               try {
-                  double val = Double.parseDouble(str);
-                  final long year = 60000 * 60 * 24 * 365L;
-                  final long year10 = year * 10;
-                  final long year70 = year * 70;
-
-                  if(val > year10 && val < year70) {
-                     return new Date((long) val);
-                  }
-               }
-               catch(Exception e2) {
-                  // ignore
-               }
-
-               tryMS = false;
-            }
-
-            formatterError = true;
+            // ignore, try other ways below
          }
+      }
+
+      // try as milliseconds from epoch. we don't invent a new format type since it's
+      // unlikely that a user will know to use it. so we just try it and see if it works.
+      // date text such as 12/31/85 is skipped (NaN), since the exception is slow
+      try {
+         double val = isNumber(str) ? Double.parseDouble(str) : Double.NaN;
+         final long year = 60000 * 60 * 24 * 365L;
+         final long year10 = year * 10;
+         final long year70 = year * 70;
+
+         // java.time was tried before the epoch milliseconds for every pattern it can parse,
+         // so a pattern now parsed by SimpleDateFormat keeps that order, e.g. yyMMddHHmmss
+         // reads 851231120000 as a date and 1300000000000 (too long) as milliseconds
+         if(val > year10 && val < year70 && !(getFormatter() == null && isJavaTimeDate(str))) {
+            return new Date((long) val);
+         }
+      }
+      catch(Exception e2) {
+         // ignore
       }
 
       return super.parseObject(str);
    }
 
+   /**
+    * Check if java.time can parse the whole string with the pattern of this format, ignoring
+    * whether the pattern is parsed by java.time or SimpleDateFormat.
+    */
+   private boolean isJavaTimeDate(String str) {
+      DateTimeFormatter formatter = getFormatter(toPattern(), getParseLocale());
+
+      try {
+         if(formatter != null) {
+            formatter.parse(str);
+            return true;
+         }
+      }
+      catch(DateTimeException ex) {
+         // not a date for java.time
+      }
+
+      return false;
+   }
+
+   /**
+    * Check if the string may be a number for Double.parseDouble(). this is a quick check
+    * that accepts every decimal or hex number (some other strings too), and rejects text
+    * with any other letter or sign, e.g. dates such as 12/31/85, 03-11 or 10-Mar-11.
+    * NaN and Infinity are rejected, which is fine since they are never epoch milliseconds.
+    */
+   private static boolean isNumber(String str) {
+      if(str == null) {
+         return false;
+      }
+
+      char prev = ' ';
+
+      for(int i = 0; i < str.length(); i++) {
+         char c = str.charAt(i);
+
+         // a sign is only allowed first or in an exponent
+         if(c == '+' || c == '-') {
+            if(prev > ' ' && prev != 'e' && prev != 'E' && prev != 'p' && prev != 'P') {
+               return false;
+            }
+         }
+         else if(c > ' ' && c != '.' && c != 'x' && c != 'X' && c != 'p' && c != 'P' &&
+            Character.digit(c, 16) < 0)
+         {
+            return false;
+         }
+
+         prev = c;
+      }
+
+      return true;
+   }
+
    @Override
    public Date parse(String source) throws ParseException {
-      if(!formatterError) {
+      if(getFormatter() != null) {
          try {
             return parse(source, null);
          }
          catch(Exception ex) {
-            formatterError = true;
+            // ignore, fall back to SimpleDateFormat
          }
       }
 
@@ -541,17 +599,17 @@ public class ExtendedDateFormat extends SimpleDateFormat {
 
    @Override
    public Date parse(String str, ParsePosition pos) {
-      if(!formatterError) {
-         String pattern = toPattern();
+      // pos is null only for the java.time attempt made by parse(String) and
+      // parseObject(String), which catch its exceptions and fall back. Callers passing
+      // a ParsePosition get the Format contract (locale, parse position, error index and
+      // null on failure) from SimpleDateFormat
+      if(pos == null) {
          TimeZone zone = getTimeZone();
-         String key = pattern + ":" + zone.getID();
-         DateTimeFormatter formatter = formatters.get(key);
+         DateTimeFormatter formatter = getFormatter();
 
-         // formatter is thread safe so it can be shared globally
          if(formatter == null) {
-            formatter = DateTimeFormatter.ofPattern(pattern);
-            formatter = formatter.withZone(zone.toZoneId());
-            formatters.put(key, formatter);
+            throw new IllegalArgumentException(
+               "Pattern, time zone or calendar is not supported by java.time: " + toPattern());
          }
 
          final TemporalAccessor temporal = formatter.parse(str);
@@ -592,33 +650,265 @@ public class ExtendedDateFormat extends SimpleDateFormat {
             nanosecond = temporal.get(ChronoField.NANO_OF_SECOND);
          }
 
-         /*
-               The default system time zone for this bug is Asia/Shanghai.  Before 1901,
-         the time zone offset for this time zone was UTC+08:05:43 and after 1901 it was UTC+8.
-         Using the system time zone directly generates the ZonedDateTime generated with the
-         UTC+08:05:43 time zone offset using the UTC+8 time zone offset to generate the Date,
-         resulting in the "1882-01-01" parse as Sat Dec 31 23:54:17 CST 1881.
-               To ensure that the date in the parse file is consistent with the time displayed
-         in the string, use java's current time zone offset to avoid impact caused
-         by time zone offset changes.
-         */
-         if(zone.getID().equals("Asia/Shanghai") && year < 1901) {
-            ZoneRules zoneRules = ZoneId.systemDefault().getRules();
-            ZoneOffset currentOffset = zoneRules.getOffset(Instant.now());
-            OffsetDateTime offsetDateTime = LocalDateTime
-               .of(year, month, day, hour, minute, second, nanosecond)
-               .atOffset(currentOffset);
-            return new Date(offsetDateTime.toInstant().toEpochMilli());
+         // before 1901 java.time and the hybrid Julian/Gregorian calendar used by format()
+         // disagree: java.time is proleptic Gregorian (7 days off in 1012) and applies the
+         // zone's local mean time, while java.util.TimeZone applies its raw offset before its
+         // first transition around 1900 (e.g. Asia/Shanghai +8:05:43 vs +8). converting the
+         // fields through java.time shifts the date on every save and reload, so convert with
+         // the same calendar and zone as format(). a strict SimpleDateFormat is tried first
+         // because the SMART resolver has already clamped a Julian leap day such as 1500-02-29
+         if(year < 1901) {
+            // strict first so an invalid day such as 1850-02-30 is not rolled over into the
+            // next month. a clone is used because this instance may be shared, and a
+            // concurrent lenient parse must not see it strict
+            SimpleDateFormat strict = (SimpleDateFormat) super.clone();
+            strict.setLenient(false);
+            Date date = strict.parse(str, new ParsePosition(0));
+
+            if(date != null) {
+               return date;
+            }
+
+            // lenient parse keeps the SimpleDateFormat year, e.g. the two digit year window of
+            // a "y" pattern, the 1582 cutover and years <= 0. if an invalid day rolled it over
+            // into the next month, step back to the last day of the parsed month, which clamps
+            // it the same way as the SMART resolver does from 1901 on (1500-02-30 gives the
+            // Julian 1500-02-29). only a pattern with a month and a day can overflow the day,
+            // and the overflow always lands in the next month (month % 12 is its 0 based index)
+            date = parseKeepZone(str, new ParsePosition(0));
+
+            if(date != null) {
+               Calendar parsed = (Calendar) getCalendar().clone();
+               parsed.setTime(date);
+               boolean monthDay = temporal.isSupported(ChronoField.MONTH_OF_YEAR) &&
+                  temporal.isSupported(ChronoField.DAY_OF_MONTH);
+
+               if(monthDay && parsed.get(Calendar.MONTH) == month % 12) {
+                  parsed.add(Calendar.DAY_OF_MONTH, -parsed.get(Calendar.DAY_OF_MONTH));
+                  date = parsed.getTime();
+               }
+
+               return date;
+            }
+
+            GregorianCalendar calendar = new GregorianCalendar(zone);
+            calendar.setLenient(true);
+            calendar.clear();
+            calendar.set(year, month - 1, day, hour, minute, second);
+            calendar.set(Calendar.MILLISECOND, nanosecond / 1_000_000);
+            return calendar.getTime();
          }
          else {
             ZonedDateTime dateTime = LocalDateTime
                .of(year, month, day, hour, minute, second, nanosecond)
-               .atZone(ZoneId.systemDefault());
+               .atZone(zone.toZoneId());
             return new Date(dateTime.toInstant().toEpochMilli());
          }
       }
 
-      return super.parse(str, pos);
+      return parseKeepZone(str, pos);
+   }
+
+   /**
+    * Parse with SimpleDateFormat without changing the zone of this format. SimpleDateFormat
+    * sets the zone from a parsed zone name (pattern z), which would make every later
+    * format() of this (often cached and shared) instance use the zone parsed last.
+    */
+   private Date parseKeepZone(String str, ParsePosition pos) {
+      TimeZone zone = getTimeZone();
+
+      try {
+         return super.parse(str, pos);
+      }
+      finally {
+         if(!zone.equals(getTimeZone())) {
+            setTimeZone(zone);
+         }
+      }
+   }
+
+   /**
+    * Get the shared java.time formatter for the pattern, zone and locale of this format, or
+    * null if java.time cannot compile the pattern (e.g. the escaped extended quarter patterns),
+    * the pattern has a field java.time parses differently (see needsSimpleDateFormat()),
+    * java.time cannot convert the zone, or the calendar is not Gregorian or has other week
+    * rules than the locale. The result depends only on the pattern, zone, locale and calendar,
+    * never on what was parsed before.
+    */
+   private DateTimeFormatter getFormatter() {
+      // parse(str, null) converts the ISO fields, so a non-Gregorian calendar such as the
+      // buddhist (th_TH) or japanese (ja_JP_JP) one is parsed by SimpleDateFormat. checked for
+      // each call since setCalendar() can change it. BuddhistCalendar extends GregorianCalendar,
+      // so the calendar type is checked instead of the class
+      if(!"gregory".equals(getCalendar().getCalendarType())) {
+         return null;
+      }
+
+      String pattern = toPattern();
+
+      if(unsupportedPatterns.contains(pattern) ||
+         sdfPatterns.computeIfAbsent(pattern, ExtendedDateFormat::needsSimpleDateFormat))
+      {
+         return null;
+      }
+
+      Locale loc = getParseLocale();
+
+      // the week rules of the calendar may differ from the locale's, e.g. for a -u-ca-iso8601
+      // locale or after setCalendar(). they only matter for a week date, which always has w,
+      // so the (slow) WeekFields lookup is skipped for other patterns. Calendar numbers the
+      // days from Sunday = 1
+      if(pattern.indexOf('w') >= 0) {
+         WeekFields weekFields = WeekFields.of(loc);
+         Calendar calendar = getCalendar();
+
+         if(calendar.getFirstDayOfWeek() != weekFields.getFirstDayOfWeek().getValue() % 7 + 1 ||
+            calendar.getMinimalDaysInFirstWeek() != weekFields.getMinimalDaysInFirstWeek())
+         {
+            return null;
+         }
+      }
+
+      return getFormatter(pattern, loc);
+   }
+
+   /**
+    * Get the locale SimpleDateFormat was created with, for the month, day, am/pm and era
+    * names and the week rules.
+    */
+   private Locale getParseLocale() {
+      return locale != null ? locale :
+         defaultLocale != null ? defaultLocale : Locale.getDefault(Locale.Category.FORMAT);
+   }
+
+   /**
+    * Get the shared java.time formatter for the pattern, locale and the zone of this format,
+    * or null if java.time cannot compile the pattern or convert the zone.
+    */
+   private DateTimeFormatter getFormatter(String pattern, Locale loc) {
+      TimeZone zone = getTimeZone();
+      // the pattern is last since only it may contain the separator
+      String key = loc.toLanguageTag() + "|" + zone.getID() + "|" + pattern;
+      DateTimeFormatter formatter = formatters.get(key);
+
+      // formatter is thread safe so it can be shared globally
+      if(formatter == null) {
+         try {
+            formatter = DateTimeFormatter.ofPattern(pattern, loc);
+         }
+         catch(IllegalArgumentException ex) {
+            unsupportedPatterns.add(pattern);
+            return null;
+         }
+
+         try {
+            formatter = formatter.withZone(zone.toZoneId());
+         }
+         catch(DateTimeException ex) {
+            // the zone (e.g. a custom SimpleTimeZone) has no java.time ID. this is a property
+            // of the zone, not the pattern, so it is not added to unsupportedPatterns
+            return null;
+         }
+
+         formatters.put(key, formatter);
+      }
+
+      return formatter;
+   }
+
+   /**
+    * Check if the pattern has to be parsed by SimpleDateFormat, because java.time parses one
+    * of its unquoted fields differently or parse(str, null) does not use it. java.time is
+    * kept only for fields both resolve the same way, and any other letter goes to
+    * SimpleDateFormat, e.g.
+    * - a zone or offset (z, Z, X), since parse(str, null) keeps only the local fields;
+    * - a two-letter year (yy, YY), read as 2000-2099 by java.time instead of with the 2-digit
+    *   year start;
+    * - week fields (Y, w, W) outside a week date (Y, w and E, without y), since java.time
+    *   resolves the date from them only for a week date, e.g. Jan 1 for yyyy-ww-EEE;
+    * - letters with another meaning in java.time (u, F, S other than SSS, and G, M, L or E
+    *   more than 4 times, which are the narrow forms in java.time) or that
+    *   SimpleDateFormat resolves on their own (D, a day of week without a day or week date,
+    *   a 12-hour hour without am/pm or am/pm without a 12-hour hour).
+    */
+   private static boolean needsSimpleDateFormat(String pattern) {
+      boolean quoted = false;
+      boolean[] letters = new boolean[128];
+
+      for(int i = 0; i < pattern.length(); i++) {
+         char c = pattern.charAt(i);
+
+         // an escaped quote ('') toggles twice, so it never changes the quoted state
+         if(c == QT) {
+            quoted = !quoted;
+            continue;
+         }
+
+         if(quoted || !(c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z')) {
+            continue;
+         }
+
+         int count = 1;
+
+         while(i + 1 < pattern.length() && pattern.charAt(i + 1) == c) {
+            count++;
+            i++;
+         }
+
+         letters[c] = true;
+
+         switch(c) {
+         case 'G':
+         case 'M':
+         case 'L':
+         case 'E':
+            // GGGGG, MMMMM, LLLLL and EEEEE are the narrow forms in java.time but the
+            // full forms in SimpleDateFormat
+            if(count > 4) {
+               return true;
+            }
+
+            break;
+         case 'y':
+         case 'Y':
+            if(count == 2) {
+               return true;
+            }
+
+            break;
+         case 'S':
+            if(count != 3) {
+               return true;
+            }
+
+            break;
+         case 'w':
+         case 'd':
+         case 'a':
+         case 'h':
+         case 'K':
+         case 'H':
+         case 'k':
+         case 'm':
+         case 's':
+            break;
+         default:
+            return true;
+         }
+      }
+
+      boolean weekDate = letters['Y'] && letters['w'] && letters['E'] && !letters['y'];
+
+      return (letters['Y'] || letters['w']) && !weekDate ||
+         letters['E'] && !letters['d'] && !weekDate ||
+         letters['a'] != (letters['h'] || letters['K']);
+   }
+
+   /**
+    * Check if java.time was found unable to compile the pattern, for testing.
+    */
+   static boolean isUnsupportedPattern(String pattern) {
+      return unsupportedPatterns.contains(pattern);
    }
 
    public String toString() {
@@ -687,7 +977,15 @@ public class ExtendedDateFormat extends SimpleDateFormat {
    private static String[] MMM_STRINGS = {"MMMMM", "MMMM"};
    private static String[][] M_ALL = {MM_STRINGS, MMM_STRINGS};
 
+   // the value computed before the parse state fields were removed, so serialized formats
+   // stay compatible
+   private static final long serialVersionUID = 1728351691389349897L;
    private static Map<String, DateTimeFormatter> formatters = new ConcurrentHashMap<>();
+   // patterns DateTimeFormatter.ofPattern() rejects. keyed by pattern only (never by input or
+   // instance) so cloned formats, e.g. the FormatCache copies, all make the same choice
+   private static Set<String> unsupportedPatterns = ConcurrentHashMap.newKeySet();
+   // whether a pattern needs SimpleDateFormat, keyed by pattern like unsupportedPatterns
+   private static Map<String, Boolean> sdfPatterns = new ConcurrentHashMap<>();
 
    private static final LocalDate DEFAULT_LOCAL_DATE = LocalDate.ofEpochDay(0);
    private static final LocalTime DEFAULT_LOCAL_TIME = LocalTime.of(0, 0);
@@ -695,7 +993,8 @@ public class ExtendedDateFormat extends SimpleDateFormat {
    // cached user pattern
    private String cupattern = null;
    private transient FastDateFormat fastFmt;
-   private boolean formatterError = false;
-   private boolean tryMS = true;
    private Locale locale = null;
+   // the default format locale SimpleDateFormat used when no locale was given. kept apart
+   // from locale, since format() uses the thread locale when locale is null
+   private Locale defaultLocale = null;
 }

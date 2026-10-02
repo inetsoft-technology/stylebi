@@ -151,13 +151,10 @@ public class DateComparisonFormat extends Format {
          }
 
          // NOTE (Bug #76390): this used to remove "orphaned" part entries here --
-         // i.e. any partCol value not in DateComparisonUtil.computeValidParts(data,
-         // dateCol, partCol, null) -- and blank that part's axis label entirely,
-         // using the same "does this part have a row in the single most recent
-         // period" heuristic as DateComparisonUtil.applyDateRange()'s
-         // ValidPartsSelector. That heuristic is sound for ValidPartsSelector, which
-         // filters raw, not-yet-verified rows out of the plotted/exported dataset
-         // before anything here runs.
+         // i.e. any partCol value without a row in the single most recent period --
+         // and blank that part's axis label entirely, using the same heuristic
+         // DateComparisonUtil.applyDateRange() then applied to the plotted rows (that
+         // chart-side clipping was removed too, Bug #77236).
          //
          // But every entry partDates can ever contain is, by construction (see the
          // loop above), already backed by a real row with a real plotted value --
@@ -172,10 +169,8 @@ public class DateComparisonFormat extends Format {
          // holding the single latest date as fully orphaned and wiped its label
          // outright, even though its underlying dates/bars (in partDates, and thus
          // in the rendered chart) were completely correct. So this consumer no
-         // longer removes any partDates entries; the underlying row-level future
-         // exclusion Bug #75152/#76389 rely on is still enforced by
-         // DateComparisonUtil.applyDateRange()'s ValidPartsSelector, upstream of
-         // this class.
+         // longer removes any partDates entries; which rows exist at all is decided
+         // by the query layer (DateComparisonInfo.getStandardPeriodsCondition()).
          this.partDates = partDates;
          this.partDates2 = partDates2;
          fixDisplayShortDate();

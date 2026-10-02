@@ -82,7 +82,8 @@ public interface ViewsheetModel extends Serializable {
          String sheet = null;
 
          if(SUtil.isDefaultVSGloballyVisible() &&
-            !Tool.equals(user.getOrgID(), OrganizationManager.getInstance().getCurrentOrgID()) &&
+            !Tool.equals(user.getOrgID(), OrganizationManager.getInstance()
+                                   .getCurrentOrgID(ThreadContext.getContextPrincipal())) &&
             Tool.equals(user.getOrgID(), Organization.getDefaultOrganizationID()))
          {
             sheet = rvs.getEntry().getSheetName(true);

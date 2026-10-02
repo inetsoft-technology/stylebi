@@ -32,7 +32,6 @@ import inetsoft.util.Tool;
 import inetsoft.util.audit.ActionRecord;
 import inetsoft.util.audit.Audit;
 import inetsoft.web.admin.content.database.model.DataModelFolderManagerService;
-import inetsoft.web.admin.content.repository.ResourcePermissionService;
 import inetsoft.web.portal.controller.SearchComparator;
 import inetsoft.web.portal.data.DataModelBrowserModel;
 import inetsoft.web.portal.model.database.*;
@@ -51,8 +50,6 @@ import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.stream.Stream;
-
-import static inetsoft.uql.util.XUtil.DATAMODEL_FOLDER_SPLITER;
 
 @Service
 public class DatabaseModelBrowserService {
@@ -443,7 +440,7 @@ public class DatabaseModelBrowserService {
             dinfo.addRenameInfo(obj, rinfo);
          }
 
-         renameDataModelPermission(oldPath, newPath);
+         renameDataModelPermission(database, oldFolder, isRoot ? null : folder, name);
 
          DependencyTransformer.createExtendModelDepInfoForFolderChanged(dinfo, logicalModel,
             oldFolder, folder);
@@ -462,30 +459,27 @@ public class DatabaseModelBrowserService {
       }
    }
 
-   private void renameDataModelPermission(String pathFrom, String pathTo) {
-      pathFrom = handleDataModelFolderSource(pathFrom);
-      pathTo = handleDataModelFolderSource(pathTo);
+   /**
+    * Moves the QUERY permission of a logical model from its old folder to its new folder. The
+    * resources are built from the folder names, as the permission is stored, rather than parsed
+    * from a model path, which can't tell a folder from a model with the same leading name.
+    */
+   private void renameDataModelPermission(String database, String oldFolder, String newFolder,
+                                          String name)
+   {
+      String resourcePathFrom = XUtil.getLogicalModelResourceName(database, oldFolder, name);
+      String resourcePathTo = XUtil.getLogicalModelResourceName(database, newFolder, name);
 
-      String resourcePathFrom = ResourcePermissionService.getLogicalModelResourceName(pathFrom).getPath();
-      Permission permission =
-         securityEngine.getSecurityProvider().getAuthorizationProvider().getPermission(ResourceType.QUERY, resourcePathFrom);
+      if(resourcePathFrom.equals(resourcePathTo)) {
+         return;
+      }
+
+      Permission permission = securityEngine.getPermission(ResourceType.QUERY, resourcePathFrom);
 
       if(permission != null) {
-         String resourcePathTo = ResourcePermissionService.getLogicalModelResourceName(pathTo).getPath();
-         securityEngine.getSecurityProvider().getAuthorizationProvider().setPermission(ResourceType.QUERY, resourcePathTo, permission);
-         securityEngine.getSecurityProvider().getAuthorizationProvider().removePermission(ResourceType.QUERY, resourcePathFrom);
+         securityEngine.setPermission(ResourceType.QUERY, resourcePathTo, permission);
+         securityEngine.removePermission(ResourceType.QUERY, resourcePathFrom);
       }
-   }
-
-   private String handleDataModelFolderSource(String path) {
-      String resourceID = path.substring(path.lastIndexOf("^") + 1);
-
-      //if source separated by splitter key, ignore for permission
-      if(path.contains(DATAMODEL_FOLDER_SPLITER + resourceID)) {
-         return path.replace(DATAMODEL_FOLDER_SPLITER + resourceID, "^" + resourceID);
-      }
-
-      return path;
    }
 
    private void changeViewFolder(XDataModel dataModel, String name, String folder,
@@ -688,6 +682,12 @@ public class DatabaseModelBrowserService {
          throw new FileNotFoundException(databasePath + "/" + oldName);
       }
 
+      // the data model browser offers rename only on a folder that is editable and deletable,
+      // and the rename moves the folder's permission to the new path, as creating it would
+      checkFolderPermission(databasePath, oldName, ResourceAction.WRITE, principal);
+      checkFolderPermission(databasePath, oldName, ResourceAction.DELETE, principal);
+      checkFolderPermission(databasePath, folderName, ResourceAction.WRITE, principal);
+
       ActionRecord actionRecord = null;
       String auditOldPath = databasePath + "/" + oldName;
       String auditPath = databasePath + "/" + folderName;
@@ -722,6 +722,7 @@ public class DatabaseModelBrowserService {
 
          RenameDependencyInfo dinfo = new RenameDependencyInfo();
          String ds = dataModel.getDataSource();
+         List<String> movedModels = new ArrayList<>();
 
          for(String logicalModelName : dataModel.getLogicalModelNames()) {
             XLogicalModel logicalModel = dataModel.getLogicalModel(logicalModelName);
@@ -733,6 +734,7 @@ public class DatabaseModelBrowserService {
             if(Tool.equals(logicalModel.getFolder(), oldName)) {
                logicalModel.setFolder(folderName);
                dataModel.addLogicalModel(logicalModel);
+               movedModels.add(logicalModelName);
             }
 
             String opath = ds + XUtil.DATAMODEL_FOLDER_SPLITER + oldName + "^" + logicalModelName;
@@ -806,6 +808,11 @@ public class DatabaseModelBrowserService {
             securityEngine.setPermission(
                ResourceType.DATA_MODEL_FOLDER, databasePath + "/" + folderName, permission);
          }
+
+         // the permission of each model in the folder is stored under the folder name
+         for(String logicalModelName : movedModels) {
+            renameDataModelPermission(ds, oldName, folderName, logicalModelName);
+         }
       }
       catch(Exception ex) {
          if(actionRecord != null) {
@@ -821,6 +828,18 @@ public class DatabaseModelBrowserService {
             actionRecord.setActionTimestamp(actionTimestamp);
             Audit.getInstance().auditAction(actionRecord, principal);
          }
+      }
+   }
+
+   private void checkFolderPermission(String databasePath, String folderName,
+                                      ResourceAction action, Principal principal)
+      throws SecurityException
+   {
+      String path = databasePath + "/" + folderName;
+
+      if(!securityEngine.checkPermission(principal, ResourceType.DATA_MODEL_FOLDER, path, action)) {
+         throw new SecurityException(
+            "Unauthorized access to resource \"" + path + "\" by user " + principal);
       }
    }
 

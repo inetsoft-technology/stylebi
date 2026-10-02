@@ -54,7 +54,7 @@ public class ArrayProxy implements ProxyArray, ProxyObject {
 
    @Override
    public void set(long index, Value value) {
-      scope.setArrayElement(index, ScriptValueConverter.toHost(value));
+      scope.setArrayElement(index, ScriptValueConverter.toHostStored(value));
    }
 
    // --- ProxyObject ---
@@ -77,7 +77,7 @@ public class ArrayProxy implements ProxyArray, ProxyObject {
 
    @Override
    public void putMember(String key, Value value) {
-      scope.putMember(key, ScriptValueConverter.toHost(value));
+      scope.putMember(key, ScriptValueConverter.toHostStored(value));
    }
 
    @Override

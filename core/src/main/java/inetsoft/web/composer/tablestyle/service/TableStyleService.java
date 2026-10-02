@@ -76,6 +76,18 @@ public class TableStyleService {
       }
    }
 
+   /**
+    * @param styleName the full style name, including any folder prefix.
+    */
+   public void checkTableStyleWritePermission(String styleName, Principal principal)
+      throws Exception
+   {
+      AssetEntry entry = new AssetEntry(AssetRepository.COMPONENT_SCOPE,
+         AssetEntry.Type.TABLE_STYLE, "Table Style/" + styleName, null);
+      entry.setProperty("styleName", styleName);
+      assetRepository.checkAssetPermission(principal, entry, ResourceAction.WRITE);
+   }
+
    public void checkDuplicateTableStyle(String folder, String name,
                                         SaveLibraryDialogModelValidator validator)
    {

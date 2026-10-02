@@ -69,11 +69,9 @@ public class UnionTableLens extends SetTableLens {
          return super.getRow(row);
       }
       else {
-         if(rowCounts == null) {
-            rowCounts = new int[getTableCount()];
-            Arrays.fill(rowCounts, -1);
-         }
-
+         // read once and published only once filled: isNull() calls this without the lock,
+         // and invalidate() may clear it at any time (bug #77365)
+         int[] rowCounts = getRowCounts();
          Row result = null;
          int r = row;
 
@@ -125,10 +123,7 @@ public class UnionTableLens extends SetTableLens {
 
    private boolean moreRows0(int row) {
       if(row == EOT) {
-         if(rowCounts == null) {
-            rowCounts = new int[getTableCount()];
-            Arrays.fill(rowCounts, -1);
-         }
+         int[] rowCounts = getRowCounts();
 
          for(int i = 0; i < getTableCount(); i++) {
             TableLens table = getTable(i);
@@ -159,6 +154,21 @@ public class UnionTableLens extends SetTableLens {
             return false;
          }
       }
+   }
+
+   /**
+    * Get the row count of each table, -1 if not known yet.
+    */
+   private int[] getRowCounts() {
+      int[] rowCounts = this.rowCounts;
+
+      if(rowCounts == null) {
+         rowCounts = new int[getTableCount()];
+         Arrays.fill(rowCounts, -1);
+         this.rowCounts = rowCounts;
+      }
+
+      return rowCounts;
    }
 
    @Override
@@ -199,7 +209,13 @@ public class UnionTableLens extends SetTableLens {
 
    @Override
    public void invalidate() {
-      rowCounts = null;
+      // reset both under the monitor moreRows0() computes and writes rowCnt with, a stale
+      // rowCnt reports rows past the end of a shrunk base (bug #77397)
+      synchronized(this) {
+         rowCounts = null;
+         rowCnt = 0;
+      }
+
       super.invalidate();
    }
 
@@ -222,7 +238,7 @@ public class UnionTableLens extends SetTableLens {
     * @return the merged table visitor.
     */
    @Override
-   protected MergedTable.Visitor getVisitor() {
+   protected MergedTable.Visitor getVisitor(Pass pass) {
       return null;
    }
 
@@ -264,7 +280,7 @@ public class UnionTableLens extends SetTableLens {
    }
 
    private boolean distinct = true;  // distinct flag
-   private int[] rowCounts = null;
+   private volatile int[] rowCounts = null;
    private transient int rowCnt = 0;
 
    private static final Logger LOG = LoggerFactory.getLogger(UnionTableLens.class);

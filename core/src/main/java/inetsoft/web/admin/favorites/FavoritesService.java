@@ -43,16 +43,32 @@ public class FavoritesService {
    }
 
    @PostConstruct
-   public void initStorage() {
+   public synchronized void initStorage() {
       favorites = keyValueStorageManager.getStorage("emFavorites");
    }
 
    @PreDestroy
-   public void closeStorage() throws Exception {
+   public synchronized void closeStorage() throws Exception {
       if(favorites != null) {
          favorites.close();
          favorites = null;
       }
+   }
+
+   /**
+    * Gets the emFavorites storage, re-fetching it if the cached reference is null or has been
+    * closed. The shared emFavorites KeyValueStorage can be LRU-evicted and closed by
+    * KeyValueStorageManager once more than 50 stores are open at once (easily reached in
+    * multi-tenant setups). A closed store's keys()/stream() return empty while get()/put()/
+    * remove() still work against the underlying shared map, so holding on to a closed instance
+    * makes {@link #removeFavorites(String)} silently remove nothing (Bug #77244).
+    */
+   private synchronized KeyValueStorage<FavoriteList> getStorage() {
+      if(favorites == null || favorites.isClosed()) {
+         favorites = keyValueStorageManager.getStorage("emFavorites");
+      }
+
+      return favorites;
    }
 
    /**
@@ -63,7 +79,7 @@ public class FavoritesService {
     * @return the favorites, never {@code null}.
     */
    public FavoriteList getFavorites(String identityKey) {
-      FavoriteList list = favorites.get(identityKey);
+      FavoriteList list = getStorage().get(identityKey);
 
       if(list == null) {
          list = new FavoriteList();
@@ -80,12 +96,14 @@ public class FavoritesService {
     * @param userFavorites the favorites to store.
     */
    public void setFavorites(String identityKey, FavoriteList userFavorites) {
+      KeyValueStorage<FavoriteList> storage = getStorage();
+
       try {
          if(userFavorites.getFavorites().isEmpty()) {
-            favorites.remove(identityKey).get(10L, TimeUnit.SECONDS);
+            storage.remove(identityKey).get(10L, TimeUnit.SECONDS);
          }
          else {
-            favorites.put(identityKey, userFavorites).get(10L, TimeUnit.SECONDS);
+            storage.put(identityKey, userFavorites).get(10L, TimeUnit.SECONDS);
          }
       }
       catch(InterruptedException | ExecutionException | TimeoutException e) {
@@ -102,12 +120,13 @@ public class FavoritesService {
     * @param toKey   the target identity key.
     */
    public void moveFavorites(String fromKey, String toKey) {
-      FavoriteList list = favorites.get(fromKey);
+      KeyValueStorage<FavoriteList> storage = getStorage();
+      FavoriteList list = storage.get(fromKey);
 
       if(list != null) {
          try {
-            favorites.put(toKey, list).get(10L, TimeUnit.SECONDS);
-            favorites.remove(fromKey).get(10L, TimeUnit.SECONDS);
+            storage.put(toKey, list).get(10L, TimeUnit.SECONDS);
+            storage.remove(fromKey).get(10L, TimeUnit.SECONDS);
          }
          catch(InterruptedException | ExecutionException | TimeoutException e) {
             LOG.error("Failed to move favorites from {} to {}", fromKey, toKey, e);
@@ -124,11 +143,12 @@ public class FavoritesService {
     * @param toKey   the target identity key.
     */
    public void copyFavorites(String fromKey, String toKey) {
-      FavoriteList list = favorites.get(fromKey);
+      KeyValueStorage<FavoriteList> storage = getStorage();
+      FavoriteList list = storage.get(fromKey);
 
       if(list != null) {
          try {
-            favorites.put(toKey, list).get(10L, TimeUnit.SECONDS);
+            storage.put(toKey, list).get(10L, TimeUnit.SECONDS);
          }
          catch(InterruptedException | ExecutionException | TimeoutException e) {
             LOG.error("Failed to copy favorites from {} to {}", fromKey, toKey, e);
@@ -147,10 +167,12 @@ public class FavoritesService {
          return;
       }
 
+      KeyValueStorage<FavoriteList> storage = getStorage();
+
       for(IdentityID id : identities) {
          if(id != null) {
             try {
-               favorites.remove(id.convertToKey()).get(10L, TimeUnit.SECONDS);
+               storage.remove(id.convertToKey()).get(10L, TimeUnit.SECONDS);
             }
             catch(InterruptedException e) {
                Thread.currentThread().interrupt();
@@ -170,13 +192,20 @@ public class FavoritesService {
     * @param orgID the id of the organization being removed.
     */
    public void removeFavorites(String orgID) {
-      Set<String> keys = favorites.keys()
-         .filter(key -> Tool.equals(orgID, IdentityID.getIdentityIDFromKey(key).orgID))
-         .collect(Collectors.toSet());
+      KeyValueStorage<FavoriteList> storage = getStorage();
+      Set<String> keys = getOrgKeys(storage, orgID);
+
+      // the storage may have been evicted and closed after getStorage() checked it, in which
+      // case keys() may have silently returned nothing. Closing is permanent, so if it is still
+      // open now, keys() ran on an open instance; otherwise re-fetch and collect again.
+      if(storage.isClosed()) {
+         storage = getStorage();
+         keys = getOrgKeys(storage, orgID);
+      }
 
       if(!keys.isEmpty()) {
          try {
-            favorites.removeAll(keys).get(10L, TimeUnit.SECONDS);
+            storage.removeAll(keys).get(10L, TimeUnit.SECONDS);
          }
          catch(InterruptedException e) {
             Thread.currentThread().interrupt();
@@ -186,6 +215,12 @@ public class FavoritesService {
             LOG.warn("Failed to remove EM favorites for deleted organization {}", orgID, e);
          }
       }
+   }
+
+   private static Set<String> getOrgKeys(KeyValueStorage<FavoriteList> storage, String orgID) {
+      return storage.keys()
+         .filter(key -> Tool.equals(orgID, IdentityID.getIdentityIDFromKey(key).orgID))
+         .collect(Collectors.toSet());
    }
 
    private final KeyValueStorageManager keyValueStorageManager;

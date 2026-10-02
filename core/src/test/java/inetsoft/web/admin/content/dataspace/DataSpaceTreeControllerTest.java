@@ -40,8 +40,11 @@ package inetsoft.web.admin.content.dataspace;
  *   [no EM permission]        EM check fails → SecurityException; deleteDataSpaceNode never called
  *   [file node permitted]     EM + data-space OK → deleteDataSpaceNode + updateFolder called
  *   [folder node permitted]   folder=true → deleteDataSpaceNode called; updateFolder NOT called
+ *   [global shapes]           multi-tenant: org admin denied, site admin allowed; org admin
+ *                             still allowed on own org shapes folder
  */
 
+import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.*;
 import inetsoft.uql.viewsheet.graph.aesthetic.ImageShapes;
 import inetsoft.web.admin.content.dataspace.model.*;
@@ -147,5 +150,83 @@ class DataSpaceTreeControllerTest {
          verify(dataSpaceContentSettingsService).deleteDataSpaceNode("reports", true);
          verify(dataSpaceContentSettingsService, never()).updateFolder(any());
       }
+   }
+
+   // -------------------------------------------------------------------------
+   // global shapes folder in multi-tenant mode
+   // -------------------------------------------------------------------------
+
+   // [org admin, global shapes] the global shapes folder is shared by all orgs; an org admin
+   // with presentation settings access must not be able to delete from it
+   @Test
+   void deleteNodes_orgAdminGlobalShape_throwsSecurityException() throws Exception {
+      when(deleteRequest.nodes()).thenReturn(new DataSpaceTreeNodeInfo[]{ fileNode("portal/shapes/foo.png") });
+      when(securityEngine.checkPermission(principal, ResourceType.EM, (String) "*", ResourceAction.ACCESS))
+         .thenReturn(true);
+      lenient().when(securityEngine.checkPermission(
+         principal, ResourceType.EM_COMPONENT, "settings/presentation/settings", ResourceAction.ACCESS))
+         .thenReturn(true);
+
+      try(MockedStatic<ImageShapes> imageShapesMock = mockStatic(ImageShapes.class, CALLS_REAL_METHODS);
+          MockedStatic<SUtil> sutilMock = mockStatic(SUtil.class);
+          MockedStatic<OrganizationManager> orgManagerMock = mockStatic(OrganizationManager.class))
+      {
+         imageShapesMock.when(ImageShapes::getShapesDirectory).thenReturn("portal/orgA/shapes");
+         sutilMock.when(SUtil::isMultiTenant).thenReturn(true);
+         mockSiteAdmin(orgManagerMock, false);
+
+         assertThrows(inetsoft.sree.security.SecurityException.class,
+            () -> controller.deleteNodes(deleteRequest, principal, request));
+         verify(dataSpaceContentSettingsService, never()).deleteDataSpaceNode(any(), anyBoolean());
+      }
+   }
+
+   // [site admin, global shapes] site admin may still delete from the global shapes folder
+   @Test
+   void deleteNodes_siteAdminGlobalShape_deletes() throws Exception {
+      when(deleteRequest.nodes()).thenReturn(new DataSpaceTreeNodeInfo[]{ fileNode("portal/shapes/foo.png") });
+      when(securityEngine.checkPermission(principal, ResourceType.EM, (String) "*", ResourceAction.ACCESS))
+         .thenReturn(true);
+      when(securityEngine.checkPermission(
+         principal, ResourceType.EM_COMPONENT, "settings/presentation/settings", ResourceAction.ACCESS))
+         .thenReturn(true);
+
+      try(MockedStatic<ImageShapes> imageShapesMock = mockStatic(ImageShapes.class, CALLS_REAL_METHODS);
+          MockedStatic<SUtil> sutilMock = mockStatic(SUtil.class);
+          MockedStatic<OrganizationManager> orgManagerMock = mockStatic(OrganizationManager.class))
+      {
+         imageShapesMock.when(ImageShapes::getShapesDirectory).thenReturn("portal/host-org/shapes");
+         sutilMock.when(SUtil::isMultiTenant).thenReturn(true);
+         mockSiteAdmin(orgManagerMock, true);
+
+         controller.deleteNodes(deleteRequest, principal, request);
+
+         verify(dataSpaceContentSettingsService).deleteDataSpaceNode("portal/shapes/foo.png", false);
+      }
+   }
+
+   // [org admin, own org shapes] org admin can still delete from their own org's shapes folder
+   @Test
+   void deleteNodes_orgAdminOwnOrgShape_deletes() throws Exception {
+      when(deleteRequest.nodes()).thenReturn(new DataSpaceTreeNodeInfo[]{ fileNode("portal/orgA/shapes/foo.png") });
+      when(securityEngine.checkPermission(principal, ResourceType.EM, (String) "*", ResourceAction.ACCESS))
+         .thenReturn(true);
+      when(securityEngine.checkPermission(
+         principal, ResourceType.EM_COMPONENT, "settings/presentation/settings", ResourceAction.ACCESS))
+         .thenReturn(true);
+
+      try(MockedStatic<ImageShapes> imageShapesMock = mockStatic(ImageShapes.class, CALLS_REAL_METHODS)) {
+         imageShapesMock.when(ImageShapes::getShapesDirectory).thenReturn("portal/orgA/shapes");
+
+         controller.deleteNodes(deleteRequest, principal, request);
+
+         verify(dataSpaceContentSettingsService).deleteDataSpaceNode("portal/orgA/shapes/foo.png", false);
+      }
+   }
+
+   private void mockSiteAdmin(MockedStatic<OrganizationManager> orgManagerMock, boolean siteAdmin) {
+      OrganizationManager orgManager = mock(OrganizationManager.class);
+      orgManagerMock.when(OrganizationManager::getInstance).thenReturn(orgManager);
+      when(orgManager.isSiteAdmin(principal)).thenReturn(siteAdmin);
    }
 }

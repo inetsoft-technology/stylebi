@@ -44,6 +44,7 @@ export class LogicalModelExpressionEditor implements OnInit {
    @Input() additional: string;
    @Input() entities: EntityModel;
    @Input() existNames: string[] = [];
+   @Input() logicalModelName: string;
    @Input() logicalModelParent: string;
    _attribute: AttributeModel;
    form: UntypedFormGroup = new UntypedFormGroup({});
@@ -265,7 +266,7 @@ export class LogicalModelExpressionEditor implements OnInit {
     */
    private loadFields(): void {
       let event = new GetModelEvent(this.databaseName, this.physicalModelName,
-         null, null, this.additional);
+         this.logicalModelName, this.logicalModelParent, this.additional);
 
       this.http.post<TreeNodeModel>(FIELDS_URI, event)
          .subscribe(

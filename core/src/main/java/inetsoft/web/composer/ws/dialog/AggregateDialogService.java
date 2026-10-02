@@ -74,6 +74,7 @@ public class AggregateDialogService extends WorksheetControllerService {
       Worksheet ws = rws.getWorksheet();
       model.setMaxCol(Util.getOrganizationMaxColumn());
 
+      checkCubeTableReadPermission(principal, tname);
       TableAssembly table = (TableAssembly) ws.getAssembly(tname);
       model.setName(tname);
 
@@ -216,6 +217,7 @@ public class AggregateDialogService extends WorksheetControllerService {
       RuntimeWorksheet rws = super.getRuntimeWorksheet(runtimeId, principal);
       Worksheet ws = rws.getWorksheet();
       String tname = model.getName();
+      checkCubeTableReadPermission(principal, tname);
       TableAssembly table = (TableAssembly) ws.getAssembly(tname);
 
       if(table != null) {
@@ -231,6 +233,13 @@ public class AggregateDialogService extends WorksheetControllerService {
 
          boolean oaggregate = table.isAggregate();
          applyAggregateInfo(table, ginfo);
+
+         // the column header columns of a crosstab are kept when refreshed with row
+         // limits, clear them when the column header changes so they are regenerated
+         // from the new column header. (77538)
+         if(isCrosstabHeaderChanged(oldAggInfo, table.getAggregateInfo())) {
+            table.setColumnSelection(new ColumnSelection(), true);
+         }
 
          if(ginfo != null && !ginfo.isEmpty() && table.isEditMode()) {
             table.setEditMode(false);
@@ -599,6 +608,22 @@ public class AggregateDialogService extends WorksheetControllerService {
       }
 
       return name;
+   }
+
+   /**
+    * Check if the crosstab column header group (the first group) is changed, or the table
+    * is switched to or from crosstab.
+    */
+   private static boolean isCrosstabHeaderChanged(AggregateInfo oinfo, AggregateInfo ninfo) {
+      boolean ocrosstab = oinfo != null && oinfo.isCrosstab();
+      boolean ncrosstab = ninfo != null && ninfo.isCrosstab();
+
+      if(ocrosstab != ncrosstab) {
+         return true;
+      }
+
+      return ncrosstab &&
+         !Tool.equalsContent(oinfo.getGroups()[0], ninfo.getGroups()[0]);
    }
 
    private void applyAggregateInfo(TableAssembly table, AggregateInfo ginfo) {

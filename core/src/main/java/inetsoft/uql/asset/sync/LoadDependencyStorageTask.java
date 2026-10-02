@@ -17,7 +17,6 @@
  */
 package inetsoft.uql.asset.sync;
 
-import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.storage.LoadKeyValueTask;
 
 public class LoadDependencyStorageTask extends LoadKeyValueTask<RenameTransformObject> {
@@ -34,7 +33,7 @@ public class LoadDependencyStorageTask extends LoadKeyValueTask<RenameTransformO
 
       if(queue != null) {
          for(RenameDependencyInfo info : queue) {
-            Cluster.getInstance().submit("renameTransform", new RenameTransformTask.Rename(info));
+            getCluster().submit("renameTransform", new RenameTransformTask.Rename(info));
          }
       }
    }

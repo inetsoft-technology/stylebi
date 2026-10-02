@@ -1,0 +1,199 @@
+# Bug #77249 (review r4): the table-owned vars (collectOwnedVarNames) of scanner shapes as
+# computed by an independent build of community main 357bcbcbb / c82bb4822 (the #5806 scanner).
+# Collected from the verify probes of rounds 1-3 (07-verify-r1, 10-verify-r2, 13-verify-review-r3).
+# Format: <expected sorted set>TAB<source round>TAB<script>; a literal backslash-n in the script
+# is a line break. The owned set of this branch must equal main on every row.
+[a]	07	var a = 1; function f(){ var b = 2 } if(a){a}
+[o]	07	var o = { sq(x) { var t = x*x; return t } }; if(o) { o.sq(3) }
+[c1, c2, c3, c4, c5]	07	class K { constructor(){ var c1=1 } get g(){ var c2=1; return c2 } set g(v){ var c3=v } static s(){ var c4=1 } m(){ var c5 } }
+[top, w]	07	function d(a = {k:1}) { var w = a.k } var top = d()
+[fe]	07	var fe = function(a = {}) { var fe1 = 1 }
+[h, h2]	07	var h = (x) => { var inner = x }; var h2 = x => { var inner2 = x }
+[after]	07	function o(){ function i(){ var deep=1 } var mid=2 } var after = 1
+[i1, i10, i11, i2, i3, i4, i5, i6, i7, i8, i9]	07	if (x) { var i1 = 1 } else if (y(z)) { var i2 } for (var i3 = 0; i3 < 2; i3++) { var i4 } while (f(q)) { var i5 } switch (g(k)) { case 1: { var i6 } } try { var i7 } catch (e) { var i8 } finally { var i9 } with (obj) { var i10 } do { var i11 } while (false)
+[fi, fi2, fo, fo2, ty1]	07	for (var fi in obj) { var fi2 } for (var fo of arr) { var fo2 } if (typeof(x) == 'y') { var ty1 }
+[o2]	07	var o2 = { async am(x) { var am1 }, *gm() { var gm1 } }
+[o3]	07	var o3 = { ['k'](x) { var cm1 } }
+[o4]	07	var o4 = { 'sk'(x) { var sk1 } }
+[]	07	(function(){ var ii1 })(); (() => { var ii2 })()
+[lb1]	07	lbl: { var lb1 }
+[blk1, o5]	07	var o5 = { k: (1 + 2) }; { var blk1 }
+[i12, r]	07	var r = compute(a)\nif(r) { var i12 }
+[s1, str1]	07	var s1 = 'f(x) {'; { var str1 }
+[rx2]	07	if(a.match(/\)/)) { var rx2 }
+[asi1]	07	foo(1)\n{ var asi1 = 1 }
+[asi2]	07	if (a) foo(b)\n{ var asi2 }
+[asi3]	07	new Foo(a)\n{ var asi3 }
+[asi4, p]	07	var p = (a + b)\n{ var asi4 }
+[after2, m]	07	var m = obj.f(1); if(m) { var after2 = m }
+[blkv]	07	if(x) { function bfn(){ var inblk = 1 } var blkv = 2 }
+[t1, u1]	10	let o = { m(a) { var u1 } }; if(x) { var t1 = 1 }
+[t2, u2, u3]	10	let o = { get g() { var u2 }, set g(v) { var u3 } }; { var t2 }
+[t3, u4]	10	let o = { ['k'+1](a) { var u4 } }; var t3
+[t4, u5]	10	let o = { 'sk'(a) { var u5 } }; var t4
+[t5, u6]	10	let o = { 1(a){ var u6 } }; var t5
+[t59, u21, u22]	10	let o = { *gen() { var u21 }, async am() { var u22 } }; var t59
+[t14, u10]	10	let o = { a: b ? { m(){ var u10 } } : 1 }; var t14
+[t49, u19]	10	x = c ? 1 : { m(){ var u19 } }; var t49
+[t60, u23]	10	[{ m(){ var u23 } }]; var t60
+[t58, u20]	10	new Foo({ m(){ var u20 } })\n{ var t58 }
+[t13]	10	let o = { m: foo(1) }; if(x) { var t13 }
+[t11]	10	let o = { get: 1, set: 2, async: 3 }\nif(x) { var t11 }
+[t10]	10	o = { if: 1, for: 2, while: 3 }; if(x){ var t10 }
+[t8]	10	let o = {class: 1}; if(x) { var t8 }
+[t8b]	10	let o = {class: 1}\nfoo(1)\n{ var t8b }
+[]	10	let o = {function: 1}; if(x) { var t9 }
+[t51]	10	o = {[k]: 1}; if(x) { var t51 }
+[t6, u7, u8]	10	class K { m() { var u7 } static { var u8 } }\nvar t6
+[t7, u9]	10	class K2 extends (f()) { m(){ var u9 } } var t7
+[t65, u24]	10	let C = class extends B { constructor(){ var u24 } }; if(x) { var t65 }
+[t16]	10	let f = (a) => { var u11 }; if(x) { var t16 }
+[t17]	10	let f = a => { var u12 }\n{ var t17 }
+[t18]	10	let f = async (a) => { var u13 }; var t18
+[t19]	10	let f = (a = {k:1}) => { var u14 }; var t19
+[t20, u15]	10	let f = () => ({ m(){ var u15 } }); if(x){ var t20 }
+[t66]	10	arr.map(x => { var u25 })\n{ var t66 }
+[t21]	10	L1: { var t21 }
+[t22]	10	L2: for(;;) { var t22; break L2 }
+[t23]	10	outer: { foo(1)\n{ var t23 } }
+[t24]	10	if(foo(1)) { var t24 }
+[t25]	10	while(g(x)) { var t25; break }
+[t26, t27]	10	switch(h(x)) { case 1: { var t26 } default: var t27 }
+[t26b]	10	switch(h(x)) { case 'a': foo(1)\n{ var t26b } }
+[t28, t29, t30]	10	try { var t28 } catch(e) { var t29 } finally { var t30 }
+[t31]	10	try {} catch { var t31 }
+[t32]	10	do { var t32 } while(f(x))
+[t33, t34]	10	for(var t33 of g(x)) { var t34 }
+[t61]	10	for(k in {a:1}) { var t61 }
+[t35]	10	with(o) { var t35 }
+[t36]	10	if(a) b(); else { var t36 }
+[t37]	10	if(a) b()\nelse { var t37 }
+[t37b]	10	if(a) { b() } else if(c(1)) { var t37b }
+[asi1]	10	foo(1)\n{ var asi1 }
+[asi5]	10	if(x) { foo(1)\n{ var asi5 } }
+[t40]	10	i++\n{ foo(1)\n{ var t40 } }
+[t40b]	10	i++\n{ var t40b }
+[t40c]	10	x = y - z\n{ foo(1)\n{ var t40c } }
+[t38]	10	function f(){ return\n{ foo(1)\n{ var u17 } } } var t38
+[t39]	10	x = (function(){ return { m(){ var u18 } } })(); var t39
+[t67]	10	function g(){ return { m(){ var u26 } } }\nfoo(1)\n{ var t67 }
+[s, t42]	10	var s = `${ {a:1}.a } }`; if(x) { var t42 }
+[s, t43]	10	var s = `a{b`; foo(1)\n{ var t43 }
+[s, t43b]	10	var s = `x${ y }}{`\nfoo(1)\n{ var t43b }
+[r, t44]	10	var r = /\{/; if(x) { var t44 }
+[r, t45]	10	var r = /}/g; if(x) { var t45 }
+[t46]	10	if(/{/.test(s)) { var t46 }
+[r, t47]	10	var r = /a{1,2}/\nfoo(1)\n{ var t47 }
+[r, t47b]	10	var r = /a{1,2}/\n{ foo(1)\n{ var t47b } }
+[t48]	10	s.replace(/}/, '')\n{ var t48 }
+[t41]	10	x = a / b\n{ foo(1)\n{ var t41 } }
+[t52]	10	({a, b} = o)\n{ var t52 }
+[t53]	10	var {a, b} = o\n{ var t53 }
+[t54]	10	let {m} = o; { var t54 }
+[t62]	10	void function(){ var u27 }(); var t62
+[t63]	10	!function(){ var u28 }(); var t63
+[t64]	10	x = function named(a){ var u29 }\n{ var t64 }
+[t68, v3]	10	function d(a = { k: 1 }) { var v3 } var t68
+[acc]	10	var acc = (acc || 0) + field['value']; if(acc < 0) { acc = 0; } acc
+[k1]	10	let st = { class: 'hdr', id: 1 }; if(field['id'] > 0) { var k1 = 1 } k1
+[i, k2, k3]	10	let st = { class: 'hdr' }; var k2 = 1; for(var i = 0; i < 2; i++) { var k3 = i }
+[k4]	10	let {class: c} = o; if(x) { var k4 }
+[k5, k6]	10	let st = { class: 'a' }\nvar k5\nif(x) { var k6 }
+[k7, u1]	10	let st = { class() { var u1 } }; if(x) { var k7 }
+[k8, u2]	10	let st = { get class() { var u2 } }; if(x) { var k8 }
+[k9]	10	class K { m() {} }\nvar k9
+[k10, k11]	10	class K { m() {} } var k10; if(x) { var k11 }
+[k12, u3]	10	class K { static { var u3 } } var k12
+[k13]	10	let o = { function: 1 }; var k13; if(x) { var k14 }
+[k15]	10	x = a ? b : c\n{ foo(1)\n{ var k15 } }
+[k16]	10	let o = { await: 1, yield: 2, return: 3, typeof: 4 }; if(x) { var k16 }
+[k17]	10	if(x) { let o = { class: 1 } } if(y) { var k17 }
+[t1]	13	o = { function() { var u1 } }; if(x) { var t1 }
+[t2, u2]	13	o = { class() { var u2 } }; if(x) { var t2 }
+[t3]	13	o = { var() { var u3 } }; if(x) { var t3 }
+[t4]	13	o = { get function() { var u4 } }; if(x) { var t4 }
+[t5, u5]	13	o = { set class(v) { var u5 } }; if(x) { var t5 }
+[t6]	13	o = { get var() { var u6 } }; if(x) { var t6 }
+[t7]	13	o = { async function() { var u7 } }; if(x) { var t7 }
+[t8, u8]	13	o = { *class() { var u8 } }; if(x) { var t8 }
+[]	13	class K { function = 1; class = 2; var = 3 }\nif(x) { var t9 }
+[t10]	13	class K { function() { var u10 } class() {} static var() {} }\nif(x) { var t10 }
+[t11]	13	class K { static function = function() { var u11 } }\nif(x) { var t11 }
+[t12]	13	class K { get function() { var u12 } }\nif(x) { var t12 }
+[t13]	13	o = { function: function() { var u13 } }; if(x) { var t13 }
+[t14, u14]	13	o = { class: class { m() { var u14 } } }; if(x) { var t14 }
+[t15]	13	o = { var: 1, function: 2, class: 3 }\nif(x) { var t15 }
+[t16]	13	o = { 'function': 1 }; if(x) { var t16 }
+[]	13	o = { function : 1 }; if(x) { var t17 }
+[]	13	o = { function\n: 1 }; if(x) { var t18 }
+[]	13	o = { function /*c*/ : 1 }; if(x) { var t19 }
+[t20]	13	foo({ class: 1 })\nif(x) { var t20 }
+[t21]	13	foo({ function: 1 }, function() { var u21 })\nif(x) { var t21 }
+[]	13	let { function: f1, class: c1, var: v1 } = o\nif(x) { var t22 }
+[t23]	13	({ class: c2 } = o)\nif(x) { var t23 }
+[t24]	13	o = { class: 1 }.class\nif(x) { var t24 }
+[]	13	o = a ? { class: 1 } : { function: 2 }\nif(x) { var t25 }
+[]	13	o = [ { class: 1 }, { function: 2 } ]\nif(x) { var t26 }
+[]	13	o = { a: { class: { function: 1 } } }\nif(x) { var t27 }
+[t28]	13	if(x) { o = { class: 1 } }\nif(y) { var t28 }
+[t29]	13	switch(k) { case 1: o = { class: 1 }; break; default: { var t29 } }
+[t30]	13	async: { var t30 }
+[t31]	13	of: { var t31 }
+[t32]	13	get: { var t32 }
+[t33]	13	let: { var t33 }
+[t34]	13	yield: { var t34 }
+[t35]	13	await: { var t35 }
+[t36]	13	static: { var t36 }
+[i, t37]	13	outer: for(var i = 0; i < 2; i++) { inner: { var t37 } }
+[t38]	13	get: for(;;) { var t38; break get }
+[t39]	13	x = of\n{ var t39 }
+[t40]	13	x = async\n{ var t40 }
+[t41]	13	x = yield\n{ foo(1)\n{ var t41 } }
+[t42]	13	x = await\n{ foo(1)\n{ var t42 } }
+[t43]	13	x = of\n{ foo(1)\n{ var t43 } }
+[t44]	13	x = get\n{ foo(1)\n{ var t44 } }
+[t45]	13	i++\n{ foo(1)\n{ var t45 } }
+[t46]	13	i--\n{ foo(1)\n{ var t46 } }
+[t47]	13	foo(1)\n{ foo(2)\n{ var t47 } }
+[t48]	13	a = [1][0]\n{ foo(1)\n{ var t48 } }
+[t49]	13	a = {k: 1}\n{ foo(1)\n{ var t49 } }
+[t50]	13	a = `t${x}t`\n{ foo(1)\n{ var t50 } }
+[t51]	13	a = `t`\n{ foo(1)\n{ var t51 } }
+[t52]	13	a = /r{1}/g\n{ foo(1)\n{ var t52 } }
+[t53]	13	a = 'str'\n{ foo(1)\n{ var t53 } }
+[t54]	13	a = "s"\n{ foo(1)\n{ var t54 } }
+[t55]	13	a = x => x++\n{ foo(1)\n{ var t55 } }
+[t56]	13	a = b\n++c\n{ foo(1)\n{ var t56 } }
+[t57]	13	a = 1 +\n+b\n{ var t57 }
+[t58, u58]	13	a = `${ {m(){ var u58 }}.m() }`\nif(x) { var t58 }
+[t59]	13	a = `${ function(){ var u59 }() }`\nif(x) { var t59 }
+[t60]	13	a = `${ (() => { var u60 })() }`; if(x) { var t60 }
+[t61]	13	a = `x${ `y${ {k:1}.k }` }`; if(x) { var t61 }
+[t62]	13	if(x) { a = `${ 1 }` } if(y) { var t62 }
+[t63]	13	(function() { var u63 })()\nif(x) { var t63 }
+[t64]	13	!function() { var u64 }()\nif(x) { var t64 }
+[t65]	13	void function() { var u65 }()\nif(x) { var t65 }
+[t66]	13	;(function(){ var u66 }())\nvar t66
+[mod, t67]	13	var mod = (function() { var u67; return { m() { var u68 } } })()\nif(x) { var t67 }
+[api, t68]	13	var api = { init: function() { var u69 }, run() { var u70 } }\nif(x) { var t68 }
+[t69]	13	new function() { var u71 }\nif(x) { var t69 }
+[t70]	13	x = typeof function() { var u72 }\nif(x) { var t70 }
+[]	13	class K { function = 1 }\nif(x) { var c1 }
+[]	13	class K { function }\nif(x) { var c2 }
+[]	13	class K { function; }\nif(x) { var c3 }
+[c4]	13	class K { class = 1 }\nif(x) { var c4 }
+[c5]	13	class K { static class = 1 }\nif(x) { var c5 }
+[c6]	13	class K { var = 1 }\nif(x) { var c6 }
+[c7]	13	class K { static function = function() { var u } }\nif(x) { var c7 }
+[c8]	13	class K { f = function() { var u } }\nif(x) { var c8 }
+[c9]	13	class K { static function() { var u } }\nif(x) { var c9 }
+[c10, u]	13	class K { static class() { var u } }\nif(x) { var c10 }
+[]	13	x = class { function = 1 }\nif(x) { var c11 }
+[]	13	if(y) { class K { function = 1 } }\nif(x) { var c12 }
+[c13]	13	o = { function: function f() {} }\nif(x) { var c13 }
+[c14]	13	o = { class: class {} }\nif(x) { var c14 }
+[c15]	13	o = { function: () => { var u } }\nif(x) { var c15 }
+[c16]	13	x = yield\n{ var c16 }
+[c17]	13	x = await + 1\n{ foo(1)\n{ var c17 } }
+[c18]	13	x = a in b\n{ foo(1)\n{ var c18 } }
+[c19]	13	x = typeof\n{ foo(1)\n{ var c19 } }

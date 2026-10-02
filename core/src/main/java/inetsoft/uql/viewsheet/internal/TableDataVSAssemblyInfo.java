@@ -977,9 +977,18 @@ public abstract class TableDataVSAssemblyInfo extends DataVSAssemblyInfo
       writer.print(" tipOption=\"" + getTipOption() + "\"");
       writer.print(" tipOptionValue=\"" + getTipOptionValue() + "\"");
       writer.print(" flyClick=\"" + isFlyOnClick() + "\"");
-      writer.print(" flyClickValue=\"" + getFlyOnClickValue() + "\"");
+
+      // an unset value must not be written as the literal "null", which reloads as true
+      if(getFlyOnClickValue() != null) {
+         writer.print(" flyClickValue=\"" + getFlyOnClickValue() + "\"");
+      }
+
       writer.print(" tipClick=\"" + isTipOnClick() + "\"");
-      writer.print(" tipClickValue=\"" + getTipOnClickValue() + "\"");
+
+      if(getTipOnClickValue() != null) {
+         writer.print(" tipClickValue=\"" + getTipOnClickValue() + "\"");
+      }
+
       writer.print(" enableAdhoc=\"" + isEnableAdhoc() + "\"");
       writer.print(" enableAdhocValue=\"" + getEnableAdhocValue() + "\"");
       writer.print(" explicitTableWidth=\"" + isExplicitTableWidth() + "\"");
@@ -1009,8 +1018,19 @@ public abstract class TableDataVSAssemblyInfo extends DataVSAssemblyInfo
          setTipOptionValue(Integer.parseInt(prop));
       }
 
-      setFlyOnClickValue(Tool.getAttribute(elem, "flyClickValue"));
-      setTipOnClickValue(Tool.getAttribute(elem, "tipClickValue"));
+      // a missing value keeps the default, and "null" was written for an unset value
+      // by older versions, so it is treated the same (Bug #77413)
+      prop = Tool.getAttribute(elem, "flyClickValue");
+
+      if(prop != null && !"null".equals(prop)) {
+         setFlyOnClickValue(prop);
+      }
+
+      prop = Tool.getAttribute(elem, "tipClickValue");
+
+      if(prop != null && !"null".equals(prop)) {
+         setTipOnClickValue(prop);
+      }
 
       if((prop = getAttributeStr(elem, "enableAdhoc", "false")) != null) {
          setEnableAdhocValue(prop.equalsIgnoreCase("true"));

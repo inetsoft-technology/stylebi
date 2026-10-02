@@ -165,37 +165,40 @@ public class MaxRowsTableLens extends AbstractTableLens implements TableFilter,
     */
    @Override
    public boolean moreRows(int row) {
-      synchronized(rlock) {
-         if(table == null) {
-            throw new RuntimeException("Table is disposed: " + this);
-         }
+      // the base is read without rlock, which only guards rcount: a base that takes the
+      // script engine lock (e.g. a condition filter over a formula) must not be waited for
+      // under this monitor, while a thread holding that lock reads this lens (bug #77311)
+      TableLens table = this.table;
 
-         if(!table.moreRows(row)) {
-            return false;
-         }
-         else if(row >= max) {
-            /* move the limit message logical to VSEventUtil.addWarningText
-            String limitMessage = Catalog.getCatalog().getString("common.limited.rows",
-               max - 1);
-
-            if("true".equals(table.getProperty("analysisMaxRowApplied"))) {
-               limitMessage =
-                  Catalog.getCatalog().getString("common.limited.analysis.rows", max - 1);
-            }
-
-            boolean messageExist = Tool.existUserMessage(limitMessage);
-            Tool.addUserMessage(limitMessage);
-
-            if(!messageExist) {
-               LOG.warn(limitMessage);
-            }
-            */
-
-            return false;
-         }
-
-         return true;
+      if(table == null) {
+         throw new RuntimeException("Table is disposed: " + this);
       }
+
+      if(!table.moreRows(row)) {
+         return false;
+      }
+      else if(row >= max) {
+         /* move the limit message logical to VSEventUtil.addWarningText
+         String limitMessage = Catalog.getCatalog().getString("common.limited.rows",
+            max - 1);
+
+         if("true".equals(table.getProperty("analysisMaxRowApplied"))) {
+            limitMessage =
+               Catalog.getCatalog().getString("common.limited.analysis.rows", max - 1);
+         }
+
+         boolean messageExist = Tool.existUserMessage(limitMessage);
+         Tool.addUserMessage(limitMessage);
+
+         if(!messageExist) {
+            LOG.warn(limitMessage);
+         }
+         */
+
+         return false;
+      }
+
+      return true;
    }
 
    /**

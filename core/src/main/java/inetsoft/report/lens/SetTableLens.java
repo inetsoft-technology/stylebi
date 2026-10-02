@@ -27,10 +27,15 @@ import inetsoft.report.internal.table.*;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.internal.ColumnIndexMap;
 import inetsoft.uql.util.XIdentifierContainer;
+import inetsoft.util.Catalog;
+import inetsoft.util.MessageException;
 import inetsoft.util.ThreadPool;
 import inetsoft.util.Tool;
 import inetsoft.util.script.JavaScriptEngine;
 import inetsoft.util.script.LendableReentrantLock;
+import inetsoft.util.stall.LockStallException;
+import inetsoft.util.stall.WaitRecord;
+import inetsoft.util.stall.WaitRegistry;
 import inetsoft.util.swap.XSwappableObjectList;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -40,6 +45,7 @@ import java.io.*;
 import java.text.Format;
 import java.util.List;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -406,6 +412,8 @@ public abstract class SetTableLens
    }
 
    public void setTable(int index, TableLens table) {
+      disposed = false;
+
       if(tables.size() == index) {
          tables.add(table);
       }
@@ -431,11 +439,18 @@ public abstract class SetTableLens
 
       try {
          cancelled = !completed;
+         // a failure of a pass that started before this cancel is not a failed merge, a pass
+         // started after it is (bug #77524)
+         cancels++;
+         MergedTable old = merged;
 
-         if(merged != null) {
-            merged.dispose();
-            merged = null;
+         // close the merged table holding only cancelLock, which the merge worker never
+         // takes: the worker holds the btree monitor and takes the merged table's and this
+         // lens's monitors while it visits (bug #77397). the worker's epilogue then nulls
+         // the field and completes the rows found so far
+         if(old != null) {
             cancelled = true;
+            old.dispose();
          }
 
          for(TableLens table : tables) {
@@ -463,24 +478,33 @@ public abstract class SetTableLens
     */
    @Override
    public void invalidate() {
+      MergedTable old;
+
       synchronized(this) {
+         // a failed pass left the lens unvalidated, the next read retries at once (bug #77524)
+         failure = null;
+
          if(!validated) {
             return;
          }
 
-         if(merged != null) {
-            merged.dispose();
-            merged = null;
-         }
-
-         if(rows != null) {
-            rows.dispose();
-            rows = null;
-         }
-
+         // don't dispose the rows, a lock-free reader or the superseded worker may still
+         // hold them, and close the merged table outside of this monitor: the worker
+         // holds its btree monitor and takes this one while it visits (bug #77397)
+         old = merged;
+         merged = null;
+         rows = null;
+         lastIdx = -1;
+         lastRow = null;
          completed = false;
          validated = false;
+         stallFailure = null;
+         scannedRows = 0;
          mmap.clear();
+      }
+
+      if(old != null) {
+         old.dispose();
       }
 
       fireChangeEvent();
@@ -498,16 +522,65 @@ public abstract class SetTableLens
     * Validate the set table lens.
     */
    private void validate() throws Exception {
+      final MergedTable created;
+      final XSwappableObjectList<Row> target;
+      final int cancelGen;
+
       synchronized(this) {
          if(validated) {
             return;
          }
 
-         rows = new XSwappableObjectList<>(null);
-         validated = true;
-         merged = createMergedTable();
+         // dispose() removed (or is removing) the tables, the lens is an empty complete
+         // table then. never create a merged table (a temp file) for it (bug #77524)
+         if(disposed || tables.isEmpty()) {
+            validated = true;
+            completed = true;
+            return;
+         }
 
-         for(int i = 0; i < tables.get(0).getHeaderRowCount(); i++) {
+         // a pass failed recently, fail this read as well instead of retrying, or a reader
+         // per cell would retry (and log) once per cell (bug #77524)
+         throwRecentFailure();
+
+         // create the merged table before publishing the rows, a failure must never leave
+         // a completed empty table (bug #77524)
+         try {
+            created = createMergedTable();
+         }
+         catch(Exception ex) {
+            if(LockStallException.find(ex) != null) {
+               throw ex;
+            }
+
+            throw recordFailure(ex);
+         }
+
+         // read the header row count before publishing the pass too, a base failing here
+         // must fail the read as well (bug #77524)
+         final int headerCount;
+
+         try {
+            headerCount = tables.get(0).getHeaderRowCount();
+         }
+         catch(Exception ex) {
+            // not published, no other thread holds it
+            created.dispose();
+
+            if(LockStallException.find(ex) != null) {
+               throw ex;
+            }
+
+            throw recordFailure(ex);
+         }
+
+         rows = target = new XSwappableObjectList<>(null);
+         validated = true;
+         merged = created;
+         failure = null;
+         cancelGen = cancels;
+
+         for(int i = 0; i < headerCount; i++) {
             Row row = new Row(0, i);
             addSetRow(row);
          }
@@ -523,18 +596,89 @@ public abstract class SetTableLens
       }
 
       // blocked process
-      for(int i = 0; i < tables.size(); i++) {
-         merged.addTable(tables.get(i), i, cols);
+      try {
+         for(int i = 0; i < tables.size(); i++) {
+            created.addTable(tables.get(i), i, cols);
+         }
+      }
+      catch(Exception ex) {
+         // a stall while reading the bases on this thread fails this lens for every reader,
+         // the rows so far are never the whole table (bug #76967)
+         LockStallException stall = LockStallException.find(ex);
+
+         if(stall != null) {
+            synchronized(this) {
+               stallFailure = stall;
+
+               if(rows != null) {
+                  rows.complete();
+               }
+
+               if(merged != null && !merged.isDisposed()) {
+                  merged.dispose();
+                  merged = null;
+               }
+
+               completed = true;
+               // notify waiting consumers
+               notifyAll();
+            }
+
+            throw ex;
+         }
+
+         // any other failure is never the end of the table either. a pass that cancel(),
+         // dispose() or invalidate() ended completes (or leaves) its rows as before
+         // (bug #77524)
+         boolean failed;
+
+         synchronized(this) {
+            failed = isFailedPass(created, target, cancelGen);
+
+            if(failed) {
+               resetFailedPass(ex);
+            }
+            else if(rows == target) {
+               target.complete();
+               completed = true;
+            }
+
+            if(merged == created) {
+               merged = null;
+            }
+
+            notifyAll();
+         }
+
+         created.dispose();
+
+         if(failed) {
+            LOG.error("Failed to merge the tables of a set operation", ex);
+            throw new SetOperationException(ex);
+         }
+
+         return;
       }
 
-      final MergedTable merged2 = merged;
+      final MergedTable merged2 = created;
+      final Pass pass = new Pass(target, cancelGen);
 
       // if this is called from JavaScriptEngine.exec() or a condition filter
       // (bug #76938), the script engine is already locked. merging in a separate
       // thread would create a deadlock waiting forever for the JavaScriptEngine lock
       // to be released.
       if(JavaScriptEngine.holdsScriptLock()) {
-         merge(merged2);
+         merge(merged2, pass);
+
+         // the merge failed on this thread, fail this read too (bug #77524)
+         synchronized(this) {
+            Exception last = failure;
+
+            if(!validated && last != null) {
+               throw new SetOperationException(last);
+            }
+         }
+
          return;
       }
 
@@ -549,7 +693,7 @@ public abstract class SetTableLens
             borrower.begin();
 
             try {
-               merge(merged2);
+               merge(merged2, pass);
             }
             finally {
                borrower.end();
@@ -559,32 +703,167 @@ public abstract class SetTableLens
    }
 
    /**
+    * Check if a pass failed by itself: it is still the current pass and was not ended by
+    * cancel(), dispose() or invalidate(), whatever exception that made the pass throw.
+    * Only a cancel() since the pass started counts, the cancelled flag outlives the pass.
+    * Called holding this lens's monitor (bug #77524).
+    */
+   private boolean isFailedPass(MergedTable merged2, XSwappableObjectList<Row> target,
+                                int cancelGen)
+   {
+      return !merged2.isDisposed() && !disposed && cancels == cancelGen && rows == target;
+   }
+
+   /**
+    * Drop the rows of a failed pass and record the failure, so the readers fail instead of
+    * taking the rows so far for the whole table, and a read after the retry delay runs the
+    * pass again. Called holding this lens's monitor (bug #77524).
+    */
+   private void resetFailedPass(Exception ex) {
+      rows = null;
+      lastIdx = -1;
+      lastRow = null;
+      completed = false;
+      validated = false;
+      scannedRows = 0;
+      failure = ex;
+      failureTime = System.nanoTime();
+   }
+
+   /**
+    * Record that the merged table could not be created, nothing was published yet. Called
+    * holding this lens's monitor (bug #77524).
+    */
+   private SetOperationException recordFailure(Exception ex) {
+      failure = ex;
+      failureTime = System.nanoTime();
+      LOG.error("Failed to create the merged table of a set operation", ex);
+      return new SetOperationException(ex);
+   }
+
+   /**
+    * Rethrow the failure of the last pass until the retry delay passed. Called holding this
+    * lens's monitor (bug #77524).
+    */
+   private void throwRecentFailure() {
+      Exception last = failure;
+
+      if(last != null &&
+         System.nanoTime() - failureTime < TimeUnit.MILLISECONDS.toNanos(getFailureRetryDelay()))
+      {
+         throw new SetOperationException(last);
+      }
+   }
+
+   /**
+    * The time after a failed pass during which reads fail without running the pass again.
+    */
+   long getFailureRetryDelay() {
+      return FAILURE_RETRY_DELAY;
+   }
+
+   /**
+    * Thrown by a read of a set table lens whose merge failed, the rows so far are not the
+    * whole table (bug #77524). The message is shown to the user, so it never includes the
+    * cause (e.g. a cache file path), the cause is chained and logged.
+    */
+   static final class SetOperationException extends MessageException {
+      SetOperationException(Exception cause) {
+         super(Catalog.getCatalog().getString("common.table.getDataFailed"), cause);
+      }
+   }
+
+   /**
     * Merge the tables into the set rows.
     */
-   private void merge(MergedTable merged2) {
+   private void merge(MergedTable merged2, Pass pass) {
+      LockStallException stall = null;
+      Exception error = null;
+
       try {
-         merged2.accept(getVisitor());
+         MergedTable.Visitor visitor = getVisitor(pass);
+
+         // count the visited rows, the worker's progress for the lock-stall watchdog, it may
+         // add few rows (e.g. intersect) (bug #76967)
+         merged2.accept(visitor == null ? null : row -> {
+            scannedRows++;
+            visitor.visit(row);
+         });
       }
       catch(InterruptedException ex) {
          // ignore it
       }
+      catch(LockStallException ex) {
+         // logged by the wait site; the readers rethrow it rather than take the rows so far
+         // for the whole table (bug #76967). kept only if this pass is current (bug #77397)
+         stall = ex;
+      }
       catch(Exception ex) {
+         // a stall may reach the worker wrapped by the base table (bug #76967)
+         stall = LockStallException.find(ex);
+
+         if(stall == null) {
+            error = ex;
+         }
+
          LOG.error("Failed to merge tables", ex);
       }
 
+      // complete only this pass's own rows, a superseded pass must not complete (or fail)
+      // the next pass's rows. a cancelled pass (merged2 disposed) still completes the rows
+      // found so far, or its readers would wait forever (bug #77397)
       synchronized(SetTableLens.this) {
-         if(rows != null) {
-            rows.complete();
-         }
-
-         if(!merged2.isDisposed()) {
-            merged.dispose();
-            merged = null;
-            completed = true;
-            // notify waiting consumers
+         // the rows found before a failure are not the whole table, the readers fail and a
+         // later read runs the pass again (bug #77524)
+         if(error != null && isFailedPass(merged2, pass.target, pass.cancelGen)) {
+            resetFailedPass(error);
             SetTableLens.this.notifyAll();
          }
+         else if(rows == pass.target) {
+            if(stall != null) {
+               stallFailure = stall;
+            }
+
+            pass.target.complete();
+            completed = true;
+            SetTableLens.this.notifyAll();
+         }
+
+         if(merged == merged2) {
+            merged = null;
+         }
       }
+
+      merged2.dispose();
+   }
+
+   /**
+    * The rows of one merge pass. A visitor adds through its pass, so a pass superseded by
+    * invalidate() never adds to the rows of the next pass (bug #77397).
+    */
+   protected final class Pass {
+      Pass(XSwappableObjectList<Row> target, int cancelGen) {
+         this.target = target;
+         this.cancelGen = cancelGen;
+      }
+
+      /**
+       * Add a row to this pass's rows, or stop the visit once invalidate() replaced them.
+       */
+      public void add(Row row) throws InterruptedException {
+         if(rows != target) {
+            throw new InterruptedException("superseded");
+         }
+
+         target.add(row);
+      }
+
+      public int size() {
+         return target.size();
+      }
+
+      final XSwappableObjectList<Row> target;
+      final int cancelGen; // cancels when the pass started
    }
 
    /**
@@ -599,22 +878,45 @@ public abstract class SetTableLens
     */
    @Override
    public boolean moreRows(int row) {
+      WaitRecord record = null;
+      // the failure of an earlier pass, this read retries it and fails only on a new one
+      Exception oldFailure = failure;
+
       try {
          while(true) {
+            // no loan and no monitor is held here, so a stall exception leaks neither
+            // (bug #76967)
+            if(record != null) {
+               record.checkStall();
+            }
+
             LendableReentrantLock.Borrower lendTo;
 
             synchronized(this) {
+               Exception last = failure;
+
+               // the pass this read waited for failed, fail even if the retry delay passed
+               // (bug #77524)
+               if(!validated && last != null && last != oldFailure) {
+                  throw new SetOperationException(last);
+               }
+
                validate();
 
-               if(rows != null && row < rows.size() || completed) {
-                  return rows != null && row < rows.size();
+               if(rows != null && row < rows.size()) {
+                  return true;
+               }
+
+               if(completed) {
+                  throwStallFailure();
+                  return false;
                }
 
                lendTo = worker;
 
-               if(!JavaScriptEngine.canLendScriptLocks(lendTo)) {
+               if(record != null && !JavaScriptEngine.canLendScriptLocks(lendTo)) {
                   try {
-                     wait(50);
+                     wait(record.waitMillis(50));
                   }
                   catch(InterruptedException ex) {
                      // ignore it
@@ -622,6 +924,14 @@ public abstract class SetTableLens
 
                   continue;
                }
+            }
+
+            // the row is not there yet, register the wait (outside of the monitor) and check
+            // again
+            if(record == null) {
+               record = WaitRegistry.begin("SetTableLens.moreRows", this::getWorkerProgress,
+                                           this::getWorkerThreads);
+               continue;
             }
 
             // this thread holds or was lent a script engine lock (e.g. by a condition filter)
@@ -632,7 +942,7 @@ public abstract class SetTableLens
                synchronized(this) {
                   if((rows == null || row >= rows.size()) && !completed) {
                      try {
-                        wait(50);
+                        wait(record.waitMillis(50));
                      }
                      catch(InterruptedException ex) {
                         // ignore it
@@ -642,7 +952,20 @@ public abstract class SetTableLens
             }
          }
       }
+      catch(LockStallException | SetOperationException ex) {
+         // a stall fails the query, it is never the end of the table (bug #76967), neither
+         // is a failed merge (bug #77524)
+         throw ex;
+      }
       catch(Exception ex) {
+         // a stall may reach this thread wrapped, it is never the end of the table either
+         // (bug #76967)
+         LockStallException stall = LockStallException.find(ex);
+
+         if(stall != null) {
+            throw new LockStallException(stall);
+         }
+
          synchronized(this) {
             completed = true;
          }
@@ -650,6 +973,40 @@ public abstract class SetTableLens
          LOG.error("Failed to validate rows when checking if row " +
             "is available: " + row, ex);
          return false;
+      }
+      finally {
+         if(record != null) {
+            record.close();
+         }
+      }
+   }
+
+   /**
+    * Progress of the worker for the lock-stall watchdog: rows added plus rows visited. Read
+    * without this lens's monitor, so a stall check never blocks on it.
+    */
+   private long getWorkerProgress() {
+      XSwappableObjectList<Row> list = rows;
+      return (list == null ? 0 : list.size()) + (long) scannedRows;
+   }
+
+   /**
+    * The worker thread, for the lock-stall watchdog.
+    */
+   private Thread[] getWorkerThreads() {
+      LendableReentrantLock.Borrower task = worker;
+      return new Thread[] { task == null ? null : task.getThread() };
+   }
+
+   /**
+    * Rethrow the stall the worker failed with, called when the table is complete. A stall
+    * must never look like the end of the table (bug #76967).
+    */
+   private void throwStallFailure() {
+      LockStallException failure = stallFailure;
+
+      if(failure != null) {
+         throw new LockStallException(failure);
       }
    }
 
@@ -664,9 +1021,33 @@ public abstract class SetTableLens
       try {
          validate();
 
-         return completed ? rows.size() : -rows.size() - 1;
+         if(completed) {
+            // the rows so far of a stalled worker are not the whole table (bug #76967)
+            throwStallFailure();
+         }
+
+         XSwappableObjectList<Row> list = rows;
+
+         // only dispose() leaves no rows once validated, report the empty complete table that
+         // moreRows() reports instead of -1 (still loading) and an error (bug #77397)
+         if(list == null) {
+            return 0;
+         }
+
+         return completed ? list.size() : -list.size() - 1;
+      }
+      catch(LockStallException | SetOperationException ex) {
+         throw ex;
       }
       catch(Exception ex) {
+         // a stall may reach this thread wrapped, it is never the end of the table either
+         // (bug #76967)
+         LockStallException stall = LockStallException.find(ex);
+
+         if(stall != null) {
+            throw new LockStallException(stall);
+         }
+
          completed = true;
          LOG.error("Failed to validate table rows when getting " +
             "row count", ex);
@@ -748,7 +1129,12 @@ public abstract class SetTableLens
     */
    @Override
    public final boolean isNull(int r, int c) {
-      Row row = getRow(r);
+      Row row = findRow(r);
+
+      if(row == null) {
+         return true;
+      }
+
       TableLens table = tables.get(row.getTable());
       return table.isNull(row.getRow(), c);
    }
@@ -765,7 +1151,12 @@ public abstract class SetTableLens
          return null;
       }
 
-      Row row = getRow(r);
+      Row row = findRow(r);
+
+      if(row == null) {
+         return null;
+      }
+
       TableLens table = tables.get(row.getTable());
       return table.getObject(row.getRow(), c);
    }
@@ -778,7 +1169,12 @@ public abstract class SetTableLens
     */
    @Override
    public final double getDouble(int r, int c) {
-      Row row = getRow(r);
+      Row row = findRow(r);
+
+      if(row == null) {
+         return 0;
+      }
+
       TableLens table = tables.get(row.getTable());
       return table.getDouble(row.getRow(), c);
    }
@@ -791,7 +1187,12 @@ public abstract class SetTableLens
     */
    @Override
    public final float getFloat(int r, int c) {
-      Row row = getRow(r);
+      Row row = findRow(r);
+
+      if(row == null) {
+         return 0;
+      }
+
       TableLens table = tables.get(row.getTable());
       return table.getFloat(row.getRow(), c);
    }
@@ -804,7 +1205,12 @@ public abstract class SetTableLens
     */
    @Override
    public final long getLong(int r, int c) {
-      Row row = getRow(r);
+      Row row = findRow(r);
+
+      if(row == null) {
+         return 0;
+      }
+
       TableLens table = tables.get(row.getTable());
       return table.getLong(row.getRow(), c);
    }
@@ -817,7 +1223,12 @@ public abstract class SetTableLens
     */
    @Override
    public final int getInt(int r, int c) {
-      Row row = getRow(r);
+      Row row = findRow(r);
+
+      if(row == null) {
+         return 0;
+      }
+
       TableLens table = tables.get(row.getTable());
       return table.getInt(row.getRow(), c);
    }
@@ -830,7 +1241,12 @@ public abstract class SetTableLens
     */
    @Override
    public final short getShort(int r, int c) {
-      Row row = getRow(r);
+      Row row = findRow(r);
+
+      if(row == null) {
+         return 0;
+      }
+
       TableLens table = tables.get(row.getTable());
       return table.getShort(row.getRow(), c);
    }
@@ -843,7 +1259,12 @@ public abstract class SetTableLens
     */
    @Override
    public final byte getByte(int r, int c) {
-      Row row = getRow(r);
+      Row row = findRow(r);
+
+      if(row == null) {
+         return 0;
+      }
+
       TableLens table = tables.get(row.getTable());
       return table.getByte(row.getRow(), c);
    }
@@ -856,7 +1277,12 @@ public abstract class SetTableLens
     */
    @Override
    public final boolean getBoolean(int r, int c) {
-      Row row = getRow(r);
+      Row row = findRow(r);
+
+      if(row == null) {
+         return false;
+      }
+
       TableLens table = tables.get(row.getTable());
       return table.getBoolean(row.getRow(), c);
    }
@@ -932,7 +1358,12 @@ public abstract class SetTableLens
          return;
       }
 
-      Row row = getRow(r);
+      Row row = findRow(r);
+
+      if(row == null) {
+         return;
+      }
+
       TableLens table = tables.get(row.getTable());
       table.setObject(row.getRow(), c, v);
    }
@@ -950,7 +1381,12 @@ public abstract class SetTableLens
          return -1;
       }
 
-      Row row = getRow(r);
+      Row row = findRow(r);
+
+      if(row == null) {
+         return -1;
+      }
+
       TableLens table = tables.get(row.getTable());
       return table.getRowHeight(row.getRow());
    }
@@ -984,7 +1420,12 @@ public abstract class SetTableLens
          return null;
       }
 
-      Row row = getRow(r);
+      Row row = findRow(r);
+
+      if(row == null) {
+         return null;
+      }
+
       TableLens table = tables.get(row.getTable());
       return table.getRowBorderColor(row.getRow(), c);
    }
@@ -1001,7 +1442,12 @@ public abstract class SetTableLens
          return null;
       }
 
-      Row row = getRow(r);
+      Row row = findRow(r);
+
+      if(row == null) {
+         return null;
+      }
+
       TableLens table = tables.get(row.getTable());
       return table.getColBorderColor(row.getRow(), c);
    }
@@ -1021,7 +1467,12 @@ public abstract class SetTableLens
          return -1;
       }
 
-      Row row = getRow(r);
+      Row row = findRow(r);
+
+      if(row == null) {
+         return -1;
+      }
+
       TableLens table = tables.get(row.getTable());
       return table.getRowBorder(row.getRow(), c);
    }
@@ -1041,7 +1492,12 @@ public abstract class SetTableLens
          return -1;
       }
 
-      Row row = getRow(r);
+      Row row = findRow(r);
+
+      if(row == null) {
+         return -1;
+      }
+
       TableLens table = tables.get(row.getTable());
       return table.getColBorder(row.getRow(), c);
    }
@@ -1058,7 +1514,12 @@ public abstract class SetTableLens
          return null;
       }
 
-      Row row = getRow(r);
+      Row row = findRow(r);
+
+      if(row == null) {
+         return null;
+      }
+
       TableLens table = tables.get(row.getTable());
       return table.getInsets(row.getRow(), c);
    }
@@ -1079,7 +1540,12 @@ public abstract class SetTableLens
          return null;
       }
 
-      Row row = getRow(r);
+      Row row = findRow(r);
+
+      if(row == null) {
+         return null;
+      }
+
       TableLens table = tables.get(row.getTable());
       return table.getSpan(row.getRow(), c);
    }
@@ -1096,7 +1562,12 @@ public abstract class SetTableLens
          return -1;
       }
 
-      Row row = getRow(r);
+      Row row = findRow(r);
+
+      if(row == null) {
+         return -1;
+      }
+
       TableLens table = tables.get(row.getTable());
       return table.getAlignment(row.getRow(), c);
    }
@@ -1113,7 +1584,12 @@ public abstract class SetTableLens
          return null;
       }
 
-      Row row = getRow(r);
+      Row row = findRow(r);
+
+      if(row == null) {
+         return null;
+      }
+
       TableLens table = tables.get(row.getTable());
       return table.getFont(row.getRow(), c);
    }
@@ -1132,7 +1608,12 @@ public abstract class SetTableLens
          return false;
       }
 
-      Row row = getRow(r);
+      Row row = findRow(r);
+
+      if(row == null) {
+         return false;
+      }
+
       TableLens table = tables.get(row.getTable());
       return table.isLineWrap(row.getRow(), c);
    }
@@ -1150,7 +1631,12 @@ public abstract class SetTableLens
          return null;
       }
 
-      Row row = getRow(r);
+      Row row = findRow(r);
+
+      if(row == null) {
+         return null;
+      }
+
       TableLens table = tables.get(row.getTable());
       return table.getForeground(row.getRow(), c);
    }
@@ -1168,7 +1654,12 @@ public abstract class SetTableLens
          return null;
       }
 
-      Row row = getRow(r);
+      Row row = findRow(r);
+
+      if(row == null) {
+         return null;
+      }
+
       TableLens table = tables.get(row.getTable());
       return table.getBackground(row.getRow(), c);
    }
@@ -1177,7 +1668,7 @@ public abstract class SetTableLens
     * Get the merged table visitor.
     * @return the merged table visitor.
     */
-   protected abstract MergedTable.Visitor getVisitor();
+   protected abstract MergedTable.Visitor getVisitor(Pass pass);
 
    /**
     * Finalize the set table lens.
@@ -1192,8 +1683,31 @@ public abstract class SetTableLens
     * Dispose the set table lens.
     */
    @Override
-   public synchronized void dispose() {
-      disposeResources();
+   public void dispose() {
+      MergedTable old;
+
+      // close the merged table outside of this monitor (bug #77397), and end the waits of
+      // the readers
+      synchronized(this) {
+         // disposeTables() below runs outside of this monitor, a first read meanwhile must
+         // not merge the tables being disposed (bug #77524)
+         disposed = true;
+         old = merged;
+         merged = null;
+
+         if(rows != null) {
+            rows.dispose();
+            rows = null;
+         }
+
+         completed = true;
+         notifyAll();
+      }
+
+      if(old != null) {
+         old.dispose();
+      }
+
       disposeTables();
    }
 
@@ -1249,16 +1763,49 @@ public abstract class SetTableLens
     * @return the associated row object.
     */
    protected synchronized Row getRow(int row) {
-      if(lastIdx == row) {
+      XSwappableObjectList<Row> list = rows;
+
+      if(lastIdx == row && lastList == list && lastRow != null) {
          return lastRow;
       }
 
       if(row < 0) {
-         return lastRow = new Row(0, lastIdx = row);
+         return new Row(0, row);
       }
 
-      return lastRow = rows.get(lastIdx = row);
+      // cache only a row found in the current rows, keyed by the list, a failed lookup must
+      // not leave another row cached for this index (bug #77397)
+      if(list == null || row >= list.size()) {
+         return null;
+      }
+
+      Row result = list.get(row);
+
+      if(result != null) {
+         lastIdx = row;
+         lastRow = result;
+         lastList = list;
+      }
+
+      return result;
    }
+
+   /**
+    * Get the row object, waiting for the row if it is not loaded yet. Called without this
+    * lens's monitor, moreRows() may lend the script engine lock (bug #76938). Returns null
+    * if the row does not exist, e.g. after invalidate() the rows are rebuilt (bug #77397).
+    */
+   private Row findRow(int r) {
+      for(int retry = 0; ; retry++) {
+         Row row = getRow(r);
+
+         if(row != null || retry >= 100 || !moreRows(r)) {
+            return row;
+         }
+      }
+   }
+
+   private transient XSwappableObjectList<Row> lastList;
 
    protected boolean isSetRowsInitialized() {
       return rows != null;
@@ -1329,16 +1876,25 @@ public abstract class SetTableLens
    private List<TableChangeListener> clisteners = new ArrayList<>();
    private transient TableChangeEvent event;
 
-   private XSwappableObjectList<Row> rows; // rows
+   private volatile XSwappableObjectList<Row> rows; // rows
    private int ccount;                  // column count
-   private MergedTable merged;          // temporary merged table
+   private volatile MergedTable merged;          // temporary merged table
    private final List<TableLens> tables = new ArrayList<>();
    private boolean completed;           // completed flag
    private volatile boolean cancelled;           // cancelled flag
+   private volatile int cancels;                 // cancel() count, under cancelLock
+   private volatile boolean disposed;            // dispose() called
    private final Lock cancelLock = new ReentrantLock();
    private boolean validated = false;   // validated flag
    // the background task merging the tables, if any
    private transient volatile LendableReentrantLock.Borrower worker;
+   // the merged rows the worker visited, and the stall it failed with (bug #76967)
+   private transient volatile int scannedRows;
+   private transient volatile LockStallException stallFailure;
+   // the failure of the last pass and when it failed (bug #77524)
+   private transient volatile Exception failure;
+   private transient long failureTime;
+   private static final long FAILURE_RETRY_DELAY = 1000L;
 
    // optimization
    private transient Row lastRow = null;

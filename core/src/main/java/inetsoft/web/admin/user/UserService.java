@@ -166,7 +166,33 @@ public class UserService
          .collect(Collectors.toList());
    }
 
-   void logoutSession(String address, String[] sessionIds) {
+   void logoutSession(String address, String[] sessionIds, Principal principal) {
+      if(sessionIds == null || sessionIds.length == 0) {
+         return;
+      }
+
+      // only allow logging out sessions that the caller can see in the session list
+      Set<String> visible = getServerSessionModel(address, principal).stream()
+         .map(UserSessionMonitoringTableModel::sessionID)
+         .collect(Collectors.toSet());
+      List<String> allowed = new ArrayList<>();
+
+      for(String sessionId : sessionIds) {
+         if(visible.contains(sessionId)) {
+            allowed.add(sessionId);
+         }
+         else {
+            LOG.warn("User {} is not permitted to log out session: {}",
+                     principal == null ? null : principal.getName(), sessionId);
+         }
+      }
+
+      if(allowed.isEmpty()) {
+         return;
+      }
+
+      sessionIds = allowed.toArray(new String[0]);
+
       try {
          if(StringUtils.isEmpty(address)) {
             logout(sessionIds);

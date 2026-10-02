@@ -16,7 +16,7 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 #
 
-FROM eclipse-temurin:21.0.8_9-jdk
+FROM eclipse-temurin:21.0.12_8-jdk-noble
 
 ENV JAVA_MEMORY_OPTS='-XX:MaxRAMPercentage=75.0'
 ENV JAVA_GC_OPTS='-XX:+AlwaysPreTouch -XX:+UseG1GC -XX:+ScavengeBeforeFullGC -XX:+DisableExplicitGC'

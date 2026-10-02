@@ -25,6 +25,7 @@ import inetsoft.uql.asset.*;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.jdbc.JDBCQuery;
 import inetsoft.uql.jdbc.UniformSQL;
+import inetsoft.util.script.graal.pool.SlotClaim;
 
 /**
  * Data query retrieves table data from the table.
@@ -65,15 +66,18 @@ public class DataQuery extends AssetQuery {
     */
    @Override
    public TableLens getTableLens(VariableTable vars) throws Exception {
-      TableLens data = getPostBaseTableLens(vars);
-      data = new TableFilter2(data);
-      data = getSortTableLens(data, vars);
+      // one pooled script claim for the build, as AssetQuery's (G10 piece Q)
+      try(SlotClaim.Build ignored = openScriptBuild()) {
+         TableLens data = getPostBaseTableLens(vars);
+         data = new TableFilter2(data);
+         data = getSortTableLens(data, vars);
 
-      if((mode & AssetQuerySandbox.RUNTIME_MODE) != 0) {
-         data = getVisibleTableLens(data, vars);
+         if((mode & AssetQuerySandbox.RUNTIME_MODE) != 0) {
+            data = getVisibleTableLens(data, vars);
+         }
+
+         return data;
       }
-
-      return data;
    }
 
    /**

@@ -397,9 +397,9 @@ public class DataSetService {
    {
       updateEntryCreationDetails(entry);
       String modifiedDateLabel = entry.getModifiedDate() == null ? "" :
-         new SimpleDateFormat(SreeEnv.getProperty("format.date.time")).format(entry.getModifiedDate());
+         gregorianDateFormat().format(entry.getModifiedDate());
       String createdDateLabel = entry.getCreatedDate() == null ? "" :
-         new SimpleDateFormat(SreeEnv.getProperty("format.date.time")).format(entry.getCreatedDate());
+         gregorianDateFormat().format(entry.getCreatedDate());
       boolean admin = checkAssetPermission(principal, entry, ResourceAction.ADMIN);
       String parentPath = entry.getParentPath();
 
@@ -480,9 +480,9 @@ public class DataSetService {
       boolean canWorksheet = securityProvider.checkPermission(
          principal, ResourceType.WORKSHEET, "*", ResourceAction.ACCESS);
       String modifiedDateLabel = entry.getModifiedDate() == null ? "" :
-         new SimpleDateFormat(SreeEnv.getProperty("format.date.time")).format(entry.getModifiedDate());
+         gregorianDateFormat().format(entry.getModifiedDate());
       String createdDateLabel = entry.getCreatedDate() == null ? "" :
-         new SimpleDateFormat(SreeEnv.getProperty("format.date.time")).format(entry.getCreatedDate());
+         gregorianDateFormat().format(entry.getCreatedDate());
 
       String parentPath = entry.getParentPath();
 
@@ -869,6 +869,18 @@ public class DataSetService {
       String val = entry.getProperty(AssetEntry.WORKSHEET_TYPE);
       val = val == null ? Worksheet.TABLE_ASSET + "" : val;
       return Integer.parseInt(val);
+   }
+
+   /**
+    * Bug #77566: a locale-less SimpleDateFormat uses the JVM default locale's calendar (e.g.
+    * Buddhist for th_TH, Japanese imperial for ja_JP_JP) for the modified/created date label
+    * built fresh on each request -- the label is display-only and never parsed back, so forcing
+    * Gregorian here only fixes the displayed year.
+    */
+   private static SimpleDateFormat gregorianDateFormat() {
+      SimpleDateFormat format = new SimpleDateFormat(SreeEnv.getProperty("format.date.time"));
+      format.setCalendar(new GregorianCalendar());
+      return format;
    }
 
    /**
@@ -1419,8 +1431,11 @@ public class DataSetService {
             securityProvider.setPermission(ResourceType.ASSET, newEntry.getPath(), oldPermission);
          }
 
+         // A private folder has no path-keyed permission of its own (oldPermission is the
+         // same-named global folder's), so don't record it for a later restore.
          recycleBin.addEntry(newEntry.getPath(), entry.getPath(), entry.getName(),
-                             oldPermission, RepositoryEntry.WORKSHEET_FOLDER, entry.getScope(), entry.getUser());
+                             entry.getScope() == AssetRepository.GLOBAL_SCOPE ? oldPermission : null,
+                             RepositoryEntry.WORKSHEET_FOLDER, entry.getScope(), entry.getUser());
          worksheetRootTableAssembliesCache.invalidateAll();
       }
    }
@@ -1621,6 +1636,16 @@ public class DataSetService {
          newEntry.toIdentifier(), (RenameInfo.ASSET | RenameInfo.SOURCE));
       renameTransformHandler.addTransformTask(rinfo);
       dependencyHandler.renameDependencies(oldEntry, newEntry);
+
+      // Permissions are only keyed by path for global-scope assets. A private worksheet shares
+      // its path namespace with a same-named global worksheet, so writing the permission here
+      // for a private source or target would overwrite (or clear) the global worksheet's
+      // permission. See AbstractAssetEngine.updatePermission().
+      if(oldEntry.getScope() == AssetRepository.GLOBAL_SCOPE &&
+         newEntry.getScope() == AssetRepository.GLOBAL_SCOPE)
+      {
+         securityEngine.setPermission(ResourceType.ASSET, newPath, oldPermission);
+      }
       securityEngine.setPermission(ResourceType.ASSET, newPath, oldPermission);
       invalidateWorksheetMetadata(oldEntry);
       invalidateWorksheetMetadata(newEntry);
@@ -1717,7 +1742,10 @@ public class DataSetService {
 
       SecurityEngine.touch();
 
-      recycleBin.addEntry(newEntry.getPath(), oldEntry.getPath(), oldEntry.getName(), permission,
+      // A private worksheet has no path-keyed permission of its own (permission is the
+      // same-named global worksheet's), so don't record it for a later restore.
+      recycleBin.addEntry(newEntry.getPath(), oldEntry.getPath(), oldEntry.getName(),
+                          oldEntry.getScope() == AssetRepository.GLOBAL_SCOPE ? permission : null,
                           RepositoryEntry.WORKSHEET, oldEntry.getScope(), oldEntry.getUser());
    }
 

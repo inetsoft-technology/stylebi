@@ -26,6 +26,7 @@ import inetsoft.uql.XTable;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.util.XEmbeddedTable;
 import inetsoft.util.script.ScriptUtil;
+import inetsoft.util.stall.LockStallException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -124,6 +125,14 @@ public class TableAssemblyScriptable extends TableArray {
       return true;
    }
 
+   /**
+    * In pool mode (bug #76960) each pooled context keeps its own row window.
+    */
+   @Override
+   protected boolean usePerSlotWindows() {
+      return box != null && box.isScriptPoolMode();
+   }
+
    @Override
    public XTable getElementTable() {
       // @by billh, fix customer bug bug1300398961679
@@ -134,6 +143,13 @@ public class TableAssemblyScriptable extends TableArray {
          return table;
       }
       catch(Exception ex) {
+         // a lock stall is not a missing table, which TableArray reads as an empty one (#77123)
+         LockStallException stall = LockStallException.find(ex);
+
+         if(stall != null) {
+            throw stall;
+         }
+
          // ignore if box has been disposed
          if(!box.isDisposed()) {
             LOG.warn("Failed to get table", ex);

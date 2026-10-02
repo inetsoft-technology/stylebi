@@ -1057,13 +1057,22 @@ public abstract class AbstractVSExporter implements VSExporter {
          }
 
          int displayRowCount = 0;
-         boolean[] significantColumns = findSignificantColumns(data, hLineCount);
+         // fix bug#77237 The bug#53192 blank-row exemption below is decided by
+         // isBlankRowHeightExempt(): crosstabs only by default (bug#53192 was a
+         // date-comparison crosstab), and off for exporters whose writers do not clip at the
+         // design pixel height (bug#77287). In freehand (calc), plain and embedded tables a
+         // blank cell is ordinary data (a formula returning '', a sparse column, a spacer
+         // row) and the row is still written, so every row counts toward the design height
+         // budget; exempting it lets the export overflow into the assemblies below.
+         boolean exemptBlankRows = isBlankRowHeightExempt(table);
+         boolean[] significantColumns =
+            exemptBlankRows ? findSignificantColumns(data, hLineCount) : null;
 
          for(int i = hLineCount; i < data.getRowCount(); i++) {
             // fix bug#53192 If the current line contains a null value, the line should not be displayed when export,
             // so the total line height should not accumulate the current line height.
             // When calculating the number of display rows, should add the current row.
-            if(!checkDisplayRow(data, i, significantColumns)) {
+            if(exemptBlankRows && !checkDisplayRow(data, i, significantColumns)) {
                displayRowCount++;
 
                continue;
@@ -1109,6 +1118,21 @@ public abstract class AbstractVSExporter implements VSExporter {
          data.moreRows(Integer.MAX_VALUE);
          return data.getRowCount();
       }
+   }
+
+   /**
+    * Determine whether getRegionRowCount() applies the bug#53192 blank-row exemption to
+    * the specified table, i.e. whether a data row with a blank cell is left out of the
+    * design-height budget (but still included in the returned row count).
+    * <p>
+    * fix bug#77287 The exemption only inflates the region row count, which is harmless for
+    * exporters whose writers clip each table at its design pixel height (PDF, SVG, PNG).
+    * Exporters whose writers do not clip at the design pixel height (Excel, PowerPoint)
+    * write every row of the region lens, so they must override this to return false,
+    * otherwise the table overflows its design height into the assemblies below.
+    */
+   protected boolean isBlankRowHeightExempt(TableDataVSAssembly table) {
+      return table instanceof CrosstabVSAssembly;
    }
 
    private boolean checkDisplayRow(TableLens tableLens, int row, boolean[] significantColumns) {
@@ -1214,6 +1238,7 @@ public abstract class AbstractVSExporter implements VSExporter {
    {
       this.index = index;
       this.box = box;
+      expandedCharts.clear();
       Viewsheet origViewsheet = box.getViewsheet();
       Viewsheet rvsOrigViewsheet = rvs != null ? rvs.getViewsheet() : null;
 
@@ -1536,10 +1561,10 @@ public abstract class AbstractVSExporter implements VSExporter {
                   data = data == null && pair != null ? pair.getData() : data;
 
                   VGraph graph = null;
+                  boolean realSize = isRealSizeChart(name);
 
                   if(data != null && !(data.getRowCount() <= 0 && data.getColCount() <= 0)) {
-                     graph = !isMatchLayout() && supportChartSlices() ?
-                        pair.getExpandedVGraph() : pair.getRealSizeVGraph();
+                     graph = getChartGraph(name, pair);
                   }
 
                   Hyperlink emptyPlotLink = info.getEmptyPlotLinkValue();
@@ -1567,7 +1592,7 @@ public abstract class AbstractVSExporter implements VSExporter {
                         writeChart(chart, graph, data, imgOnly);
                      }
                      else {
-                        writeSliceChart(chart, data, pair, isMatchLayout(), imgOnly);
+                        writeSliceChart(chart, data, pair, realSize, imgOnly);
                      }
                   }
 
@@ -1663,12 +1688,36 @@ public abstract class AbstractVSExporter implements VSExporter {
    }
 
    /**
+    * Check if the real size graph should be written for the chart instead of the
+    * expanded graph.
+    * @param name the absolute name of the chart assembly.
+    */
+   protected boolean isRealSizeChart(String name) {
+      // the chart assembly has been expanded to show the whole chart. the pair is
+      // re-generated at the expanded size and the real size graph is laid out to fill
+      // the expanded assembly. the expanded graph of the new pair may still be larger
+      // than the assembly (e.g. the plot resize ratio is a percent of the current plot
+      // size, or the size is capped) and would be clipped. (77224)
+      return isMatchLayout() || expandedCharts.contains(name);
+   }
+
+   /**
+    * Get the graph to write for the chart.
+    * @param name the absolute name of the chart assembly.
+    * @param pair the graph pair of the chart.
+    */
+   protected VGraph getChartGraph(String name, VGraphPair pair) {
+      return !isRealSizeChart(name) && supportChartSlices() ?
+         pair.getExpandedVGraph() : pair.getRealSizeVGraph();
+   }
+
+   /**
     * Write slice chart.
     */
    protected void writeSliceChart(ChartVSAssembly assembly, DataSet data,
                                   VGraphPair pair, boolean match,
                                   boolean imgOnly) {
-      VGraph graph = pair.getExpandedVGraph();
+      VGraph graph = match ? pair.getRealSizeVGraph() : pair.getExpandedVGraph();
       ChartVSAssembly nassembly = assembly.clone();
       ChartVSAssemblyInfo ninfo = (ChartVSAssemblyInfo) nassembly.getVSAssemblyInfo();
       Viewsheet vs = ninfo.getViewsheet();
@@ -2198,6 +2247,10 @@ public abstract class AbstractVSExporter implements VSExporter {
 
          if(!hchanged) {
             pixelsize2.height = pixelsize.height;
+         }
+
+         if(wchanged || hchanged) {
+            expandedCharts.add(name);
          }
 
          info.setPixelSize(pixelsize2);
@@ -3005,9 +3058,13 @@ public abstract class AbstractVSExporter implements VSExporter {
    }
 
    /**
-    * Get row/column count to insert, the result will be more minus
-    * those assemblies which has been insert row/column, but not cause the
-    * current object to move.
+    * Get row/column count to insert. The result is more minus the row/columns a
+    * previous insert already added directly below (or right of) this assembly,
+    * i.e. only those recorded at a position inside {@code (top, bottom]} of this
+    * assembly. An insert at or before the assembly's top moved the assembly
+    * itself along with everything after it, and an insert after its bottom left
+    * the assemblies in between where they were; neither opened room here, so
+    * neither is netted out.
     * @param expanded the row/column insert map.
     * @param obj the object assembly cause the viewsheet to insert row/column.
     * @param size the obj assembly old grid size.
@@ -3035,14 +3092,20 @@ public abstract class AbstractVSExporter implements VSExporter {
       }
 
       int start = exprow ? obj.getPixelOffset().y : obj.getPixelOffset().x;
+      // the position this assembly inserts at, same as the key used in addMore()
+      int insertPos = start + (exprow ? size.height : size.width);
       int added = 0;
       Iterator<Integer> iterator = keys.iterator();
 
       while(iterator.hasNext()) {
          int pos = iterator.next();
 
-         // the insert place not cause current assembly move
-         if(pos > start) {
+         // only an earlier insert made at a position inside (start, insertPos] added
+         // room directly below/right of this assembly: an insert at or before start
+         // moved this assembly together with everything after it, and an insert after
+         // insertPos left the assemblies between insertPos and that position where
+         // they were, so netting it out here under-shifts them. (77208, 71211)
+         if(pos > start && pos <= insertPos) {
             added += vexpand.get(pos);
          }
       }
@@ -3162,8 +3225,6 @@ public abstract class AbstractVSExporter implements VSExporter {
     * @param exprow inset row or column.
     */
    private void insert(VSAssembly obj, Dimension size, int more, boolean exprow) {
-      int omore = more;
-
       if(more > 0) {
          more = getMore(exprow ? rmap : cmap, obj, size, more, exprow);
       }
@@ -3174,7 +3235,7 @@ public abstract class AbstractVSExporter implements VSExporter {
 
       addMore(exprow ? rmap : cmap, obj, size, more, exprow);
       Dimension oldSize = getViewsheetSize(obj.getViewsheet(), true);
-      moveAssemblies(obj, size, omore, more, exprow);
+      moveAssemblies(obj, size, more, exprow);
       addGrid(obj, size, more, exprow);
       expandParent(obj.getViewsheet(), oldSize, exprow);
    }
@@ -3186,7 +3247,7 @@ public abstract class AbstractVSExporter implements VSExporter {
     * @param more move row/column count.
     * @param exprow to move row or column direction.
     */
-   protected void moveAssemblies(VSAssembly obj, Dimension size, int omore, int more, boolean exprow) {
+   protected void moveAssemblies(VSAssembly obj, Dimension size, int more, boolean exprow) {
       Viewsheet vs = obj == null ? null : obj.getViewsheet();
 
       if(vs == null) {
@@ -3208,12 +3269,6 @@ public abstract class AbstractVSExporter implements VSExporter {
             objs[i] instanceof AnnotationRectangleVSAssembly)
          {
             continue;
-         }
-
-         if(objs[i] instanceof SelectionListVSAssembly ||
-            objs[i] instanceof SelectionTreeVSAssembly)
-         {
-            more = omore;
          }
 
          Point p2 = objs[i].getPixelOffset();
@@ -3321,7 +3376,7 @@ public abstract class AbstractVSExporter implements VSExporter {
       }
 
       //addMore(expanded, vs, osize, more, exprow);
-      moveAssemblies(vs, osize, more, more, exprow);
+      moveAssemblies(vs, osize, more, exprow);
       Dimension posize = getViewsheetSize(pvs, true);
       addGrid(vs, osize, more, exprow);
       expandParent(pvs, posize, exprow);
@@ -4290,6 +4345,144 @@ public abstract class AbstractVSExporter implements VSExporter {
       return new Dimension(maxW, maxH);
    }
 
+   /**
+    * Adjust the export page size so the drop shadow of a shape at the right or
+    * bottom edge of the content is not cut off. The shape writers draw the
+    * shadow outside the assembly's own bounds (ShapeShadowUtil.expandForShadow),
+    * while Viewsheet.getPreferredSize() only covers the assembly bounds.
+    * Only the far edges can grow; a shadow bleeding above/left of the origin
+    * cannot be represented by a page size. The filtering mirrors
+    * Viewsheet.getPreferredBounds(). Shapes inside an embedded viewsheet are not
+    * visited (the loop is not recursive, like adjustSizeForInputLabels).
+    *
+    * @param includeAnnotation whether annotation shapes are considered, matching
+    *                          the flag the caller passed to getPreferredSize.
+    */
+   public static Dimension adjustSizeForShapeShadows(Viewsheet vs, Dimension size,
+                                                     boolean includeAnnotation)
+   {
+      int maxW = size.width;
+      int maxH = size.height;
+
+      for(Assembly assembly : vs.getAssemblies(false, false, true, false, true)) {
+         if(!(assembly instanceof VSAssembly vsAssembly) || !vsAssembly.isVisible()) {
+            continue;
+         }
+
+         VSAssemblyInfo info = vsAssembly.getVSAssemblyInfo();
+
+         if(!ShapeShadowUtil.isShapeShadow(info)) {
+            continue;
+         }
+
+         if(!includeAnnotation && vsAssembly instanceof AnnotationRectangleVSAssembly) {
+            continue;
+         }
+
+         String name = vsAssembly.getAbsoluteName();
+
+         if(VSUtil.isPopComponent(name, vs) || VSUtil.isTipView(name, vs)) {
+            continue;
+         }
+
+         if(vs.isEmbedded() && !isAssemblyPrimary(vsAssembly)) {
+            continue;
+         }
+
+         if(vsAssembly.getContainer() instanceof CurrentSelectionVSAssembly) {
+            continue;
+         }
+
+         Dimension asmSize = info.getLayoutSize();
+         Point pos = info.getLayoutPosition();
+
+         if(asmSize == null) {
+            asmSize = vs.getPixelSize(info);
+         }
+
+         if(pos == null) {
+            pos = vs.getPixelPosition(info);
+         }
+
+         // skip off-screen assemblies, like Viewsheet.getPreferredBounds()
+         if(pos.y < 0 && -pos.y > asmSize.height || pos.x < 0 && -pos.x > asmSize.width) {
+            continue;
+         }
+
+         Rectangle2D shadow = expandForShadowInk(
+            new Rectangle2D.Double(pos.x, pos.y, asmSize.width, asmSize.height), info, 1);
+
+         maxW = Math.max(maxW, (int) Math.ceil(shadow.getMaxX()));
+         maxH = Math.max(maxH, (int) Math.ceil(shadow.getMaxY()));
+      }
+
+      return maxW == size.width && maxH == size.height ? size : new Dimension(maxW, maxH);
+   }
+
+   /**
+    * Grow the bounds of a shape by the part of its drop shadow that can
+    * actually hold ink, as opposed to ShapeShadowUtil.expandForShadow which
+    * returns the whole (partly empty) image rectangle the writers draw into.
+    * The blur is a gaussian kernel of exactly blurRadius on each side
+    * (ShapeShadowUtil.getGaussianBlurFilter), so the offset shadow copy never
+    * reaches further than offset + radius past the shape on the shadow side and
+    * radius - offset on the opposite side. Returns the bounds unchanged for
+    * anything that is not a shape drawing a shadow.
+    *
+    * @param scale the coordinate scale applied to the bounds.
+    */
+   public static Rectangle2D expandForShadowInk(Rectangle2D bounds, VSAssemblyInfo info,
+                                                double scale)
+   {
+      if(bounds == null || !ShapeShadowUtil.isShapeShadow(info)) {
+         return bounds;
+      }
+
+      Insets ink = getShadowInkInsets(info);
+
+      return new Rectangle2D.Double(
+         bounds.getX() - ink.left * scale,
+         bounds.getY() - ink.top * scale,
+         bounds.getWidth() + (ink.left + ink.right) * scale,
+         bounds.getHeight() + (ink.top + ink.bottom) * scale);
+   }
+
+   /**
+    * Get how far, in unscaled destination pixels, the shadow ink of a shape can
+    * reach past each side of it. Never more than ShapeShadowUtil.getShadowInsets,
+    * which is the extent of the image actually drawn.
+    */
+   static Insets getShadowInkInsets(VSAssemblyInfo info) {
+      ShapeShadow shadow = ShapeShadowUtil.isShapeShadow(info) ?
+         ((ShapeVSAssemblyInfo) info).getShadowInfo() : null;
+
+      if(shadow == null) {
+         return new Insets(0, 0, 0, 0);
+      }
+
+      Insets full = ShapeShadowUtil.getShadowInsets(info);
+      // the shadow layer is built with the scaled insets and then mapped onto the
+      // unscaled destination (VSShape/VSFloatable), so an ink extent measured in the
+      // layer stretches by full / scaled
+      Insets scaled = ShapeShadowUtil.getScaledShadowInsets(info);
+      int radius = shadow.getBlurRadius();
+      int offX = shadow.getOffsetX();
+      int offY = shadow.getOffsetY();
+
+      return new Insets(inkExtent(radius - offY, full.top, scaled.top),
+                        inkExtent(radius - offX, full.left, scaled.left),
+                        inkExtent(radius + offY, full.bottom, scaled.bottom),
+                        inkExtent(radius + offX, full.right, scaled.right));
+   }
+
+   private static int inkExtent(int ink, int full, int scaled) {
+      if(ink <= 0 || full <= 0 || scaled <= 0) {
+         return 0;
+      }
+
+      return Math.min(full, (int) Math.ceil(ink * (double) full / scaled));
+   }
+
    private static boolean isAssemblyPrimary(VSAssembly assembly) {
       if(!assembly.isPrimary()) {
          return false;
@@ -4404,6 +4597,8 @@ public abstract class AbstractVSExporter implements VSExporter {
    protected int index;
    protected int maxRows = 0;
    protected boolean onlyDataComponents;
+   // charts expanded to the full chart size in the current sheet
+   private final Set<String> expandedCharts = new HashSet<>();
    private static int fileType = -1;
 
    private static final Logger LOG =

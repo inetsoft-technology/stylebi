@@ -24,10 +24,15 @@ import inetsoft.report.filter.*;
 import inetsoft.report.internal.Util;
 import inetsoft.report.internal.binding.FormulaHeaderInfo;
 import inetsoft.report.lens.*;
+import inetsoft.uql.XConditionGroup;
+import inetsoft.uql.XTable;
+import inetsoft.uql.asset.AssetCondition;
 import inetsoft.uql.asset.internal.ColumnIndexMap;
 import inetsoft.util.Tool;
 import inetsoft.util.script.JavaScriptEngine;
 import inetsoft.util.script.ScriptEnv;
+import inetsoft.util.script.ScriptSpan;
+import inetsoft.util.script.graal.pool.WorksheetScriptEnv;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -36,6 +41,7 @@ import java.lang.ref.WeakReference;
 import java.util.List;
 import java.util.*;
 import java.util.concurrent.locks.Lock;
+import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.IntStream;
@@ -250,14 +256,37 @@ public class PostProcessor {
       return changed ? htable : base;
    }
 
-   private static final class ConditionFilter2 extends ConditionFilter {
+   /**
+    * @return {@code true} if reading {@code table}'s rows can reach the script engine, as
+    * {@code ConditionFilter2} decides whether it takes the engine lock (bug #77273): a
+    * {@code FormulaTableLens}, a condition filter that takes the lock, or an async-worker lens
+    * anywhere in the table's filter chain.
+    */
+   public static boolean canReachScript(TableLens table) {
+      return ConditionFilter2.needsScriptExecutionLock(table);
+   }
+
+   private static final class ConditionFilter2 extends ConditionFilter
+      implements ChainScriptLock.Source
+   {
       ConditionFilter2(TableLens table, ConditionGroup conditions, AssetQuerySandbox box) {
          super(table, conditions);
          ScriptEnv senv = box == null ? null : box.peekScriptEnv();
          this.senv = senv == null ? null : new WeakReference<>(senv);
          // see needsScriptExecutionLock() below for what actually requires the
-         // lock -- not just a FormulaTableLens column read.
-         this.needsScriptLock = box != null && needsScriptExecutionLock(table);
+         // lock -- not just a FormulaTableLens column read -- and subTableNeedsScriptLock()
+         // for the sub tables that population reads besides the base (bug #77158).
+         this.needsScriptLock = box != null &&
+            (needsScriptExecutionLock(table) || subTableNeedsScriptLock(conditions));
+         // fixed per sandbox (bug #76960): a pool-mode sandbox's envs have no execution lock,
+         // and a script population batch runs under one claimed span instead
+         this.poolMode = box != null && box.isScriptPoolMode();
+         // a pooled population reads its base in reads of at most maxBatchRows rows, so a
+         // formula lens below holds its lock for no longer than one pooled batch (D1)
+         int maxBatch = senv instanceof WorksheetScriptEnv wenv
+            ? wenv.getConfig().maxBatchRows() : 0;
+         this.preReadRows = poolMode && needsScriptLock
+            ? (maxBatch > 0 ? maxBatch : Integer.MAX_VALUE) : 0;
       }
 
       /**
@@ -283,12 +312,15 @@ public class PostProcessor {
        * ordering.
        *
        * <p>Narrower still (bug #76935): the engine lock is only requested at all
-       * when {@link #needsScriptLock} says this filter's own base table chain can
-       * plausibly reach the script engine during row population -- see
-       * {@link #needsScriptExecutionLock(TableLens)} for the two distinct ways
-       * that can happen ({@code FormulaTableLens} column reads, and the
-       * async-worker-filling lenses bug #76938 also cares about). A filter that
-       * can never reach either can never itself block waiting on the engine lock
+       * when {@link #needsScriptLock} says a table this filter reads during row
+       * population can plausibly reach the script engine -- see
+       * {@link #needsScriptExecutionLock(TableLens)} for the ways that can happen
+       * ({@code FormulaTableLens} column reads, the async-worker-filling lenses
+       * bug #76938 also cares about, and a nested condition filter that takes the
+       * lock itself). The tables read are the base chain and, for a sub-query
+       * condition, its sub table, which {@code checkCondition()} reads lazily inside
+       * the monitor (bug #77158, see {@link #subTableNeedsScriptLock}). A filter that
+       * can reach none of these can never itself block waiting on the engine lock
        * while holding this monitor, so it can never be the "A" side of the AB-BA
        * cycle above regardless of what unrelated scripts elsewhere in the same
        * sandbox are doing -- skipping the lock for it does not reopen #76918, it
@@ -299,26 +331,132 @@ public class PostProcessor {
        * that would otherwise hand its processing to a background worker and wait
        * for it runs it on this thread instead, or lends the lock to that worker
        * while waiting for it (bug #76938).
+       *
+       * <p>A row already mapped, or a row past the end of a completed row map, is answered
+       * from the published state without the engine lock, as in pool mode (bug #77273): no
+       * script runs for it, and a join worker reading an input the join's builder already
+       * computed must not wait for the lock a script thread reading the join holds. The
+       * answer returns without entering the population, so a population, even of a map an
+       * {@code invalidate()} reset after the check, still takes the lock before the monitor
+       * (#76918).
        */
       @Override
       public boolean moreRows(int row) {
          ScriptEnv senv = needsScriptLock && this.senv != null ? this.senv.get() : null;
+
+         if(poolMode) {
+            return moreRowsPooled(row, senv);
+         }
+
          Lock execLock = senv == null ? null : senv.getExecutionLock();
 
          if(execLock == null) {
             return super.moreRows(row);
          }
 
+         if(isRowMapped(row)) {
+            return true;
+         }
+
+         if(isPastCompletedMap(row)) {
+            return false;
+         }
+
+         return populating(senv, () -> super.moreRows(row));
+      }
+
+      /**
+       * The last step of {@code getBaseRowIndex}, which maps the row and reads it under the
+       * monitor in one step, takes the same locks as a population in {@link #moreRows}: the
+       * engine lock before the monitor (#76918), or pool mode's span (bug #77273). A row past
+       * the end of a completed map is answered without either, as {@link #moreRows} answers
+       * it, so a lock-free reader of a missing row fails fast instead of waiting for the lock.
+       */
+      @Override
+      protected int mapBaseRowIndex(int row) {
+         if(isPastCompletedMap(row)) {
+            return -1;
+         }
+
+         ScriptEnv senv = needsScriptLock && this.senv != null ? this.senv.get() : null;
+         return populating(senv, () -> super.mapBaseRowIndex(row));
+      }
+
+      /**
+       * Run a population of this filter with the locks {@link #moreRows} takes before the
+       * monitor: in pool mode one claimed span, otherwise the engine lock, recorded on this
+       * thread (bug #76938); nothing without an env.
+       */
+      private <T> T populating(ScriptEnv senv, Supplier<T> population) {
+         if(senv == null) {
+            return population.get();
+         }
+
+         if(poolMode) {
+            try(ScriptSpan span = senv.openSpan()) {
+               return population.get();
+            }
+         }
+
+         Lock execLock = senv.getExecutionLock();
+
+         if(execLock == null) {
+            return population.get();
+         }
+
          execLock.lock();
          JavaScriptEngine.pushHeldScriptLock(execLock);
 
          try {
-            return super.moreRows(row);
+            return population.get();
          }
          finally {
             JavaScriptEngine.popHeldScriptLock();
             execLock.unlock();
          }
+      }
+
+      /**
+       * Get the engine lock that moreRows() takes, so an async lens over this filter takes it
+       * first instead of starting a worker that would wait for it (bug #77223). A filter that
+       * takes no lock itself, e.g. over a plain base, is not counted.
+       */
+      @Override
+      public Lock getScriptLock() {
+         ScriptEnv senv = needsScriptLock && !poolMode && this.senv != null
+            ? this.senv.get() : null;
+         return senv == null ? null : senv.getExecutionLock();
+      }
+
+      /**
+       * Pool mode (bug #76960, spec §5.3, §6.7, §14.8, §14.14): rows already mapped are
+       * answered without any claim; otherwise one lazy claimed span covers the population,
+       * so the formula lens batches it crosses share one context and one clean. The filter
+       * does not read ahead of the requested row: the formula lens below batches on its own
+       * (context-pool regression D1), and {@link #getPreReadRows} asks it for the rows the
+       * population needs in bounded reads. No lock is taken besides this filter's own monitor,
+       * which the population takes anyway, after the span is opened as before.
+       */
+      private boolean moreRowsPooled(int row, ScriptEnv senv) {
+         if(isRowMapped(row)) {
+            return true;
+         }
+
+         // no env to batch for without one: this filter cannot reach a script
+         // (needsScriptLock is false), no env existed when it was built, or the env was
+         // collected
+         return populating(senv, () -> super.moreRows(row));
+      }
+
+      /**
+       * A pooled filter that can reach a script asks its base for the rows a population
+       * needs in bounded reads of at most maxBatchRows rows, so a formula lens below sees
+       * bounded requests and computes what pool off would, not a sequential scan it batches
+       * ahead of (context-pool regression D1).
+       */
+      @Override
+      protected int getPreReadRows() {
+         return preReadRows;
       }
 
       /**
@@ -329,7 +467,7 @@ public class PostProcessor {
        * {@code MergedJoinTableLens}, {@code CrossJoinTableLens}, and
        * {@code SetTableLens}, the base of union/minus/intersect) -- can require
        * the sandbox's script-execution lock while this filter populates its row
-       * map. Two distinct reasons, both real (see bug #76935's revisions):
+       * map. Three reasons, all real (see bug #76935's revisions and bug #77158):
        *
        * <ol>
        * <li>{@code table} is a {@link FormulaTableLens}. Reading one of its
@@ -364,6 +502,14 @@ public class PostProcessor {
        * bug #76938's own regression suite (`AsyncLensScriptLockLendingTest`)
        * fails without this branch even when nothing else in the chain is a
        * {@code FormulaTableLens}.</li>
+       *
+       * <li>{@code table} is a {@code ConditionFilter2} that takes the lock
+       * itself ({@link #needsScriptLock}), e.g. because of its own sub-query
+       * condition, which walking its base alone does not see. Populating this
+       * filter reads it, and it takes the lock on every {@code moreRows()}, so
+       * this filter must take the lock first or hold its monitor while waiting
+       * for it (bug #77158: a mirror or derived table with its own condition,
+       * or a sub table filtered by a nested sub-query).</li>
        * </ol>
        */
       private static boolean needsScriptExecutionLock(TableLens table) {
@@ -372,6 +518,10 @@ public class PostProcessor {
          }
 
          if(table instanceof FormulaTableLens) {
+            return true;
+         }
+
+         if(table instanceof ConditionFilter2 && ((ConditionFilter2) table).needsScriptLock) {
             return true;
          }
 
@@ -401,6 +551,34 @@ public class PostProcessor {
       }
 
       /**
+       * @return {@code true} if a sub-query condition in {@code conditions} has a sub
+       * table that {@link #needsScriptExecutionLock(TableLens)}. Its rows are read
+       * lazily from {@code checkCondition()}, inside this filter's monitor
+       * ({@code SubQueryValue.getValues()}), and it is built in the same sandbox, so a
+       * script expression column in it runs on the same engine as a formula in the
+       * base (bug #77158). A sub table whose DISTINCT is done by SQL and that has no
+       * script-reaching lens takes no lock.
+       */
+      private static boolean subTableNeedsScriptLock(ConditionGroup conditions) {
+         for(int i = 0; conditions != null && i < conditions.size(); i++) {
+            Object item = conditions.getItem(i);
+
+            if(item instanceof XConditionGroup.CondItem &&
+               ((XConditionGroup.CondItem) item).condition instanceof AssetCondition)
+            {
+               XTable stable =
+                  ((AssetCondition) ((XConditionGroup.CondItem) item).condition).getSubTable();
+
+               if(stable instanceof TableLens && needsScriptExecutionLock((TableLens) stable)) {
+                  return true;
+               }
+            }
+         }
+
+         return false;
+      }
+
+      /**
        * The script environment the sandbox had when this filter was built, which is
        * the one the lenses below it were built with. Captured rather than read from
        * the sandbox on each call, because a cached lens chain outlives a reset or
@@ -418,6 +596,9 @@ public class PostProcessor {
        */
       private final transient WeakReference<ScriptEnv> senv;
       private final boolean needsScriptLock;
+      private final boolean poolMode;
+      // 0 unless a pooled population can reach a script, see getPreReadRows()
+      private final int preReadRows;
 
       @Override
       public final int getColBorder(int r, int c) {

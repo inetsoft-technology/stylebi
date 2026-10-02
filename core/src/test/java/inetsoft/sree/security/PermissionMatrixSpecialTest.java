@@ -117,6 +117,7 @@ package inetsoft.sree.security;
 
 import inetsoft.report.LibManagerProvider;
 import inetsoft.report.internal.license.LicenseManager;
+import inetsoft.sree.EarlyLoadedProperties;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.internal.cluster.Cluster;
@@ -141,6 +142,7 @@ import java.security.Principal;
 import java.util.EnumSet;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -556,14 +558,14 @@ class PermissionMatrixSpecialTest {
    }
 
    @Test
-   @Disabled("Bug #76979: flaky in CI, a background PropertiesEngine reload can drop the " +
-      "cached security.users.multiTenant value this test relies on")
    void isMultiTenant_storageReadFailure_fallsBackToCachedValue() throws Exception {
       // Defensive-path complement to the test above: a direct-storage-read failure must fall back
       // to the cached SreeEnv.getProperty() value rather than let the exception escape
       // isMultiTenant(), which gates every isDefaultVSGloballyVisible() call plus many other
-      // security/org-layer call sites. Relies on SecurityTestDataBuilder.setup() having already
-      // persisted "security.users.multiTenant" = "true" as the cached fallback value.
+      // security/org-layer call sites. The cached reads are stubbed too, instead of relying on
+      // the values SecurityTestDataBuilder.setup() persisted: this class's own save() calls
+      // trigger background PropertiesEngine reloads that replace the cached properties while
+      // the tests run (Bug #76979).
       try(MockedStatic<LicenseManager> license =
              Mockito.mockStatic(LicenseManager.class, Mockito.CALLS_REAL_METHODS))
       {
@@ -574,12 +576,124 @@ class PermissionMatrixSpecialTest {
          {
             mockedEnv.when(() -> SreeEnv.getPropertyFromStorage(Mockito.anyString()))
                .thenThrow(new RuntimeException("storage temporarily unreachable"));
+            mockedEnv.when(() -> SreeEnv.getProperty("security.enabled")).thenReturn("true");
+            mockedEnv.when(() -> SreeEnv.getProperty("security.users.multiTenant", "false"))
+               .thenReturn("true");
 
             assertTrue(
                SUtil.isMultiTenant(),
                "a direct-storage-read failure must fall back to the cached property value, " +
                "not propagate an exception out of isMultiTenant()");
+            mockedEnv.verify(() -> SreeEnv.getProperty("security.users.multiTenant", "false"));
          }
+      }
+   }
+
+   // ── Bug #77323: a property that is not stored falls back to -D / env / defaults ──
+
+   @Test
+   void isMultiTenant_notStored_honorsSystemProperty() throws Exception {
+      // -Dsecurity.users.multitenant=true with no stored value: the EM shows multi-tenancy as
+      // enabled (the cached read includes the system properties), so the enforcement read must
+      // agree. Property names are lowercased before any lookup, so -D must be lowercase.
+      assertEquals(Boolean.TRUE, isMultiTenantWith(null, "true", null, "false"));
+   }
+
+   @Test
+   void isMultiTenant_notStored_honorsEnvironmentVariable() throws Exception {
+      // INETSOFT_SECURITY_USERS_MULTITENANT=true with no stored value. The environment cannot be
+      // changed from a test, so the mapped environment property is stubbed; the mapping itself
+      // is covered by EarlyLoadedPropertiesEnvironmentTest.
+      assertEquals(Boolean.TRUE, isMultiTenantWith(null, null, "true", "false"));
+   }
+
+   @Test
+   void isMultiTenant_storedValueWinsOverSystemProperty() throws Exception {
+      // an explicit stored "false" overrides -D true, as it does in the cached properties
+      assertEquals(Boolean.FALSE, isMultiTenantWith("false", "true", null, "true"));
+   }
+
+   @Test
+   void isMultiTenant_removedByPeer_doesNotUseStaleCachedValue() throws Exception {
+      // Bug #76920 guard: another node removed the stored "true" and this node's cache has not
+      // reloaded yet (still "true"). With no -D or environment value, the storage read must
+      // resolve to not multi-tenant immediately instead of falling back to the stale cache.
+      assertEquals(Boolean.FALSE, isMultiTenantWith(null, null, null, "true"));
+   }
+
+   @Test
+   void isDefaultVSGloballyVisible_notStored_honorsSystemProperty() throws Exception {
+      // the same helper serves security.exposeDefaultOrgToAll
+      String name = "security.exposedefaultorgtoall";
+      String old = System.getProperty(name);
+      System.setProperty(name, "true");
+
+      try(MockedStatic<SUtil> mockedSUtil = Mockito.mockStatic(SUtil.class, Mockito.CALLS_REAL_METHODS);
+          MockedStatic<SreeEnv> mockedEnv = Mockito.mockStatic(SreeEnv.class, Mockito.CALLS_REAL_METHODS))
+      {
+         mockedSUtil.when(SUtil::isMultiTenant).thenReturn(true);
+         mockedEnv.when(() -> SreeEnv.getPropertyFromStorage(Mockito.anyString())).thenReturn(null);
+         mockedEnv.when(() -> SreeEnv.getProperty(Mockito.anyString(), Mockito.anyString()))
+            .thenReturn("false");
+
+         assertTrue(SUtil.isDefaultVSGloballyVisible(createdOrgPlainUser),
+            "-Dsecurity.exposedefaultorgtoall=true must apply when the property is not stored");
+      }
+      finally {
+         restoreSystemProperty(name, old);
+      }
+   }
+
+   /**
+    * Evaluates the real SUtil.isMultiTenant() with the stored value, the lowercase -D system
+    * property, the mapped INETSOFT_* environment value and the (possibly stale) cached value of
+    * security.users.multiTenant set to the given values (null = absent).
+    */
+   private static Boolean isMultiTenantWith(String stored, String sysProp, String env,
+                                            String cached)
+   {
+      String name = "security.users.multitenant";
+      String old = System.getProperty(name);
+
+      if(sysProp == null) {
+         System.clearProperty(name);
+      }
+      else {
+         System.setProperty(name, sysProp);
+      }
+
+      try(MockedStatic<LicenseManager> license =
+             Mockito.mockStatic(LicenseManager.class, Mockito.CALLS_REAL_METHODS);
+          MockedStatic<EarlyLoadedProperties> early =
+             Mockito.mockStatic(EarlyLoadedProperties.class, Mockito.CALLS_REAL_METHODS);
+          MockedStatic<SreeEnv> mockedEnv =
+             Mockito.mockStatic(SreeEnv.class, Mockito.CALLS_REAL_METHODS))
+      {
+         license.when(LicenseManager::isEnterprise).thenReturn(true);
+         early.when(() -> EarlyLoadedProperties.getEnvironmentProperty(name)).thenReturn(env);
+         mockedEnv.when(() -> SreeEnv.getPropertyFromStorage("security.users.multiTenant"))
+            .thenReturn(stored);
+         // cached reads are stubbed: background reloads replace the cached properties while
+         // this class runs (Bug #76979)
+         mockedEnv.when(() -> SreeEnv.getProperty("security.enabled")).thenReturn("true");
+         mockedEnv.when(() -> SreeEnv.getProperty("security.users.multiTenant", "false"))
+            .thenReturn(cached);
+         mockedEnv.when(() -> SreeEnv.getProperty("security.users.multiTenant"))
+            .thenReturn(cached);
+
+         return SUtil.isMultiTenant();
+      }
+      finally {
+         restoreSystemProperty(name, old);
+      }
+   }
+
+   private static void restoreSystemProperty(String name, String value) {
+      if(value == null) {
+         System.clearProperty(name);
+      }
+      else {
+         System.setProperty(name, value);
       }
    }
 

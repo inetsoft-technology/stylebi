@@ -40,8 +40,10 @@ import inetsoft.uql.viewsheet.internal.DateComparisonUtil;
 import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.util.*;
 import inetsoft.util.log.LogLevel;
+import inetsoft.util.script.FormulaContext;
 import inetsoft.util.script.ScriptEnv;
 import inetsoft.util.script.ScriptException;
+import inetsoft.util.script.ScriptStateLint;
 import inetsoft.util.script.graal.ScriptScope;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -557,6 +559,44 @@ public abstract class VSAQuery {
     * @param table the specified table.
     */
    protected void setSharedCondition(ChartVSAssembly chart, TableAssembly table, boolean brush) {
+      if(table == null || getAssembly() == null) {
+         return;
+      }
+
+      updateSharedChart(chart);
+      applySharedCondition(chart, table, brush);
+   }
+
+   /**
+    * Refresh the chart whose brush/zoom selection is shared, the step of
+    * {@link #setSharedCondition(ChartVSAssembly, TableAssembly, boolean)} that executes
+    * assemblies: updating the chart runs its dynamic values (scripts) and refreshes its
+    * meta data, which can fetch the chart's source. A caller that applies the condition
+    * while holding a monitor refreshes the chart first. (77030)
+    */
+   protected final void updateSharedChart(ChartVSAssembly chart) {
+      if(chart != null) {
+         try {
+            box.updateAssembly(chart);
+         }
+         catch(LockRestoreException e) {
+            // the sandbox lock was lost, not a chart error (runtime query path, 77153)
+            throw e;
+         }
+         catch(Exception e) {
+            LOG.warn("Failed to update chart assembly: " + chart.getAssemblyEntry(), e);
+         }
+      }
+   }
+
+   /**
+    * Apply the brush/zoom/drill selection of a chart refreshed by
+    * {@link #updateSharedChart(ChartVSAssembly)} to the specified table. It does not execute
+    * any assembly.
+    */
+   protected final void applySharedCondition(ChartVSAssembly chart, TableAssembly table,
+                                             boolean brush)
+   {
       VSAssembly vsAssembly = getAssembly();
 
       if(table == null || vsAssembly == null) {
@@ -564,16 +604,6 @@ public abstract class VSAQuery {
       }
 
       ColumnSelection cols = table.getColumnSelection();
-
-      if(chart != null) {
-         try {
-            box.updateAssembly(chart);
-         }
-         catch(Exception e) {
-            LOG.warn("Failed to update chart assembly: " + chart.getAssemblyEntry(), e);
-         }
-      }
-
       ConditionList conds = chart == null ? null
          : (brush ? chart.getBrushConditionList(cols, true) : null);
 
@@ -1045,7 +1075,7 @@ public abstract class VSAQuery {
 
       // execute script here instead of waiting for MVQueryBuilder. Otherwise
       // the VS objects are not accessible in the script.
-      executeExpressions(table, box);
+      executeExpressions(table, box, mode);
       Set ignored = markVariables(table, wbox, mode, limited,
                                   box.getTouchTimestamp(), qmgr);
 
@@ -1295,9 +1325,9 @@ public abstract class VSAQuery {
     * Execute the condition expressions and replace with value.
     */
    private static void executeExpressions(TableAssembly table,
-                                          ViewsheetSandbox box)
+                                          ViewsheetSandbox box, int mode)
    {
-      executeExpressions(table.getPreRuntimeConditionList(), box);
+      executeExpressions(table.getPreRuntimeConditionList(), box, mode);
 
       if(table instanceof ComposedTableAssembly) {
          TableAssembly[] tbls =
@@ -1305,7 +1335,7 @@ public abstract class VSAQuery {
 
          if(tbls != null) {
             for(TableAssembly tbl : tbls) {
-               executeExpressions(tbl, box);
+               executeExpressions(tbl, box, mode);
             }
          }
       }
@@ -1315,7 +1345,7 @@ public abstract class VSAQuery {
     * Execute the condition expressions and replace with value.
     */
    private static void executeExpressions(ConditionListWrapper wrapper,
-                                          ViewsheetSandbox box)
+                                          ViewsheetSandbox box, int mode)
    {
       if(wrapper == null || box == null) {
          return;
@@ -1336,7 +1366,7 @@ public abstract class VSAQuery {
                   String type = ((ExpressionValue) val).getType();
 
                   try {
-                     val = executeScript(cond, (ExpressionValue) val, box);
+                     val = executeScript(cond, (ExpressionValue) val, box, mode);
                      cond.setValue(k, val);
                   }
                   catch(Exception e) {
@@ -1356,9 +1386,10 @@ public abstract class VSAQuery {
 
    /**
     * Execute the mv condition.
+    * @param mode the mode of the worksheet query the condition belongs to.
     */
    private static Object executeScript(Condition cond, ExpressionValue eval,
-                                       ViewsheetSandbox vbox)
+                                       ViewsheetSandbox vbox, int mode)
    {
       Object val = null;
       String exp = eval.getExpression();
@@ -1366,9 +1397,17 @@ public abstract class VSAQuery {
       Viewsheet vs = vbox == null ? null : vbox.getViewsheet();
       ScriptEnv senv = box.getScriptEnv();
       ScriptScope scope = null;
+      // a condition expression is written by end users, run it restricted (bug #77396)
+      boolean restricted = FormulaContext.isRestricted();
 
       try {
-         val = senv.exec(senv.compile(exp), scope = box.getScope(), null, vs);
+         FormulaContext.setRestricted(true);
+         // in pool mode the shared scope is never given a query's mode (bug #76960), so
+         // the script gets a view with this query's own mode (bug #77123)
+         scope = box.isScriptPoolMode() ?
+            box.getScope().queryView(box.getVariableTable(), mode) : box.getScope();
+         val = senv.exec(ScriptStateLint.checkCondition(senv.compile(exp), exp, scope, "viewsheet condition"),
+                         scope, null, vs);
       }
       catch(Exception ex) {
          String suggestion = senv.getSuggestion(ex, null, scope);
@@ -1384,6 +1423,9 @@ public abstract class VSAQuery {
          }
 
          throw new ScriptException(msg);
+      }
+      finally {
+         FormulaContext.setRestricted(restricted);
       }
 
       return PreAssetQuery.getScriptValue(val, cond);
@@ -1780,12 +1822,25 @@ public abstract class VSAQuery {
     * @param assemblyName source assembly name
     */
    public TableAssembly createAssemblyTable(String assemblyName) throws Exception {
-      Viewsheet vs = getViewsheet();
+      return buildAssemblyTable(getAssemblyTableData(assemblyName));
+   }
 
+   /**
+    * Fetches the data of the vs assembly a table is bound to. This is the step of
+    * {@link #createAssemblyTable(String)} that executes the source assembly, which can
+    * release and re-acquire the sandbox lock, so a caller that must build the table while
+    * holding a monitor fetches the data first and builds the table with
+    * {@link #buildAssemblyTable(AssemblyTableData)}. (77030)
+    *
+    * @param assemblyName source assembly name
+    * @return the source data, or null if the name is null.
+    */
+   protected AssemblyTableData getAssemblyTableData(String assemblyName) throws Exception {
       if(assemblyName == null) {
          return null;
       }
 
+      String boundName = assemblyName;
       String baseAssembly = getAssembly().getAbsoluteName();
 
       if(assemblyName.startsWith(Assembly.TABLE_VS_BOUND) && baseAssembly.contains(".")) {
@@ -1794,11 +1849,24 @@ public abstract class VSAQuery {
          assemblyName = Assembly.TABLE_VS_BOUND + baseParent + assemblyName.substring(15);
       }
 
-      TableLens lens = box.getTableData(assemblyName);
+      return new AssemblyTableData(boundName, assemblyName, box.getTableData(assemblyName));
+   }
 
-      if(lens == null) {
+   /**
+    * Creates a table assembly for a table that is bound to a vs assembly, from data fetched
+    * by {@link #getAssemblyTableData(String)}. It does not execute any assembly.
+    *
+    * @param data the source data.
+    */
+   protected TableAssembly buildAssemblyTable(AssemblyTableData data) throws Exception {
+      Viewsheet vs = getViewsheet();
+
+      if(data == null || data.lens() == null) {
          return null;
       }
+
+      String assemblyName = data.resolvedName();
+      TableLens lens = data.lens();
 
       // meta data doesn't require all rows, which would cause conversion to calc problem
       if(meta) {
@@ -1868,6 +1936,17 @@ public abstract class VSAQuery {
       }
 
       return false;
+   }
+
+   /**
+    * The data of the vs assembly a table is bound to, fetched by
+    * {@link #getAssemblyTableData(String)}.
+    *
+    * @param boundName    the source assembly name as bound, before resolving it.
+    * @param resolvedName the resolved name the data was fetched with, which names the table.
+    * @param lens         the data, or null if the assembly has none.
+    */
+   protected record AssemblyTableData(String boundName, String resolvedName, TableLens lens) {
    }
 
    public static final ThreadLocal<Boolean> Q_CANCEL = new ThreadLocal<>();

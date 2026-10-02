@@ -19,8 +19,12 @@ package inetsoft.util.script.graal;
 
 import inetsoft.sree.SreeEnv;
 import inetsoft.uql.viewsheet.internal.FormUtil;
+import inetsoft.util.script.FormulaContext;
+import org.graalvm.polyglot.Context;
 import org.graalvm.polyglot.HostAccess;
+import org.graalvm.polyglot.Source;
 import org.graalvm.polyglot.Value;
+import org.graalvm.polyglot.proxy.ProxyExecutable;
 import java.time.Instant;
 import java.util.*;
 import java.util.function.Predicate;
@@ -73,7 +77,66 @@ public final class ScriptHostAccess {
       // Java.type('org.graalvm.polyglot.Context'), enabling sandbox escape via
       // Context.create().eval(unrestricted script).
       "org.graalvm",
-      "com.oracle"
+      "com.oracle",
+      // Bug #77466: JDK packages under the java.awt allowance whose classes load
+      // a class named by a string and hand it out
+      "java.awt.datatransfer",
+      "java.awt.dnd",
+      // Bug #77466: library packages that load, construct or call classes and
+      // members named by strings, evaluate expressions, or reach files, the
+      // network or the cluster. Blocked even when javascript.java.com_org is on
+      // or javascript.java.packages names them. Not exhaustive: the set of such
+      // libraries is open-ended, which is why com_org is off by default.
+      "org.springframework",
+      "org.apache.commons.lang3.reflect",
+      "org.apache.commons.lang3.builder",
+      "org.apache.commons.beanutils",
+      "org.apache.commons.collections",
+      "org.apache.commons.collections4",
+      "org.apache.commons.text",
+      "org.apache.commons.io",
+      "org.apache.commons.net",
+      "org.apache.commons.fileupload",
+      "org.codehaus.groovy",
+      "org.apache.groovy",
+      "org.apache.ignite",
+      "org.apache.logging",
+      "org.apache.ivy",
+      "org.apache.avro",
+      "org.apache.lucene",
+      "org.apache.derby",
+      "org.apache.hc",
+      "org.apache.http",
+      "org.hsqldb",
+      "org.postgresql",
+      "org.eclipse",
+      "org.hibernate",
+      "org.jboss",
+      "org.aspectj",
+      "org.objenesis",
+      "org.objectweb",
+      "org.yaml",
+      "org.thymeleaf",
+      "org.quartz",
+      "org.liquibase",
+      "org.jdbi",
+      "org.jsoup",
+      "org.mockito",
+      "org.testcontainers",
+      "com.fasterxml",
+      "com.esotericsoftware",
+      "com.google.common.reflect",
+      "com.google.inject",
+      "com.github.jknack",
+      "com.github.spullara",
+      "com.github.dockerjava",
+      "com.jcraft",
+      "com.zaxxer",
+      // Bug #77467: c3p0 + mchange-commons build a pooled DataSource from
+      // script-supplied settings. HikariCP (com.zaxxer) and jdbi3 (org.jdbi),
+      // listed above, are the other connection-pool / SQL-access libraries on the
+      // runtime classpath.
+      "com.mchange"
    );
 
    // Specific dangerous classes that are blocked by exact name.
@@ -112,7 +175,18 @@ public final class ScriptHostAccess {
       "inetsoft.util.Plugins",
       "inetsoft.util.IndexStorage",
       "inetsoft.util.XMLIndexedStorage",
-      "inetsoft.util.BlobIndexedStorage"
+      "inetsoft.util.BlobIndexedStorage",
+      // its statics hand out the raw executing ScriptScope (bypassing ScopeProxy
+      // and the read-only principal view) and the thread's restricted flag that
+      // gates runQuery from the web. Internal plumbing, never script API. (#77348)
+      "inetsoft.util.script.FormulaContext",
+      // same for getExecScriptable()/pushExecScriptable(); its script-facing
+      // functions are bound as globals, not looked up by name (#77348)
+      "inetsoft.util.script.JavaScriptEngine",
+      // Bug #77466: resolve class names to classes, or rebuild objects from bytes;
+      // the rest of the package is plain string and value helpers
+      "org.apache.commons.lang3.ClassUtils",
+      "org.apache.commons.lang3.SerializationUtils"
    );
 
    // Tier 1: curated exact-match safe classes. Finalized by audit in Task 6.4,
@@ -154,6 +228,35 @@ public final class ScriptHostAccess {
    private static final Set<String> PRIMITIVE_ARRAY_SIGNATURES = Set.of(
       "[B", "[S", "[I", "[J", "[F", "[D", "[C", "[Z"
    );
+
+   // Replaces Java.type and Java.to with wrappers that test the class name first
+   // (see installTypeLookupCheck). A non-string name is refused rather than
+   // converted, so the name tested is the name looked up. Java.to's type may also
+   // be a type Java.type returned. The wrappers use only what they captured when
+   // installed, so a script that changes a built-in prototype cannot change them.
+   private static final String TYPE_LOOKUP_CHECK_JS =
+      "(function(allowed) {" +
+      "  var J = Java, javaType = J.type, javaTo = J.to, isType = J.isType, TE = TypeError;" +
+      "  var check = function(name) {" +
+      "     if(typeof name !== 'string') {" +
+      "        throw new TE('Java.type expects one string argument');" +
+      "     }" +
+      "     if(!allowed(name)) {" +
+      "        throw new TE('Access to host class ' + name + ' is not allowed.');" +
+      "     }" +
+      "  };" +
+      "  Object.defineProperty(J, 'type', {value: function type(name) {" +
+      "     check(name); return javaType(name); }," +
+      "     writable: false, configurable: false, enumerable: false});" +
+      "  Object.defineProperty(J, 'to', {value: function to(value, name) {" +
+      "     if(arguments.length < 2) { return javaTo(value); }" +
+      "     if(!isType(name)) { check(name); }" +
+      "     return javaTo(value, name); }," +
+      "     writable: false, configurable: false, enumerable: false});" +
+      "})";
+
+   private static final Set<String> PRIMITIVE_TYPES = Set.of(
+      "boolean", "byte", "char", "short", "int", "long", "float", "double");
 
    private static volatile HostAccess hostAccess;
 
@@ -198,6 +301,171 @@ public final class ScriptHostAccess {
                   .denyAccess(Process.class)
                   .denyAccess(ProcessBuilder.class)
                   .denyAccess(Thread.class)
+                  // Bug #77497: a public static is shared by every script context and by
+                  // Java code in the JVM, and a script can reach the statics of a class by
+                  // more than one route (Java.type, the legacy package shim, the class
+                  // globals). Member access is decided here per declaring type on all of
+                  // them, so shared mutable statics are taken out of script reach by type:
+                  // - a thread-local carries state from one script run to whatever runs
+                  //   next on that thread; scripts cannot name the type already
+                  //   (BLOCKED_CLASSES), and no script API hands one out
+                  .denyAccess(ThreadLocal.class)
+                  // - the constant holders the StyleConstant and Chart scopes are built
+                  //   from declare only constants, some of them shared mutable arrays and
+                  //   page sizes; scripts read them through those scopes, which hand out
+                  //   copies (ConstantScope). Exact type only: the members of the classes
+                  //   that implement or extend them are unaffected
+                  .denyAccess(inetsoft.report.StyleConstants.class, false)
+                  .denyAccess(inetsoft.report.composition.region.ChartConstants.class, false)
+                  // Bug #77348: the #77255 read-only principal view is applied only
+                  // where the engine converts a value for a script (toGuest). A raw
+                  // host call (a Spring holder, VariableTable.get('__principal__'),
+                  // a runtime sheet's getUser()) returns the live principal
+                  // unconverted, and allowPublicAccess would expose its setters. So
+                  // deny, by type, every member of the objects that are or hold the
+                  // live session identity, or that decide which identity a session
+                  // trusts. Deny is by the member's declaring class, so the extra
+                  // interfaces a principal implements are listed too: Graal reports
+                  // their methods as declared by the interface, not the principal.
+                  .denyAccess(java.security.Principal.class)
+                  // SRPrincipal.getClientUserID() is the live ClientInfo IdentityID
+                  // that getName()/getIdentityID() are computed from
+                  .denyAccess(inetsoft.util.LogPrincipal.class)
+                  // readExternal resets an object's whole state; only the
+                  // interface-declared methods, not every Externalizable class
+                  .denyAccess(java.io.Externalizable.class, false)
+                  // DestinationUserNameProviderPrincipal is a Principal, but Graal
+                  // reports getDestinationUserName() as declared by this interface
+                  .denyAccess(org.springframework.messaging.simp.user
+                                 .DestinationUserNameProvider.class, false)
+                  // the principal's user identity holder
+                  .denyAccess(inetsoft.sree.ClientInfo.class)
+                  // setUser/setBaseUser/setVPMUser swap which principal a session
+                  // trusts without touching the principal itself
+                  .denyAccess(inetsoft.report.composition.execution.ViewsheetSandbox.class)
+                  .denyAccess(inetsoft.report.composition.execution.AssetQuerySandbox.class)
+                  // every live session's sheet, its user and its sandbox
+                  .denyAccess(inetsoft.report.composition.RuntimeSheet.class)
+                  // the engine (static WorksheetEngine.getWorksheetService(),
+                  // ViewsheetEngine), which hands out every user's sheets on the node
+                  .denyAccess(inetsoft.report.composition.WorksheetService.class)
+                  // XUtil.getXIdentityFinder() resolves every user's roles, groups
+                  // and org, and its getters return the live arrays
+                  .denyAccess(inetsoft.uql.util.XIdentityFinder.class)
+                  // Bug #77421: the driver and data source registries load and
+                  // initialize classes by name through plugin class loaders
+                  // without consulting classFilter(); neither is script API
+                  .denyAccess(inetsoft.uql.util.Drivers.class)
+                  .denyAccess(inetsoft.uql.util.Config.class)
+                  // JDBCHandler's statics do the same for driver classes and return
+                  // live drivers and connections; TabularUtil's view helpers invoke
+                  // the methods a view names on whatever bean they are passed. Both
+                  // are used by Java callers only. (Bug #77467: the XHandler deny
+                  // below now also covers JDBCHandler; this line is not load-bearing.)
+                  .denyAccess(inetsoft.uql.jdbc.JDBCHandler.class)
+                  .denyAccess(inetsoft.uql.tabular.TabularUtil.class)
+                  // Bug #77467: classFilter() gates only the Java.type(...) lookup;
+                  // it never consults member access on an object a script already
+                  // holds. So once a script reaches any object that is or yields a
+                  // live JDBC handle, every public method on it is callable
+                  // (getConnection/createStatement/executeQuery/connect) no matter
+                  // whether its class is in classFilter. There are many ways a script
+                  // can get such an object (the pool factories, a pool library, the
+                  // driver manager, a Driver on the classpath), so the fix is at the
+                  // member layer: deny, by type, the connection-bearing JDBC types,
+                  // which kills the operation on the held object however it was
+                  // obtained. Deny on an interface covers its implementors and their
+                  // construction/statics (verified against Graal 24.1.2), so the pool
+                  // factory interface covers all three factory impls in one line.
+                  // java.sql.Statement covers Prepared/CallableStatement (subtypes),
+                  // and javax.sql.DataSource covers Hikari's HikariDataSource.
+                  // java.sql.Types/Date/Time/Timestamp are value types with no
+                  // connection methods and are untouched (they stay in ALLOWED_CLASSES
+                  // at the type layer), so the form write-back API (createConnection ->
+                  // DBScriptable, which keeps the Connection on the Java side and hands
+                  // the script only XTableArray/primitives) still works.
+                  .denyAccess(javax.sql.DataSource.class)
+                  .denyAccess(javax.sql.ConnectionPoolDataSource.class)
+                  .denyAccess(javax.sql.XADataSource.class)
+                  .denyAccess(javax.sql.PooledConnection.class)
+                  .denyAccess(java.sql.Connection.class)
+                  .denyAccess(java.sql.Statement.class)
+                  .denyAccess(java.sql.Driver.class)
+                  .denyAccess(java.sql.DriverManager.class)
+                  // the pool factory interface (covers Default/JNDI/Legacy impls, their
+                  // statics and construction) and the Hikari pool types a script could
+                  // drive directly (HikariConfig.setDriverClassName instantiates an
+                  // arbitrary named class via internal reflection, bypassing classFilter)
+                  .denyAccess(inetsoft.uql.jdbc.ConnectionPoolFactory.class)
+                  // (HikariDataSource extends HikariConfig, so this covers it too)
+                  .denyAccess(com.zaxxer.hikari.HikariConfig.class)
+                  // unwrap()/isWrapperFor() let a held JDBC handle whose class is not
+                  // public (Graal then reports the interface-declared method) hand
+                  // out the vendor API behind it; nothing script-facing is a Wrapper
+                  .denyAccess(java.sql.Wrapper.class)
+                  // Bug #77467 (R5): the query engine runs a query against the data
+                  // source the query carries (XQuery.getDataSource()) with no
+                  // data-source permission check. A script that builds a JDBCQuery
+                  // over a JDBCDataSource it made itself and passes it to the manager
+                  // or engine would run arbitrary SQL inside Java without ever
+                  // receiving a Connection, so the member-layer java.sql denies above
+                  // would not stop it. Deny the two engine-side execution entry points
+                  // reachable from script (getXNodeTableLens/getXNode on the session
+                  // manager, and the execute(...) family on the data service that
+                  // XRepository/XEngine expose). Both are Java-caller APIs; the
+                  // permission-checked, by-name script query path (XUtil.runQuery) is
+                  // unaffected because it runs on the Java side.
+                  .denyAccess(inetsoft.report.XSessionManager.class)
+                  .denyAccess(inetsoft.uql.XDataService.class)
+                  // Bug #77467 (round 1): the same cause has more Java-side helpers
+                  // than the two entry points above. XAgent/JDBCAgent.getQueryData,
+                  // ColumnCache.getColumnData, SQLTypes.getChildMetaData,
+                  // JDBCUtil.getTableColumns and the XHandler family each take a data
+                  // source or query from the caller and connect or run it with no
+                  // permission check, and the pool properties a data source carries
+                  // (e.g. connectionInitSql) run SQL on every new connection. Naming
+                  // helpers one at a time keeps missing some, so close the source:
+                  // scripts must not construct, configure or read data-source and
+                  // query objects. A deny on the base classes covers every subclass
+                  // (JDBC, XMLA, tabular and plugin connectors), their constructors,
+                  // setters, getters (incl. credentials) and clone(). No script API
+                  // hands these objects to scripts; the form write-back API
+                  // (DBScriptable) holds its data source on the Java side.
+                  .denyAccess(inetsoft.uql.XDataSource.class)
+                  .denyAccess(inetsoft.uql.XQuery.class)
+                  // ...and the Java-side factories that would otherwise build one from
+                  // script input without the script touching an XDataSource member:
+                  // the XML wrappers (parseXML instantiates and configures the data
+                  // source or query an element describes), the registry
+                  // (parseXDataSource2 does the same; getDataSource and the
+                  // set/remove methods read and write the stored data sources with no
+                  // permission check of their own) and the data source listings
+                  // (createDataSource() returns a configured data source)
+                  .denyAccess(inetsoft.uql.XDataSourceWrapper.class)
+                  .denyAccess(inetsoft.uql.XQueryWrapper.class)
+                  .denyAccess(inetsoft.uql.service.DataSourceRegistry.class)
+                  .denyAccess(inetsoft.uql.DataSourceListing.class)
+                  // Defense in depth for a data source or query a script still holds
+                  // (e.g. one a Java API returned): deny the helpers that connect or
+                  // run it. XAgent covers JDBCAgent/XMLAAgent, and XHandler covers
+                  // JDBCHandler/XMLAHandler/TabularHandler. None is script API.
+                  .denyAccess(inetsoft.uql.util.XAgent.class)
+                  .denyAccess(inetsoft.uql.util.ColumnCache.class)
+                  .denyAccess(inetsoft.uql.service.XHandler.class)
+                  .denyAccess(inetsoft.uql.jdbc.util.SQLTypes.class)
+                  .denyAccess(inetsoft.uql.jdbc.util.JDBCUtil.class)
+                  // DefaultMetaDataProvider (the only MetaDataProvider) runs metadata
+                  // Java-side against whatever data source it is given, connecting
+                  // with its stored credentials and no permission check
+                  .denyAccess(inetsoft.uql.util.MetaDataProvider.class)
+                  .denyAccess(inetsoft.uql.util.DefaultMetaDataProvider.class)
+                  // XUtil.getSecurityProvider(), and the interfaces its providers'
+                  // configuration and cache methods are declared by
+                  .denyAccess(inetsoft.sree.security.AuthenticationProvider.class)
+                  .denyAccess(inetsoft.sree.security.AuthorizationProvider.class)
+                  .denyAccess(inetsoft.sree.security.JsonConfigurableProvider.class)
+                  .denyAccess(inetsoft.sree.security.CachableProvider.class)
+                  .denyAccess(inetsoft.sree.security.AuthenticationChangeListener.class, false)
                   // legacy convenience: scripts pass JS numbers to Java APIs.
                   // The range check matters: Double::intValue narrows by Java
                   // cast, which CLAMPS anything past the int range to
@@ -367,6 +635,15 @@ public final class ScriptHostAccess {
     * Dangerous classes (System/Runtime/Class/ClassLoader, threading,
     * inetsoft.report.internal.license.*, engine internals) are NOT on any allow
     * path, so they stay blocked.
+    *
+    * <p>The returned predicate reads {@link FormulaContext#isRestricted()} on every
+    * test. While a script runs restricted (end-user script surfaces), the
+    * {@code com.*}/{@code org.*} allowance and the {@code script.java.allowed.classes}
+    * grant do not apply; only {@code javascript.java.packages} still grants
+    * packages, which mirrors the restricted package roots of the Rhino engine. GraalJS keeps the classes a
+    * context has already found, so a lookup is not always tested again;
+    * {@link #installTypeLookupCheck} closes that gap for {@code Java.type}.
+    * (Bug #77396)
     */
    public static Predicate<String> classFilter() {
       // optional SreeEnv extension (off by default): comma-separated extra FQCNs
@@ -389,11 +666,15 @@ public final class ScriptHostAccess {
       try {
          String customPkgProp = SreeEnv.getProperty("javascript.java.packages", "");
          customPkgs = customPkgProp.isEmpty() ? new String[0] : customPkgProp.split(",");
-         comOrg = !"false".equals(SreeEnv.getProperty("javascript.java.com_org", "true"));
+         // Bug #77466: off unless an operator turns it on. Any class under com./org.
+         // on the server class path would otherwise be visible, including library
+         // helpers that reach classes and members the filter refuses
+         comOrg = "true".equalsIgnoreCase(
+            SreeEnv.getProperty("javascript.java.com_org", "false").trim());
       }
       catch(Exception ignore) {
          customPkgs = new String[0];
-         comOrg = true;
+         comOrg = false;
       }
 
       final String[] customPkgsF = customPkgs;
@@ -403,13 +684,74 @@ public final class ScriptHostAccess {
    }
 
    /**
+    * Loads a class named by a script for a helper that turns a script-supplied class
+    * name into a class or an instance. The name is checked against
+    * {@link #classFilter()} first, and the class is loaded without being initialized,
+    * so no code of a class the filter refuses runs. (Bug #77421)
+    *
+    * @param name   the fully qualified class name.
+    * @param loader the class loader to load the class from.
+    *
+    * @return the loaded, uninitialized class.
+    *
+    * @throws SecurityException      if the class filter refuses the name.
+    * @throws ClassNotFoundException if the class could not be found.
+    */
+   public static Class<?> loadScriptVisibleClass(String name, ClassLoader loader)
+      throws ClassNotFoundException
+   {
+      if(!classFilter().test(name)) {
+         throw new SecurityException("Class " + name + " is not allowed in scripts");
+      }
+
+      return Class.forName(name, false, loader);
+   }
+
+   /**
     * Package-private overload taking the already-parsed property values, so tests
     * can exercise the allow/deny precedence without a SreeEnv context.
     */
    static Predicate<String> classFilter(Set<String> extra, String[] customPkgs,
                                         boolean comOrg)
    {
-      return fqcn -> isVisibleToScripts(fqcn, extra, customPkgs, comOrg);
+      // invariant: no unrestricted script may share a Context with restricted surfaces,
+      // since a host type it leaves in a global bypasses this filter (bug #77396)
+      // a restricted script gets no com/org or extra classes, only the packages an
+      // administrator listed in javascript.java.packages, as in Rhino (bug #77396)
+      return fqcn -> FormulaContext.isRestricted() ?
+         isVisibleToScripts(fqcn, Set.of(), customPkgs, false) :
+         isVisibleToScripts(fqcn, extra, customPkgs, comOrg);
+   }
+
+   /**
+    * Makes {@code Java.type} and {@code Java.to} test a class name against the
+    * class filter on every call. GraalJS tests the filter given to
+    * {@code allowHostClassLookup} only the first time a context looks up a class
+    * and keeps the class after that, so without this check a class found by an
+    * unrestricted script would stay reachable from a restricted script that runs
+    * later in the same context. The original functions are kept only in a
+    * closure, so a script cannot reach them. (Bug #77396)
+    *
+    * @param context the context to install the check in, before any script runs.
+    * @param filter  the class filter the context was built with.
+    */
+   public static void installTypeLookupCheck(Context context, Predicate<String> filter) {
+      Value install = context.eval(Source.create("js", TYPE_LOOKUP_CHECK_JS));
+      install.execute((ProxyExecutable) args -> args.length > 0 && args[0].isString() &&
+         isTypeNameAllowed(args[0].asString(), filter));
+   }
+
+   /**
+    * Whether a type name given to Java.type or Java.to passes the class filter. An
+    * array type name ("x.Y[]") tests its element type, and a primitive type is not
+    * a class, as in the GraalJS lookup itself.
+    */
+   private static boolean isTypeNameAllowed(String name, Predicate<String> filter) {
+      while(name.endsWith("[]")) {
+         name = name.substring(0, name.length() - 2);
+      }
+
+      return PRIMITIVE_TYPES.contains(name) || filter.test(name);
    }
 
    /**

@@ -19,6 +19,7 @@ package inetsoft.web.admin.content.repository;
 
 import inetsoft.mv.trans.UserInfo;
 import inetsoft.sree.SreeEnv;
+import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
@@ -98,9 +99,11 @@ public class MVController {
    @SuppressWarnings("unchecked")
    public AnalyzeMVResponse getModel(@RequestParam("hideData") boolean hideData,
                                      @RequestParam("hideExist") boolean hideExist,
-                                     @PathVariable("analysisId") String analysisId)
+                                     @PathVariable("analysisId") String analysisId,
+                                     Principal principal)
    {
-      List<MVSupportService.MVStatus> mvStatusList = support.getMVStatusList(analysisId);
+      List<MVSupportService.MVStatus> mvStatusList =
+         support.getMVStatusList(analysisId, principal);
 
       for(MVSupportService.MVStatus status : mvStatusList) {
          status.updateStatus();
@@ -125,9 +128,11 @@ public class MVController {
    )
    @PostMapping("/api/em/content/repository/mv/show-plan/{analysisId}")
    public String showPlan(@PathVariable("analysisId") String analysisId,
-                          @RequestBody CreateUpdateMVRequest createUpdateMVRequest)
+                          @RequestBody CreateUpdateMVRequest createUpdateMVRequest,
+                          Principal principal)
    {
-      MVSupportService.AnalysisResult analysisResult = support.getAnalysisResult(analysisId);
+      MVSupportService.AnalysisResult analysisResult =
+         support.getAnalysisResult(analysisId, principal);
       List<MVSupportService.MVStatus> mvStatusList = analysisResult.getStatus();
       StringBuffer info = mvService.processPlan(createUpdateMVRequest.mvNames(), analysisResult,
                                                 mvStatusList);
@@ -162,9 +167,11 @@ public class MVController {
    @SuppressWarnings("unchecked")
    @PostMapping("/api/em/content/repository/mv/set-cycle/{analysisId}")
    public void setCycle(@PathVariable("analysisId") String analysisId,
-                        @RequestBody CreateUpdateMVRequest createUpdateMVRequest)
+                        @RequestBody CreateUpdateMVRequest createUpdateMVRequest,
+                        Principal principal)
    {
-      support.setDataCycle(createUpdateMVRequest.mvNames(), support.getAnalysisResult(analysisId),
+      support.setDataCycle(createUpdateMVRequest.mvNames(),
+                           support.getAnalysisResult(analysisId, principal),
                            createUpdateMVRequest.cycle());
    }
 
@@ -181,8 +188,11 @@ public class MVController {
       )
    })
    @GetMapping("/api/em/content/repository/mv/exceptions/{analysisId}")
-   public MVExceptionResponse setCycle(@PathVariable("analysisId") String analysisId) {
-      MVSupportService.AnalysisResult analysisResult = support.getAnalysisResult(analysisId);
+   public MVExceptionResponse setCycle(@PathVariable("analysisId") String analysisId,
+                                       Principal principal)
+   {
+      MVSupportService.AnalysisResult analysisResult =
+         support.getAnalysisResult(analysisId, principal);
       List<UserInfo> exceptions = analysisResult.getExceptions();
       List<MVExceptionModel> exceptionModels = exceptions.stream()
          .map(exception -> MVExceptionModel.builder()
@@ -271,9 +281,15 @@ public class MVController {
       )
    })
    @PostMapping("/api/em/content/materialized-view/date-as-ages")
-   public void setShowAges(@RequestBody MVManagementModel model) throws Exception {
+   public void setShowAges(@RequestBody MVManagementModel model, Principal principal)
+      throws Exception
+   {
       String showDateAsAges = model.showDateAsAges() ? "true" : "false";
-      SreeEnv.setProperty("mvmanager.dates.ages", showDateAsAges);
+      // org admins write to their own organization; site admins and single-tenant installs
+      // keep writing the global value
+      boolean orgScope = SUtil.isMultiTenant() &&
+         !OrganizationManager.getInstance().isSiteAdmin(principal);
+      SreeEnv.setProperty("mvmanager.dates.ages", showDateAsAges, orgScope);
       SreeEnv.save();
    }
 
@@ -375,7 +391,7 @@ public class MVController {
             return false;
          }
 
-         return repository.getSheet(entry, principal, false, AssetContent.ALL) != null;
+         return repository.getSheet(entry, principal, true, AssetContent.ALL) != null;
       }
       catch(Exception e) {
          return false;

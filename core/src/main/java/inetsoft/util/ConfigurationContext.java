@@ -22,7 +22,9 @@ import com.github.benmanes.caffeine.cache.Caffeine;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.NoSuchBeanDefinitionException;
+import org.springframework.beans.factory.config.ConfigurableListableBeanFactory;
 import org.springframework.context.ApplicationContext;
+import org.springframework.context.ConfigurableApplicationContext;
 
 import java.beans.PropertyChangeListener;
 import java.beans.PropertyChangeSupport;
@@ -30,6 +32,7 @@ import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
 /**
@@ -158,6 +161,15 @@ public class ConfigurationContext implements AutoCloseable {
       return oldValue;
    }
 
+   /**
+    * Removes all stored values. The values are kept for the life of the JVM, so this is used by
+    * the tests, which run many application contexts in one JVM, to keep the values stored under
+    * one context from being seen under the next one. No change events are fired.
+    */
+   public void clearValues() {
+      data.clear();
+   }
+
    public void addPropertyChangeListener(PropertyChangeListener listener) {
       support.addPropertyChangeListener(listener);
    }
@@ -228,6 +240,8 @@ public class ConfigurationContext implements AutoCloseable {
       //
       // Spring singleton beans are safe to retrieve concurrently — getBean() is idempotent
       // and thread-safe, so two concurrent cache-miss threads both get the same instance.
+      // It is not free of waiting: during a refresh, a singleton that is not created yet
+      // waits for the refreshing thread's singleton lock, see awaitSpringBean().
       IN_CACHE_LOAD.set(true);
       T bean;
 
@@ -240,6 +254,122 @@ public class ConfigurationContext implements AutoCloseable {
 
       beanCache.put(type, bean);
       return bean;
+   }
+
+   /**
+    * Gets a Spring singleton from a thread that the thread refreshing the context may itself be
+    * waiting on, such as a cluster singleton-service thread.
+    *
+    * <p>Until the bean factory configuration is frozen, Spring creates singletons under one lock,
+    * and the refreshing thread holds it for as long as it creates beans. Looking up a singleton
+    * that is not created yet parks on that lock, which deadlocks when the refreshing thread waits
+    * for the calling thread meanwhile (Bug #76975). So while the configuration is not frozen and
+    * no bean of the type is created yet, this method waits for the bean instead of looking it up,
+    * for at most the given time, after which it looks it up anyway.</p>
+    *
+    * <p>This closes only the window before the configuration is frozen, and relies on the bean
+    * being created during the refresh. After the refresh Spring locks strictly again, so a lookup
+    * of a lazy singleton that is first created later can still wait for a thread that holds the
+    * lock while it creates another bean.</p>
+    *
+    * @param type    the bean type.
+    * @param timeout the maximum time to wait for the bean to be created.
+    * @param unit    the unit of the timeout.
+    *
+    * @return the bean.
+    */
+   public <T> T awaitSpringBean(Class<T> type, long timeout, TimeUnit unit) {
+      long deadline = System.nanoTime() + unit.toNanos(timeout);
+      String[] names = null;
+
+      while(true) {
+         ConfigurableListableBeanFactory factory = getRefreshingBeanFactory(type);
+
+         if(factory == null) {
+            break;
+         }
+
+         if(names == null) {
+            // the bean definitions are registered before the singletons are created, so the
+            // candidates are computed once and only their creation is polled
+            names = factory.getBeanNamesForType(type, true, false);
+         }
+
+         if(isAnyCreated(factory, names)) {
+            break;
+         }
+
+         if(System.nanoTime() - deadline >= 0) {
+            LOG.warn("Spring bean {} was not created within {} {}, looking it up anyway",
+                     type.getName(), timeout, unit);
+            break;
+         }
+
+         try {
+            Thread.sleep(20L);
+         }
+         catch(InterruptedException e) {
+            Thread.currentThread().interrupt();
+            break;
+         }
+      }
+
+      return getSpringBean(type);
+   }
+
+   /**
+    * Determines if a singleton of the given type can be looked up without waiting on the singleton
+    * lock of a context that is being refreshed. Only reads state that Spring keeps outside of that
+    * lock. A frozen configuration counts as available, which only holds for beans created during
+    * the refresh, see {@link #awaitSpringBean}.
+    *
+    * @param type the bean type.
+    *
+    * @return {@code true} if the bean is created, is not defined in the current context, or the
+    *         context is not being refreshed.
+    */
+   public boolean isSingletonAvailable(Class<?> type) {
+      ConfigurableListableBeanFactory factory = getRefreshingBeanFactory(type);
+      return factory == null ||
+         isAnyCreated(factory, factory.getBeanNamesForType(type, true, false));
+   }
+
+   /**
+    * Gets the bean factory of the current context while its configuration is not frozen and no
+    * bean of the given type was looked up yet, or {@code null} otherwise.
+    */
+   private ConfigurableListableBeanFactory getRefreshingBeanFactory(Class<?> type) {
+      ApplicationContext context = applicationContext;
+
+      if(!(context instanceof ConfigurableApplicationContext configurable) ||
+         beanCache.getIfPresent(type) != null)
+      {
+         return null;
+      }
+
+      try {
+         ConfigurableListableBeanFactory factory = configurable.getBeanFactory();
+         return factory.isConfigurationFrozen() ? null : factory;
+      }
+      catch(IllegalStateException e) {
+         // the context is not refreshed yet or already closed, the lookup reports it
+         return null;
+      }
+   }
+
+   private static boolean isAnyCreated(ConfigurableListableBeanFactory factory, String[] names) {
+      if(names.length == 0) {
+         // not defined in this context, the lookup reports or resolves it
+         return true;
+      }
+
+      for(String name : names) {
+         if(factory.containsSingleton(name)) {
+            return true;
+         }
+      }
+
+      return false;
    }
 
    /**

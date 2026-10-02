@@ -1,0 +1,2 @@
+MessageFormat
+{0,choice,0#none|1#one|1<many}

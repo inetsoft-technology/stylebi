@@ -75,7 +75,10 @@ public class ImportAssetService {
       }
 
       ImportJarProperties properties = deployService.setJarFile(temp.getAbsolutePath(), false);
-      ImportAssetContext context = new ImportAssetContext(importId);
+      // stamp the owner before the context is shared, getJarInfo() below reads it back
+      ImportAssetContext context = new ImportAssetContext(
+         importId, getOwnerName(principal),
+         OrganizationManager.getInstance().getCurrentOrgID(principal));
       context.setProperties(properties);
       contexts.put(importId, context);
       boolean isImportAsSiteAdmin = OrganizationManager.getInstance().isSiteAdmin(principal);
@@ -128,20 +131,24 @@ public class ImportAssetService {
       IdentityID locationUserID = IdentityID.getIdentityIDFromKey(locationUser);
 
       if(background) {
-         CompletableFuture<ImportAssetResponse> future = importCache.getIfPresent(importId);
+         ImportJob job = importCache.getIfPresent(importId);
 
-         if(future != null) {
-            if(future.isDone()) {
+         if(job != null && job.isOwnedBy(principal)) {
+            if(job.future.isDone()) {
                importCache.invalidate(importId);
-               return future.get();
+               return job.future.get();
             }
             else {
                return ImportAssetResponse.builder().complete(false).build();
             }
          }
+         else if(job != null) {
+            // leave the foreign job untouched and answer as if it did not exist
+            LOG.warn("Refused access to import job {} by {}", importId, getOwnerName(principal));
+         }
       }
 
-      ImportAssetContext context = contexts.get(importId);
+      ImportAssetContext context = getOwnedContext(importId, principal);
 
       if(context == null) {
          LOG.warn("Current session is missing the imported jar info.");
@@ -164,7 +171,10 @@ public class ImportAssetService {
       }
       else if(importCache.getIfPresent(importId) == null) {
          CompletableFuture<ImportAssetResponse> future = new CompletableFuture<>();
-         importCache.put(importId, future);
+         // capture the owner on the request thread, the session principal may change later
+         importCache.put(importId, new ImportJob(
+            getOwnerName(principal), OrganizationManager.getInstance().getCurrentOrgID(principal),
+            future));
          ThreadPool.addOnDemand(() -> {
             Principal oPrincipal = ThreadContext.getContextPrincipal();
             ThreadContext.setContextPrincipal(principal);
@@ -195,7 +205,7 @@ public class ImportAssetService {
                                                       List<String> ignoreList,
                                                       Principal principal) throws Exception
    {
-      ImportAssetContext context = contexts.get(importId);
+      ImportAssetContext context = getOwnedContext(importId, principal);
 
       if(context == null) {
          return Collections.emptyList();
@@ -220,10 +230,11 @@ public class ImportAssetService {
 
    @GetMapping("/api/em/content/repository/import/clear-cache")
    @ClusterProxyMethod(CACHE_NAME)
-   public Void finishImport(@ClusterProxyKey String importId) {
-      ImportAssetContext context = contexts.remove(importId);
+   public Void finishImport(@ClusterProxyKey String importId, Principal principal) {
+      ImportAssetContext context = getOwnedContext(importId, principal);
 
       if(context != null) {
+         contexts.remove(importId);
          Tool.deleteFile(new File(context.getProperties().unzipFolderPath()));
       }
 
@@ -274,7 +285,12 @@ public class ImportAssetService {
                                           Principal principal, boolean isImportAsSiteAdmin)
       throws Exception
    {
-      ImportAssetContext context = contexts.get(importId);
+      ImportAssetContext context = getOwnedContext(importId, principal);
+
+      if(context == null) {
+         throw new IllegalStateException("Current session is missing the imported jar info.");
+      }
+
       ImportJarProperties properties = context.getProperties();
       PartialDeploymentJarInfo info =
          DeployManagerService.getInfo(properties.unzipFolderPath(), isImportAsSiteAdmin);
@@ -285,16 +301,44 @@ public class ImportAssetService {
       return deployService.getJarFileInfo(importId, deploymentInfo, targetFolderInfo, principal);
    }
 
+   /**
+    * Gets the import context for the id if it belongs to the caller. A context uploaded by
+    * another user or org is treated as missing and is not modified.
+    */
+   private ImportAssetContext getOwnedContext(String importId, Principal principal) {
+      ImportAssetContext context = contexts.get(importId);
+
+      if(context != null && !context.isOwnedBy(principal)) {
+         LOG.warn("Refused access to import {} by {}", importId, getOwnerName(principal));
+         return null;
+      }
+
+      return context;
+   }
+
+   private static String getOwnerName(Principal principal) {
+      return principal == null ? null : principal.getName();
+   }
+
+   private static boolean isOwner(String owner, String orgId, Principal principal) {
+      String callerName = getOwnerName(principal);
+      String callerOrg = OrganizationManager.getInstance().getCurrentOrgID(principal);
+      return owner != null && Objects.equals(owner, callerName) &&
+         (orgId == null ? callerOrg == null : orgId.equalsIgnoreCase(callerOrg));
+   }
+
    private final DeployService deployService;
    private final FileSystemService fileSystemService;
    private final Map<String, ImportAssetContext> contexts;
-   private final Cache<String, CompletableFuture<ImportAssetResponse>> importCache;
+   private final Cache<String, ImportJob> importCache;
    static final String CACHE_NAME = "importAssetContexts";
    private static final Logger LOG = LoggerFactory.getLogger(ImportAssetService.class);
 
    public static final class ImportAssetContext implements Serializable {
-      public ImportAssetContext(String id) {
+      public ImportAssetContext(String id, String owner, String orgId) {
          this.id = id;
+         this.owner = owner;
+         this.orgId = orgId;
       }
 
       public String getId() {
@@ -317,8 +361,33 @@ public class ImportAssetService {
          this.properties = properties;
       }
 
+      public boolean isOwnedBy(Principal principal) {
+         return isOwner(owner, orgId, principal);
+      }
+
       private final String id;
+      private final String owner;
+      private final String orgId;
       private PartialDeploymentJarInfo info;
       private ImportJarProperties properties;
+   }
+
+   /**
+    * A background import running on this node, stamped with the user and org that started it.
+    */
+   private static final class ImportJob {
+      ImportJob(String owner, String orgId, CompletableFuture<ImportAssetResponse> future) {
+         this.owner = owner;
+         this.orgId = orgId;
+         this.future = future;
+      }
+
+      boolean isOwnedBy(Principal principal) {
+         return isOwner(owner, orgId, principal);
+      }
+
+      private final String owner;
+      private final String orgId;
+      private final CompletableFuture<ImportAssetResponse> future;
    }
 }

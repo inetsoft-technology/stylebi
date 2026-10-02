@@ -62,6 +62,7 @@ public class PasteAssembliesService extends WorksheetControllerService {
 
       Worksheet ws = rws.getWorksheet();
       String[] names = event.getAssemblies();
+      checkCubeTableReadPermission(principal, names);
       int x = event.getLeft();
       int y = event.getTop();
       Worksheet sws = srws.getWorksheet();

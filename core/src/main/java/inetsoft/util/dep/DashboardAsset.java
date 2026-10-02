@@ -301,8 +301,7 @@ public class DashboardAsset extends AbstractXAsset {
             AssetEntry assetEntry = AssetEntry.createAssetEntryForCurrentOrg(identifier);
             ((VSDashboard) board).getViewsheet().setIdentifier(assetEntry.toIdentifier());
 
-            registry.addDashboard(dashboard, board);
-            registry.save();
+            registry.putDashboard(dashboard, board);
          }
       }
 

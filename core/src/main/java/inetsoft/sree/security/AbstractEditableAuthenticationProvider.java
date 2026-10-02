@@ -146,8 +146,15 @@ public abstract class AbstractEditableAuthenticationProvider
       copyDataSpace(fromOrganization, newOrg, replace);
       String newOrgThemeId = copyThemes(fromOrgId, newOrgID, replace);
 
+      // a rename that only changes the case of the org ID keeps the org's scoped property names,
+      // so they must not be removed as the old organization's
+      boolean sameScopedProperties = isSameOrgPropertyScope(fromOrgId, newOrgID);
+
       if(replace) {
-         clearScopedProperties(fromOrgId);
+         if(!sameScopedProperties) {
+            clearScopedProperties(fromOrgId);
+         }
+
          dashboardRegistryManager.clear(fromOrganization.getIdentityID());
          identityService.updateOrgProperties(fromOrgId, newOrgID);
          identityService.updateAutoSaveFiles(fromOrganization, newOrg, principal);
@@ -187,7 +194,8 @@ public abstract class AbstractEditableAuthenticationProvider
             }
 
             if(replace) {
-               removeRole(roleIdentity);
+               removeOldIdentity("role " + roleIdentity.getLabel(), () -> removeRole(roleIdentity),
+                                 fromOrgId, newOrgID);
             }
          }
       }
@@ -201,7 +209,8 @@ public abstract class AbstractEditableAuthenticationProvider
             }
 
             if(replace) {
-               removeUser(userID);
+               removeOldIdentity("user " + userID.getLabel(), () -> removeUser(userID),
+                                 fromOrgId, newOrgID);
             }
          }
       }
@@ -320,6 +329,7 @@ public abstract class AbstractEditableAuthenticationProvider
          newOrg.setMembers(editedNewOrganization.getMembers());
          newOrg.setLocale(editedNewOrganization.getLocale());
          newOrg.setTheme(editedNewOrganization.getTheme());
+         newOrg.setActive(editedNewOrganization.isActive());
       }
       else {
          newOrg.setMembers(addedMembers.stream().map(id -> id.name).toArray(String[]::new));
@@ -354,8 +364,14 @@ public abstract class AbstractEditableAuthenticationProvider
       }
 
       if(replace) {
-         removeOrganization(fromOrgId);
-         identityService.removeOrgProperties(fromOrgId);
+         removeOldIdentity("organization " + fromOrgId, () -> removeOrganization(fromOrgId),
+                           fromOrgId, newOrgID);
+
+         // updateOrgProperties() has already moved the old org ID's log level properties
+         if(!sameScopedProperties) {
+            identityService.removeOrgProperties(fromOrgId);
+         }
+
          identityService.removeOrgScopedDataSpaceElements(fromOrganization);
          themeService.removeTheme(fromOrgId);
          FSService.clearServerNodeCache(fromOrgId);
@@ -390,29 +406,77 @@ public abstract class AbstractEditableAuthenticationProvider
       }
    }
 
+   /**
+    * Removes an identity of the old organization during an organization rename. This is
+    * best-effort: by now the new organization holds the migrated state (properties, permissions,
+    * auto-save and task files were already re-keyed), so aborting the rename here would leave the
+    * organization half-migrated. A failure leaves an extra identity behind, not lost data.
+    */
+   private void removeOldIdentity(String identity, Runnable remove, String fromOrgId,
+                                  String newOrgID)
+   {
+      try {
+         remove.run();
+      }
+      catch(RuntimeException e) {
+         LOG.warn("The {} could not be removed while renaming organization {} to {}. It was " +
+                  "left behind and must be deleted.", identity, fromOrgId, newOrgID, e);
+      }
+   }
+
    private String copyThemes(String fromOrgId, String toOrgId, boolean replace) {
       if(Tool.isEmptyString(fromOrgId)) {
          return null;
       }
 
-      DataSpace dataSpace = DataSpace.getDataSpace();
       CustomThemesManager manager = CustomThemesManager.getManager();
       manager.loadThemes();
-      Set<CustomTheme> themes = new HashSet<>(manager.getCustomThemes());
+      String[] newOrgThemeId = { null };
 
-      // setCustomThemes() below does a full replace of the entire CustomThemes store. If
-      // no themes could be read there is nothing to migrate, and persisting an empty set
-      // (e.g. when the themes failed to load) would wipe every custom theme across all
-      // orgs. Skip persistence entirely in that case so a failed/empty read cannot delete
-      // the store.
-      if(themes.isEmpty()) {
-         if(replace) {
-            manager.setOrgSelectedTheme(null, fromOrgId);
-         }
+      // The themes are read, migrated and written back under the themes lock, so a theme
+      // created or changed on another node in the meantime is not lost by the full replace
+      // of the store (Bug #76978). The migration copies theme jars and moves the selected
+      // theme pointers of the organizations, which are entangled with the change of the set,
+      // so they are done under the lock as well; this is a rare administrative operation.
+      // The update is not applied when the themes cannot be read reliably, e.g. when the store
+      // was closed or not loaded (Bug #77222). The themes are then left unchanged; that is
+      // logged rather than aborting the rest of the organization copy.
+      try {
+         manager.updateCustomThemes(themes -> {
+            // the store is fully replaced with the returned set. If no themes could be read
+            // there is nothing to migrate, and persisting an empty set (e.g. when the themes
+            // failed to load) would wipe every custom theme across all orgs. Skip persistence
+            // entirely in that case so a failed/empty read cannot delete the store.
+            if(themes.isEmpty()) {
+               if(replace) {
+                  manager.setOrgSelectedTheme(null, fromOrgId);
+               }
 
-         return null;
+               return null;
+            }
+
+            newOrgThemeId[0] = copyThemes(themes, manager, fromOrgId, toOrgId, replace);
+            return themes;
+         });
+      }
+      catch(IllegalStateException e) {
+         LOG.error("Failed to copy the custom themes of organization {} to {}",
+                   fromOrgId, toOrgId, e);
       }
 
+      return newOrgThemeId[0];
+   }
+
+   /**
+    * Migrates the themes of an organization in the given set of themes, see
+    * {@link #copyThemes(String, String, boolean)}.
+    *
+    * @return the ID of the theme selected by the target organization, or <tt>null</tt>.
+    */
+   private String copyThemes(Set<CustomTheme> themes, CustomThemesManager manager,
+                             String fromOrgId, String toOrgId, boolean replace)
+   {
+      DataSpace dataSpace = DataSpace.getDataSpace();
       List<CustomTheme> sourceThemes = new ArrayList<>();
 
       for(CustomTheme t : themes) {
@@ -501,7 +565,7 @@ public abstract class AbstractEditableAuthenticationProvider
                   }
                   else {
                      String oldJarPath = clone.getJarPath();
-                     String newJarPath = oldJarPath.replace(fromOrgId, toOrgId);
+                     String newJarPath = OrgScopedPaths.rewrite(oldJarPath, fromOrgId, toOrgId);
 
                      // The org's data space folder (including its theme jar) is expected
                      // to have already been relocated by the earlier copyDataSpace() call.
@@ -554,7 +618,7 @@ public abstract class AbstractEditableAuthenticationProvider
             {
                // Global themes are shared; propagate selection pointer only, no clone.
                // Mutate the live entry in `themes` (not the sourceThemes copy) so the
-               // change is visible when setCustomThemes is called below.
+               // change is visible when the set is written back.
                CustomTheme original = themes.stream()
                   .filter(t -> t.getId().equals(theme.getId()))
                   .findFirst()
@@ -590,7 +654,6 @@ public abstract class AbstractEditableAuthenticationProvider
          manager.setOrgSelectedTheme(null, fromOrgId);
       }
 
-      manager.setCustomThemes(themes);
       return newOrgThemeId;
    }
 
@@ -607,15 +670,21 @@ public abstract class AbstractEditableAuthenticationProvider
       }
    }
 
+   private static boolean isSameOrgPropertyScope(String orgId1, String orgId2) {
+      return PropertiesEngine.getOrgPropertyPrefix(orgId1)
+         .equals(PropertiesEngine.getOrgPropertyPrefix(orgId2));
+   }
+
    protected void clearScopedProperties(String oldOrgId) {
       //loop through properties, delete any containing .thisOrg.
       Properties properties = SreeEnv.getProperties();
-      String oldOrgIdentifier = "inetsoft.org." + oldOrgId.toLowerCase(Locale.ROOT);
+      // the stored names have the org ID lower case, as the property engine writes them
+      String oldOrgIdentifier = PropertiesEngine.getOrgPropertyPrefix(oldOrgId);
 
       for(Enumeration<?> e = properties.propertyNames(); e.hasMoreElements();) {
          String pName = (String) e.nextElement();
 
-         if(pName.toLowerCase(Locale.ROOT).startsWith(oldOrgIdentifier)) {
+         if(pName.startsWith(oldOrgIdentifier)) {
             SreeEnv.remove(pName);
          }
       }
@@ -638,7 +707,7 @@ public abstract class AbstractEditableAuthenticationProvider
       List<String> failedRenames = new ArrayList<>();
 
       for(String path : paths) {
-         String newPath = path.replace(fromOrgId, toOrgId);
+         String newPath = OrgScopedPaths.rewrite(path, fromOrgId, toOrgId);
 
          if(replace) {
             if(!dataspace.rename(path, newPath)) {
@@ -714,15 +783,22 @@ public abstract class AbstractEditableAuthenticationProvider
    }
 
    private void copyScopedProperties(String fromOrgId, String newOrgId, boolean replace) {
+      // org IDs that differ only in case have the same scoped property names, so copying each
+      // property onto itself and removing the original would lose it
+      if(isSameOrgPropertyScope(fromOrgId, newOrgId)) {
+         return;
+      }
+
       Properties properties = SreeEnv.getProperties();
-      String oldOrgIdentifier = "inetsoft.org." + fromOrgId.toLowerCase(Locale.ROOT);
-      String newOrgPrefix = "inetsoft.org." + newOrgId.toLowerCase(Locale.ROOT);
+      // the stored names have the org ID lower case, as the property engine writes them
+      String oldOrgIdentifier = PropertiesEngine.getOrgPropertyPrefix(fromOrgId);
+      String newOrgPrefix = PropertiesEngine.getOrgPropertyPrefix(newOrgId);
       Enumeration<?> enumeration = properties.propertyNames();
 
       while(enumeration.hasMoreElements()) {
          String pName = (String) enumeration.nextElement();
 
-         if(pName.toLowerCase(Locale.ROOT).startsWith(oldOrgIdentifier)) {
+         if(pName.startsWith(oldOrgIdentifier)) {
             String baseName = pName.substring(oldOrgIdentifier.length());
             String updatedName = newOrgPrefix + baseName;
             SreeEnv.setProperty(updatedName, properties.getProperty(pName));

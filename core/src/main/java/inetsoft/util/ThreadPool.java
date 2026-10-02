@@ -19,6 +19,7 @@ package inetsoft.util;
 
 import inetsoft.report.internal.license.*;
 import inetsoft.sree.security.OrganizationContextHolder;
+import inetsoft.util.script.graal.pool.SlotClaim;
 import org.slf4j.*;
 
 import java.security.Principal;
@@ -612,6 +613,10 @@ public class ThreadPool {
             boolean orgChanged = false;
 
             try {
+               // user messages are a plain ThreadLocal on this long-lived worker; drop anything
+               // a previous task (possibly another user/org) left behind (bug #77175)
+               CoreTool.clearUserMessage();
+
                if(unwrapCmd instanceof PoolRunnable) {
                   npri = ((PoolRunnable) unwrapCmd).getPriority();
 
@@ -718,6 +723,13 @@ public class ThreadPool {
                busy.decrementAndGet();
                removeRecords(); // discard context records
                setPrincipal(null); // discard context user
+               // a worksheet script claim leaked by this task must not carry into the next
+               // task on this long-lived worker (bug #76960, spec N5); never throws
+               SlotClaim.releaseLeaked(getName());
+               // the task's own readers (e.g. SummaryFilter, AssetDataCache.Processor) have
+               // already collected inside cmd.run(); nothing reads this worker's messages after
+               // the task, so they must not carry into the next task (bug #77175)
+               CoreTool.clearUserMessage();
 
                if(orgChanged) {
                   OrganizationContextHolder.setCurrentOrgId(originalOrg);

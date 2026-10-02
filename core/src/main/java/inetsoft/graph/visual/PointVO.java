@@ -224,21 +224,21 @@ public class PointVO extends ElementVO {
          g2.setStroke(line.getStroke());
       }
 
-      Color olineColor = shp.getLineColor();
-      int olineStyle = shp.getLineStyle();
-
       // only force border if borderColor is set (not if line is set), this
       // is to keep backward compatibility since we used line style without
       // forcing borders to be drawn before.
+      // The border and line are applied to a copy: the shape may be a shared constant, used
+      // by every chart in the JVM at the same time (Bug #77497)
       if(borderColor != null) {
-         if(!shp.isOutline()) {
-            shp = shp.create(true, shp.isFill());
-         }
-
+         shp = shp.isOutline() ? shp.clone() : shp.create(true, shp.isFill());
          shp.setLineColor(borderColor);
       }
 
       if(line != null) {
+         if(borderColor == null) {
+            shp = shp.clone();
+         }
+
          shp.setLineStyle(line.getStyle());
       }
 
@@ -246,9 +246,6 @@ public class PointVO extends ElementVO {
          s.paint(g2, pos.getX(), pos.getY(), radius);
          return true;
       });
-
-      shp.setLineColor(olineColor);
-      shp.setLineStyle(olineStyle);
 
       if(createG) {
          g2.dispose();
@@ -266,21 +263,16 @@ public class PointVO extends ElementVO {
 
    private static <R> R callShape(GShape shp, boolean sizeDefined, Function<GShape, R> func) {
       // if size frame is not defined, never apply size to image shape.
-      boolean ignoreSize = !sizeDefined && shp instanceof GShape.ImageShape &&
-         ((GShape.ImageShape) shp).isApplySize();
-
-      if(ignoreSize) {
-         ((GShape.ImageShape) shp).setApplySize(false);
+      // The setting is applied to a copy: the shape may be shared by every chart (Bug #77497)
+      if(!sizeDefined && shp instanceof GShape.ImageShape image && image.isApplySize()) {
+         // load the image once, into the shape itself, so that the copies share it
+         image.getImage();
+         GShape.ImageShape copy = (GShape.ImageShape) image.clone();
+         copy.setApplySize(false);
+         shp = copy;
       }
 
-      try {
-         return func.apply(shp);
-      }
-      finally {
-         if(ignoreSize) {
-            ((GShape.ImageShape) shp).setApplySize(true);
-         }
-      }
+      return func.apply(shp);
    }
 
    /**

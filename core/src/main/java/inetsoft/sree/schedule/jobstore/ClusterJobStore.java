@@ -21,6 +21,7 @@ import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.internal.cluster.*;
 import inetsoft.sree.schedule.ScheduleManager;
 import inetsoft.sree.schedule.ScheduleTask;
+import inetsoft.sree.schedule.cloudrunner.ScheduleTaskCloudJob;
 import inetsoft.util.ThreadContext;
 import inetsoft.util.Tool;
 import org.quartz.Calendar;
@@ -33,12 +34,15 @@ import org.slf4j.LoggerFactory;
 
 import java.io.Serializable;
 import java.security.Principal;
+import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
+import java.util.function.LongSupplier;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static inetsoft.sree.schedule.jobstore.TriggerState.*;
+import static inetsoft.sree.schedule.jobstore.TriggerWrapper.newOwnedTriggerWrapper;
 import static inetsoft.sree.schedule.jobstore.TriggerWrapper.newTriggerWrapper;
 
 public class ClusterJobStore implements JobStore, Serializable {
@@ -61,6 +65,7 @@ public class ClusterJobStore implements JobStore, Serializable {
       pausedTriggerGroups = cluster.getSet("jobstore.pausedTriggerGroups");
       pausedJobGroups = cluster.getSet("jobstore.pausedJobGroups");
       calendarsByName = cluster.getReplicatedMap("jobstore.calendarsByName");
+      runningJobs = cluster.getReplicatedMap("jobstore.runningJobs");
 
       // only shutdown the cluster when running in a separate process
       shutdownClusterOnShutdown = "true".equals(System.getProperty("ScheduleServer"));
@@ -87,6 +92,8 @@ public class ClusterJobStore implements JobStore, Serializable {
 
    @Override
    public void shutdown() {
+      releaseOwnAcquiredTriggers();
+
       if(shutdownClusterOnShutdown) {
          try {
             Cluster.getInstance().close();
@@ -94,6 +101,51 @@ public class ClusterJobStore implements JobStore, Serializable {
          catch(Exception ex) {
             LOG.debug("Failed to shut down cluster instance", ex);
          }
+      }
+   }
+
+   /**
+    * Releases the triggers this store acquired but did not fire, so that another node can fire
+    * them. Quartz does not release them when the scheduler shuts down.
+    */
+   private void releaseOwnAcquiredTriggers() {
+      try {
+         for(TriggerWrapper tw : triggersByKey.values()) {
+            String fireInstanceId = tw.trigger.getFireInstanceId();
+
+            if(tw.getState() != ACQUIRED || fireInstanceId == null ||
+               !fireInstanceId.startsWith(fireInstanceIdPrefix))
+            {
+               continue;
+            }
+
+            try {
+               triggersByKey.lock(tw.key, 5, TimeUnit.SECONDS);
+            }
+            catch(IllegalStateException ex) {
+               LOG.warn("Failed to lock trigger {} to release it", tw.key, ex);
+               continue;
+            }
+
+            try {
+               TriggerWrapper current = triggersByKey.get(tw.key);
+
+               if(current != null && isAcquiredBy(current, tw.trigger)) {
+                  storeTriggerWrapper(newTriggerWrapper(current, WAITING));
+               }
+            }
+            finally {
+               try {
+                  triggersByKey.unlock(tw.key);
+               }
+               catch(IllegalMonitorStateException ex) {
+                  LOG.warn("Error unlocking since it is already released.", ex);
+               }
+            }
+         }
+      }
+      catch(RuntimeException ex) {
+         LOG.warn("Failed to release the acquired triggers on shutdown", ex);
       }
    }
 
@@ -339,6 +391,7 @@ public class ClusterJobStore implements JobStore, Serializable {
       calendarsByName.clear();
       pausedTriggerGroups.clear();
       pausedJobGroups.clear();
+      runningJobs.clear();
    }
 
    @Override
@@ -786,6 +839,11 @@ public class ClusterJobStore implements JobStore, Serializable {
 
       List<OperableTrigger> result = new ArrayList<>();
       Set<JobKey> acquiredJobKeysForNoConcurrentExec = new HashSet<>();
+      // the cluster topology, read once per pass and only if a held trigger or a running job is
+      // found
+      boolean topologyRead = false;
+      Set<String> liveNodes = null;
+      long now = System.currentTimeMillis();
 
       // ordering triggers to try to ensure firetime order
       List<TriggerWrapper> orderedTriggers = triggersByKey.values().stream()
@@ -826,12 +884,62 @@ public class ClusterJobStore implements JobStore, Serializable {
             }
             */
 
+            // Bug #77245, a hold whose owner can no longer complete or release it would keep the
+            // trigger from ever firing again
+            if(tw.getState() == ACQUIRED || tw.getState() == BLOCKED) {
+               if(!topologyRead) {
+                  liveNodes = getLiveNodes();
+                  topologyRead = true;
+               }
+
+               final TriggerWrapper held = tw;
+
+               if(isOrphaned(held, liveNodes, () -> getOrphanedRunHold(held),
+                             System.currentTimeMillis()))
+               {
+                  LOG.warn("Releasing trigger {} held {} by node {} ({}, store {}) since {}, " +
+                              "that node is no longer in the cluster", tw.key, tw.getState(),
+                           tw.getOwnerNode(), tw.getOwnerMember(), tw.getOwnerStore(),
+                           tw.getOwnedSince() == null ? null :
+                              Instant.ofEpochMilli(tw.getOwnedSince()));
+                  tw = newTriggerWrapper(tw, WAITING);
+                  storeTriggerWrapper(tw);
+               }
+               // Bug #77202, a sibling's completion no longer releases a blocked trigger, so a run
+               // that outlasts the task timeout on a live node must not keep it blocked for good
+               else if(tw.getState() == BLOCKED &&
+                  isStale(tw, getRunBound(tw.jobKey), now))
+               {
+                  LOG.warn("Releasing trigger {} blocked by node {} ({}, store {}) since {}, " +
+                              "its run outlasted the task timeout", tw.key, tw.getOwnerNode(),
+                           tw.getOwnerMember(), tw.getOwnerStore(),
+                           Instant.ofEpochMilli(tw.getOwnedSince()));
+                  tw = newTriggerWrapper(tw, WAITING);
+                  storeTriggerWrapper(tw);
+               }
+            }
+
             if(tw.getState() != NORMAL && tw.getState() != WAITING) {
                continue;
             }
 
             if(tw.trigger.getNextFireTime() == null) {
                continue;
+            }
+
+            // Bug #77202, a trigger of a job that is running on behalf of another trigger is left
+            // as it is, so it fires once as soon as that run completes or is no longer honoured
+            RunningJob run = runningJobs.get(tw.jobKey);
+
+            if(run != null) {
+               if(!topologyRead) {
+                  liveNodes = getLiveNodes();
+                  topologyRead = true;
+               }
+
+               if(isRunning(tw.jobKey, run, liveNodes, now)) {
+                  continue;
+               }
             }
 
             if(applyMisfire(tw)) {
@@ -872,7 +980,8 @@ public class ClusterJobStore implements JobStore, Serializable {
 
             OperableTrigger trig = (OperableTrigger) tw.trigger.clone();
             trig.setFireInstanceId(getFiredTriggerRecordId());
-            storeTriggerWrapper(newTriggerWrapper(trig, ACQUIRED));
+            storeTriggerWrapper(newOwnedTriggerWrapper(
+               trig, ACQUIRED, getLocalNodeId(), getLocalMember(), fireInstanceIdPrefix));
 
             result.add(trig);
 
@@ -901,9 +1010,9 @@ public class ClusterJobStore implements JobStore, Serializable {
       try {
          TriggerWrapper tw = triggersByKey.get(triggerKey);
 
-         if(tw != null && tw.getState() != TriggerState.PAUSED &&
-            tw.getState() != TriggerState.PAUSED_BLOCKED)
-         {
+         // only release the acquisition made by the caller, another node may have acquired
+         // the trigger since
+         if(tw != null && isAcquiredBy(tw, trigger)) {
             storeTriggerWrapper(newTriggerWrapper(trigger, WAITING));
          }
       }
@@ -934,8 +1043,9 @@ public class ClusterJobStore implements JobStore, Serializable {
             if(tw == null || tw.trigger == null) {
                continue;
             }
-            // was the trigger completed, paused, blocked, etc. since being acquired?
-            if(tw.getState() != ACQUIRED) {
+            // was the trigger completed, paused, blocked, etc. or acquired by another node since
+            // being acquired?
+            if(!isAcquiredBy(tw, trigger)) {
                continue;
             }
 
@@ -949,49 +1059,65 @@ public class ClusterJobStore implements JobStore, Serializable {
                }
             }
 
-            Date prevFireTime = trigger.getPreviousFireTime();
-            // call triggered on our copy, and the scheduler's copy
-            tw.trigger.triggered(cal);
-
-            if(tw.trigger != trigger) {
-               trigger.triggered(cal);
-            }
-
             JobDetail job = retrieveJob(tw.jobKey);
 
-            if(job.isConcurrentExectionDisallowed()) {
-               ArrayList<TriggerWrapper> trigs = getTriggerWrappersForJob(job.getKey());
+            // Bug #77202, another trigger of the job may have fired since this one was acquired
+            boolean runStarted = job != null && job.isConcurrentExectionDisallowed();
 
-               for(TriggerWrapper ttw : trigs) {
-                  if(ttw.getState() == WAITING) {
-                     ttw = newTriggerWrapper(ttw, BLOCKED);
-                  }
-                  else if(ttw.getState() == PAUSED) {
-                     ttw = newTriggerWrapper(ttw, PAUSED_BLOCKED);
-                  }
+            if(runStarted && !startRun(job, trigger)) {
+               // not fired: the trigger keeps its fire time and fires once the run is over. Quartz
+               // pairs each result with the trigger at the same index, and releases the trigger of
+               // a result without a bundle, which changes nothing since it is no longer acquired
+               storeTriggerWrapper(newTriggerWrapper(tw, WAITING));
+               results.add(new TriggerFiredResult((TriggerFiredBundle) null));
+               continue;
+            }
+
+            try {
+               Date prevFireTime = trigger.getPreviousFireTime();
+               // call triggered on our copy, and the scheduler's copy
+               tw.trigger.triggered(cal);
+
+               if(tw.trigger != trigger) {
+                  trigger.triggered(cal);
                }
 
-               tw = newTriggerWrapper(trigger, ACQUIRED);
-            }
-            else {
-               tw = newTriggerWrapper(trigger, WAITING);
-            }
+               if(trigger.getNextFireTime() == null) {
+                  // a trigger that will not fire again must not stay acquirable with its old fire
+                  // time
+                  tw = newTriggerWrapper(trigger, COMPLETE);
+               }
+               else if(job.isConcurrentExectionDisallowed()) {
+                  // keep the trigger from being acquired again until its execution completes
+                  tw = newOwnedTriggerWrapper(
+                     trigger, BLOCKED, getLocalNodeId(), getLocalMember(), fireInstanceIdPrefix);
+               }
+               else {
+                  tw = newTriggerWrapper(trigger, WAITING);
+               }
 
-            if(tw.trigger.getNextFireTime() != null) {
                storeTriggerWrapper(tw);
+
+               TriggerFiredBundle bndle = new TriggerFiredBundle(
+                  retrieveJob(tw.jobKey),
+                  trigger,
+                  cal,
+                  false,
+                  new Date(),
+                  trigger.getPreviousFireTime(),
+                  prevFireTime,
+                  trigger.getNextFireTime());
+
+               results.add(new TriggerFiredResult(bndle));
             }
+            catch(RuntimeException ex) {
+               // the run did not start, so its record must not hold back the other triggers
+               if(runStarted) {
+                  endRun(job.getKey(), trigger);
+               }
 
-            TriggerFiredBundle bndle = new TriggerFiredBundle(
-               retrieveJob(tw.jobKey),
-               trigger,
-               cal,
-               false,
-               new Date(),
-               trigger.getPreviousFireTime(),
-               prevFireTime,
-               trigger.getNextFireTime());
-
-            results.add(new TriggerFiredResult(bndle));
+               throw ex;
+            }
          }
          finally {
             try {
@@ -1012,6 +1138,10 @@ public class ClusterJobStore implements JobStore, Serializable {
       Trigger.CompletedExecutionInstruction triggerInstCode)
    {
       TriggerWrapper tw = triggersByKey.get(trigger.getKey());
+
+      if(jobDetail.isConcurrentExectionDisallowed()) {
+         endRun(jobDetail.getKey(), trigger);
+      }
 
       if(jobDetail.isPersistJobDataAfterExecution()) {
          JobKey jobKey = jobDetail.getKey();
@@ -1034,16 +1164,7 @@ public class ClusterJobStore implements JobStore, Serializable {
          ArrayList<TriggerWrapper> trigs = getTriggerWrappersForJob(jobDetail.getKey());
 
          for(TriggerWrapper ttw : trigs) {
-            if(ttw.getTrigger() instanceof SimpleTrigger) {
-               continue;
-            }
-
-            if(ttw.getState() == BLOCKED || ttw.getState() == ACQUIRED) {
-               storeTriggerWrapper(newTriggerWrapper(ttw, WAITING));
-            }
-            else if(ttw.getState() == PAUSED_BLOCKED) {
-               storeTriggerWrapper(newTriggerWrapper(ttw, PAUSED));
-            }
+            releaseBlockedTrigger(ttw.key, trigger);
          }
 
          schedSignaler.signalSchedulingChange(0L);
@@ -1143,6 +1264,289 @@ public class ClusterJobStore implements JobStore, Serializable {
       return trigList;
    }
 
+   /**
+    * Releases a trigger of a non-concurrent job that is blocked while it runs or held by an
+    * acquisition, so a hold left by a node that stopped or died does not strand it. A released
+    * hold can only be fired by its next acquisition (see {@link #isAcquiredBy}). A trigger that
+    * already fired for the last time is left alone, and so is a trigger blocked by another run
+    * that is still going (Bug #77202): only the run itself, or its owner leaving the cluster,
+    * releases it.
+    *
+    * @param completed the trigger whose run completed.
+    */
+   private void releaseBlockedTrigger(TriggerKey key, OperableTrigger completed) {
+      try {
+         triggersByKey.lock(key, 5, TimeUnit.MINUTES);
+      }
+      catch(IllegalStateException ex) {
+         LOG.warn("Failed to lock trigger {} to release it", key, ex);
+         return;
+      }
+
+      try {
+         TriggerWrapper tw = triggersByKey.get(key);
+
+         if(tw == null) {
+            return;
+         }
+
+         if(tw.getState() == BLOCKED && !isBlockedBy(tw, completed)) {
+            return;
+         }
+
+         if(tw.getState() == BLOCKED || tw.getState() == ACQUIRED) {
+            storeTriggerWrapper(newTriggerWrapper(tw, WAITING));
+         }
+         else if(tw.getState() == PAUSED_BLOCKED) {
+            storeTriggerWrapper(newTriggerWrapper(tw, PAUSED));
+         }
+      }
+      finally {
+         try {
+            triggersByKey.unlock(key);
+         }
+         catch(IllegalMonitorStateException ex) {
+            LOG.warn("Error unlocking since it is already released.", ex);
+         }
+      }
+   }
+
+   /**
+    * Checks if a BLOCKED entry was blocked by the run of the given trigger, or records no owner (an
+    * older version, or an error state set on completion), in which case any completion of the job
+    * releases it as before.
+    */
+   private static boolean isBlockedBy(TriggerWrapper tw, OperableTrigger trigger) {
+      return tw.getOwnerNode() == null ||
+         trigger.getFireInstanceId() != null &&
+         trigger.getFireInstanceId().equals(tw.trigger.getFireInstanceId());
+   }
+
+   /**
+    * Records that a trigger of a job that disallows concurrent execution is firing, unless another
+    * run of the job is still honoured (Bug #77202). Quartz leaves @DisallowConcurrentExecution to
+    * the store, and the store is shared by every node, so this is what keeps two conditions of a
+    * task from running it at the same time on two worker threads or two nodes.
+    *
+    * @return true if the trigger may fire, false if another run is in the way.
+    */
+   private boolean startRun(JobDetail job, OperableTrigger trigger) {
+      JobKey jobKey = job.getKey();
+      runningJobs.lock(jobKey, 5, TimeUnit.MINUTES);
+
+      try {
+         RunningJob run = runningJobs.get(jobKey);
+
+         if(run != null && isRunning(jobKey, run, getLiveNodes(), System.currentTimeMillis())) {
+            LOG.debug("Not firing trigger {}, job {} is still running: {}",
+                      trigger.getKey(), jobKey, run);
+            return false;
+         }
+
+         if(run != null) {
+            LOG.warn("Firing trigger {} although job {} was not seen to complete, its run is " +
+                        "no longer honoured: {}", trigger.getKey(), jobKey, run);
+         }
+
+         runningJobs.set(jobKey, new RunningJob(
+            trigger.getFireInstanceId(), trigger.getKey(), getLocalNodeId(), getLocalMember(),
+            System.currentTimeMillis()));
+         return true;
+      }
+      finally {
+         try {
+            runningJobs.unlock(jobKey);
+         }
+         catch(IllegalMonitorStateException ex) {
+            LOG.warn("Error unlocking since it is already released.", ex);
+         }
+      }
+   }
+
+   /**
+    * Removes the running record of a job when the run that made it completes. The completion of a
+    * run whose record was replaced after it stopped being honoured leaves the new one alone.
+    */
+   private void endRun(JobKey jobKey, OperableTrigger trigger) {
+      try {
+         runningJobs.lock(jobKey, 5, TimeUnit.MINUTES);
+      }
+      catch(IllegalStateException ex) {
+         // the record stops being honoured at the task timeout
+         LOG.warn("Failed to lock the running record of job {} to remove it", jobKey, ex);
+         return;
+      }
+
+      try {
+         RunningJob run = runningJobs.get(jobKey);
+
+         if(run != null && trigger.getFireInstanceId() != null &&
+            trigger.getFireInstanceId().equals(run.getFireInstanceId()))
+         {
+            runningJobs.remove(jobKey);
+         }
+      }
+      finally {
+         try {
+            runningJobs.unlock(jobKey);
+         }
+         catch(IllegalMonitorStateException ex) {
+            LOG.warn("Error unlocking since it is already released.", ex);
+         }
+      }
+   }
+
+   /**
+    * Checks if a job's running record still keeps its other triggers from firing (Bug #77202). It
+    * is honoured only while its run may still be executing, so a run whose owner died, was scaled
+    * in or hangs cannot keep the task from ever running again.
+    */
+   boolean isRunning(JobKey jobKey, RunningJob run, Set<String> liveNodes, long now) {
+      return isRunning(run, liveNodes, isCloudJob(jobKey), getRunBound(jobKey), now);
+   }
+
+   /**
+    * Gets how long after it started a run of the job may still be executing: the effective task
+    * timeout, plus the launch margin for a cloud runner job, whose container its platform stops at
+    * the timeout after it was launched.
+    */
+   long getRunBound(JobKey jobKey) {
+      return getEffectiveTaskTimeout() + (isCloudJob(jobKey) ? CLOUD_RUN_LAUNCH_MARGIN : 0);
+   }
+
+   private boolean isCloudJob(JobKey jobKey) {
+      JobDetail job = jobsByKey.get(jobKey);
+      return job != null && ScheduleTaskCloudJob.class.isAssignableFrom(job.getJobClass());
+   }
+
+   /**
+    * Checks if a BLOCKED entry was taken longer ago than its run may still be executing (Bug
+    * #77202). An entry with no recorded owner (an older version, or an error state) is never
+    * stale.
+    */
+   static boolean isStale(TriggerWrapper tw, long bound, long now) {
+      return tw.getOwnedSince() != null && now - tw.getOwnedSince() >= bound;
+   }
+
+   /**
+    * The rule behind {@link #isRunning(JobKey, RunningJob, Set, long)}: a run is honoured until
+    * the bound after it started has passed, and only while the node running it is in the cluster,
+    * unless the run outlives its owner (a cloud runner container) or the topology cannot be read.
+    *
+    * @param liveNodes     the ids of the nodes in the cluster, or null if unknown.
+    * @param outlivesOwner if the run keeps executing after its owner node is gone.
+    * @param bound         how long after it started the run may still be executing.
+    */
+   static boolean isRunning(RunningJob run, Set<String> liveNodes, boolean outlivesOwner,
+                            long bound, long now)
+   {
+      if(run == null || now - run.getStartTime() >= bound) {
+         return false;
+      }
+
+      return outlivesOwner || liveNodes == null || liveNodes.contains(run.getOwnerNode());
+   }
+
+   /**
+    * Checks if the stored trigger is still held by the acquisition that produced the given copy.
+    */
+   private static boolean isAcquiredBy(TriggerWrapper tw, OperableTrigger trigger) {
+      return tw.getState() == ACQUIRED && trigger.getFireInstanceId() != null &&
+         trigger.getFireInstanceId().equals(tw.trigger.getFireInstanceId());
+   }
+
+   /**
+    * Checks if an ACQUIRED or BLOCKED entry is held by an owner that can no longer complete or
+    * release it (Bug #77245): the cluster node that took the hold is no longer in the cluster. A
+    * node id is unique across hosts and changes whenever the JVM (and so its Ignite node) is
+    * restarted, but not when the scheduler is stopped and started in the same JVM, whose old run
+    * may still be executing and whose completion releases the entry. An entry with no recorded
+    * owner (an older version, or an error state) is never orphaned, nor is any entry when the
+    * topology cannot be read.
+    *
+    * @param liveNodes       the ids of the nodes in the cluster, including clients, or null if
+    *                        unknown.
+    * @param orphanedRunHold how long after the owner took the hold its run may still be executing
+    *                        although the owner is gone, 0 if the run cannot outlive its owner.
+    *                        Only evaluated if the owner is gone.
+    */
+   static boolean isOrphaned(TriggerWrapper tw, Set<String> liveNodes,
+                             LongSupplier orphanedRunHold, long now)
+   {
+      String node = tw.getOwnerNode();
+
+      if(node == null || liveNodes == null || liveNodes.contains(node)) {
+         return false;
+      }
+
+      long hold = orphanedRunHold.getAsLong();
+      return hold <= 0 || tw.getOwnedSince() != null && now - tw.getOwnedSince() >= hold;
+   }
+
+   /**
+    * Gets how long an orphaned hold must be kept after it was taken because its run may still be
+    * executing without its owner. A cloud runner job runs the task in a container that the owner
+    * launched and that is not stopped when the owner dies. Its platform stops it at the task timeout
+    * (Kubernetes, Azure and Google cloud runners), so the hold is kept for the timeout the owner
+    * waited with plus a margin for the container launch. An acquired trigger has not launched
+    * anything, and any other job runs in the owner's JVM and dies with it.
+    */
+   long getOrphanedRunHold(TriggerWrapper tw) {
+      if(tw.getState() != BLOCKED) {
+         return 0;
+      }
+
+      JobDetail job = jobsByKey.get(tw.jobKey);
+
+      if(job == null || !ScheduleTaskCloudJob.class.isAssignableFrom(job.getJobClass())) {
+         return 0;
+      }
+
+      return getEffectiveTaskTimeout() + CLOUD_RUN_LAUNCH_MARGIN;
+   }
+
+   /**
+    * Gets the task timeout with the same fallback as ScheduleTaskCloudJob.execute(). A local run is
+    * cancelled by ScheduleTask at the configured timeout. If that is not positive, a local run is
+    * not cancelled and may outlast the default this falls back to.
+    */
+   private static long getEffectiveTaskTimeout() {
+      long timeout = ScheduleTask.getTaskTimeout();
+      return timeout > 0 ? timeout : ScheduleTask.DEFAULT_TASK_TIMEOUT;
+   }
+
+   /**
+    * Gets the ids of the nodes currently in the cluster, including client nodes, or null if the
+    * topology cannot be read or does not contain this node (it is disconnected or the view is not
+    * consistent), in which case nothing is released.
+    */
+   Set<String> getLiveNodes() {
+      try {
+         Set<String> nodes = Cluster.getInstance().getClusterNodeIds();
+         String localNode = getLocalNodeId();
+
+         if(nodes == null || !nodes.contains(localNode)) {
+            LOG.debug("The cluster nodes {} do not contain this node {}, not checking for " +
+                         "released triggers", nodes, localNode);
+            return null;
+         }
+
+         return nodes;
+      }
+      catch(RuntimeException ex) {
+         LOG.warn("Failed to get the cluster nodes to check for released triggers", ex);
+         return null;
+      }
+   }
+
+   String getLocalNodeId() {
+      return Cluster.getInstance().getLocalNodeId();
+   }
+
+   String getLocalMember() {
+      return Cluster.getInstance().getLocalMember();
+   }
+
    private boolean applyMisfire(TriggerWrapper tw) throws JobPersistenceException {
       long misfireTime = DateBuilder.newDate().build().getTime();
       if(misfireThreshold > 0) {
@@ -1180,7 +1584,7 @@ public class ClusterJobStore implements JobStore, Serializable {
    }
 
    private synchronized String getFiredTriggerRecordId() {
-      return instanceId + ftrCtr++;
+      return fireInstanceIdPrefix + ftrCtr++;
    }
 
    private boolean removeTrigger(TriggerKey key, boolean removeOrphanedJob)
@@ -1298,12 +1702,9 @@ public class ClusterJobStore implements JobStore, Serializable {
       Principal principal = null;
 
       if(!ScheduleManager.isInternalTask(taskName)) {
-         if(task.getIdentity() == null) {
-            principal = SUtil.getScheduleTaskOwnerPrincipal(task.getOwner(), addr, true);
-         }
-         else {
-            principal = SUtil.getPrincipal(task.getIdentity(), addr, true);
-         }
+         // Bug #77168/#77452, the execute-as identity, or the owner when there is none or
+         // security is disabled
+         principal = SUtil.getScheduleTaskRunPrincipal(task, addr, true);
       }
 
       if(principal != null) {
@@ -1318,6 +1719,8 @@ public class ClusterJobStore implements JobStore, Serializable {
    private MultiMap<String, TriggerKey> triggersByGroup;
    private MultiMap<JobKey, TriggerKey> triggersByJob;
    private DistributedMap<String, Calendar> calendarsByName;
+   // Bug #77202, the run of each job that disallows concurrent execution
+   private DistributedMap<JobKey, RunningJob> runningJobs;
    private Set<String> pausedTriggerGroups;
    private Set<String> pausedJobGroups;
    private volatile boolean schedulerRunning = false;
@@ -1328,6 +1731,10 @@ public class ClusterJobStore implements JobStore, Serializable {
    private String instanceName;
    private boolean shutdownClusterOnShutdown = true;
    private static long ftrCtr = System.currentTimeMillis();
+   // the instance id is "AUTO" on every node, so a random part keeps fire instance ids unique
+   // across the cluster, which the ownership check in isAcquiredBy() relies on
+   private final String fireInstanceIdPrefix = UUID.randomUUID() + "-";
+   private static final long CLOUD_RUN_LAUNCH_MARGIN = TimeUnit.MINUTES.toMillis(5);
    private static final Logger LOG = LoggerFactory.getLogger(ClusterJobStore.class);
 }
 

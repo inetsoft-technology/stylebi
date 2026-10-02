@@ -17,6 +17,7 @@
  */
 package inetsoft.sree.security;
 
+import inetsoft.sree.internal.SUtil;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.util.XUtil;
 import inetsoft.util.ThreadContext;
@@ -112,6 +113,11 @@ public class OrganizationManager {
          return false;
       }
 
+      if(isStoredUserPrincipal(principal)) {
+         return Arrays.stream(getStoredUserRoles(provider, principal))
+            .anyMatch(provider::isSystemAdministratorRole);
+      }
+
       IdentityID[] roles = ((XPrincipal) principal).getRoles();
       User user = provider.getUser(IdentityID.getIdentityIDFromKey(principal.getName()));
 
@@ -154,6 +160,17 @@ public class OrganizationManager {
       }
 
       SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
+
+      if(isStoredUserPrincipal(principal)) {
+         // The organization administrator role is hidden when multi-tenancy is disabled, the
+         // same as in XPrincipal.getAllRoles(). It is removed after the parent roles are added,
+         // so it is not inherited through a child role either.
+         boolean multiTenant = SUtil.isMultiTenant();
+         return Arrays.stream(getStoredUserRoles(provider, principal))
+            .filter(role -> multiTenant || !"Organization Administrator".equals(role.name))
+            .anyMatch(provider::isOrgAdministratorRole);
+      }
+
       AuthenticationProvider authentication = provider.getAuthenticationProvider();
       IdentityID pId = IdentityID.getIdentityIDFromKey(principal.getName());
       IdentityID[] roles = ((XPrincipal) principal).getRoles();
@@ -176,6 +193,106 @@ public class OrganizationManager {
       }
 
       return false;
+   }
+
+   /**
+    * Determines if the admin checks for a principal must be decided from the stored user
+    * rather than from the principal's own roles. This is the case for a principal created by
+    * a login against the security provider, whose roles are a snapshot taken at login and are
+    * not updated when a group or role that the user belongs to is changed (Bug #77199). SSO
+    * principals, whose roles are asserted by the identity provider, and virtual principals
+    * that represent a group or role instead of a user keep using the principal's roles.
+    */
+   private static boolean isStoredUserPrincipal(Principal principal) {
+      return principal instanceof XPrincipal xPrincipal &&
+         "true".equals(xPrincipal.getProperty("__internal__")) &&
+         !"true".equals(xPrincipal.getProperty("virtual"));
+   }
+
+   /**
+    * Gets all the roles of the stored user that is identified by the principal: the user's own
+    * roles, the roles of the user's groups and their parent groups and the roles of the user's
+    * organization, including all parent roles. These are read from the provider's user, group,
+    * role and organization storage and not from the per-node user role cache used by
+    * {@link AuthenticationProvider#getRoles(IdentityID)}, which is not updated on other cluster
+    * nodes or when a user is removed.
+    *
+    * <p>The user, groups and organization are read from the provider in the authentication chain
+    * that contains the user, the same provider that authenticates the user. They are not read
+    * through the chain, because a provider ahead of it may return a group or organization with the
+    * same name that has no roles, e.g. LDAP returns a group for any name.
+    *
+    * @return the roles or an empty array if the user no longer exists.
+    */
+   private static IdentityID[] getStoredUserRoles(SecurityProvider provider, Principal principal) {
+      IdentityID userID = IdentityID.getIdentityIDFromKey(principal.getName());
+      AuthenticationProvider userProvider = provider;
+      User user = null;
+
+      if(provider.getAuthenticationProvider() instanceof AuthenticationChain chain) {
+         for(AuthenticationProvider child : chain.getProviders()) {
+            user = child.getUser(userID);
+
+            if(user != null) {
+               userProvider = child;
+               break;
+            }
+         }
+      }
+
+      if(user == null) {
+         // not a chain, or a user from the external user provider
+         user = provider.getUser(userID);
+      }
+
+      if(user == null) {
+         return new IdentityID[0];
+      }
+
+      String orgID = user.getOrganizationID();
+      Set<IdentityID> roles = new HashSet<>();
+
+      if(user.getRoles() != null) {
+         roles.addAll(Arrays.asList(user.getRoles()));
+      }
+
+      if(user.getGroups() != null) {
+         // same walk as AuthenticationProvider.getAllGroups(), collecting the roles as it goes
+         Set<IdentityID> groups = new HashSet<>();
+         Deque<IdentityID> queue = new ArrayDeque<>();
+
+         for(String group : user.getGroups()) {
+            queue.addLast(new IdentityID(group, orgID));
+         }
+
+         while(!queue.isEmpty()) {
+            IdentityID groupID = queue.removeFirst();
+
+            if(groups.add(groupID)) {
+               Group group = userProvider.getGroup(groupID);
+
+               if(group != null) {
+                  if(group.getRoles() != null) {
+                     roles.addAll(Arrays.asList(group.getRoles()));
+                  }
+
+                  if(group.getGroups() != null) {
+                     for(String parent : group.getGroups()) {
+                        queue.addLast(new IdentityID(parent, group.getOrganizationID()));
+                     }
+                  }
+               }
+            }
+         }
+      }
+
+      Organization organization = orgID == null ? null : userProvider.getOrganization(orgID);
+
+      if(organization != null && organization.getRoles() != null) {
+         roles.addAll(Arrays.asList(organization.getRoles()));
+      }
+
+      return provider.getAllRoles(roles.toArray(new IdentityID[0]));
    }
 
    public List<IdentityID> orgAdminUsers(String orgID) {

@@ -50,6 +50,7 @@ import inetsoft.util.audit.ExecutionBreakDownRecord;
 import inetsoft.util.log.LogContext;
 import inetsoft.util.profile.ProfileUtils;
 import inetsoft.util.script.*;
+import inetsoft.util.stall.LockStallException;
 import inetsoft.web.viewsheet.service.SharedFilterService;
 import inetsoft.web.vswizard.model.VSWizardConstants;
 import inetsoft.web.vswizard.recommender.WizardRecommenderUtil;
@@ -66,6 +67,7 @@ import java.util.List;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.stream.Collectors;
@@ -138,6 +140,9 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       this.nolimit = new HashSet<>();
       this.qmgrs = new ConcurrentHashMap<>();
       this.flyoverLocks = new ConcurrentHashMap<>();
+      this.flyoverRequests = new ConcurrentHashMap<>();
+      this.flyoverRunning = new ConcurrentHashMap<>();
+      this.flyoverCancelled = ConcurrentHashMap.newKeySet();
       this.dmap = new DataMap();
       this.dKeyMap = new DataMap();
       this.fmap = new HashMap<>();
@@ -615,6 +620,99 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
     */
    public Object getFlyoverLock(String name) {
       return flyoverLocks.computeIfAbsent(name, k -> new Object());
+   }
+
+   /**
+    * Register a new flyover request from the source assembly against the target assembly,
+    * making it the latest request for that target. This is called before the request waits
+    * for the target's flyover lock (see {@link #getFlyoverLock(String)}), which an earlier
+    * request holds for its whole execution. If a request is running against the target (see
+    * {@link #beginFlyoverRequest(String, FlyoverRequest)}) and has a different source or
+    * different conditions, its query is obsolete and is cancelled here, and the
+    * target is marked so that the next request that actually runs against it re-executes it
+    * (see {@link #clearFlyoverCancelled(String)}). A request still waiting for the lock is
+    * superseded and does not run against the target.
+    *
+    * @param name       the absolute name of the flyover target assembly.
+    * @param source     the absolute name of the assembly the flyover comes from.
+    * @param conditions the flyover conditions of the request.
+    *
+    * @return the new request.
+    */
+   public FlyoverRequest startFlyoverRequest(String name, String source, String conditions) {
+      // registration and cancel are atomic, so a cancel on behalf of an older request can
+      // never run after a newer request is registered and cancel the newer request's query
+      synchronized(flyoverRequests) {
+         FlyoverRequest request = new FlyoverRequest(source, conditions);
+         flyoverRequests.put(name, request);
+         // only cancel while a request is running, the target's flyover lock then guarantees
+         // that no other flyover (e.g. a table/crosstab flyover) is running on it
+         FlyoverRequest running = flyoverRunning.get(name);
+
+         if(running != null && (!Tool.equals(running.source, source) ||
+            !Tool.equals(running.conditions, conditions)))
+         {
+            flyoverCancelled.add(name);
+            getQueryManager(name).cancel();
+         }
+
+         return request;
+      }
+   }
+
+   /**
+    * Mark the request as running against the target. Called while holding the target's
+    * flyover lock, before applying the request's conditions.
+    *
+    * @return <tt>true</tt> if the request is still the latest one registered for the target
+    *         and should run, <tt>false</tt> if it has been superseded by a newer request.
+    */
+   public boolean beginFlyoverRequest(String name, FlyoverRequest request) {
+      synchronized(flyoverRequests) {
+         if(request == null || flyoverRequests.get(name) != request) {
+            return false;
+         }
+
+         flyoverRunning.put(name, request);
+         return true;
+      }
+   }
+
+   /**
+    * Mark the request started by {@link #beginFlyoverRequest(String, FlyoverRequest)} as
+    * finished.
+    */
+   public void endFlyoverRequest(String name, FlyoverRequest request) {
+      synchronized(flyoverRequests) {
+         flyoverRunning.remove(name, request);
+      }
+   }
+
+   /**
+    * Clear the flag set when {@link #startFlyoverRequest(String, String, String)} cancelled the
+    * target's query. Called while holding the target's flyover lock before applying the
+    * conditions, the target must be re-executed even if its conditions are unchanged when this
+    * returns <tt>true</tt>, since the conditions may have been applied by a request whose query
+    * was cancelled.
+    *
+    * @return <tt>true</tt> if the target's query was cancelled since the last call.
+    */
+   public boolean clearFlyoverCancelled(String name) {
+      return flyoverCancelled.remove(name);
+   }
+
+   /**
+    * A flyover request registered by {@link #startFlyoverRequest(String, String, String)}.
+    * Requests are compared by identity.
+    */
+   public static final class FlyoverRequest {
+      private FlyoverRequest(String source, String conditions) {
+         this.source = source;
+         this.conditions = conditions;
+      }
+
+      private final String source;
+      private final String conditions;
    }
 
    /**
@@ -1543,6 +1641,10 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
          catch(ConfirmException | ScriptException ex) {
             // ignore
          }
+         catch(LockRestoreException ex) {
+            // the sandbox lock the caller holds was lost, don't go on as if it were held (77153)
+            throw ex;
+         }
          catch(Exception ex) {
             if(isCancelled(ts)) {
                LOG.debug("Viewsheet cancelled: {}, {}", vname, entry.getName(), ex);
@@ -2441,7 +2543,13 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       exportScriptError = null;
 
       try {
-         processOnLoad(new ChangedAssemblyList(), false);
+         // executeVSScript() (invoked by processOnLoad() to actually run the onLoad
+         // script) catches and swallows the script's own exception so it never
+         // propagates here (#77183) -- pass a handler so that specific failure is
+         // still captured and logged at ERROR, without changing behavior for any
+         // other processOnLoad() caller or for the onInit script, which also runs
+         // through executeVSScript().
+         processOnLoad(new ChangedAssemblyList(), false, this::recordExportScriptError);
       }
       catch(Exception ex) {
          // An onLoad script routinely sets the query parameters the whole sheet is
@@ -2449,13 +2557,27 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
          // query then runs unfiltered and the export is a structurally valid file
          // of the wrong data, sized to whatever the unfiltered result turned out to
          // be. Nothing downstream can tell it apart from a good export. Record it
-         // so the exporter can say so on the document, and log it at ERROR -- the
-         // export is wrong, not merely suspect. (#76780)
-         exportScriptError = ex;
-         LOG.error("Failed to process the onLoad script for export of \"{}\"; the exported " +
-                      "content will not reflect anything that script sets, including any " +
-                      "query parameters it computes", getSheetName(), ex);
+         // so the exporter can say so on the document. (#76780)
+         recordExportScriptError(ex);
       }
+   }
+
+   /**
+    * Records this export's script error (first one wins, so a later, unrelated
+    * failure can't overwrite it) and logs it at ERROR -- the export is wrong, not
+    * merely suspect. Called both when the onLoad script's own exception is
+    * captured via {@link #executeVSScript} (through {@link #processOnLoad}'s
+    * handler) and when some other exception escapes {@link #processOnLoad} back
+    * up to {@link #prepareForExport}'s own catch.
+    */
+   private void recordExportScriptError(Exception ex) {
+      if(exportScriptError == null) {
+         exportScriptError = ex;
+      }
+
+      LOG.error("Failed to process the onLoad script for export of \"{}\"; the exported " +
+                   "content will not reflect anything that script sets, including any " +
+                   "query parameters it computes", getSheetName(), ex);
    }
 
    /**
@@ -2477,12 +2599,23 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       }
    }
 
+   private void processOnLoad(ChangedAssemblyList clist, boolean processDependency)
+         throws Exception
+   {
+      processOnLoad(clist, processDependency, null);
+   }
+
    /**
     * Process onLoad javascript attached to this viewsheet.
     * @param processDependency true to check if assemblies may have been
     * changed and trigger cascading selection processing
+    * @param onLoadScriptError if non-null, invoked with the onLoad script's own
+    * exception when {@link #executeVSScript} catches and swallows it, so a caller
+    * (only {@link #prepareForExport}) can observe that specific failure. This does
+    * not change behavior for any other caller of this method.
     */
-   private void processOnLoad(ChangedAssemblyList clist, boolean processDependency)
+   private void processOnLoad(ChangedAssemblyList clist, boolean processDependency,
+                               Consumer<Exception> onLoadScriptError)
          throws Exception
    {
       String onload = vs.getViewsheetInfo().getOnLoad();
@@ -2530,7 +2663,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       VariableTable vars = getVariableTable();
       VariableTable ovars = vars.clone();
 
-      executeVSScript(onload, ViewsheetScope.VIEWSHEET_SCRIPTABLE);
+      executeVSScript(onload, ViewsheetScope.VIEWSHEET_SCRIPTABLE, onLoadScriptError);
 
       // variable changed, clear cached data
       if(!vars.equals(ovars)) {
@@ -2562,6 +2695,16 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
     * Execute viewsheet scope script.
     */
    private void executeVSScript(String cmd, String scriptable) {
+      executeVSScript(cmd, scriptable, null);
+   }
+
+   /**
+    * Execute viewsheet scope script.
+    * @param scriptError if non-null, invoked with the script's own exception when it
+    * is caught here and would otherwise only be logged/swallowed. See
+    * {@link #processOnLoad(ChangedAssemblyList, boolean, Consumer)}.
+    */
+   private void executeVSScript(String cmd, String scriptable, Consumer<Exception> scriptError) {
       if(cmd == null || cmd.trim().length() == 0) {
          return;
       }
@@ -2580,6 +2723,10 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
          }
          else {
             LOG.warn("Failed to execute viewsheet script: {}", ex.getMessage());
+         }
+
+         if(scriptError != null) {
+            scriptError.accept(ex);
          }
 
          CoreTool.addUserMessage(ex.getMessage());
@@ -5156,8 +5303,10 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
          executeScript(assembly);
 
          // reposition input child in bottom-tab container after script may
-         // have changed label properties (visible, position, gap, font)
+         // have changed label properties (visible, position, gap, font).
+         // a position explicitly set by script is kept as is (Bug #77369)
          if(assembly instanceof InputVSAssembly &&
+            !assembly.getVSAssemblyInfo().isPositionByScript() &&
             assembly.getContainer() instanceof TabVSAssembly tabContainer)
          {
             TabVSAssemblyInfo tabInfo =
@@ -5471,6 +5620,15 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
                   cache = false;
                   throw cex2;
                }
+               catch(Exception ex) {
+                  // a table whose query failed with a lock stall must not leave a cached NULL,
+                  // the next read would take it for no table instead of building it again (#77123)
+                  if(LockStallException.find(ex) != null) {
+                     cache = false;
+                  }
+
+                  throw ex;
+               }
                finally {
                   // Inside a script this thread proceeds without a sandbox lock it cannot get
                   // (see lockRead()), so a writer may have been changing the sandbox while the
@@ -5699,7 +5857,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       if(obj == null && initial) {
          boolean cache = true;
          boolean inExec = JavaScriptEngine.getExecScriptable() != null;
-         long skippedLocks = inExec ? getSkippedLockCount() : 0;
+         long skippedLocks = getSkippedLockCount();
 
          // if called from script, the locking should already be in place. lock it again
          // may cause deadlock if the processing is started in a separate thread. (52463)
@@ -5741,10 +5899,20 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
                throw ex;
             }
          }
+         catch(Exception ex) {
+            // a query that failed with a lock stall must not leave a cached NULL, the next
+            // read would take it for no data instead of running the query again (#77123)
+            if(LockStallException.find(ex) != null) {
+               cache = false;
+            }
+
+            throw ex;
+         }
          finally {
-            // a query run without a sandbox lock it asked for (script thread, see lockRead())
-            // may have overlapped a writer, don't cache its result (#76905)
-            if(inExec && isLockSkippedSince(skippedLocks)) {
+            // a query run without a sandbox lock it asked for (script thread, see lockRead(),
+            // or any thread whose restoreLocks() failed) may have overlapped a writer, don't
+            // cache its result (#76905, #77153)
+            if(isLockSkippedSince(skippedLocks)) {
                cache = false;
             }
 
@@ -6194,6 +6362,11 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       }
       catch(ExpiredSheetException ex) {
          LOG.info("Viewsheet has expired: " + ex);
+      }
+      catch(LockRestoreException ex) {
+         // not a meta data error: the sandbox lock this thread's callers hold was lost, so
+         // they must not go on as if it were held, even while refreshing (77153)
+         throw ex;
       }
       catch(Exception ex) {
          // @by stephenwebster, For Bug #1432
@@ -8020,11 +8193,40 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
    }
 
    /**
-    * Get the number of sandbox lock acquisitions this thread has skipped so far because it is
-    * running a script and the lock was not available (see lockRead()).
+    * Get the number of sandbox lock acquisitions this thread has skipped so far, because it is
+    * running a script and the lock was not available (see lockRead()), or because a failed
+    * restoreLocks() recorded the locks it could not restore as skipped.
     */
    private long getSkippedLockCount() {
       return AssetDataCache.isProcessorThread() ? 0 : thisLock.getSkippedCount();
+   }
+
+   /**
+    * Get the number of sandbox lock entries this thread has lost so far, because a
+    * restoreLocks() failed (see UpgradableReadWriteLock.getLostCount()). A caller that takes
+    * the outermost lock reads it before the lock and passes it to
+    * {@link #checkLockNotLostSince(long)} after the unlock.
+    */
+   public long getLockLostCount() {
+      return AssetDataCache.isProcessorThread() ? 0 : thisLock.getLostCount();
+   }
+
+   /**
+    * Throw if this thread lost a sandbox lock entry since {@code lostCount} was read with
+    * {@link #getLockLostCount()}: part of the caller's locked work ran without the lock, so
+    * the caller must fail instead of reporting success, even if every exception on the way
+    * was caught (77153). Call it after the unlock and the cleanup in the caller's finally.
+    *
+    * @throws LockRestoreException if a lock entry was lost.
+    */
+   public void checkLockNotLostSince(long lostCount) {
+      long lost = getLockLostCount();
+
+      if(lost != lostCount) {
+         throw new LockRestoreException(
+            "Lost " + (lost - lostCount) + " viewsheet sandbox lock entries to a failed " +
+            "restore while holding the lock (see bug #77153)");
+      }
    }
 
    /**
@@ -8443,6 +8645,9 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
    private final Set<String> nolimit; // tables to ignore time limit
    private final Map<String, QueryManager> qmgrs; // specific query manager for each assembly
    private final Map<String, Object> flyoverLocks; // per-assembly lock for flyover coordination
+   private final Map<String, FlyoverRequest> flyoverRequests; // latest flyover request per assembly
+   private final Map<String, FlyoverRequest> flyoverRunning; // running flyover request per assembly
+   private final Set<String> flyoverCancelled; // assemblies whose flyover query was cancelled
    private long selectionTS; // selection timestamp
    private long touchTS = -1; // touch timestamp of data changes
    private long execTS = -1; // last execution time

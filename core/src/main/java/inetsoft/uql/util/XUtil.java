@@ -52,7 +52,6 @@ import java.security.Principal;
 import java.sql.*;
 import java.text.*;
 import java.time.LocalDate;
-import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.Date;
 import java.util.List;
@@ -454,6 +453,30 @@ public final class XUtil {
    }
 
    /**
+    * Gets the QUERY resource name that the permission of a logical model is stored under, in the
+    * same form as <tt>ResourcePermissionService.getLogicalModelResourceName</tt> builds it for
+    * the permission editors: <tt>model::dataSource</tt>, followed by
+    * {@link #DATAMODEL_FOLDER_SPLITER} and the folder when the model is in a folder (Bug #77400).
+    *
+    * @param dataSource the data source of the logical model.
+    * @param folder     the data model folder of the logical model, or null or empty if none.
+    * @param lmodel     the name of the logical model.
+    *
+    * @return the resource name.
+    */
+   public static String getLogicalModelResourceName(String dataSource, String folder,
+                                                    String lmodel)
+   {
+      String resource = lmodel + "::" + dataSource;
+
+      if(folder != null && !folder.isEmpty()) {
+         resource += DATAMODEL_FOLDER_SPLITER + folder;
+      }
+
+      return resource;
+   }
+
+   /**
     * Format an object with the specified format.
     */
    public static String format(Format format, Object val) {
@@ -609,43 +632,6 @@ public final class XUtil {
       return (idx >= 0) ? name.substring(idx + 1) : name;
    }
 
-
-   /**
-    * Call a method on an object without causing exception if the class or
-    * method is not in the jvm (e.g. jdk1.2 methods used in jdk1.1)
-    */
-   public static Object call(Object obj, String clsname, String method,
-                             Class[] params, Object[] args) {
-      return Tool.call(obj, clsname, method, params, args);
-   }
-
-   /**
-    * Call a method on an object without causing exception if the class or
-    * method is not in the jvm (e.g. jdk1.2 methods used in jdk1.1)
-    */
-   public static Object field(Class cls, String field) {
-      try {
-         Field member = cls.getField(field);
-
-         return member.get(null);
-      }
-      catch(Throwable e) {
-         return null;
-      }
-   }
-
-   /**
-    * Call a method on an object without causing exception if the class or
-    * method is not in the jvm (e.g. jdk1.2 methods used in jdk1.1)
-    */
-   public static Object field(String cls, String field) {
-      try {
-         return field(Class.forName(cls), field);
-      }
-      catch(Throwable e) {
-         return null;
-      }
-   }
 
    /**
     * Get the string representation for view.
@@ -1185,7 +1171,7 @@ public final class XUtil {
 
       if(Identity.UNKNOWN_USER.equals(userID.name)) {
          if(user instanceof XPrincipal) {
-            return ((XPrincipal) user).getRoles();
+            return copyRoles(((XPrincipal) user).getRoles());
          }
          else {
             return new IdentityID[0];
@@ -1210,7 +1196,28 @@ public final class XUtil {
          }
       }
 
-      return userRoles;
+      return copyRoles(userRoles);
+   }
+
+   /**
+    * Copies the array and each IdentityID in it. The finder can return the
+    * principal's live roles array, and the provider its cached identities, and
+    * scripts can call this method, so they must not get the live objects back
+    * to mutate in place (Bug #77348), the way getUserGroups copies its result.
+    */
+   private static IdentityID[] copyRoles(IdentityID[] roles) {
+      if(roles == null) {
+         return null;
+      }
+
+      IdentityID[] result = new IdentityID[roles.length];
+
+      for(int i = 0; i < roles.length; i++) {
+         result[i] = roles[i] == null ? null :
+            new IdentityID(roles[i].getName(), roles[i].getOrgID());
+      }
+
+      return result;
    }
 
    /**
@@ -1224,9 +1231,17 @@ public final class XUtil {
 
    /**
     * Gets the groups for the user identified by the specified Principal.
+    *
+    * <p>Always returns a fresh array, never the principal's live {@code groups}
+    * field. Several callers expose the result to scripts (viewsheet
+    * {@code parameter._GROUPS_}, VPM {@code groups}, and the {@code _GROUPS_}
+    * query variable), and a script must not be able to mutate the live principal
+    * in place through it. (Bug #77256) No caller relies on getting the live array
+    * back -- every call site only reads it or stores it in a variable table.
+    *
     * @param user a Principal object that identifies the user.
     * @param includeOrg whether to include organization in group name.
-    * @return an array of group names.
+    * @return an array of group names (a defensive copy).
     */
    public static String[] getUserGroups(Principal user, boolean includeOrg) {
       if(user == null) {
@@ -1237,7 +1252,9 @@ public final class XUtil {
 
       if(Identity.UNKNOWN_USER.equals(name)) {
          if(user instanceof XPrincipal) {
-            return ((XPrincipal) user).getGroups();
+            // clone: XPrincipal.getGroups() hands back the live array (see the
+            // defensive-copy contract on this method).
+            return ((XPrincipal) user).getGroups().clone();
          }
          else {
             return new String[0];
@@ -1262,7 +1279,11 @@ public final class XUtil {
          }
       }
 
-      return userGroups;
+      // clone: finder.getUserGroups can return the principal's live in-memory
+      // groups array (SRPrincipal.createUser().getGroups()), and the includeOrg /
+      // no-provider paths skip the copy above (see the defensive-copy contract on
+      // this method).
+      return userGroups == null ? null : userGroups.clone();
    }
 
    public static AuthenticationProvider getSecurityProvider(String providerName) {
@@ -1600,12 +1621,8 @@ public final class XUtil {
          return true;
       }
 
-      SQLParser parser = null;
-
       try {
-         SQLLexer lexer = new SQLLexer(new StringReader(exp));
-         parser = new SQLParser(lexer);
-         parser.value_exp();
+         parseSQLExpressionSyntax(exp);
       }
       catch(Exception ex) {
          LOG.debug("Failed to parse SQL expression: " + exp, ex);
@@ -1629,6 +1646,40 @@ public final class XUtil {
       return result;
       */
       return true;
+   }
+
+   /**
+    * Parse a sql expression to check its syntax only. A scalar subquery in the expression
+    * builds a UniformSQL, so a construct the model refuses throws a SemanticException though
+    * the text is valid sql, and a TOP subquery throws a NullPointerException. When the parse
+    * fails that way, the expression is parsed again in guessing mode, which skips every
+    * action and keeps every syntax check.
+    * @param exp the specified sql expression.
+    * @return the lexer of the parse that succeeded.
+    * @throws Exception the exception of the normal parse if the expression is invalid.
+    */
+   public static SQLLexer parseSQLExpressionSyntax(String exp) throws Exception {
+      SQLLexer lexer = new SQLLexer(new StringReader(exp));
+
+      try {
+         new SQLParser(lexer).value_exp();
+         return lexer;
+      }
+      catch(antlr.SemanticException | RuntimeException ex) {
+         SQLLexer guessLexer = new SQLLexer(new StringReader(exp));
+         SQLParser parser = new SQLParser(guessLexer);
+         parser.getInputState().guessing = 1;
+
+         try {
+            parser.value_exp();
+         }
+         catch(Exception guessEx) {
+            // report the error of the normal parse, which names the token
+            throw ex;
+         }
+
+         return guessLexer;
+      }
    }
 
    /**
@@ -2607,6 +2658,8 @@ public final class XUtil {
       }
 
       boolean changed = false;
+      // a condition was rewritten for a NULL_VALUE/EMPTY_STRING/NULL_STRING parameter
+      boolean specific = false;
       SelectTable[] tables = usql.getSelectTable();
 
       for(int i = 0; i < tables.length; i++) {
@@ -2621,7 +2674,11 @@ public final class XUtil {
       XFilterNode condition = usql.getWhere();
 
       if(condition instanceof XBinaryCondition || condition instanceof XSet) {
-         processSpecificCondition(usql, condition, params, false);
+         if(processSpecificCondition(usql, condition, params, false)) {
+            specific = true;
+            // a bare condition root is replaced, continue with the live tree
+            condition = usql.getWhere();
+         }
       }
 
       // don't remove null paramter for vpm conditions, then variables in vpm condition
@@ -2641,7 +2698,10 @@ public final class XUtil {
       condition = usql.getHaving();
 
       if(condition instanceof XBinaryCondition || condition instanceof XSet) {
-         processSpecificCondition(usql, condition, params, true);
+         if(processSpecificCondition(usql, condition, params, true)) {
+            specific = true;
+            condition = usql.getHaving();
+         }
       }
 
       if(!forVpm) {
@@ -2657,7 +2717,9 @@ public final class XUtil {
          }
       }
 
-      if(changed) {
+      // the sentinel rewrite is not reported as changed, isNullParam() treats a changed
+      // sub-query as one without a condition. Only drop the cached sql string.
+      if(changed || specific) {
          usql.clearCachedString();
       }
 
@@ -2666,73 +2728,112 @@ public final class XUtil {
 
    /**
     * Check if condition has param with special value
-    * 'NULL_VALUE' or 'EMPTY_STRING'.
-    * @param usql use to set the where condition.
-    * @param condition then sql condition.
+    * 'NULL_VALUE', 'EMPTY_STRING' or 'NULL_STRING', and rewrite that condition
+    * in place. Other conditions in the clause and the negation are kept.
+    * @param usql use to set the where/having condition when it is a bare condition.
+    * @param condition the root of the where/having condition.
     * @param params, variable parameter which is user entered, if has a
     * special value, then process it.
+    * @return true if a condition is rewritten.
     */
-   private static void processSpecificCondition(UniformSQL usql,
-      XFilterNode condition, VariableTable params, Boolean isHaving)
+   private static boolean processSpecificCondition(UniformSQL usql,
+      XFilterNode condition, VariableTable params, boolean isHaving)
    {
       if(condition instanceof XBinaryCondition) {
-         XBinaryCondition filterNode;
-         XBinaryCondition bin = (XBinaryCondition) condition;
-         String op = bin.getOp();
-         String value = bin.getExpression2().toString().trim();
+         XBinaryCondition filterNode =
+            createSpecificCondition((XBinaryCondition) condition, params);
 
-         if(value.startsWith("$(")) {
-            value = value.substring(2, value.lastIndexOf(')'));
+         if(filterNode == null) {
+            return false;
+         }
 
-            try{
-               Object val = params.get(value);
+         // the condition is the clause root
+         if(isHaving) {
+            usql.setHaving(filterNode);
+         }
+         else {
+            usql.setWhere(filterNode);
+         }
 
-               if(Tool.equals(val, (XConstants.CONDITION_NULL_VALUE))) {
-                  filterNode = new XBinaryCondition(bin.getExpression1(),
-                     new XExpression("IS NULL", XExpression.VALUE), "");
+         return true;
+      }
+      else if(condition instanceof XSet) {
+         return processSpecificCondition((XSet) condition, params);
+      }
 
-                  if(isHaving) {
-                     usql.setHaving(filterNode);
-                  }
-                  else {
-                     usql.setWhere(filterNode);
-                  }
-               }
-               else if(Tool.equals(val, (XConstants.CONDITION_EMPTY_STRING))) {
-                  filterNode = new XBinaryCondition(bin.getExpression1(),
-                     new XExpression("''", XExpression.VALUE), op);
+      return false;
+   }
 
-                  if(isHaving) {
-                     usql.setHaving(filterNode);
-                  }
-                  else {
-                     usql.setWhere(filterNode);
-                  }
-               }
-               else if(Tool.equals(val, (XConstants.CONDITION_NULL_STRING))) {
-                  filterNode = new XBinaryCondition(bin.getExpression1(),
-                     new XExpression("'null'", XExpression.VALUE), op);
+   /**
+    * Replace the conditions in the set (and nested sets) that use a parameter with a
+    * special value, at the same position.
+    */
+   private static boolean processSpecificCondition(XSet set, VariableTable params) {
+      boolean changed = false;
 
-                  if(isHaving) {
-                     usql.setHaving(filterNode);
-                  }
-                  else {
-                     usql.setWhere(filterNode);
-                  }
-               }
-            }
-            catch(Exception e) {
+      for(int i = 0; i < set.getChildCount(); i++) {
+         XNode node = set.getChild(i);
+
+         if(node instanceof XBinaryCondition) {
+            XBinaryCondition filterNode =
+               createSpecificCondition((XBinaryCondition) node, params);
+
+            if(filterNode != null) {
+               set.setChild(i, filterNode);
+               changed = true;
             }
          }
-      }
-      else if(condition instanceof XSet && condition.getChildCount() > 0) {
-          XSet set = (XSet) condition;
-
-          for(int i = 0; i < set.getChildCount(); i++) {
-            XFilterNode node = (XFilterNode) set.getChild(i);
-            processSpecificCondition(usql, node, params, isHaving);
+         else if(node instanceof XSet) {
+            changed = processSpecificCondition((XSet) node, params) || changed;
          }
       }
+
+      return changed;
+   }
+
+   /**
+    * Create the condition replacing a condition whose parameter has a special value.
+    * @return the new condition, or null if the condition doesn't use a special value.
+    */
+   private static XBinaryCondition createSpecificCondition(XBinaryCondition bin,
+                                                           VariableTable params)
+   {
+      String op = bin.getOp();
+      String value = bin.getExpression2().toString().trim();
+
+      if(!value.startsWith("$(")) {
+         return null;
+      }
+
+      value = value.substring(2, value.lastIndexOf(')'));
+      XBinaryCondition filterNode = null;
+
+      try {
+         Object val = params.get(value);
+
+         if(Tool.equals(val, (XConstants.CONDITION_NULL_VALUE))) {
+            filterNode = new XBinaryCondition(bin.getExpression1(),
+               new XExpression("IS NULL", XExpression.VALUE), "");
+         }
+         else if(Tool.equals(val, (XConstants.CONDITION_EMPTY_STRING))) {
+            filterNode = new XBinaryCondition(bin.getExpression1(),
+               new XExpression("''", XExpression.VALUE), op);
+         }
+         else if(Tool.equals(val, (XConstants.CONDITION_NULL_STRING))) {
+            filterNode = new XBinaryCondition(bin.getExpression1(),
+               new XExpression("'null'", XExpression.VALUE), op);
+         }
+      }
+      catch(Exception e) {
+      }
+
+      if(filterNode != null) {
+         // keep the negation, e.g. "not (a.id = $(p))" -> "not (a.id IS NULL)"
+         filterNode.setIsNot(bin.isIsNot());
+         filterNode.setName(bin.getName());
+      }
+
+      return filterNode;
    }
 
    /**
@@ -3218,6 +3319,12 @@ public final class XUtil {
     * @param finder the identity finder.
     */
    public static void setXIdentityFinder(XIdentityFinder finder) {
+      // a script can reach this static, and a null finder would reset every
+      // user's role, group and org resolution on the node (Bug #77348)
+      if(finder == null && JavaScriptEngine.isScriptThread()) {
+         throw new java.lang.SecurityException("The identity finder cannot be removed by a script");
+      }
+
       IDENTITY_LOCK.lock();
 
       try {
@@ -3627,7 +3734,7 @@ public final class XUtil {
       try {
          Class[] params = new Class[] {Hyperlink.Ref.class, String.class};
          Object[] args = new Object[] {link, servlet};
-         return (String) call(null, "inetsoft.sree.internal.SUtil",
+         return (String) Tool.call(null, "inetsoft.sree.internal.SUtil",
                               "getCommand", params, args);
       }
       catch(Exception ex) {
@@ -3763,13 +3870,31 @@ public final class XUtil {
             boolean noPermission = SreeEnv.getProperty("security.provider").equals("") &&
                !VpmProcessor.useVpmSecurity();
 
+            // Bug #77522: a user-scope (private) worksheet may only be run by its owner or a site
+            // admin. The ASSET path walk below is scope-blind (it checks the global worksheet ACL
+            // of the same path), and ReportWorksheetProcessor loads the sheet without a permission
+            // check, so ask the real asset engine with checkUserAsset=true. This also applies to
+            // report scripts, since the b.c. exemption below was never meant to expose another
+            // user's private worksheet.
+            if(!noPermission && entry.getScope() == AssetRepository.USER_SCOPE) {
+               try {
+                  AssetUtil.getAssetRepository(false).checkAssetPermission(
+                     user, entry, ResourceAction.READ, true);
+               }
+               catch(Exception ex) {
+                  LOG.debug("Permission denied to run user worksheet: {}", entry, ex);
+                  message = Catalog.getCatalog().getString(
+                     "em.common.security.no.permission", entry.getPath());
+               }
+
+               if(message != null) {
+                  throw new ScriptException(message);
+               }
+            }
             // @by jasonshobe, fix bug1400096326732: don't check permissions if
             // being invoked from report (preserve b.c. after bug1368179287358)
-            if(!reportScript) {
-               IdentityID userID = user instanceof SRPrincipal ? ((SRPrincipal) user).getClientUserID() : null;
-               boolean userAsset = entry.getScope() == AssetRepository.USER_SCOPE && Tool.equals(entry.getUser(), userID);
-
-               if(!noPermission && !userAsset && entry.getScope() != AssetRepository.REPORT_SCOPE) {
+            else if(!reportScript) {
+               if(!noPermission && entry.getScope() != AssetRepository.REPORT_SCOPE) {
                   try {
                      AssetEntry parent = entry;
 
@@ -3981,13 +4106,11 @@ public final class XUtil {
                            if(dateFormat != null && obj instanceof Date) {
                               DateTimeFormatter formatter = DateTimeFormatter.ofPattern(dateFormat);
 
-                              if (obj instanceof java.sql.Date) {
-                                 varValue = ((java.sql.Date) obj).toLocalDate().format(formatter);
-                              } else {
-                                 LocalDate localDate = ((Date) obj).toInstant().
-                                    atZone(ZoneId.systemDefault()).toLocalDate();
-                                 varValue = localDate.format(formatter);
-                              }
+                              // java.sql.Date.toLocalDate() reads the date as SimpleDateFormat
+                              // does, java.time would shift dates before 1901 (bug #77450)
+                              LocalDate localDate =
+                                 new java.sql.Date(((Date) obj).getTime()).toLocalDate();
+                              varValue = localDate.format(formatter);
                            }
                         }
                         catch(Exception e) {

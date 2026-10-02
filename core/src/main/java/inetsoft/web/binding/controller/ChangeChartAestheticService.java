@@ -101,7 +101,7 @@ public class ChangeChartAestheticService {
          ChartVSAssembly clone = assembly.clone();
          ChartBindingModel cmodel = event.getModel();
          Map<String, Color> oDimColors = getDimensionColor(assembly, vs);
-         clone = (ChartVSAssembly) bindingFactory.updateAssembly(cmodel, clone);
+         clone = (ChartVSAssembly) bindingFactory.updateAssembly(cmodel, clone, principal);
          // The frontend model never carries static-item styling (only text), so a model-driven
          // rebuild would wipe panel-set static formatting. Carry it over from the live assembly.
          preserveAllTextLayoutStaticFormatting(assembly.getVSChartInfo(), clone.getVSChartInfo());

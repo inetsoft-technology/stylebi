@@ -269,6 +269,9 @@ export class CkeditorWrapperComponent implements OnInit, AfterViewInit, ControlV
          };
       }
 
+      // CKEditor 5 v44+ requires a license key; "GPL" is valid for this AGPL-licensed project
+      this.config.licenseKey = "GPL";
+
       this.config.translations = [
          af, ar, ast, az, bg, bs, ca, cs, da, de, dech, el, enau, engb,
          eo, es, et, eu, fa, fi, fr, gl, gu, he, hi, hr, hu, id, it,

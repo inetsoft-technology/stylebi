@@ -876,6 +876,18 @@ public class TimeSliderVSAQuery extends AbstractSelectionVSAQuery {
       boolean excludeRight = !assembly.isUpperInclusive();
       SingleTimeInfo tinfo = (SingleTimeInfo) assembly.getTimeInfo();
       int length = tinfo.getLength();
+
+      // bug #76942: the ALL hint (see refreshSelectionValue0()) is computed from the
+      // assembly's *pre-query* getCurrentPos()/getTotalLength() -- i.e. whatever the previous
+      // execution of this same method left behind. getTotalLength() falls back to a degenerate
+      // default (refreshSelectionValue0()'s "> 1 ? ... : 2") whenever the assembly's own slist
+      // was null/empty/near-empty going into this call, which is not a genuine "the user
+      // selected everything" signal -- it just means the assembly's selection list had not
+      // (yet, or any longer) been meaningfully populated. Capture that distinction now, before
+      // this method rebuilds the assembly's slist below, so the NUMBER branch's own recovered
+      // position (see nearestPos/pos below) can be trusted over a spurious ALL hint instead of
+      // being unconditionally clobbered by it.
+      boolean priorTotalDegraded = assembly.getTotalLength() <= 1;
       double maxsize = tinfo.getMaxRangeSize();
       double rsize0 = tinfo.getRangeSize();
       rsize0 = Double.isNaN(rsize0) ? 0 : rsize0;
@@ -926,6 +938,14 @@ public class TimeSliderVSAQuery extends AbstractSelectionVSAQuery {
       if(minObj == null) {
          minObj = assembly.getSelectedMin();
       }
+
+      // bug #76942: whether a real, previously-selected value was actually found (as opposed
+      // to the NUMBER branch's own "nothing to recover, default curr to the range's own
+      // minimum" fallback below) -- curr trivially lands on the first tick when minObj is null,
+      // which would otherwise make pos >= 0 look like a successful recovery even when there was
+      // nothing to recover. Only a real minObj is evidence worth trusting over a spurious ALL
+      // hint (see priorTotalDegraded below).
+      boolean hasRecoveredValue = minObj != null;
 
       int unit = tinfo.getRangeType();
       int olength = length; // old length
@@ -1186,10 +1206,15 @@ public class TimeSliderVSAQuery extends AbstractSelectionVSAQuery {
          // when the previously selected value is still within (a tick's width of) the freshly
          // computed data range -- if it isn't, the underlying data itself has genuinely moved
          // out from under the selection, and falling back to the full range remains correct.
+         // The rescue is limited to ad hoc VS_ASSEMBLY sliders: for any other slider a missing
+         // tick means the data itself changed, and the bug1295840324493 full-range fallback
+         // applies. The last tick only closes the grid (no bucket starts there), so never
+         // land on it.
          if(pos < 0 && rsize != 0 && nearestPos >= 0 &&
+            assembly.getSourceType() == XSourceInfo.VS_ASSEMBLY &&
             currActual >= mind - rsize0 && currActual <= maxd + rsize0)
          {
-            pos = nearestPos;
+            pos = ticks.length >= 2 ? Math.min(nearestPos, ticks.length - 2) : nearestPos;
          }
       }
       else if(min instanceof Date && max instanceof Date) {
@@ -1318,8 +1343,22 @@ public class TimeSliderVSAQuery extends AbstractSelectionVSAQuery {
          tinfo.setLengthValue(Math.max(1, length));
       }
       else if((hint & ALL) == ALL) {
-         pos = 0;
-         tinfo.setLengthValue(Math.max(1, length = slist.getSelectionValueCount() - 1));
+         // bug #76942: normally ALL means "the previous state genuinely covered the whole
+         // range, preserve that" and should win outright -- but when that signal was itself
+         // derived from a degraded/unpopulated prior slist (priorTotalDegraded, captured above)
+         // rather than a real prior selection, and the NUMBER branch above already recovered a
+         // real position for the actual previously-selected value (pos >= 0, via the exact
+         // match or bug #76942's own nearest-tick rescue), trust that recovered position
+         // instead of discarding it for a full-range selection nothing in the user's actual
+         // state actually asked for. Leave pos/length exactly as the NUMBER branch computed
+         // them; the shared clamp below (the same one a NORMAL hint already relies on) sizes
+         // length against the freshly rebuilt slist. hasRecoveredValue guards against curr's
+         // own "nothing to recover" fallback (defaults to the range's own minimum, which
+         // trivially satisfies pos == 0) from masquerading as a real recovered selection.
+         if(!(unit == TimeInfo.NUMBER && priorTotalDegraded && hasRecoveredValue && pos >= 0)) {
+            pos = 0;
+            tinfo.setLengthValue(Math.max(1, length = slist.getSelectionValueCount() - 1));
+         }
       }
       else if((hint & FIRST_N) == FIRST_N) {
          length = Math.min(slist.getSelectionValueCount() - 1, olength);

@@ -20,6 +20,7 @@ package inetsoft.report.filter;
 import inetsoft.util.Tool;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -29,6 +30,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * <p>CountFormula counts non-null values. isNull() always returns false.
  * getResult() returns the integer count.
  */
+@Tag("core")
 public class CountFormulaTest {
 
    private CountFormula formula;

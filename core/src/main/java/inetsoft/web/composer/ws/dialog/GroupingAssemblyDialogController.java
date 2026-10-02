@@ -26,6 +26,7 @@ import inetsoft.web.composer.AssetTreeController;
 import inetsoft.web.composer.model.TreeNodeModel;
 import inetsoft.web.composer.model.ws.GroupingAssemblyDialogModel;
 import inetsoft.web.composer.ws.WorksheetController;
+import inetsoft.web.portal.controller.database.QueryManagerService;
 import inetsoft.web.viewsheet.LoadingMask;
 import inetsoft.web.viewsheet.Undoable;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
@@ -41,10 +42,12 @@ public class GroupingAssemblyDialogController extends WorksheetController {
 
    public GroupingAssemblyDialogController(AssetRepository assetRepository,
                                            GroupingAssemblyDialogServiceProxy dialogServiceProxy,
-                                           SecurityEngine securityEngine) {
+                                           SecurityEngine securityEngine,
+                                           QueryManagerService queryManagerService) {
       this.assetRepository = assetRepository;
       this.dialogServiceProxy = dialogServiceProxy;
       this.securityEngine = securityEngine;
+      this.queryManagerService = queryManagerService;
    }
 
    @RequestMapping(
@@ -68,6 +71,9 @@ public class GroupingAssemblyDialogController extends WorksheetController {
       Principal principal) throws Exception
    {
       TreeNodeModel result;
+      // Bug #77189, the asset engine resolves the children of a query-scope entry from its
+      // client-supplied prefix without checking it.
+      queryManagerService.checkAssetTreeEntryPermission(expandedEntry, principal);
 
       AssetEntry.Selector selector = new AssetEntry.Selector(AssetEntry.Type.DATA);
       AssetEntry[] entries = AssetTreeController.getFilterFor(expandedEntry);
@@ -109,5 +115,6 @@ public class GroupingAssemblyDialogController extends WorksheetController {
    private Catalog catalog = Catalog.getCatalog();
    private GroupingAssemblyDialogServiceProxy dialogServiceProxy;
    private final SecurityEngine securityEngine;
+   private final QueryManagerService queryManagerService;
 
 }

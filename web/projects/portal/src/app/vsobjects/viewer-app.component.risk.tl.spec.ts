@@ -885,6 +885,68 @@ describe("ViewerAppComponent — setServerUpdateInterval() / clearServerUpdateIn
       );
    });
 
+   // Server-side update re-sends every object, which resets a value the user is typing.
+   describe("while the user is entering a value", () => {
+      async function startUpdates() {
+         const heartbeatSubject = new Subject<void>();
+         HEARTBEAT_WORKER_SERVICE_MOCK.createHeartbeat.mockReturnValue(heartbeatSubject);
+         const { comp, fixture } = await renderComponent();
+         comp.runtimeId = "rt-upd";
+         comp.updateEnabled = true;
+         comp.setServerUpdateInterval();
+         VS_CLIENT_MOCK.sendEvent.mockClear();
+
+         const input = document.createElement("input");
+         input.type = "number";
+         fixture.nativeElement.appendChild(input);
+         input.focus();
+
+         return { comp, fixture, heartbeatSubject, input };
+      }
+
+      function touchSent(): boolean {
+         return VS_CLIENT_MOCK.sendEvent.mock.calls
+            .some((call: any[]) => call[0] === "/events/composer/touch-asset");
+      }
+
+      it("should skip the update while a text field has an unsubmitted value", async () => {
+         const { heartbeatSubject, input } = await startUpdates();
+
+         input.dispatchEvent(new Event("input", { bubbles: true }));
+         heartbeatSubject.next();
+
+         expect(touchSent()).toBe(false);
+      });
+
+      it("should update again after the value is submitted with Enter", async () => {
+         const { heartbeatSubject, input } = await startUpdates();
+
+         input.dispatchEvent(new Event("input", { bubbles: true }));
+         input.dispatchEvent(new KeyboardEvent("keyup", { key: "Enter", bubbles: true }));
+         heartbeatSubject.next();
+
+         expect(touchSent()).toBe(true);
+      });
+
+      it("should update again after the text field loses focus", async () => {
+         const { heartbeatSubject, input } = await startUpdates();
+
+         input.dispatchEvent(new Event("input", { bubbles: true }));
+         input.blur();
+         heartbeatSubject.next();
+
+         expect(touchSent()).toBe(true);
+      });
+
+      it("should keep updating when a text field only has focus", async () => {
+         const { heartbeatSubject } = await startUpdates();
+
+         heartbeatSubject.next();
+
+         expect(touchSent()).toBe(true);
+      });
+   });
+
    it("should unsubscribe existing heartbeat when clearServerUpdateInterval is called", async () => {
       const unsubscribeSpy = vi.fn();
       const heartbeatSubject = new Subject<void>();

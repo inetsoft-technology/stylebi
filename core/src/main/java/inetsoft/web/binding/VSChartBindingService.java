@@ -148,7 +148,7 @@ public class VSChartBindingService {
       Viewsheet viewsheet = rvs.getViewsheet();
       ChartVSAssembly assembly =
          (ChartVSAssembly) viewsheet.getAssembly(assemblyName).clone();
-      assembly = (ChartVSAssembly) bindingService.updateAssembly(cmodel, assembly);
+      assembly = (ChartVSAssembly) bindingService.updateAssembly(cmodel, assembly, principal);
       ChartVSAssemblyInfo info = assembly.getChartInfo();
       chartDataHandler.changeChartData(rvs, info, null, null, null, null);
       assembly = (ChartVSAssembly) viewsheet.getAssembly(assemblyName);
@@ -303,7 +303,7 @@ public class VSChartBindingService {
       Viewsheet viewsheet = rvs.getViewsheet();
       ChartVSAssembly assembly =
          (ChartVSAssembly) viewsheet.getAssembly(assemblyName).clone();
-      assembly = (ChartVSAssembly) bindingService.updateAssembly(cmodel, assembly);
+      assembly = (ChartVSAssembly) bindingService.updateAssembly(cmodel, assembly, principal);
       ChartVSAssemblyInfo info = assembly.getChartInfo();
       chartDataHandler.setGeographic(rvs, assemblyName, info, refName, isDim, type);
       assembly = (ChartVSAssembly) viewsheet.getAssembly(assemblyName);

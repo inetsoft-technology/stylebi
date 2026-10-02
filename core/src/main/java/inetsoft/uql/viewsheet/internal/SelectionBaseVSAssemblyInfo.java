@@ -912,7 +912,7 @@ public abstract class SelectionBaseVSAssemblyInfo extends MaxModeSelectionVSAsse
          path = getMeasureBarPath(i);
          format = new VSCompositeFormat();
          format.getDefaultFormat().setForegroundValue(
-            CategoricalColorFrame.COLOR_PALETTE[0].getRGB() + "");
+            CategoricalColorFrame.COLOR_PALETTE.get(0).getRGB() + "");
          format.getDefaultFormat().setFontValue(font);
          format.getCSSFormat().setCSSType("MeasureBar");
          getFormatInfo().setFormat(path, format);

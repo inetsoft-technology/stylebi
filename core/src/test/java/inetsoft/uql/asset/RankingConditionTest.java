@@ -22,12 +22,14 @@ import inetsoft.uql.XCondition;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Unit tests for {@link RankingCondition}.
  */
+@Tag("core")
 public class RankingConditionTest {
 
    // ---- default constructor ----------------------------------------------------

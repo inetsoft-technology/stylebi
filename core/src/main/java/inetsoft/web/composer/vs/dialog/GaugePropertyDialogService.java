@@ -32,6 +32,7 @@ import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
 import inetsoft.web.composer.model.vs.*;
 import inetsoft.web.composer.vs.objects.controller.VSObjectPropertyService;
 import inetsoft.web.composer.vs.objects.controller.VSTrapService;
+import inetsoft.web.portal.controller.database.QueryManagerService;
 import inetsoft.web.viewsheet.service.*;
 import org.springframework.stereotype.Service;
 import java.awt.*;
@@ -48,7 +49,8 @@ public class GaugePropertyDialogService {
                                      VSDialogService dialogService,
                                      ViewsheetService viewsheetService,
                                      VSTrapService trapService,
-                                     VSAssemblyInfoHandler assemblyInfoHandler)
+                                     VSAssemblyInfoHandler assemblyInfoHandler,
+                                     QueryManagerService queryManagerService)
    {
       this.vsObjectPropertyService = vsObjectPropertyService;
       this.vsOutputService = vsOutputService;
@@ -56,6 +58,7 @@ public class GaugePropertyDialogService {
       this.viewsheetService = viewsheetService;
       this.trapService = trapService;
       this.assemblyInfoHandler = assemblyInfoHandler;
+      this.queryManagerService = queryManagerService;
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
@@ -275,6 +278,10 @@ public class GaugePropertyDialogService {
       ScalarBindingInfo info = new ScalarBindingInfo();
 
       if(dataOutputPaneModel.getTable() != null) {
+         // a cube table is resolved from its data source without a permission check, so
+         // check a newly bound one before it is set (Bug #77427)
+         queryManagerService.checkNewCubeTableReadPermission(
+            dataOutputPaneModel.getTable(), getBoundTable(gaugeAssemblyInfo), principal);
          info.setTableName(dataOutputPaneModel.getTable());
          info.setColumnValue(dataOutputPaneModel.getColumn());
          info.setColumnType(dataOutputPaneModel.getColumnType() == null ?
@@ -360,6 +367,10 @@ public class GaugePropertyDialogService {
       ScalarBindingInfo info = new ScalarBindingInfo();
 
       if(dataOutputPaneModel.getTable() != null) {
+         // a cube table is resolved from its data source without a permission check, so
+         // check a newly bound one before it is set (Bug #77427)
+         queryManagerService.checkNewCubeTableReadPermission(
+            dataOutputPaneModel.getTable(), getBoundTable(gaugeAssemblyInfo), principal);
          info.setTableName(dataOutputPaneModel.getTable());
          info.setColumnValue(dataOutputPaneModel.getColumn());
          info.setColumnType(dataOutputPaneModel.getColumnType() == null ?
@@ -387,10 +398,16 @@ public class GaugePropertyDialogService {
       gaugeAssemblyInfo.setScalarBindingInfo(info);
    }
 
+   private static String getBoundTable(OutputVSAssemblyInfo info) {
+      ScalarBindingInfo binding = info.getScalarBindingInfo();
+      return binding == null ? null : binding.getTableName();
+   }
+
    private final VSObjectPropertyService vsObjectPropertyService;
    private final VSOutputService vsOutputService;
    private final VSDialogService dialogService;
    private final ViewsheetService viewsheetService;
    private final VSTrapService trapService;
    private final VSAssemblyInfoHandler assemblyInfoHandler;
+   private final QueryManagerService queryManagerService;
 }

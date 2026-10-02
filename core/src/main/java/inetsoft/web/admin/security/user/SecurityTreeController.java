@@ -86,8 +86,10 @@ public class SecurityTreeController {
       )
    )
    @GetMapping("/api/em/security/themes")
-   public IdentityThemeList getThemes() {
-      return themeService.getThemes();
+   public IdentityThemeList getThemes(@RequestParam(required = false) String orgId,
+                                      Principal principal)
+   {
+      return themeService.getThemes(orgId, principal);
    }
 
    private final AuthenticationProviderService service;

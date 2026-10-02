@@ -690,7 +690,7 @@ public class XEntity implements Cloneable, Serializable, Comparable<XEntity>, XM
 
          if((attr = Tool.getAttribute(elem, "class")) != null) {
             try {
-               xattr = (XAttribute) Class.forName(attr).newInstance();
+               xattr = (XAttribute) Tool.loadSubclass(attr, XAttribute.class).newInstance();
             }
             catch(Exception exc) {
                LOG.error("Failed to create attribute class: " + attr, exc);

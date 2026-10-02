@@ -23,7 +23,6 @@ import inetsoft.sree.schedule.Scheduler;
 import inetsoft.sree.schedule.*;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.uql.XPrincipal;
-import inetsoft.uql.util.Identity;
 import inetsoft.util.*;
 import inetsoft.util.audit.ActionRecord;
 import inetsoft.util.audit.Audit;
@@ -132,7 +131,6 @@ public class JobCompletionListener extends JobListenerSupport {
          String objectType = ActionRecord.OBJECT_TYPE_TASK;
          ScheduleTask taskValue = (ScheduleTask)
             context.getJobDetail().getJobDataMap().get(ScheduleTask.class.getName());
-         Identity identity = taskValue != null ? taskValue.getIdentity() : null;
          IdentityID owner = taskValue != null ? taskValue.getOwner() : null;
          String addr = Tool.getIP();
          Principal contextPrincipal = ThreadContext.getContextPrincipal();
@@ -146,12 +144,12 @@ public class JobCompletionListener extends JobListenerSupport {
          if(!ScheduleManager.isInternalTask(Objects.requireNonNull(taskValue).getTaskId()) ||
             contextPrincipal == null)
          {
-            if(identity == null) {
-               principal = SUtil.getScheduleTaskOwnerPrincipal(owner, addr, true);
-            }
-            else {
-               principal = SUtil.getPrincipal(identity, addr, true);
-            }
+            // Bug #77168, a non-null identity may be an unresolved placeholder kept by
+            // ScheduleTask.parseXML (Bug #77120/#77168); with security disabled that
+            // placeholder can never be resolved to a real principal, so fall back to the
+            // owner instead of building a principal (used for both the audit record below and,
+            // via removeTask(), the permission context for deleteIfNoMoreRun cleanup).
+            principal = SUtil.getScheduleTaskRunPrincipal(taskValue, addr, true);
          }
 
          ActionRecord finishActionRecord = SUtil.getActionRecord(

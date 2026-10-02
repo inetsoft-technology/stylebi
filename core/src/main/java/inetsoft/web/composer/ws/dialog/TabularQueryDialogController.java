@@ -18,6 +18,7 @@
 package inetsoft.web.composer.ws.dialog;
 
 import inetsoft.sree.SreeEnv;
+import inetsoft.sree.security.SecurityEngine;
 import inetsoft.uql.VariableTable;
 import inetsoft.uql.tabular.*;
 import inetsoft.uql.tabular.oauth.Tokens;
@@ -43,10 +44,12 @@ import java.util.*;
 public class TabularQueryDialogController extends WorksheetController {
    @Autowired
    public TabularQueryDialogController(TabularQueryDialogServiceProxy dialogServiceProxy,
-                                       FileSystemService fileSystemService)
+                                       FileSystemService fileSystemService,
+                                       SecurityEngine securityEngine)
    {
       this.dialogServiceProxy = dialogServiceProxy;
       this.fileSystemService = fileSystemService;
+      this.securityEngine = securityEngine;
    }
 
    @GetMapping("/api/composer/ws/tabular-query-dialog-model")
@@ -72,6 +75,7 @@ public class TabularQueryDialogController extends WorksheetController {
                    @RequestParam(name = "tableName", required = false) String tableName,
                    Principal principal, HttpServletRequest request) throws Exception
    {
+      checkDataSourceReadPermission(dataSource, principal);
       TabularUtil.setSessionId(request.getSession().getId());
       TabularQuery query = TabularUtil.createQuery(dataSource);
 
@@ -100,8 +104,10 @@ public class TabularQueryDialogController extends WorksheetController {
    @ResponseBody
    public TabularOAuthParams getOAuthParameters(@RequestBody TabularQueryOAuthParamsRequest request,
                                                 @RequestParam("dataSource") String dataSource,
+                                                Principal principal,
                                                 HttpServletRequest httpRequest)
    {
+      checkDataSourceReadPermission(dataSource, principal);
       TabularUtil.setSessionId(httpRequest.getSession().getId());
       TabularQuery query = TabularUtil.createQuery(dataSource);
       TabularOAuthParams.Builder builder = TabularOAuthParams.builder();
@@ -127,7 +133,7 @@ public class TabularQueryDialogController extends WorksheetController {
                .clientId(params.get("clientId"))
                .clientSecret(params.get("clientSecret"))
                .authorizationUri(params.get("authorizationUri"))
-               .tokenUri(params.get("tokensUri"));
+               .tokenUri(params.get("tokenUri"));
 
             String scope = params.get("scope");
 
@@ -150,8 +156,10 @@ public class TabularQueryDialogController extends WorksheetController {
    @ResponseBody
    public TabularView setOAuthTokens(@RequestBody TabularQueryOAuthTokens tokens,
                                      @RequestParam("dataSource") String dataSource,
+                                     Principal principal,
                                      HttpServletRequest request)
    {
+      checkDataSourceReadPermission(dataSource, principal);
       TabularUtil.setSessionId(request.getSession().getId());
       TabularQuery query = TabularUtil.createQuery(dataSource);
 
@@ -195,8 +203,10 @@ public class TabularQueryDialogController extends WorksheetController {
       @RequestParam(name = "property") String property,
       @RequestParam(name = "path") String path,
       @RequestParam(name = "all") boolean all,
-      @RequestBody TabularView tabularView)
+      @RequestBody TabularView tabularView,
+      Principal principal)
    {
+      checkDataSourceReadPermission(dataSource, principal);
       TabularQuery query = TabularUtil.createQuery(dataSource);
       TreeNodeModel.Builder rootNodeBuilder = TreeNodeModel.builder();
 
@@ -362,6 +372,16 @@ public class TabularQueryDialogController extends WorksheetController {
       return records;
    }
 
+   /**
+    * Every endpoint that loads a stored data source by name must pass this check before
+    * {@link TabularUtil#createQuery(String)} (Bug #77149).
+    */
+   private void checkDataSourceReadPermission(String dataSource, Principal principal) {
+      TabularQueryDialogService.checkDataSourceReadPermission(
+         securityEngine, dataSource, principal);
+   }
+
    private TabularQueryDialogServiceProxy dialogServiceProxy;
    private final FileSystemService fileSystemService;
+   private final SecurityEngine securityEngine;
 }

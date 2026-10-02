@@ -28,7 +28,7 @@ import inetsoft.web.binding.service.DataRefModelFactoryService;
 import inetsoft.web.composer.model.vs.SelectionListPropertyDialogModel;
 import inetsoft.web.composer.vs.objects.controller.VSObjectPropertyService;
 import inetsoft.web.composer.vs.objects.controller.VSTrapService;
-import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
+import inetsoft.web.portal.controller.database.QueryManagerService;
 import inetsoft.web.viewsheet.service.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
@@ -42,13 +42,23 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.awt.*;
 import java.security.Principal;
+import inetsoft.test.BaseTestConfiguration;
+import inetsoft.test.ConfigurationContextInitializer;
+import org.junit.jupiter.api.Tag;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
@@ -60,7 +70,8 @@ class SelectionListPropertyDialogServiceTest {
    void setup() {
       service = new SelectionListPropertyDialogService(
          vsObjectPropertyService, vsOutputService, engine, trapService, dialogService,
-         selectionDialogService, assemblyInfoHandler, dataRefService, dataSourceRegistry);
+         selectionDialogService, assemblyInfoHandler, dataRefService, dataSourceRegistry,
+         mock(QueryManagerService.class));
    }
 
    @Test
@@ -235,7 +246,6 @@ class SelectionListPropertyDialogServiceTest {
    }
 
    @Mock VSOutputService vsOutputService;
-   @Mock RuntimeViewsheetRef runtimeViewsheetRef;
    @Mock CommandDispatcher commandDispatcher;
    @Mock RuntimeViewsheet rvs;
    @Mock ViewsheetService engine;

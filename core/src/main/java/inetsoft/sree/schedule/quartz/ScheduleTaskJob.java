@@ -23,7 +23,6 @@ import inetsoft.sree.schedule.ScheduleManager;
 import inetsoft.sree.schedule.ScheduleTask;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.sree.security.OrganizationContextHolder;
-import inetsoft.uql.util.Identity;
 import inetsoft.util.ThreadContext;
 import inetsoft.util.Tool;
 import org.quartz.*;
@@ -64,18 +63,14 @@ public class ScheduleTaskJob implements InterruptableJob {
          boolean orgChanged = owner != null && !Tool.isEmptyString(owner.getOrgID());
 
          try {
-            Identity identity = task.getIdentity();
             String addr = Tool.getIP();
             Principal principal = null;
 
             // Bug #40798, don't audit logins for internal tasks
             if(!ScheduleManager.isInternalTask(taskName)) {
-               if(identity == null) {
-                  principal = SUtil.getScheduleTaskOwnerPrincipal(task.getOwner(), addr, true);
-               }
-               else {
-                  principal = SUtil.getPrincipal(identity, addr, true);
-               }
+               // Bug #77168/#77452, the execute-as identity, or the owner when there is none or
+               // security is disabled
+               principal = SUtil.getScheduleTaskRunPrincipal(task, addr, true);
             }
 
             if(principal != null) {

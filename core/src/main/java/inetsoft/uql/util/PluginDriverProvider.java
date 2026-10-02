@@ -19,6 +19,7 @@ package inetsoft.uql.util;
 
 import inetsoft.uql.jdbc.DriverService;
 import inetsoft.uql.jdbc.SQLExecutor;
+import inetsoft.util.Tool;
 
 import java.net.URL;
 import java.sql.*;
@@ -93,6 +94,40 @@ class PluginDriverProvider implements DriverProvider {
             }
             catch(ClassNotFoundException | NoClassDefFoundError ignore) {
             }
+         }
+
+         return null;
+      }
+      finally {
+         DRIVER_CLASS_LOADING_LOCK.unlock();
+      }
+   }
+
+   @Override
+   public <T> Class<? extends T> getDriverClass(String className, Class<T> expected)
+      throws ClassNotFoundException
+   {
+      // Force the DriverManager class to be initialized to avoid deadlocks with JDBC Driver
+      // class initialization.
+      Class.forName(DriverManager.class.getName());
+      DRIVER_CLASS_LOADING_LOCK.lock();
+
+      try {
+         for(DriverService service : getDriverServices()) {
+            ClassLoader loader = service.getClass().getClassLoader();
+            // Force the DriverManager class to be initialized to avoid deadlocks with JDBC Driver
+            // class initialization.
+            Class.forName(DriverManager.class.getName(), true, loader);
+            Class<?> cls;
+
+            try {
+               cls = Class.forName(className, false, loader);
+            }
+            catch(ClassNotFoundException | NoClassDefFoundError ignore) {
+               continue;
+            }
+
+            return Tool.checkSubclass(cls, expected);
          }
 
          return null;

@@ -31,7 +31,7 @@ import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.util.script.graal.GraalJavaScriptEnv;
 import org.junit.jupiter.api.*;
-import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
+import org.junit.jupiter.api.condition.DisabledIfSystemProperty;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -54,7 +54,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * and that sub table can run script: a {@link FormulaTableLens}, or a
  * {@link DistinctTableLens} over one, since sub-query tables are made distinct. Cycle: the
  * populator holds the filter's monitor and waits for E in the sub table's formula; the
- * script thread holds E and waits for the filter's monitor (#76918 again).
+ * script thread holds E and waits for the filter's monitor (#76918 again). Fixed by #77158:
+ * the filter also takes E first when a sub-query condition's sub table can reach script.
  *
  * <p>Ported from {@code ConditionFilterSubQueryLockOrderingTest} of the withdrawn PR #5551,
  * with a real {@link AssetQuerySandbox} and {@link GraalJavaScriptEnv}.
@@ -64,6 +65,10 @@ import static org.junit.jupiter.api.Assertions.*;
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @SreeHome
 @Tag("core")
+@DisabledIfSystemProperty(named = "lockcycle.pool", matches = "true",
+   disabledReason = "pool-off only: the script thread holds the raw engine lock E of a plain " +
+      "GraalJavaScriptEnv outside exec; PoolModeCycleTest.formulaSubTableUnderPlainBase " +
+      "is the pool-on equivalent")
 public class SubQueryConditionCycleTest {
    @BeforeEach
    public void setUp() {
@@ -81,13 +86,16 @@ public class SubQueryConditionCycleTest {
     */
    @ParameterizedTest
    @ValueSource(booleans = { false, true })
-   @Tag("known-deadlock")
-   @EnabledIfSystemProperty(named = "lockcycle.known", matches = "true")
    public void formulaSubTableUnderPlainBase(boolean distinct) throws Exception {
       GraalJavaScriptEnv senv = new GraalJavaScriptEnv();
       senv.init();
       Lock lock = senv.getExecutionLock();
       AssetQuerySandbox box = new AssetQuerySandbox(null);
+      // pool off, like the plain env below (the pool is on by default, Feature #77123)
+      Field mode = AssetQuerySandbox.class.getDeclaredField("scriptPoolMode");
+      mode.setAccessible(true);
+      mode.set(box, false);
+      assertFalse(box.isScriptPoolMode());
       Field field = AssetQuerySandbox.class.getDeclaredField("senv");
       field.setAccessible(true);
       field.set(box, senv);

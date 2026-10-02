@@ -92,6 +92,12 @@ public class UserMessage implements Serializable {
       if(userMessage != null) {
          final String message = userMessage.getMessage();
 
+         // a message without text, e.g. from an exception without one, takes the other
+         // message's text (bug #77188)
+         if(message != null && this.message == null) {
+            return new UserMessage(message, Math.max(this.level, userMessage.level));
+         }
+
          if(message != null && !this.message.contains(message)) {
             final String newMessage = String.format("%s\n%s", message, this.message);
             final int newLevel = Math.max(this.level, userMessage.level);

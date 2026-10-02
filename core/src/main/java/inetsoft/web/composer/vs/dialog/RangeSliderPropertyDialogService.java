@@ -35,6 +35,7 @@ import inetsoft.web.composer.model.TreeNodeModel;
 import inetsoft.web.composer.model.vs.*;
 import inetsoft.web.composer.vs.objects.controller.VSObjectPropertyService;
 import inetsoft.web.composer.vs.objects.controller.VSTrapService;
+import inetsoft.web.portal.controller.database.QueryManagerService;
 import inetsoft.web.viewsheet.service.*;
 import org.springframework.stereotype.Service;
 
@@ -54,7 +55,8 @@ public class RangeSliderPropertyDialogService {
                                            VSDialogService dialogService,
                                            VSTrapService trapService,
                                            SelectionDialogService selectionDialogService,
-                                           VSAssemblyInfoHandler assemblyInfoHandler)
+                                           VSAssemblyInfoHandler assemblyInfoHandler,
+                                           QueryManagerService queryManagerService)
    {
       this.vsObjectPropertyService = vsObjectPropertyService;
       this.vsOutputService = vsOutputService;
@@ -63,6 +65,7 @@ public class RangeSliderPropertyDialogService {
       this.trapService = trapService;
       this.selectionDialogService = selectionDialogService;
       this.assemblyInfoHandler = assemblyInfoHandler;
+      this.queryManagerService = queryManagerService;
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
@@ -270,10 +273,16 @@ public class RangeSliderPropertyDialogService {
       info.setVisibleValue(basicGeneralPaneModel.getVisible());
 
       info.setComposite(rangeSliderDataPaneModel.isComposite());
-      info.setFirstTableName(VSUtil.getTableName(rangeSliderDataPaneModel.getSelectedTable()));
-      info.setAdditionalTableNames(rangeSliderDataPaneModel.getAdditionalTables().stream()
-                                      .map(VSUtil::getTableName)
-                                      .collect(Collectors.toList()));
+      String firstTable = VSUtil.getTableName(rangeSliderDataPaneModel.getSelectedTable());
+      List<String> additionalTables = rangeSliderDataPaneModel.getAdditionalTables().stream()
+         .map(VSUtil::getTableName)
+         .collect(Collectors.toList());
+      // a cube table is resolved from its data source without a permission check, so check
+      // a newly bound one before it is set (Bug #77427)
+      queryManagerService.checkNewCubeTablesReadPermission(
+         firstTable, additionalTables, info.getTableNames(), principal);
+      info.setFirstTableName(firstTable);
+      info.setAdditionalTableNames(additionalTables);
 
       setTimeInfo(info, rangeSliderDataPaneModel, rangeSliderSizePaneModel);
 
@@ -419,4 +428,5 @@ public class RangeSliderPropertyDialogService {
    private final VSTrapService trapService;
    private final SelectionDialogService selectionDialogService;
    private final VSAssemblyInfoHandler assemblyInfoHandler;
+   private final QueryManagerService queryManagerService;
 }

@@ -26,6 +26,7 @@ import org.junit.jupiter.api.Test;
 
 import java.awt.geom.PathIterator;
 import java.awt.geom.Rectangle2D;
+import org.junit.jupiter.api.Tag;
 import java.lang.ref.SoftReference;
 import java.lang.reflect.Field;
 import java.util.ArrayList;

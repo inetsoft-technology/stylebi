@@ -471,8 +471,9 @@ public class ComposerObjectService {
          return null;
       }
 
+      box.get().lockWrite();
+
       try {
-         box.get().lockWrite();
          boolean getGrayedOutFields = false;
          List<VSAssembly> assemblies = new ArrayList<>();
 

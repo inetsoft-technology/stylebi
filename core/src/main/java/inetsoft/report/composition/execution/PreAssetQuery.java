@@ -39,8 +39,10 @@ import inetsoft.uql.util.*;
 import inetsoft.uql.viewsheet.CalculateRef;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.util.*;
+import inetsoft.util.script.FormulaContext;
 import inetsoft.util.script.ScriptEnv;
 import inetsoft.util.script.ScriptException;
+import inetsoft.util.script.ScriptStateLint;
 import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
 import inetsoft.util.script.graal.ScriptScope;
 import org.slf4j.Logger;
@@ -3948,14 +3950,27 @@ public abstract class PreAssetQuery implements Serializable, Cloneable {
                                              VariableTable vtable,
                                              AssetQuerySandbox box)
    {
+      return execScriptExpression(exp, cond, box, box.getScope());
+   }
+
+   /**
+    * Execute an expression value (js) for condition in the given scope.
+    */
+   private static Object execScriptExpression(String exp, Condition cond,
+                                              AssetQuerySandbox box, ScriptScope scope0)
+   {
       ScriptEnv senv = box.getScriptEnv();
       Object val = null;
       ScriptScope scope = null;
+      // a condition expression is written by end users, run it restricted (bug #77396)
+      boolean restricted = FormulaContext.isRestricted();
 
       try {
          ViewsheetSandbox vbox = box.getViewsheetSandbox();
          Viewsheet vs = vbox == null ? null : vbox.getViewsheet();
-         val = senv.exec(senv.compile(exp), scope = box.getScope(), null, vs);
+         FormulaContext.setRestricted(true);
+         val = senv.exec(ScriptStateLint.checkCondition(senv.compile(exp), exp, scope0, "condition"),
+                         scope = scope0, null, vs);
       }
       catch(Exception ex) {
          String suggestion = senv.getSuggestion(ex, null, scope);
@@ -3971,6 +3986,9 @@ public abstract class PreAssetQuery implements Serializable, Cloneable {
          }
 
          throw new ScriptException(msg);
+      }
+      finally {
+         FormulaContext.setRestricted(restricted);
       }
 
       return getScriptValue(val, cond);
@@ -4093,6 +4111,11 @@ public abstract class PreAssetQuery implements Serializable, Cloneable {
 
                return new XExpression(parseFieldExpression(exp, format),
                   XExpression.EXPRESSION);
+            }
+            else if(box.isScriptPoolMode()) {
+               // in pool mode the shared scope is never given a query's mode (bug #76960),
+               // so the script gets a view with this query's own mode (bug #77123)
+               val = execScriptExpression(exp, cond, box, box.getScope().queryView(vtable, mode));
             }
             else {
                val = execScriptExpression(exp, cond, vtable, box);

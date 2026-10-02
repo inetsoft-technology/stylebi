@@ -36,6 +36,7 @@ import inetsoft.sree.schedule.*;
 import inetsoft.sree.security.*;
 import inetsoft.sree.security.SecurityException;
 import inetsoft.uql.VariableTable;
+import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.schema.UserVariable;
@@ -67,7 +68,8 @@ public class ScheduleTaskActionService {
                                     ViewsheetService viewsheetService,
                                     SecurityEngine securityEngine,
                                     IndexedStorage indexedStorage,
-                                    RepletRegistryManager repletRegistryManager)
+                                    RepletRegistryManager repletRegistryManager,
+                                    AssetRepository assetRepository)
    {
       this.scheduleManager = scheduleManager;
       this.scheduleService = scheduleService;
@@ -75,11 +77,31 @@ public class ScheduleTaskActionService {
       this.securityEngine = securityEngine;
       this.indexedStorage = indexedStorage;
       this.repletRegistryManager = repletRegistryManager;
+      this.assetRepository = assetRepository;
    }
 
    public List<VSBookmarkInfoModel> getBookmarks(String id, boolean em, Principal principal) {
-      IdentityID pId = principal == null ? null : IdentityID.getIdentityIDFromKey(principal.getName());
-      VSBookmarkInfo[] bookmarks = VSUtil.getBookmarks(id, pId);
+      AssetEntry entry = id == null ? null : AssetEntry.createAssetEntry(id);
+
+      if(entry == null || !(principal instanceof XPrincipal)) {
+         return new ArrayList<>();
+      }
+
+      // the id is client supplied and its orgID is kept, so check READ (including the
+      // cross-org check) and list no bookmarks for a viewsheet the caller cannot read
+      try {
+         assetRepository.checkAssetPermission(principal, entry, ResourceAction.READ);
+      }
+      catch(MessageException ex) {
+         return new ArrayList<>();
+      }
+      catch(Exception ex) {
+         LOG.warn("Failed to check viewsheet permission: {}", id, ex);
+         return new ArrayList<>();
+      }
+
+      IdentityID pId = IdentityID.getIdentityIDFromKey(principal.getName());
+      VSBookmarkInfo[] bookmarks = VSUtil.getBookmarks(entry, pId);
 
       return Arrays.stream(bookmarks)
          .map(bookmark -> scheduleService.getBookmarkModel(bookmark, em))
@@ -556,6 +578,7 @@ public class ScheduleTaskActionService {
    private final SecurityEngine securityEngine;
    private final IndexedStorage indexedStorage;
    private final RepletRegistryManager repletRegistryManager;
+   private final AssetRepository assetRepository;
 
    private static final Logger LOG = LoggerFactory.getLogger(ScheduleTaskActionService.class);
 }

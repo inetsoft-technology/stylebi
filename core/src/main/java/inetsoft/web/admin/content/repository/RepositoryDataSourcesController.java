@@ -162,6 +162,19 @@ public class RepositoryDataSourcesController {
    }
 
    @PostMapping("/api/data/databases/test")
+   @Secured(
+      value = {
+         @RequiredPermission(
+            resourceType = ResourceType.PORTAL_TAB, resource = "Data",
+            actions = ResourceAction.ACCESS
+         ),
+         @RequiredPermission(
+            resourceType = ResourceType.EM_COMPONENT, resource = "settings/content/repository",
+            actions = ResourceAction.ACCESS
+         )
+      },
+      operator = "OR"
+   )
    public ConnectionStatus testDataSourceConnection(@RequestParam("path") String path,
                                                     @RequestBody() DataSourceSettingsModel model,
                                                     Principal principal)

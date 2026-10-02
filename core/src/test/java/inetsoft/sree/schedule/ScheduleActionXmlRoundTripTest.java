@@ -104,6 +104,41 @@ class ScheduleActionXmlRoundTripTest {
       assertEquals("Monthly Sales Report", loaded.getSubject());
    }
 
+   // Bug #77589: an absent message must stay null on reload, so a second save adds neither
+   // messageHtml="false" nor an empty <message> element.
+   @Test
+   void viewsheetAction_missingMessageStaysNull() throws Exception {
+      ViewsheetAction original = new ViewsheetAction();
+      original.setViewsheet(VS_ID);
+      assertNull(original.getMessage());
+
+      StringWriter first = new StringWriter();
+      original.writeXML(new PrintWriter(first));
+
+      ViewsheetAction loaded = roundTripAction(original, ViewsheetAction.class);
+      assertNull(loaded.getMessage(), "an absent message must load as null");
+
+      StringWriter second = new StringWriter();
+      loaded.writeXML(new PrintWriter(second));
+      assertFalse(second.toString().contains("messageHtml"), second.toString());
+      assertFalse(second.toString().contains("<message>"), second.toString());
+   }
+
+   // Bug #77589: a legacy MailTo that stores the message as an attribute still loads it.
+   @Test
+   void emailInfo_legacyMessageAttributeLoads() throws Exception {
+      String xml = "<root><MailTo email=\"a@example.com\" message=\"Legacy body\"></MailTo></root>";
+      DocumentBuilderFactory dbf = DocumentBuilderFactory.newInstance();
+      dbf.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
+      Document doc = dbf.newDocumentBuilder()
+         .parse(new ByteArrayInputStream(xml.getBytes(StandardCharsets.UTF_8)));
+
+      EmailInfo info = new EmailInfo();
+      info.parseXML(firstChildElement(doc.getDocumentElement()));
+
+      assertEquals("Legacy body", info.getMessage());
+   }
+
    @Test
    void viewsheetAction_filePathRoundTrip() throws Exception {
       ViewsheetAction original = new ViewsheetAction();
@@ -194,6 +229,25 @@ class ScheduleActionXmlRoundTripTest {
       assertEquals("Q1",    loadedEmbedded.get(0).get("quarter"));
       assertEquals("South", loadedEmbedded.get(1).get("region"));
       assertEquals("Q2",    loadedEmbedded.get(1).get("quarter"));
+   }
+
+   @Test
+   void batchAction_embeddedArrayParameterWithDelimitersRoundTrip() throws Exception {
+      BatchAction original = new BatchAction();
+      original.setTaskId("scheduler-test^host:embedded-array-task");
+
+      Map<String, Object> row = new LinkedHashMap<>();
+      row.put("codes", new Object[] { "a^b", "c" });
+      row.put("pairs", new Object[] { "x~y" });
+      row.put("plain", new Object[] { "North", "South" });
+      original.setEmbeddedParameters(List.of(row));
+
+      BatchAction loaded = roundTripAction(original, BatchAction.class);
+
+      Map<String, Object> loadedRow = loaded.getEmbeddedParameters().get(0);
+      assertArrayEquals(new Object[] { "a^b", "c" }, (Object[]) loadedRow.get("codes"));
+      assertArrayEquals(new Object[] { "x~y" }, (Object[]) loadedRow.get("pairs"));
+      assertArrayEquals(new Object[] { "North", "South" }, (Object[]) loadedRow.get("plain"));
    }
 
    // -----------------------------------------------------------------------

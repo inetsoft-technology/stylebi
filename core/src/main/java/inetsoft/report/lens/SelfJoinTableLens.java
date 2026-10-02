@@ -26,6 +26,9 @@ import inetsoft.uql.XConstants;
 import inetsoft.util.*;
 import inetsoft.util.script.JavaScriptEngine;
 import inetsoft.util.script.LendableReentrantLock;
+import inetsoft.util.stall.LockStallException;
+import inetsoft.util.stall.WaitRecord;
+import inetsoft.util.stall.WaitRegistry;
 import inetsoft.util.swap.XSwappableIntList;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -183,13 +186,19 @@ public class SelfJoinTableLens extends AbstractTableLens implements TableFilter,
     * perform filtering calculation to validate itself.
     */
    @Override
-   public synchronized void invalidate() {
-      if(rows != null) {
-         rows.dispose();
+   public void invalidate() {
+      synchronized(this) {
+         // don't dispose the rows, a lock-free reader may still hold them. the superseded
+         // worker detects the new pass by identity instead (bug #77397)
          rows = null;
+         completed = false;
+         stallFailure = null;
+         scannedRows = 0;
       }
 
-      completed = false;
+      // fire after releasing the monitor: a downstream lens's invalidate() takes its own
+      // monitor, which a reader of that lens may hold while it waits for this monitor to read
+      // the next row (bug #77432)
       fireChangeEvent();
    }
 
@@ -249,10 +258,13 @@ public class SelfJoinTableLens extends AbstractTableLens implements TableFilter,
    private void join(XSwappableIntList rows2) {
       SelfJoinOperator[] ops = new SelfJoinOperator[oplist.size()];
       oplist.toArray(ops);
+      LockStallException stall = null;
 
       try {
          OUTER:
          for(int i = table.getHeaderRowCount(); table.moreRows(i); i++) {
+            scannedRows = i;
+
             for(int j = 0; j < ops.length; j++) {
                if(!ops[j].evaluate(i)) {
                   continue OUTER;
@@ -260,7 +272,9 @@ public class SelfJoinTableLens extends AbstractTableLens implements TableFilter,
             }
 
             synchronized(SelfJoinTableLens.this) {
-               if(rows2.isDisposed()) {
+               // superseded by invalidate() (or disposed), never add to the next pass's rows
+               // (bug #77397)
+               if(rows != rows2) {
                   return;
                }
 
@@ -276,12 +290,25 @@ public class SelfJoinTableLens extends AbstractTableLens implements TableFilter,
             }
          }
       }
+      catch(LockStallException ex) {
+         // logged by the wait site; the readers rethrow it rather than take the rows so far
+         // for the whole table (bug #76967)
+         stall = ex;
+      }
       catch(Exception ex) {
+         // a stall may reach the worker wrapped by the base table (bug #76967)
+         stall = LockStallException.find(ex);
          LOG.error("Failed to validate table rows", ex);
       }
 
+      // complete (or fail) only this pass's own rows. a superseded pass must neither end
+      // the next pass early nor fail it with its stale stall (bug #77397)
       synchronized(SelfJoinTableLens.this) {
-         if(!rows2.isDisposed()) {
+         if(rows == rows2) {
+            if(stall != null) {
+               stallFailure = stall;
+            }
+
             completed = true;
             rows2.complete();
 
@@ -303,60 +330,107 @@ public class SelfJoinTableLens extends AbstractTableLens implements TableFilter,
     */
    @Override
    public boolean moreRows(int row) {
-      while(true) {
-         LendableReentrantLock.Borrower lendTo;
+      WaitRecord record = null;
 
-         synchronized(this) {
-            validate();
-
-            if(rows != null && row < rows.size() || completed) {
-               if(maxAlert) {
-                  String message = Catalog.getCatalog().getString("join.table.limited", maxRows);
-                  boolean messageExist = Tool.existUserMessage(message);
-                  Tool.addUserMessage(message);
-
-                  if(!messageExist) {
-                     LOG.info(message);
-                  }
-
-                  if(!"true".equals(SreeEnv.getProperty("always.warn.joinMaxRows"))) {
-                     maxAlert = true;
-                  }
-               }
-
-               return rows != null && row < rows.size();
+      try {
+         while(true) {
+            // no loan and no monitor is held here, so a stall exception leaks neither
+            // (bug #76967)
+            if(record != null) {
+               record.checkStall();
             }
 
-            lendTo = worker;
+            LendableReentrantLock.Borrower lendTo;
 
-            if(!JavaScriptEngine.canLendScriptLocks(lendTo)) {
-               try {
-                  wait(50);
-               }
-               catch(InterruptedException ex) {
-                  // ignore it
-               }
-
-               continue;
-            }
-         }
-
-         // this thread holds or was lent a script engine lock (e.g. by a condition filter)
-         // that the worker may need to read the base table, lend it to the worker while
-         // waiting (bug #76938). the loan is closed outside of this lens's monitor,
-         // which the worker needs in order to publish rows
-         try(LendableReentrantLock.Loan ignored = JavaScriptEngine.lendScriptLocks(lendTo)) {
             synchronized(this) {
-               if((rows == null || row >= rows.size()) && !completed) {
+               validate();
+
+               if(rows != null && row < rows.size() || completed) {
+                  if(maxAlert) {
+                     String message = Catalog.getCatalog().getString("join.table.limited", maxRows);
+                     boolean messageExist = Tool.existUserMessage(message);
+                     Tool.addUserMessage(message);
+
+                     if(!messageExist) {
+                        LOG.info(message);
+                     }
+
+                     if(!"true".equals(SreeEnv.getProperty("always.warn.joinMaxRows"))) {
+                        maxAlert = true;
+                     }
+                  }
+
+                  if(rows == null || row >= rows.size()) {
+                     throwStallFailure();
+                  }
+
+                  return rows != null && row < rows.size();
+               }
+
+               lendTo = worker;
+
+               if(record != null && !JavaScriptEngine.canLendScriptLocks(lendTo)) {
                   try {
-                     wait(50);
+                     wait(record.waitMillis(50));
                   }
                   catch(InterruptedException ex) {
                      // ignore it
                   }
+
+                  continue;
+               }
+            }
+
+            // the row is not there yet, register the wait (outside of the monitor) and check
+            // again
+            if(record == null) {
+               record = WaitRegistry.begin("SelfJoinTableLens.moreRows", () -> scannedRows,
+                                           this::getWorkerThreads);
+               continue;
+            }
+
+            // this thread holds or was lent a script engine lock (e.g. by a condition filter)
+            // that the worker may need to read the base table, lend it to the worker while
+            // waiting (bug #76938). the loan is closed outside of this lens's monitor,
+            // which the worker needs in order to publish rows
+            try(LendableReentrantLock.Loan ignored = JavaScriptEngine.lendScriptLocks(lendTo)) {
+               synchronized(this) {
+                  if((rows == null || row >= rows.size()) && !completed) {
+                     try {
+                        wait(record.waitMillis(50));
+                     }
+                     catch(InterruptedException ex) {
+                        // ignore it
+                     }
+                  }
                }
             }
          }
+      }
+      finally {
+         if(record != null) {
+            record.close();
+         }
+      }
+   }
+
+   /**
+    * The worker thread, for the lock-stall watchdog.
+    */
+   private Thread[] getWorkerThreads() {
+      LendableReentrantLock.Borrower task = worker;
+      return new Thread[] { task == null ? null : task.getThread() };
+   }
+
+   /**
+    * Rethrow the stall the worker failed with, called when the table is complete. A stall
+    * must never look like the end of the table (bug #76967).
+    */
+   private void throwStallFailure() {
+      LockStallException failure = stallFailure;
+
+      if(failure != null) {
+         throw new LockStallException(failure);
       }
    }
 
@@ -369,6 +443,11 @@ public class SelfJoinTableLens extends AbstractTableLens implements TableFilter,
    @Override
    public synchronized int getRowCount() {
       validate();
+
+      if(completed) {
+         // the rows so far of a stalled worker are not the whole table (bug #76967)
+         throwStallFailure();
+      }
 
       return completed ? rows.size() : -rows.size() - 1;
    }
@@ -773,11 +852,30 @@ public class SelfJoinTableLens extends AbstractTableLens implements TableFilter,
          return r;
       }
 
-      if(!moreRows(r)) {
-         return -1;
-      }
+      // the rows are read once for both the count check and the read, and read again if
+      // moreRows() returned for new rows: invalidate() may publish them at any time, which
+      // don't hold the row yet (bug #77397, as DistinctTableLens bug #77333). no rows before
+      // and after a moreRows() that found the row means they were cleared again since
+      for(int retry = 0; ; retry++) {
+         XSwappableIntList rows = this.rows;
+         boolean more = moreRows(r);
 
-      return rows.get(r);
+         if(this.rows != rows || rows == null && more) {
+            if(retry < MAX_READ_RETRIES) {
+               continue;
+            }
+
+            LOG.warn("Self join row {} read from replaced rows: the table was invalidated {} " +
+                     "times while the row was found", r, MAX_READ_RETRIES);
+         }
+
+         // disposed or no such row
+         if(rows == null || r >= rows.size()) {
+            return -1;
+         }
+
+         return rows.get(r);
+      }
    }
 
    /**
@@ -869,7 +967,7 @@ public class SelfJoinTableLens extends AbstractTableLens implements TableFilter,
       return type != null ? type : table == null ? null : table.getReportType();
    }
 
-   private XSwappableIntList rows;// rows
+   private volatile XSwappableIntList rows;// rows
    private List oplist;           // operator list
    private TableLens table;       // base table
    private boolean completed;     // completed flag
@@ -879,6 +977,12 @@ public class SelfJoinTableLens extends AbstractTableLens implements TableFilter,
    private transient boolean maxAlert = false;
    // the background task joining the rows, if any
    private transient volatile LendableReentrantLock.Borrower worker;
+   // the base row the worker has reached, and the stall it failed with (bug #76967)
+   private transient volatile int scannedRows;
+   private transient volatile LockStallException stallFailure;
+
+   // retries of a read whose rows were replaced by a concurrent invalidate() (bug #77397)
+   private static final int MAX_READ_RETRIES = 100;
 
    private static final Logger LOG =
       LoggerFactory.getLogger(SelfJoinTableLens.class);

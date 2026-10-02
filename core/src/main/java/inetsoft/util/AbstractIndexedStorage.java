@@ -228,7 +228,7 @@ public abstract class AbstractIndexedStorage implements IndexedStorage {
       String cname = (String) map.get("cname");
       Document doc = (Document) obj;
       XMLSerializable result = (XMLSerializable)
-         Drivers.getInstance().getDriverClass(cname).getConstructor().newInstance();
+         Drivers.getInstance().getDriverClass(cname, XMLSerializable.class).getConstructor().newInstance();
 
       if(trans != null) {
          trans.transform(doc, cname);
@@ -583,6 +583,13 @@ public abstract class AbstractIndexedStorage implements IndexedStorage {
 
    @Override
    public void migrateStorageData(String oname, String nname) throws Exception {
+      // no-op
+   }
+
+   @Override
+   public void migrateStorageData(IdentityID oldID, IdentityID newID, int identityType)
+      throws Exception
+   {
       // no-op
    }
 

@@ -18,6 +18,7 @@
 
 package inetsoft.util.migrate;
 
+import inetsoft.sree.schedule.ScheduleManager;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.sree.security.Organization;
 import inetsoft.uql.asset.AssetEntry;
@@ -25,12 +26,9 @@ import inetsoft.uql.util.*;
 import inetsoft.util.MigrateUtil;
 import inetsoft.util.Tool;
 import inetsoft.util.dep.*;
-import org.apache.commons.lang3.StringUtils;
 import org.w3c.dom.*;
 
 import java.net.*;
-import java.util.ArrayList;
-import java.util.List;
 
 public class MigrateScheduleTask extends MigrateDocumentTask {
    public MigrateScheduleTask(AssetEntry entry, AbstractIdentity oOrg, AbstractIdentity nOrg) {
@@ -43,6 +41,12 @@ public class MigrateScheduleTask extends MigrateDocumentTask {
 
    public MigrateScheduleTask(AssetEntry entry, String oname, String nname, Organization currOrg) {
       super(entry, oname, nname, currOrg);
+   }
+
+   public MigrateScheduleTask(AssetEntry entry, String oname, String nname, Organization currOrg,
+                              int identityType)
+   {
+      super(entry, oname, nname, currOrg, identityType);
    }
 
    @Override
@@ -59,6 +63,11 @@ public class MigrateScheduleTask extends MigrateDocumentTask {
          return;
       }
 
+      if(getIdentityType() == Identity.GROUP) {
+         processGroupRename(task);
+         return;
+      }
+
       String name = task.getAttribute("name");
 
       if(getOldOrganization() == null && getNewOrganization() == null) {
@@ -71,7 +80,11 @@ public class MigrateScheduleTask extends MigrateDocumentTask {
 
       syncIdentityAttribute(task, "owner");
       syncIdentityAttribute(task, "user");
-      syncIdentityAttribute(task, "idname");
+
+      if(isRenamedIdentityType(task)) {
+         syncIdentityAttribute(task, "idname");
+      }
+
       list = getChildNodes(task, "./Condition");
 
       if(list != null) {
@@ -116,8 +129,8 @@ public class MigrateScheduleTask extends MigrateDocumentTask {
             continue;
          }
 
-         updateEmailAttribute(item, "MailTo");
-         updateEmailAttribute(item, "Notify");
+         updateEmailAttribute(item, "MailTo", "email", "ccAddresses", "bccAddresses");
+         updateEmailAttribute(item, "Notify", "email");
          String type = Tool.getAttribute(item, "type");
 
          if(type == null) {
@@ -137,7 +150,7 @@ public class MigrateScheduleTask extends MigrateDocumentTask {
             NodeList childNodes = getChildNodes(item, "./Bookmark ");
 
             if(childNodes == null || childNodes.getLength() == 0) {
-               return;
+               continue;
             }
 
             for(int j = 0; j < childNodes.getLength(); j++) {
@@ -172,7 +185,7 @@ public class MigrateScheduleTask extends MigrateDocumentTask {
             Element element;
 
             if(childNodes == null || childNodes.getLength() == 0) {
-               return;
+               continue;
             }
 
             for(int j = 0; j < childNodes.getLength(); j++) {
@@ -181,6 +194,46 @@ public class MigrateScheduleTask extends MigrateDocumentTask {
             }
          }
       }
+   }
+
+   /**
+    * A group owns no task, so a group rename only changes the "execute as" group and the
+    * <tt>(Group)</tt> email recipients. The other references to the old name belong to a
+    * same-named user.
+    */
+   private void processGroupRename(Element task) {
+      if(isRenamedIdentityType(task)) {
+         syncIdentityAttribute(task, "idname");
+      }
+
+      NodeList list = getChildNodes(task, "./Action");
+
+      for(int i = 0; list != null && i < list.getLength(); i++) {
+         Element item = (Element) list.item(i);
+         updateEmailAttribute(item, "MailTo", "email", "ccAddresses", "bccAddresses");
+         updateEmailAttribute(item, "Notify", "email");
+      }
+   }
+
+   /**
+    * Checks if the "execute as" identity of the task has the type of the renamed identity. The
+    * type defaults to a user, as in ScheduleTask. An organization migration moves the identity
+    * whatever its type.
+    */
+   private boolean isRenamedIdentityType(Element task) {
+      if(getOldName() == null) {
+         return true;
+      }
+
+      int idtype = Identity.USER;
+
+      try {
+         idtype = Integer.parseInt(Tool.getAttribute(task, "idtype"));
+      }
+      catch(NumberFormatException ignore) {
+      }
+
+      return idtype == getIdentityType();
    }
 
    private void processLinkUrl(Element actionNode, String oldOrg, String newOrg) {
@@ -340,7 +393,14 @@ public class MigrateScheduleTask extends MigrateDocumentTask {
       }
    }
 
-   private void updateEmailAttribute(Element actionNode, String childNodeName) {
+   /**
+    * Renames the recipients that denote the renamed identity in the recipient attributes of
+    * the child elements of an action. The attribute is decoded as the action parser does, so a
+    * legacy byte-encoded value is matched too. An attribute is only rewritten (as raw text, as
+    * the current writer writes it) when one of its recipients is renamed, so the other values
+    * keep their bytes.
+    */
+   private void updateEmailAttribute(Element actionNode, String childNodeName, String... attrs) {
       if(actionNode == null) {
          return;
       }
@@ -354,30 +414,19 @@ public class MigrateScheduleTask extends MigrateDocumentTask {
             continue;
          }
 
-         String emails = item.getAttribute("email");
-         List<String> emailList = new ArrayList<>();
-
-         for(String email : emails.split("[;,]", 0)) {
-            email = StringUtils.normalizeSpace(email);
-            String suffix = email.endsWith(Identity.USER_SUFFIX) ? Identity.USER_SUFFIX : Identity.GROUP_SUFFIX;
-
-            if(Tool.matchEmail(email) || (!email.endsWith(Identity.USER_SUFFIX) &&
-               !email.endsWith(Identity.GROUP_SUFFIX))) {
-               emailList.add(email);
+         for(String attr : attrs) {
+            if(!item.hasAttribute(attr)) {
                continue;
             }
 
-            String userName = email.substring(0, email.lastIndexOf(suffix));
+            String emails = Tool.byteDecode(item.getAttribute(attr));
+            String updated = ScheduleManager.updateNotifications(
+               emails, getOldName(), getNewName(), getIdentityType());
 
-            if(!Tool.equals(getOldName(), userName)) {
-               emailList.add(email);
-               continue;
+            if(updated != null) {
+               item.setAttribute(attr, updated);
             }
-
-            emailList.add(getNewName() + suffix);
          }
-
-         item.setAttribute("email", String.join(",", emailList));
       }
    }
 }

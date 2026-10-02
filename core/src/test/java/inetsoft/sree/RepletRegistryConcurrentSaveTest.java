@@ -1,0 +1,434 @@
+/*
+ * This file is part of StyleBI.
+ * Copyright (C) 2026  InetSoft Technology
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+package inetsoft.sree;
+
+import inetsoft.sree.security.IdentityID;
+import inetsoft.test.*;
+import inetsoft.util.DataChangeListener;
+import inetsoft.util.DataSpace;
+import inetsoft.util.Tool;
+import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
+
+import java.beans.PropertyChangeEvent;
+import java.beans.PropertyChangeListener;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+import java.util.*;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
+
+import static org.junit.jupiter.api.Assertions.*;
+
+/**
+ * Bug #76977: two repository folders created at the same moment on two cluster nodes must both
+ * survive.
+ *
+ * <p>Each cluster node holds its own {@link RepletRegistry} for the org, over one shared
+ * {@code {orgId}/repository.xml}. Here two registry instances for the same org over the one real
+ * {@link DataSpace} play the two nodes. A save on either one reaches both (and itself) through the
+ * DataSpace change listener, on the single BlobStorageEvent thread, as a remote commit would. The
+ * tests order that delivery explicitly: {@link #blockEvents()} parks the event thread so that no
+ * reload can happen, and {@link #awaitRepositoryEvent()} waits until the event of the commit just
+ * made has been dispatched.</p>
+ *
+ * <p>{@link #addFolder} and {@link #save} are the two steps a node takes for
+ * {@code POST /api/portal/tree/add-folder} (RepletEngine.addFolder: registry.addFolder, alias,
+ * description, then registry.save). What each test asserts is only the scenario: both folders are
+ * stored, whichever node saves last.</p>
+ */
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class },
+                      initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
+@SreeHome
+@Tag("core")
+class RepletRegistryConcurrentSaveTest {
+   @BeforeEach
+   void setUp(TestInfo info) throws Exception {
+      orgId = "test76977_" + info.getTestMethod().orElseThrow().getName().toLowerCase();
+      space = DataSpace.getDataSpace();
+      space.addChangeListener(null, orgId + "/repository.xml", repositoryWatch);
+      seedParentFolder();
+      nodeA = new RepletRegistry(orgId);
+      nodeB = new RepletRegistry(orgId);
+      nodeA.addPropertyChangeListener(reloadsOnA);
+      nodeB.addPropertyChangeListener(reloadsOnB);
+   }
+
+   @AfterEach
+   void tearDown() {
+      releaseEvents();
+      space.removeChangeListener(null, orgId + "/repository.xml", repositoryWatch);
+
+      for(RepletRegistry registry : new RepletRegistry[] { nodeA, nodeB }) {
+         if(registry != null) {
+            registry.shutdown();
+         }
+      }
+   }
+
+   /**
+    * Last-writer-wins: neither node sees the other's commit before its own save (row O9 in
+    * 01-hypothesis-reload.md, lww F9). The last save must not drop the first node's folder.
+    */
+   @Test
+   void concurrentSavesFromStaleCopiesKeepBothFolders() throws Exception {
+      blockEvents();
+
+      addFolder(nodeA, X);
+      addFolder(nodeB, Y);
+      save(nodeA);
+      save(nodeB);
+      String beforeRelease = reloads();
+
+      releaseEvents();
+      awaitRepositoryEvent();
+      awaitRepositoryEvent();
+
+      assertStoredFolders("reloads before the saves were delivered: " + beforeRelease, X, Y);
+   }
+
+   /**
+    * Reload between mutation and save: node A's commit reaches node B after B added its folder and
+    * before B saved it (row O8 in 01-hypothesis-reload.md). B's save, the last commit, must still
+    * contain B's own folder.
+    */
+   @Test
+   void remoteCommitBetweenAddAndSaveKeepsBothFolders() throws Exception {
+      addFolder(nodeA, X);
+      addFolder(nodeB, Y);
+      save(nodeA);
+      awaitRepositoryEvent();
+      // node B has now processed A's change event
+      String beforeSaveB = reloads();
+      assertTrue(nodeB.isFolder(X), "B did not reload A's commit before its own save: " +
+                 beforeSaveB + "; B=" + folders(nodeB));
+      save(nodeB);
+      awaitRepositoryEvent();
+
+      assertStoredFolders("reloads before B's save: " + beforeSaveB, X, Y);
+   }
+
+   /**
+    * Bug #77339: another copy's commit that lands in the same millisecond as this copy's last
+    * commit must still be read before this copy saves. The other copy's commit time is forced to
+    * that millisecond, and the change events are parked, so only save()'s own staleness check can
+    * notice the commit.
+    */
+   @Test
+   void remoteCommitInSameMillisecondIsReadBeforeSave() throws Exception {
+      addFolder(nodeA, X);
+      save(nodeA);
+      awaitRepositoryEvent();
+      assertTrue(nodeB.isFolder(X), "B did not reload A's commit: B=" + folders(nodeB));
+      long lastModifiedA = space.getLastModified(orgId, "repository.xml");
+
+      blockEvents();
+      addFolder(nodeB, Y);
+      save(nodeB);
+      recommitAt(nodeB, lastModifiedA);
+      assertEquals(lastModifiedA, space.getLastModified(orgId, "repository.xml"));
+
+      addFolder(nodeA, Z);
+      save(nodeA);
+      String beforeRelease = reloads();
+
+      releaseEvents();
+
+      for(int i = 0; i < 3; i++) {
+         awaitRepositoryEvent();
+      }
+
+      assertStoredFolders("reloads before the events were delivered: " + beforeRelease, X, Y, Z);
+   }
+
+   /**
+    * A save of a copy that is current must not re-read storage: the token recorded for the
+    * written file must match what storage then holds (Bug #77339).
+    */
+   @Test
+   void saveOfCurrentCopyDoesNotReload() throws Exception {
+      blockEvents();
+      addFolder(nodeA, X);
+      save(nodeA);
+      addFolder(nodeA, Z);
+      save(nodeA);
+
+      assertEquals(0, reloadsOnA.count, "a save of a current copy re-read storage");
+      releaseEvents();
+      awaitRepositoryEvent();
+      awaitRepositoryEvent();
+      assertStoredFolders("", X, Z);
+   }
+
+   /**
+    * Bug #77339: the "My Dashboards" registry reloads on a change event only when storage changed,
+    * and a commit of another copy of the same user's registry in the same millisecond as this
+    * copy's last commit must still count as a change.
+    */
+   @Test
+   void userRegistryReloadsRemoteCommitInSameMillisecond() throws Exception {
+      String user = new IdentityID("u77339", orgId).convertToKey();
+      String userX = Tool.MY_DASHBOARD + "/x";
+      String userY = Tool.MY_DASHBOARD + "/y";
+      String userZ = Tool.MY_DASHBOARD + "/z";
+      RepletRegistry.UserRepletRegistry userA = new RepletRegistry.UserRepletRegistry(user);
+      RepletRegistry.UserRepletRegistry userB = new RepletRegistry.UserRepletRegistry(user);
+      RepletRegistry.UserRepletRegistry reader = null;
+
+      try {
+         addFolder(userA, userX);
+         userA.save();
+         long lastModifiedA = space.getLastModified(null, userA.getRegistryPath());
+
+         userB.reload();
+         assertTrue(userB.isFolder(userX), "B did not reload A's commit: B=" + folders(userB));
+         addFolder(userB, userY);
+         userB.save();
+         recommitAt(userB, lastModifiedA);
+         assertEquals(lastModifiedA, space.getLastModified(null, userA.getRegistryPath()));
+
+         // what the change listener of a user registry does on B's commit
+         userA.reload();
+         assertTrue(userA.isFolder(userY),
+                    "A did not reload B's same-millisecond commit: A=" + folders(userA));
+
+         addFolder(userA, userZ);
+         userA.save();
+         reader = new RepletRegistry.UserRepletRegistry(user);
+
+         for(String folder : new String[] { userX, userY, userZ }) {
+            assertTrue(reader.isFolder(folder), "stored registry must contain " + folder +
+                       "; stored folders: " + folders(reader));
+         }
+      }
+      finally {
+         for(RepletRegistry registry : new RepletRegistry[] { userA, userB, reader }) {
+            if(registry != null) {
+               registry.shutdown();
+            }
+         }
+      }
+   }
+
+   /**
+    * Commits the stored registry file of the node again, unchanged, with the given last modified
+    * time, as if the node's own commit had landed in that millisecond.
+    */
+   private void recommitAt(RepletRegistry node, long lastModified) throws Exception {
+      String path = node.getRegistryPath();
+      byte[] content;
+
+      try(InputStream in = space.getInputStream(null, path)) {
+         content = in.readAllBytes();
+      }
+
+      space.withOutputStream(null, path, lastModified, out -> out.write(content));
+   }
+
+   private void addFolder(RepletRegistry node, String folder) {
+      node.addFolder(folder);
+      node.setFolderAlias(folder, null);
+      node.setFolderDescription(folder, null);
+   }
+
+   private void save(RepletRegistry node) throws Exception {
+      node.save();
+   }
+
+   /**
+    * Stores {@link #PARENT} the way the reporter's step 1 does, and waits until its change event has
+    * been dispatched, so that no late event from the setup reaches the two node registries.
+    */
+   private void seedParentFolder() throws Exception {
+      boolean newFolder = !space.isDirectory(orgId);
+      RepletRegistry seed = new RepletRegistry(orgId);
+      seed.addFolder(PARENT);
+      seed.save();
+      seed.shutdown();
+      awaitSeedEvents(newFolder);
+   }
+
+   private void assertStoredFolders(String context, String... expected) throws Exception {
+      RepletRegistry reader = new RepletRegistry(orgId);
+
+      try {
+         Set<String> stored = new TreeSet<>(Arrays.asList(reader.getAllFolders()));
+         String xml = readRepositoryXml();
+
+         for(String folder : expected) {
+            assertTrue(stored.contains(folder),
+                       "stored repository.xml must contain " + folder + "; stored folders: " +
+                       stored + "; A=" + folders(nodeA) + "; B=" + folders(nodeB) + "; " +
+                       context + "; repository.xml: " + xml.replaceAll("\\s*\\n\\s*", " "));
+         }
+      }
+      finally {
+         reader.shutdown();
+      }
+   }
+
+   private String reloads() {
+      return "A=" + reloadsOnA.count + ", B=" + reloadsOnB.count;
+   }
+
+   private Set<String> folders(RepletRegistry registry) {
+      return new TreeSet<>(Arrays.asList(registry.getAllFolders()));
+   }
+
+   private String readRepositoryXml() throws Exception {
+      try(InputStream in = space.getInputStream(orgId, "repository.xml")) {
+         return in == null ? null : new String(in.readAllBytes(), StandardCharsets.UTF_8);
+      }
+   }
+
+   /**
+    * Waits until the next change event of repository.xml has been dispatched to every listener,
+    * the node registries included. Only the file's own events count (see {@link #repositoryWatch}),
+    * so the permit taken here is the one of the commit the test just made: that event is already
+    * being dispatched, and the barrier after it waits until it has been.
+    */
+   private void awaitRepositoryEvent() throws Exception {
+      assertTrue(repositoryEvents.tryAcquire(TIMEOUT, TimeUnit.SECONDS),
+                 "repository.xml change event was not delivered");
+      awaitEventsDelivered();
+   }
+
+   /**
+    * Waits until every change event of the seed's save has been dispatched: the repository.xml
+    * event and, when the save created the org folder, the folder's event, which the DataSpace also
+    * delivers to the repository.xml listeners. Either one may arrive last.
+    */
+   private void awaitSeedEvents(boolean newFolder) throws Exception {
+      if(newFolder) {
+         assertTrue(folderEvents.tryAcquire(TIMEOUT, TimeUnit.SECONDS),
+                    "org folder change event was not delivered");
+      }
+
+      awaitRepositoryEvent();
+   }
+
+   /**
+    * Parks the DataSpace event thread until {@link #releaseEvents()}, so that change events queue
+    * up and no registry reloads in the meantime.
+    */
+   private void blockEvents() throws Exception {
+      CountDownLatch entered = new CountDownLatch(1);
+      CountDownLatch release = new CountDownLatch(1);
+      String file = "block-" + UUID.randomUUID();
+      DataChangeListener blocker = e -> {
+         entered.countDown();
+
+         try {
+            release.await(TIMEOUT, TimeUnit.SECONDS);
+         }
+         catch(InterruptedException ex) {
+            Thread.currentThread().interrupt();
+         }
+      };
+
+      space.addChangeListener(BARRIER_DIR, file, blocker);
+      releaseBlocker = () -> {
+         release.countDown();
+         space.removeChangeListener(BARRIER_DIR, file, blocker);
+      };
+      touch(file);
+      assertTrue(entered.await(TIMEOUT, TimeUnit.SECONDS), "event thread was not blocked");
+   }
+
+   private void releaseEvents() {
+      if(releaseBlocker != null) {
+         releaseBlocker.run();
+         releaseBlocker = null;
+      }
+   }
+
+   /**
+    * Waits until every change event already queued on the event thread has been dispatched to all
+    * listeners. Events are dispatched in order on one BlobStorageEvent thread, so a marker event
+    * written now is dispatched after them. An event that is still on its way to that thread (the
+    * storage hands each one to a thread pool first, which does not keep their order) is not
+    * covered, so this alone does not wait for a given commit, see {@link #awaitRepositoryEvent()}.
+    */
+   private void awaitEventsDelivered() throws Exception {
+      CountDownLatch delivered = new CountDownLatch(1);
+      String file = "barrier-" + UUID.randomUUID();
+      DataChangeListener marker = e -> delivered.countDown();
+      space.addChangeListener(BARRIER_DIR, file, marker);
+
+      try {
+         touch(file);
+         assertTrue(delivered.await(TIMEOUT, TimeUnit.SECONDS), "change events were not delivered");
+      }
+      finally {
+         space.removeChangeListener(BARRIER_DIR, file, marker);
+      }
+   }
+
+   private void touch(String file) throws Exception {
+      space.withOutputStream(BARRIER_DIR, file,
+                             out -> out.write(file.getBytes(StandardCharsets.UTF_8)));
+   }
+
+   private static final String PARENT = "cluster-p113";
+   private static final String X = PARENT + "/x";
+   private static final String Y = PARENT + "/y";
+   private static final String Z = PARENT + "/z";
+   private static final String BARRIER_DIR = "test76977-barrier";
+   private static final long TIMEOUT = 30;
+
+   private String orgId;
+   private DataSpace space;
+   private RepletRegistry nodeA;
+   private RepletRegistry nodeB;
+   private Runnable releaseBlocker;
+   private final Semaphore repositoryEvents = new Semaphore(0);
+   private final Semaphore folderEvents = new Semaphore(0);
+   /**
+    * Counts the change events of {@code {orgId}/repository.xml} and of the org folder separately.
+    * The first write into a new folder also creates the folder, and the DataSpace delivers the
+    * folder's event (dir null, file orgId) to every listener below it, this one included.
+    */
+   private final DataChangeListener repositoryWatch = e -> {
+      if(orgId.equals(e.getDir()) && "repository.xml".equals(e.getFile())) {
+         repositoryEvents.release();
+      }
+      else if((e.getDir() == null || e.getDir().isEmpty()) && orgId.equals(e.getFile())) {
+         folderEvents.release();
+      }
+   };
+   // registries hold their property change listeners weakly, so these are fields
+   private final ReloadCounter reloadsOnA = new ReloadCounter();
+   private final ReloadCounter reloadsOnB = new ReloadCounter();
+
+   private static final class ReloadCounter implements PropertyChangeListener {
+      @Override
+      public void propertyChange(PropertyChangeEvent evt) {
+         if(RepletRegistry.RELOAD_EVENT.equals(evt.getPropertyName())) {
+            count++;
+         }
+      }
+
+      private volatile int count;
+   }
+}

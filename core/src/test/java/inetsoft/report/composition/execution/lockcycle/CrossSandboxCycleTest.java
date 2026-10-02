@@ -39,6 +39,7 @@ import java.util.concurrent.Future;
 
 import static inetsoft.report.composition.execution.lockcycle.LockCycleHarness.*;
 import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
 /**
  * Lock cycles between two sandboxes' engine locks. A lens graph cached in
@@ -74,6 +75,7 @@ public class CrossSandboxCycleTest {
    @Tag("known-deadlock")
    @EnabledIfSystemProperty(named = "lockcycle.known", matches = "true")
    public void summaryFirstTouchedByOtherSandbox() throws Exception {
+      assumeFalse(POOL, INLINE_UNDER_SCRIPT_LOCK);
       runSummary(false, true, KNOWN_CAP);
    }
 
@@ -142,6 +144,7 @@ public class CrossSandboxCycleTest {
     */
    @Test
    public void summaryFirstTouchedByOwnSandbox() throws Exception {
+      assumeFalse(POOL, INLINE_UNDER_SCRIPT_LOCK);
       runSummary(true, true, ACTIVE_CAP);
    }
 
@@ -150,6 +153,7 @@ public class CrossSandboxCycleTest {
     */
    @Test
    public void summaryReadBySameSandbox() throws Exception {
+      assumeFalse(POOL, INLINE_UNDER_SCRIPT_LOCK);
       runSummary(true, false, ACTIVE_CAP);
    }
 
@@ -209,6 +213,17 @@ public class CrossSandboxCycleTest {
       List<List<Object>> expectedLens;
       List<List<Object>> expectedOuter;
    }
+
+   /**
+    * Why the runSummary cases are pinned to pool off (bug #76960, spec §14.9): they gate on
+    * the first filter holder processing the summary inline, which SummaryFilter does only on
+    * a thread holding a script lock. With the pool on a condition filter holds no lock, so
+    * the premise cannot occur; PoolModeCycleTest.summaryReadConcurrently is the pool-on
+    * equivalent.
+    */
+   static final String INLINE_UNDER_SCRIPT_LOCK =
+      "pool off only: premise is that the first holder processes the summary inline under " +
+      "a held script lock, which pool mode never takes";
 
    private static final int ROWS = 300;
    private LockCycleHarness harness;

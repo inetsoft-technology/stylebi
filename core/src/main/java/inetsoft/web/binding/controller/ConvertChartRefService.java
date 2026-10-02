@@ -122,13 +122,14 @@ public class ConvertChartRefService {
       vs = chart.getViewsheet();
       String table = chart.getTableName();
       ChartVSAssemblyInfo oinfo = (ChartVSAssemblyInfo) chart.getVSAssemblyInfo().clone();
-      ChartVSAssembly nchart = (ChartVSAssembly) bindingFactory.updateAssembly(event.binding(), chart);
+      ChartVSAssembly nchart =
+         (ChartVSAssembly) bindingFactory.updateAssembly(event.binding(), chart, principal);
       ChartVSAssemblyInfo ninfo = (ChartVSAssemblyInfo) nchart.getVSAssemblyInfo();
 
       // Handle source changed.
       if(assemblyInfoHandler.handleSourceChanged(nchart, tableName,
                                                  "/events/vs/chart/convertRef",
-                                                 event, dispatcher, box.get()))
+                                                 event, dispatcher, box.get(), principal))
       {
          return null;
       }

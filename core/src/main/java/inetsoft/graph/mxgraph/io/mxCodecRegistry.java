@@ -18,6 +18,7 @@
 package inetsoft.graph.mxgraph.io;
 
 import inetsoft.graph.mxgraph.model.mxGraphModel.*;
+import inetsoft.util.script.graal.ScriptHostAccess;
 
 import java.util.*;
 import java.util.logging.Level;
@@ -30,6 +31,7 @@ import java.util.logging.Logger;
 public class mxCodecRegistry {
 
    private static final Logger log = Logger.getLogger(mxCodecRegistry.class.getName());
+   private static final ClassLoader CLASS_LOADER = mxCodecRegistry.class.getClassLoader();
 
    /**
     * Maps from constructor names to codecs.
@@ -188,8 +190,10 @@ public class mxCodecRegistry {
     */
    public static Class<?> getClassForName(String name)
    {
+      // Bug #77421: this class is visible to scripts, so only load names the script
+      // class filter admits, and without initializing them
       try {
-         return Class.forName(name);
+         return ScriptHostAccess.loadScriptVisibleClass(name, CLASS_LOADER);
       }
       catch(Exception e) {
          log.log(Level.FINEST, "Failed to get a class object for " + name, e);
@@ -200,7 +204,7 @@ public class mxCodecRegistry {
          String nameWithPackage = s + "." + name;
 
          try {
-            return Class.forName(nameWithPackage);
+            return ScriptHostAccess.loadScriptVisibleClass(nameWithPackage, CLASS_LOADER);
          }
          catch(Exception e) {
             log.log(Level.FINEST, "Failed to get a class object for " + nameWithPackage, e);

@@ -20,9 +20,11 @@ package inetsoft.report.script.formula;
 
 import inetsoft.report.internal.table.RuntimeCalcTableLens;
 import inetsoft.report.lens.CalcTableLens;
+import inetsoft.report.lens.DefaultTableLens;
 import inetsoft.report.script.TableRow;
 import inetsoft.test.*;
 import inetsoft.util.script.graal.ScriptFunction;
+import inetsoft.util.stall.LockStallException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -434,6 +436,103 @@ public class CalcTableScopeTest {
       }
 
       return null;
+   }
+
+   /**
+    * #77123: a cell-range summary over a stalled calc table has no value, so the stall
+    * must reach the formula instead of becoming a null result.
+    */
+   @Test
+   void stalledCellRangeSummaryThrowsTheStall() {
+      LockStallException stall = new LockStallException("test.site", "worker", 1234, null);
+      CalcTableScope scope = new CalcTableScope(failingCalcTable(stall));
+
+      assertSame(stall, assertThrows(LockStallException.class,
+         () -> scope.sum("[2,id]:[3,id]", null, null)));
+   }
+
+   @Test
+   void failedCellRangeSummaryStillReturnsNull() {
+      CalcTableScope scope =
+         new CalcTableScope(failingCalcTable(new IllegalStateException("broken")));
+
+      assertNull(scope.sum("[2,id]:[3,id]", null, null));
+   }
+
+   /**
+    * #77123: a row condition that reads a stalled column must not turn into a failed
+    * (null) condition, which selected every row and summed the wrong rows.
+    */
+   @Test
+   void stalledRowConditionThrowsTheStall() {
+      LockStallException stall = new LockStallException("test.site", "worker", 1234, null);
+
+      // sanity: the condition selects rows 2..4, id2 = 3 + 2 + 4
+      assertEquals(9.0, calcTableScope.sum(conditionTable(null), "id2", "id1>1"));
+
+      assertSame(stall, assertThrows(LockStallException.class,
+         () -> calcTableScope.sum(conditionTable(stall), "id2", "id1>1")));
+   }
+
+   /**
+    * #77123: an expression column ({@code "=..."}) that reads a stalled column must not
+    * turn into a null cell value, which the summary skipped and summed the wrong values.
+    */
+   @Test
+   void stalledColumnExpressionThrowsTheStall() {
+      LockStallException stall = new LockStallException("test.site", "worker", 1234, null);
+
+      // sanity: the expression reads id1 on every row, 1 + 2 + 3 + 2
+      assertEquals(8.0, calcTableScope.sum(conditionTable(null), "=id1", null));
+
+      assertSame(stall, assertThrows(LockStallException.class,
+         () -> calcTableScope.sum(conditionTable(stall), "=id1", null)));
+   }
+
+   /**
+    * A calc table whose data cells (past the header row) fail with {@code failure}, as a
+    * stalled lens under a formula cell would in FAIL stall mode.
+    */
+   private static CalcTableLens failingCalcTable(RuntimeException failure) {
+      CalcTableLens lens = new CalcTableLens(objData) {
+         @Override
+         public Object getObject(int r, int c) {
+            if(r > 0) {
+               throw failure;
+            }
+
+            return super.getObject(r, c);
+         }
+      };
+      lens.setCellName(1, 0, "name");
+      return lens;
+   }
+
+   /**
+    * objData2 with the id1 column (read only by the row condition) failing with
+    * {@code failure}, or intact when it is null.
+    */
+   private static DefaultTableLens conditionTable(RuntimeException failure) {
+      return new ConditionTable(failure);
+   }
+
+   // public, so TableRow can call getObject reflectively
+   public static class ConditionTable extends DefaultTableLens {
+      ConditionTable(RuntimeException failure) {
+         super(objData2);
+         this.failure = failure;
+      }
+
+      @Override
+      public Object getObject(int r, int c) {
+         if(failure != null && r > 0 && c == 1) {
+            throw failure;
+         }
+
+         return super.getObject(r, c);
+      }
+
+      private final RuntimeException failure;
    }
 
    static Object[][] objData = new Object[][]{
