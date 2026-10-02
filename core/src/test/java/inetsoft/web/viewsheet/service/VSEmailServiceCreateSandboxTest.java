@@ -21,6 +21,7 @@ import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.report.io.viewsheet.AbstractVSExporter;
 import inetsoft.report.io.viewsheet.VSExporter;
+import inetsoft.sree.internal.Mailer;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.portal.PortalThemesManager;
 import inetsoft.uql.viewsheet.FileFormatInfo;
@@ -38,6 +39,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.MockedStatic;
 import org.springframework.test.annotation.DirtiesContext;
@@ -46,13 +48,17 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.awt.*;
 import java.io.File;
+import java.io.IOException;
 import java.lang.reflect.Field;
+import java.nio.file.DirectoryStream;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.Principal;
 import java.util.*;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
@@ -287,6 +293,95 @@ class VSEmailServiceCreateSandboxTest {
       assertEquals(1, passed.size(), "createSandbox(..., liveVars) must be the overload called");
       assertSame(liveVars, passed.get(0),
          "the email bookmark sandbox must receive the live sandbox's variable table");
+   }
+
+   @ParameterizedTest
+   @CsvSource({
+      "4, true, false", "2, true, false", "4, false, false", "4, false, true", "2, false, false"
+   })
+   void emailViewsheet_closesExportStreams(int formatType, boolean exportFails,
+                                           boolean includeCurrent, @TempDir Path dir)
+      throws Exception
+   {
+      // Bug #77446: the export streams were closed only after a successful export, and the PNG
+      // branch with several bookmarks opened an extra stream it never used or closed. An open
+      // stream keeps the cache file locked on Windows, so list the open file descriptors.
+      Path fds = Path.of("/proc/self/fd");
+      assumeTrue(Files.isDirectory(fds), "needs /proc/self/fd to list open files");
+
+      ViewsheetSandbox liveBox = mock(ViewsheetSandbox.class);
+      when(liveBox.getVariableTable()).thenReturn(new VariableTable());
+
+      Viewsheet vs = newBookmark(new Worksheet());
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      when(rvs.getViewsheetSandbox()).thenReturn(Optional.of(liveBox));
+      when(rvs.getEntry()).thenReturn(vs.getEntry());
+      when(rvs.getOriginalBookmark(anyString())).thenReturn(vs);
+
+      FileSystemService fs = mock(FileSystemService.class);
+      when(fs.getCacheFile(anyString()))
+         .thenAnswer(inv -> dir.resolve((String) inv.getArgument(0)).toFile());
+
+      // The export either fails in createSandbox or succeeds, and then the mailer stops the
+      // email right after the export, before the cache files are deleted.
+      VSEmailService service = new VSEmailService(fs) {
+         @Override
+         protected ViewsheetSandbox createSandbox(Viewsheet bookmark, int mode,
+                                                  Principal principal, AssetEntry entry,
+                                                  VariableTable vars)
+         {
+            if(exportFails) {
+               throw new IllegalStateException("sentinel77446");
+            }
+
+            return mock(ViewsheetSandbox.class);
+         }
+
+         @Override
+         protected Mailer createMailer() {
+            throw new IllegalStateException("sentinel77446");
+         }
+      };
+
+      String[] bookmarks = { "b1", "b2" };
+
+      try(MockedStatic<SUtil> sutil = mockStatic(SUtil.class, CALLS_REAL_METHODS);
+          MockedStatic<PortalThemesManager> themes = mockStatic(PortalThemesManager.class);
+          MockedStatic<AbstractVSExporter> exporters =
+             mockStatic(AbstractVSExporter.class, CALLS_REAL_METHODS))
+      {
+         sutil.when(() -> SUtil.localize(anyString(), any(), anyBoolean(), any()))
+            .thenReturn("vs77446");
+         themes.when(PortalThemesManager::getColorTheme).thenReturn(null);
+         exporters.when(() -> AbstractVSExporter.getVSExporter(
+               anyInt(), any(), any(), anyBoolean(), any()))
+            .thenReturn(mock(VSExporter.class));
+         IllegalStateException ex = assertThrows(IllegalStateException.class, () ->
+            service.emailViewsheet(rvs, formatType, bookmarks, false, false, includeCurrent,
+                                   "a@b.c", null, null, "s", "b", false, null, null));
+         assertEquals("sentinel77446", ex.getMessage());
+      }
+
+      List<String> open = new ArrayList<>();
+      Path realDir = dir.toRealPath();
+
+      try(DirectoryStream<Path> links = Files.newDirectoryStream(fds)) {
+         for(Path link : links) {
+            try {
+               Path target = Files.readSymbolicLink(link);
+
+               if(target.startsWith(realDir)) {
+                  open.add(target.toString());
+               }
+            }
+            catch(IOException ignore) {
+               // the descriptor was closed while listing, e.g. the directory stream itself
+            }
+         }
+      }
+
+      assertEquals(List.of(), open, "emailViewsheet must close every export stream it opens");
    }
 
    private static ViewsheetSandbox createSandbox(Viewsheet bookmark) throws Exception {
