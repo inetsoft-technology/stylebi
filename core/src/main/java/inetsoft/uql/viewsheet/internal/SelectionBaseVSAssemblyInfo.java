@@ -985,23 +985,9 @@ public abstract class SelectionBaseVSAssemblyInfo extends MaxModeSelectionVSAsse
       // assembly keeps their size through a Modernize or a density change. Revert reverses it,
       // or a reverted list keeps a box sized for rows it no longer has. Last, because it sizes
       // against the inset seeded above
-      if(isSeededSize(getPixelSize())) {
-         setPixelSize(seededSize(ctx));
+      if(VSDensityDefaults.isSeededSelectionSize(getPixelSize())) {
+         setPixelSize(VSDensityDefaults.selectionSize(ctx));
       }
-   }
-
-   /**
-    * The size this type takes when nobody has sized it.
-    */
-   protected Dimension seededSize(VizContext ctx) {
-      return VSDensityDefaults.selectionSize(ctx);
-   }
-
-   /**
-    * Whether a size is one seededSize() could have written, at any tier or legacy.
-    */
-   protected boolean isSeededSize(Dimension size) {
-      return VSDensityDefaults.isSeededSelectionSize(size);
    }
 
    @Override

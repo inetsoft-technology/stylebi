@@ -91,13 +91,14 @@ class SelectionDensitySizeTest {
       SreeEnv.setProperty("viewsheet.density", "comfortable");
       SelectionListVSAssemblyInfo saved = new SelectionListVSAssemblyInfo();
       saved.setVizMark(VizMark.MODERN_LIGHT);
-      saved.setPixelSize(new Dimension(100, 120));
+      saved.setPixelSize(new Dimension(140, 150));
 
       SelectionListVSAssemblyInfo loaded = new SelectionListVSAssemblyInfo();
       loaded.parseXML(toElement(saved));
 
-      assertEquals(new Dimension(100, 120), loaded.getPixelSize(),
-                   "a marked list stored at the legacy size stays there until something seeds it");
+      assertEquals(VizMark.MODERN_LIGHT, loaded.getVizMark(), "the mark must survive the round trip");
+      assertEquals(new Dimension(140, 150), loaded.getPixelSize(),
+                   "a marked list stored at a non-default size keeps it until something seeds it");
    }
 
    @Test
@@ -111,6 +112,31 @@ class SelectionDensitySizeTest {
 
       assertEquals(new Dimension(before.width + 32, before.height + 32), info.getPixelSize(),
                    "the container grows by its inset; the five-row rule is not its rule");
+   }
+
+   @Test
+   void containerAuthorSizeIsLeftAlone() {
+      SreeEnv.setProperty("viewsheet.density", "comfortable");
+      CurrentSelectionVSAssemblyInfo info = new CurrentSelectionVSAssemblyInfo();
+      info.setPixelSize(new Dimension(500, 400));
+      info.setVizMark(VizMark.MODERN_LIGHT);
+
+      info.seedChromeDefaults(VizContext.of(info));
+
+      assertEquals(new Dimension(500, 400), info.getPixelSize());
+   }
+
+   @Test
+   void containerRevertRestoresLegacy() {
+      SreeEnv.setProperty("viewsheet.density", "comfortable");
+      CurrentSelectionVSAssemblyInfo info = new CurrentSelectionVSAssemblyInfo();
+      Dimension legacy = info.getPixelSize();
+      info.setPixelSize(new Dimension(legacy.width + 32, legacy.height + 32));
+      info.setVizMark(null);
+
+      info.seedChromeDefaults(VizContext.of(info));
+
+      assertEquals(legacy, info.getPixelSize());
    }
 
    private Dimension sizeAfterSeed(String density, Dimension start) {
