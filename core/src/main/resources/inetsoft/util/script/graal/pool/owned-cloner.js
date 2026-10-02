@@ -156,7 +156,9 @@
    // Graal throws here (no script code runs), and it tells the interrupt by its message.
    // Graal's error is no script object (Reflect refuses it), so its message is an interop
    // read, which runs no script code; a script error's own message is read with the captured
-   // getOwnPropertyDescriptor, which runs no getter
+   // getOwnPropertyDescriptor, which runs no getter. The reads here can be interrupted
+   // themselves: that interrupt stops the snapshot too, and a read that fails otherwise
+   // leaves e what it was (a value that could not be read)
    function keepInterrupt(e) {
       if(e === STOP || typeof e !== 'object' || e === null) {
          return;
@@ -168,7 +170,18 @@
          d = gOPD(e, 'message');
       }
       catch(x) {
-         if(e.message === INTERRUPTED) {
+         rethrowInterrupt(x);
+         let m;
+
+         try {
+            m = e.message;
+         }
+         catch(y) {
+            rethrowInterrupt(y);
+            return;
+         }
+
+         if(m === INTERRUPTED) {
             throw e;
          }
 
@@ -177,6 +190,33 @@
 
       if(d !== undefined && d.value === INTERRUPTED) {
          throw e;
+      }
+   }
+
+   // throws x, an error of one of keepInterrupt's reads, when it is the thread's interrupt.
+   // It tells it the same way, and a read of its own that fails is taken as no interrupt
+   function rethrowInterrupt(x) {
+      if(x === STOP || typeof x !== 'object' || x === null) {
+         return;
+      }
+
+      let m;
+
+      try {
+         const d = gOPD(x, 'message');
+         m = d === undefined ? undefined : d.value;
+      }
+      catch(z) {
+         try {
+            m = x.message;
+         }
+         catch(w) {
+            return;
+         }
+      }
+
+      if(m === INTERRUPTED) {
+         throw x;
       }
    }
 
