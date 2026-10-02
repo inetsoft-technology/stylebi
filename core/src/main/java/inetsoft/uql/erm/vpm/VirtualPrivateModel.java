@@ -200,17 +200,31 @@ public class VirtualPrivateModel extends VpmObject {
 
       // Bug #77580, the parser stores the query tables quoted by the sql helper, and the vpm
       // table may be qualified to a different depth (db.dbo.t) than the query table (dbo.t)
+      return getTableMatch(tbl1, tbl2) > 0;
+   }
+
+   /**
+    * Get how closely two tables match, for picking the best of several tables that are all
+    * the {@link #isSameTable(String, String) same}.
+    * @return 0 if the tables are not the same, {@link Integer#MAX_VALUE} if their segments
+    * are equal, otherwise the number of trailing segments compared.
+    */
+   static int getTableMatch(String tbl1, String tbl2) {
+      if(tbl1 == null || tbl2 == null) {
+         return 0;
+      }
+
       String[] segments1 = splitTableName(tbl1);
       String[] segments2 = splitTableName(tbl2);
       int count = Math.min(segments1.length, segments2.length);
 
       for(int i = 1; i <= count; i++) {
          if(!segments1[segments1.length - i].equals(segments2[segments2.length - i])) {
-            return false;
+            return 0;
          }
       }
 
-      return true;
+      return segments1.length == segments2.length ? Integer.MAX_VALUE : count;
    }
 
    /**
@@ -220,6 +234,7 @@ public class VirtualPrivateModel extends VpmObject {
     * for one) and lower cased, e.g. <tt>SA."My.Table"</tt> gives <tt>[sa, my.table]</tt>.
     * @param name the table name, as stored by the sql parser or in a vpm.
     * @return the segments, at least one, or an empty array if the name is null.
+    * @hidden
     */
    public static String[] splitTableName(String name) {
       if(name == null) {

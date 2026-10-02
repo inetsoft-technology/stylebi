@@ -135,6 +135,16 @@ class VpmQuotedTableMatchTest {
       assertArrayEquals(new String[0], VirtualPrivateModel.splitTableName(null));
    }
 
+   @Test
+   void getTableMatchPrefersEqualSegments() {
+      assertEquals(Integer.MAX_VALUE,
+                   VirtualPrivateModel.getTableMatch("\"db1\".dbo.T", "db1.dbo.t"));
+      assertEquals(2, VirtualPrivateModel.getTableMatch("db1.dbo.t", "dbo.t"));
+      assertEquals(1, VirtualPrivateModel.getTableMatch("t", "\"sa\".\"t\""));
+      assertEquals(0, VirtualPrivateModel.getTableMatch("db1.dbo.t", "db2.dbo.t"));
+      assertEquals(0, VirtualPrivateModel.getTableMatch("t", null));
+   }
+
    // the parsed query run through the selection and condition steps VpmUtil.applyConditions
    // takes. The condition is the GUI condition <cond table>.STATE = 1
    static Stream<Arguments> guiConditions() {
@@ -157,6 +167,23 @@ class VpmQuotedTableMatchTest {
                       "y.STATE = 1"),
          Arguments.of(DEFAULT, "select x.id, y.id from sa.t x, sb.t y where x.id = y.id", "sb.t",
                       "y.STATE = 1"),
+         // an exact match wins over a table qualified to a different depth, in either order
+         Arguments.of(DEFAULT, "select x.id, y.id from dbo.t x, db1.dbo.t y where x.id = y.id",
+                      "db1.dbo.t", "y.STATE = 1"),
+         Arguments.of(DEFAULT, "select x.id, y.id from db1.dbo.t y, dbo.t x where x.id = y.id",
+                      "db1.dbo.t", "y.STATE = 1"),
+         Arguments.of(DEFAULT, "select x.id, y.id from db2.sa.t x, sa.t y where x.id = y.id",
+                      "sa.t", "y.STATE = 1"),
+         Arguments.of(DEFAULT, "select x.id, y.id from sa.t y, db2.sa.t x where x.id = y.id",
+                      "sa.t", "y.STATE = 1"),
+         Arguments.of(DEFAULT, "select x.id, y.id from t x, sa.t y where x.id = y.id", "sa.t",
+                      "y.STATE = 1"),
+         Arguments.of(DEFAULT, "select x.id, y.id from sa.t y, t x where x.id = y.id", "sa.t",
+                      "y.STATE = 1"),
+         Arguments.of(POSTGRESQL, "select x.id, y.id from sa.t x, db1.sa.t y where x.id = y.id",
+                      "db1.sa.t", "y.\"STATE\" = 1"),
+         Arguments.of(POSTGRESQL, "select x.id, y.id from db1.sa.t y, sa.t x where x.id = y.id",
+                      "db1.sa.t", "y.\"STATE\" = 1"),
          // control
          Arguments.of(DEFAULT, "select a.id from t a", "t", "a.STATE = 1"));
    }

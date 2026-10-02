@@ -587,13 +587,18 @@ public class VpmCondition extends VpmObject {
 
       String alias = tpart;
       int find_step = -1;
+      int best = 0;
 
+      // Bug #77580, a table qualified to a different depth (dbo.t) is the same as the field's
+      // table (db1.dbo.t), so prefer the closest match, e.g. db1.dbo.t in the same query
       for(int i = 0; i < tables.length; i++) {
-         if(VirtualPrivateModel.isSameTable(tpart, tables[i])) {
+         int match = VirtualPrivateModel.getTableMatch(tpart, tables[i]);
+
+         if(match > best) {
+            best = match;
             alias = taliases[i];
             alias = alias == null || alias.length() == 0 ? tpart : alias;
             find_step = 0;
-            break;
          }
       }
 
