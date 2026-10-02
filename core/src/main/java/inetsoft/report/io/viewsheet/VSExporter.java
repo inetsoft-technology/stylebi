@@ -20,6 +20,7 @@ package inetsoft.report.io.viewsheet;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.TableDataVSAssemblyInfo;
 import inetsoft.util.XPortalHelper;
 
@@ -80,6 +81,14 @@ public interface VSExporter {
     * or zero where the format cannot represent one. Never null; the caller owns the copy.
     */
    default Insets getTableCardInset(TableDataVSAssemblyInfo info) {
+      return new Insets(0, 0, 0, 0);
+   }
+
+   /**
+    * The inset between a selection-family card edge and its rows in this format, or zero where
+    * the format cannot represent one. Never null; the caller owns the copy.
+    */
+   default Insets getSelectionCardInset(VSAssemblyInfo info) {
       return new Insets(0, 0, 0, 0);
    }
 

@@ -1942,6 +1942,17 @@ public abstract class AbstractVSExporter implements VSExporter {
    }
 
    /**
+    * The card inset a selection draws its rows inside, or zero where this format does not inset a
+    * card. Gated on the same predicate the table card uses: Excel and CSV are cell grids, where a
+    * pixel inset means nothing.
+    */
+   @Override
+   public Insets getSelectionCardInset(VSAssemblyInfo info) {
+      Insets padding = info == null || !insetsTableCard() ? null : info.getPadding();
+      return padding == null ? new Insets(0, 0, 0, 0) : (Insets) padding.clone();
+   }
+
+   /**
     * Put the legacy near-black back on a dark-marked format's DEFAULT tier, in place. The export
     * copy is cloned upstream, so this mutates nothing persisted. A USER or CSS colour outranks the
     * DEFAULT tier and is therefore untouched by construction.
