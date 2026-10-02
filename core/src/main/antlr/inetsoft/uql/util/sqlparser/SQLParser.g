@@ -146,6 +146,8 @@ private Set columns = new HashSet();
 private long ts = -1; // stop timestamp
 private int checkCnt = 0; // optimization
 private Map map = new HashMap(); // sql + table ->op
+// sql -> columns merged by an earlier LEFT/FULL JOIN USING in the current join expression
+private Map usingMerges = new IdentityHashMap();
 private int onClauseCount = 0; // ON clauses parsed so far, in text order
 private boolean catalog = false;
 private boolean schema = true;
@@ -308,6 +310,194 @@ private List getOuterJoins(UniformSQL sql, XFilterNode cond, Token tok)
                                getFilename(), tok.getLine(), tok.getColumn());
 }
 
+/**
+ * Check that each join of an outer join ON condition is between the table
+ * being joined (the from clause tables added from rstart to rend) and a table
+ * that was already in the from clause before it, and put the earlier table
+ * first so the outer join op applies to the right side. A join between any
+ * other tables can't be represented, since it would leave the joined table
+ * without a join.
+ */
+private void orientOuterJoins(UniformSQL sql, List joins, int rstart, int rend,
+                              XFilterNode cond, Token tok)
+   throws SemanticException
+{
+   for(int i = 0; i < joins.size(); i++) {
+      XJoin join = (XJoin) joins.get(i);
+      int index1 = getJoinTableIndex(sql, join.getTable1(sql));
+      int index2 = getJoinTableIndex(sql, join.getTable2(sql));
+
+      if(index2 >= rstart && index2 < rend && index1 >= 0 && index1 < rstart) {
+         continue;
+      }
+
+      if(index1 >= rstart && index1 < rend && index2 >= 0 && index2 < rstart) {
+         XExpression exp1 = join.getExpression1();
+         XExpression exp2 = join.getExpression2();
+         join.setExpression1(exp2);
+         join.setExpression2(exp1);
+         continue;
+      }
+
+      throw new SemanticException("Unsupported outer join condition: " + cond,
+                                  getFilename(), tok.getLine(), tok.getColumn());
+   }
+}
+
+/**
+ * Get the index of the from clause table that the table of a join column
+ * (XJoin.getTable1/getTable2) refers to, or -1 if it isn't a known table, such
+ * as the empty table of an unqualified column. This is the same resolution
+ * SQLHelper uses to generate the join.
+ */
+private int getJoinTableIndex(UniformSQL sql, String table) {
+   return sql.getJoinTableIndex(table);
+}
+
+/**
+ * Check that an outer join doesn't join a table that isn't in its own from
+ * clause, such as a correlated subquery's outer join to an outer query table.
+ * An outer join is always generated in the from clause, which would add the
+ * outer table to the subquery and lose the correlation. Any other join to an
+ * outer table stays in the where clause (#77480).
+ */
+private void checkOuterJoinTables(UniformSQL sql, Token tok)
+   throws SemanticException
+{
+   List joins = new ArrayList();
+   collectJoins(sql.getWhere(), joins);
+
+   for(int i = 0; i < joins.size(); i++) {
+      XJoin join = (XJoin) joins.get(i);
+
+      if(!join.isOuterJoin()) {
+         continue;
+      }
+
+      String[] tables = { join.getTable1(sql), join.getTable2(sql) };
+
+      for(int j = 0; j < tables.length; j++) {
+         if(tables[j] != null && tables[j].length() > 0 &&
+            getJoinTableIndex(sql, tables[j]) < 0)
+         {
+            throw new SemanticException(
+               "Unsupported join to a table outside the from clause: " + join,
+               getFilename(), tok.getLine(), tok.getColumn());
+         }
+      }
+   }
+}
+
+private void collectJoins(XFilterNode node, List joins) {
+   if(node instanceof XJoin) {
+      joins.add(node);
+   }
+   else if(node instanceof XSet) {
+      for(int i = 0; i < node.getChildCount(); i++) {
+         collectJoins((XFilterNode) node.getChild(i), joins);
+      }
+   }
+}
+
+/**
+ * Check that each legacy outer join of a where clause (*=, =* or (+)) is between
+ * two different from clause tables of the query. An outer join is generated in the
+ * from clause, which needs both of its tables, so a join on an unqualified column,
+ * or on a table that isn't in the from clause, can't be represented.
+ */
+private void checkWhereOuterJoins(UniformSQL sql, XFilterNode node, Token tok)
+   throws SemanticException
+{
+   if(node instanceof XJoin && ((XJoin) node).isOuterJoin()) {
+      XJoin join = (XJoin) node;
+      int index1 = getJoinTableIndex(sql, join.getTable1(sql));
+      int index2 = getJoinTableIndex(sql, join.getTable2(sql));
+
+      if(index1 < 0 || index2 < 0 || index1 == index2) {
+         throw new SemanticException("Unsupported outer join condition: " + join,
+                                     getFilename(), tok.getLine(), tok.getColumn());
+      }
+   }
+   else if(node instanceof XSet) {
+      for(int i = 0; i < node.getChildCount(); i++) {
+         checkWhereOuterJoins(sql, (XFilterNode) node.getChild(i), tok);
+      }
+   }
+}
+
+/**
+ * Get the outer join op (*=, =* or *=*) of a LEFT, RIGHT or FULL [OUTER] JOIN,
+ * or null if the join is not an outer join.
+ */
+private String getUsingJoinOp(String op) {
+   if(op == null) {
+      return null;
+   }
+   else if(op.length() >= 4 && op.substring(0, 4).equalsIgnoreCase("LEFT")) {
+      return "*=";
+   }
+   else if(op.length() >= 5 && op.substring(0, 5).equalsIgnoreCase("RIGHT")) {
+      return "=*";
+   }
+   else if(op.length() >= 4 && op.substring(0, 4).equalsIgnoreCase("FULL")) {
+      return "*=*";
+   }
+
+   return null;
+}
+
+/**
+ * Get the name of a USING column for comparing it with other USING columns.
+ */
+private String getUsingColumnKey(String column) {
+   return column.replaceAll("[\\\"`\\[\\]]", "").toLowerCase();
+}
+
+/**
+ * Check that no column of a JOIN USING was merged by an earlier LEFT or FULL
+ * JOIN USING of the same join expression. The merged column is the left
+ * table's column (LEFT) or the coalesce of both columns (FULL), which a join
+ * from the last table's column can't represent.
+ */
+private void checkUsingMerges(UniformSQL sql, List columns, String jc, Token tok)
+   throws SemanticException
+{
+   Set merged = (Set) usingMerges.get(sql);
+
+   for(int i = 0; merged != null && i < columns.size(); i++) {
+      if(merged.contains(getUsingColumnKey((String) columns.get(i)))) {
+         throw new SemanticException(
+            "Unsupported USING join, the column is merged by an earlier outer join: " + jc,
+            getFilename(), tok.getLine(), tok.getColumn());
+      }
+   }
+}
+
+/**
+ * Record the columns merged by a LEFT or FULL JOIN USING.
+ */
+private void addUsingMerges(UniformSQL sql, List columns) {
+   Set merged = (Set) usingMerges.get(sql);
+
+   if(merged == null) {
+      merged = new HashSet();
+      usingMerges.put(sql, merged);
+   }
+
+   for(int i = 0; i < columns.size(); i++) {
+      merged.add(getUsingColumnKey((String) columns.get(i)));
+   }
+}
+
+/**
+ * Start a new join expression of a from clause.
+ */
+private void clearUsingMerges(UniformSQL sql) {
+   if(sql != null) {
+      usingMerges.remove(sql);
+   }
+}
+
 private boolean collectOuterJoins(XFilterNode node, List joins) {
    if(node instanceof XJoin) {
       joins.add(node);
@@ -324,6 +514,377 @@ private boolean collectOuterJoins(XFilterNode node, List joins) {
       }
 
       return true;
+   }
+
+   return false;
+}
+
+// sql -> the first RIGHT or FULL JOIN keyword of the query
+private Map rightJoins = new IdentityHashMap();
+// sql -> TRUE if the query has an INNER, CROSS or other non-outer JOIN keyword
+private Map innerJoins = new IdentityHashMap();
+// sql -> {join type, JOIN keyword} of the first outer join of a nested join
+private Map nestedJoins = new IdentityHashMap();
+
+/**
+ * Check if a join type (join_type + " JOIN") is a LEFT, RIGHT or FULL join.
+ */
+private boolean isOuterJoinType(String op) {
+   return op != null && (op.regionMatches(true, 0, "LEFT", 0, 4) ||
+      isRightJoinType(op));
+}
+
+/**
+ * Check if a join type (join_type + " JOIN") is a RIGHT or FULL join.
+ */
+private boolean isRightJoinType(String op) {
+   return op != null && (op.regionMatches(true, 0, "RIGHT", 0, 5) ||
+      op.regionMatches(true, 0, "FULL", 0, 4));
+}
+
+/**
+ * Record a nested join (a parenthesized join, or a join followed by its own
+ * ON) on the right side of an outer join. UniformSQL keeps no join nesting,
+ * and SQLHelper only keeps it when it generates the joins in text order
+ * (#77475), otherwise the nested join is regenerated outside of the outer join
+ * and filters out or keeps the wrong rows. Such a query is only supported if
+ * its regenerated from clause has the same joins, see checkRightJoins.
+ */
+private void checkOuterJoinGroup(UniformSQL sql, String op, Token tok) {
+   if(sql != null && isOuterJoinType(op) && !nestedJoins.containsKey(sql)) {
+      nestedJoins.put(sql, new Object[] {op, tok});
+   }
+}
+
+/**
+ * Record the join keyword of a query for checkRightJoins.
+ */
+private void addJoinType(UniformSQL sql, String op, Token tok) {
+   if(sql == null) {
+      return;
+   }
+
+   if(isRightJoinType(op)) {
+      if(!rightJoins.containsKey(sql)) {
+         rightJoins.put(sql, tok);
+      }
+   }
+   else if(!isOuterJoinType(op)) {
+      innerJoins.put(sql, Boolean.TRUE);
+   }
+}
+
+/**
+ * Check if a query with a RIGHT or FULL join also has an inner or cross join,
+ * from a join keyword or from a column join in the where clause. UniformSQL
+ * keeps the joins only as XJoins without their order, and the regenerated
+ * from clause can move the inner join into or out of the null-supplying side
+ * of the outer join, which changes the query results. Such a query is only
+ * supported if its regenerated from clause has the same joins, which
+ * UniformSQL checks with getJoinOrderChecks after the parse. So is a query with
+ * a nested join on the right side of an outer join (checkOuterJoinGroup).
+ */
+private void checkRightJoins(UniformSQL sql) {
+   if(sql == null) {
+      return;
+   }
+
+   boolean right = rightJoins.containsKey(sql);
+   boolean inner = innerJoins.remove(sql) != null;
+
+   if(nestedJoins.containsKey(sql) || right && (inner || hasInnerJoin(sql.getWhere()))) {
+      joinOrderChecks.add(sql);
+   }
+   else {
+      rightJoins.remove(sql);
+   }
+}
+
+/**
+ * Check if a condition has a join that is not an outer join.
+ */
+private boolean hasInnerJoin(XFilterNode node) {
+   if(node instanceof XJoin) {
+      return !((XJoin) node).isOuterJoin();
+   }
+
+   for(int i = 0; node instanceof XSet && i < node.getChildCount(); i++) {
+      if(hasInnerJoin((XFilterNode) node.getChild(i))) {
+         return true;
+      }
+   }
+
+   return false;
+}
+
+// queries with a RIGHT or FULL join mixed with an inner join, or with a nested
+// join on the right side of an outer join, in parse order
+private List joinOrderChecks = new ArrayList();
+// sql -> the joins of the from clause, each an Object[] {kind, left tables,
+// right tables, join conditions, where conditions before the join}
+private Map joinEvents = new IdentityHashMap();
+// the from clause index of the first table of each enclosing join
+private LinkedList joinStarts = new LinkedList();
+
+/**
+ * Get the queries that mix a RIGHT or FULL join with an inner join, or that
+ * have a nested join on the right side of an outer join. Each must be checked
+ * with checkJoinOrder after the parse.
+ */
+public List getJoinOrderChecks() {
+   return joinOrderChecks;
+}
+
+/**
+ * Check that the joins of a query that mixes a RIGHT or FULL join with an
+ * inner join, or that has a nested join on the right side of an outer join,
+ * are the same as the joins of its regenerated sql.
+ * @param structure the getJoinStructure of the regenerated sql, or null if
+ * it couldn't be parsed.
+ */
+public void checkJoinOrder(UniformSQL sql, String structure) throws SemanticException {
+   if(structure == null || !structure.equals(getJoinStructure(sql))) {
+      Object[] nested = (Object[]) nestedJoins.get(sql);
+      Token tok = nested != null ? (Token) nested[1] : (Token) rightJoins.get(sql);
+      throw new SemanticException(nested != null ?
+         "Unsupported nested join on the right side of " + nested[0] :
+         "Unsupported RIGHT or FULL join mixed with an inner or cross join",
+         getFilename(), tok == null ? 0 : tok.getLine(),
+         tok == null ? 0 : tok.getColumn());
+   }
+}
+
+/**
+ * Start a join of the from clause, a qualified join or a parenthesized join
+ * followed by more joins.
+ */
+private void pushJoinStart(UniformSQL sql) {
+   joinStarts.addFirst(Integer.valueOf(sql == null ? 0 : sql.getTableCount()));
+}
+
+private void popJoinStart() {
+   if(!joinStarts.isEmpty()) {
+      joinStarts.removeFirst();
+   }
+}
+
+/**
+ * Record a join of the from clause, between the tables from the start of the
+ * enclosing join to rstart and the tables from rstart to rend.
+ */
+private void startJoinEvent(UniformSQL sql, String op, int lstart, int rstart, int rend) {
+   if(sql == null) {
+      return;
+   }
+
+   String kind = "I";
+
+   // a natural join has no join condition in UniformSQL, it's never the same
+   // as a regenerated join
+   if(op != null && op.regionMatches(true, 0, "NATURAL", 0, 7)) {
+      kind = "N";
+   }
+   else if(op != null && op.regionMatches(true, 0, "CROSS", 0, 5)) {
+      kind = "C";
+   }
+   else if(op != null && op.regionMatches(true, 0, "LEFT", 0, 4)) {
+      kind = "L";
+   }
+   else if(op != null && op.regionMatches(true, 0, "RIGHT", 0, 5)) {
+      kind = "R";
+   }
+   else if(op != null && op.regionMatches(true, 0, "FULL", 0, 4)) {
+      kind = "F";
+   }
+
+   List events = (List) joinEvents.get(sql);
+
+   if(events == null) {
+      events = new ArrayList();
+      joinEvents.put(sql, events);
+   }
+
+   Set conds = Collections.newSetFromMap(new IdentityHashMap());
+   addConditions(sql.getWhere(), conds);
+   events.add(new Object[] {kind, getJoinTables(sql, lstart, rstart),
+                            getJoinTables(sql, rstart, rend),
+                            Collections.newSetFromMap(new IdentityHashMap()), conds});
+}
+
+private void startJoinEvent(UniformSQL sql, String op, int rstart, int rend) {
+   if(sql != null) {
+      int lstart = joinStarts.isEmpty() ? 0 : ((Integer) joinStarts.getFirst()).intValue();
+      startJoinEvent(sql, op, lstart, rstart, rend);
+   }
+}
+
+/**
+ * Finish the last join of a query after its join condition, and record the
+ * conditions that the join condition added to the where clause.
+ */
+private void endJoinEvent(UniformSQL sql) {
+   List events = sql == null ? null : (List) joinEvents.get(sql);
+
+   if(events != null && !events.isEmpty()) {
+      Object[] event = (Object[]) events.get(events.size() - 1);
+      Set before = (Set) event[4];
+      Set conds = Collections.newSetFromMap(new IdentityHashMap());
+      addConditions(sql.getWhere(), conds);
+      conds.removeAll(before);
+      event[3] = conds;
+   }
+}
+
+/**
+ * Get the sorted names of the from clause tables from start to end.
+ */
+private Set getJoinTables(UniformSQL sql, int start, int end) {
+   Set names = new TreeSet();
+
+   for(int i = start; i < end; i++) {
+      names.add(getJoinName(sql.getTableAlias(i)));
+   }
+
+   return names;
+}
+
+private static String getJoinName(Object name) {
+   return name == null ? "" : name.toString().replaceAll("[\\\"`\\[\\]\\s]", "").toLowerCase();
+}
+
+/**
+ * Add the AND conditions of a condition tree. An empty set or a set of one
+ * condition is the same as its conditions.
+ */
+private static void addConditions(XFilterNode node, Set conds) {
+   if(node instanceof XSet && !node.isIsNot() && (node.getChildCount() <= 1 ||
+      XSet.AND.equalsIgnoreCase(((XSet) node).getRelation())))
+   {
+      for(int i = 0; i < node.getChildCount(); i++) {
+         addConditions((XFilterNode) node.getChild(i), conds);
+      }
+   }
+   else if(node != null) {
+      conds.add(node);
+   }
+}
+
+/**
+ * Get a condition in a form that doesn't depend on its column order. A negated
+ * comparison is the comparison with the negated op, which SQLHelper writes for
+ * it (not (x != y) as x = y): both are unknown if x or y is null, so they keep
+ * the same rows anywhere in a condition. A negated join with any other op keeps
+ * the not, so it's never the same as the join without it.
+ */
+private static String getConditionKey(XFilterNode node) {
+   if(node instanceof XJoin) {
+      XJoin join = (XJoin) node;
+      String e1 = getJoinName(join.getExpression1() == null ? null : join.getExpression1().getValue());
+      String e2 = getJoinName(join.getExpression2() == null ? null : join.getExpression2().getValue());
+      String op = join.getOp();
+      boolean not = join.isIsNot();
+
+      if(not) {
+         String negated = "=".equals(op) ? "<>" : "<>".equals(op) || "!=".equals(op) ? "=" :
+            "<".equals(op) ? ">=" : ">=".equals(op) ? "<" : ">".equals(op) ? "<=" :
+            "<=".equals(op) ? ">" : null;
+
+         if(negated != null) {
+            op = negated;
+            not = false;
+         }
+      }
+
+      if(e1.compareTo(e2) > 0) {
+         String tmp = e1;
+         e1 = e2;
+         e2 = tmp;
+         op = "*=".equals(op) ? "=*" : "=*".equals(op) ? "*=" : "<".equals(op) ? ">" :
+            ">".equals(op) ? "<" : "<=".equals(op) ? ">=" : ">=".equals(op) ? "<=" : op;
+      }
+
+      String key = e1 + " " + op + " " + e2;
+      return not ? "not (" + key + ")" : key;
+   }
+
+   return getJoinName(node);
+}
+
+private static String getConditionKeys(Set conds) {
+   List keys = new ArrayList();
+
+   for(Iterator i = conds.iterator(); i.hasNext();) {
+      keys.add(getConditionKey((XFilterNode) i.next()));
+   }
+
+   Collections.sort(keys);
+   return keys.toString();
+}
+
+/**
+ * Get the joins of a query in a form that doesn't depend on the join order
+ * where the order doesn't change the results: the tables on both sides of
+ * each join (a RIGHT join as the LEFT join with the sides swapped, and the
+ * sides of an inner, cross and FULL join in any order), each join's
+ * conditions, and the where conditions that are not in a join. An inner or
+ * cross join that is not inside another join is the same as the tables in the
+ * from clause with its conditions in the where clause, so it's not a join here.
+ */
+public String getJoinStructure(UniformSQL sql) {
+   List events = new ArrayList((List) joinEvents.getOrDefault(sql, new ArrayList()));
+   Set where = Collections.newSetFromMap(new IdentityHashMap());
+   addConditions(sql.getWhere(), where);
+
+   for(boolean found = true; found;) {
+      found = false;
+
+      for(int i = 0; i < events.size() && !found; i++) {
+         Object[] event = (Object[]) events.get(i);
+
+         if(("I".equals(event[0]) || "C".equals(event[0])) && !isInnerJoin(event, events)) {
+            events.remove(i);
+            found = true;
+         }
+      }
+   }
+
+   List keys = new ArrayList();
+
+   for(int i = 0; i < events.size(); i++) {
+      Object[] event = (Object[]) events.get(i);
+      String kind = (String) event[0];
+      String left = event[1].toString();
+      String right = event[2].toString();
+
+      if("R".equals(kind) || !"L".equals(kind) && left.compareTo(right) > 0) {
+         kind = "R".equals(kind) ? "L" : kind;
+         left = event[2].toString();
+         right = event[1].toString();
+      }
+
+      where.removeAll((Set) event[3]);
+      keys.add(kind + left + right + getConditionKeys((Set) event[3]));
+   }
+
+   Collections.sort(keys);
+   return keys + " where " + getConditionKeys(where);
+}
+
+/**
+ * Check if the tables of a join are inside another join.
+ */
+private static boolean isInnerJoin(Object[] event, List events) {
+   Set tables = new HashSet((Set) event[1]);
+   tables.addAll((Set) event[2]);
+
+   for(int i = 0; i < events.size(); i++) {
+      Object[] other = (Object[]) events.get(i);
+      Set tables2 = new HashSet((Set) other[1]);
+      tables2.addAll((Set) other[2]);
+
+      if(other != event && tables2.size() > tables.size() && tables2.containsAll(tables)) {
+         return true;
+      }
    }
 
    return false;
@@ -809,7 +1370,9 @@ boolean_factor returns [XFilterNode node = null]
         :
         (NOT {isnot = true;})? node = boolean_test
         {if(isnot == true){
-                node.setIsNot(true);
+                // a parenthesized condition may already be negated, not (not (..))
+                // is the condition itself
+                node.setIsNot(!node.isIsNot());
         }
         }
         ;
@@ -2810,19 +3373,22 @@ column_name returns [String colname = ""]
         ;
 
 table_exp [UniformSQL sql]
-        {XFilterNode where, having; String nouse; {checkStatus();}}
+        {XFilterNode where, having; String nouse; Token wtok = null; {checkStatus();}}
         :
         (from_clause[sql] {moveOuterPairJoins(sql);})?
-        ( where = where_clause {where = whereOuterPairJoins(sql, where); where.setClause(XFilterNode.WHERE); markJoins(where, XJoin.WHERE_CLAUSE); sql.combineWhereByAnd(where);})?
+        ( {wtok = LT(1);} where = where_clause {checkWhereOuterJoins(sql, where, wtok);
+        where = whereOuterPairJoins(sql, where); where.setClause(XFilterNode.WHERE); markJoins(where, XJoin.WHERE_CLAUSE); sql.combineWhereByAnd(where);})?
         ( group_by_clause[sql] )?
+        {if(sql != null) {checkOuterJoinTables(sql, LT(1));}}
         ( having = having_clause {having.setClause(XFilterNode.HAVING); sql.setHaving(having);})?
         ((ORDER BY)=> nouse = order_by_clause[sql] )?
+        {checkRightJoins(sql);}
         ;
 
 from_clause [UniformSQL sql]
         {String tmp; {checkStatus();}}
         :
-        FROM tmp = table_ref[sql] ( COMMA tmp = table_ref[sql] )*
+        FROM tmp = table_ref[sql] ( COMMA {clearUsingMerges(sql);} tmp = table_ref[sql] )*
         ;
 
 ansi_joins [UniformSQL sql] returns [String str = ""]
@@ -2833,8 +3399,9 @@ ansi_joins [UniformSQL sql] returns [String str = ""]
      |
          (table_ref_nojoin[null, null] join_hint)=>
         exp = qualified_join[sql] { str = exp.toString(); }
-     | OPEN_PAREN tmp = ansi_joins[sql] CLOSE_PAREN
+     | {pushJoinStart(sql);} OPEN_PAREN tmp = ansi_joins[sql] CLOSE_PAREN
         tmp2 = sub_qualified_join[sql] { str = "(" + tmp + ") " + tmp2;}
+        {popJoinStart();}
 ;
 
 table_ref [UniformSQL sql] returns [String tbref = ""]
@@ -3104,6 +3671,11 @@ cross_join [UniformSQL sql] returns [XExpression exp = null]
         {String tmp, tmp1; {checkStatus();}}
         :
         tmp = table_ref_nojoin[sql, null] a:CROSS b:JOIN tmp1 = table_ref_nojoin[sql, null]
+        {addJoinType(sql, "CROSS JOIN", b);
+         if(sql != null) {
+            int cnt = sql.getTableCount();
+            startJoinEvent(sql, "CROSS JOIN", cnt - 2, cnt - 1, cnt);
+         }}
         {tmp += " " + a.getText() + " " + b.getText() + " " + tmp1;
          exp = new XExpression(); exp.setValue(tmp,XExpression.EXPRESSION);
         }
@@ -3112,17 +3684,28 @@ cross_join [UniformSQL sql] returns [XExpression exp = null]
 qualified_join [UniformSQL sql] returns [XExpression exp = null]
         {String tmp, tmp1, str = ""; {checkStatus();}}
         :
+        {pushJoinStart(sql);}
         tmp = table_ref_nojoin[sql, null] {str = tmp;}
         tmp = sub_qualified_join[sql] {str += " " + tmp;}
+        {popJoinStart();}
         {exp = new XExpression(); exp.setValue(str, XExpression.EXPRESSION);}
         ;
 
 sub_qualified_join [UniformSQL sql] returns [String str = ""]
-        { String tbl2=""; String tmp; String op = ""; String table = ""; XExpression exp = null; int first = 0; boolean spec = false; {checkStatus();}}
+        { int rstart = sql == null ? 0 : sql.getTableCount(); int rend = 0;
+          String tbl2=""; String tmp; String op = ""; String table = ""; XExpression exp = null; int first = 0; boolean spec = false; {checkStatus();}}
         :
         (
          (
-          ( c:NATURAL {str += " " + c.getText();})?
+          ( c:NATURAL {
+            // a natural join has no join columns in the text, and UniformSQL
+            // can't record one, so it would regenerate as a cross join
+            if(sql != null) {
+               throw new SemanticException("Unsupported natural join",
+                  getFilename(), c.getLine(), c.getColumn());
+            }
+
+            str += " " + c.getText();})?
           ( tmp = join_type { op = tmp + " JOIN";
           str += " " + tmp;})?
           d:JOIN {str += " " + d.getText(); }
@@ -3137,8 +3720,12 @@ sub_qualified_join [UniformSQL sql] returns [String str = ""]
                                                  tbl2 = table;
                                                  tbl2 = tbl2.trim();})
           )
-          ( (join_spec[null, "", ""])=>
-            tmp = join_spec[sql, op, tbl2] {str += " " + tmp; spec = true;}
+          {rend = sql == null ? 0 : sql.getTableCount();}
+          {addJoinType(sql, op, d);
+           startJoinEvent(sql, c != null ? "NATURAL " + op : op, rstart, rend);}
+          ( (join_spec[null, "", "", 0, 0])=>
+            tmp = join_spec[sql, op, tbl2, rstart, rend] {str += " " + tmp; spec = true;}
+            {endJoinEvent(sql);}
             ((sub_qualified_join[sql])=> tmp = sub_qualified_join[sql] {str += " " + tmp;})?
           )?
           {
@@ -3156,6 +3743,8 @@ sub_qualified_join [UniformSQL sql] returns [String str = ""]
                                           d.getLine(), d.getColumn());
             }
           }
+          // exp is only set when the right operand is a nested join
+          {if(exp != null) {checkOuterJoinGroup(sql, op, d);}}
         )
         ;
 
@@ -3182,14 +3771,14 @@ outer_join_type returns [String ojt = ""]
         | c:FULL {ojt = c.getText();}
         ;
 
-join_spec [UniformSQL sql, String op, String tbl2] returns [String js = ""]
+join_spec [UniformSQL sql, String op, String tbl2, int rstart, int rend] returns [String js = ""]
         {checkStatus();}
         :
-        js = join_condition[sql, op, tbl2]
-        | js = named_columns_join[sql]
+        js = join_condition[sql, op, tbl2, rstart, rend]
+        | js = named_columns_join[sql, op, tbl2, rstart, rend]
         ;
 
-join_condition [UniformSQL sql, String op, String tbl2] returns [String jc = ""]
+join_condition [UniformSQL sql, String op, String tbl2, int rstart, int rend] returns [String jc = ""]
         {XFilterNode tmp; {checkStatus();}}
         :
         a:ON tmp = search_condition
@@ -3215,20 +3804,10 @@ join_condition [UniformSQL sql, String op, String tbl2] returns [String jc = ""]
 
            if(outerType != null) {
               List joins = getOuterJoins(sql, tmp, a);
+              orientOuterJoins(sql, joins, rstart, rend, tmp, a);
 
               for(int i = 0; i < joins.size(); i++) {
                  XJoin join = (XJoin) joins.get(i);
-                 String op1 = getTableOp(sql, join.getTable1(sql));
-
-                 if(op1 != null && op1.length() >= outerType.length() &&
-                    op1.substring(0, outerType.length()).equalsIgnoreCase(outerType))
-                 {
-                    XExpression exp1 = join.getExpression1();
-                    XExpression exp2 = join.getExpression2();
-                    join.setExpression1(exp2);
-                    join.setExpression2(exp1);
-                 }
-
                  join.setOp(outerOp);
               }
 
@@ -3245,15 +3824,39 @@ join_condition [UniformSQL sql, String op, String tbl2] returns [String jc = ""]
         }
         ;
 
-named_columns_join [UniformSQL sql] returns [String jc = ""]
+named_columns_join [UniformSQL sql, String op, String tbl2, int rstart, int rend] returns [String jc = ""]
         {String tmp; Vector list = null; if(sql != null){list = new Vector();} {checkStatus();}}
         :
         a:USING OPEN_PAREN tmp = join_column_list[list] CLOSE_PAREN
         {jc = a.getText() + "(" + tmp + ")";
          if(sql != null && list.size()>0) {
-          if(sql.getTableCount()>=2) {
-           String t1 = sql.getTableAlias(sql.getTableCount()-2);//get last 2 table
-           String t2 = sql.getTableAlias(sql.getTableCount()-1);
+          // the database merges a USING column, so select * returns one copy and an
+          // unqualified reference resolves. The model has no merged column, so its
+          // regenerated ON join would differ: keep the sql string (Bug #77482).
+          // Consumers read the statement's (uniSql) flag, since a derived table or
+          // subquery has its own UniformSQL. Its own flag is set only for a caller
+          // that parses into sql without the statement rules (uniSql is null)
+          sql.setLossy(true);
+
+          if(uniSql != null) {
+             uniSql.setLossy(true);
+          }
+
+          // the join is between the last table of the left operand and the joined
+          // table, so the joined table (rstart to rend) must be a single table
+          if(rend - rstart != 1) {
+             throw new SemanticException(
+                "Unsupported USING join, the joined table is a nested join: " + jc,
+                getFilename(), a.getLine(), a.getColumn());
+          }
+
+          checkUsingMerges(sql, list, jc, a);
+
+          if(rstart >= 1) {
+           String t1 = sql.getTableAlias(rstart - 1);
+           String t2 = sql.getTableAlias(rstart);
+           String outerOp = getUsingJoinOp(op);
+           String joinOp = outerOp == null ? "=" : outerOp;
            XExpression e1, e2;
            XFilterNode node = ((list.size()>1)?((XFilterNode)new XSet()):((XFilterNode)new XJoin()));
            XJoin tmpNode ;
@@ -3267,7 +3870,7 @@ named_columns_join [UniformSQL sql] returns [String jc = ""]
                                         XExpression.FIELD);
                 ((XJoin)node).setExpression1(e1);
                 ((XJoin)node).setExpression2(e2);
-                ((XJoin)node).setOp("=");
+                ((XJoin)node).setOp(joinOp);
            }
            else {
                 ((XSet)node).setRelation(XSet.AND);
@@ -3279,11 +3882,24 @@ named_columns_join [UniformSQL sql] returns [String jc = ""]
                         tmpNode = new XJoin();
                         tmpNode.setExpression1(e1);
                         tmpNode.setExpression2(e2);
-                        tmpNode.setOp("=");
+                        tmpNode.setOp(joinOp);
                         tmpNode.setName(getUniqueName());
                         ((XSet)node).addChild(tmpNode);
                 }
            }
+
+           // a LEFT or FULL join merges the column to the left table's column or
+           // the coalesce of both, a later USING of the column can't be represented
+           if("*=".equals(outerOp) || "*=*".equals(outerOp)) {
+              addUsingMerges(sql, list);
+           }
+
+           // a RIGHT or FULL join makes the tables before it null supplying, so the
+           // filters in their inner join ON conditions are not where conditions
+           if(outerOp != null) {
+              clearInnerOnJoins(sql, "*=".equals(outerOp) ? "LEFT" : "RIGHT", tbl2);
+           }
+
            markJoins(node, ++onClauseCount);
            sql.combineWhereByAnd(node);
           }

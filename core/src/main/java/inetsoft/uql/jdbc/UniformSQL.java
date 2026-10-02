@@ -428,6 +428,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
 
       if(parseType == PARSE_ALL) {
          parser.direct_select_stmt_n_rows(UniformSQL.this);
+         checkJoinOrders(parser, time);
          setParseResult(PARSE_SUCCESS);
       }
       else if(parseType == PARSE_ONLY_SELECT) {
@@ -437,6 +438,56 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
       else if(parseType == PARSE_ONLY_SELECT_FROM) {
          parser.only_select_from(UniformSQL.this);
          setParseResult(PARSE_PARTIALLY);
+      }
+   }
+
+   /**
+    * Check that each query that mixes a RIGHT or FULL join with an inner join,
+    * or that has a nested join on the right side of an outer join, has the same
+    * joins in its regenerated sql. UniformSQL keeps the joins without their
+    * order or nesting, so the sql helper picks them, and a different order or
+    * nesting can change the query results (Bug #77434).
+    * <p>
+    * The sql is generated the way a merge generates it, with the sql helper
+    * of the data source of this (the outer) query, which a subquery inherits
+    * when it's generated. Without a data source, the helper that generates the
+    * sql later is unknown (e.g. Oracle without ansi join generates (+) joins),
+    * so such a query is refused.
+    */
+   private void checkJoinOrders(SQLParser parser, long time) throws Exception {
+      JDBCDataSource source = getDataSource();
+
+      for(Object obj : parser.getJoinOrderChecks()) {
+         UniformSQL query = (UniformSQL) obj;
+         String structure = null;
+
+         try {
+            if(source != null) {
+               // generate a copy, generateSentence changes the query (aliases, order by),
+               // and don't connect to the database for the product name or version,
+               // which don't change the joins
+               UniformSQL copy = query.clone();
+               copy.setDataSource(source);
+               SQLHelper helper = SQLHelper.getSQLHelper(SQLHelper.getProductName(source, true));
+               helper.setAnsiJoin(source.isAnsiJoin());
+               helper.setUniformSql(copy);
+               String generated = helper.generateSentence();
+
+               UniformSQL regenerated = new UniformSQL();
+               regenerated.setDataSource(source);
+               SQLLexer lexer = new SQLLexer(
+                  new StringReader(regenerated.getQuotedSqlString(generated)));
+               SQLParser parser2 = new SQLParser(lexer);
+               parser2.setTime(time);
+               parser2.direct_select_stmt_n_rows(regenerated);
+               structure = parser2.getJoinStructure(regenerated);
+            }
+         }
+         catch(Exception ex) {
+            LOG.debug("Failed to parse the generated sql to check its joins", ex);
+         }
+
+         parser.checkJoinOrder(query, structure);
       }
    }
 
@@ -2534,6 +2585,134 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
       }
 
       return -1;
+   }
+
+   /**
+    * Get the index of the from clause table that the table part of a join column
+    * (XJoin.getTable1/getTable2) refers to. The table part has its quotes removed,
+    * while a table without an alias keeps its quoted name as the alias (e.g. "a"
+    * when the data source quotes identifiers), so quotes are ignored when there is
+    * no exact match. A case-sensitive match is preferred, since a quoted name is
+    * case-sensitive (e.g. "A" and "a" can be two tables). As a last resort, a bare
+    * table name refers to the one unaliased schema-qualified table it names (emp for
+    * scott.emp).
+    * @param table the table part of a join column.
+    * @return -1 if the table is empty or not found.
+    */
+   public synchronized int getJoinTableIndex(String table) {
+      if(table == null || table.isEmpty()) {
+         return -1;
+      }
+
+      String name = stripIdentifierQuotes(table);
+      int index = findJoinTable(table, false, false);
+      index = index >= 0 ? index : findJoinTable(name, true, false);
+      index = index >= 0 ? index : getTableIndex(table);
+      index = index >= 0 ? index : findJoinTable(name, true, true);
+      return index >= 0 ? index : findSchemaTable(name);
+   }
+
+   /**
+    * Find the unaliased schema-qualified table (e.g. scott.emp) that a bare table name
+    * (emp) refers to, as in legacy sql such as
+    * "from scott.emp, scott.dept where emp.deptno = dept.deptno(+)". The table is only
+    * found if it is the one unaliased table with that last name segment, an ambiguous
+    * name (s1.emp and s2.emp) isn't resolved. As for the other lookups, a case-sensitive
+    * match is preferred.
+    * @return -1 if no single table matches.
+    */
+   private int findSchemaTable(String table) {
+      if(table.indexOf('.') >= 0) {
+         return -1;
+      }
+
+      int index = findSchemaTable(table, false);
+      index = index == -1 ? findSchemaTable(table, true) : index;
+      return Math.max(index, -1);
+   }
+
+   /**
+    * Find the unaliased schema-qualified table whose last name segment is the table.
+    * @return the index of the single matching table, -1 if no table matches, or -2 if
+    * more than one table matches.
+    */
+   private int findSchemaTable(String table, boolean ignoreCase) {
+      int index = -1;
+
+      for(int i = 0; i < tables.size(); i++) {
+         SelectTable stable = tables.get(i);
+         String salias = stable.getAlias();
+
+         // a table with an alias can only be referred to by its alias
+         if(!(stable.getName() instanceof String sname) ||
+            salias != null && !salias.equals(sname))
+         {
+            continue;
+         }
+
+         String segment = getLastNameSegment(sname);
+
+         if(segment != null &&
+            (ignoreCase ? table.equalsIgnoreCase(segment) : table.equals(segment)))
+         {
+            if(index >= 0) {
+               return -2;
+            }
+
+            index = i;
+         }
+      }
+
+      return index;
+   }
+
+   /**
+    * Get the last segment of a qualified table name, without quotes (emp of scott.emp,
+    * "scott"."emp" or `scott.emp`, BigQuery quotes the whole path in one pair of
+    * backticks).
+    * @return null if the name isn't qualified.
+    */
+   private static String getLastNameSegment(String name) {
+      String stripped = stripIdentifierQuotes(name);
+      int dot = stripped.lastIndexOf('.');
+      return dot < 0 ? null : stripped.substring(dot + 1);
+   }
+
+   private int findJoinTable(String table, boolean strip, boolean ignoreCase) {
+      for(int i = 0; i < tables.size(); i++) {
+         SelectTable stable = tables.get(i);
+         String salias = stable.getAlias();
+
+         if(salias == null && (stable.getName() instanceof String)) {
+            salias = (String) stable.getName();
+         }
+
+         if(salias == null) {
+            continue;
+         }
+
+         salias = strip ? stripIdentifierQuotes(salias) : salias;
+
+         if(ignoreCase ? table.equalsIgnoreCase(salias) : table.equals(salias)) {
+            return i;
+         }
+      }
+
+      return -1;
+   }
+
+   private static String stripIdentifierQuotes(String name) {
+      StringBuilder buf = new StringBuilder(name.length());
+
+      for(int i = 0; i < name.length(); i++) {
+         char ch = name.charAt(i);
+
+         if(ch != '"' && ch != '`' && ch != '[' && ch != ']') {
+            buf.append(ch);
+         }
+      }
+
+      return buf.toString();
    }
 
    /**

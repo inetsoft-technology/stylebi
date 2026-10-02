@@ -2657,7 +2657,7 @@ public class SQLHelper implements KeywordProvider {
       Object[] result = new Object[2];
 
       String tname = left ? join.getTable1(uniformSql) : join.getTable2(uniformSql);
-      int index = uniformSql.getTableIndex(tname);
+      int index = uniformSql.getJoinTableIndex(tname);
       SelectTable stable = (index >= 0) ? uniformSql.getSelectTable(index) : null;
       String table = stable != null ? generateTableClause(stable) : quoteTableName(tname);
 
@@ -3373,8 +3373,9 @@ public class SQLHelper implements KeywordProvider {
          return false;
       }
 
-      return uniformSql.getTableIndex(join.getTable1(uniformSql)) >= 0 &&
-         uniformSql.getTableIndex(join.getTable2(uniformSql)) >= 0;
+      // the same table resolution as getJoinedTable, which writes the join
+      return uniformSql.getJoinTableIndex(join.getTable1(uniformSql)) >= 0 &&
+         uniformSql.getJoinTableIndex(join.getTable2(uniformSql)) >= 0;
    }
 
    /**

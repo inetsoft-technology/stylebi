@@ -226,6 +226,8 @@ class UniformSQLOnlessOuterJoinTest {
    })
    void nestedConditionParses(String text) {
       UniformSQL sql = new UniformSQL();
+      // Bug #77434 refuses a nested join on the right of an outer join without a data source
+      sql.setDataSource(GenericJDBCDataSource.create());
       new SQLProcessor(sql).parse(text);
       assertEquals(UniformSQL.PARSE_SUCCESS, sql.getParseResult(), text);
    }
