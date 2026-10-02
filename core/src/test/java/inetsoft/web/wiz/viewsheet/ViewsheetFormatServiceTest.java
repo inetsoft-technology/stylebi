@@ -24,10 +24,20 @@ import inetsoft.report.TableDataPath;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.VSTableLens;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
+import inetsoft.uql.ColumnSelection;
+import inetsoft.uql.asset.ColumnRef;
+import inetsoft.uql.asset.SourceInfo;
+import inetsoft.uql.asset.TableAssembly;
+import inetsoft.uql.asset.Worksheet;
+import inetsoft.uql.erm.AttributeRef;
+import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.schema.XSchema;
+import inetsoft.uql.viewsheet.CalcTableVSAssembly;
 import inetsoft.uql.viewsheet.CrosstabVSAssembly;
+import inetsoft.uql.viewsheet.FormatInfo;
 import inetsoft.uql.viewsheet.TableVSAssembly;
 import inetsoft.uql.viewsheet.TextVSAssembly;
+import inetsoft.uql.viewsheet.VSCompositeFormat;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
 import inetsoft.web.composer.model.vs.VSObjectFormatInfoModel;
@@ -1572,14 +1582,239 @@ class ViewsheetFormatServiceTest {
       assertEquals("MM/dd/yyyy", request.format().getFormatSpec());
    }
 
+   // ── Bug #77597 part B: no whole-region date format over numeric cells ─────────────────
+
+   static VSObjectFormatInfoModel dateFormat() {
+      VSObjectFormatInfoModel format = new VSObjectFormatInfoModel();
+      format.setFormat("DateFormat");
+      format.setDateSpec("Custom");
+      format.setFormatSpec("MMM dd, yyyy");
+      return format;
+   }
+
+   static ColumnRef column(String name, String type) {
+      ColumnRef column = new ColumnRef(new AttributeRef(null, name));
+      column.setDataType(type);
+      return column;
+   }
+
+   /** A Table bound to {@code columns}, whose FormatInfo is {@code formatInfo}. */
+   private static RuntimeViewsheet boundTableRvs(String name, FormatInfo formatInfo,
+                                                 ColumnRef... columns)
+   {
+      ColumnSelection selection = new ColumnSelection();
+
+      for(ColumnRef column : columns) {
+         selection.addAttribute(column);
+      }
+
+      TableVSAssembly table = mock(TableVSAssembly.class);
+      VSAssemblyInfo info = mock(VSAssemblyInfo.class);
+      when(table.getColumnSelection()).thenReturn(selection);
+      when(table.getVSAssemblyInfo()).thenReturn(info);
+      when(info.getFormatInfo()).thenReturn(formatInfo);
+      return rvsWith(name, table);
+   }
+
+   static RuntimeViewsheet rvsWith(String name,
+                                           inetsoft.uql.viewsheet.VSAssembly assembly)
+   {
+      Viewsheet viewsheet = mock(Viewsheet.class);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(viewsheet);
+      when(viewsheet.getAssembly(name)).thenReturn(assembly);
+      return rvs;
+   }
+
+   private static FormatInfo ownDetailFormat(String header) {
+      FormatInfo formatInfo = new FormatInfo();
+      VSCompositeFormat own = new VSCompositeFormat();
+      own.getUserDefinedFormat().setFormatValue("DecimalFormat");
+      own.getUserDefinedFormat().setFormatExtentValue("#,##0");
+      formatInfo.setFormat(new TableDataPath(-1, TableDataPath.DETAIL, XSchema.DOUBLE,
+                                             new String[]{ header }), own);
+      return formatInfo;
+   }
+
+   /** #1, the numeric half: Revenue rendered 1970-01-01 under a whole-table DateFormat. */
+   @Test
+   void refusesAWholeTableDateFormatOverANumericColumnBeforeMutating() throws Exception {
+      FormatPainterService painter = mock(FormatPainterService.class);
+      RuntimeViewsheet rvs = boundTableRvs("Table1", new FormatInfo(),
+         column("Order Date", XSchema.DATE), column("Revenue", XSchema.DOUBLE),
+         column("Region", XSchema.STRING));
+      ViewsheetSessionService sessions = sessionsFor(rvs);
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> service(sessions, painter, mock(CalcTableService.class)).setFormat(
+            "tok", principal(),
+            new ViewsheetFormatService.FormatRequest(List.of("Table1"), dateFormat(), false),
+            ""));
+
+      String message = thrown.getMessage();
+      assertTrue(message.contains("Revenue"), message);
+      assertFalse(message.contains("Region"), message);
+      assertTrue(message.contains("target:\"data\"") && message.contains("Order Date"), message);
+      assertFalse(message.contains("\n"), "one line: " + message);
+      verify(sessions, never()).mutate(anyString(), any(Principal.class), any());
+      verifyNoInteractions(painter);
+   }
+
+   @Test
+   void allowsAWholeTableDateFormatWhenTheNumericColumnHasItsOwnFormat() throws Exception {
+      FormatPainterService painter = mock(FormatPainterService.class);
+      RuntimeViewsheet rvs = boundTableRvs("Table1", ownDetailFormat("Revenue"),
+         column("Order Date", XSchema.DATE), column("Revenue", XSchema.DOUBLE));
+
+      serviceWith(painter, rvs).setFormat(
+         "tok", principal(),
+         new ViewsheetFormatService.FormatRequest(List.of("Table1"), dateFormat(), false), "");
+
+      verify(painter).setFormat(eq("rt1"), any(), any(Principal.class), any(), anyString());
+   }
+
+   /** The exemption matches by header; a format stored under a relabelled header is missed. */
+   @Test
+   void refusesARelabelledNumericColumnAndNamesTheExemption() {
+      RuntimeViewsheet rvs = boundTableRvs("Table1", ownDetailFormat("Sales $"),
+         column("Order Date", XSchema.DATE), column("Revenue", XSchema.DOUBLE));
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> serviceWith(mock(FormatPainterService.class), rvs).setFormat(
+            "tok", principal(),
+            new ViewsheetFormatService.FormatRequest(List.of("Table1"), dateFormat(), false),
+            ""));
+
+      assertTrue(thrown.getMessage().contains("exempt"), thrown.getMessage());
+   }
+
+   /** A data write replaces the column's own format, so the exemption does not apply. */
+   @Test
+   void refusesAWholeBodyDateFormatEvenOverASelfFormattedNumericColumn() {
+      RuntimeViewsheet rvs = boundTableRvs("Table1", ownDetailFormat("Revenue"),
+         column("Order Date", XSchema.DATE), column("Revenue", XSchema.DOUBLE));
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> serviceWith(mock(FormatPainterService.class), rvs).setFormat(
+            "tok", principal(),
+            new ViewsheetFormatService.FormatRequest(List.of("Table1"), dateFormat(), false,
+                                                     "data"), ""));
+
+      assertTrue(thrown.getMessage().contains("Revenue"), thrown.getMessage());
+   }
+
+   @Test
+   void ignoresHiddenNumericColumns() throws Exception {
+      FormatPainterService painter = mock(FormatPainterService.class);
+      ColumnRef hidden = column("Revenue", XSchema.DOUBLE);
+      hidden.setVisible(false);
+      RuntimeViewsheet rvs = boundTableRvs("Table1", new FormatInfo(),
+         column("Order Date", XSchema.DATE), hidden);
+
+      serviceWith(painter, rvs).setFormat(
+         "tok", principal(),
+         new ViewsheetFormatService.FormatRequest(List.of("Table1"), dateFormat(), false), "");
+
+      verify(painter).setFormat(eq("rt1"), any(), any(Principal.class), any(), anyString());
+   }
+
+   @Test
+   void allowsAWholeTableDateFormatOverDateAndStringColumns() throws Exception {
+      FormatPainterService painter = mock(FormatPainterService.class);
+      RuntimeViewsheet rvs = boundTableRvs("Table1", new FormatInfo(),
+         column("Order Date", XSchema.DATE), column("Region", XSchema.STRING));
+
+      serviceWith(painter, rvs).setFormat(
+         "tok", principal(),
+         new ViewsheetFormatService.FormatRequest(List.of("Table1"), dateFormat(), false), "");
+
+      verify(painter).setFormat(eq("rt1"), any(), any(Principal.class), any(), anyString());
+   }
+
+   /** A column whose type is not known never triggers a refusal (fails open). */
+   @Test
+   void allowsWhenTheColumnTypeIsUnknown() throws Exception {
+      FormatPainterService painter = mock(FormatPainterService.class);
+      RuntimeViewsheet rvs = boundTableRvs("Table1", new FormatInfo(), column("Mystery", null));
+
+      serviceWith(painter, rvs).setFormat(
+         "tok", principal(),
+         new ViewsheetFormatService.FormatRequest(List.of("Table1"), dateFormat(), false), "");
+
+      verify(painter).setFormat(eq("rt1"), any(), any(Principal.class), any(), anyString());
+   }
+
+   @Test
+   void aResetIsNeverRefused() throws Exception {
+      FormatPainterService painter = mock(FormatPainterService.class);
+      RuntimeViewsheet rvs = boundTableRvs("Table1", new FormatInfo(),
+         column("Revenue", XSchema.DOUBLE));
+
+      serviceWith(painter, rvs).setFormat(
+         "tok", principal(),
+         new ViewsheetFormatService.FormatRequest(List.of("Table1"), dateFormat(), true), "");
+
+      verify(painter).setFormat(eq("rt1"), any(), any(Principal.class), any(), anyString());
+   }
+
+   /** A field-scoped data write is an explicit single-column choice: no binding check. */
+   @Test
+   void aFieldScopedDataWriteIsNotChecked() throws Exception {
+      ViewsheetSessionService sessions = sessionsFor(null);
+      ViewsheetFormatService service =
+         service(sessions, mock(FormatPainterService.class), mock(CalcTableService.class));
+
+      // The null rvs makes the lambda fail later; only the absence of the pre-check matters.
+      assertThrows(Exception.class, () -> service.setFormat(
+         "tok", principal(), new ViewsheetFormatService.FormatRequest(
+            List.of("Table1"), dateFormat(), false, "data", "Epoch Millis"), ""));
+
+      verify(sessions, never()).resolve(anyString(), any(Principal.class));
+   }
+
+   @Test
+   void refusesAWholeCalcTableDateFormatOverANumericSourceColumn() {
+      CalcTableVSAssembly calc = mock(CalcTableVSAssembly.class);
+      when(calc.getBindingRefs()).thenReturn(
+         new DataRef[]{ new ColumnRef(new AttributeRef("Revenue")),
+                        new ColumnRef(new AttributeRef("Order Date")) });
+      SourceInfo source = mock(SourceInfo.class);
+      when(source.getSource()).thenReturn("Orders");
+      when(calc.getSourceInfo()).thenReturn(source);
+
+      ColumnSelection sourceColumns = new ColumnSelection();
+      sourceColumns.addAttribute(column("Revenue", XSchema.DOUBLE));
+      sourceColumns.addAttribute(column("Order Date", XSchema.DATE));
+      TableAssembly sourceTable = mock(TableAssembly.class);
+      when(sourceTable.getColumnSelection(true)).thenReturn(sourceColumns);
+      Worksheet worksheet = mock(Worksheet.class);
+      when(worksheet.getAssembly("Orders")).thenReturn(sourceTable);
+
+      RuntimeViewsheet rvs = rvsWith("FreehandTable1", calc);
+      when(rvs.getViewsheet().getBaseWorksheet()).thenReturn(worksheet);
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> serviceWith(mock(FormatPainterService.class), rvs).setFormat(
+            "tok", principal(),
+            new ViewsheetFormatService.FormatRequest(List.of("FreehandTable1"), dateFormat(),
+                                                     false), ""));
+
+      assertTrue(thrown.getMessage().contains("Revenue"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("set_calc_cell_format"), thrown.getMessage());
+   }
+
    private static ViewsheetFormatService serviceWith(FormatPainterService painter) {
       return serviceWith(painter, mock(CalcTableService.class));
    }
 
    /** A real (mocked) {@code RuntimeViewsheet} in place of {@code null} -- for target:"data",
     *  which needs to resolve the named assembly and its live table lens. */
-   private static ViewsheetFormatService serviceWith(FormatPainterService painter,
-                                                      RuntimeViewsheet rvs)
+   static ViewsheetFormatService serviceWith(FormatPainterService painter,
+                                              RuntimeViewsheet rvs)
    {
       return serviceWith(painter, mock(CalcTableService.class), rvs);
    }
@@ -1751,9 +1986,27 @@ class ViewsheetFormatServiceTest {
                                                       CalcTableService calcService,
                                                       RuntimeViewsheet rvs)
    {
+      return service(sessionsFor(rvs), painter, calcService);
+   }
+
+   static ViewsheetFormatService service(ViewsheetSessionService sessions,
+                                                 FormatPainterService painter,
+                                                 CalcTableService calcService)
+   {
+      return new ViewsheetFormatService(sessions, painter, calcService);
+   }
+
+   /**
+    * A sessions mock whose {@code mutate}/{@code read} run the lambda against {@code rvs}, and
+    * whose read-only {@code resolve} (used by the pre-mutate refusals) returns the same
+    * {@code rvs}.
+    */
+   static ViewsheetSessionService sessionsFor(RuntimeViewsheet rvs) {
       ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
 
       try {
+         when(sessions.resolve(anyString(), any(Principal.class))).thenReturn(rvs);
+
          doAnswer(invocation -> {
             ViewsheetSessionService.Mutation mutation = invocation.getArgument(2);
             mutation.run(rvs, "rt1", null);
@@ -1774,10 +2027,10 @@ class ViewsheetFormatServiceTest {
          throw new IllegalStateException(e);
       }
 
-      return new ViewsheetFormatService(sessions, painter, calcService);
+      return sessions;
    }
 
-   private static Principal principal() {
+   static Principal principal() {
       return () -> "admin";
    }
 }

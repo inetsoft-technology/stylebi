@@ -29,10 +29,22 @@ import inetsoft.report.TableDataPath;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.VSTableLens;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
+import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.XConstants;
+import inetsoft.uql.asset.ColumnRef;
+import inetsoft.uql.asset.SourceInfo;
+import inetsoft.uql.asset.TableAssembly;
+import inetsoft.uql.asset.Worksheet;
+import inetsoft.uql.erm.DataRef;
+import inetsoft.uql.viewsheet.CalcTableVSAssembly;
 import inetsoft.uql.viewsheet.CrosstabVSAssembly;
+import inetsoft.uql.viewsheet.FormatInfo;
+import inetsoft.uql.viewsheet.TableDataVSAssembly;
 import inetsoft.uql.viewsheet.TableVSAssembly;
 import inetsoft.uql.viewsheet.VSAssembly;
+import inetsoft.uql.viewsheet.VSCompositeFormat;
+import inetsoft.uql.viewsheet.VSCrosstabInfo;
+import inetsoft.uql.viewsheet.VSDataRef;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
 import inetsoft.web.adhoc.model.chart.ChartFormatConstants;
@@ -42,8 +54,8 @@ import inetsoft.web.composer.vs.objects.command.SetCurrentFormatCommand;
 import inetsoft.web.composer.vs.objects.event.FormatVSObjectEvent;
 import inetsoft.web.composer.vs.objects.event.GetVSObjectFormatEvent;
 import inetsoft.web.wiz.binding.CalcTableService;
-import inetsoft.web.wiz.dispatch.CapturingCommandDispatcher;
 import inetsoft.util.CoreTool;
+import inetsoft.web.wiz.dispatch.CapturingCommandDispatcher;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -527,6 +539,21 @@ public class ViewsheetFormatService {
          }
       }
 
+      // Binding-only refusals run against a read-only resolve, before mutate: a refused request
+      // then leaves no empty undo step, no write-revision bump and no Composer refresh behind.
+      // A missing or unsupported assembly is skipped here and left to the existing error paths.
+      if(needsNumericCellCheck(request, target)) {
+         RuntimeViewsheet resolved = sessions.resolve(sessionToken, user);
+         Viewsheet viewsheet = resolved == null ? null : resolved.getViewsheet();
+
+         if(viewsheet != null) {
+            for(String name : request.assemblies()) {
+               refuseDateFormatOverNumericCells(viewsheet, name, target,
+                                                request.format().getFormat());
+            }
+         }
+      }
+
       sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          FormatVSObjectEvent event = new FormatVSObjectEvent();
          event.setFormat(request.format());
@@ -601,6 +628,274 @@ public class ViewsheetFormatService {
          painter.setFormat(runtimeId, event, user, dispatcher, linkUri);
       });
    }
+
+   /**
+    * Whether {@code request} writes a date/time format over a whole table region, where numeric
+    * cells would inherit it. A {@code data}/{@code header} write scoped by {@code field} is an
+    * explicit single-column choice (e.g. an epoch-millisecond column) and is not checked.
+    */
+   private static boolean needsNumericCellCheck(FormatRequest request, String target) {
+      if(request.reset() || request.format() == null || request.format().getFormat() == null ||
+         !DATE_LIKE_FORMATS.contains(request.format().getFormat()))
+      {
+         return false;
+      }
+
+      boolean hasField = request.field() != null && !request.field().isBlank();
+      return "object".equals(target) ||
+         ("data".equals(target) || "header".equals(target)) && !hasField;
+   }
+
+   /**
+    * Bug #77597: refuses a date/time format over a table region whose cells include numbers.
+    *
+    * <p>The table renderer hands such a format every cell of the region that has no format of
+    * its own, whatever the column's type, and a {@code java.text.DateFormat} reads a
+    * {@code Number} as epoch milliseconds -- so {@code Revenue = 3600} renders as
+    * {@code 1970-01-01}. Types come from the binding only (no lens, no sandbox); a column whose
+    * type is unknown never triggers a refusal.
+    *
+    * <ul>
+    *    <li>Table: the visible columns, for {@code object} and {@code data}; never for
+    *        {@code header} (header cells are strings). For {@code object} only, a column whose
+    *        own {@code DETAIL} path already has a user format value is exempt, since it does
+    *        not inherit the object format. A {@code data} write replaces that column's own
+    *        format, so nothing is exempt there.</li>
+    *    <li>Crosstab: dimensions (at their effective date level) and aggregates (their output
+    *        type) for {@code object}; aggregates for {@code data}; dimensions for
+    *        {@code header}. Measures are checked by type even if they carry their own format:
+    *        a measure spans many cell paths, and proving all are covered needs the lens.</li>
+    *    <li>Calc table, {@code object} only: the source columns its cells bind, typed from the
+    *        source table. A cell's output type (e.g. a part-level grouping) is not modelled, so
+    *        this fails open there.</li>
+    * </ul>
+    */
+   private static void refuseDateFormatOverNumericCells(Viewsheet viewsheet, String name,
+                                                        String target, String formatType)
+   {
+      VSAssembly assembly = viewsheet.getAssembly(name);
+
+      if(!(assembly instanceof TableDataVSAssembly)) {
+         return;
+      }
+
+      boolean object = "object".equals(target);
+      List<String> numeric = new ArrayList<>();
+      String advice;
+
+      if(assembly instanceof CrosstabVSAssembly crosstab) {
+         VSCrosstabInfo cinfo = crosstab.getVSCrosstabInfo();
+
+         if(cinfo == null) {
+            return;
+         }
+
+         List<String> numericDims = new ArrayList<>();
+
+         if(!"data".equals(target)) {
+            addNumeric(numericDims, runtimeOrDesign(cinfo.getRuntimeRowHeaders(),
+                                                    cinfo.getRowHeaders()));
+            addNumeric(numericDims, runtimeOrDesign(cinfo.getRuntimeColHeaders(),
+                                                    cinfo.getColHeaders()));
+         }
+
+         numeric.addAll(numericDims);
+
+         if(!"header".equals(target)) {
+            addNumeric(numeric, runtimeOrDesign(cinfo.getRuntimeAggregates(),
+                                                cinfo.getAggregates()));
+         }
+
+         advice = !numericDims.isEmpty() ?
+            "The header region holds the numeric dimension(s) too, so target:\"header\" would " +
+            "show the same dates; format this Crosstab in the Composer or with a script, or " +
+            "group the date dimension at a full level (Year, Month, ...)." :
+            (object ? "Use target:\"header\" to format the date dimension labels only, or " :
+             "Use ") + "target:\"data\" with 'field' naming one date-valued measure. Crosstab " +
+            "measures are checked by type even if they already have their own format.";
+      }
+      else if(assembly instanceof TableVSAssembly table) {
+         if("header".equals(target)) {
+            return;
+         }
+
+         ColumnSelection columns = table.getColumnSelection();
+
+         if(columns == null) {
+            return;
+         }
+
+         Set<String> ownFormat = object ? ownDetailFormatHeaders(table) : Set.of();
+         List<String> dateColumns = new ArrayList<>();
+
+         for(int i = 0; i < columns.getAttributeCount(); i++) {
+            DataRef ref = columns.getAttribute(i);
+
+            if(ref instanceof ColumnRef column && !column.isVisible()) {
+               continue;
+            }
+
+            if(WizFormatChecks.isNumeric(ref)) {
+               if(!ownFormat.isEmpty() && candidateHeaders(ref).stream()
+                  .anyMatch(ownFormat::contains))
+               {
+                  continue;
+               }
+
+               numeric.add(displayName(ref));
+            }
+            else if(WizFormatChecks.isDateLike(ref)) {
+               dateColumns.add(displayName(ref));
+            }
+         }
+
+         advice = "Format the date columns alone with target:\"data\" and 'field' naming each" +
+            (dateColumns.isEmpty() ? "" : " (" + summarize(dateColumns) + ")") + "." +
+            (object ? " Columns that already have their own number format are exempt; if one " +
+             "of these does, under a different header, format the date column with " +
+             "target:\"data\", field:... instead." : "");
+      }
+      else if(assembly instanceof CalcTableVSAssembly calc && object) {
+         ColumnSelection source = calcSourceColumns(viewsheet, calc);
+
+         if(source == null) {
+            return;
+         }
+
+         for(DataRef ref : calc.getBindingRefs()) {
+            DataRef column = ref == null ? null : source.getAttribute(ref.getName());
+
+            if(WizFormatChecks.isNumeric(column)) {
+               numeric.add(ref.getName());
+            }
+         }
+
+         advice = "Format the date cells alone with set_calc_cell_format.";
+      }
+      else {
+         return;
+      }
+
+      if(numeric.isEmpty()) {
+         return;
+      }
+
+      throw new IllegalArgumentException(
+         "set_format: a " + formatType + " over the " + regionName(target) + " of '" + name +
+         "' would render its numeric cells as dates (e.g. 1970-01-01): " + summarize(numeric) +
+         ". The request was not applied. " + advice);
+   }
+
+   private static String regionName(String target) {
+      return "data".equals(target) ? "body cells" :
+         "header".equals(target) ? "header cells" : "whole assembly";
+   }
+
+   private static DataRef[] runtimeOrDesign(DataRef[] runtime, DataRef[] design) {
+      return runtime != null && runtime.length > 0 ? runtime : design;
+   }
+
+   private static void addNumeric(List<String> out, DataRef[] refs) {
+      if(refs == null) {
+         return;
+      }
+
+      for(DataRef ref : refs) {
+         if(WizFormatChecks.isNumeric(ref)) {
+            out.add(displayName(ref));
+         }
+      }
+   }
+
+   private static String displayName(DataRef ref) {
+      if(ref instanceof VSDataRef vsRef && vsRef.getFullName() != null) {
+         return vsRef.getFullName();
+      }
+
+      if(ref instanceof ColumnRef column && column.getAlias() != null &&
+         !column.getAlias().isEmpty())
+      {
+         return column.getAlias();
+      }
+
+      return ref.getAttribute() != null ? ref.getAttribute() : ref.getName();
+   }
+
+   /** The names a Table column's {@code DETAIL} path may be stored under (its rendered header). */
+   private static Set<String> candidateHeaders(DataRef ref) {
+      Set<String> names = new LinkedHashSet<>();
+
+      if(ref instanceof ColumnRef column && column.getAlias() != null) {
+         names.add(column.getAlias());
+      }
+
+      names.add(ref.getAttribute());
+      names.add(ref.getName());
+      names.remove(null);
+      return names;
+   }
+
+   /**
+    * The headers of a Table's {@code DETAIL} paths that already hold a user format value, read
+    * with the non-mutating {@link FormatInfo#getFormat(TableDataPath)}. Such a column keeps its
+    * own format and does not inherit the object format (VSFormatTableLens).
+    */
+   private static Set<String> ownDetailFormatHeaders(TableVSAssembly table) {
+      VSAssemblyInfo info = table.getVSAssemblyInfo();
+      FormatInfo formatInfo = info == null ? null : info.getFormatInfo();
+      Set<String> headers = new LinkedHashSet<>();
+
+      if(formatInfo == null) {
+         return headers;
+      }
+
+      for(TableDataPath path : formatInfo.getPaths()) {
+         if(path == null || path.getType() != TableDataPath.DETAIL || path.getPath() == null ||
+            path.getPath().length == 0)
+         {
+            continue;
+         }
+
+         VSCompositeFormat format = formatInfo.getFormat(path);
+
+         if(format != null && format.getUserDefinedFormat() != null &&
+            format.getUserDefinedFormat().isFormatValueDefined())
+         {
+            headers.add(path.getPath()[0]);
+         }
+      }
+
+      return headers;
+   }
+
+   /** The calc table's source table columns, from the base worksheet; null when unknown. */
+   private static ColumnSelection calcSourceColumns(Viewsheet viewsheet,
+                                                    CalcTableVSAssembly calc)
+   {
+      SourceInfo source = calc.getSourceInfo();
+      Worksheet worksheet = viewsheet.getBaseWorksheet();
+
+      if(source == null || source.getSource() == null || worksheet == null) {
+         return null;
+      }
+
+      return worksheet.getAssembly(source.getSource()) instanceof TableAssembly table ?
+         table.getColumnSelection(true) : null;
+   }
+
+   private static String summarize(List<String> names) {
+      List<String> distinct = new ArrayList<>(new LinkedHashSet<>(names));
+
+      if(distinct.size() <= 5) {
+         return String.join(", ", distinct);
+      }
+
+      return String.join(", ", distinct.subList(0, 5)) + " and " + (distinct.size() - 5) +
+         " more";
+   }
+
+   private static final Set<String> DATE_LIKE_FORMATS = Set.of(
+      XConstants.DATE_FORMAT, XConstants.TIME_FORMAT, XConstants.TIMEINSTANT_FORMAT);
 
    /**
     * Computes the {@code TableDataPath[]} for a Crosstab/Table's data (body) region -- one
