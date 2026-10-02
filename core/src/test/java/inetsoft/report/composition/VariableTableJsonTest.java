@@ -96,7 +96,7 @@ class VariableTableJsonTest {
       values.forEach(table::put);
       table.put("null", null);
       table.put("bigDecimal", new BigDecimal("1.5"));
-      table.put("time", java.sql.Time.valueOf("10:13:20"));
+      table.put("time", new java.sql.Time(1_790_000_000_123L));
       // values of other types, e.g. put by a script, are kept as the plain JSON value
       table.put("list", new ArrayList<>(List.of("e", "f")));
       table.put("map", new HashMap<>(Map.of("g", "h")));
@@ -127,7 +127,8 @@ class VariableTableJsonTest {
       assertInstanceOf(BigDecimal.class, result.get("bigDecimal"));
       assertEquals(0, new BigDecimal("1.5").compareTo((BigDecimal) result.get("bigDecimal")));
       assertInstanceOf(java.sql.Time.class, result.get("time"));
-      assertEquals("10:13:20", result.get("time").toString());
+      // the date part and millis of a Time are kept (Bug #77528)
+      assertEquals(1_790_000_000_123L, ((java.sql.Time) result.get("time")).getTime());
       assertEquals(List.of("e", "f"), result.get("list"));
       assertEquals(Map.of("g", "h"), result.get("map"));
       assertEquals(base.get("baseDate"), result.getBaseTable().get("baseDate"));
@@ -331,6 +332,158 @@ class VariableTableJsonTest {
       assertArrayEquals(new Object[] { "abc", "x", 1, List.of(1) }, (Object[]) result.get("bad"));
       assertArrayEquals(new Object[] { 1 }, (Object[]) result.get("notArray"));
       assertEquals("v", result.get("kept"));
+   }
+
+   @Test
+   void timesKeepDatePartMillisAndNanos() throws Exception {
+      // a Time is written as "HH:mm:ss" and a Timestamp as epoch millis, the date part, millis
+      // and nanos used to be lost (Bug #77528)
+      java.sql.Time time = new java.sql.Time(1_790_000_000_123L);
+      java.sql.Timestamp timestamp = new java.sql.Timestamp(1_790_000_000_123L);
+      timestamp.setNanos(123_456_789);
+      VariableTable table = new VariableTable();
+      table.put("time", time);
+      table.put("timestamp", timestamp);
+      table.put("times", new java.sql.Time[] { time, null });
+      table.put("timestamps", new java.sql.Timestamp[] { timestamp });
+      table.put("objects", new Object[] { time, timestamp, "s", new Object[] { time }, null });
+      VariableTable base = new VariableTable();
+      base.put("baseTime", time);
+      table.setBaseTable(base);
+
+      VariableTable result = roundTrip(table);
+
+      for(String name : new String[] { "time", "timestamp", "times", "timestamps", "objects" }) {
+         assertSameValues(table.get(name), result.get(name), name);
+      }
+
+      assertSameValues(time, result.getBaseTable().get("baseTime"), "baseTime");
+      assertEquals(123_456_789, ((java.sql.Timestamp) result.get("timestamp")).getNanos());
+      assertEquals(123_456_789,
+                   ((java.sql.Timestamp) ((Object[]) result.get("objects"))[1]).getNanos());
+   }
+
+   @Test
+   void oldReaderIgnoresTimes() throws Exception {
+      java.sql.Time time = new java.sql.Time(java.sql.Time.valueOf("10:13:20").getTime() + 123);
+      java.sql.Timestamp timestamp = new java.sql.Timestamp(1_790_000_000_123L);
+      timestamp.setNanos(123_456_789);
+      VariableTable table = new VariableTable();
+      table.put("time", time);
+      table.put("timestamp", timestamp);
+      table.put("objects", new Object[] { time, "s" });
+      JsonNode vartable = mapper.readTree(new RuntimeViewsheet().saveJson(table, mapper))
+         .get("vartable");
+
+      // "value" keeps the encoding that every older reader converts, "times" is added
+      assertEquals(mapper.readTree("{\"type\":\"java.sql.Time\",\"value\":\"10:13:20\"," +
+                                      "\"times\":{\"time\":" + time.getTime() + "}}"),
+                   vartable.get("time"));
+      assertEquals(mapper.readTree("{\"type\":\"java.sql.Timestamp\",\"value\":1790000000123," +
+                                      "\"times\":{\"time\":1790000000123,\"nanos\":123456789}}"),
+                   vartable.get("timestamp"));
+      assertEquals(mapper.readTree("{\"type\":\"[Ljava.lang.Object;\"," +
+                                      "\"value\":[\"10:13:20\",\"s\"]," +
+                                      "\"elementTypes\":[\"java.sql.Time\",\"java.lang.String\"]," +
+                                      "\"times\":[{\"time\":" + time.getTime() + "},null]}"),
+                   vartable.get("objects"));
+
+      assertEquals(java.sql.Time.valueOf("10:13:20"), oldRead(vartable.get("time")));
+      assertEquals(new java.sql.Timestamp(1_790_000_000_123L), oldRead(vartable.get("timestamp")));
+      assertArrayEquals(new Object[] { "10:13:20", "s" },
+                        (Object[]) oldRead(vartable.get("objects")));
+   }
+
+   @Test
+   void jsonWithoutTimesStillLoads() throws Exception {
+      // the state written before Bug #77528 has no "times"
+      String json = tableJson(
+         "{\"time\":{\"type\":\"java.sql.Time\",\"value\":\"10:13:20\"}," +
+         "\"timestamp\":{\"type\":\"java.sql.Timestamp\",\"value\":1790000000123}," +
+         "\"times\":{\"type\":\"[Ljava.sql.Time;\",\"value\":[\"10:13:20\",null]}," +
+         "\"objects\":{\"type\":\"[Ljava.lang.Object;\",\"value\":[\"10:13:20\",1790000000123]," +
+            "\"elementTypes\":[\"java.sql.Time\",\"java.sql.Timestamp\"]}}", "null");
+
+      VariableTable result = RuntimeSheet.loadJson(VariableTable.class, json, mapper);
+
+      assertNotNull(result);
+      assertSameValues(java.sql.Time.valueOf("10:13:20"), result.get("time"), "time");
+      assertSameValues(new java.sql.Timestamp(1_790_000_000_123L), result.get("timestamp"),
+                       "timestamp");
+      assertSameValues(new java.sql.Time[] { java.sql.Time.valueOf("10:13:20"), null },
+                       result.get("times"), "times");
+      assertSameValues(new Object[] { java.sql.Time.valueOf("10:13:20"),
+                                      new java.sql.Timestamp(1_790_000_000_123L) },
+                       result.get("objects"), "objects");
+   }
+
+   @Test
+   void invalidTimesAreIgnored() throws Exception {
+      String json = tableJson(
+         "{\"time\":{\"type\":\"java.sql.Time\",\"value\":\"10:13:20\",\"times\":\"x\"}," +
+         "\"timestamp\":{\"type\":\"java.sql.Timestamp\",\"value\":1790000000123," +
+            "\"times\":{\"time\":1790000000123,\"nanos\":-1}}," +
+         "\"string\":{\"type\":\"java.lang.String\",\"value\":\"v\",\"times\":{\"time\":1}}," +
+         "\"objects\":{\"type\":\"[Ljava.lang.Object;\",\"value\":[\"10:13:20\",\"s\"]," +
+            "\"elementTypes\":[\"java.sql.Time\",\"java.lang.String\"]," +
+            "\"times\":[{\"time\":\"y\"}]}}", "null");
+
+      VariableTable result = RuntimeSheet.loadJson(VariableTable.class, json, mapper);
+
+      assertNotNull(result);
+      assertSameValues(java.sql.Time.valueOf("10:13:20"), result.get("time"), "time");
+      assertSameValues(new java.sql.Timestamp(1_790_000_000_123L), result.get("timestamp"),
+                       "timestamp");
+      assertEquals("v", result.get("string"));
+      assertSameValues(new Object[] { java.sql.Time.valueOf("10:13:20"), "s" },
+                       result.get("objects"), "objects");
+   }
+
+   @ParameterizedTest
+   @ValueSource(booleans = { false, true })
+   void badValueDoesNotDropOtherVariables(boolean inBaseTable) throws Exception {
+      // one value that can't be converted made loadJson return null for the whole table
+      long time = java.sql.Time.valueOf("10:13:20").getTime() + 123;
+      String entries = "{\"bad\":{\"type\":\"java.lang.Integer\",\"value\":\"abc\"}," +
+         "\"badArray\":{\"type\":\"[Ljava.sql.Time;\",\"value\":[\"10:13:20\",\"bad\",null]," +
+            "\"times\":[{\"time\":" + time + "}]}," +
+         "\"badTimestamp\":{\"type\":\"java.sql.Timestamp\",\"value\":\"2026-09-21 10:13:20\"}," +
+         "\"good\":{\"type\":\"java.lang.String\",\"value\":\"v\"}}";
+      String table = tableJson(entries, "null");
+      String json = inBaseTable ?
+         tableJson("{\"top\":{\"type\":\"java.lang.String\",\"value\":\"t\"}}", table) : table;
+
+      VariableTable result = RuntimeSheet.loadJson(VariableTable.class, json, mapper);
+
+      assertNotNull(result);
+      VariableTable vars = inBaseTable ? result.getBaseTable() : result;
+      assertNotNull(vars);
+
+      if(inBaseTable) {
+         assertEquals("t", result.get("top"));
+      }
+
+      assertEquals("abc", vars.get("bad"));
+      assertEquals("2026-09-21 10:13:20", vars.get("badTimestamp"));
+      assertEquals("v", vars.get("good"));
+      // a typed array falls back per element to an Object[], never to a List
+      assertSameValues(new Object[] { new java.sql.Time(time), "bad", null },
+                       vars.get("badArray"), "badArray");
+   }
+
+   @Test
+   void missingFieldsDoNotDropTheTable() throws Exception {
+      VariableTable result = RuntimeSheet.loadJson(
+         VariableTable.class,
+         "{\"vartable\":{\"p\":{\"type\":\"java.lang.String\",\"value\":\"v\"}}}", mapper);
+
+      assertNotNull(result);
+      assertEquals("v", result.get("p"));
+      assertNull(result.getBaseTable());
+
+      result = RuntimeSheet.loadJson(VariableTable.class, "{\"session\":null}", mapper);
+      assertNotNull(result);
+      assertFalse(result.keys().hasMoreElements());
    }
 
    private VariableTable roundTrip(VariableTable table) throws Exception {
