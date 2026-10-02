@@ -963,6 +963,24 @@ public abstract class SelectionBaseVSAssemblyInfo extends MaxModeSelectionVSAsse
             ctx.dark ? VSObjectChromeDefaults.darkForegroundValue()
                : VSObjectChromeDefaults.legacyCellForegroundValue());
       }
+
+      // the cell's content inset. Seeded rather than resolved at render so it travels in an
+      // exported asset. Both branches write: Revert calls this with an unmarked context and needs
+      // the legacy absence restored, not the modern value left in place
+      if(!isUserCellPadding()) {
+         setCellPadding(VSDensityDefaults.cellPadding(ctx), CompositeValue.Type.DEFAULT);
+      }
+
+      // the card inset. A format.css padding on the assembly class installed its own through
+      // setCSSDefaults and keeps it, which is what isCssPaddingDefined guards
+      if(!isUserPadding() && !isCssPaddingDefined()) {
+         setPadding(VSDensityDefaults.tablePadding(ctx));
+      }
+   }
+
+   @Override
+   protected Insets defaultPadding(VizContext ctx) {
+      return VSDensityDefaults.tablePadding(ctx);
    }
 
    /**
