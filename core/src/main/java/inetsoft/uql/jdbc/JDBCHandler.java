@@ -314,6 +314,32 @@ public class JDBCHandler extends XHandler {
          }
       }
 
+      JDBCQueryCacheNormalizer cacheNormalizer =
+         visitor instanceof XSessionManager.DataCacheResult ?
+            ((XSessionManager.DataCacheResult) visitor).getCacheNormalizer() : null;
+      int[] sortedColumnMap = cacheNormalizer != null ? cacheNormalizer.getSortedColumnMap() : null;
+      boolean hasSortedColumnMap = sortedColumnMap != null && sortedColumnMap.length > 0;
+      // the sorted hint on the caller's query may be left by an earlier generation, it is
+      // only used for the existing regeneration checks below
+      boolean sortedHint = asql instanceof UniformSQL && Boolean.TRUE.equals(
+         ((UniformSQL) asql).getHint(UniformSQL.HINT_SQL_STRING_SORTED_COLUMN, false));
+
+      // Bug #77485, execute on a private clone so the sorted hint reflects only the sql
+      // generated in this method (VPM conditions, XUtil.clearComments and the final sql
+      // string). Without a column map nothing can restore the original order, so no sql
+      // generated here may be sorted.
+      if(asql instanceof UniformSQL) {
+         xquery = (JDBCQuery) xquery.clone();
+         UniformSQL usql = (UniformSQL) xquery.getSQLDefinition();
+         usql.setHint(UniformSQL.HINT_SQL_STRING_SORTED_COLUMN, false);
+
+         if(!hasSortedColumnMap) {
+            usql.setHint(UniformSQL.HINT_WITHOUT_SORTED_SQL, true);
+         }
+
+         usql.clearCachedString();
+      }
+
       String[] groups = XUtil.getUserGroups(user);
       String[] roleNames = XUtil.getUserRoleNames(user);
 
@@ -357,18 +383,15 @@ public class JDBCHandler extends XHandler {
       // set the query variables
       prepareVariableTable(query, params);
 
-      JDBCQueryCacheNormalizer cacheNormalizer =
-         visitor instanceof XSessionManager.DataCacheResult ?
-            ((XSessionManager.DataCacheResult) visitor).getCacheNormalizer() : null;
       UniformSQL uniformSQL = xquery.getSQLDefinition() instanceof UniformSQL ?
          (UniformSQL) xquery.getSQLDefinition() : null;
+      sortedHint = sortedHint || uniformSQL != null && Boolean.TRUE.equals(
+         uniformSQL.getHint(UniformSQL.HINT_SQL_STRING_SORTED_COLUMN, false));
 
       // since we try to sort selection columns as much as possible when generate sql string,
       // may appear sql string was sorted but there's no cacheNormalizer available, fix by
       // regenerating a non-sorted sql string when cacheNormalizer is null.
-      if(cacheNormalizer == null && uniformSQL != null && Boolean.TRUE.equals(
-         uniformSQL.getHint(UniformSQL.HINT_SQL_STRING_SORTED_COLUMN, false)))
-      {
+      if(cacheNormalizer == null && uniformSQL != null && sortedHint) {
          JDBCQueryCacheNormalizer cacheTest = new JDBCQueryCacheNormalizer((JDBCQuery) query.clone());
 
          if(cacheTest.getSortedColumnMap() != null && cacheTest.isClearedSqlString()) {
@@ -379,9 +402,7 @@ public class JDBCHandler extends XHandler {
       // if the cacheNormalizer created base on query clone, which means the current query
       // sql string may havn't applied the sorted column, need regenerate sql string to fix
       // issue like 59595.
-      else if(cacheNormalizer != null && uniformSQL != null &&
-         !Boolean.TRUE.equals(uniformSQL.getHint(UniformSQL.HINT_SQL_STRING_SORTED_COLUMN, false)))
-      {
+      else if(cacheNormalizer != null && uniformSQL != null && !sortedHint) {
          uniformSQL.clearCachedString();
 
          if(cacheNormalizer.isClearedSqlString()) {
@@ -389,12 +410,25 @@ public class JDBCHandler extends XHandler {
          }
       }
 
-      String sql = replaceEscCharacter(xquery.getSQLAsString(), JDBCUtil.getAllTableAliases(xquery));
+      if(uniformSQL != null) {
+         uniformSQL.clearCachedString();
+      }
 
-      if(cacheNormalizer != null && uniformSQL != null &&
-         !Boolean.TRUE.equals(uniformSQL.getHint(UniformSQL.HINT_SQL_STRING_SORTED_COLUMN, false)))
-      {
+      String sql = replaceEscCharacter(xquery.getSQLAsString(), JDBCUtil.getAllTableAliases(xquery));
+      // the hint was reset on the private clone above, so it is true only if sql generated in
+      // this method was sorted, whether it is generated now or was saved as the sql string
+      // earlier (VPM conditions, XUtil.clearComments). (Bug #77485)
+      boolean sortedSqlExecuted = hasSortedColumnMap && uniformSQL != null &&
+         Boolean.TRUE.equals(uniformSQL.getHint(UniformSQL.HINT_SQL_STRING_SORTED_COLUMN, false));
+
+      if(!sortedSqlExecuted) {
          cacheNormalizer = null;
+      }
+
+      // the result is restored to the original column order only if the executed sql was
+      // sorted. A sql string that is kept (e.g. lossy) runs as written. (Bug #77485)
+      if(visitor instanceof XSessionManager.DataCacheResult) {
+         ((XSessionManager.DataCacheResult) visitor).setSortedSqlExecuted(sortedSqlExecuted);
       }
 
       SQLDefinition def = xquery.getSQLDefinition();

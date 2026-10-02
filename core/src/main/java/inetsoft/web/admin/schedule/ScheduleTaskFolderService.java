@@ -84,6 +84,13 @@ public class ScheduleTaskFolderService {
 
       AssetFolder parentfolder =
          (AssetFolder) indexedStorage.getXMLSerializable(parentEntry.toIdentifier(), null);
+
+      // Bug #77523, refuse a missing parent the way checkAddDuplicate does instead of failing
+      // with a null pointer
+      if(parentfolder == null) {
+         throw new FileNotFoundException(parentEntry.getPath());
+      }
+
       AssetEntry folderEntry = new AssetEntry(scope, AssetEntry.Type.SCHEDULE_TASK_FOLDER,
                                               folderPath, null);
 

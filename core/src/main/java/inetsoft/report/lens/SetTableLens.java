@@ -27,6 +27,8 @@ import inetsoft.report.internal.table.*;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.internal.ColumnIndexMap;
 import inetsoft.uql.util.XIdentifierContainer;
+import inetsoft.util.Catalog;
+import inetsoft.util.MessageException;
 import inetsoft.util.ThreadPool;
 import inetsoft.util.Tool;
 import inetsoft.util.script.JavaScriptEngine;
@@ -43,6 +45,7 @@ import java.io.*;
 import java.text.Format;
 import java.util.List;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -409,6 +412,8 @@ public abstract class SetTableLens
    }
 
    public void setTable(int index, TableLens table) {
+      disposed = false;
+
       if(tables.size() == index) {
          tables.add(table);
       }
@@ -434,6 +439,9 @@ public abstract class SetTableLens
 
       try {
          cancelled = !completed;
+         // a failure of a pass that started before this cancel is not a failed merge, a pass
+         // started after it is (bug #77524)
+         cancels++;
          MergedTable old = merged;
 
          // close the merged table holding only cancelLock, which the merge worker never
@@ -473,6 +481,9 @@ public abstract class SetTableLens
       MergedTable old;
 
       synchronized(this) {
+         // a failed pass left the lens unvalidated, the next read retries at once (bug #77524)
+         failure = null;
+
          if(!validated) {
             return;
          }
@@ -511,16 +522,65 @@ public abstract class SetTableLens
     * Validate the set table lens.
     */
    private void validate() throws Exception {
+      final MergedTable created;
+      final XSwappableObjectList<Row> target;
+      final int cancelGen;
+
       synchronized(this) {
          if(validated) {
             return;
          }
 
-         rows = new XSwappableObjectList<>(null);
-         validated = true;
-         merged = createMergedTable();
+         // dispose() removed (or is removing) the tables, the lens is an empty complete
+         // table then. never create a merged table (a temp file) for it (bug #77524)
+         if(disposed || tables.isEmpty()) {
+            validated = true;
+            completed = true;
+            return;
+         }
 
-         for(int i = 0; i < tables.get(0).getHeaderRowCount(); i++) {
+         // a pass failed recently, fail this read as well instead of retrying, or a reader
+         // per cell would retry (and log) once per cell (bug #77524)
+         throwRecentFailure();
+
+         // create the merged table before publishing the rows, a failure must never leave
+         // a completed empty table (bug #77524)
+         try {
+            created = createMergedTable();
+         }
+         catch(Exception ex) {
+            if(LockStallException.find(ex) != null) {
+               throw ex;
+            }
+
+            throw recordFailure(ex);
+         }
+
+         // read the header row count before publishing the pass too, a base failing here
+         // must fail the read as well (bug #77524)
+         final int headerCount;
+
+         try {
+            headerCount = tables.get(0).getHeaderRowCount();
+         }
+         catch(Exception ex) {
+            // not published, no other thread holds it
+            created.dispose();
+
+            if(LockStallException.find(ex) != null) {
+               throw ex;
+            }
+
+            throw recordFailure(ex);
+         }
+
+         rows = target = new XSwappableObjectList<>(null);
+         validated = true;
+         merged = created;
+         failure = null;
+         cancelGen = cancels;
+
+         for(int i = 0; i < headerCount; i++) {
             Row row = new Row(0, i);
             addSetRow(row);
          }
@@ -538,7 +598,7 @@ public abstract class SetTableLens
       // blocked process
       try {
          for(int i = 0; i < tables.size(); i++) {
-            merged.addTable(tables.get(i), i, cols);
+            created.addTable(tables.get(i), i, cols);
          }
       }
       catch(Exception ex) {
@@ -563,13 +623,45 @@ public abstract class SetTableLens
                // notify waiting consumers
                notifyAll();
             }
+
+            throw ex;
          }
 
-         throw ex;
+         // any other failure is never the end of the table either. a pass that cancel(),
+         // dispose() or invalidate() ended completes (or leaves) its rows as before
+         // (bug #77524)
+         boolean failed;
+
+         synchronized(this) {
+            failed = isFailedPass(created, target, cancelGen);
+
+            if(failed) {
+               resetFailedPass(ex);
+            }
+            else if(rows == target) {
+               target.complete();
+               completed = true;
+            }
+
+            if(merged == created) {
+               merged = null;
+            }
+
+            notifyAll();
+         }
+
+         created.dispose();
+
+         if(failed) {
+            LOG.error("Failed to merge the tables of a set operation", ex);
+            throw new SetOperationException(ex);
+         }
+
+         return;
       }
 
-      final MergedTable merged2 = merged;
-      final Pass pass = new Pass(rows);
+      final MergedTable merged2 = created;
+      final Pass pass = new Pass(target, cancelGen);
 
       // if this is called from JavaScriptEngine.exec() or a condition filter
       // (bug #76938), the script engine is already locked. merging in a separate
@@ -577,6 +669,16 @@ public abstract class SetTableLens
       // to be released.
       if(JavaScriptEngine.holdsScriptLock()) {
          merge(merged2, pass);
+
+         // the merge failed on this thread, fail this read too (bug #77524)
+         synchronized(this) {
+            Exception last = failure;
+
+            if(!validated && last != null) {
+               throw new SetOperationException(last);
+            }
+         }
+
          return;
       }
 
@@ -601,10 +703,82 @@ public abstract class SetTableLens
    }
 
    /**
+    * Check if a pass failed by itself: it is still the current pass and was not ended by
+    * cancel(), dispose() or invalidate(), whatever exception that made the pass throw.
+    * Only a cancel() since the pass started counts, the cancelled flag outlives the pass.
+    * Called holding this lens's monitor (bug #77524).
+    */
+   private boolean isFailedPass(MergedTable merged2, XSwappableObjectList<Row> target,
+                                int cancelGen)
+   {
+      return !merged2.isDisposed() && !disposed && cancels == cancelGen && rows == target;
+   }
+
+   /**
+    * Drop the rows of a failed pass and record the failure, so the readers fail instead of
+    * taking the rows so far for the whole table, and a read after the retry delay runs the
+    * pass again. Called holding this lens's monitor (bug #77524).
+    */
+   private void resetFailedPass(Exception ex) {
+      rows = null;
+      lastIdx = -1;
+      lastRow = null;
+      completed = false;
+      validated = false;
+      scannedRows = 0;
+      failure = ex;
+      failureTime = System.nanoTime();
+   }
+
+   /**
+    * Record that the merged table could not be created, nothing was published yet. Called
+    * holding this lens's monitor (bug #77524).
+    */
+   private SetOperationException recordFailure(Exception ex) {
+      failure = ex;
+      failureTime = System.nanoTime();
+      LOG.error("Failed to create the merged table of a set operation", ex);
+      return new SetOperationException(ex);
+   }
+
+   /**
+    * Rethrow the failure of the last pass until the retry delay passed. Called holding this
+    * lens's monitor (bug #77524).
+    */
+   private void throwRecentFailure() {
+      Exception last = failure;
+
+      if(last != null &&
+         System.nanoTime() - failureTime < TimeUnit.MILLISECONDS.toNanos(getFailureRetryDelay()))
+      {
+         throw new SetOperationException(last);
+      }
+   }
+
+   /**
+    * The time after a failed pass during which reads fail without running the pass again.
+    */
+   long getFailureRetryDelay() {
+      return FAILURE_RETRY_DELAY;
+   }
+
+   /**
+    * Thrown by a read of a set table lens whose merge failed, the rows so far are not the
+    * whole table (bug #77524). The message is shown to the user, so it never includes the
+    * cause (e.g. a cache file path), the cause is chained and logged.
+    */
+   static final class SetOperationException extends MessageException {
+      SetOperationException(Exception cause) {
+         super(Catalog.getCatalog().getString("common.table.getDataFailed"), cause);
+      }
+   }
+
+   /**
     * Merge the tables into the set rows.
     */
    private void merge(MergedTable merged2, Pass pass) {
       LockStallException stall = null;
+      Exception error = null;
 
       try {
          MergedTable.Visitor visitor = getVisitor(pass);
@@ -627,6 +801,11 @@ public abstract class SetTableLens
       catch(Exception ex) {
          // a stall may reach the worker wrapped by the base table (bug #76967)
          stall = LockStallException.find(ex);
+
+         if(stall == null) {
+            error = ex;
+         }
+
          LOG.error("Failed to merge tables", ex);
       }
 
@@ -634,7 +813,13 @@ public abstract class SetTableLens
       // the next pass's rows. a cancelled pass (merged2 disposed) still completes the rows
       // found so far, or its readers would wait forever (bug #77397)
       synchronized(SetTableLens.this) {
-         if(rows == pass.target) {
+         // the rows found before a failure are not the whole table, the readers fail and a
+         // later read runs the pass again (bug #77524)
+         if(error != null && isFailedPass(merged2, pass.target, pass.cancelGen)) {
+            resetFailedPass(error);
+            SetTableLens.this.notifyAll();
+         }
+         else if(rows == pass.target) {
             if(stall != null) {
                stallFailure = stall;
             }
@@ -657,8 +842,9 @@ public abstract class SetTableLens
     * invalidate() never adds to the rows of the next pass (bug #77397).
     */
    protected final class Pass {
-      Pass(XSwappableObjectList<Row> target) {
+      Pass(XSwappableObjectList<Row> target, int cancelGen) {
          this.target = target;
+         this.cancelGen = cancelGen;
       }
 
       /**
@@ -677,6 +863,7 @@ public abstract class SetTableLens
       }
 
       final XSwappableObjectList<Row> target;
+      final int cancelGen; // cancels when the pass started
    }
 
    /**
@@ -692,6 +879,8 @@ public abstract class SetTableLens
    @Override
    public boolean moreRows(int row) {
       WaitRecord record = null;
+      // the failure of an earlier pass, this read retries it and fails only on a new one
+      Exception oldFailure = failure;
 
       try {
          while(true) {
@@ -704,6 +893,14 @@ public abstract class SetTableLens
             LendableReentrantLock.Borrower lendTo;
 
             synchronized(this) {
+               Exception last = failure;
+
+               // the pass this read waited for failed, fail even if the retry delay passed
+               // (bug #77524)
+               if(!validated && last != null && last != oldFailure) {
+                  throw new SetOperationException(last);
+               }
+
                validate();
 
                if(rows != null && row < rows.size()) {
@@ -755,8 +952,9 @@ public abstract class SetTableLens
             }
          }
       }
-      catch(LockStallException ex) {
-         // a stall fails the query, it is never the end of the table (bug #76967)
+      catch(LockStallException | SetOperationException ex) {
+         // a stall fails the query, it is never the end of the table (bug #76967), neither
+         // is a failed merge (bug #77524)
          throw ex;
       }
       catch(Exception ex) {
@@ -838,7 +1036,7 @@ public abstract class SetTableLens
 
          return completed ? list.size() : -list.size() - 1;
       }
-      catch(LockStallException ex) {
+      catch(LockStallException | SetOperationException ex) {
          throw ex;
       }
       catch(Exception ex) {
@@ -1491,6 +1689,9 @@ public abstract class SetTableLens
       // close the merged table outside of this monitor (bug #77397), and end the waits of
       // the readers
       synchronized(this) {
+         // disposeTables() below runs outside of this monitor, a first read meanwhile must
+         // not merge the tables being disposed (bug #77524)
+         disposed = true;
          old = merged;
          merged = null;
 
@@ -1681,6 +1882,8 @@ public abstract class SetTableLens
    private final List<TableLens> tables = new ArrayList<>();
    private boolean completed;           // completed flag
    private volatile boolean cancelled;           // cancelled flag
+   private volatile int cancels;                 // cancel() count, under cancelLock
+   private volatile boolean disposed;            // dispose() called
    private final Lock cancelLock = new ReentrantLock();
    private boolean validated = false;   // validated flag
    // the background task merging the tables, if any
@@ -1688,6 +1891,10 @@ public abstract class SetTableLens
    // the merged rows the worker visited, and the stall it failed with (bug #76967)
    private transient volatile int scannedRows;
    private transient volatile LockStallException stallFailure;
+   // the failure of the last pass and when it failed (bug #77524)
+   private transient volatile Exception failure;
+   private transient long failureTime;
+   private static final long FAILURE_RETRY_DELAY = 1000L;
 
    // optimization
    private transient Row lastRow = null;
