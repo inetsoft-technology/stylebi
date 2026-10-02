@@ -141,7 +141,11 @@ public class ShapeVSAssemblyInfo extends VSAssemblyInfo implements BaseAnnotatio
       super.writeAttributes(writer);
 
       writer.print(" shadow=\"" + isShadow() + "\"");
-      writer.print(" shadowValue=\"" + getShadowValue() + "\"");
+      // persist the stored design value, not getShadowValue(), so a $(var),
+      // =expr or truthy literal such as "yes" is not rewritten to false
+      String shadowValue = shadow.getDValue();
+      writer.print(" shadowValue=\"" +
+         Tool.escape(shadowValue == null ? "false" : shadowValue) + "\"");
       writer.print(" lineStyle=\"" + getLineStyle() + "\"");
       writer.print(" lineStyleValue=\"" + lineStyleValue.getDValue() + "\"");
       writer.print(" islocked=\"" + getLocked() + "\"");
