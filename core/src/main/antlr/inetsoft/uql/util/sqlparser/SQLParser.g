@@ -3100,7 +3100,7 @@ qualified_join [UniformSQL sql] returns [XExpression exp = null]
         ;
 
 sub_qualified_join [UniformSQL sql] returns [String str = ""]
-        { String tbl2=""; String tmp; String op = ""; String table = ""; XExpression exp = null; int first = 0; {checkStatus();}}
+        { String tbl2=""; String tmp; String op = ""; String table = ""; XExpression exp = null; int first = 0; boolean spec = false; {checkStatus();}}
         :
         (
          (
@@ -3120,9 +3120,24 @@ sub_qualified_join [UniformSQL sql] returns [String str = ""]
                                                  tbl2 = tbl2.trim();})
           )
           ( (join_spec[null, "", ""])=>
-            tmp = join_spec[sql, op, tbl2] {str += " " + tmp;}
+            tmp = join_spec[sql, op, tbl2] {str += " " + tmp; spec = true;}
             ((sub_qualified_join[sql])=> tmp = sub_qualified_join[sql] {str += " " + tmp;})?
           )?
+          {
+            // an outer join is only recorded by its join condition, so without one it
+            // would be regenerated as a cross join. a union join (rejected by H2, SQLite
+            // and Derby) would be regenerated as a cross or inner join
+            String jop = op.trim();
+
+            if(sql != null && (jop.regionMatches(true, 0, "UNION", 0, 5) ||
+               !spec && (jop.regionMatches(true, 0, "LEFT", 0, 4) ||
+                         jop.regionMatches(true, 0, "RIGHT", 0, 5) ||
+                         jop.regionMatches(true, 0, "FULL", 0, 4))))
+            {
+              throw new SemanticException("Unsupported join: " + jop, getFilename(),
+                                          d.getLine(), d.getColumn());
+            }
+          }
         )
         ;
 
