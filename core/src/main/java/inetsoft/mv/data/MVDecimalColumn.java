@@ -86,11 +86,9 @@ public abstract class MVDecimalColumn extends AbstractMeasureColumn {
     * Read cache buffer.
     */
    protected synchronized ByteBuffer readBlock(int index) {
-      ByteBuffer rowBuffer = null;
+      SeekableInputStream channel = this.channel;
 
       try {
-         SeekableInputStream channel = this.channel;
-
          if((channel == null || !channel.isOpen()) && file != null) {
             channel = file.openInputStream();
          }
@@ -114,25 +112,44 @@ public abstract class MVDecimalColumn extends AbstractMeasureColumn {
          long offset = headBuf.getLong();
          int len = headBuf.getInt();
 
-         ByteBuffer buf = channel.map(offset + fpos, len);
+         ByteBuffer mapped = channel.map(offset + fpos, len);
 
-         if(channel != this.channel) {
-            channel.close();
+         try {
+            // never return the mapped buffer, it is unmapped before returning
+            if(!isCompressed()) {
+               ByteBuffer rowBuffer = ByteBuffer.allocate(mapped.remaining());
+               rowBuffer.put(mapped);
+               XSwapUtil.flip(rowBuffer);
+               return rowBuffer;
+            }
+
+            ByteBuffer rowBuffer = XSwapUtil.uncompressByteBuffer(mapped);
+
+            // uncompressByteBuffer returns its argument if the lz4 magic is missing
+            if(rowBuffer == mapped) {
+               throw new IOException("Data block " + index + " is not compressed");
+            }
+
+            return rowBuffer;
          }
-
-         rowBuffer = buf;
-
-         if(isCompressed()) {
-            rowBuffer = XSwapUtil.uncompressByteBuffer(buf);
+         finally {
+            channel.unmap(mapped);
          }
-
-         channel.unmap(buf);
       }
       catch(Exception ex) {
          LOG.error("Failed to read data block", ex);
+         throw new RuntimeException("Failed to read data block " + index, ex);
       }
-
-      return rowBuffer;
+      finally {
+         if(channel != null && channel != this.channel) {
+            try {
+               channel.close();
+            }
+            catch(IOException ex) {
+               LOG.warn("Failed to close data block channel", ex);
+            }
+         }
+      }
    }
 
    /**

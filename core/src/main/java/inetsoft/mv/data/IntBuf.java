@@ -157,11 +157,15 @@ public abstract class IntBuf {
       int size = buf.getInt();
       allocateBuffer(size);
 
-      buf = channel.map(channel.position(), len);
-      ByteBuffer buf2 = XSwapUtil.uncompressByteBuffer(buf);
+      ByteBuffer mapped = channel.map(channel.position(), len);
 
-      copyFromBuffer(buf2);
-      channel.unmap(buf);
+      try {
+         ByteBuffer buf2 = XSwapUtil.uncompressByteBuffer(mapped);
+         copyFromBuffer(buf2);
+      }
+      finally {
+         channel.unmap(mapped);
+      }
    }
 
    /**
