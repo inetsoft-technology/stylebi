@@ -71,11 +71,24 @@ class SQLHelperMongoRandomJoinOrderTest {
 
    @Test
    void randomShapesKeepTheRows() throws Exception {
-      Random random = new Random(4242);
+      // the shapes must mostly parse, or the test checks nothing
+      int parsed = checkShapes(new Random(4242), false);
+      assertTrue(parsed > 700, "parsed " + parsed);
+   }
+
+   // a join of a group of tables and a parenthesized group, which MongoHelper writes flat
+   // when that keeps the meaning and otherwise with the parentheses of the text only
+   @Test
+   void nestedGroupShapesKeepTheRows() throws Exception {
+      int parsed = checkShapes(new Random(9191), true);
+      assertTrue(parsed > 600, "parsed " + parsed);
+   }
+
+   private int checkShapes(Random random, boolean nestedOnly) throws Exception {
       int parsed = 0;
 
       for(int n = 0; n < 400; n++) {
-         String text = randomQuery(random);
+         String text = randomQuery(random, nestedOnly);
 
          for(boolean ansi : new boolean[] { false, true }) {
             JDBCDataSource ds = mongo(ansi);
@@ -108,8 +121,7 @@ class SQLHelperMongoRandomJoinOrderTest {
          }
       }
 
-      // the shapes must mostly parse, or the test checks nothing
-      assertTrue(parsed > 700, "parsed " + parsed);
+      return parsed;
    }
 
    // the number of opening parentheses in the from clause
@@ -119,14 +131,34 @@ class SQLHelperMongoRandomJoinOrderTest {
       return (where < 0 ? from : from.substring(0, where)).chars().filter(c -> c == '(').count();
    }
 
-   private static String randomQuery(Random random) {
-      int tables = 3 + random.nextInt(2);
+   private static String randomQuery(Random random, boolean nestedOnly) {
+      int tables = nestedOnly ? 4 : 3 + random.nextInt(2);
+      boolean nested = tables == 4 && random.nextInt(nestedOnly ? 2 : 4) == 0;
+      // a parenthesized left group, e.g. (a left join b on ..) join (c join d on ..) on ..
+      boolean leftGroup = nested && nestedOnly && random.nextBoolean();
       StringBuilder query = new StringBuilder(tables == 3 ? "select a.id, b.id, c.id " :
-                                              "select a.id, b.id, c.id, d.id ").append("from a");
-      boolean nested = tables == 4 && random.nextInt(4) == 0;
+                                              "select a.id, b.id, c.id, d.id ")
+         .append(leftGroup ? "from (a" : "from a");
 
       for(int i = 1; i < tables; i++) {
          String table = TABLES[i];
+
+         if(nested && i == 2 && nestedOnly) {
+            // any join type in the group and the step, an on clause on either table of the
+            // group, and sometimes a comparison of the group's other table
+            query.append(leftGroup ? ")" : "").append(" ")
+               .append(JOINS[random.nextInt(JOINS.length)]).append(" (c ")
+               .append(JOINS[random.nextInt(JOINS.length)]).append(" d on c.id = d.id) on ")
+               .append(TABLES[random.nextInt(2)]).append(".id = ")
+               .append(random.nextBoolean() ? "c" : "d").append(".id");
+
+            if(random.nextInt(3) == 0) {
+               query.append(" and ").append(TABLES[random.nextInt(2)]).append(".k = ")
+                  .append(TABLES[2 + random.nextInt(2)]).append(".k");
+            }
+
+            break;
+         }
 
          if(nested && i == 2) {
             // a parenthesized join of c and d on the right of a join
