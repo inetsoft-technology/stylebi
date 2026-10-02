@@ -382,6 +382,16 @@ poisons every future comparison against this baseline.
     Before the fix, the comfortable Customer child was clipped to 278 - 208 = 70.
   - The export gives a container's list child a 40px body, where the live viewer gives it more.
   - At comfortable, 16 + 16 of inset leaves 8px, so no 28px row fits and the child exports empty.
+- **G. Out-selection rows overlapped a marked container's children in export. Fixed, not yet re-exported.**
+  - With Show Current Selections on, export draws one collapsed row per outside selection. Since
+    `09ca2de2b`, PDF, PowerPoint and SVG draw those rows at the density height (30 / 26 / 20).
+  - But the children were stacked as if the rows were 20 (`CoordinateHelper.getContainerChildTop`),
+    so they overlapped the rows by 10 / 6 / 0 px per row.
+  - HTML drew the rows at 20 and placed its children at 20 as well
+    (`HTMLCoordinateHelper.writeSelections`, `adjustChildAssemblyPosition`).
+  - All three now use `getOutSelectionRowHeight(defh)`, which is `defh` for an unmarked container.
+  - MC-6 point 4 covers this, and the fixture does not exercise it: `CurrentSelection1` has
+    Show Current Selections off.
 
 **Run environment to record with the results:** the commit each server was built from (confirmed by
 `javap`, not timestamp), whether `config/fonts/` existed at JVM start, and the density each fixture

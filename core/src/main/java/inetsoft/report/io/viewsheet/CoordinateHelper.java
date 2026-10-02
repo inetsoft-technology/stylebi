@@ -525,7 +525,9 @@ public class CoordinateHelper {
       String[] assemblies = cassembly.getAssemblies();
       int outN = !cassembly.isShowCurrentSelection() ? 0 :
          cassembly.getOutSelectionTitles().length;
-      float currentY = (float) (containerTop + titleH + outN * AssetUtil.defh);
+      // the out rows' drawn height, which follows the density in a marked container
+      float currentY = (float) (containerTop + titleH +
+         outN * cinfo.getOutSelectionRowHeight(AssetUtil.defh));
 
       for(int i = 0; i < assemblies.length; i++) {
          if(child.getName().equals(assemblies[i])) {
