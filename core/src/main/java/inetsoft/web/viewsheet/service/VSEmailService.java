@@ -174,11 +174,15 @@ public class VSEmailService {
          }
 
          File excelFile = null;
+         // the files this export opened; names picked but not yet reached may since have been
+         // picked and written by a concurrent email of the same viewsheet
+         List<File> created = new ArrayList<>();
          boolean exported = false;
 
          try {
             if(FileFormatInfo.EXPORT_TYPE_SNAPSHOT == formatType) {
                try(OutputStream output = new FileOutputStream(file)) {
+                  created.add(file);
                   SnapshotVSExporter exporter = new SnapshotVSExporter(rvs);
                   exporter.setLogExport(true);
                   exporter.write(output);
@@ -186,10 +190,13 @@ public class VSEmailService {
             }
             else if(!multipleFiles) {
                try(OutputStream output = new FileOutputStream(file)) {
+                  created.add(file);
+
                   if(excelToCSV) {
                      excelFile = fileSystemService.getCacheFile(fname + ".xlsx");
 
                      try(FileOutputStream out = new FileOutputStream(excelFile)) {
+                        created.add(excelFile);
                         exportViewsheet(rvs, principal, FileFormatInfo.EXPORT_TYPE_EXCEL,
                            bookmarks, out, csvConfig, matchLayout, expandSelections,
                            onlyDataComponent, includeCurrent, null, exportAllTabbedCrosstab);
@@ -211,6 +218,7 @@ public class VSEmailService {
                   File f = fileList.get(i);
 
                   try(OutputStream output0 = new FileOutputStream(f)) {
+                     created.add(f);
                      VSExporter exporter = AbstractVSExporter.getVSExporter(
                         formatType, PortalThemesManager.getColorTheme(), output0, false,
                         csvConfig);
@@ -244,9 +252,7 @@ public class VSEmailService {
          finally {
             if(!exported) {
                // a failed export must not leave its partial attachments in the cache dir
-               deleteCacheFile(file);
-               deleteCacheFile(excelFile);
-               fileList.forEach(this::deleteCacheFile);
+               created.forEach(this::deleteCacheFile);
             }
          }
       }

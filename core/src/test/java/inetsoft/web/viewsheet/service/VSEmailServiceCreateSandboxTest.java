@@ -50,6 +50,7 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 import java.awt.*;
 import java.io.File;
 import java.lang.reflect.Field;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.Principal;
 import java.util.*;
@@ -262,6 +263,38 @@ class VSEmailServiceCreateSandboxTest {
       // which also made the @TempDir cleanup fail on Windows.
       assertEquals(List.of(), cachedFiles(dir),
          "a failed export must close and delete its partial attachments");
+   }
+
+   @Test
+   void emailViewsheet_failedPngExportKeepsLaterNamesItNeverCreated(@TempDir Path dir)
+      throws Exception
+   {
+      // Bug #77529: the PNG names of all bookmarks are picked up front, but each file is only
+      // created when its bookmark is exported. A concurrent email of the same viewsheet may
+      // pick and write a name this export has not reached yet, so a failure on the first
+      // bookmark must delete only the files this export created.
+      Path other = dir.resolve("vs77246_2.png");
+      VSEmailService service = new VSEmailService(cacheIn(dir)) {
+         @Override
+         protected ViewsheetSandbox createSandbox(Viewsheet bookmark, int mode,
+                                                  Principal principal, AssetEntry entry,
+                                                  VariableTable vars)
+            throws Exception
+         {
+            // stands in for the concurrent export writing its own image
+            Files.writeString(other, "other77529");
+            throw new IllegalStateException("sentinel77529");
+         }
+      };
+
+      IllegalStateException ex = assertThrows(IllegalStateException.class, () ->
+         email(service, FileFormatInfo.EXPORT_TYPE_PNG, new VariableTable()));
+      assertEquals("sentinel77529", ex.getMessage());
+
+      assertEquals(List.of("vs77246_2.png"), cachedFiles(dir),
+         "the failed export must delete its own partial image and keep the later name, " +
+         "which another export wrote");
+      assertEquals("other77529", Files.readString(other));
    }
 
    /**
