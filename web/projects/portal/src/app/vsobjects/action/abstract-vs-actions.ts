@@ -24,7 +24,7 @@ import { AssemblyActions } from "./assembly-actions";
 import { DataTipService } from "../objects/data-tip/data-tip.service";
 import { GuiTool } from "../../common/util/gui-tool";
 import { PopComponentService } from "../objects/data-tip/pop-component.service";
-import { isAnchoredDesign, MiniToolbarService }
+import { anchoredLaneHeight, isAnchoredChromeSuppressed, isAnchoredDesign, MiniToolbarService }
    from "../objects/mini-toolbar/mini-toolbar.service";
 import { ToolbarActionsHandler } from "../toolbar-actions-handler";
 
@@ -142,6 +142,16 @@ export abstract class AbstractVSActions<T extends VSObjectModel> extends Assembl
    // buttons a floating strip carried, and made the suppression below empty it outright.
    private get resident(): boolean {
       return isAnchoredDesign(this.model.objectType, this.model.vizModern);
+   }
+
+   // True only in the host that anchors the strip into a lane, where a lane under the minimum
+   // draws no strip and no kebab — so the dismissal would name a control that does not exist. The
+   // five floating hosts overlay the strip and are unaffected by lane height. embedAssembly sets
+   // viewer while floating its strip, hence the explicit exclusion.
+   private get laneSuppressed(): boolean {
+      return (this.viewer || this.preview) && !this.contextProvider.embedAssembly &&
+         isAnchoredChromeSuppressed(this.model.objectType, this.model.vizModern,
+                                    anchoredLaneHeight(this.model));
    }
 
    /**
@@ -469,8 +479,8 @@ export abstract class AbstractVSActions<T extends VSObjectModel> extends Assembl
             label: () => "_#(js:Hide MiniToolbar)",
             icon: () => "close-icon",
             enabled: () => true,
-            visible: () => this.isActionVisible("Hide MiniToolbar") && othersGroups &&
-               othersGroups.length > 0 &&
+            visible: () => this.isActionVisible("Hide MiniToolbar") && !this.laneSuppressed &&
+               othersGroups && othersGroups.length > 0 &&
                othersGroups.some(group => group.actions.some(action => action.visible())),
             action: () => this.hideMiniToolbar(),
          };

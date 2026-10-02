@@ -77,6 +77,30 @@ describe("AbstractVSActions", () => {
          miniToolbarService);
    }
 
+   // The anchoring host. actionsFor() above uses the composer context, where the strip floats and
+   // lane height is irrelevant. A lane of 0 means the title is hidden.
+   function viewerActionsFor(width: number, height: number, vizModern: boolean,
+                             laneHeight: number): ChartActions
+   {
+      const model: VSChartModel = TestUtils.createMockVSChartModel("Chart1");
+      model.objectFormat.width = width;
+      model.objectFormat.height = height;
+      model.vizModern = vizModern;
+      (<any> model).titleVisible = laneHeight > 0;
+      (<any> model).titleFormat = {height: laneHeight};
+      return new ChartActions(model, popService, ViewerContextProviderFactory(false), false, null,
+         null, miniToolbarService);
+   }
+
+   // The context menu renders only visible actions — ActionsContextmenuComponent filters groups
+   // through getVisible() — so the lane assertions below filter the same way. The older id
+   // assertions in this file list every built id instead, which is why they do not see this.
+   function visibleMenuIds(actions: any): string[] {
+      return actions.menuActions.reduce(
+         (acc, g) => acc.concat(g.actions.filter(a => a.visible()).map(a => a.id())),
+         [] as string[]);
+   }
+
    // A non-chart concrete subclass, for the "gate + cap is chart-only" tests. Constructor
    // parameter order differs from ChartActions (popService is positional 6th here, not 2nd) —
    // verified against calendar-actions.ts rather than assumed.
@@ -214,6 +238,7 @@ describe("AbstractVSActions", () => {
       expect(ids[0]).toBe("vs-assembly hide-mini-toolbar");
    });
 
+   // Composer context, so the lane term the tests below exercise does not apply here.
    it("exposes the dismissal in the menu under the gate", () => {
       document.body.classList.add("viz-density-compact");
       const ids = actionsFor(400, 200, true).menuActions
@@ -227,6 +252,67 @@ describe("AbstractVSActions", () => {
          .reduce((acc, g) => acc.concat(g.actions.map(a => a.id())), [] as string[]);
 
       expect(ids).not.toContain("vs-assembly hide-mini-toolbar");
+   });
+
+   // A lane under ANCHORED_LANE_MIN draws no strip and no kebab in the anchoring host, so the
+   // dismissal there names a control that does not exist.
+   describe("dismissal against the lane", () => {
+      it("hides the dismissal in the viewer when the lane cannot hold the strip", () => {
+         document.body.classList.add("viz-density-dense");
+
+         expect(visibleMenuIds(viewerActionsFor(400, 200, true, 20)))
+            .not.toContain("vs-assembly hide-mini-toolbar");
+      });
+
+      it("hides the dismissal in the viewer when the title is hidden", () => {
+         document.body.classList.add("viz-density-compact");
+
+         expect(visibleMenuIds(viewerActionsFor(400, 200, true, 0)))
+            .not.toContain("vs-assembly hide-mini-toolbar");
+      });
+
+      it("keeps the dismissal in the viewer when the lane can hold the strip", () => {
+         document.body.classList.add("viz-density-compact");
+
+         expect(visibleMenuIds(viewerActionsFor(400, 200, true, 26)))
+            .toContain("vs-assembly hide-mini-toolbar");
+      });
+
+      // The composer floats the strip rather than anchoring it, so a short lane changes nothing
+      // there. This is the regression an ungated lane test would cause.
+      it("keeps the dismissal in the composer whatever the lane", () => {
+         document.body.classList.add("viz-density-dense");
+
+         expect(visibleMenuIds(actionsFor(400, 200, true, 20)))
+            .toContain("vs-assembly hide-mini-toolbar");
+      });
+
+      it("leaves the classic toolbar dismissal alone when the lane is short", () => {
+         const actions = viewerActionsFor(400, 200, false, 20);
+         const toolbar = actions.toolbarActions
+            .reduce((acc, g) => acc.concat(g.actions.filter(a => a.visible()).map(a => a.id())),
+                    [] as string[]);
+
+         expect(toolbar[0]).toBe("vs-assembly hide-mini-toolbar");
+         expect(visibleMenuIds(actions)).not.toContain("vs-assembly hide-mini-toolbar");
+      });
+
+      // The range slider is outside ANCHORED_ASSEMBLY_TYPES, so no lane of any height suppresses it.
+      it("leaves a non-anchored type alone when the lane is short", () => {
+         document.body.classList.add("viz-density-dense");
+         const model: VSRangeSliderModel =
+            TestUtils.createMockVSRangeSliderModel("RangeSlider1");
+         model.objectFormat.width = 400;
+         model.objectFormat.height = 200;
+         model.vizModern = true;
+         (<any> model).adhocFilter = true;
+         (<any> model).titleVisible = true;
+         (<any> model).titleFormat = {height: 20};
+         const actions = new RangeSliderActions(model, ViewerContextProviderFactory(false), false,
+            null, null, popService, miniToolbarService);
+
+         expect(visibleMenuIds(actions)).toContain("vs-assembly hide-mini-toolbar");
+      });
    });
 
    describe("fit ladder", () => {
