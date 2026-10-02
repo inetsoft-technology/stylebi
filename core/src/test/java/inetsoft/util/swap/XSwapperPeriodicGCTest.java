@@ -28,9 +28,11 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.lang.management.GarbageCollectorMXBean;
+import java.lang.management.ManagementFactory;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
@@ -125,6 +127,20 @@ class XSwapperPeriodicGCTest {
       assertFalse(XSwapper.isG1GC(List.of(gc("PS Scavenge"), gc("PS MarkSweep"))));
       assertFalse(XSwapper.isG1GC(List.of(gc("ZGC Major Cycles"), gc("ZGC Minor Cycles"))));
       assertFalse(XSwapper.isG1GC(List.of(gc("Shenandoah Cycles"))));
+   }
+
+   @Test
+   void swapperSetsTheRealOption() {
+      // the swapper bean in this context, or one created earlier in this JVM, has run the check
+      assumeTrue(XSwapper.isG1GC(ManagementFactory.getGarbageCollectorMXBeans()), "not G1");
+      assumeTrue(ManagementFactory.getRuntimeMXBean().getInputArguments().stream()
+                    .noneMatch(arg -> arg.contains(PERIODIC_GC)), "set on the command line");
+      assertNotNull(XSwapper.getSwapper());
+
+      final VMOption option = ManagementFactory.getPlatformMXBean(HotSpotDiagnosticMXBean.class)
+         .getVMOption(PERIODIC_GC);
+      assertEquals(VMOption.Origin.MANAGEMENT, option.getOrigin());
+      assertEquals("300000", option.getValue());
    }
 
    @Test
