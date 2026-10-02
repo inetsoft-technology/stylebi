@@ -17,6 +17,7 @@
  */
 package inetsoft.uql.jdbc;
 
+import inetsoft.sree.SreeEnv;
 import inetsoft.test.*;
 import inetsoft.uql.XNode;
 import inetsoft.uql.XRepository;
@@ -526,6 +527,48 @@ class UniformSQLQuotedAggregateTest {
          }
          catch(SQLException ignore) {
             // a successful drop is reported as an exception
+         }
+      }
+   }
+
+   /**
+    * db.caseSensitive=true makes any helper case-sensitive, so its parser quotes every segment
+    * as on PostgreSQL: the quoted column keeps its case, an unquoted one keeps the metadata
+    * case repair of the output before this change.
+    */
+   @Test
+   void dbCaseSensitiveHelpersKeepTheQuotedColumn() throws Exception {
+      String old = SreeEnv.getProperty("db.caseSensitive");
+      SreeEnv.setProperty("db.caseSensitive", "true");
+
+      try {
+         String text = "select \"q\".\"id\", sum(q.%s) from \"t\" q group by \"q\".\"id\"";
+
+         for(String key : new String[] { "default", "h2", "h2-ansi" }) {
+            assertEquals(String.format(text, "\"MixedCase\""), aggregate(key, SELECT), key);
+            assertEquals(String.format(text, "MixedCase"), aggregate(key, UNQUOTED), key);
+
+            if(!key.equals("default")) {
+               // was sum(q.MIXEDCASE) and sum(q.MixedCase), unquoted
+               assertEquals(String.format(text, "\"MixedCase\""), aggregate(key, SELECT, TWIN_FIRST), key);
+               assertEquals(String.format(text, "\"MixedCase\""), aggregate(key, SELECT, TWIN_SECOND), key);
+               assertEquals(String.format(text, "MIXEDCASE"), aggregate(key, UNQUOTED, TWIN_FIRST), key);
+               assertEquals(String.format(text, "MixedCase"), aggregate(key, UNQUOTED, TWIN_SECOND), key);
+            }
+         }
+
+         String oracle = "select \"q\".\"id\", sum(q.\"%s\") from \"T\" q group by \"q\".\"id\"";
+         // was sum(q."MIXEDCASE")
+         assertEquals(String.format(oracle, "MixedCase"), aggregate("oracle", SELECT, TWIN_FIRST));
+         assertEquals(String.format(oracle, "MIXEDCASE"), aggregate("oracle", UNQUOTED, TWIN_FIRST));
+         assertEquals(String.format(oracle, "MixedCase"), aggregate("oracle", UNQUOTED, TWIN_SECOND));
+      }
+      finally {
+         if(old == null) {
+            SreeEnv.remove("db.caseSensitive");
+         }
+         else {
+            SreeEnv.setProperty("db.caseSensitive", old);
          }
       }
    }
