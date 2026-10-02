@@ -185,6 +185,23 @@ class MVMapReleaseTest {
       assertTrue(in.isOpen(), "readBlock must not close the column's own channel");
    }
 
+   @Test
+   void readBlockClosesTheChannelItReopenedWhenTheMapFails(@TempDir Path dir) throws Exception {
+      byte[] content = decimalColumnHeader(CORRUPT_LZ4);
+      TrackingStream in = open(dir, content);
+      TrackingStream reopened = open(dir, content);
+      reopened.failMap = true;
+      in.reopenWith = reopened;
+      MVDoubleColumn col = new MVDoubleColumn(in, 0, null, 2, false);
+      in.close();
+
+      // before the fix: the channel was closed only after a successful map, leaking its fd
+      RuntimeException ex = assertThrows(RuntimeException.class, () -> col.readBlock(0));
+
+      assertEquals(MAP_FAILED, ex.getCause().getMessage());
+      assertFalse(reopened.isOpen(), "the channel readBlock reopened must be closed");
+   }
+
    // block layouts
 
    private static byte[] intBufHeader(byte[] payload, int nkeys, int size) {
@@ -269,7 +286,7 @@ class MVMapReleaseTest {
 
       @Override
       public SeekableInputStream reopen() throws IOException {
-         return delegate.reopen();
+         return reopenWith != null ? reopenWith : delegate.reopen();
       }
 
       @Override
@@ -319,6 +336,7 @@ class MVMapReleaseTest {
       private int mapCount;
       private int unmapCount;
       private boolean failMap;
+      private TrackingStream reopenWith;
    }
 
    private static final String MAP_FAILED = "map failed";
