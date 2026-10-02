@@ -132,24 +132,27 @@ public class BatchAction extends AbstractAction {
          return;
       }
 
+      // Bug #77549, the auto-save properties are also removed here in case the entry was changed
+      // in place or deserialized without going through setQueryEntry() or parseXML()
+      AssetEntry entry = removeAutoSaveProperties(queryEntry);
       AssetRepository assetRepository = AssetUtil.getAssetRepository(false);
       TableAssembly tableAssembly = null;
       TableLens queryTable = null;
       Worksheet sheet = null;
 
-      if(queryEntry.isTable()) {
-         AssetEntry wsEntry = new AssetEntry(queryEntry.getScope(), AssetEntry.Type.WORKSHEET,
-                                             queryEntry.getParentPath(), queryEntry.getUser());
+      if(entry.isTable()) {
+         AssetEntry wsEntry = new AssetEntry(entry.getScope(), AssetEntry.Type.WORKSHEET,
+                                             entry.getParentPath(), entry.getUser());
          sheet = (Worksheet) assetRepository.getSheet(wsEntry, principal, true,
                                                       AssetContent.ALL);
-         Assembly assembly = sheet.getAssembly(queryEntry.getName());
+         Assembly assembly = sheet.getAssembly(entry.getName());
 
          if(assembly instanceof TableAssembly) {
             tableAssembly = (TableAssembly) assembly;
          }
       }
-      else if(queryEntry.isWorksheet()) {
-         sheet = (Worksheet) assetRepository.getSheet(queryEntry, principal, true,
+      else if(entry.isWorksheet()) {
+         sheet = (Worksheet) assetRepository.getSheet(entry, principal, true,
                                                       AssetContent.ALL);
          Assembly assembly = sheet.getPrimaryAssembly();
 
@@ -284,7 +287,26 @@ public class BatchAction extends AbstractAction {
    }
 
    public void setQueryEntry(AssetEntry queryEntry) {
-      this.queryEntry = queryEntry;
+      this.queryEntry = removeAutoSaveProperties(queryEntry);
+   }
+
+   /**
+    * Bug #77549, gets a copy of a query entry without the auto-save properties. The entry comes
+    * from the client (the task editor or an imported task) with its properties as sent, and an
+    * entry with openAutoSaved reads the auto-saved file named by autoFileName without any
+    * permission check (AbstractAssetEngine.getSheet), e.g. another user's unsaved worksheet. A
+    * batch action query is always a saved worksheet.
+    *
+    * @return the entry itself if it has none of them.
+    */
+   public static AssetEntry removeAutoSaveProperties(AssetEntry entry) {
+      if(entry == null || AUTO_SAVE_PROPERTIES.stream().allMatch(p -> entry.getProperty(p) == null)) {
+         return entry;
+      }
+
+      AssetEntry copy = (AssetEntry) entry.clone();
+      AUTO_SAVE_PROPERTIES.forEach(p -> copy.setProperty(p, null));
+      return copy;
    }
 
    public Map<String, Object> getQueryParameters() {
@@ -356,6 +378,7 @@ public class BatchAction extends AbstractAction {
       if(queryEntryElem != null) {
          queryEntry = new AssetEntry();
          queryEntry.parseXML(Tool.getChildNodeByTagName(queryEntryElem, "assetEntry"), isImportAsSiteAdmin);
+         queryEntry = removeAutoSaveProperties(queryEntry);
       }
 
       Element queryParametersElem = Tool.getChildNodeByTagName(tag, "queryParameters");
@@ -485,6 +508,8 @@ public class BatchAction extends AbstractAction {
    private AssetEntry queryEntry;
    private Map<String, Object> queryParameters = new LinkedHashMap<>();
    private List<Map<String, Object>> embeddedParameters = new ArrayList<>();
+   private static final List<String> AUTO_SAVE_PROPERTIES =
+      List.of("openAutoSaved", "autoFileName", "isRecycle");
    private static final Logger LOG =
       LoggerFactory.getLogger(BatchAction.class);
 }

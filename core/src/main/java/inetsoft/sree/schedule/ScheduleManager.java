@@ -966,6 +966,11 @@ public class ScheduleManager {
          throw new IOException("User '" + user.getName() + "' doesn't have schedule permission.");
       }
 
+      // Bug #77549, a batch action query in another organization is refused
+      if(!trusted) {
+         checkBatchQueryOrganization(task, orgID, principal);
+      }
+
       // @by mikec, here we shouldn't modify the task's owner.
       // For example if a task was defined by a user A, we should
       // not change it's owner to 'Admin' when admin changed the task
@@ -1111,6 +1116,54 @@ public class ScheduleManager {
       IdentityID owner = task.getOwner();
       return internal || task.getType() == ScheduleTask.Type.INTERNAL_TASK || owner == null ||
          owner.orgID == null || orgID == null || owner.orgID.equalsIgnoreCase(orgID);
+   }
+
+   /**
+    * Checks, before a stored task is removed or a task is saved in a batch (e.g. an import),
+    * that the task will not be refused by {@link #setScheduleTask} because of the organization of
+    * a batch action query, so a refused task neither loses the stored task nor aborts the batch.
+    *
+    * @throws inetsoft.sree.security.SecurityException if the task would be refused.
+    */
+   public void checkBatchQueryOrganization(String taskId, ScheduleTask task, Principal principal)
+      throws inetsoft.sree.security.SecurityException
+   {
+      if(task == null || isInternalTask(taskId)) {
+         return;
+      }
+
+      checkBatchQueryOrganization(
+         task, OrganizationManager.getInstance().getCurrentOrgID(principal), principal);
+   }
+
+   /**
+    * Bug #77549, the query entry of a batch action comes from the client with its organization
+    * as sent (e.g. the task editor). Refuses a query in another organization than the one the
+    * task is saved in unless the principal is a site admin, the same as the enterprise public
+    * API (ScheduleApiService.checkActionOrgBoundary). The worksheet is read with the run
+    * principal, which is refused another organization's worksheet when the task runs. The
+    * organization id of an imported entry is lower case, so it's compared ignoring case.
+    */
+   private static void checkBatchQueryOrganization(ScheduleTask task, String orgID,
+                                                   Principal principal)
+      throws inetsoft.sree.security.SecurityException
+   {
+      if(orgID == null || OrganizationManager.getInstance().isSiteAdmin(principal)) {
+         return;
+      }
+
+      for(int i = 0; i < task.getActionCount(); i++) {
+         if(task.getAction(i) instanceof BatchAction batchAction) {
+            AssetEntry query = batchAction.getQueryEntry();
+
+            if(query != null && query.getOrgID() != null &&
+               !query.getOrgID().equalsIgnoreCase(orgID))
+            {
+               throw new inetsoft.sree.security.SecurityException(String.format(
+                  "Unauthorized access to query \"%s\" by %s", query.toIdentifier(), principal));
+            }
+         }
+      }
    }
 
    /**

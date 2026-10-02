@@ -227,6 +227,8 @@ public class EMScheduleBatchActionController {
    public QueryColumnsModel getQueryColumns(@RequestBody AssetEntry entry,
                                             Principal principal) throws Exception
    {
+      // Bug #77549, the same as the query entry of a saved batch action
+      entry = BatchAction.removeAutoSaveProperties(entry);
       TableAssembly tableAssembly = null;
 
       if(entry.isTable()) {
