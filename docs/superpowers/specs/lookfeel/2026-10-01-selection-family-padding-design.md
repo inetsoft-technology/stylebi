@@ -282,12 +282,55 @@ during a release gate.
 - Dialog read and write round trip, including `followsDefault` semantics and a missing flag.
 - Precedence: USER beats CSS beats DEFAULT, resolving wholesale.
 
-**Manual, no fixture exists.**
+**Manual.**
 
 - A `format.css` declaring a selection padding, confirming wholesale resolution on screen and in
   export.
-- The export surfaces themselves. There is no selection equivalent of the density-padding-export
-  baselines, so this needs either a new fixture or an accepted narrower visual check. See §10.
+- The export surfaces, against the fixture in §8.1.
+
+### 8.1 The fixture — deliberately lighter than the table's
+
+There is no selection equivalent of `dpx-fixture.zip`, so one is built. **It is scoped smaller than
+the table fixture on purpose**, because this design's risk surface is smaller: the geometry lives in
+two shared helper bases rather than a grid, and D3 removes the row-height arithmetic that most of
+the table captures existed to police.
+
+**Four roles, against the table fixture's nine:**
+
+| Role | Covers |
+|---|---|
+| `SelList` | the plain case, and the five-row size rule |
+| `SelTree` | node indent against the horizontal inset |
+| `SelContainer` | a container holding a list and a tree — the double-inset risk in §5 branch 1 |
+| `SelNoTitle` | hidden title, lane 0, with the inset still drawn |
+
+Plus one unmarked viewsheet holding the same four as the legacy control.
+
+**Three formats, against the table's five:**
+
+| Format | Why |
+|---|---|
+| HTML | the measurable one — `html_measure.js` gives per-element rects, so row heights and insets fall out without a ruler |
+| PDF | a second rendering pipeline, which is what caught what HTML could not in C1 and C2 |
+| Excel | **only to prove the opt-out** — §7's `insetsTableCard()` gate means Excel must show *no* inset, and `ExcelSelectionTreeHelper` inheriting through the shared base is the specific risk |
+
+PPT and SVG/PNG are skipped deliberately: both extend `VSSelectionListHelper`, the same base PDF
+extends, so PDF exercises the shared geometry they would. If the inset ever moves out of that base
+into the leaves, this reasoning expires and they come back.
+
+**Match Layout only.** The table fixture captured Match × Expand because an expanded table grows
+unboundedly; a selection has a fixed row set, so Expand adds little here.
+
+**Tooling is reused, not rebuilt.** `sree.py` (REST client, density flip, export pull),
+`html_measure.js` (the measurement instrument), `vsclient.js` / `flows.js` (STOMP composer driver
+for Save As, Modernize/Revert and per-dashboard density) and `inset_audit.py` all exist in
+`.superpowers/baselines/density-padding-export/` and were assessed as reusable when that folder was
+written.
+
+**The fixture is local state, not a shared reference.** `community/.superpowers/` is excluded from
+git (`.git/modules/community/info/exclude`), so nothing built there is reviewable or pinned to a
+commit. It must not be cited as a baseline in a pull request the way a committed test can be — the
+numbers it produces go in the PR description, the files stay on one machine.
 
 ## 9. Risks and accepted costs
 
@@ -303,7 +346,7 @@ during a release gate.
 
 ## 10. Open items
 
-- **The export fixture.** Decide before planning whether to build a selection equivalent of
-  `dpx-fixture.zip` or accept a narrower visual check. Note that `community/.superpowers/` is
-  excluded from git, so anything built there is one machine's local state and is not a shared
-  reference.
+None. The one item this spec carried — whether to build a selection export fixture or accept a
+narrower visual check — was **decided on 2026-10-01: build one, scoped lighter than the table's.**
+The scope is §8.1, and the reasoning for each thing it leaves out is recorded there rather than
+here, so a later reader finds it beside the checks it governs.
