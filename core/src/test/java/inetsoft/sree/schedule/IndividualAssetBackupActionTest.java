@@ -37,12 +37,18 @@ import org.mockito.MockedStatic;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
+import org.w3c.dom.Element;
 
+import java.io.ByteArrayInputStream;
 import java.io.File;
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.security.Principal;
+import java.util.Arrays;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -257,26 +263,57 @@ class IndividualAssetBackupActionTest {
       void parseXML_unknownOrEmptyAssetType_skipsEntryAndRoundTrips() throws Exception {
          String xml = "<Action type=\"Backup\"><ServerPath/>" +
             "<XAsset type=\"NOPE\" path=\"x\" user=\"\"></XAsset>" +
+            "<XAsset type=\"SCHEDULETASK\" path=\"admin~;~host-org:Task1\" " +
+            "user=\"admin~;~host-org\"></XAsset>" +
             "<XAsset></XAsset></Action>";
          IndividualAssetBackupAction action = new IndividualAssetBackupAction();
          action.parseXML(parseElement(xml));
 
-         assertTrue(action.getAssets().isEmpty(),
-            "Unresolvable XAsset entries must not be kept as null: " + action.getAssets());
-
-         java.io.StringWriter buffer = new java.io.StringWriter();
-         java.io.PrintWriter writer = new java.io.PrintWriter(buffer);
-         assertDoesNotThrow(() -> action.writeXML(writer));
-         writer.flush();
+         assertEquals(1, action.getAssets().size(),
+            "Only the resolvable XAsset entry must be kept: " + action.getAssets());
+         assertNotNull(action.getAssets().getFirst());
+         assertEquals("SCHEDULETASK", action.getAssets().getFirst().getType());
 
          IndividualAssetBackupAction reparsed = new IndividualAssetBackupAction();
-         reparsed.parseXML(parseElement(buffer.toString()));
-         assertTrue(reparsed.getAssets().isEmpty());
+         reparsed.parseXML(parseElement(writeXML(action)));
+         assertEquals(1, reparsed.getAssets().size());
+         assertEquals("SCHEDULETASK", reparsed.getAssets().getFirst().getType());
       }
 
-      private org.w3c.dom.Element parseElement(String xml) throws Exception {
-         return Tool.parseXML(new java.io.ByteArrayInputStream(
-            xml.getBytes(java.nio.charset.StandardCharsets.UTF_8))).getDocumentElement();
+      @Test
+      void setAssets_nullEntry_isDroppedAndWriteXMLDoesNotThrow() {
+         XAsset asset = mock(XAsset.class);
+         when(asset.getType()).thenReturn("SCHEDULETASK");
+         when(asset.getPath()).thenReturn("admin~;~host-org:Task1");
+         IndividualAssetBackupAction action = new IndividualAssetBackupAction();
+         action.setServerPaths(new ServerPathInfo("/filepath"));
+         action.setAssets(Arrays.asList(null, asset, null));
+
+         assertEquals(List.of(asset), action.getAssets());
+         assertDoesNotThrow(() -> writeXML(action));
+      }
+
+      @Test
+      void setAssets_nullList_isTreatedAsEmpty() {
+         IndividualAssetBackupAction action = new IndividualAssetBackupAction();
+         action.setServerPaths(new ServerPathInfo("/filepath"));
+         action.setAssets(null);
+
+         assertTrue(action.getAssets().isEmpty());
+         assertDoesNotThrow(() -> writeXML(action));
+      }
+
+      private String writeXML(IndividualAssetBackupAction action) {
+         StringWriter buffer = new StringWriter();
+         PrintWriter writer = new PrintWriter(buffer);
+         action.writeXML(writer);
+         writer.flush();
+         return buffer.toString();
+      }
+
+      private Element parseElement(String xml) throws Exception {
+         return Tool.parseXML(new ByteArrayInputStream(
+            xml.getBytes(StandardCharsets.UTF_8))).getDocumentElement();
       }
    }
 

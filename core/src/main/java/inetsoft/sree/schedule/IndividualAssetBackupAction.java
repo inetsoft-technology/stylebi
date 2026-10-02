@@ -279,7 +279,13 @@ public class IndividualAssetBackupAction implements ScheduleAction, HttpXMLSeria
    }
 
    public void setAssets(List<XAsset> assets) {
-      this.assets = assets;
+      // Bug #77587, callers may pass unresolvable (null) assets, keep them out of the list
+      this.assets = new ArrayList<>();
+
+      if(assets != null) {
+         this.assets.addAll(assets);
+         this.assets.removeIf(Objects::isNull);
+      }
    }
 
    public String getPath() {
