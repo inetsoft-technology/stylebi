@@ -17,10 +17,16 @@
  */
 package inetsoft.web.wiz.viewsheet;
 
+import inetsoft.uql.XConstants;
 import inetsoft.uql.asset.DateRangeRef;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.schema.XSchema;
+import inetsoft.uql.viewsheet.VSFormat;
 import inetsoft.uql.viewsheet.XDimensionRef;
+import inetsoft.uql.viewsheet.graph.ChartRef;
+
+import java.util.List;
+import java.util.Set;
 
 /**
  * Type checks shared by the wiz format endpoints, so a format that cannot take effect on the
@@ -71,5 +77,59 @@ public final class WizFormatChecks {
    /** Whether {@code ref}'s effective values are dates or times. False when unknown. */
    public static boolean isDateLike(DataRef ref) {
       return XSchema.isDateType(effectiveType(ref));
+   }
+
+   /** Formats that only mean something on a numeric field. */
+   public static final Set<String> NUMERIC_ONLY_FORMATS = Set.of(
+      XConstants.PERCENT_FORMAT, XConstants.CURRENCY_FORMAT, XConstants.DECIMAL_FORMAT);
+
+   /**
+    * Rejects a format that cannot mean anything for the chart field it names -- a numeric format
+    * on a string dimension, or a date format on something that is not a date. StyleBI accepts
+    * such a format without complaint and renders the value exactly as before (or, for a date
+    * format on numbers, as epoch dates), so nothing downstream would ever reveal that the
+    * request had no effect.
+    *
+    * <p>The field is judged by its {@link #effectiveType effective type}: a date dimension
+    * grouped at a part level such as {@code MonthOfYear} holds integers, so a date format is
+    * refused there and a numeric format allowed.
+    *
+    * <p>Only a KNOWN mismatch is rejected. A name that matches no ref is reported separately by
+    * the caller, and a ref with no declared data type is left alone: refusing a valid edit on a
+    * guess is worse than letting an odd one through. DurationFormat and MessageFormat are not
+    * constrained -- the composer's Format pane offers every type for every field, so this must
+    * not be stricter than the pane except where the outcome is provably nothing.
+    *
+    * <p>Moved here from {@code WizAutoBindingService} (bug #77597) so the agent
+    * {@code set_format} field target and the wizard's chart-format endpoint share one rule.
+    */
+   public static void checkFormatFitsFieldType(String fullName, VSFormat format,
+                                               List<ChartRef> refs)
+   {
+      String formatValue = format.getFormatValue();
+
+      if(formatValue == null) {
+         return;
+      }
+
+      String dataType = refs.stream()
+         .filter(ref -> fullName.equals(ref.getFullName()))
+         .map(WizFormatChecks::effectiveType)
+         .filter(type -> type != null && !type.isEmpty())
+         .findFirst()
+         .orElse(null);
+
+      if(dataType == null) {
+         return;
+      }
+
+      boolean mismatch = NUMERIC_ONLY_FORMATS.contains(formatValue) && !XSchema.isNumericType(dataType)
+         || XConstants.DATE_FORMAT.equals(formatValue) && !XSchema.isDateType(dataType);
+
+      if(mismatch) {
+         throw new IllegalArgumentException(
+            "Format '" + formatValue + "' does not apply to field '" + fullName +
+            "' (data type " + dataType + ")");
+      }
    }
 }

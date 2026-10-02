@@ -2005,6 +2005,164 @@ class ViewsheetFormatServiceTest {
       assertEquals(List.of("refresh step was contained"), result.warnings());
    }
 
+   // ── Bug #77597 part C: target "field", and no value format on a chart's object/title ──
+
+   private static ViewsheetFormatService.FormatRequest jsonRequest(String json) throws Exception {
+      return new ObjectMapper().readValue(json, ViewsheetFormatService.FormatRequest.class);
+   }
+
+   @Test
+   void theRawFormatKeysAreCapturedWithoutJsonNulls() throws Exception {
+      ViewsheetFormatService.FormatRequest request = jsonRequest(
+         "{\"assemblies\":[\"Chart1\"],\"target\":\"field\",\"field\":\"Sum(Revenue)\"," +
+         "\"format\":{\"format\":\"DecimalFormat\",\"formatSpec\":\"#,##0\",\"color\":null}}");
+
+      assertEquals(java.util.Set.of("format", "formatSpec"), request.formatKeys());
+      assertNull(new ViewsheetFormatService.FormatRequest(
+         List.of("Chart1"), new VSObjectFormatInfoModel(), false, "field", "F").formatKeys());
+   }
+
+   /** A CSS key the field writer would drop is refused by name, before the sheet is touched. */
+   @Test
+   void targetFieldRefusesCssKeysByName() throws Exception {
+      ViewsheetSessionService sessions = sessionsFor(null);
+      ViewsheetFormatService.FormatRequest request = jsonRequest(
+         "{\"assemblies\":[\"Chart1\"],\"target\":\"field\",\"field\":\"Sum(Revenue)\"," +
+         "\"format\":{\"format\":\"DecimalFormat\",\"formatSpec\":\"#,##0\"," +
+         "\"color\":\"#ff0000\",\"backgroundColor\":\"#eeeeee\"}}");
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> service(sessions, mock(FormatPainterService.class), mock(CalcTableService.class))
+            .setFormat("tok", principal(), request, ""));
+
+      assertTrue(thrown.getMessage().contains("'color'") &&
+                 thrown.getMessage().contains("'backgroundColor'"), thrown.getMessage());
+      verify(sessions, never()).resolve(anyString(), any(Principal.class));
+      verify(sessions, never()).mutate(anyString(), any(Principal.class), any());
+   }
+
+   /** Primitive model defaults (wrapText, roundCorner ...) are never mistaken for sent keys. */
+   @Test
+   void targetFieldDoesNotMistakeModelDefaultsForKeys() throws Exception {
+      ViewsheetFormatService.FormatRequest request = jsonRequest(
+         "{\"assemblies\":[\"Gauge1\"],\"target\":\"field\",\"field\":\"Sum(Revenue)\"," +
+         "\"format\":{\"format\":\"DecimalFormat\",\"formatSpec\":\"#,##0\"}}");
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> serviceWith(mock(FormatPainterService.class),
+                           rvsWith("Gauge1", mock(inetsoft.uql.viewsheet.GaugeVSAssembly.class)))
+            .setFormat("tok", principal(), request, ""));
+
+      // Past the key check: refused for not being a chart instead.
+      assertTrue(thrown.getMessage().contains("only applies to a chart"), thrown.getMessage());
+   }
+
+   @Test
+   void targetFieldRequiresOneAssemblyAndAField() {
+      VSObjectFormatInfoModel format = decimalFormat();
+
+      Exception many = assertThrows(
+         IllegalArgumentException.class,
+         () -> serviceWith(mock(FormatPainterService.class)).setFormat(
+            "tok", principal(), new ViewsheetFormatService.FormatRequest(
+               List.of("Chart1", "Chart2"), format, false, "field", "Sum(Revenue)"), ""));
+      assertTrue(many.getMessage().contains("one chart field"), many.getMessage());
+
+      Exception none = assertThrows(
+         IllegalArgumentException.class,
+         () -> serviceWith(mock(FormatPainterService.class)).setFormat(
+            "tok", principal(), new ViewsheetFormatService.FormatRequest(
+               List.of("Chart1"), format, false, "field", " "), ""));
+      assertTrue(none.getMessage().contains("requires 'field'"), none.getMessage());
+   }
+
+   @Test
+   void targetFieldRequiresAFormatTypeUnlessResetting() {
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> serviceWith(mock(FormatPainterService.class)).setFormat(
+            "tok", principal(), new ViewsheetFormatService.FormatRequest(
+               List.of("Chart1"), new VSObjectFormatInfoModel(), false, "field",
+               "Sum(Revenue)"), ""));
+
+      assertTrue(thrown.getMessage().contains("format.format"), thrown.getMessage());
+   }
+
+   @Test
+   void targetFieldRefusesANonChart() {
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> serviceWith(mock(FormatPainterService.class),
+                           rvsWith("Table1", mock(TableVSAssembly.class))).setFormat(
+            "tok", principal(), new ViewsheetFormatService.FormatRequest(
+               List.of("Table1"), decimalFormat(), false, "field", "Revenue"), ""));
+
+      assertTrue(thrown.getMessage().contains("only applies to a chart") &&
+                 thrown.getMessage().contains("Table1"), thrown.getMessage());
+   }
+
+   /** #3: a number format on a chart's whole object never reached the axis. Now refused. */
+   @Test
+   void refusesANumberFormatOnAChartsWholeObjectBeforeMutating() throws Exception {
+      RuntimeViewsheet rvs = rvsWith("Chart1", mock(inetsoft.uql.viewsheet.ChartVSAssembly.class));
+      ViewsheetSessionService sessions = sessionsFor(rvs);
+      FormatPainterService painter = mock(FormatPainterService.class);
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> service(sessions, painter, mock(CalcTableService.class)).setFormat(
+            "tok", principal(),
+            new ViewsheetFormatService.FormatRequest(List.of("Chart1"), decimalFormat(), false),
+            ""));
+
+      assertTrue(thrown.getMessage().contains("target 'field'") &&
+                 thrown.getMessage().contains("target 'text'"), thrown.getMessage());
+      verify(sessions, never()).mutate(anyString(), any(Principal.class), any());
+      verifyNoInteractions(painter);
+   }
+
+   @Test
+   void refusesADateFormatOnAChartsTitle() {
+      RuntimeViewsheet rvs = rvsWith("Chart1", mock(inetsoft.uql.viewsheet.ChartVSAssembly.class));
+
+      assertThrows(
+         IllegalArgumentException.class,
+         () -> serviceWith(mock(FormatPainterService.class), rvs).setFormat(
+            "tok", principal(),
+            new ViewsheetFormatService.FormatRequest(List.of("Chart1"), dateFormat(), false,
+                                                     "title"), ""));
+   }
+
+   /** Font and colour on a chart's whole object still go through, as before. */
+   @Test
+   void aFontOnlyChartObjectFormatIsStillApplied() throws Exception {
+      FormatPainterService painter = mock(FormatPainterService.class);
+      RuntimeViewsheet rvs = rvsWith("Chart1", mock(inetsoft.uql.viewsheet.ChartVSAssembly.class));
+      VSObjectFormatInfoModel format = new VSObjectFormatInfoModel();
+      format.setColor("#333333");
+
+      serviceWith(painter, rvs).setFormat(
+         "tok", principal(),
+         new ViewsheetFormatService.FormatRequest(List.of("Chart1"), format, false), "");
+
+      verify(painter).setFormat(eq("rt1"), any(), any(Principal.class), any(), anyString());
+   }
+
+   /** A reset of a chart's whole object is never refused. */
+   @Test
+   void aChartObjectResetIsStillApplied() throws Exception {
+      FormatPainterService painter = mock(FormatPainterService.class);
+      RuntimeViewsheet rvs = rvsWith("Chart1", mock(inetsoft.uql.viewsheet.ChartVSAssembly.class));
+
+      serviceWith(painter, rvs).setFormat(
+         "tok", principal(),
+         new ViewsheetFormatService.FormatRequest(List.of("Chart1"), decimalFormat(), true), "");
+
+      verify(painter).setFormat(eq("rt1"), any(), any(Principal.class), any(), anyString());
+   }
+
    private static ViewsheetFormatService serviceWith(FormatPainterService painter) {
       return serviceWith(painter, mock(CalcTableService.class));
    }
@@ -2191,7 +2349,10 @@ class ViewsheetFormatServiceTest {
                                                  FormatPainterService painter,
                                                  CalcTableService calcService)
    {
-      return new ViewsheetFormatService(sessions, painter, calcService);
+      // No binding handler: these tests never reach the field writer (its refusals run first),
+      // and VSWizardBindingHandler's static initializer needs the SREE context -- see
+      // ViewsheetFormatServiceFieldTargetTest for the field target against the real handler.
+      return new ViewsheetFormatService(sessions, painter, calcService, null);
    }
 
    /**

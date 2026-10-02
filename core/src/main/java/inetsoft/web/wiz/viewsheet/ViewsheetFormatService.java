@@ -37,6 +37,7 @@ import inetsoft.uql.asset.TableAssembly;
 import inetsoft.uql.asset.Worksheet;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.viewsheet.CalcTableVSAssembly;
+import inetsoft.uql.viewsheet.ChartVSAssembly;
 import inetsoft.uql.viewsheet.CrosstabVSAssembly;
 import inetsoft.uql.viewsheet.FormatInfo;
 import inetsoft.uql.viewsheet.SelectionTreeVSAssembly;
@@ -48,6 +49,11 @@ import inetsoft.uql.viewsheet.VSCrosstabInfo;
 import inetsoft.uql.viewsheet.VSDataRef;
 import inetsoft.uql.viewsheet.VSFormat;
 import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.uql.viewsheet.graph.ChartAggregateRef;
+import inetsoft.uql.viewsheet.graph.ChartRef;
+import inetsoft.uql.viewsheet.graph.RadarChartInfo;
+import inetsoft.uql.viewsheet.graph.VSChartInfo;
+import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
 import inetsoft.util.CoreTool;
 import inetsoft.util.UserMessage;
@@ -58,6 +64,7 @@ import inetsoft.web.composer.vs.controller.FormatPainterService;
 import inetsoft.web.composer.vs.objects.command.SetCurrentFormatCommand;
 import inetsoft.web.composer.vs.objects.event.FormatVSObjectEvent;
 import inetsoft.web.composer.vs.objects.event.GetVSObjectFormatEvent;
+import inetsoft.web.vswizard.handler.VSWizardBindingHandler;
 import inetsoft.web.wiz.binding.CalcTableService;
 import inetsoft.web.wiz.dispatch.CapturingCommandDispatcher;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -67,6 +74,7 @@ import java.security.Principal;
 import java.text.DecimalFormat;
 import java.text.DecimalFormatSymbols;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -75,6 +83,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Applies assembly-level formatting through the Composer's own format service.
@@ -87,11 +96,13 @@ import java.util.Set;
 public class ViewsheetFormatService {
    @Autowired
    public ViewsheetFormatService(ViewsheetSessionService sessions, FormatPainterService painter,
-                                 CalcTableService calcService)
+                                 CalcTableService calcService,
+                                 VSWizardBindingHandler bindingHandler)
    {
       this.sessions = sessions;
       this.painter = painter;
       this.calcService = calcService;
+      this.bindingHandler = bindingHandler;
    }
 
    /**
@@ -115,25 +126,39 @@ public class ViewsheetFormatService {
     *                   body/header; null/blank keeps today's whole-table behavior. Against a
     *                   Crosstab it names one aggregate (its rendered measure header, its data
     *                   path header, or its base column when unambiguous) and scopes the write to
-    *                   that measure's body cells (including totals) or header cells. Unused for
-    *                   any other target.
+    *                   that measure's body cells (including totals) or header cells. Required
+    *                   when {@code target} is {@code "field"}: the chart field (its full name,
+    *                   as the binding reports it) whose value format to set. Unused for any
+    *                   other target.
+    * @param formatKeys the names of the keys the caller's JSON {@code format} object carried
+    *                   with a non-null value, captured before parsing so a key the target cannot
+    *                   apply is refused by name rather than mistaken for a model default; null
+    *                   for a request built in Java, which skips that check
     */
    public record FormatRequest(List<String> assemblies,
                                VSObjectFormatInfoModel format,
                                boolean reset,
                                String target,
-                               String field)
+                               String field,
+                               Set<String> formatKeys)
    {
       /** Kept for existing callers that predate {@code target}/{@code field} — defaults both. */
       public FormatRequest(List<String> assemblies, VSObjectFormatInfoModel format, boolean reset) {
-         this(assemblies, format, reset, null, null);
+         this(assemblies, format, reset, null, null, null);
       }
 
       /** Kept for existing callers that predate {@code field} — defaults it to null. */
       public FormatRequest(List<String> assemblies, VSObjectFormatInfoModel format, boolean reset,
                            String target)
       {
-         this(assemblies, format, reset, target, null);
+         this(assemblies, format, reset, target, null, null);
+      }
+
+      /** Kept for existing callers that predate {@code formatKeys} — no raw keys. */
+      public FormatRequest(List<String> assemblies, VSObjectFormatInfoModel format, boolean reset,
+                           String target, String field)
+      {
+         this(assemblies, format, reset, target, field, null);
       }
 
       /**
@@ -159,7 +184,22 @@ public class ViewsheetFormatService {
                                            @JsonProperty("field") String field)
       {
          return new FormatRequest(assemblies, parseFormat(format, "set_format"), reset, target,
-                                  field);
+                                  field, formatKeys(format));
+      }
+
+      /** The keys of a JSON {@code format} object whose value is not JSON null. */
+      private static Set<String> formatKeys(JsonNode format) {
+         Set<String> keys = new LinkedHashSet<>();
+
+         if(format != null && format.isObject()) {
+            format.fields().forEachRemaining(entry -> {
+               if(entry.getValue() != null && !entry.getValue().isNull()) {
+                  keys.add(entry.getKey());
+               }
+            });
+         }
+
+         return keys;
       }
    }
 
@@ -555,17 +595,31 @@ public class ViewsheetFormatService {
          }
       }
 
+      if("field".equals(target)) {
+         return setFieldFormat(sessionToken, user, request);
+      }
+
       // Binding-only refusals run against a read-only resolve, before mutate: a refused request
       // then leaves no empty undo step, no write-revision bump and no Composer refresh behind.
       // A missing or unsupported assembly is skipped here and left to the existing error paths.
-      if(needsNumericCellCheck(request, target)) {
+      boolean chartCheck = needsChartValueFormatCheck(request, target);
+      boolean numericCheck = needsNumericCellCheck(request, target);
+
+      if(chartCheck || numericCheck) {
          RuntimeViewsheet resolved = sessions.resolve(sessionToken, user);
          Viewsheet viewsheet = resolved == null ? null : resolved.getViewsheet();
 
          if(viewsheet != null) {
             for(String name : request.assemblies()) {
-               refuseDateFormatOverNumericCells(viewsheet, name, target,
-                                                request.format().getFormat());
+               if(chartCheck) {
+                  refuseValueFormatOnChart(viewsheet, name, target,
+                                           request.format().getFormat());
+               }
+
+               if(numericCheck) {
+                  refuseDateFormatOverNumericCells(viewsheet, name, target,
+                                                   request.format().getFormat());
+               }
             }
          }
       }
@@ -808,6 +862,260 @@ public class ViewsheetFormatService {
                "DateFormat with no pattern; those cells will show the default yyyy-MM-dd.");
          }
       }
+   }
+
+   /**
+    * Bug #77597: {@code target: "field"} -- one chart field's value format (number, date,
+    * percent ...), wherever that field renders: its axis labels, legend, data labels and plot
+    * slots. Written through the wizard's own field-format writer
+    * ({@link VSWizardBindingHandler#applyFieldFormats}), the one route that reaches an axis's or
+    * field's value format; a chart's whole-object format carries only font and colour to its
+    * axes, so a number format sent there never rendered.
+    *
+    * <p>Every refusal that needs only the binding runs before {@code mutate}. {@code reset}
+    * clears the field's user value format (a defined-null format), so its default renders again.
+    * Same-type formulas (sum/max/min/first/last of one column) share one format key, and on a
+    * chart that is not separated by measure the value axis is shared by its measures; both are
+    * the wizard's behaviour and are reported as a warning where they apply.
+    */
+   private FormatResult setFieldFormat(String sessionToken, Principal user, FormatRequest request)
+      throws Exception
+   {
+      if(request.assemblies().size() != 1) {
+         throw new IllegalArgumentException(
+            "set_format: target 'field' formats one chart field at a time; got " +
+            request.assemblies().size() + " assemblies.");
+      }
+
+      String field = request.field();
+
+      if(field == null || field.isBlank()) {
+         throw new IllegalArgumentException(
+            "set_format: target 'field' requires 'field' -- the chart field (as get_binding " +
+            "reports it, e.g. \"Sum(Revenue)\") whose value format to set.");
+      }
+
+      if(request.formatKeys() != null) {
+         List<String> unsupported = request.formatKeys().stream()
+            .filter(key -> !FIELD_FORMAT_KEYS.contains(key))
+            .toList();
+
+         if(!unsupported.isEmpty()) {
+            throw new IllegalArgumentException(
+               "set_format: target 'field' sets only a field's value format (format, " +
+               "formatSpec, dateSpec, durationPadZeros); " + quoted(unsupported) +
+               (unsupported.size() == 1 ? " is" : " are") + " not applied there -- use target " +
+               "'object' or 'text' for them.");
+         }
+      }
+
+      VSFormat format = null;
+
+      if(!request.reset()) {
+         VSObjectFormatInfoModel model = request.format();
+
+         if(model == null || model.getFormat() == null || model.getFormat().isBlank()) {
+            throw new IllegalArgumentException(
+               "set_format: target 'field' requires format.format (e.g. \"DecimalFormat\" " +
+               "with a formatSpec), or reset: true to clear the field's value format.");
+         }
+
+         format = toFieldFormat(model);
+      }
+
+      String name = request.assemblies().get(0);
+      RuntimeViewsheet resolved = sessions.resolve(sessionToken, user);
+      Viewsheet viewsheet = resolved == null ? null : resolved.getViewsheet();
+      VSAssembly assembly = viewsheet == null ? null : viewsheet.getAssembly(name);
+
+      if(!(assembly instanceof ChartVSAssembly chart)) {
+         throw new IllegalArgumentException(
+            "set_format: target 'field' only applies to a chart; '" + name + "' is " +
+            (assembly == null ? "not found" : assembly.getClass().getSimpleName()) + ".");
+      }
+
+      VSChartInfo chartInfo = chart.getVSChartInfo();
+      List<ChartRef> refs = VSWizardBindingHandler.collectFormattableRefs(chartInfo);
+
+      if(refs.stream().noneMatch(ref -> field.equals(ref.getFullName()))) {
+         String bindable = refs.stream()
+            .map(ChartRef::getFullName)
+            .distinct()
+            .sorted()
+            .collect(Collectors.joining(", "));
+
+         throw new IllegalArgumentException(
+            "No such field(s) in this chart's binding: " + field +
+            ". Bindable fields: " + (bindable.isEmpty() ? "(none)" : bindable));
+      }
+
+      if(format != null) {
+         WizFormatChecks.checkFormatFitsFieldType(field, format, refs);
+      }
+
+      Set<String> warnings = new LinkedHashSet<>();
+      String shared = sharedValueAxisWarning(chartInfo, refs, field, request.reset());
+
+      if(shared != null) {
+         warnings.add(shared);
+      }
+
+      VSFormat toApply = request.reset() ? VSWizardBindingHandler.clearingFormat() : format;
+
+      List<String> sessionWarnings = sessions.mutate(sessionToken, user, (rvs, runtimeId,
+                                                                          dispatcher) -> {
+         Viewsheet live = rvs == null ? null : rvs.getViewsheet();
+         VSAssembly liveAssembly = live == null ? null : live.getAssembly(name);
+
+         if(!(liveAssembly instanceof ChartVSAssembly liveChart)) {
+            throw new IllegalArgumentException(
+               "set_format: '" + name + "' is no longer a chart; nothing was formatted.");
+         }
+
+         // Never Map.of: a reset must be able to carry its value, and Map.of rejects nulls.
+         Map<String, VSFormat> formats = new HashMap<>();
+         formats.put(field, toApply);
+         Set<String> unmatched;
+         CoreTool.clearUserMessage();
+
+         try {
+            unmatched = bindingHandler.applyFieldFormats(rvs, liveChart, formats);
+         }
+         finally {
+            drainUserMessages(warnings);
+         }
+
+         // The binding was checked before mutate; a human may have rebound the chart since.
+         if(!unmatched.isEmpty()) {
+            throw new IllegalArgumentException(
+               "set_format: '" + field + "' is no longer bound to chart '" + name + "'; nothing " +
+               "was formatted. Read the binding again and retry.");
+         }
+
+         // applyFieldFormats only clears the runtime chart info. The cached VGraphPair holds this
+         // same VSChartInfo, so the sandbox's staleness check cannot see the in-place change:
+         // clear the cached descriptor and graph explicitly, as WizAutoBindingService does after
+         // the same call, or the next render serves the old axis.
+         ((ChartVSAssemblyInfo) liveChart.getVSAssemblyInfo()).setRTChartDescriptor(null);
+         rvs.getViewsheetSandbox().ifPresent(box -> box.clearGraph(liveChart.getAbsoluteName()));
+      });
+
+      if(sessionWarnings != null) {
+         warnings.addAll(sessionWarnings);
+      }
+
+      return new FormatResult(new ArrayList<>(warnings));
+   }
+
+   /**
+    * The model as the wizard's field-format writer consumes it, with the same translations
+    * {@code FormatPainterService.setUserFormat} makes: the duration padding folded into the type,
+    * CommaFormat as DecimalFormat with {@code #,##0}, and a non-Custom {@code dateSpec} as the
+    * pattern ({@link #parseFormat} has already derived {@code dateSpec}).
+    */
+   private static VSFormat toFieldFormat(VSObjectFormatInfoModel model) {
+      String formatValue = FormatInfoModel.getDurationFormat(model.getFormat(),
+                                                             model.isDurationPadZeros());
+      String spec = model.getFormatSpec();
+
+      if(XConstants.COMMA_FORMAT.equals(formatValue)) {
+         formatValue = XConstants.DECIMAL_FORMAT;
+         spec = "#,##0";
+      }
+      else if(XConstants.DATE_FORMAT.equals(formatValue) &&
+         !CUSTOM_DATE_SPEC.equals(model.getDateSpec()))
+      {
+         spec = model.getDateSpec();
+      }
+
+      VSFormat format = new VSFormat();
+      format.setFormatValue(formatValue);
+      format.setFormatExtentValue(spec != null && !spec.isEmpty() ? spec : null);
+      return format;
+   }
+
+   /**
+    * On a chart that is not separated by measure (and is not a radar), every primary-axis
+    * aggregate shares one value-axis descriptor, and every secondary-axis aggregate another
+    * ({@code GraphUtil.getAxisDescriptor}). A field-scoped set or reset of one of them therefore
+    * sets or clears that whole axis's format, including a format a human set through the
+    * Composer's axis dialog. Returned as a warning naming the other measures; null otherwise.
+    */
+   private static String sharedValueAxisWarning(VSChartInfo info, List<ChartRef> refs,
+                                                String field, boolean reset)
+   {
+      ChartRef ref = refs.stream()
+         .filter(r -> field.equals(r.getFullName()))
+         .findFirst()
+         .orElse(null);
+
+      if(!(ref instanceof ChartAggregateRef aggregate) || info instanceof RadarChartInfo ||
+         info.isSeparatedGraph())
+      {
+         return null;
+      }
+
+      List<String> others = new ArrayList<>();
+
+      for(ChartRef[] fields : List.of(info.getXFields(), info.getYFields())) {
+         for(ChartRef other : fields) {
+            if(other instanceof ChartAggregateRef otherAggregate &&
+               otherAggregate.isSecondaryY() == aggregate.isSecondaryY() &&
+               !field.equals(other.getFullName()) && !others.contains(other.getFullName()))
+            {
+               others.add(other.getFullName());
+            }
+         }
+      }
+
+      if(others.isEmpty()) {
+         return null;
+      }
+
+      return "'" + field + "' shares its value axis with " + String.join(", ", others) +
+         " on this chart (not separated by measure): this " + (reset ? "reset" : "set") +
+         " applies to that whole axis's format.";
+   }
+
+   private static String quoted(List<String> names) {
+      return names.stream().map(n -> "'" + n + "'").collect(Collectors.joining(", "));
+   }
+
+   /** The format keys target 'field' applies; any other key would be dropped silently. */
+   private static final Set<String> FIELD_FORMAT_KEYS =
+      Set.of("format", "formatSpec", "dateSpec", "durationPadZeros");
+
+   /**
+    * Whether {@code request} sends a value format (number, date ...) to a chart's whole-object
+    * or title format, which nothing renders values with.
+    */
+   private static boolean needsChartValueFormatCheck(FormatRequest request, String target) {
+      return !request.reset() && request.format() != null &&
+         request.format().getFormat() != null && !request.format().getFormat().isEmpty() &&
+         ("object".equals(target) || "title".equals(target));
+   }
+
+   /**
+    * Bug #77597: refuses a number/date format on a chart's {@code object} or {@code title}
+    * target. {@code VGraphPair} is the only graph-side reader of a chart's OBJECT format and
+    * copies only its font and colour into the axis and label formats, so such a write was stored
+    * and never rendered -- the axis kept its default ticks while the call reported success. A
+    * missing or non-chart assembly is left to the existing paths.
+    */
+   private static void refuseValueFormatOnChart(Viewsheet viewsheet, String name, String target,
+                                                String formatType)
+   {
+      if(!(viewsheet.getAssembly(name) instanceof ChartVSAssembly)) {
+         return;
+      }
+
+      throw new IllegalArgumentException(
+         "set_format: a " + formatType + " on chart '" + name + "''s " + target + " format is " +
+         "never used to format values -- a chart's whole-object format carries only font and " +
+         "colour to its axes and labels. Use target 'field' with 'field' naming the axis or " +
+         "legend field (e.g. \"Sum(Revenue)\") for its value format, or target 'text' for " +
+         "data labels; send font/colour without 'format' to keep using target '" + target +
+         "'.");
    }
 
    /**
@@ -1568,13 +1876,16 @@ public class ViewsheetFormatService {
       String name = target == null || target.isBlank() ? "object" : target.trim().toLowerCase();
 
       if(!"object".equals(name) && !"title".equals(name) && !"text".equals(name) &&
-         !"data".equals(name) && !"header".equals(name))
+         !"data".equals(name) && !"header".equals(name) && !"field".equals(name))
       {
          throw new IllegalArgumentException(
-            "set_format 'target' must be 'object', 'title', 'text', 'data' or 'header', got '" +
-            target + "'. 'object' (the default) formats the whole assembly, including — for a " +
-            "chart — the default text style that unstyled axis titles and tick labels fall " +
-            "back to. 'title' formats only that assembly's own title-bar text; for a chart's " +
+            "set_format 'target' must be 'object', 'title', 'text', 'data', 'header' or " +
+            "'field', got '" + target + "'. 'object' (the default) formats the whole " +
+            "assembly, including — for a chart — the font and colour that unstyled axis " +
+            "titles and tick labels fall back to (not their number/date format: use 'field' " +
+            "for that). 'field' sets one chart field's value format wherever it renders (axis " +
+            "labels, legend, data labels) — requires 'field'. " +
+            "'title' formats only that assembly's own title-bar text; for a chart's " +
             "x/y axis titles, use set_chart_region_properties with region 'title' instead. " +
             "'text' formats a single chart's text-aesthetic-bound field (its data labels) — " +
             "requires 'field'. 'data' formats a Crosstab or Table's body cells directly — use " +
@@ -1591,4 +1902,5 @@ public class ViewsheetFormatService {
    private final ViewsheetSessionService sessions;
    private final FormatPainterService painter;
    private final CalcTableService calcService;
+   private final VSWizardBindingHandler bindingHandler;
 }

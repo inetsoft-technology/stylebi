@@ -1810,7 +1810,11 @@ public class VSWizardBindingHandler {
 
          if(formatsByFullName.containsKey(fullName)) {
             unmatched.remove(fullName);
-            tempInfo.setFormat(getNameForFormat(ref), formatsByFullName.get(fullName));
+            VSFormat format = formatsByFullName.get(fullName);
+            // A null value clears, as documented. changeFormat writes only a format whose value
+            // is DEFINED, so a null entry (or an empty VSFormat) would silently change nothing;
+            // a defined-null format is what empties the user XFormatInfo (bug #77597).
+            tempInfo.setFormat(getNameForFormat(ref), format != null ? format : clearingFormat());
          }
       }
 
@@ -1822,6 +1826,17 @@ public class VSWizardBindingHandler {
       }
 
       return unmatched;
+   }
+
+   /**
+    * A format that clears a field's user value format when passed to {@link #applyFieldFormats}:
+    * its format value and pattern are explicitly defined as null.
+    */
+   public static VSFormat clearingFormat() {
+      VSFormat clear = new VSFormat();
+      clear.setFormatValue(null, true);
+      clear.setFormatExtentValue(null, true);
+      return clear;
    }
 
    /**
