@@ -73,6 +73,8 @@ import static org.mockito.Mockito.when;
 class JDBCHandlerVpmSqlStringTest {
    private static final String DB = "memory:bug77543";
    private static final String SQL = "select T.B, T.A from T where T.A > 0";
+   // the regenerated sql of a lossy query would drop the second condition
+   private static final String LOSSY_SQL = SQL + " and T.B = 'x'";
    // the row condition the test vpm adds
    private static final String VPM_CONDITION = "T.A = 1";
 
@@ -199,6 +201,37 @@ class JDBCHandlerVpmSqlStringTest {
       assertFiltered(run);
    }
 
+   // a lossy parsed query keeps its sql string, the structure doesn't describe all of it, so
+   // a stale CLEARED hint must not regenerate the sql from the structure
+   @Test
+   void staleClearedHintWithLossyParsedSqlKeepsSqlString() throws Exception {
+      UniformSQL usql = lossy();
+      usql.setHint(UniformSQL.HINT_CLEARED_SQL_STRING, true);
+      Run run = run(usql);
+
+      assertLossySqlExecuted(run);
+   }
+
+   // same as above, without a DataCacheResult visitor
+   @Test
+   void staleHintsWithLossyParsedSqlWithoutCacheNormalizerKeepSqlString() throws Exception {
+      UniformSQL usql = lossy();
+      usql.setHint(UniformSQL.HINT_CLEARED_SQL_STRING, true);
+      usql.setHint(UniformSQL.HINT_SQL_STRING_SORTED_COLUMN, true);
+      JDBCQuery query = newQuery(usql);
+      VariableTable vars = new VariableTable();
+
+      JDBCHandler handler = new JDBCHandler();
+      handler.connect(query.getDataSource(), vars);
+      executed.set(null);
+      XNode node = handler.execute(query, vars, USER, null);
+
+      Run run = new Run();
+      run.executedSql = executed.get();
+      run.table = new XNodeTableLens(node);
+      assertLossySqlExecuted(run);
+   }
+
    // Bug #59595: a parsed query keeps its sql string when vpm builds the normalizer on a
    // clone. JDBCHandler still regenerates it sorted, and the select order is restored.
    @Test
@@ -217,6 +250,13 @@ class JDBCHandlerVpmSqlStringTest {
       assertEquals(2, rowCount(run.table), "header plus the one row the vpm allows");
       assertEquals("x", run.table.getObject(1, 0));
       assertEquals(1, ((Number) run.table.getObject(1, 1)).intValue());
+   }
+
+   private static void assertLossySqlExecuted(Run run) {
+      assertEquals(norm(LOSSY_SQL), norm(run.executedSql), "lossy sql string regenerated");
+      assertHeaders(run.table, "B", "A");
+      assertEquals(2, rowCount(run.table), "header plus the one row the sql string allows");
+      assertEquals("x", run.table.getObject(1, 0));
    }
 
    private static void assertHeaders(TableLens table, String... names) {
@@ -244,6 +284,17 @@ class JDBCHandlerVpmSqlStringTest {
       usql.setSQLString(SQL, false);
       assertEquals(UniformSQL.PARSE_SUCCESS, usql.getParseResult());
       assertEquals(2, usql.getSelection().getColumnCount());
+      return usql;
+   }
+
+   // a parsed query whose sql string has more than its structure (the structure is from SQL),
+   // like a dialect construct the parser can't represent (e.g. Bug #72243)
+   private static UniformSQL lossy() throws Exception {
+      UniformSQL usql = parsed();
+      usql.setSQLString(LOSSY_SQL, false);
+      usql.setLossy(true);
+      assertEquals(UniformSQL.PARSE_SUCCESS, usql.getParseResult());
+      assertTrue(XUtil.isParsedSQL(usql));
       return usql;
    }
 
