@@ -121,6 +121,9 @@ public final class CalendarUtil {
          }
 
          SimpleDateFormat format = new SimpleDateFormat(opattern);
+         // the date string is a Gregorian selection value, parse it as one. nformat keeps the
+         // locale calendar so the date is displayed the way the user's locale shows dates
+         format.setCalendar(new GregorianCalendar());
          DateFormat nformat = null;
 
          if("FULL".equals(npattern)) {
@@ -464,7 +467,7 @@ public final class CalendarUtil {
 
    public static String formatTitle(String dateStr, boolean isYear, VSCompositeFormat format) {
       String[] dates = Tool.split(dateStr, '-');
-      Calendar cal = Calendar.getInstance();
+      Calendar cal = new GregorianCalendar();
       int year = Integer.parseInt(dates[0].trim());
       Date currentDate = new Date();
       LocalDate localDate = currentDate.toInstant().atZone(ZoneId.systemDefault()).toLocalDate();
