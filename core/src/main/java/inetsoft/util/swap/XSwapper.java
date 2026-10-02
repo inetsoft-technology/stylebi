@@ -34,6 +34,7 @@ import java.io.File;
 import java.io.IOException;
 import java.lang.management.GarbageCollectorMXBean;
 import java.lang.management.ManagementFactory;
+import java.lang.management.PlatformManagedObject;
 import java.security.Principal;
 import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -302,9 +303,16 @@ public final class XSwapper {
 
       // the flag is JVM-wide, so check it once even if there are several swappers
       if(periodicGCChecked.compareAndSet(false, true)) {
-         enablePeriodicGC(XSwapper::getPeriodicGCInterval,
-                          () -> isG1GC(ManagementFactory.getGarbageCollectorMXBeans()),
-                          () -> ManagementFactory.getPlatformMXBean(HotSpotDiagnosticMXBean.class));
+         // linking DiagnosticBean::get loads com.sun.management, which a runtime without the
+         // jdk.management module doesn't have, so it must not escape the constructor either
+         try {
+            enablePeriodicGC(XSwapper::getPeriodicGCInterval,
+                             () -> isG1GC(ManagementFactory.getGarbageCollectorMXBeans()),
+                             DiagnosticBean::get);
+         }
+         catch(Exception | LinkageError ex) {
+            LOG.debug("Failed to set {}", PERIODIC_GC_OPTION, ex);
+         }
       }
    }
 
@@ -703,12 +711,14 @@ public final class XSwapper {
     *
     * @param interval supplies the interval in milliseconds, 0 to leave the option alone.
     * @param g1       supplies <tt>true</tt> if the JVM uses the G1 collector.
-    * @param bean     supplies the HotSpot diagnostic MXBean.
+    * @param bean     supplies the HotSpot diagnostic MXBean. It's typed as a
+    *                 PlatformManagedObject so that this signature doesn't name
+    *                 com.sun.management, see {@link DiagnosticBean}.
     *
     * @return <tt>true</tt> if the option was set.
     */
    static boolean enablePeriodicGC(LongSupplier interval, BooleanSupplier g1,
-                                   Supplier<HotSpotDiagnosticMXBean> bean)
+                                   Supplier<? extends PlatformManagedObject> bean)
    {
       // everything runs inside the try so that a failure can't stop the swapper from starting
       try {
@@ -718,7 +728,7 @@ public final class XSwapper {
             return false;
          }
 
-         final HotSpotDiagnosticMXBean diagnostic = bean.get();
+         final HotSpotDiagnosticMXBean diagnostic = (HotSpotDiagnosticMXBean) bean.get();
 
          if(diagnostic == null) {
             return false;
@@ -1215,6 +1225,18 @@ public final class XSwapper {
    private final ThreadLocal<Boolean> swapping = ThreadLocal.withInitial(() -> false);
 
    private static final Logger DEBUG_LOG = LoggerFactory.getLogger("inetsoft.swap_data");
+
+   /**
+    * Looks up the HotSpot diagnostic MXBean. This is a separate class, and not a lambda in
+    * XSwapper, so that no method declared by XSwapper has com.sun.management in its
+    * signature: Spring and Mockito reflect on XSwapper's declared methods, which fails if a
+    * signature names a class that the runtime doesn't have (no jdk.management module).
+    */
+   private static final class DiagnosticBean {
+      static HotSpotDiagnosticMXBean get() {
+         return ManagementFactory.getPlatformMXBean(HotSpotDiagnosticMXBean.class);
+      }
+   }
 
    private static final class MonitorMulticaster implements XSwappableMonitor {
       @Override
