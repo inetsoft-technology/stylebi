@@ -405,6 +405,9 @@
             <entrypoint>/usr/local/inetsoft/bin/entrypoint.sh</entrypoint>
             <environment>
               <INETSOFT_SERVER_MAIN>inetsoft.web.InetsoftApplication</INETSOFT_SERVER_MAIN>
+              <!-- Overrides the base image value; keep in sync with src/main/docker/Dockerfile, which
+                   explains why DisableExplicitGC is kept -->
+              <JAVA_GC_OPTS>-XX:+AlwaysPreTouch -XX:+UseG1GC -XX:+DisableExplicitGC</JAVA_GC_OPTS>
             </environment>
             <labels>
               <org.opencontainers.image.title>StyleBI</org.opencontainers.image.title>
