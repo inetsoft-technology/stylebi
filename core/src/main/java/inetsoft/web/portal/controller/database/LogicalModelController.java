@@ -41,7 +41,6 @@ import org.springframework.web.bind.annotation.*;
 import inetsoft.web.security.RequiredPermission;
 import inetsoft.web.security.Secured;
 
-import java.io.StringReader;
 import java.security.Principal;
 import java.util.Arrays;
 
@@ -261,13 +260,10 @@ public class LogicalModelController {
 
       String result = null;
 
-      inetsoft.uql.util.sqlparser.SQLLexer lexer =
-         new inetsoft.uql.util.sqlparser.SQLLexer(new StringReader(expressionString));
-      inetsoft.uql.util.sqlparser.SQLParser parser =
-         new inetsoft.uql.util.sqlparser.SQLParser(lexer);
+      inetsoft.uql.util.sqlparser.SQLLexer lexer;
 
       try {
-         parser.value_exp();
+         lexer = XUtil.parseSQLExpressionSyntax(expressionString);
       }
       catch(Exception ex) {
          result = ex.toString();

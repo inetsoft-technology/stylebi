@@ -33,7 +33,6 @@ import inetsoft.uql.jdbc.util.*;
 import inetsoft.uql.schema.*;
 import inetsoft.uql.util.*;
 import inetsoft.uql.util.sqlparser.SQLLexer;
-import inetsoft.uql.util.sqlparser.SQLParser;
 import inetsoft.util.*;
 import inetsoft.web.adhoc.model.FormatInfoModel;
 import inetsoft.web.composer.model.TreeNodeModel;
@@ -43,7 +42,6 @@ import inetsoft.web.portal.model.database.*;
 import inetsoft.web.portal.model.database.events.RemoveQueryColumnEvent;
 
 import java.awt.*;
-import java.io.StringReader;
 import java.rmi.RemoteException;
 import java.security.Principal;
 import java.util.List;
@@ -1190,11 +1188,10 @@ public class QueryManagerService {
 
    public boolean checkExpression(String expression) {
       expression = expression.trim();
-      SQLLexer lexer = new SQLLexer(new StringReader(expression));
-      SQLParser parser = new SQLParser(lexer);
+      SQLLexer lexer;
 
       try {
-         parser.value_exp();
+         lexer = XUtil.parseSQLExpressionSyntax(expression);
       }
       catch(Exception ex) {
          return false;
