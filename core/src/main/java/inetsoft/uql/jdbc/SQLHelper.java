@@ -1109,7 +1109,7 @@ public class SQLHelper implements KeywordProvider {
       else if(op.equals("<")) {
          return " INNER JOIN ";
       }
-      else if(op.equals("<>")) {
+      else if(op.equals("<>") || op.equals("!=")) {
          return " INNER JOIN ";
       }
 
@@ -1145,7 +1145,7 @@ public class SQLHelper implements KeywordProvider {
          else if(op.equals("=")) {
             return "<>";
          }
-         else if(op.equals("<>")) {
+         else if(op.equals("<>") || op.equals("!=")) {
             return "=";
          }
       }
@@ -3334,8 +3334,8 @@ public class SQLHelper implements KeywordProvider {
     * is always moved, since its operator can't be written in a WHERE clause. Any other join
     * is moved only if it's in the WHERE clause (not HAVING), it's on a non-negated all-AND
     * path from the root (or in a join group built by UniformSQL.addJoin), its operator has
-    * an ANSI join, and both of its tables are in the FROM clause of this query level (so a
-    * correlation to an outer query stays in WHERE).
+    * an ANSI join, it's not a != from the WHERE clause, and both of its tables are in the
+    * FROM clause of this query level (so a correlation to an outer query stays in WHERE).
     */
    private boolean isAnsiFromJoin(XJoin join) {
       if(join.isOuterJoin()) {
@@ -3343,6 +3343,13 @@ public class SQLHelper implements KeywordProvider {
       }
 
       if(having || !ansiJoinPosition || getAnsiJoin(join.getOp(), false) == null) {
+         return false;
+      }
+
+      // a != the parser found in the where clause stays a where condition, as it did
+      // before != had an ANSI join. Only a != from an inner join ON is written into the ON,
+      // so the ON is kept on the null-supplying side of an outer join
+      if("!=".equals(join.getOp()) && join.isWhereClauseJoin()) {
          return false;
       }
 
