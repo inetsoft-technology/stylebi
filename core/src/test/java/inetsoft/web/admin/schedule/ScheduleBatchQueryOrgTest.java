@@ -23,16 +23,22 @@ import inetsoft.sree.security.*;
 import inetsoft.sree.security.support.SecurityTestDataBuilder;
 import inetsoft.test.*;
 import inetsoft.uql.asset.AssetEntry;
+import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.util.Identity;
+import inetsoft.util.IndexedStorage;
 import inetsoft.util.ThreadContext;
 import inetsoft.util.dep.ScheduleTaskAsset;
 import inetsoft.util.dep.XAssetConfig;
+import inetsoft.uql.asset.sync.DependencyStorageService;
+import inetsoft.uql.asset.sync.RenameTransformHandler;
 import inetsoft.web.admin.deploy.DeployService;
 import inetsoft.web.admin.schedule.model.BatchActionModel;
 import inetsoft.web.admin.schedule.model.ScheduleActionModel;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
@@ -43,7 +49,8 @@ import java.nio.charset.StandardCharsets;
 import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.mock;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.*;
 
 /**
  * Bug #77549: the query entry of a batch action comes from the client (the EM and portal task
@@ -57,7 +64,8 @@ import static org.mockito.Mockito.mock;
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class, IntegrationTestConfiguration.class,
-                                  SecurityEngineDispatchConfiguration.class },
+                                  SecurityEngineDispatchConfiguration.class,
+                                  ScheduleBatchQueryOrgTest.RenameConfiguration.class },
                       initializers = ConfigurationContextInitializer.class)
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @SreeHome
@@ -276,6 +284,66 @@ class ScheduleBatchQueryOrgTest {
       assertEquals(ORG_A, ((BatchAction) stored.getAction(0)).getQueryEntry().getOrgID());
    }
 
+   // review r1 finding 1: a rename (an editor save with a new name or owner) removes the stored
+   // task before it saves the renamed one, the refusal must come before the removal
+   @Test
+   void rename_refusedQuery_keepsTheStoredTask() throws Exception {
+      String taskId = storeForeignQueryTask("SbqRename");
+      SRPrincipal caller = builder.principalOf("sbqUser", ORG_A);
+      ScheduleService renameService = new ScheduleService(
+         null, scheduleManager, null, new ScheduleConditionService(), null,
+         mock(DeployService.class), null, null, null, mock(ScheduleTaskFolderService.class),
+         null, null, mock(RenameTransformHandler.class));
+      taskNames.add("SbqRenamed");
+
+      assertThrows(inetsoft.sree.security.SecurityException.class,
+         () -> renameService.updateTaskName(taskId, caller.getName() + ":SbqRenamed", null,
+                                            caller));
+
+      assertNotNull(scheduleManager.getScheduleTask(taskId, ORG_A),
+                    "the stored task must not be lost");
+   }
+
+   // review r1 finding 2: a refused move doesn't change the folders or the stored task's path
+   @Test
+   void folderMove_refusedQuery_changesNothing() throws Exception {
+      String taskId = storeForeignQueryTask("SbqMove");
+      SRPrincipal caller = builder.principalOf("sbqUser", ORG_A);
+      IndexedStorage storage = mock(IndexedStorage.class);
+      ScheduleTaskFolderService folderService = new ScheduleTaskFolderService(
+         scheduleManager, null, null, storage, mock(RenameTransformHandler.class));
+      AssetEntry taskEntry = new AssetEntry(AssetRepository.GLOBAL_SCOPE,
+                                            AssetEntry.Type.SCHEDULE_TASK, "/" + taskId, null);
+      AssetEntry root = new AssetEntry(AssetRepository.GLOBAL_SCOPE,
+                                       AssetEntry.Type.SCHEDULE_TASK_FOLDER, "/", null);
+      AssetEntry target = new AssetEntry(AssetRepository.GLOBAL_SCOPE,
+                                         AssetEntry.Type.SCHEDULE_TASK_FOLDER, "Target", null);
+
+      assertThrows(inetsoft.sree.security.SecurityException.class,
+         () -> folderService.moveTask(target, root, taskEntry, caller));
+      assertThrows(inetsoft.sree.security.SecurityException.class,
+         () -> folderService.changeTaskFolder(taskEntry, target, caller));
+
+      verify(storage, never()).putXMLSerializable(anyString(), any());
+      verify(storage, never()).remove(anyString());
+      assertNotEquals("Target", scheduleManager.getScheduleTask(taskId, ORG_A).getPath());
+   }
+
+   /**
+    * Stores a task owned by sbqUser with a query in another organization, the way a site admin
+    * (exempt) or a save before this fix stored it. The owner gets the delete permission on it.
+    */
+   private String storeForeignQueryTask(String name) throws Exception {
+      // the caller works in its organization, the owner gets the permissions there
+      ThreadContext.setContextPrincipal(builder.principalOf("sbqUser", ORG_A));
+      ScheduleTask task = newTask(name, "1^2^__NULL__^Secret^" + ORG_B);
+      task.setOwner(IdentityID.getIdentityIDFromKey(
+         builder.principalOf("sbqUser", ORG_A).getName()));
+      scheduleManager.setScheduleTask(task.getTaskId(), task, builder.principalOf("sbqAdmin", ORG_A));
+      assertNotNull(scheduleManager.getScheduleTask(task.getTaskId()), "test setup");
+      return task.getTaskId();
+   }
+
    private BatchAction actionFromClient(String identifier) throws Exception {
       // the BatchActionModel the EM/portal editor posts, with client-chosen entry properties
       String json = "{\"actionType\":\"BatchAction\",\"actionClass\":\"BatchActionModel\"," +
@@ -312,5 +380,14 @@ class ScheduleBatchQueryOrgTest {
       assertNull(entry.getProperty("openAutoSaved"));
       assertNull(entry.getProperty("autoFileName"));
       assertNull(entry.getProperty("isRecycle"));
+   }
+
+   // the rename looks up the dependencies of the task (ScheduleService.getDependencyInfo)
+   @Configuration
+   static class RenameConfiguration {
+      @Bean
+      DependencyStorageService dependencyStorageService() {
+         return mock(DependencyStorageService.class);
+      }
    }
 }

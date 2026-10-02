@@ -824,6 +824,8 @@ public class ScheduleManager {
          checkReplaceOwnerOrganization(oldTaskId, taskId, task, principal);
       }
 
+      // Bug #77549, refused before the stored task is removed, so it isn't lost
+      checkBatchQueryOrganization(taskId, task, principal);
       removeScheduleTask(oldTaskId, principal);
       setScheduleTask(taskId, task, parent, isInternalTask(taskId), principal, ownerChecked);
    }

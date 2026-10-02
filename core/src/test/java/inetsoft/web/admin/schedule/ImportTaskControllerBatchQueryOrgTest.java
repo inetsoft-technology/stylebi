@@ -41,6 +41,10 @@ import static org.mockito.Mockito.*;
  * another organization. ImportTaskController.importScheduleTask saves the tasks one by one with
  * no handler of its own (Bug #77503), so the refusal is checked first: the refused task is
  * reported as failed and not saved, and the other tasks are still imported.
+ *
+ * <p>The refusal is mocked: an uploaded task is parsed with parseImportedTask, which moves the
+ * query to the caller's organization, so a foreign-org query isn't expected on this path. The
+ * test pins the loop-continues contract for the check, not that a foreign-org upload is refused.
  */
 @Tag("core")
 class ImportTaskControllerBatchQueryOrgTest {

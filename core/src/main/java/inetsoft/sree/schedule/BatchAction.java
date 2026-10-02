@@ -35,6 +35,7 @@ import inetsoft.uql.util.XUtil;
 import inetsoft.util.ThreadContext;
 import inetsoft.util.Tool;
 import inetsoft.util.script.ScriptEnv;
+import inetsoft.web.AutoSaveUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.w3c.dom.Element;
@@ -300,12 +301,14 @@ public class BatchAction extends AbstractAction {
     * @return the entry itself if it has none of them.
     */
    public static AssetEntry removeAutoSaveProperties(AssetEntry entry) {
-      if(entry == null || AUTO_SAVE_PROPERTIES.stream().allMatch(p -> entry.getProperty(p) == null)) {
+      if(entry == null || AutoSaveUtils.AUTO_SAVE_PROPERTIES.stream()
+         .allMatch(p -> entry.getProperty(p) == null))
+      {
          return entry;
       }
 
       AssetEntry copy = (AssetEntry) entry.clone();
-      AUTO_SAVE_PROPERTIES.forEach(p -> copy.setProperty(p, null));
+      AutoSaveUtils.AUTO_SAVE_PROPERTIES.forEach(p -> copy.setProperty(p, null));
       return copy;
    }
 
@@ -376,9 +379,9 @@ public class BatchAction extends AbstractAction {
       Element queryEntryElem = Tool.getChildNodeByTagName(tag, "queryEntry");
 
       if(queryEntryElem != null) {
-         queryEntry = new AssetEntry();
-         queryEntry.parseXML(Tool.getChildNodeByTagName(queryEntryElem, "assetEntry"), isImportAsSiteAdmin);
-         queryEntry = removeAutoSaveProperties(queryEntry);
+         AssetEntry entry = new AssetEntry();
+         entry.parseXML(Tool.getChildNodeByTagName(queryEntryElem, "assetEntry"), isImportAsSiteAdmin);
+         queryEntry = removeAutoSaveProperties(entry);
       }
 
       Element queryParametersElem = Tool.getChildNodeByTagName(tag, "queryParameters");
@@ -508,8 +511,6 @@ public class BatchAction extends AbstractAction {
    private AssetEntry queryEntry;
    private Map<String, Object> queryParameters = new LinkedHashMap<>();
    private List<Map<String, Object>> embeddedParameters = new ArrayList<>();
-   private static final List<String> AUTO_SAVE_PROPERTIES =
-      List.of("openAutoSaved", "autoFileName", "isRecycle");
    private static final Logger LOG =
       LoggerFactory.getLogger(BatchAction.class);
 }
