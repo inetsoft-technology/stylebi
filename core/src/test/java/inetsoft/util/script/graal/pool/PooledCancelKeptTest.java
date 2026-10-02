@@ -42,6 +42,18 @@ class PooledCancelKeptTest {
       Thread.interrupted();
    }
 
+   @BeforeEach
+   void rememberParanoia() {
+      forcedBefore = PoolParanoia.forced;
+   }
+
+   @AfterEach
+   void restoreParanoia() {
+      PoolParanoia.forced = forcedBefore;
+      PoolParanoia.beforeVerifyHook = null;
+      PoolParanoia.refresh();
+   }
+
    @AfterEach
    void closeSlot() {
       if(slot != null && !slot.isClosed()) {
@@ -231,6 +243,96 @@ class PooledCancelKeptTest {
       }
    }
 
+   /**
+    * Bug #77568: with the paranoid check on, a claim's release runs the check's JS right after
+    * the clean has put the caller's cancel back on the thread. Graal throws at the check's
+    * first guest safepoint poll and clears the flag, so the check must set the cancel aside
+    * too. The check then gives a real verdict, so the slot is reused, not closed as
+    * inconclusive. CI runs with the check off, hence it is forced here.
+    */
+   @Test
+   void aParanoidReleaseKeepsACancelAndReusesTheSlot() throws Exception {
+      PoolParanoia.forced = true;
+      WorksheetScriptEnv env = PoolTestSupport.env();
+
+      try {
+         PoolTestSupport.run(env, "var w = 1; 1");
+         long inconclusive = PoolParanoia.inconclusive();
+         long violations = PoolParanoia.violations();
+         Thread.currentThread().interrupt();
+         String outcome;
+
+         try {
+            outcome = String.valueOf(PoolTestSupport.run(env, "var u = 2; 3"));
+         }
+         catch(Exception ex) {
+            outcome = String.valueOf(ex);
+         }
+
+         assertTrue(Thread.interrupted(), "the paranoid release lost the cancel: " + outcome);
+         assertEquals(inconclusive, PoolParanoia.inconclusive(), "the check was not stopped");
+         assertEquals(violations, PoolParanoia.violations());
+         assertEquals("undefined", PoolTestSupport.run(env, "typeof u"));
+         assertEquals(1, env.getMetrics().getCreations(), "the cancelled slot is reused");
+      }
+      finally {
+         env.retire();
+      }
+   }
+
+   /**
+    * Bug #77568: a cancel that lands while the paranoid check runs is consumed at one of the
+    * check's guest safepoint polls; the check's catch must put it back. The check is made
+    * slow (many off-baseline globals) and the cancel is sent as it starts; a cancel that
+    * lands only after it ended must be kept as well, so the test holds either way.
+    */
+   @Test
+   void aCancelDuringAParanoidCheckIsKept() throws Exception {
+      WorksheetScriptEnv env = PoolTestSupport.env();
+      Thread self = Thread.currentThread();
+      CountDownLatch checking = new CountDownLatch(1);
+      Thread canceller = new Thread(() -> {
+         try {
+            if(checking.await(30, TimeUnit.SECONDS)) {
+               self.interrupt();
+            }
+         }
+         catch(InterruptedException ignore) {
+            // the test ends
+         }
+      }, "paranoid-cancel-canceller");
+
+      try {
+         PoolTestSupport.run(env, "1");
+         PoolParanoia.forced = true;
+         PoolParanoia.beforeVerifyHook = s -> {
+            PoolParanoia.beforeVerifyHook = null;
+            s.engine().context().eval("js",
+               "for(let i = 0; i < 50000; i++) globalThis['zqc' + i] = i;");
+            checking.countDown();
+         };
+         canceller.start();
+         String outcome;
+
+         try {
+            outcome = String.valueOf(PoolTestSupport.run(env, "1"));
+         }
+         catch(Exception ex) {
+            outcome = String.valueOf(ex);
+         }
+
+         canceller.join(30_000);
+         assertEquals(0, checking.getCount(), "the check did not run");
+         assertTrue(Thread.interrupted(), "the cancel was lost in the check: " + outcome);
+         assertEquals("undefined", PoolTestSupport.run(env, "typeof zqc0"));
+      }
+      finally {
+         PoolParanoia.beforeVerifyHook = null;
+         canceller.interrupt();
+         env.retire();
+      }
+   }
+
    private static Slot newSlot() throws Exception {
       EnvState state = new EnvState();
       return Slot.create(new InitSnapshot("org0", Map.of()), state.snapshot(), 0L, false,
@@ -243,4 +345,5 @@ class PooledCancelKeptTest {
    }
 
    private Slot slot;
+   private Boolean forcedBefore;
 }
