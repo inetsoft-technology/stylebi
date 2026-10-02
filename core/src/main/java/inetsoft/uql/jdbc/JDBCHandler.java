@@ -394,7 +394,12 @@ public class JDBCHandler extends XHandler {
       if(cacheNormalizer == null && uniformSQL != null && sortedHint) {
          JDBCQueryCacheNormalizer cacheTest = new JDBCQueryCacheNormalizer((JDBCQuery) query.clone());
 
-         if(cacheTest.getSortedColumnMap() != null && cacheTest.isClearedSqlString()) {
+         // the cleared hint may be copied from an earlier generation, only regenerate sql
+         // whose structure is the whole query, e.g. not vpm conditions written into an
+         // unparsed sql string (Bug #77543)
+         if(cacheTest.getSortedColumnMap() != null && cacheTest.isClearedSqlString() &&
+            XUtil.isParsedSQL(uniformSQL) && !uniformSQL.isLossy())
+         {
             uniformSQL.setHint(UniformSQL.HINT_WITHOUT_SORTED_SQL, true);
             uniformSQL.clearSQLString();
          }
@@ -405,7 +410,11 @@ public class JDBCHandler extends XHandler {
       else if(cacheNormalizer != null && uniformSQL != null && !sortedHint) {
          uniformSQL.clearCachedString();
 
-         if(cacheNormalizer.isClearedSqlString()) {
+         // same as above, don't drop a sql string the structure doesn't describe because of a
+         // copied cleared hint. isLossy() may parse, so it is checked last. (Bug #77543)
+         if(cacheNormalizer.isClearedSqlString() && XUtil.isParsedSQL(uniformSQL) &&
+            !uniformSQL.isLossy())
+         {
             uniformSQL.sqlstring = null;
          }
       }
