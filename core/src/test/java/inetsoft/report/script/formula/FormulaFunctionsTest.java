@@ -28,12 +28,14 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.util.Date;
+import java.util.Locale;
 import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -380,5 +382,30 @@ public class FormulaFunctionsTest {
       Assertions.assertInstanceOf(XTable.class, originalTable);
       XTable deserializedTable = TestSerializeUtils.serializeAndDeserialize((XTable) originalTable);
       Assertions.assertInstanceOf(XTable.class, deserializedTable);
+   }
+
+   // Bug #77526, the date=week option keeps the locale's Sunday-based week of year, which the
+   // crosstab Week of Year group uses, rather than the Excel numbering of CALC.weeknum()
+   @ParameterizedTest
+   @CsvSource({
+      "en-US, 2020-12-26, 52", "en-US, 2020-12-27, 1", "en-US, 2021-01-01, 1",
+      "en-US, 2021-01-03, 2", "en-US, 2024-12-28, 52", "en-US, 2024-12-30, 1",
+      "en-US, 2024-12-31, 1", "en-US, 2025-01-05, 2",
+      "de-DE, 2020-12-26, 52", "de-DE, 2020-12-27, 53", "de-DE, 2021-01-01, 53",
+      "de-DE, 2021-01-03, 1", "de-DE, 2024-12-28, 52", "de-DE, 2024-12-30, 1",
+      "de-DE, 2024-12-31, 1", "de-DE, 2025-01-05, 2"
+   })
+   void dateWeekOptionKeepsLocaleWeekOfYear(String tag, String day, int week) {
+      Locale oldLocale = Locale.getDefault();
+
+      try {
+         Locale.setDefault(Locale.forLanguageTag(tag));
+         Date date = java.sql.Date.valueOf(day);
+         Object[] res = (Object[]) FormulaFunctions.toList(new Object[] { date }, "date=week");
+         assertArrayEquals(new Object[] { week }, res, tag + " " + day);
+      }
+      finally {
+         Locale.setDefault(oldLocale);
+      }
    }
 }

@@ -574,8 +574,7 @@ public class FormulaFunctions {
             func = CalcDateTime.class.getMethod("month", params);
          }
          else if("week".equals(date)) {
-            func = CalcDateTime.class.getMethod("weeknum", params2);
-            args = arg2;
+            func = FormulaFunctions.class.getDeclaredMethod("weekOfYear", params);
          }
          else if("day".equals(date)) {
             func = CalcDateTime.class.getMethod("day", params);
@@ -615,6 +614,18 @@ public class FormulaFunctions {
             ", using interval " + intervalstr + " from " +
             Arrays.toString(arr), ex);
       }
+   }
+
+   /**
+    * Get the week of year for the date=week option. This keeps the locale's week numbering,
+    * which matches the Week of Year date group of a crosstab under the default week.start,
+    * instead of the Excel numbering of CALC.weeknum().
+    */
+   private static int weekOfYear(Object date) {
+      Calendar cal = new GregorianCalendar();
+      cal.setTime((Date) date);
+      cal.setFirstDayOfWeek(Calendar.SUNDAY);
+      return cal.get(Calendar.WEEK_OF_YEAR);
    }
 
    /**
