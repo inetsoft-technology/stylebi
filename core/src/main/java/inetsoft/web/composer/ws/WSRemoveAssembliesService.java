@@ -86,6 +86,7 @@ public class WSRemoveAssembliesService extends WorksheetControllerService {
       RuntimeWorksheet rws = super.getRuntimeWorksheet(runtimeId, principal);
       Worksheet ws = rws.getWorksheet();
       String[] names = event.assemblyNames();
+      checkCubeTableReadPermission(principal, names);
       Set<String> nameset = new HashSet<>();
 
       // build nameset

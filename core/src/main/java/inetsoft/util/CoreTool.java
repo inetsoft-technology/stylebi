@@ -436,6 +436,10 @@ public class CoreTool {
     * Synchronizely call dateformat format.
     */
    public static String formatDate(Date date) {
+      if(isBCDate(date, DATE_FORMAT_CACHE.getTimeZone())) {
+         return formatBCDate(DEFAULT_DATE_PATTERN, DATE_FORMAT_CACHE.getTimeZone(), date);
+      }
+
       return DATE_FORMAT_CACHE.format(date);
    }
 
@@ -444,10 +448,67 @@ public class CoreTool {
     */
    public static String formatDateTime(Date date) {
       if(date instanceof java.sql.Timestamp && useDatetimeWithMillisFormat.get()) {
+         if(isBCDate(date, DATETIME_WITH_MILLIS_FORMAT_CACHE.getTimeZone())) {
+            return formatBCDate(DATETIME_WITH_MILLIS_PATTERN,
+                                DATETIME_WITH_MILLIS_FORMAT_CACHE.getTimeZone(), date);
+         }
+
          return DATETIME_WITH_MILLIS_FORMAT_CACHE.format(date);
       }
 
+      if(isBCDate(date, DATETIME_FORMAT_CACHE.getTimeZone())) {
+         return formatBCDate(DEFAULT_DATETIME_PATTERN, DATETIME_FORMAT_CACHE.getTimeZone(), date);
+      }
+
       return DATETIME_FORMAT_CACHE.format(date);
+   }
+
+   /**
+    * Format a date with a persistent date format. Unlike calling format() directly, a BC date
+    * keeps its era: its year is written as an astronomical year (1 BC is 0000, 44 BC is -0043),
+    * which the date parsers read back as the same BC date. AD dates are formatted unchanged.
+    */
+   public static String formatPersistentDate(DateFormat fmt, Date date) {
+      if(fmt instanceof SimpleDateFormat && ((SimpleDateFormat) fmt).toPattern().contains("yyyy") &&
+         isBCDate(date, fmt.getTimeZone()))
+      {
+         return formatBCDate(((SimpleDateFormat) fmt).toPattern(), fmt.getTimeZone(), date);
+      }
+
+      return fmt.format(date);
+   }
+
+   /**
+    * Check if a date is in the BC era in the specified time zone.
+    */
+   private static boolean isBCDate(Date date, TimeZone tz) {
+      // fast path, no time zone offset moves a date after AD 1-01-03 UTC into BC
+      if(date == null || date.getTime() >= AD_START_THRESHOLD) {
+         return false;
+      }
+
+      GregorianCalendar cal = new GregorianCalendar(tz == null ? TimeZone.getDefault() : tz);
+      cal.setTime(date);
+      return cal.get(Calendar.ERA) == GregorianCalendar.BC;
+   }
+
+   /**
+    * Format a BC date, replacing the year-of-era (yyyy), which has no sign, with the
+    * astronomical year. The year is taken from the same hybrid Julian/Gregorian calendar
+    * the formatter uses, so the month and day are unchanged.
+    */
+   private static String formatBCDate(String pattern, TimeZone tz, Date date) {
+      int idx = pattern.indexOf("yyyy");
+      GregorianCalendar cal = new GregorianCalendar(tz);
+      cal.setTime(date);
+      int year = 1 - cal.get(Calendar.YEAR);
+      String yearStr = year < 0 ? String.format(Locale.ROOT, "-%04d", -year) :
+         String.format(Locale.ROOT, "%04d", year);
+      // digits and '-' are literal text in a date pattern
+      SimpleDateFormat fmt = createDateFormat(
+         pattern.substring(0, idx) + yearStr + pattern.substring(idx + 4));
+      fmt.setTimeZone(tz);
+      return fmt.format(date);
    }
 
    /**
@@ -1126,7 +1187,7 @@ public class CoreTool {
             }
          case CODE_ARRAY:
             if(val.startsWith("^")) {
-               return parseEscapedArray(val);
+               return parseEscapedArray(val, strictNull);
             }
 
             String[] vals = split(val, '^');
@@ -1136,7 +1197,7 @@ public class CoreTool {
                String[] temp = split(vals[i], '~');
 
                try {
-                  res[i] = getData(temp[0], temp[1]);
+                  res[i] = getData(temp[0], temp[1], strictNull);
                }
                catch(Exception ignore) {
                }
@@ -1388,8 +1449,9 @@ public class CoreTool {
    /**
     * Parse an array data string written in the escaped form, i.e. a leading '^' followed by
     * type~value items separated by '^', with '\', '^' and '~' in values escaped by '\'.
+    * @param strictNull true if the items were written with strict nulls (FAKE_NULL).
     */
-   private static Object[] parseEscapedArray(String val) {
+   private static Object[] parseEscapedArray(String val, boolean strictNull) {
       List<Object> res = new ArrayList<>();
       StringBuilder type = new StringBuilder();
       StringBuilder value = null;
@@ -1407,7 +1469,7 @@ public class CoreTool {
             // an item without a type separator is null, same as in the legacy form
             if(value != null) {
                try {
-                  item = getData(type.toString(), value.toString());
+                  item = getData(type.toString(), value.toString(), strictNull);
                }
                catch(Exception ignore) {
                }
@@ -3837,6 +3899,37 @@ public class CoreTool {
          catch(Throwable ex) {
             return null;
          }
+      }
+      catch(Throwable e) {
+         return null;
+      }
+   }
+
+   // AD 1-01-03 00:00 UTC, any earlier date may be BC in some time zone
+   private static final long AD_START_THRESHOLD = -62135596800000L;
+
+   /**
+    * Get the value of a public static field, or null if the class or field is not
+    * available (e.g. an optional JDBC driver class).
+    */
+   public static Object field(Class<?> cls, String field) {
+      try {
+         Field member = cls.getField(field);
+
+         return member.get(null);
+      }
+      catch(Throwable e) {
+         return null;
+      }
+   }
+
+   /**
+    * Get the value of a public static field, or null if the class or field is not
+    * available (e.g. an optional JDBC driver class).
+    */
+   public static Object field(String cls, String field) {
+      try {
+         return field(Class.forName(cls), field);
       }
       catch(Throwable e) {
          return null;

@@ -54,6 +54,7 @@ import inetsoft.web.composer.vs.VSObjectTreeService;
 import inetsoft.web.composer.vs.command.ExpandTreeNodesCommand;
 import inetsoft.web.composer.vs.command.PopulateVSObjectTreeCommand;
 import inetsoft.web.composer.vs.objects.command.RenameVSObjectCommand;
+import inetsoft.web.portal.controller.database.QueryManagerService;
 import inetsoft.web.viewsheet.command.MessageCommand;
 import inetsoft.web.viewsheet.controller.table.BaseTableService;
 import inetsoft.web.viewsheet.service.*;
@@ -89,7 +90,8 @@ public class VSObjectPropertyService {
       VSWizardTemporaryInfoService temporaryInfoService,
       VSCompositionService vsCompositionService,
       SharedFilterService sharedFilterService,
-      DataSourceRegistry dataSourceRegistry)
+      DataSourceRegistry dataSourceRegistry,
+      QueryManagerService queryManagerService)
    {
       this.coreLifecycleService = coreLifecycleService;
       this.vsColumnHandler = vsColumnHandler;
@@ -99,6 +101,7 @@ public class VSObjectPropertyService {
       this.vsCompositionService = vsCompositionService;
       this.sharedFilterService = sharedFilterService;
       this.dataSourceRegistry = dataSourceRegistry;
+      this.queryManagerService = queryManagerService;
    }
 
    public void editObjectProperty(RuntimeViewsheet rvs, VSAssemblyInfo info, String oldName,
@@ -122,6 +125,11 @@ public class VSObjectPropertyService {
       Worksheet ws = vs.getBaseWorksheet();
 
       if(!Tool.equals(oldName, newName)) {
+         // the new name replaces the source of the assemblies bound to this one, and a cube
+         // table name would be resolved from its data source (Bug #77427). It is checked
+         // before anything is changed, so a refused rename leaves the viewsheet as it was
+         // (Bug #77462)
+         queryManagerService.checkCubeTableReadPermission(newName, user);
          String id = vs.getViewsheetInfo().getFilterID(oldName);
          vs.getViewsheetInfo().setFilterID(oldName, null);
          vs.getViewsheetInfo().setFilterID(newName, id);
@@ -2231,6 +2239,7 @@ public class VSObjectPropertyService {
    private final VSCompositionService vsCompositionService;
    private final SharedFilterService sharedFilterService;
    private final DataSourceRegistry dataSourceRegistry;
+   private final QueryManagerService queryManagerService;
 
    private final Logger LOG = LoggerFactory.getLogger(VSObjectPropertyService.class);
 }

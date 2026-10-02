@@ -558,8 +558,14 @@ public abstract class FormatTableLens extends AttributeTableLens
     * filtering calculation to validate itself.
     */
    @Override
-   public synchronized void invalidate() {
-      inited = false;
+   public void invalidate() {
+      synchronized(this) {
+         inited = false;
+      }
+
+      // super fires the change event, after this monitor is released: a downstream lens's
+      // invalidate() takes its own monitor, which a reader of that lens may hold while it
+      // waits for this monitor in checkInit0() (bug #77432)
       super.invalidate();
    }
 

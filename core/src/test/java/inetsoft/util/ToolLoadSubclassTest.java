@@ -182,10 +182,11 @@ class ToolLoadSubclassTest {
       });
       assertEquals(Arrays.asList("a", "b"), collection.getValue());
 
-      assertThrows(ClassCastException.class, () -> parseEditor(e -> {
+      TabularEditor unknown = parseEditor(e -> {
          e.setPropertyType(EditorSentinel.class.getName());
          e.setValue(new ArrayList<>(Arrays.asList("a", "b")));
-      }));
+      });
+      assertNull(unknown.getValue());
       assertEquals(0, EDITOR[0], "static initializer ran");
       assertEquals(0, EDITOR[1], "constructor ran");
    }

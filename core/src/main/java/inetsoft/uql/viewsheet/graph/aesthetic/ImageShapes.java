@@ -82,7 +82,9 @@ public class ImageShapes {
    }
 
    /**
-    * Get the named shape.
+    * Get the named shape. The shape is shared by every chart of the organization (and, for the
+    * default organization's shapes, of others), so it is read-only: use {@code clone()} or
+    * {@code create()} for a copy that can be changed. (Bug #77497)
     */
    public static GShape getShape(String name) {
       synchronized(ImageShapes.class) {
@@ -109,10 +111,10 @@ public class ImageShapes {
 
       for(String name : builtins) {
          if(name.endsWith(".svg")) {
-            shapes.put(name, new SVGShape(dir + name));
+            shapes.put(name, GShape.sharedConstant(new SVGShape(dir + name)));
          }
          else {
-            shapes.put(name, new GShape.ImageShape(dir + name));
+            shapes.put(name, GShape.sharedConstant(new GShape.ImageShape(dir + name)));
          }
       }
    }
@@ -198,14 +200,14 @@ public class ImageShapes {
 
          try {
             if(file.toLowerCase().endsWith(".svg")) {
-               shapes.put(file, new SVGShape(folder + "/" + file));
+               shapes.put(file, GShape.sharedConstant(new SVGShape(folder + "/" + file)));
             }
             else {
                try(InputStream input = dataspace.getInputStream(folder, file)) {
                   if(input != null) {
                      GShape.ImageShape shape = new GShape.ImageShape(file);
                      shape.setImage(Tool.getImage(input));
-                     shapes.put(file, shape);
+                     shapes.put(file, GShape.sharedConstant(shape));
                   }
                }
             }

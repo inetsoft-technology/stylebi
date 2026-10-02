@@ -144,7 +144,7 @@ public class ActionPermissionController {
          Permission stored = securityEngine.getSecurityProvider().getPermission(type, path);
          permissions = keepUnadministeredGrants(permissions, node, stored);
 
-         if(isGrantOrUseParentChange(permissions, stored, currOrgID) &&
+         if(isGrantOrUseParentChange(permissions, stored, currOrgID, principal) &&
             !holdsNodeActions(node, principal))
          {
             throw new java.lang.SecurityException(
@@ -219,10 +219,11 @@ public class ActionPermissionController {
    /**
     * Checks if the save would grant an action to an identity that does not hold it in the stored
     * permission, or would switch "use parent permissions" on or off. Removing grants and saving
-    * the stored state unchanged are not changes.
+    * the stored state unchanged are not changes. Only the stored grants of identities the caller
+    * administers count, so that the outcome does not reveal the grants of hidden identities.
     */
    private boolean isGrantOrUseParentChange(ResourcePermissionModel permissions, Permission stored,
-                                            String orgID)
+                                            String orgID, Principal principal)
    {
       if(permissions.permissions() == null) {
          // nothing is stored, so setResourcePermissions() writes nothing
@@ -243,12 +244,18 @@ public class ActionPermissionController {
             continue;
          }
 
+         // Bug #77461, whether the caller administers the row's identity, judged by the same
+         // (name, current org) key the GET view and setResourcePermissions() use, not the client
+         // supplied org ID
+         boolean administered = permissionService.isIdentityAuthorized(
+            new IdentityID(identity.name, orgID), row.type(), principal);
+
          for(ResourceAction action : row.actions()) {
             if(!permissions.displayActions().contains(action)) {
                continue;
             }
 
-            boolean granted = stored != null && stored
+            boolean granted = administered && stored != null && stored
                .getOrgScopedGrants(action, row.type().code(), orgID).stream()
                .anyMatch(id -> identity.name.equals(id.name) &&
                   (row.type() != Identity.Type.ROLE || id.orgID != null));

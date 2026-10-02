@@ -157,9 +157,10 @@ class ExportAssetControllerTest {
       when(session.getAttribute(PERM_ATTR))
          .thenReturn(CompletableFuture.completedFuture(permissionResult));
 
-      SelectedAssetModelList result = controller.getAssetPermissionValue(request);
+      ResponseEntity<SelectedAssetModelList> result = controller.getAssetPermissionValue(request);
 
-      assertSame(permissionResult, result);
+      assertEquals(200, result.getStatusCode().value());
+      assertSame(permissionResult, result.getBody());
       verify(session).removeAttribute(PERM_ATTR);
    }
 

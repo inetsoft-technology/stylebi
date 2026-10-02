@@ -186,13 +186,19 @@ public class SelfJoinTableLens extends AbstractTableLens implements TableFilter,
     * perform filtering calculation to validate itself.
     */
    @Override
-   public synchronized void invalidate() {
-      // don't dispose the rows, a lock-free reader may still hold them. the superseded
-      // worker detects the new pass by identity instead (bug #77397)
-      rows = null;
-      completed = false;
-      stallFailure = null;
-      scannedRows = 0;
+   public void invalidate() {
+      synchronized(this) {
+         // don't dispose the rows, a lock-free reader may still hold them. the superseded
+         // worker detects the new pass by identity instead (bug #77397)
+         rows = null;
+         completed = false;
+         stallFailure = null;
+         scannedRows = 0;
+      }
+
+      // fire after releasing the monitor: a downstream lens's invalidate() takes its own
+      // monitor, which a reader of that lens may hold while it waits for this monitor to read
+      // the next row (bug #77432)
       fireChangeEvent();
    }
 

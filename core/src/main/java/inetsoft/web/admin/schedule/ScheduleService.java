@@ -1513,8 +1513,20 @@ public class ScheduleService {
       }
       else if("BatchAction".equals(model.actionType())) {
          BatchActionModel batchActionModel = (BatchActionModel) model;
+         String targetTaskId = batchActionModel.taskName();
+
+         // Bug #77531, the three internal tasks (asset file backup, task balancer, update
+         // assets dependencies) run their action with a null principal and perform no permission
+         // check of their own, so only a site admin may point a BatchAction at one of them.
+         if(ScheduleManager.isInternalTask(targetTaskId) &&
+            !OrganizationManager.getInstance().isSiteAdmin(principal))
+         {
+            throw new SecurityException(String.format(
+               "Unauthorized access to resource \"%s\" by %s", targetTaskId, principal));
+         }
+
          BatchAction batchAction = new BatchAction();
-         batchAction.setTaskId(batchActionModel.taskName());
+         batchAction.setTaskId(targetTaskId);
 
          if(batchActionModel.queryEnabled()) {
             batchAction.setQueryEntry(batchActionModel.queryEntry());

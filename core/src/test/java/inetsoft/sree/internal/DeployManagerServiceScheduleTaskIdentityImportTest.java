@@ -25,8 +25,11 @@ import inetsoft.sree.web.dashboard.DashboardManager;
 import inetsoft.sree.web.dashboard.DashboardRegistryManager;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.XRepository;
+import inetsoft.uql.asset.AssetEntry;
+import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.asset.DependencyHandler;
 import inetsoft.uql.asset.EmbeddedTableStorage;
+import inetsoft.uql.asset.internal.AssetFolder;
 import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.util.Identity;
 import inetsoft.uql.util.XSessionService;
@@ -292,6 +295,71 @@ class DeployManagerServiceScheduleTaskIdentityImportTest {
          verify(scheduleManager, never()).setScheduleTask(anyString(), any(ScheduleTask.class),
                                                           any(), any(Principal.class));
       }
+   }
+
+   // Bug #77406, the folder owner of the file isn't checked, a new folder gets no owner, like a
+   // folder created in the UI
+   @Test
+   void restrictedParseContent_createsFoldersWithoutOwner() throws Exception {
+      // Bug #77454, the importer may create the folders
+      when(securityEngine.checkPermission(any(), eq(ResourceType.SCHEDULE_TASK_FOLDER),
+                                          anyString(), eq(ResourceAction.WRITE))).thenReturn(true);
+      Map<String, XMLSerializable> store = importFolders(principal, false);
+
+      assertNull(((AssetFolder) store.get(folderId("F"))).getOwner());
+      assertNull(((AssetFolder) store.get(folderId("F/G"))).getOwner());
+   }
+
+   // Bug #77454, the folder owner is moved to the current organization, like the task owner
+   @Test
+   void siteAdminParseContent_remapsFolderOwnerToCurrentOrg() throws Exception {
+      Map<String, XMLSerializable> store = importFolders(null, true);
+
+      IdentityID owner = new IdentityID("admin", ORG_A);
+      assertEquals(owner, ((AssetFolder) store.get(folderId("F"))).getOwner());
+      assertEquals(owner, ((AssetFolder) store.get(folderId("F/G"))).getOwner());
+   }
+
+   private Map<String, XMLSerializable> importFolders(Principal restrictedImporter,
+                                                      boolean isSiteAdmin)
+      throws Exception
+   {
+      Map<String, XMLSerializable> store = new HashMap<>();
+      store.put(folderId("/"), new AssetFolder());
+      IndexedStorage indexedStorage = mock(IndexedStorage.class);
+      when(indexedStorage.getXMLSerializable(anyString(), any()))
+         .thenAnswer(inv -> store.get(inv.<String>getArgument(0)));
+      when(indexedStorage.contains(anyString()))
+         .thenAnswer(inv -> store.containsKey(inv.<String>getArgument(0)));
+      doAnswer(inv -> store.put(inv.getArgument(0), inv.getArgument(1)))
+         .when(indexedStorage).putXMLSerializable(anyString(), any());
+
+      try(MockedStatic<IndexedStorage> storage = mockStatic(IndexedStorage.class);
+          MockedStatic<XSessionService> sessions = mockStatic(XSessionService.class))
+      {
+         sessions.when(XSessionService::getService).thenReturn(mock(XSessionService.class));
+         storage.when(IndexedStorage::getIndexedStorage).thenReturn(indexedStorage);
+         ScheduleTaskAsset asset = new ScheduleTaskAsset();
+         asset.setRestrictedImporter(restrictedImporter);
+         String folderOwner = new IdentityID("admin", HOST_ORG).convertToKey();
+         String xml = taskXml(BOB.convertToKey(), "")
+            .replace("path=\"/\"", "path=\"F/G\"")
+            .replace("<scheduleTask>", "<scheduleTask><folders>" +
+               "<Folder path=\"F\" owner=\"" + folderOwner + "\"></Folder>" +
+               "<Folder path=\"F/G\" owner=\"" + folderOwner + "\"></Folder></folders>");
+
+         asset.parseContent(new ByteArrayInputStream(xml.getBytes(StandardCharsets.UTF_8)),
+                            null, true, isSiteAdmin);
+      }
+
+      assertNotNull(store.get(folderId("F")));
+      assertNotNull(store.get(folderId("F/G")));
+      return store;
+   }
+
+   private static String folderId(String path) {
+      return new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.SCHEDULE_TASK_FOLDER,
+                            path, null).toIdentifier();
    }
 
    private ScheduleTaskAsset taskAsset() throws Exception {

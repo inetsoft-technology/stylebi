@@ -279,6 +279,9 @@ public class ViewsheetPropertyDialogService {
       if(newBaseEntry != null && !newBaseEntry.equals(viewsheet.getBaseEntry())) {
          queryManagerService.checkViewsheetBaseEntryPermission(
             newBaseEntry, viewsheetService.getAssetRepository(), principal);
+         // a query base rebinds the assemblies to the base worksheet table named by the
+         // entry, which resolves a cube table name from its data source (Bug #77427)
+         queryManagerService.checkCubeTableReadPermission(newBaseEntry.getName(), principal);
       }
 
       boolean reset = info.isMetadata() != vsOptionsPaneModel.isUseMetaData() ||

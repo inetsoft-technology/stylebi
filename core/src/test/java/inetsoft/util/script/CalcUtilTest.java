@@ -19,16 +19,19 @@
 package inetsoft.util.script;
 
 import inetsoft.test.*;
+import inetsoft.util.CoreTool;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.Tag;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.LocalDateTime;
 import java.time.ZoneId;
-import java.util.Date;
+import java.time.temporal.ChronoUnit;
+import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -266,6 +269,178 @@ public class CalcUtilTest {
       double[][] result4 = CalcUtil.convertToDoubleArray2D(input4);
       assertNotNull(result4, "Result should not be null for null input");
       assertEquals(0, result4.length, "Result should be an empty array for null input");
+   }
+
+   // Bug #77450, the 1899-12-31 serial start is in local mean time (+8:05:43) in java.time
+   @Test
+   void serialValueInShanghaiIsNotShiftedBySerialStart() {
+      runInZone("Asia/Shanghai", () -> {
+         assertEquals(45291, CalcTextData.value("1/1/2024"));
+         assertEquals(1, CalcTextData.value("1/1/1900"));
+         assertEquals(45291, CalcDateTime.datevalue(hybridDate(2024, 1, 1)));
+      });
+   }
+
+   // Bug #77450, Asia/Kolkata is +5:21:10 in java.time before 1901 vs +5:30 in java.util
+   @Test
+   void serialDaysBefore1901InKolkata() {
+      runInZone("Asia/Kolkata", () -> {
+         Date d1882 = hybridDate(1882, 6, 1);
+         Date d2024 = hybridDate(2024, 1, 1);
+         assertEquals(51713, CalcUtil.getSerialDays(d1882, d2024));
+         assertEquals(51713, CalcUtil.getSerialDays(new java.sql.Date(d1882.getTime()),
+                                                    new java.sql.Date(d2024.getTime())));
+         assertEquals(1, CalcTextData.value("1/1/1900"));
+      });
+   }
+
+   // Bug #77450, a range across the 1582 Gregorian cutover counts real days
+   @Test
+   void serialDaysAcrossGregorianCutover() {
+      Date d1500 = hybridDate(1500, 3, 1);
+      Date d1600 = hybridDate(1600, 3, 1);
+      assertEquals(36515, CalcUtil.getSerialDays(d1500, d1600));
+      assertEquals(36515, CalcUtil.getSerialDays(new java.sql.Date(d1500.getTime()),
+                                                 new java.sql.Date(d1600.getTime())));
+      // Julian-only leap day
+      java.sql.Date leap = new java.sql.Date(hybridDate(1300, 2, 29).getTime());
+      assertEquals(1, CalcUtil.getSerialDays(leap, hybridDate(1300, 3, 1)));
+   }
+
+   @Test
+   void serialDaysForModernDatesUnchanged() {
+      runInZone("America/New_York", () -> {
+         // across DST, the time of day is ignored
+         assertEquals(1, CalcUtil.getSerialDays(toDate("2021-03-13T23:30:00"),
+                                                toDate("2021-03-14T00:30:00")));
+         assertEquals(365, CalcUtil.getSerialDays(toDate("2023-01-01T00:00:00"),
+                                                  toDate("2024-01-01T23:59:59")));
+         assertEquals(-31, CalcUtil.getSerialDays(toDate("2024-02-01T00:00:00"),
+                                                  toDate("2024-01-01T00:00:00")));
+         assertEquals(45291, CalcTextData.value("1/1/2024"));
+      });
+   }
+
+   // Bug #77450, every day from 1950 to 2050 counts the same as java.time, and CALC.value is
+   // not shifted in other zones where the 1899 serial start is in local mean time
+   @Test
+   void serialDaysMatchJavaTimeForModernDates() {
+      for(String zone : new String[] { "Europe/Warsaw", "Africa/Cairo", "Australia/Lord_Howe",
+                                       "Pacific/Apia" })
+      {
+         runInZone(zone, () -> {
+            ZoneId zoneId = ZoneId.systemDefault();
+            LocalDateTime start = LocalDateTime.of(1950, 1, 1, 23, 30);
+            Date startDate = Date.from(start.atZone(zoneId).toInstant());
+
+            for(LocalDateTime day = start; day.getYear() <= 2050; day = day.plusDays(1)) {
+               Date date = Date.from(day.atZone(zoneId).toInstant());
+               long expected = ChronoUnit.DAYS.between(
+                  start.toLocalDate(), date.toInstant().atZone(zoneId).toLocalDate());
+               assertEquals(expected, CalcUtil.getSerialDays(startDate, date), zone + " " + day);
+            }
+
+            assertEquals(45291, CalcTextData.value("1/1/2024"), zone);
+            assertEquals(1, CalcTextData.value("1/1/1900"), zone);
+         });
+      }
+   }
+
+   // Bug #77450, the serial start and 30/360 years use the Gregorian calendar when the default
+   // locale has a Buddhist (Thai) or imperial (Japanese) calendar
+   @Test
+   void serialDaysWithNonGregorianDefaultLocale() {
+      for(String tag : new String[] { "th-TH", "ja-JP-u-ca-japanese" }) {
+         Locale oldLocale = Locale.getDefault();
+
+         try {
+            Locale.setDefault(Locale.forLanguageTag(tag));
+            runInZone("Asia/Bangkok", () -> {
+               assertEquals(45291, CalcDateTime.datevalue(hybridDate(2024, 1, 1)), tag);
+               assertEquals(45291, CalcTextData.value("1/1/2024"), tag);
+               assertEquals(1, CalcTextData.value("1/1/1900"), tag);
+               // across the 2019-05-01 Heisei/Reiwa era change
+               assertEquals(150, CalcUtil.get30_360Days(hybridDate(2019, 1, 15),
+                                                        hybridDate(2019, 6, 15)), tag);
+            });
+         }
+         finally {
+            Locale.setDefault(oldLocale);
+         }
+      }
+   }
+
+   // Bug #77450, the local millis are the displayed calendar fields on a UTC time line in every
+   // zone, including local mean time before 1901, the 1582 cutover and BC dates
+   @Test
+   void localMillisMatchCalendarFields() {
+      TimeZone utc = TimeZone.getTimeZone("UTC");
+      Random random = new Random(77450);
+      long min = hybridDate(-500, 1, 1).getTime();
+      long max = hybridDate(2200, 1, 1).getTime();
+      long[] fixed = { hybridDate(1582, 10, 4).getTime(), hybridDate(1582, 10, 15).getTime(),
+                       hybridDate(1899, 12, 31).getTime() - 1, hybridDate(1900, 1, 1).getTime(),
+                       hybridDate(1300, 2, 29).getTime() };
+
+      for(String zone : TimeZone.getAvailableIDs()) {
+         TimeZone tz = TimeZone.getTimeZone(zone);
+         TimeZone oldZone = TimeZone.getDefault();
+
+         try {
+            TimeZone.setDefault(tz);
+
+            for(int i = 0; i < 100 + fixed.length; i++) {
+               long time = i < fixed.length ? fixed[i] + random.nextInt(86_400_000) :
+                  min + (long) (random.nextDouble() * (max - min));
+               GregorianCalendar local = new GregorianCalendar(tz);
+               local.setTimeInMillis(time);
+               GregorianCalendar fields = new GregorianCalendar(utc);
+               fields.clear();
+               fields.set(Calendar.ERA, local.get(Calendar.ERA));
+               fields.set(local.get(Calendar.YEAR), local.get(Calendar.MONTH),
+                          local.get(Calendar.DAY_OF_MONTH));
+               assertEquals(fields.getTimeInMillis(),
+                            CalcUtil.getLocalMillis(new Date(time), false), zone + " " + time);
+               fields.set(Calendar.HOUR_OF_DAY, local.get(Calendar.HOUR_OF_DAY));
+               fields.set(Calendar.MINUTE, local.get(Calendar.MINUTE));
+               fields.set(Calendar.SECOND, local.get(Calendar.SECOND));
+               fields.set(Calendar.MILLISECOND, local.get(Calendar.MILLISECOND));
+               assertEquals(fields.getTimeInMillis(),
+                            CalcUtil.getLocalMillis(new Date(time), true), zone + " " + time);
+            }
+         }
+         finally {
+            TimeZone.setDefault(oldZone);
+         }
+      }
+   }
+
+   static Date hybridDate(int year, int month, int day) {
+      GregorianCalendar cal = new GregorianCalendar();
+      cal.clear();
+      cal.set(year, month - 1, day);
+      return cal.getTime();
+   }
+
+   /**
+    * Run a test with the default time zone, the cached serial start, and the shared thread
+    * local calendar in the zone, and restore them after.
+    */
+   static void runInZone(String zone, Runnable test) {
+      TimeZone oldZone = TimeZone.getDefault();
+      TimeZone oldCalendarZone = CoreTool.calendar.get().getTimeZone();
+
+      try {
+         TimeZone.setDefault(TimeZone.getTimeZone(zone));
+         CoreTool.calendar.get().setTimeZone(TimeZone.getDefault());
+         ReflectionTestUtils.setField(CalcUtil.class, "date1900", null);
+         test.run();
+      }
+      finally {
+         TimeZone.setDefault(oldZone);
+         CoreTool.calendar.get().setTimeZone(oldCalendarZone);
+         ReflectionTestUtils.setField(CalcUtil.class, "date1900", null);
+      }
    }
 
    /**

@@ -17,13 +17,19 @@
  */
 package inetsoft.util;
 
+import java.io.IOException;
+import java.io.ObjectInputStream;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.text.*;
 
 /**
  * A format class that supports different rounding options.
  */
 public class RoundDecimalFormat extends DecimalFormat {
+   // the implicit value before the pattern overrides were added; the serialized fields are unchanged
+   private static final long serialVersionUID = 3176001257543027570L;
+
    /**
     * Create an empty format. The format pattern must be set before it's used.
     */
@@ -35,6 +41,8 @@ public class RoundDecimalFormat extends DecimalFormat {
     */
    public RoundDecimalFormat(String fmt) {
       super(fmt);
+      // the DecimalFormat constructor does not call the overridden applyPattern()
+      boundEmptyPattern(fmt);
    }
 
    /**
@@ -42,6 +50,39 @@ public class RoundDecimalFormat extends DecimalFormat {
     */
    public RoundDecimalFormat(String pattern, DecimalFormatSymbols symbols) {
       super(pattern, symbols);
+      boundEmptyPattern(pattern);
+   }
+
+   /**
+    * Apply a pattern.
+    */
+   @Override
+   public void applyPattern(String pattern) {
+      super.applyPattern(pattern);
+      boundEmptyPattern(pattern);
+   }
+
+   /**
+    * Apply a localized pattern.
+    */
+   @Override
+   public void applyLocalizedPattern(String pattern) {
+      super.applyLocalizedPattern(pattern);
+      boundEmptyPattern(pattern);
+   }
+
+   /**
+    * An empty pattern leaves Integer.MAX_VALUE maximum fraction digits, and toPattern() (called
+    * by format() for any rounding other than ROUND_HALF_EVEN) would then build a string of about
+    * 2^31 chars. Keep the empty pattern's formatting but cap the fraction digits at the most a
+    * double can show. Unlike substituting a "#,##0.###" pattern, this keeps the JDK's
+    * DecimalFormat fast path (which ignores the rounding option) from applying, and gives the
+    * same output as a plain DecimalFormat("").
+    */
+   private void boundEmptyPattern(String pattern) {
+      if(pattern != null && pattern.isEmpty()) {
+         setMaximumFractionDigits(DOUBLE_FRACTION_DIGITS);
+      }
    }
 
    /**
@@ -65,6 +106,23 @@ public class RoundDecimalFormat extends DecimalFormat {
             dec = dec.setScale(scale, rounding);
             num = dec.doubleValue();
          }
+
+         // the JDK rounding mode follows the rounding option (so the JDK fast path in
+         // format(double) and the BigDecimal/long paths cannot skip it), but the value is
+         // already rounded here, so round any remaining digits HALF_EVEN as before
+         RoundingMode mode = getRoundingMode();
+         // format(double) passes the JDK's DontCareFieldPosition, for which the JDK would try
+         // its HALF_EVEN fast path again; a plain FieldPosition gives the same text without it
+         FieldPosition pos = "java.text.DontCareFieldPosition".equals(
+            fieldPosition.getClass().getName()) ? new FieldPosition(0) : fieldPosition;
+         setRoundingMode(RoundingMode.HALF_EVEN);
+
+         try {
+            return super.format(num, result, pos);
+         }
+         finally {
+            setRoundingMode(mode);
+         }
       }
 
       return super.format(num, result, fieldPosition);
@@ -75,7 +133,10 @@ public class RoundDecimalFormat extends DecimalFormat {
     * options.
     */
    public void setRounding(int rounding) {
+      // throws IllegalArgumentException for a value that is not a rounding option
+      RoundingMode mode = RoundingMode.valueOf(rounding);
       this.rounding = rounding;
+      setRoundingMode(mode);
    }
 
    /**
@@ -116,7 +177,25 @@ public class RoundDecimalFormat extends DecimalFormat {
       else {
          throw new RuntimeException("Rounding option is not valid: " + round);
       }
+
+      setRoundingMode(RoundingMode.valueOf(rounding));
    }
 
+   private void readObject(ObjectInputStream in) throws IOException, ClassNotFoundException {
+      in.defaultReadObject();
+
+      // a format serialized before the JDK rounding mode followed the rounding option
+      if(rounding != BigDecimal.ROUND_HALF_EVEN && getRoundingMode() == RoundingMode.HALF_EVEN) {
+         try {
+            setRoundingMode(RoundingMode.valueOf(rounding));
+         }
+         catch(IllegalArgumentException ignore) {
+            // not a rounding option, format() fails as it did before
+         }
+      }
+   }
+
+   // the most fraction digits DecimalFormat can show for a double
+   private static final int DOUBLE_FRACTION_DIGITS = 340;
    private int rounding = BigDecimal.ROUND_HALF_EVEN;
 }

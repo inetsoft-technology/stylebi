@@ -279,13 +279,11 @@ public class ScheduleTaskAsset extends AbstractXAsset {
       IndexedStorage indexedStorage = IndexedStorage.getIndexedStorage();
       Element folders = Tool.getChildNodeByTagName(elem, "folders");
       Element timeRanges = Tool.getChildNodeByTagName(elem, "timeRanges");
+      Element taskElem = Tool.getChildNodeByTagName(elem, "Task");
 
-      if(folders != null) {
-         NodeList folderNodes = Tool.getChildNodesByTagName(folders, "Folder");
-
-         for(int i = 0; i < folderNodes.getLength(); i ++) {
-            importScheduleFolder((Element) folderNodes.item(i), indexedStorage);
-         }
+      // Bug #77454, a file without a task imports nothing, its folders are not created
+      if(taskElem == null) {
+         throw new IOException("The schedule task file " + task + " contains no task");
       }
 
       // Bug #77281, the time ranges are global, an importer that isn't a site admin can't
@@ -312,7 +310,6 @@ public class ScheduleTaskAsset extends AbstractXAsset {
          TimeRange.setTimeRanges(ranges);
       }
 
-      Element taskElem = Tool.getChildNodeByTagName(elem, "Task");
       ScheduleTask newTask;
 
       if(restrictedImporter != null) {
@@ -335,6 +332,20 @@ public class ScheduleTaskAsset extends AbstractXAsset {
       else {
          newTask = new ScheduleTask();
          newTask.parseXML(taskElem, isSiteAdmin);
+      }
+
+      // Bug #77454, the folders are written only after the task is accepted, and only when the
+      // importer may create each folder that doesn't exist yet
+      if(folders != null) {
+         NodeList folderNodes = Tool.getChildNodesByTagName(folders, "Folder");
+
+         if(restrictedImporter != null) {
+            checkFolderPermissions(folderNodes, indexedStorage);
+         }
+
+         for(int i = 0; i < folderNodes.getLength(); i ++) {
+            importScheduleFolder((Element) folderNodes.item(i), indexedStorage, isSiteAdmin);
+         }
       }
 
       String parentPath = newTask.getPath();
@@ -360,11 +371,54 @@ public class ScheduleTaskAsset extends AbstractXAsset {
       }
    }
 
-   private void importScheduleFolder(Element folderElem,
-                                     IndexedStorage indexedStorage) throws Exception
+   /**
+    * Bug #77454, checks that a restricted importer may create every folder of the file that
+    * doesn't exist yet (and its missing ancestors): the schedule task folder WRITE permission on
+    * the parent folder, the same as creating the folder in the UI. An existing folder needs no
+    * permission, it isn't changed. Nothing is written by this check.
+    */
+   private void checkFolderPermissions(NodeList folderNodes, IndexedStorage indexedStorage)
+      throws Exception
+   {
+      SecurityEngine engine = SecurityEngine.getSecurity();
+
+      for(int i = 0; i < folderNodes.getLength(); i++) {
+         String path = Tool.getAttribute((Element) folderNodes.item(i), "path");
+         AssetEntry folderEntry = new AssetEntry(
+            AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.SCHEDULE_TASK_FOLDER, path, null);
+
+         while(folderEntry != null && !folderEntry.isRoot() &&
+            !indexedStorage.contains(folderEntry.toIdentifier()))
+         {
+            AssetEntry parentEntry = folderEntry.getParent();
+
+            if(parentEntry == null || !engine.checkPermission(
+               restrictedImporter, ResourceType.SCHEDULE_TASK_FOLDER, parentEntry.getPath(),
+               ResourceAction.WRITE))
+            {
+               throw new inetsoft.sree.security.SecurityException(catalog.getString(
+                  "em.import.file.failed.noPermission", getType() + " " + task));
+            }
+
+            folderEntry = parentEntry;
+         }
+      }
+   }
+
+   private void importScheduleFolder(Element folderElem, IndexedStorage indexedStorage,
+                                     boolean isSiteAdmin) throws Exception
    {
       String path = Tool.getAttribute(folderElem, "path");
-      IdentityID owner = IdentityID.getIdentityIDFromKey(Tool.getAttribute(folderElem, "owner"));
+      // Bug #77406, the folder owner of the file isn't checked for an importer that isn't a site
+      // admin, a new folder gets no owner like a folder created in the UI
+      IdentityID owner = restrictedImporter != null ? null :
+         IdentityID.getIdentityIDFromKey(Tool.getAttribute(folderElem, "owner"));
+
+      // Bug #77454, a site admin import moves the folder owner to the current organization,
+      // the same as the task owner (ScheduleTask.parseXML)
+      if(owner != null && isSiteAdmin) {
+         owner = new IdentityID(owner.getName(), OrganizationManager.getInstance().getCurrentOrgID());
+      }
 
       AssetEntry folderEntry = new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.SCHEDULE_TASK_FOLDER,
                                               path, null);

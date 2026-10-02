@@ -508,7 +508,21 @@ public class SummaryFilter extends AbstractGroupedTable
     * filtering calculation to validate itself.
     */
    @Override
-   public synchronized void invalidate() {
+   public void invalidate() {
+      synchronized(this) {
+         invalidate0();
+      }
+
+      // fire after releasing the monitor: a downstream lens's invalidate() takes its own
+      // monitor, which a reader of that lens may hold while it waits for this monitor to read
+      // the next row (bug #77432)
+      fireChangeEvent();
+   }
+
+   /**
+    * Reset the filter to a new pass. The caller holds the monitor.
+    */
+   private void invalidate0() {
       Pass pass = this.pass;
       inited = false;
       // publish a new pass and don't dispose the old one: a reader or the worker of the old
@@ -524,7 +538,6 @@ public class SummaryFilter extends AbstractGroupedTable
       mmap = new Hashtable<>();
       // notify waiting consumers
       notifyAll();
-      fireChangeEvent();
    }
 
    /**
@@ -1943,12 +1956,17 @@ public class SummaryFilter extends AbstractGroupedTable
     * Set the base table of this filter. The base table must be a sorted table.
     */
    @Override
-   public synchronized void setTable(TableLens table) {
-      this.table = table;
-      this.hcount = table.getHeaderRowCount();
-      this.ordermap = new SortOrder[table.getColCount()];
-      invalidate();
-      this.table.addChangeListener(new DefaultTableChangeListener(this));
+   public void setTable(TableLens table) {
+      synchronized(this) {
+         this.table = table;
+         this.hcount = table.getHeaderRowCount();
+         this.ordermap = new SortOrder[table.getColCount()];
+         invalidate0();
+         this.table.addChangeListener(new DefaultTableChangeListener(this));
+      }
+
+      // fire after releasing the monitor, see invalidate() (bug #77432)
+      fireChangeEvent();
    }
 
    /**

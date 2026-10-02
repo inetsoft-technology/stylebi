@@ -62,6 +62,7 @@ public class CheckModelTrapService extends WorksheetControllerService {
          super.getWorksheetEngine().getWorksheet(runtimeId, principal);
       Worksheet ws = rws.getWorksheet();
       String tname = event.tableName();
+      checkCubeTableReadPermission(principal, tname);
       TableAssembly table = (TableAssembly) ws.getAssembly(tname);
       ColumnSelection columnSelection = table.getColumnSelection();
       AggregateInfo agg = getAggregateInfo(event.newAggregateInfo(), columnSelection);

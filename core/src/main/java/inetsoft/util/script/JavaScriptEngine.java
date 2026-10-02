@@ -304,11 +304,8 @@ public class JavaScriptEngine {
          throw new IllegalArgumentException("Class name is required");
       }
 
-      if(!ScriptHostAccess.classFilter().test(cls)) {
-         throw new SecurityException("Class " + cls + " is not allowed in scripts");
-      }
-
-      Class<?> clazz = Class.forName(cls, false, JavaScriptEngine.class.getClassLoader());
+      Class<?> clazz =
+         ScriptHostAccess.loadScriptVisibleClass(cls, JavaScriptEngine.class.getClassLoader());
       return clazz.getDeclaredConstructor().newInstance();
    }
 
@@ -533,11 +530,15 @@ public class JavaScriptEngine {
          final ZonedDateTime zonedDate2 = Instant.ofEpochMilli(dateVal2.getTime())
             .atZone(ZoneId.systemDefault());
 
+         // count days on the calendar SimpleDateFormat displays, java.time would use local
+         // mean time before 1901 (bug #77450)
          if(interval.equals("y") || interval.equals("d") || interval.equals("w")) {
-            return zonedDate1.until(zonedDate2, ChronoUnit.DAYS);
+            return (CalcUtil.getLocalMillis(dateVal2, true) -
+               CalcUtil.getLocalMillis(dateVal1, true)) / CalcUtil.DAY_MILLIS;
          }
          else if(interval.equals("ws") || interval.equals("ww")) {
-            return zonedDate1.until(zonedDate2, ChronoUnit.WEEKS);
+            return (CalcUtil.getLocalMillis(dateVal2, true) -
+               CalcUtil.getLocalMillis(dateVal1, true)) / (7 * CalcUtil.DAY_MILLIS);
          }
          else if(interval.equals("h")) {
             return zonedDate1.until(zonedDate2, ChronoUnit.HOURS);

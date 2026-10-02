@@ -61,10 +61,12 @@ public class InnerJoinService extends WorksheetControllerService {
       final TableAssemblyOperator noperator = new TableAssemblyOperator();
 
       for(TableAssemblyOperatorModel operator : event.getOperators()) {
+         checkCubeTableReadPermission(principal, operator.getLtable(), operator.getRtable());
          noperator.addOperator(WorksheetEventUtil.convertOperator(ws, operator));
       }
 
       if(event.getTableName() != null) {
+         checkCubeTableReadPermission(principal, event.getTableName());
          final RelationalJoinTableAssembly joinTableAssembly =
             (RelationalJoinTableAssembly) ws.getAssembly(event.getTableName());
          editExistingJoinTable(rws, joinTableAssembly,
@@ -92,6 +94,7 @@ public class InnerJoinService extends WorksheetControllerService {
       final RuntimeWorksheet rws = getRuntimeWorksheet(runtimeId, principal);
       final String joinTable = event.getJoinTable();
       final String dragTable = event.getDroppedTable();
+      checkCubeTableReadPermission(principal, joinTable, dragTable);
       checkContainsSubtable(rws, joinTable, dragTable);
       final SchemaTableInfo info = new SchemaTableInfo(event.getLeft(), event.getTop());
       final JoinMetaInfo joinInfo = joinSourceAndTargetTables(
@@ -114,6 +117,7 @@ public class InnerJoinService extends WorksheetControllerService {
          return null;
       }
 
+      checkCubeTableReadPermission(principal, tables);
       String joinTable = tables[0];
 
       for(int i = 1; i < tables.length; i++) {
@@ -147,6 +151,7 @@ public class InnerJoinService extends WorksheetControllerService {
       rws.cloneWS();
       final String sourceTable = event.getLeftTable();
       final String targetTable = event.getRightTable();
+      checkCubeTableReadPermission(principal, sourceTable, targetTable);
       checkContainsSubtable(rws, targetTable, sourceTable);
       final JoinMetaInfo joinInfo = joinSourceAndTargetTables(
          sourceTable, targetTable, rws, null, event.isJoinTarget(), commandDispatcher);

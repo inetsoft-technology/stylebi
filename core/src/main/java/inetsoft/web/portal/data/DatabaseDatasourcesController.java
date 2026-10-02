@@ -19,6 +19,7 @@ package inetsoft.web.portal.data;
 
 import inetsoft.sree.security.ResourceAction;
 import inetsoft.sree.security.ResourceType;
+import inetsoft.sree.security.SecurityException;
 import inetsoft.uql.XDataSource;
 import inetsoft.uql.XRepository;
 import inetsoft.uql.service.XEngine;
@@ -228,11 +229,21 @@ public class DatabaseDatasourcesController {
       actions = ResourceAction.ACCESS
    ))
    @PostMapping("/api/data/database/dataModelFolder/checkOuterDependencies")
-   public StringWrapper checkOuterDependencies(@RequestBody CheckDependenciesEvent event)
+   public StringWrapper checkOuterDependencies(@RequestBody CheckDependenciesEvent event,
+                                               Principal principal)
       throws Exception
    {
       if(event == null || event.isNewCreate()) {
          return null;
+      }
+
+      // only the folder delete asks for this, so require the permission the delete needs
+      if(!dataSourceService.checkPermission(event.getDatabaseName(), event.getDataModelFolder(),
+                                            ResourceAction.DELETE, principal))
+      {
+         throw new SecurityException(
+            "Unauthorized access to resource \"" + event.getDatabaseName() + "/" +
+               event.getDataModelFolder() + "\" by user " + principal);
       }
 
       return folderManagerService.checkOuterDependencies(
@@ -297,9 +308,11 @@ public class DatabaseDatasourcesController {
    ))
    @GetMapping("/api/portal/data/database/dataModelFolder/duplicateCheck")
    public boolean dataModelFolderDuplicateCheck(@RequestParam("databasePath") String databasePath,
-                                                @RequestParam("name") String folderName)
+                                                @RequestParam("name") String folderName,
+                                                Principal principal)
       throws Exception
    {
+      dataSourceService.checkDataSourceReadPermission(databasePath, principal);
       return databaseModelBrowserService.dataModelFolderDuplicateCheck(databasePath, folderName);
    }
 
