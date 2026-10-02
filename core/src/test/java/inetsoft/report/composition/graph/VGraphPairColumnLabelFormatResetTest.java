@@ -17,8 +17,16 @@
  */
 package inetsoft.report.composition.graph;
 
+import inetsoft.graph.EGraph;
+import inetsoft.graph.Plotter;
+import inetsoft.graph.VGraph;
+import inetsoft.graph.data.DataSet;
+import inetsoft.graph.data.DefaultDataSet;
+import inetsoft.graph.guide.VLabel;
+import inetsoft.graph.guide.axis.Axis;
 import inetsoft.report.StyleFont;
 import inetsoft.test.*;
+import inetsoft.uql.VariableTable;
 import inetsoft.uql.asset.AggregateFormula;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.viewsheet.VSFormat;
@@ -33,6 +41,8 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.awt.*;
 import java.lang.reflect.Method;
+import java.util.*;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -119,6 +129,88 @@ class VGraphPairColumnLabelFormatResetTest {
       assertEquals(axisFont, colFmt.getDefaultFormat().getFont());
       assertEquals(initialFont, colFmt.getDefaultFormat().getFont());
       assertEquals(initialColor, colFmt.getDefaultFormat().getColor());
+   }
+
+   @Test
+   void renderedMeasureAxisTickLabelsUseDefaultFontAfterObjectFontIsCleared() throws Exception {
+      ChartVSAssemblyInfo info = separatedBarChart();
+      fixChartFormat(info);
+      Font initialFont = singleFont(yTickLabels(info));
+
+      setObjectFormat(info);
+      fixChartFormat(info);
+      assertEquals(OBJECT_FONT, singleFont(yTickLabels(info)));
+
+      resetObjectFormat(info);
+      fixChartFormat(info);
+      List<VLabel> labels = yTickLabels(info);
+      assertEquals(initialFont, singleFont(labels));
+      assertEquals(Color.decode("#4b4b4b"), labels.get(0).getTextSpec().getColor());
+   }
+
+   @Test
+   void userColumnLabelFontStillWinsOverObjectFontAndReset() throws Exception {
+      ChartVSAssemblyInfo info = separatedBarChart();
+      VSChartAggregateRef revenue = (VSChartAggregateRef) info.getVSChartInfo().getYField(0);
+      Font userFont = new StyleFont("Verdana", Font.ITALIC, 12);
+      revenue.getAxisDescriptor().getColumnLabelTextFormat(revenue.getFullName())
+         .getUserDefinedFormat().setFont(userFont);
+
+      setObjectFormat(info);
+      fixChartFormat(info);
+      assertEquals(userFont, singleFont(yTickLabels(info)));
+
+      resetObjectFormat(info);
+      fixChartFormat(info);
+      assertEquals(userFont, singleFont(yTickLabels(info)));
+   }
+
+   private static ChartVSAssemblyInfo separatedBarChart() {
+      VSChartInfo cinfo = new DefaultVSChartInfo();
+      cinfo.setChartType(GraphTypes.CHART_BAR);
+      VSChartDimensionRef region = new VSChartDimensionRef(new AttributeRef("Region"));
+      VSChartAggregateRef revenue = new VSChartAggregateRef();
+      revenue.setDataRef(new AttributeRef("Revenue"));
+      revenue.setFormula(AggregateFormula.SUM);
+      cinfo.addXField(region);
+      cinfo.addYField(revenue);
+      cinfo.setRTXFields(new ChartRef[] { region });
+      cinfo.setRTYFields(new ChartRef[] { revenue });
+
+      ChartVSAssemblyInfo info = new ChartVSAssemblyInfo();
+      info.setVSChartInfo(cinfo);
+      assertTrue(cinfo.isSeparatedGraph());
+      GraphFormatUtil.fixDefaultNumberFormat(info.getChartDescriptor(), cinfo);
+      assertNotNull(revenue.getAxisDescriptor().getColumnLabelTextFormat(revenue.getFullName()));
+      return info;
+   }
+
+   // the tick labels of the Sum(Revenue) axis in the real generated and laid-out VGraph
+   private static List<VLabel> yTickLabels(ChartVSAssemblyInfo info) {
+      DataSet data = new DefaultDataSet(new Object[][] {
+         { "Region", "Sum(Revenue)" }, { "East", 1000.0 }, { "West", 2500.0 }, { "North", 1800.0 }
+      });
+      GraphGenerator gen = GraphGenerator.getGenerator(info, null, data, new VariableTable(),
+                                                       null, 0, new Dimension(400, 300));
+      EGraph egraph = gen.createEGraph();
+      VGraph vgraph = Plotter.getPlotter(egraph).plotAndLayout(gen.getData(), 0, 0, 400, 300);
+      List<VLabel> labels = new ArrayList<>();
+
+      for(Axis axis : vgraph.getCoordinate().getAxes(true)) {
+         if(Arrays.asList(axis.getScale().getFields()).contains("Sum(Revenue)")) {
+            Arrays.stream(axis.getLabels()).filter(Objects::nonNull).forEach(labels::add);
+         }
+      }
+
+      assertFalse(labels.isEmpty(), "the measure axis should render tick labels");
+      return labels;
+   }
+
+   private static Font singleFont(List<VLabel> labels) {
+      Set<Font> fonts = new HashSet<>();
+      labels.forEach(label -> fonts.add(label.getFont()));
+      assertEquals(1, fonts.size(), "all tick labels should share one font: " + fonts);
+      return fonts.iterator().next();
    }
 
    private static void setObjectFormat(ChartVSAssemblyInfo info) {
