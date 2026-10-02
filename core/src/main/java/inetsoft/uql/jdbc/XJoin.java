@@ -21,6 +21,7 @@ import inetsoft.uql.util.XUtil;
 import org.w3c.dom.Element;
 
 import java.io.PrintWriter;
+import java.util.*;
 
 /**
  * The XJoin extends XFilterNode to store information of
@@ -122,7 +123,105 @@ public class XJoin extends XBinaryCondition {
       }
 
       String table = XUtil.getTablePart(column, sql);
-      return table == null ? "" : table;
+
+      if(table == null) {
+         return "";
+      }
+
+      if(sql != null && !table.isEmpty() && sql.getTableIndex(table) < 0) {
+         String fromTable = getUnaliasedTable(table, sql);
+
+         if(fromTable != null) {
+            return fromTable;
+         }
+      }
+
+      return table;
+   }
+
+   /**
+    * Find the unaliased FROM table that a join qualifier names when the qualifier text is not
+    * a FROM table or alias as written: a table whose name is the qualifier once quotes are
+    * removed (dialects such as PostgreSQL store unaliased tables quoted, e.g. "s"."a" for
+    * s.a), or else one whose name ends with the qualifier, e.g. s.a for a.id or c.s.a for
+    * s.a.id. Databases expose an unaliased schema-qualified table under its unqualified name
+    * too, so the qualifier names that table. Returns null if no table or more than one table
+    * matches, so an ambiguous qualifier is not resolved.
+    * <p>
+    * A FROM name is split into its identifiers before it is compared, so a quoted identifier
+    * that contains a dot ("s.a") is one table name and is not matched by the qualifier a. The
+    * qualifier itself is compared with its quotes removed, because XUtil.getTablePart may
+    * return it with partial quotes (s"."a for "s"."a".id).
+    */
+   private static String getUnaliasedTable(String qualifier, UniformSQL sql) {
+      SelectTable[] tables = sql.getSelectTable();
+
+      if(tables == null) {
+         return null;
+      }
+
+      List<String> names = Arrays.asList(qualifier.replace("\"", "").split("\\.", -1));
+      String match = findUnaliasedTable(tables, names, false);
+      return match != null ? match : findUnaliasedTable(tables, names, true);
+   }
+
+   private static String findUnaliasedTable(SelectTable[] tables, List<String> qualifier,
+                                            boolean suffix)
+   {
+      String match = null;
+
+      for(SelectTable table : tables) {
+         Object name = table.getName();
+         String alias = table.getAlias();
+
+         if(!(name instanceof String) || (alias != null && !alias.equals(name))) {
+            continue;
+         }
+
+         List<String> tname = splitIdentifiers((String) name);
+         int start = tname.size() - qualifier.size();
+         boolean matched = suffix ?
+            start > 0 && tname.subList(start, tname.size()).equals(qualifier) :
+            tname.equals(qualifier);
+
+         if(matched) {
+            if(match != null) {
+               return null;
+            }
+
+            match = (String) name;
+         }
+      }
+
+      return match;
+   }
+
+   /**
+    * Split a table name into its identifiers at the dots that are not inside double quotes,
+    * and remove the quotes, e.g. "s"."a" and s.a give [s, a] and "s.a" gives [s.a].
+    */
+   private static List<String> splitIdentifiers(String name) {
+      List<String> list = new ArrayList<>();
+      StringBuilder part = new StringBuilder();
+      boolean quoted = false;
+
+      for(int i = 0; i < name.length(); i++) {
+         char c = name.charAt(i);
+
+         if(c == '"') {
+            quoted = !quoted;
+         }
+         else if(c == '.' && !quoted) {
+            list.add(part.toString());
+            part.setLength(0);
+         }
+         else {
+            part.append(c);
+         }
+      }
+
+      list.add(part.toString());
+      return list;
    }
 
    /**
