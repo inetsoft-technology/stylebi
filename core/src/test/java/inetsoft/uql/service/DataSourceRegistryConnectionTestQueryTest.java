@@ -277,6 +277,22 @@ class DataSourceRegistryConnectionTestQueryTest {
                    "the test query of another data source was removed");
    }
 
+   // no data source named ds exists, so only the folder check keeps the key of q's additional
+   // connection ds
+   @Test
+   void removeDataSourceInAFolderKeepsTheKeyOfAnAdditionalConnectionOfThatName() {
+      asOrg("orga");
+      addSource("f/ds");
+      addSource("q");
+      addSource("q/ds");
+      JDBCUtil.setConnectionTestQuery("ds", "SELECT DS");
+
+      registry.removeDataSource("f/ds");
+
+      assertEquals("SELECT DS", JDBCUtil.getConnectionTestQuery("ds"),
+                   "the test query of another data source's additional connection was removed");
+   }
+
    @Test
    void removeAdditionalConnectionThenItsParentRemovesTheKeys() {
       asOrg("orga");
