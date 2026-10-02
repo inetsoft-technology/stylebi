@@ -128,11 +128,17 @@ public class XExpression implements Cloneable, Serializable, XMLSerializable {
 
          return value;
       }
-      else if(quote == QUOTE_DOUBLE) {
-         return '\"' + toString() + '\"';
-      }
-      else if(quote == QUOTE_SINGLE) {
-         return '`' + toString() + '`';
+      else if(quote == QUOTE_DOUBLE || quote == QUOTE_SINGLE) {
+         String q = quote == QUOTE_DOUBLE ? "\"" : "`";
+         String value = toString();
+
+         // a qualified quoted column (t."MixedCase"), only the column segment is quoted
+         if(quotedColumn != null && value.endsWith("." + quotedColumn)) {
+            return value.substring(0, value.length() - quotedColumn.length()) + q +
+               quotedColumn + q;
+         }
+
+         return q + value + q;
       }
       else {
          throw new RuntimeException("Unsupported quote type found: " + quote);
@@ -140,8 +146,25 @@ public class XExpression implements Cloneable, Serializable, XMLSerializable {
    }
 
    /**
-    * Check if this is a bare quoted identifier (e.g. "x y"), which is stored without its
-    * quotes.
+    * Set the column segment, as written, of a qualified quoted identifier (t."MixedCase"),
+    * which is stored without its quotes (t.MixedCase).
+    * @param column the segment, or <tt>null</tt> for a bare quoted identifier.
+    */
+   public void setQuotedColumn(String column) {
+      this.quotedColumn = column;
+   }
+
+   /**
+    * Get the column segment, as written, of a qualified quoted identifier (t."MixedCase").
+    * @return the segment, or <tt>null</tt> for a bare quoted identifier.
+    */
+   public String getQuotedColumn() {
+      return quotedColumn;
+   }
+
+   /**
+    * Check if this is a quoted identifier (e.g. "x y" or t."MixedCase"), which is stored
+    * without its quotes.
     */
    public boolean isQuotedField() {
       return FIELD.equals(type) && quote != QUOTE_NONE;
@@ -149,7 +172,7 @@ public class XExpression implements Cloneable, Serializable, XMLSerializable {
 
    /**
     * Get the text of this expression to build the text of an enclosing expression. The
-    * quotes of a bare quoted identifier are restored.
+    * quotes of a quoted identifier are restored.
     */
    public String toQuotedString() {
       return isQuotedField() ? getQuotedValue() : toString();
@@ -289,6 +312,14 @@ public class XExpression implements Cloneable, Serializable, XMLSerializable {
          String nval = Tool.getValue(node);
          value = nval != null ? nval.trim() : nval;
          String quoteAttr = Tool.getAttribute(node, "quote");
+         String column = Tool.getAttribute(node, "quotedColumn");
+         quotedColumn = null;
+
+         // a qualified quoted identifier, see writeXML
+         if(quoteAttr == null && column != null && !column.isEmpty()) {
+            quoteAttr = Tool.getAttribute(node, "columnQuote");
+            quotedColumn = column;
+         }
 
          // a missing or malformed value is unquoted
          if(String.valueOf(QUOTE_DOUBLE).equals(quoteAttr)) {
@@ -296,6 +327,9 @@ public class XExpression implements Cloneable, Serializable, XMLSerializable {
          }
          else if(String.valueOf(QUOTE_SINGLE).equals(quoteAttr)) {
             quote = QUOTE_SINGLE;
+         }
+         else {
+            quotedColumn = null;
          }
       }
       else {
@@ -321,7 +355,16 @@ public class XExpression implements Cloneable, Serializable, XMLSerializable {
       writer.print("type=\"" + type + "\"");
 
       if(isQuotedField()) {
-         writer.print(" quote=\"" + quote + "\"");
+         // a qualified quoted identifier (t."MixedCase") is not written with the quote
+         // attribute, which older versions read as quoting the whole name ("t.MixedCase").
+         // They ignore columnQuote and generate the name unquoted, as before
+         if(quotedColumn != null) {
+            writer.print(" columnQuote=\"" + quote + "\" quotedColumn=\"" +
+               Tool.escape(quotedColumn) + "\"");
+         }
+         else {
+            writer.print(" quote=\"" + quote + "\"");
+         }
       }
 
       writer.println(">");
@@ -416,6 +459,7 @@ public class XExpression implements Cloneable, Serializable, XMLSerializable {
    }
 
    private int quote = QUOTE_NONE;
+   private String quotedColumn; // column segment of a qualified quoted identifier
    private Object value = "";
    private String type = FIELD;
    private int sqlType = -1;
