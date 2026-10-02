@@ -519,6 +519,105 @@ class UniformSQLQualifiedQuotedColumnTest {
    }
 
    /**
+    * Renaming a table alias in the query editor (QueryGraphModelService) renames the columns
+    * of the select list, group by and order by. A quoted name keeps its flag and its written
+    * case, also when a column that differs only in case comes first in the metadata.
+    */
+   @Test
+   void tableAliasRenameKeepsQuotes() throws Exception {
+      String qualified = "select x.\"MixedCase\", x.id from t x where x.\"MixedCase\" = 1 " +
+         "group by x.\"MixedCase\", x.id order by x.\"MixedCase\"";
+      String bare = "select \"MixedCase\", id from t x where \"MixedCase\" = 1 " +
+         "group by \"MixedCase\", id order by \"MixedCase\"";
+      String renamed = "select y.\"MixedCase\", y.id from t y where y.\"MixedCase\" = 1 " +
+         "group by y.\"MixedCase\", y.id order by y.\"MixedCase\"";
+
+      try(Connection conn = DriverManager.getConnection("jdbc:derby:memory:bug77558r;create=true");
+          Statement stmt = conn.createStatement())
+      {
+         stmt.execute("create table t (\"MixedCase\" int, MIXEDCASE int, id int)");
+         stmt.execute("insert into t values (1, 100, 10), (2, 1, 20), (1, 2, 30)");
+         List<String> expected = rows(stmt, renamed);
+
+         // the query editor always has the table metadata. Without it a select column isn't
+         // known as a table column and keeps the old alias, quoted or not
+         for(String key : new String[] { "h2", "oracle", "postgresql", "snowflake" }) {
+            for(String[] columns : new String[][] { TWIN_FIRST, TWIN_SECOND }) {
+               for(String query : new String[] { qualified, bare }) {
+                  JDBCDataSource ds = helpers().get(key);
+
+                  if(ds != null) {
+                     // the table metadata is cached by data source
+                     ds = (JDBCDataSource) ds.clone();
+                     ds.setName(ds.getName() + "Rename" + columns[0]);
+                  }
+
+                  UniformSQL sql = parse(query, ds);
+                  fix(sql, ds, columns);
+                  renameAlias(sql, "x", "y");
+                  fix(sql, ds, columns);
+
+                  for(String generated : new String[] { regenerate(sql), regenerate(reload(sql)) }) {
+                     String label = key + " " + columns[0] + ": " + query + " -> " + generated;
+
+                     assertFalse(generated.contains("MIXEDCASE"), label);
+                     assertFalse(generated.matches(".*\\bx\\..*") || generated.contains("\"x\"."), label);
+                     assertEquals(4, count(generated, "\"MixedCase\""), label);
+
+                     if("h2".equals(key)) {
+                        assertEquals(expected, rows(stmt, generated), label);
+                     }
+                  }
+               }
+            }
+         }
+
+         // an unquoted name keeps the first column ignoring case, as before
+         JDBCDataSource h2 = (JDBCDataSource) helpers().get("h2").clone();
+         h2.setName("ds77558RenameUnquoted");
+         UniformSQL sql = parse(qualified.replace("\"", ""), h2);
+         fix(sql, h2, TWIN_FIRST);
+         renameAlias(sql, "x", "y");
+         fix(sql, h2, TWIN_FIRST);
+         assertEquals("select y.MIXEDCASE, y.id from t y where y.MIXEDCASE = 1 group by y.MIXEDCASE, y.id " +
+                      "order by y.MIXEDCASE asc", regenerate(sql));
+      }
+      finally {
+         try {
+            DriverManager.getConnection("jdbc:derby:memory:bug77558r;drop=true");
+         }
+         catch(SQLException ignore) {
+            // a successful drop is reported as an exception
+         }
+      }
+   }
+
+   // the metadata step, with the columns of every table
+   private static void fix(UniformSQL sql, JDBCDataSource ds, String[] columns) throws Exception {
+      if(ds != null) {
+         JDBCUtil.fixUniformSQLInfo(sql, repository(columns), null, ds);
+      }
+   }
+
+   // renames a table alias as QueryGraphModelService does
+   private static void renameAlias(UniformSQL sql, String from, String to) {
+      Hashtable<String, String> aliasMap = new Hashtable<>();
+
+      for(int i = 0; i < sql.getTableCount(); i++) {
+         SelectTable table = sql.getSelectTable(i);
+         aliasMap.put(table.getAlias(), table.getAlias());
+
+         if(from.equals(table.getAlias())) {
+            aliasMap.put(from, to);
+            table.setAlias(to);
+         }
+      }
+
+      sql.syncTableAlias(aliasMap);
+      sql.clearSQLString();
+   }
+
+   /**
     * Known risk, not fixed here: the quoted flag is keyed by the stored name (#77501), and
     * t."MixedCase" and t.MixedCase are both stored as t.MixedCase. When both spellings are in
     * the same select or group list, both are generated quoted, so the unquoted one (column

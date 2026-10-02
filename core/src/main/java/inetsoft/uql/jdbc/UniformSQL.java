@@ -1891,7 +1891,11 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
                   continue;
                }
 
-               String col = getColumnFromPath(path);
+               JDBCSelection jselect = xselect instanceof JDBCSelection ?
+                  (JDBCSelection) xselect : null;
+               boolean quoted = jselect != null && jselect.isQuoted(path);
+               String col = getColumnFromPath(path, oldTableAlias,
+                  quoted ? jselect.getQuotedColumn(path) : null, quoted);
                String alias = xselect.getAlias(i);
 
                if(alias != null && alias.startsWith(oldTableAlias + ".")) {
@@ -1906,6 +1910,11 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
                xselect.setAlias(i, alias);
                xselect.setType(newPath, type);
                xselect.setDescription(newPath, xselect.getDescription(path));
+
+               // a quoted identifier keeps its flag under the new name
+               if(quoted) {
+                  jselect.setQuoted(newPath, jselect.getQuotedColumn(path));
+               }
             }
             else if(oldTableAlias.length() > 0 && getTableIndex(oldTableAlias) < 0) {
                XField field = getFieldByPath(path);
@@ -1956,9 +1965,13 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
                   continue;
                }
 
-               String col = getColumnFromPath((String) orders[i]);
+               String field = (String) orders[i];
+               boolean quoted = isQuotedField(field);
+               String col = getColumnFromPath(field, oldTableAlias,
+                                              getQuotedFieldColumn(field), quoted);
                String ord = getOrderBy(orders[i]);
                replaceOrderBy(orders[i], ord, newTableAlias + "." + col, ord);
+               copyQuotedField(field, newTableAlias + "." + col);
             }
          }
       }
@@ -1979,8 +1992,12 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
                   continue;
                }
 
-               String col = getColumnFromPath((String) groups[i]);
+               String field = (String) groups[i];
+               boolean quoted = isQuotedField(field);
+               String col = getColumnFromPath(field, oldTableAlias,
+                                              getQuotedFieldColumn(field), quoted);
                groups[i] = newTableAlias + "." + col;
+               copyQuotedField(field, (String) groups[i]);
             }
          }
       }
@@ -1991,6 +2008,33 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
             setHaving((XFilterNode) getHaving().getChild(0));
          }
       }
+   }
+
+   /**
+    * Get the column part of a path whose table is renamed. The column of a quoted
+    * identifier keeps its written case, it isn't looked up ignoring case, which could
+    * find a column that differs only in case (MIXEDCASE for "MixedCase").
+    * @param segment the column segment recorded for a qualified quoted identifier.
+    * @param quoted <tt>true</tt> if the path was written as a quoted identifier.
+    */
+   private String getColumnFromPath(String path, String table, String segment, boolean quoted) {
+      if(quoted) {
+         if(segment != null && path.endsWith("." + segment)) {
+            return segment;
+         }
+
+         if(table != null && !table.isEmpty() && path.startsWith(table + ".")) {
+            return path.substring(table.length() + 1);
+         }
+
+         XField field = getFieldByPath(path, true);
+
+         if(field != null && field.getName() != null) {
+            return field.getName().toString();
+         }
+      }
+
+      return getColumnFromPath(path);
    }
 
    /**
