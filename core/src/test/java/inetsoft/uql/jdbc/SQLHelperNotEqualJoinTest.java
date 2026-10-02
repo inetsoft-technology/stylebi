@@ -234,6 +234,48 @@ class SQLHelperNotEqualJoinTest {
       }
    }
 
+   // a != mixed with <> and = in one ON keeps every predicate in that ON
+   @ParameterizedTest
+   @CsvSource(delimiter = '|', value = {
+      "from a left join (b join c on b.id = c.id and b.k != c.k and b.j <> c.j) on a.id = b.id|" +
+         "from (b INNER JOIN c ON b.id = c.id AND b.k != c.k AND b.j <> c.j ) RIGHT OUTER " +
+         "JOIN a ON a.id = b.id",
+      "from a join c on a.id = c.id and a.k <> c.k and a.j != c.j right join b on a.id = b.id|" +
+         "from (a INNER JOIN c ON a.id = c.id AND a.k <> c.k AND a.j != c.j ) RIGHT OUTER " +
+         "JOIN b ON a.id = b.id",
+      "from a left join b on a.id = b.id join c on b.id = c.id and b.k != c.k and b.j <> c.j|" +
+         "from (a LEFT OUTER JOIN b ON a.id = b.id ) INNER JOIN c ON b.id = c.id AND " +
+         "b.k != c.k AND b.j <> c.j",
+   })
+   void mixedNotEqualOps(String tail, String expected) throws Exception {
+      for(String type : new String[] { "h2", "h2-ansi", "derby", "derby-ansi", "oracle-ansi" }) {
+         JDBCDataSource ds = dataSource(type);
+         String generated = generate(SEL + tail, ds);
+         assertEquals(expected, from(generated), type);
+         assertRoundTrip(generated, ds);
+      }
+
+      assertEquals(0, RowCompare.diffCount(SEL + tail, generate(SEL + tail, dataSource("derby")),
+                                           120), tail);
+   }
+
+   // an inner join ON != next to a FULL join stays in the inner join's ON, where a WHERE would
+   // remove the null-extended rows. Derby has no FULL join, so only the text is checked
+   @ParameterizedTest
+   @CsvSource(delimiter = '|', value = {
+      "from a full join b on a.id = b.id join c on b.id = c.id and b.k != c.k|" +
+         "from (a FULL OUTER JOIN b ON a.id = b.id ) INNER JOIN c ON b.id = c.id AND b.k != c.k",
+      "from a join c on a.id = c.id and a.k != c.k full join b on a.id = b.id|" +
+         "from (a INNER JOIN c ON a.id = c.id AND a.k != c.k ) FULL OUTER JOIN b ON a.id = b.id",
+      "from a full join (b join c on b.id = c.id and b.k != c.k) on a.id = b.id|" +
+         "from (b INNER JOIN c ON b.id = c.id AND b.k != c.k ) FULL OUTER JOIN a ON a.id = b.id",
+   })
+   void fullJoinOnNotEqual(String tail, String expected) throws Exception {
+      for(String type : new String[] { "h2", "h2-ansi", "oracle", "oracle-ansi" }) {
+         assertEquals(expected, from(generate(SEL + tail, dataSource(type))), type);
+      }
+   }
+
    // the from and where clauses, without the select list (Oracle quotes the aliases)
    private static String from(String generated) {
       return generated.substring(generated.indexOf(" from ") + 1);
