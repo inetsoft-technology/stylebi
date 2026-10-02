@@ -19,7 +19,12 @@
 FROM eclipse-temurin:21.0.12_8-jdk-noble
 
 ENV JAVA_MEMORY_OPTS='-XX:MaxRAMPercentage=75.0'
-ENV JAVA_GC_OPTS='-XX:+AlwaysPreTouch -XX:+UseG1GC -XX:+ScavengeBeforeFullGC -XX:+DisableExplicitGC'
+# DisableExplicitGC keeps System.gc() in plugins/third-party code (and RMI DGC, about once per
+# idle hour) from causing STW full GCs. XSwapper uses DiagnosticCommand gcRun (#77579), which it
+# doesn't block. The JDK's System.gc() fallback before a direct-buffer OOME is lost, but with the
+# deployed -Xms == -Xmx at 65-75% of container RAM the container is OOM-killed first.
+# Jib overrides this value in docker/pom.xml; keep the two in sync.
+ENV JAVA_GC_OPTS='-XX:+AlwaysPreTouch -XX:+UseG1GC -XX:+DisableExplicitGC'
 ENV JAVA_LOCALE_OPTS='-Duser.language=en -Duser.country=US -Djava.locale.providers=COMPAT,SPI'
 ENV JAVA_CODECACHE_OPTS='-XX:InitialCodeCacheSize=100M -XX:ReservedCodeCacheSize=200m -XX:+UseCodeCacheFlushing'
 ENV JAVA_NETWORK_OPTS='-Djava.net.preferIPv4Stack=true'
