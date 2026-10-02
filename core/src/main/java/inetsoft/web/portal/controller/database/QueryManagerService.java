@@ -225,6 +225,18 @@ public class QueryManagerService {
          QuerySortPaneModel sortPaneModel = queryModel.getSortPaneModel();
          List<String> fields = sortPaneModel.getFields();
          List<String> orders = sortPaneModel.getOrders();
+         // the quoted aggregate records of the fields kept in the sort pane (#77578)
+         Map<String, String> records = new HashMap<>();
+         Object[] ofields = sql.getOrderByFields();
+
+         for(int i = 0; ofields != null && i < ofields.length; i++) {
+            String seg = sql.getQuotedAggregate(ofields[i]);
+
+            if(seg != null) {
+               records.put((String) ofields[i], seg);
+            }
+         }
+
          sql.removeAllOrderByFields();
          sql.clearOrderDBFields();
 
@@ -234,6 +246,7 @@ public class QueryManagerService {
             }
 
             sql.setOrderBy(fields.get(i), orders.get(i));
+            sql.setQuotedAggregate(fields.get(i), records.get(fields.get(i)));
          }
 
          sql.clearSQLString();

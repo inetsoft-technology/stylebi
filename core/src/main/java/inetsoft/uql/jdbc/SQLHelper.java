@@ -3108,6 +3108,9 @@ public class SQLHelper implements KeywordProvider {
     * Two select aggregates may have the same text but different spellings (sum(t.MixedCase)
     * and sum(t."MixedCase") on a case-sensitive helper). An order by aggregate replaced by the
     * alias of a select column is sorted by the one of the same spelling, or by itself if none.
+    * An order by aggregate without a record (e.g. set in the sort pane, or saved before it was
+    * recorded) is not "unquoted": it is moved only to a select column without a record of the
+    * same text, and otherwise keeps the alias getOrderByColumn found, as before #77578.
     * @param field the order by field.
     * @param sfield the field returned by getOrderByColumn.
     * @param qagg the quoted column recorded for the order by aggregate.
@@ -3132,7 +3135,7 @@ public class SQLHelper implements KeywordProvider {
          }
       }
 
-      return field;
+      return qagg != null ? field : sfield;
    }
 
    /**

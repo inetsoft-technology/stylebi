@@ -1745,9 +1745,12 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
       }
 
       String[] orders = new String[sortFields.length];
+      // the quoted aggregate records, re-applied to the fields added again below
+      String[] records = new String[sortFields.length];
 
       for(int i = 0; i < sortFields.length; i++) {
          orders[i] = getOrderBy(sortFields[i]);
+         records[i] = getQuotedAggregate(sortFields[i]);
 
          if(sortFields[i] instanceof Integer) {
             int idx = (Integer) sortFields[i];
@@ -1795,6 +1798,10 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
 
          for(int i = 0; i < sortFields.length; i++) {
             setOrderBy(sortFields[i], orders[i]);
+
+            if(records[i] != null && sortFields[i] instanceof String) {
+               setQuotedAggregate((String) sortFields[i], records[i]);
+            }
          }
       }
    }
@@ -2227,6 +2234,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
       for(int i = 0; i < orderByList.size(); i++) {
          if(orderByList.get(i).getField().equals(field)) {
             orderByList.remove(i);
+            removeQuotedAggregate(field);
             return;
          }
       }
@@ -2984,6 +2992,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
    public void copyOrderBy(UniformSQL source) {
       if(source != null && source.orderByList != null) {
          this.orderByList = new Vector<>();
+         this.quotedAggregates = new HashMap<>(source.quotedAggregates);
 
          for(int i = 0; i < source.orderByList.size(); i++) {
             OrderByItem item = (OrderByItem) source.orderByList.get(i).clone();
@@ -3009,6 +3018,16 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
 
          if(item.getField().equals(oldfield)) {
             orderByList.setElementAt(new OrderByItem(newfield, neworder), i);
+
+            // the record follows its order by item (e.g. a renamed table)
+            if(!Objects.equals(oldfield, newfield)) {
+               String seg = removeQuotedAggregate(oldfield);
+
+               if(seg != null && newfield instanceof String) {
+                  quotedAggregates.put((String) newfield, seg);
+               }
+            }
+
             return;
          }
       }
@@ -3068,6 +3087,8 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
     */
    public synchronized void removeAllOrderByFields() {
       orderByList.removeAllElements();
+      // a record left behind would apply again to the same text added later
+      quotedAggregates.clear();
    }
 
    /**
@@ -3091,6 +3112,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
 
          if(column == null) {
             orderByList.remove(i);
+            removeQuotedAggregate(field);
          }
       }
    }
@@ -3208,6 +3230,11 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
     */
    public synchronized String getQuotedAggregate(Object field) {
       return field instanceof String ? quotedAggregates.get(field) : null;
+   }
+
+   // remove the record of a removed order by field
+   private String removeQuotedAggregate(Object field) {
+      return field instanceof String ? quotedAggregates.remove(field) : null;
    }
 
    // keep the quoted aggregate column of a renamed order by field

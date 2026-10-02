@@ -573,6 +573,109 @@ class UniformSQLQuotedAggregateTest {
       }
    }
 
+   /**
+    * The sort pane sets an order by on the text of a select column, without a record. A missing
+    * record is not "unquoted": the order by keeps the alias of the select column, as before this
+    * change, also when that column has a record (tester's repro in round 1).
+    */
+   @Test
+   void sortPaneOrderByOfAnAliasedQuotedAggregateKeepsTheAlias() throws Exception {
+      String query = "select q.id, sum(q.\"MixedCase\") a from t q group by q.id";
+      String[][] metadata = { {}, TWIN_FIRST, TWIN_SECOND, { "mixedcase", "MixedCase", "id" } };
+      String old = SreeEnv.getProperty("db.caseSensitive");
+
+      try {
+         for(boolean caseSensitive : new boolean[] { false, true }) {
+            String[] keys = caseSensitive ? new String[] { "default", "h2", "h2-ansi", "oracle" } :
+               new String[] { "postgresql", "snowflake", "exasol" };
+            SreeEnv.setProperty("db.caseSensitive", caseSensitive + "");
+
+            for(String key : keys) {
+               for(String[] columns : metadata) {
+                  if(key.equals("default") && columns.length > 0) {
+                     continue;
+                  }
+
+                  UniformSQL sql = sortPane(fixed(key, query, columns));
+                  assertNull(sql.getQuotedAggregate(sql.getSelection().getColumn(1)));
+
+                  String label = key + " " + caseSensitive + " " + Arrays.toString(columns);
+                  String generated = regenerate(sql);
+                  // was order by sum(q."MIXEDCASE"), sum(q.MixedCase), ..., not the alias. Oracle
+                  // doesn't sort by an alias, it sorts by the aliased select column
+                  String sort = key.equals("oracle") ? "sum\\(q\\.\"MixedCase\"\\)" : "\"?a\"?";
+                  assertTrue(generated.matches(".* order by " + sort + " asc"), label + ": " + generated);
+                  // the select list is not changed by the order by
+                  assertTrue(generated.startsWith(aggregate(key, query, columns) + " order by "),
+                             label + ": " + generated);
+               }
+            }
+         }
+
+         SreeEnv.setProperty("db.caseSensitive", "false");
+         assertEquals("select \"q\".\"id\", sum(q.\"MixedCase\") as \"a\" from \"t\" q " +
+                      "group by \"q\".\"id\" order by \"a\" asc",
+                      regenerate(sortPane(fixed("postgresql", query, TWIN_FIRST))));
+      }
+      finally {
+         if(old == null) {
+            SreeEnv.remove("db.caseSensitive");
+         }
+         else {
+            SreeEnv.setProperty("db.caseSensitive", old);
+         }
+      }
+   }
+
+   /**
+    * A removed order by field drops its record, so the same text added later (from the sort
+    * pane, without a record) is generated as before this change and equalsStructure doesn't
+    * see the removed sort. A replaced field keeps the record at the new field.
+    */
+   @Test
+   void removedOrderByFieldsDropTheirRecords() throws Exception {
+      String query = SELECT + " order by sum(q.\"MixedCase\")";
+      String unquoted = UNQUOTED + " order by sum(q.MixedCase)";
+
+      for(String key : new String[] { "postgresql", "snowflake", "exasol" }) {
+         UniformSQL sql = fixed(key, query, TWIN_FIRST);
+         String field = (String) sql.getOrderByFields()[0];
+         assertEquals("MixedCase", sql.getQuotedAggregate(field), key);
+
+         // re-added without a record: the same output as an unquoted order by
+         sql.removeAllOrderByFields();
+         assertNull(sql.getQuotedAggregate(field), key);
+         sql.setOrderBy(field, "asc");
+         String expected = aggregate(key, unquoted, TWIN_FIRST);
+         assertEquals(expected.substring(expected.indexOf(" order by ")),
+                      regenerate(sql).substring(regenerate(sql).indexOf(" order by ")), key);
+
+         UniformSQL removed = fixed(key, query, TWIN_FIRST);
+         removed.removeOrderBy(field);
+         assertNull(removed.getQuotedAggregate(field), key);
+         UniformSQL none = fixed(key, query, TWIN_FIRST);
+         none.removeAllOrderByFields();
+         assertTrue(removed.equalsStructure(none), key);
+
+         UniformSQL replaced = fixed(key, query, TWIN_FIRST);
+         replaced.replaceOrderBy(field, "asc", "sum(\"q\".\"x\")", "desc");
+         assertNull(replaced.getQuotedAggregate(field), key);
+         assertEquals("MixedCase", replaced.getQuotedAggregate("sum(\"q\".\"x\")"), key);
+         replaced.replaceOrderBy("sum(\"q\".\"x\")", "desc", field, "asc");
+         assertEquals(regenerate(fixed(key, query, TWIN_FIRST)), regenerate(replaced), key);
+      }
+   }
+
+   // applies an order by on the text of select column 2, as QueryManagerService applies the sort pane
+   private static UniformSQL sortPane(UniformSQL sql) {
+      String column = sql.getSelection().getColumn(1);
+      sql.removeAllOrderByFields();
+      sql.clearOrderDBFields();
+      sql.addOrderDBField(column);
+      sql.setOrderBy(column, "asc");
+      return sql;
+   }
+
    // renames a table alias as QueryGraphModelService does
    private static void renameAlias(UniformSQL sql, String from, String to) {
       Hashtable<String, String> aliasMap = new Hashtable<>();
