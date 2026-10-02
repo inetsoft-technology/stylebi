@@ -1491,7 +1491,7 @@ predicate_body returns [XFilterNode node = null]
 
 comp_predicate returns [XFilterNode xnode = null]
         {XExpression exp1, exp2; String op; XBinaryCondition node;
-        boolean isOracleLeftJoin = false; {checkStatus();}}
+        boolean isOracleLeftJoin = false; Token start = LT(1); {checkStatus();}}
         :
         exp1 = row_value_constructor op = comp_op exp2 = row_value_constructor
         ((OJ)=>OJ {isOracleLeftJoin = true;}|)
@@ -1517,6 +1517,16 @@ comp_predicate returns [XFilterNode xnode = null]
                 node = new XJoin();
         }
         else {
+                // an outer join op on a condition that isn't a join between two
+                // tables, such as b.code(+) = 'X', is a filter of the outer join.
+                // the model has no place for it, and generating it with = would
+                // give different rows, so refuse it and the original sql runs
+                if(op.equals("*=") || op.equals("=*")) {
+                        throw new SemanticException("Unsupported outer join condition: " +
+                           exp1 + " " + op + " " + exp2,
+                           getFilename(), start.getLine(), start.getColumn());
+                }
+
                 node = new XBinaryCondition();
         }
 
@@ -1671,11 +1681,21 @@ null_predicate returns [XFilterNode xnode = null]
         ;
 
 quantified_comp_predicate returns [XFilterNode xnode =null]
-        {XExpression exp1, exp2, tmp; String op, str; XBinaryCondition node; {checkStatus();}}
+        {XExpression exp1, exp2, tmp; String op, str; XBinaryCondition node;
+        Token start = LT(1); {checkStatus();}}
         :
         exp1 = row_value_constructor op = comp_op str = quantifier tmp = table_subquery
 
         {exp2 = new XExpression(); exp2.setValue(str + " " + tmp, XExpression.EXPRESSION);
+
+        // an outer join op against a subquery can't be represented, the same as
+        // in comp_predicate. (+)= isn't converted to =* here, so check it too
+        if(op.equals("*=") || op.equals("=*") || op.equals("(+)=")) {
+                throw new SemanticException("Unsupported outer join condition: " +
+                   exp1 + " " + op + " " + exp2,
+                   getFilename(), start.getLine(), start.getColumn());
+        }
+
         node = new XBinaryCondition(); node.setExpression1(exp1);
         node.setExpression2(exp2); node.setOp(op); xnode = node;}
         ;
