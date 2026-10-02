@@ -262,6 +262,46 @@ class UniformSQLQuotedGroupOrderTest {
    }
 
    @Test
+   void reservedWordsBracketsAndSubqueriesKeepQuotes() throws Exception {
+      assertEquals("select count(*), \"order\" from t group by \"order\" order by \"order\" asc",
+                   regenerate("select \"order\", count(*) from t group by \"order\" order by \"order\""));
+      assertEquals("select \"user\" from t where \"user\" = 'a' order by \"select\" asc",
+                   regenerate("select \"user\" from t where \"user\" = 'a' order by \"select\""));
+      assertEquals("select \"x y\" from t group by \"x y\" order by \"x y\" asc",
+                   regenerate("select [x y] from t group by [x y] order by [x y]"));
+
+      String query = "select \"x y\" from t where \"x y\" in (select \"x y\" from u) and " +
+         "exists (select 1 from u where u.k = \"x y\")";
+      assertEquals("select \"x y\" from t where \"x y\" IN ( select \"x y\" from u) and " +
+                   "EXISTS ( select 1 from u where u.k = \"x y\")", regenerate(query));
+      assertEquals("select `x y` from t where `x y` IN ( select `x y` from u) and " +
+                   "EXISTS ( select 1 from u where u.k = `x y`)",
+                   regenerate(parse(query, dataSource("com.mysql.cj.jdbc.Driver", "jdbc:mysql://localhost/db",
+                                                      "mysql"))));
+   }
+
+   @Test
+   void unparsedExpressionsAndCopiesKeepTheirQuoting() throws Exception {
+      // expressions built in code (worksheet, VPM conditions) never set the flag
+      UniformSQL sql = parse("select a from t");
+      sql.setWhere(new XBinaryCondition(new XExpression("x y", XExpression.FIELD),
+                                        new XExpression("1", XExpression.VALUE), "="));
+      sql.setOrderBy("MixedCase", "asc");
+      sql.setGroupBy(new Object[] { "x y" });
+      assertEquals("select a from t where x y = 1 group by x y order by MixedCase asc", regenerate(sql));
+
+      sql = parse("select \"x y\", count(*) from t where \"MixedCase\" = 1 group by \"x y\" " +
+                  "order by \"MixedCase\"");
+      String expected = "select count(*), \"x y\" from t where \"MixedCase\" = 1 group by \"x y\" " +
+         "order by \"MixedCase\" asc";
+      UniformSQL copy = new UniformSQL();
+      copy.read(sql);
+
+      assertEquals(expected, regenerate((UniformSQL) sql.clone()));
+      assertEquals(expected, regenerate(copy));
+   }
+
+   @Test
    void regeneratedSqlRegeneratesToItself() throws Exception {
       String[] queries = {
          "select a = \"x y\", count(*) from t where \"MixedCase\" = 1 group by \"x y\" " +
