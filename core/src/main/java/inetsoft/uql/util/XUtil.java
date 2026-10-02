@@ -2628,6 +2628,8 @@ public final class XUtil {
       }
 
       boolean changed = false;
+      // a condition was rewritten for a NULL_VALUE/EMPTY_STRING/NULL_STRING parameter
+      boolean specific = false;
       SelectTable[] tables = usql.getSelectTable();
 
       for(int i = 0; i < tables.length; i++) {
@@ -2642,7 +2644,11 @@ public final class XUtil {
       XFilterNode condition = usql.getWhere();
 
       if(condition instanceof XBinaryCondition || condition instanceof XSet) {
-         processSpecificCondition(usql, condition, params, false);
+         if(processSpecificCondition(usql, condition, params, false)) {
+            specific = true;
+            // a bare condition root is replaced, continue with the live tree
+            condition = usql.getWhere();
+         }
       }
 
       // don't remove null paramter for vpm conditions, then variables in vpm condition
@@ -2662,7 +2668,10 @@ public final class XUtil {
       condition = usql.getHaving();
 
       if(condition instanceof XBinaryCondition || condition instanceof XSet) {
-         processSpecificCondition(usql, condition, params, true);
+         if(processSpecificCondition(usql, condition, params, true)) {
+            specific = true;
+            condition = usql.getHaving();
+         }
       }
 
       if(!forVpm) {
@@ -2678,7 +2687,9 @@ public final class XUtil {
          }
       }
 
-      if(changed) {
+      // the sentinel rewrite is not reported as changed, isNullParam() treats a changed
+      // sub-query as one without a condition. Only drop the cached sql string.
+      if(changed || specific) {
          usql.clearCachedString();
       }
 
@@ -2687,73 +2698,112 @@ public final class XUtil {
 
    /**
     * Check if condition has param with special value
-    * 'NULL_VALUE' or 'EMPTY_STRING'.
-    * @param usql use to set the where condition.
-    * @param condition then sql condition.
+    * 'NULL_VALUE', 'EMPTY_STRING' or 'NULL_STRING', and rewrite that condition
+    * in place. Other conditions in the clause and the negation are kept.
+    * @param usql use to set the where/having condition when it is a bare condition.
+    * @param condition the root of the where/having condition.
     * @param params, variable parameter which is user entered, if has a
     * special value, then process it.
+    * @return true if a condition is rewritten.
     */
-   private static void processSpecificCondition(UniformSQL usql,
-      XFilterNode condition, VariableTable params, Boolean isHaving)
+   private static boolean processSpecificCondition(UniformSQL usql,
+      XFilterNode condition, VariableTable params, boolean isHaving)
    {
       if(condition instanceof XBinaryCondition) {
-         XBinaryCondition filterNode;
-         XBinaryCondition bin = (XBinaryCondition) condition;
-         String op = bin.getOp();
-         String value = bin.getExpression2().toString().trim();
+         XBinaryCondition filterNode =
+            createSpecificCondition((XBinaryCondition) condition, params);
 
-         if(value.startsWith("$(")) {
-            value = value.substring(2, value.lastIndexOf(')'));
+         if(filterNode == null) {
+            return false;
+         }
 
-            try{
-               Object val = params.get(value);
+         // the condition is the clause root
+         if(isHaving) {
+            usql.setHaving(filterNode);
+         }
+         else {
+            usql.setWhere(filterNode);
+         }
 
-               if(Tool.equals(val, (XConstants.CONDITION_NULL_VALUE))) {
-                  filterNode = new XBinaryCondition(bin.getExpression1(),
-                     new XExpression("IS NULL", XExpression.VALUE), "");
+         return true;
+      }
+      else if(condition instanceof XSet) {
+         return processSpecificCondition((XSet) condition, params);
+      }
 
-                  if(isHaving) {
-                     usql.setHaving(filterNode);
-                  }
-                  else {
-                     usql.setWhere(filterNode);
-                  }
-               }
-               else if(Tool.equals(val, (XConstants.CONDITION_EMPTY_STRING))) {
-                  filterNode = new XBinaryCondition(bin.getExpression1(),
-                     new XExpression("''", XExpression.VALUE), op);
+      return false;
+   }
 
-                  if(isHaving) {
-                     usql.setHaving(filterNode);
-                  }
-                  else {
-                     usql.setWhere(filterNode);
-                  }
-               }
-               else if(Tool.equals(val, (XConstants.CONDITION_NULL_STRING))) {
-                  filterNode = new XBinaryCondition(bin.getExpression1(),
-                     new XExpression("'null'", XExpression.VALUE), op);
+   /**
+    * Replace the conditions in the set (and nested sets) that use a parameter with a
+    * special value, at the same position.
+    */
+   private static boolean processSpecificCondition(XSet set, VariableTable params) {
+      boolean changed = false;
 
-                  if(isHaving) {
-                     usql.setHaving(filterNode);
-                  }
-                  else {
-                     usql.setWhere(filterNode);
-                  }
-               }
-            }
-            catch(Exception e) {
+      for(int i = 0; i < set.getChildCount(); i++) {
+         XNode node = set.getChild(i);
+
+         if(node instanceof XBinaryCondition) {
+            XBinaryCondition filterNode =
+               createSpecificCondition((XBinaryCondition) node, params);
+
+            if(filterNode != null) {
+               set.setChild(i, filterNode);
+               changed = true;
             }
          }
-      }
-      else if(condition instanceof XSet && condition.getChildCount() > 0) {
-          XSet set = (XSet) condition;
-
-          for(int i = 0; i < set.getChildCount(); i++) {
-            XFilterNode node = (XFilterNode) set.getChild(i);
-            processSpecificCondition(usql, node, params, isHaving);
+         else if(node instanceof XSet) {
+            changed = processSpecificCondition((XSet) node, params) || changed;
          }
       }
+
+      return changed;
+   }
+
+   /**
+    * Create the condition replacing a condition whose parameter has a special value.
+    * @return the new condition, or null if the condition doesn't use a special value.
+    */
+   private static XBinaryCondition createSpecificCondition(XBinaryCondition bin,
+                                                           VariableTable params)
+   {
+      String op = bin.getOp();
+      String value = bin.getExpression2().toString().trim();
+
+      if(!value.startsWith("$(")) {
+         return null;
+      }
+
+      value = value.substring(2, value.lastIndexOf(')'));
+      XBinaryCondition filterNode = null;
+
+      try {
+         Object val = params.get(value);
+
+         if(Tool.equals(val, (XConstants.CONDITION_NULL_VALUE))) {
+            filterNode = new XBinaryCondition(bin.getExpression1(),
+               new XExpression("IS NULL", XExpression.VALUE), "");
+         }
+         else if(Tool.equals(val, (XConstants.CONDITION_EMPTY_STRING))) {
+            filterNode = new XBinaryCondition(bin.getExpression1(),
+               new XExpression("''", XExpression.VALUE), op);
+         }
+         else if(Tool.equals(val, (XConstants.CONDITION_NULL_STRING))) {
+            filterNode = new XBinaryCondition(bin.getExpression1(),
+               new XExpression("'null'", XExpression.VALUE), op);
+         }
+      }
+      catch(Exception e) {
+      }
+
+      if(filterNode != null) {
+         // keep the negation, e.g. "not (a.id = $(p))" -> "not (a.id IS NULL)"
+         filterNode.setIsNot(bin.isIsNot());
+         filterNode.setName(bin.getName());
+      }
+
+      return filterNode;
    }
 
    /**
