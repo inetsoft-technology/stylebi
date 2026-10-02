@@ -592,8 +592,63 @@ public class RepositoryEntry implements Serializable, Comparable, Cloneable, XML
     */
    protected void writeCDATA(PrintWriter writer, String name, String value) {
       writer.print("<" + name + ">");
-      writer.print("<![CDATA[" + value + "]]>");
+      writer.print("<![CDATA[" + encodeControlChars(value, true) + "]]>");
       writer.println("</" + name + ">");
+   }
+
+   /**
+    * Encodes the control characters below U+0020 in a byte-encoded value as {@code ~_<hex>_~},
+    * the form {@link Tool#byteDecode(String)} reads back. {@link Tool#byteEncode(String)}
+    * passes them through, but XML 1.0 can't hold them (Bug #77588).
+    *
+    * @param value            the value, normally already passed through {@code byteEncode}.
+    * @param keepTabNewline   true for CDATA: encode the chars below U+0020 except TAB and LF,
+    *                         which CDATA keeps as is. False for an attribute value: encode
+    *                         every ISO control char, TAB/LF/CR included (attribute
+    *                         normalization would turn them into a space) and DEL (which
+    *                         {@link Tool#escape(String)} would turn into a space).
+    *
+    * @return the encoded value, or {@code value} itself if it has nothing to encode.
+    */
+   protected static String encodeControlChars(String value, boolean keepTabNewline) {
+      if(value == null) {
+         return null;
+      }
+
+      StringBuilder buf = null;
+
+      for(int i = 0; i < value.length(); i++) {
+         char ch = value.charAt(i);
+
+         boolean encode = keepTabNewline ?
+            ch < 0x20 && ch != '\t' && ch != '\n' : Character.isISOControl(ch);
+
+         if(encode) {
+            if(buf == null) {
+               buf = new StringBuilder(value.length() + 16);
+               buf.append(value, 0, i);
+            }
+
+            buf.append("~_").append(Integer.toString(ch, 16)).append("_~");
+         }
+         else if(buf != null) {
+            buf.append(ch);
+         }
+      }
+
+      return buf == null ? value : buf.toString();
+   }
+
+   /**
+    * Encodes a value for an XML attribute so that it reads back unchanged with
+    * {@code Tool.byteDecode(Tool.getAttribute(..))}: byte-encodes it, encodes every ISO control
+    * character (TAB, LF and CR included), then XML-escapes it. The control characters must be
+    * encoded before {@link Tool#escape(String)}, which would turn them into spaces.
+    *
+    * @return the encoded value, or {@code null} if the value is {@code null}.
+    */
+   protected static String encodeAttribute(String value) {
+      return value == null ? null : Tool.escape(encodeControlChars(Tool.byteEncode(value), false));
    }
 
    /**
