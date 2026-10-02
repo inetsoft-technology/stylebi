@@ -167,61 +167,92 @@ public class VSEmailService {
             }
          }
 
-         OutputStream output = new FileOutputStream(file);
-
-         if(FileFormatInfo.EXPORT_TYPE_SNAPSHOT == formatType) {
-            SnapshotVSExporter exporter = new SnapshotVSExporter(rvs);
-            exporter.setLogExport(true);
-            exporter.write(output);
+         if(multipleFiles) {
+            // the images are written to fileList; the base name is only a naming seed and may
+            // be another export's file, so it must not be opened, truncated or deleted here
+            file = null;
          }
-         else {
-            if(!multipleFiles) {
-               if(excelToCSV) {
-                  File excelFile = fileSystemService.getCacheFile(fname + ".xlsx");
-                  FileOutputStream out = new FileOutputStream(excelFile);
-                  exportViewsheet(rvs, principal, FileFormatInfo.EXPORT_TYPE_EXCEL, bookmarks, out,
-                     csvConfig, matchLayout, expandSelections, onlyDataComponent, includeCurrent,
-                     null, exportAllTabbedCrosstab);
-                  exportViewsheet(rvs, principal, formatType, bookmarks, output, csvConfig,
-                     false, expandSelections, onlyDataComponent, includeCurrent,
-                     excelFile, exportAllTabbedCrosstab);
+
+         File excelFile = null;
+         // the files this export opened; names picked but not yet reached may since have been
+         // picked and written by a concurrent email of the same viewsheet
+         List<File> created = new ArrayList<>();
+         boolean exported = false;
+
+         try {
+            if(FileFormatInfo.EXPORT_TYPE_SNAPSHOT == formatType) {
+               try(OutputStream output = new FileOutputStream(file)) {
+                  created.add(file);
+                  SnapshotVSExporter exporter = new SnapshotVSExporter(rvs);
+                  exporter.setLogExport(true);
+                  exporter.write(output);
                }
-               else {
-                  exportViewsheet(rvs, principal, formatType, bookmarks, output, csvConfig,
-                     matchLayout, expandSelections, onlyDataComponent, includeCurrent, null,
-                     exportAllTabbedCrosstab);
+            }
+            else if(!multipleFiles) {
+               try(OutputStream output = new FileOutputStream(file)) {
+                  created.add(file);
+
+                  if(excelToCSV) {
+                     excelFile = fileSystemService.getCacheFile(fname + ".xlsx");
+
+                     try(FileOutputStream out = new FileOutputStream(excelFile)) {
+                        created.add(excelFile);
+                        exportViewsheet(rvs, principal, FileFormatInfo.EXPORT_TYPE_EXCEL,
+                           bookmarks, out, csvConfig, matchLayout, expandSelections,
+                           onlyDataComponent, includeCurrent, null, exportAllTabbedCrosstab);
+                     }
+
+                     exportViewsheet(rvs, principal, formatType, bookmarks, output, csvConfig,
+                        false, expandSelections, onlyDataComponent, includeCurrent,
+                        excelFile, exportAllTabbedCrosstab);
+                  }
+                  else {
+                     exportViewsheet(rvs, principal, formatType, bookmarks, output, csvConfig,
+                        matchLayout, expandSelections, onlyDataComponent, includeCurrent, null,
+                        exportAllTabbedCrosstab);
+                  }
                }
             }
             else {
                for(int i = 0; i < fileList.size(); i++) {
                   File f = fileList.get(i);
-                  OutputStream output0 = new FileOutputStream(f);
-                  VSExporter exporter = AbstractVSExporter.getVSExporter(
-                     formatType, PortalThemesManager.getColorTheme(), output0, false,
-                     csvConfig);
-                  exporter.setLogExport(true);
-                  exporter.setMatchLayout(matchLayout);
-                  exporter.setExpandSelections(expandSelections);
-                  exporter.setAssetEntry(rvs.getEntry());
-                  exporter.setOnlyDataComponents(onlyDataComponent && !matchLayout);
-                  VSPortalHelper helper = new VSPortalHelper();
 
-                  if(includeCurrent && i >= bookmarks.length) {
-                     exporter.export(box.get(), catalog.getString("Current View"), helper);
+                  try(OutputStream output0 = new FileOutputStream(f)) {
+                     created.add(f);
+                     VSExporter exporter = AbstractVSExporter.getVSExporter(
+                        formatType, PortalThemesManager.getColorTheme(), output0, false,
+                        csvConfig);
+                     exporter.setLogExport(true);
+                     exporter.setMatchLayout(matchLayout);
+                     exporter.setExpandSelections(expandSelections);
+                     exporter.setAssetEntry(rvs.getEntry());
+                     exporter.setOnlyDataComponents(onlyDataComponent && !matchLayout);
+                     VSPortalHelper helper = new VSPortalHelper();
+
+                     if(includeCurrent && i >= bookmarks.length) {
+                        exporter.export(box.get(), catalog.getString("Current View"), helper);
+                     }
+                     else {
+                        int vmode = Viewsheet.SHEET_RUNTIME_MODE;
+
+                        ViewsheetSandbox sandbox = createSandbox(
+                           rvs.getOriginalBookmark(bookmarks[i]), vmode, principal,
+                           rvs.getEntry(), box.get().getVariableTable());
+                        exporter.export(sandbox, bookmarks[i], (i + 1), helper);
+                        sandbox.dispose();
+                     }
+
+                     exporter.write();
                   }
-                  else {
-                     int vmode = Viewsheet.SHEET_RUNTIME_MODE;
-
-                     ViewsheetSandbox sandbox = createSandbox(
-                        rvs.getOriginalBookmark(bookmarks[i]), vmode, principal,
-                        rvs.getEntry(), box.get().getVariableTable());
-                     exporter.export(sandbox, bookmarks[i], (i + 1), helper);
-                     sandbox.dispose();
-                  }
-
-                  exporter.write();
-                  output0.close();
                }
+            }
+
+            exported = true;
+         }
+         finally {
+            if(!exported) {
+               // a failed export must not leave its partial attachments in the cache dir
+               created.forEach(this::deleteCacheFile);
             }
          }
       }
@@ -361,6 +392,8 @@ public class VSEmailService {
 
                images = new ArrayList<>();
                images.add(pngFile.getName());
+               // deleted with the other images in the finally, also when the send fails
+               fileList.add(pngFile);
                htmlMime = true;
                file = htmlFile;
             }
@@ -394,29 +427,17 @@ public class VSEmailService {
 
          mailer.send(toaddrs, ccaddrs, bccaddrs, from, subject, body, file,
                      images, htmlMime, true);
-
-         if(images != null) {
-            for(String image : images) {
-               final File imageFile = fileSystemService.getCacheFile(image);
-
-               if(imageFile != null) {
-                  final boolean removed = imageFile.delete();
-
-                  if(!removed) {
-                     fileSystemService.remove(imageFile, 60000);
-                  }
-               }
-            }
-         }
       }
       finally {
-         if(file != null) {
-            boolean removed = file.delete();
+         deleteCacheFile(file);
+         // the png images, which are attached through the html file
+         fileList.forEach(this::deleteCacheFile);
+      }
+   }
 
-            if(!removed) {
-               fileSystemService.remove(file, 60000);
-            }
-         }
+   private void deleteCacheFile(File file) {
+      if(file != null && file.exists() && !file.delete()) {
+         fileSystemService.remove(file, 60000);
       }
    }
 

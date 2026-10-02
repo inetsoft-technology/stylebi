@@ -45,8 +45,12 @@ public final class PoolMetrics {
       creations.incrementAndGet();
       NODE_CREATIONS.incrementAndGet();
       NODE_SLOTS.incrementAndGet();
+      AtomicInteger released = nodeReleases;
       // the action must not reference the slot
-      return CLEANER.register(slot, NODE_SLOTS::decrementAndGet);
+      return CLEANER.register(slot, () -> {
+         NODE_SLOTS.decrementAndGet();
+         released.incrementAndGet();
+      });
    }
 
    void slotClosed(Cleaner.Cleanable node) {
@@ -203,6 +207,14 @@ public final class PoolMetrics {
 
    public long getCreations() {
       return creations.get();
+   }
+
+   /**
+    * @return the slots of this env that no longer count toward the node's slots, because they
+    * were closed or collected.
+    */
+   int getNodeReleases() {
+      return nodeReleases.get();
    }
 
    public long getEvictions() {
@@ -382,6 +394,7 @@ public final class PoolMetrics {
    private final AtomicInteger size = new AtomicInteger();
    private final AtomicInteger highWater = new AtomicInteger();
    private final AtomicLong creations = new AtomicLong();
+   private final AtomicInteger nodeReleases = new AtomicInteger();
    private final AtomicLong evictions = new AtomicLong();
    private final AtomicLong doomedCloses = new AtomicLong();
    private final AtomicLong cleans = new AtomicLong();
