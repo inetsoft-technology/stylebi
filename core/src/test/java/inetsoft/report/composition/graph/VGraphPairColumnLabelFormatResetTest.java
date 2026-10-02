@@ -24,6 +24,7 @@ import inetsoft.graph.data.DataSet;
 import inetsoft.graph.data.DefaultDataSet;
 import inetsoft.graph.guide.VLabel;
 import inetsoft.graph.guide.axis.Axis;
+import inetsoft.graph.internal.GDefaults;
 import inetsoft.report.StyleFont;
 import inetsoft.test.*;
 import inetsoft.uql.VariableTable;
@@ -64,21 +65,9 @@ class VGraphPairColumnLabelFormatResetTest {
 
    @Test
    void separatedMeasureAxisColumnLabelFontResetsAfterObjectFontIsCleared() throws Exception {
-      VSChartInfo cinfo = new DefaultVSChartInfo();
-      cinfo.setChartType(GraphTypes.CHART_BAR);
-      VSChartDimensionRef region = new VSChartDimensionRef(new AttributeRef("Region"));
-      VSChartAggregateRef revenue = new VSChartAggregateRef();
-      revenue.setDataRef(new AttributeRef("Revenue"));
-      revenue.setFormula(AggregateFormula.SUM);
-      cinfo.addXField(region);
-      cinfo.addYField(revenue);
-
-      ChartVSAssemblyInfo info = new ChartVSAssemblyInfo();
-      info.setVSChartInfo(cinfo);
-      assertTrue(cinfo.isSeparatedGraph());
-
       // binding creates the measure's per-column label format by cloning the axis label format
-      GraphFormatUtil.fixDefaultNumberFormat(info.getChartDescriptor(), cinfo);
+      ChartVSAssemblyInfo info = separatedBarChart();
+      VSChartAggregateRef revenue = (VSChartAggregateRef) info.getVSChartInfo().getYField(0);
       AxisDescriptor yAxis = revenue.getAxisDescriptor();
       CompositeTextFormat colFmt = yAxis.getColumnLabelTextFormat(revenue.getFullName());
       assertNotNull(colFmt, "binding should create the Y column label format");
@@ -145,7 +134,7 @@ class VGraphPairColumnLabelFormatResetTest {
       fixChartFormat(info);
       List<VLabel> labels = yTickLabels(info);
       assertEquals(initialFont, singleFont(labels));
-      assertEquals(Color.decode("#4b4b4b"), labels.get(0).getTextSpec().getColor());
+      assertEquals(GDefaults.DEFAULT_TEXT_COLOR, labels.get(0).getTextSpec().getColor());
    }
 
    @Test
@@ -213,6 +202,9 @@ class VGraphPairColumnLabelFormatResetTest {
       return fonts.iterator().next();
    }
 
+   // set and clear the OBJECT user format directly. This leaves the same state as
+   // FormatPainterService.changeFormat: setUserFormat writes setFontValue(font, !reset), so after a
+   // reset the font and foreground values are undefined.
    private static void setObjectFormat(ChartVSAssemblyInfo info) {
       VSFormat user = objectUserFormat(info);
       user.setFontValue(OBJECT_FONT, true);
