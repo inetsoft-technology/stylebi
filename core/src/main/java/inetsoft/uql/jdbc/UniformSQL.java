@@ -4068,6 +4068,12 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
 
          try {
             parser.direct_select_stmt_n_rows(sql);
+            // the join order check fails the parse of sql whose regenerated joins differ,
+            // e.g. a saved query parsed before the check was added (Bug #77488). It needs
+            // the data source's sql helper, without one the parse result is kept
+            if(sql.getDataSource() != null) {
+               sql.checkJoinOrders(parser, PARSE_PERIOD);
+            }
             setLossy((sql.lossy != null && sql.lossy) || isLegacyCycleJoins());
          }
          catch(Exception e) {
