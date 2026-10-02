@@ -50,12 +50,20 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.awt.*;
 import java.io.File;
+import java.io.IOException;
 import java.lang.reflect.Field;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.Principal;
 import java.util.*;
 import java.util.List;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -331,6 +339,172 @@ class VSEmailServiceCreateSandboxTest {
       assertEquals(failAt, calls[0]);
       assertEquals(List.of(), cachedFiles(dir),
          "a failed Excel->CSV export must close and delete the attachment and the .xlsx");
+      assertEquals(List.of(), leftoverDirectories(dir),
+         "a failed Excel->CSV export must also remove its per-call UUID directory, not just " +
+         "the files inside it");
+   }
+
+   /**
+    * Review round 1 on #77565: {@code cachedFiles()} only sees regular files, so it cannot tell
+    * whether {@code excelDir} itself -- the per-call UUID directory {@code createTmpDir()}
+    * creates for the excel->CSV intermediate -- was actually removed. Here the exporter is a
+    * bare {@code VSExporter} mock (not a real {@code CSVVSExporter}), so {@code
+    * removeCSVFiles()} never runs and {@code excelFile} is still sitting in {@code excelDir}
+    * when the export finishes; only the outer {@code finally}'s {@code Tool.deleteFile(excelDir)}
+    * removes it. Without that call this test would still see an empty {@code excelDir} left
+    * behind, which {@link #cachedFiles} cannot detect.
+    */
+   @Test
+   void emailViewsheet_succeededExcelToCsvExportDeletesIntermediateDirectory(@TempDir Path dir)
+      throws Exception
+   {
+      Mailer mailer = mock(Mailer.class);
+      VSEmailService service = new VSEmailService(cacheIn(dir)) {
+         @Override
+         protected ViewsheetSandbox createSandbox(Viewsheet bookmark, int mode,
+                                                  Principal principal, AssetEntry entry,
+                                                  VariableTable vars)
+         {
+            return mock(ViewsheetSandbox.class);
+         }
+
+         @Override
+         protected Mailer createMailer() {
+            return mailer;
+         }
+      };
+
+      email(service, FileFormatInfo.EXPORT_TYPE_EXCEL, new VariableTable(), true);
+
+      assertEquals(List.of(), leftoverDirectories(dir),
+         "a successful Excel->CSV export must not leave its per-call UUID directory behind");
+   }
+
+   /**
+    * Bug #77565 (independent verification test -- not written by the fixer): two concurrent
+    * interactive-Email-dialog calls on the SAME viewsheet (same localized name, so the same
+    * ".xlsx" base name) must not resolve the excel->CSV intermediate to the same cache path.
+    * Pre-fix, {@code VSEmailService.java:196} computed
+    * {@code fileSystemService.getCacheFile(fname + ".xlsx")} with no per-call isolation, so both
+    * calls got the identical path: one call's {@code FileOutputStream} open could truncate the
+    * other's in-flight write, or the call that finished first could delete the file out from
+    * under the one still running ({@code CSVVSExporter.removeCSVFiles()}).
+    * <p>
+    * This drives two real concurrent {@code emailViewsheet()} calls on two separate threads,
+    * synchronized with a {@link CyclicBarrier} so both threads' excel intermediate
+    * {@code FileOutputStream}s are open on disk at the same instant (not just "close in time" --
+    * actually concurrently open), and records -- via the mocked
+    * {@code FileSystemService.getFile(dir, name)}, which is exactly what
+    * {@code VSEmailService.createTmpDir()}/the {@code excelFile} resolution calls -- the real
+    * path each thread resolved. If the fix is reverted, the two threads resolve the identical
+    * path and this test fails (verified by temporarily reverting the fix and re-running this
+    * exact test, see 04-verify.md).
+    */
+   @Test
+   void emailViewsheet_concurrentExcelToCsvCallsDoNotShareIntermediateDirectory(@TempDir Path dir)
+      throws Exception
+   {
+      FileSystemService fs = cacheIn(dir);
+      Map<Long, File> excelFileByThread = new ConcurrentHashMap<>();
+
+      // cacheIn() already stubs getFile(String, String); re-stub it here to also record, per
+      // calling thread, the File resolved for the ".xlsx" name -- this is the exact call
+      // VSEmailService's *fixed* code makes to compute excelFile once createTmpDir() hands back
+      // excelDir.
+      doAnswer(inv -> {
+         String parent = inv.getArgument(0);
+         String name = inv.getArgument(1);
+         File f = new File(parent, name);
+
+         if(name.endsWith(".xlsx")) {
+            excelFileByThread.put(Thread.currentThread().getId(), f);
+         }
+
+         return f;
+      }).when(fs).getFile(anyString(), anyString());
+
+      // Also hook the single-argument getCacheFile(String), which is the call the *pre-fix*
+      // code uses to compute excelFile directly (fileSystemService.getCacheFile(fname +
+      // ".xlsx")). Hooking both call shapes means this probe (and therefore this test) detects
+      // the collision correctly whichever of the two code shapes is in the tree when it runs --
+      // this is what lets the same, unmodified test demonstrate the pre-fix collision below.
+      doAnswer(inv -> {
+         String name = inv.getArgument(0);
+         File f = dir.resolve(name).toFile();
+
+         if(name.endsWith(".xlsx")) {
+            excelFileByThread.put(Thread.currentThread().getId(), f);
+         }
+
+         return f;
+      }).when(fs).getCacheFile(anyString());
+
+      CyclicBarrier barrier = new CyclicBarrier(2);
+      Map<Long, Integer> calls = new ConcurrentHashMap<>();
+
+      VSEmailService service = new VSEmailService(fs) {
+         @Override
+         protected ViewsheetSandbox createSandbox(Viewsheet bookmark, int mode,
+                                                  Principal principal, AssetEntry entry,
+                                                  VariableTable vars)
+            throws Exception
+         {
+            long tid = Thread.currentThread().getId();
+
+            // Only the very first createSandbox call on this thread's run -- which happens
+            // inside the Excel pass, with this thread's own excel-intermediate
+            // FileOutputStream already open -- waits for the other thread. This puts both
+            // threads' excel intermediates open on disk at the same instant before either
+            // continues.
+            if(calls.merge(tid, 1, Integer::sum) == 1) {
+               barrier.await(10, TimeUnit.SECONDS);
+            }
+
+            return mock(ViewsheetSandbox.class);
+         }
+
+         @Override
+         protected Mailer createMailer() {
+            return mock(Mailer.class);
+         }
+      };
+
+      ExecutorService pool = Executors.newFixedThreadPool(2);
+
+      try {
+         List<Future<?>> futures = new ArrayList<>();
+
+         for(int i = 0; i < 2; i++) {
+            futures.add(pool.submit(() -> {
+               try {
+                  email(service, FileFormatInfo.EXPORT_TYPE_EXCEL, new VariableTable(), true);
+               }
+               catch(Exception e) {
+                  throw new RuntimeException(e);
+               }
+            }));
+         }
+
+         for(Future<?> future : futures) {
+            future.get(20, TimeUnit.SECONDS);
+         }
+      }
+      finally {
+         pool.shutdownNow();
+      }
+
+      assertEquals(2, excelFileByThread.size(),
+         "both concurrent calls must have resolved their own excel intermediate path");
+
+      List<File> paths = new ArrayList<>(excelFileByThread.values());
+      assertNotEquals(paths.get(0).getParentFile(), paths.get(1).getParentFile(),
+         "two concurrent emails of the same viewsheet must not share the excel intermediate's " +
+         "directory -- this is the actual bug #77565 collision");
+      assertEquals(paths.get(0).getName(), paths.get(1).getName(),
+         "the user-visible .xlsx base name must stay the same for both concurrent calls");
+
+      assertEquals(List.of(), cachedFiles(dir),
+         "both concurrent calls must finish and fully clean up their own intermediate directory");
    }
 
    /**
@@ -514,12 +688,67 @@ class VSEmailServiceCreateSandboxTest {
       FileSystemService fs = mock(FileSystemService.class);
       when(fs.getCacheFile(anyString()))
          .thenAnswer(inv -> dir.resolve((String) inv.getArgument(0)).toFile());
+
+      // Bug #77565: the excel->CSV path now puts its .xlsx intermediate in its own per-call
+      // subdirectory (VSEmailService.createTmpDir()) instead of directly under the cache dir,
+      // so the mock must also support getCacheDirectory()/getFile(..) for that to work.
+      try {
+         when(fs.getCacheDirectory()).thenReturn(dir.toString());
+      }
+      catch(IOException e) {
+         throw new RuntimeException(e);
+      }
+
+      when(fs.getFile(anyString())).thenAnswer(inv -> new File((String) inv.getArgument(0)));
+      when(fs.getFile(anyString(), anyString())).thenAnswer(inv ->
+         new File((String) inv.getArgument(0), (String) inv.getArgument(1)));
+
       return fs;
    }
 
+   /**
+    * Lists every regular file under {@code dir}, recursively, as paths relative to {@code dir}.
+    * Recursive (not just {@code dir.toFile().list()}) since Bug #77565's fix nests the excel->CSV
+    * intermediate under its own unique subdirectory of {@code dir} rather than directly in it.
+    */
    private static List<String> cachedFiles(Path dir) {
-      String[] names = dir.toFile().list();
-      return names == null ? List.of() : Arrays.stream(names).sorted().toList();
+      if(!Files.exists(dir)) {
+         return List.of();
+      }
+
+      try(Stream<Path> paths = Files.walk(dir)) {
+         return paths.filter(Files::isRegularFile)
+            .map(dir::relativize)
+            .map(Path::toString)
+            .sorted()
+            .toList();
+      }
+      catch(IOException e) {
+         throw new RuntimeException(e);
+      }
+   }
+
+   /**
+    * Lists the first-level subdirectories still under {@code dir} (not recursive). Bug #77565,
+    * review round 1: {@link #cachedFiles} filters to regular files, so it cannot see an empty
+    * leftover {@code excelDir} -- the excel->CSV intermediate's per-call UUID directory -- if
+    * the production code's {@code Tool.deleteFile(excelDir)} call were ever removed or skipped.
+    */
+   private static List<String> leftoverDirectories(Path dir) {
+      if(!Files.exists(dir)) {
+         return List.of();
+      }
+
+      try(Stream<Path> paths = Files.list(dir)) {
+         return paths.filter(Files::isDirectory)
+            .map(dir::relativize)
+            .map(Path::toString)
+            .sorted()
+            .toList();
+      }
+      catch(IOException e) {
+         throw new RuntimeException(e);
+      }
    }
 
    private static ViewsheetSandbox createSandbox(Viewsheet bookmark) throws Exception {

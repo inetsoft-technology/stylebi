@@ -174,6 +174,10 @@ public class VSEmailService {
          }
 
          File excelFile = null;
+         // the excel intermediate's own unique directory (excelToCSV only); kept separate from
+         // the attachment file's cache path so two concurrent emails of the same viewsheet entry
+         // can never collide on the same ".xlsx" name
+         File excelDir = null;
          // the files this export opened; names picked but not yet reached may since have been
          // picked and written by a concurrent email of the same viewsheet
          List<File> created = new ArrayList<>();
@@ -193,7 +197,12 @@ public class VSEmailService {
                   created.add(file);
 
                   if(excelToCSV) {
-                     excelFile = fileSystemService.getCacheFile(fname + ".xlsx");
+                     // @by stephenwebster, fix bug1395938669865 (same fix, applied here too)
+                     // put the excel intermediate in its own unique directory, keeping the
+                     // ".xlsx" base name, so two concurrent emails of the same viewsheet never
+                     // collide on the same cache path
+                     excelDir = createTmpDir();
+                     excelFile = fileSystemService.getFile(excelDir.getPath(), fname + ".xlsx");
 
                      try(FileOutputStream out = new FileOutputStream(excelFile)) {
                         created.add(excelFile);
@@ -258,6 +267,14 @@ public class VSEmailService {
             if(!exported) {
                // a failed export must not leave its partial attachments in the cache dir
                created.forEach(this::deleteCacheFile);
+            }
+
+            if(excelDir != null) {
+               // on success, CSVVSExporter.removeCSVFiles() has already deleted excelFile
+               // itself, leaving an empty directory; on failure, excelFile may still exist.
+               // Tool.deleteFile recursively removes the directory (and anything left in it)
+               // either way.
+               Tool.deleteFile(excelDir);
             }
          }
       }
@@ -444,6 +461,24 @@ public class VSEmailService {
       if(file != null && file.exists() && !file.delete()) {
          fileSystemService.remove(file, 60000);
       }
+   }
+
+   /**
+    * Create a unique, per-call cache subdirectory, mirroring the pattern already used by
+    * {@code ViewsheetAction} and {@code VSExportService.createTmpDir()} for the same purpose:
+    * giving an exported intermediate file a unique path while keeping its own file name, so
+    * concurrent exports of the same viewsheet never collide on a shared cache path.
+    */
+   private File createTmpDir() throws IOException {
+      String uuid = UUID.randomUUID().toString();
+      String dir = fileSystemService.getCacheDirectory() + File.separator + uuid;
+      File tmpDir = fileSystemService.getFile(dir);
+
+      if(!tmpDir.mkdir()) {
+         LOG.warn("Failed to create temporary directory: {}", tmpDir);
+      }
+
+      return tmpDir;
    }
 
    private void exportViewsheet(RuntimeViewsheet rvs, Principal principal, int formatType,
