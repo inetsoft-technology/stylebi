@@ -32,7 +32,9 @@ import java.util.concurrent.locks.Lock;
  * The contexts of one pooled worksheet env (bug #76960, spec §4.3-§4.5): a primary and any
  * number of pooled slots. No method ever waits for a context: a busy slot is skipped with
  * tryLock and a new one is created, without a cap (I6); retire and eviction close only slots
- * they can tryLock, and doom the rest, which their owners close at their outermost release.
+ * they can tryLock, and doom the rest, which their owners close at their outermost release. A
+ * home is closed only with the locks of all its tenants (Testing #77123): the idle home of a
+ * busy tenant is doomed, and closed once its tenant is done.
  */
 final class SlotPool {
    SlotPool(SlotSource source, PoolConfig config, PoolMetrics metrics) {
@@ -113,21 +115,67 @@ final class SlotPool {
 
    /**
     * Give every later checkout a fresh epoch: close the idle contexts that can be taken
-    * without waiting, and doom the rest, including the calling thread's own (N6).
+    * without waiting, and doom the rest, including the calling thread's own (N6). The idle
+    * home of a busy tenant (its batch holds its lock) is doomed too, not closed (Testing
+    * #77123): closing it lost the tenant's objects, since it could not hand off. Doomed and
+    * stale, it is never handed out again; the tenant's next batch hands off or pulls from it,
+    * or the expiry does once the tenant is done, and it is closed then.
     */
    void retire() {
       epoch.incrementAndGet();
 
       for(Slot slot : slots()) {
-         if(slot.isHeldByCurrentThread()) {
+         if(slot.isHeldByCurrentThread() || !closeIdle(slot)) {
             slot.doom();
          }
-         else if(slot.tryAcquire()) {
-            discard(slot);
+      }
+   }
+
+   /**
+    * Close {@code slot} now if it is idle and the locks of all its tenants can be taken, never
+    * waiting. Its tenants hand off under their locks, as at a take-over (TenantLocks).
+    *
+    * @return {@code false} if another thread holds the slot or a tenant's lock: nothing was
+    *         closed or handed off.
+    */
+   private boolean closeIdle(Slot slot) {
+      TenantLocks locks = new TenantLocks();
+      Probe probe = null;
+
+      try {
+         // the tenants' locks before the slot, see TenantLocks
+         if(!locks.take(slot)) {
+            return false;
          }
-         else {
-            slot.doom();
+
+         probe = new Probe(slot);
+
+         if(!slot.tryAcquire()) {
+            return false;
          }
+
+         // a tenant that enrolled before the slot was taken is locked now, or the slot is
+         // given back before anything is handed off
+         if(!locks.take(slot)) {
+            slot.unlock();
+            return false;
+         }
+
+         probe.end();
+
+         if(slot.isDoomed()) {
+            metrics.doomedClosed();
+         }
+
+         discard(slot);
+         return true;
+      }
+      finally {
+         if(probe != null) {
+            probe.end();
+         }
+
+         locks.release();
       }
    }
 
@@ -192,6 +240,15 @@ final class SlotPool {
          else {
             slot.unlock();
          }
+      }
+
+      // a primary that retire() doomed while it was the idle home of a busy tenant, whose
+      // tenant was collected since (Testing #77123): it is no home any more, and a primary is
+      // never evicted
+      Slot first = primary.get();
+
+      if(first != null) {
+         closeIfRetired(first);
       }
    }
 
@@ -281,13 +338,21 @@ final class SlotPool {
       }
 
       TenantLocks locks = new TenantLocks();
+      Probe probe = null;
 
       try {
          // a take-over holds the tenants' locks before the slot (B1-R2-1); the claim's own
          // home needs none
-         if(!(hint != null && slot.hasTenant(hint)) && !locks.take(slot) ||
-            !slot.tryAcquire())
-         {
+         if(!(hint != null && slot.hasTenant(hint)) && !locks.take(slot)) {
+            return false;
+         }
+
+         runTakeOverHook(slot);
+         // a tenant that enrolls after the locks were taken (one whose tenants were all
+         // collected has none) is not locked: its pull waits out this hold (finding G1)
+         probe = new Probe(slot);
+
+         if(!slot.tryAcquire()) {
             return false;
          }
 
@@ -306,12 +371,16 @@ final class SlotPool {
 
          // a home whose tenants were only collected is no take-over
          boolean tenants = slot.hasTenants();
-
          // a tenant that enrolled before the slot was taken is locked now, or the home is
          // skipped before anything is handed off
-         if(!exclusive && (!tenants || locks.take(slot) && handOffAll(slot)) &&
-            !homes.contains(slot))
-         {
+         boolean locked = !exclusive && (!tenants || locks.take(slot));
+
+         if(locked) {
+            // no tenant's batch runs while its lock is held: none pulls from the slot
+            probe.end();
+         }
+
+         if(locked && (!tenants || handOffAll(slot)) && !homes.contains(slot)) {
             if(tenants) {
                metrics.tookOver();
             }
@@ -324,8 +393,32 @@ final class SlotPool {
          return false;
       }
       finally {
+         if(probe != null) {
+            probe.end();
+         }
+
          locks.release();
       }
+   }
+
+   /**
+    * A probe of a slot by a pool thread, see {@link Slot#beginProbe}; ended once.
+    */
+   private static final class Probe {
+      Probe(Slot slot) {
+         this.slot = slot;
+         slot.beginProbe();
+      }
+
+      void end() {
+         if(!ended) {
+            ended = true;
+            slot.endProbe();
+         }
+      }
+
+      private final Slot slot;
+      private boolean ended;
    }
 
    /**
@@ -482,10 +575,17 @@ final class SlotPool {
          }
 
          TenantLocks locks = new TenantLocks();
+         Probe probe = null;
 
          try {
             // the tenants' locks before the slot, see TenantLocks
-            if(!locks.take(slot) || !slot.tryAcquire()) {
+            if(!locks.take(slot)) {
+               continue;
+            }
+
+            probe = new Probe(slot);
+
+            if(!slot.tryAcquire()) {
                continue;
             }
 
@@ -495,6 +595,7 @@ final class SlotPool {
                runHandOffHook(slot);
 
                if(locks.take(slot)) {
+                  probe.end();
                   handOffAll(slot);
                }
             }
@@ -503,6 +604,10 @@ final class SlotPool {
             }
          }
          finally {
+            if(probe != null) {
+               probe.end();
+            }
+
             locks.release();
          }
       }
@@ -526,15 +631,26 @@ final class SlotPool {
 
       for(Slot slot : new ArrayList<>(homes)) {
          TenantLocks locks = new TenantLocks();
+         Probe probe = null;
 
          try {
             // the tenants' locks before the slot, see TenantLocks
-            if(locks.take(slot) && slot.tryAcquire()) {
+            if(!locks.take(slot)) {
+               continue;
+            }
+
+            probe = new Probe(slot);
+
+            if(slot.tryAcquire()) {
                try {
                   runHandOffHook(slot);
 
-                  if(locks.take(slot) && handOffAll(slot)) {
-                     n++;
+                  if(locks.take(slot)) {
+                     probe.end();
+
+                     if(handOffAll(slot)) {
+                        n++;
+                     }
                   }
                }
                finally {
@@ -543,6 +659,10 @@ final class SlotPool {
             }
          }
          finally {
+            if(probe != null) {
+               probe.end();
+            }
+
             locks.release();
          }
       }
@@ -715,15 +835,12 @@ final class SlotPool {
     * went idle. A retire() in that window could only doom it, since the keeper still held the
     * lock, and no owner is left to close it at a later release: a primary is never evicted and
     * would stay open, counted in the node's slots. Never waits: if the tryLock fails, the new
-    * holder closes it at its own release or its checkout's prepare.
+    * holder closes it at its own release or its checkout's prepare. A home of a busy tenant is
+    * left doomed (Testing #77123): its tenant's pull or hand-off, or the expiry, closes it.
     */
    void closeIfRetired(Slot slot) {
-      if((slot.isDoomed() || slot.epoch() < epoch.get()) && slot.tryAcquire()) {
-         if(slot.isDoomed()) {
-            metrics.doomedClosed();
-         }
-
-         discard(slot);
+      if(slot.isDoomed() || slot.epoch() < epoch.get()) {
+         closeIdle(slot);
       }
    }
 
@@ -737,6 +854,14 @@ final class SlotPool {
 
    private void runHandOffHook(Slot slot) {
       java.util.function.Consumer<Slot> hook = handOffHook;
+
+      if(hook != null) {
+         hook.accept(slot);
+      }
+   }
+
+   private void runTakeOverHook(Slot slot) {
+      java.util.function.Consumer<Slot> hook = takeOverHook;
 
       if(hook != null) {
          hook.accept(slot);
@@ -763,6 +888,12 @@ final class SlotPool {
     * takes the slot's lock (Testing #77123, finding G2); null in production.
     */
    volatile java.util.function.Consumer<Slot> plainTakeHook;
+
+   /**
+    * Test hook run by a take-over once it holds the locks of the home's tenants it saw, before
+    * it takes the slot's lock (Testing #77123, finding G1); null in production.
+    */
+   volatile java.util.function.Consumer<Slot> takeOverHook;
 
    /**
     * Test hook run right before a slot this pool keeps goes idle (release's keep path and

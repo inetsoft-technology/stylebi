@@ -395,12 +395,16 @@ public final class OwnedValueCodec {
     * waiting, run {@code save} with its codec (a tree snapshot), stop reserving it for the
     * tenant, and give it back.
     *
+    * A pool thread that holds the home for a moment without the tenant's lock (a probe: a
+    * take-over, the expiry, a retire) is waited out, for at most {@link #PULL_SPIN_NANOS} and
+    * never by an interrupted thread (Testing #77123, finding G1).
+    *
     * @return {@code false} if the slot is held or closed: nothing was saved.
     */
    public static boolean pull(Home home, SlotTenant tenant, Consumer<OwnedValueCodec> save) {
       Slot slot = home.slot;
 
-      if(!slot.tryAcquire()) {
+      if(!takeForPull(slot)) {
          return false;
       }
 
@@ -424,6 +428,51 @@ public final class OwnedValueCodec {
          }
       }
    }
+
+   /**
+    * Take {@code slot} for a pull without waiting for a claim: only a probe of a pool thread
+    * (which never waits for anything this thread holds: it only tryLocks, and takes the
+    * pool's leaf homes lock) is waited out, spinning, for at most {@link #PULL_SPIN_NANOS}.
+    * An interrupted thread stops at once and keeps its interrupt flag.
+    *
+    * @return whether the calling thread holds the slot now.
+    */
+   private static boolean takeForPull(Slot slot) {
+      if(slot.tryAcquire()) {
+         return true;
+      }
+
+      if(slot.isHeldByCurrentThread()) {
+         return false;
+      }
+
+      Thread thread = Thread.currentThread();
+      long start = System.nanoTime();
+
+      while(slot.isProbed() && !slot.isClosed() && !thread.isInterrupted()) {
+         Consumer<Slot> hook = pullSpinHook;
+
+         if(hook != null) {
+            hook.accept(slot);
+         }
+
+         Thread.onSpinWait();
+
+         if(slot.tryAcquire()) {
+            return true;
+         }
+
+         if(System.nanoTime() - start >= PULL_SPIN_NANOS) {
+            return false;
+         }
+      }
+
+      // a prober gives the slot back before its probe ends: once it ended, one more try
+      return !thread.isInterrupted() && slot.tryAcquire();
+   }
+
+   /** The longest a pull waits out a probe of its home (finding G1), about 50 ms. */
+   static final long PULL_SPIN_NANOS = java.util.concurrent.TimeUnit.MILLISECONDS.toNanos(50);
 
    /**
     * Snapshot {@code roots}, values of {@link #context()}, into one context-free tree with the
@@ -679,6 +728,10 @@ public final class OwnedValueCodec {
 
    /** The node of a value whose snapshot failed: it is lost, never kept from an older batch. */
    public static final Lost UNREADABLE = new Lost("a value that could not be read");
+
+   // tests only: run by a pull at each retry while a pool thread probes the home (Testing
+   // #77123, finding G1), on the pulling thread
+   static volatile Consumer<Slot> pullSpinHook;
 
    // tests only (PoolTestSupport.failOwnedValueReads): every snapshot read throws this
    static volatile Supplier<? extends Throwable> readFault;
