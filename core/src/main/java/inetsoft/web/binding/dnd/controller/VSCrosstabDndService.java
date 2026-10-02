@@ -257,7 +257,8 @@ public class VSCrosstabDndService {
 
       // Handle source changed.
       if(sourceChange) {
-         assemblyInfoHandler.changeSource(nassembly, event.getTable(), event.getSourceType());
+         assemblyInfoHandler.changeSource(nassembly, event.getTable(), event.getSourceType(),
+                                          principal);
          VSCrosstabInfo vsCrosstabInfo = nassembly.getVSCrosstabInfo();
 
          if(vsCrosstabInfo != null) {

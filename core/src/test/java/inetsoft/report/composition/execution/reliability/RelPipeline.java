@@ -86,11 +86,18 @@ public final class RelPipeline {
     * sandboxes under other configurations.
     */
    public static AssetQuerySandbox sandbox(RelConfig cfg) {
+      return sandbox(cfg, new Worksheet());
+   }
+
+   /**
+    * Build a sandbox of a worksheet under a configuration, as {@link #sandbox(RelConfig)}.
+    */
+   public static AssetQuerySandbox sandbox(RelConfig cfg, Worksheet ws) {
       synchronized(CONFIG_LOCK) {
          cfg.apply();
 
          try {
-            AssetQuerySandbox box = new AssetQuerySandbox(new Worksheet());
+            AssetQuerySandbox box = new AssetQuerySandbox(ws);
 
             if(box.isScriptPoolMode() != cfg.pool() ||
                (box.getScriptEnv() instanceof WorksheetScriptEnv) != cfg.pool())

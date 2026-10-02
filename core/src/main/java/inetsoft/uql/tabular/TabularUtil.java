@@ -423,7 +423,8 @@ public class TabularUtil {
       Class cls;
 
       try {
-         cls = Class.forName(className);
+         // the class is only classified, so don't run its static initializer
+         cls = Class.forName(className, false, TabularUtil.class.getClassLoader());
       }
       catch(ClassNotFoundException e) {
          return TabularEditor.Type.TEXT;

@@ -909,7 +909,7 @@ public class ChangeChartProcessor {
          ? (StaticColorFrame) color : null;
       Color ccolor = scolor == null ? null : scolor.getColor();
       Color mapColor = GraphUtil.getMapDefaultColor();
-      Color chartColor = CategoricalColorFrame.COLOR_PALETTE[0];
+      Color chartColor = CategoricalColorFrame.COLOR_PALETTE.get(0);
 
       // if only polygon and color frame is static, fix color to white gray
       if(((ninfo).equals(oinfo) || !containsOnlyPolygon(oinfo)) &&

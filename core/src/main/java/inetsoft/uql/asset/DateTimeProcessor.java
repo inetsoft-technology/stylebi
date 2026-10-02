@@ -50,16 +50,46 @@ class DateTimeProcessor {
       // fix Bug #31873, should update the time for epoch.
       if(this.time != time || time == 0) {
          this.time = time;
-         dateTime = Instant.ofEpochMilli(time).atZone(DEFAULT_ZONE_ID);
-         year = month = day = weekday = hour = minute = -1;
+
+         // Bug #77463, before 1901 java.time (proleptic Gregorian, tzdb LMT offsets) and
+         // java.util (Julian/Gregorian hybrid, raw zone offset before 1900) disagree on the
+         // calendar fields of an instant. Values from JDBC, Excel and date parsing carry
+         // hybrid fields and every label is formatted by SimpleDateFormat (hybrid), so read
+         // the fields from a GregorianCalendar there. From 1901 on both engines agree on the
+         // offsets and java.time is kept as is.
+         if(time < HYBRID_CUTOFF_MILLIS) {
+            setHybridFields(time);
+         }
+         else {
+            dateTime = Instant.ofEpochMilli(time).atZone(DEFAULT_ZONE_ID);
+            year = UNSET_YEAR;
+            month = day = weekday = hour = minute = second = -1;
+         }
       }
+   }
+
+   /**
+    * Read all fields of a pre-1901 instant from the hybrid calendar. The year is the
+    * astronomical year (1 BC = 0, 2 BC = -1, ...), the day of week is ISO (Monday = 1).
+    */
+   private void setHybridFields(long time) {
+      GregorianCalendar cal = getHybridCalendar();
+      cal.setTimeInMillis(time);
+      year = getAstronomicalYear(cal);
+      month = cal.get(Calendar.MONTH) + 1;
+      day = cal.get(Calendar.DAY_OF_MONTH);
+      int dow = cal.get(Calendar.DAY_OF_WEEK);
+      weekday = dow == Calendar.SUNDAY ? 7 : dow - 1;
+      hour = cal.get(Calendar.HOUR_OF_DAY);
+      minute = cal.get(Calendar.MINUTE);
+      second = cal.get(Calendar.SECOND);
    }
 
    /**
     * Get year of the current date.
     */
    public final int getYear() {
-      if(year < 0) {
+      if(year == UNSET_YEAR) {
          year = dateTime.getYear();
       }
 
@@ -125,7 +155,11 @@ class DateTimeProcessor {
     * Get second of minute of the current date.
     */
    public final int getSecondOfMinute() {
-      return dateTime.getSecond();
+      if(second < 0) {
+         second = dateTime.getSecond();
+      }
+
+      return second;
    }
 
    /**
@@ -174,7 +208,7 @@ class DateTimeProcessor {
          }
 
          weekOfMonth = jcalendar.get(Calendar.WEEK_OF_MONTH);
-         int year = jcalendar.get(Calendar.YEAR);
+         int year = getAstronomicalYear(jcalendar);
          int month = jcalendar.get(Calendar.MONTH);
 
          if(forceDcToDateWeekOfMonth > 0 && weekOfMonth != forceDcToDateWeekOfMonth) {
@@ -184,7 +218,7 @@ class DateTimeProcessor {
 
             if(maxWeekOfMonth + weekOfMonth == forceDcToDateWeekOfMonth) {
                month = jcalendar.get(Calendar.MONTH);
-               year = jcalendar.get(Calendar.YEAR);
+               year = getAstronomicalYear(jcalendar);
             }
          }
 
@@ -238,7 +272,7 @@ class DateTimeProcessor {
 
       if(monthOfYear % 3 != 0) {
          jcalendar.set(Calendar.MONTH, (monthOfYear / 3) * 3);
-         return getTimestamp(jcalendar.get(Calendar.YEAR), jcalendar.get(Calendar.MONTH) + 1,
+         return getTimestamp(getAstronomicalYear(jcalendar), jcalendar.get(Calendar.MONTH) + 1,
                              1, 0, 0, 0);
       }
 
@@ -269,7 +303,7 @@ class DateTimeProcessor {
          if(calendar.getActualMaximum(Calendar.WEEK_OF_MONTH) + weekOfMonth == forceDcToDateWeekOfMonth) {
             calendar.set(Calendar.MONTH, 0);
 
-            return getTimestamp(calendar.get(Calendar.YEAR), calendar.get(Calendar.MONTH) + 1,
+            return getTimestamp(getAstronomicalYear(calendar), calendar.get(Calendar.MONTH) + 1,
                1, 0, 0, 0);
          }
       }
@@ -280,7 +314,7 @@ class DateTimeProcessor {
 
       if(monthOfYear != 0) {
          jcalendar.set(Calendar.MONTH, 0);
-         return getTimestamp(jcalendar.get(Calendar.YEAR), jcalendar.get(Calendar.MONTH) + 1,
+         return getTimestamp(getAstronomicalYear(jcalendar), jcalendar.get(Calendar.MONTH) + 1,
             1, 0, 0, 0);
       }
 
@@ -293,6 +327,12 @@ class DateTimeProcessor {
    public final Timestamp getTimestamp(int year, int month, int day,
                                        int hour, int minute, int second)
    {
+      // Bug #77463, a pre-1901 group start is built in the hybrid calendar, the same one
+      // the fields were read from (see setMillis).
+      if(year < HYBRID_CUTOFF_YEAR) {
+         return new Timestamp(getHybridMillis(year, month, day, hour, minute, second));
+      }
+
       final ZonedDateTime dateTime = ZonedDateTime.of(year, month, day, hour, minute, second, 0, DEFAULT_ZONE_ID);
       return new Timestamp(dateTime.toInstant().toEpochMilli());
    }
@@ -302,14 +342,93 @@ class DateTimeProcessor {
     */
    public final Timestamp getWeek(int year, int month, int day) {
       int weekday = getDayOfWeek();
+      int back = (7 - toJodaDay(firstDay) + weekday) % 7;
+
+      // Bug #77463, choose the calendar by the year of the week start, not of the passed
+      // date: a week containing 1901-01-01 can start in 1900.
+      if(year <= HYBRID_CUTOFF_YEAR &&
+         (year < HYBRID_CUTOFF_YEAR || month == 1 && day - back < 1))
+      {
+         // find the calendar date of the week start by whole-day arithmetic in UTC, which
+         // has no offset changes (java.util jumps by up to a day at 1900-01-01T00:00Z in
+         // date-line zones) and crosses the 1582 Julian/Gregorian gap correctly (a lenient
+         // set of day - back does not), then build its midnight in the default zone
+         GregorianCalendar utc = getHybridUtcCalendar();
+         utc.clear();
+         setAstronomicalFields(utc, year, month, day, 0, 0, 0);
+         utc.setTimeInMillis(utc.getTimeInMillis() - back * DAY_MILLIS);
+         return new Timestamp(getHybridMillis(getAstronomicalYear(utc),
+            utc.get(Calendar.MONTH) + 1, utc.get(Calendar.DAY_OF_MONTH), 0, 0, 0));
+      }
+
       ZonedDateTime dateTime = ZonedDateTime.of(year, month, day, 0, 0, 0, 0, DEFAULT_ZONE_ID);
-      dateTime = dateTime.plus(
-         -((7 - toJodaDay(firstDay) + weekday) % 7), ChronoUnit.DAYS);
+      dateTime = dateTime.plus(-back, ChronoUnit.DAYS);
       return new Timestamp(dateTime.toInstant().toEpochMilli());
    }
 
    private int toJodaDay(int javaDay) {
       return (javaDay - 1) == 0 ? 7 : (javaDay - 1);
+   }
+
+   /**
+    * Get the time of the given (astronomical year, 1 based month) fields in the hybrid
+    * Julian/Gregorian calendar of the default zone. The fields are set leniently.
+    */
+   private long getHybridMillis(int year, int month, int day, int hour, int minute,
+                                int second)
+   {
+      GregorianCalendar cal = getHybridCalendar();
+      cal.clear();
+      setAstronomicalFields(cal, year, month, day, hour, minute, second);
+      return cal.getTimeInMillis();
+   }
+
+   /**
+    * Set the (astronomical year, 1 based month) fields on a cleared calendar.
+    */
+   private static void setAstronomicalFields(GregorianCalendar cal, int year, int month, int day,
+                                             int hour, int minute, int second)
+   {
+      if(year <= 0) {
+         cal.set(Calendar.ERA, GregorianCalendar.BC);
+         cal.set(1 - year, month - 1, day, hour, minute, second);
+      }
+      else {
+         cal.set(year, month - 1, day, hour, minute, second);
+      }
+   }
+
+   /**
+    * Get the hybrid calendar, created on first use so the modern path allocates nothing.
+    * Explicitly a GregorianCalendar (not Calendar.getInstance(), which is Buddhist or
+    * Japanese in some locales).
+    */
+   private GregorianCalendar getHybridCalendar() {
+      if(hcalendar == null) {
+         hcalendar = new GregorianCalendar((TimeZone) DEFAULT_TIME_ZONE.clone());
+      }
+
+      return hcalendar;
+   }
+
+   /**
+    * Get the hybrid calendar in UTC used for whole-day arithmetic, created on first use.
+    */
+   private GregorianCalendar getHybridUtcCalendar() {
+      if(ucalendar == null) {
+         ucalendar = new GregorianCalendar(TimeZone.getTimeZone("UTC"));
+      }
+
+      return ucalendar;
+   }
+
+   /**
+    * Get the year of a calendar as an astronomical year (1 BC = 0), since Calendar.YEAR
+    * is relative to the era.
+    */
+   private static int getAstronomicalYear(Calendar cal) {
+      int year = cal.get(Calendar.YEAR);
+      return cal.get(Calendar.ERA) == GregorianCalendar.BC ? 1 - year : year;
    }
 
    /**
@@ -322,11 +441,21 @@ class DateTimeProcessor {
    }
 
    private long time;
-   private int year, month, day, weekday, hour, minute;
+   private int year, month, day, weekday, hour, minute, second;
    private ZonedDateTime dateTime = ZonedDateTime.now();
    private Calendar jcalendar = new GregorianCalendar();
+   private GregorianCalendar hcalendar; // hybrid calendar for pre-1901 values, lazy
+   private GregorianCalendar ucalendar; // hybrid calendar in UTC for day arithmetic, lazy
    private int firstDay;
 
    // ZoneId.systemDefault creates a clone, so instead cache the object for reuse.
    private static final ZoneId DEFAULT_ZONE_ID = ZoneId.systemDefault();
+   private static final TimeZone DEFAULT_TIME_ZONE = TimeZone.getTimeZone(DEFAULT_ZONE_ID);
+   // 1901-01-01T00:00Z. From here on java.util and java.time use the same zone offsets
+   // (java.util uses the raw offset before 1900-01-01T00:00Z), one year of margin.
+   private static final long HYBRID_CUTOFF_MILLIS = -2177452800000L;
+   private static final int HYBRID_CUTOFF_YEAR = 1901;
+   private static final long DAY_MILLIS = 24L * 60 * 60 * 1000;
+   // the astronomical year of a hybrid field read can be negative (2 BC = -1)
+   private static final int UNSET_YEAR = Integer.MIN_VALUE;
 }

@@ -32,6 +32,7 @@ package inetsoft.web.admin.schedule;
  *   [moveFolder: task permission denied] first task fails → moveScheduleItems never called
  *   [moveFolder: task permission granted] all tasks pass → moveScheduleItems called
  *   [moveFolder: null task models]       no task models → permission loop skipped → moveScheduleItems called
+ *   [moveFolder: task not movable]       getMovableTask null → task skipped → moveScheduleItems called
  *
  * Static singletons (OrganizationManager, Catalog) are intercepted with
  * Mockito.mockStatic() using lenient() to suppress UnnecessaryStubbingException.
@@ -156,13 +157,14 @@ class EMScheduleTaskFolderControllerTest {
    @Test
    void moveFolder_taskPermissionDenied_skipsMove() throws Exception {
       ScheduleTaskModel taskModel = mock(ScheduleTaskModel.class);
-      when(taskModel.name()).thenReturn("myTask");
 
       MoveTaskFolderRequest request = mock(MoveTaskFolderRequest.class);
       when(request.getTasks()).thenReturn(new ScheduleTaskModel[]{ taskModel });
       // getTarget() not stubbed: controller returns early before reaching it
 
-      when(scheduleManager.getScheduleTask("myTask")).thenReturn(scheduleTask);
+      // Bug #77503, the stored task that the move resolves is checked
+      when(scheduleTaskFolderService.getMovableTask(taskModel)).thenReturn(scheduleTask);
+      when(scheduleTask.getTaskId()).thenReturn("myTask");
       when(securityEngine.checkPermission(
          principal, ResourceType.SCHEDULE_TASK, "myTask", ResourceAction.WRITE))
          .thenReturn(false);
@@ -177,7 +179,6 @@ class EMScheduleTaskFolderControllerTest {
    @Test
    void moveFolder_taskPermissionGranted_movesItems() throws Exception {
       ScheduleTaskModel taskModel = mock(ScheduleTaskModel.class);
-      when(taskModel.name()).thenReturn("myTask");
 
       ContentRepositoryTreeNode target = ContentRepositoryTreeNode.builder()
          .label("Target").path("Target").type(0).build();
@@ -186,13 +187,37 @@ class EMScheduleTaskFolderControllerTest {
       when(request.getFolders()).thenReturn(new String[]{"Monthly"});
       when(request.getTarget()).thenReturn(target);
 
-      when(scheduleManager.getScheduleTask("myTask")).thenReturn(scheduleTask);
+      when(scheduleTaskFolderService.getMovableTask(taskModel)).thenReturn(scheduleTask);
+      when(scheduleTask.getTaskId()).thenReturn("myTask");
       when(securityEngine.checkPermission(
          principal, ResourceType.SCHEDULE_TASK, "myTask", ResourceAction.WRITE))
          .thenReturn(true);
 
       controller.moveFolder(request, principal);
 
+      verify(scheduleTaskFolderService).moveScheduleItems(
+         any(), eq(new String[]{"Monthly"}), argThat(e -> "Target".equals(e.getPath())), eq(principal));
+   }
+
+   // [task not movable] getMovableTask null → the move skips the task too, so it isn't checked
+   // and the folders of the request are still moved
+   @Test
+   void moveFolder_taskNotMovable_skipsCheckAndMovesFolders() throws Exception {
+      ScheduleTaskModel taskModel = mock(ScheduleTaskModel.class);
+
+      ContentRepositoryTreeNode target = ContentRepositoryTreeNode.builder()
+         .label("Target").path("Target").type(0).build();
+      MoveTaskFolderRequest request = mock(MoveTaskFolderRequest.class);
+      when(request.getTasks()).thenReturn(new ScheduleTaskModel[]{ taskModel });
+      when(request.getFolders()).thenReturn(new String[]{"Monthly"});
+      when(request.getTarget()).thenReturn(target);
+
+      when(scheduleTaskFolderService.getMovableTask(taskModel)).thenReturn(null);
+
+      controller.moveFolder(request, principal);
+
+      verify(securityEngine, never()).checkPermission(
+         any(), eq(ResourceType.SCHEDULE_TASK), anyString(), any(ResourceAction.class));
       verify(scheduleTaskFolderService).moveScheduleItems(
          any(), eq(new String[]{"Monthly"}), argThat(e -> "Target".equals(e.getPath())), eq(principal));
    }

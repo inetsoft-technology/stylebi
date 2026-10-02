@@ -99,7 +99,7 @@ public class VSColorFrameStrategy implements VSFrameStrategy {
    {
       Color[] colors = new Color[frames.length];
       Set<Color> usedColors = new HashSet<>();
-      Color[] acolors = CategoricalColorFrame.COLOR_PALETTE;
+      Color[] acolors = CategoricalColorFrame.COLOR_PALETTE.toArray(new Color[0]);
       List<Color> negColors = new ArrayList<>();
       List hidden = new ArrayList();
 

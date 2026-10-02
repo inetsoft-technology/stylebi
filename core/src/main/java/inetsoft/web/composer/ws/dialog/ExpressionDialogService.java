@@ -73,6 +73,7 @@ public class ExpressionDialogService extends WorksheetControllerService {
       RuntimeWorksheet rws = super.getWorksheetEngine()
          .getWorksheet(runtimeId, principal);
       Worksheet ws = rws.getWorksheet();
+      checkCubeTableReadPermission(principal, tableName);
       TableAssembly table = (TableAssembly) ws.getAssembly(tableName);
 
       if(table == null) {
@@ -181,6 +182,7 @@ public class ExpressionDialogService extends WorksheetControllerService {
       RuntimeWorksheet rws = super.getWorksheetEngine().getWorksheet(runtimeId, principal);
       Worksheet ws = rws.getWorksheet();
       String tname = model.tableName();
+      checkCubeTableReadPermission(principal, tname);
       TableAssembly table = (TableAssembly) ws.getAssembly(tname);
 
       if(table == null || model.newName() == null) {
@@ -294,6 +296,7 @@ public class ExpressionDialogService extends WorksheetControllerService {
       RuntimeWorksheet rws = super.getRuntimeWorksheet(runtimeId, principal);
       Worksheet ws = rws.getWorksheet();
       String tname = model.tableName();
+      checkCubeTableReadPermission(principal, tname);
       TableAssembly table = (TableAssembly) ws.getAssembly(tname);
 
       if(table == null || model.newName() == null) {

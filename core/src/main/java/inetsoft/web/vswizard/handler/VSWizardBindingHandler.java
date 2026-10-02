@@ -56,6 +56,7 @@ import inetsoft.web.binding.service.graph.ChartRefModelFactoryService;
 import inetsoft.web.composer.model.vs.VSObjectFormatInfoModel;
 import inetsoft.web.graph.GraphBuilder;
 import inetsoft.web.graph.handler.ChartRegionHandler;
+import inetsoft.web.portal.controller.database.QueryManagerService;
 import inetsoft.web.viewsheet.command.MessageCommand;
 import inetsoft.web.viewsheet.command.RemoveVSObjectCommand;
 import inetsoft.web.viewsheet.controller.chart.VSChartLegendsVisibilityService;
@@ -100,7 +101,8 @@ public class VSWizardBindingHandler {
                                  RuntimeViewsheetRef runtimeViewsheetRef,
                                  ChartRefModelFactoryService chartService,
                                  DataRefModelFactoryService dataRefService,
-                                 VSWizardTemporaryInfoService temporaryInfoService, AnalyticAssistant analyticAssistant)
+                                 VSWizardTemporaryInfoService temporaryInfoService, AnalyticAssistant analyticAssistant,
+                                 QueryManagerService queryManagerService)
    {
       this.chartService = chartService;
       this.regionHandler = regionHandler;
@@ -115,11 +117,12 @@ public class VSWizardBindingHandler {
       this.runtimeViewsheetRef = runtimeViewsheetRef;
       this.temporaryInfoService = temporaryInfoService;
       this.analyticAssistant = analyticAssistant;
+      this.queryManagerService = queryManagerService;
    }
 
    public boolean changeSource(SourceInfo newSource, SourceInfo oldSource, ViewsheetEvent event,
                                VSTemporaryInfo temporaryInfo, Viewsheet vs, String url,
-                               CommandDispatcher dispatcher) {
+                               CommandDispatcher dispatcher, Principal principal) {
       boolean changeSource = oldSource != null && !Objects.equals(newSource, oldSource);
 
       if(!event.confirmed() && changeSource) {
@@ -134,18 +137,22 @@ public class VSWizardBindingHandler {
 
       //If confirmed is true, source is changed, so set new source.
       if(event.confirmed() || oldSource == null) {
-         changeSource(newSource, oldSource, temporaryInfo, vs);
+         changeSource(newSource, oldSource, temporaryInfo, vs, principal);
       }
 
       return false;
    }
 
    public boolean changeSource(SourceInfo newSource, SourceInfo oldSource,
-                               VSTemporaryInfo temporaryInfo, Viewsheet vs) {
+                               VSTemporaryInfo temporaryInfo, Viewsheet vs,
+                               Principal principal) {
       ChartVSAssembly tempChart = temporaryInfo.getTempChart();
       boolean changeSource = sourceChanged(newSource.getSource(), oldSource);
 
       if(changeSource || oldSource == null) {
+         // a cube table is resolved from its data source without a permission check, so
+         // check a newly bound one before the chart is changed (Bug #77427)
+         queryManagerService.checkCubeTableReadPermission(newSource.getSource(), principal);
          tempChart.setSourceInfo(newSource);
          VSChartInfo chartInfo = tempChart.getVSChartInfo();
          chartInfo.removeFields();
@@ -2677,6 +2684,7 @@ public class VSWizardBindingHandler {
    private final DataRefModelFactoryService dataRefService;
    private final VSWizardTemporaryInfoService temporaryInfoService;
    private final AnalyticAssistant analyticAssistant;
+   private final QueryManagerService queryManagerService;
 
    private static final List<AggregateFormula> SAME_TYPE_FORMULA = new ArrayList<>();
 
