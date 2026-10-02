@@ -181,6 +181,19 @@ class ZohoCRMAuthorizeTest {
    }
 
    @Test
+   void undecryptableRefreshTokenIsReportedWithoutRequestAtQueryTime() {
+      ZohoCRMDataSource dataSource = createDataSource();
+      // the value that a failed master password decryption leaves in place
+      dataSource.setRefreshToken("\\masterRmFrZVJlZnJlc2hUb2tlbg==");
+      dataSource.setTokenExpiration(System.currentTimeMillis() - 60000L);
+      dataSource.refreshTokens();
+
+      assertEquals(0, hits.get());
+      assertEquals("fake-old-access", dataSource.getAccessToken());
+      assertEquals(getString("zohocrm.undecryptable"), getMessage());
+   }
+
+   @Test
    void successUpdatesTokensAndAsksToSave() {
       responseBody = "{\"access_token\":\"fake-new-access\",\"refresh_token\":\"fake-new-refresh\"," +
          "\"api_domain\":\"https://api.example\",\"expires_in\":3600}";
