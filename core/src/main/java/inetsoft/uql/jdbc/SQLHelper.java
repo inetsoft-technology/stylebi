@@ -2481,6 +2481,10 @@ public class SQLHelper implements KeywordProvider {
     * where clause joins as where conditions (comma separated tables) and can
     * join parenthesized groups of joined tables, e.g.
     * (a join b) left join (c join d) on b.id = c.id.
+    * A helper that returns false gets the outer-last join order for parsed
+    * joins too, which can put an inner join on the null-supplying side of an
+    * outer join and return wrong rows (#77581). A helper that can't write
+    * parentheses overrides appendJoinClause instead, as MongoHelper does.
     */
    protected boolean isTextJoinOrderSupported() {
       return true;
@@ -2655,6 +2659,10 @@ public class SQLHelper implements KeywordProvider {
 
          // the parser only reads a joined table on the right of a join as one
          // flat chain, e.g. a left join (c join d on .. join e on ..) on ..
+         // The parentheses are written for MongoHelper too, whose unity driver
+         // may reject them (56305): no flat chain keeps the meaning of
+         // (a join b) left join (c join d) on b.id = c.id, and the outer-last
+         // order joins d to the null-extended rows of c (#77581)
          group = new TextJoinGroup();
          appendTextJoins(group, step, anchor, getAnsiJoin(anchor.getOp(), false),
                          "(" + left.text + ")", "(" + right.flat + ")");
@@ -3731,8 +3739,8 @@ public class SQLHelper implements KeywordProvider {
       // a != is written in place, as before != had an ANSI join, except for a != the parser
       // found in an inner join ON of a query in text join order, which stays in that ON so
       // it's kept on the null-supplying side of an outer join. A != in WHERE, from a query
-      // saved before the clause was recorded, or without text join order (no outer join, or
-      // MongoHelper) can't move a predicate out of an outer join, and moving it into the
+      // saved before the clause was recorded, or without text join order (e.g. no outer
+      // join) can't move a predicate out of an outer join, and moving it into the
       // from clause there can join a table twice
       if("!=".equals(join.getOp()) && !(join.isOnClauseJoin() && isTextJoinOrder())) {
          return false;
