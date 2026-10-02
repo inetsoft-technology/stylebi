@@ -631,6 +631,97 @@ class UniformSQLQualifiedQuotedColumnTest {
                               "group by t.\"MixedCase\", t.MixedCase"));
    }
 
+   /**
+    * On a database whose parser quotes every segment (PostgreSQL, Snowflake, Exasol, where
+    * SQLHelper.isCaseSensitive() is true), an unquoted aggregate argument sum(q.MixedCase) is
+    * stored as sum("q"."MixedCase"), the same text as sum(q."MixedCase"). It must keep the
+    * metadata case repair it had before this change, in the select list and in order by.
+    * The expected strings are the output before this change.
+    */
+   @Test
+   void unquotedAggregatesKeepTheMetadataCaseRepairOnCaseSensitiveDatabases() throws Exception {
+      String sum = "select q.id, sum(q.MixedCase) from t q group by q.id";
+      String pg = "select \"q\".\"id\", sum(q.\"%s\") from \"t\" q group by \"q\".\"id\"";
+      String folding = "select \"q\".\"id\", sum(q.%s) from \"t\" q group by \"q\".\"id\"";
+
+      // the column as postgresql stores an unquoted MixedCase
+      assertEquals(String.format(pg, "mixedcase"), aggregate("postgresql", sum, "mixedcase", "id"));
+      // the first column ignoring case
+      assertEquals(String.format(pg, "MIXEDCASE"), aggregate("postgresql", sum, TWIN_FIRST));
+      assertEquals(String.format(pg, "mixedcase") + " order by sum(q.\"mixedcase\") asc",
+                   aggregate("postgresql", sum + " order by sum(q.MixedCase)", "mixedcase", "id"));
+
+      for(String key : new String[] { "snowflake", "exasol" }) {
+         // the column as snowflake and exasol store an unquoted MixedCase
+         assertEquals(String.format(folding, "MIXEDCASE"), aggregate(key, sum, "MIXEDCASE", "id"), key);
+         assertEquals(String.format(folding, "MIXEDCASE") + " order by sum(q.MIXEDCASE) asc",
+                      aggregate(key, sum + " order by sum(q.MixedCase)", "MIXEDCASE", "id"), key);
+         // the first column ignoring case, unquoted, so the database folds it to MIXEDCASE
+         assertEquals(String.format(folding, "MixedCase"), aggregate(key, sum, TWIN_SECOND), key);
+         assertEquals(String.format(folding, "MIXEDCASE"), aggregate(key, sum, TWIN_FIRST), key);
+         // without the metadata step
+         assertEquals(String.format(folding, "MixedCase"), aggregate(key, sum), key);
+         assertEquals("select \"q\".\"id\" from \"t\" q group by \"q\".\"id\" order by sum(q.MixedCase) asc",
+                      aggregate(key, "select q.id from t q group by q.id order by sum(q.MixedCase)"), key);
+      }
+   }
+
+   /**
+    * On a database whose parser keeps the text of a name (H2, Oracle), a quoted aggregate
+    * argument keeps its case when a column that differs only in case comes first in the
+    * metadata, and an unquoted one takes the first column ignoring case, as before.
+    */
+   @Test
+   void aggregatesOnCaseFoldingDatabasesResolveByTheWrittenQuotes() throws Exception {
+      String quoted = "select q.id, sum(q.\"MixedCase\") from t q group by q.id";
+      String unquoted = "select q.id, sum(q.MixedCase) from t q group by q.id";
+
+      assertEquals("select q.id, sum(q.\"MixedCase\") from t q group by q.id",
+                   aggregate("h2", quoted, TWIN_FIRST));
+      assertEquals("select q.id, sum(q.\"MixedCase\") from T q group by q.id",
+                   aggregate("oracle", quoted, TWIN_FIRST));
+      assertEquals("select q.id, sum(q.MIXEDCASE) from t q group by q.id", aggregate("h2", unquoted, TWIN_FIRST));
+      assertEquals("select q.id, sum(q.\"MIXEDCASE\") from T q group by q.id",
+                   aggregate("oracle", unquoted, TWIN_FIRST));
+   }
+
+   /**
+    * Known residual, not fixed here: on PostgreSQL, Snowflake and Exasol a quoted aggregate
+    * argument sum(q."MixedCase") is stored with the same text as the unquoted sum(q.MixedCase)
+    * (see above), so it gets the metadata case repair of an unquoted name, as before this
+    * change: the first column ignoring case, unquoted on Snowflake and Exasol. Keeping it needs
+    * the parser to record the quotes of an aggregate argument, which is left to a follow-up issue.
+    * These are the outputs before this change, change them when that is fixed.
+    */
+   @Test
+   void knownResidualQuotedAggregatesOnCaseSensitiveDatabases() throws Exception {
+      assertEquals("select \"q\".\"id\", sum(q.\"MIXEDCASE\") from \"t\" q group by \"q\".\"id\"",
+                   aggregate("postgresql", "select q.id, sum(q.\"MixedCase\") from t q group by q.id",
+                             "MIXEDCASE", "MixedCase", "id"));
+      assertEquals("select \"q\".\"id\", sum(q.MixedCase) from \"t\" q group by \"q\".\"id\"",
+                   aggregate("snowflake", "select q.id, sum(q.\"MixedCase\") from t q group by q.id",
+                             "MixedCase", "id"));
+      assertEquals("select \"q\".\"id\", sum(q.LOW) from \"t\" q group by \"q\".\"id\"",
+                   aggregate("exasol", "select q.id, sum(q.\"low\") from t q group by q.id", "LOW", "low", "id"));
+   }
+
+   // the sql regenerated after the metadata step with the columns of every table, or after
+   // the parse if there are no columns
+   private static String aggregate(String key, String query, String... columns) throws Exception {
+      // the table metadata is cached by data source
+      JDBCDataSource ds = (JDBCDataSource) helpers().get(key).clone();
+      ds.setName(ds.getName() + "Aggregate" + (++aggregateSources));
+      UniformSQL sql = parse(query, ds);
+
+      if(columns.length > 0) {
+         fix(sql, ds, columns);
+      }
+
+      return regenerate(sql);
+   }
+
+   private static int aggregateSources;
+
    // the regenerated sql after each stage of the pipeline
    private static Map<String, String> stages(String query, JDBCDataSource ds) throws Exception {
       Map<String, String> stages = new LinkedHashMap<>();
