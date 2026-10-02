@@ -56,8 +56,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  # The core tests, split in two shards by package (.github/ci/core-tests-shard-*.exclude).
-  # Each class runs in exactly one shard.
+  # The core tests, split in two shards by package: shard 1 excludes the packages that
+  # shard 2 includes (.github/ci/core-tests-shard-*), so each class runs in exactly one shard
   core-tests:
     if: ${{ !github.event.pull_request.draft }}
     name: core-tests (${{ matrix.shard }})
@@ -66,7 +66,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2]
+        include:
+          - shard: 1
+            filter: -Dsurefire.excludesFile=${{ github.workspace }}/.github/ci/core-tests-shard-1.exclude
+          - shard: 2
+            filter: -Dsurefire.includesFile=${{ github.workspace }}/.github/ci/core-tests-shard-2.include
 
     steps:
       - name: Checkout repository
@@ -96,8 +100,7 @@ jobs:
 
       - name: Core tests, shard ${{ matrix.shard }}
         run: >-
-          ./mvnw --batch-mode test -pl core
-          -Dsurefire.excludesFile=${{ github.workspace }}/.github/ci/core-tests-shard-${{ matrix.shard }}.exclude
+          ./mvnw --batch-mode test -pl core ${{ matrix.filter }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
