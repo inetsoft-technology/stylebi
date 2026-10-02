@@ -1,0 +1,6 @@
+# Surefire excludes for core test shard 2 of pr-build.yml. Shard 2 runs only the
+# inetsoft.sree and inetsoft.util packages, the complement of shard 1, so a new package is
+# picked up by shard 1 without editing either file. The default exclude **/*$* is replaced
+# by this file, so it is repeated here.
+**/*$*
+%regex[inetsoft/(?!sree/|util/).*]
