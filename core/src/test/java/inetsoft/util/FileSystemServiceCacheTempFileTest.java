@@ -57,6 +57,20 @@ class FileSystemServiceCacheTempFileTest {
       }
    }
 
+   // Tool.getCacheTempFile delegates to FileSystemService, so it has the same guarantee
+   // (bug #77525)
+   @Test
+   void toolNamesAreNotReusedAfterDelete() throws Exception {
+      Set<String> names = new HashSet<>();
+
+      for(int i = 0; i < 2000; i++) {
+         File file = Tool.getCacheTempFile("toolTempFileReuse", "dat");
+         assertNotNull(file, "temp file " + i);
+         assertTrue(names.add(file.getName()), "name reused: " + file.getName());
+         Files.delete(file.toPath());
+      }
+   }
+
    @Test
    void concurrentCreateAndDeleteNeverReturnsNull() throws Exception {
       FileSystemService service = FileSystemService.getInstance();
