@@ -61,7 +61,8 @@ import static org.mockito.Mockito.*;
  * Cases deferred - require integration context or covered elsewhere:
  *
  * [IndividualAssetBackupAction] writeXML / parseXML
- *             -> NOT yet covered; production path persists via ScheduleTask container XML
+ *             -> only the unresolvable-XAsset skip (Bug #77587) is covered in XmlRoundTrip;
+ *                the full round trip is covered by AssetSeedTest via ScheduleTask container XML
  * [IndividualAssetBackupAction] deploy() end-to-end with real DeployUtil jar output
  *             -> run() tests mock DeployUtil.deploy(); full deploy pipeline NOT duplicated here
  */
@@ -242,6 +243,40 @@ class IndividualAssetBackupActionTest {
                () -> invokeTestAssetsExist(action, List.of(scriptAsset)));
             assertRuntimeMessageContains(ex, "Failed to retrieve asset(s):");
          }
+      }
+   }
+
+   // -------------------------------------------------------------------------
+   // parseXML / writeXML — Bug #77587
+   // -------------------------------------------------------------------------
+
+   @Nested
+   class XmlRoundTrip {
+
+      @Test
+      void parseXML_unknownOrEmptyAssetType_skipsEntryAndRoundTrips() throws Exception {
+         String xml = "<Action type=\"Backup\"><ServerPath/>" +
+            "<XAsset type=\"NOPE\" path=\"x\" user=\"\"></XAsset>" +
+            "<XAsset></XAsset></Action>";
+         IndividualAssetBackupAction action = new IndividualAssetBackupAction();
+         action.parseXML(parseElement(xml));
+
+         assertTrue(action.getAssets().isEmpty(),
+            "Unresolvable XAsset entries must not be kept as null: " + action.getAssets());
+
+         java.io.StringWriter buffer = new java.io.StringWriter();
+         java.io.PrintWriter writer = new java.io.PrintWriter(buffer);
+         assertDoesNotThrow(() -> action.writeXML(writer));
+         writer.flush();
+
+         IndividualAssetBackupAction reparsed = new IndividualAssetBackupAction();
+         reparsed.parseXML(parseElement(buffer.toString()));
+         assertTrue(reparsed.getAssets().isEmpty());
+      }
+
+      private org.w3c.dom.Element parseElement(String xml) throws Exception {
+         return Tool.parseXML(new java.io.ByteArrayInputStream(
+            xml.getBytes(java.nio.charset.StandardCharsets.UTF_8))).getDocumentElement();
       }
    }
 
