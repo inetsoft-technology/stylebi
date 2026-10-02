@@ -770,7 +770,11 @@ private static void addConditions(XFilterNode node, Set conds) {
 }
 
 /**
- * Get a condition in a form that doesn't depend on its column order.
+ * Get a condition in a form that doesn't depend on its column order. A negated
+ * comparison is the comparison with the negated op, which SQLHelper writes for
+ * it (not (x != y) as x = y): both are unknown if x or y is null, so they keep
+ * the same rows anywhere in a condition. A negated join with any other op keeps
+ * the not, so it's never the same as the join without it.
  */
 private static String getConditionKey(XFilterNode node) {
    if(node instanceof XJoin) {
@@ -778,6 +782,18 @@ private static String getConditionKey(XFilterNode node) {
       String e1 = getJoinName(join.getExpression1() == null ? null : join.getExpression1().getValue());
       String e2 = getJoinName(join.getExpression2() == null ? null : join.getExpression2().getValue());
       String op = join.getOp();
+      boolean not = join.isIsNot();
+
+      if(not) {
+         String negated = "=".equals(op) ? "<>" : "<>".equals(op) || "!=".equals(op) ? "=" :
+            "<".equals(op) ? ">=" : ">=".equals(op) ? "<" : ">".equals(op) ? "<=" :
+            "<=".equals(op) ? ">" : null;
+
+         if(negated != null) {
+            op = negated;
+            not = false;
+         }
+      }
 
       if(e1.compareTo(e2) > 0) {
          String tmp = e1;
@@ -787,7 +803,8 @@ private static String getConditionKey(XFilterNode node) {
             ">".equals(op) ? "<" : "<=".equals(op) ? ">=" : ">=".equals(op) ? "<=" : op;
       }
 
-      return e1 + " " + op + " " + e2;
+      String key = e1 + " " + op + " " + e2;
+      return not ? "not (" + key + ")" : key;
    }
 
    return getJoinName(node);
@@ -1353,7 +1370,9 @@ boolean_factor returns [XFilterNode node = null]
         :
         (NOT {isnot = true;})? node = boolean_test
         {if(isnot == true){
-                node.setIsNot(true);
+                // a parenthesized condition may already be negated, not (not (..))
+                // is the condition itself
+                node.setIsNot(!node.isIsNot());
         }
         }
         ;

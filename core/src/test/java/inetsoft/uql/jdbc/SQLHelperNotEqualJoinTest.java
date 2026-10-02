@@ -266,17 +266,156 @@ class SQLHelperNotEqualJoinTest {
       assertEquals(0, RowCompare.diffCount(text, generated, 120));
    }
 
-   // Oracle without the ANSI option writes (+) and the != in WHERE, unchanged
+   // Oracle without the ANSI option writes (+) and the != in WHERE, unchanged. Parsed without
+   // the data source as before, since the Oracle helper changes the case of the select list
+   // when it parses, and these shapes have no join order check
    @Test
    void oracleNonAnsiUnchanged() throws Exception {
       assertEquals("select a.id as \"ai\", a.k as \"ak\", b.id as \"bi\", b.k as \"bk\" from " +
                       "a, b where a.id = b.id(+) and a.k != b.k",
-                   generate(SEL2 + "from a left join b on a.id = b.id where a.k != b.k",
-                            dataSource("oracle")));
+                   generateParsedWithoutSource(
+                      SEL2 + "from a left join b on a.id = b.id where a.k != b.k",
+                      dataSource("oracle")));
       assertEquals("select a.id as \"ai\", a.k as \"ak\", b.id as \"bi\", b.k as \"bk\" from " +
                       "a, b where a.id = b.id and a.k != b.k",
-                   generate(SEL2 + "from a join b on a.id = b.id and a.k != b.k",
-                            dataSource("oracle")));
+                   generateParsedWithoutSource(
+                      SEL2 + "from a join b on a.id = b.id and a.k != b.k",
+                      dataSource("oracle")));
+   }
+
+   // Bug #77434: a negated comparison is the comparison with the negated op (not (x != y) is
+   // x = y), also when x or y is null: both are unknown then, so they're the same in WHERE, in
+   // an OR, and under another NOT. The join order check compares them that way
+   @ParameterizedTest
+   @CsvSource(delimiter = '|', value = {
+      "!=|=", "<>|=", "=|<>", "<|>=", "<=|>", ">|<=", ">=|<",
+   })
+   void negatedComparisonSameAsNegatedOp(String op, String negated) throws Exception {
+      Driver driver = (Driver) Class.forName("org.apache.derby.iapi.jdbc.AutoloadedDriver")
+         .getDeclaredConstructor().newInstance();
+      Integer[] values = { null, 0, 1, 2 };
+
+      try(Connection con = driver.connect("jdbc:derby:memory:not77434;create=true",
+                                          new Properties());
+          Statement st = con.createStatement())
+      {
+         try {
+            st.execute("drop table t");
+         }
+         catch(SQLException ignore) {
+         }
+
+         st.execute("create table t (x int, y int)");
+
+         for(Integer x : values) {
+            for(Integer y : values) {
+               st.execute("insert into t values (" + x + ", " + y + ")");
+            }
+         }
+
+         String[][] pairs = {
+            { "not (x " + op + " y)", "x " + negated + " y" },
+            { "not (y " + op + " x)", "y " + negated + " x" },
+            { "not (x " + op + " y) or x is null", "x " + negated + " y or x is null" },
+            { "not (x " + op + " y) or y = 1", "x " + negated + " y or y = 1" },
+            { "not (not (x " + op + " y) and y = 1)", "not (x " + negated + " y and y = 1)" },
+            { "not (not (x " + op + " y))", "not (x " + negated + " y)" },
+         };
+
+         for(String[] pair : pairs) {
+            List<String> rows = RowCompare.rows(con, "select x, y from t where " + pair[0]);
+            assertEquals(rows, RowCompare.rows(con, "select x, y from t where " + pair[1]),
+                         pair[0]);
+            assertNotEquals(rows, RowCompare.rows(con, "select x, y from t"), pair[0]);
+         }
+      }
+   }
+
+   // a negated join on the null-supplying side of a nested or RIGHT outer join is regenerated
+   // with the negated op and accepted, with the same rows as the original
+   @ParameterizedTest
+   @ValueSource(strings = {
+      "from a left join (b join c on b.id = c.id and not (b.k = c.k)) on a.id = b.id",
+      "from a left join (b join c on b.id = c.id and not (b.k < c.k)) on a.id = b.id",
+      "from a left join (b join c on b.id = c.id and not (c.k <= b.k)) on a.id = b.id",
+      "from a left join (b join c on b.id = c.id and not (c.k != b.k)) on a.id = b.id",
+      "from a left join (b join c on b.id = c.id and not (b.k <> c.k)) on a.id = b.id",
+      "from a left join (b join c on b.id = c.id and not (not (b.k = c.k))) on a.id = b.id",
+      "from a join c on a.id = c.id and not (c.k <> a.k) right join b on a.id = b.id",
+      "from a join c on a.id = c.id and not (a.k > c.k) right join b on a.id = b.id",
+   })
+   void negatedJoinOnNullSupplyingSide(String tail) throws Exception {
+      for(String type : new String[] { "h2", "h2-ansi", "derby", "derby-ansi", "oracle-ansi" }) {
+         JDBCDataSource ds = dataSource(type);
+         String generated = generate(SEL + tail, ds);
+         assertFalse(generated.toLowerCase().contains("not "), type + ": " + generated);
+         assertRoundTrip(generated, ds);
+      }
+
+      assertEquals(0, RowCompare.diffCount(SEL + tail, generate(SEL + tail, dataSource("derby")),
+                                           120), tail);
+   }
+
+   // a negated join is never compared as the join without the not, and a negation the key
+   // can't move into the op (of an OR, or of an AND group) keeps the query refused
+   @Test
+   void negatedJoinStructure() throws Exception {
+      String nested = SEL + "from a left join (b join c on b.id = c.id and %s) on a.id = b.id";
+      assertEquals(structure(String.format(nested, "b.k = c.k")),
+                   structure(String.format(nested, "not (b.k != c.k)")));
+      assertEquals(structure(String.format(nested, "b.k = c.k")),
+                   structure(String.format(nested, "not (c.k <> b.k)")));
+      assertEquals(structure(String.format(nested, "b.k <> c.k")),
+                   structure(String.format(nested, "not (b.k = c.k)")));
+      assertEquals(structure(String.format(nested, "c.k <= b.k")),
+                   structure(String.format(nested, "not (b.k < c.k)")));
+      assertEquals(structure(String.format(nested, "b.k = c.k")),
+                   structure(String.format(nested, "not (not (b.k = c.k))")));
+      assertNotEquals(structure(String.format(nested, "b.k = c.k")),
+                      structure(String.format(nested, "not (b.k = c.k)")));
+      assertNotEquals(structure(String.format(nested, "b.k != c.k")),
+                      structure(String.format(nested, "not (b.k != c.k)")));
+      assertNotEquals(structure(String.format(nested, "b.k < c.k")),
+                      structure(String.format(nested, "not (b.k < c.k)")));
+
+      for(String cond : new String[] { "(not (b.k != c.k) or b.k = 1)",
+                                       "not (b.k != c.k or b.j = c.j)",
+                                       "not (b.k != c.k and b.j = c.j)" })
+      {
+         for(String type : new String[] { "h2-ansi", "derby", "oracle-ansi" }) {
+            UniformSQL sql = new UniformSQL();
+            sql.setDataSource(dataSource(type));
+            assertThrows(Exception.class, () -> sql.parse(
+               String.format(nested, cond), UniformSQL.PARSE_ALL, UniformSQL.PARSE_PERIOD),
+                         type + ": " + cond);
+         }
+      }
+   }
+
+   // not (not (..)) is the condition itself, it was parsed as not (..)
+   @ParameterizedTest
+   @ValueSource(strings = {
+      "from a, b where not (not (a.k = b.k))",
+      "from a join b on a.id = b.id and not (not (a.k != b.k))",
+      "from a, b where not (not (a.k = 1 or b.k = 1))",
+      "from a, b where not (not (a.k is null))",
+      "from a, b where not (a.k not in (1, 2))",
+   })
+   void doubleNegation(String tail) throws Exception {
+      for(String type : new String[] { "derby", "derby-ansi" }) {
+         assertEquals(0, RowCompare.diffCount(SEL2 + tail, generate(SEL2 + tail, dataSource(type)),
+                                              120), type + ": " + tail);
+      }
+   }
+
+   // the join structure of a query, as the join order check compares it
+   private static String structure(String text) throws Exception {
+      inetsoft.uql.util.sqlparser.SQLParser parser = new inetsoft.uql.util.sqlparser.SQLParser(
+         new inetsoft.uql.util.sqlparser.SQLLexer(new StringReader(text)));
+      parser.setTime(UniformSQL.PARSE_PERIOD);
+      UniformSQL sql = new UniformSQL();
+      parser.direct_select_stmt_n_rows(sql);
+      return parser.getJoinStructure(sql);
    }
 
    // the other ON != shapes return the same rows as the original
@@ -351,6 +490,23 @@ class SQLHelperNotEqualJoinTest {
    }
 
    static String generate(String text, JDBCDataSource ds) throws Exception {
+      // parse with the data source, as a query of the data source is parsed, since a
+      // RIGHT/FULL join mixed with an inner join, or a nested join on the right of an outer
+      // join, is checked with its regenerated sql and refused without one (Bug #77434)
+      UniformSQL sql = new UniformSQL();
+      sql.setDataSource(ds);
+      sql.parse(text, UniformSQL.PARSE_ALL, UniformSQL.PARSE_PERIOD);
+      assertEquals(UniformSQL.PARSE_SUCCESS, sql.getParseResult(), text);
+      assertFalse(sql.isLossy(), text);
+      sql.clearSQLString();
+      return normalize(sql.getSQLString());
+   }
+
+   // parse without a data source and generate with ds, for a shape that has no join order
+   // check (no RIGHT/FULL join mixed with an inner join, no nested join under an outer join)
+   private static String generateParsedWithoutSource(String text, JDBCDataSource ds)
+      throws Exception
+   {
       UniformSQL sql = new UniformSQL();
       sql.parse(text, UniformSQL.PARSE_ALL, UniformSQL.PARSE_PERIOD);
       assertEquals(UniformSQL.PARSE_SUCCESS, sql.getParseResult(), text);
@@ -368,6 +524,7 @@ class SQLHelperNotEqualJoinTest {
    // round trip with the joinClause attribute removed, as in the XML of an older build
    private static String generateSaved(String text, JDBCDataSource ds) throws Exception {
       UniformSQL sql = new UniformSQL();
+      sql.setDataSource(ds);
       sql.parse(text, UniformSQL.PARSE_ALL, UniformSQL.PARSE_PERIOD);
       assertEquals(UniformSQL.PARSE_SUCCESS, sql.getParseResult(), text);
       StringWriter buffer = new StringWriter();
@@ -491,7 +648,7 @@ class SQLHelperNotEqualJoinTest {
 
       // rows as a sorted multiset, with columns ordered by label since regeneration can
       // reorder the select list
-      private static List<String> rows(Connection con, String query) throws SQLException {
+      static List<String> rows(Connection con, String query) throws SQLException {
          List<String> rows = new ArrayList<>();
 
          try(Statement st = con.createStatement(); ResultSet rs = st.executeQuery(query)) {

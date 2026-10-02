@@ -281,6 +281,9 @@ class UniformSQLUsingJoinTest {
 
    private static UniformSQL parse(String text) throws Exception {
       UniformSQL sql = new UniformSQL();
+      // Bug #77434 refuses a RIGHT or FULL join mixed with an inner join without a data
+      // source, as the sql helper that would generate it is unknown
+      sql.setDataSource(GenericJDBCDataSource.create());
       sql.parse(text, UniformSQL.PARSE_ALL, UniformSQL.PARSE_PERIOD);
       return sql;
    }
