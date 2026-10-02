@@ -26,10 +26,6 @@ export interface VSTextModel extends VSOutputModel {
    hyperlinks: HyperlinkModel[];
    presenter: boolean;
    breakAll?: boolean;
-   paddingTop?: number;
-   paddingLeft?: number;
-   paddingBottom?: number;
-   paddingRight?: number;
    editing?: boolean;
    expressionText?: boolean;
    externalUrls?: {[name: string]: string};

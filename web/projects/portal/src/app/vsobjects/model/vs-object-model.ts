@@ -23,8 +23,20 @@ import { ConditionList } from "../../common/util/condition-list";
 
 import { PopLocation } from "../objects/data-tip/pop-component.service";
 
+/**
+ * The card inset an assembly draws its content inside. Optional because only the assemblies that
+ * have a card carry one; the rest resolve to no inset.
+ */
+export interface TablePadding {
+   top: number;
+   left: number;
+   bottom: number;
+   right: number;
+}
+
 export interface VSObjectModel {
    objectFormat: VSFormatModel;
+   padding?: TablePadding;
    objectType: VSObjectType;
    enabled: boolean;
    description: string;

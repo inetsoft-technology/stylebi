@@ -1408,9 +1408,9 @@ export class ChartArea implements OnInit, OnChanges, OnDestroy {
 
       if(this.isVSChart) {
          const chart = <VSChartModel> this.model;
-         paddingLeft = chart.paddingLeft +
+         paddingLeft = (chart.padding?.left || 0) +
             this.getBorderWidth(chart.objectFormat.border.left);
-         paddingRight = chart.paddingRight +
+         paddingRight = (chart.padding?.right || 0) +
             this.getBorderWidth(chart.objectFormat.border.right);
       }
 
@@ -1423,9 +1423,9 @@ export class ChartArea implements OnInit, OnChanges, OnDestroy {
 
       if(this.isVSChart) {
          const chart = <VSChartModel> this.model;
-         paddingTop = chart.paddingTop +
+         paddingTop = (chart.padding?.top || 0) +
             this.getBorderWidth(chart.objectFormat.border.top);
-         paddingBottom = chart.paddingBottom +
+         paddingBottom = (chart.padding?.bottom || 0) +
             this.getBorderWidth(chart.objectFormat.border.bottom);
       }
 
@@ -1441,7 +1441,7 @@ export class ChartArea implements OnInit, OnChanges, OnDestroy {
          const chartModel = <VSChartModel> this.model;
          // chart border is subtracted from chart size in VSUtil.getContentSize,
          // so it should be accounted here too
-         paddingTop = chartModel.paddingTop +
+         paddingTop = (chartModel.padding?.top || 0) +
             this.getBorderWidth(chartModel.objectFormat.border.top);
       }
       else {
@@ -1456,7 +1456,7 @@ export class ChartArea implements OnInit, OnChanges, OnDestroy {
 
       if(this.isVSChart) {
          const chartModel = <VSChartModel> this.model;
-         paddingLeft = chartModel.paddingLeft +
+         paddingLeft = (chartModel.padding?.left || 0) +
             this.getBorderWidth(chartModel.objectFormat.border.left);
       }
       else {

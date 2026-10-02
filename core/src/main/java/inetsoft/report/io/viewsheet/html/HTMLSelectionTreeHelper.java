@@ -85,7 +85,8 @@ public class HTMLSelectionTreeHelper extends VSSelectionTreeHelper{
       slist.append(info.getZIndex());
       slist.append("'>");
       vHelper.appendContainerTitle(slist, info, titleH, titleRatio, null);
-      appendSelections(slist, info, (int) bounds.getHeight() - titleH, assembly.getExpandedValues());
+      appendSelections(slist, info, bounds.getWidth(), (int) bounds.getHeight() - titleH,
+                       assembly.getExpandedValues());
       slist.append("</div>");
 
       try {
@@ -97,8 +98,8 @@ public class HTMLSelectionTreeHelper extends VSSelectionTreeHelper{
    }
 
    // Add two tables in table view. Onew show header will not scroll, data table can scroll.
-   private void appendSelections(StringBuffer slist, SelectionTreeVSAssemblyInfo info, int dataH,
-                                 String[] expandedPaths)
+   private void appendSelections(StringBuffer slist, SelectionTreeVSAssemblyInfo info,
+                                 double width, int dataH, String[] expandedPaths)
    {
       if(info.getShowTypeValue() == SelectionTreeVSAssemblyInfo.DROPDOWN_SHOW_TYPE) {
          return;
@@ -110,7 +111,7 @@ public class HTMLSelectionTreeHelper extends VSSelectionTreeHelper{
       boolean expanded = getExporter() == null || info.isExpandAll();
 
       info.visitCompositeChild(csv, dispList, true, expanded, expandedPaths);  // populate dispList
-      slist.append("<div style='overflow:auto;width:100%;height:" + dataH + "'>");
+      HTMLSelectionListHelper.appendRowBox(slist, getCardInset(info), width, dataH);
 
       for(int i = 1; i < dispList.size(); i++) {
          SelectionValue sv = (SelectionValue) dispList.get(i);
@@ -129,7 +130,8 @@ public class HTMLSelectionTreeHelper extends VSSelectionTreeHelper{
       boolean showText = info.isShowText();
       String measure = info.getMeasure();
       Rectangle2D bounds = vHelper.getBounds(info);
-      double valueWidth = bounds.getWidth();
+      Insets inset = getCardInset(info);
+      double valueWidth = bounds.getWidth() - inset.left - inset.right;
       double ratio = Math.max(0.25, info.getMeasureTextRatio());
 
       int barsize = (showBar && measure != null) ? info.getBarSize() : 0;

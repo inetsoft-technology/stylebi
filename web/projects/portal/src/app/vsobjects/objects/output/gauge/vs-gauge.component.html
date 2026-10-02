@@ -39,10 +39,10 @@
   <div class="z-index-wrapper"
     [style.justify-content]="model.objectFormat.justifyContent"
     [style.align-items]="model.objectFormat.alignItems"
-    [style.padding-top.px]="model.paddingTop"
-    [style.padding-left.px]="model.paddingLeft"
-    [style.padding-bottom.px]="model.paddingBottom"
-    [style.padding-right.px]="model.paddingRight"
+    [style.padding-top.px]="model.padding?.top"
+    [style.padding-left.px]="model.padding?.left"
+    [style.padding-bottom.px]="model.padding?.bottom"
+    [style.padding-right.px]="model.padding?.right"
     [style.z-index]="viewer ? model.objectFormat.zIndex : null">
     @if (vsInfo?.linkUri) {
       <img [wTooltip]="getTooltip()" class="vs-gauge__image"

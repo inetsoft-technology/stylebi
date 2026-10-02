@@ -22,6 +22,7 @@ import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.cluster.*;
 import inetsoft.report.composition.*;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
+import inetsoft.uql.CompositeValue;
 import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.asset.ColumnRef;
 import inetsoft.uql.asset.internal.AssetUtil;
@@ -142,6 +143,26 @@ public class SelectionTreePropertyDialogService {
       selectionGeneralPane.setSuppressBlank(selectionTreeAssemblyInfo.isSuppressBlankValue());
       selectionGeneralPane.setSelectFirstItem(selectionTreeAssemblyInfo.getSelectFirstItemValue());
       selectionGeneralPane.setQuickSwitchAllowed(selectionTreeAssemblyInfo.getQuickSwitchAllowedValue());
+
+      PaddingPaneModel paddingPaneModel = selectionGeneralPane.getPaddingPaneModel();
+      Insets padding = selectionTreeAssemblyInfo.getPadding();
+      paddingPaneModel.setTop(padding.top);
+      paddingPaneModel.setLeft(padding.left);
+      paddingPaneModel.setBottom(padding.bottom);
+      paddingPaneModel.setRight(padding.right);
+      // null hides the checkbox: an unmarked selection has no default to follow, and the pane then
+      // behaves exactly as it did before the checkbox existed
+      paddingPaneModel.setFollowsDefault(
+         selectionTreeAssemblyInfo.getVizMark() == null ? null : !selectionTreeAssemblyInfo.isUserPadding());
+
+      PaddingPaneModel cellPaddingPaneModel = selectionGeneralPane.getCellPaddingPaneModel();
+      Insets cellPadding = selectionTreeAssemblyInfo.getCellPadding();
+      cellPaddingPaneModel.setTop(cellPadding == null ? 0 : cellPadding.top);
+      cellPaddingPaneModel.setLeft(cellPadding == null ? 0 : cellPadding.left);
+      cellPaddingPaneModel.setBottom(cellPadding == null ? 0 : cellPadding.bottom);
+      cellPaddingPaneModel.setRight(cellPadding == null ? 0 : cellPadding.right);
+      cellPaddingPaneModel.setFollowsDefault(
+         selectionTreeAssemblyInfo.getVizMark() == null ? null : !selectionTreeAssemblyInfo.isUserCellPadding());
 
       if(selectionTreeAssemblyInfo.getSingleSelectionLevels() != null) {
          selectionGeneralPane.setSingleSelectionLevels(
@@ -299,10 +320,22 @@ public class SelectionTreePropertyDialogService {
          size.height = streeInfo.getTitleHeight();
       }
       else if(oldShowType != newShowType) {
-         int minListHeight = streeInfo.getListHeight() * AssetUtil.defh;
+         int minListHeight;
 
-         if(streeInfo.isTitleVisible()) {
-            minListHeight += streeInfo.getCellHeight();
+         if(streeInfo.getVizMark() != null) {
+            // a marked tree's rows and title lane follow the density, and its rows sit inside the
+            // card inset
+            Insets inset = streeInfo.getPadding();
+            minListHeight = streeInfo.getListHeight() * streeInfo.getEffectiveCellHeight() +
+               (streeInfo.isTitleVisible() ? streeInfo.getTitleHeight() : 0) +
+               (inset == null ? 0 : inset.top + inset.bottom);
+         }
+         else {
+            minListHeight = streeInfo.getListHeight() * AssetUtil.defh;
+
+            if(streeInfo.isTitleVisible()) {
+               minListHeight += streeInfo.getCellHeight();
+            }
          }
 
          if(minListHeight > size.height) {
@@ -331,6 +364,54 @@ public class SelectionTreePropertyDialogService {
       streeInfo.setSuppressBlankValue(selectionGeneralPane.isSuppressBlank());
       streeInfo.setSelectFirstItemValue(selectionGeneralPane.isSelectFirstItem());
       streeInfo.setQuickSwitchAllowedValue(selectionGeneralPane.isQuickSwitchAllowed());
+
+      PaddingPaneModel paddingPaneModel = selectionGeneralPane.getPaddingPaneModel();
+      Insets editedPadding = new Insets(
+         paddingPaneModel.getTop(), paddingPaneModel.getLeft(),
+         paddingPaneModel.getBottom(), paddingPaneModel.getRight());
+      Boolean paddingFollowsDefault = paddingPaneModel.getFollowsDefault();
+
+      if(paddingFollowsDefault == null) {
+         // no checkbox was shown, so this selection is not marked; store only a real edit
+         if(!editedPadding.equals(streeInfo.getPadding())) {
+            streeInfo.setUserPadding(true);
+            streeInfo.setPadding(editedPadding);
+         }
+      }
+      else if(paddingFollowsDefault) {
+         // clear the opinion and let the default decide, the same shape Revert uses
+         streeInfo.setUserPadding(false);
+         streeInfo.resetPadding(VizContext.of(streeInfo));
+      }
+      else {
+         streeInfo.setUserPadding(true);
+         streeInfo.setPadding(editedPadding);
+      }
+
+      PaddingPaneModel cellPaddingPaneModel = selectionGeneralPane.getCellPaddingPaneModel();
+      Insets editedCellPadding = new Insets(
+         cellPaddingPaneModel.getTop(), cellPaddingPaneModel.getLeft(),
+         cellPaddingPaneModel.getBottom(), cellPaddingPaneModel.getRight());
+      Boolean cellPaddingFollowsDefault = cellPaddingPaneModel.getFollowsDefault();
+
+      if(cellPaddingFollowsDefault == null) {
+         // no checkbox was shown, so this selection is not marked; store only a real edit. the load
+         // side shows 0 for an absent padding, so all zeros means none rather than a pinned 0
+         if(editedCellPadding.equals(new Insets(0, 0, 0, 0))) {
+            streeInfo.resetUserCellPadding();
+         }
+         else if(!editedCellPadding.equals(streeInfo.getCellPadding())) {
+            streeInfo.setCellPadding(editedCellPadding, CompositeValue.Type.USER);
+         }
+      }
+      else if(cellPaddingFollowsDefault) {
+         // clear the opinion and let the density decide. Writing the current density value into
+         // the USER tier here would pin this tier
+         streeInfo.resetUserCellPadding();
+      }
+      else {
+         streeInfo.setCellPadding(editedCellPadding, CompositeValue.Type.USER);
+      }
 
       setAssemblyInfoTables(streeInfo, selectionTreePaneModel);
       setAssemblyInfoDataRefs(streeInfo, selectionTreePaneModel);

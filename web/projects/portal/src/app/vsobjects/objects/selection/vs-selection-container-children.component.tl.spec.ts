@@ -38,6 +38,7 @@
 
 import { Component, Directive, EventEmitter, Input, NO_ERRORS_SCHEMA, Output } from "@angular/core";
 import { render } from "@testing-library/angular";
+import { By } from "@angular/platform-browser";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { Subject } from "rxjs";
 
@@ -271,6 +272,18 @@ describe("VSSelectionContainerChildren - setter and subscriptions", () => {
       expect(comp.cachedBodyLeft).toBe(20);
       expect(comp.cachedBodyWidth).toBe(300);
       expect(comp.cachedInnerWidth).toBe(295);
+   });
+
+   it("should bind each out-selection row height to the model value", async () => {
+      const model = makeVsObject({
+         dataRowHeight: 30,
+         outerSelections: [makeOuterSelection("StateFilter"), makeOuterSelection("CityFilter")],
+      });
+      const { fixture } = await renderComponent({ model });
+      const rows = fixture.debugElement.queryAll(By.directive(CurrentSelectionStub));
+
+      expect(rows.length).toBe(2);
+      rows.forEach(r => expect(r.componentInstance.titleHeight).toBe(30));
    });
 
    it("should refresh a child action when onChildUpdate emits an index", async () => {

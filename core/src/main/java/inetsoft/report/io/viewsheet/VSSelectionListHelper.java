@@ -97,6 +97,43 @@ public class VSSelectionListHelper extends ExporterHelper {
          (SelectionListVSAssemblyInfo) assembly.getVSAssemblyInfo();
       boundsList = cHelper.prepareBounds(assembly, totalHeight,
                                          info.getColumnCount());
+      insetRowBounds(assembly, info);
+   }
+
+   /**
+    * Move the row cells of the prepared bounds inside the content rect. The title entry at
+    * index 0 and the card keep the full bounds; a row left with no room below the inset is
+    * dropped, as a row past the card bottom already is.
+    */
+   protected void insetRowBounds(AbstractVSAssembly assembly, SelectionBaseVSAssemblyInfo info) {
+      if(boundsList == null || boundsList.size() < 2 || getExporter() == null) {
+         return;
+      }
+
+      Rectangle2D total = cHelper.getBounds(assembly, CoordinateHelper.ALL, true, null);
+      Rectangle2D content = getContentBounds(info, total, cHelper.getScale());
+
+      if(content.equals(total) || total.getWidth() <= 0) {
+         return;
+      }
+
+      double sx = content.getWidth() / total.getWidth();
+      double dy = content.getY() - total.getY();
+      double endY = content.getMaxY();
+      List rows = new ArrayList(boundsList.subList(0, 1));
+
+      for(int i = 1; i < boundsList.size(); i++) {
+         Rectangle2D row = (Rectangle2D) boundsList.get(i);
+         Rectangle2D moved = new Rectangle2D.Double(
+            content.getX() + (row.getX() - total.getX()) * sx, row.getY() + dy,
+            row.getWidth() * sx, row.getHeight());
+
+         if(moved.getY() + moved.getHeight() / 2 <= endY) {
+            rows.add(moved);
+         }
+      }
+
+      boundsList = rows;
    }
 
    protected Rectangle2D getValueLabelBounds(SelectionListVSAssemblyInfo info,

@@ -1862,6 +1862,23 @@ public abstract class AbstractVSExporter implements VSExporter {
    }
 
    /**
+    * Where a container child's match-layout clip and visibility are measured from. A marked list
+    * is measured from where the container draws it, which is where the viewer stacks it too; its
+    * stored offset is an old stacking the container no longer draws. Any other child keeps the
+    * stored offset.
+    */
+   private static int getContainerChildTop(CurrentSelectionVSAssembly container, VSAssembly child) {
+      if(child.getAssemblyType() == Viewsheet.SELECTION_LIST_ASSET &&
+         child.getVSAssemblyInfo().getVizMark() != null)
+      {
+         return (int) CoordinateHelper.getContainerChildTop(
+            container, child, container.getPixelOffset().y, null);
+      }
+
+      return child.getPixelOffset().y;
+   }
+
+   /**
     * This method is called before writing the specified assembly.
     */
    protected void prepareAssembly(VSAssembly assembly) {
@@ -1875,11 +1892,10 @@ public abstract class AbstractVSExporter implements VSExporter {
                (CurrentSelectionVSAssembly) container;
             int end = csAssembly.getPixelSize().height + csAssembly.getPixelOffset().y;
             Dimension size = assembly.getPixelSize();
+            int top = getContainerChildTop(csAssembly, assembly);
 
-            if(end - assembly.getPixelOffset().y > 0 &&
-               end - assembly.getPixelOffset().y - size.height < 0)
-            {
-               size.height = end - assembly.getPixelOffset().y;
+            if(end - top > 0 && end - top - size.height < 0) {
+               size.height = end - top;
             }
          }
       }
@@ -1937,6 +1953,17 @@ public abstract class AbstractVSExporter implements VSExporter {
 
    @Override
    public Insets getTableCardInset(TableDataVSAssemblyInfo info) {
+      Insets padding = info == null || !insetsTableCard() ? null : info.getPadding();
+      return padding == null ? new Insets(0, 0, 0, 0) : (Insets) padding.clone();
+   }
+
+   /**
+    * The card inset a selection draws its rows inside, or zero where this format does not inset a
+    * card. Gated on the same predicate the table card uses: Excel and CSV are cell grids, where a
+    * pixel inset means nothing.
+    */
+   @Override
+   public Insets getSelectionCardInset(VSAssemblyInfo info) {
       Insets padding = info == null || !insetsTableCard() ? null : info.getPadding();
       return padding == null ? new Insets(0, 0, 0, 0) : (Insets) padding.clone();
    }
@@ -2298,6 +2325,13 @@ public abstract class AbstractVSExporter implements VSExporter {
          newHeight += rowHeights.get(i);
       }
 
+      // the rows are drawn inside the card inset, so the expanded box has to carry the inset as
+      // well - sized to the rows alone, the last row falls past the content bottom and the helper
+      // drops it, which is exactly what Expand exists to prevent. Zero where the format draws no
+      // inset, and zero for an unmarked selection
+      Insets inset = getSelectionCardInset(info);
+      newHeight += inset.top + inset.bottom;
+
       return newHeight;
    }
 
@@ -2595,7 +2629,8 @@ public abstract class AbstractVSExporter implements VSExporter {
             if(container instanceof CurrentSelectionVSAssembly) {
                CurrentSelectionVSAssembly csAssembly =
                   (CurrentSelectionVSAssembly) container;
-               int gap = assembly.getPixelOffset().y - csAssembly.getPixelOffset().y;
+               int gap = getContainerChildTop(csAssembly, assembly) -
+                  csAssembly.getPixelOffset().y;
                return gap > 0 && gap < csAssembly.getPixelSize().height;
             }
          }

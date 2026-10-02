@@ -40,6 +40,7 @@ public class VSSelectionContainerModel
       titleRatio = assemblyInfo.getTitleRatio();
       titleRatio = Double.isNaN(titleRatio) ? 0.5 : titleRatio;
       title = assemblyInfo.getTitle();
+      dataRowHeight = assemblyInfo.getOutSelectionRowHeight(LEGACY_ROW_HEIGHT);
       supportRemoveChild = assemblyInfo.isAdhocEnabled();
 
       if(assemblyInfo.isShowCurrentSelection()) {
@@ -212,7 +213,8 @@ public class VSSelectionContainerModel
    private String title;
    private double titleRatio;
    private OuterSelection[] outerSelections;
-   private int dataRowHeight = 18;
+   private static final int LEGACY_ROW_HEIGHT = 18;
+   private int dataRowHeight;
    private VSObjectModel[] vsobjects;
    private String[] childrenNames;
    private boolean supportRemoveChild;

@@ -29,6 +29,7 @@ import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.web.composer.model.vs.HyperlinkModel;
 import org.springframework.stereotype.Component;
 
+import java.awt.Insets;
 import java.net.URLEncoder;
 import java.util.*;
 
@@ -43,10 +44,9 @@ public class VSTextModel extends VSOutputModel<TextVSAssembly> {
       url = info.isUrl();
       presenter = VSUtil.createPainter(assembly) != null;
       parameters = (new ParameterTool()).getParameters(rvs);
-      this.paddingTop = info.getPadding().top;
-      this.paddingLeft = info.getPadding().left;
-      this.paddingBottom = info.getPadding().bottom;
-      this.paddingRight = info.getPadding().right;
+      // defensive copy: Insets is mutable, and the assembly's stored instance must not be aliased
+      Insets infoPadding = info.getPadding();
+      this.padding = infoPadding == null ? null : (Insets) infoPadding.clone();
       expressionText = info.getTextValue() != null && info.getTextValue().startsWith("=");
 
       if("true".equals(SreeEnv.getProperty("text.wordwrap.122"))) {
@@ -163,20 +163,8 @@ public class VSTextModel extends VSOutputModel<TextVSAssembly> {
       return breakAll;
    }
 
-   public int getPaddingTop() {
-      return paddingTop;
-   }
-
-   public int getPaddingLeft() {
-      return paddingLeft;
-   }
-
-   public int getPaddingBottom() {
-      return paddingBottom;
-   }
-
-   public int getPaddingRight() {
-      return paddingRight;
+   public Insets getPadding() {
+      return padding;
    }
 
    public List<String> getParameters() {
@@ -217,10 +205,7 @@ public class VSTextModel extends VSOutputModel<TextVSAssembly> {
    private final HyperlinkModel[] hyperlinks;
    private final boolean presenter;
    private boolean breakAll;
-   private final int paddingTop;
-   private final int paddingLeft;
-   private final int paddingBottom;
-   private final int paddingRight;
+   private final Insets padding;
    private boolean expressionText;
    private Map<String, String> externalUrls;
    private List<String> parameters;

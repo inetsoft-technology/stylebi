@@ -300,10 +300,10 @@ describe("ChartArea — chartContainer dimensions", () => {
       expect(comp.chartContainerLeft).toBe(2);
    });
 
-   it("should ALSO subtract the VSChartModel's own padding fields when isVSChart is true", () => {
+   it("should ALSO subtract the VSChartModel's own padding when isVSChart is true", () => {
       const { comp } = createComponent({
          model: makeModel({
-            paddingLeft: 5, paddingRight: 6, paddingTop: 7, paddingBottom: 8,
+            padding: { top: 7, left: 5, bottom: 8, right: 6 },
             objectFormat: { border: { left: "2px", right: "3px", top: "1px", bottom: "4px" } },
          } as any),
       });

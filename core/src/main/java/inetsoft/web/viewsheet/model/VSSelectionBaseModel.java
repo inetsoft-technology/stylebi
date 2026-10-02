@@ -50,6 +50,9 @@ public abstract class VSSelectionBaseModel<T extends AbstractSelectionVSAssembly
 
       listHeight = assemblyInfo.getListHeight();
       cellHeight = assemblyInfo.getEffectiveCellHeight();
+      // defensive copy: Insets is mutable, and the assembly's stored instance must not be aliased
+      Insets infoPadding = assemblyInfo.getPadding();
+      padding = infoPadding == null ? null : (Insets) infoPadding.clone();
       textWidth = (showText && measure != null) ? assemblyInfo.getMeasureSize() : 0;
       barWidth = (showBar && measure != null) ? assemblyInfo.getBarSize() : 0;
 
@@ -168,6 +171,10 @@ public abstract class VSSelectionBaseModel<T extends AbstractSelectionVSAssembly
       return cellHeight;
    }
 
+   public Insets getPadding() {
+      return padding;
+   }
+
    public boolean isShowText() {
       return showText;
    }
@@ -249,6 +256,7 @@ public abstract class VSSelectionBaseModel<T extends AbstractSelectionVSAssembly
    private boolean singleSelection;
    private int listHeight;
    private int cellHeight;
+   private Insets padding;
    private int barWidth;
    private int textWidth;
    private int sortType;

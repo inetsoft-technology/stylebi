@@ -53,6 +53,7 @@ import { VSObjectEvent } from "../../event/vs-object-event";
 import { VSSetCellHeightEvent } from "../../event/vs-set-cell-height-event";
 import { VSSetMeasuresEvent } from "../../event/vs-set-measures-event";
 import { isCompositeSelectionValue, SelectionValueModel } from "../../model/selection-value-model";
+import { TablePadding } from "../../model/vs-object-model";
 import { VSFormatModel } from "../../model/vs-format-model";
 import { VSSelectionBaseModel } from "../../model/vs-selection-base-model";
 import { VSSelectionListModel } from "../../model/vs-selection-list-model";
@@ -94,6 +95,7 @@ const URI_CHANGE_COL_COUNT: string = "/events/composer/viewsheet/selectionList/c
 const URI_UPDATE_TITLE_RATIO: string = "/events/composer/viewsheet/currentSelection/titleRatio/";
 const SELECTION_MAX_MODE_URL: string = "/events/vs/assembly/max-mode/toggle";
 const URI_CHANGE_TITLE: string = "/events/composer/viewsheet/objects/changeTitle";
+const ZERO_INSET: TablePadding = Object.freeze({ top: 0, left: 0, bottom: 0, right: 0 });
 
 export enum FocusRegions {
    NONE = -5,
@@ -943,17 +945,50 @@ export class VSSelection extends NavigationComponent<VSSelectionBaseModel>
       return this.getTitleHeight() - bottomMargin - topMargin;
    }
 
+   /**
+    * The card inset the rows sit inside, per axis, or zero where this assembly takes none. The
+    * dropdown panel is sized from the cell height rather than from the card, so vertically it has
+    * no card band to sit inside; its width still comes off the card and keeps the inset. A
+    * container takes no inset of its own, so a child inside one insets exactly as it would
+    * standing alone. Both the body's size and its origin read this one answer, so the body can
+    * never be shrunk by a band it is not also moved into - that would leave the rows flush to the
+    * border with dead space opposite, which is the complaint the inset exists to remove.
+    */
+   private getBodyInset(): TablePadding {
+      const inset = this._model?.padding;
+
+      if(!inset) {
+         return ZERO_INSET;
+      }
+
+      return this.model.dropdown && !this.model.maxMode
+         ? { top: 0, left: inset.left, bottom: 0, right: inset.right } : inset;
+   }
+
+   /** The body's left origin inside the card: exactly what getBodyWidth() takes off. */
+   getContentLeft(): number {
+      return this.getBodyInset().left;
+   }
+
+   /** The body's top origin under the title: exactly what getBodyHeight() takes off. */
+   getContentTop(): number {
+      return this.getBodyInset().top;
+   }
+
    getBodyHeight(): number {
       const bottomMargin: number = Tool.getMarginSize(this._model.objectFormat.border.bottom);
       const topMargin: number = Tool.getMarginSize(this._model.objectFormat.border.top);
       const offset = Math.max(0, bottomMargin + topMargin + this.topMarginTitle);
       const searchOffset = this.model.searchDisplayed ? this.model.titleFormat.height : 0;
+      const inset = this.getBodyInset();
+      const insetY = inset.top + inset.bottom;
       return this.inContainer ?
-         this.model.objectFormat.height - this.model.titleFormat.height - searchOffset :
+         this.model.objectFormat.height - this.model.titleFormat.height - searchOffset - insetY :
          this.model.dropdown && !this.model.maxMode
             ? this.cellHeight * this.model.listHeight - searchOffset
             : this.model.objectFormat.height -
-            (!this.viewer || this.model.titleVisible ? this.model.titleFormat.height : 0) - offset - searchOffset;
+            (!this.viewer || this.model.titleVisible ? this.model.titleFormat.height : 0) - offset - searchOffset -
+            insetY;
    }
 
    getBodyWidth(): number {
@@ -961,12 +996,14 @@ export class VSSelection extends NavigationComponent<VSSelectionBaseModel>
          Tool.getMarginSize(this.model.objectFormat.border.right) -
          Tool.getMarginSize(this.model.objectFormat.border.left) -
          this.leftMargin - this.rightMargin;
+      const inset = this.getBodyInset();
+      const insetX = inset.left + inset.right;
 
       if(this.leftMargin == 0 && this.rightMargin == 0 && this.inContainer) {
-         return bodyw - 2 - (this.selected ? 2 : 0);
+         return bodyw - 2 - (this.selected ? 2 : 0) - insetX;
       }
 
-      return bodyw;
+      return bodyw - insetX;
    }
 
    calcCellWidth(): void {
@@ -2171,7 +2208,9 @@ export class VSSelection extends NavigationComponent<VSSelectionBaseModel>
 
    get verticalScrollbarTop(): number {
       const searchOffset = this.model.searchDisplayed ? this.model.titleFormat.height : 0;
-      return (this.model.titleVisible ? this.model.titleFormat.height : 0) + searchOffset;
+      // the track scrolls the body, so it follows the body into the inset
+      return (this.model.titleVisible ? this.model.titleFormat.height : 0) + searchOffset +
+         this.getContentTop();
    }
 
    /**
