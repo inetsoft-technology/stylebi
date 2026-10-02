@@ -17,12 +17,14 @@
  */
 package inetsoft.sree.schedule;
 
+import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.*;
 import inetsoft.sree.security.support.SecurityTestDataBuilder;
 import inetsoft.test.*;
 import inetsoft.uql.util.Identity;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.MockedStatic;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
@@ -34,6 +36,9 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.CALLS_REAL_METHODS;
+import static org.mockito.Mockito.mockStatic;
 
 /**
  * Bug #77530: {@code ScheduleManager.setScheduleTask()} is the one place every schedule-task save
@@ -188,6 +193,98 @@ class ScheduleActionOrgBoundaryTest {
       // ScheduleTaskOwnerOrgReplaceTest's established pattern for this helper
       assertThrows(Exception.class, () -> ReflectionTestUtils.invokeMethod(
          ScheduleManager.class, "checkActionOrgBoundary", task, ORG_A, caller));
+   }
+
+   // (external GitHub review, PR #6100, non-blocking item 4 -- requested independently by both
+   // our own round-1 review and this external review) the same orgID-vs-principal.getOrgId()
+   // distinction as the direct-helper test above, but exercised end to end through the real
+   // setScheduleTask() call with an actual OrganizationContextHolder org-context switch, not just
+   // a direct call to the private helper. task.setRemovable(false) skips the unrelated
+   // scheduler-permission check a few lines above this one in setScheduleTask() -- that check's
+   // own permission resolution is independently sensitive to the current org context, which is
+   // not part of what this test (or this bug) is about; ScheduleTaskOwnerOrgIdTest,
+   // ScheduleManagerCycleInfoReloadTest and ImportTaskCrossOrgTest already use the same
+   // setRemovable(false) technique to isolate a test from that unrelated gate.
+   @Test
+   void viewsheetAction_matchingContextSwitchedOrg_isAllowedEndToEnd() throws Exception {
+      SRPrincipal caller = builder.principalOf("saobUser", ORG_A);
+      assertFalse(OrganizationManager.getInstance().isSiteAdmin(caller), "test setup: not a site admin");
+      assertEquals(ORG_A, caller.getOrgId(), "test setup: the principal's home org is ORG_A");
+
+      ScheduleTask task = newTask("SaobContextSwitchE2E", "1^128^__NULL__^Reports/Dashboard^" + ORG_B);
+      task.setRemovable(false);
+
+      OrganizationContextHolder.setCurrentOrgId(ORG_B);
+
+      try {
+         assertEquals(ORG_B, OrganizationManager.getInstance().getCurrentOrgID(caller),
+                      "test setup: acting in ORG_B via a context switch, not the principal's " +
+                      "home org (ORG_A)");
+
+         scheduleManager.setScheduleTask(task.getName(), task, caller);
+      }
+      finally {
+         OrganizationContextHolder.clear();
+      }
+
+      ScheduleTask stored = scheduleManager.getScheduleTask(task.getTaskId(), ORG_B);
+      assertNotNull(stored, "stored under the context-switched org, matching the " +
+                    "ViewsheetAction's org -- principal.getOrgId() alone would disagree here");
+   }
+
+   // (external review, blocking finding) with security.exposeDefaultOrgToAll on, a non-site-admin
+   // principal from a non-default org may legitimately open/reference a shared default-org
+   // viewsheet (ViewsheetEngine.doSwitchToHostOrg, AbstractAssetEngine.checkAssetPermission0's
+   // matching runtime bypass; RepletEngine/ViewsheetSandbox/MVManager all honor this) -- the
+   // save-time check must not refuse scheduling/picking such a viewsheet.
+   @Test
+   void viewsheetAction_defaultOrgSheet_isAllowedWhenGloballyVisible() throws Exception {
+      SRPrincipal caller = builder.principalOf("saobUser", ORG_A);
+      assertFalse(OrganizationManager.getInstance().isSiteAdmin(caller), "test setup: not a site admin");
+      String defaultOrg = Organization.getDefaultOrganizationID();
+      ScheduleTask task = newTask("SaobDefaultOrgVisible",
+                                  "1^128^__NULL__^Shared/Dashboard^" + defaultOrg);
+
+      try(MockedStatic<SUtil> sutil = mockStatic(SUtil.class, CALLS_REAL_METHODS)) {
+         sutil.when(() -> SUtil.isDefaultVSGloballyVisible(any())).thenReturn(true);
+
+         scheduleManager.setScheduleTask(task.getName(), task, caller);
+      }
+
+      ScheduleTask stored = scheduleManager.getScheduleTask(task.getTaskId(), ORG_A);
+      assertNotNull(stored, "allowed: a shared default-org viewsheet, globally visible");
+   }
+
+   // regression: the exemption above must not reopen the general hole -- without
+   // exposeDefaultOrgToAll (isDefaultVSGloballyVisible false), the very same default-org sheet is
+   // still refused for a non-site-admin from a different org, the same as any other foreign org
+   @Test
+   void viewsheetAction_defaultOrgSheet_refusedWhenNotGloballyVisible() {
+      SRPrincipal caller = builder.principalOf("saobUser", ORG_A);
+      String defaultOrg = Organization.getDefaultOrganizationID();
+      ScheduleTask task = newTask("SaobDefaultOrgNotVisible",
+                                  "1^128^__NULL__^Shared/Dashboard^" + defaultOrg);
+
+      assertThrows(inetsoft.sree.security.SecurityException.class,
+         () -> scheduleManager.setScheduleTask(task.getName(), task, caller));
+      assertNull(scheduleManager.getScheduleTask(task.getTaskId(), ORG_A), "not stored");
+   }
+
+   // regression: the default-org exemption must not widen to a genuinely different, non-default
+   // foreign org, even when isDefaultVSGloballyVisible() is (implausibly) stubbed true -- the
+   // exemption only fires when the entry's own org actually is the default org
+   @Test
+   void viewsheetAction_nonDefaultForeignOrgSheet_stillRefusedWhenGloballyVisibleStubbed() {
+      SRPrincipal caller = builder.principalOf("saobUser", ORG_A);
+      ScheduleTask task = newTask("SaobForeignNotDefault",
+                                  "1^128^__NULL__^Foreign/Dashboard^" + ORG_B);
+
+      try(MockedStatic<SUtil> sutil = mockStatic(SUtil.class, CALLS_REAL_METHODS)) {
+         sutil.when(() -> SUtil.isDefaultVSGloballyVisible(any())).thenReturn(true);
+
+         assertThrows(inetsoft.sree.security.SecurityException.class,
+            () -> scheduleManager.setScheduleTask(task.getName(), task, caller));
+      }
    }
 
    // a BatchAction's query entry is not touched by this fix (out of scope, see bug #77531/#77530

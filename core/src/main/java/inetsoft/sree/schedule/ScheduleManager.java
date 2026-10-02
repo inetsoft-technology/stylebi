@@ -1106,6 +1106,25 @@ public class ScheduleManager {
     * {@code checkOwnerOrganization}'s stored-owner-org check, both via {@code equalsIgnoreCase}),
     * and the existing runtime cross-org guard ({@code
     * AbstractAssetEngine.checkAssetPermission0}'s {@code equalsIgnoreCase} check).
+    *
+    * <p>Exempts a default-org entry when {@code SUtil.isDefaultVSGloballyVisible(principal)}
+    * (Bug #77530 external review, PR #6100): with {@code security.exposeDefaultOrgToAll} (or its
+    * per-org variant) enabled, the runtime load path ({@code
+    * AbstractAssetEngine.checkAssetPermission0}'s matching early {@code return true}) and
+    * {@code ViewsheetEngine.doSwitchToHostOrg} both intentionally let a non-site-admin principal
+    * from a non-default org open a shared default-org viewsheet -- {@code RepletEngine}, {@code
+    * ViewsheetSandbox} and {@code MVManager} all honor this. The viewer's own already-open entry
+    * for such a viewsheet keeps the default org, so scheduling it (or picking it from the task
+    * editor) legitimately produces exactly this org mismatch, which must not be refused.
+    *
+    * <p>The exemption is intentionally narrow -- it only fires when the stored entry's org
+    * actually is the default org (via the same case-insensitive comparison as the main check),
+    * never for any other, genuinely foreign org, so it can't be used to smuggle in a sheet from
+    * an unrelated organization. It mirrors {@code checkAssetPermission0}'s own bypass exactly
+    * (scope-agnostic, since that bypass itself runs before the {@code USER_SCOPE}/private-asset
+    * check and so already covers a default-org private dashboard too, per the diagnosis's own
+    * severity note) -- this save-time check is not meant to be stricter than the runtime check it
+    * fronts for.
     */
    private static void checkViewsheetOrgBoundary(ViewsheetAction action, String orgID,
                                                   Principal principal)
@@ -1120,7 +1139,9 @@ public class ScheduleManager {
       AssetEntry entry = AssetEntry.createAssetEntry(sheet);
 
       if(entry != null && entry.getOrgID() != null &&
-         !Tool.equals(entry.getOrgID(), orgID, false))
+         !Tool.equals(entry.getOrgID(), orgID, false) &&
+         !(Tool.equals(entry.getOrgID(), Organization.getDefaultOrganizationID(), false) &&
+           SUtil.isDefaultVSGloballyVisible(principal)))
       {
          throw new inetsoft.sree.security.SecurityException(String.format(
             "Unauthorized access to viewsheet \"%s\" by %s", sheet, principal));
