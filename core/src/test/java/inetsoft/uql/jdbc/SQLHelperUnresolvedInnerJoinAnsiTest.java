@@ -257,9 +257,9 @@ class SQLHelperUnresolvedInnerJoinAnsiTest {
       "select a.ax, d.did from a left join b on a.aid = b.bid join c on cid = aid left " +
          "join d on d.did = a.aid|select a.ax, d.did from (a LEFT OUTER JOIN b ON a.aid = " +
          "b.bid ) LEFT OUTER JOIN d ON a.aid = d.did , c where cid = aid",
-      // resolved
+      // resolved. Bug #77546, the inner join is in from order
       "select a.ax, d.did from a join c on c.cid = a.aid right join d on d.did = a.aid|" +
-         "select a.ax, d.did from (c INNER JOIN a ON c.cid = a.aid ) RIGHT OUTER JOIN d ON " +
+         "select a.ax, d.did from (a INNER JOIN c ON c.cid = a.aid ) RIGHT OUTER JOIN d ON " +
          "a.aid = d.did",
       "select a.ax, d.did from a right join d on d.did = a.aid where ax = did|" +
          "select a.ax, d.did from a RIGHT OUTER JOIN d ON a.aid = d.did where ax = did",
