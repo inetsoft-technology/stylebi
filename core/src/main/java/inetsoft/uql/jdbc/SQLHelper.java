@@ -1109,7 +1109,7 @@ public class SQLHelper implements KeywordProvider {
       else if(op.equals("<")) {
          return " INNER JOIN ";
       }
-      else if(op.equals("<>")) {
+      else if(op.equals("<>") || op.equals("!=")) {
          return " INNER JOIN ";
       }
 
@@ -1145,7 +1145,7 @@ public class SQLHelper implements KeywordProvider {
          else if(op.equals("=")) {
             return "<>";
          }
-         else if(op.equals("<>")) {
+         else if(op.equals("<>") || op.equals("!=")) {
             return "=";
          }
       }
@@ -3334,8 +3334,9 @@ public class SQLHelper implements KeywordProvider {
     * is always moved, since its operator can't be written in a WHERE clause. Any other join
     * is moved only if it's in the WHERE clause (not HAVING), it's on a non-negated all-AND
     * path from the root (or in a join group built by UniformSQL.addJoin), its operator has
-    * an ANSI join, and both of its tables are in the FROM clause of this query level (so a
-    * correlation to an outer query stays in WHERE).
+    * an ANSI join (a != only from an ON clause in text join order), and both of its tables
+    * are in the FROM clause of this query level (so a correlation to an outer query stays in
+    * WHERE).
     */
    private boolean isAnsiFromJoin(XJoin join) {
       if(join.isOuterJoin()) {
@@ -3343,6 +3344,16 @@ public class SQLHelper implements KeywordProvider {
       }
 
       if(having || !ansiJoinPosition || getAnsiJoin(join.getOp(), false) == null) {
+         return false;
+      }
+
+      // a != is written in place, as before != had an ANSI join, except for a != the parser
+      // found in an inner join ON of a query in text join order, which stays in that ON so
+      // it's kept on the null-supplying side of an outer join. A != in WHERE, from a query
+      // saved before the clause was recorded, or without text join order (no outer join, or
+      // MongoHelper) can't move a predicate out of an outer join, and moving it into the
+      // from clause there can join a table twice
+      if("!=".equals(join.getOp()) && !(join.isOnClauseJoin() && isTextJoinOrder())) {
          return false;
       }
 
