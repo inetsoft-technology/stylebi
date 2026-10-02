@@ -1727,11 +1727,11 @@ public class SQLHelper implements KeywordProvider {
 
       if(table == null || alias == null) {
          if(table != null && column != null) {
-            // keep the quotes of a quoted column segment (sum(t."MixedCase"))
-            boolean qcol = path.endsWith("\"" + column + "\"") ||
-               path.endsWith("`" + column + "`");
+            // keep a quoted column segment as written (sum(t."MixedCase")), the column found
+            // ignoring case may be another column (MIXEDCASE)
+            String qcol = getQuotedSegment(path, column);
             return form + getQuotedTableName(table, true) + "." +
-               (qcol ? getQuote() + column + getQuote() : quoteColumnAlias(column)) + ')';
+               (qcol != null ? getQuote() + qcol + getQuote() : quoteColumnAlias(column)) + ')';
          }
 
          if(XUtil.isQualifiedName(npath)) {
@@ -1742,6 +1742,28 @@ public class SQLHelper implements KeywordProvider {
       }
 
       return form + quoteTableAlias(table) + "." + quoteColumnAlias(alias) + ')';
+   }
+
+   /**
+    * Get the last segment of a path if it is a quoted identifier ("MixedCase" or `MixedCase`)
+    * that names the column, ignoring case.
+    * @return the segment without its quotes, or <tt>null</tt> if not quoted.
+    */
+   private static String getQuotedSegment(String path, String column) {
+      int len = path.length();
+
+      for(char q : new char[] { '"', '`' }) {
+         if(len > 1 && path.charAt(len - 1) == q) {
+            int start = path.lastIndexOf(q, len - 2);
+            String seg = start >= 0 ? path.substring(start + 1, len - 1) : null;
+
+            if(seg != null && seg.equalsIgnoreCase(column)) {
+               return seg;
+            }
+         }
+      }
+
+      return null;
    }
 
    /**

@@ -184,6 +184,8 @@ class UniformSQLQualifiedQuotedColumnTest {
       // the column, and the same column quoted as one identifier with its qualifier
       Pattern unquoted = Pattern.compile("(?<![\"`])\\b(MixedCase|Col)\\b");
       Pattern whole = Pattern.compile("\"[^\"\\s]*\\.(MixedCase|Col)\"");
+      // the case-folded twin column
+      Pattern twin = Pattern.compile("\\b(MIXEDCASE|COL)\\b");
       int checked = 0;
 
       for(Map.Entry<String, JDBCDataSource> helper : helpers().entrySet()) {
@@ -199,6 +201,7 @@ class UniformSQLQualifiedQuotedColumnTest {
                   assertFalse(generated.contains("\"\""), label);
                   assertFalse(whole.matcher(generated).find(), label);
                   assertFalse(unquoted.matcher(generated).find(), label);
+                  assertFalse(twin.matcher(generated).find(), label);
                   checked++;
                }
             }
@@ -470,6 +473,52 @@ class UniformSQLQualifiedQuotedColumnTest {
    }
 
    /**
+    * The metadata step rewrites a name to the case of its column. A quoted name ("MixedCase"
+    * or t."MixedCase") must resolve to the column of the same case, also when a column that
+    * differs only in case (MIXEDCASE) comes first. An unquoted name keeps the first match
+    * ignoring case, as before.
+    */
+   @Test
+   void quotedNamesResolveToTheColumnOfTheSameCase() throws Exception {
+      String qualified = "select t.\"MixedCase\", sum(t.\"low\") from t where t.\"MixedCase\" = 1 " +
+         "group by t.\"MixedCase\" order by t.\"MixedCase\"";
+      String bare = qualified.replace("t.\"", "\"");
+      String unquoted = qualified.replace("\"", "");
+
+      for(String key : new String[] { "default", "h2", "oracle", "postgresql", "snowflake" }) {
+         JDBCDataSource ds = helpers().get(key);
+
+         for(String[] columns : new String[][] { TWIN_FIRST, TWIN_SECOND }) {
+            String label = key + " " + columns[0];
+
+            for(String query : new String[] { qualified, bare }) {
+               UniformSQL sql = parse(query, ds);
+               resolve(sql, columns);
+               String generated = regenerate(sql);
+
+               assertFalse(generated.contains("MIXEDCASE"), label + ": " + generated);
+               assertFalse(generated.contains("LOW"), label + ": " + generated);
+               assertEquals(4, count(generated, "\"MixedCase\""), label + ": " + generated);
+               assertEquals(1, count(generated, "\"low\""), label + ": " + generated);
+            }
+
+            // unquoted, the first column ignoring case. Oracle folds the select column
+            if(!"oracle".equals(key)) {
+               UniformSQL sql = parse(unquoted, ds);
+               resolve(sql, columns);
+               String generated = regenerate(sql);
+               String first = columns[0];
+
+               assertTrue(generated.contains("where " + (ds == null || key.equals("h2") ? "t." : "\"t\".") +
+                                             (key.equals("postgresql") || key.equals("snowflake") ?
+                                                "\"" + first + "\"" : first) + " = 1"),
+                          label + ": " + generated);
+            }
+         }
+      }
+   }
+
+   /**
     * Known risk, not fixed here: the quoted flag is keyed by the stored name (#77501), and
     * t."MixedCase" and t.MixedCase are both stored as t.MixedCase. When both spellings are in
     * the same select or group list, both are generated quoted, so the unquoted one (column
@@ -497,6 +546,15 @@ class UniformSQLQualifiedQuotedColumnTest {
          stages.put("fixed", regenerate(sql));
          stages.put("fixed-xml", regenerate(reload(sql)));
          stages.put("fixed-clone-xml", regenerate(reload((UniformSQL) sql.clone())));
+
+         // the column of the same case is used when its twin comes first in the metadata
+         // the table metadata is cached by data source, use another one
+         JDBCDataSource tds = (JDBCDataSource) ds.clone();
+         tds.setName(ds.getName() + "TwinFirst");
+         UniformSQL twin = parse(query, tds);
+         JDBCUtil.fixUniformSQLInfo(twin, repository(TWIN_FIRST), null, tds);
+         stages.put("fixed-twin-first", regenerate(twin));
+         stages.put("fixed-twin-first-xml", regenerate(reload(twin)));
       }
 
       return stages;
@@ -543,6 +601,14 @@ class UniformSQLQualifiedQuotedColumnTest {
    // the column metadata comes from the repository. SQLTypes.getQualifiedName logs an error
    // that it can't get the root meta-data from XRepository.getRepository(), then goes on
    private static XRepository repository() throws Exception {
+      return repository(TWIN_SECOND);
+   }
+
+   // the metadata of every table, a quoted name has a twin that differs only in case
+   private static final String[] TWIN_SECOND = { "MixedCase", "MIXEDCASE", "id", "low", "LOW", "a.b", "Col", "COL" };
+   private static final String[] TWIN_FIRST = { "MIXEDCASE", "MixedCase", "id", "LOW", "low", "a.b", "COL", "Col" };
+
+   private static XRepository repository(String[] columns) throws Exception {
       XRepository repository = mock(XRepository.class);
       when(repository.getMetaData(any(), any(), any(), anyBoolean(), any())).thenAnswer(inv -> {
          XNode mtype = inv.getArgument(2);
@@ -553,7 +619,7 @@ class UniformSQLQualifiedQuotedColumnTest {
 
          XTypeNode result = new XTypeNode("Result");
 
-         for(String column : new String[] { "MixedCase", "id", "low", "a.b", "Col" }) {
+         for(String column : columns) {
             result.addChild(XSchema.createPrimitiveType(column, Integer.class));
          }
 

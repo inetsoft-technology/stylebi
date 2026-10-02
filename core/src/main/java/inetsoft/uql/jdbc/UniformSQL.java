@@ -1757,7 +1757,8 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
             // the fullpath may be pointing to a wrong column
             getSelection().getAliasColumn((String) sortFields[i]) == null)
          {
-            String fp = JDBCUtil.getFullPathOf(this, (String) sortFields[i]);
+            String fp = JDBCUtil.getFullPathOf(this, (String) sortFields[i],
+               isQuotedField(sortFields[i]));
 
             if(fp != null && !fp.equals(sortFields[i])) {
                copyQuotedField((String) sortFields[i], fp);
@@ -1810,7 +1811,8 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
             // the fullpath may be pointing to a wrong column
             getSelection().getAliasColumn((String) groupBy[i]) == null)
          {
-            String fp = JDBCUtil.getFullPathOf(this, (String) groupBy[i]);
+            String fp = JDBCUtil.getFullPathOf(this, (String) groupBy[i],
+               isQuotedField(groupBy[i]));
 
             if(fp != null && !fp.equals(groupBy[i])) {
                copyQuotedField((String) groupBy[i], fp);
@@ -2396,6 +2398,43 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
       }
 
       return null;
+   }
+
+   /**
+    * Get a field by its full path.
+    * @param path the path of field in format of "table.col".
+    * @param exactCase <tt>true</tt> if the column was written as a quoted identifier, so a
+    *                  field whose name has the same case is preferred over one that only
+    *                  matches ignoring case (e.g. "MixedCase" over MIXEDCASE).
+    */
+   public synchronized XField getFieldByPath(String path, boolean exactCase) {
+      XField field = getFieldByPath(path);
+
+      if(!exactCase || field == null) {
+         return field;
+      }
+
+      String path2 = trimPath(path);
+      int idx = path2.lastIndexOf('.');
+      String col = idx < 0 ? path : path2.substring(idx + 1);
+      String table = idx < 0 ? "" : path2.substring(0, idx);
+
+      if(col.equals(String.valueOf(field.getName()))) {
+         return field;
+      }
+
+      for(XField exact : fields) {
+         String ftable = exact.getTable();
+
+         if(col.equals(String.valueOf(exact.getName())) &&
+            (table.isEmpty() || ftable.equalsIgnoreCase(table) ||
+             trimPath(ftable).equalsIgnoreCase(table)))
+         {
+            return exact;
+         }
+      }
+
+      return field;
    }
 
    /**
@@ -3114,7 +3153,6 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
          setQuotedField(field, seg);
       }
    }
-
 
    public synchronized Vector<String> getOrderDBFields() {
       return orderDBFields;
@@ -4095,7 +4133,6 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
    private Vector<XField> fields = new Vector<>(); // field list
    private Vector<OrderByItem> orderByList = new Vector<>(); // order by list
    private Object[] groups; // group by list
-   // group by and order by fields written as quoted identifiers
    // group by/order by fields written as quoted identifiers -> column segment ("" if bare)
    private HashMap<String, String> quotedFields = new HashMap<>();
    private XFilterNode where; // root XFilterNode of where clause
