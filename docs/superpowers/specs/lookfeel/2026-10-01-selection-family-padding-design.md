@@ -1,0 +1,309 @@
+# Selection family — card inset, cell padding, and a density-aware default size
+
+**Date:** 2026-10-01
+**Types in scope:** selection list, selection tree, selection container
+**Not in scope:** slider and range slider. `SliderVSAssemblyInfo` sits in `isCornerSeedTarget()`
+alongside the selection family, but its own javadoc assigns it to form-input modernization, which
+is a separate project.
+
+## 1. Why
+
+A selection list's rows run flush to its border while the table beside it has breathing room. That
+is the inconsistency §1 of the density design says this work exists to remove, and the selection
+family is the largest remaining group inside `isCornerSeedTarget()` that has not taken the card
+inset.
+
+A second problem is folded in because it cannot be separated from the first. Density already cost
+a default-size selection list two of its rows and nothing was resized to compensate:
+
+| | title | cell | rows visible at the 100×120 default |
+|---|---|---|---|
+| legacy | 20 | 20 | 5 |
+| modern, today | 30 | 28 | **3** |
+
+Adding a 16px inset without addressing that takes it to 2. So the inset cannot ship without the
+size rule.
+
+## 2. What already exists
+
+### 2.1 Already built, and reusable
+
+- **Cell padding, end to end.** `SelectionBaseVSAssemblyInfo` carries
+  `CompositeValue<Insets> cellPadding` (`:1068`) with getter (`:157`), setter (`:161`), XML write
+  (`:570`), parse (`:604`) and `copyInfo` clone (`:703`). It reaches the browser through
+  `SelectionListModel:77` into `VSFormatModel.padding`, is bound at
+  `selection-list-cell.component.html:54-55` (top/bottom) and `:90-91` (left/right), and is read by
+  `HTMLSelectionListHelper:181`, `HTMLSelectionTreeHelper:143`, `PDFSelectionListHelper:219`,
+  `SVGSelectionListHelper:202` and `VSSelectionTreeHelper:233`.
+  **It is populated only from `format.css`** (`:1029-1030`, `CompositeValue.Type.CSS`). There is no
+  density tier and no author path.
+- **`userPadding` and `resetPadding(VizContext)`** were hoisted to `VSAssemblyInfo` in slice B
+  (`:1412`, `:1456`), so the selection family inherits both.
+- **`PaddingPaneModel`** is a reusable four-edge model with a `followsDefault` flag; tables carry
+  two instances (`TableViewPropertyDialogService:121-136`).
+- **`SizePositionPaneModel.cellHeightFollowsDensity`** (`:85-89`, `:134`) — added by L′, and the
+  precedent for this spec's checkbox semantics.
+
+### 2.2 Not built
+
+- **The card inset.** No `defaultPadding(VizContext)` override, no field on `VSSelectionBaseModel`
+  (its `TOP_PADDING`/`LEFT_PADDING` at `:263-264` are unrelated max-mode constants), and no
+  selection export helper reads `info.getPadding()`.
+- **The cell padding's author predicate.** `isUserCellPadding()` exists only on
+  `TableDataVSAssemblyInfo` (`:940`, `return cellPadding.hasUserValue()`). The selection base has
+  the `CompositeValue` but not the predicate, so it needs adding alongside the reset method the
+  follow-the-default checkbox calls.
+
+### 2.3 Three corrections to the 2026-09-29 review's Part 2
+
+Recorded because each one made this work look larger or riskier than it is.
+
+- **`bypassesBaseChrome()` does not classify anything as "not a card."** It has one caller
+  (`VSAssemblyInfo:1271`), and its own javadoc states the invariant it protects: "does this type
+  write, after super, any value the hook also writes?" Membership is by implementation route — seven
+  types override `setDefaultFormat` without super, Calendar never calls it, Tab calls super then
+  overwrites. The form-input types on that list **do** get modern card chrome; they seed it
+  themselves (`CheckBoxVSAssemblyInfo:433`) under a separate tracked project. The review's "the
+  codebase has already classified every form and input component as not-a-card" does not follow.
+- **Cell padding is not without a server source.** See 2.1.
+- **The hardcoded `padding: 2px` at `selection-list-cell.component.scss:149` and
+  `vs-selection.component.scss:197` is not the cell's padding.** Both sit on a gray badge
+  (`background: gray; color: white; min-width: 35px`) — the measure/count pill.
+
+The review also named "cell height has no additive path" as a blocker. That is true of
+`getEffectiveCellHeight()`, which returns the rendered tier directly, but it does not block
+anything: see D3.
+
+## 3. Decisions
+
+### D1 — Shared matrices, no new numbers
+
+Card inset takes **16/12/8**, the matrix chart and table already use
+(`VSDensityDefaults.chartPaddingForMode`). Cell padding takes **6·8 / 4·6 / 3·4**
+(`cellPaddingForMode`). The density design's own D2 — one card inset concept, one set of numbers —
+is preserved. (That document's D2 and this one's are unrelated; cross-references to it are named as
+"the density design's" throughout.) `SelectionBaseVSAssemblyInfo` becomes the third implementor of
+`defaultPadding(VizContext)`, after `ChartVSAssemblyInfo` and `TableDataVSAssemblyInfo`.
+
+### D2 — The default size follows density, and preserves five rows at every tier
+
+```
+height = inset.top + titleHeight + 5 × cellHeight + inset.bottom
+width  = inset.left + 100 + inset.right
+```
+
+| | comfortable | compact | dense | legacy |
+|---|---|---|---|---|
+| height | 202 | 170 | 136 | 120 |
+| width | 132 | 124 | 116 | 100 |
+| rows visible | 5 | 5 | 5 | 5 |
+
+The unifying rule across both axes: **the box is the density content plus the inset.** Content
+follows density where density has an opinion (title lane, cell height) and stays legacy where it
+does not (the 100px content width).
+
+Five rows rather than four because five restores legacy parity, and because a tier-varying row count
+is worse than the problem being fixed — growing by the inset alone yields 3/3/5 across the tiers,
+since dense's 20px cell equals the legacy row.
+
+The selection container keeps its own `3 × defw × 12 × defh` basis grown by its inset. It holds
+child assemblies, not rows, so the five-row rule does not apply to it.
+
+### D3 — Cell padding is non-additive, by construction
+
+The selection cell is fixed-height (`selection-list-cell.component.html:20`,
+`[style.height]="height"`) and the padded `.label-container` is a `table-cell` inside a
+`height: 100%` container (`selection-list-cell.component.scss:23-32`). So a cell padding insets the
+text **within** the cell rather than growing it.
+
+This is the whole reason the table's hardest machinery is not needed here: no stored-versus-rendered
+split, no shrink-and-add-back, no `getRowPadding` floor. The text room works out to the table's own
+numbers:
+
+| tier | cell | padding y | text room |
+|---|---|---|---|
+| comfortable | 28 | 12 | 16 |
+| compact | 24 | 8 | 16 |
+| dense | 20 | 6 | 14 |
+
+### D4 — Both values seed in `seedChromeDefaults`, including the size
+
+`setDefaultFormat` ends by calling `seedChromeDefaults` (`SelectionBaseVSAssemblyInfo:930`), and
+`initDefaultFormat()` is invoked by the creating service after construction, so the mark is already
+set. The same hook is re-run by `VizModernizeUtil.seedAll:115-125`. One hook therefore covers both
+creation and Modernize, and no new constructor hook is required.
+
+**Modernize resizes too.** A Modernized list matches a freshly created one. This is consistent with
+L′, which already moves a Modernized list's title lane from 20 to 30 — Modernize has never left
+selection geometry alone, and that is how the 5-to-3 loss arrived. The alternative, insetting
+without resizing, would make Modernize produce a 2-row list: worse than today and worse than
+creating one fresh.
+
+### D5 — The size rule rewrites only sizes the seed itself produced
+
+Mirroring `CheckBoxVSAssemblyInfo:479-489`, the rule fires only when the current size is one it
+could have written:
+
+```
+100×120 (legacy) · 132×202 (comfortable) · 124×170 (compact) · 116×136 (dense)
+```
+
+Anything else is an author size and is left alone. An author-set cell height takes the assembly out
+of the set naturally, since the size will not match. Revert restores 100×120, mirroring
+`CheckBoxVSAssemblyInfo:495-503`. The rule re-fires on a density change, or a seeded size is
+stranded at the old tier.
+
+**An author padding takes the assembly out of the set, and the size is deliberately not
+re-derived.** A comfortable list whose author zeroes the inset keeps its 202px and gains room for a
+sixth row. The size rule exists to make the default sensible, not to track every later edit.
+
+### D6 — Existing assets are not migrated
+
+Nothing rewrites a stored size, inset or cell padding on load. The parse funnel uses the no-arg
+constructor and never reaches `setVizMark`, which is the guarantee the mark mechanism already
+relies on. An existing dashboard changes only when its author Modernizes it (D4).
+
+## 4. Seeding and resolution
+
+Both values seed in `SelectionBaseVSAssemblyInfo.seedChromeDefaults`, under the same guard tables
+use, so a `format.css` padding on the assembly class still wins wholesale:
+
+```
+if(!isUserPadding() && !isCssPaddingDefined())  → setPadding(VSDensityDefaults.tablePadding(ctx))
+if(!isUserCellPadding())                        → setCellPadding(cellPadding(ctx), Type.DEFAULT)
+```
+
+`isUserPadding()` is inherited from `VSAssemblyInfo`. `isUserCellPadding()` is not inherited — it
+is added here, mirroring `TableDataVSAssemblyInfo:940` (`return cellPadding.hasUserValue()`), as
+§2.2 notes.
+
+**Precedence is total, and that is what keeps this clear of the table's CSS defect.**
+`CompositeValue.get()` is `userDefined ? userValue : (cssDefined ? cssValue : defaultValue)` — USER
+beats CSS beats DEFAULT, wholesale, exactly one wins. The table bug fixed in the 2026-10-01
+`getRowPadding` correction arose because a table's CSS padding arrives by a different route —
+`CSSTableStyle` in the lens chain, per cell, where partial coverage is possible — against a stored
+row height that had already given up its seed. Neither condition exists here: the padding is
+all-or-nothing, and D3 means no stored height is shrunk, so nothing is owed back.
+
+## 5. Browser geometry
+
+`VSSelectionBaseModel` gains the inset, so all three types inherit it.
+
+**Prerequisite.** This is the fifth assembly to carry a card inset, which is the trigger named in
+the 2026-09-29 review's finding 3. The model-shape convergence lands first, as its own commit:
+`VSChartModel`, `VSGaugeModel` and `VSTextModel` move from four flat ints to the object shape the
+table already ships, `VSObjectContainer.getLaneInset` collapses to `object.padding ?? ZERO`, and
+selections then declare the same field rather than a sixth variant. Note that
+`web/tsconfig.json` has `strictTemplates: false`, so the eleven template bindings in
+`vs-chart.component.html`, `vs-gauge.component.html` and `vs-text.component.html` are **not**
+compiler-checked — they need a manual pass.
+
+**Two choke points carry the whole geometry.** There is no column grid, which is why this is a
+fraction of the table work:
+
+- `vs-selection.component.ts:getBodyHeight()` (`:946-957`) subtracts `inset.top + inset.bottom` on
+  the normal branch, alongside the existing title and search offsets.
+- `getBodyWidth()` (`:959`) subtracts `inset.left + inset.right`.
+
+The card — border, background, round corner — stays at the assembly edge, and the inset is drawn
+inside it: the same split the chart and table card use. The title lane sits inside the inset,
+consistent with chart and table, which is what D2's arithmetic assumes.
+
+**Three branches take their own answer:**
+
+1. **`inContainer`** — a list inside a selection container must not double-inset. The container
+   insets its children; a child then insets its own rows within the space it was given. The existing
+   `inContainer` branch is the seam, and it already skips the border and margin offsets for the same
+   reason.
+2. **`dropdown && !maxMode`** — this branch computes `cellHeight * listHeight` and never reads
+   `objectFormat.height`, so the inset is not implicitly present. **The dropdown panel does not take
+   the inset.** It is transient chrome rather than the card, and insetting it costs rows where rows
+   are scarcest.
+3. **`maxMode`** — the card inset applies on top of the existing `TOP_PADDING`/`LEFT_PADDING`
+   max-mode offsets, not instead of them.
+
+**Cell padding needs no browser geometry at all.** The bindings already consume
+`cellFormat.padding` and the cell is fixed-height (D3), so seeding the DEFAULT tier is the entire
+browser change for that half.
+
+## 6. Dialogs
+
+Two `PaddingPaneModel` instances — card inset and cell padding — added to the three selection
+property dialogs, with read and write in `SelectionListPropertyDialogService`,
+`SelectionTreePropertyDialogService` and `SelectionContainerPropertyDialogService`.
+
+**Placement diverges from tables, deliberately.** Tables put both panes on the general pane. For
+selections they go on `SizePositionPaneModel`, where `cellHeight` and its
+`cellHeightFollowsDensity` checkbox already live, so all three density-aware geometry controls sit
+together. The accepted cost is that a table author and a selection author find the same control in
+different tabs.
+
+**Checkbox semantics follow `cellHeightFollowsDensity` exactly:** a missing flag means no opinion.
+That is what makes stale clients and unmarked content behave, and it is the rule L′ established when
+it deleted the old value-comparison inference.
+
+## 7. Export and print layout
+
+The helper hierarchy collapses the work into two shared bases, rather than one edit per format
+helper:
+
+```
+VSSelectionListHelper (extends ExporterHelper)
+  ├── PDF / PPT / HTML / SVG selection-list helpers
+  └── VSSelectionTreeHelper
+        └── PDF / PPT / HTML / SVG / Excel selection-tree helpers
+
+VSCurrentSelectionHelper (separate abstract base) → PDF / SVG / PPT / Excel
+
+ExcelSelectionListHelper (extends ExporterHelper directly, bypassing the base)
+```
+
+Geometry goes into `VSSelectionListHelper` and `VSCurrentSelectionHelper`. Print layout is
+`VsToReportConverter:682-703`, which converts selections into `TextBoxElement`.
+
+**The opt-out is required, not optional.** Note the asymmetry: `ExcelSelectionListHelper` bypasses
+the shared base, but `ExcelSelectionTreeHelper` inherits through it, so Excel's tree would pick up
+the inset by inheritance unless something gates it. Reuse the exporter-level predicate
+`AbstractVSExporter.insetsTableCard()` (`:1934`), which `ExcelVSExporter:55` and `CSVVSExporter:64`
+already override to false; both are cell-grid formats where a pixel inset is meaningless. Its name
+is now narrower than what it gates, but renaming touches shipped table code and is not worth it
+during a release gate.
+
+## 8. Verification
+
+**Automated.**
+
+- Seeding at all three tiers, for inset and cell padding, on all three types; Revert clearing both.
+- The size rule rewriting only the four recognized sizes; an author size left alone; an author cell
+  height taking the assembly out of the set; Revert restoring 100×120; the rule re-firing on a
+  density change rather than stranding a seeded size at the old tier.
+- `getBodyHeight()` and `getBodyWidth()` subtracting the inset; `inContainer` not double-insetting;
+  the dropdown branch unchanged.
+- Dialog read and write round trip, including `followsDefault` semantics and a missing flag.
+- Precedence: USER beats CSS beats DEFAULT, resolving wholesale.
+
+**Manual, no fixture exists.**
+
+- A `format.css` declaring a selection padding, confirming wholesale resolution on screen and in
+  export.
+- The export surfaces themselves. There is no selection equivalent of the density-padding-export
+  baselines, so this needs either a new fixture or an accepted narrower visual check. See §10.
+
+## 9. Risks and accepted costs
+
+- **Modernize reflows a dashboard.** D4 resizes on Modernize, so an author who Modernizes an
+  existing dashboard sees selection assemblies change size. Accepted: it is an explicit author
+  action, Modernize already moves selection geometry via L′, and the alternative produces a 2-row
+  list.
+- **A comfortable selection list is 202px tall by default, against 120 today.** Accepted as the
+  cost of five-row parity; D2 records the rejected alternatives.
+- **The dialog placement differs from tables.** Accepted, with the reasoning in §6.
+- **The model-shape convergence is a prerequisite with eleven unchecked template bindings.** Its
+  risk is real but bounded and loud at runtime — a missing binding renders padding 0, visibly.
+
+## 10. Open items
+
+- **The export fixture.** Decide before planning whether to build a selection equivalent of
+  `dpx-fixture.zip` or accept a narrower visual check. Note that `community/.superpowers/` is
+  excluded from git, so anything built there is one machine's local state and is not a shared
+  reference.
