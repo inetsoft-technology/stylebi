@@ -48,10 +48,11 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 /**
- * Bug #77506: the connection test query of a JDBC data source is kept in the SreeEnv key
- * inetsoft.uql.jdbc.pool.&lt;fullName&gt;.connectionTestQuery. Data source names are only
- * unique within an organization, so the key must be organization scoped. Legacy global values
- * belong to the host organization only.
+ * Bug #77506: older versions kept the connection test query of a JDBC data source in the SreeEnv
+ * key inetsoft.uql.jdbc.pool.&lt;fullName&gt;.connectionTestQuery. Data source names are only
+ * unique within an organization, so the key is organization scoped. Legacy global values
+ * belong to the host organization only. Since Bug #77536 the editor saves the test query in the
+ * pool properties and only shows and removes these SreeEnv values.
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class,
@@ -90,7 +91,7 @@ class DatabaseDatasourcesServiceTestQueryOrgScopeTest {
    @Test
    void testQuerySavedInOrgAIsNotVisibleInOrgB() throws Exception {
       asOrg("orga");
-      saveTestQuery(DS, DS, "SELECT 1 FROM ORG_A_ONLY");
+      setLegacyTestQuery(DS, "SELECT 1 FROM ORG_A_ONLY");
 
       asOrg("orgb");
       assertNull(SreeEnv.getProperty(KEY),
@@ -102,12 +103,12 @@ class DatabaseDatasourcesServiceTestQueryOrgScopeTest {
    }
 
    @Test
-   void testQuerySavedInOrgBDoesNotOverwriteOrgA() throws Exception {
+   void saveInOrgBDoesNotRemoveOrgATestQuery() throws Exception {
       asOrg("orga");
-      saveTestQuery(DS, DS, "SELECT 1 FROM ORG_A_ONLY");
+      setLegacyTestQuery(DS, "SELECT 1 FROM ORG_A_ONLY");
 
       asOrg("orgb");
-      saveTestQuery(DS, DS, "");   // org B clears the field on its own data source
+      removeLegacyTestQuery(DS, DS);   // org B saves its own data source
 
       asOrg("orga");
       assertEquals("SELECT 1 FROM ORG_A_ONLY", SreeEnv.getProperty(KEY),
@@ -122,7 +123,7 @@ class DatabaseDatasourcesServiceTestQueryOrgScopeTest {
       asOrg("orgb");
       assertNull(editorTestQuery(), "a non-host org reads the legacy global test query");
 
-      saveTestQuery(DS, DS, "");
+      removeLegacyTestQuery(DS, DS);
       assertEquals("SELECT LEGACY", globalValue(), "a non-host org removed the global key");
    }
 
@@ -139,15 +140,13 @@ class DatabaseDatasourcesServiceTestQueryOrgScopeTest {
       SreeEnv.setProperty(KEY, "SELECT LEGACY");
 
       asOrg(HOST);
-      saveTestQuery(DS, DS, "SELECT NEW");
-      assertNull(globalValue(), "the host org save left the legacy global key");
-      assertEquals("SELECT NEW", SreeEnv.getProperty(orgKey(HOST), false, false));
-      assertEquals("SELECT NEW", editorTestQuery());
+      setLegacyTestQuery(DS, "SELECT NEW");
+      assertEquals("SELECT NEW", editorTestQuery(), "the organization key is not read first");
 
-      saveTestQuery(DS, DS, "");
-      assertNull(globalValue());
+      removeLegacyTestQuery(DS, DS);
+      assertNull(globalValue(), "the host org save left the legacy global key");
       assertNull(SreeEnv.getProperty(orgKey(HOST), false, false));
-      assertNull(editorTestQuery(), "the cleared test query is shown again");
+      assertNull(editorTestQuery(), "the removed test query is shown again");
    }
 
    @Test
@@ -164,18 +163,16 @@ class DatabaseDatasourcesServiceTestQueryOrgScopeTest {
          mocked.when(OrganizationManager::getInstance).thenReturn(manager);
          assertEquals("SELECT LEGACY", editorTestQuery());
 
-         saveTestQuery(DS, DS, "SELECT NEW");
+         removeLegacyTestQuery(DS, DS);
          assertNull(globalValue(), "the host org save left the legacy global key");
-         assertEquals("SELECT NEW", editorTestQuery());
+         assertNull(editorTestQuery());
       }
-
-      assertEquals("SELECT NEW", SreeEnv.getProperty(orgKey(HOST), false, false));
    }
 
    @Test
    void mixedCaseOrgIdRoundTrip() throws Exception {
       asOrg("OrgB");
-      saveTestQuery(DS, DS, "SELECT B");
+      setLegacyTestQuery(DS, "SELECT B");
       assertEquals("SELECT B", editorTestQuery());
       assertEquals("SELECT B", SreeEnv.getProperty(orgKey("orgb"), false, false));
       assertNull(globalValue());
@@ -188,11 +185,11 @@ class DatabaseDatasourcesServiceTestQueryOrgScopeTest {
    void siteAdminSwitchedIntoOrgUsesTheSwitchedOrgKey() throws Exception {
       SreeEnv.setProperty(KEY, "SELECT LEGACY");
       asOrg("orga");
-      saveTestQuery(DS, DS, "SELECT A");
+      setLegacyTestQuery(DS, "SELECT A");
 
       asSwitchedSiteAdmin("orgb");
       assertNull(editorTestQuery(), "the switched site admin reads another org's test query");
-      saveTestQuery(DS, DS, "SELECT B");
+      setLegacyTestQuery(DS, "SELECT B");
       assertEquals("SELECT B", SreeEnv.getProperty(orgKey("orgb"), false, false));
       assertNull(SreeEnv.getProperty(orgKey(HOST), false, false));
       assertEquals("SELECT B", editorTestQuery());
@@ -201,6 +198,11 @@ class DatabaseDatasourcesServiceTestQueryOrgScopeTest {
       assertEquals("SELECT B", editorTestQuery());
 
       asSwitchedSiteAdmin("orgb");
+      removeLegacyTestQuery(DS, DS);
+      assertNull(SreeEnv.getProperty(orgKey("orgb"), false, false));
+      assertEquals("SELECT LEGACY", globalValue(), "the switched site admin removed the global key");
+
+      setLegacyTestQuery(DS, "SELECT B");
       deleteDataSource();
       assertNull(SreeEnv.getProperty(orgKey("orgb"), false, false));
       assertEquals("SELECT LEGACY", globalValue(), "the switched site admin removed the global key");
@@ -210,15 +212,17 @@ class DatabaseDatasourcesServiceTestQueryOrgScopeTest {
    }
 
    @Test
-   void renameMovesTheOrgKey() throws Exception {
+   void renameRemovesTheOldAndNewOrgKeys() throws Exception {
       String renamedKey = "inetsoft.org.orga.inetsoft.uql.jdbc.pool.renamed.connectionTestQuery";
 
       try {
          asOrg("orga");
-         saveTestQuery(DS, DS, "SELECT A");
-         saveTestQuery(DS, "renamed", "SELECT A");
+         setLegacyTestQuery(DS, "SELECT A");
+         setLegacyTestQuery("renamed", "SELECT STALE");
+         removeLegacyTestQuery(DS, "renamed");
          assertNull(SreeEnv.getProperty(orgKey("orga"), false, false));
-         assertEquals("SELECT A", SreeEnv.getProperty(renamedKey, false, false));
+         assertNull(SreeEnv.getProperty(renamedKey, false, false),
+                    "a stale test query of the new name is shown after the rename");
       }
       finally {
          SreeEnv.remove(renamedKey);
@@ -227,11 +231,11 @@ class DatabaseDatasourcesServiceTestQueryOrgScopeTest {
 
    @Test
    void singleTenantWithoutPrincipalUsesGlobalKey() throws Exception {
-      saveTestQuery(DS, DS, "SELECT GLOBAL");
+      setLegacyTestQuery(DS, "SELECT GLOBAL");
       assertEquals("SELECT GLOBAL", globalValue());
       assertEquals("SELECT GLOBAL", editorTestQuery());
 
-      saveTestQuery(DS, DS, "");
+      removeLegacyTestQuery(DS, DS);
       assertNull(globalValue());
       assertNull(editorTestQuery());
    }
@@ -239,9 +243,9 @@ class DatabaseDatasourcesServiceTestQueryOrgScopeTest {
    @Test
    void deleteRemovesOnlyTheCurrentOrgKey() throws Exception {
       asOrg("orga");
-      saveTestQuery(DS, DS, "SELECT A");
+      setLegacyTestQuery(DS, "SELECT A");
       asOrg("orgb");
-      saveTestQuery(DS, DS, "SELECT B");
+      setLegacyTestQuery(DS, "SELECT B");
 
       deleteDataSource();
 
@@ -286,11 +290,16 @@ class DatabaseDatasourcesServiceTestQueryOrgScopeTest {
       ThreadContext.setContextPrincipal(principal);
    }
 
-   private void saveTestQuery(String oldSource, String newSource, String query) throws Exception {
+   // a test query that an older version saved in SreeEnv in the current organization's scope
+   private static void setLegacyTestQuery(String source, String query) {
+      SreeEnv.setProperty("inetsoft.uql.jdbc.pool." + source + ".connectionTestQuery", query, true);
+   }
+
+   private void removeLegacyTestQuery(String oldSource, String newSource) throws Exception {
       Method method = DatabaseDatasourcesService.class.getDeclaredMethod(
-         "saveTestQuery", String.class, String.class, String.class);
+         "removeLegacyTestQuery", String.class, String.class);
       method.setAccessible(true);
-      method.invoke(service, oldSource, newSource, query);
+      method.invoke(service, oldSource, newSource);
    }
 
    // the test query shown in the data source editor

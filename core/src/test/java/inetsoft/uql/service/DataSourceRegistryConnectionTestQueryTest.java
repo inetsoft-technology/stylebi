@@ -294,17 +294,18 @@ class DataSourceRegistryConnectionTestQueryTest {
    }
 
    @Test
-   void editorRenameThatClearsTheFieldLeavesNoTestQuery() throws Exception {
+   void editorRenameLeavesNoLegacyTestQuery() throws Exception {
       asOrg("orga");
       addSource("f/ds");
       JDBCUtil.setConnectionTestQuery("f/ds", "SELECT A");
 
-      // the editor save renames the data source, then saves the test query
+      // the editor save renames the data source, then removes the legacy test query, which it
+      // has saved in the pool properties of the data source (Bug #77536)
       registry.renameDatasource("f/ds", "moved");
-      saveTestQuery("f/ds", "moved", "");
+      removeLegacyTestQuery("f/ds", "moved");
 
       assertNull(JDBCUtil.getConnectionTestQuery("moved"),
-                 "the cleared test query is shown again after the rename");
+                 "the legacy test query is shown again after the rename");
       assertNull(JDBCUtil.getConnectionTestQuery("f/ds"));
    }
 
@@ -337,15 +338,15 @@ class DataSourceRegistryConnectionTestQueryTest {
                          Tool.getSecureRandom().nextLong()));
    }
 
-   private static void saveTestQuery(String oldSource, String newSource, String query)
+   private static void removeLegacyTestQuery(String oldSource, String newSource)
       throws Exception
    {
       DatabaseDatasourcesService service = mock(DatabaseDatasourcesService.class,
                                                 withSettings().defaultAnswer(CALLS_REAL_METHODS));
       Method method = DatabaseDatasourcesService.class.getDeclaredMethod(
-         "saveTestQuery", String.class, String.class, String.class);
+         "removeLegacyTestQuery", String.class, String.class);
       method.setAccessible(true);
-      method.invoke(service, oldSource, newSource, query);
+      method.invoke(service, oldSource, newSource);
    }
 
    // JDBCDataSource's constructor needs the CredentialService bean, whose constructor is

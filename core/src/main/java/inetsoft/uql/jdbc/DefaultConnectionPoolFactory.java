@@ -187,10 +187,10 @@ public class DefaultConnectionPoolFactory implements ConnectionPoolFactory {
 
          if(connectionTestQuery == null) {
             throw new RuntimeException(
-               "You are using a non-JDBC4 driver and have not defined the " +
-               "inetsoft.uql.jdbc.pool." + fullName +
-               ".connectionTestQuery property. You will not be able to " +
-               "connect to the database until you have done so.");
+               "You are using a non-JDBC4 driver and have not defined a connection " +
+               "test query for the " + fullName + " data source. Set the Test Query " +
+               "of the data source or its connectionTestQuery pool property. You will " +
+               "not be able to connect to the database until you have done so.");
          }
 
          config.setConnectionTestQuery(connectionTestQuery);
