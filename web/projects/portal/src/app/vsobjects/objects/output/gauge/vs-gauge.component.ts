@@ -81,7 +81,7 @@ export class VSGauge extends AbstractImageComponent<VSGaugeModel> implements OnC
       if(!includeMargin) {
          width -= Tool.getMarginSize(this.model.objectFormat.border.left);
          width -= Tool.getMarginSize(this.model.objectFormat.border.right);
-         width -= this.model.paddingLeft + this.model.paddingRight;
+         width -= (this.model.padding?.left || 0) + (this.model.padding?.right || 0);
       }
 
       return width;
@@ -93,7 +93,7 @@ export class VSGauge extends AbstractImageComponent<VSGaugeModel> implements OnC
       if(!includeMargin) {
          height -= Tool.getMarginSize(this.model.objectFormat.border.top);
          height -= Tool.getMarginSize(this.model.objectFormat.border.bottom);
-         height -= this.model.paddingTop + this.model.paddingBottom;
+         height -= (this.model.padding?.top || 0) + (this.model.padding?.bottom || 0);
       }
 
       return height;

@@ -410,9 +410,7 @@ describe("Group 12 — anchored toolbar geometry: chart and table anchored in ma
          vizModern: true,
          objectFormat: makeObjectFormat({ top: 0, left: 0, width: 1000, height: 600 }),
       });
-      obj.paddingTop = 6;
-      obj.paddingLeft = 4;
-      obj.paddingRight = 8;
+      obj.padding = { top: 6, left: 4, bottom: 0, right: 8 };
       obj.titleVisible = true;
       obj.titleFormat = { height: 30 };
       return Object.assign(obj, overrides);
@@ -678,8 +676,8 @@ describe("Group 12 — anchored toolbar geometry: chart and table anchored in ma
       expect(comp.getAnchoredToolbarWidth(obj)).toBe(600);
    });
 
-   // Selection carries neither a padding object (tables) nor paddingTop/Left/Right (charts), so the
-   // || 0 fallbacks give it the lane an unmarked table gets: flush left, full width, right edge
+   // Selection carries no padding object, so the zero inset gives it
+   // the lane an unmarked table gets: flush left, full width, right edge
    // landing exactly on the assembly's own right edge.
    // Top is centred in the lane like every other anchored type, not flush against it.
    it("anchors a non-max-mode selection list", () => {

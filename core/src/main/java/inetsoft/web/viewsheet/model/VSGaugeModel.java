@@ -25,6 +25,8 @@ import inetsoft.uql.viewsheet.internal.GaugeVSAssemblyInfo;
 import inetsoft.web.composer.model.vs.HyperlinkModel;
 import org.springframework.stereotype.Component;
 
+import java.awt.Insets;
+
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class VSGaugeModel extends VSOutputModel<GaugeVSAssembly> {
    public VSGaugeModel(GaugeVSAssembly assembly, RuntimeViewsheet rvs) {
@@ -32,10 +34,7 @@ public class VSGaugeModel extends VSOutputModel<GaugeVSAssembly> {
       GaugeVSAssemblyInfo info = (GaugeVSAssemblyInfo) assembly.getVSAssemblyInfo();
       Hyperlink.Ref[] hrefs = info.getHyperlinks();
       this.face = info.getFace();
-      this.paddingTop = info.getPadding().top;
-      this.paddingLeft = info.getPadding().left;
-      this.paddingBottom = info.getPadding().bottom;
-      this.paddingRight = info.getPadding().right;
+      this.padding = info.getPadding();
 
       if(hrefs == null) {
          this.hyperlinks = new HyperlinkModel[0];
@@ -57,20 +56,8 @@ public class VSGaugeModel extends VSOutputModel<GaugeVSAssembly> {
       return face;
    }
 
-   public int getPaddingTop() {
-      return paddingTop;
-   }
-
-   public int getPaddingLeft() {
-      return paddingLeft;
-   }
-
-   public int getPaddingBottom() {
-      return paddingBottom;
-   }
-
-   public int getPaddingRight() {
-      return paddingRight;
+   public Insets getPadding() {
+      return padding;
    }
 
    @Component
@@ -89,5 +76,5 @@ public class VSGaugeModel extends VSOutputModel<GaugeVSAssembly> {
 
    private final HyperlinkModel[] hyperlinks;
    private int face;
-   private int paddingTop, paddingLeft, paddingBottom, paddingRight;
+   private Insets padding;
 }

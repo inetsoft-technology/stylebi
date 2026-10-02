@@ -62,15 +62,15 @@
     @if (model.titleVisible) {
       <vs-title
         [style.position]="'relative'"
-        [style.left.px]="model.paddingLeft"
-        [style.top.px]="model.paddingTop"
+        [style.left.px]="model.padding?.left"
+        [style.top.px]="model.padding?.top"
         [titleContent]="model.title"
         [titleFormat]="model.titleFormat"
         [selected]="selected || isBinding"
         [formatPainterMode]="vsInfo?.formatPainterMode"
         [titleSelected]="model.titleSelected"
         [titleVisible]="model.titleVisible"
-        [titleWidth]="model.objectFormat.width - model.paddingLeft - model.paddingRight"
+        [titleWidth]="model.objectFormat.width - (model.padding?.left || 0) - (model.padding?.right || 0)"
         (selectTitle)="selectTitle($event)"
         (changeTitle)="changeTitle($event)"
         (titleResizeMove)="titleResizeMove($event)"

@@ -40,10 +40,6 @@ export interface VSChartModel extends VSObjectModel, ChartModel {
    titleSelected: boolean;
    multiSelect?: boolean;
    editedByWizard: boolean;
-   paddingTop?: number;
-   paddingLeft?: number;
-   paddingBottom?: number;
-   paddingRight?: number;
    axisFields: string[];
    plotHighlightEnabled: boolean;
    lastFlyover?: string;
