@@ -181,9 +181,10 @@ class UniformSQLOuterJoinTableTest {
          "on c.id = a.id | (a LEFT OUTER JOIN b ON a.id = b.id ) LEFT OUTER JOIN " +
          "(c LEFT OUTER JOIN d ON c.id = d.id ) ON a.id = c.id",
       // an unaliased quoted table keeps its quotes in the from clause table, and the
-      // join column's table doesn't, they must still resolve to the same table
+      // join column's table doesn't, they must still resolve to the same table. The quoted
+      // column keeps its quotes (#77558)
       "select * from \"my a\" left join \"my b\" on \"my b\".\"id\" = \"my a\".\"id\" | " +
-         "select * from \"my a\" LEFT OUTER JOIN \"my b\" ON \"my a\".id = \"my b\".id"
+         "select * from \"my a\" LEFT OUTER JOIN \"my b\" ON \"my a\".\"id\" = \"my b\".\"id\""
    })
    void outerJoinOnJoinedTableGeneratesJoin(String text, String expected) throws Exception {
       String generated = normalize(parse(text).getSQLString());

@@ -367,13 +367,15 @@ public class JDBCUtil {
          XField field = sql.getFieldByPath(path);
 
          if(field != null && field.getTable().length() > 0) {
-            boolean quoted = xselect.isQuoted(xselect.getColumn(i));
+            String opath = xselect.getColumn(i);
+            boolean quoted = xselect.isQuoted(opath);
+            String qseg = xselect.getQuotedColumn(opath);
             xselect.setColumn(i, path);
             xselect.setAlias(i, alias);
             xselect.setTable(path, field.getTable());
 
             if(quoted) {
-               xselect.setQuoted(path, true);
+               xselect.setQuoted(path, qseg);
             }
 
             // get type
@@ -497,7 +499,7 @@ public class JDBCUtil {
          newSelect.setType(path, select.getType(path));
          newSelect.setDescription(path, select.getDescription(path));
          newSelect.setTable(path, select.getTable(path));
-         newSelect.setQuoted(path, select.isQuoted(path));
+         newSelect.copyQuoted(path, select, path);
          newSelect.setXMetaInfo(aidx, select.getXMetaInfo(i));
          newSelect.setExpression(aidx, select.isExpression(i));
       }
