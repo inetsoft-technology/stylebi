@@ -439,6 +439,24 @@ class UserSignupServiceTest {
             eq(GOOGLE_USER_ID),
             isNull());
       }
+
+      // Bug #77502: addUser now reports storage failures; the SSO session already exists when the
+      // user is registered, so a failed save must not fail the login (it is retried next login)
+      @Test
+      void autoRegisterUser_newSsoUserSaveFails_doesNotThrow() {
+         UserSignupService spyService = spy(userSignupService);
+         when(authenticationProviderService.getAuthenticationChain())
+            .thenReturn(Optional.of(authenticationChain));
+         when(authenticationChain.getProviders()).thenReturn(Collections.emptyList());
+         doThrow(new RuntimeException("simulated write failure")).when(spyService).createUser(
+            eq(DEFAULT_ORG_USER), isNull(), eq(SIGNUP_EMAIL), eq(true), eq(GOOGLE_USER_ID),
+            isNull());
+
+         assertDoesNotThrow(() -> spyService.autoRegisterUser(GOOGLE_USER_ID, SIGNUP_EMAIL));
+         verify(spyService).createUser(
+            eq(DEFAULT_ORG_USER), isNull(), eq(SIGNUP_EMAIL), eq(true), eq(GOOGLE_USER_ID),
+            isNull());
+      }
    }
 
    // -------------------------------------------------------------------------

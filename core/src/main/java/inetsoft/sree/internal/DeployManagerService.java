@@ -1725,15 +1725,23 @@ public class DeployManagerService {
     */
    boolean isImportedScheduleTaskAllowed(File file, Principal principal) throws Exception {
       Element taskElem;
+      boolean hasContent;
 
       try(InputStream input = new FileInputStream(file)) {
          Document doc = input.available() > 0 ? Tool.parseXML(input) : null;
+         hasContent = doc != null;
          taskElem = doc == null ? null :
             Tool.getChildNodeByTagName(doc.getDocumentElement(), "Task");
       }
 
+      // an empty file is not parsed at all. Bug #77454, a file without a task (e.g. only
+      // folders) is refused before anything of it is written
       if(taskElem == null) {
-         return true;
+         if(hasContent) {
+            LOG.warn("Schedule task file is not imported, it contains no task");
+         }
+
+         return !hasContent;
       }
 
       if(!securityEngine.checkPermission(principal, ResourceType.SCHEDULER, "*",

@@ -702,10 +702,13 @@ public class TableHighlightAttr extends TableAttr {
        * filtering calculation to validate itself.
        */
       @Override
-      public synchronized void invalidate() {
-         inited = false;
-         crosstab = null;
+      public void invalidate() {
+         synchronized(this) {
+            inited = false;
+            crosstab = null;
+         }
 
+         // super fires the change event, outside this monitor (bug #77432)
          super.invalidate();
       }
 

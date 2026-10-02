@@ -63,6 +63,8 @@ class ExampleAssetsSeedTest {
             String name = entry.getName();
 
             if(name.startsWith("VIEWSHEET_") || name.startsWith("WORKSHEET_") ||
+               name.startsWith("XPARTITION_") || name.startsWith("XLOGICALMODEL_") ||
+               name.startsWith("DEVICE_") || name.startsWith("DASHBOARD_") ||
                name.equals("JarFileInfo.xml"))
             {
                entries.add(Arguments.of(name, in.readAllBytes()));

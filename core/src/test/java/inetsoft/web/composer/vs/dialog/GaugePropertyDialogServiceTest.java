@@ -28,6 +28,7 @@ import inetsoft.web.composer.model.vs.GaugePropertyDialogModel;
 import inetsoft.web.composer.model.vs.VSAssemblyScriptPaneModel;
 import inetsoft.web.composer.vs.objects.controller.VSObjectPropertyService;
 import inetsoft.web.composer.vs.objects.controller.VSTrapService;
+import inetsoft.web.portal.controller.database.QueryManagerService;
 import inetsoft.web.viewsheet.service.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
@@ -59,9 +60,11 @@ class GaugePropertyDialogServiceTest {
       // the real property service; with no sandbox it returns right after merging the dialog
       // info into the live assembly (setVSAssemblyInfo -> copyInfo)
       VSObjectPropertyService propertyService = new VSObjectPropertyService(
-         mock(CoreLifecycleService.class), null, null, null, null, null, null, null);
+         mock(CoreLifecycleService.class), null, null, null, null, null, null, null,
+         mock(QueryManagerService.class));
       service = new GaugePropertyDialogService(propertyService, vsOutputService, dialogService,
-                                               engine, trapService, assemblyInfoHandler);
+                                               engine, trapService, assemblyInfoHandler,
+                                               mock(QueryManagerService.class));
 
       viewsheet = new Viewsheet();
       gauge = new GaugeVSAssembly(viewsheet, "Gauge1");

@@ -100,17 +100,24 @@ class UniformSQLOuterJoinDialectTest {
       "select * from a left join b on b.id = zz.id"
    };
 
-   // a query with an outer join that joins a table outside its from clause, the
-   // generated from clause would join the outer table into the subquery
+   // an outer join to a table outside the query's from clause, the generated from
+   // clause would join the outer table into the subquery
    static final String[] OUTSIDE_TABLE_REFUSED = {
+      "select * from a where exists (select 1 from c, d where c.id = d.id(+) and c.k = a.k(+))",
+      "select * from a where exists (select 1 from c where c.id *= a.id)",
+      "select * from a where exists (select 1 from c left join d on d.id = c.id " +
+         "where c.k = zz.k(+))"
+   };
+
+   // a query with an outer join whose other joins are to a table outside its from
+   // clause. They stay in its where clause (#77480), so the correlation is kept
+   static final String[] OUTSIDE_TABLE_JOIN_ACCEPTED = {
       "select * from a where exists (select 1 from c left join d on d.id = c.id where c.id = a.id)",
       "select * from a where not exists (select 1 from c left join d on d.id = c.id " +
          "where a.id = c.id and d.k = 1)",
       "select * from a where a.id in (select c.id from c left join d on d.id = c.id where c.k = a.k)",
       "select * from a where exists (select 1 from c right join d on d.id = c.id where d.id = a.id)",
-      "select * from a where exists (select 1 from c, d where c.id = d.id(+) and c.id = a.id)",
-      "select * from (select c.id from c left join d on d.id = c.id where c.k = a.k) t, a",
-      "select * from a left join b on b.id = a.id where a.x = zz.y"
+      "select * from a where exists (select 1 from c, d where c.id = d.id(+) and c.id = a.id)"
    };
 
    // a correlated subquery without an outer join keeps its joins in the where clause
@@ -146,11 +153,14 @@ class UniformSQLOuterJoinDialectTest {
       return Stream.concat(cases(OUTSIDE_TABLE_REFUSED), cases(SCHEMA_BARE_NAME_REFUSED));
    }
 
-   // a data source with ansi joins generates every join of the subquery in its from
-   // clause, which loses the correlation (a separate, existing problem), so only the
-   // data sources that keep the subquery's joins in its where clause are checked
+   // a data source with ansi joins keeps the correlation in the subquery's where
+   // clause too (#77480)
    static Stream<Arguments> correlatedAcceptedCases() {
-      return cases(CORRELATED_ACCEPTED).filter(a -> !((String) a.get()[0]).endsWith(" ansi"));
+      return cases(CORRELATED_ACCEPTED);
+   }
+
+   static Stream<Arguments> outsideTableJoinAcceptedCases() {
+      return cases(OUTSIDE_TABLE_JOIN_ACCEPTED);
    }
 
    static Stream<Arguments> acceptedCases() {
@@ -187,11 +197,14 @@ class UniformSQLOuterJoinDialectTest {
          assertTrue(index1 >= 0 && index2 >= 0 && index1 != index2, join.toString());
       }
 
-      // the generated sql lists each table once and parses back to itself
+      // the generated sql lists each table once and parses back to itself. A left join
+      // to a nested join is generated as a right join (#77475) whose ON columns are in
+      // the other order when it is parsed again, so compare from the second generation on
       String generated = normalize(sql.getSQLString());
       UniformSQL reparsed = parse(generated, ds);
       assertEquals(sql.getTableCount(), reparsed.getTableCount(), generated);
-      assertEquals(generated, normalize(reparsed.getSQLString()));
+      generated = normalize(reparsed.getSQLString());
+      assertEquals(generated, normalize(parse(generated, ds).getSQLString()));
    }
 
    @ParameterizedTest(name = "{0}: {3}")
@@ -234,6 +247,24 @@ class UniformSQLOuterJoinDialectTest {
       sql.setDataSource(ds);
       new SQLProcessor(sql).parse(text);
       assertEquals(UniformSQL.PARSE_FAILED, sql.getParseResult());
+   }
+
+   @ParameterizedTest(name = "{0}: {3}")
+   @MethodSource("outsideTableJoinAcceptedCases")
+   void outerJoinQueryJoiningOutsideTableInWhereParses(String type, String driver, String url,
+                                                       String text)
+      throws Exception
+   {
+      JDBCDataSource ds = dataSource(type, driver, url);
+      UniformSQL sql = parse(text, ds);
+      assertEquals(UniformSQL.PARSE_SUCCESS, sql.getParseResult());
+      String generated = normalize(sql.getSQLString());
+      String unquoted = generated.replace("\"", "");
+      // the outer table isn't joined into the subquery, whose where clause keeps the
+      // correlation to it
+      assertFalse(unquoted.matches("(?i).*\\( select .* (join|from|,) a( |\\)).*"), generated);
+      assertTrue(unquoted.matches("(?i).*\\( select .* where .*\\ba\\.(id|k)\\b.*"), generated);
+      assertEquals(generated, normalize(parse(generated, ds).getSQLString()));
    }
 
    @ParameterizedTest(name = "{0}: {3}")
@@ -295,10 +326,22 @@ class UniformSQLOuterJoinDialectTest {
          "ON \"emp\".\"deptno\" = \"dept\".\"deptno\"",
       "google bigquery | select * from scott.emp left join scott.dept on emp.deptno = dept.deptno | " +
          "select * from `scott.emp` LEFT OUTER JOIN `scott.dept` ON emp.deptno = dept.deptno",
-      // quoted names are case-sensitive, \"A\" and a are two tables
+      // quoted names are case-sensitive, \"A\" and a are two tables. The where clause
+      // join stays in the where clause (#77475)
       "postgresql | select * from \"A\", a left join c on c.id = a.id where \"A\".id = a.id | " +
-         "select * from (\"A\" INNER JOIN \"a\" ON \"A\".\"id\" = \"a\".\"id\" ) " +
-         "LEFT OUTER JOIN \"c\" ON \"a\".\"id\" = \"c\".\"id\""
+         "select * from \"a\" LEFT OUTER JOIN \"c\" ON \"a\".\"id\" = \"c\".\"id\" , \"A\" " +
+         "where \"A\".\"id\" = \"a\".\"id\"",
+      // an inner join ON of a quoted table is generated in the from clause, as a where
+      // condition it would drop the rows of c that the right join keeps
+      "postgresql | select * from \"My A\" join b on \"My A\".id = b.id right join c " +
+         "on c.id = b.id | select * from (\"My A\" INNER JOIN \"b\" ON \"My A\".\"id\" = \"b\".\"id\" ) " +
+         "RIGHT OUTER JOIN \"c\" ON \"b\".\"id\" = \"c\".\"id\"",
+      // a join to a table outside the from clause that isn't an outer join stays in the
+      // where clause of its query (#77480)
+      "h2 | select * from (select c.id from c left join d on d.id = c.id where c.k = a.k) t, a | " +
+         "select * from ( select c.id from c LEFT OUTER JOIN d ON c.id = d.id where c.k = a.k) t, a",
+      "h2 | select * from a left join b on b.id = a.id where a.x = zz.y | " +
+         "select * from a LEFT OUTER JOIN b ON a.id = b.id where a.x = zz.y"
    })
    void generatesSql(String type, String text, String expected) throws Exception {
       JDBCDataSource ds = dataSource(type, null, null);

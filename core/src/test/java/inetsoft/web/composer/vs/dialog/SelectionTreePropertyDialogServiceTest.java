@@ -28,6 +28,7 @@ import inetsoft.web.binding.service.DataRefModelFactoryService;
 import inetsoft.web.composer.model.vs.SelectionTreePropertyDialogModel;
 import inetsoft.web.composer.vs.objects.controller.VSObjectPropertyService;
 import inetsoft.web.composer.vs.objects.controller.VSTrapService;
+import inetsoft.web.portal.controller.database.QueryManagerService;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
 import inetsoft.web.viewsheet.service.*;
 import org.junit.jupiter.api.*;
@@ -66,7 +67,8 @@ class SelectionTreePropertyDialogServiceTest {
          selectionDialogService,
          assemblyInfoHandler,
          dataRefService,
-         dataSourceRegistry);
+         dataSourceRegistry,
+         mock(QueryManagerService.class));
    }
 
    @Test

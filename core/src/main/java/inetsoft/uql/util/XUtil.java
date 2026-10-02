@@ -52,7 +52,6 @@ import java.security.Principal;
 import java.sql.*;
 import java.text.*;
 import java.time.LocalDate;
-import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.Date;
 import java.util.List;
@@ -633,43 +632,6 @@ public final class XUtil {
       return (idx >= 0) ? name.substring(idx + 1) : name;
    }
 
-
-   /**
-    * Call a method on an object without causing exception if the class or
-    * method is not in the jvm (e.g. jdk1.2 methods used in jdk1.1)
-    */
-   public static Object call(Object obj, String clsname, String method,
-                             Class[] params, Object[] args) {
-      return Tool.call(obj, clsname, method, params, args);
-   }
-
-   /**
-    * Call a method on an object without causing exception if the class or
-    * method is not in the jvm (e.g. jdk1.2 methods used in jdk1.1)
-    */
-   public static Object field(Class cls, String field) {
-      try {
-         Field member = cls.getField(field);
-
-         return member.get(null);
-      }
-      catch(Throwable e) {
-         return null;
-      }
-   }
-
-   /**
-    * Call a method on an object without causing exception if the class or
-    * method is not in the jvm (e.g. jdk1.2 methods used in jdk1.1)
-    */
-   public static Object field(String cls, String field) {
-      try {
-         return field(Class.forName(cls), field);
-      }
-      catch(Throwable e) {
-         return null;
-      }
-   }
 
    /**
     * Get the string representation for view.
@@ -3692,7 +3654,7 @@ public final class XUtil {
       try {
          Class[] params = new Class[] {Hyperlink.Ref.class, String.class};
          Object[] args = new Object[] {link, servlet};
-         return (String) call(null, "inetsoft.sree.internal.SUtil",
+         return (String) Tool.call(null, "inetsoft.sree.internal.SUtil",
                               "getCommand", params, args);
       }
       catch(Exception ex) {
@@ -3828,13 +3790,31 @@ public final class XUtil {
             boolean noPermission = SreeEnv.getProperty("security.provider").equals("") &&
                !VpmProcessor.useVpmSecurity();
 
+            // Bug #77522: a user-scope (private) worksheet may only be run by its owner or a site
+            // admin. The ASSET path walk below is scope-blind (it checks the global worksheet ACL
+            // of the same path), and ReportWorksheetProcessor loads the sheet without a permission
+            // check, so ask the real asset engine with checkUserAsset=true. This also applies to
+            // report scripts, since the b.c. exemption below was never meant to expose another
+            // user's private worksheet.
+            if(!noPermission && entry.getScope() == AssetRepository.USER_SCOPE) {
+               try {
+                  AssetUtil.getAssetRepository(false).checkAssetPermission(
+                     user, entry, ResourceAction.READ, true);
+               }
+               catch(Exception ex) {
+                  LOG.debug("Permission denied to run user worksheet: {}", entry, ex);
+                  message = Catalog.getCatalog().getString(
+                     "em.common.security.no.permission", entry.getPath());
+               }
+
+               if(message != null) {
+                  throw new ScriptException(message);
+               }
+            }
             // @by jasonshobe, fix bug1400096326732: don't check permissions if
             // being invoked from report (preserve b.c. after bug1368179287358)
-            if(!reportScript) {
-               IdentityID userID = user instanceof SRPrincipal ? ((SRPrincipal) user).getClientUserID() : null;
-               boolean userAsset = entry.getScope() == AssetRepository.USER_SCOPE && Tool.equals(entry.getUser(), userID);
-
-               if(!noPermission && !userAsset && entry.getScope() != AssetRepository.REPORT_SCOPE) {
+            else if(!reportScript) {
+               if(!noPermission && entry.getScope() != AssetRepository.REPORT_SCOPE) {
                   try {
                      AssetEntry parent = entry;
 
@@ -4046,13 +4026,11 @@ public final class XUtil {
                            if(dateFormat != null && obj instanceof Date) {
                               DateTimeFormatter formatter = DateTimeFormatter.ofPattern(dateFormat);
 
-                              if (obj instanceof java.sql.Date) {
-                                 varValue = ((java.sql.Date) obj).toLocalDate().format(formatter);
-                              } else {
-                                 LocalDate localDate = ((Date) obj).toInstant().
-                                    atZone(ZoneId.systemDefault()).toLocalDate();
-                                 varValue = localDate.format(formatter);
-                              }
+                              // java.sql.Date.toLocalDate() reads the date as SimpleDateFormat
+                              // does, java.time would shift dates before 1901 (bug #77450)
+                              LocalDate localDate =
+                                 new java.sql.Date(((Date) obj).getTime()).toLocalDate();
+                              varValue = localDate.format(formatter);
                            }
                         }
                         catch(Exception e) {

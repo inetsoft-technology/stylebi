@@ -25,6 +25,7 @@ import inetsoft.sree.security.*;
 import inetsoft.uql.XRepository;
 import inetsoft.uql.erm.XDataModel;
 import inetsoft.uql.erm.XLogicalModel;
+import inetsoft.uql.util.XUtil;
 import inetsoft.util.Tool;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -143,8 +144,17 @@ public class AnalyticEngine extends RepletEngine implements AnalyticRepository {
             return null;
          }
 
-         if(security.checkPermission(principal, ResourceType.QUERY, name, ResourceAction.READ)) {
-            return model.getLogicalModel(lmname);
+         XLogicalModel lmodel = model.getLogicalModel(lmname);
+
+         if(lmodel == null) {
+            return null;
+         }
+
+         // the permission is stored with the data model folder of the model
+         String resource = XUtil.getLogicalModelResourceName(dsname, lmodel.getFolder(), lmname);
+
+         if(security.checkPermission(principal, ResourceType.QUERY, resource, ResourceAction.READ)) {
+            return lmodel;
          }
 
          return null;

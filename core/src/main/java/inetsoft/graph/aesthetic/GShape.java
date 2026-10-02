@@ -41,133 +41,157 @@ public abstract class GShape implements Cloneable, Serializable {
     * A circle shape.
     */
    @TernField
-   public static final GShape CIRCLE = new Circle();
+   public static final GShape CIRCLE = sharedConstant(new Circle());
 
    /**
     * A triangle shape.
     */
    @TernField
-   public static final GShape TRIANGLE = new Triangle();
+   public static final GShape TRIANGLE = sharedConstant(new Triangle());
 
    /**
     * A square shape.
     */
    @TernField
-   public static final GShape SQUARE = new Square();
+   public static final GShape SQUARE = sharedConstant(new Square());
 
    /**
     * A cross shape.
     */
    @TernField
-   public static final GShape CROSS = new Cross();
+   public static final GShape CROSS = sharedConstant(new Cross());
 
    /**
     * A star shape.
     */
    @TernField
-   public static final GShape STAR = new Star();
+   public static final GShape STAR = sharedConstant(new Star());
 
    /**
     * A diamond shape.
     */
    @TernField
-   public static final GShape DIAMOND = new Diamond();
+   public static final GShape DIAMOND = sharedConstant(new Diamond());
 
    /**
     * An x shape.
     */
    @TernField
-   public static final GShape XSHAPE = new XShape();
+   public static final GShape XSHAPE = sharedConstant(new XShape());
 
    /**
     * A filled circle shape.
     */
    @TernField
-   public static final GShape FILLED_CIRCLE = CIRCLE.create(false, true);
+   public static final GShape FILLED_CIRCLE = sharedConstant(CIRCLE.create(false, true));
 
    /**
     * A filled triangle shape.
     */
    @TernField
-   public static final GShape FILLED_TRIANGLE = TRIANGLE.create(false, true);
+   public static final GShape FILLED_TRIANGLE = sharedConstant(TRIANGLE.create(false, true));
 
    /**
     * A filled square shape.
     */
    @TernField
-   public static final GShape FILLED_SQUARE = SQUARE.create(false, true);
+   public static final GShape FILLED_SQUARE = sharedConstant(SQUARE.create(false, true));
 
    /**
     * A filled diamond shape.
     */
    @TernField
-   public static final GShape FILLED_DIAMOND = DIAMOND.create(false, true);
+   public static final GShape FILLED_DIAMOND = sharedConstant(DIAMOND.create(false, true));
 
    /**
     * A V shape.
     */
    @TernField
-   public static final GShape VSHAPE = new VShape();
+   public static final GShape VSHAPE = sharedConstant(new VShape());
 
    /**
     * A half moon shape.
     */
    @TernField
-   public static final GShape LSHAPE = new LShape();
+   public static final GShape LSHAPE = sharedConstant(new LShape());
 
    /**
     * A left arrow shape.
     */
    @TernField
-   public static final GShape ARROW = new Arrow();
+   public static final GShape ARROW = sharedConstant(new Arrow());
 
    /**
     * A filled left arrow shape.
     */
    @TernField
-   public static final GShape FILLED_ARROW = ARROW.create(false, true);
+   public static final GShape FILLED_ARROW = sharedConstant(ARROW.create(false, true));
 
    /**
     * A vertical stick with two ends. Useful as interval shape.
     */
    @TernField
-   public static final GShape STICK = new Stick();
+   public static final GShape STICK = sharedConstant(new Stick());
 
    /**
     * A bar with an upward arrow. useful as interval shape.
     */
    @TernField
-   public static final GShape ARROWBAR = new ArrowBar();
+   public static final GShape ARROWBAR = sharedConstant(new ArrowBar());
    /**
     * A filled bar with an upward arrow. useful as interval shape.
     */
    @TernField
-   public static final GShape FILLED_ARROWBAR = ARROWBAR.create(false, true);
+   public static final GShape FILLED_ARROWBAR = sharedConstant(ARROWBAR.create(false, true));
 
    /**
     * A vertical line.
     */
    @TernField
-   public static final GShape LINE = new Line();
+   public static final GShape LINE = sharedConstant(new Line());
 
    /**
     * A horizontal line.
     */
    @TernField
-   public static final GShape HYPHEN = new Hyphen();
+   public static final GShape HYPHEN = sharedConstant(new Hyphen());
 
    /**
     * An empty shape. This shape has not visual drawing and takes up no space.
     * It can be used to plot text as point.
     */
    @TernField
-   public static final GShape NIL = new Nil();
+   public static final GShape NIL = sharedConstant(new Nil());
 
    /**
     * Constructor.
     */
    protected GShape() {
       super();
+   }
+
+   /**
+    * Mark a shape as a shared constant. A shared constant is used by every chart, script and
+    * thread in the JVM, so it is read-only: its setters throw, and {@link #create} and
+    * {@link #clone} return a copy that can be changed. Identity is unchanged, so a constant
+    * still compares equal ({@code ==}) to itself wherever it is handed out. Used for the
+    * public shape constants and for shapes that a cache hands out to every chart. A shape
+    * cannot be made mutable again. (Bug #77497)
+    */
+   public static <T extends GShape> T sharedConstant(T shape) {
+      ((GShape) shape).shared = true;
+      return shape;
+   }
+
+   /**
+    * Throw if this shape is a shared constant; called by the setters of the shape types that
+    * have shared constants.
+    */
+   protected final void checkMutable() {
+      if(shared) {
+         throw new UnsupportedOperationException(
+            "A shared shape constant is read-only; use create() or clone() for a copy");
+      }
    }
 
    /**
@@ -194,6 +218,7 @@ public abstract class GShape implements Cloneable, Serializable {
     * always drawn regardless of this setting.
     */
    protected void setOutline(boolean outline) {
+      checkMutable();
       this.outline = outline;
    }
 
@@ -209,6 +234,7 @@ public abstract class GShape implements Cloneable, Serializable {
     * Set whether this shape should be filled.
     */
    protected void setFill(boolean fill) {
+      checkMutable();
       this.fill = fill;
    }
 
@@ -233,6 +259,7 @@ public abstract class GShape implements Cloneable, Serializable {
     */
    @TernMethod
    public void setLineColor(Color color) {
+      checkMutable();
       this.linecolor = color;
    }
 
@@ -250,6 +277,7 @@ public abstract class GShape implements Cloneable, Serializable {
     */
    @TernMethod
    public void setLineStyle(int lineStyle) {
+      checkMutable();
       this.lineStyle = lineStyle;
    }
 
@@ -267,6 +295,7 @@ public abstract class GShape implements Cloneable, Serializable {
     */
    @TernMethod
    public void setFillColor(Color color) {
+      checkMutable();
       this.fillcolor = color;
    }
 
@@ -386,7 +415,10 @@ public abstract class GShape implements Cloneable, Serializable {
    @Override
    public GShape clone() {
       try {
-         return (GShape) super.clone();
+         GShape shape = (GShape) super.clone();
+         // a copy of a shared constant is the caller's own
+         shape.shared = false;
+         return shape;
       }
       catch(Exception ex) {
          // impossible
@@ -820,6 +852,15 @@ public abstract class GShape implements Cloneable, Serializable {
        */
       @TernMethod
       public void setImage(Image image) {
+         checkMutable();
+         initImage(image);
+      }
+
+      /**
+       * Set the image without the read-only check: also used to load the image of a shared
+       * shape from its path the first time it is needed.
+       */
+      private void initImage(Image image) {
          this.image = image;
          CoreTool.waitForImage(image);
 
@@ -849,7 +890,7 @@ public abstract class GShape implements Cloneable, Serializable {
                   baos.write(buf, 0, cnt);
                }
 
-               setImage(CoreTool.getToolkit().createImage(baos.toByteArray()));
+               initImage(CoreTool.getToolkit().createImage(baos.toByteArray()));
             }
             catch(Exception ex) {
                throw new RuntimeException(ex);
@@ -880,6 +921,7 @@ public abstract class GShape implements Cloneable, Serializable {
        */
       @TernMethod
       public void setTile(boolean tile) {
+         checkMutable();
          this.tile = tile;
       }
 
@@ -897,6 +939,7 @@ public abstract class GShape implements Cloneable, Serializable {
        */
       @TernMethod
       public void setApplyColor(boolean color) {
+         checkMutable();
          this.applyColor = color;
       }
 
@@ -913,6 +956,7 @@ public abstract class GShape implements Cloneable, Serializable {
        */
       @TernMethod
       public void setApplySize(boolean applySize) {
+         checkMutable();
          this.applySize = applySize;
       }
 
@@ -929,6 +973,7 @@ public abstract class GShape implements Cloneable, Serializable {
        */
       @TernMethod
       public void setIgnoredColor(Color color) {
+         checkMutable();
          this.ignored = color;
       }
 
@@ -945,6 +990,7 @@ public abstract class GShape implements Cloneable, Serializable {
        */
       @TernMethod
       public void setAlignment(Alignment alignment) {
+         checkMutable();
          this.alignment = alignment;
       }
 
@@ -1152,5 +1198,7 @@ public abstract class GShape implements Cloneable, Serializable {
    private Color linecolor;
    private Color fillcolor;
    private int lineStyle = GraphConstants.THIN_LINE;
+   // not serialized: a deserialized constant is a copy
+   private transient boolean shared;
    private static final Logger LOG = LoggerFactory.getLogger(GShape.class);
 }

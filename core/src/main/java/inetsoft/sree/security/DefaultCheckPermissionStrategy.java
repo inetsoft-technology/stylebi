@@ -56,18 +56,29 @@ public class DefaultCheckPermissionStrategy implements CheckPermissionStrategy {
       // Bug #77061, delegated grants (org node, Users/Groups roots, org self grant) only cover
       // identities of the org they belong to, never a user/group/role/org of another org
       boolean targetOutOfOrg = isTargetOutOfOrg(principal, type, resource);
+      // the roles a user/group/role target holds, with their inherited roles, resolved once for
+      // the three checks below (null when the target is not a security identity or doesn't exist)
+      IdentityID[] targetRoles = getTargetGrantedRoles(type, resource);
       // Bug #77075, org-wide delegated grants (org node, Groups root, org self grant) never
       // cover a group that grants system administrator, directly or through an ancestor group
       boolean adminGrantingGroup = type == ResourceType.SECURITY_GROUP &&
-         !Tool.isEmptyString(resource) &&
-         grantsSystemAdmin(IdentityID.getIdentityIDFromKey(resource));
+         anySystemAdminRole(provider, targetRoles);
       // Bug #77347, only system/site admins have permission over a user that grants system
       // administrator, directly or through its groups (see the check after the short-circuit)
-      boolean adminGrantingUser = isAdminGrantingUser(type, resource);
+      boolean adminGrantingUser = type == ResourceType.SECURITY_USER &&
+         anySystemAdminRole(provider, targetRoles);
+      // Bug #77498, the organization administrator twin of the two checks above: only system/site
+      // admins and org admins (role based, see the check after the short-circuit) have
+      // permission over a user, group or role that grants organization administrator. Delegated
+      // grants (org node, Users/Groups/Roles roots, org self grant, wildcard, explicit grants)
+      // never cover it, so a delegate can't take over an org admin or make itself one
+      boolean orgAdminGrantingTarget = targetRoles != null &&
+         Arrays.stream(targetRoles).anyMatch(r -> isOrgAdminRole(provider, r));
 
       //check admin permissions at org level. Bug #77347, this runs before the system/site admin
       //short-circuit below, so a user that grants system administrator is excluded here
       if(isSecurityIdentity(type) && !targetOutOfOrg && !adminGrantingGroup && !adminGrantingUser &&
+         !orgAdminGrantingTarget &&
          isNotGlobalRole(type, IdentityID.getIdentityIDFromKey(resource)) &&
          provider.getPermission(ResourceType.SECURITY_ORGANIZATION, curOrgID) != null)
       {
@@ -169,14 +180,16 @@ public class DefaultCheckPermissionStrategy implements CheckPermissionStrategy {
             orgRoleRootPer = provider.getPermission(type, rootRole);
          }
 
-         if(orgRoleRootPer != null && !targetOutOfOrg && (role == null ||
+         if(orgRoleRootPer != null && !targetOutOfOrg && !orgAdminGrantingTarget && (role == null ||
             Tool.equals(role.getOrganizationID(), OrganizationManager.getInstance().getCurrentOrgID())) &&
             checker.checkPermission(identity, orgRoleRootPer, action, true))
          {
             return true;
          }
       }
-      else if(type.equals(ResourceType.SECURITY_GROUP) && !targetOutOfOrg && !adminGrantingGroup) {
+      else if(type.equals(ResourceType.SECURITY_GROUP) && !targetOutOfOrg && !adminGrantingGroup &&
+         !orgAdminGrantingTarget)
+      {
          IdentityID rootGroup = new IdentityID("Groups", OrganizationManager.getInstance().getCurrentOrgID());
          Permission rootGroupPerm = provider.getPermission(type, rootGroup);
 
@@ -187,7 +200,9 @@ public class DefaultCheckPermissionStrategy implements CheckPermissionStrategy {
       }
       //return true if admin permissions over root role. Bug #77347, the Users/Groups roots are
       //checked before the system/site admin short-circuit, so exclude such a user here too
-      else if(type.equals(ResourceType.SECURITY_USER) && !targetOutOfOrg && !adminGrantingUser) {
+      else if(type.equals(ResourceType.SECURITY_USER) && !targetOutOfOrg && !adminGrantingUser &&
+         !orgAdminGrantingTarget)
+      {
          IdentityID rootUser = new IdentityID("Users", OrganizationManager.getInstance().getCurrentOrgID());
          Permission rootUserPerm = provider.getPermission(type, rootUser);
 
@@ -248,6 +263,14 @@ public class DefaultCheckPermissionStrategy implements CheckPermissionStrategy {
          final boolean isOrgAdministrator = Arrays.stream(xPrincipal.getAllRoles(provider))
             .anyMatch(provider::isOrgAdministratorRole);
 
+         // Bug #77498, only system/site admins (handled above) and org admins have permission
+         // over a user, group or role that grants organization administrator, whatever the
+         // action. A holder of ADMIN on the org node that is not an org admin by role is not an
+         // org admin here either (see checkOrgAdminPermission())
+         if(orgAdminGrantingTarget && !isOrgAdministrator) {
+            return false;
+         }
+
          if(isOrgAdministrator && type == ResourceType.EM_COMPONENT &&
             "settings/content/data-space".equals(resource))
          {
@@ -284,7 +307,8 @@ public class DefaultCheckPermissionStrategy implements CheckPermissionStrategy {
          // checkOrgAdminPermission() resolves a bare SECURITY_ORGANIZATION key to the current
          // org, so an out-of-org target must be rejected before it (Bug #77061)
          if(!targetOutOfOrg &&
-            checkOrgAdminPermission(type, resource, organization, xPrincipal, action))
+            checkOrgAdminPermission(type, resource, organization, xPrincipal, action,
+                                    orgAdminGrantingTarget))
          {
             return true;
          }
@@ -711,7 +735,8 @@ public class DefaultCheckPermissionStrategy implements CheckPermissionStrategy {
    }
 
    private boolean checkOrgAdminPermission(ResourceType type, String resource, String orgID,
-                                           XPrincipal principal, ResourceAction action)
+                                           XPrincipal principal, ResourceAction action,
+                                           boolean orgAdminGrantingTarget)
    {
       AuthenticationProvider currProvider =
          !(principal instanceof SRPrincipal) || SUtil.isInternalUser(principal) ?
@@ -730,6 +755,13 @@ public class DefaultCheckPermissionStrategy implements CheckPermissionStrategy {
             orgPermissions.getOrgScopedUserGrants(ResourceAction.ADMIN, orgID).contains(pId);
 
       if(!isOrgAdmin && !hasOrgAdminPermission) {
+         return false;
+      }
+
+      // Bug #77498, an ADMIN grant on the org node delegates the administration of the org's
+      // identities, it doesn't make its holder an org admin (OrganizationManager.isOrgAdmin()
+      // is role based). So it never covers a user, group or role that grants org admin
+      if(!isOrgAdmin && orgAdminGrantingTarget) {
          return false;
       }
 
@@ -818,10 +850,6 @@ public class DefaultCheckPermissionStrategy implements CheckPermissionStrategy {
       }
    }
 
-   private boolean grantsSystemAdmin(IdentityID groupID) {
-      return grantsSystemAdmin(provider, groupID);
-   }
-
    /**
     * Check if a group, or one of its ancestor groups, holds a role that is or inherits a system
     * administrator role, so that membership in the group grants system administrator.
@@ -846,22 +874,94 @@ public class DefaultCheckPermissionStrategy implements CheckPermissionStrategy {
    }
 
    /**
-    * Check if the resource is a user that grants system administrator.
-    */
-   private boolean isAdminGrantingUser(ResourceType type, String resource) {
-      return type == ResourceType.SECURITY_USER && !Tool.isEmptyString(resource) &&
-         grantsSystemAdminUser(provider, IdentityID.getIdentityIDFromKey(resource));
-   }
-
-   /**
     * Check if a user holds a role that is or inherits a system administrator role, directly or
     * through one of its groups or their ancestor groups, i.e. the user is a system administrator.
     */
    private static boolean grantsSystemAdminUser(AuthenticationProvider provider, IdentityID userID) {
+      IdentityID[] roles = getUserGrantedRoles(provider, userID);
+      return roles != null &&
+         Arrays.stream(roles).anyMatch(r -> r != null && provider.isSystemAdministratorRole(r));
+   }
+
+   /**
+    * Bug #77498, gets the roles, with their inherited roles, that a user holds directly or
+    * through its groups and their ancestors, that a group or one of its ancestors holds, or that
+    * a role is or inherits. Returns null when the resource is not a user, group or role, or it
+    * doesn't exist.
+    */
+   private IdentityID[] getTargetGrantedRoles(ResourceType type, String resource) {
+      if(Tool.isEmptyString(resource)) {
+         return null;
+      }
+
+      if(type == ResourceType.SECURITY_USER) {
+         return getUserGrantedRoles(provider, IdentityID.getIdentityIDFromKey(resource));
+      }
+      else if(type == ResourceType.SECURITY_GROUP) {
+         return getGroupGrantedRoles(provider, IdentityID.getIdentityIDFromKey(resource));
+      }
+      else if(type == ResourceType.SECURITY_ROLE) {
+         IdentityID roleID = IdentityID.getIdentityIDFromKey(resource);
+         return roleID == null || provider.getRole(roleID) == null ? null :
+            provider.getAllRoles(new IdentityID[] { roleID });
+      }
+
+      return null;
+   }
+
+   /**
+    * Check if resolved roles include a system administrator role.
+    */
+   private static boolean anySystemAdminRole(AuthenticationProvider provider, IdentityID[] roles) {
+      return roles != null &&
+         Arrays.stream(roles).anyMatch(r -> r != null && provider.isSystemAdministratorRole(r));
+   }
+
+   /**
+    * Check if a role, already expanded with its inherited roles, makes its holder an
+    * organization administrator. The same as OrganizationManager.isOrgAdmin(), the built-in
+    * Organization Administrator role doesn't count when multi-tenancy is disabled.
+    */
+   private static boolean isOrgAdminRole(AuthenticationProvider provider, IdentityID role) {
+      return role != null && provider.isOrgAdministratorRole(role) &&
+         (!"Organization Administrator".equals(role.name) || SUtil.isMultiTenant());
+   }
+
+   /**
+    * Gets the roles, with their inherited roles, a group holds directly or through its ancestor
+    * groups, or null when the group doesn't exist.
+    */
+   private static IdentityID[] getGroupGrantedRoles(AuthenticationProvider provider,
+                                                    IdentityID groupID)
+   {
+      if(groupID == null || provider.getGroup(groupID) == null) {
+         return null;
+      }
+
+      List<IdentityID> roles = new ArrayList<>();
+
+      for(IdentityID id : provider.getAllGroups(new IdentityID[] { groupID })) {
+         Group group = provider.getGroup(id);
+
+         if(group != null && group.getRoles() != null) {
+            roles.addAll(Arrays.asList(group.getRoles()));
+         }
+      }
+
+      return provider.getAllRoles(roles.toArray(new IdentityID[0]));
+   }
+
+   /**
+    * Gets the roles, with their inherited roles, a user holds directly or through its groups and
+    * their ancestor groups, or null when the user doesn't exist.
+    */
+   private static IdentityID[] getUserGrantedRoles(AuthenticationProvider provider,
+                                                   IdentityID userID)
+   {
       User user = userID == null ? null : provider.getUser(userID);
 
       if(user == null) {
-         return false;
+         return null;
       }
 
       Set<IdentityID> roles = new HashSet<>();
@@ -893,8 +993,7 @@ public class DefaultCheckPermissionStrategy implements CheckPermissionStrategy {
          }
       }
 
-      return Arrays.stream(provider.getAllRoles(roles.toArray(new IdentityID[0])))
-         .anyMatch(r -> r != null && provider.isSystemAdministratorRole(r));
+      return provider.getAllRoles(roles.toArray(new IdentityID[0]));
    }
 
    private AuthenticationProvider getCurrentProvider(Principal principal) {

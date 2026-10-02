@@ -99,7 +99,7 @@ public class ChangeChartAestheticService {
          ChartVSAssembly clone = assembly.clone();
          ChartBindingModel cmodel = event.getModel();
          Map<String, Color> oDimColors = getDimensionColor(assembly, vs);
-         clone = (ChartVSAssembly) bindingFactory.updateAssembly(cmodel, clone);
+         clone = (ChartVSAssembly) bindingFactory.updateAssembly(cmodel, clone, principal);
          ChartVSAssemblyInfo ninfo = clone.getChartInfo();
          ChartVSAssemblyInfo oinfo = (ChartVSAssemblyInfo) assembly.getVSAssemblyInfo().clone();
          chartHandler.fixAggregateInfo(ninfo, vs, null);

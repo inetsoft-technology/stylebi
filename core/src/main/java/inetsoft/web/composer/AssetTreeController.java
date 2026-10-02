@@ -224,6 +224,8 @@ public class AssetTreeController {
                UserVariable[] vars = list.toArray(new UserVariable[0]);
                AssetUtil.validateAlias(vars);
                List<VariableAssemblyModelInfo> parameters = Arrays.stream(vars)
+                  // Bug #77423, the identity variables are set from the user, never prompted
+                  .filter(v -> !VariableTable.isContextVariable(v.getName()))
                   .filter(v -> SUtil.isNeedPrompt(principal, v))
                   .map(VariableAssemblyModelInfo::new)
                   .collect(Collectors.toList());
@@ -490,6 +492,11 @@ public class AssetTreeController {
 
       if(variables != null) {
          for(VariableAssemblyModelInfo var : variables) {
+            // Bug #77423, the identity variables are set from the user, never from the client
+            if(VariableTable.isContextVariable(var.getName())) {
+               continue;
+            }
+
             Object[] values = Arrays.stream(var.getValue())
                .map((val) -> val == null ? null : val.toString())
                .map((val) -> val == null || val.length() == 0 ? null :

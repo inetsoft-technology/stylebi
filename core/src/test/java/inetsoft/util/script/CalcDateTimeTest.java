@@ -29,6 +29,7 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.Date;
+import java.util.Locale;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -60,6 +61,18 @@ public class CalcDateTimeTest {
       catch(RuntimeException e) {
          assertTrue(e.getMessage().contains("Date is required"));
       }
+   }
+
+   // Bug #77450, java.time reads dates before 1901 in local mean time
+   @Test
+   void datevalueBefore1901InKolkata() {
+      CalcUtilTest.runInZone("Asia/Kolkata", () -> {
+         Date d1882 = CalcUtilTest.hybridDate(1882, 6, 1);
+         assertEquals(-6422, CalcDateTime.datevalue(d1882));
+         assertEquals(-6422, CalcDateTime.datevalue(new java.sql.Date(d1882.getTime())));
+         assertEquals(1, CalcDateTime.datevalue(CalcUtilTest.hybridDate(1900, 1, 1)));
+         assertEquals(45199, CalcDateTime.datevalue(CalcUtilTest.hybridDate(2023, 10, 1)));
+      });
    }
 
    @Test
@@ -1141,6 +1154,38 @@ public class CalcDateTimeTest {
          fail("Expected RuntimeException for null date");
       } catch (RuntimeException e) {
          assertTrue(e.getMessage().contains("date must not be null"));
+      }
+   }
+
+   // Bug #77471, holidays, week numbers and fiscal periods use the Gregorian calendar under a
+   // Buddhist or Japanese imperial default locale, and are unchanged under Gregorian locales
+   @Test
+   void gregorianResultsUnderNonGregorianDefaultLocale() {
+      for(String tag : new String[] { "en-US", "de-DE", "th-TH", "ja-JP-u-ca-japanese" }) {
+         Locale oldLocale = Locale.getDefault();
+
+         try {
+            Locale.setDefault(Locale.forLanguageTag(tag));
+            Object[] holidays = { CalcUtilTest.hybridDate(2024, 1, 3) };
+            Object[] yearsWith53Weeks = { 2020 };
+            Date june2024 = CalcUtilTest.hybridDate(2024, 6, 15);
+
+            assertEquals(4, CalcDateTime.networkdays(CalcUtilTest.hybridDate(2024, 1, 1),
+                                                     CalcUtilTest.hybridDate(2024, 1, 5), holidays), tag);
+            assertEquals(CalcUtilTest.hybridDate(2024, 1, 5),
+                         CalcDateTime.workday(CalcUtilTest.hybridDate(2024, 1, 1), 3, holidays), tag);
+            assertEquals(24, CalcDateTime.weeknum(CalcUtilTest.hybridDate(2019, 6, 15), 1), tag);
+            // the first week of the year still follows the locale's minimal days
+            assertEquals("de-DE".equals(tag) ? 53 : 1,
+                         CalcDateTime.weeknum(CalcUtilTest.hybridDate(2021, 1, 1), 1), tag);
+            assertEquals(2024, CalcDateTime.fiscalyear(june2024, 4, 1, null), tag);
+            assertEquals(3, CalcDateTime.fiscalmonth(june2024, 4, 1, null), tag);
+            assertEquals(2023, CalcDateTime.fiscalyear445(june2024, 2015, 1, 4, yearsWith53Weeks, null), tag);
+            assertEquals(24, CalcDateTime.fiscalweek445(june2024, 2015, 1, 4, yearsWith53Weeks, null), tag);
+         }
+         finally {
+            Locale.setDefault(oldLocale);
+         }
       }
    }
 

@@ -223,7 +223,8 @@ public class VSWizardBindingService {
             // Handle source changed.
             SourceInfo oldSource = vsTemporaryInfo.getTempChart().getSourceInfo();
             SourceInfo newSource = bindingHandler.getCurrentSource(entries, event.tableName());
-            boolean change = bindingHandler.changeSource(newSource, oldSource, vsTemporaryInfo, vs);
+            boolean change = bindingHandler.changeSource(newSource, oldSource,
+                                                       vsTemporaryInfo, vs, principal);
 
             if(change || oldSource == null) {
                setDefaultGeoColumns(rvs, vsTemporaryInfo.getTempChart(), event.tableName());

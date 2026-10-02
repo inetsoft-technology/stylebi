@@ -51,6 +51,7 @@ public class ResizeColumnService extends WorksheetControllerService {
       String tname = event.getTableName();
       ColumnRef column = (ColumnRef) event.getColumnRef().createDataRef();
       int width = event.getWidth();
+      checkCubeTableReadPermission(principal, tname);
       TableAssembly table = (TableAssembly) ws.getAssembly(tname);
       ColumnSelection ocolumns = table.getColumnSelection(false);
       ColumnSelection ncolumns = table.getColumnSelection(true);

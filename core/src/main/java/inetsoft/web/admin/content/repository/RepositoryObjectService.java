@@ -588,8 +588,17 @@ public class RepositoryObjectService {
          return status;
       }
 
+      // read the folder before the model is removed, it is part of the permission resource
+      XLogicalModel logicalModel = dataModel.getLogicalModel(name);
+      String folder = logicalModel == null ? null : logicalModel.getFolder();
       dataModel.removeLogicalModel(name);
       removeDataModelDependencies(path, AssetEntry.Type.LOGIC_MODEL, true);
+
+      if(logicalModel != null) {
+         securityProvider.removePermission(ResourceType.QUERY,
+            XUtil.getLogicalModelResourceName(dataModel.getDataSource(), folder, name));
+      }
+
       return null;
    }
 

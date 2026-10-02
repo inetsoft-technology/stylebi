@@ -38,6 +38,7 @@ import inetsoft.web.composer.model.TreeNodeModel;
 import inetsoft.web.composer.model.vs.*;
 import inetsoft.web.composer.vs.objects.controller.VSObjectPropertyService;
 import inetsoft.web.composer.vs.objects.controller.VSTrapService;
+import inetsoft.web.portal.controller.database.QueryManagerService;
 import inetsoft.web.viewsheet.service.*;
 import org.springframework.stereotype.Service;
 
@@ -58,7 +59,8 @@ public class SelectionListPropertyDialogService {
                                              SelectionDialogService selectionDialogService,
                                              VSAssemblyInfoHandler assemblyInfoHandler,
                                              DataRefModelFactoryService dataRefService,
-                                             DataSourceRegistry dataSourceRegistry)
+                                             DataSourceRegistry dataSourceRegistry,
+                                             QueryManagerService queryManagerService)
    {
       this.vsObjectPropertyService = vsObjectPropertyService;
       this.vsOutputService = vsOutputService;
@@ -69,6 +71,7 @@ public class SelectionListPropertyDialogService {
       this.assemblyInfoHandler = assemblyInfoHandler;
       this.dataRefService = dataRefService;
       this.dataSourceRegistry = dataSourceRegistry;
+      this.queryManagerService = queryManagerService;
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
@@ -262,7 +265,7 @@ public class SelectionListPropertyDialogService {
       selectionListAssemblyInfo.setSelectFirstItemValue(selectionGeneralPane.isSelectFirstItem());
       selectionListAssemblyInfo.setQuickSwitchAllowedValue(selectionGeneralPane.isQuickSwitchAllowed());
 
-      setAssemblyInfoTables(selectionListAssemblyInfo, selectionListPaneModel);
+      setAssemblyInfoTables(selectionListAssemblyInfo, selectionListPaneModel, principal);
       setAssemblyInfoDataRefs(selectionListAssemblyInfo, selectionListPaneModel);
       setAssemblyInfoMeasure(selectionListAssemblyInfo, selectionMeasurePaneModel);
 
@@ -297,7 +300,7 @@ public class SelectionListPropertyDialogService {
       SelectionListPaneModel selectionListPaneModel = value.getSelectionListPaneModel();
       SelectionMeasurePaneModel selectionMeasurePaneModel = selectionListPaneModel.getSelectionMeasurePaneModel();
 
-      setAssemblyInfoTables(newAssemblyInfo, selectionListPaneModel);
+      setAssemblyInfoTables(newAssemblyInfo, selectionListPaneModel, principal);
       setAssemblyInfoDataRefs(newAssemblyInfo, selectionListPaneModel);
       setAssemblyInfoMeasure(newAssemblyInfo, selectionMeasurePaneModel);
 
@@ -328,7 +331,7 @@ public class SelectionListPropertyDialogService {
       SelectionListPaneModel selectionListPaneModel = value.getSelectionListPaneModel();
       SelectionMeasurePaneModel selectionMeasurePaneModel = selectionListPaneModel.getSelectionMeasurePaneModel();
 
-      setAssemblyInfoTables(newAssemblyInfo, selectionListPaneModel);
+      setAssemblyInfoTables(newAssemblyInfo, selectionListPaneModel, principal);
       setAssemblyInfoDataRefs(newAssemblyInfo, selectionListPaneModel);
       setAssemblyInfoMeasure(newAssemblyInfo, selectionMeasurePaneModel);
 
@@ -353,8 +356,12 @@ public class SelectionListPropertyDialogService {
    }
 
    private void setAssemblyInfoTables(SelectionListVSAssemblyInfo info,
-                                      SelectionListPaneModel model)
+                                      SelectionListPaneModel model, Principal principal)
    {
+      // a cube table is resolved from its data source without a permission check, so check
+      // a newly bound one before it is set (Bug #77427)
+      queryManagerService.checkNewCubeTablesReadPermission(
+         model.getSelectedTable(), model.getAdditionalTables(), info.getTableNames(), principal);
       info.setFirstTableName(model.getSelectedTable());
       info.setAdditionalTableNames(model.getAdditionalTables());
    }
@@ -411,4 +418,5 @@ public class SelectionListPropertyDialogService {
    private final VSAssemblyInfoHandler assemblyInfoHandler;
    private final DataRefModelFactoryService dataRefService;
    private final DataSourceRegistry dataSourceRegistry;
+   private final QueryManagerService queryManagerService;
 }
