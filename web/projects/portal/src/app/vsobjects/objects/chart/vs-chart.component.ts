@@ -1500,8 +1500,8 @@ export class VSChart extends AbstractVSObject<VSChartModel>
 
       const chartContainerBounds = this.chartContainerBounds;
 
-      return new Rectangle(chartContainerBounds.x + contentBounds.x + this.model.paddingLeft,
-         chartContainerBounds.y + contentBounds.y + this.model.paddingTop + titleHeight,
+      return new Rectangle(chartContainerBounds.x + contentBounds.x + (this.model.padding?.left || 0),
+         chartContainerBounds.y + contentBounds.y + (this.model.padding?.top || 0) + titleHeight,
          contentBounds.width, contentBounds.height);
    }
 

@@ -527,6 +527,7 @@ public class HTMLVSExporter extends AbstractVSExporter {
    protected void writeSelectionList(SelectionListVSAssembly assembly) {
       HTMLSelectionListHelper thelper = new HTMLSelectionListHelper(
          helper, assembly.getViewsheet(), assembly);
+      thelper.setExporter(this);
       thelper.write(writer, assembly);
    }
 

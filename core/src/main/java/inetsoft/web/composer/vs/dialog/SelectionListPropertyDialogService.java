@@ -21,6 +21,7 @@ package inetsoft.web.composer.vs.dialog;
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.cluster.*;
 import inetsoft.report.composition.*;
+import inetsoft.uql.CompositeValue;
 import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.asset.ColumnRef;
 import inetsoft.uql.asset.internal.AssetUtil;
@@ -143,6 +144,26 @@ public class SelectionListPropertyDialogService {
       selectionGeneralPane.setSuppressBlank(selectionListAssemblyInfo.isSuppressBlankValue());
       selectionGeneralPane.setSelectFirstItem(selectionListAssemblyInfo.getSelectFirstItemValue());
       selectionGeneralPane.setQuickSwitchAllowed(selectionListAssemblyInfo.getQuickSwitchAllowedValue());
+
+      PaddingPaneModel paddingPaneModel = selectionGeneralPane.getPaddingPaneModel();
+      Insets padding = selectionListAssemblyInfo.getPadding();
+      paddingPaneModel.setTop(padding.top);
+      paddingPaneModel.setLeft(padding.left);
+      paddingPaneModel.setBottom(padding.bottom);
+      paddingPaneModel.setRight(padding.right);
+      // null hides the checkbox: an unmarked selection has no default to follow, and the pane then
+      // behaves exactly as it did before the checkbox existed
+      paddingPaneModel.setFollowsDefault(
+         selectionListAssemblyInfo.getVizMark() == null ? null : !selectionListAssemblyInfo.isUserPadding());
+
+      PaddingPaneModel cellPaddingPaneModel = selectionGeneralPane.getCellPaddingPaneModel();
+      Insets cellPadding = selectionListAssemblyInfo.getCellPadding();
+      cellPaddingPaneModel.setTop(cellPadding == null ? 0 : cellPadding.top);
+      cellPaddingPaneModel.setLeft(cellPadding == null ? 0 : cellPadding.left);
+      cellPaddingPaneModel.setBottom(cellPadding == null ? 0 : cellPadding.bottom);
+      cellPaddingPaneModel.setRight(cellPadding == null ? 0 : cellPadding.right);
+      cellPaddingPaneModel.setFollowsDefault(
+         selectionListAssemblyInfo.getVizMark() == null ? null : !selectionListAssemblyInfo.isUserCellPadding());
 
       for(Assembly assembly : vs.getAssemblies()) {
          if(assembly instanceof CurrentSelectionVSAssembly) {
@@ -273,9 +294,13 @@ public class SelectionListPropertyDialogService {
          size.height = selectionListAssemblyInfo.getTitleHeight();
       }
       else if(showType != oldShowType) {
+         // the rows a marked list draws follow the density and sit inside its card inset; both
+         // reduce to the stored cell height and zero for an unmarked list
+         Insets inset = selectionListAssemblyInfo.getPadding();
+         int insetY = inset == null ? 0 : inset.top + inset.bottom;
          size.height = selectionListAssemblyInfo.getTitleHeight() +
             selectionListAssemblyInfo.getListHeight() *
-               selectionListAssemblyInfo.getCellHeight();
+               selectionListAssemblyInfo.getEffectiveCellHeight() + insetY;
       }
 
       VSAssembly container = selectionListAssembly.getContainer();
@@ -302,6 +327,54 @@ public class SelectionListPropertyDialogService {
       selectionListAssemblyInfo.setSuppressBlankValue(selectionGeneralPane.isSuppressBlank());
       selectionListAssemblyInfo.setSelectFirstItemValue(selectionGeneralPane.isSelectFirstItem());
       selectionListAssemblyInfo.setQuickSwitchAllowedValue(selectionGeneralPane.isQuickSwitchAllowed());
+
+      PaddingPaneModel paddingPaneModel = selectionGeneralPane.getPaddingPaneModel();
+      Insets editedPadding = new Insets(
+         paddingPaneModel.getTop(), paddingPaneModel.getLeft(),
+         paddingPaneModel.getBottom(), paddingPaneModel.getRight());
+      Boolean paddingFollowsDefault = paddingPaneModel.getFollowsDefault();
+
+      if(paddingFollowsDefault == null) {
+         // no checkbox was shown, so this selection is not marked; store only a real edit
+         if(!editedPadding.equals(selectionListAssemblyInfo.getPadding())) {
+            selectionListAssemblyInfo.setUserPadding(true);
+            selectionListAssemblyInfo.setPadding(editedPadding);
+         }
+      }
+      else if(paddingFollowsDefault) {
+         // clear the opinion and let the default decide, the same shape Revert uses
+         selectionListAssemblyInfo.setUserPadding(false);
+         selectionListAssemblyInfo.resetPadding(VizContext.of(selectionListAssemblyInfo));
+      }
+      else {
+         selectionListAssemblyInfo.setUserPadding(true);
+         selectionListAssemblyInfo.setPadding(editedPadding);
+      }
+
+      PaddingPaneModel cellPaddingPaneModel = selectionGeneralPane.getCellPaddingPaneModel();
+      Insets editedCellPadding = new Insets(
+         cellPaddingPaneModel.getTop(), cellPaddingPaneModel.getLeft(),
+         cellPaddingPaneModel.getBottom(), cellPaddingPaneModel.getRight());
+      Boolean cellPaddingFollowsDefault = cellPaddingPaneModel.getFollowsDefault();
+
+      if(cellPaddingFollowsDefault == null) {
+         // no checkbox was shown, so this selection is not marked; store only a real edit. the load
+         // side shows 0 for an absent padding, so all zeros means none rather than a pinned 0
+         if(editedCellPadding.equals(new Insets(0, 0, 0, 0))) {
+            selectionListAssemblyInfo.resetUserCellPadding();
+         }
+         else if(!editedCellPadding.equals(selectionListAssemblyInfo.getCellPadding())) {
+            selectionListAssemblyInfo.setCellPadding(editedCellPadding, CompositeValue.Type.USER);
+         }
+      }
+      else if(cellPaddingFollowsDefault) {
+         // clear the opinion and let the density decide. Writing the current density value into
+         // the USER tier here would pin this tier
+         selectionListAssemblyInfo.resetUserCellPadding();
+      }
+      else {
+         selectionListAssemblyInfo.setCellPadding(editedCellPadding, CompositeValue.Type.USER);
+      }
 
       setAssemblyInfoTables(selectionListAssemblyInfo, selectionListPaneModel, principal);
       setAssemblyInfoDataRefs(selectionListAssemblyInfo, selectionListPaneModel);

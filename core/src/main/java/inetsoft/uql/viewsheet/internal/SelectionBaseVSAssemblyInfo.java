@@ -162,6 +162,23 @@ public abstract class SelectionBaseVSAssemblyInfo extends MaxModeSelectionVSAsse
       this.cellPadding.setValue(cellPadding, type);
    }
 
+   /**
+    * Whether the author set the cell padding. Surfaced in the property dialog as the cell padding
+    * pane's follow-the-default checkbox, inverted.
+    */
+   public boolean isUserCellPadding() {
+      return cellPadding.hasUserValue();
+   }
+
+   /**
+    * Drop the author's cell padding and let the density decide again. What the follow-the-default
+    * checkbox calls when it is checked - writing the density value into the USER tier instead
+    * would pin the current tier.
+    */
+   public void resetUserCellPadding() {
+      cellPadding.resetUserValue();
+   }
+
    @Override
    public double getListHeightScale() {
       return listHeightScale;
@@ -946,6 +963,41 @@ public abstract class SelectionBaseVSAssemblyInfo extends MaxModeSelectionVSAsse
             ctx.dark ? VSObjectChromeDefaults.darkForegroundValue()
                : VSObjectChromeDefaults.legacyCellForegroundValue());
       }
+
+      // the cell's content inset. Seeded rather than resolved at render so it travels in an
+      // exported asset. Both branches write: Revert calls this with an unmarked context and needs
+      // the legacy absence restored, not the modern value left in place
+      if(!isUserCellPadding()) {
+         setCellPadding(VSDensityDefaults.cellPadding(ctx), CompositeValue.Type.DEFAULT);
+      }
+
+      // the card inset. A format.css padding on the assembly class installed its own through
+      // setCSSDefaults and keeps it, which is what isCssPaddingDefined guards
+      if(!isUserPadding() && !isCssPaddingDefined()) {
+         setPadding(VSDensityDefaults.tablePadding(ctx));
+      }
+
+      // the box follows density, because the content inside it does. A tier's taller rows and
+      // title lane cost a default-size list two of its five rows, and the inset would cost a
+      // third, so the box grows to keep the row count the legacy default had.
+      //
+      // Guarded on a size this rule could itself have written, so an author who sized the
+      // assembly keeps their size through a Modernize or a density change. Revert reverses it,
+      // or a reverted list keeps a box sized for rows it no longer has. Last, because it sizes
+      // against the inset seeded above.
+      //
+      // Unmarked, only Revert's transition may reset the box: an open or a density re-seed runs
+      // this too, and must not shrink an unmarked list that merely happens to sit at a tier size
+      if((ctx.modern || ctx.transition) &&
+         VSDensityDefaults.isSeededSelectionSize(getPixelSize()))
+      {
+         setPixelSize(VSDensityDefaults.selectionSize(ctx));
+      }
+   }
+
+   @Override
+   protected Insets defaultPadding(VizContext ctx) {
+      return VSDensityDefaults.tablePadding(ctx);
    }
 
    /**

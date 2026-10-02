@@ -18,6 +18,7 @@
 import { GeneralPropPaneModel } from "../../../vsobjects/model/general-prop-pane-model";
 import { TitlePropPaneModel } from "../../../vsobjects/model/title-prop-pane-model";
 import { SizePositionPaneModel } from "../../../vsobjects/model/size-position-pane-model";
+import { PaddingPaneModel } from "../../../vsobjects/model/padding-pane-model";
 
 export interface SelectionGeneralPaneModel {
    showType: number;
@@ -34,4 +35,6 @@ export interface SelectionGeneralPaneModel {
    titlePropPaneModel: TitlePropPaneModel;
    sizePositionPaneModel: SizePositionPaneModel;
    quickSwitchAllowed: boolean;
+   paddingPaneModel: PaddingPaneModel;
+   cellPaddingPaneModel: PaddingPaneModel;
 }

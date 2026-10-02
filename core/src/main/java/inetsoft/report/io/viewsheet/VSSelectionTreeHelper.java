@@ -48,6 +48,7 @@ public class VSSelectionTreeHelper extends VSSelectionListHelper {
       }
 
       boundsList = cHelper.prepareBounds(assembly, totalHeight, 1);
+      insetRowBounds(assembly, info);
       writeObjectBackground(info);
       StringBuilder sTitle = new StringBuilder();
       List<SelectionValue> dispList = new ArrayList<>();

@@ -818,7 +818,7 @@ public class HTMLCoordinateHelper extends CoordinateHelper {
       Point position = info.getViewsheet().getPixelPosition(info);
       Dimension size = info.getPixelSize();
       Rectangle2D cbounds = createBounds(position, size);
-      size = new Dimension(size.width, AssetUtil.defh);
+      size = new Dimension(size.width, info.getOutSelectionRowHeight(AssetUtil.defh));
       Point startPos = info.getViewsheet().getPixelPosition(info);
       int titleH = info.isTitleVisible() ? info.getTitleHeight() : 0;
 
@@ -864,7 +864,8 @@ public class HTMLCoordinateHelper extends CoordinateHelper {
    private void adjustChildAssemblyPosition(Point position, CurrentSelectionVSAssemblyInfo info, Viewsheet exportVS) {
       Viewsheet vs = info.getViewsheet();
       String[] values = info.getOutSelectionValues();
-      int y = position.y + (info.isShowCurrentSelection() ? values.length * AssetUtil.defh : 0);
+      int y = position.y + (info.isShowCurrentSelection() ?
+         values.length * info.getOutSelectionRowHeight(AssetUtil.defh) : 0);
 
       for(String child: info.getAssemblies()) {
          Assembly cobj = vs.getAssembly(child);

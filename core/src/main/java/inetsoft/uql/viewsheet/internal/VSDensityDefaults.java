@@ -21,6 +21,7 @@ import inetsoft.sree.SreeEnv;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.viewsheet.ViewsheetInfo;
 
+import java.awt.Dimension;
 import java.awt.Insets;
 
 /**
@@ -179,6 +180,63 @@ public final class VSDensityDefaults {
       return height == controlHeightForMode(DENSE) || height == controlHeightForMode(COMPACT) ||
          height == controlHeightForMode(COMFORTABLE);
    }
+
+   /**
+    * The default size of a selection list or tree: the card inset around a title lane and five
+    * data rows. Five because that is what the legacy 100x120 default showed, and because a row
+    * count that varied by tier would be a worse inconsistency than the one the inset removes.
+    *
+    * The width's content half stays at defw: density has an opinion about row height and the
+    * title lane, and none about how wide a label column should be.
+    */
+   public static Dimension selectionSize(VizContext ctx) {
+      if(!ctx.modern) {
+         return legacySelectionSize();
+      }
+
+      return selectionSizeForMode(ctx.density);
+   }
+
+   /**
+    * Whether a size is one selectionSize() could have written - the legacy default, or a tier
+    * default. Anything else is an author size, and the seed must leave it alone.
+    *
+    * An author cell height takes the assembly out of this set too, since the size it produced
+    * will not match any tier. That is correct: an author who sized the rows has an opinion about
+    * the box as well.
+    */
+   public static boolean isSeededSelectionSize(Dimension size) {
+      if(size == null) {
+         return false;
+      }
+
+      return size.equals(legacySelectionSize())
+         || size.equals(selectionSizeForMode(COMFORTABLE))
+         || size.equals(selectionSizeForMode(COMPACT))
+         || size.equals(selectionSizeForMode(DENSE));
+   }
+
+   /**
+    * The pre-density default. Read by both the producer and the recogniser, so the two cannot
+    * drift: were they to disagree, every legacy-sized assembly would fall outside the recognised
+    * set and silently stop being resized.
+    */
+   private static Dimension legacySelectionSize() {
+      return new Dimension(AssetUtil.defw, AssetUtil.defh * (SELECTION_ROWS + 1));
+   }
+
+   private static Dimension selectionSizeForMode(String mode) {
+      Insets inset = chartPaddingForMode(mode);
+      return new Dimension(inset.left + AssetUtil.defw + inset.right,
+                           inset.top + titleHeightForMode(mode)
+                              + SELECTION_ROWS * rowHeightForMode(mode) + inset.bottom);
+   }
+
+   /**
+    * Five data rows. The legacy default was defh * 6 - a title lane over five rows - so the lane
+    * is counted separately in both the legacy and tier sizes and this constant means one thing.
+    */
+   private static final int SELECTION_ROWS = 5;
 
    /**
     * Title-lane height for one assembly: the density row when the assembly is marked, its author

@@ -69,10 +69,9 @@ public class VSChartModel extends VSObjectModel<ChartVSAssembly> implements Char
       this.empty = info.getTableName() == null;
       //Edited only through wizard
       this.editedByWizard = info.isEditedByWizard();
-      this.paddingTop = info.getPadding().top;
-      this.paddingLeft = info.getPadding().left;
-      this.paddingBottom = info.getPadding().bottom;
-      this.paddingRight = info.getPadding().right;
+      // defensive copy: Insets is mutable, and the assembly's stored instance must not be aliased
+      Insets infoPadding = info.getPadding();
+      this.padding = infoPadding == null ? null : (Insets) infoPadding.clone();
       setHasDynamic(containsDynamic(assembly));
       this.isWordCloud = GraphTypeUtil.isWordCloud(assembly.getVSChartInfo());
       this.scatterMatrix = GraphTypeUtil.isScatterMatrix(assembly.getVSChartInfo());
@@ -423,20 +422,8 @@ public class VSChartModel extends VSObjectModel<ChartVSAssembly> implements Char
       this.editedByWizard = editedByWizard;
    }
 
-   public int getPaddingTop() {
-      return paddingTop;
-   }
-
-   public int getPaddingLeft() {
-      return paddingLeft;
-   }
-
-   public int getPaddingBottom() {
-      return paddingBottom;
-   }
-
-   public int getPaddingRight() {
-      return paddingRight;
+   public Insets getPadding() {
+      return padding;
    }
 
    public List<String> getAxisFields() {
@@ -644,7 +631,7 @@ public class VSChartModel extends VSObjectModel<ChartVSAssembly> implements Char
    private boolean empty;
    private boolean changedByScript;
    private boolean editedByWizard = true; //Not edited by binding
-   private int paddingTop, paddingLeft, paddingBottom, paddingRight;
+   private Insets padding;
    private boolean hasLegend;
    private List<String> axisFields = new ArrayList<>();
    private static final Logger LOG = LoggerFactory.getLogger(VSChartModel.class);

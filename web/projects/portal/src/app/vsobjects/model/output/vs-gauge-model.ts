@@ -21,8 +21,4 @@ import { VSOutputModel } from "./vs-output-model";
 export interface VSGaugeModel extends VSOutputModel {
    hyperlinks: HyperlinkModel[];
    face?: number;
-   paddingTop?: number;
-   paddingLeft?: number;
-   paddingBottom?: number;
-   paddingRight?: number;
 }

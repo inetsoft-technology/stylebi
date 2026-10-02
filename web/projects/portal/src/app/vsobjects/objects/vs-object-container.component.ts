@@ -528,19 +528,19 @@ export class VSObjectContainer implements AfterViewInit, OnChanges, OnDestroy {
    }
 
    /**
-    * The card inset the title lane sits inside. A table carries it as one padding object, the
-    * chart as flat fields; an assembly with neither has none.
+    * The card inset the title lane sits inside. An assembly without a card has none, and neither
+    * does a selection list or tree, whose card inset moves only its body under a flush title lane.
     */
    private static getLaneInset(object: VSObjectModel): { top: number, left: number, right: number } {
-      const padding = (<BaseTableModel> object).padding;
+      const none = { top: 0, left: 0, right: 0, bottom: 0 };
 
-      if(padding) {
-         return padding;
+      if(Tool.equalsIgnoreCase(object.objectType, "VSSelectionList") ||
+         Tool.equalsIgnoreCase(object.objectType, "VSSelectionTree"))
+      {
+         return none;
       }
 
-      const chart = <VSChartModel> object;
-      return { top: chart.paddingTop || 0, left: chart.paddingLeft || 0,
-               right: chart.paddingRight || 0 };
+      return object.padding ?? none;
    }
 
    public getToolbarTop(object: VSObjectModel, i: number): number {
@@ -1072,8 +1072,8 @@ export class VSObjectContainer implements AfterViewInit, OnChanges, OnDestroy {
       const fmt = vsObject.objectFormat;
       const titleHeight = chart.titleVisible ? chart.titleFormat.height : 0;
       return {
-         x: fmt.left + contentBounds.x + (chart.paddingLeft || 0),
-         y: fmt.top + contentBounds.y + (chart.paddingTop || 0) + titleHeight,
+         x: fmt.left + contentBounds.x + (chart.padding?.left || 0),
+         y: fmt.top + contentBounds.y + (chart.padding?.top || 0) + titleHeight,
          width: contentBounds.width,
          height: contentBounds.height
       };

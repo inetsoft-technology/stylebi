@@ -507,7 +507,9 @@ public class PDFVSExporter extends AbstractVSExporter {
     */
    @Override
    protected void writeSelectionList(SelectionListVSAssembly assembly) {
-      new PDFSelectionListHelper(helper).write(assembly);
+      PDFSelectionListHelper selectionListHelper = new PDFSelectionListHelper(helper);
+      selectionListHelper.setExporter(this);
+      selectionListHelper.write(assembly);
    }
 
    /**

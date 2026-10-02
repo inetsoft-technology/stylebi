@@ -59,7 +59,9 @@ let createModel: () => SelectionGeneralPaneModel = () => {
          titleHeight: null
       },
       inSelectionContainer: false,
-      quickSwitchAllowed: false
+      quickSwitchAllowed: false,
+      paddingPaneModel: {top: 4, left: 4, bottom: 4, right: 4, followsDefault: true},
+      cellPaddingPaneModel: {top: 6, left: 8, bottom: 6, right: 8, followsDefault: null}
    };
 };
 
@@ -102,5 +104,15 @@ describe("Selection General Pane Unit Tests", () => {
 
       let warnings = fixture.debugElement.query(By.css("div.shell-alert--danger")).nativeElement;
       expect(TestUtils.toString(warnings.textContent)).toBe("height.positive.nonZero");
+   });
+
+
+   it("should show a card inset pane and a cell padding pane bound to their models", () => {
+      let panes = fixture.debugElement.queryAll(By.css("padding-pane"));
+
+      expect(panes.length).toBe(2);
+      expect(panes[0].componentInstance.model).toBe(selectGeneralPane.model.paddingPaneModel);
+      expect(panes[1].componentInstance.model).toBe(selectGeneralPane.model.cellPaddingPaneModel);
+      expect(panes[1].componentInstance.label).toBe("_#(Cell Padding)");
    });
 });

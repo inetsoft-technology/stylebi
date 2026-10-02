@@ -144,8 +144,10 @@ public final class VizModernizeUtil {
     * Safe on the mark: most types never write it into state, and the few that serialize their
     * whole info have the mark restored by their caller before this runs, so `info` always carries
     * the live assembly's own mark by the time it gets here regardless of what the blob said.
-    * seedChromeDefaults writes DEFAULT tiers and the palette only, so a user format the restored
-    * state legitimately carried survives untouched.
+    * seedChromeDefaults writes DEFAULT tiers and the palette, so a user format the restored state
+    * legitimately carried survives untouched. A selection's seed also writes its card inset and a
+    * seeded size, each guarded on the author's own value, so a selection marked before those
+    * writes existed takes them here, on its first open.
     *
     * Not a transition: the mark has not changed here, so the context carries transition=false and
     * a seed reserved for Modernize and Revert - the measure-to-colour ramp, which replaces the

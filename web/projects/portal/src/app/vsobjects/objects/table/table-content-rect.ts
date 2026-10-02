@@ -15,12 +15,8 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-export interface TablePadding {
-   top: number;
-   left: number;
-   bottom: number;
-   right: number;
-}
+import { TablePadding } from "../../model/vs-object-model";
+export { TablePadding };
 
 /**
  * The width a table's grid draws into: its card width minus the horizontal inset. The card rect

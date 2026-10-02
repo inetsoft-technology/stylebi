@@ -1861,7 +1861,17 @@ public class VsToReportConverter {
          }
 
          TableDataPath path = new TableDataPath(-1, TableDataPath.DETAIL);
-         addTextBoxElement0(info, path, text, bounds, sectionName);
+         applyCardInset(addTextBoxElement0(info, path, text, bounds, sectionName), info);
+      }
+   }
+
+   // the selection's card inset on its printed box; an unmarked selection keeps the box's own
+   // default padding, which a zero inset would otherwise replace
+   private void applyCardInset(TextBoxElement box, VSAssemblyInfo info) {
+      Insets inset = info.getPadding();
+
+      if(inset != null && !isZero(inset)) {
+         box.setPadding((Insets) inset.clone());
       }
    }
 
@@ -1901,7 +1911,7 @@ public class VsToReportConverter {
       }
 
       TableDataPath path = new TableDataPath(-1, TableDataPath.DETAIL);
-      addTextBoxElement0(info, path, text, bounds, sectionName);
+      applyCardInset(addTextBoxElement0(info, path, text, bounds, sectionName), info);
    }
 
     /**
