@@ -948,12 +948,16 @@ export class VSSelection extends NavigationComponent<VSSelectionBaseModel>
       const topMargin: number = Tool.getMarginSize(this._model.objectFormat.border.top);
       const offset = Math.max(0, bottomMargin + topMargin + this.topMarginTitle);
       const searchOffset = this.model.searchDisplayed ? this.model.titleFormat.height : 0;
+      // a container already insets what it hands down, and the dropdown panel is not the card
+      const inset = this._model.padding;
+      const insetY = (inset?.top || 0) + (inset?.bottom || 0);
       return this.inContainer ?
          this.model.objectFormat.height - this.model.titleFormat.height - searchOffset :
          this.model.dropdown && !this.model.maxMode
             ? this.cellHeight * this.model.listHeight - searchOffset
             : this.model.objectFormat.height -
-            (!this.viewer || this.model.titleVisible ? this.model.titleFormat.height : 0) - offset - searchOffset;
+            (!this.viewer || this.model.titleVisible ? this.model.titleFormat.height : 0) - offset - searchOffset -
+            insetY;
    }
 
    getBodyWidth(): number {
@@ -961,12 +965,14 @@ export class VSSelection extends NavigationComponent<VSSelectionBaseModel>
          Tool.getMarginSize(this.model.objectFormat.border.right) -
          Tool.getMarginSize(this.model.objectFormat.border.left) -
          this.leftMargin - this.rightMargin;
+      const inset = this._model.padding;
+      const insetX = this.inContainer ? 0 : (inset?.left || 0) + (inset?.right || 0);
 
       if(this.leftMargin == 0 && this.rightMargin == 0 && this.inContainer) {
          return bodyw - 2 - (this.selected ? 2 : 0);
       }
 
-      return bodyw;
+      return bodyw - insetX;
    }
 
    calcCellWidth(): void {
