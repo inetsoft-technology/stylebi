@@ -21,6 +21,7 @@ import inetsoft.sree.schedule.ScheduleTask;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.sree.security.ResourceAction;
 import inetsoft.sree.security.ResourceType;
+import inetsoft.sree.security.SecurityException;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.asset.internal.AssetFolder;
@@ -71,7 +72,14 @@ public class ScheduleTaskFolderController {
          "" : path + "/";
       folderName += req.getFolderName();
 
-      return scheduleTaskFolderService.checkAddDuplicate(req.getParent(), folderName,
+      // Bug #77523, the same WRITE check addFolder makes, so the endpoint doesn't tell a user
+      // who can't add to the folder which schedule folders exist
+      if(!scheduleTaskFolderService.checkFolderPermission(path, principal, ResourceAction.WRITE)) {
+         throw new SecurityException(
+            "Unauthorized access to resource \"" + path + "\" by user " + principal);
+      }
+
+      return scheduleTaskFolderService.checkAddDuplicate(getParentFolderEntry(path), folderName,
          AssetRepository.GLOBAL_SCOPE, principal);
    }
 
@@ -93,7 +101,17 @@ public class ScheduleTaskFolderController {
       folderName += req.getFolderName();
 
       scheduleTaskFolderService.addFolder(
-         req.getParent(), folderName, path, AssetRepository.GLOBAL_SCOPE, principal);
+         getParentFolderEntry(path), folderName, path, AssetRepository.GLOBAL_SCOPE, principal);
+   }
+
+   /**
+    * Bug #77523, only the path of the client's parent entry is used. The scope, type, user and
+    * organization are the server's, as in the EM controller, so the parent written to is always
+    * the schedule task folder the permission was checked on.
+    */
+   private AssetEntry getParentFolderEntry(String path) {
+      return new AssetEntry(
+         AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.SCHEDULE_TASK_FOLDER, path, null);
    }
 
    @Secured({

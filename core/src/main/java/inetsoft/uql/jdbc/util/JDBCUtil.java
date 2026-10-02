@@ -548,6 +548,8 @@ public class JDBCUtil {
             ((XJoin) root).getExpression2(), ((XJoin) root).getOp());
 
          newNode.setName(root.getName());
+         // keep the negation, e.g. "a.k = 1 or not (a.id = b.k)"
+         newNode.setIsNot(root.isIsNot());
          fixFakeJoins(sql, newNode, hash);
          return newNode;
       }

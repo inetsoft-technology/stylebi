@@ -23,6 +23,7 @@ import inetsoft.report.composition.execution.AssetQuerySandbox;
 import inetsoft.report.lens.DefaultTableLens;
 import inetsoft.sree.DynamicParameterValue;
 import inetsoft.sree.security.*;
+import inetsoft.sree.security.SecurityException;
 import inetsoft.uql.VariableTable;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
@@ -103,6 +104,61 @@ class BatchActionTest {
 
    @Nested
    class RunEntryPoint {
+
+      // Bug #77531, a BatchAction may not dispatch to one of the three internal tasks unless
+      // the parent task's principal is a site admin
+      @Test
+      void run_internalTaskTarget_nonSiteAdmin_isRefused() throws Throwable {
+         BatchAction action = new BatchAction();
+         action.setTaskId(InternalScheduledTaskService.UPDATE_ASSETS_DEPENDENCIES);
+         ScheduleTask internalTask =
+            new ScheduleTask(InternalScheduledTaskService.UPDATE_ASSETS_DEPENDENCIES);
+
+         try(MockedStatic<ScheduleManager> scheduleManager = mockStatic(ScheduleManager.class);
+             MockedStatic<OrganizationManager> orgManager = mockStatic(OrganizationManager.class))
+         {
+            ScheduleManager manager = mock(ScheduleManager.class);
+            scheduleManager.when(ScheduleManager::getScheduleManager).thenReturn(manager);
+            when(manager.getScheduleTask(InternalScheduledTaskService.UPDATE_ASSETS_DEPENDENCIES))
+               .thenReturn(internalTask);
+            scheduleManager.when(() -> ScheduleManager.isInternalTask(
+               InternalScheduledTaskService.UPDATE_ASSETS_DEPENDENCIES)).thenReturn(true);
+
+            OrganizationManager organizationManager = mock(OrganizationManager.class);
+            orgManager.when(OrganizationManager::getInstance).thenReturn(organizationManager);
+            when(organizationManager.isSiteAdmin(child)).thenReturn(false);
+
+            assertThrows(SecurityException.class, () -> action.run(child));
+         }
+      }
+
+      // Bug #77531, a site admin may still point a BatchAction at an internal task
+      @Test
+      void run_internalTaskTarget_siteAdmin_isAllowed() throws Throwable {
+         BatchAction action = new BatchAction();
+         action.setTaskId(InternalScheduledTaskService.UPDATE_ASSETS_DEPENDENCIES);
+         ScheduleTask internalTask =
+            new ScheduleTask(InternalScheduledTaskService.UPDATE_ASSETS_DEPENDENCIES);
+
+         try(MockedStatic<ScheduleManager> scheduleManager = mockStatic(ScheduleManager.class);
+             MockedStatic<OrganizationManager> orgManager = mockStatic(OrganizationManager.class))
+         {
+            ScheduleManager manager = mock(ScheduleManager.class);
+            scheduleManager.when(ScheduleManager::getScheduleManager).thenReturn(manager);
+            when(manager.getScheduleTask(InternalScheduledTaskService.UPDATE_ASSETS_DEPENDENCIES))
+               .thenReturn(internalTask);
+            scheduleManager.when(() -> ScheduleManager.isInternalTask(
+               InternalScheduledTaskService.UPDATE_ASSETS_DEPENDENCIES)).thenReturn(true);
+
+            OrganizationManager organizationManager = mock(OrganizationManager.class);
+            orgManager.when(OrganizationManager::getInstance).thenReturn(organizationManager);
+            when(organizationManager.isSiteAdmin(admin)).thenReturn(true);
+
+            // no embedded/query parameters configured, so nothing further is dispatched; this
+            // only confirms the internal-task check itself does not refuse a site admin
+            assertDoesNotThrow(() -> action.run(admin));
+         }
+      }
 
       @Test
       void run_missingScheduleTask_doesNotThrow() throws Throwable {

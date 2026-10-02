@@ -187,7 +187,8 @@ public abstract class AbstractEditableAuthenticationProvider
             }
 
             if(replace) {
-               removeRole(roleIdentity);
+               removeOldIdentity("role " + roleIdentity.getLabel(), () -> removeRole(roleIdentity),
+                                 fromOrgId, newOrgID);
             }
          }
       }
@@ -201,7 +202,8 @@ public abstract class AbstractEditableAuthenticationProvider
             }
 
             if(replace) {
-               removeUser(userID);
+               removeOldIdentity("user " + userID.getLabel(), () -> removeUser(userID),
+                                 fromOrgId, newOrgID);
             }
          }
       }
@@ -355,7 +357,8 @@ public abstract class AbstractEditableAuthenticationProvider
       }
 
       if(replace) {
-         removeOrganization(fromOrgId);
+         removeOldIdentity("organization " + fromOrgId, () -> removeOrganization(fromOrgId),
+                           fromOrgId, newOrgID);
          identityService.removeOrgProperties(fromOrgId);
          identityService.removeOrgScopedDataSpaceElements(fromOrganization);
          themeService.removeTheme(fromOrgId);
@@ -388,6 +391,24 @@ public abstract class AbstractEditableAuthenticationProvider
       }
       else {
          identityService.copyDashboardRegistry(fromOrganization, newOrg);
+      }
+   }
+
+   /**
+    * Removes an identity of the old organization during an organization rename. This is
+    * best-effort: by now the new organization holds the migrated state (properties, permissions,
+    * auto-save and task files were already re-keyed), so aborting the rename here would leave the
+    * organization half-migrated. A failure leaves an extra identity behind, not lost data.
+    */
+   private void removeOldIdentity(String identity, Runnable remove, String fromOrgId,
+                                  String newOrgID)
+   {
+      try {
+         remove.run();
+      }
+      catch(RuntimeException e) {
+         LOG.warn("The {} could not be removed while renaming organization {} to {}. It was " +
+                  "left behind and must be deleted.", identity, fromOrgId, newOrgID, e);
       }
    }
 
