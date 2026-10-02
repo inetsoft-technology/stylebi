@@ -152,6 +152,8 @@ private int onClauseCount = 0; // ON clauses parsed so far, in text order
 private boolean catalog = false;
 private boolean schema = true;
 private boolean preferQuote = true;
+// conditions of a (+) outer join with an op other than =, e.g. "a.id >= b.id(+)"
+private Map badOuterJoins = new IdentityHashMap();
 
 private static class TableKey {
    public TableKey(UniformSQL sql, Object table) {
@@ -263,6 +265,108 @@ private void markJoins(inetsoft.uql.XNode node, int clause) {
          markJoins(node.getChild(i), clause);
       }
    }
+}
+
+/**
+ * Check that each legacy outer join of a where clause (*=, =* or (+)) can be
+ * generated in the from clause.
+ */
+private void checkWhereOuterJoinPositions(UniformSQL sql, XFilterNode node, Token tok)
+   throws SemanticException
+{
+   List joins = new ArrayList();
+   collectJoins(sql.getWhere(), joins);
+   collectJoins(node, joins);
+   checkWhereOuterJoinPositions(sql, node, true, joins, tok);
+}
+
+/**
+ * An outer join is generated in the from clause as a join condition that the
+ * where clause doesn't see, so it must also be under ANDs only (joinPos). Under
+ * a NOT set, or an OR set with other conditions, the rest of the set would lose
+ * the join (e.g. "not (a.id = b.id(+) and a.k = 1)" generated as "ON a.id = b.id
+ * where not (a.k = 1)"). An OR of outer joins only, between the same two tables
+ * that have no other join, is generated as one ON condition, "ON a.id = b.id OR
+ * a.k = b.k", as Oracle applies it. With another join on the tables it would be
+ * "ON a.k = b.k AND a.id = b.id OR ..." without the parentheses. A negated outer
+ * join itself is fine: Oracle applies "not (a.id = b.id(+))" as the join
+ * condition, which is "ON a.id <> b.id". An outer join that isn't column =
+ * column (e.g. "a.id >= b.id(+)") has no op to keep its comparison, so it was
+ * recorded in badOuterJoins and can't be represented.
+ */
+private void checkWhereOuterJoinPositions(UniformSQL sql, XFilterNode node,
+                                          boolean joinPos, List joins, Token tok)
+   throws SemanticException
+{
+   if(badOuterJoins.containsKey(node) ||
+      !joinPos && node instanceof XJoin && ((XJoin) node).isOuterJoin())
+   {
+      throw new SemanticException("Unsupported outer join condition: " + node,
+                                  getFilename(), tok.getLine(), tok.getColumn());
+   }
+
+   if(node instanceof XSet) {
+      boolean joinPos2 = joinPos && !node.isIsNot() && (node.getChildCount() <= 1 ||
+         XSet.AND.equalsIgnoreCase(((XSet) node).getRelation()) ||
+         isOuterJoinSet(sql, node, joins));
+
+      for(int i = 0; i < node.getChildCount(); i++) {
+         checkWhereOuterJoinPositions(sql, (XFilterNode) node.getChild(i), joinPos2,
+                                      joins, tok);
+      }
+   }
+}
+
+/**
+ * Check if every condition of a set is an outer join of the same type between the
+ * same two tables, and the set has all the joins of the where clause (joins)
+ * between them.
+ */
+private boolean isOuterJoinSet(UniformSQL sql, XFilterNode node, List joins) {
+   String op = null;
+   int index1 = -1;
+   int index2 = -1;
+
+   for(int i = 0; i < node.getChildCount(); i++) {
+      Object child = node.getChild(i);
+
+      if(!(child instanceof XJoin) || !((XJoin) child).isOuterJoin()) {
+         return false;
+      }
+
+      XJoin join = (XJoin) child;
+      int cindex1 = getJoinTableIndex(sql, join.getTable1(sql));
+      int cindex2 = getJoinTableIndex(sql, join.getTable2(sql));
+
+      if(cindex1 < 0 || cindex2 < 0 || cindex1 == cindex2 ||
+         op != null && (!op.equals(join.getOp()) || cindex1 != index1 || cindex2 != index2))
+      {
+         return false;
+      }
+
+      op = join.getOp();
+      index1 = cindex1;
+      index2 = cindex2;
+   }
+
+   for(int i = 0; i < joins.size(); i++) {
+      XJoin join = (XJoin) joins.get(i);
+      int jindex1 = getJoinTableIndex(sql, join.getTable1(sql));
+      int jindex2 = getJoinTableIndex(sql, join.getTable2(sql));
+      boolean inSet = false;
+
+      for(int j = 0; j < node.getChildCount() && !inSet; j++) {
+         inSet = node.getChild(j) == join;
+      }
+
+      if(!inSet && (jindex1 == index1 && jindex2 == index2 ||
+                    jindex1 == index2 && jindex2 == index1))
+      {
+         return false;
+      }
+   }
+
+   return true;
 }
 
 /**
@@ -1537,7 +1641,10 @@ comp_predicate returns [XFilterNode xnode = null]
                 op = "=*";
         }
 
-        // left outer join?
+        // left outer join? the outer join op can't keep another comparison op,
+        // so such a condition is refused if it is in a where clause
+        boolean badOuterJoin = isOracleLeftJoin && !op.equals("=");
+
         if(isOracleLeftJoin == true) {
                 op = "*=";
         }
@@ -1567,7 +1674,12 @@ comp_predicate returns [XFilterNode xnode = null]
         }
 
         node.setExpression1(exp1);
-        node.setOp(op); node.setExpression2(exp2); xnode = node;}
+        node.setOp(op); node.setExpression2(exp2); xnode = node;
+
+        if(badOuterJoin) {
+                badOuterJoins.put(node, Boolean.TRUE);
+        }
+        }
         ;
 
 comp_op returns [String op = ""]
@@ -3473,6 +3585,8 @@ table_exp [UniformSQL sql]
         :
         (from_clause[sql] {moveOuterPairJoins(sql);})?
         ( {wtok = LT(1);} where = where_clause {checkWhereOuterJoins(sql, where, wtok);
+        // checked before whereOuterPairJoins() turns joins into plain conditions
+        checkWhereOuterJoinPositions(sql, where, wtok);
         where = whereOuterPairJoins(sql, where); where.setClause(XFilterNode.WHERE); markJoins(where, XJoin.WHERE_CLAUSE); sql.combineWhereByAnd(where);})?
         ( group_by_clause[sql] )?
         {if(sql != null) {checkOuterJoinTables(sql, LT(1));}}
