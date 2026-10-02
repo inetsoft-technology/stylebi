@@ -502,12 +502,17 @@ private void clearUsingMerges(UniformSQL sql) {
  * Refuse a derived column list (t(p, q)) of a from clause table. UniformSQL
  * has no place for the column list, so it would be kept as part of the alias
  * and regenerated as one quoted alias ("t(p,q)") without the column names.
+ * A SQL Server table hint of an unaliased table (from a with (nolock)) parses
+ * as an unquoted alias with and a column list, and is kept as before (Bug #77492).
  */
 private void checkDerivedColumnList(UniformSQL sql, String alias, String columns,
-                                    Token tok)
+                                    Token aliasTok, Token tok)
    throws SemanticException
 {
-   if(sql != null) {
+   boolean hint = aliasTok != null && aliasTok.getType() == IDENT &&
+      "with".equalsIgnoreCase(aliasTok.getText());
+
+   if(sql != null && !hint) {
       throw new SemanticException(
          "Unsupported derived column list: " + alias + "(" + columns + ")",
          getFilename(), tok.getLine(), tok.getColumn());
@@ -3461,12 +3466,12 @@ ansi_joins [UniformSQL sql] returns [String str = ""]
 ;
 
 table_ref [UniformSQL sql] returns [String tbref = ""]
-        {Object name; String alias = "", tmp,as = ""; XExpression exp; {checkStatus();}}
+        {Object name; String alias = "", tmp,as = ""; Token atok = null; XExpression exp; {checkStatus();}}
         :
      (ansi_joins[null])=> tbref = ansi_joins[sql]
         | name = derived_table
         (( b:AS {as = b.getText();})?
-        alias = correlation_name
+        {atok = LT(1);} alias = correlation_name
 
         {
            if(alias.startsWith("$(@") && alias.endsWith(")")) {
@@ -3474,7 +3479,7 @@ table_ref [UniformSQL sql] returns [String tbref = ""]
            }
         }
 
-        ( dc1:OPEN_PAREN tmp = derived_column_list CLOSE_PAREN {checkDerivedColumnList(sql, alias, tmp, dc1); alias += "(" + tmp + ")";})? )?
+        ( dc1:OPEN_PAREN tmp = derived_column_list CLOSE_PAREN {checkDerivedColumnList(sql, alias, tmp, atok, dc1); alias += "(" + tmp + ")";})? )?
         {
         tbref = name + " " + as + " " + alias;
         if(sql != null) {
@@ -3490,7 +3495,7 @@ table_ref [UniformSQL sql] returns [String tbref = ""]
         name = table_name
         (
          ( a:AS {as = a.getText();})?
-         alias = correlation_name
+         {atok = LT(1);} alias = correlation_name
 
          {
             if(alias.startsWith("$(@") && alias.endsWith(")")) {
@@ -3498,7 +3503,7 @@ table_ref [UniformSQL sql] returns [String tbref = ""]
             }
          }
 
-         ( dc2:OPEN_PAREN tmp = derived_column_list CLOSE_PAREN {checkDerivedColumnList(sql, alias, tmp, dc2); alias += "(" + tmp + ")";})?
+         ( dc2:OPEN_PAREN tmp = derived_column_list CLOSE_PAREN {checkDerivedColumnList(sql, alias, tmp, atok, dc2); alias += "(" + tmp + ")";})?
         )?
         {
          tbref = name + " " + as + " " + alias;
@@ -3515,14 +3520,14 @@ table_ref [UniformSQL sql] returns [String tbref = ""]
         ;
 
 table_ref_nojoin [UniformSQL sql, String op] returns [String tbref = ""]
-        {Object name; String alias = "", tmp,as = ""; {checkStatus();}}
+        {Object name; String alias = "", tmp,as = ""; Token atok = null; {checkStatus();}}
         :
         name = table_name
         (
          ( a:AS {as = a.getText();})?
-         alias = correlation_name
+         {atok = LT(1);} alias = correlation_name
          ( (OPEN_PAREN derived_column_list)=>
-         dc1:OPEN_PAREN tmp = derived_column_list CLOSE_PAREN {checkDerivedColumnList(sql, alias, tmp, dc1); alias += "(" + tmp + ")";})?
+         dc1:OPEN_PAREN tmp = derived_column_list CLOSE_PAREN {checkDerivedColumnList(sql, alias, tmp, atok, dc1); alias += "(" + tmp + ")";})?
         )?
         {
          tbref = name + " " + as + " " + alias;
@@ -3549,9 +3554,9 @@ table_ref_nojoin [UniformSQL sql, String op] returns [String tbref = ""]
          }
         | name = derived_table
         ( b:AS {as = b.getText();})?
-        alias = correlation_name
+        {atok = LT(1);} alias = correlation_name
         ( (OPEN_PAREN derived_column_list)=>
-        dc2:OPEN_PAREN tmp = derived_column_list CLOSE_PAREN {checkDerivedColumnList(sql, alias, tmp, dc2); alias += "(" + tmp + ")";})?
+        dc2:OPEN_PAREN tmp = derived_column_list CLOSE_PAREN {checkDerivedColumnList(sql, alias, tmp, atok, dc2); alias += "(" + tmp + ")";})?
         {
         tbref = name + " " + as + " " + alias;
 
