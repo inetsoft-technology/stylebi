@@ -238,8 +238,13 @@ public class VSEmailService {
                         ViewsheetSandbox sandbox = createSandbox(
                            rvs.getOriginalBookmark(bookmarks[i]), vmode, principal,
                            rvs.getEntry(), box.get().getVariableTable());
-                        exporter.export(sandbox, bookmarks[i], (i + 1), helper);
-                        sandbox.dispose();
+
+                        try {
+                           exporter.export(sandbox, bookmarks[i], (i + 1), helper);
+                        }
+                        finally {
+                           sandbox.dispose();
+                        }
                      }
 
                      exporter.write();
@@ -483,8 +488,13 @@ public class VSEmailService {
          ViewsheetSandbox sandbox = createSandbox(
                  rvs.getOriginalBookmark(bookmarks[i]), vmode, principal,
                  rvs.getEntry(), box.get().getVariableTable());
-         exporter.export(sandbox, bookmarks[i], (i + 1), helper); //!!! maybe the pictures aren't being written out become of overwriting?
-         sandbox.dispose();
+
+         try {
+            exporter.export(sandbox, bookmarks[i], (i + 1), helper); //!!! maybe the pictures aren't being written out become of overwriting?
+         }
+         finally {
+            sandbox.dispose();
+         }
       }
 
       exporter.write();

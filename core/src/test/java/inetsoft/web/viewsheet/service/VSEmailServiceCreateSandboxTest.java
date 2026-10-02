@@ -391,6 +391,75 @@ class VSEmailServiceCreateSandboxTest {
    }
 
    /**
+    * Bug #77567: the per-bookmark create-sandbox/export/dispose sequence occurs at two sites --
+    * the PNG multi-file branch above (formatType == PNG, more than one bookmark) and
+    * exportViewsheet() for every other format (formatType == PDF here) -- and both called
+    * exporter.export(sandbox, ...) then sandbox.dispose() with no try/finally, so a throw from
+    * export() on one bookmark skipped dispose() for that sandbox. Skipping dispose() skips
+    * ViewsheetSandbox's QueryManager.cancel()/AssetDataCache cancellation, leaving any query
+    * still in flight in that sandbox running uncancelled.
+    */
+   @ParameterizedTest
+   @ValueSource(ints = { FileFormatInfo.EXPORT_TYPE_PNG, FileFormatInfo.EXPORT_TYPE_PDF })
+   void emailViewsheet_disposesSandboxWhenExportThrows(int formatType, @TempDir Path dir)
+      throws Exception
+   {
+      List<ViewsheetSandbox> sandboxes = new ArrayList<>();
+      VSEmailService service = new VSEmailService(cacheIn(dir)) {
+         @Override
+         protected ViewsheetSandbox createSandbox(Viewsheet bookmark, int mode,
+                                                  Principal principal, AssetEntry entry,
+                                                  VariableTable vars)
+         {
+            ViewsheetSandbox sandbox = mock(ViewsheetSandbox.class);
+            sandboxes.add(sandbox);
+            return sandbox;
+         }
+      };
+
+      ViewsheetSandbox liveBox = mock(ViewsheetSandbox.class);
+      when(liveBox.getVariableTable()).thenReturn(new VariableTable());
+
+      Viewsheet vs = newBookmark(new Worksheet());
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      when(rvs.getViewsheetSandbox()).thenReturn(Optional.of(liveBox));
+      when(rvs.getEntry()).thenReturn(vs.getEntry());
+      when(rvs.getOriginalBookmark(anyString())).thenReturn(vs);
+
+      // more than one bookmark so PNG takes the multipleFiles branch (site 1) and PDF still
+      // loops more than once inside exportViewsheet (site 2).
+      String[] bookmarks = { "b1", "b2" };
+      VSExporter exporter = mock(VSExporter.class);
+      doThrow(new IllegalStateException("sentinel77567"))
+         .when(exporter).export(any(ViewsheetSandbox.class), eq("b1"), eq(1), any());
+
+      try(MockedStatic<SUtil> sutil = mockStatic(SUtil.class, CALLS_REAL_METHODS);
+          MockedStatic<PortalThemesManager> themes = mockStatic(PortalThemesManager.class);
+          MockedStatic<AbstractVSExporter> exporters =
+             mockStatic(AbstractVSExporter.class, CALLS_REAL_METHODS);
+          MockedStatic<CSVUtil> csv = mockStatic(CSVUtil.class, CALLS_REAL_METHODS))
+      {
+         csv.when(() -> CSVUtil.hasLargeDataTable(any())).thenReturn(false);
+         sutil.when(() -> SUtil.localize(anyString(), any(), anyBoolean(), any()))
+            .thenReturn("vs77567");
+         themes.when(PortalThemesManager::getColorTheme).thenReturn(null);
+         exporters.when(() -> AbstractVSExporter.getVSExporter(
+               anyInt(), any(), any(), anyBoolean(), any()))
+            .thenReturn(exporter);
+
+         IllegalStateException ex = assertThrows(IllegalStateException.class, () ->
+            service.emailViewsheet(rvs, formatType, bookmarks, false, false, false, "a@b.c",
+                                   null, null, "s", "b", false, null, null));
+         assertEquals("sentinel77567", ex.getMessage());
+      }
+
+      assertEquals(1, sandboxes.size(),
+         "export must fail on the first bookmark, before a second sandbox is created");
+      verify(sandboxes.get(0)).dispose();
+   }
+
+   /**
     * Email the test viewsheet to one address with two bookmarks (so PNG takes the separate
     * files branch) through mocked exporters.
     */
