@@ -21,6 +21,7 @@ import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.report.io.viewsheet.AbstractVSExporter;
 import inetsoft.report.io.viewsheet.VSExporter;
+import inetsoft.report.io.viewsheet.excel.CSVUtil;
 import inetsoft.sree.internal.Mailer;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.portal.PortalThemesManager;
@@ -298,6 +299,41 @@ class VSEmailServiceCreateSandboxTest {
    }
 
    /**
+    * Bug #77529: an Excel email of a large table is written as CSV from an .xlsx intermediate,
+    * with both streams open at once. A failure in either pass must close and delete both the
+    * attachment and the intermediate. With two bookmarks, the first createSandbox call is in
+    * the Excel pass and the third is in the CSV pass, after the intermediate was closed.
+    */
+   @ParameterizedTest
+   @ValueSource(ints = { 1, 3 })
+   void emailViewsheet_failedExcelToCsvExportDeletesAttachmentAndIntermediate(
+      int failAt, @TempDir Path dir) throws Exception
+   {
+      int[] calls = { 0 };
+      VSEmailService service = new VSEmailService(cacheIn(dir)) {
+         @Override
+         protected ViewsheetSandbox createSandbox(Viewsheet bookmark, int mode,
+                                                  Principal principal, AssetEntry entry,
+                                                  VariableTable vars)
+         {
+            if(++calls[0] == failAt) {
+               throw new IllegalStateException("sentinel77529");
+            }
+
+            return mock(ViewsheetSandbox.class);
+         }
+      };
+
+      IllegalStateException ex = assertThrows(IllegalStateException.class, () ->
+         email(service, FileFormatInfo.EXPORT_TYPE_EXCEL, new VariableTable(), true));
+      assertEquals("sentinel77529", ex.getMessage());
+
+      assertEquals(failAt, calls[0]);
+      assertEquals(List.of(), cachedFiles(dir),
+         "a failed Excel->CSV export must close and delete the attachment and the .xlsx");
+   }
+
+   /**
     * Bug #77529: the attachments are deleted once the email is sent or its send fails. A PNG
     * email of several bookmarks also opened, and never wrote, closed or deleted, a file with
     * the base name.
@@ -361,6 +397,17 @@ class VSEmailServiceCreateSandboxTest {
    private static void email(VSEmailService service, int formatType, VariableTable liveVars)
       throws Exception
    {
+      email(service, formatType, liveVars, false);
+   }
+
+   /**
+    * @param largeData true if the viewsheet has a large table, which makes an Excel email a
+    *                  CSV one.
+    */
+   private static void email(VSEmailService service, int formatType, VariableTable liveVars,
+                             boolean largeData)
+      throws Exception
+   {
       ViewsheetSandbox liveBox = mock(ViewsheetSandbox.class);
       when(liveBox.getVariableTable()).thenReturn(liveVars);
 
@@ -379,8 +426,10 @@ class VSEmailServiceCreateSandboxTest {
       try(MockedStatic<SUtil> sutil = mockStatic(SUtil.class, CALLS_REAL_METHODS);
           MockedStatic<PortalThemesManager> themes = mockStatic(PortalThemesManager.class);
           MockedStatic<AbstractVSExporter> exporters =
-             mockStatic(AbstractVSExporter.class, CALLS_REAL_METHODS))
+             mockStatic(AbstractVSExporter.class, CALLS_REAL_METHODS);
+          MockedStatic<CSVUtil> csv = mockStatic(CSVUtil.class, CALLS_REAL_METHODS))
       {
+         csv.when(() -> CSVUtil.hasLargeDataTable(any())).thenReturn(largeData);
          sutil.when(() -> SUtil.localize(anyString(), any(), anyBoolean(), any()))
             .thenReturn("vs77246");
          themes.when(PortalThemesManager::getColorTheme).thenReturn(null);
