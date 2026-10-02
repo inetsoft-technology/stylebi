@@ -111,7 +111,16 @@ public final class ImportedAssetProperties {
       }
 
       String rewritten = write(kind, reparsed);
-      String expected = canonical(written);
+      String expected;
+
+      try {
+         expected = canonical(written);
+      }
+      catch(Throwable ex) {
+         throw new AssertionError("The XML written for a parsed " + kind + " does not " +
+                                  "parse: " + ex + "\n" + excerpt(written, 0), ex);
+      }
+
       String actual = canonical(rewritten);
 
       if(!expected.equals(actual)) {
