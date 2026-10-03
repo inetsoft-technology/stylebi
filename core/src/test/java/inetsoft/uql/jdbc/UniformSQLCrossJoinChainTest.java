@@ -109,6 +109,11 @@ class UniformSQLCrossJoinChainTest {
    // text order and writes the outer join after the inner join group (review r5 B6)
    private static final String LEFT_FIRST_FALLBACK = "select a.id, b.id, c.id, d.id, e.id from " +
       "d left join c on d.id = c.id, ((a join b on a.id = b.id join e on b.id = a.id))";
+   // the same over a nested join, which SQLHelper writes as a RIGHT join group, (c join e)
+   // right join d. That group is still written first (review r5)
+   private static final String LEFT_FIRST_NESTED_FALLBACK = "select a.id, b.id, c.id, d.id, e.id, " +
+      "x.id from d left join (c join e on c.id = e.id) on d.id = c.id, ((a join b on a.id = b.id " +
+      "join x on b.id = a.id))";
    private static final String RIGHT_FIRST_IN_SUBQUERY = "select x.id from x cross join a " +
       "cross join b where exists (select 1 from c right join d on c.id = d.id where d.id = x.id)";
 
@@ -683,6 +688,24 @@ class UniformSQLCrossJoinChainTest {
       assertTrue(ex.getMessage().contains(RIGHT_IN_NEW_SYNTAX), ex.getMessage());
    }
 
+   /**
+    * A LEFT join over a nested join at the start of its from clause, written as a RIGHT
+    * join group, stays the first group when a later group makes SQLHelper leave the text
+    * order, so SQLite reads it the same (rows in rowQueries). Its regenerated join
+    * condition is reversed by the next regeneration, as on main, so there's no round trip.
+    */
+   @Test
+   void leftJoinOverNestedJoinStaysFirstWithoutTextOrder() throws Exception {
+      for(String type : new String[] { "h2", "h2-ansi", "mysql-ansi" }) {
+         UniformSQL sql = parse(LEFT_FIRST_NESTED_FALLBACK, dataSource(type));
+         assertEquals(UniformSQL.PARSE_SUCCESS, sql.getParseResult(), type);
+         assertFalse(sql.isLossy(), type);
+         assertEquals("select a.id, b.id, c.id, d.id, e.id, x.id from (c INNER JOIN e ON c.id = e.id ) " +
+                         "RIGHT OUTER JOIN d ON d.id = c.id , a INNER JOIN b ON a.id = b.id AND " +
+                         "b.id = a.id , x", regenerate(sql), type);
+      }
+   }
+
    private static final String RIGHT_IN_NEW_SYNTAX = "Unsupported RIGHT or FULL join in a " +
       "statement with a cross join chain or a parenthesized join";
 
@@ -865,6 +888,7 @@ class UniformSQLCrossJoinChainTest {
          LEFT_FIRST_CHAIN_LEFT,
          LEFT_FIRST_EXISTS,
          LEFT_FIRST_FALLBACK,
+         LEFT_FIRST_NESTED_FALLBACK,
          "select a.id from a where exists (select 1 from b cross join c cross join d " +
             "where b.id = a.id)",
          "select a.id, b.id from a, b where a.id in (select c.id from ((c join d on c.id = d.id)) " +
