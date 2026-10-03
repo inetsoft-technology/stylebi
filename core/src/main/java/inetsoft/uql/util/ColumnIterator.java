@@ -87,30 +87,47 @@ public class ColumnIterator {
       index = 0;
       state = NORMAL_STATE;
 
-      for(int i = 0; i < sarr.length; i++) {
-         char c = sarr[i];
+      // the end of the text ends the last name as a split char does
+      for(int i = 0; i <= sarr.length; i++) {
+         boolean last = i == sarr.length;
+         char c = last ? ' ' : sarr[i];
 
-         // start with quote as string state.
-         if(state == NORMAL_STATE && ('\'' == c || '\"' == c)) {
-            state = STRING_STATE;
+         // Bug #77663, a string literal is skipped as a whole, a double quote or split char
+         // inside it ended the literal early or opened one that swallowed the later names
+         if(!last && state == NORMAL_STATE && '\'' == c) {
+            int end = SQLQuoteScanner.skipQuoted(sql, i, c, false);
+
+            // the name before the literal, e.g. the N of N'abc', is not a column
+            index = end < 0 ? sarr.length : end;
+            i = index - 1;
+            continue;
+         }
+
+         // a quoted name ("T"."A") is a part of the dotted name, including any split char in it
+         if(!last && state == NORMAL_STATE && ('\"' == c || '`' == c)) {
+            int end = SQLQuoteScanner.skipQuoted(sql, i, c, false);
+
+            if(end < 0) {
+               index = sarr.length;
+               break;
+            }
+
+            i = end - 1;
+            continue;
          }
 
          // c is in splits array.
-         if(Arrays.binarySearch(splits, c) >= 0) {
+         if(last || Arrays.binarySearch(splits, c) >= 0) {
             // split char is close up, not add value, only move index.
-            if(index == i) {
+            if(index >= i) {
                index = i + 1;
                continue;
             }
 
             String value = sql.substring(index, i);
 
-            //value is quote, state is string and not end with quote,
             //state is field and not end with "]" to continue.
-            if("\'".equals(value) || "\"".equals(value) ||
-               (state == STRING_STATE && !(value.endsWith("\"") ||
-               value.endsWith("\'"))) || (state == FIELD_STATE && ']' != c))
-            {
+            if(state == FIELD_STATE && ']' != c) {
                continue;
             }
 
@@ -125,10 +142,7 @@ public class ColumnIterator {
             if(Arrays.binarySearch(keywords, value.toLowerCase()) < 0 &&
                !pattern.matcher(value).matches())
             {
-               if(state == STRING_STATE) {
-                  state = NORMAL_STATE;
-               }
-               else if(state == FIELD_STATE) {
+               if(state == FIELD_STATE) {
                   // delete quote.
                   if(value.startsWith("\"") || value.startsWith("\'")) {
                      value = value.substring(1);
@@ -184,7 +198,6 @@ public class ColumnIterator {
    private static final int NORMAL_STATE = 1; // normal
    private static final int FIELD_STATE = 2; // maybe field
    private static final int FIELD_STATE2 = 3; // field
-   private static final int STRING_STATE = 4; // string
    private static final char[] splits = {'\t', '\n', ' ', '!',  '%', '&', '(',
       ')', '*', '+', ',', '-', '/', ':' , '<', '=', '>', '[', ']', '{', '|', '}'};
    private static final String[] keywords = {"all", "and", "any",

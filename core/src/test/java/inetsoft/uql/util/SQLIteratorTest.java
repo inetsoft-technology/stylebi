@@ -26,10 +26,10 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import java.time.Duration;
 import java.util.*;
 
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.*;
 
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
@@ -200,5 +200,170 @@ public class SQLIteratorTest {
       assertEquals(expected, sb.toString());
       assertEquals("col1,\n", columns.get(1));
       assertEquals("col1 > 10\n", whereClause);
+   }
+
+   // Bug #77663, a literal containing a line break and -- is the text of the literal, not a
+   // comment line
+   @Test
+   void commentLineInLiteralIsKept() {
+      String sql = "select * from t where note = 'a\n-- b\n' and x = 1";
+
+      assertEquals(sql, iterate(sql));
+   }
+
+   // Bug #77663, a vpm annotation in a literal is not an annotation
+   @Test
+   void annotationInLiteralIsIgnored() {
+      String sql = "-- vpm.tables: SA.ORDERS\n" +
+         "select * from SA.ORDERS where note <> 'x\n-- vpm.tables: SA.OTHER\n' and " +
+         "/*<where>*/1=1/*</where>*/";
+
+      iterate(sql);
+
+      assertEquals(List.of("SA.ORDERS"), vpmTables);
+      assertEquals("1=1", whereClause);
+   }
+
+   // Bug #77663, a tag in a literal is the text of the literal, so the vpm condition isn't
+   // placed in the literal and the literal isn't changed
+   @Test
+   void tagInLiteralIsText() {
+      String sql = "select * from SA.ORDERS where note = '/*<where>*/x/*</where>*/'";
+
+      assertEquals(sql, iterate(sql));
+      assertNull(whereClause);
+
+      setup();
+      sql = "select * from t where s = 'a/*<1>*/b/*</1>*/c'";
+      assertEquals(sql, iterate(sql));
+      assertTrue(columns.isEmpty());
+
+      // the last line was dropped, another line threw, a tag that isn't a number threw
+      for(String text : new String[] {
+         "select * from t where s = '/*<b>*/'",
+         "select * from t where s = '/*<b>*/'\nand x = 1",
+         "select * from t where s = '/*<1>*/'",
+         "select * from t where s = '/*</where>*/'",
+         "select * from t where s = '/*<p>*/' or s = '/*</p>*/'",
+         "select * from t where s = '/*<x>*/y/*</x>*/'",
+         "select \"/*<where>*/x/*</where>*/\", `/*<1>*/`, [/*<2>*/] from t" })
+      {
+         setup();
+         assertEquals(text, iterate(text));
+         assertNull(whereClause);
+         assertTrue(columns.isEmpty());
+      }
+   }
+
+   // Bug #77663, a literal that looks like the start of a comment doesn't hide the tags
+   @Test
+   void commentStartInLiteralDoesNotHideTags() {
+      String sql = "select /*<1>*/a/*</1>*/ from SA.ORDERS where s like '/*%' and " +
+         "/*<where>*/1=1/*</where>*/";
+
+      assertEquals("select a from SA.ORDERS where s like '/*%' and 1=1", iterate(sql));
+      assertEquals("a", columns.get(1));
+      assertEquals("1=1", whereClause);
+   }
+
+   // Bug #77663, the closing tag was searched from the start of the sql, so a closing tag
+   // before the line (in a comment line or a literal) moved the cursor back and never ended
+   @Test
+   void earlierClosingTagDoesNotLoop() {
+      String sql = "-- /*</1>*/\nselect /*<1>*/a\n/*</1>*/ from t\n";
+
+      assertEquals("select a\n from t\n",
+                   assertTimeoutPreemptively(Duration.ofSeconds(10), () -> iterate(sql)));
+      assertEquals("a\n", columns.get(1));
+
+      setup();
+      String sql2 = "select * from t where n = 'x\n-- /*</1>*/\n' and /*<1>*/a\n/*</1>*/ = 1\n";
+      assertEquals("select * from t where n = 'x\n-- /*</1>*/\n' and a\n = 1\n",
+                   assertTimeoutPreemptively(Duration.ofSeconds(10), () -> iterate(sql2)));
+      assertEquals("a\n", columns.get(1));
+   }
+
+   // Bug #77663, a tag not closed on the last line was dropped with the whole line, it is
+   // invalid as on any other line
+   @Test
+   void unclosedTagOnLastLineThrows() {
+      assertThrows(RuntimeException.class, () -> iterate("select a from t /*<b>*/"));
+      assertThrows(RuntimeException.class, () -> iterate("select a\nfrom t /*<where>*/1=1"));
+   }
+
+   // Bug #77663, an apostrophe in a comment, an escaped quote or a quoted name doesn't open
+   // a literal that hides the later tags
+   @Test
+   void apostropheOutsideLiteralDoesNotHideTags() {
+      // in a -- comment at the end of a line
+      String sql = "select /*<1>*/a/*</1>*/, -- the customer's name\n" +
+         "/*<2>*/b/*</2>*/ from SA.ORDERS\n" +
+         "where /*<where>*/1=1/*</where>*/";
+      assertEquals("select a, -- the customer's name\nb from SA.ORDERS\nwhere 1=1", iterate(sql));
+      assertEquals("a", columns.get(1));
+      assertEquals("b", columns.get(2));
+      assertEquals("1=1", whereClause);
+
+      // a backslash escape (MySQL), with and without a later literal
+      for(String text : new String[] {
+         "select * from SA.ORDERS where name <> 'O\\'Brien'\nand /*<where>*/1=1/*</where>*/",
+         "select * from SA.ORDERS where name <> 'O\\'Brien'\nand /*<where>*/1=1/*</where>*/" +
+            " and x = 'y'",
+         // a literal ending with a backslash (ANSI)
+         "select * from SA.ORDERS where path <> 'C:\\' and /*<where>*/1=1/*</where>*/" +
+            " and x = 'y'",
+         // in a comment
+         "select a /* don't */ from SA.ORDERS\nwhere /*<where>*/1=1/*</where>*/",
+         "-- the customer's name\nselect a from SA.ORDERS\nwhere /*<where>*/1=1/*</where>*/",
+         // in a quoted name
+         "select a as \"customer's name\", [Customer's], `it's` from SA.ORDERS\n" +
+            "where /*<where>*/1=1/*</where>*/",
+         // a quote that is not closed
+         "select a from SA.ORDERS where b = 'x and /*<where>*/1=1/*</where>*/" })
+      {
+         setup();
+         iterate(text);
+         assertEquals("1=1", whereClause, text);
+      }
+   }
+
+   // Bug #77663, the text of a literal is still a text element, so a variable in it is found
+   @Test
+   void literalIsTextElement() {
+      List<String> texts = new ArrayList<>();
+      SQLIterator iterator = new SQLIterator("select * from t where n = '$(v)\n-- $(w)\n'");
+      iterator.addSQLListener((type, value, comment) -> {
+         if(type == SQLIterator.TEXT_ELEMENT) {
+            texts.add(value);
+         }
+      });
+      iterator.iterate();
+
+      assertEquals(List.of("select * from t where n = '$(v)\n-- $(w)\n'"), texts);
+   }
+
+   // quotes that are not closed don't make the scan quadratic
+   @Test
+   void unclosedQuotesAreScannedInLinearTime() {
+      String sql = "select * from t where /*<where>*/1=1/*</where>*/ and a = '" +
+         "\\'".repeat(200000);
+
+      assertTimeoutPreemptively(Duration.ofSeconds(10), () -> iterate(sql));
+      assertEquals("1=1", whereClause);
+   }
+
+   // a tag after a -- in the middle of a line is still a tag, as before
+   @Test
+   void tagAfterMidLineCommentIsUnchanged() {
+      iterate("select * from SA.ORDERS -- /*<where>*/ /*</where>*/");
+
+      assertEquals(" ", whereClause);
+   }
+
+   private String iterate(String sql) {
+      SQLIterator iterator = new SQLIterator(sql);
+      iterator.addSQLListener(listener);
+      iterator.iterate();
+      return sb.toString();
    }
 }

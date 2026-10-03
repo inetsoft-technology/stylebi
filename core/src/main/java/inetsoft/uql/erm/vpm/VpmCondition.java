@@ -24,6 +24,7 @@ import inetsoft.uql.jdbc.*;
 import inetsoft.uql.script.StringArray;
 import inetsoft.uql.script.VpmScope;
 import inetsoft.uql.util.ColumnIterator;
+import inetsoft.uql.util.SQLQuoteScanner;
 import inetsoft.uql.util.XUtil;
 import inetsoft.uql.util.sqlparser.*;
 import inetsoft.util.Tool;
@@ -34,6 +35,7 @@ import org.w3c.dom.Element;
 import java.io.PrintWriter;
 import java.security.Principal;
 import java.util.*;
+import java.util.regex.Pattern;
 
 /**
  * VpmCondition defines conditions attached to a physical table to filter
@@ -689,12 +691,49 @@ public class VpmCondition extends VpmObject {
          if(ncolumn != null) {
             ncolumn = helper.buildFieldExpression(ncolumn, false);
             // String creg = ".*['\"]?" + table + "['\"]?\\.['\"]?" + column + "(['\"]?)(\\W+.)*";
-            String rreg = "['\"]?" + table + "['\"]?\\.['\"]?" + column + "['\"]?";
-            exp = exp.replaceAll(rreg, ncolumn);
+            // Bug #77663, a ' is not an identifier quote (the optional ' took the closing quote
+            // of a literal), and a name ending with the table name (XT.A) is not the table
+            String rreg = "(?<![\\w$.])\"?" + table + "\"?\\.\"?" + column + "\"?";
+            exp = replaceOutsideLiterals(exp, rreg, ncolumn);
          }
       }
 
       return exp;
+   }
+
+   /**
+    * Replace the matches of a regular expression outside the string literals and comments of
+    * an expression. A double quoted name ("T"."A") is not a literal, so it is replaced.
+    */
+   private static String replaceOutsideLiterals(String exp, String regex, String replacement) {
+      Pattern pattern = Pattern.compile(regex);
+      StringBuilder result = new StringBuilder();
+      int len = exp.length();
+      int start = 0;
+      int i = 0;
+      boolean unclosed = false;
+
+      while(i < len) {
+         int end = SQLQuoteScanner.skipComment(exp, i);
+
+         // a quote that isn't closed is not a literal, as before literals were skipped
+         if(end < 0 && !unclosed && exp.charAt(i) == '\'') {
+            end = SQLQuoteScanner.skipQuoted(exp, i, '\'', false);
+            unclosed = end < 0;
+         }
+
+         if(end < 0) {
+            i++;
+            continue;
+         }
+
+         result.append(pattern.matcher(exp.substring(start, i)).replaceAll(replacement));
+         result.append(exp, i, end);
+         start = i = end;
+      }
+
+      result.append(pattern.matcher(exp.substring(start)).replaceAll(replacement));
+      return result.toString();
    }
 
    private String getColumn(Object value, String[] tables,
