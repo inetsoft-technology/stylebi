@@ -274,6 +274,20 @@ class UniformSQLQuotedTableNameTest {
       String regenerated = sql.getSQLString();
       assertEquals(direct("select \"S\".\"a\".V from \"S\".\"a\" where \"S\".\"a\".ID = 1"),
                    rows(run(newSession(), parsed(regenerated), false, 0).table), regenerated);
+
+      // a derived table is saved as the text of its sql, the quoted text is kept for this build
+      for(String derived : new String[] {
+         "select d.V from (select \"a\".V from \"a\") d",
+         "select d.V from (select \"a\".V from \"a\" where \"a\".ID = 1) d where d.V > 0" })
+      {
+         UniformSQL fresh = parsed(derived);
+         fresh.clearSQLString();
+         UniformSQL reloaded = load(toXML(parsed(derived)), null);
+         reloaded.clearSQLString();
+         assertEquals(norm(fresh.getSQLString()), norm(reloaded.getSQLString()), derived);
+         assertEquals(direct(derived), rows(run(newSession(), load(toXML(parsed(derived)), null),
+                                               false, 0).table), derived);
+      }
    }
 
    @Test
@@ -352,6 +366,26 @@ class UniformSQLQuotedTableNameTest {
          { "postgresql", "select * from \"a\"", "select * from \"a\"" },
          { "postgresql", "select \"a\".id from \"S\".\"a\"", "select \"a\".\"id\" from \"S\".\"a\"" },
          { "snowflake", "select * from \"a\"", "select * from \"a\"" },
+         // scalar subqueries and case expressions of the select list are saved as text without
+         // the quotes, the quotes of the outer tables are added with the quote of the helper
+         { "mysql", "select c.id, (select max(`b`.w) from `b`) from c",
+           "select (select max(b.w) from b ), c.id from c" },
+         { "mysql", "select coalesce((select max(`b`.w) from `b`), 0) from c",
+           "select coalesce((select max(b.w) from b ),0) from c" },
+         { "mysql", "select `c`.id, (select max(b.w) from `b` b where b.id = `c`.id) from `c`",
+           "select (select max(b.w) from b where b.id = `c`.id ), `c`.id from `c`" },
+         { "mysql", "select case when `c`.id > 0 then `c`.id else 0 end from `c`",
+           "select case when `c`.id > 0 then `c`.id else 0 END from `c`" },
+         { "mysql", "select `c`.id from `c` where case when `c`.id > 0 then 1 else 0 end = 1",
+           "select `c`.id from `c` where case when `c`.id > 0 then 1 else 0 END = 1" },
+         { "sqlserver", "select [c].id, (select max([b].w) from [b] where [b].id = [c].id) from [c]",
+           "select (select max(b.w) from b where b.id = \"c\".id ), \"c\".id from \"c\"" },
+         { "sqlserver", "select coalesce((select max([b].w) from [b]), 0) from c",
+           "select coalesce((select max(b.w) from b ),0) from c" },
+         { "sqlserver", "select case when [c].id > 0 then [c].id else 0 end from [c]",
+           "select case when \"c\".id > 0 then \"c\".id else 0 END from \"c\"" },
+         { "sqlserver", "select [c].id from [c] where case when [c].id > 0 then 1 else 0 end = 1",
+           "select \"c\".id from \"c\" where case when \"c\".id > 0 then 1 else 0 END = 1" },
       };
 
       for(String[] c : cases) {
@@ -593,6 +627,24 @@ class UniformSQLQuotedTableNameTest {
          sql.setHint(UniformSQL.HINT_INPUT_MAXROWS, "1");
          assertEquals(c[1], regenerate(sql), c[0]);
       }
+   }
+
+   // the saved text of the expressions, case conditions and subqueries is the same as before
+   // #77569, the quotes are added when the sql is generated, so every reader of the text, and
+   // an older build, sees the same text
+   @Test
+   void storedTextsAsBefore() throws Exception {
+      List<String> expected;
+
+      try(InputStream input =
+             getClass().getResourceAsStream("UniformSQLQuotedTableNameTest-stored-texts.txt"))
+      {
+         expected = new String(input.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8)
+            .lines().toList();
+      }
+
+      assertEquals(String.join("\n", expected),
+                   String.join("\n", QuotedTableNameStoredTexts.lines()));
    }
 
    @Test

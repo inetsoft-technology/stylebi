@@ -4528,8 +4528,9 @@ public class SQLHelper implements KeywordProvider {
    private String quoteQuotedSegments(SelectTable table, String name) {
       String quote = getQuote();
 
-      if(table == null || table.getQuotedSegments() == null || quote == null ||
-         quote.isEmpty() || !name.equals(table.getName()))
+      // the sql generated while parsing is stored as text, without the quotes
+      if(UniformSQL.isUnquoted() || table == null || table.getQuotedSegments() == null ||
+         quote == null || quote.isEmpty() || !name.equals(table.getName()))
       {
          return null;
       }
@@ -4577,8 +4578,8 @@ public class SQLHelper implements KeywordProvider {
       int index = uniformSql.getTableIndex(tname);
       SelectTable table = index >= 0 ? uniformSql.getSelectTable(index) : null;
 
-      if(table == null || table.getQuotedSegments() == null || !tname.equals(table.getName()) ||
-         !tname.equals(table.getAlias()))
+      if(UniformSQL.isUnquoted() || table == null || table.getQuotedSegments() == null ||
+         !tname.equals(table.getName()) || !tname.equals(table.getAlias()))
       {
          return null;
       }
@@ -5465,8 +5466,9 @@ public class SQLHelper implements KeywordProvider {
    private Map<String, String> getQuotedQualifiers() {
       Map<String, String> qualifiers = new HashMap<>();
 
-      // a table changed to a subquery is referred to by its alias, which is not quoted
-      if(isTableSubquery()) {
+      // a table changed to a subquery is referred to by its alias, which is not quoted.
+      // The sql generated while parsing is stored as text, without the quotes
+      if(isTableSubquery() || UniformSQL.isUnquoted()) {
          return qualifiers;
       }
 
