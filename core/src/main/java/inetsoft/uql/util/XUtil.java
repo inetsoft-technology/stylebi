@@ -690,7 +690,7 @@ public final class XUtil {
    public static final boolean isSpecial(String str, boolean quoteKeyword,
                                          KeywordProvider provider) {
       int length = str.length();
-      str = str.toLowerCase();
+      str = str.toLowerCase(Locale.ROOT);
       provider = provider == null ? new SQLHelper() : provider;
       String quote = provider.getQuote();
 

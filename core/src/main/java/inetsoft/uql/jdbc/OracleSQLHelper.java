@@ -21,6 +21,7 @@ import inetsoft.uql.util.XUtil;
 import inetsoft.util.Tool;
 
 import java.util.HashSet;
+import java.util.Locale;
 import java.util.Set;
 
 /**
@@ -234,7 +235,7 @@ class OracleSQLHelper extends SQLHelper {
             JDBCSelection.isValidAlias(alias, this);
 
          if(upper) {
-            alias = alias.toUpperCase();
+            alias = alias.toUpperCase(Locale.ROOT);
          }
       }
 
