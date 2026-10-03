@@ -1744,6 +1744,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
          Object field = item.getField();
          String record = getQuotedAggregate(field);
          int ordinal = getOrdinal(field);
+         String alias;
 
          if(ordinal > 0) {
             if(wildcard == null) {
@@ -1768,19 +1769,34 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
                }
             }
          }
-         else if(field instanceof String && !isSelectAlias((String) field)) {
+         else if(field instanceof String &&
+            (alias = getSelectAliasField((String) field, false)) != null)
+         {
+            if(!alias.equals(field)) {
+               field = alias;
+               changed = true;
+            }
+         }
+         else if(field instanceof String) {
             // remove order by columns that does not have table
             if(getFieldByPath((String) field) == null && getField((String) field) == null) {
+               String path = getUnquotedColumnPath((String) field);
                changed = true;
-               continue;
+
+               if(path == null) {
+                  continue;
+               }
+
+               field = path;
             }
+            else {
+               String fp = JDBCUtil.getFullPathOf(this, (String) field, isQuotedField(field));
 
-            String fp = JDBCUtil.getFullPathOf(this, (String) field, isQuotedField(field));
-
-            if(fp != null && !fp.equals(field)) {
-               copyQuotedField((String) field, fp);
-               field = fp;
-               changed = true;
+               if(fp != null && !fp.equals(field)) {
+                  copyQuotedField((String) field, fp);
+                  field = fp;
+                  changed = true;
+               }
             }
          }
          else if(!(field instanceof String)) {
@@ -1895,17 +1911,110 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
    }
 
    /**
-    * Check if a group by or order by field is a select alias. A case-sensitive helper
-    * (e.g. postgresql) stores an unquoted alias reference with quotes ("a") while the
+    * Get the group by or order by field that references a select alias. A case-sensitive
+    * helper (e.g. postgresql) stores an unquoted alias reference with quotes ("a") while the
     * alias itself is stored without them (Bug #77616).
+    * @param grouping <tt>true</tt> for a group by field, which refers to a table column
+    *                 before an alias of the same name.
+    * @return the field to keep, or <tt>null</tt> if the field is not a select alias.
     */
-   private boolean isSelectAlias(String field) {
+   private String getSelectAliasField(String field, boolean grouping) {
       if(getSelection().getAliasColumn(field) != null) {
-         return true;
+         return field;
       }
 
       String name = field.indexOf('"') >= 0 ? XUtil.removeQuote(field) : field;
-      return !name.equals(field) && getSelection().getAliasColumn(name) != null;
+
+      if(name.equals(field)) {
+         return null;
+      }
+
+      if(getSelection().getAliasColumn(name) != null) {
+         return field;
+      }
+
+      // an unquoted reference ("a" in-band) and an unquoted alias are folded to one case
+      // by the database, so they match in any case. A quoted alias only matches the exact
+      // name, as above.
+      if(getUnquotedReference(field) == null ||
+         grouping && !findTableForColumn(name).isEmpty())
+      {
+         return null;
+      }
+
+      for(int i = 0; i < getSelection().getColumnCount(); i++) {
+         String calias = getSelection().getAlias(i);
+
+         if(calias != null && calias.equalsIgnoreCase(name) && !isQuotedAlias(calias)) {
+            // the alias is generated quoted, so reference it as it is stored
+            return "\"" + calias + "\"";
+         }
+      }
+
+      return null;
+   }
+
+   /**
+    * Get the table column of an unquoted column reference that a case-sensitive helper
+    * (e.g. postgresql) stores with quotes ("k"), which the field list doesn't find
+    * (Bug #77616). The database folds the unquoted name to one case, so it matches the
+    * column in any case. A quoted reference is stored without the quotes and doesn't come
+    * here, it only matches the exact name.
+    * @return the column path, or <tt>null</tt> if not found.
+    */
+   private String getUnquotedColumnPath(String field) {
+      String name = getUnquotedReference(field);
+
+      if(name == null) {
+         return null;
+      }
+
+      // postgresql folds an unquoted name to lower case, snowflake and exasol to upper case
+      String folded = "postgresql".equals(SQLHelper.getProductName(getDataSource(), true)) ?
+         name.toLowerCase() : name.toUpperCase();
+      XField match = null;
+
+      for(XField xfield : fields) {
+         String fname = xfield.getName() == null ? "" : xfield.getName().toString();
+
+         if(xfield.getTable().length() == 0 || !fname.equalsIgnoreCase(name)) {
+            continue;
+         }
+
+         if(match == null || fname.equals(folded)) {
+            match = xfield;
+         }
+      }
+
+      return match == null ? null : match.getTable() + "." + match.getName();
+   }
+
+   /**
+    * Get the name of a group by or order by field that was written unquoted and that a
+    * case-sensitive helper (postgresql, snowflake, exasol) stores with quotes ("k"). A name
+    * that can't be written unquoted (e.g. "My A") keeps its quotes on every helper, and a
+    * quoted plain name ("K") is stored without them, so neither is returned.
+    * @return the name without the quotes, or <tt>null</tt>.
+    */
+   private String getUnquotedReference(String field) {
+      if(field.length() < 3 || field.charAt(0) != '"' ||
+         field.indexOf('"', 1) != field.length() - 1 ||
+         dataSource == null || !getSQLHelper().isCaseSensitive())
+      {
+         return null;
+      }
+
+      String name = field.substring(1, field.length() - 1);
+      return name.matches("[A-Za-z_][A-Za-z0-9_]*") ? name : null;
+   }
+
+   /**
+    * Check if a select alias may have been written as a quoted identifier. The alias is
+    * stored without its quotes, so the sql text is checked. Without the text, the alias
+    * is treated as quoted.
+    */
+   private boolean isQuotedAlias(String alias) {
+      return sqlstring == null || sqlstring.contains("\"" + alias + "\"");
    }
 
    /**
@@ -1962,6 +2071,8 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
       // the fields kept without checking the field list (Bug #77570, #77616)
       boolean[] keep = new boolean[groupBy.length];
       Boolean wildcard = null;
+      String alias;
+      boolean changed = false;
 
       for(int i = 0; i < groupBy.length; i++) {
          if(groupBy[i] instanceof Integer) {
@@ -1989,9 +2100,12 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
             // an ordinal is checked against the select list, not the field list
             keep[i] = wildcard || getOrdinal(groupBy[i]) <= getSelection().getColumnCount();
          }
-         else if(groupBy[i] instanceof String && isSelectAlias((String) groupBy[i])) {
+         else if(groupBy[i] instanceof String &&
+            (alias = getSelectAliasField((String) groupBy[i], true)) != null)
+         {
             // @by larryl, if group by defined on alias, keep as is otherwise
             // the fullpath may be pointing to a wrong column
+            groupBy[i] = alias;
             keep[i] = true;
          }
          else if(groupBy[i] instanceof String) {
@@ -2021,11 +2135,15 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
                getSelection().getAliasColumn(fname) != null) {
                vec.add(obj);
             }
+            else if((fname = getUnquotedColumnPath(fname)) != null) {
+               vec.add(fname);
+               changed = true;
+            }
          }
       }
 
-      // removed some fields
-      if(vec.size() != groupBy.length) {
+      // removed or replaced some fields
+      if(changed || vec.size() != groupBy.length) {
          setGroupBy(vec.toArray(new Object[0]));
       }
    }

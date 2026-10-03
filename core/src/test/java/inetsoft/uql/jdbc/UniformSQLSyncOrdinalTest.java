@@ -451,6 +451,128 @@ class UniformSQLSyncOrdinalTest {
       }
    }
 
+   /**
+    * An unquoted alias and an unquoted reference are folded to one case by postgresql,
+    * snowflake and exasol, so they match in any case. A quoted alias only matches the
+    * exact name.
+    */
+   @Test
+   void unquotedAliasInAnotherCaseIsKept() throws Exception {
+      for(String key : new String[] { "postgresql", "snowflake", "exasol" }) {
+         String generated = regenerate(fixed("select id as A from t order by a desc", key, "id"));
+         assertTrue(generated.endsWith("order by \"A\" desc"), key + " " + generated);
+
+         generated = regenerate(fixed("select id as a from t order by A desc", key, "id"));
+         assertTrue(generated.endsWith("order by \"a\" desc"), key + " " + generated);
+
+         generated = regenerate(fixed("select id as A, count(*) from t group by a " +
+                                      "order by A desc", key, "id"));
+         assertTrue(generated.endsWith("group by \"A\" order by \"A\" desc"),
+                    key + " " + generated);
+
+         generated = regenerate(fixed("select id A, count(*) as C from t group by a " +
+                                      "order by c desc", key, "id"));
+         assertTrue(generated.endsWith("group by \"A\" order by \"C\" desc"),
+                    key + " " + generated);
+      }
+   }
+
+   // a quoted alias is a different name from an unquoted reference in another case
+   @Test
+   void quotedAliasMatchesOnlyTheExactName() throws Exception {
+      for(String key : new String[] { "postgresql", "snowflake", "exasol" }) {
+         String generated = regenerate(fixed("select id as \"A\" from t order by a desc",
+                                             key, "id"));
+         assertFalse(generated.contains("\"A\" desc"), key + " " + generated);
+
+         generated = regenerate(fixed("select id as \"A\", count(*) from t group by a",
+                                      key, "id"));
+         assertFalse(generated.contains("group by \"A\""), key + " " + generated);
+
+         // the exact name still matches
+         generated = regenerate(fixed("select id as \"A\" from t order by \"A\" desc",
+                                      key, "id"));
+         assertTrue(generated.contains(" order by "), key + " " + generated);
+      }
+   }
+
+   // group by refers to a table column before an alias of the same name
+   @Test
+   void groupByColumnInAnotherCaseIsNotTheAlias() throws Exception {
+      for(String key : new String[] { "postgresql", "snowflake", "exasol" }) {
+         String generated = regenerate(fixed("select k as ID, count(*) from t group by id",
+                                             key, "id", "k"));
+         assertFalse(generated.contains("group by \"ID\""), key + " " + generated);
+      }
+   }
+
+   // h2 and oracle don't quote an unquoted reference, they match the alias as before
+   @Test
+   void aliasInAnotherCaseOnOtherHelpers() throws Exception {
+      for(String key : new String[] { "h2", "oracle" }) {
+         String generated = regenerate(fixed("select id as A from t order by a desc", key, "ID"));
+         assertTrue(norm(generated).endsWith("order by a desc"), key + " " + generated);
+
+         generated = regenerate(fixed("select id as A, count(*) from t group by a", key, "ID"));
+         assertTrue(norm(generated).contains("group by "), key + " " + generated);
+      }
+   }
+
+   /**
+    * The same helpers store an unquoted reference to a column that isn't selected as "k",
+    * which the field list didn't find, so the item was dropped. It matches the column in
+    * any case. A quoted reference only matches the exact name.
+    */
+   @Test
+   void unquotedColumnNotSelectedIsKept() throws Exception {
+      for(String key : new String[] { "postgresql", "snowflake", "exasol" }) {
+         String generated = regenerate(fixed("select id from t order by k desc", key, "id", "k"));
+         assertTrue(generated.endsWith("order by \"t\".k desc"), key + " " + generated);
+
+         generated = regenerate(fixed("select id from t order by K desc", key, "id", "k"));
+         assertTrue(generated.endsWith("order by \"t\".k desc"), key + " " + generated);
+
+         generated = regenerate(fixed("select id, count(*) from t group by id, k order by k",
+                                      key, "id", "k"));
+         assertTrue(generated.contains("group by \"id\", \"t\".k order by \"t\".k asc"),
+                    key + " " + generated);
+
+         // a quoted alias doesn't match a in another case, the column a does
+         generated = regenerate(fixed("select k as \"A\" from t order by a desc", key,
+                                      "id", "k", "a"));
+         assertTrue(generated.endsWith("order by \"t\".a desc"), key + " " + generated);
+      }
+   }
+
+   /**
+    * A quoted reference is stored without its quotes and doesn't go through the unquoted
+    * match. JDBCUtil.getFullPathOf changes its case only when no column has the same case
+    * (#77558), as before this fix.
+    */
+   @Test
+   void quotedColumnReferenceIsUnchanged() throws Exception {
+      for(String key : new String[] { "postgresql", "snowflake", "exasol" }) {
+         UniformSQL usql = fixed("select id from t order by \"K\" desc, \"k\"", key, "id", "K", "k");
+         assertEquals("[\"t\".K:desc, \"t\".k:asc]", orderBy(usql), key);
+
+         // with no column K, getFullPathOf changes the case to k, before and after this fix
+         String generated = regenerate(fixed("select id from t order by \"K\" desc", key, "id", "k"));
+         assertEquals("select \"id\" from \"t\" order by \"t\".\"k\" desc", generated, key);
+      }
+   }
+
+   // h2 finds an unquoted column in the field list, as before
+   @Test
+   void columnNotSelectedOnOtherHelpers() throws Exception {
+      for(String key : new String[] { "h2", "oracle" }) {
+         String generated = regenerate(fixed("select id from t order by k desc", key, "ID", "K"));
+         assertTrue(norm(generated).endsWith("order by t.k desc"), key + " " + generated);
+
+         generated = regenerate(fixed("select id, count(*) from t group by id, k", key, "ID", "K"));
+         assertTrue(norm(generated).endsWith("group by t.id, t.k"), key + " " + generated);
+      }
+   }
+
    // #6151's quoted aggregate record of an order by item is kept when the order by is rebuilt
    @Test
    void quotedAggregateRecordIsKeptOnRebuild() throws Exception {
