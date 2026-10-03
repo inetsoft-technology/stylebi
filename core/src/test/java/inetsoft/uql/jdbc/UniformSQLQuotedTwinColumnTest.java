@@ -500,6 +500,19 @@ class UniformSQLQuotedTwinColumnTest {
       // a quoted "A" is the column "A", not the unquoted alias A (which is a)
       assertEquals("select \"w\".\"A\", \"w\".\"id\" as \"A\" from \"w\" order by \"w\".\"A\" desc",
                    fixed("postgresql", "select w.id as A, w.\"A\" from w order by \"A\" desc", "id", "A"));
+      // X5, an unquoted alias in another case without an ordinal
+      assertEquals("select \"u\".\"id\", \"u\".\"k\" as \"A\" from \"u\" order by \"u\".\"k\" desc",
+                   fixed("postgresql", "select u.k as A, u.id from u order by a desc", "id", "k"));
+      // the common shape, the reference is the alias as generated
+      assertEquals("select \"id\" as \"A\" from \"u\" order by \"A\" desc",
+                   fixed("postgresql", "select id as A from u order by A desc", "id"));
+      // A1 where no column a exists: the original fails on postgresql (column a doesn't exist),
+      // the reference names nothing and is dropped, as on #6190
+      assertEquals("select \"id\" as \"A\" from \"u\"",
+                   fixed("postgresql", "select id as \"A\" from u order by A desc", "id"));
+      // an ordinal next to them is converted, the items are decided
+      assertEquals("select \"u\".\"id\", \"u\".\"k\" as \"A\" from \"u\" order by \"u\".\"k\" asc, \"u\".\"id\" desc",
+                   fixed("postgresql", "select u.k as A, u.id from u order by a, 2 desc", "id", "k"));
       // an alias in the folded case is the same name either way
       assertEquals("select \"id\" as \"a\" from \"t\" order by \"a\" desc",
                    fixed("postgresql", "select id as a from t order by a desc", "id", "k"));
