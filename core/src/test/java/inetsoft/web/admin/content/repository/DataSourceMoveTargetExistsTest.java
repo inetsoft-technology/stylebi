@@ -21,6 +21,7 @@ import inetsoft.report.LibManagerProvider;
 import inetsoft.sree.RepletRegistry;
 import inetsoft.sree.RepletRegistryManager;
 import inetsoft.sree.RepositoryEntry;
+import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.*;
 import inetsoft.sree.web.dashboard.DashboardRegistryManager;
 import inetsoft.storage.KeyValueStorageManager;
@@ -28,6 +29,8 @@ import inetsoft.test.*;
 import inetsoft.uql.DataSourceFolder;
 import inetsoft.uql.XDataSource;
 import inetsoft.uql.XRepository;
+import inetsoft.uql.asset.AssetEntry;
+import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.asset.DependencyHandler;
 import inetsoft.uql.asset.sync.DependencyStorageService;
 import inetsoft.uql.asset.sync.RenameTransformHandler;
@@ -51,6 +54,7 @@ import inetsoft.web.portal.service.datasource.DataSourceStatusService;
 import inetsoft.web.session.IgniteSessionRepository;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.MockedStatic;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.*;
 import org.springframework.test.context.ContextConfiguration;
@@ -444,6 +448,74 @@ class DataSourceMoveTargetExistsTest {
       registry.clearCache();
       assertNotNull(registry.getDataSource("erC/erKid"));
       assertNull(registry.getDataSourceFolder("erA"));
+   }
+
+   // EM: a data source moved into a folder that already has a data source with the same name is
+   // refused, neither data source is overwritten and their additional connections are not merged
+   // (the reported case, diagnosis #1)
+   @Test
+   void emDataSourceOntoDataSourceIsRefused() throws Exception {
+      addParent("dodA", "dodOuterAdd");
+      folder("dodF");
+      addParent("dodF/dodA", "dodInnerAdd");
+      ((JDBCDataSource) registry.getDataSource("dodA")).setDescription("outer");
+      registry.setDataSource(registry.getDataSource("dodA"), false);
+      ((JDBCDataSource) registry.getDataSource("dodF/dodA")).setDescription("inner");
+      registry.setDataSource(registry.getDataSource("dodF/dodA"), false);
+
+      MessageException ex = assertThrows(MessageException.class, () -> objectService.moveFiles(
+         request(dest("dodF"), node("dodA", RepositoryEntry.DATA_SOURCE | RepositoryEntry.FOLDER)),
+         true, principal));
+      assertTrue(ex.getMessage().contains("dodF/dodA"), ex.getMessage());
+
+      assertChildren("dodA", "dodOuterAdd");
+      assertChildren("dodF/dodA", "dodInnerAdd");
+      assertEquals("outer", registry.getDataSource("dodA").getDescription());
+      assertEquals("inner", registry.getDataSource("dodF/dodA").getDescription());
+   }
+
+   // multi-tenant: a path used only by a globally shared data source of the host organization is
+   // free in another organization, a move onto it there is not refused and the host organization's
+   // data source is not touched
+   @Test
+   void hostOrgGlobalShareIsNotAClash() throws Exception {
+      String hostOrg = Organization.getDefaultOrganizationID();
+      String otherOrg = "bug77673org";
+      addParent("gsShared", "gsHostAdd");
+
+      try(MockedStatic<SUtil> sutil = mockStatic(SUtil.class, CALLS_REAL_METHODS)) {
+         sutil.when(SUtil::isDefaultVSGloballyVisible).thenReturn(true);
+         sutil.when(() -> SUtil.isDefaultVSGloballyVisible(any())).thenReturn(true);
+         OrganizationContextHolder.setCurrentOrgId(otherOrg);
+
+         try {
+            // creates the registry root of the other organization
+            registry.init();
+            registry.clearCache();
+            folder("gsF");
+            addParent("gsF/gsShared", "gsOtherAdd");
+
+            assertFalse(registry.isDataSourcePathInUse("gsShared"));
+            objectService.moveFiles(
+               request(root(),
+                       node("gsF/gsShared", RepositoryEntry.DATA_SOURCE | RepositoryEntry.FOLDER)),
+               true, principal);
+
+            registry.clearCache();
+            assertTrue(registry.containObject(new AssetEntry(AssetRepository.QUERY_SCOPE,
+               AssetEntry.Type.DATA_SOURCE, "gsShared", null)));
+            assertFalse(registry.containObject(new AssetEntry(AssetRepository.QUERY_SCOPE,
+               AssetEntry.Type.DATA_SOURCE, "gsF/gsShared", null)));
+            assertChildren("gsShared", "gsOtherAdd");
+         }
+         finally {
+            OrganizationContextHolder.clear();
+         }
+      }
+
+      registry.clearCache();
+      assertEquals(hostOrg, OrganizationManager.getInstance().getCurrentOrgID());
+      assertChildren("gsShared", "gsHostAdd");
    }
 
    private void folder(String path) {
