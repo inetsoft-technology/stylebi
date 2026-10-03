@@ -343,11 +343,11 @@ class UniformSQLLiteralQuoteTest {
          Arguments.of("select id from t where s = 'a\\\\b'", "'a\\\\b'", false));
    }
 
-   // a bracket identifier holds any character but [ \ and ], including the CJK characters
-   // from U+80FE up, which ended the token before
+   // a bracket identifier holds the CJK characters from U+80FE up, which ended the token
+   // before, and a backslash, as in a SQL Server domain user name
    @ParameterizedTest
-   @ValueSource(strings = { "销售", "一二" })
-   void cjkBracketIdentifierIsOneToken(String name) throws Exception {
+   @ValueSource(strings = { "销售", "一二", "a", "a\\b", "DOMAIN\\user" })
+   void bracketIdentifierIsOneToken(String name) throws Exception {
       String text = "select [" + name + "] from t where [" + name + "] = 1";
       assertEquals("select SPIDENT_SQUARE from IDENT where SPIDENT_SQUARE EQ UNSIGNED_NUM_LIT EOF",
                    tokens(text));
@@ -359,8 +359,10 @@ class UniformSQLLiteralQuoteTest {
          String message = type + ": " + text + " -> " + generated;
 
          assertEquals(1, sql.getTableCount(), message);
-         assertEquals(name, sql.getSelection().getColumn(0).replace("\"", ""), message);
-         assertEquals(2, count(generated, name), message);
+         // oracle writes an unquoted select column in upper case
+         assertTrue(name.equalsIgnoreCase(sql.getSelection().getColumn(0).replace("\"", "")),
+                    message);
+         assertEquals(2, count(generated.toLowerCase(), name.toLowerCase()), message);
          assertRoundTrip(generated, ds, message);
       }
    }
@@ -394,6 +396,14 @@ class UniformSQLLiteralQuoteTest {
       assertTrue(XUtil.isSQLExpressionValid("{fn ucase(a)}"));
       assertFalse(XUtil.isSQLExpressionValid("{fn concat({fn ucase(a), b)}"));
       assertFalse(XUtil.isSQLExpressionValid("$(a.b)"));
+   }
+
+   // a bracket name with a backslash is a valid expression, as it was before #77640
+   @Test
+   void expressionCheckOfBracketIdentifiers() {
+      assertTrue(XUtil.isSQLExpressionValid("[a\\b]"));
+      assertTrue(XUtil.isSQLExpressionValid("[DOMAIN\\user] + 1"));
+      assertTrue(XUtil.isSQLExpressionValid("[a]"));
    }
 
    /**
