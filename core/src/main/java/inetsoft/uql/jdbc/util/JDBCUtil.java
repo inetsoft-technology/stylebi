@@ -185,6 +185,12 @@ public class JDBCUtil {
                continue;
             }
 
+            // a name written with quoted segments keeps its case (#77569)
+            if(tables[i].getQuotedSegments() != null) {
+               sql.addTable(tables[i]);
+               continue;
+            }
+
             XNode tnode = SQLTypes.getSQLTypes(xds).getQualifiedTableNode(
                name.toString(),
                "true".equals(root.getAttribute("hasCatalog")),
@@ -1505,15 +1511,23 @@ public class JDBCUtil {
 
       SQLHelper helper = SQLHelper.getSQLHelper(dataSource);
       Set<String> keys = aliasMap.keySet();
+      Map<String, String> qualifiers = new HashMap<>();
 
       for(String key : keys) {
          String newAlias = aliasMap.get(key);
          String tableName = getTableName(tables, newAlias);
          String oldAlias = getQuoteAlias(key, helper, tableName);
-         expression = expression.replaceAll(oldAlias + ".", getQuoteAlias(newAlias, helper, tableName) + ".");
+         String nalias = getQuoteAlias(newAlias, helper, tableName);
+
+         if(!oldAlias.equals(nalias)) {
+            qualifiers.put(oldAlias, nalias);
+         }
       }
 
-      return expression;
+      // a literal match at the start of an identifier, so max(a.x) and "a".x are not
+      // touched by a.x (#77569)
+      return qualifiers.isEmpty() ? expression :
+         SQLHelper.replaceQualifiers(expression, qualifiers);
    }
 
    private static String getTableName(Vector<SelectTable> tables, String alias) {

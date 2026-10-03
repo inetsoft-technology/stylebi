@@ -428,16 +428,16 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
       setParseResult(PARSE_FAILED);
 
       if(parseType == PARSE_ALL) {
-         parser.direct_select_stmt_n_rows(UniformSQL.this);
+         parseUnquoted(() -> parser.direct_select_stmt_n_rows(UniformSQL.this));
          checkJoinOrders(parser, time);
          setParseResult(PARSE_SUCCESS);
       }
       else if(parseType == PARSE_ONLY_SELECT) {
-         parser.only_select(UniformSQL.this);
+         parseUnquoted(() -> parser.only_select(UniformSQL.this));
          setParseResult(PARSE_PARTIALLY);
       }
       else if(parseType == PARSE_ONLY_SELECT_FROM) {
-         parser.only_select_from(UniformSQL.this);
+         parseUnquoted(() -> parser.only_select_from(UniformSQL.this));
          setParseResult(PARSE_PARTIALLY);
       }
    }
@@ -480,7 +480,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
                   new StringReader(regenerated.getQuotedSqlString(generated)));
                SQLParser parser2 = new SQLParser(lexer);
                parser2.setTime(time);
-               parser2.direct_select_stmt_n_rows(regenerated);
+               parseUnquoted(() -> parser2.direct_select_stmt_n_rows(regenerated));
                structure = parser2.getJoinStructure(regenerated);
             }
          }
@@ -683,7 +683,9 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
                name = Tool.getValue(namenode);
 
                if(issql) {
-                  name = new UniformSQL((String) name, false);
+                  // the sql with the quotes of its quoted table names (#77569)
+                  String quoted = Tool.getAttribute(namenode, "quotedSql");
+                  name = new UniformSQL(quoted != null ? quoted : (String) name, false);
                }
             }
             else if(sqlNameNode != null) {
@@ -695,6 +697,11 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
             SelectTable stable = addTable(alias, name, loc, scrollLoc);
             stable.setCatalog(Tool.getValue(cnode));
             stable.setSchema(Tool.getValue(snode));
+
+            // the name segments written quoted in the parsed sql (#77569)
+            if(namenode != null && name instanceof String) {
+               stable.setQuotedSegmentsString(Tool.getAttribute(namenode, "quotedSegments"));
+            }
          }
       }
 
@@ -1065,8 +1072,27 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
             ((UniformSQL) name).writeXML0(writer, true);
             writer.println("</sqlName>");
          }
+         else if(issql) {
+            // a derived table is saved as the text of its sql, as before #77569 without the
+            // quotes of its quoted table names, and with them in the quotedSql attribute,
+            // which older builds ignore
+            UniformSQL sub = (UniformSQL) name;
+
+            if(sub.getDataSource() == null) {
+               sub.setDataSource(getDataSource());
+            }
+
+            String text = toUnquotedString(sub);
+            String quoted = name.toString();
+            writer.println("<name" + (!quoted.equals(text) ?
+               " quotedSql=\"" + Tool.escape(quoted) + "\"" : "") +
+               "><![CDATA[" + text + "]]></name>");
+         }
          else {
-            writer.println("<name><![CDATA[" + name + "]]></name>");
+            String quotedSegments = name instanceof String ? table.getQuotedSegmentsString() : null;
+            writer.println("<name" + (quotedSegments != null ?
+               " quotedSegments=\"" + quotedSegments + "\"" : "") +
+               "><![CDATA[" + name + "]]></name>");
          }
 
          writer.println("<issql><![CDATA[" + issql + "]]></issql>");
@@ -2680,21 +2706,46 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
 
       SelectTable[] tables = getSelectTable();
 
-      for(SelectTable selectTable : tables) {
-         String table_alias = selectTable.getAlias();
-         Object table_name = selectTable.getName();
+      // exact match first, so that tables whose names differ only in case (e.g. "A" and
+      // "a") resolve to the right table (#77569)
+      for(boolean ignoreCase : new boolean[] { false, true }) {
+         for(SelectTable selectTable : tables) {
+            String table_alias = selectTable.getAlias();
+            Object table_name = selectTable.getName();
 
-         if(table.equalsIgnoreCase(table_alias)) {
-            return table_alias;
-         }
+            if(ignoreCase ? table.equalsIgnoreCase(table_alias) : table.equals(table_alias)) {
+               return table_alias;
+            }
 
-         if(table.equalsIgnoreCase(table_name + "")) {
-            return table_alias != null && table_alias.length() > 0 ?
-               table_alias : (String) table_name;
+            if(ignoreCase ? table.equalsIgnoreCase(table_name + "") :
+               table.equals(table_name + ""))
+            {
+               return table_alias != null && table_alias.length() > 0 ?
+                  table_alias : (String) table_name;
+            }
          }
       }
 
-      return null;
+      // a qualifier written as the end of a table name with quoted segments, e.g. "a".id
+      // for "S"."a" (#77569)
+      String found = null;
+
+      for(SelectTable selectTable : tables) {
+         Object table_name = selectTable.getName();
+
+         if(selectTable.getQuotedSegments() != null && table_name instanceof String &&
+            table_name.equals(selectTable.getAlias()) &&
+            ((String) table_name).endsWith("." + table))
+         {
+            if(found != null) {
+               return null;
+            }
+
+            found = (String) table_name;
+         }
+      }
+
+      return found;
    }
 
    /**
@@ -2889,6 +2940,12 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
          SelectTable nstable = new SelectTable(alias, name);
          nstable.setCatalog(ostable.getCatalog());
          nstable.setSchema(ostable.getSchema());
+
+         // the quoted segments describe the name, keep them only for the same name
+         if(Tool.equals(ostable.getName(), name)) {
+            nstable.setQuotedSegments(ostable.getQuotedSegments());
+         }
+
          tables.set(index, nstable);
       }
       else {
@@ -2910,6 +2967,12 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
          SelectTable nstable = new SelectTable(alias, name, location, scroll);
          nstable.setCatalog(ostable.getCatalog());
          nstable.setSchema(ostable.getSchema());
+
+         // the quoted segments describe the name, keep them only for the same name
+         if(Tool.equals(ostable.getName(), name)) {
+            nstable.setQuotedSegments(ostable.getQuotedSegments());
+         }
+
          tables.set(index, nstable);
       }
       else {
@@ -3758,6 +3821,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
          Objects.equals(xselect, that.xselect) &&
          Objects.equals(xselect2, that.xselect2) &&
          Objects.equals(tables, that.tables) &&
+         equalsQuotedSegments(tables, that.tables) &&
          Objects.equals(fields, that.fields) &&
          Objects.equals(orderByList, that.orderByList) &&
          Arrays.equals(groups, that.groups) &&
@@ -3770,6 +3834,28 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
          Objects.equals(expressions, that.expressions) &&
          Objects.equals(orderDBFields, that.orderDBFields) &&
          Objects.equals(groupDBFields, that.groupDBFields);
+   }
+
+   /**
+    * Check if the tables at each index have the same quoted name segments.
+    */
+   private static boolean equalsQuotedSegments(Vector<SelectTable> tables1,
+                                               Vector<SelectTable> tables2)
+   {
+      // different tables are told apart by the table comparison
+      if(tables1 == null || tables2 == null || tables1.size() != tables2.size()) {
+         return true;
+      }
+
+      for(int i = 0; i < tables1.size(); i++) {
+         if(!Arrays.equals(tables1.get(i).getQuotedSegments(),
+                           tables2.get(i).getQuotedSegments()))
+         {
+            return false;
+         }
+      }
+
+      return true;
    }
 
    /**
@@ -3921,6 +4007,73 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
     */
    public UniformSQL getParent() {
       return psql;
+   }
+
+   /**
+    * A rule of the sql parser.
+    */
+   private interface ParseRule {
+      void parse() throws Exception;
+   }
+
+   /**
+    * Run the sql parser. The sql it generates while it parses, e.g. the text of a case
+    * expression or of a scalar subquery of the select list, is stored as text, so it is
+    * generated without the quotes of the quoted table names (SelectTable quotedSegments),
+    * as before #77569. Those are added when the sql is generated, with the sql helper of
+    * the data source, so readers of the text see the same text as before.
+    */
+   private static void parseUnquoted(ParseRule rule) throws Exception {
+      int depth = UNQUOTED.get();
+      UNQUOTED.set(depth + 1);
+
+      try {
+         rule.parse();
+      }
+      finally {
+         UNQUOTED.set(depth);
+      }
+   }
+
+   /**
+    * Generate the sql of a query without the quotes of its quoted table names, as before
+    * #77569, for text that is saved (see parseUnquoted).
+    */
+   private static String toUnquotedString(UniformSQL sql) {
+      int depth = UNQUOTED.get();
+      UNQUOTED.set(depth + 1);
+
+      try {
+         sql.clearCachedString();
+         return sql.toString();
+      }
+      finally {
+         UNQUOTED.set(depth);
+         sql.clearCachedString();
+      }
+   }
+
+   /**
+    * Check if sql is generated on this thread without the quotes of the quoted table
+    * names, see parseUnquoted.
+    */
+   static boolean isUnquoted() {
+      return UNQUOTED.get() > 0;
+   }
+
+   /**
+    * Get the query that this sql is a subquery of in a condition, set while the sql of that
+    * query is generated, so a correlated column can be quoted as its table (#77569).
+    */
+   public UniformSQL getOuterSQL() {
+      return outerSQL;
+   }
+
+   /**
+    * Set the query that this sql is a subquery of in a condition.
+    */
+   public void setOuterSQL(UniformSQL outerSQL) {
+      this.outerSQL = outerSQL;
    }
 
    /**
@@ -4180,7 +4333,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
          sql.setDataSource(getDataSource());
 
          try {
-            parser.direct_select_stmt_n_rows(sql);
+            parseUnquoted(() -> parser.direct_select_stmt_n_rows(sql));
             // the join order check fails the parse of sql whose regenerated joins differ,
             // e.g. a saved query parsed before the check was added (Bug #77488). It needs
             // the data source's sql helper, without one the parse result is kept
@@ -4316,6 +4469,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
    private boolean allKey = false;
    private boolean grpall = false;
    private UniformSQL psql = null;
+   private transient UniformSQL outerSQL; // the query of a condition subquery, see getOuterSQL
    private XField[] columns = null;
    private int parseResult = PARSE_INIT;
    private XNode root;
@@ -4338,4 +4492,5 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
    private Boolean lossy = null;
 
    private static final Logger LOG = LoggerFactory.getLogger(UniformSQL.class);
+   private static final ThreadLocal<Integer> UNQUOTED = ThreadLocal.withInitial(() -> 0);
 }
