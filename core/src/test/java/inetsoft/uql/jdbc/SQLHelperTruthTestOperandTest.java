@@ -171,6 +171,7 @@ class SQLHelperTruthTestOperandTest {
       String generated = normalize(sql.getSQLString());
 
       assertTrue(generated.contains("LEFT OUTER JOIN"), generated);
+      assertTrue(generated.endsWith("and (true)"), generated);
       assertFalse(generated.contains("()"), generated);
    }
 
@@ -301,8 +302,8 @@ class SQLHelperTruthTestOperandTest {
       try(Statement st = con.createStatement()) {
          // the planner assumes large tables, and compiling the comparison takes seconds
          st.execute("set jit = off");
-         st.execute("drop table if exists a; drop table if exists b; " +
-                       "create table a (id int, k int); create table b (id int, k int)");
+         // temp tables hide any real a and b, and are dropped with the connection
+         st.execute("create temp table a (id int, k int); create temp table b (id int, k int)");
 
          for(int n = 0; n < 100; n++) {
             StringBuilder data = new StringBuilder("delete from a; delete from b;");

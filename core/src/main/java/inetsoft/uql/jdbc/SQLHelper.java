@@ -4016,7 +4016,14 @@ public class SQLHelper implements KeywordProvider {
          return false;
       }
 
-      relation = relation.trim().replaceAll("\\s+", " ");
+      relation = relation.trim();
+
+      // most sets are and/or, skip the regex for them
+      if(!relation.regionMatches(true, 0, "is", 0, 2)) {
+         return false;
+      }
+
+      relation = relation.replaceAll("\\s+", " ");
 
       if(!relation.equalsIgnoreCase("is") && !relation.equalsIgnoreCase("is not")) {
          return false;
