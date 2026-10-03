@@ -327,6 +327,41 @@ public class SQLIteratorTest {
       }
    }
 
+   // Bug #77663, a comment or quote form of one database (a mysql # comment, a postgresql
+   // nested comment or dollar quote, an oracle q quote, a mysql 5--1, a snowflake // comment)
+   // doesn't make a quote open a literal that hides the later annotations and tags
+   @Test
+   void dialectCommentAndQuoteDoesNotHideTags() {
+      iterate("# Sales report - don't edit\n-- vpm.tables: SA.ORDERS\n" +
+         "select * from SA.ORDERS where /*<where>*/1=1/*</where>*/ and region = 'East'");
+      assertEquals(List.of("SA.ORDERS"), vpmTables);
+      assertEquals("1=1", whereClause);
+
+      for(String text : new String[] {
+         "select a # customer's name\nfrom SA.ORDERS where /*<where>*/1=1/*</where>*/ and b = 'x'",
+         "select a /* outer /* inner */ don't */ from SA.ORDERS\n" +
+            "where /*<where>*/1=1/*</where>*/ and b = 'x'",
+         "select $$it's$$ as a from SA.ORDERS\nwhere /*<where>*/1=1/*</where>*/ and b = 'x'",
+         "select $tag$it's$tag$ as a from SA.ORDERS\n" +
+            "where /*<where>*/1=1/*</where>*/ and b = 'x'",
+         "select q'[it's]' as a from SA.ORDERS\nwhere /*<where>*/1=1/*</where>*/ and b = 'x'",
+         "select nq'{it's}' as a from SA.ORDERS\nwhere /*<where>*/1=1/*</where>*/ and b = 'x'",
+         "select 5--1 as a, 'x\ny' as b from SA.ORDERS\n" +
+            "where /*<where>*/1=1/*</where>*/ and c = 'z'",
+         "select a // don't\nfrom SA.ORDERS where /*<where>*/1=1/*</where>*/ and b = 'x'" })
+      {
+         setup();
+         iterate(text);
+         assertEquals("1=1", whereClause, text);
+      }
+
+      // a literal is still found when the forms of other databases are in the sql
+      setup();
+      String sql = "select a # x\nfrom t where n = 'a\n-- vpm.tables: SA.OTHER\n' and $(v) = 1";
+      assertEquals(sql, iterate(sql));
+      assertEquals(List.of(), vpmTables);
+   }
+
    // Bug #77663, the text of a literal is still a text element, so a variable in it is found
    @Test
    void literalIsTextElement() {

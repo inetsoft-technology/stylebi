@@ -35,6 +35,7 @@ import org.w3c.dom.Element;
 import java.io.PrintWriter;
 import java.security.Principal;
 import java.util.*;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
@@ -693,8 +694,12 @@ public class VpmCondition extends VpmObject {
             // String creg = ".*['\"]?" + table + "['\"]?\\.['\"]?" + column + "(['\"]?)(\\W+.)*";
             // Bug #77663, a ' is not an identifier quote (the optional ' took the closing quote
             // of a literal), and a name ending with the table name (XT.A) is not the table
-            String rreg = "(?<![\\w$.])\"?" + table + "\"?\\.\"?" + column + "\"?";
-            exp = replaceOutsideLiterals(exp, rreg, ncolumn);
+            // (a unicode name, e.g. a chinese table name, is a name too)
+            String rreg = "(?<![\\w$.])\"?" + Pattern.quote(String.valueOf(table)) +
+               "\"?\\.\"?" + Pattern.quote(String.valueOf(column)) + "\"?";
+            exp = replaceOutsideLiterals(
+               exp, Pattern.compile(rreg, Pattern.UNICODE_CHARACTER_CLASS),
+               Matcher.quoteReplacement(ncolumn));
          }
       }
 
@@ -703,23 +708,35 @@ public class VpmCondition extends VpmObject {
 
    /**
     * Replace the matches of a regular expression outside the string literals and comments of
-    * an expression. A double quoted name ("T"."A") is not a literal, so it is replaced.
+    * an expression. A double quoted or backquoted name ("T"."A") is not a literal, so it is
+    * replaced, but a ' inside it doesn't open a literal.
     */
-   private static String replaceOutsideLiterals(String exp, String regex, String replacement) {
-      Pattern pattern = Pattern.compile(regex);
+   private static String replaceOutsideLiterals(String exp, Pattern pattern,
+                                                String replacement)
+   {
       StringBuilder result = new StringBuilder();
       int len = exp.length();
       int start = 0;
       int i = 0;
-      boolean unclosed = false;
+      // the quotes found not closed. A quote that isn't closed doesn't open a literal or
+      // name, as before literals were skipped
+      String unclosed = "";
 
       while(i < len) {
          int end = SQLQuoteScanner.skipComment(exp, i);
+         char c = exp.charAt(i);
 
-         // a quote that isn't closed is not a literal, as before literals were skipped
-         if(end < 0 && !unclosed && exp.charAt(i) == '\'') {
-            end = SQLQuoteScanner.skipQuoted(exp, i, '\'', false);
-            unclosed = end < 0;
+         if(end < 0 && (c == '\'' || c == '"' || c == '`') && unclosed.indexOf(c) < 0) {
+            end = SQLQuoteScanner.skipQuoted(exp, i, c, false);
+
+            if(end < 0) {
+               unclosed += c;
+            }
+            // a quoted name is stepped over but stays in the text that is replaced
+            else if(c != '\'') {
+               i = end;
+               continue;
+            }
          }
 
          if(end < 0) {

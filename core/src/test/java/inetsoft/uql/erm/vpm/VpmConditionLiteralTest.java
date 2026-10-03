@@ -23,6 +23,7 @@ import inetsoft.uql.*;
 import inetsoft.uql.jdbc.*;
 import inetsoft.util.credential.CredentialService;
 import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
@@ -73,23 +74,46 @@ class VpmConditionLiteralTest {
          // a quote that is not closed is not a literal
          Arguments.of("T.A || 'x", "o.A || 'x"),
          // a comment is not changed
-         Arguments.of("T.A /* T.A */", "o.A /* T.A */"));
+         Arguments.of("T.A /* T.A */", "o.A /* T.A */"),
+         // a ' in a double quoted or backquoted string or name doesn't open a literal
+         Arguments.of("concat(\"x'y\", T.A, 'z')", "concat(\"x'y\", o.A, 'z')"),
+         Arguments.of("concat($(a.b), \"x'y\", T.A, 'z')", "concat($(a.b), \"x'y\", o.A, 'z')"),
+         Arguments.of("concat(`x'y`, T.A, 'z')", "concat(`x'y`, o.A, 'z')"));
    }
 
    @ParameterizedTest(name = "{0}")
    @MethodSource("expressions")
    void tableIsReplacedOutsideLiterals(String exp, String expected) throws Exception {
+      assertEquals(expected + " = 1", evaluate("T", "o", exp));
+   }
+
+   // a name ending with a unicode table name is not the table
+   @Test
+   void unicodeNameEndingWithTableIsNotTable() throws Exception {
+      String table = "订单";
+      String exp = "历史" + table + ".AMT || " + table + ".AMT";
+
+      assertEquals("历史" + table + ".AMT || o.AMT = 1", evaluate(table, "o", exp));
+   }
+
+   // a regex char in a name or a $ in the alias is not a regex
+   @Test
+   void regexCharsInNamesAreLiteral() throws Exception {
+      assertEquals("\"V$X\".A || 'T.A' = 1", evaluate("T", "V$X", "T.A || 'T.A'"));
+      assertEquals("concat($(a.b), o.\"A(\", o.B) = 1",
+                   evaluate("T", "o", "concat($(a.b), \"T\".\"A(\", T.B)"));
+   }
+
+   private static String evaluate(String table, String alias, String exp) throws Exception {
       VpmCondition cond = new VpmCondition("cond");
       cond.setType(VpmCondition.TABLE);
-      cond.setTable("T");
+      cond.setTable(table);
       cond.setCondition(new XBinaryCondition(new XExpression(exp, XExpression.EXPRESSION),
                                              new XExpression("1", XExpression.VALUE), "="));
 
       XPrincipal user = new XPrincipal(new IdentityID("viewer", null));
-      String result = cond.evaluate(null, new String[] { "T" }, new String[] { "o" },
-                                    new String[0], null, new VariableTable(), user, false);
-
-      assertEquals(expected + " = 1", result);
+      return cond.evaluate(null, new String[] { table }, new String[] { alias },
+                           new String[0], null, new VariableTable(), user, false);
    }
 
    @Configuration
