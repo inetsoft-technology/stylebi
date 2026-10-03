@@ -18,7 +18,7 @@
 
 import { Component, Inject, NgZone, OnDestroy, OnInit, ViewChild, DOCUMENT } from "@angular/core";
 import { NavigationEnd, Router, RouterOutlet } from "@angular/router";
-import { NgbModal, NgbModalRef } from "@ng-bootstrap/ng-bootstrap";
+import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { Subscription } from "rxjs";
 import { SsoHeartbeatDispatcherService } from "../../../shared/sso/sso-heartbeat-dispatcher.service";
 import { StompClientConnection } from "../../../shared/stomp/stomp-client-connection";
@@ -45,8 +45,6 @@ interface NotificationMessage {
 export class AppComponent implements OnInit, OnDestroy {
    @ViewChild("notifications") notifications: NotificationsComponent;
    loading = true;
-   notificationMessage: string = "";
-   notificationDialog: NgbModalRef;
 
    private windowListener: EventListener;
    private subscription: Subscription = new Subscription();
@@ -135,24 +133,9 @@ export class AppComponent implements OnInit, OnDestroy {
    }
 
    private notify(message: NotificationMessage): void {
-      // if it's the exact same message as already displayed then return
-      if(this.notificationMessage === message.message) {
-         return;
-      }
-
-      if(this.notificationMessage) {
-         this.notificationMessage += "\n" + message.message;
-      }
-      else {
-         this.notificationMessage = message.message;
-      }
-
-      this.notifications.info(this.notificationMessage);
-   }
-
-   closeNotificationDialog() {
-      this.notificationDialog.close();
-      this.notificationMessage = "";
+      // each message gets its own toast, the notifications component drops a message that is
+      // identical to a toast still showing
+      this.notifications.info(message.message);
    }
 
    private showExpirationDialog(model: SessionExpirationModel): void {
