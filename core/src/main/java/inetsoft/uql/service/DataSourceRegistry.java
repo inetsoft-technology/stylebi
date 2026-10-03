@@ -906,6 +906,36 @@ public class DataSourceRegistry implements MessageListener {
    }
 
    /**
+    * Gets the data source that a registry path lies under, i.e. the first parent segment of the
+    * path, e.g. "P" for "P/X" or "F/P" for "F/P/X", that is a data source in the current
+    * organization. A data source or folder must not be moved under a data source: it would become
+    * an additional connection of that data source. The path is compared exactly (case-sensitive)
+    * and, like {@link #isDataSourcePathInUse(String)}, a globally shared data source of the host
+    * organization is not taken into account.
+    *
+    * @param path the registry path, e.g. "F/P/X".
+    *
+    * @return the path of the data source, or {@code null} if no parent segment is a data source.
+    */
+   public String getDataSourceAncestor(String path) {
+      if(path == null) {
+         return null;
+      }
+
+      for(int i = path.indexOf('/'); i != -1; i = path.indexOf('/', i + 1)) {
+         String parent = path.substring(0, i);
+
+         if(containObject(new AssetEntry(
+            AssetRepository.QUERY_SCOPE, AssetEntry.Type.DATA_SOURCE, parent, null)))
+         {
+            return parent;
+         }
+      }
+
+      return null;
+   }
+
+   /**
     * Gets the name of a JDBC additional connection from its path, or null if the path is not
     * that of a JDBC additional connection.
     */

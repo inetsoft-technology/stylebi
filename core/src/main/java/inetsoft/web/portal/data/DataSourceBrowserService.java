@@ -424,6 +424,14 @@ public class DataSourceBrowserService {
                "common.datasource.moveTargetExists", newPath));
          }
 
+         // a name with a slash could put the folder under a data source
+         String dataSource = dataSourceRegistry.getDataSourceAncestor(newPath);
+
+         if(dataSource != null) {
+            throw new MessageException(Catalog.getCatalog(principal).getString(
+               "common.datasource.moveUnderDataSource", dataSource));
+         }
+
          List<String> childrenSources = new ArrayList<>();
          DependencyTransformer.prepareChildrenSources(path, childrenSources, repository);
          RenameDependencyInfo dinfo = DependencyTransformer.createDependencyInfo(
@@ -796,6 +804,14 @@ public class DataSourceBrowserService {
          if(!targets.add(nname) || registry.isDataSourcePathInUse(nname)) {
             throw new MessageException(Catalog.getCatalog(principal).getString(
                "common.datasource.moveTargetExists", nname));
+         }
+
+         // moved under a data source, it would become an additional connection of it
+         String dataSource = registry.getDataSourceAncestor(nname);
+
+         if(dataSource != null) {
+            throw new MessageException(Catalog.getCatalog(principal).getString(
+               "common.datasource.moveUnderDataSource", dataSource));
          }
       }
    }

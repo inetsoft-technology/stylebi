@@ -946,6 +946,14 @@ public class RepositoryObjectService {
             throw new MessageException(Catalog.getCatalog(principal).getString(
                "common.datasource.moveTargetExists", newPath));
          }
+
+         // moved under a data source, it would become an additional connection of it
+         String dataSource = dataSourceRegistry.getDataSourceAncestor(newPath);
+
+         if(dataSource != null) {
+            throw new MessageException(Catalog.getCatalog(principal).getString(
+               "common.datasource.moveUnderDataSource", dataSource));
+         }
       }
 
       for(int i = 0; i < pathFroms.length; i++) {

@@ -127,6 +127,7 @@ interface RenderOptions {
    statusResponse?: DataSourceStatus[];
    composerOpen?: boolean;
    moveDuplicate?: boolean;
+   moveCheckFails?: boolean;
 }
 
 function makeNotifications(): NotificationMock {
@@ -245,6 +246,11 @@ async function renderComponent(options: RenderOptions = {}) {
       }),
       http.post("*/api/data/datasources/move/checkDuplicate", async ({ request }) => {
          moveCheckRequests.push(await request.json());
+
+         if(options.moveCheckFails) {
+            return HttpResponse.json({ message: "failed" }, { status: 500 });
+         }
+
          return HttpResponse.json({ duplicate: options.moveDuplicate ?? false });
       })
    );
@@ -608,6 +614,23 @@ describe("DataDatasourceBrowserComponent - drag/drop [Group 5, Risk 3]", () => {
       await waitFor(() => expect(datasourceService.moveDataSourcesToFolder)
          .toHaveBeenCalledWith([source], "", expect.any(Function)));
       expect(moveCheckRequests).toEqual([{ items: [source] }]);
+   });
+
+   it("should still confirm and move when the duplicate check fails", async () => {
+      const source = makeDataSource("Source", "source/Source", PortalDataType.DATABASE);
+      const confirmSpy = vi.spyOn(ComponentTool, "showConfirmDialog").mockResolvedValue("ok");
+      const { comp, dragService, datasourceService } =
+         await renderComponent({ moveCheckFails: true });
+      comp.currentFolderPathString = "target";
+      (dragService.getDragData as Mock).mockReturnValue({
+         dragDataSources: JSON.stringify([source])
+      });
+
+      comp.dropAssets({ stopPropagation: vi.fn() } as any as DragEvent, null);
+
+      await waitFor(() => expect(confirmSpy).toHaveBeenCalled());
+      await waitFor(() => expect(datasourceService.moveDataSourcesToFolder)
+         .toHaveBeenCalledWith([source], "target", expect.any(Function)));
    });
 });
 

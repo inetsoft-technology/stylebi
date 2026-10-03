@@ -910,15 +910,7 @@ export class DataDatasourceBrowserComponent extends CommandProcessor implements 
             checkMoveDuplicateRequest.path = targetFolder;
          }
 
-         this.httpClient.post<CheckDuplicateResponse>(DATASOURCE_MOVE_URI + "/checkDuplicate",
-            checkMoveDuplicateRequest).subscribe((res: CheckDuplicateResponse) =>
-         {
-            if(res.duplicate) {
-               ComponentTool.showMessageDialog(this.modalService, "_#(js:Error)",
-                  "_#(js:common.duplicateName)");
-               return;
-            }
-
+         const confirmMove = () => {
             ComponentTool.showConfirmDialog(this.modalService, "_#(js:Confirm)",
                "_#(js:em.reports.drag.confirm)").then((buttonClicked) =>
             {
@@ -927,6 +919,21 @@ export class DataDatasourceBrowserComponent extends CommandProcessor implements 
                      () => this.refreshAllData(this.currentFolderPathString));
                }
             });
+         };
+
+         this.httpClient.post<CheckDuplicateResponse>(DATASOURCE_MOVE_URI + "/checkDuplicate",
+            checkMoveDuplicateRequest).subscribe({
+            next: (res: CheckDuplicateResponse) => {
+               if(res.duplicate) {
+                  ComponentTool.showMessageDialog(this.modalService, "_#(js:Error)",
+                     "_#(js:common.duplicateName)");
+               }
+               else {
+                  confirmMove();
+               }
+            },
+            // the check is only a convenience, the server refuses a move onto a name in use
+            error: () => confirmMove()
          });
       }
    }

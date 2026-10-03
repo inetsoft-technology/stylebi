@@ -518,6 +518,98 @@ class DataSourceMoveTargetExistsTest {
       assertChildren("gsShared", "gsHostAdd");
    }
 
+   // the helper finds the data source that a path lies under, at the exact path
+   @Test
+   void dataSourceAncestorHelper() throws Exception {
+      folder("ancF");
+      addParent("ancF/ancP", "ancAdd");
+
+      assertEquals("ancF/ancP", registry.getDataSourceAncestor("ancF/ancP/ancX"));
+      assertEquals("ancF/ancP", registry.getDataSourceAncestor("ancF/ancP/ancAdd"));
+      assertNull(registry.getDataSourceAncestor("ancF/ancP"));
+      assertNull(registry.getDataSourceAncestor("ancF/ancX"));
+      assertNull(registry.getDataSourceAncestor("ANCF/ANCP/ancX"));
+      assertNull(registry.getDataSourceAncestor("ancX"));
+      assertNull(registry.getDataSourceAncestor(null));
+   }
+
+   // EM: a hand-made move of a data source or a folder under a data source (to a free path) is
+   // refused, neither becomes part of the data source (review r1 I-1)
+   @Test
+   void emMoveUnderADataSourceIsRefused() throws Exception {
+      addParent("emuP", "emuAdd");
+      folder("emuF");
+      dataSource("emuF/emuX");
+      folder("emuG");
+      dataSource("emuG/emuKid");
+
+      MessageException ex = assertThrows(MessageException.class, () -> objectService.moveFiles(
+         request(node("emuP", RepositoryEntry.DATA_SOURCE | RepositoryEntry.FOLDER),
+                 node("emuF/emuX", RepositoryEntry.DATA_SOURCE | RepositoryEntry.FOLDER)),
+         true, principal));
+      assertTrue(ex.getMessage().contains("emuP"), ex.getMessage());
+      assertThrows(MessageException.class, () -> objectService.moveFiles(
+         request(node("emuP", RepositoryEntry.DATA_SOURCE | RepositoryEntry.FOLDER),
+                 node("emuG", RepositoryEntry.DATA_SOURCE_FOLDER)), true, principal));
+
+      registry.clearCache();
+      assertNotNull(registry.getDataSource("emuF/emuX"));
+      assertNull(registry.getDataSource("emuP/emuX"));
+      assertNotNull(registry.getDataSourceFolder("emuG"));
+      assertNull(registry.getDataSourceFolder("emuP/emuG"));
+      assertNotNull(registry.getDataSource("emuG/emuKid"));
+      assertChildren("emuP", "emuAdd");
+   }
+
+   // portal: a hand-made move of a data source or a folder under a data source is refused
+   @Test
+   void portalMoveUnderADataSourceIsRefused() throws Exception {
+      addParent("pmuP", "pmuAdd");
+      folder("pmuF");
+      dataSource("pmuF/pmuX");
+      folder("pmuG");
+
+      MessageException ex = assertThrows(MessageException.class,
+         () -> browserService.moveDataSource(
+            new MoveCommand[] { move("pmuF/pmuX", "pmuP/pmuX", PortalDataType.DATABASE) },
+            principal));
+      assertTrue(ex.getMessage().contains("pmuP"), ex.getMessage());
+      assertThrows(MessageException.class, () -> browserService.moveDataSource(
+         new MoveCommand[] { move("pmuG", "pmuP/pmuG", PortalDataType.DATA_SOURCE_FOLDER) },
+         principal));
+
+      registry.clearCache();
+      assertNotNull(registry.getDataSource("pmuF/pmuX"));
+      assertNull(registry.getDataSource("pmuP/pmuX"));
+      assertNotNull(registry.getDataSourceFolder("pmuG"));
+      assertNull(registry.getDataSourceFolder("pmuP/pmuG"));
+      assertChildren("pmuP", "pmuAdd");
+   }
+
+   // portal and EM folder renames with a slash in the name can't put the folder under a data
+   // source
+   @Test
+   void folderRenameUnderADataSourceIsRefused() throws Exception {
+      folder("fruP");
+      folder("fruP/fruA");
+      dataSource("fruP/fruA/fruKid");
+      dataSource("fruP/fruDs");
+      folder("fruB");
+      dataSource("fruB/fruKid2");
+      dataSource("fruDs2");
+
+      assertThrows(MessageException.class, () -> browserService.renameFolder(
+         "fruP/fruA", "fruDs/fruA", null, null, principal));
+      assertThrows(MessageException.class, () -> databaseService.setDataSourceFolder(
+         "fruB", folderModel("fruDs2/fruB"), principal));
+
+      registry.clearCache();
+      assertNotNull(registry.getDataSource("fruP/fruA/fruKid"));
+      assertNull(registry.getDataSourceFolder("fruP/fruDs/fruA"));
+      assertNotNull(registry.getDataSource("fruB/fruKid2"));
+      assertNull(registry.getDataSourceFolder("fruDs2/fruB"));
+   }
+
    private void folder(String path) {
       registry.setDataSourceFolder(new DataSourceFolder(path, LocalDateTime.now(), null));
    }
