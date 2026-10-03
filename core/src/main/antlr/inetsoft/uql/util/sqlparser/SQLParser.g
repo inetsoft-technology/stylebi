@@ -885,6 +885,31 @@ private void startJoinEvent(UniformSQL sql, String op, int lstart, int rstart, i
                             Collections.newSetFromMap(new IdentityHashMap()), conds});
 }
 
+/**
+ * Get the number of joins recorded for the from clause of a query.
+ */
+private int getJoinEventCount(UniformSQL sql) {
+   List events = sql == null ? null : (List) joinEvents.get(sql);
+   return events == null ? 0 : events.size();
+}
+
+/**
+ * Check if a RIGHT or FULL join was recorded for a query after the first count joins.
+ */
+private boolean hasRightJoinEvent(UniformSQL sql, int count) {
+   List events = sql == null ? null : (List) joinEvents.get(sql);
+
+   for(int i = count; events != null && i < events.size(); i++) {
+      Object kind = ((Object[]) events.get(i))[0];
+
+      if("R".equals(kind) || "F".equals(kind)) {
+         return true;
+      }
+   }
+
+   return false;
+}
+
 private void startJoinEvent(UniformSQL sql, String op, int rstart, int rend) {
    if(sql != null) {
       int lstart = joinStarts.isEmpty() ? 0 : ((Integer) joinStarts.getFirst()).intValue();
@@ -3740,13 +3765,14 @@ from_clause [UniformSQL sql]
 ansi_joins [UniformSQL sql] returns [String str = ""]
      {String tmp, tmp2; XExpression exp; {checkStatus();}}
      :
-         (table_ref_nojoin[null, null] CROSS)=>
-        exp = cross_join[sql] { str = exp.toString(); }
-     |
+        // a cross join is a qualified join, so it can be followed by more joins and its
+        // left operand starts at the first table of the join (Bug #77495)
          (table_ref_nojoin[null, null] join_hint)=>
         exp = qualified_join[sql] { str = exp.toString(); }
-     | {pushJoinStart(sql);} OPEN_PAREN tmp = ansi_joins[sql] CLOSE_PAREN
-        tmp2 = sub_qualified_join[sql] { str = "(" + tmp + ") " + tmp2;}
+     | {pushJoinStart(sql);} OPEN_PAREN tmp = ansi_joins[sql] CLOSE_PAREN { str = "(" + tmp + ")";}
+        // redundant parentheses, ((a join b on ..)) or a parenthesized from clause, have no
+        // join after the closing parenthesis
+        ((sub_qualified_join[null])=> tmp2 = sub_qualified_join[sql] { str += " " + tmp2;})?
         {popJoinStart();}
 ;
 
@@ -4092,8 +4118,19 @@ qualified_join [UniformSQL sql] returns [XExpression exp = null]
 
 sub_qualified_join [UniformSQL sql] returns [String str = ""]
         { int rstart = sql == null ? 0 : sql.getTableCount(); int rend = 0;
-          String tbl2=""; String tmp; String op = ""; String table = ""; XExpression exp = null; int first = 0; boolean spec = false; {checkStatus();}}
+          String tbl2=""; String tmp; String op = ""; String table = ""; XExpression exp = null; int first = 0; boolean spec = false;
+          int events = 0; Token otok = null; {checkStatus();}}
         :
+        // a cross join has no join condition and is recorded with no XJoin. Its right
+        // operand is one table, so it's never nested and the cross join is left
+        // associative, as in every database (Bug #77495)
+        x:CROSS y:JOIN table = table_ref_nojoin[sql, null]
+        {str = x.getText() + " " + y.getText() + " " + table;
+         rend = sql == null ? 0 : sql.getTableCount();
+         addJoinType(sql, "CROSS JOIN", y);
+         startJoinEvent(sql, "CROSS JOIN", rstart, rend);}
+        ((sub_qualified_join[sql])=> tmp = sub_qualified_join[sql] {str += " " + tmp;})?
+        |
         (
          (
           ( c:NATURAL {
@@ -4113,7 +4150,8 @@ sub_qualified_join [UniformSQL sql] returns [String str = ""]
         )
         (
           ((joined_table)=>
-            ({first = sql == null ? 0 : sql.getTableCount();}
+            ({first = sql == null ? 0 : sql.getTableCount(); events = getJoinEventCount(sql);
+              otok = LT(1);}
              exp = joined_table_2[sql] {str += exp.toString(); setJoinedTableOps(sql, first, op);})
             |(table = table_ref_nojoin[sql, op] {str += " " + table;
                                                  tbl2 = table;
@@ -4142,6 +4180,20 @@ sub_qualified_join [UniformSQL sql] returns [String str = ""]
                                           d.getLine(), d.getColumn());
             }
           }
+          {
+            // a join with no join condition whose right operand is an unparenthesized
+            // nested join, e.g. a join b right join c on b.id = c.id. It's recorded as
+            // a join (b right join c), which is how H2 reads it, but MySQL and SQLite read
+            // it as (a join b) right join c, so the regenerated sql may return different
+            // rows. Only a RIGHT or FULL join in the nested join can change the rows
+            if(sql != null && exp != null && !spec && !isOuterJoinType(op) &&
+               otok.getType() != OPEN_PAREN && hasRightJoinEvent(sql, events))
+            {
+              throw new SemanticException(
+                 "Unsupported RIGHT or FULL join after a join without a join condition",
+                 getFilename(), otok.getLine(), otok.getColumn());
+            }
+          }
           // exp is only set when the right operand is a nested join
           {if(exp != null) {checkOuterJoinGroup(sql, op, d);}}
         )
@@ -4152,6 +4204,7 @@ join_hint
         :
         (NATURAL)? (tmp=join_type)? JOIN
         |(OJ EQ)
+        |CROSS JOIN
         ;
 
 join_type returns [String jt = ""]
