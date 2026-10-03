@@ -190,6 +190,8 @@ class XUtilSentinelCachedDerivedTableTest {
    }
 
    private static void assertRun(Run run, List<Integer> expected) {
+      // VarSQL replaces a $(p) left in the sql with a ? bound to the sentinel string. None
+      // of the expected sql has a ? of its own.
       assertFalse(run.executedSql.contains("?"), "parameter left in " + run.executedSql);
       assertEquals(expected, run.keys, run.executedSql);
    }
