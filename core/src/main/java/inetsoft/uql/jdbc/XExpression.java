@@ -119,6 +119,10 @@ public class XExpression implements Cloneable, Serializable, XMLSerializable {
    }
 
    private String getQuotedValue0() {
+      if(SUBQUERY.equals(type)) {
+         return toParsedSubqueryString();
+      }
+
       if(quote == QUOTE_NONE) {
          String value = toString();
 
@@ -181,7 +185,35 @@ public class XExpression implements Cloneable, Serializable, XMLSerializable {
     * quotes of a quoted identifier are restored.
     */
    public String toQuotedString() {
+      if(SUBQUERY.equals(type)) {
+         return toParsedSubqueryString();
+      }
+
       return isQuotedField() ? getQuotedValue() : quoteQualifier(toString());
+   }
+
+   /**
+    * Get the text of a subquery that becomes part of the text of an enclosing expression or
+    * a select column while the sql is parsed, e.g. a scalar subquery in the select list.
+    * The quotes of its qualifiers are kept as written, since the outer tables are not known
+    * yet and the text is not generated again (#77569).
+    */
+   private String toParsedSubqueryString() {
+      if(!(value instanceof UniformSQL)) {
+         return toString();
+      }
+
+      UniformSQL sql = (UniformSQL) value;
+      sql.setQuoteAsWritten(true);
+
+      try {
+         sql.clearCachedString();
+         return toString();
+      }
+      finally {
+         sql.setQuoteAsWritten(false);
+         sql.clearCachedString();
+      }
    }
 
    /**

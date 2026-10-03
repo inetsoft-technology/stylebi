@@ -3999,6 +3999,21 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
    }
 
    /**
+    * Check if the sql is generated as the text of a subquery while it is parsed, so the
+    * quoted qualifiers of its columns are kept as written (#77569).
+    */
+   public boolean isQuoteAsWritten() {
+      return quoteAsWritten;
+   }
+
+   /**
+    * Set if the sql is generated as the text of a subquery while it is parsed.
+    */
+   public void setQuoteAsWritten(boolean quoteAsWritten) {
+      this.quoteAsWritten = quoteAsWritten;
+   }
+
+   /**
     * Set the parent uniform sql to this uniform sql.
     * @param psql the specified parent uniform sql.
     */
@@ -4392,6 +4407,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
    private boolean grpall = false;
    private UniformSQL psql = null;
    private transient UniformSQL outerSQL; // the query of a condition subquery, see getOuterSQL
+   private transient boolean quoteAsWritten; // see isQuoteAsWritten
    private XField[] columns = null;
    private int parseResult = PARSE_INIT;
    private XNode root;

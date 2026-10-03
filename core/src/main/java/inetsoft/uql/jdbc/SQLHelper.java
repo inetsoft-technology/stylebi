@@ -4146,8 +4146,11 @@ public class SQLHelper implements KeywordProvider {
          str = buildFieldExpression(str, fld);
 
          // a quoted qualifier ("a".id) of a field generated while the sql is parsed, before
-         // its tables are known, e.g. in a case expression of the select list (#77569)
-         if(uniformSql.getTableCount() == 0 && str.equals(value.toString())) {
+         // its tables are known, e.g. in a case expression of the select list, or in the text
+         // of a scalar subquery whose outer tables are not known yet (#77569)
+         if((uniformSql.getTableCount() == 0 || isQuoteAsWritten()) &&
+            str.equals(value.toString()))
+         {
             str = exp.quoteQualifier(str);
          }
 
@@ -4661,6 +4664,21 @@ public class SQLHelper implements KeywordProvider {
          SelectTable table = sql.getSelectTable(i);
 
          if(qualifier.equals(table.getAlias()) || qualifier.equals(table.getName())) {
+            return true;
+         }
+      }
+
+      return false;
+   }
+
+   /**
+    * Check if the sql, or a query it is a subquery of, is generated as the text of a subquery
+    * while it is parsed. An outer query without tables is being parsed too, e.g. a subquery in
+    * a case expression of its select list.
+    */
+   private boolean isQuoteAsWritten() {
+      for(UniformSQL sql = uniformSql; sql != null; sql = sql.getOuterSQL()) {
+         if(sql.isQuoteAsWritten() || sql != uniformSql && sql.getTableCount() == 0) {
             return true;
          }
       }

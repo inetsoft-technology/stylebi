@@ -188,6 +188,18 @@ class UniformSQLQuotedTableNameTest {
          "select \"c\".ID from \"c\" where exists (select 1 from C where C.ID = \"c\".ID)",
          "select \"c\".ID from \"c\" where not exists (select 1 from C where C.ID = \"c\".ID)",
          "select \"c\".ID from \"c\" where \"c\".ID in (select C.ID from C where C.ID = \"c\".ID)",
+         // a correlated scalar subquery in the select list, in an expression, in a case and
+         // in having
+         "select \"c\".ID, (select max(C.V) from C where C.ID = \"c\".ID) from \"c\"",
+         "select \"c\".ID, coalesce((select max(C.V) from C where C.ID = \"c\".ID), 0) from \"c\"",
+         "select \"c\".ID, (select count(*) from C where C.ID = \"c\".ID) + 1 from \"c\"",
+         "select \"c\".ID, case when (select count(*) from C where C.ID = \"c\".ID) > 0 " +
+            "then 1 else 0 end from \"c\"",
+         "select \"c\".ID from \"c\" group by \"c\".ID " +
+            "having (select count(*) from C where C.ID = \"c\".ID) > 0",
+         "select \"c\".ID from \"c\" where \"c\".ID = " +
+            "(select max(C.ID) from C where C.ID = \"c\".ID)",
+         "select C.ID, (select max(a.V) from a where a.ID = C.ID) from C",
          // quoted qualifiers in expressions
          "select \"a\".ID, max(\"a\".V) from \"a\" group by \"a\".ID having max(\"a\".V) > 0",
          "select \"a\".ID, count(*) from \"a\" where \"a\".V > 0 group by \"a\".ID " +
@@ -279,6 +291,8 @@ class UniformSQLQuotedTableNameTest {
          // a correlated column of a quoted outer table
          { "select \"c\".id from \"c\" where exists (select 1 from C where C.id = \"c\".id)",
            "select \"c\".id from \"c\" where EXISTS ( select 1 from C where C.id = \"c\".id)" },
+         { "select \"c\".id, (select max(C.v) from C where C.id = \"c\".id) from \"c\"",
+           "select (select max(C.v) from C where C.id = \"c\".id ), \"c\".id from \"c\"" },
          // brackets and backticks are quoted with the helper quote
          { "select * from [a]", "select * from \"a\"" },
          { "select `a`.id from `a`", "select \"a\".id from \"a\"" },

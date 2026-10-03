@@ -3615,7 +3615,9 @@ derived_column [JDBCSelection selection, UniformSQL sql]
         (column_name EQ)=>
         aliastmp=column_name EQ exp=value_exp  // to support sybase gramma: select a=b, ....
         {
-           tmp = exp.toString();
+           // a scalar subquery keeps its quoted qualifiers as written (#77569)
+           tmp = XExpression.SUBQUERY.equals(exp.getType()) ? exp.toQuotedString() :
+              exp.toString();
            selection.addColumn(tmp);
            selection.setAlias(selection.getColumnCount() - 1,aliastmp);
 
@@ -3631,7 +3633,9 @@ derived_column [JDBCSelection selection, UniformSQL sql]
         |
         exp = value_exp
         {
-           tmp = exp.toString();
+           // a scalar subquery keeps its quoted qualifiers as written (#77569)
+           tmp = XExpression.SUBQUERY.equals(exp.getType()) ? exp.toQuotedString() :
+              exp.toString();
            // a quoted identifier ("x y" or t."x y"), stored without its quotes
            boolean quotedField = exp.getType().equals(XExpression.FIELD) &&
               exp.getQuote() != XExpression.QUOTE_NONE;
