@@ -330,6 +330,37 @@ class UniformSQLOracleAggregateColumnQuoteTest {
    }
 
    /**
+    * An Oracle reserved word missing from the keywords (MODE, START, UID) is still quoted, in
+    * upper case, in any locale. Always quoted before this change.
+    */
+   @Test
+   void reservedWordIsQuotedInUpperCase() throws Exception {
+      Locale locale = Locale.getDefault();
+
+      try {
+         for(String tag : new String[] { "en-US", "tr-TR" }) {
+            Locale.setDefault(Locale.forLanguageTag(tag));
+
+            for(String key : ORACLE) {
+               String label = key + " " + tag;
+
+               for(String word : new String[] { "MODE", "START", "UID", "INITIAL" }) {
+                  assertEquals("select sum(T.\"" + word + "\") from T",
+                               aggregate(key, "select sum(T." + word + ") from T"), label);
+               }
+
+               // was sum(T."Index"), max(t."mode")
+               assertEquals("select sum(T.\"INDEX\") from T", aggregate(key, "select sum(T.Index) from T"), label);
+               assertEquals("select max(t.\"MODE\") from a t", aggregate(key, "select max(t.mode) from a t"), label);
+            }
+         }
+      }
+      finally {
+         Locale.setDefault(locale);
+      }
+   }
+
+   /**
     * A function of a column in the where clause doesn't go through getValidAggregate, the output
     * before this change.
     */
