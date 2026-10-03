@@ -1758,8 +1758,23 @@ public class SQLHelper implements KeywordProvider {
             // sum("t"."MixedCase") and must keep the metadata case repair. A quoted
             // sum(t."MixedCase") is told apart only by the parser's record above (#77578)
             String qseg = isCaseSensitive() ? null : getQuotedSegment(path, column);
-            return form + getQuotedTableName(table, true) + "." +
-               (qseg != null ? getQuote() + qseg + getQuote() : quoteColumnAlias(column)) + ')';
+            String qcolumn;
+
+            if(qseg != null) {
+               qcolumn = getQuote() + qseg + getQuote();
+            }
+            // a column of a physical table written unquoted. The alias rule (always quoted on
+            // oracle) would name another column (max(a."v")), see #77646. A column of a derived
+            // table may be the inner select's alias, which is quoted with the alias rule there,
+            // and on a case-sensitive helper the column may have been written quoted
+            else if(!isCaseSensitive() && !(uniformSql.getTableName(table) instanceof UniformSQL)) {
+               qcolumn = quoteAggregateColumn(column);
+            }
+            else {
+               qcolumn = quoteColumnAlias(column);
+            }
+
+            return form + getQuotedTableName(table, true) + "." + qcolumn + ')';
          }
 
          if(XUtil.isQualifiedName(npath)) {
@@ -4377,6 +4392,14 @@ public class SQLHelper implements KeywordProvider {
     */
    protected String quoteColumnPartAlias(String alias) {
       return quoteColumnAlias(alias);
+   }
+
+   /**
+    * Quote the column of a physical table written unquoted as the only argument of a
+    * function (sum(t.col)), only if needed.
+    */
+   protected String quoteAggregateColumn(String column) {
+      return quoteColumnPartAlias(column);
    }
 
    /**

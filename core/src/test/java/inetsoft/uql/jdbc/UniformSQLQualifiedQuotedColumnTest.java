@@ -679,7 +679,8 @@ class UniformSQLQualifiedQuotedColumnTest {
       assertEquals("select q.id, sum(q.\"MixedCase\") from T q group by q.id",
                    aggregate("oracle", quoted, TWIN_FIRST));
       assertEquals("select q.id, sum(q.MIXEDCASE) from t q group by q.id", aggregate("h2", unquoted, TWIN_FIRST));
-      assertEquals("select q.id, sum(q.\"MIXEDCASE\") from T q group by q.id",
+      // was sum(q."MIXEDCASE"), an unquoted column is quoted on oracle only if needed (#77646)
+      assertEquals("select q.id, sum(q.MIXEDCASE) from T q group by q.id",
                    aggregate("oracle", unquoted, TWIN_FIRST));
    }
 
@@ -718,7 +719,9 @@ class UniformSQLQualifiedQuotedColumnTest {
             for(boolean xml : new boolean[] { true, false }) {
                String label = from + " " + column + (xml ? " xml" : " direct");
                String h2 = "sum(q." + column + ")";
-               String oracle = "sum(q.\"" + column + "\")";
+               // was sum(q."MIXEDCASE") and sum(q."mixedcase"), oracle quotes an unquoted
+               // column only if needed, so it folds to MIXEDCASE as written (#77646)
+               String oracle = "sum(q." + column + ")";
 
                assertEquals("select \"q\".\"id\", " + h2 + " from \"t\" q group by \"q\".\"id\"",
                             crossHelper(from, "h2", select, xml, column, "id"), label);

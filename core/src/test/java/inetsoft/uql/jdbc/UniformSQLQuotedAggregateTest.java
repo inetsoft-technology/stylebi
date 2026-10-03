@@ -159,7 +159,8 @@ class UniformSQLQuotedAggregateTest {
 
       assertEquals("select q.id, sum(q.MIXEDCASE) from t q group by q.id", aggregate("h2", UNQUOTED, TWIN_FIRST));
       assertEquals("select q.id, sum(q.MixedCase) from t q group by q.id", aggregate("h2", UNQUOTED, TWIN_SECOND));
-      assertEquals("select q.id, sum(q.\"MIXEDCASE\") from T q group by q.id",
+      // was sum(q."MIXEDCASE"), an unquoted column is quoted on oracle only if needed (#77646)
+      assertEquals("select q.id, sum(q.MIXEDCASE) from T q group by q.id",
                    aggregate("oracle", UNQUOTED, TWIN_FIRST));
       assertEquals("select q.id, sum(q.MixedCase) from t q group by q.id", aggregate("default", UNQUOTED));
 

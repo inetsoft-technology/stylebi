@@ -21,6 +21,7 @@ import inetsoft.uql.util.XUtil;
 import inetsoft.util.Tool;
 
 import java.util.HashSet;
+import java.util.Locale;
 import java.util.Set;
 
 /**
@@ -212,6 +213,41 @@ class OracleSQLHelper extends SQLHelper {
    protected String quoteColumnPartAlias(String alias) {
       return XUtil.quoteAlias(alias, this);
    }
+
+   /**
+    * The column was written unquoted, which oracle folds to upper case. If it must be quoted
+    * (a keyword such as account), quote the upper case name so it still names the same column.
+    */
+   @Override
+   protected String quoteAggregateColumn(String column) {
+      // check the lower case name, the keyword check lower cases it in the default locale,
+      // which misses SIZE in a turkish locale (sıze)
+      String lower = column.toLowerCase(Locale.ROOT);
+      String upper = column.toUpperCase(Locale.ROOT);
+
+      // the keywords miss some reserved words (MODE, START, UID), always quoted before #77646
+      if(!RESERVED_WORDS.contains(upper) && XUtil.quoteAlias(lower, this).equals(lower)) {
+         return column;
+      }
+
+      return '"' + upper + '"';
+   }
+
+   // Oracle SQL reserved words, Oracle Database SQL Language Reference, Oracle SQL Reserved
+   // Words and Keywords (V$RESERVED_WORDS where RESERVED = 'Y')
+   private static final Set<String> RESERVED_WORDS = Set.of(
+      "ACCESS", "ADD", "ALL", "ALTER", "AND", "ANY", "AS", "ASC", "AUDIT", "BETWEEN", "BY",
+      "CHAR", "CHECK", "CLUSTER", "COLUMN", "COLUMN_VALUE", "COMMENT", "COMPRESS", "CONNECT",
+      "CREATE", "CURRENT", "DATE", "DECIMAL", "DEFAULT", "DELETE", "DESC", "DISTINCT", "DROP",
+      "ELSE", "EXCLUSIVE", "EXISTS", "FILE", "FLOAT", "FOR", "FROM", "GRANT", "GROUP", "HAVING",
+      "IDENTIFIED", "IMMEDIATE", "IN", "INCREMENT", "INDEX", "INITIAL", "INSERT", "INTEGER",
+      "INTERSECT", "INTO", "IS", "LEVEL", "LIKE", "LOCK", "LONG", "MAXEXTENTS", "MINUS",
+      "MLSLABEL", "MODE", "MODIFY", "NESTED_TABLE_ID", "NOAUDIT", "NOCOMPRESS", "NOT", "NOWAIT",
+      "NULL", "NUMBER", "OF", "OFFLINE", "ON", "ONLINE", "OPTION", "OR", "ORDER", "PCTFREE",
+      "PRIOR", "PUBLIC", "RAW", "RENAME", "RESOURCE", "REVOKE", "ROW", "ROWID", "ROWNUM", "ROWS",
+      "SELECT", "SESSION", "SET", "SHARE", "SIZE", "SMALLINT", "START", "SUCCESSFUL", "SYNONYM",
+      "SYSDATE", "TABLE", "THEN", "TO", "TRIGGER", "UID", "UNION", "UNIQUE", "UPDATE", "USER",
+      "VALIDATE", "VALUES", "VARCHAR", "VARCHAR2", "VIEW", "WHENEVER", "WHERE", "WITH");
 
    /**
     * Check if alias length is limited.
