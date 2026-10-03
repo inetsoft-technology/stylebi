@@ -265,8 +265,6 @@ public final class XStringFragment extends XSwappable {
          if(isCountRW) {
             monitor.countRead(buf.length, XSwappableMonitor.DATA);
          }
-
-         valid = true;
       }
       catch(FileNotFoundException ex) {
          return;
@@ -275,6 +273,15 @@ public final class XStringFragment extends XSwappable {
          LOG.error("Failed to read swap file: " + file, ex);
       }
       finally {
+         // set unconditionally, on every exit path (including both catch branches above),
+         // not just a successful read: otherwise a swap file that's unreadable for reasons
+         // unrelated to the write-failure-recovery branch above (externally deleted, disk
+         // corruption, truncated) leaves this fragment permanently !valid, so every later
+         // access()/getData() call re-enters access0() and retries + re-logs the same failing
+         // read forever. Mirrors XIntFragment.validate0()/XObjectFragment.validate0(), which
+         // already set their valid flag in a finally block for the same reason.
+         valid = true;
+
          try {
             if(fin != null) {
                fin.close();

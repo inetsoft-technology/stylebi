@@ -257,6 +257,47 @@ class XFragmentSwapFileWriteFailureTest {
    }
 
    @Test
+   void stringFragmentStaysValidAfterUnrelatedSwapFileDeletion() throws Exception {
+      // review-and-merge-prs finding (post-merge, independent review of this PR): before this
+      // PR's changes, access0() began with an unconditional "valid = true" before attempting
+      // anything, so even a swap file that became unreadable for a reason unrelated to a failed
+      // write (externally deleted, disk corruption, a sweep bug) still left the fragment
+      // settled (valid, data lost) after the first failed read. This PR's restructuring moved
+      // "valid = true" into only the value-!=null recovery branch and the successful-read
+      // branch, so a fragment whose swap file goes missing for any OTHER reason got stuck at
+      // isValid() == false forever: every later access()/getData() call would re-enter
+      // access0(), retry the same failing RandomAccessFile open, and fail the same way again,
+      // indefinitely. Fixed by moving "valid = true" into a finally block covering the whole
+      // read attempt, mirroring XIntFragment.validate0()/XObjectFragment.validate0().
+      String original = "the quick brown fox";
+      XStringFragment fragment = new XStringFragment(original);
+      preventBackgroundSwapping(fragment);
+
+      // a normal, successful swap - no testBeforeWrite, so the write genuinely completes and
+      // access0() will take the disk-read branch (not the value != null recovery branch) below
+      assertTrue(fragment.swap());
+      File swapFile = FileSystemService.getInstance().getCacheFile(fragment.prefix + ".tdat");
+      assertTrue(swapFile.exists(), "test setup: swap file should have been durably written");
+
+      // simulate the swap file going missing for a reason unrelated to a failed write
+      assertTrue(swapFile.delete(), "test setup: failed to delete swap file");
+
+      assertNull(fragment.getData(),
+                 "data cannot be recovered once the swap file is genuinely gone");
+      assertTrue(fragment.isValid(),
+                 "fragment must settle (valid) after a read failure unrelated to a write "
+                    + "failure, not retry the same failing read forever");
+
+      // a second access() must not re-enter access0() at all now that the fragment is valid -
+      // if it did, isValid() would still read true here anyway, but the fragment would never
+      // actually stop retrying in real usage, which is exactly the bug this test guards against
+      assertNull(fragment.getData());
+      assertTrue(fragment.isValid());
+
+      fragment.dispose();
+   }
+
+   @Test
    void intFragmentValidateDoesNotDesyncPosFromArrOnReadFailure() throws Exception {
       // Review round 1, finding 2: a read-back failure partway through validate() must not leave
       // this.pos updated to a new value while this.arr (now preserved by the swap0() reorder)
