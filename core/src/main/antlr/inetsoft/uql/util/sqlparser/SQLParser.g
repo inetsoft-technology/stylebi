@@ -4685,12 +4685,9 @@ SPIDENT2		:	'`' {setCommitToPath(true);} ('\u0001'..'\u005f' | '\u0061'..'\ufffe
 SPIDENT_VAR             :    "$(" {setCommitToPath(true);} ('a'..'z'|'A'..'Z'|'_'|'0'..'9'|' '|
                                   '+' | '-' |'@'|'\u0100'..'\uFFFE')* ')' ;
 
-//have not include all chinese character
+// every character but '[', '\' and ']', e.g. the CJK characters from U+80FE up (#77640)
 SPIDENT_SQUARE		: 	'[' {setCommitToPath(true);}
-				(('\u0001'..'\u005a'|('\u005E'..'\u7fff')
-				|('\u8001'..'\u803f')|('\u8041'..'\u807f')
-				|('\u8081'..'\u80bf')|('\u80c1'..'\u80fd')
-				))*
+				('\u0001'..'\u005a' | '\u005e'..'\ufffe')*
 				']'
 			;
 
