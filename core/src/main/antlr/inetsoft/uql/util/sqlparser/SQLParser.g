@@ -4738,6 +4738,8 @@ DATE
 	'-'
 	(('0'|'1'|'2')('0'..'9')|('3')('0'|'1'))
 	'\''
+	// not the start of a '' escape, e.g. '2020-01-01''s data' is a string literal (#77640)
+	{LA(1) != '\''}?
 	;
 
 //Time format should be 'hh:mm:ss[.[nnnnnn]][<time zone interval>]'
@@ -4753,6 +4755,8 @@ TIME
 	(('0'..'5')('0'..'9')|('6')('0'|'1'))	//ss
 	('.'(('0'..'9'))*)?
 	'\''
+	// not the start of a '' escape (#77640)
+	{LA(1) != '\''}?
 	);
 
 
@@ -4867,7 +4871,7 @@ SL_COMMENT
 
 // multiple-line comments
 ML_COMMENT
-	:	"/*"
+	:	"/*" {setCommitToPath(true);}
 		(	/*	'\r' '\n' can be matched in one alternative or by matching
 				'\r' in one iteration and '\n' in another.  I am trying to
 				handle any flavor of newline that comes in, but the language
@@ -4903,3 +4907,7 @@ OJ	:	"(+)"	;	//oracle join
 COLON_EQU	:	":=";
 
 CONCATENATION_OP	:	"||" | "&";
+
+// a backslash outside a literal, a quoted name or a comment fails the parse instead of being
+// dropped by filter mode, e.g. the second escape of '\'', s, '\'' in MySQL (#77640)
+BACKSLASH	:	'\\' ;
