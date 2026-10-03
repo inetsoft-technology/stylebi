@@ -397,6 +397,45 @@ class UniformSQLQuotedTableNameTest {
       }
    }
 
+   // every helper that quotes with a backtick (no helper quotes with brackets): the select list
+   // subqueries saved as text while parsing must not get the default double quote
+   @Test
+   void backtickHelpersKeepTheirQuote() throws Exception {
+      String[][] helpers = {
+         { "access", "AccessSQLHelper" }, { "mysql", "MySQLHelper" }, { "hive", "HiveHelper" },
+         { "denodo", "DenodoSQLHelper" }, { "impala", "ImpalaHelper" },
+         { "google bigquery", "GoogleBigQueryHelper" }, { "databricks", "DatabricksHelper" },
+      };
+      String[] queries = {
+         // the correlated scalar subquery of the select list
+         "select `c`.id, (select max(b.w) from `b` b where b.id = `c`.id) from `c`",
+         // an uncorrelated one, and in a function
+         "select c.id, (select max(`b`.w) from `b`) from c",
+         "select coalesce((select max(`b`.w) from `b`), 0) from c",
+      };
+      // as on main, the outer table quoted with the backtick, the select list is sorted
+      String[] expected = {
+         "select (select max(b.w) from b where b.id = `c`.id ), `c`.id from `c`",
+         "select (select max(b.w) from b ), c.id from c",
+         "select coalesce((select max(b.w) from b ),0) from c",
+      };
+
+      for(String[] helper : helpers) {
+         JDBCDataSource ds = dataSource("jdbc.Driver" + helper[1], "jdbc:x:" + helper[0], helper[0]);
+         assertEquals(helper[1], SQLHelper.getSQLHelper(ds).getClass().getSimpleName());
+         assertEquals("`", SQLHelper.getSQLHelper(ds).getQuote());
+
+         for(String query : queries) {
+            String label = helper[0] + ": " + query;
+            String generated = regenerate(parse(query, ds));
+            assertFalse(generated.contains("\""), label + " -> " + generated);
+            assertEquals(expected[Arrays.asList(queries).indexOf(query)], generated, label);
+            assertEquals(generated, regenerate(parse(generated, ds)), label + " round trip");
+            assertEquals(generated, regenerate(load(toXML(parse(query, ds)), ds)), label + " xml");
+         }
+      }
+   }
+
    // oracle uppercases the select list at parse time, a quoted qualifier keeps its case
    @Test
    void oracleKeepsQuotedQualifierCase() throws Exception {
