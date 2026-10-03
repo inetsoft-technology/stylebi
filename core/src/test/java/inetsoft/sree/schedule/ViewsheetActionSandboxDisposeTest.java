@@ -68,8 +68,8 @@ class ViewsheetActionSandboxDisposeTest {
 
       try(MockedConstruction<ViewsheetSandbox> boxes = mockConstruction(ViewsheetSandbox.class)) {
          Method method = ViewsheetAction.class.getDeclaredMethod(
-            "exportBookmarks", VSExporter.class, RuntimeViewsheet.class, VariableTable.class,
-            VSBookmarkInfo[].class, List.class);
+            "exportBookmarksAndWrite", VSExporter.class, RuntimeViewsheet.class,
+            VariableTable.class, VSBookmarkInfo[].class, List.class);
          method.setAccessible(true);
 
          Throwable ex = invokeAndUnwrap(
