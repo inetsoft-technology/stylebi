@@ -27,6 +27,8 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.io.File;
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
@@ -73,6 +75,7 @@ class XFragmentSwapFileWriteFailureTest {
    void intFragmentSurvivesFailedSwapWrite() throws Exception {
       int[] values = { 100, 101, 102, 103, 104 };
       XIntFragment fragment = new XIntFragment(values);
+      preventBackgroundSwapping(fragment);
       fragment.testBeforeWrite = XFragmentSwapFileWriteFailureTest::throwSimulatedWriteFailure;
 
       assertTrue(fragment.swap(), "swap() should report success even though the write failed");
@@ -90,6 +93,7 @@ class XFragmentSwapFileWriteFailureTest {
       // data a second time - this is what rewriteRequired now forces.
       int[] values = { 100, 101, 102, 103, 104 };
       XIntFragment fragment = new XIntFragment(values);
+      preventBackgroundSwapping(fragment);
       fragment.testBeforeWrite = XFragmentSwapFileWriteFailureTest::throwSimulatedWriteFailure;
 
       assertTrue(fragment.swap());
@@ -111,7 +115,7 @@ class XFragmentSwapFileWriteFailureTest {
       XObjectFragment<String> fragment = new XObjectFragment<>((char) 10, (char) 100, null);
       fragment.add("alpha");
       fragment.add("beta");
-      fragment.complete();
+      preventBackgroundSwapping(fragment);
       fragment.testBeforeWrite = XFragmentSwapFileWriteFailureTest::throwSimulatedWriteFailure;
 
       assertTrue(fragment.swap(), "swap() should report success even though the write failed");
@@ -129,7 +133,7 @@ class XFragmentSwapFileWriteFailureTest {
       XObjectFragment<String> fragment = new XObjectFragment<>((char) 10, (char) 100, null);
       fragment.add("alpha");
       fragment.add("beta");
-      fragment.complete();
+      preventBackgroundSwapping(fragment);
       fragment.testBeforeWrite = XFragmentSwapFileWriteFailureTest::throwSimulatedWriteFailure;
 
       assertTrue(fragment.swap());
@@ -167,7 +171,7 @@ class XFragmentSwapFileWriteFailureTest {
          fragment.add(base + i);
       }
 
-      fragment.complete();
+      preventBackgroundSwapping(fragment);
 
       File chunk0 = FileSystemService.getInstance().getCacheFile(fragment.prefix + "_0.tdat");
       AtomicInteger writeCount = new AtomicInteger();
@@ -202,7 +206,7 @@ class XFragmentSwapFileWriteFailureTest {
    void stringFragmentSurvivesFailedSwapWriteAndRecoversCleanly() throws Exception {
       String original = "the quick brown fox";
       XStringFragment fragment = new XStringFragment(original);
-      fragment.complete();
+      preventBackgroundSwapping(fragment);
       fragment.testBeforeWrite = XFragmentSwapFileWriteFailureTest::throwSimulatedWriteFailure;
 
       assertTrue(fragment.swap(), "swap() should report success even though the write failed");
@@ -234,7 +238,7 @@ class XFragmentSwapFileWriteFailureTest {
       // a stub physically present, swap0() must still rewrite rather than skip.
       String original = "the quick brown fox";
       XStringFragment fragment = new XStringFragment(original);
-      fragment.complete();
+      preventBackgroundSwapping(fragment);
       File swapFile = FileSystemService.getInstance().getCacheFile(fragment.prefix + ".tdat");
       Files.write(swapFile.toPath(), new byte[0]);
 
@@ -260,6 +264,7 @@ class XFragmentSwapFileWriteFailureTest {
       // file I/O at all, just a hand-built buffer fed directly to the method via reflection.
       int[] values = { 100, 101, 102, 103, 104 };
       XIntFragment fragment = new XIntFragment(values);
+      preventBackgroundSwapping(fragment);
 
       Method validate = XIntFragment.class.getDeclaredMethod("validate", ByteBuffer.class);
       validate.setAccessible(true);
@@ -292,7 +297,25 @@ class XFragmentSwapFileWriteFailureTest {
       fragment.dispose();
    }
 
+   /**
+    * complete() registers the fragment with the real, shared XSwapper background thread pool,
+    * which can act on it independently (e.g. under real memory pressure, or because another test
+    * class sharing this JVM triggers a GC/memory-pressure sweep) - confirmed to actually happen:
+    * an earlier version of this test file, without this call, was intermittently flaky when run
+    * in the same JVM as XSwapperGCThrottleTest/XSwapperPeriodicGCTest/XSwapperCriticalWaitTest.
+    * Deregistering immediately after completing keeps completed/getSwapPriority() working for
+    * this test's own explicit swap() calls, while guaranteeing only this test's thread ever
+    * touches the fragment.
+    */
+   private static void preventBackgroundSwapping(XSwappable fragment) {
+      fragment.complete();
+      XSwapper.getSwapper().deregister(fragment);
+   }
+
    private static void throwSimulatedWriteFailure() {
-      throw new RuntimeException("simulated write failure");
+      // wrap a real IOException - the same type channel.write()/fout.write() actually declare -
+      // so the forced failure looks as close as possible to a genuine one, even though
+      // Runnable.run() can't declare a checked exception
+      throw new UncheckedIOException(new IOException("simulated write failure"));
    }
 }
