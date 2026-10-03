@@ -31,6 +31,7 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 import java.io.File;
 import java.lang.reflect.Field;
 import java.util.Random;
+import java.util.concurrent.atomic.*;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -159,6 +160,75 @@ class XObjectFragmentChangeTest {
       assertTrue(fragment.swap(), "fragment was not swapped again");
       assertEquals("NEW", list.get(8200));
       assertEquals("NEW2", list.get(8201));
+      list.dispose();
+   }
+
+   @Test
+   void setWhileFragmentsAreSwappedKeepsEveryValue() throws Exception {
+      XSwappableObjectList<String> list = createObjectList();
+      XObjectFragment<?> fragment0 = fragment(list, 0);
+      XObjectFragment<?> fragment1 = fragment(list, 1);
+      String[] expected = new String[OBJ_COUNT];
+      AtomicBoolean stop = new AtomicBoolean();
+      AtomicInteger swaps = new AtomicInteger();
+      AtomicReference<Throwable> error = new AtomicReference<>();
+
+      for(int i = 0; i < OBJ_COUNT; i++) {
+         expected[i] = "v" + i;
+      }
+
+      // swap the fragments out while set() runs, reading one back now and then so the
+      // swap reusing the swap file is taken as well
+      Thread swapper = new Thread(() -> {
+         try {
+            while(!stop.get()) {
+               if(fragment0.swap()) {
+                  swaps.incrementAndGet();
+               }
+
+               if(fragment1.swap()) {
+                  swaps.incrementAndGet();
+               }
+
+               if((swaps.get() & 3) == 0) {
+                  fragment1.getSafely(5);
+               }
+            }
+         }
+         catch(Throwable ex) {
+            error.set(ex);
+         }
+      });
+      swapper.start();
+      Random random = new Random(7);
+      long deadline = System.currentTimeMillis() + 30000;
+
+      try {
+         // keep setting until the fragments were swapped a number of times
+         for(int i = 0; i < 2000 || swaps.get() < 50 && System.currentTimeMillis() < deadline;
+             i++)
+         {
+            int idx = random.nextInt(2 * 8192);
+            list.set(idx, "NEW" + i);
+            expected[idx] = "NEW" + i;
+         }
+      }
+      finally {
+         stop.set(true);
+         swapper.join();
+      }
+
+      assertNull(error.get(), "swap failed");
+      assertTrue(swaps.get() >= 50, "fragments were not swapped");
+      // read the values back from the swap files, a fragment the swapper left swapped out
+      // is not swapped again
+      fragment0.swap();
+      fragment1.swap();
+
+      for(int i = 0; i < OBJ_COUNT; i++) {
+         assertEquals(expected[i], list.get(i), "value at " + i);
+      }
+
       list.dispose();
    }
 
