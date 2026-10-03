@@ -364,7 +364,8 @@ public class JDBCUtil {
       for(int i = 0; i < xselect.getColumnCount(); i++) {
          String path = xselect.getColumn(i);
          String alias = xselect.getAlias(i);
-         boolean quoted = xselect.isQuoted(path);
+         // the flag of this column, which stays at its position (Bug #77573)
+         boolean quoted = xselect.isQuoted(i);
          String fp = getFullPathOf(sql, path, quoted);
 
          if(fp != null) {
@@ -374,14 +375,10 @@ public class JDBCUtil {
          XField field = sql.getFieldByPath(path, quoted);
 
          if(field != null && field.getTable().length() > 0) {
-            String qseg = xselect.getQuotedColumn(xselect.getColumn(i));
-            xselect.setColumn(i, path);
+            // the same column qualified by its table, it keeps its quoting
+            xselect.renameColumn(i, path);
             xselect.setAlias(i, alias);
             xselect.setTable(path, field.getTable());
-
-            if(quoted) {
-               xselect.setQuoted(path, qseg);
-            }
 
             // get type
             if(xselect.getType(path) == null) {
@@ -516,7 +513,7 @@ public class JDBCUtil {
          newSelect.setType(path, select.getType(path));
          newSelect.setDescription(path, select.getDescription(path));
          newSelect.setTable(path, select.getTable(path));
-         newSelect.copyQuoted(path, select, path);
+         newSelect.copyQuoted(aidx, select, i);
          newSelect.setQuotedAggregate(aidx, select.getQuotedAggregate(i));
          newSelect.setXMetaInfo(aidx, select.getXMetaInfo(i));
          newSelect.setExpression(aidx, select.isExpression(i));

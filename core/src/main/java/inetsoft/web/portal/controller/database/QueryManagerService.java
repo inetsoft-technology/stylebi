@@ -187,7 +187,7 @@ public class QueryManagerService {
                int newIndex = newSelection.addColumn(name);
                newSelection.setAlias(newIndex, alias);
                newSelection.setTable(name, oldSelection.getTable(name));
-               newSelection.copyQuoted(name, oldSelection, name);
+               newSelection.copyQuoted(newIndex, oldSelection, columnIndex);
                newSelection.setQuotedAggregate(newIndex,
                   oldSelection.getQuotedAggregate(columnIndex));
                newSelection.setType(name, oldSelection.getType(name));
@@ -471,6 +471,7 @@ public class QueryManagerService {
          fieldModel.setDataType(selection.getType(name));
          fieldModel.setDrillInfo(getAutoDrillInfo(selection.getXMetaInfo(i)));
          fieldModel.setFormat(getFormatInfo(selection.getXMetaInfo(i)));
+         fieldModel.setQuotedName(getQuotedName(sql, selection, i));
          queryFields.add(fieldModel);
       }
 
@@ -732,7 +733,7 @@ public class QueryManagerService {
          if(!remove) {
             int index = newSelection.addColumn(selectionName);
             newSelection.setTable(selectionName, selection.getTable(selectionName));
-            newSelection.copyQuoted(selectionName, selection, selectionName);
+            newSelection.copyQuoted(index, selection, i);
             newSelection.setQuotedAggregate(index, selection.getQuotedAggregate(i));
             newSelection.setAlias(index, selectionAlias);
             newSelection.setType(selectionName, selection.getType(selectionName));
@@ -1317,6 +1318,38 @@ public class QueryManagerService {
       return new String[] {alias, expression};
    }
 
+   /**
+    * Get a select column as written in the sql when it was a quoted identifier, which the
+    * expression editor starts from: t."MixedCase" or "My Col". The column name doesn't show
+    * the quotes, and an edit is generated as it is written (Bug #77573).
+    * @return the quoted spelling, or <tt>null</tt> if the column isn't a quoted identifier.
+    */
+   public static String getQuotedName(UniformSQL sql, JDBCSelection selection, int idx) {
+      if(!selection.isQuoted(idx) || selection.isExpression(idx)) {
+         return null;
+      }
+
+      String path = selection.getColumn(idx);
+      String segment = selection.getQuotedColumn(idx);
+      String table = selection.getTable(path);
+      String quote = sql.getSQLHelper().getQuote();
+      String prefix = "";
+      String column = path;
+
+      if(segment != null && path.endsWith("." + segment)) {
+         prefix = path.substring(0, path.length() - segment.length());
+         column = segment;
+      }
+      else if(segment == null && table != null && !table.isEmpty() &&
+         path.startsWith(table + "."))
+      {
+         prefix = table + ".";
+         column = path.substring(table.length() + 1);
+      }
+
+      return prefix + quote + column + quote;
+   }
+
    public String[] editExpression(UniformSQL sql, JDBCSelection selection, String expression,
                               String columnName, String columnAlias)
    {
@@ -1324,6 +1357,13 @@ public class QueryManagerService {
 
       if(columnIndex == -1) {
          return null;
+      }
+
+      // the quoted column the editor started from, unchanged (getQuotedName), stays the
+      // column with its quoting. Any other text is generated as it is written (Bug #77573)
+      if(expression.equals(getQuotedName(sql, selection, columnIndex))) {
+         sql.setAlias(columnIndex, columnAlias);
+         return new String[] {columnAlias, selection.getColumn(columnIndex)};
       }
 
       String type = selection.getType(columnName);

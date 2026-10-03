@@ -65,7 +65,7 @@ public class JDBCSelection extends XSelection {
          if(select instanceof JDBCSelection) {
             setTable(path, ((JDBCSelection) select).getTable(path));
             setDescription(path, select.getDescription(path));
-            copyQuoted(path, (JDBCSelection) select, path);
+            copyQuoted(i, (JDBCSelection) select, i);
             setQuotedAggregate(i, ((JDBCSelection) select).getQuotedAggregate(i));
          }
       }
@@ -133,6 +133,7 @@ public class JDBCSelection extends XSelection {
 
       quoted.clear();
       quotedAggregates.clear();
+      quotedAliases.clear();
    }
 
    /**
@@ -143,7 +144,6 @@ public class JDBCSelection extends XSelection {
    public boolean removeColumn(String path) {
       boolean result = super.removeColumn(path);
       tablemap.remove(path);
-      quoted.remove(path);
 
       return result;
    }
@@ -375,42 +375,175 @@ public class JDBCSelection extends XSelection {
    }
 
    /**
-    * Check if a column was written as a quoted identifier (e.g. "x y") in the parsed SQL.
-    * The quotes are not part of the column path, so they are restored when the SQL is
-    * generated.
+    * Check if the first column with a path was written as a quoted identifier.
     * @param column the specified column.
     * @return <tt>true</tt> if quoted, <tt>false</tt> otherwise.
+    * @see #isQuoted(int)
     */
    public boolean isQuoted(String column) {
-      return quoted.containsKey(column);
+      return isQuoted(indexOf(column));
+   }
+
+   /**
+    * Check if a column was written as a quoted identifier (e.g. "x y") in the parsed SQL.
+    * The quotes are not part of the column path, so they are restored when the SQL is
+    * generated. The flag is kept by position, two columns may have the same path
+    * ("MixedCase" and MixedCase, Bug #77573). It only describes the name it was set for: a
+    * column replaced by another text (e.g. edited in the query editor) is generated as that
+    * text is written. Code that qualifies a column or renames its table keeps the flag with
+    * renameColumn.
+    * @param col the column index.
+    * @return <tt>true</tt> if quoted, <tt>false</tt> otherwise.
+    */
+   public boolean isQuoted(int col) {
+      return getColumnQuote(col) != null;
+   }
+
+   // the quoting of a column, if it was set for the current name
+   private ColumnQuote getColumnQuote(int col) {
+      ColumnQuote quote = quoted.get(col);
+      return quote != null && Objects.equals(quote.column(), getColumn(col)) ? quote : null;
+   }
+
+   /**
+    * Replace the name of a column with a name of the same column, qualified by its table or
+    * under a renamed table or qualifier (MixedCase to t.MixedCase, t.MixedCase to x.MixedCase),
+    * keeping its quoting. Any other change of the name (setColumn) drops it, the new name is
+    * generated as it is written.
+    * @param col the column index.
+    * @param path the new name.
+    */
+   public void renameColumn(int col, String path) {
+      ColumnQuote quote = getColumnQuote(col);
+      setColumn(col, path);
+
+      if(quote != null) {
+         quoted.put(col, new ColumnQuote(path, quote.segment()));
+      }
+   }
+
+   /**
+    * Replace a column with another text (e.g. an expression edited in the query editor). Its
+    * quoted flag is dropped, also for the same text, the text is generated as it is written.
+    * @see #renameColumn(int, String)
+    */
+   @Override
+   public void setColumn(int idx, String col) {
+      super.setColumn(idx, col);
+      quoted.remove(idx);
+   }
+
+   /**
+    * Get the column segment, as written, of the first column with a path.
+    * @see #getQuotedColumn(int)
+    */
+   public String getQuotedColumn(String column) {
+      return getQuotedColumn(indexOf(column));
    }
 
    /**
     * Get the column segment, as written, of a qualified quoted identifier (t."MixedCase").
+    * @param col the column index.
     * @return the segment, or <tt>null</tt> for a bare quoted identifier or an unquoted column.
     */
-   public String getQuotedColumn(String column) {
-      String seg = quoted.get(column);
-      return seg == null || seg.isEmpty() ? null : seg;
+   public String getQuotedColumn(int col) {
+      ColumnQuote quote = getColumnQuote(col);
+      return quote == null || quote.segment().isEmpty() ? null : quote.segment();
    }
 
    /**
-    * Set a column as written as a qualified quoted identifier.
+    * Set every column with a path as written as a qualified quoted identifier.
     * @param segment the column segment as written, or <tt>null</tt> for a bare identifier.
+    * @see #setQuoted(int, String)
     */
    public void setQuoted(String column, String segment) {
-      quoted.put(column, segment == null ? "" : segment);
+      for(int i = 0; i < getColumnCount(); i++) {
+         if(Objects.equals(column, getColumn(i))) {
+            setQuoted(i, segment);
+         }
+      }
+   }
+
+   /**
+    * Set a column as written as a quoted identifier.
+    * @param col the column index.
+    * @param segment the column segment of a qualified quoted identifier (t."MixedCase") as
+    *                written, or <tt>null</tt> for a bare identifier.
+    */
+   public void setQuoted(int col, String segment) {
+      if(col >= 0) {
+         quoted.put(col, new ColumnQuote(getColumn(col), segment == null ? "" : segment));
+      }
+   }
+
+   /**
+    * Set whether a column was written as a quoted identifier.
+    * @param col the column index.
+    * @param quoted <tt>true</tt> if quoted, <tt>false</tt> otherwise.
+    */
+   public void setQuoted(int col, boolean quoted) {
+      if(!quoted) {
+         this.quoted.remove(col);
+      }
+      else if(!isQuoted(col)) {
+         setQuoted(col, (String) null);
+      }
    }
 
    /**
     * Copy the quoting of a column of another selection.
+    * @param col the column index in this selection.
+    * @param from the selection to copy from.
+    * @param fromCol the column index in the other selection.
     */
-   public void copyQuoted(String column, JDBCSelection from, String fromColumn) {
-      if(from.isQuoted(fromColumn)) {
-         setQuoted(column, from.getQuotedColumn(fromColumn));
+   public void copyQuoted(int col, JDBCSelection from, int fromCol) {
+      ColumnQuote quote = from.getColumnQuote(fromCol);
+
+      if(quote != null && col >= 0) {
+         quoted.put(col, quote);
       }
       else {
-         quoted.remove(column);
+         quoted.remove(col);
+      }
+
+      // the quoting of the alias goes with the alias it was recorded for
+      AliasQuote aliasQuote = from.quotedAliases.get(fromCol);
+
+      if(aliasQuote != null && col >= 0) {
+         quotedAliases.put(col, aliasQuote);
+      }
+      else {
+         quotedAliases.remove(col);
+      }
+   }
+
+   /**
+    * Check if the alias of a column was written as a quoted identifier (as "A") or not
+    * (as A). A database that folds unquoted names (e.g. postgresql) gives the two other
+    * names, and the alias is stored without its quotes.
+    * @param col the column index.
+    * @return <tt>TRUE</tt> if quoted, <tt>FALSE</tt> if not, or <tt>null</tt> if not known:
+    *         not recorded (e.g. a query saved before it was), or the alias has changed since.
+    */
+   public Boolean isAliasQuoted(int col) {
+      AliasQuote aliasQuote = quotedAliases.get(col);
+
+      return aliasQuote == null || !Objects.equals(aliasQuote.alias(), getAlias(col)) ?
+         null : aliasQuote.quoted();
+   }
+
+   /**
+    * Record whether the current alias of a column was written as a quoted identifier.
+    * @param col the column index.
+    * @param quoted <tt>TRUE</tt> if quoted, <tt>FALSE</tt> if not, or <tt>null</tt> if not
+    *               known.
+    */
+   public void setAliasQuoted(int col, Boolean quoted) {
+      if(quoted == null) {
+         quotedAliases.remove(col);
+      }
+      else if(col >= 0) {
+         quotedAliases.put(col, new AliasQuote(getAlias(col), quoted));
       }
    }
 
@@ -444,40 +577,51 @@ public class JDBCSelection extends XSelection {
    }
 
    /**
-    * Remove a selected column, the quoted aggregates after it move up.
+    * Remove a selected column, the quoted flags and aggregates after it move up.
     */
    @Override
    public boolean removeColumn(int idx) {
       boolean removed = super.removeColumn(idx);
 
-      if(removed && !quotedAggregates.isEmpty()) {
-         TreeMap<Integer, String> naggs = new TreeMap<>();
-
-         for(Map.Entry<Integer, String> entry : quotedAggregates.entrySet()) {
-            int col = entry.getKey();
-
-            if(col != idx) {
-               naggs.put(col > idx ? col - 1 : col, entry.getValue());
-            }
-         }
-
-         quotedAggregates = naggs;
+      if(removed) {
+         quotedAggregates = removeIndex(quotedAggregates, idx);
+         quoted = removeIndex(quoted, idx);
+         quotedAliases = removeIndex(quotedAliases, idx);
       }
 
       return removed;
    }
 
+   // remove the entry of a removed column, the entries after it move up
+   private static <V> TreeMap<Integer, V> removeIndex(TreeMap<Integer, V> map, int idx) {
+      if(map.isEmpty() || map.lastKey() < idx) {
+         return map;
+      }
+
+      TreeMap<Integer, V> nmap = new TreeMap<>();
+
+      for(Map.Entry<Integer, V> entry : map.entrySet()) {
+         int col = entry.getKey();
+
+         if(col != idx) {
+            nmap.put(col > idx ? col - 1 : col, entry.getValue());
+         }
+      }
+
+      return nmap;
+   }
+
    /**
-    * Set whether a column was written as a quoted identifier.
+    * Set whether every column with a path was written as a quoted identifier.
     * @param column the specified column.
     * @param quoted <tt>true</tt> if quoted, <tt>false</tt> otherwise.
+    * @see #setQuoted(int, boolean)
     */
    public void setQuoted(String column, boolean quoted) {
-      if(quoted) {
-         this.quoted.putIfAbsent(column, "");
-      }
-      else {
-         this.quoted.remove(column);
+      for(int i = 0; i < getColumnCount(); i++) {
+         if(Objects.equals(column, getColumn(i))) {
+            setQuoted(i, quoted);
+         }
       }
    }
 
@@ -510,8 +654,9 @@ public class JDBCSelection extends XSelection {
       select.newToOldAlias = new HashMap<>(newToOldAlias);
       select.oldToNewAlias = new HashMap<>(oldToNewAlias);
       select.aggregates = (HashSet) aggregates.clone();
-      select.quoted = new HashMap<>(quoted);
+      select.quoted = new TreeMap<>(quoted);
       select.quotedAggregates = new TreeMap<>(quotedAggregates);
+      select.quotedAliases = new TreeMap<>(quotedAliases);
 
       return select;
    }
@@ -524,12 +669,14 @@ public class JDBCSelection extends XSelection {
       JDBCSelection that = (JDBCSelection) o;
       return Objects.equals(tablemap, that.tablemap) && Objects.equals(aggregates, that.aggregates) &&
          Objects.equals(quoted, that.quoted) &&
-         Objects.equals(quotedAggregates, that.quotedAggregates);
+         Objects.equals(quotedAggregates, that.quotedAggregates) &&
+         Objects.equals(quotedAliases, that.quotedAliases);
    }
 
    @Override
    public int hashCode() {
-      return Objects.hash(super.hashCode(), tablemap, aggregates, quoted, quotedAggregates);
+      return Objects.hash(super.hashCode(), tablemap, aggregates, quoted, quotedAggregates,
+                          quotedAliases);
    }
 
    private HashMap<String, String> tablemap = new HashMap(); // path -> table (String)
@@ -538,9 +685,19 @@ public class JDBCSelection extends XSelection {
    // alias -> valias, generated in this query or base/sub queries
    private Map<String, String> oldToNewAlias = new HashMap<>();
    private HashSet<String> aggregates = new HashSet<>(); // aggregates
-   // columns written as quoted identifiers -> the quoted column segment ("" if bare)
-   private HashMap<String, String> quoted = new HashMap<>();
+   // index of a column written as a quoted identifier -> the name and quoted column segment,
+   // by position as two columns may have the same path (Bug #77573)
+   private TreeMap<Integer, ColumnQuote> quoted = new TreeMap<>();
    // column index of an aggregate of a qualified quoted column -> the column segment
    private TreeMap<Integer, String> quotedAggregates = new TreeMap<>();
+   // index of a column -> the quoting of its alias, kept with the alias it was recorded for
+   private TreeMap<Integer, AliasQuote> quotedAliases = new TreeMap<>();
    private boolean plan = false; // plan flag
+
+   private record AliasQuote(String alias, boolean quoted) implements java.io.Serializable {
+   }
+
+   // the name a column was written quoted as, and its column segment ("" if bare)
+   private record ColumnQuote(String column, String segment) implements java.io.Serializable {
+   }
 }
