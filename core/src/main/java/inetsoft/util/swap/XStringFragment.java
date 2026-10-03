@@ -223,22 +223,37 @@ public final class XStringFragment extends XSwappable {
     * Validate the int fragment internally.
     */
    private void access0() {
+      // access0() only ever runs when !valid, which is only ever set by
+      // swap() having just run swap0(). A non-null value here unambiguously
+      // means that swap0()'s write failed (swap0 nulls value only after its
+      // write succeeds), so the data already survived in memory - don't read
+      // back the (possibly missing/zero-byte) stub the failed write may have
+      // left behind and silently overwrite it with empty/garbled content.
+      if(value != null) {
+         valid = true;
+
+         // the stub is a best-effort cleanup, not a correctness requirement: if the
+         // synchronous delete fails (e.g. a transient external handle/AV scan on
+         // Windows), swap0() must still rewrite this file next time rather than
+         // skip the write because the stale stub "exists" - see rewriteRequired.
+         // A delayed/queued delete here (racing a same-named file a later swap
+         // recreates within the delay window) would reintroduce the exact
+         // data-loss shape this class was just fixed for, so it is deliberately
+         // not used.
+         rewriteRequired = true;
+         File stub = getFile(prefix + ".tdat");
+
+         if(stub.exists() && !stub.delete()) {
+            DEBUG_LOG.debug("Failed to delete stale swap file, will be rewritten on next swap: %s", stub);
+         }
+
+         return;
+      }
+
       File file = getFile(prefix + ".tdat");
 
       if(disposed) {
          valid = true;
-         return;
-      }
-
-      // swap0() failed before the value was dropped, so the value in memory is still the only
-      // good copy. remove the partial swap file to have the value written again on the next swap
-      if(value != null) {
-         valid = true;
-
-         if(file.exists() && !file.delete()) {
-            FileSystemService.getInstance().remove(file, 30000);
-         }
-
          return;
       }
 
@@ -263,8 +278,11 @@ public final class XStringFragment extends XSwappable {
          }
       }
       catch(Exception ex) {
-         // keep the fragment invalid so a later access tries the file again and the swapper
-         // never writes an empty value back over the swap file
+         // reaching here means value was already null (the value != null fast path above
+         // returns before this point), so there is no in-memory copy left to fall back on.
+         // keep the fragment invalid so a later access tries the file again (recovers from a
+         // transient failure, e.g. EACCES/EMFILE) and the swapper never writes an empty value
+         // back over the swap file; fail loudly instead of silently substituting empty content
          LOG.error("Failed to read swap file: " + file, ex);
          throw new SwapFileReadException(file, ex);
       }
@@ -291,8 +309,12 @@ public final class XStringFragment extends XSwappable {
       RandomAccessFile fout = null;
 
       try {
-         if(!file.exists()) {
+         // reuse-without-rewrite only applies to a file that's actually a durable copy of
+         // the current value; a stub left by a previous failed write (rewriteRequired) must
+         // always be (re)written, even if it still physically exists - see access0().
+         if(!file.exists() || rewriteRequired) {
             fout = new RandomAccessFile(file, "rw");
+            fout.setLength(0);
          }
 
          if(disposed) {
@@ -305,10 +327,16 @@ public final class XStringFragment extends XSwappable {
 	    getSwapper().waitForMemory();
             byte[] buf = value.getBytes("UTF-8");
             len = buf.length;
+
+            if(testBeforeWrite != null) {
+               testBeforeWrite.run();
+            }
+
             fout.write(buf);
          }
 
          value = null;
+         rewriteRequired = false;
          fireEvent(true);
 
          if(isCountRW && fout != null) {
@@ -371,6 +399,13 @@ public final class XStringFragment extends XSwappable {
    private boolean lastValid;
    private boolean completed; // completed flag
    private boolean disposed; // disposed flag
+   // true when the swap file on disk is a stub left by a failed write, not a durable copy
+   // of value; forces the next swap0() to rewrite it even though it still exists
+   private boolean rewriteRequired;
+   // test-only hook: when set, invoked immediately before the real durable write, so tests can
+   // force a write failure deterministically without relying on platform-specific file locking
+   // or permission semantics (which differ between Windows and Linux/CI). No-op in production.
+   transient Runnable testBeforeWrite;
    private List<DataSwapListener> listeners;
    private transient XSwappableMonitor monitor;
    private transient boolean isCountHM;
