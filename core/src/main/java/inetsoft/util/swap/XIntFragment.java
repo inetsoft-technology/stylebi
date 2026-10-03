@@ -187,6 +187,19 @@ public final class XIntFragment extends XSwappable {
    private synchronized void validate0(boolean reset) {
       File file = getFile(prefix + ".tdat");
 
+      if(disposed) {
+         valid = true;
+         return;
+      }
+
+      // swap0() failed before the data was dropped, so the data in memory is still the only
+      // good copy. remove the partial swap file to have the data written again on the next swap
+      if(arr != null) {
+         valid = true;
+         deleteFile(file);
+         return;
+      }
+
       RandomAccessFile fin = null;
       FileChannel channel = null;
       ByteBuffer buf = null;
@@ -209,21 +222,23 @@ public final class XIntFragment extends XSwappable {
          //XSwapUtil.flip(buf)
 
          if(disposed) {
+            valid = true;
             return;
          }
 
          validate(buf);
-         file = null;
-      }
-      catch(FileNotFoundException ex) {
-         return;
+         valid = true;
       }
       catch(Exception ex) {
+         // the data is not in memory, returning 0 for every row would map the rows to the
+         // header row. keep the fragment invalid so a later access tries the file again and
+         // the swapper never writes the empty state back over the swap file
+         pos = 0;
          LOG.error("Failed to read swap file: " + file, ex);
+         throw new SwapFileReadException(file, ex);
       }
       finally {
          buf = null;
-         valid = true;
 
          try {
             if(channel != null) {
@@ -242,7 +257,16 @@ public final class XIntFragment extends XSwappable {
       }
 
       if(reset) {
-         file.delete();
+         deleteFile(file);
+      }
+   }
+
+   /**
+    * Delete a swap file.
+    */
+   private static void deleteFile(File file) {
+      if(file.exists() && !file.delete()) {
+         FileSystemService.getInstance().remove(file, 30000);
       }
    }
 

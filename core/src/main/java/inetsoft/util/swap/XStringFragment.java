@@ -223,8 +223,30 @@ public final class XStringFragment extends XSwappable {
     * Validate the int fragment internally.
     */
    private void access0() {
-      valid = true;
       File file = getFile(prefix + ".tdat");
+
+      if(disposed) {
+         valid = true;
+         return;
+      }
+
+      // swap0() failed before the value was dropped, so the value in memory is still the only
+      // good copy. remove the partial swap file to have the value written again on the next swap
+      if(value != null) {
+         valid = true;
+
+         if(file.exists() && !file.delete()) {
+            FileSystemService.getInstance().remove(file, 30000);
+         }
+
+         return;
+      }
+
+      // an empty value may have no swap file, there is nothing to read back
+      if(len == 0 && !file.exists()) {
+         valid = true;
+         return;
+      }
 
       RandomAccessFile fin = null;
 
@@ -234,17 +256,17 @@ public final class XStringFragment extends XSwappable {
 
          fin.readFully(buf);
          value = new String(buf, "UTF-8");
-         fireEvent(false);
+         valid = true;
 
          if(isCountRW) {
             monitor.countRead(buf.length, XSwappableMonitor.DATA);
          }
       }
-      catch(FileNotFoundException ex) {
-         return;
-      }
       catch(Exception ex) {
+         // keep the fragment invalid so a later access tries the file again and the swapper
+         // never writes an empty value back over the swap file
          LOG.error("Failed to read swap file: " + file, ex);
+         throw new SwapFileReadException(file, ex);
       }
       finally {
          try {
@@ -258,7 +280,7 @@ public final class XStringFragment extends XSwappable {
          }
       }
 
-      file = null;
+      fireEvent(false);
    }
 
    /**
