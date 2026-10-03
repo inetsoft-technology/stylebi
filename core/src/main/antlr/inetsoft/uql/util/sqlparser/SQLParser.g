@@ -1480,35 +1480,29 @@ private String funcText = null;
 private String funcQuotedColumn = null;
 // the indexes of the segments written quoted ("a", `a` or [a]) in the last qualified_name
 private int[] qnameQuoted = null;
+// the quote of each segment in qnameQuoted: '"', '`' or '['
+private String qnameQuoteKinds = null;
 // the indexes of the segments written quoted in the qualifier of the last column_ref,
 // and the column_ref text and quoted segments of the last field parsed as a value
 private int[] colrefQuoted = null;
+private String colrefQuoteKinds = null;
 private String fieldText = null;
 private int[] fieldQuoted = null;
 
 // check if the next token is a quoted identifier, and add the segment index if it is
-void addQuotedSegment(List<Integer> segs, int seg) throws TokenStreamException {
+void addQuotedSegment(List<Integer> segs, StringBuilder kinds, int seg)
+   throws TokenStreamException
+{
    int type = LA(1);
 
    if(type == SPIDENT || type == SPIDENT2 || type == SPIDENT_SQUARE) {
       segs.add(seg);
+      kinds.append(type == SPIDENT ? '"' : type == SPIDENT2 ? '`' : '[');
    }
 }
 
 int[] toQuotedSegments(List<Integer> segs) {
    return segs.isEmpty() ? null : segs.stream().mapToInt(Integer::intValue).toArray();
-}
-
-boolean isQuotedSegment(int[] segs, int seg) {
-   if(segs != null) {
-      for(int i : segs) {
-         if(i == seg) {
-            return true;
-         }
-      }
-   }
-
-   return false;
 }
 
 // get the quoted column segment of an aggregate parsed as the whole expression
@@ -2244,6 +2238,9 @@ value_exp_primary_body returns [XExpression exp = null]
               exp.setValue(tmp, XExpression.FIELD);
               fieldText = tmp;
               fieldQuoted = colrefQuoted;
+              // the quoted qualifier segments ("a".id), restored when the field is part of an
+              // expression, whose text is generated as written
+              exp.setQuotedQualifier(colrefQuoted, colrefQuoteKinds);
 
               // a qualified quoted column (t."MixedCase"), stored without its quotes
               if(colrefQuote != XExpression.QUOTE_NONE) {
@@ -2524,13 +2521,14 @@ column_ref returns [String colref = ""]
         {String tmp; colrefQuote = XExpression.QUOTE_NONE; colrefColumn = null;}
         :
         // "order" and "simple" might be used as a table name
-        a:ORDER DOT tmp = column_name {colref = a.getText() + "." + quoteColumn(tmp); colrefQuoted = null;}
+        a:ORDER DOT tmp = column_name {colref = a.getText() + "." + quoteColumn(tmp); colrefQuoted = null; colrefQuoteKinds = null;}
         |
-        b:SIMPLE DOT tmp = column_name {colref = b.getText() + "." + quoteColumn(tmp); colrefQuoted = null;}
+        b:SIMPLE DOT tmp = column_name {colref = b.getText() + "." + quoteColumn(tmp); colrefQuoted = null; colrefQuoteKinds = null;}
         |
         colref = table_name
         {
            colrefQuoted = qnameQuoted;
+           colrefQuoteKinds = qnameQuoteKinds;
 
            // the last segment of a qualified table_name is the column when no DOT follows
            if(LA(1) != DOT && lastSegQuote != XExpression.QUOTE_NONE && lastSegStart > 0 &&
@@ -3570,16 +3568,17 @@ table_name returns [String tname = ""]
         ;
 
 qualified_name returns [String qname = ""]
-        {String tmp = ""; int seg = 0; List<Integer> qsegs = new ArrayList<>(); }
+        {String tmp = ""; int seg = 0; List<Integer> qsegs = new ArrayList<>();
+         StringBuilder qkinds = new StringBuilder(); }
         :
-        ((catalog_name DOT)=> {addQuotedSegment(qsegs, seg);}
+        ((catalog_name DOT)=> {addQuotedSegment(qsegs, qkinds, seg);}
         tmp = catalog_name DOT {qname += quoteDot(tmp) + "."; seg++;}
-        ( (~DOT)=> {addQuotedSegment(qsegs, seg);}
+        ( (~DOT)=> {addQuotedSegment(qsegs, qkinds, seg);}
         tmp = schema_name DOT {qname+=quoteDot(tmp)+"."; seg++;}| DOT {qname+="."; seg++;})?
         )?
-        {addQuotedSegment(qsegs, seg);}
+        {addQuotedSegment(qsegs, qkinds, seg);}
         tmp = qualified_id {lastSegStart = qname.length(); lastSegQuote = identQuote; lastSeg = tmp; qname += quoteDot(tmp);
-                            qnameQuoted = toQuotedSegments(qsegs);}
+                            qnameQuoted = toQuotedSegments(qsegs); qnameQuoteKinds = qkinds.toString();}
         ;
 
 catalog_name returns [String catname = ""]
@@ -3644,14 +3643,16 @@ derived_column [JDBCSelection selection, UniformSQL sql]
        {
               String[] parts = Tool.splitWithDelim(tmp, ".", '"');
               StringBuilder builder = new StringBuilder();
-              // the qualifier segments written quoted ("a".id) are stored without their quotes
+              // the qualifier segments written quoted ("a".id) are stored without their quotes.
+              // A qualifier with a quoted segment keeps its case, so it is still the name of
+              // its table ("s".a.id for "s".a), the database folds its other segments
               int[] quotedSegs = tmp.equals(fieldText) ? fieldQuoted : null;
 
               for(int i = 0; i < parts.length; i++) {
                 String part = parts[i];
 
                 if(part.startsWith("\"") && part.endsWith("\"") ||
-                   isQuotedSegment(quotedSegs, i))
+                   quotedSegs != null && i < parts.length - 1)
                 {
                   builder.append(part);
                 }

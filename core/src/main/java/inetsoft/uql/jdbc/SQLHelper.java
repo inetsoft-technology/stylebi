@@ -4145,6 +4145,12 @@ public class SQLHelper implements KeywordProvider {
          str = value.toString();
          str = buildFieldExpression(str, fld);
 
+         // a quoted qualifier ("a".id) of a field generated while the sql is parsed, before
+         // its tables are known, e.g. in a case expression of the select list (#77569)
+         if(uniformSql.getTableCount() == 0 && str.equals(value.toString())) {
+            str = exp.quoteQualifier(str);
+         }
+
          if(exp.isQuotedField()) {
             str = quoteIdentifier(value.toString(), str, exp.getQuotedColumn());
          }
@@ -4156,6 +4162,8 @@ public class SQLHelper implements KeywordProvider {
             sql.setParent(uniformSql);
          }
 
+         // a correlated column of a quoted outer table is quoted as the table (#77569)
+         sql.setOuterSQL(uniformSql);
          sql.clearCachedString();
 
          if(sql.getDataSource() == null) {
@@ -4605,6 +4613,62 @@ public class SQLHelper implements KeywordProvider {
    }
 
    /**
+    * Quote a correlated column of a subquery whose qualifier names a table of an outer query
+    * that was written with quoted segments, e.g. "c".id in exists (select 1 from C where
+    * C.id = "c".id). The qualifier is stored without its quotes, and the subquery may have a
+    * table of the same name in another case (#77569).
+    * @return the quoted column, or <tt>null</tt> if the qualifier names a table of this
+    * query, or no quoted outer table.
+    */
+   private String quoteOuterQualifier(String path) {
+      UniformSQL outer = uniformSql.getOuterSQL();
+      List<String> segs = splitTableName(path);
+
+      if(outer == null || segs.size() < 2 || hasTable(uniformSql, path, segs)) {
+         return null;
+      }
+
+      String column = segs.get(segs.size() - 1);
+      String qualifier = path.substring(0, path.length() - column.length() - 1);
+
+      for(UniformSQL sql = outer; sql != null; sql = sql.getOuterSQL()) {
+         for(int i = 0; i < sql.getTableCount(); i++) {
+            SelectTable table = sql.getSelectTable(i);
+
+            // only a table without an alias is named by its name
+            if(qualifier.equals(table.getAlias()) && qualifier.equals(table.getName())) {
+               String qtable = quoteQuotedSegments(table, qualifier);
+               return qtable == null ? null : qtable + "." + XUtil.quoteNameSegment(column, this);
+            }
+         }
+
+         if(hasTable(sql, path, segs)) {
+            return null;
+         }
+      }
+
+      return null;
+   }
+
+   /**
+    * Check if the qualifier of a column is the alias or the name of a table of a query.
+    */
+   private static boolean hasTable(UniformSQL sql, String path, List<String> segs) {
+      String column = segs.get(segs.size() - 1);
+      String qualifier = path.substring(0, path.length() - column.length() - 1);
+
+      for(int i = 0; i < sql.getTableCount(); i++) {
+         SelectTable table = sql.getSelectTable(i);
+
+         if(qualifier.equals(table.getAlias()) || qualifier.equals(table.getName())) {
+            return true;
+         }
+      }
+
+      return false;
+   }
+
+   /**
     * Split a table name at the dots that are not inside a quoted segment.
     */
    private static List<String> splitTableName(String name) {
@@ -4719,6 +4783,13 @@ public class SQLHelper implements KeywordProvider {
       // column alias?
       else if(!physical && uniformSql.getSelection().isAlias(path)) {
          return quoteColumnAlias(path);
+      }
+
+      // a correlated column of a quoted outer table ("c".id)
+      String outerPath = quoteOuterQualifier(path);
+
+      if(outerPath != null) {
+         return outerPath;
       }
       // table column?
       else if(force || uniformSql.isTableColumn(path)) {

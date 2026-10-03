@@ -29,6 +29,8 @@ import java.io.PrintWriter;
 import java.io.Serializable;
 import java.lang.reflect.Method;
 import java.sql.Types;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Vector;
 
 /**
@@ -113,6 +115,10 @@ public class XExpression implements Cloneable, Serializable, XMLSerializable {
     * Get quoted value.
     */
    public String getQuotedValue() {
+      return quoteQualifier(getQuotedValue0());
+   }
+
+   private String getQuotedValue0() {
       if(quote == QUOTE_NONE) {
          String value = toString();
 
@@ -175,7 +181,91 @@ public class XExpression implements Cloneable, Serializable, XMLSerializable {
     * quotes of a quoted identifier are restored.
     */
    public String toQuotedString() {
-      return isQuotedField() ? getQuotedValue() : toString();
+      return isQuotedField() ? getQuotedValue() : quoteQualifier(toString());
+   }
+
+   /**
+    * Set the qualifier segments of a field that were written as quoted identifiers ("a".id),
+    * which are stored without their quotes. They are restored when the field is part of the
+    * text of an enclosing expression, which is generated as written (#77569).
+    * @param segments the 0-based indexes of the quoted segments of the field.
+    * @param kinds the quote of each segment in segments: '"', '`' or '['.
+    */
+   public void setQuotedQualifier(int[] segments, String kinds) {
+      boolean valid = segments != null && kinds != null && segments.length == kinds.length();
+      this.quotedQualifier = valid ? segments.clone() : null;
+      this.quotedQualifierKinds = valid ? kinds : null;
+   }
+
+   /**
+    * Restore the quotes of the qualifier segments of a field written quoted, recorded while
+    * the field is parsed.
+    * @param str the text of the field.
+    */
+   public String quoteQualifier(String str) {
+      if(quotedQualifier == null || !FIELD.equals(type) || str == null) {
+         return str;
+      }
+
+      List<String> segs = splitSegments(str);
+      StringBuilder sb = new StringBuilder();
+
+      for(int i = 0; i < segs.size(); i++) {
+         String seg = segs.get(i);
+         char kind = 0;
+
+         // the last segment is the column, see quotedColumn
+         for(int j = 0; j < quotedQualifier.length && i < segs.size() - 1; j++) {
+            if(quotedQualifier[j] == i) {
+               kind = quotedQualifierKinds.charAt(j);
+            }
+         }
+
+         if(i > 0) {
+            sb.append('.');
+         }
+
+         if(kind != 0 && !seg.isEmpty() && "\"`[".indexOf(seg.charAt(0)) < 0) {
+            sb.append(kind).append(seg).append(kind == '[' ? ']' : kind);
+         }
+         else {
+            sb.append(seg);
+         }
+      }
+
+      return sb.toString();
+   }
+
+   /**
+    * Split a name at the dots that are not inside a quoted segment.
+    */
+   private static List<String> splitSegments(String name) {
+      List<String> segs = new ArrayList<>();
+      int start = 0;
+      char close = 0;
+
+      for(int i = 0; i < name.length(); i++) {
+         char c = name.charAt(i);
+
+         if(close != 0) {
+            if(c == close) {
+               close = 0;
+            }
+         }
+         else if(c == '"' || c == '`') {
+            close = c;
+         }
+         else if(c == '[') {
+            close = ']';
+         }
+         else if(c == '.') {
+            segs.add(name.substring(start, i));
+            start = i + 1;
+         }
+      }
+
+      segs.add(name.substring(start));
+      return segs;
    }
 
    public void setValue(Object value) {
@@ -460,6 +550,9 @@ public class XExpression implements Cloneable, Serializable, XMLSerializable {
 
    private int quote = QUOTE_NONE;
    private String quotedColumn; // column segment of a qualified quoted identifier
+   // qualifier segments written quoted, and their quotes, only used while parsing
+   private transient int[] quotedQualifier;
+   private transient String quotedQualifierKinds;
    private Object value = "";
    private String type = FIELD;
    private int sqlType = -1;

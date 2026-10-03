@@ -3984,6 +3984,21 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
    }
 
    /**
+    * Get the query that this sql is a subquery of in a condition, set while the sql of that
+    * query is generated, so a correlated column can be quoted as its table (#77569).
+    */
+   public UniformSQL getOuterSQL() {
+      return outerSQL;
+   }
+
+   /**
+    * Set the query that this sql is a subquery of in a condition.
+    */
+   public void setOuterSQL(UniformSQL outerSQL) {
+      this.outerSQL = outerSQL;
+   }
+
+   /**
     * Set the parent uniform sql to this uniform sql.
     * @param psql the specified parent uniform sql.
     */
@@ -4376,6 +4391,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
    private boolean allKey = false;
    private boolean grpall = false;
    private UniformSQL psql = null;
+   private transient UniformSQL outerSQL; // the query of a condition subquery, see getOuterSQL
    private XField[] columns = null;
    private int parseResult = PARSE_INIT;
    private XNode root;

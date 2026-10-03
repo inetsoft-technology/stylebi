@@ -138,12 +138,16 @@ class UniformSQLQuotedTableNameTest {
          stmt.executeUpdate("create table \"A\" (ID INT, V INT, \"MixedCase\" INT)");
          stmt.executeUpdate("create table \"a\" (ID INT, V INT, \"MixedCase\" INT)");
          stmt.executeUpdate("create table \"b\" (ID INT, W INT)");
+         stmt.executeUpdate("create table \"c\" (ID INT)");
+         stmt.executeUpdate("create table C (ID INT, V INT)");
          stmt.executeUpdate("create schema \"S\"");
          stmt.executeUpdate("create table \"S\".\"a\" (ID INT, V INT)");
          stmt.executeUpdate("create table \"S\".\"A\" (ID INT, V INT)");
          stmt.executeUpdate("insert into \"A\" values (1, 100, 1000), (2, 200, 2000)");
          stmt.executeUpdate("insert into \"a\" values (1, 1, 10)");
          stmt.executeUpdate("insert into \"b\" values (1, 7), (3, 9)");
+         stmt.executeUpdate("insert into \"c\" values (1), (3)");
+         stmt.executeUpdate("insert into C values (1, 5), (2, 6)");
          stmt.executeUpdate("insert into \"S\".\"a\" values (1, 42)");
          stmt.executeUpdate("insert into \"S\".\"A\" values (1, 43), (2, 44)");
       }
@@ -179,8 +183,24 @@ class UniformSQLQuotedTableNameTest {
          "select y.V from \"S\".\"a\" y",
          "select \"S\".\"a\".V from \"S\".\"a\"",
          "select x.V from S.\"a\" x",
+         // a correlated column of a quoted outer table, the subquery has the table in
+         // another case
+         "select \"c\".ID from \"c\" where exists (select 1 from C where C.ID = \"c\".ID)",
+         "select \"c\".ID from \"c\" where not exists (select 1 from C where C.ID = \"c\".ID)",
+         "select \"c\".ID from \"c\" where \"c\".ID in (select C.ID from C where C.ID = \"c\".ID)",
+         // quoted qualifiers in expressions
+         "select \"a\".ID, max(\"a\".V) from \"a\" group by \"a\".ID having max(\"a\".V) > 0",
+         "select \"a\".ID, count(*) from \"a\" where \"a\".V > 0 group by \"a\".ID " +
+            "having max(\"a\".V) > 0 order by \"a\".ID",
+         "select case when \"a\".V > 0 then \"a\".ID else 0 end from \"a\"",
+         "select \"a\".ID + 1 from \"a\"",
+         "select coalesce(\"a\".V, 0) from \"a\"",
+         "select \"a\".ID from \"a\" where \"a\".V + 1 > 1",
+         "select (\"a\".V + 1) * 2 from \"a\"",
+         "select \"S\".\"a\".V * 2 from \"S\".\"a\"",
          // control: an unquoted name reads the folded table, as before
          "select a.V from a",
+         "select C.ID from C where exists (select 1 from a where a.ID = C.ID)",
          "select x.V from a x",
       };
 
@@ -250,6 +270,15 @@ class UniformSQLQuotedTableNameTest {
          { "select \"a\".id, count(*) from \"a\" group by \"a\".id order by \"a\".id",
            "select \"a\".id, count(*) from \"a\" group by \"a\".id order by \"a\".id asc" },
          { "select sum(\"a\".\"MixedCase\") from \"a\"", "select sum(\"a\".\"MixedCase\") from \"a\"" },
+         // expressions keep a quoted qualifier as written
+         { "select \"a\".id + 1 from \"a\"", "select \"a\".id+1 from \"a\"" },
+         { "select case when \"a\".v > 0 then \"a\".id else 0 end from \"a\"",
+           "select case when \"a\".v > 0 then \"a\".id else 0 END from \"a\"" },
+         { "select \"a\".id from \"a\" group by \"a\".id having max(\"a\".v) > 0",
+           "select \"a\".id from \"a\" group by \"a\".id having max(\"a\".v) > 0" },
+         // a correlated column of a quoted outer table
+         { "select \"c\".id from \"c\" where exists (select 1 from C where C.id = \"c\".id)",
+           "select \"c\".id from \"c\" where EXISTS ( select 1 from C where C.id = \"c\".id)" },
          // brackets and backticks are quoted with the helper quote
          { "select * from [a]", "select * from \"a\"" },
          { "select `a`.id from `a`", "select \"a\".id from \"a\"" },
@@ -322,6 +351,8 @@ class UniformSQLQuotedTableNameTest {
 
       assertEquals("select \"S\".\"a\".ID from \"S\".\"a\"",
                    regenerate(parse("select \"S\".\"a\".id from \"S\".\"a\"", oracle)));
+      // a qualifier with a quoted segment keeps its case, the database folds the other ones
+      assertEquals("select \"s\".a.ID from \"s\".a", regenerate(parse("select \"s\".a.id from \"s\".a", oracle)));
       // unquoted names are uppercased, as before
       assertEquals("select A.ID from a", regenerate(parse("select a.id from a", oracle)));
 
