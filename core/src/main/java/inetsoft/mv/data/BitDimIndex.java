@@ -190,24 +190,28 @@ public final class BitDimIndex extends XDimIndex {
       int len = buf.getInt();
       setCompressed(buf.get() == 1);
 
-      buf = channel.map(channel.position(), len);
-      ByteBuffer buf2 = buf;
+      ByteBuffer mapped = channel.map(channel.position(), len);
 
-      if(isCompressed()) {
-         buf2 = XSwapUtil.uncompressByteBuffer(buf);
+      try {
+         ByteBuffer buf2 = mapped;
+
+         if(isCompressed()) {
+            buf2 = XSwapUtil.uncompressByteBuffer(mapped);
+         }
+
+         int size = buf2.getInt();
+         keys = new int[size];
+         rows = new BitSet[size];
+
+         for(int i = 0; i < size; i++) {
+            keys[i] = buf2.getInt();
+            rows[i] = new BitSet();
+            rows[i].load(buf2);
+         }
       }
-
-      int size = buf2.getInt();
-      keys = new int[size];
-      rows = new BitSet[size];
-
-      for(int i = 0; i < size; i++) {
-         keys[i] = buf2.getInt();
-         rows[i] = new BitSet();
-         rows[i].load(buf2);
+      finally {
+         channel.unmap(mapped);
       }
-
-      channel.unmap(buf);
    }
 
    /**

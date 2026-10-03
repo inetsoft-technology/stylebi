@@ -56,10 +56,12 @@ class UniformSQLUsingJoinLossyTest {
          // top level, with select * and an unqualified USING column
          list.add("select * from a " + join + " b using (id)");
          list.add("select id, a.x from a " + join + " b using (id)");
-         // chained after another USING join
-         list.add("select a.x from a join b using (id) " + join + " c using (k)");
+         // chained after another USING join of the column, a USING join of another table's
+         // column fails the parse (Bug #77490)
+         list.add("select a.x from a join b using (id) " + join + " c using (id)");
          // after an ON join
-         list.add("select a.x from a left join b on a.id = b.id " + join + " c using (k)");
+         list.add("select a.x from a join b using (id) left join c on b.k = c.k " + join +
+                  " d using (id)");
          // derived table
          list.add("select t.x from (select a.x from a " + join + " b using (id)) t");
          // exists and in subqueries

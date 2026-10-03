@@ -36,6 +36,7 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -46,7 +47,9 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 import java.io.StringReader;
 import java.sql.*;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.mock;
@@ -94,33 +97,24 @@ class SQLExpressionValidityRefusalTest {
       "(select max(b.k) from b group by cube(b.k, b.j))",
       "(select max(b.k) from b group by grouping sets ((b.k), (b.j)))",
       "(select max(b.k) from b group by (), b.k)",
+      // a derived column list (#77494)
+      "(select max(p) from (select 1 x) t(p))",
+      "(select max(t.p) from (select b.id from b) t(p) where t.p = a.id)",
    };
 
+   private static Stream<String> validExpressions() {
+      return Stream.concat(Arrays.stream(REFUSED), Stream.of(
+         "a.x + (select max(b.x) from b natural join c where b.id = a.id)",
+         "coalesce((select max(b.k) from b group by rollup(b.k)), 0)",
+         // TOP failed with a NullPointerException outside a statement parse
+         "(select top 1 b.x from b)",
+         // controls with no refusal
+         "(select max(b.x) from b left join c on b.id = c.id)",
+         "(select max(b.k) from b group by b.k)"));
+   }
+
    @ParameterizedTest
-   @ValueSource(strings = {
-      "(select max(b.x) from b natural join c)",
-      "(select max(b.x) from b left join c on 1 = 1)",
-      "(select max(b.x) from b left join c on b.id = c.id and b.k > 1)",
-      "(select max(b.x) from b left join c on id = id2)",
-      "(select max(a.x) from a left join b on a.id = z.id)",
-      "(select max(a.x) from a, b where a.id *= z.id)",
-      "(select max(a.x) from a join (b join c on b.id = c.id) using (id))",
-      "(select count(*) from a left join b)",
-      "(select max(b.x) from b union join c on b.id = c.id)",
-      "(select max(b.k) from b group by rollup(b.k))",
-      "(select max(b.k) from b group by cube(b.k, b.j))",
-      "(select max(b.k) from b group by grouping sets ((b.k), (b.j)))",
-      "(select max(b.k) from b group by (), b.k)",
-      "a.x + (select max(b.x) from b natural join c where b.id = a.id)",
-      "coalesce((select max(b.k) from b group by rollup(b.k)), 0)",
-      // TOP failed with a NullPointerException outside a statement parse
-      "(select top 1 b.x from b)",
-      // a derived column list, which #77494 refuses
-      "(select max(p) from (select 1 x) t(p))",
-      // controls with no refusal
-      "(select max(b.x) from b left join c on b.id = c.id)",
-      "(select max(b.k) from b group by b.k)",
-   })
+   @MethodSource("validExpressions")
    void validExpression(String exp) throws Exception {
       assertTrue(XUtil.isSQLExpressionValid(exp), exp);
       assertTrue(queryService().checkExpression(exp), exp);
@@ -213,12 +207,36 @@ class SQLExpressionValidityRefusalTest {
       }
    }
 
+   // the column scan also reports the bare name of a schema qualified table, which must not
+   // be cut as a column of that table
+   @ParameterizedTest
+   @ValueSource(strings = {
+      "(select max(x.v) from sch.orders x natural join c where x.id = sch.orders.id)",
+      "(select max(x.v) from sch.orders x left join c on 1 = 1 where x.id = sch.orders.id)",
+      // control, the parse succeeds
+      "(select max(x.v) from sch.orders x left join c on x.id = c.id where x.id = sch.orders.id)",
+   })
+   void vpmConditionSchemaTable(String exp) throws Exception {
+      // the query doesn't alias the table, VpmUtil passes the table as its alias
+      String cond = vpm("sch.orders", "sch.orders", exp);
+      assertTrue(cond.contains("where x.id = sch.orders.id)"), cond);
+      assertTrue(cond.contains("from sch.orders x "), cond);
+
+      cond = vpm("sch.orders", "o", exp);
+      assertTrue(cond.contains("where x.id = o.id)"), cond);
+      assertTrue(cond.contains("from sch.orders x "), cond);
+   }
+
    private static String vpm(String exp) throws Exception {
+      return vpm("orders", "o", exp);
+   }
+
+   private static String vpm(String table, String alias, String exp) throws Exception {
       VpmCondition cond = new VpmCondition("c1");
-      cond.setTable("orders");
-      cond.setCondition(new XBinaryCondition(new XExpression("orders.region", XExpression.FIELD),
+      cond.setTable(table);
+      cond.setCondition(new XBinaryCondition(new XExpression(table + ".region", XExpression.FIELD),
          new XExpression(exp, XExpression.EXPRESSION), "="));
-      return cond.evaluate(null, new String[] { "orders" }, new String[] { "o" },
+      return cond.evaluate(null, new String[] { table }, new String[] { alias },
                            new String[] { "region", "id" }, null, new VariableTable(), null,
                            false);
    }

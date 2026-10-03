@@ -148,10 +148,15 @@ private int checkCnt = 0; // optimization
 private Map map = new HashMap(); // sql + table ->op
 // sql -> columns merged by an earlier LEFT/FULL JOIN USING in the current join expression
 private Map usingMerges = new IdentityHashMap();
+// sql -> the USING columns of the current join expression, each mapped to an int[]
+// {index of the table of the column, start of the join's left operand}
+private Map usingTables = new IdentityHashMap();
 private int onClauseCount = 0; // ON clauses parsed so far, in text order
 private boolean catalog = false;
 private boolean schema = true;
 private boolean preferQuote = true;
+// conditions of a (+) outer join with an op other than =, e.g. "a.id >= b.id(+)"
+private Map badOuterJoins = new IdentityHashMap();
 
 private static class TableKey {
    public TableKey(UniformSQL sql, Object table) {
@@ -263,6 +268,108 @@ private void markJoins(inetsoft.uql.XNode node, int clause) {
          markJoins(node.getChild(i), clause);
       }
    }
+}
+
+/**
+ * Check that each legacy outer join of a where clause (*=, =* or (+)) can be
+ * generated in the from clause.
+ */
+private void checkWhereOuterJoinPositions(UniformSQL sql, XFilterNode node, Token tok)
+   throws SemanticException
+{
+   List joins = new ArrayList();
+   collectJoins(sql.getWhere(), joins);
+   collectJoins(node, joins);
+   checkWhereOuterJoinPositions(sql, node, true, joins, tok);
+}
+
+/**
+ * An outer join is generated in the from clause as a join condition that the
+ * where clause doesn't see, so it must also be under ANDs only (joinPos). Under
+ * a NOT set, or an OR set with other conditions, the rest of the set would lose
+ * the join (e.g. "not (a.id = b.id(+) and a.k = 1)" generated as "ON a.id = b.id
+ * where not (a.k = 1)"). An OR of outer joins only, between the same two tables
+ * that have no other join, is generated as one ON condition, "ON a.id = b.id OR
+ * a.k = b.k", as Oracle applies it. With another join on the tables it would be
+ * "ON a.k = b.k AND a.id = b.id OR ..." without the parentheses. A negated outer
+ * join itself is fine: Oracle applies "not (a.id = b.id(+))" as the join
+ * condition, which is "ON a.id <> b.id". An outer join that isn't column =
+ * column (e.g. "a.id >= b.id(+)") has no op to keep its comparison, so it was
+ * recorded in badOuterJoins and can't be represented.
+ */
+private void checkWhereOuterJoinPositions(UniformSQL sql, XFilterNode node,
+                                          boolean joinPos, List joins, Token tok)
+   throws SemanticException
+{
+   if(badOuterJoins.containsKey(node) ||
+      !joinPos && node instanceof XJoin && ((XJoin) node).isOuterJoin())
+   {
+      throw new SemanticException("Unsupported outer join condition: " + node,
+                                  getFilename(), tok.getLine(), tok.getColumn());
+   }
+
+   if(node instanceof XSet) {
+      boolean joinPos2 = joinPos && !node.isIsNot() && (node.getChildCount() <= 1 ||
+         XSet.AND.equalsIgnoreCase(((XSet) node).getRelation()) ||
+         isOuterJoinSet(sql, node, joins));
+
+      for(int i = 0; i < node.getChildCount(); i++) {
+         checkWhereOuterJoinPositions(sql, (XFilterNode) node.getChild(i), joinPos2,
+                                      joins, tok);
+      }
+   }
+}
+
+/**
+ * Check if every condition of a set is an outer join of the same type between the
+ * same two tables, and the set has all the joins of the where clause (joins)
+ * between them.
+ */
+private boolean isOuterJoinSet(UniformSQL sql, XFilterNode node, List joins) {
+   String op = null;
+   int index1 = -1;
+   int index2 = -1;
+
+   for(int i = 0; i < node.getChildCount(); i++) {
+      Object child = node.getChild(i);
+
+      if(!(child instanceof XJoin) || !((XJoin) child).isOuterJoin()) {
+         return false;
+      }
+
+      XJoin join = (XJoin) child;
+      int cindex1 = getJoinTableIndex(sql, join.getTable1(sql));
+      int cindex2 = getJoinTableIndex(sql, join.getTable2(sql));
+
+      if(cindex1 < 0 || cindex2 < 0 || cindex1 == cindex2 ||
+         op != null && (!op.equals(join.getOp()) || cindex1 != index1 || cindex2 != index2))
+      {
+         return false;
+      }
+
+      op = join.getOp();
+      index1 = cindex1;
+      index2 = cindex2;
+   }
+
+   for(int i = 0; i < joins.size(); i++) {
+      XJoin join = (XJoin) joins.get(i);
+      int jindex1 = getJoinTableIndex(sql, join.getTable1(sql));
+      int jindex2 = getJoinTableIndex(sql, join.getTable2(sql));
+      boolean inSet = false;
+
+      for(int j = 0; j < node.getChildCount() && !inSet; j++) {
+         inSet = node.getChild(j) == join;
+      }
+
+      if(!inSet && (jindex1 == index1 && jindex2 == index2 ||
+                    jindex1 == index2 && jindex2 == index1))
+      {
+         return false;
+      }
+   }
+
+   return true;
 }
 
 /**
@@ -495,6 +602,73 @@ private void addUsingMerges(UniformSQL sql, List columns) {
 private void clearUsingMerges(UniformSQL sql) {
    if(sql != null) {
       usingMerges.remove(sql);
+      usingTables.remove(sql);
+   }
+}
+
+/**
+ * Get the alias of the left operand table that has a column of a JOIN USING. The parser
+ * has no column metadata, so it's only known for a left operand of one table, or for a
+ * column of an earlier inner or RIGHT JOIN USING of the same left operand, whose merged
+ * column is the joined table's column. Otherwise the column could be in any table of
+ * the left operand, so the join fails the parse and the original sql runs (Bug #77490).
+ */
+private String getUsingTable(UniformSQL sql, String column, int lstart, int rstart,
+                             String jc, Token tok)
+   throws SemanticException
+{
+   if(rstart - lstart == 1) {
+      return sql.getTableAlias(lstart);
+   }
+
+   Map tables = (Map) usingTables.get(sql);
+   int[] table = tables == null ? null : (int[]) tables.get(getUsingColumnKey(column));
+
+   // a join of a nested join in the left operand has its own left operand, the other
+   // tables of this left operand may have the column too
+   if(table == null || table[1] != lstart || table[0] >= rstart) {
+      throw new SemanticException(
+         "Unsupported USING join, the left operand table of the column is unknown: " + jc,
+         getFilename(), tok.getLine(), tok.getColumn());
+   }
+
+   return sql.getTableAlias(table[0]);
+}
+
+/**
+ * Record the joined table as the table of the columns of an inner or RIGHT JOIN USING.
+ */
+private void addUsingTables(UniformSQL sql, List columns, int lstart, int rstart) {
+   Map tables = (Map) usingTables.get(sql);
+
+   if(tables == null) {
+      tables = new HashMap();
+      usingTables.put(sql, tables);
+   }
+
+   for(int i = 0; i < columns.size(); i++) {
+      tables.put(getUsingColumnKey((String) columns.get(i)), new int[] { rstart, lstart });
+   }
+}
+
+/**
+ * Refuse a derived column list (t(p, q)) of a from clause table. UniformSQL
+ * has no place for the column list, so it would be kept as part of the alias
+ * and regenerated as one quoted alias ("t(p,q)") without the column names.
+ * A SQL Server table hint of an unaliased table (from a with (nolock)) parses
+ * as an unquoted alias with and a column list, and is kept as before (Bug #77492).
+ */
+private void checkDerivedColumnList(UniformSQL sql, String alias, String columns,
+                                    Token aliasTok, Token tok)
+   throws SemanticException
+{
+   boolean hint = aliasTok != null && aliasTok.getType() == IDENT &&
+      "with".equalsIgnoreCase(aliasTok.getText());
+
+   if(sql != null && !hint) {
+      throw new SemanticException(
+         "Unsupported derived column list: " + alias + "(" + columns + ")",
+         getFilename(), tok.getLine(), tok.getColumn());
    }
 }
 
@@ -919,6 +1093,26 @@ private void addInnerOnJoins(UniformSQL sql, XFilterNode cond) {
 private void clearInnerOnJoins(UniformSQL sql, String outerType, String tbl2) {
    if(!"LEFT".equals(outerType) || tbl2 == null || tbl2.length() == 0) {
       innerOnJoins.remove(sql);
+   }
+}
+
+/**
+ * Check that a condition has no legacy outer join (*=, =* or (+)). It is only valid
+ * in a where clause. In an inner join ON it isn't valid on any database ((+) in an
+ * ANSI join is ORA-25156, and *= can't be mixed with ANSI joins), and in a having
+ * clause or a case it isn't a join. The generation hoisted it into an outer join
+ * anyway, which dropped it or lost its position and comparison op (e.g. "on a.id =
+ * b.id and a.k > b.k(+)" became "ON a.k = b.k where a.id = b.id"), or printed *=.
+ */
+private void checkNoOuterJoins(XFilterNode node, Token tok) throws SemanticException {
+   if(node instanceof XJoin && ((XJoin) node).isOuterJoin()) {
+      throw new SemanticException("Unsupported outer join condition: " + node,
+                                  getFilename(), tok.getLine(), tok.getColumn());
+   }
+   else if(node instanceof XSet) {
+      for(int i = 0; i < node.getChildCount(); i++) {
+         checkNoOuterJoins((XFilterNode) node.getChild(i), tok);
+      }
    }
 }
 
@@ -1491,7 +1685,7 @@ predicate_body returns [XFilterNode node = null]
 
 comp_predicate returns [XFilterNode xnode = null]
         {XExpression exp1, exp2; String op; XBinaryCondition node;
-        boolean isOracleLeftJoin = false; {checkStatus();}}
+        boolean isOracleLeftJoin = false; Token start = LT(1); {checkStatus();}}
         :
         exp1 = row_value_constructor op = comp_op exp2 = row_value_constructor
         ((OJ)=>OJ {isOracleLeftJoin = true;}|)
@@ -1501,7 +1695,10 @@ comp_predicate returns [XFilterNode xnode = null]
                 op = "=*";
         }
 
-        // left outer join?
+        // left outer join? the outer join op can't keep another comparison op,
+        // so such a condition is refused if it is in a where clause
+        boolean badOuterJoin = isOracleLeftJoin && !op.equals("=");
+
         if(isOracleLeftJoin == true) {
                 op = "*=";
         }
@@ -1517,11 +1714,26 @@ comp_predicate returns [XFilterNode xnode = null]
                 node = new XJoin();
         }
         else {
+                // an outer join op on a condition that isn't a join between two
+                // tables, such as b.code(+) = 'X', is a filter of the outer join.
+                // the model has no place for it, and generating it with = would
+                // give different rows, so refuse it and the original sql runs
+                if(op.equals("*=") || op.equals("=*")) {
+                        throw new SemanticException("Unsupported outer join condition: " +
+                           exp1 + " " + op + " " + exp2,
+                           getFilename(), start.getLine(), start.getColumn());
+                }
+
                 node = new XBinaryCondition();
         }
 
         node.setExpression1(exp1);
-        node.setOp(op); node.setExpression2(exp2); xnode = node;}
+        node.setOp(op); node.setExpression2(exp2); xnode = node;
+
+        if(badOuterJoin) {
+                badOuterJoins.put(node, Boolean.TRUE);
+        }
+        }
         ;
 
 comp_op returns [String op = ""]
@@ -1671,11 +1883,21 @@ null_predicate returns [XFilterNode xnode = null]
         ;
 
 quantified_comp_predicate returns [XFilterNode xnode =null]
-        {XExpression exp1, exp2, tmp; String op, str; XBinaryCondition node; {checkStatus();}}
+        {XExpression exp1, exp2, tmp; String op, str; XBinaryCondition node;
+        Token start = LT(1); {checkStatus();}}
         :
         exp1 = row_value_constructor op = comp_op str = quantifier tmp = table_subquery
 
         {exp2 = new XExpression(); exp2.setValue(str + " " + tmp, XExpression.EXPRESSION);
+
+        // an outer join op against a subquery can't be represented, the same as
+        // in comp_predicate. (+)= isn't converted to =* here, so check it too
+        if(op.equals("*=") || op.equals("=*") || op.equals("(+)=")) {
+                throw new SemanticException("Unsupported outer join condition: " +
+                   exp1 + " " + op + " " + exp2,
+                   getFilename(), start.getLine(), start.getColumn());
+        }
+
         node = new XBinaryCondition(); node.setExpression1(exp1);
         node.setExpression2(exp2); node.setOp(op); xnode = node;}
         ;
@@ -2468,7 +2690,7 @@ searched_case returns [String searchcase = ""]
 searched_when_clause returns [String searchwhen = ""]
         {String tmp,tmp1; XFilterNode node; {checkStatus();}}
         :
-        a:WHEN node = search_condition b:THEN tmp1 = result
+        a:WHEN node = search_condition {checkNoOuterJoins(node, a);} b:THEN tmp1 = result
         {SQLHelper helper = SQLHelper.getSQLHelper(this.uniSql);
          String condition = helper.generateConditions(node);
         searchwhen = a.getText() + " " + condition + " " + b.getText() + " " + tmp1;}
@@ -3417,6 +3639,8 @@ table_exp [UniformSQL sql]
         :
         (from_clause[sql] {moveOuterPairJoins(sql);})?
         ( {wtok = LT(1);} where = where_clause {checkWhereOuterJoins(sql, where, wtok);
+        // checked before whereOuterPairJoins() turns joins into plain conditions
+        checkWhereOuterJoinPositions(sql, where, wtok);
         where = whereOuterPairJoins(sql, where); where.setClause(XFilterNode.WHERE); markJoins(where, XJoin.WHERE_CLAUSE); sql.combineWhereByAnd(where);})?
         ( group_by_clause[sql] )?
         {if(sql != null) {checkOuterJoinTables(sql, LT(1));}}
@@ -3445,12 +3669,12 @@ ansi_joins [UniformSQL sql] returns [String str = ""]
 ;
 
 table_ref [UniformSQL sql] returns [String tbref = ""]
-        {Object name; String alias = "", tmp,as = ""; XExpression exp; {checkStatus();}}
+        {Object name; String alias = "", tmp,as = ""; Token atok = null; XExpression exp; {checkStatus();}}
         :
      (ansi_joins[null])=> tbref = ansi_joins[sql]
         | name = derived_table
         (( b:AS {as = b.getText();})?
-        alias = correlation_name
+        {atok = LT(1);} alias = correlation_name
 
         {
            if(alias.startsWith("$(@") && alias.endsWith(")")) {
@@ -3458,7 +3682,7 @@ table_ref [UniformSQL sql] returns [String tbref = ""]
            }
         }
 
-        ( OPEN_PAREN tmp = derived_column_list CLOSE_PAREN {alias += "(" + tmp + ")";})? )?
+        ( dc1:OPEN_PAREN tmp = derived_column_list CLOSE_PAREN {checkDerivedColumnList(sql, alias, tmp, atok, dc1); alias += "(" + tmp + ")";})? )?
         {
         tbref = name + " " + as + " " + alias;
         if(sql != null) {
@@ -3474,7 +3698,7 @@ table_ref [UniformSQL sql] returns [String tbref = ""]
         name = table_name
         (
          ( a:AS {as = a.getText();})?
-         alias = correlation_name
+         {atok = LT(1);} alias = correlation_name
 
          {
             if(alias.startsWith("$(@") && alias.endsWith(")")) {
@@ -3482,7 +3706,7 @@ table_ref [UniformSQL sql] returns [String tbref = ""]
             }
          }
 
-         ( OPEN_PAREN tmp = derived_column_list CLOSE_PAREN {alias += "(" + tmp + ")";})?
+         ( dc2:OPEN_PAREN tmp = derived_column_list CLOSE_PAREN {checkDerivedColumnList(sql, alias, tmp, atok, dc2); alias += "(" + tmp + ")";})?
         )?
         {
          tbref = name + " " + as + " " + alias;
@@ -3499,14 +3723,14 @@ table_ref [UniformSQL sql] returns [String tbref = ""]
         ;
 
 table_ref_nojoin [UniformSQL sql, String op] returns [String tbref = ""]
-        {Object name; String alias = "", tmp,as = ""; {checkStatus();}}
+        {Object name; String alias = "", tmp,as = ""; Token atok = null; {checkStatus();}}
         :
         name = table_name
         (
          ( a:AS {as = a.getText();})?
-         alias = correlation_name
+         {atok = LT(1);} alias = correlation_name
          ( (OPEN_PAREN derived_column_list)=>
-         OPEN_PAREN tmp = derived_column_list CLOSE_PAREN {alias += "(" + tmp + ")";})?
+         dc1:OPEN_PAREN tmp = derived_column_list CLOSE_PAREN {checkDerivedColumnList(sql, alias, tmp, atok, dc1); alias += "(" + tmp + ")";})?
         )?
         {
          tbref = name + " " + as + " " + alias;
@@ -3533,9 +3757,9 @@ table_ref_nojoin [UniformSQL sql, String op] returns [String tbref = ""]
          }
         | name = derived_table
         ( b:AS {as = b.getText();})?
-        alias = correlation_name
+        {atok = LT(1);} alias = correlation_name
         ( (OPEN_PAREN derived_column_list)=>
-        OPEN_PAREN tmp = derived_column_list CLOSE_PAREN {alias += "(" + tmp + ")";})?
+        dc2:OPEN_PAREN tmp = derived_column_list CLOSE_PAREN {checkDerivedColumnList(sql, alias, tmp, atok, dc2); alias += "(" + tmp + ")";})?
         {
         tbref = name + " " + as + " " + alias;
 
@@ -3680,7 +3904,7 @@ grouping_column_ref [UniformSQL sql] returns [String gcol = ""]
 having_clause returns [XFilterNode having = null]
         {checkStatus();}
         :
-        HAVING having = search_condition
+        a:HAVING having = search_condition {checkNoOuterJoins(having, a);}
         ;
 
 table_value_constructor returns [XExpression exp = null]
@@ -3884,6 +4108,7 @@ join_condition [UniformSQL sql, String op, String tbl2, int rstart, int rend] re
               clearInnerOnJoins(sql, outerType, tbl2);
            }
            else {
+              checkNoOuterJoins(tmp, a);
               addInnerOnJoins(sql, tmp);
            }
 
@@ -3912,8 +4137,8 @@ named_columns_join [UniformSQL sql, String op, String tbl2, int rstart, int rend
              uniSql.setLossy(true);
           }
 
-          // the join is between the last table of the left operand and the joined
-          // table, so the joined table (rstart to rend) must be a single table
+          // the join is between a table of the left operand and the joined table,
+          // so the joined table (rstart to rend) must be a single table
           if(rend - rstart != 1) {
              throw new SemanticException(
                 "Unsupported USING join, the joined table is a nested join: " + jc,
@@ -3923,7 +4148,7 @@ named_columns_join [UniformSQL sql, String op, String tbl2, int rstart, int rend
           checkUsingMerges(sql, list, jc, a);
 
           if(rstart >= 1) {
-           String t1 = sql.getTableAlias(rstart - 1);
+           int lstart = joinStarts.isEmpty() ? 0 : ((Integer) joinStarts.getFirst()).intValue();
            String t2 = sql.getTableAlias(rstart);
            String outerOp = getUsingJoinOp(op);
            String joinOp = outerOp == null ? "=" : outerOp;
@@ -3934,6 +4159,7 @@ named_columns_join [UniformSQL sql, String op, String tbl2, int rstart, int rend
            node.setName(getUniqueName());
 
            if(list.size() == 1) {
+                String t1 = getUsingTable(sql, (String) list.elementAt(0), lstart, rstart, jc, a);
                 e1 = new XExpression(t1+"."+(String)list.elementAt(0),
                                         XExpression.FIELD);
                 e2 = new XExpression(t2+"."+(String)list.elementAt(0),
@@ -3945,6 +4171,8 @@ named_columns_join [UniformSQL sql, String op, String tbl2, int rstart, int rend
            else {
                 ((XSet)node).setRelation(XSet.AND);
                 for(int i = 0; i < list.size(); i++) {
+                        String t1 = getUsingTable(sql, (String) list.elementAt(i), lstart,
+                                                  rstart, jc, a);
                         e1 = new XExpression(t1+"."+(String)list.elementAt(i),
                                                 XExpression.FIELD);
                         e2 = new XExpression(t2+"."+(String)list.elementAt(i),
@@ -3962,6 +4190,10 @@ named_columns_join [UniformSQL sql, String op, String tbl2, int rstart, int rend
            // the coalesce of both, a later USING of the column can't be represented
            if("*=".equals(outerOp) || "*=*".equals(outerOp)) {
               addUsingMerges(sql, list);
+           }
+           // an inner or RIGHT join merges the column to the joined table's column
+           else {
+              addUsingTables(sql, list, lstart, rstart);
            }
 
            // a RIGHT or FULL join makes the tables before it null supplying, so the
