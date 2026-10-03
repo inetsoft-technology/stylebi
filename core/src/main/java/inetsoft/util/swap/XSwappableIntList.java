@@ -121,6 +121,15 @@ public class XSwappableIntList implements Serializable {
       else {
          int tidx = (size - 1) >> BLOCK_BITS;
          int ridx = (size - 1) & BLOCK_SIZE;
+         // the tail fragment may be swapped out, and its swap file is reused as is by the
+         // next swap, so it can't be cut in place. Read the kept values back (outside the
+         // lock, getArray() waits for memory) and put them in a new fragment instead
+         int[] arr = fragments[tidx].getArray();
+         XIntFragment nfragment = new XIntFragment((char) 128, (char) (BLOCK_SIZE + 1));
+
+         for(int i = 0; i <= ridx; i++) {
+            nfragment.add(arr == null ? 0 : arr[i]);
+         }
 
          try {
             rlock.lock();
@@ -130,8 +139,9 @@ public class XSwappableIntList implements Serializable {
                fragments[i] = null;
             }
 
-            fragment = fragments[tidx];
-            fragment.size((char) (ridx + 1));
+            fragments[tidx].dispose();
+            fragments[tidx] = nfragment;
+            fragment = nfragment;
             pos = (char) (tidx + 1);
          }
          finally {
@@ -140,6 +150,8 @@ public class XSwappableIntList implements Serializable {
       }
 
       count = size;
+      // the new tail is open for add(), complete() must complete it again
+      completed = false;
    }
 
    /**

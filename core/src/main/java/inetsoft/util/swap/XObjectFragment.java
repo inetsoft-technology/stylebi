@@ -20,6 +20,7 @@ package inetsoft.util.swap;
 import com.esotericsoftware.kryo.kryo5.Kryo;
 import com.esotericsoftware.kryo.kryo5.io.Input;
 import com.esotericsoftware.kryo.kryo5.io.Output;
+import inetsoft.util.FileSystemService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -532,14 +533,29 @@ public final class XObjectFragment<T> extends XSwappable {
          return;
       }
 
-      if(!valid) {
-         getSwapper().waitForMemory();
+      // bring the data back first, the swap files may hold the only copy
+      access();
 
-         synchronized(this) {
-            if(!valid) {
-               validate0(true);
+      synchronized(this) {
+         if(disposed || !valid || arr == null) {
+            return;
+         }
+
+         // swap0() skips writing when the first swap file exists, so remove the files
+         // to have the changed values written on the next swap
+         for(int i = 0; ; i++) {
+            File file = getFile(prefix + "_" + i + ".tdat");
+
+            if(!file.exists()) {
+               break;
+            }
+
+            if(!file.delete()) {
+               FileSystemService.getInstance().remove(file, 30000);
             }
          }
+
+         swapFileCount = 0;
       }
    }
 
