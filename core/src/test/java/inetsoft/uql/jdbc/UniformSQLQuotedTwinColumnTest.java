@@ -146,9 +146,21 @@ class UniformSQLQuotedTwinColumnTest {
       fix(sql, h2, TWIN_SECOND);
       assertEquals("select t.\"MixedCase\" from t order by t.\"MixedCase\" asc", regenerate(sql));
 
+      // twins resolve to one path. Ordinals that name the column of another item stay
+      // ordinals (#77570), so the sql runs as written
       sql = parse("select MixedCase, \"MixedCase\" as b from t order by 2 desc, 1", h2);
       fix(sql, h2, TWIN_SECOND);
-      assertEquals("select t.MixedCase, t.\"MixedCase\" as b from t order by t.\"MixedCase\" desc, t.MixedCase asc",
+      assertEquals("select t.MixedCase, t.\"MixedCase\" as b from t order by 2 desc, 1 asc",
+                   regenerate(sql));
+
+      // one twin ordinal is converted, with the quoting of its own column
+      sql = parse("select MixedCase, \"MixedCase\" as b from t order by 2 desc", h2);
+      fix(sql, h2, TWIN_SECOND);
+      assertEquals("select t.MixedCase, t.\"MixedCase\" as b from t order by t.\"MixedCase\" desc",
+                   regenerate(sql));
+      sql = parse("select MixedCase, \"MixedCase\" as b from t order by 1 desc", h2);
+      fix(sql, h2, TWIN_SECOND);
+      assertEquals("select t.MixedCase, t.\"MixedCase\" as b from t order by t.MixedCase desc",
                    regenerate(sql));
    }
 
