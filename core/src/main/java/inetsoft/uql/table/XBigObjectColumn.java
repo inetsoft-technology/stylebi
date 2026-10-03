@@ -186,11 +186,11 @@ public final class XBigObjectColumn extends XSwappable implements XTableColumn {
    @Override
    public Object getObject(int r) {
       Object[] objs = arr;
-      int swapCount = this.swapCount;
 
       // wait outside of synchronized block. this column stays swappable after a swap, so
       // the swapper would block on swap() if we waited while holding the lock. wait at most
-      // once between swaps, not once for each row read back.
+      // once between swaps, not once for each row read back. record the count after the wait
+      // since the swapper may swap this column again while we wait.
       if(objs != null && r < objs.length && objs[r] == Tool.NULL && waitedSwapCount != swapCount) {
          getSwapper().waitForMemory();
          waitedSwapCount = swapCount;

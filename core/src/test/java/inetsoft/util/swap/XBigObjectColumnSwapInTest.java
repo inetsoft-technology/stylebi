@@ -89,6 +89,25 @@ class XBigObjectColumnSwapInTest {
    }
 
    @Test
+   void swapDuringTheWaitDoesNotMakeEveryRowWait() {
+      XBigObjectColumn column = createSwappedColumn();
+      XSwapper swapper = spy(XSwapper.getSwapper());
+      // the swapper sweeps the column again while the reader waits for memory
+      doAnswer(invocation -> {
+         assertTrue(column.swap(), "column was not swapped during the wait");
+         return null;
+      }).when(swapper).waitForMemory();
+      column.swapper = swapper;
+
+      for(int i = 0; i < ROWS; i++) {
+         assertEquals("value" + i, column.getObject(i));
+      }
+
+      verify(swapper, times(1)).waitForMemory();
+      column.dispose();
+   }
+
+   @Test
    void readOfResidentRowDoesNotWait() {
       XBigObjectColumn column = createColumn();
       XSwapper swapper = spy(XSwapper.getSwapper());
