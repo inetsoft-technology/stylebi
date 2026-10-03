@@ -122,6 +122,30 @@ class SwapCacheDirectoryOrgScopeTest {
    }
 
    @Test
+   void fragmentSwappedOnPrincipalLessThreadIsDeletedOnOrgThread(@TempDir Path tempDir)
+      throws Exception
+   {
+      SreeEnv.setProperty(CACHE_DIR, tempDir.resolve("global").toString());
+      SreeEnv.setProperty(ORG_PREFIX + CACHE_DIR, tempDir.resolve("orga").toString());
+      XIntFragment fragment = new XIntFragment(createValues());
+      File file;
+
+      try {
+         assertTrue(onPrincipalLessThread(fragment::swap), "fragment was not swapped");
+         file = onPrincipalLessThread(() -> fragment.getFile(fragment.prefix + ".tdat"));
+         assertTrue(file.exists(), "swap file was not written");
+
+         inOrg("orga");
+      }
+      finally {
+         fragment.dispose();
+      }
+
+      // disposing on the org thread must remove the file the swapper wrote, not orphan it
+      assertFalse(file.exists(), "swap file was orphaned: " + file);
+   }
+
+   @Test
    void sreeHomeOverrideDoesNotChangeDefaultCacheDirectory(@TempDir Path tempDir)
       throws Exception
    {
