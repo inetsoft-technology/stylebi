@@ -454,14 +454,19 @@ public final class XIntFragment extends XSwappable {
     * @return next position if any, <tt>-1</tt> otherwise.
     */
    private int validate(ByteBuffer buf) {
-      pos = XSwapUtil.readChar(buf);
-      int[] arr = new int[pos];
+      // read fully into locals first and only commit pos/arr together, once reading has
+      // completed without throwing - a mid-read failure must leave the fields exactly as
+      // they were (the still-intact array a failed swap0() write may have preserved), not
+      // a new pos paired with the old, differently-sized arr
+      char newPos = XSwapUtil.readChar(buf);
+      int[] newArr = new int[newPos];
 
-      for(int i = 0; i < pos; i++) {
-         arr[i] = XSwapUtil.readInt(buf);
+      for(int i = 0; i < newPos; i++) {
+         newArr[i] = XSwapUtil.readInt(buf);
       }
 
-      this.arr = arr;
+      pos = newPos;
+      arr = newArr;
       return -1;
    }
 

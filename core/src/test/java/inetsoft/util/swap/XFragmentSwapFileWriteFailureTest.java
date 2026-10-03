@@ -31,6 +31,10 @@ import java.io.IOException;
 import java.io.ObjectOutputStream;
 import java.io.RandomAccessFile;
 import java.io.Serializable;
+import java.lang.reflect.Field;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
+import java.nio.ByteBuffer;
 import java.nio.channels.FileLock;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -137,6 +141,80 @@ class XFragmentSwapFileWriteFailureTest {
       assertTrue(fragment.swap());
       assertFalse(fragment.isValid());
       assertEquals(original, fragment.getData(), "fragment did not recover cleanly after the failed write");
+
+      fragment.dispose();
+   }
+
+   @Test
+   void stringFragmentRewritesStubEvenWhenDeleteFails() throws Exception {
+      // Review round 1, finding 1: the recovery path's stub.delete() is a best-effort cleanup,
+      // not a correctness requirement. If it fails (e.g. a transient external handle on the
+      // file), swap0() must still rewrite the file on the next swap instead of treating the
+      // still-existing stub as an already-durable copy and silently discarding value again.
+      String original = "the quick brown fox";
+      XStringFragment fragment = new XStringFragment(original);
+      fragment.complete();
+      File swapFile = FileSystemService.getInstance().getCacheFile(fragment.prefix + ".tdat");
+      XSwapper swapper = spy(XSwapper.getSwapper());
+
+      try(LockedFile locked = lockDuringNextWaitForMemory(swapper, swapFile)) {
+         fragment.swapper = swapper;
+         assertTrue(fragment.swap(), "swap() should report success even though the write failed");
+      }
+
+      fragment.swapper = XSwapper.getSwapper();
+
+      // hold the stub open (without an exclusive lock) so File.delete() fails on Windows,
+      // without preventing a later handle from opening the same path for read/write
+      try(RandomAccessFile blocker = new RandomAccessFile(swapFile, "rw")) {
+         assertEquals(original, fragment.getData(),
+                      "recovery must still return the in-memory value even if the stub can't be deleted");
+         assertTrue(swapFile.exists(), "test setup invalid: stub delete should have failed while open");
+
+         assertTrue(fragment.swap(), "fragment must still be swappable after a failed stub delete");
+         assertFalse(fragment.isValid());
+         assertEquals(original, fragment.getData(),
+                      "stub must be rewritten (not skipped) even though it still physically exists");
+      }
+
+      fragment.dispose();
+   }
+
+   @Test
+   void intFragmentValidateDoesNotDesyncPosFromArrOnReadFailure() throws Exception {
+      // Review round 1, finding 2: a read-back failure partway through validate() must not leave
+      // this.pos updated to a new value while this.arr (now preserved by the swap0() reorder)
+      // stays at the old, differently-sized array.
+      int[] values = { 100, 101, 102, 103, 104 };
+      XIntFragment fragment = new XIntFragment(values);
+
+      Method validate = XIntFragment.class.getDeclaredMethod("validate", ByteBuffer.class);
+      validate.setAccessible(true);
+      Field posField = XIntFragment.class.getDeclaredField("pos");
+      posField.setAccessible(true);
+      Field arrField = XIntFragment.class.getDeclaredField("arr");
+      arrField.setAccessible(true);
+
+      char posBefore = (char) posField.get(fragment);
+      int[] arrBefore = (int[]) arrField.get(fragment);
+
+      // claims 10 ints follow (a new pos of 10) but only supplies 2, so XSwapUtil.readInt()
+      // throws BufferUnderflowException partway through the array-read loop, after the field
+      // would previously have already been overwritten with the claimed new pos
+      ByteBuffer buf = ByteBuffer.allocate(64);
+      XSwapUtil.writeChar(buf, (char) 10);
+      XSwapUtil.writeInt(buf, 999);
+      XSwapUtil.writeInt(buf, 999);
+      buf.flip();
+
+      InvocationTargetException thrown = assertThrows(InvocationTargetException.class,
+                                                        () -> validate.invoke(fragment, buf));
+      assertInstanceOf(java.nio.BufferUnderflowException.class, thrown.getCause());
+
+      assertEquals(posBefore, (char) posField.get(fragment),
+                   "pos must not be mutated by a read-back that failed partway through");
+      assertArrayEquals(arrBefore, (int[]) arrField.get(fragment),
+                         "arr must not be mutated by a read-back that failed partway through");
 
       fragment.dispose();
    }

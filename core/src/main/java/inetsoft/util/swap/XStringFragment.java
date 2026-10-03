@@ -231,12 +231,20 @@ public final class XStringFragment extends XSwappable {
       // left behind and silently overwrite it with empty/garbled content.
       if(value != null) {
          valid = true;
+
+         // the stub is a best-effort cleanup, not a correctness requirement: if the
+         // synchronous delete fails (e.g. a transient external handle/AV scan on
+         // Windows), swap0() must still rewrite this file next time rather than
+         // skip the write because the stale stub "exists" - see rewriteRequired.
+         // A delayed/queued delete here (racing a same-named file a later swap
+         // recreates within the delay window) would reintroduce the exact
+         // data-loss shape this class was just fixed for, so it is deliberately
+         // not used.
+         rewriteRequired = true;
          File stub = getFile(prefix + ".tdat");
 
-         if(stub.exists()) {
-            if(!stub.delete()) {
-               FileSystemService.getInstance().remove(stub, 30000);
-            }
+         if(stub.exists() && !stub.delete()) {
+            DEBUG_LOG.debug("Failed to delete stale swap file, will be rewritten on next swap: %s", stub);
          }
 
          return;
@@ -289,8 +297,12 @@ public final class XStringFragment extends XSwappable {
       RandomAccessFile fout = null;
 
       try {
-         if(!file.exists()) {
+         // reuse-without-rewrite only applies to a file that's actually a durable copy of
+         // the current value; a stub left by a previous failed write (rewriteRequired) must
+         // always be (re)written, even if it still physically exists - see access0().
+         if(!file.exists() || rewriteRequired) {
             fout = new RandomAccessFile(file, "rw");
+            fout.setLength(0);
          }
 
          if(disposed) {
@@ -307,6 +319,7 @@ public final class XStringFragment extends XSwappable {
          }
 
          value = null;
+         rewriteRequired = false;
          fireEvent(true);
 
          if(isCountRW && fout != null) {
@@ -369,6 +382,9 @@ public final class XStringFragment extends XSwappable {
    private boolean lastValid;
    private boolean completed; // completed flag
    private boolean disposed; // disposed flag
+   // true when the swap file on disk is a stub left by a failed write, not a durable copy
+   // of value; forces the next swap0() to rewrite it even though it still exists
+   private boolean rewriteRequired;
    private List<DataSwapListener> listeners;
    private transient XSwappableMonitor monitor;
    private transient boolean isCountHM;
