@@ -353,6 +353,15 @@ class UniformSQLQuotedTableNameTest {
                    regenerate(parse("select \"S\".\"a\".id from \"S\".\"a\"", oracle)));
       // a qualifier with a quoted segment keeps its case, the database folds the other ones
       assertEquals("select \"s\".a.ID from \"s\".a", regenerate(parse("select \"s\".a.id from \"s\".a", oracle)));
+      assertEquals("select \"s\".a.ID from \"s\".a where \"s\".a.id = 1 order by \"s\".a.id asc",
+                   regenerate(parse("select \"s\".a.id from \"s\".a where \"s\".a.id = 1 order by \"s\".a.id",
+                                    oracle)));
+      // and after the metadata fix of the query editor and the worksheet
+      sql = parse("select \"s\".a.id from \"s\".a", oracle);
+      JDBCUtil.fixUniformSQLInfo(sql, repository(), null, oracle);
+      String fixed = regenerate(sql);
+      assertTrue(fixed.endsWith("from \"s\".a"), fixed);
+      assertTrue(fixed.startsWith("select \"s\".a."), fixed);
       // unquoted names are uppercased, as before
       assertEquals("select A.ID from a", regenerate(parse("select a.id from a", oracle)));
 
