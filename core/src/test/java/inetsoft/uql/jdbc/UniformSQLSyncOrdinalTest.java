@@ -350,6 +350,37 @@ class UniformSQLSyncOrdinalTest {
       assertSameRows(sql, usql);
    }
 
+   // with metadata, the wildcard's expansion merged the explicit column, so the ordinal was
+   // converted to another column (t.k, t.* order by 3 sorted by t.C1) and the query ran the
+   // regenerated sql with that order
+   @Test
+   void ordinalWithWildcardAndMetadataRunsAsWritten() throws Exception {
+      try(Connection conn = derby().getConnection(); Statement stmt = conn.createStatement()) {
+         try {
+            stmt.executeUpdate("drop table T4");
+         }
+         catch(Exception ignore) {
+            // first run
+         }
+
+         stmt.executeUpdate("create table T4 (ID INT, K VARCHAR(5), C1 INT, C2 INT)");
+         // the orders of ID, K and C1 all differ
+         stmt.executeUpdate(
+            "insert into T4 values (1, 'a', 30, 0), (2, 'c', 10, 0), (3, 'b', 20, 0), " +
+            "(4, 'd', 40, 0)");
+      }
+
+      for(String sql : new String[] {
+         "select T4.K, T4.* from T4 order by 3 desc",
+         "select T4.*, T4.ID from T4 order by 3 desc" })
+      {
+         UniformSQL usql = fixed(sql, "h2", "ID", "K", "C1", "C2");
+         // run on Derby
+         usql.setDataSource(dataSource());
+         assertSameRows(sql, usql);
+      }
+   }
+
    // control: an ordinal in a query without a wildcard is still converted to the column
    @Test
    void ordinalWithoutWildcardIsConverted() throws Exception {
