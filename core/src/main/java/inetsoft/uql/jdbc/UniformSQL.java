@@ -3546,10 +3546,9 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
 
          // lossy was derived with the old data source's sql helper, e.g. a join order the new
          // helper (Oracle without ansi join) regenerates differently. Re-derive it in isLossy()
-         // (Bug #77576). A lossy kept while parsing is off can't be re-derived (Bug #77477).
-         // isLossy() doesn't cache a check skipped for a missing data source, so setting the
-         // first data source needs no reset
-         if(this.dataSource != null && parseIt && sqlstring != null) {
+         // (Bug #77576), or the map key access check of a ClickHouse source that was skipped
+         // without one. A lossy kept while parsing is off can't be re-derived (Bug #77477)
+         if(parseIt && sqlstring != null) {
             lossy = null;
          }
       }

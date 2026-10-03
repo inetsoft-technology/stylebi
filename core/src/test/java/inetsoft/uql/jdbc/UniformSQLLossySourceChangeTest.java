@@ -200,7 +200,7 @@ class UniformSQLLossySourceChangeTest {
          sql = load(xml, helpers().get("h2"));
          assertFalse(sql.isLossy(), text);
          sql.setDataSource(helpers().get("oracle"));
-         assertEquals(text != leftAfter, sql.isLossy(), "h2 -> oracle: " + text);
+         assertEquals(!leftAfter.equals(text), sql.isLossy(), "h2 -> oracle: " + text);
       }
    }
 
@@ -218,6 +218,39 @@ class UniformSQLLossySourceChangeTest {
       sql.setDataSource(changed);
 
       assertTrue(sql.isLossy());
+   }
+
+   /**
+    * The map key access check (Bug #72243) needs a ClickHouse source, so a verdict derived
+    * without a data source must not survive setting one, from none or back from none.
+    */
+   @Test
+   void clickHouseMapKeySourceSetAfterNone() throws Exception {
+      String text = "select t.m['k'] from t";
+      JDBCDataSource ch = dataSource("com.clickhouse.jdbc.ClickHouseDriver",
+                                     "jdbc:clickhouse://localhost:8123/x", "clickhouse", false);
+      assertEquals(JDBCDataSource.JDBC_CLICKHOUSE, ch.getDatabaseType());
+      String xml = toXML(parse(text, helpers().get("h2")));
+
+      // null -> ch
+      UniformSQL sql = load(xml, null);
+      assertFalse(sql.isLossy());
+      sql.setDataSource(ch);
+      assertTrue(sql.isLossy(), "null -> ch");
+      assertFalse(XUtil.isQueryMergeable(query(sql)), "null -> ch");
+
+      // ch -> null -> ch
+      sql = load(xml, ch);
+      assertTrue(sql.isLossy());
+      sql.setDataSource(null);
+      assertFalse(sql.isLossy());
+      sql.setDataSource(ch);
+      assertTrue(sql.isLossy(), "ch -> null -> ch");
+
+      JDBCQuery query = query(sql);
+      assertFalse(XUtil.isQueryMergeable(query), "ch -> null -> ch");
+      assertFalse(new JDBCQueryCacheNormalizer(query).isClearedSqlString(), "ch -> null -> ch");
+      assertEquals(text, query.getSQLAsString());
    }
 
    /**
