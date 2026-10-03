@@ -182,7 +182,6 @@ public class JobCompletionListener extends JobListenerSupport {
          }
 
          ScheduleStatusDao dao = ScheduleStatusDao.getInstance();
-         ScheduleStatusDao.Status previousStatus = dao.getStatus(taskName);
          ScheduleStatusDao.Status newStatus =
             dao.setStatus(taskName, status, lastRunTime, lastRunEndTime, error, runNow);
 
@@ -230,6 +229,10 @@ public class JobCompletionListener extends JobListenerSupport {
             }
 
             if(isDependant) {
+               // Bug #77582, compare the parents against the dependent's last start. The status
+               // of the just-finished task is its current run (the STARTED record is written in
+               // jobToBeExecuted), so it can't tell whether the other parents finished since.
+               ScheduleStatusDao.Status dependantStatus = dao.getStatus(task.getTaskId());
                boolean triggerDependant = task.getConditionStream()
                   .filter(cond -> cond instanceof CompletionCondition)
                   .map(cond -> ((CompletionCondition) cond).getTaskName())
@@ -251,9 +254,20 @@ public class JobCompletionListener extends JobListenerSupport {
                         statusCache.put(parentTaskName, parentEndTime);
                      }
 
-                     // failed or hasn't run since the previous execution
-                     return parentEndTime == null || previousStatus != null &&
-                        previousStatus.getStartTime() > parentEndTime;
+                     if(parentEndTime == null) {
+                        // failed or not finished
+                        return true;
+                     }
+
+                     // the task that just finished has obviously finished since the dependent's
+                     // last run, don't compare the times (which may come from different nodes)
+                     if(parentTaskName.equals(taskName)) {
+                        return false;
+                     }
+
+                     // hasn't run since the previous execution of the dependent
+                     return dependantStatus != null &&
+                        dependantStatus.getStartTime() > parentEndTime;
                   });
 
                if(triggerDependant) {
