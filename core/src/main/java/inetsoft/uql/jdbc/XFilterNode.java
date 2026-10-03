@@ -283,7 +283,7 @@ public abstract class XFilterNode
    public void removeAllJoins() {
       // @by jasons move logic to separate recursive method to avoid having to
       // have the same code applied to the current node as well as it's children
-      removeJoinsRecursive(this);
+      removeJoinsRecursive(this, false);
    }
 
    /**
@@ -292,24 +292,42 @@ public abstract class XFilterNode
     *
     * @param node the node to process. This should be an XSet; other types of
     *             XFilterNodes won't generate an error, but will be ignored.
+    * @param negated true if the node is under a negated set.
     */
-   private void removeJoinsRecursive(XFilterNode node) {
+   private void removeJoinsRecursive(XFilterNode node, boolean negated) {
       if(!(node instanceof XSet)) {
          return;
       }
+
+      // a join under a negated set is a condition, not a join of the query
+      // (same rule as UniformSQL.getJoins), so keep it
+      negated = negated || node.isIsNot();
 
       for(int i = node.getChildCount() - 1; i >= 0; i--) {
          XFilterNode child = (XFilterNode) node.getChild(i);
 
          if(child instanceof XJoin) {
-            node.removeChild(i, false);
+            if(!negated || ((XJoin) child).isOuterJoin()) {
+               node.removeChild(i, false);
+            }
          }
          else if(child instanceof XSet) {
-            removeJoinsRecursive(child);
+            removeJoinsRecursive(child, negated);
 
-            if(child.getChildCount() == 1) {
+            if(child.getChildCount() == 0) {
+               // all operands were joins, don't leave an empty "()" behind
+               node.removeChild(i, false);
+            }
+            else if(child.getChildCount() == 1) {
                // @by jasons remove junctions with only one operand
-               node.insertChild(i, child.getChild(0));
+               XFilterNode operand = (XFilterNode) child.getChild(0);
+
+               // keep the NOT of the removed junction
+               if(child.isIsNot()) {
+                  operand.setIsNot(!operand.isIsNot());
+               }
+
+               node.insertChild(i, operand);
                child.removeChild(0, false);
                node.removeChild(i + 1, false);
             }

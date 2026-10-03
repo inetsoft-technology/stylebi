@@ -3462,17 +3462,31 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
     * Get the joins (into the vector) from the condition tree.
     */
    private void getJoins(XFilterNode root, List<XJoin> joins) {
+      getJoins(root, joins, false);
+   }
+
+   /**
+    * Get the joins (into the vector) from the condition tree. A join under a
+    * negated set, e.g. "not (a.id = b.k and a.k = 1)", is a condition and not a
+    * join of the query. Legacy outer joins (*=, =*, (+)) are still returned
+    * there, they can't be written as a condition.
+    */
+   private void getJoins(XFilterNode root, List<XJoin> joins, boolean negated) {
       if((root instanceof XSet) &&
          ((XSet) root).getRelation().equalsIgnoreCase(XSet.AND))
       {
+         negated = negated || root.isIsNot();
+
          for(int i = 0; i < root.getChildCount(); i++) {
             XNode child = root.getChild(i);
 
             if(child instanceof XJoin) {
-               joins.add((XJoin) child);
+               if(!negated || ((XJoin) child).isOuterJoin()) {
+                  joins.add((XJoin) child);
+               }
             }
             else if(child instanceof XSet) {
-               getJoins((XFilterNode) child, joins);
+               getJoins((XFilterNode) child, joins, negated);
             }
          }
       }
@@ -4068,7 +4082,22 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
 
          try {
             parser.direct_select_stmt_n_rows(sql);
-            setLossy((sql.lossy != null && sql.lossy) || isLegacyCycleJoins());
+            // the join order check fails the parse of sql whose regenerated joins differ,
+            // e.g. a saved query parsed before the check was added (Bug #77488). It needs
+            // the data source's sql helper, without one the parse result is kept
+            if(sql.getDataSource() != null) {
+               sql.checkJoinOrders(parser, PARSE_PERIOD);
+            }
+
+            boolean result = (sql.lossy != null && sql.lossy) || isLegacyCycleJoins();
+
+            // a check skipped for the missing data source isn't cached, so it runs once a
+            // caller sets the data source (e.g. BoundQuery checks lossy before setting it)
+            if(sql.getDataSource() == null && !parser.getJoinOrderChecks().isEmpty()) {
+               return result;
+            }
+
+            setLossy(result);
          }
          catch(Exception e) {
             setLossy(true);

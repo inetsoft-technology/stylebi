@@ -147,10 +147,6 @@ public class VpmCondition extends VpmObject {
                           Principal user, boolean checkVariable)
       throws Exception
    {
-      if(user != null && XPrincipal.SYSTEM.equals(user.getName())) {
-         return null;
-      }
-
       // create a uniform sql to maintain table information,
       // then sql helper will be able to quote fields properly
       UniformSQL sql = new UniformSQL();
@@ -329,16 +325,147 @@ public class VpmCondition extends VpmObject {
    }
 
    /**
-    * replace the table in condition with taliases
+    * Replace the table qualifiers in a condition with the table aliases. A qualifier names a
+    * query table when its segments, quoted or not, are the same as the table's. A name inside
+    * another identifier, a string literal or a comment is not a qualifier.
     */
    private String updateVPMTable(String condition, String[] tables, String[] taliases) {
+      // Bug #77580, the query tables are stored quoted by the sql helper ("sa"."t") while the
+      // script may qualify the columns with the unquoted names (sa.t.STATE), and a plain text
+      // replace of "t." also hit other identifiers (xt.STATE)
+      String[][] tsegments = new String[tables.length][];
+
       for(int i = 0; i < tables.length; i++) {
-         if(condition.indexOf(tables[i]) != -1) {
-            condition = Tool.replaceAll(condition, tables[i] + ".", taliases[i] + ".");
+         tsegments[i] = VirtualPrivateModel.splitTableName(tables[i]);
+      }
+
+      StringBuilder result = new StringBuilder();
+      int len = condition.length();
+      int i = 0;
+
+      while(i < len) {
+         char c = condition.charAt(i);
+         char next = i + 1 < len ? condition.charAt(i + 1) : 0;
+         int end;
+
+         if(c == '\'') {
+            end = VirtualPrivateModel.readQuoted(condition, i, c, new StringBuilder());
+         }
+         else if(c == '-' && next == '-') {
+            end = condition.indexOf('\n', i);
+            end = end < 0 ? len : end;
+         }
+         else if(c == '/' && next == '*') {
+            end = condition.indexOf("*/", i + 2);
+            end = end < 0 ? len : end + 2;
+         }
+         else if(Character.isLetter(c) || c == '_' ||
+            VirtualPrivateModel.getCloseQuote(c) != 0)
+         {
+            end = updateQualifier(condition, i, tsegments, tables, taliases, result);
+            i = end;
+            continue;
+         }
+         else if(Character.isDigit(c)) {
+            end = getIdentifierEnd(condition, i);
+         }
+         else {
+            end = i + 1;
+         }
+
+         result.append(condition, i, end);
+         i = end;
+      }
+
+      return result.toString();
+   }
+
+   /**
+    * Append the dotted name starting at start to the result, with the longest leading
+    * segments that name a query table replaced by the table alias.
+    * @return the index after the name.
+    */
+   private static int updateQualifier(String condition, int start, String[][] tsegments,
+                                      String[] tables, String[] taliases,
+                                      StringBuilder result)
+   {
+      List<String> segments = new ArrayList<>();
+      List<Integer> ends = new ArrayList<>();
+      int end = start;
+
+      while(true) {
+         StringBuilder segment = new StringBuilder();
+         int segmentStart = end;
+         char close = VirtualPrivateModel.getCloseQuote(condition.charAt(end));
+
+         if(close != 0) {
+            end = VirtualPrivateModel.readQuoted(condition, end, close, segment);
+         }
+         else {
+            end = getIdentifierEnd(condition, end);
+            segment.append(condition, segmentStart, end);
+         }
+
+         segments.add(segment.toString().toLowerCase());
+         ends.add(end);
+
+         // continue at a dot followed by another segment
+         if(end + 1 < condition.length() && condition.charAt(end) == '.') {
+            char c = condition.charAt(end + 1);
+
+            if(Character.isLetterOrDigit(c) || c == '_' || c == '$' ||
+               VirtualPrivateModel.getCloseQuote(c) != 0)
+            {
+               end++;
+               continue;
+            }
+         }
+
+         break;
+      }
+
+      int match = -1;
+
+      for(int i = 0; i < tsegments.length; i++) {
+         int count = tsegments[i].length;
+
+         if(count < segments.size() && (match < 0 || count > tsegments[match].length) &&
+            segments.subList(0, count).equals(Arrays.asList(tsegments[i])))
+         {
+            match = i;
          }
       }
 
-      return condition;
+      String alias = match < 0 ? null : taliases[match];
+
+      // an unaliased table keeps its name
+      if(alias == null || alias.isEmpty() || alias.equals(tables[match])) {
+         result.append(condition, start, end);
+      }
+      else {
+         result.append(alias).append(condition, ends.get(tsegments[match].length - 1), end);
+      }
+
+      return end;
+   }
+
+   /**
+    * Get the index after the unquoted identifier starting at start.
+    */
+   private static int getIdentifierEnd(String text, int start) {
+      int end = start;
+
+      while(end < text.length()) {
+         char c = text.charAt(end);
+
+         if(!Character.isLetterOrDigit(c) && c != '_' && c != '$' && c != '#') {
+            break;
+         }
+
+         end++;
+      }
+
+      return end;
    }
 
    /**
@@ -460,19 +587,28 @@ public class VpmCondition extends VpmObject {
 
       String alias = tpart;
       int find_step = -1;
+      int best = 0;
 
+      // Bug #77580, a table qualified to a different depth (dbo.t) is the same as the field's
+      // table (db1.dbo.t), so prefer the closest match, e.g. db1.dbo.t in the same query
       for(int i = 0; i < tables.length; i++) {
-         if(VirtualPrivateModel.isSameTable(tpart, tables[i])) {
+         int match = VirtualPrivateModel.getTableMatch(tpart, tables[i]);
+
+         if(match > best) {
+            best = match;
             alias = taliases[i];
             alias = alias == null || alias.length() == 0 ? tpart : alias;
             find_step = 0;
-            break;
          }
       }
 
       if(find_step == -1) {
          for(int i = 0; i < tables.length; i++) {
-            if(tables[i] != null && field.toLowerCase().startsWith(tables[i].toLowerCase())) {
+            // the field is the table name and a column, not the table name alone
+            if(tables[i] != null && field.length() > tables[i].length() + 1 &&
+               field.charAt(tables[i].length()) == '.' &&
+               field.toLowerCase().startsWith(tables[i].toLowerCase()))
+            {
                tpart = tables[i];
                alias = taliases[i];
                alias = alias == null || alias.length() == 0 ? tpart : alias;
