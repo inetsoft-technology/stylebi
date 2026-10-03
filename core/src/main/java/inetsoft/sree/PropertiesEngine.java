@@ -1801,9 +1801,14 @@ public class PropertiesEngine {
    private final Map<String, Object> cache = new ConcurrentHashMap<>(); // cached objects
    private final Map<String, Font> fontMap = new ConcurrentHashMap<>();
    private final Map<String, String> propertyNameCaseCache = new ConcurrentHashMap<>();
+   // lower-case names that are always read globally, never from an inetsoft.org.<org>. override
    private static final Set<String> EXCLUDED_ORG_PROPERTIES = Set.of(
       "security.enabled", "sree.security.listeners", "security.cache", "security.cache.interval",
-      "inetsoft.sree.security.checkpermissionstrategy");
+      "inetsoft.sree.security.checkpermissionstrategy",
+      // the swapper settings are JVM-wide
+      "swapper.critical.max.wait", "swapper.gc.min.interval", "swapper.idle.gc.interval",
+      "swapper.count", "swapper.free.ratio", "swappable.alive.period",
+      "swapper.scalingmetric.excludeeden", "ignore.swapper.memory.state");
    // the built-in logger levels set by initLogging(), which a removed log property resets to
    private static final Map<String, LogLevel> DEFAULT_LOG_LEVELS = Map.of(
       "inetsoft.scheduler_test", LogLevel.OFF,
