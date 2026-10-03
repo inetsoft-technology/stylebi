@@ -271,6 +271,8 @@ public final class XObjectFragment<T> extends XSwappable {
     * Delete the swap files of this fragment.
     */
    private void deleteSwapFiles() {
+      boolean failed = false;
+
       for(int i = 0; ; i++) {
          File file = getFile(prefix + "_" + i + ".tdat");
 
@@ -279,11 +281,15 @@ public final class XObjectFragment<T> extends XSwappable {
          }
 
          if(!file.delete()) {
+            failed = true;
             FileSystemService.getInstance().remove(file, 30000);
          }
       }
 
       swapFileCount = 0;
+      // a file that could not be deleted may still be there for the next swap to reuse,
+      // so keep checking for it on the next change
+      hasSwapFiles = failed;
    }
 
    /**
@@ -335,6 +341,7 @@ public final class XObjectFragment<T> extends XSwappable {
             return;
          }
 
+         hasSwapFiles = true;
          invalidate(null);
          return;
       }
@@ -345,6 +352,9 @@ public final class XObjectFragment<T> extends XSwappable {
       int counter = 0;
 
       try {
+         // set before the first file is created, so a failed write leaving a partial file
+         // is still known to change()
+         hasSwapFiles = true;
          fout = new RandomAccessFile(file, "rw");
          channel = fout.getChannel();
          buf = ByteBuffer.allocate((int) len);
@@ -556,25 +566,15 @@ public final class XObjectFragment<T> extends XSwappable {
       access();
 
       synchronized(this) {
-         if(disposed || !valid || arr == null) {
+         // a fragment that was never swapped has no file to check, which keeps this
+         // per-set() call free of file system access
+         if(disposed || !valid || arr == null || !hasSwapFiles) {
             return;
          }
 
          // swap0() skips writing when the first swap file exists, so remove the files
          // to have the changed values written on the next swap
-         for(int i = 0; ; i++) {
-            File file = getFile(prefix + "_" + i + ".tdat");
-
-            if(!file.exists()) {
-               break;
-            }
-
-            if(!file.delete()) {
-               FileSystemService.getInstance().remove(file, 30000);
-            }
-         }
-
-         swapFileCount = 0;
+         deleteSwapFiles();
       }
    }
 
@@ -792,6 +792,8 @@ public final class XObjectFragment<T> extends XSwappable {
    private char size;
    private char pos;
    private int swapFileCount; // number of cache files
+   // swap files of this fragment may exist, guarded by this fragment's monitor
+   private boolean hasSwapFiles;
    private boolean valid; // valid flag
    private boolean lastValid;
    private boolean completed; // completed flag
