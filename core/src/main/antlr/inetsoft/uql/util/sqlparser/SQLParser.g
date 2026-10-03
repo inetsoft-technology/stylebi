@@ -4692,9 +4692,18 @@ SPIDENT_SQUARE		: 	'[' {setCommitToPath(true);}
 				']'
 			;
 
-// a nested JDBC escape, e.g. {fn concat({fn ucase(a)}, b)}, is part of one token (#77640)
+// a nested JDBC escape, e.g. {fn concat({fn ucase(a)}, b)}, is part of one token (#77640).
+// A quoted unit ('..', "..", `..`, [..]) is consumed whole, so a brace inside it, e.g.
+// {fn concat('}', s)}, doesn't end the escape. The plain-char ranges leave out " ' [ ` { }
+// so each of them starts exactly one alternative (#77662)
 SPIDENT_BRACKET		:	'{' {setCommitToPath(true);}
-				(SPIDENT_BRACKET | '\u0001'..'\u007a' | '\u007c' | '\u007e'..'\ufffe')* '}'
+				(SPIDENT_BRACKET
+				| '\'' (~'\'')* '\''
+				| '"' (~'"')* '"'
+				| '`' (~'`')* '`'
+				| '[' (~']')* ']'
+				| '\u0001'..'\u0021' | '\u0023'..'\u0026' | '\u0028'..'\u005a'
+				| '\\'..'\u005f' | '\u0061'..'\u007a' | '\u007c' | '\u007e'..'\ufffe')* '}'
 			;
 
 WS			:	(' '
