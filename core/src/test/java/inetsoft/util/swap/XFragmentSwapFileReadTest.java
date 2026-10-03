@@ -27,6 +27,7 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.io.File;
 import java.io.RandomAccessFile;
+import java.util.Random;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -182,6 +183,48 @@ class XFragmentSwapFileReadTest {
    }
 
    @Test
+   void objectFragmentWithMissingLaterSwapFileFails() {
+      XObjectFragment<String> fragment = createLargeObjectFragment();
+      assertTrue(fragment.swap(), "fragment was not swapped");
+      File file = fragment.getFile(fragment.prefix + "_1.tdat");
+      assertTrue(file.exists(), "fragment was not written to several swap files");
+      assertTrue(file.delete(), "swap file was not deleted");
+
+      // the rows read from the first swap file must not be returned as the whole fragment
+      SwapFileReadException ex =
+         assertThrows(SwapFileReadException.class, () -> fragment.getSafely(0));
+      assertEquals(file, ex.getFile());
+      assertFalse(fragment.isValid());
+      fragment.dispose();
+   }
+
+   @Test
+   void objectFragmentKeepsDataWhenSwapFailsAfterFirstSwapFile() {
+      XObjectFragment<String> fragment = createLargeObjectFragment();
+      File file = objectSwapFile(fragment);
+      File file1 = fragment.getFile(fragment.prefix + "_1.tdat");
+      // a directory in place of the second swap file makes the swap fail after the first one
+      assertTrue(file1.mkdir(), "second swap file was not blocked");
+
+      try {
+         assertTrue(fragment.swap(), "fragment was not swapped");
+         assertTrue(file.exists(), "first swap file was not written");
+      }
+      finally {
+         assertTrue(file1.delete());
+      }
+
+      assertEquals(largeValue(99), fragment.getSafely(99));
+      assertEquals(largeValue(0), fragment.getSafely(0));
+      assertFalse(file.exists(), "partial swap file was kept");
+
+      // the next swap must write all the rows again
+      assertTrue(fragment.swap(), "fragment was not swapped again");
+      assertEquals(largeValue(99), fragment.getSafely(99));
+      fragment.dispose();
+   }
+
+   @Test
    void disposedObjectFragmentDoesNotFail() {
       XObjectFragment<String> fragment = createSwappedObjectFragment();
       fragment.dispose();
@@ -230,6 +273,32 @@ class XFragmentSwapFileReadTest {
 
       fragment.complete();
       return fragment;
+   }
+
+   /**
+    * Create a fragment too large for one swap file block.
+    */
+   private static XObjectFragment<String> createLargeObjectFragment() {
+      XObjectFragment<String> fragment = new XObjectFragment<>((char) 100, (char) 100, String.class);
+
+      for(int i = 0; i < 100; i++) {
+         fragment.add(largeValue(i));
+      }
+
+      fragment.complete();
+      return fragment;
+   }
+
+   private static String largeValue(int i) {
+      // random letters, so the block is not compressed below the swap buffer size
+      Random random = new Random(i);
+      StringBuilder value = new StringBuilder().append(i).append(':');
+
+      for(int k = 0; k < 6000; k++) {
+         value.append((char) ('a' + random.nextInt(26)));
+      }
+
+      return value.toString();
    }
 
    private static XObjectFragment<String> createSwappedObjectFragment() {
