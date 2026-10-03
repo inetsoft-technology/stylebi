@@ -3925,9 +3925,13 @@ public class SQLHelper implements KeywordProvider {
       childCount = condition.getChildCount();
       // the children of this set are in a join position
       final boolean joinPosition = ansiJoinPosition;
+      // IS binds tighter than NOT, so the operand of x IS [NOT] TRUE/FALSE/UNKNOWN
+      // must be grouped or a negated operand negates the whole test
+      final boolean truthTest = isTruthTest(condition);
 
       for(int i = 0; i < childCount; i++) {
          String tmpStr = "";
+         boolean wrapped = false;
          node = condition.getChild(i);
          ansiJoinPosition = joinPosition;
 
@@ -3948,6 +3952,7 @@ public class SQLHelper implements KeywordProvider {
                if(!relation.equals(((XSet) node).getRelation()) || ((XSet) node).isGroup()) {
                   if(!childStr.equals("")) {
                      tmpStr = "(" + childStr + ")";
+                     wrapped = true;
                   }
                }
                else {
@@ -3956,6 +3961,7 @@ public class SQLHelper implements KeywordProvider {
             }
             else if(node instanceof XExpressionCondition) {
                tmpStr = "(" + buildConditionString((XExpressionCondition) node) + ")";
+               wrapped = true;
             }
             else if(node instanceof XUnaryCondition) {
                tmpStr = buildConditionString((XUnaryCondition) node);
@@ -3969,6 +3975,11 @@ public class SQLHelper implements KeywordProvider {
          }
          else {
             tmpStr = node.toString();
+         }
+
+         // an ansi outer join operand prints as "" and must stay empty
+         if(truthTest && i == 0 && !wrapped && !tmpStr.isEmpty()) {
+            tmpStr = "(" + tmpStr + ")";
          }
 
          buffer.append(tmpStr);
@@ -3992,6 +4003,40 @@ public class SQLHelper implements KeywordProvider {
       }
 
       return str;
+   }
+
+   /**
+    * Check if the set is a truth test, x IS [NOT] TRUE/FALSE/UNKNOWN, as built by the
+    * parser's boolean_test rule.
+    */
+   static boolean isTruthTest(XSet condition) {
+      String relation = condition.getRelation();
+
+      if(relation == null || condition.getChildCount() != 2) {
+         return false;
+      }
+
+      relation = relation.trim().replaceAll("\\s+", " ");
+
+      if(!relation.equalsIgnoreCase("is") && !relation.equalsIgnoreCase("is not")) {
+         return false;
+      }
+
+      if(!(condition.getChild(1) instanceof XUnaryCondition truth)) {
+         return false;
+      }
+
+      String op = truth.getOp();
+      XExpression exp = truth.getExpression1();
+
+      if((op != null && !op.trim().isEmpty()) || exp == null || exp.getValue() == null) {
+         return false;
+      }
+
+      String value = exp.getValue().toString().trim();
+
+      return value.equalsIgnoreCase("true") || value.equalsIgnoreCase("false") ||
+         value.equalsIgnoreCase("unknown");
    }
 
    /**
