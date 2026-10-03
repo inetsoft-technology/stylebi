@@ -4685,9 +4685,9 @@ SPIDENT2		:	'`' {setCommitToPath(true);} ('\u0001'..'\u005f' | '\u0061'..'\ufffe
 SPIDENT_VAR             :    "$(" {setCommitToPath(true);} ('a'..'z'|'A'..'Z'|'_'|'0'..'9'|' '|
                                   '+' | '-' |'@'|'\u0100'..'\uFFFE')* ')' ;
 
-// every character but '[', '\' and ']', e.g. the CJK characters from U+80FE up (#77640)
+// every character but ']', e.g. '[', '\' or the CJK characters from U+80FE up (#77640)
 SPIDENT_SQUARE		: 	'[' {setCommitToPath(true);}
-				('\u0001'..'\u005a' | '\u005e'..'\ufffe')*
+				('\u0001'..'\\' | '\u005e'..'\ufffe')*
 				']'
 			;
 
