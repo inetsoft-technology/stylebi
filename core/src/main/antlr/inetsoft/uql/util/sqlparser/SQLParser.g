@@ -675,6 +675,19 @@ private void checkDerivedColumnList(UniformSQL sql, String alias, String columns
    }
 }
 
+/**
+ * Refuse a JDBC escape used as a from clause table or as a segment of its name, e.g.
+ * from {oj t left outer join u on t.id = u.id}. UniformSQL would keep the escape as one
+ * table name, which is regenerated quoted ("{oj ...}"), so the original sql runs instead
+ * (Bug #77662).
+ */
+private void checkEscapeTable(UniformSQL sql, Token esc) throws SemanticException {
+   if(sql != null && esc != null) {
+      throw new SemanticException("Unsupported JDBC escape as a table: " + esc.getText(),
+                                  getFilename(), esc.getLine(), esc.getColumn());
+   }
+}
+
 private boolean collectOuterJoins(XFilterNode node, List joins) {
    if(node instanceof XJoin) {
       joins.add(node);
@@ -2102,6 +2115,8 @@ private String funcText = null;
 private String funcQuotedColumn = null;
 // the indexes of the segments written quoted ("a", `a` or [a]) in the last qualified_name
 private int[] qnameQuoted = null;
+// the first segment of the last qualified_name that is a JDBC escape ({oj ...}), or null
+private Token qnameEscape = null;
 // the indexes of the segments written quoted in the qualifier of the last column_ref,
 // and the column_ref text and quoted segments of the last field parsed as a value
 private int[] colrefQuoted = null;
@@ -2115,6 +2130,11 @@ void addQuotedSegment(List<Integer> segs, int seg) throws TokenStreamException {
    if(type == SPIDENT || type == SPIDENT2 || type == SPIDENT_SQUARE) {
       segs.add(seg);
    }
+}
+
+// check if the next token is a JDBC escape, and keep the first one
+Token escapeSegment(Token esc) throws TokenStreamException {
+   return esc == null && LA(1) == SPIDENT_BRACKET ? LT(1) : esc;
 }
 
 int[] toQuotedSegments(List<Integer> segs) {
@@ -4313,16 +4333,16 @@ table_name returns [String tname = ""]
         ;
 
 qualified_name returns [String qname = ""]
-        {String tmp = ""; int seg = 0; List<Integer> qsegs = new ArrayList<>(); List<String> segs = new ArrayList<>(); }
+        {String tmp = ""; int seg = 0; List<Integer> qsegs = new ArrayList<>(); List<String> segs = new ArrayList<>(); Token esc = null; }
         :
-        ((catalog_name DOT)=> {addQuotedSegment(qsegs, seg);}
+        ((catalog_name DOT)=> {addQuotedSegment(qsegs, seg); esc = escapeSegment(esc);}
         tmp = catalog_name DOT {qname += quoteDot(tmp) + "."; seg++; segs.add(tmp);}
-        ( (~DOT)=> {addQuotedSegment(qsegs, seg);}
+        ( (~DOT)=> {addQuotedSegment(qsegs, seg); esc = escapeSegment(esc);}
         tmp = schema_name DOT {qname+=quoteDot(tmp)+"."; seg++; segs.add(tmp);}| DOT {qname+="."; seg++; segs.add("");})?
         )?
-        {addQuotedSegment(qsegs, seg);}
+        {addQuotedSegment(qsegs, seg); esc = escapeSegment(esc);}
         tmp = qualified_id {lastSegStart = qname.length(); lastSegQuote = identQuote; lastSeg = tmp; qname += quoteSegment(tmp);
-                            qnameQuoted = toQuotedSegments(qsegs); segs.add(tmp); qnameSegs = segs;}
+                            qnameQuoted = toQuotedSegments(qsegs); segs.add(tmp); qnameSegs = segs; qnameEscape = esc;}
         ;
 
 catalog_name returns [String catname = ""]
@@ -4568,7 +4588,7 @@ table_ref [UniformSQL sql] returns [String tbref = ""]
         }
         }
         |
-        name = table_name {quoted = qnameQuoted;}
+        name = table_name {quoted = qnameQuoted; checkEscapeTable(sql, qnameEscape);}
         (
          ( a:AS {as = a.getText();})?
          {atok = LT(1);} alias = correlation_name
@@ -4605,7 +4625,7 @@ table_ref [UniformSQL sql] returns [String tbref = ""]
 table_ref_nojoin [UniformSQL sql, String op] returns [String tbref = ""]
         {Object name; String alias = "", tmp,as = ""; Token atok = null; int[] quoted = null; SelectTable stable; {checkStatus();}}
         :
-        name = table_name {quoted = qnameQuoted;}
+        name = table_name {quoted = qnameQuoted; checkEscapeTable(sql, qnameEscape);}
         (
          ( a:AS {as = a.getText();})?
          {atok = LT(1);} alias = correlation_name
