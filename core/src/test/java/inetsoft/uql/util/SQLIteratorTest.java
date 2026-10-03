@@ -360,6 +360,33 @@ public class SQLIteratorTest {
       assertEquals(" ", whereClause);
    }
 
+   // Bug #77663, windows line breaks: the annotation lines are still found and a literal
+   // spanning lines still hides the annotation in it
+   @Test
+   void literalWithWindowsLineBreaks() {
+      String sql = "-- vpm.tables: SA.ORDERS\r\n" +
+         "select /*<1>*/a/*</1>*/ from SA.ORDERS\r\n" +
+         "where n = 'x\r\n-- vpm.tables: SA.OTHER\r\n' and /*<where>*/1=1/*</where>*/\r\n";
+
+      assertEquals("select a from SA.ORDERS\r\n" +
+                   "where n = 'x\r\n-- vpm.tables: SA.OTHER\r\n' and 1=1\r\n", iterate(sql));
+      assertEquals(List.of("SA.ORDERS"), vpmTables);
+      assertEquals("a", columns.get(1));
+      assertEquals("1=1", whereClause);
+   }
+
+   // Bug #77663, a closing tag in a literal inside a tag spanning lines is not the closing tag
+   @Test
+   void closingTagInLiteralOfMultiLineTag() {
+      String sql = "select /*<1>*/a || '/*</1>*/'\n/*</1>*/ from t\n" +
+         "where /*<where>*/n = '/*</where>*/'\nand m = 1/*</where>*/";
+
+      assertEquals("select a || '/*</1>*/'\n from t\nwhere n = '/*</where>*/'\nand m = 1",
+                   assertTimeoutPreemptively(Duration.ofSeconds(10), () -> iterate(sql)));
+      assertEquals("a || '/*</1>*/'\n", columns.get(1));
+      assertEquals("n = '/*</where>*/'\nand m = 1", whereClause);
+   }
+
    private String iterate(String sql) {
       SQLIterator iterator = new SQLIterator(sql);
       iterator.addSQLListener(listener);
