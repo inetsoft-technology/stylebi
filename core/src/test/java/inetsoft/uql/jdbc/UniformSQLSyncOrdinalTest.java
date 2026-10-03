@@ -136,7 +136,7 @@ class UniformSQLSyncOrdinalTest {
    @BeforeEach
    void createTables() throws Exception {
       try(Connection conn = derby().getConnection(); Statement stmt = conn.createStatement()) {
-         for(String table : new String[] { "T", "Q" }) {
+         for(String table : new String[] { "T", "Q", "W" }) {
             try {
                stmt.executeUpdate("drop table " + table);
             }
@@ -151,6 +151,9 @@ class UniformSQLSyncOrdinalTest {
          stmt.executeUpdate("create table Q (\"MixedCase\" INT, MIXEDCASE INT)");
          // MIXEDCASE sorts opposite to "MixedCase"
          stmt.executeUpdate("insert into Q values (1, 30), (2, 20), (3, 10)");
+         stmt.executeUpdate("create table W (ID INT, \"a\" INT)");
+         // "a" sorts differently from ID
+         stmt.executeUpdate("insert into W values (1, 30), (2, 10), (3, 20)");
       }
    }
 
@@ -171,8 +174,8 @@ class UniformSQLSyncOrdinalTest {
       String sql = "select T.B, T.B, T.A, T.A from T order by 4 desc, 3";
       UniformSQL usql = fixedWithoutMeta(sql);
 
-      // both name T.A, the first decides the direction, as in sql
-      assertEquals("[T.A:desc]", orderBy(usql));
+      // both name T.A, they stay ordinals and the sql runs as written
+      assertEquals("[4:desc, 3:asc]", orderBy(usql));
       assertSameRows(sql, usql);
    }
 
@@ -220,19 +223,39 @@ class UniformSQLSyncOrdinalTest {
       assertTrue(generated.endsWith("order by 1"), generated);
    }
 
-   // an ordinal and a named item on one column were merged with the last direction
+   // an ordinal and a named item on one column were merged with the last direction. The
+   // ordinals now stay ordinals, so the sql runs as written
    @Test
-   void ordinalAndNamedItemOnOneColumnKeepTheFirstDirection() throws Exception {
+   void ordinalAndNamedItemOnOneColumnRunAsWritten() throws Exception {
       String sql = "select T.B, T.A from T order by 1 desc, T.B";
       UniformSQL usql = fixedWithoutMeta(sql);
 
-      assertEquals("[T.B:desc]", orderBy(usql));
+      assertEquals("[1:desc, T.B:asc]", orderBy(usql));
       assertSameRows(sql, usql);
 
       sql = "select T.B, T.B, T.A from T order by 2 desc, 1";
       usql = fixedWithoutMeta(sql);
-      assertEquals("[T.B:desc]", orderBy(usql));
+      assertEquals("[2:desc, 1:asc]", orderBy(usql));
       assertSameRows(sql, usql);
+   }
+
+   /**
+    * The ordinal 2 names w."a", which the item a also resolves to (h2 binds a to the column,
+    * the database to the alias A). Converted and merged, the item took the column's quotes
+    * and the sql ran as order by w."a" desc, sorting by the column. The ordinal stays an
+    * ordinal, so the sql runs as written.
+    */
+   @Test
+   void ordinalNamingTheColumnOfAnotherItemStaysAnOrdinal() throws Exception {
+      String sql = "select w.id as A, w.\"a\" from w order by a desc, 2";
+
+      for(String key : new String[] { "h2", "oracle" }) {
+         UniformSQL usql = fixed(sql, key, "ID", "a");
+         assertEquals("[w.a:desc, 2:asc]", orderBy(usql), key);
+         assertNull(JDBCQueryCacheNormalizer.generateSortedColumnMap(usql), key);
+      }
+
+      assertSameRows(sql, fixed(sql, "h2", "ID", "a"));
    }
 
    // the ordinal is checked against the select list: an ordinal beyond it is still dropped

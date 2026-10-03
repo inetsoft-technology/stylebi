@@ -1742,6 +1742,8 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
       // an item that may be an alias or a column is dropped below. The ordinals then stay
       // ordinals, so the sql keeps running as written (Bug #77557) and not without it.
       boolean undecided = false;
+      // the ordinals to convert to their select columns
+      Set<Object> ordinals = new HashSet<>();
 
       for(OrderByItem item : items) {
          if(item.getField() instanceof String &&
@@ -1772,13 +1774,11 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
                   continue;
                }
 
-               if(field instanceof Integer && !undecided) {
-                  Object nfield = getOrdinalColumn(ordinal);
-
-                  if(nfield != null) {
-                     field = nfield;
-                     changed = true;
-                  }
+               if(field instanceof Integer && !undecided &&
+                  getOrdinalColumn(ordinal, false) != null)
+               {
+                  // converted below, once the other items are known
+                  ordinals.add(field);
                }
             }
          }
@@ -1838,6 +1838,32 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
          records.add(record);
       }
 
+      // an ordinal that names the column of another item stays an ordinal. Merged into one
+      // item, the other item's resolution, which may be wrong, would decide what runs. As an
+      // ordinal, the sql runs as written (Bug #77557).
+      for(int i = 0; i < kept.size(); i++) {
+         Object field = kept.get(i).getField();
+
+         if(!ordinals.contains(field)) {
+            continue;
+         }
+
+         Object nfield = getOrdinalColumn((Integer) field, false);
+         boolean shared = false;
+
+         for(int j = 0; j < kept.size() && !shared; j++) {
+            Object other = kept.get(j).getField();
+
+            shared = j != i && (nfield.equals(other) || ordinals.contains(other) &&
+               nfield.equals(getOrdinalColumn((Integer) other, false)));
+         }
+
+         if(!shared) {
+            kept.get(i).setField(getOrdinalColumn((Integer) field, true));
+            changed = true;
+         }
+      }
+
       if(changed) {
          removeAllOrderByFields();
 
@@ -1870,9 +1896,10 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
    }
 
    /**
-    * Get the select column an order by ordinal is converted to, carrying its quoting.
+    * Get the select column an order by ordinal is converted to.
+    * @param carry <tt>true</tt> to carry the quoting of the column to the order by field.
     */
-   private Object getOrdinalColumn(int ordinal) {
+   private Object getOrdinalColumn(int ordinal, boolean carry) {
       String path = getSelection().getColumn(ordinal - 1);
 
       if(path == null) {
@@ -1886,7 +1913,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
          alias == null || alias.length() == 0)
       {
          // the path is generated as an order by field, which has its own quoted flag
-         if(getSelection() instanceof JDBCSelection &&
+         if(carry && getSelection() instanceof JDBCSelection &&
             ((JDBCSelection) getSelection()).isQuoted(path))
          {
             setQuotedField(path, ((JDBCSelection) getSelection()).getQuotedColumn(path));
