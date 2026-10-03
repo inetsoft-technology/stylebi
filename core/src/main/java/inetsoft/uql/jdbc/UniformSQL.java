@@ -1770,12 +1770,18 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
             }
          }
          else if(field instanceof String &&
-            (alias = getSelectAliasField((String) field, false)) != null)
+            (alias = getSelectAliasField((String) field)) != null)
          {
             if(!alias.equals(field)) {
                field = alias;
                changed = true;
             }
+         }
+         else if(field instanceof String && isOtherCaseAlias((String) field)) {
+            // it may be the alias or a column, depending on the quoting of the alias, which
+            // isn't known, so it isn't guessed
+            changed = true;
+            continue;
          }
          else if(field instanceof String) {
             // remove order by columns that does not have table
@@ -1914,11 +1920,9 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
     * Get the group by or order by field that references a select alias. A case-sensitive
     * helper (e.g. postgresql) stores an unquoted alias reference with quotes ("a") while the
     * alias itself is stored without them (Bug #77616).
-    * @param grouping <tt>true</tt> for a group by field, which refers to a table column
-    *                 before an alias of the same name.
     * @return the field to keep, or <tt>null</tt> if the field is not a select alias.
     */
-   private String getSelectAliasField(String field, boolean grouping) {
+   private String getSelectAliasField(String field) {
       if(getSelection().getAliasColumn(field) != null) {
          return field;
       }
@@ -1933,25 +1937,84 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
          return field;
       }
 
-      // an unquoted reference ("a" in-band) and an unquoted alias are folded to one case
-      // by the database, so they match in any case. A quoted alias only matches the exact
-      // name, as above.
-      if(getUnquotedReference(field) == null ||
-         grouping && !findTableForColumn(name).isEmpty())
-      {
+      name = getUnquotedReference(field);
+
+      if(name == null) {
          return null;
       }
+
+      // the database folds an unquoted reference. An alias stored in the folded case is
+      // that name whether it was quoted or not, so the reference matches it. The quoting
+      // of an alias in another case isn't recorded, see isOtherCaseAlias.
+      String folded = foldName(name);
 
       for(int i = 0; i < getSelection().getColumnCount(); i++) {
          String calias = getSelection().getAlias(i);
 
-         if(calias != null && calias.equalsIgnoreCase(name) && !isQuotedAlias(calias)) {
+         if(folded.equals(calias)) {
             // the alias is generated quoted, so reference it as it is stored
             return "\"" + calias + "\"";
          }
       }
 
       return null;
+   }
+
+   /**
+    * Check if an unquoted reference that matches no alias exactly matches a select alias in
+    * another case. An unquoted alias would be the same name and a quoted one would not, and
+    * the parsed sql doesn't record which one it was.
+    */
+   private boolean isOtherCaseAlias(String field) {
+      String name = getUnquotedReference(field);
+
+      for(int i = 0; name != null && i < getSelection().getColumnCount(); i++) {
+         String calias = getSelection().getAlias(i);
+
+         if(calias != null && calias.equalsIgnoreCase(name)) {
+            return true;
+         }
+      }
+
+      return false;
+   }
+
+   /**
+    * Get the table column of a group by field that also names a select alias. A database
+    * that folds unquoted names (postgresql, snowflake, exasol) resolves a group by name to a
+    * table column before a select alias (Bug #77616). Other helpers keep the field as before.
+    * @return the column path, or <tt>null</tt> if not a column or not an alias.
+    */
+   private String getGroupByColumn(String field) {
+      String path = getUnquotedColumnPath(field);
+
+      if(path != null) {
+         return isOtherCaseAlias(field) || getSelectAliasField(field) != null ? path : null;
+      }
+
+      // a quoted name, stored without its quotes, is the column of that exact name
+      if(!isQuotedField(field) || field.indexOf('.') >= 0 || dataSource == null ||
+         !getSQLHelper().isCaseSensitive() || getSelection().getAliasColumn(field) == null)
+      {
+         return null;
+      }
+
+      for(XField xfield : fields) {
+         if(xfield.getTable().length() > 0 && field.equals(xfield.getName())) {
+            path = xfield.getTable() + "." + xfield.getName();
+            copyQuotedField(field, path);
+            return path;
+         }
+      }
+
+      return null;
+   }
+
+   // the case an unquoted name is folded to: postgresql lower case, snowflake and exasol
+   // upper case
+   private String foldName(String name) {
+      return "postgresql".equals(SQLHelper.getProductName(getDataSource(), true)) ?
+         name.toLowerCase() : name.toUpperCase();
    }
 
    /**
@@ -1969,9 +2032,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
          return null;
       }
 
-      // postgresql folds an unquoted name to lower case, snowflake and exasol to upper case
-      String folded = "postgresql".equals(SQLHelper.getProductName(getDataSource(), true)) ?
-         name.toLowerCase() : name.toUpperCase();
+      String folded = foldName(name);
       XField match = null;
 
       for(XField xfield : fields) {
@@ -2006,15 +2067,6 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
 
       String name = field.substring(1, field.length() - 1);
       return name.matches("[A-Za-z_][A-Za-z0-9_]*") ? name : null;
-   }
-
-   /**
-    * Check if a select alias may have been written as a quoted identifier. The alias is
-    * stored without its quotes, so the sql text is checked. Without the text, the alias
-    * is treated as quoted.
-    */
-   private boolean isQuotedAlias(String alias) {
-      return sqlstring == null || sqlstring.contains("\"" + alias + "\"");
    }
 
    /**
@@ -2101,12 +2153,24 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
             keep[i] = wildcard || getOrdinal(groupBy[i]) <= getSelection().getColumnCount();
          }
          else if(groupBy[i] instanceof String &&
-            (alias = getSelectAliasField((String) groupBy[i], true)) != null)
+            (alias = getGroupByColumn((String) groupBy[i])) != null)
+         {
+            // a group by name is a table column before it is a select alias
+            groupBy[i] = alias;
+            keep[i] = changed = true;
+         }
+         else if(groupBy[i] instanceof String &&
+            (alias = getSelectAliasField((String) groupBy[i])) != null)
          {
             // @by larryl, if group by defined on alias, keep as is otherwise
             // the fullpath may be pointing to a wrong column
+            changed = changed || !alias.equals(groupBy[i]);
             groupBy[i] = alias;
             keep[i] = true;
+         }
+         else if(groupBy[i] instanceof String && isOtherCaseAlias((String) groupBy[i])) {
+            // the alias or a column, not known, see syncSorting
+            changed = true;
          }
          else if(groupBy[i] instanceof String) {
             String fp = JDBCUtil.getFullPathOf(this, (String) groupBy[i],

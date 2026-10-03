@@ -452,57 +452,80 @@ class UniformSQLSyncOrdinalTest {
    }
 
    /**
-    * An unquoted alias and an unquoted reference are folded to one case by postgresql,
-    * snowflake and exasol, so they match in any case. A quoted alias only matches the
-    * exact name.
+    * postgresql folds an unquoted name to lower case, snowflake and exasol to upper case. An
+    * alias stored in the folded case is that name whether it was quoted or not, so an
+    * unquoted reference in any case matches it.
     */
    @Test
-   void unquotedAliasInAnotherCaseIsKept() throws Exception {
+   void unquotedReferenceMatchesAliasInTheFoldedCase() throws Exception {
       for(String key : new String[] { "postgresql", "snowflake", "exasol" }) {
-         String generated = regenerate(fixed("select id as A from t order by a desc", key, "id"));
-         assertTrue(generated.endsWith("order by \"A\" desc"), key + " " + generated);
+         boolean lower = "postgresql".equals(key);
+         String alias = lower ? "a" : "A";
+         String ref = lower ? "A" : "a";
 
-         generated = regenerate(fixed("select id as a from t order by A desc", key, "id"));
-         assertTrue(generated.endsWith("order by \"a\" desc"), key + " " + generated);
+         for(String as : new String[] { alias, "\"" + alias + "\"" }) {
+            String generated = regenerate(fixed("select id as " + as + " from t order by " +
+                                                ref + " desc", key, "id", "a"));
+            assertTrue(generated.endsWith("order by \"" + alias + "\" desc"),
+                       key + " " + generated);
 
-         generated = regenerate(fixed("select id as A, count(*) from t group by a " +
-                                      "order by A desc", key, "id"));
-         assertTrue(generated.endsWith("group by \"A\" order by \"A\" desc"),
-                    key + " " + generated);
-
-         generated = regenerate(fixed("select id A, count(*) as C from t group by a " +
-                                      "order by c desc", key, "id"));
-         assertTrue(generated.endsWith("group by \"A\" order by \"C\" desc"),
-                    key + " " + generated);
+            generated = regenerate(fixed("select id as " + as + ", count(*) from t group by " +
+                                         ref + " order by " + ref + " desc", key, "id"));
+            assertTrue(generated.endsWith("group by \"" + alias + "\" order by \"" + alias +
+                                             "\" desc"), key + " " + generated);
+         }
       }
    }
 
-   // a quoted alias is a different name from an unquoted reference in another case
+   /**
+    * An alias stored in another case is the same name as an unquoted reference only if the
+    * alias wasn't quoted, which the parsed sql doesn't record. It is neither bound to the
+    * alias nor to a column of that name, the item is dropped as before #77616.
+    */
    @Test
-   void quotedAliasMatchesOnlyTheExactName() throws Exception {
+   void otherCaseAliasOfUnknownQuotingIsNotGuessed() throws Exception {
       for(String key : new String[] { "postgresql", "snowflake", "exasol" }) {
-         String generated = regenerate(fixed("select id as \"A\" from t order by a desc",
-                                             key, "id"));
-         assertFalse(generated.contains("\"A\" desc"), key + " " + generated);
+         boolean lower = "postgresql".equals(key);
+         String alias = lower ? "A" : "a";
+         String ref = lower ? "a" : "A";
 
-         generated = regenerate(fixed("select id as \"A\", count(*) from t group by a",
-                                      key, "id"));
-         assertFalse(generated.contains("group by \"A\""), key + " " + generated);
+         for(String as : new String[] { alias, "\"" + alias + "\"" }) {
+            String generated = regenerate(fixed("select k as " + as + " from t order by " +
+                                                ref + " desc", key, "id", "k", "a"));
+            assertFalse(generated.contains(" order by "), key + " " + generated);
+         }
 
-         // the exact name still matches
-         generated = regenerate(fixed("select id as \"A\" from t order by \"A\" desc",
-                                      key, "id"));
-         assertTrue(generated.contains(" order by "), key + " " + generated);
+         // a quoted identifier elsewhere in the sql doesn't decide it
+         String generated = regenerate(fixed("select w.id as " + alias + ", w.\"" + alias +
+                                             "\" from w order by " + ref + " desc", key,
+                                             "id", "A", "a"));
+         assertFalse(generated.contains(" order by "), key + " " + generated);
       }
    }
 
-   // group by refers to a table column before an alias of the same name
+   /**
+    * postgresql resolves a group by name to a table column before a select alias, also when
+    * the alias has the same spelling.
+    */
    @Test
-   void groupByColumnInAnotherCaseIsNotTheAlias() throws Exception {
+   void groupByColumnBeforeAlias() throws Exception {
       for(String key : new String[] { "postgresql", "snowflake", "exasol" }) {
          String generated = regenerate(fixed("select k as ID, count(*) from t group by id",
                                              key, "id", "k"));
          assertFalse(generated.contains("group by \"ID\""), key + " " + generated);
+
+         generated = regenerate(fixed("select k / 100 as ID, count(*) from t " +
+                                      "group by ID, k / 100", key, "id", "k"));
+         assertTrue(generated.contains("group by \"t\".id, "), key + " " + generated);
+
+         generated = regenerate(fixed("select k / 100 as id, count(*) from t " +
+                                      "group by id, k / 100", key, "id", "k"));
+         assertTrue(generated.contains("group by \"t\".id, "), key + " " + generated);
+
+         // no column of that name: the alias
+         generated = regenerate(fixed("select k / 100 as ID, count(*) from t group by ID",
+                                      key, "id2", "k"));
+         assertTrue(generated.endsWith("group by \"ID\""), key + " " + generated);
       }
    }
 
@@ -536,11 +559,6 @@ class UniformSQLSyncOrdinalTest {
                                       key, "id", "k"));
          assertTrue(generated.contains("group by \"id\", \"t\".k order by \"t\".k asc"),
                     key + " " + generated);
-
-         // a quoted alias doesn't match a in another case, the column a does
-         generated = regenerate(fixed("select k as \"A\" from t order by a desc", key,
-                                      "id", "k", "a"));
-         assertTrue(generated.endsWith("order by \"t\".a desc"), key + " " + generated);
       }
    }
 
