@@ -76,7 +76,7 @@ class UniformSQLCrossJoinChainTest {
 
    private static final String[] DATA_SOURCES = {
       "h2", "h2-ansi", "mysql", "mysql-ansi", "postgresql", "postgresql-ansi", "oracle",
-      "oracle-ansi", "sql server"
+      "oracle-ansi", "sql server", "mongo", "mongo-ansi"
    };
 
    private static final String COLS3 = "select a.id, b.id, c.id ";
@@ -491,7 +491,8 @@ class UniformSQLCrossJoinChainTest {
       createTables(conn);
       List<String> generated = new ArrayList<>();
 
-      for(String type : new String[] { "default", "h2", "h2-ansi" }) {
+      // MongoHelper writes the joins in text order, a different generation path
+      for(String type : new String[] { "default", "h2", "h2-ansi", "mongo", "mongo-ansi" }) {
          JDBCDataSource ds = "default".equals(type) ? GenericJDBCDataSource.create() : dataSource(type);
          UniformSQL sql = parse(text, ds);
          assertEquals(UniformSQL.PARSE_SUCCESS, sql.getParseResult(), type + ": " + text);
@@ -645,6 +646,10 @@ class UniformSQLCrossJoinChainTest {
       case "oracle" -> {
          ds.setDriver("oracle.jdbc.OracleDriver");
          ds.setURL("jdbc:oracle:thin:@localhost:1521:test");
+      }
+      case "mongo" -> {
+         ds.setDriver("mongodb.jdbc.MongoDriver");
+         ds.setURL("jdbc:mongo://localhost:27017/test");
       }
       case "sql server" -> {
          ds.setDriver("com.microsoft.sqlserver.jdbc.SQLServerDriver");
