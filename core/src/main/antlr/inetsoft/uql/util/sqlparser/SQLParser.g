@@ -2159,6 +2159,24 @@ term returns [XExpression exp = null]
         {
            exp = new XExpression();
            exp.setValue(tmp.getQuotedValue() + b.getText() + tmp1.getQuotedValue(), XExpression.EXPRESSION);
+        }
+        |
+        (c:PERCENT  tmp1 = term)
+        {
+           exp = new XExpression();
+           exp.setValue(tmp.getQuotedValue() + c.getText() + tmp1.getQuotedValue(), XExpression.EXPRESSION);
+        }
+        |
+        (d:CARET  tmp1 = term)
+        {
+           exp = new XExpression();
+           exp.setValue(tmp.getQuotedValue() + d.getText() + tmp1.getQuotedValue(), XExpression.EXPRESSION);
+        }
+        |
+        (e:HASH  tmp1 = term)
+        {
+           exp = new XExpression();
+           exp.setValue(tmp.getQuotedValue() + e.getText() + tmp1.getQuotedValue(), XExpression.EXPRESSION);
         })?
         {if(exp == null){exp = tmp;}}
         ;
@@ -2174,7 +2192,9 @@ factor returns [XExpression exp = null]
             else {
                prefix = c.getText();
             }
-         })? tmp = num_primary
+         }|
+         d:TILDE {prefix = d.getText();}
+         )? tmp = num_primary
         {
            if(prefix == null) {
               exp = tmp;
@@ -4912,3 +4932,8 @@ CONCATENATION_OP	:	"||" | "&";
 // a backslash outside a literal, a quoted name or a comment fails the parse instead of being
 // dropped by filter mode, e.g. the second escape of '\'', s, '\'' in MySQL (#77640)
 BACKSLASH	:	'\\' ;
+
+PERCENT	:	'%'	;	//modulo
+CARET	:	'^'	;	//bitwise xor / power, dialect-dependent
+TILDE	:	'~'	;	//bitwise not (unary)
+HASH	:	'#'	;	//bitwise xor, dialect-dependent
