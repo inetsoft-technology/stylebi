@@ -3462,17 +3462,31 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
     * Get the joins (into the vector) from the condition tree.
     */
    private void getJoins(XFilterNode root, List<XJoin> joins) {
+      getJoins(root, joins, false);
+   }
+
+   /**
+    * Get the joins (into the vector) from the condition tree. A join under a
+    * negated set, e.g. "not (a.id = b.k and a.k = 1)", is a condition and not a
+    * join of the query. Legacy outer joins (*=, =*, (+)) are still returned
+    * there, they can't be written as a condition.
+    */
+   private void getJoins(XFilterNode root, List<XJoin> joins, boolean negated) {
       if((root instanceof XSet) &&
          ((XSet) root).getRelation().equalsIgnoreCase(XSet.AND))
       {
+         negated = negated || root.isIsNot();
+
          for(int i = 0; i < root.getChildCount(); i++) {
             XNode child = root.getChild(i);
 
             if(child instanceof XJoin) {
-               joins.add((XJoin) child);
+               if(!negated || ((XJoin) child).isOuterJoin()) {
+                  joins.add((XJoin) child);
+               }
             }
             else if(child instanceof XSet) {
-               getJoins((XFilterNode) child, joins);
+               getJoins((XFilterNode) child, joins, negated);
             }
          }
       }

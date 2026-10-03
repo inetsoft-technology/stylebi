@@ -2400,23 +2400,35 @@ public final class XUtil {
     */
    private static boolean isTableUsedInWhere(XFilterNode filter, Object tname,
                                              String talias, SQLHelper helper) {
+      return isTableUsedInWhere(filter, tname, talias, helper, false);
+   }
+
+   /**
+    * Check if table is used in the specified filter.
+    * @param negated true if the filter is under a negated set.
+    */
+   private static boolean isTableUsedInWhere(XFilterNode filter, Object tname,
+                                             String talias, SQLHelper helper,
+                                             boolean negated) {
       if(filter == null) {
          return false;
       }
 
       if(filter instanceof XSet) {
          XSet set = (XSet) filter;
+         negated = negated || set.isIsNot();
 
          for(int i = 0; i < set.getChildCount(); i++) {
             XFilterNode node = (XFilterNode) set.getChild(i);
 
-            if(isTableUsedInWhere(node, tname, talias, helper)) {
+            if(isTableUsedInWhere(node, tname, talias, helper, negated)) {
                return true;
             }
          }
       }
-      // join? do not consider it
-      else if(filter instanceof XJoin) {
+      // join? do not consider it, unless it's under a negated set, where it's
+      // a condition, e.g. "not (a.id = b.k and a.k = 1)"
+      else if(filter instanceof XJoin && !negated) {
          return false;
       }
       else if(filter instanceof XUnaryCondition) {
