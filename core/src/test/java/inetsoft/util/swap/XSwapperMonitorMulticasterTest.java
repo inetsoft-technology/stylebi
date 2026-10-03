@@ -17,12 +17,20 @@
  */
 package inetsoft.util.swap;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
+import org.slf4j.LoggerFactory;
+
+import static org.junit.jupiter.api.Assertions.*;
 
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
@@ -30,6 +38,9 @@ import static org.mockito.Mockito.*;
 /**
  * Bug #77658: every {@code XSwapper.MonitorMulticaster} method must forward to the same-named
  * method of each registered monitor, filtered by that method's own level attribute.
+ * <p>
+ * Bug #77684: a monitor that throws, from a count or from its level check, must neither keep
+ * the count from the monitors after it nor propagate to the caller, and is warned about once.
  * <p>
  * The multicaster is built by reflection so the test never touches the {@link XSwapper}
  * singleton or any Spring bean.
@@ -44,6 +55,16 @@ class XSwapperMonitorMulticasterTest {
       multicaster = (XSwappableMonitor) ctor.newInstance();
       addMonitor = cls.getDeclaredMethod("addMonitor", XSwappableMonitor.class);
       addMonitor.setAccessible(true);
+
+      logger = (Logger) LoggerFactory.getLogger(XSwapper.class);
+      appender = new ListAppender<>();
+      appender.start();
+      logger.addAppender(appender);
+   }
+
+   @AfterEach
+   void detachAppender() {
+      logger.detachAppender(appender);
    }
 
    @Test
@@ -96,6 +117,61 @@ class XSwapperMonitorMulticasterTest {
       verify(readOnly, never()).countWrite(anyLong(), anyInt());
    }
 
+   @Test
+   void throwingCountDoesNotStopLaterMonitorsOrReachCaller() throws Exception {
+      XSwappableMonitor failing = register(true, true, true, true);
+      doThrow(new NullPointerException("count")).when(failing).countHits(anyInt(), anyInt());
+      doThrow(new NullPointerException("count")).when(failing).countMisses(anyInt(), anyInt());
+      doThrow(new NullPointerException("count")).when(failing).countRead(anyLong(), anyInt());
+      doThrow(new NullPointerException("count")).when(failing).countWrite(anyLong(), anyInt());
+      XSwappableMonitor recording = register(true, true, true, true);
+
+      assertDoesNotThrow(() -> multicaster.countHits(XSwappableMonitor.DATA, 1));
+      assertDoesNotThrow(() -> multicaster.countMisses(XSwappableMonitor.DATA, 2));
+      assertDoesNotThrow(() -> multicaster.countRead(3L, XSwappableMonitor.DATA));
+      assertDoesNotThrow(() -> multicaster.countWrite(4L, XSwappableMonitor.DATA));
+
+      verify(recording).countHits(XSwappableMonitor.DATA, 1);
+      verify(recording).countMisses(XSwappableMonitor.DATA, 2);
+      verify(recording).countRead(3L, XSwappableMonitor.DATA);
+      verify(recording).countWrite(4L, XSwappableMonitor.DATA);
+      assertEquals(1, warnings(), "a failing monitor is warned about once");
+   }
+
+   @Test
+   void throwingLevelCheckDoesNotStopLaterMonitorsOrReachCaller() throws Exception {
+      XSwappableMonitor failing = mock(XSwappableMonitor.class);
+      when(failing.isLevelQualified(anyString())).thenThrow(new IllegalStateException("level"));
+      addMonitor.invoke(multicaster, failing);
+      XSwappableMonitor recording = register(true, true, true, true);
+
+      assertDoesNotThrow(() -> multicaster.countHits(XSwappableMonitor.SHEET, 1));
+      assertDoesNotThrow(() -> multicaster.countMisses(XSwappableMonitor.SHEET, 2));
+      assertDoesNotThrow(() -> multicaster.countRead(3L, XSwappableMonitor.SHEET));
+      assertDoesNotThrow(() -> multicaster.countWrite(4L, XSwappableMonitor.SHEET));
+      assertTrue(multicaster.isLevelQualified(XSwappableMonitor.HITS));
+
+      verify(recording).countHits(XSwappableMonitor.SHEET, 1);
+      verify(recording).countMisses(XSwappableMonitor.SHEET, 2);
+      verify(recording).countRead(3L, XSwappableMonitor.SHEET);
+      verify(recording).countWrite(4L, XSwappableMonitor.SHEET);
+      verify(failing, never()).countHits(anyInt(), anyInt());
+      assertEquals(1, warnings(), "a failing monitor is warned about once");
+   }
+
+   @Test
+   void throwingLevelCheckAloneIsNotQualified() throws Exception {
+      XSwappableMonitor failing = mock(XSwappableMonitor.class);
+      when(failing.isLevelQualified(anyString())).thenThrow(new IllegalStateException("level"));
+      addMonitor.invoke(multicaster, failing);
+
+      assertFalse(multicaster.isLevelQualified(XSwappableMonitor.READ));
+   }
+
+   private long warnings() {
+      return appender.list.stream().filter(e -> e.getLevel() == Level.WARN).count();
+   }
+
    private XSwappableMonitor register(boolean hits, boolean misses, boolean read,
                                       boolean written) throws Exception
    {
@@ -110,4 +186,6 @@ class XSwapperMonitorMulticasterTest {
 
    private XSwappableMonitor multicaster;
    private Method addMonitor;
+   private Logger logger;
+   private ListAppender<ILoggingEvent> appender;
 }
