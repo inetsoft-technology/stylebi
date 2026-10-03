@@ -794,17 +794,64 @@ private boolean hasInnerJoin(XFilterNode node) {
 // queries with a RIGHT or FULL join mixed with an inner join, or with a nested
 // join on the right side of an outer join, in parse order
 private List joinOrderChecks = new ArrayList();
-// sql -> the joins of the from clause, each an Object[] {kind, left tables,
-// right tables, join conditions, where conditions before the join}
+// sql -> the JoinEvents of the from clause, in parse order
 private Map joinEvents = new IdentityHashMap();
 // the from clause index of the first table of each enclosing join
 private LinkedList joinStarts = new LinkedList();
 // true if the last joined_table_2 matched its parenthesized join alternative,
 // ( joined_table_2 ), and not a join whose first table is a derived table
 private boolean parenJoinedTable = false;
-// the queries whose from clause has a cross join chain or a parenthesized join with
-// no join after it, which failed to parse before Bug #77495
-private Set newFromJoins = Collections.newSetFromMap(new IdentityHashMap());
+// true if a from clause of the statement, at any query level, has a cross join chain
+// or a parenthesized join with no join after it, which failed to parse before
+// Bug #77495. Reset at the start of each statement
+private boolean newFromSyntax = false;
+// the queries with joins recorded before the statement, which it doesn't check
+private Set priorJoinQueries = Collections.newSetFromMap(new IdentityHashMap());
+
+/*
+ * The RIGHT and FULL joins that UniformSQL can't keep, and the check that refuses
+ * each. All three read the JoinEvents of the from clauses.
+ * - checkRightJoins/checkJoinOrder (Bug #77434): a RIGHT or FULL join mixed with an
+ *   inner or cross join, or a nested join on the right side of an outer join, whose
+ *   regenerated joins differ. Checked after the parse, by UniformSQL.
+ * - sub_qualified_join (Bug #77495): a join with no join condition whose right operand
+ *   is an unparenthesized nested join with a RIGHT or FULL join (parenJoinedTable), in
+ *   any statement, e.g. a join b right join c on .., a join (select ..) t right join c ..
+ * - checkNewFromRightJoins (Bug #77495): any RIGHT or FULL join after another from
+ *   item (lstart > 0), at any query level, in a statement that uses the syntax that
+ *   failed to parse before (newFromSyntax). Statements without it are not checked,
+ *   so it doesn't replace the other two, which also refuse statements that parsed
+ *   before Bug #77495 but regenerated different joins.
+ */
+
+/**
+ * A join of a from clause.
+ */
+private static class JoinEvent {
+   JoinEvent(String kind, Set left, Set right, Set before, int lstart) {
+      this.kind = kind;
+      this.left = left;
+      this.right = right;
+      this.before = before;
+      this.lstart = lstart;
+   }
+
+   boolean isRightOrFull() {
+      return "R".equals(kind) || "F".equals(kind);
+   }
+
+   // I(nner), C(ross), N(atural), L(eft), R(ight) or F(ull)
+   final String kind;
+   // the sorted names of the tables of the left and right operands
+   final Set left;
+   final Set right;
+   // the where conditions added by the join condition
+   Set conds = Collections.newSetFromMap(new IdentityHashMap());
+   // the where conditions before the join
+   final Set before;
+   // the from clause index of the first table of the left operand
+   final int lstart;
+}
 
 /**
  * Get the queries that mix a RIGHT or FULL join with an inner join, or that
@@ -884,79 +931,74 @@ private void startJoinEvent(UniformSQL sql, String op, int lstart, int rstart, i
       joinEvents.put(sql, events);
    }
 
-   Set conds = Collections.newSetFromMap(new IdentityHashMap());
-   addConditions(sql.getWhere(), conds);
-   events.add(new Object[] {kind, getJoinTables(sql, lstart, rstart),
-                            getJoinTables(sql, rstart, rend),
-                            Collections.newSetFromMap(new IdentityHashMap()), conds,
-                            Integer.valueOf(lstart)});
+   Set before = Collections.newSetFromMap(new IdentityHashMap());
+   addConditions(sql.getWhere(), before);
+   events.add(new JoinEvent(kind, getJoinTables(sql, lstart, rstart),
+                            getJoinTables(sql, rstart, rend), before, lstart));
 }
 
 /**
- * Record that the from clause of a query has a join that failed to parse before
+ * Record that a from clause of the statement has a join that failed to parse before
  * Bug #77495, a cross join chain or a parenthesized join with no join after it.
  */
 private void markNewFromJoin(UniformSQL sql) {
    if(sql != null) {
-      newFromJoins.add(sql);
+      newFromSyntax = true;
    }
 }
 
 /**
- * Check the RIGHT and FULL joins of a from clause with a cross join chain or a
- * parenthesized join with no join after it. A RIGHT or FULL join whose left
- * operand doesn't start at the first table of the from clause, and that is not
- * inside the right operand of a join with a join condition, is in a group of
- * joined tables after another from item: a comma item, or the parenthesized right
- * operand of a join with no join condition. SQLHelper writes such a group as a
- * comma item, which may follow another group of joined tables, e.g.
- * a INNER JOIN b ON .. , c RIGHT OUTER JOIN d ON .., or moves the tables before it
- * after it. SQLite joins a comma and a JOIN left to right, as (a join b, c) right
- * join d, so the regenerated sql returns different rows there, and it reads the
- * original x, c right join d on .. that way too. These queries failed to parse
- * before, so they still do. A RIGHT or FULL join at the start of the from clause,
- * or nested in a join with a join condition, is written the same.
+ * Start a statement, the from clauses of a statement are checked together by
+ * checkNewFromRightJoins.
  */
-private void checkNewFromRightJoins(UniformSQL sql) throws SemanticException {
-   if(sql == null || !newFromJoins.remove(sql)) {
+private void startStatement() {
+   newFromSyntax = false;
+   priorJoinQueries.addAll(joinEvents.keySet());
+}
+
+/**
+ * Check the RIGHT and FULL joins of every from clause of a statement that has a
+ * cross join chain or a parenthesized join with no join after it, in any from clause
+ * at any query level. A RIGHT or FULL join whose left operand doesn't start at the
+ * first table of its from clause is in a group of joined tables after another from
+ * item: a comma item, or the right operand of another join. SQLHelper may write
+ * such a group as a comma item after another group of joined tables, e.g.
+ * a INNER JOIN b ON .. , c RIGHT OUTER JOIN d ON .., or move the tables before it
+ * after it, e.g. when the join condition of the enclosing join doesn't join the
+ * group to the tables before it. SQLite joins a comma and a JOIN left to right, as
+ * (a join b, c) right join d, so the regenerated sql returns different rows there,
+ * and it reads the original x, c right join d on .. that way too. Before Bug #77495
+ * the whole statement failed to parse, so the original sql ran, and it still does.
+ * A statement without the new syntax is not checked, it parses as before. A RIGHT or
+ * FULL join at the start of its from clause is written the same.
+ * <p>
+ * Called at the end of each from clause, so it checks the joins of the from clauses
+ * parsed so far once any of them has the new syntax, and every later from clause.
+ */
+private void checkNewFromRightJoins() throws SemanticException {
+   if(!newFromSyntax) {
       return;
    }
 
-   List events = (List) joinEvents.get(sql);
+   for(Iterator i = joinEvents.entrySet().iterator(); i.hasNext();) {
+      Map.Entry entry = (Map.Entry) i.next();
+      List events = (List) entry.getValue();
 
-   for(int i = 0; events != null && i < events.size(); i++) {
-      Object[] event = (Object[]) events.get(i);
+      if(priorJoinQueries.contains(entry.getKey())) {
+         continue;
+      }
 
-      if(("R".equals(event[0]) || "F".equals(event[0])) &&
-         ((Integer) event[5]).intValue() > 0 && !isInJoinCondition(events, i))
-      {
-         Token tok = (Token) rightJoins.get(sql);
-         throw new SemanticException(
-            "Unsupported RIGHT or FULL join after another from item", getFilename(),
-            tok == null ? 0 : tok.getLine(), tok == null ? 0 : tok.getColumn());
+      for(int j = 0; j < events.size(); j++) {
+         JoinEvent event = (JoinEvent) events.get(j);
+
+         if(event.isRightOrFull() && event.lstart > 0) {
+            Token tok = (Token) rightJoins.get(entry.getKey());
+            throw new SemanticException(
+               "Unsupported RIGHT or FULL join after another from item", getFilename(),
+               tok == null ? 0 : tok.getLine(), tok == null ? 0 : tok.getColumn());
+         }
       }
    }
-}
-
-/**
- * Check if the tables of a join are in the right operand of a later join with a
- * join condition, e.g. c right join d in a join (c right join d on ..) on a.id = c.id.
- */
-private static boolean isInJoinCondition(List events, int index) {
-   Object[] event = (Object[]) events.get(index);
-
-   for(int i = index + 1; i < events.size(); i++) {
-      Object[] outer = (Object[]) events.get(i);
-      Set right = (Set) outer[2];
-
-      if(!((Set) outer[3]).isEmpty() && right.containsAll((Set) event[1]) &&
-         right.containsAll((Set) event[2]))
-      {
-         return true;
-      }
-   }
-
-   return false;
 }
 
 /**
@@ -974,9 +1016,7 @@ private boolean hasRightJoinEvent(UniformSQL sql, int count) {
    List events = sql == null ? null : (List) joinEvents.get(sql);
 
    for(int i = count; events != null && i < events.size(); i++) {
-      Object kind = ((Object[]) events.get(i))[0];
-
-      if("R".equals(kind) || "F".equals(kind)) {
+      if(((JoinEvent) events.get(i)).isRightOrFull()) {
          return true;
       }
    }
@@ -999,12 +1039,11 @@ private void endJoinEvent(UniformSQL sql) {
    List events = sql == null ? null : (List) joinEvents.get(sql);
 
    if(events != null && !events.isEmpty()) {
-      Object[] event = (Object[]) events.get(events.size() - 1);
-      Set before = (Set) event[4];
+      JoinEvent event = (JoinEvent) events.get(events.size() - 1);
       Set conds = Collections.newSetFromMap(new IdentityHashMap());
       addConditions(sql.getWhere(), conds);
-      conds.removeAll(before);
-      event[3] = conds;
+      conds.removeAll(event.before);
+      event.conds = conds;
    }
 }
 
@@ -1112,9 +1151,9 @@ public String getJoinStructure(UniformSQL sql) {
       found = false;
 
       for(int i = 0; i < events.size() && !found; i++) {
-         Object[] event = (Object[]) events.get(i);
+         JoinEvent event = (JoinEvent) events.get(i);
 
-         if(("I".equals(event[0]) || "C".equals(event[0])) && !isInnerJoin(event, events)) {
+         if(("I".equals(event.kind) || "C".equals(event.kind)) && !isInnerJoin(event, events)) {
             events.remove(i);
             found = true;
          }
@@ -1124,19 +1163,19 @@ public String getJoinStructure(UniformSQL sql) {
    List keys = new ArrayList();
 
    for(int i = 0; i < events.size(); i++) {
-      Object[] event = (Object[]) events.get(i);
-      String kind = (String) event[0];
-      String left = event[1].toString();
-      String right = event[2].toString();
+      JoinEvent event = (JoinEvent) events.get(i);
+      String kind = event.kind;
+      String left = event.left.toString();
+      String right = event.right.toString();
 
       if("R".equals(kind) || !"L".equals(kind) && left.compareTo(right) > 0) {
          kind = "R".equals(kind) ? "L" : kind;
-         left = event[2].toString();
-         right = event[1].toString();
+         left = event.right.toString();
+         right = event.left.toString();
       }
 
-      where.removeAll((Set) event[3]);
-      keys.add(kind + left + right + getConditionKeys((Set) event[3]));
+      where.removeAll(event.conds);
+      keys.add(kind + left + right + getConditionKeys(event.conds));
    }
 
    Collections.sort(keys);
@@ -1146,14 +1185,14 @@ public String getJoinStructure(UniformSQL sql) {
 /**
  * Check if the tables of a join are inside another join.
  */
-private static boolean isInnerJoin(Object[] event, List events) {
-   Set tables = new HashSet((Set) event[1]);
-   tables.addAll((Set) event[2]);
+private static boolean isInnerJoin(JoinEvent event, List events) {
+   Set tables = new HashSet(event.left);
+   tables.addAll(event.right);
 
    for(int i = 0; i < events.size(); i++) {
-      Object[] other = (Object[]) events.get(i);
-      Set tables2 = new HashSet((Set) other[1]);
-      tables2.addAll((Set) other[2]);
+      JoinEvent other = (JoinEvent) events.get(i);
+      Set tables2 = new HashSet(other.left);
+      tables2.addAll(other.right);
 
       if(other != event && tables2.size() > tables.size() && tables2.containsAll(tables)) {
          return true;
@@ -3834,7 +3873,7 @@ from_clause [UniformSQL sql]
         {String tmp; {checkStatus();}}
         :
         FROM tmp = table_ref[sql] ( COMMA {clearUsingMerges(sql);} tmp = table_ref[sql] )*
-        {checkNewFromRightJoins(sql);}
+        {checkNewFromRightJoins();}
         ;
 
 ansi_joins [UniformSQL sql] returns [String str = ""]
@@ -4564,6 +4603,7 @@ ordering_spec returns [String order = null]
 select_stmt_single_row_debug
         {JDBCSelection selection; String tmp; {checkStatus();}}
         :
+        {startStatement();}
         SELECT
         ( tmp = set_quantifier
         {if(tmp.equalsIgnoreCase("all")){
@@ -4601,6 +4641,7 @@ direct_select_stmt_n_rows_debug [UniformSQL sql]
 select_stmt_single_row
         {JDBCSelection selection; String tmp; {checkStatus();}}
         :
+        {startStatement();}
         SELECT
         ( tmp = set_quantifier
         {if(tmp.trim().equalsIgnoreCase("all")){
@@ -4645,6 +4686,7 @@ only_select [UniformSQL sql] //only parse select clause
 only_select_from [UniformSQL sql] //only parse select clause and from clause
         {JDBCSelection selection; String tmp; this.uniSql = sql; {checkStatus();}}
         :
+        {startStatement();}
         SELECT
         ( tmp = set_quantifier
         {if(tmp.trim().equalsIgnoreCase("all")){

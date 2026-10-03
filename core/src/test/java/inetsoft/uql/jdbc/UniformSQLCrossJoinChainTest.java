@@ -85,6 +85,13 @@ class UniformSQLCrossJoinChainTest {
    private static final String COLS3 = "select a.id, b.id, c.id ";
    private static final String COLS4 = "select a.id, b.id, c.id, d.id ";
    private static final String COLS5 = "select a.id, b.id, c.id, d.id, e.id ";
+   // a RIGHT join at the start of its from clause, with the new syntax at another level
+   private static final String RIGHT_FIRST_EXISTS = "select c.id, d.id from c right join d " +
+      "on c.id = d.id where exists (select 1 from a cross join b cross join e)";
+   private static final String RIGHT_FIRST_COMMA = "select c.id, d.id, x.id from c right join d " +
+      "on c.id = d.id, x where exists (select 1 from ((a join b on a.id = b.id)))";
+   private static final String RIGHT_FIRST_IN_SUBQUERY = "select x.id from x cross join a " +
+      "cross join b where exists (select 1 from c right join d on c.id = d.id where d.id = x.id)";
 
    /**
     * Accepted queries: the text, the joins recorded by the parser, and the sql regenerated
@@ -170,16 +177,20 @@ class UniformSQLCrossJoinChainTest {
          // an ON-less join followed by a LEFT join is unchanged
          Arguments.of(COLS3 + "from a join b left join c on b.id = c.id", "b.id *= c.id",
                       COLS3 + "from b LEFT OUTER JOIN c ON b.id = c.id , a"),
-         // a RIGHT or FULL join at the start of the from clause, or nested in a join with a
-         // join condition, is written in place after a parenthesized join (review r2)
+         // a RIGHT or FULL join at the start of its from clause is written in place in a
+         // statement with the new syntax, at the same or another query level (review r2, r3)
          Arguments.of(COLS3 + "from ((a join b on a.id = b.id)) right join c on b.id = c.id",
                       "a.id = b.id; b.id =* c.id",
                       COLS3 + "from (a INNER JOIN b ON a.id = b.id ) RIGHT OUTER JOIN c ON b.id = c.id"),
-         Arguments.of(COLS4 + "from ((a join b on a.id = b.id)) inner join (c full join d " +
-                         "on c.id = d.id) on b.id = c.id",
-                      "a.id = b.id; c.id *=* d.id; b.id = c.id",
-                      COLS4 + "from (a INNER JOIN b ON a.id = b.id ) INNER JOIN (c FULL OUTER JOIN d " +
-                         "ON c.id = d.id ) ON b.id = c.id")
+         Arguments.of(RIGHT_FIRST_EXISTS, "c.id =* d.id",
+                      "select c.id, d.id from c RIGHT OUTER JOIN d ON c.id = d.id where EXISTS " +
+                         "( select 1 from a, b, e)"),
+         Arguments.of(RIGHT_FIRST_COMMA, "c.id =* d.id",
+                      "select c.id, d.id, x.id from c RIGHT OUTER JOIN d ON c.id = d.id , x where " +
+                         "EXISTS ( select 1 from a, b where a.id = b.id)"),
+         Arguments.of(RIGHT_FIRST_IN_SUBQUERY, "",
+                      "select x.id from x, a, b where EXISTS ( select 1 from c RIGHT OUTER JOIN d " +
+                         "ON c.id = d.id where d.id = x.id)")
       );
    }
 
@@ -235,7 +246,8 @@ class UniformSQLCrossJoinChainTest {
       COLS3 + "from a join (b right join c on b.id = c.id)",
       COLS3 + "from a join ((b right join c on b.id = c.id))",
       "select a.id, c.id, t.id from a join ((select id from b) t right join c on t.id = c.id)",
-      COLS3 + "from ((a join b on a.id = b.id)) right join c on b.id = c.id");
+      COLS3 + "from ((a join b on a.id = b.id)) right join c on b.id = c.id",
+      RIGHT_FIRST_IN_SUBQUERY);
 
    @Test
    void oracleWritesTheOuterJoinAfterACrossJoinInWhere() throws Exception {
@@ -275,6 +287,14 @@ class UniformSQLCrossJoinChainTest {
          "select * from (a join b on a.id = b.id) x",
          // no join follows a parenthesized join operand
          COLS5 + "from a join b on a.id = b.id join (c right join d on c.id = d.id) cross join e",
+         // a UNION doesn't parse in a subquery or at the top, so a RIGHT join and the new
+         // syntax in different UNION branches fail to parse (review r3)
+         "select c.id, d.id, x.id from x, c right join d on c.id = d.id where x.id in " +
+            "(select p.id from p union select q.id from q cross join r cross join e)",
+         "select a.id from a cross join b cross join e where a.id in (select p.id from p union " +
+            "select d.id from x, c right join d on c.id = d.id)",
+         "select p.id from p cross join q cross join r union select d.id from x, c right join d " +
+            "on c.id = d.id",
          // a doubly parenthesized derived table doesn't parse as a join operand
          "select a.id, c.id, t.id from a join ((select id from b)) t right join c on t.id = c.id"
       );
@@ -324,8 +344,9 @@ class UniformSQLCrossJoinChainTest {
 
    /**
     * A RIGHT or FULL join in a group of joined tables after another from item, a comma
-    * item or the parenthesized operand of a join with no join condition, in a from clause
-    * with a cross join chain or a parenthesized join with no join after it (review r2).
+    * item or the operand of another join with or without a join condition, in a from
+    * clause with a cross join chain or a parenthesized join with no join after it (review
+    * r2, r3).
     * SQLHelper writes the group as a comma item after another group, a INNER JOIN b ON ..
     * , c RIGHT OUTER JOIN d ON .., or moves the tables before it after it, and SQLite
     * joins a comma and a JOIN left to right, so the regenerated sql returns different
@@ -360,12 +381,125 @@ class UniformSQLCrossJoinChainTest {
          "select x.id from x where exists (select 1 from ((a join b on a.id = b.id)), " +
             "(c right join d on c.id = d.id))",
          "select t.id from (select a.id from a join b on a.id = b.id cross join e " +
-            "join (c right join d on c.id = d.id)) t"
+            "join (c right join d on c.id = d.id)) t",
+         // the group nested in a join with a join condition: SQLHelper writes it as a comma
+         // item when the condition doesn't join it to the tables before it, so no join
+         // condition exempts it (review r3 B3). These failed to parse before
+         COLS5 + "from a join b on a.id = b.id cross join e join (c right join d on c.id = d.id) " +
+            "on a.id = e.id",
+         COLS5 + "from a join b on a.id = b.id cross join e join (c right join d on c.id = d.id) " +
+            "on b.id = e.id",
+         COLS4 + "from ((a join b on a.id = b.id)) join (c right join d on c.id = d.id) " +
+            "on a.id = b.id",
+         "select a.id, b.id, c.id, d.id, x.id from (a join b on a.id = b.id), c join " +
+            "(d right join x on d.id = x.id) on c.id = c.id",
+         // refused though SQLHelper nests the group when the condition joins it
+         COLS5 + "from a join b on a.id = b.id cross join e join (c right join d on c.id = d.id) " +
+            "on a.id = c.id",
+         COLS4 + "from ((a join b on a.id = b.id)) inner join (c full join d on c.id = d.id) " +
+            "on b.id = c.id"
+      );
+   }
+
+   /**
+    * A RIGHT or FULL join after another from item at one query level, and the new syntax at
+    * another level of the statement: the outer query, an EXISTS, IN or scalar subquery, a
+    * subquery in a join condition, a derived table or a UNION branch (review r3 B4). The
+    * from clause with the RIGHT join parses alone, but SQLite reads its regenerated sql
+    * differently. The statement failed to parse before, so it still does.
+    */
+   static Stream<String> rightJoinElsewhereInStatement() {
+      return Stream.of(
+         // the new syntax in a subquery, the RIGHT join in the outer query
+         X_RIGHT + "where exists (select 1 from p cross join q cross join r)",
+         X_RIGHT + "where exists (select 1 from ((p join q on p.id = q.id)))",
+         X_RIGHT + "where x.id in (select p.id from p cross join q cross join r)",
+         X_RIGHT + "where x.id = (select max(p.id) from ((p join q on p.id = q.id)))",
+         "select c.id, d.id, x.id from x, c full join d on c.id = d.id where exists " +
+            "(select 1 from p cross join q cross join r)",
+         GROUP_RIGHT + "where exists (select 1 from p cross join q cross join r)",
+         GROUP_RIGHT + "where exists (select 1 from (p join q on p.id = q.id))",
+         GROUP_RIGHT + "where exists (select 1 from ((p join q on p.id = q.id)) left join r " +
+            "on q.id = r.id)",
+         GROUP_RIGHT + "where exists (select 1 from p join q on p.id = q.id cross join r)",
+         COLS4 + "from a join b on a.id = b.id join (c right join d on c.id = d.id), " +
+            "(select p.id from p cross join q cross join r) t",
+         // in a subquery in a join condition, of the RIGHT join or of an earlier join
+         COLS4 + "from a join b on a.id = b.id and a.id in (select p.id from p cross join q " +
+            "cross join r) join (c right join d on c.id = d.id)",
+         "select c.id, d.id, x.id from x, c right join d on c.id = d.id and c.id in " +
+            "(select p.id from p cross join q cross join r)",
+         // in a scalar subquery of the select list, parsed before the from clause
+         "select (select count(*) from p cross join q cross join r), c.id, d.id, x.id " +
+            "from x, c right join d on c.id = d.id",
+         // the new syntax in the outer query, the RIGHT join in a subquery
+         "select x.id from x cross join p cross join q where exists (select 1 from a join b " +
+            "on a.id = b.id join (c right join d on c.id = d.id) where a.id = x.id or d.id = x.id)",
+         "select a.id, (select max(d.id) from x, c right join d on c.id = d.id) from a " +
+            "cross join b cross join e",
+         "select a.id from a cross join b cross join e where a.id = (select max(d.id) from x, " +
+            "c right join d on c.id = d.id)",
+         "select t.id, x.id, e.id from (select d.id from a join b on a.id = b.id join " +
+            "(c right join d on c.id = d.id)) t cross join x cross join e",
+         "select a.id, b.id, t.id from (select d.id from x, c right join d on c.id = d.id) t " +
+            "cross join a cross join b",
+         // both in different subqueries
+         "select y.id from y where exists (select 1 from x, c right join d on c.id = d.id) " +
+            "and exists (select 1 from ((p join q on p.id = q.id)))"
+      );
+   }
+
+   private static final String X_RIGHT =
+      "select c.id, d.id, x.id from x, c right join d on c.id = d.id ";
+   private static final String GROUP_RIGHT =
+      COLS4 + "from a join b on a.id = b.id join (c right join d on c.id = d.id) ";
+
+   /**
+    * The from clauses of rightJoinElsewhereInStatement in statements with no syntax that
+    * failed to parse before. They parse as before (review r3).
+    */
+   static Stream<String> mainShapes() {
+      return Stream.of(
+         X_RIGHT + "where exists (select 1 from p cross join q)",
+         X_RIGHT + "where exists (select 1 from (p join q on p.id = q.id) left join r " +
+            "on q.id = r.id)",
+         X_RIGHT + "where x.id in (select p.id from p, q, r)",
+         GROUP_RIGHT + "where exists (select 1 from p cross join q)",
+         COLS4 + "from a join b on a.id = b.id join ((c right join d on c.id = d.id))",
+         COLS4 + "from a left join b on a.id = b.id join (c right join d on c.id = d.id)",
+         "select x.id from x, p cross join q where exists (select 1 from a join b on a.id = b.id " +
+            "join (c right join d on c.id = d.id) where a.id = x.id)",
+         "select a.id, b.id, t.id from (select d.id from x, c right join d on c.id = d.id) t, " +
+            "a cross join b",
+         // comma lists, chains, SQLHelper output and Oracle joins
+         COLS4 + "from a join b on a.id = b.id, c right join d on c.id = d.id",
+         COLS4 + "from a INNER JOIN b ON a.id = b.id , c RIGHT OUTER JOIN d ON c.id = d.id",
+         COLS4 + "from c RIGHT OUTER JOIN d ON c.id = d.id , a, b",
+         COLS3 + "from (a INNER JOIN b ON a.id = b.id ) LEFT OUTER JOIN c ON b.id = c.id",
+         COLS4 + "from a INNER JOIN (c FULL OUTER JOIN d ON c.id = d.id ) ON a.id = c.id, b",
+         COLS3 + "from a full join b on a.id = b.id, c",
+         COLS3 + "from a cross join b, c",
+         "select x.id, a.id, b.id from x, a cross join b",
+         COLS3 + "from a, b, c where a.id = b.id(+) and b.id = c.id",
+         COLS4 + "from a join b on a.id = b.id join c on b.id = c.id left join d on c.id = d.id"
       );
    }
 
    @ParameterizedTest
-   @MethodSource({ "refused", "onlessJoinBeforeRightJoin", "rightJoinAfterFromItem" })
+   @MethodSource("mainShapes")
+   void mainShapeParses(String text) throws Exception {
+      for(String type : new String[] { "h2", "mysql-ansi" }) {
+         JDBCDataSource ds = dataSource(type);
+         UniformSQL sql = parse(text, ds);
+         assertEquals(UniformSQL.PARSE_SUCCESS, sql.getParseResult(), type + ": " + text);
+         assertFalse(sql.isLossy(), type + ": " + text);
+         assertRoundTrip(regenerate(sql), ds);
+      }
+   }
+
+   @ParameterizedTest
+   @MethodSource({ "refused", "onlessJoinBeforeRightJoin", "rightJoinAfterFromItem",
+                   "rightJoinElsewhereInStatement" })
    void refusedShapeFailsParse(String text) {
       for(String type : DATA_SOURCES) {
          assertRefused(text, dataSource(type), type);
@@ -385,7 +519,7 @@ class UniformSQLCrossJoinChainTest {
    }
 
    @ParameterizedTest
-   @MethodSource("rightJoinAfterFromItem")
+   @MethodSource({ "rightJoinAfterFromItem", "rightJoinElsewhereInStatement" })
    void rightJoinAfterFromItemIsRefused(String text) {
       Exception ex = assertThrows(Exception.class, () -> parse(text, dataSource("mysql")));
       assertTrue(ex.getMessage().contains(
@@ -422,6 +556,8 @@ class UniformSQLCrossJoinChainTest {
       "select * from a inner join b right join c on b.id = c.id",
       "select * from ((a join b on a.id = b.id)), (c rIGHT join d on c.id = d.id)",
       "select * from ((a JOIN b ON a.id = b.id)), (c FULL JOIN d ON c.id = d.id)",
+      "select * from x, c rIGHT join d on c.id = d.id where exists (select 1 from p " +
+         "cRoss join q cross join r)",
    })
    void refusedInTurkishLocale(String text) {
       Locale locale = Locale.getDefault();
@@ -448,6 +584,9 @@ class UniformSQLCrossJoinChainTest {
          "(select count(*) from a join b right join c on b.id = c.id)"));
       assertTrue(XUtil.isSQLExpressionValid(
          "(select count(*) from a join b on a.id = b.id, (c right join d on c.id = d.id))"));
+      assertTrue(XUtil.isSQLExpressionValid(
+         "(select count(*) from x, c right join d on c.id = d.id where exists " +
+            "(select 1 from p cross join q cross join r))"));
       assertFalse(XUtil.isSQLExpressionValid("(select count(*) from a cross join b on)"));
    }
 
@@ -536,6 +675,9 @@ class UniformSQLCrossJoinChainTest {
          COLS3 + "from (a cross join b) cross join c",
          COLS3 + "from ((a cross join b)) left join c on b.id = c.id",
          COLS3 + "from ((a join b on a.id = b.id)) right join c on b.id = c.id",
+         RIGHT_FIRST_EXISTS,
+         RIGHT_FIRST_COMMA,
+         RIGHT_FIRST_IN_SUBQUERY,
          "select a.id from a where exists (select 1 from b cross join c cross join d " +
             "where b.id = a.id)",
          "select a.id, b.id from a, b where a.id in (select c.id from ((c join d on c.id = d.id)) " +
