@@ -33,7 +33,6 @@ import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.nio.ByteBuffer;
-import java.nio.file.Files;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -49,8 +48,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * (mandatory, handle-level locking) but not on Linux (POSIX advisory locks only block other
  * *lock* attempts, not a different file descriptor's plain read/write calls - this project's CI
  * runs on {@code ubuntu-latest}), so it silently exercised the "write succeeded" path instead of
- * the failure path there - confirmed by an actual CI failure on
- * {@code stringFragmentSurvivesFailedSwapWriteAndRecoversCleanly}. A later attempt to replace it
+ * the failure path there - confirmed by an actual CI failure on a string fragment test (since
+ * removed with {@code XStringFragment}, Bug #77685). A later attempt to replace it
  * with "pre-create the swap file's path as a directory" also doesn't generalize: for a fragment's
  * first/only chunk, that path is gated behind {@code if(!file.exists())}, so making the path
  * "exist" (as a directory) routes into the unrelated "already swapped, nothing to write" fast
@@ -198,111 +197,6 @@ class XFragmentSwapFileWriteFailureTest {
       // reconstruction (mirrors the pos/arr consistency check from round 1's Int fragment test)
       assertEquals(count, fragment.available(),
                    "pos was desynced from the preserved array by the failed read-back");
-
-      fragment.dispose();
-   }
-
-   @Test
-   void stringFragmentSurvivesFailedSwapWriteAndRecoversCleanly() throws Exception {
-      String original = "the quick brown fox";
-      XStringFragment fragment = new XStringFragment(original);
-      preventBackgroundSwapping(fragment);
-      fragment.testBeforeWrite = XFragmentSwapFileWriteFailureTest::throwSimulatedWriteFailure;
-
-      assertTrue(fragment.swap(), "swap() should report success even though the write failed");
-      assertEquals(original, fragment.getCurrentData(),
-                   "in-memory value was dropped even though the write failed");
-
-      assertEquals(original, fragment.getData(),
-                   "a failed write followed by an ordinary read must not silently return empty content");
-
-      // the fragment should swap normally afterward instead of treating a leftover stub as an
-      // already-durable copy and discarding the in-memory value for nothing
-      fragment.testBeforeWrite = null;
-      assertTrue(fragment.swap());
-      assertFalse(fragment.isValid());
-      assertEquals(original, fragment.getData(), "fragment did not recover cleanly after the failed write");
-
-      fragment.dispose();
-   }
-
-   @Test
-   void stringFragmentRewritesStubEvenWhenDeleteFails() throws Exception {
-      // Review round 1, finding 1: the recovery path's stub.delete() is a best-effort cleanup,
-      // not a correctness requirement - swap0() must still rewrite the file on the next swap
-      // instead of treating a leftover stub as an already-durable copy and silently discarding
-      // value again. A real File.delete() failure isn't reliably producible across platforms/CI
-      // permission models (e.g. POSIX delete is governed by the *directory's* write permission,
-      // not the file's own, and containers commonly run as root, which bypasses permission checks
-      // entirely) - so this exercises the actual contract directly: with rewriteRequired set and
-      // a stub physically present, swap0() must still rewrite rather than skip.
-      String original = "the quick brown fox";
-      XStringFragment fragment = new XStringFragment(original);
-      preventBackgroundSwapping(fragment);
-      File swapFile = FileSystemService.getInstance().getCacheFile(fragment.prefix + ".tdat");
-      Files.write(swapFile.toPath(), new byte[0]);
-
-      Field rewriteRequiredField = XStringFragment.class.getDeclaredField("rewriteRequired");
-      rewriteRequiredField.setAccessible(true);
-      rewriteRequiredField.setBoolean(fragment, true);
-
-      assertTrue(swapFile.exists(), "test setup: stub file should exist");
-      assertTrue(fragment.swap(), "fragment must still be swappable with a leftover stub present");
-      assertFalse(fragment.isValid());
-      assertEquals(original, fragment.getData(),
-                   "stub must be rewritten (not skipped) when rewriteRequired is set, even though "
-                      + "it still physically exists");
-
-      fragment.dispose();
-   }
-
-   @Test
-   void stringFragmentStaysValidAfterUnrelatedSwapFileDeletion() throws Exception {
-      // review-and-merge-prs finding (independent review of this PR, before community PR #6208
-      // merged into main): before this PR's changes, access0() began with an unconditional
-      // "valid = true" before attempting anything, so even a swap file that became unreadable for
-      // a reason unrelated to a failed write (externally deleted, disk corruption, a sweep bug)
-      // still left the fragment settled (valid, data lost) after the first failed read. This PR's
-      // restructuring moved "valid = true" into only the value-!=null recovery branch and the
-      // successful-read branch, so a fragment whose swap file goes missing for any OTHER reason
-      // got stuck at isValid() == false forever, silently re-logging the same failing read on
-      // every later access()/getData() call with no way for a caller to ever find out.
-      //
-      // Superseded by merging community PR #6208 ("fail loudly when a swapped fragment cannot be
-      // read back") into this branch: #6208 deliberately keeps the fragment invalid (not settled)
-      // after a read failure and throws SwapFileReadException on every access instead, so a
-      // transient failure (EACCES/EMFILE) can still recover on a later access - see
-      // XFragmentSwapFileReadTest's own "fails" tests, which assert isValid() stays false, and
-      // intFragmentIsReadOnceSwapFileIsReadableAgain, which asserts the retry actually succeeds
-      // once the underlying problem goes away. That design already solves the original "silent,
-      // invisible forever" problem this test was written for - a loud, repeated exception is not
-      // silent - so this test now asserts the superseding (throw, stay invalid, retry) behavior
-      // instead of the standalone (swallow, settle) behavior it originally guarded.
-      String original = "the quick brown fox";
-      XStringFragment fragment = new XStringFragment(original);
-      preventBackgroundSwapping(fragment);
-
-      // a normal, successful swap - no testBeforeWrite, so the write genuinely completes and
-      // access0() will take the disk-read branch (not the value != null recovery branch) below
-      assertTrue(fragment.swap());
-      File swapFile = FileSystemService.getInstance().getCacheFile(fragment.prefix + ".tdat");
-      assertTrue(swapFile.exists(), "test setup: swap file should have been durably written");
-
-      // simulate the swap file going missing for a reason unrelated to a failed write
-      assertTrue(swapFile.delete(), "test setup: failed to delete swap file");
-
-      assertThrows(SwapFileReadException.class, fragment::getData,
-                   "a genuinely unrecoverable read failure must fail loudly, not silently "
-                      + "return stale/empty data");
-      assertFalse(fragment.isValid(),
-                  "the fragment must stay invalid so a later access retries the read instead of "
-                     + "silently treating the missing file as empty content");
-
-      // a second access() must re-enter access0() and fail loudly again - repeated, visible
-      // failures are the intended trade-off for also allowing a transient failure to self-heal
-      // on a later access, rather than silently settling once and losing the data forever
-      assertThrows(SwapFileReadException.class, fragment::getData);
-      assertFalse(fragment.isValid());
 
       fragment.dispose();
    }
