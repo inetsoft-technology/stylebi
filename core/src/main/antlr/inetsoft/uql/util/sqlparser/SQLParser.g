@@ -1480,24 +1480,18 @@ private String funcText = null;
 private String funcQuotedColumn = null;
 // the indexes of the segments written quoted ("a", `a` or [a]) in the last qualified_name
 private int[] qnameQuoted = null;
-// the quote of each segment in qnameQuoted: '"', '`' or '['
-private String qnameQuoteKinds = null;
 // the indexes of the segments written quoted in the qualifier of the last column_ref,
 // and the column_ref text and quoted segments of the last field parsed as a value
 private int[] colrefQuoted = null;
-private String colrefQuoteKinds = null;
 private String fieldText = null;
 private int[] fieldQuoted = null;
 
 // check if the next token is a quoted identifier, and add the segment index if it is
-void addQuotedSegment(List<Integer> segs, StringBuilder kinds, int seg)
-   throws TokenStreamException
-{
+void addQuotedSegment(List<Integer> segs, int seg) throws TokenStreamException {
    int type = LA(1);
 
    if(type == SPIDENT || type == SPIDENT2 || type == SPIDENT_SQUARE) {
       segs.add(seg);
-      kinds.append(type == SPIDENT ? '"' : type == SPIDENT2 ? '`' : '[');
    }
 }
 
@@ -2238,9 +2232,6 @@ value_exp_primary_body returns [XExpression exp = null]
               exp.setValue(tmp, XExpression.FIELD);
               fieldText = tmp;
               fieldQuoted = colrefQuoted;
-              // the quoted qualifier segments ("a".id), restored when the field is part of an
-              // expression, whose text is generated as written
-              exp.setQuotedQualifier(colrefQuoted, colrefQuoteKinds);
 
               // a qualified quoted column (t."MixedCase"), stored without its quotes
               if(colrefQuote != XExpression.QUOTE_NONE) {
@@ -2521,14 +2512,13 @@ column_ref returns [String colref = ""]
         {String tmp; colrefQuote = XExpression.QUOTE_NONE; colrefColumn = null;}
         :
         // "order" and "simple" might be used as a table name
-        a:ORDER DOT tmp = column_name {colref = a.getText() + "." + quoteColumn(tmp); colrefQuoted = null; colrefQuoteKinds = null;}
+        a:ORDER DOT tmp = column_name {colref = a.getText() + "." + quoteColumn(tmp); colrefQuoted = null;}
         |
-        b:SIMPLE DOT tmp = column_name {colref = b.getText() + "." + quoteColumn(tmp); colrefQuoted = null; colrefQuoteKinds = null;}
+        b:SIMPLE DOT tmp = column_name {colref = b.getText() + "." + quoteColumn(tmp); colrefQuoted = null;}
         |
         colref = table_name
         {
            colrefQuoted = qnameQuoted;
-           colrefQuoteKinds = qnameQuoteKinds;
 
            // the last segment of a qualified table_name is the column when no DOT follows
            if(LA(1) != DOT && lastSegQuote != XExpression.QUOTE_NONE && lastSegStart > 0 &&
@@ -3568,17 +3558,16 @@ table_name returns [String tname = ""]
         ;
 
 qualified_name returns [String qname = ""]
-        {String tmp = ""; int seg = 0; List<Integer> qsegs = new ArrayList<>();
-         StringBuilder qkinds = new StringBuilder(); }
+        {String tmp = ""; int seg = 0; List<Integer> qsegs = new ArrayList<>(); }
         :
-        ((catalog_name DOT)=> {addQuotedSegment(qsegs, qkinds, seg);}
+        ((catalog_name DOT)=> {addQuotedSegment(qsegs, seg);}
         tmp = catalog_name DOT {qname += quoteDot(tmp) + "."; seg++;}
-        ( (~DOT)=> {addQuotedSegment(qsegs, qkinds, seg);}
+        ( (~DOT)=> {addQuotedSegment(qsegs, seg);}
         tmp = schema_name DOT {qname+=quoteDot(tmp)+"."; seg++;}| DOT {qname+="."; seg++;})?
         )?
-        {addQuotedSegment(qsegs, qkinds, seg);}
+        {addQuotedSegment(qsegs, seg);}
         tmp = qualified_id {lastSegStart = qname.length(); lastSegQuote = identQuote; lastSeg = tmp; qname += quoteDot(tmp);
-                            qnameQuoted = toQuotedSegments(qsegs); qnameQuoteKinds = qkinds.toString();}
+                            qnameQuoted = toQuotedSegments(qsegs);}
         ;
 
 catalog_name returns [String catname = ""]
@@ -3615,9 +3604,7 @@ derived_column [JDBCSelection selection, UniformSQL sql]
         (column_name EQ)=>
         aliastmp=column_name EQ exp=value_exp  // to support sybase gramma: select a=b, ....
         {
-           // a scalar subquery keeps its quoted qualifiers as written (#77569)
-           tmp = XExpression.SUBQUERY.equals(exp.getType()) ? exp.toQuotedString() :
-              exp.toString();
+           tmp = exp.toString();
            selection.addColumn(tmp);
            selection.setAlias(selection.getColumnCount() - 1,aliastmp);
 
@@ -3633,9 +3620,7 @@ derived_column [JDBCSelection selection, UniformSQL sql]
         |
         exp = value_exp
         {
-           // a scalar subquery keeps its quoted qualifiers as written (#77569)
-           tmp = XExpression.SUBQUERY.equals(exp.getType()) ? exp.toQuotedString() :
-              exp.toString();
+           tmp = exp.toString();
            // a quoted identifier ("x y" or t."x y"), stored without its quotes
            boolean quotedField = exp.getType().equals(XExpression.FIELD) &&
               exp.getQuote() != XExpression.QUOTE_NONE;

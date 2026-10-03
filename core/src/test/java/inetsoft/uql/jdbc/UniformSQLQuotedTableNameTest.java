@@ -23,7 +23,10 @@ import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.storage.BlobStorageManager;
 import inetsoft.test.*;
 import inetsoft.uql.*;
+import inetsoft.uql.asset.sync.AssetSQLTableDependencyTransformer;
+import inetsoft.uql.asset.sync.RenameInfo;
 import inetsoft.uql.jdbc.util.JDBCUtil;
+import inetsoft.uql.util.DefaultMetaDataProvider;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.schema.XTypeNode;
 import inetsoft.uql.util.Config;
@@ -36,11 +39,13 @@ import inetsoft.util.credential.CredentialService;
 import org.apache.derby.jdbc.EmbeddedDataSource;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.MockedConstruction;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
+import org.w3c.dom.Element;
 
 import javax.sql.DataSource;
 import java.io.*;
@@ -51,6 +56,7 @@ import java.util.*;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockConstruction;
 import static org.mockito.Mockito.when;
 
 /**
@@ -409,6 +415,157 @@ class UniformSQLQuotedTableNameTest {
       String extra = xml.replace("quotedSegments=\"0\"", "quotedSegments=\"0,5\"");
       assertEquals("select * from \"S\".x, \"a\" y, b", regenerate(load(extra, null)));
       assertFalse(loaded.equalsStructure(load(old, null)));
+   }
+
+   // the query editor rewrites the table qualifiers of the expression text when a table is
+   // removed from the graph (every alias mapped to itself) or an alias is renamed
+   // (QueryGraphModelService.removeTables, editQueryTableProperties)
+   @Test
+   void queryEditorTableAliasRewrite() throws Exception {
+      String[][] cases = {
+         // helper, sql, old alias, new alias (null to remove another table), generated
+         { "derby", "select \"EMP\".SAL + 1 from \"EMP\"", "EMP", null,
+           "select \"EMP\".SAL+1 from \"EMP\"" },
+         { "derby", "select \"EMP\".SAL + 1 from \"EMP\"", "EMP", "e",
+           "select e.SAL+1 from \"EMP\" e" },
+         { "derby", "select \"a\".V + 1, max(\"a\".ID) from \"a\" group by \"a\".V + 1", "a", null,
+           "select \"a\".V+1, max(\"a\".ID) from \"a\" group by \"a\".V+1" },
+         { "derby", "select \"a\".V + 1 from \"a\"", "a", "x", "select x.V+1 from \"a\" x" },
+         { "derby", "select case when \"a\".V > 0 then \"a\".ID else 0 end from \"a\"", "a", null,
+           "select case when \"a\".V > 0 then \"a\".ID else 0 END from \"a\"" },
+         { "sqlserver", "select [Orders].Amount * 2 from [Orders]", "Orders", null,
+           "select \"Orders\".Amount*2 from \"Orders\"" },
+         { "sqlserver", "select [Orders].Amount * 2 from [Orders]", "Orders", "o",
+           "select o.Amount*2 from \"Orders\" o" },
+         { "mysql", "select `orders`.amount * 2 from `orders`", "orders", null,
+           "select `orders`.amount*2 from `orders`" },
+         { "mysql", "select `orders`.amount * 2 from `orders`", "orders", "o",
+           "select o.amount*2 from `orders` o" },
+      };
+
+      for(String[] c : cases) {
+         UniformSQL sql = parse(c[1], helpers().get(c[0]));
+         renameAlias(sql, c[2], c[3]);
+         String generated = regenerate(sql);
+         assertEquals(c[4], generated, c[0] + ": " + c[1] + " " + c[2] + " -> " + c[3]);
+         // the stored expression text is the same as before #77569, without the quotes
+         assertFalse(sql.getSelection().getColumn(0).contains(c[2] + "\".") ||
+                        sql.getSelection().getColumn(0).contains("[") ||
+                        sql.getSelection().getColumn(0).contains("`"),
+                     sql.getSelection().getColumn(0));
+      }
+
+      // the edited queries read the same rows on Derby
+      String[] queries = {
+         "select \"a\".V + 1 from \"a\"",
+         "select \"a\".V + 1, max(\"a\".ID) from \"a\" group by \"a\".V + 1",
+         "select case when \"a\".V > 0 then \"a\".ID else 0 end from \"a\"",
+         "select \"c\".ID, (select max(C.V) from C where C.ID = \"c\".ID) from \"c\"",
+      };
+
+      for(boolean ansi : new boolean[] { false, true }) {
+         for(String query : queries) {
+            for(String nalias : new String[] { null, "x" }) {
+               UniformSQL sql = parsed(query);
+               String table = sql.getSelectTable(0).getAlias();
+               // the query editor rewrites the expressions with the helper of the data source
+               sql.setDataSource(derbySource(ansi));
+               renameAlias(sql, table, nalias);
+               Run run;
+
+               try {
+                  run = run(newSession(), sql, ansi, 0);
+               }
+               catch(Exception ex) {
+                  throw new AssertionError(query + " " + table + " -> " + nalias + " (ansi " + ansi +
+                                              "): " + sql.getSQLString(), ex);
+               }
+
+               assertEquals(direct(query), rows(run.table),
+                            query + " " + table + " -> " + nalias + " ran " + run.executedSql);
+            }
+         }
+      }
+   }
+
+   /**
+    * Rename the alias of a table, or map every alias to itself as when another table is
+    * removed, the way QueryGraphModelService does.
+    */
+   private static void renameAlias(UniformSQL sql, String oalias, String nalias) {
+      Hashtable<String, String> aliasMap = new Hashtable<>();
+
+      for(SelectTable table : sql.getSelectTable()) {
+         aliasMap.put(table.getAlias(), table.getAlias());
+
+         if(nalias != null && oalias.equals(table.getAlias())) {
+            aliasMap.put(table.getAlias(), nalias);
+            table.setAlias(nalias);
+         }
+      }
+
+      sql.syncTableAlias(aliasMap);
+      sql.clearSQLString();
+   }
+
+   // a table name option change of the data source rewrites the table names of a saved sql
+   // bound table, the quoted segments of a changed name are dropped
+   @Test
+   void tableOptionRenameDropsQuotedSegments() throws Exception {
+      JDBCDataSource ds = derbySource(false);
+      ds.setName("ds77569");
+      ds.setTableNameOption(JDBCDataSource.SCHEMA_OPTION);
+      XNode node = new XNode("a");
+      node.setAttribute("schema", "APP");
+
+      try(MockedConstruction<DefaultMetaDataProvider> ignored =
+             mockConstruction(DefaultMetaDataProvider.class, (provider, ctx) -> {
+                when(provider.getDataSource()).thenReturn(ds);
+                when(provider.getTable(anyString(), any(), anyBoolean())).thenReturn(node);
+             }))
+      {
+         Element doc = sqlBoundTable(parse("select \"a\".V from \"a\"", null));
+         Element name = (Element) doc.getElementsByTagName("name").item(0);
+         assertEquals("0", name.getAttribute("quotedSegments"));
+
+         new TableOptionTransformer(ds).rename(doc, new RenameInfo(
+            ds.getName(), ds.getName(), RenameInfo.DATA_SOURCE_OPTION));
+
+         name = (Element) doc.getElementsByTagName("name").item(0);
+         assertEquals("APP.a", Tool.getValue(name));
+         assertFalse(name.hasAttribute("quotedSegments"));
+
+         UniformSQL loaded = new UniformSQL();
+         loaded.parseXML((Element) doc.getElementsByTagName(UniformSQL.XML_TAG).item(0));
+         // generated as before #77569, the quoting of the old name doesn't apply
+         assertEquals("select a.V from APP.a", regenerate(loaded));
+      }
+   }
+
+   private static Element sqlBoundTable(UniformSQL sql) throws Exception {
+      String xml = "<worksheet><assemblies><oneAssembly><assembly " +
+         "class=\"inetsoft.uql.asset.SQLBoundTableAssembly\"><assemblyInfo><query><query_jdbc>" +
+         toXML(sql) + "</query_jdbc></query></assemblyInfo></assembly></oneAssembly>" +
+         "</assemblies></worksheet>";
+      return Tool.parseXML(new StringReader(xml)).getDocumentElement();
+   }
+
+   private static final class TableOptionTransformer extends AssetSQLTableDependencyTransformer {
+      TableOptionTransformer(JDBCDataSource ds) {
+         super(null);
+         this.ds = ds;
+      }
+
+      void rename(Element doc, RenameInfo info) {
+         renameSQLSources(doc, info);
+      }
+
+      @Override
+      protected XDataSource getDataSource(String sourceName, String additional) {
+         return ds;
+      }
+
+      private final JDBCDataSource ds;
    }
 
    @Test

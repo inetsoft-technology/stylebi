@@ -4145,15 +4145,6 @@ public class SQLHelper implements KeywordProvider {
          str = value.toString();
          str = buildFieldExpression(str, fld);
 
-         // a quoted qualifier ("a".id) of a field generated while the sql is parsed, before
-         // its tables are known, e.g. in a case expression of the select list, or in the text
-         // of a scalar subquery whose outer tables are not known yet (#77569)
-         if((uniformSql.getTableCount() == 0 || isQuoteAsWritten()) &&
-            str.equals(value.toString()))
-         {
-            str = exp.quoteQualifier(str);
-         }
-
          if(exp.isQuotedField()) {
             str = quoteIdentifier(value.toString(), str, exp.getQuotedColumn());
          }
@@ -4180,15 +4171,22 @@ public class SQLHelper implements KeywordProvider {
 
          // subquery needs to be quoted consistently
          sql.setHint(UniformSQL.HINT_INPUT_MAXROWS, inpmaxrows + "");
-         str = BRACKET + (isFormatSQL ? sql.toString().trim() : sql.toString())
-            + ")";
 
-         // if table changed to a subquery, replace reference to table to alias
+         try {
+            str = BRACKET + (isFormatSQL ? sql.toString().trim() : sql.toString())
+               + ")";
+         }
+         finally {
+            sql.setOuterSQL(null);
+         }
+
+         // if table changed to a subquery, replace reference to table to alias. The subquery
+         // quoted its own qualifiers, with this query as its outer query
          if(isTableSubquery()) {
-            str = replaceTableByAlias(true, str);
+            str = replaceTableByAlias(true, str, false, false);
          }
          else {
-            str = replaceTableByAlias(false, str);
+            str = replaceTableByAlias(false, str, false, false);
          }
       }
       else if(type.equals(XExpression.EXPRESSION) && value != null) {
@@ -4482,7 +4480,7 @@ public class SQLHelper implements KeywordProvider {
       }
 
       SelectTable found = null;
-      int count = 0;
+      boolean same = true;
 
       for(int i = 0; i < uniformSql.getTableCount(); i++) {
          SelectTable table = uniformSql.getSelectTable(i);
@@ -4494,15 +4492,17 @@ public class SQLHelper implements KeywordProvider {
          // a table without an alias is named by its name
          if(name.equals(table.getAlias())) {
             found = table;
-            count = 1;
+            same = true;
             break;
          }
 
+         // several aliases of one table (a self join) written the same way
+         same = same && (found == null ||
+            Arrays.equals(found.getQuotedSegments(), table.getQuotedSegments()));
          found = table;
-         count++;
       }
 
-      return count == 1 ? quoteQuotedSegments(found, name) : null;
+      return found != null && same ? quoteQuotedSegments(found, name) : null;
    }
 
    /**
@@ -4672,21 +4672,6 @@ public class SQLHelper implements KeywordProvider {
    }
 
    /**
-    * Check if the sql, or a query it is a subquery of, is generated as the text of a subquery
-    * while it is parsed. An outer query without tables is being parsed too, e.g. a subquery in
-    * a case expression of its select list.
-    */
-   private boolean isQuoteAsWritten() {
-      for(UniformSQL sql = uniformSql; sql != null; sql = sql.getOuterSQL()) {
-         if(sql.isQuoteAsWritten() || sql != uniformSql && sql.getTableCount() == 0) {
-            return true;
-         }
-      }
-
-      return false;
-   }
-
-   /**
     * Split a table name at the dots that are not inside a quoted segment.
     */
    private static List<String> splitTableName(String name) {
@@ -4809,8 +4794,9 @@ public class SQLHelper implements KeywordProvider {
       if(outerPath != null) {
          return outerPath;
       }
+
       // table column?
-      else if(force || uniformSql.isTableColumn(path)) {
+      if(force || uniformSql.isTableColumn(path)) {
          String tname = uniformSql.getTable(path);
 
          if(tname != null && tname.length() > 0) {
@@ -5391,6 +5377,17 @@ public class SQLHelper implements KeywordProvider {
     * Replace the references to a table with a new alias.
     */
    private String replaceTableByAlias(boolean subQuery, String expr, boolean ignoreNotChangeAlias) {
+      return replaceTableByAlias(subQuery, expr, ignoreNotChangeAlias, true);
+   }
+
+   /**
+    * Replace the references to a table with a new alias.
+    * @param quoteSubqueries <tt>true</tt> to also quote the qualifiers of quoted tables in the
+    * text of the subqueries in the expression, see quoteQualifiers.
+    */
+   private String replaceTableByAlias(boolean subQuery, String expr, boolean ignoreNotChangeAlias,
+                                      boolean quoteSubqueries)
+   {
       Map<String, String> subquerymap = new HashMap<>();
       final HashSet<String> subqueryAliases = new HashSet<>();
 
@@ -5438,10 +5435,153 @@ public class SQLHelper implements KeywordProvider {
          }
       } while(subQuery && (sql = sql.getParent()) != null);
 
+      // a table written quoted ("a") is stored without its quotes in the expression text, as
+      // before, so every reader of the text sees the same text, and is quoted here (#77569)
+      Map<String, String> qualifiers = getQuotedQualifiers();
+
+      if(!qualifiers.isEmpty()) {
+         expr = quoteQualifiers(expr, qualifiers);
+
+         // a scalar subquery of the select list is stored as text, its references to the
+         // tables of this query are quoted here
+         if(quoteSubqueries) {
+            subquerymap.replaceAll((key, sub) -> quoteQualifiers(sub, qualifiers));
+         }
+      }
+
       // restore the subquery in the expression
       expr = restoreSubqueries(expr, subquerymap);
 
       return expr;
+   }
+
+   /**
+    * Get the qualifiers to quote in expression text: the names of the tables of this query,
+    * and of its outer queries, written with quoted segments ("a", "S"."a"), and the ends of
+    * such names ("a" for "S"."a"). The name of a table of an inner query hides the same name
+    * in an outer query.
+    * @return the qualifiers as stored, mapped to the quoted qualifiers.
+    */
+   private Map<String, String> getQuotedQualifiers() {
+      Map<String, String> qualifiers = new HashMap<>();
+
+      // a table changed to a subquery is referred to by its alias, which is not quoted
+      if(isTableSubquery()) {
+         return qualifiers;
+      }
+
+      Set<String> hidden = new HashSet<>();
+
+      for(UniformSQL sql = uniformSql; sql != null; sql = sql.getOuterSQL()) {
+         List<String> names = new ArrayList<>();
+
+         for(int i = 0; i < sql.getTableCount(); i++) {
+            SelectTable table = sql.getSelectTable(i);
+            Object name = table.getName();
+
+            if(table.getAlias() != null) {
+               names.add(table.getAlias());
+            }
+
+            if(name instanceof String) {
+               names.add((String) name);
+            }
+
+            // only a table without an alias is named by its name
+            if(table.getQuotedSegments() == null || !(name instanceof String) ||
+               !name.equals(table.getAlias()) || hidden.contains(name))
+            {
+               continue;
+            }
+
+            String qname = quoteQuotedSegments(table, (String) name);
+
+            if(qname == null) {
+               continue;
+            }
+
+            qualifiers.putIfAbsent((String) name, qname);
+            List<String> segs = splitTableName((String) name);
+            List<String> qsegs = splitTableName(qname);
+
+            for(int start = 1; qsegs.size() == segs.size() && start < segs.size(); start++) {
+               String suffix = String.join(".", segs.subList(start, segs.size()));
+               String qsuffix = String.join(".", qsegs.subList(start, qsegs.size()));
+
+               if(!suffix.equals(qsuffix) && sql.getTableIndex(suffix) < 0 &&
+                  !hidden.contains(suffix))
+               {
+                  qualifiers.putIfAbsent(suffix, qsuffix);
+               }
+            }
+         }
+
+         hidden.addAll(names);
+      }
+
+      return qualifiers;
+   }
+
+   /**
+    * Replace the qualifiers in expression text that are written at the start of an
+    * identifier, outside quotes and string literals, and followed by a dot. All the
+    * qualifiers are replaced in one pass, so a qualifier is never replaced twice.
+    * @param qualifiers the qualifiers mapped to their replacements.
+    */
+   public static String replaceQualifiers(String expr, Map<String, String> qualifiers) {
+      return quoteQualifiers(expr, qualifiers);
+   }
+
+   /**
+    * Quote the qualifiers in expression text that are written at the start of an identifier,
+    * outside quotes and string literals, and followed by a dot.
+    */
+   private static String quoteQualifiers(String expr, Map<String, String> qualifiers) {
+      List<String> names = new ArrayList<>(qualifiers.keySet());
+      names.sort((a, b) -> b.length() - a.length());
+      StringBuilder sb = new StringBuilder();
+      char close = 0;
+
+      for(int i = 0; i < expr.length(); i++) {
+         char c = expr.charAt(i);
+
+         if(close != 0) {
+            if(c == close) {
+               close = 0;
+            }
+
+            sb.append(c);
+            continue;
+         }
+
+         char prev = i > 0 ? expr.charAt(i - 1) : ' ';
+         boolean start = !Character.isUnicodeIdentifierPart(prev) && prev != '.' &&
+            prev != '"' && prev != '`' && prev != ']' && prev != '$' && prev != '@';
+         String found = null;
+
+         for(int j = 0; start && found == null && j < names.size(); j++) {
+            if(expr.startsWith(names.get(j) + ".", i)) {
+               found = names.get(j);
+            }
+         }
+
+         if(found != null) {
+            sb.append(qualifiers.get(found)).append('.');
+            i += found.length();
+            continue;
+         }
+
+         if(c == '"' || c == '`' || c == '\'') {
+            close = c;
+         }
+         else if(c == '[') {
+            close = ']';
+         }
+
+         sb.append(c);
+      }
+
+      return sb.toString();
    }
 
    /**
