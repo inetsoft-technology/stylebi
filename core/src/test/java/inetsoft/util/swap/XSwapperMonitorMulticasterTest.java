@@ -168,6 +168,34 @@ class XSwapperMonitorMulticasterTest {
       assertFalse(multicaster.isLevelQualified(XSwappableMonitor.READ));
    }
 
+   @Test
+   void eachFailingMonitorIsWarnedOnceUntilRemoved() throws Exception {
+      XSwappableMonitor failingCount = register(true, true, true, true);
+      doThrow(new NullPointerException("count")).when(failingCount).countHits(anyInt(), anyInt());
+      XSwappableMonitor failingLevel = mock(XSwappableMonitor.class);
+      when(failingLevel.isLevelQualified(anyString())).thenThrow(new IllegalStateException("level"));
+      addMonitor.invoke(multicaster, failingLevel);
+      XSwappableMonitor recording = register(true, true, true, true);
+
+      for(int i = 0; i < 1000; i++) {
+         multicaster.countHits(XSwappableMonitor.DATA, 1);
+      }
+
+      verify(recording, times(1000)).countHits(XSwappableMonitor.DATA, 1);
+      assertEquals(2, warnings(), "each failing monitor is warned about once, not per count");
+
+      Method removeMonitor =
+         multicaster.getClass().getDeclaredMethod("removeMonitor", XSwappableMonitor.class);
+      removeMonitor.setAccessible(true);
+      removeMonitor.invoke(multicaster, failingCount);
+      multicaster.countHits(XSwappableMonitor.DATA, 1);
+      assertEquals(2, warnings(), "a removed monitor is no longer called");
+
+      addMonitor.invoke(multicaster, failingCount);
+      multicaster.countHits(XSwappableMonitor.DATA, 1);
+      assertEquals(3, warnings(), "a monitor added again after removal is warned about again");
+   }
+
    private long warnings() {
       return appender.list.stream().filter(e -> e.getLevel() == Level.WARN).count();
    }
