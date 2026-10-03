@@ -860,6 +860,32 @@ public class DataSourceRegistry implements MessageListener {
    }
 
    /**
+    * Checks if a path is that of an additional connection of a data source, e.g. "P/add" or
+    * "F/P/add". The parent path must resolve to a data source that supports additional
+    * connections and that has an additional connection with the last path segment as its name.
+    * A data source in a data source folder, e.g. "F/P", is not an additional connection.
+    *
+    * @param path the registry path.
+    *
+    * @return {@code true} if the path is that of an additional connection.
+    */
+   public boolean isAdditionalConnectionPath(String path) {
+      if(path == null) {
+         return false;
+      }
+
+      int index = path.lastIndexOf('/');
+
+      if(index <= 0 || index == path.length() - 1) {
+         return false;
+      }
+
+      XDataSource parent = getDataSource(path.substring(0, index));
+      return parent instanceof AdditionalConnectionDataSource<?> ads &&
+         ads.containDatasource(path.substring(index + 1));
+   }
+
+   /**
     * Gets the name of a JDBC additional connection from its path, or null if the path is not
     * that of a JDBC additional connection.
     */

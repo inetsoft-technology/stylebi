@@ -757,6 +757,11 @@ export class ContentRepositoryService implements OnDestroy {
          else if(curPath.startsWith(Tool.RECYCLE_BIN)) {
             warning = "_#(js:em.reports.drag.recycle.note)";
          }
+         // just additional source type is RepositoryEntryType.DATA_SOURCE, it belongs to its
+         // parent data source and can't be moved out of it. see ContentRepositoryTreeService
+         else if(curDataType === RepositoryEntryType.DATA_SOURCE) {
+            warning = "_#(js:common.datasource.additionalConnectionMove)";
+         }
          else if(((curDataType & RepositoryEntryType.DATA_SOURCE) === RepositoryEntryType.DATA_SOURCE ||
             (curDataType & RepositoryEntryType.DATA_SOURCE_FOLDER) === RepositoryEntryType.DATA_SOURCE_FOLDER) &&
             (toFolder.type & RepositoryEntryType.DATA_SOURCE_FOLDER) !== RepositoryEntryType.DATA_SOURCE_FOLDER) {

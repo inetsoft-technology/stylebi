@@ -682,6 +682,13 @@ public class DataSourceBrowserService {
                String oname = item.getOldPath();
                String nname = item.getPath();
 
+               // an additional connection belongs to its parent data source, moving it by its
+               // path would turn it into a standalone data source
+               if(registry.isAdditionalConnectionPath(oname)) {
+                  throw new MessageException(Catalog.getCatalog(principal).getString(
+                     "common.datasource.additionalConnectionMove"));
+               }
+
                if(!securityEngine.checkPermission(principal, ResourceType.DATA_SOURCE,
                   oname, ResourceAction.DELETE))
                {
