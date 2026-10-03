@@ -502,6 +502,10 @@ public final class CalendarUtil {
       pattern = isYear ? CalendarUtil.getCalendarFormat(fmtExtent, CalendarUtil.YEAR_FORMAT_INDEX) :
               CalendarUtil.getCalendarFormat(fmtExtent, CalendarUtil.YEAR_MONTH_FORMAT_INDEX);
       SimpleDateFormat smt = new SimpleDateFormat(pattern);
+      // Bug #77598: the title is a display-only navigation header that the default branch
+      // and the client render with the Gregorian year, so do not use the calendar of the
+      // JVM default locale (Buddhist for th_TH, Japanese imperial for ja_JP_JP)
+      smt.setCalendar(new GregorianCalendar());
       return smt.format(date);
    }
 

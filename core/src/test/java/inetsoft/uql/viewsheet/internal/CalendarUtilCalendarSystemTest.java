@@ -82,6 +82,22 @@ class CalendarUtilCalendarSystemTest {
       }
    }
 
+   // Bug #77598: a custom CALENDAR_TITLE date pattern must also show the Gregorian year
+   @Test
+   void customPatternTitleUsesGregorianYear() {
+      VSCompositeFormat format = new VSCompositeFormat();
+      format.getUserDefinedFormat().setFormatValue("DateFormat");
+      format.getUserDefinedFormat().setFormatExtentValue("yyyy-MM-dd");
+
+      for(Locale locale : List.of(Locale.US, TH, JA)) {
+         Locale.setDefault(locale);
+         assertEquals("2026-01", CalendarUtil.formatTitle("2026-0", false, format),
+                      "default locale " + locale);
+         assertEquals("2026", CalendarUtil.formatTitle("2026", true, format),
+                      "default locale " + locale);
+      }
+   }
+
    @Test
    void fullFormatEnUs() {
       Locale.setDefault(Locale.US);
