@@ -375,7 +375,7 @@ public class DatabaseDatasourcesService {
          oname = idx == -1 ? path : path.substring(idx + 1);
       }
 
-      XDataSource dataSource = repository.getDataSource(fullName);
+      XDataSource dataSource = getAdditionalConnection(fullName, repository.getDataSource(fullName));
       boolean newDataSource = false;
       Predicate<String> secretIdCheck = secretIdAuthorizer.createCheck(dataSource, principal);
       checkSecretIds(database, getAdditionals.get(), secretIdCheck);
@@ -440,19 +440,12 @@ public class DatabaseDatasourcesService {
       }
 
       JDBCDataSource base = jdbcDataSource.getBaseDatasource();
-      String newSrcName = fullName;
-
-      if(base != null) {
-         int index = fullName.lastIndexOf('/');
-
-         if(index != -1) {
-            newSrcName = fullName.substring(index + 1);
-         }
-      }
-
       Permission oldPermission = securityEngine.getPermission(ResourceType.DATA_SOURCE, fullName);
-      JDBCDataSource newSrc =
-         getDatabase(newSrcName, database, false, false, secretIdCheck, principal);
+      // an additional connection is named and its stored password is read the way the parent's
+      // save does, through its parent
+      JDBCDataSource newSrc = base != null ?
+         getDatabase(base.getFullName(), database, false, true, secretIdCheck, principal) :
+         getDatabase(fullName, database, false, false, secretIdCheck, principal);
       boolean newSourcePermission = false;
       boolean folderPermission = false;
       int index = fullName.lastIndexOf('/');
@@ -523,6 +516,17 @@ public class DatabaseDatasourcesService {
          jdbcDataSource.setName(name);
          base.addDatasource(jdbcDataSource);
          additionalChange = true;
+
+         if(!oname.equals(name)) {
+            renameAdditionalSource(base, oname, name);
+            Permission permission = securityEngine.getPermission(ResourceType.DATA_SOURCE,
+               base.getFullName() + "::" + oname);
+
+            if(permission != null) {
+               securityEngine.setPermission(ResourceType.DATA_SOURCE,
+                  base.getFullName() + "::" + name, permission);
+            }
+         }
       }
       else {
          dataSourceStatusService.updateStatus(jdbcDataSource);
@@ -609,7 +613,18 @@ public class DatabaseDatasourcesService {
          }
       }
 
-      if(additionalChange) {
+      if(additionalChange && base != null) {
+         // base.addDatasource() saved the additional connection under its parent. Update the
+         // parent as a save of the parent does, since updating the additional connection by its
+         // path would rename it to its own name and so move it out of the parent
+         XDataSource parent = repository.getDataSource(base.getFullName());
+
+         if(parent != null) {
+            parent.setLastModified(System.currentTimeMillis());
+            repository.updateDataSource(parent, parent.getFullName(), false);
+         }
+      }
+      else if(additionalChange) {
          jdbcDataSource.setLastModified(System.currentTimeMillis());
          repository.updateDataSource(jdbcDataSource, fullName, false);
       }
@@ -624,6 +639,46 @@ public class DatabaseDatasourcesService {
       transformTables(oldDataSource, currentDataSource);
 
       return null;
+   }
+
+   /**
+    * Gets an additional connection with its base data source set. The base data source is not
+    * saved with an additional connection, so an additional connection read by its path, as the
+    * repository tree's editor does, has none once the registry cache has been cleared.
+    *
+    * @param path the path of the data source, which is parent/name for an additional connection.
+    * @param dataSource the data source read by that path.
+    *
+    * @return the additional connection read through its parent, or the data source read by the
+    *         path if it isn't an additional connection.
+    */
+   private XDataSource getAdditionalConnection(String path, XDataSource dataSource)
+      throws RemoteException
+   {
+      int index = path.lastIndexOf('/');
+
+      // a data source in a folder is saved with its path as its name, an additional connection
+      // with its name alone
+      if(index < 0 || !(dataSource instanceof AdditionalConnectionDataSource<?> additional) ||
+         additional.getBaseDatasource() != null || path.equals(dataSource.getFullName()))
+      {
+         return dataSource;
+      }
+
+      XDataSource parent = repository.getDataSource(path.substring(0, index));
+
+      if(parent instanceof AdditionalConnectionDataSource<?> base &&
+         base.getBaseDatasource() == null)
+      {
+         XDataSource result = base.getDataSource(path.substring(index + 1));
+
+         if(result != null) {
+            // the registry returns its cached instance, which this save changes
+            return (XDataSource) result.clone();
+         }
+      }
+
+      return dataSource;
    }
 
    private void renameAdditionalSource(JDBCDataSource xds, String oname, String nname) {
