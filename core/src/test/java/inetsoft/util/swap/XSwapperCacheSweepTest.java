@@ -112,18 +112,30 @@ class XSwapperCacheSweepTest {
       // the prefix check.
       FileSystemService fileSystemService = FileSystemService.getInstance();
       File recentForeign = createCacheFile("s4_1.tdat");
+      // aged past the grace period, unrelated to the file under test: its deletion is the
+      // signal that the background sweep actually ran, so a slow/loaded CI box can't make
+      // this test pass just because the sweep hadn't reached recentForeign yet
+      File agedForeign = createCacheFile("s5_1.tdat");
+      assertTrue(agedForeign.setLastModified(
+         System.currentTimeMillis() - XSwapper.SWAP_FILE_GRACE_PERIOD - 1000L));
 
       fileSystemService.clearCacheFiles(null);
 
-      // the clean-up runs in a background thread; give it a moment to run
-      Thread.sleep(500L);
+      // the clean-up runs in a background thread
+      long end = System.currentTimeMillis() + 30000L;
+
+      while(agedForeign.exists() && System.currentTimeMillis() < end) {
+         Thread.sleep(50L);
+      }
 
       try {
+         assertFalse(agedForeign.exists(), "aged foreign swap file was not cleaned");
          assertTrue(recentForeign.exists(),
             "recently-written foreign swap file was deleted within its registration grace period");
       }
       finally {
          Files.deleteIfExists(recentForeign.toPath());
+         Files.deleteIfExists(agedForeign.toPath());
       }
    }
 
