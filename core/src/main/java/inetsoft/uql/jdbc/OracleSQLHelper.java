@@ -21,6 +21,7 @@ import inetsoft.uql.util.XUtil;
 import inetsoft.util.Tool;
 
 import java.util.HashSet;
+import java.util.Locale;
 import java.util.Set;
 
 /**
@@ -211,6 +212,21 @@ class OracleSQLHelper extends SQLHelper {
    @Override
    protected String quoteColumnPartAlias(String alias) {
       return XUtil.quoteAlias(alias, this);
+   }
+
+   /**
+    * The column was written unquoted, which oracle folds to upper case. If it must be quoted
+    * (a keyword such as account), quote the upper case name so it still names the same column.
+    */
+   @Override
+   protected String quoteAggregateColumn(String column) {
+      String quoted = XUtil.quoteAlias(column, this);
+
+      if(quoted.equals(column)) {
+         return column;
+      }
+
+      return '"' + column.toUpperCase(Locale.ROOT) + '"';
    }
 
    /**
