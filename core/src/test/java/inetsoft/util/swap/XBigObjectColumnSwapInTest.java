@@ -90,10 +90,14 @@ class XBigObjectColumnSwapInTest {
 
    @Test
    void swapDuringTheWaitDoesNotMakeEveryRowWait() {
-      XBigObjectColumn column = createSwappedColumn();
+      // room for rows added during the waits
+      XBigObjectColumn column = createSwappedColumn(ROWS * 2);
       XSwapper swapper = spy(XSwapper.getSwapper());
-      // the swapper sweeps the column again while the reader waits for memory
+      // the swapper sweeps the column again while the reader waits for memory. a fully swapped
+      // column has nothing to swap (Bug #77653), so add a row first, which pushes a resident
+      // row out of the in-memory list for the swap to free
       doAnswer(invocation -> {
+         column.addObject("extra");
          assertTrue(column.swap(), "column was not swapped during the wait");
          return null;
       }).when(swapper).waitForMemory();
@@ -119,7 +123,11 @@ class XBigObjectColumnSwapInTest {
    }
 
    private static XBigObjectColumn createSwappedColumn() {
-      XBigObjectColumn column = createColumn();
+      return createSwappedColumn(ROWS);
+   }
+
+   private static XBigObjectColumn createSwappedColumn(int capacity) {
+      XBigObjectColumn column = createColumn(capacity);
       assertTrue(column.swap(), "column was not swapped");
 
       try {
@@ -133,7 +141,11 @@ class XBigObjectColumnSwapInTest {
    }
 
    private static XBigObjectColumn createColumn() {
-      XBigObjectColumn column = new XBigObjectColumn((char) 4, (char) 16, (char) ROWS);
+      return createColumn(ROWS);
+   }
+
+   private static XBigObjectColumn createColumn(int capacity) {
+      XBigObjectColumn column = new XBigObjectColumn((char) 4, (char) 16, (char) capacity);
 
       for(int i = 0; i < ROWS; i++) {
          column.addObject("value" + i);

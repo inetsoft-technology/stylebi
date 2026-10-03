@@ -328,7 +328,9 @@ public final class XBigObjectColumn extends XSwappable implements XTableColumn {
          return 0;
       }
 
-      return pos - mlist.size - scount != 0 ? 1 : 10;
+      // rows outside of mlist that are still in memory. 0 when there is nothing left to free,
+      // so the swapper doesn't count this column as swapped (and criticalNoSwap can advance)
+      return pos - mlist.size - scount > 0 ? 1 : 0;
    }
 
    /**
@@ -373,6 +375,7 @@ public final class XBigObjectColumn extends XSwappable implements XTableColumn {
       }
 
       swapCount++;
+      boolean freed = false;
       File file = getFile(prefix + ".tdat");
       FileOutputStream fout = null;
       com.esotericsoftware.kryo.kryo5.Kryo kryo = XSwapUtil.getKryo();
@@ -387,7 +390,8 @@ public final class XBigObjectColumn extends XSwappable implements XTableColumn {
                return false;
             }
 
-            if(mlist.contains(i)) {
+            // already swapped, don't count it again
+            if(arr[i] == Tool.NULL || mlist.contains(i)) {
                continue;
             }
 
@@ -406,6 +410,7 @@ public final class XBigObjectColumn extends XSwappable implements XTableColumn {
 
             scount++;
             arr[i] = Tool.NULL;
+            freed = true;
          }
       }
       catch(Exception ex) {
@@ -426,7 +431,7 @@ public final class XBigObjectColumn extends XSwappable implements XTableColumn {
          }
       }
 
-      return true;
+      return freed;
    }
 
    /**
