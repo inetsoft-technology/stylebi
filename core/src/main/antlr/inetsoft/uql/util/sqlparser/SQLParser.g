@@ -809,6 +809,9 @@ private boolean newFromSyntax = false;
 // the _debug multi-statement rule parses more than one statement with a parser, every
 // other caller creates a parser per statement
 private Set priorJoinQueries = Collections.newSetFromMap(new IdentityHashMap());
+// sql -> the first token of a where clause of the statement with an outer join (*=, =*
+// or (+)), at any query level. Reset at the start of each statement
+private Map whereOuterJoins = new IdentityHashMap();
 
 /*
  * The outer joins that UniformSQL can't keep, and the check that refuses each. All
@@ -821,25 +824,32 @@ private Set priorJoinQueries = Collections.newSetFromMap(new IdentityHashMap());
  *   any statement, e.g. a join b right join c on .., a join (select ..) t right join c ..
  * - checkNewFromOuterJoins (Bug #77495): in a statement that uses the syntax that
  *   failed to parse before (newFromSyntax), at any query level, every RIGHT or FULL
- *   join, wherever it is, and any LEFT join after another from item (lstart > 0). A
- *   LEFT join counts too, since SQLHelper writes t LEFT JOIN (nested join) as (nested
- *   join) RIGHT OUTER JOIN t. A RIGHT or FULL join at the start of its from clause
- *   counts as well, since SQLHelper writes it after the other join groups when it
- *   can't keep the text order (OuterJoinComparator). Statements without the new
- *   syntax are not checked, so it doesn't replace the other two, which also refuse
- *   statements that parsed before Bug #77495 but regenerated different joins.
+ *   join, wherever it is, any LEFT join after another from item (lstart > 0), any LEFT
+ *   join whose null-supplying tables a later join condition of its from clause joins,
+ *   and every outer join of a where clause (*=, =* or (+)). A LEFT join counts too,
+ *   since SQLHelper writes t LEFT JOIN (nested join) as (nested join) RIGHT OUTER JOIN
+ *   t. A RIGHT or FULL join at the start of its from clause counts as well, since
+ *   SQLHelper writes it after the other join groups when it can't keep the text order
+ *   (OuterJoinComparator), and so does a LEFT join joined by a later join. Statements
+ *   without the new syntax are not checked, so it doesn't replace the other two, which
+ *   also refuse statements that parsed before Bug #77495 but regenerated different
+ *   joins.
  */
 
 /**
  * A join of a from clause.
  */
 private static class JoinEvent {
-   JoinEvent(String kind, Set left, Set right, Set before, int lstart) {
+   JoinEvent(String kind, Set left, Set right, Set before, int lstart, int rstart,
+             int rend)
+   {
       this.kind = kind;
       this.left = left;
       this.right = right;
       this.before = before;
       this.lstart = lstart;
+      this.rstart = rstart;
+      this.rend = rend;
    }
 
    boolean isRightOrFull() {
@@ -857,6 +867,11 @@ private static class JoinEvent {
    final Set before;
    // the from clause index of the first table of the left operand
    final int lstart;
+   // the from clause indexes of the first table of the right operand, and after its last
+   final int rstart;
+   final int rend;
+   // the JOIN keyword of the join, null for a cross join of two tables (cross_join)
+   Token tok;
 }
 
 /**
@@ -940,7 +955,7 @@ private void startJoinEvent(UniformSQL sql, String op, int lstart, int rstart, i
    Set before = Collections.newSetFromMap(new IdentityHashMap());
    addConditions(sql.getWhere(), before);
    events.add(new JoinEvent(kind, getJoinTables(sql, lstart, rstart),
-                            getJoinTables(sql, rstart, rend), before, lstart));
+                            getJoinTables(sql, rstart, rend), before, lstart, rstart, rend));
 }
 
 /**
@@ -960,36 +975,78 @@ private void markNewFromJoin(UniformSQL sql) {
 private void startStatement() {
    newFromSyntax = false;
    priorJoinQueries.addAll(joinEvents.keySet());
+   whereOuterJoins.clear();
+}
+
+/**
+ * Record a where clause with an outer join (*=, =* or (+)) for checkNewFromOuterJoins.
+ * @param where the conditions of the where clause, before they are added to the query.
+ */
+private void addWhereOuterJoins(UniformSQL sql, XFilterNode where, Token tok) {
+   List joins = new ArrayList();
+   collectJoins(where, joins);
+
+   for(int i = 0; sql != null && i < joins.size(); i++) {
+      if(((XJoin) joins.get(i)).isOuterJoin() && !whereOuterJoins.containsKey(sql)) {
+         whereOuterJoins.put(sql, tok);
+      }
+   }
 }
 
 /**
  * Check the outer joins of every from clause of a statement that has a cross join
  * chain or a parenthesized join with no join after it, in any from clause at any
- * query level. Every RIGHT or FULL join is refused, and every LEFT join after another
- * from item. An outer join whose left operand doesn't start at the first table of
- * its from clause is in a group of joined tables after another from item: a comma
- * item, or the right operand of another join. A LEFT join is checked too, since
- * SQLHelper writes t LEFT JOIN (nested join) as (nested join) RIGHT OUTER JOIN t, and
- * a LEFT join group is refused whatever its right operand. SQLHelper may write
- * such a group as a comma item after another group of joined tables, e.g.
- * a INNER JOIN b ON .. , c RIGHT OUTER JOIN d ON .., or move the tables before it
- * after it, e.g. when the join condition of the enclosing join doesn't join the
- * group to the tables before it. A RIGHT or FULL join at the start of its from
- * clause is written first only while SQLHelper keeps the text order. When it can't
- * (generateFromClauseText returns null, e.g. for a join condition that doesn't name
- * the table it joins), it writes the outer joins last, so the RIGHT or FULL join
- * group follows a comma too. SQLite joins a comma and a JOIN left to right, as
- * (a join b, c) right join d, so the regenerated sql returns different rows there,
- * and it reads the original x, c right join d on .. that way too. Before Bug #77495
- * the whole statement failed to parse, so the original sql ran, and it still does.
- * A statement without the new syntax is not checked, it parses as before. A LEFT
- * join at the start of its from clause is accepted. Over one table, written after a
- * comma it joins the same rows, since it adds rows only for its own tables. Over a
- * nested join, its group starts with the inner join of the nested join, which stays
- * first when SQLHelper leaves the text order.
+ * query level. Every RIGHT or FULL join is refused, every LEFT join after another
+ * from item, every LEFT join whose null-supplying tables a later join condition of its
+ * from clause joins, and every outer join of a where clause. An outer join whose left
+ * operand doesn't start at the first table of its from clause is in a group of joined
+ * tables after another from item: a comma item, or the right operand of another join.
+ * A LEFT join is checked too, since SQLHelper writes t LEFT JOIN (nested join) as
+ * (nested join) RIGHT OUTER JOIN t, and a LEFT join group is refused whatever its
+ * right operand. SQLHelper may write such a group as a comma item after another group
+ * of joined tables, e.g. a INNER JOIN b ON .. , c RIGHT OUTER JOIN d ON .., or move the
+ * tables before it after it, e.g. when the join condition of the enclosing join
+ * doesn't join the group to the tables before it. A RIGHT or FULL join at the start of
+ * its from clause is written first only while SQLHelper keeps the text order. When it
+ * can't (generateFromClauseText returns null, e.g. for a join condition that doesn't
+ * name the table it joins), it writes the joins of a chain of joins (getLoyalJoins)
+ * in their order, and otherwise the inner joins first and the outer joins last
+ * (OuterJoinComparator), so the RIGHT or FULL join group follows a comma too. SQLite
+ * joins a comma and a JOIN left to right, as (a join b, c) right join d, so the
+ * regenerated sql returns different rows there, and it reads the original
+ * x, c right join d on .. that way too. Before Bug #77495 the whole statement failed
+ * to parse, so the original sql ran, and it still does. A statement without the new
+ * syntax is not checked, it parses as before.
+ * <p>
+ * A LEFT join at the start of its from clause is accepted unless a later join joins
+ * its null-supplying (right) tables. The inner joins first order joins the tables
+ * of the later join before the outer join, so d left join c on d.id = c.id join e on
+ * e.id = c.id is written as (e INNER JOIN c ON e.id = c.id) RIGHT OUTER JOIN d ON
+ * d.id = c.id, which keeps the d rows that the inner join drops. What SQLHelper orders
+ * are the column joins (XJoin) of the from clause: the outer joins, and the inner
+ * join conditions between two from clause tables. Any other condition of an inner
+ * join, and every condition of the where clause while the query has no outer join in
+ * its where clause (isTextJoinOrder), is written in the where clause, which applies
+ * after all the joins. So a later join counts if a column join of its condition names
+ * a table of the right operand (USING columns are column joins too, and a natural
+ * join is refused). Its right operand is then joined to the other tables only by the
+ * LEFT join's own join condition, a column join between one table of each side
+ * (getOuterJoins), and by the joins inside a nested right operand. However SQLHelper
+ * orders the joins, it adds the right operand to the joined tables with that join
+ * condition, as t LEFT OUTER JOIN c or (nested join) RIGHT OUTER JOIN t, and no join
+ * after it names c. A LEFT join commutes with an inner, cross or LEFT join that
+ * doesn't name its right operand, so every such order returns the same rows, and over
+ * one table, written after a comma, it joins the same rows too, since it adds rows only
+ * for its own tables. A nested right operand is checked by checkJoinOrder, which
+ * compares the regenerated joins (checkOuterJoinGroup).
+ * <p>
+ * An outer join of a where clause has no position, SQLHelper orders it with the
+ * inner joins of the where clause (without isTextJoinOrder), e.g. d.id = c.id(+) and
+ * e.id = c.id is written as (e INNER JOIN c ..) RIGHT OUTER JOIN d .., so it's refused.
  * <p>
  * Called at the end of each from clause, so it checks the joins of the from clauses
- * parsed so far once any of them has the new syntax, and every later from clause.
+ * parsed so far once any of them has the new syntax, and every later from clause, and
+ * at the end of each query, after its where clause.
  */
 private void checkNewFromOuterJoins() throws SemanticException {
    if(!newFromSyntax) {
@@ -997,14 +1054,20 @@ private void checkNewFromOuterJoins() throws SemanticException {
    }
 
    boolean left = false;
+   boolean leftJoined = false;
    boolean right = false;
-   Token first = null;
+   // the first JOIN keyword in the text of each refusal, whatever the order of the queries
+   // in joinEvents
+   Token firstRight = null;
+   Token firstLeft = null;
+   Token firstLeftJoined = null;
 
    for(Iterator i = joinEvents.entrySet().iterator(); i.hasNext();) {
       Map.Entry entry = (Map.Entry) i.next();
+      UniformSQL sql = (UniformSQL) entry.getKey();
       List events = (List) entry.getValue();
 
-      if(priorJoinQueries.contains(entry.getKey())) {
+      if(priorJoinQueries.contains(sql)) {
          continue;
       }
 
@@ -1012,35 +1075,103 @@ private void checkNewFromOuterJoins() throws SemanticException {
          JoinEvent event = (JoinEvent) events.get(j);
 
          if(event.isRightOrFull() && event.lstart > 0) {
-            Token tok = (Token) rightJoins.get(entry.getKey());
+            Token tok = (Token) rightJoins.get(sql);
             throw new SemanticException(
                "Unsupported RIGHT or FULL join after another from item", getFilename(),
                tok == null ? 0 : tok.getLine(), tok == null ? 0 : tok.getColumn());
          }
 
-         if(event.isRightOrFull() && !right) {
+         if(event.isRightOrFull()) {
             right = true;
-            first = (Token) rightJoins.get(entry.getKey());
+            firstRight = getFirstToken(firstRight, event.tok);
          }
-
-         left = left || "L".equals(event.kind) && event.lstart > 0;
+         else if("L".equals(event.kind) && event.lstart > 0) {
+            left = true;
+            firstLeft = getFirstToken(firstLeft, event.tok);
+         }
+         else if("L".equals(event.kind) && isRightOperandJoined(sql, events, j)) {
+            leftJoined = true;
+            firstLeftJoined = getFirstToken(firstLeftJoined, event.tok);
+         }
       }
    }
 
    // reported after the scan, so the message doesn't depend on the scan order: a RIGHT
    // or FULL join after another from item first, then any other RIGHT or FULL join, then
-   // a LEFT join after another from item
+   // a LEFT join after another from item, a LEFT join joined by a later join, and an
+   // outer join of a where clause
    if(right) {
       throw new SemanticException(
          "Unsupported RIGHT or FULL join in a statement with a cross join chain or a " +
-         "parenthesized join", getFilename(), first == null ? 0 : first.getLine(),
-         first == null ? 0 : first.getColumn());
+         "parenthesized join", getFilename(), firstRight == null ? 0 : firstRight.getLine(),
+         firstRight == null ? 0 : firstRight.getColumn());
    }
 
    if(left) {
       throw new SemanticException("Unsupported LEFT join after another from item",
-                                  getFilename(), 0, 0);
+         getFilename(), firstLeft == null ? 0 : firstLeft.getLine(),
+         firstLeft == null ? 0 : firstLeft.getColumn());
    }
+
+   if(leftJoined) {
+      throw new SemanticException(
+         "Unsupported LEFT join followed by a join to its right side in a statement " +
+         "with a cross join chain or a parenthesized join", getFilename(),
+         firstLeftJoined == null ? 0 : firstLeftJoined.getLine(),
+         firstLeftJoined == null ? 0 : firstLeftJoined.getColumn());
+   }
+
+   if(!whereOuterJoins.isEmpty()) {
+      Token tok = null;
+
+      for(Iterator i = whereOuterJoins.values().iterator(); i.hasNext();) {
+         tok = getFirstToken(tok, (Token) i.next());
+      }
+
+      throw new SemanticException(
+         "Unsupported outer join in the where clause of a statement with a cross join " +
+         "chain or a parenthesized join", getFilename(), tok == null ? 0 : tok.getLine(),
+         tok == null ? 0 : tok.getColumn());
+   }
+}
+
+/**
+ * Check if a join after a join of a from clause joins a table of its right operand: a
+ * column join (XJoin) of its join condition names one, or it's a natural join, whose
+ * join columns aren't known.
+ * @param events the joins of the from clause.
+ * @param index the index of the join in events.
+ */
+private boolean isRightOperandJoined(UniformSQL sql, List events, int index) {
+   JoinEvent event = (JoinEvent) events.get(index);
+
+   for(int i = index + 1; i < events.size(); i++) {
+      JoinEvent later = (JoinEvent) events.get(i);
+      List joins = new ArrayList();
+
+      if("N".equals(later.kind)) {
+         return true;
+      }
+
+      for(Iterator j = later.conds.iterator(); j.hasNext();) {
+         collectJoins((XFilterNode) j.next(), joins);
+      }
+
+      for(int j = 0; j < joins.size(); j++) {
+         XJoin join = (XJoin) joins.get(j);
+         // the same table resolution as SQLHelper uses to write the join
+         int index1 = getJoinTableIndex(sql, join.getTable1(sql));
+         int index2 = getJoinTableIndex(sql, join.getTable2(sql));
+
+         if(index1 >= event.rstart && index1 < event.rend ||
+            index2 >= event.rstart && index2 < event.rend)
+         {
+            return true;
+         }
+      }
+   }
+
+   return false;
 }
 
 /**
@@ -1071,6 +1202,29 @@ private void startJoinEvent(UniformSQL sql, String op, int rstart, int rend) {
       int lstart = joinStarts.isEmpty() ? 0 : ((Integer) joinStarts.getFirst()).intValue();
       startJoinEvent(sql, op, lstart, rstart, rend);
    }
+}
+
+/**
+ * Set the JOIN keyword of the last join of a query, for the position of a refusal.
+ */
+private void setJoinEventToken(UniformSQL sql, Token tok) {
+   List events = sql == null ? null : (List) joinEvents.get(sql);
+
+   if(events != null && !events.isEmpty()) {
+      ((JoinEvent) events.get(events.size() - 1)).tok = tok;
+   }
+}
+
+/**
+ * Get the token of the two that is first in the text, either may be null.
+ */
+private static Token getFirstToken(Token tok1, Token tok2) {
+   if(tok1 == null || tok2 == null) {
+      return tok1 == null ? tok2 : tok1;
+   }
+
+   return tok2.getLine() < tok1.getLine() ||
+      tok2.getLine() == tok1.getLine() && tok2.getColumn() < tok1.getColumn() ? tok2 : tok1;
 }
 
 /**
@@ -3903,12 +4057,15 @@ table_exp [UniformSQL sql]
         ( {wtok = LT(1);} where = where_clause {checkWhereOuterJoins(sql, where, wtok);
         // checked before whereOuterPairJoins() turns joins into plain conditions
         checkWhereOuterJoinPositions(sql, where, wtok);
+        addWhereOuterJoins(sql, where, wtok);
         where = whereOuterPairJoins(sql, where); where.setClause(XFilterNode.WHERE); markJoins(where, XJoin.WHERE_CLAUSE); sql.combineWhereByAnd(where);})?
         ( group_by_clause[sql] )?
         {if(sql != null) {checkOuterJoinTables(sql, LT(1));}}
         ( having = having_clause {having.setClause(XFilterNode.HAVING); sql.setHaving(having);})?
         ((ORDER BY)=> nouse = order_by_clause[sql] )?
         {checkRightJoins(sql);}
+        // after the where clause, which may have an outer join (Bug #77495)
+        {checkNewFromOuterJoins();}
         ;
 
 from_clause [UniformSQL sql]
@@ -4324,7 +4481,8 @@ sub_qualified_join [UniformSQL sql] returns [String str = ""]
           )
           {rend = sql == null ? 0 : sql.getTableCount();}
           {addJoinType(sql, op, d);
-           startJoinEvent(sql, c != null ? "NATURAL " + op : op, rstart, rend);}
+           startJoinEvent(sql, c != null ? "NATURAL " + op : op, rstart, rend);
+           setJoinEventToken(sql, d);}
           ( (join_spec[null, "", "", 0, 0])=>
             tmp = join_spec[sql, op, tbl2, rstart, rend] {str += " " + tmp; spec = true;}
             {endJoinEvent(sql);}
