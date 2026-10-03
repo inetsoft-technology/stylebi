@@ -38,7 +38,6 @@ import java.lang.management.MemoryPoolMXBean;
 import java.lang.management.MemoryType;
 import java.lang.management.MemoryUsage;
 import java.lang.management.PlatformManagedObject;
-import java.security.Principal;
 import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -487,11 +486,12 @@ public final class XSwapper {
          })).start();
       }
 
-      Principal principal = ThreadContext.getContextPrincipal();
+      // Bug #77649, the swapper threads are JVM-wide and swap the data of every user and
+      // organization, so don't give them the principal of the thread that created the swapper
       threads = new XSwapperThread[getThreadCount()];
 
       for(int i = 0; i < threads.length; i++) {
-         threads[i] = new XSwapperThread(principal);
+         threads[i] = new XSwapperThread();
          threads[i].start();
       }
 
@@ -1071,9 +1071,8 @@ public final class XSwapper {
     * XSwapper thread.
     */
    private final class XSwapperThread extends GroupedThread {
-      public XSwapperThread(Principal contextPrincipal) {
+      public XSwapperThread() {
          super();
-         this.principal = contextPrincipal;
          setDaemon(true);
       }
 
@@ -1091,9 +1090,6 @@ public final class XSwapper {
 
       @Override
       protected void doRun() {
-         Principal oldPrincipal = ThreadContext.getContextPrincipal();
-         ThreadContext.setContextPrincipal(principal);
-
          try {
             int state = GOOD_MEM;
             long waitTime = 0;
@@ -1256,9 +1252,6 @@ public final class XSwapper {
          catch(ShutdownException ignore) {
             // server is shutting down, ignore
          }
-         finally {
-            ThreadContext.setContextPrincipal(oldPrincipal);
-         }
       }
 
       /**
@@ -1330,7 +1323,6 @@ public final class XSwapper {
       }
 
       private long lcheck = cur;
-      private final Principal principal;
       private final XWeakList list = new XWeakList();
       private XObjectList swaplist = new XObjectList();
       private final AtomicInteger swapIdx = new AtomicInteger(-1); // the current swappable being swapped
