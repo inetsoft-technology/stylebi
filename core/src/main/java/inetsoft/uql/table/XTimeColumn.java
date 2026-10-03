@@ -18,6 +18,7 @@
 package inetsoft.uql.table;
 
 import inetsoft.uql.schema.XSchema;
+import inetsoft.util.Tool;
 import inetsoft.util.swap.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -129,7 +130,7 @@ public final class XTimeColumn extends AbstractTableColumn {
 
          if(!str.isEmpty()) {
             try {
-               SimpleDateFormat format = new SimpleDateFormat("HH:mm:ss");
+               SimpleDateFormat format = Tool.createGregorianDateFormat("HH:mm:ss");
                obj = format.parseObject(str);
             }
             catch(Exception ex) {

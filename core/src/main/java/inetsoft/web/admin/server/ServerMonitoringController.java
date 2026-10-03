@@ -121,7 +121,7 @@ public class ServerMonitoringController {
          Map<String, String> serverUpTimeMap = new HashMap<>();
          Map<String, String> serverDateTimeMap = new HashMap<>();
          Map<String, String> schedulerUpTimeMap = new HashMap<>();
-         final SimpleDateFormat format = new SimpleDateFormat(
+         final SimpleDateFormat format = Tool.createGregorianDateFormat(
             SreeEnv.getProperty("format.date.time"));
          final long timestamp = System.currentTimeMillis();
          Set<String> clusterNodes = getServerClusterNodes();

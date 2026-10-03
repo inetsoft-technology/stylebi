@@ -24,8 +24,8 @@ import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.table.*;
 import inetsoft.util.*;
 import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
-import org.pojava.datetime.DateTime;
-import org.pojava.datetime.IDateTimeConfig;
+import inetsoft.util.pojava.datetime.DateTime;
+import inetsoft.util.pojava.datetime.IDateTimeConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -459,7 +459,7 @@ public final class CSVLoader {
                      }
                      catch(Exception ex) {
                         // joda time has trouble parsing dd-MM-yyyy (47216).
-                        SimpleDateFormat fmt = new SimpleDateFormat("dd-MM-yyyy");
+                        SimpleDateFormat fmt = Tool.createGregorianDateFormat("dd-MM-yyyy");
                         nval = fmt.parse(data.toString());
                      }
                   }

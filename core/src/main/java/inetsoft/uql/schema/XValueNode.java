@@ -292,6 +292,11 @@ public class XValueNode extends XNode {
       if(isnull == null || !isnull.equalsIgnoreCase("true")) {
          String value = Tool.getValue(root);
 
+         // a date saved before #77605 may have a Buddhist or Japanese year
+         if(!isExpression && (XSchema.DATE.equals(type) || XSchema.TIME_INSTANT.equals(type))) {
+            value = Tool.toGregorianPersistentDate(value);
+         }
+
          node.parse((value == null) ? "" : value);
       }
 

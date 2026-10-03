@@ -209,7 +209,7 @@ public class VSFormTableService {
                date = (Date) val;
             }
             else if(typeFormat != null) {
-               SimpleDateFormat dateFormat = new SimpleDateFormat(typeFormat.getFormat());
+               SimpleDateFormat dateFormat = Tool.createGregorianDateFormat(typeFormat.getFormat());
                date = dateFormat.parse(data);
 
                if(!Tool.equals(dateFormat.format(date), data)) {

@@ -2389,11 +2389,11 @@ public class ChartVSAQuery extends CubeVSAQuery implements BindableVSAQuery {
                // @by jasonshobe, bug1411032367385. Try the JDBC timestamp
                // escape format.
                try {
-                  d = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.S")
+                  d = Tool.createGregorianDateFormat("yyyy-MM-dd HH:mm:ss.S")
                      .parse((String) obj);
                }
                catch(Exception ignore) {
-                  d = new SimpleDateFormat("yyyy-MM-dd").parse((String) obj);
+                  d = Tool.createGregorianDateFormat("yyyy-MM-dd").parse((String) obj);
                }
             }
 

@@ -1072,11 +1072,11 @@ public abstract class BaseTableService<T extends BaseTableEvent> {
          return cell.getCellData();
       }
       else if(cell.getCellData() instanceof Time) {
-         SimpleDateFormat sdf = new SimpleDateFormat("HH:mm:ss");
+         SimpleDateFormat sdf = Tool.createGregorianDateFormat("HH:mm:ss");
          cell.formatCellData(sdf.format(((Time) cell.getCellData())));
       }
       else if(cell.getCellData() instanceof Date) {
-         SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd");
+         SimpleDateFormat sdf = Tool.createGregorianDateFormat("yyyy-MM-dd");
          cell.formatCellData(sdf.format(((Date) cell.getCellData())));
       }
 

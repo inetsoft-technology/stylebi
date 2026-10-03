@@ -253,15 +253,15 @@ public class ScheduleConditionService {
                                        String paramName)
    {
       if(XSchema.DATE.equals(type)) {
-         SimpleDateFormat formatter = new SimpleDateFormat("yyyy-MM-dd");
+         SimpleDateFormat formatter = Tool.createGregorianDateFormat("yyyy-MM-dd");
          value = value instanceof Date ? formatter.format((Date) value) : (String) value;
       }
       else if(XSchema.TIME.equals(type)) {
-         SimpleDateFormat formatter = new SimpleDateFormat("HH:mm:ss");
+         SimpleDateFormat formatter = Tool.createGregorianDateFormat("HH:mm:ss");
          value = value instanceof Date ? formatter.format((Date) value) : (String) value;
       }
       else if(XSchema.TIME_INSTANT.equals(type)) {
-         SimpleDateFormat formatter = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+         SimpleDateFormat formatter = Tool.createGregorianDateFormat("yyyy-MM-dd HH:mm:ss");
          value = value instanceof Date ? formatter.format((Date) value) : (String) value;
       }
       else if("array".equals(type)) {
@@ -273,15 +273,15 @@ public class ScheduleConditionService {
             Object paramValue = vals[i];
 
             if(XSchema.DATE.equals(type)) {
-               SimpleDateFormat formatter = new SimpleDateFormat("yyyy-MM-dd");
+               SimpleDateFormat formatter = Tool.createGregorianDateFormat("yyyy-MM-dd");
                paramValue = formatter.format((Date) paramValue);
             }
             else if(XSchema.TIME.equals(type)) {
-               SimpleDateFormat formatter = new SimpleDateFormat("HH:mm:ss");
+               SimpleDateFormat formatter = Tool.createGregorianDateFormat("HH:mm:ss");
                paramValue = formatter.format((Date) paramValue);
             }
             else if(XSchema.TIME_INSTANT.equals(type)) {
-               SimpleDateFormat formatter = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+               SimpleDateFormat formatter = Tool.createGregorianDateFormat("yyyy-MM-dd HH:mm:ss");
                paramValue = formatter.format((Date) paramValue);
             }
             else if(XSchema.STRING.equals(type)) {
@@ -429,20 +429,20 @@ public class ScheduleConditionService {
       try {
          if(XSchema.DATE.equals(type)) {
             SimpleDateFormat formatter =
-               new SimpleDateFormat("yyyy-MM-dd");
+               Tool.createGregorianDateFormat("yyyy-MM-dd");
             Date date = formatter.parse((String) value);
             value = date != null ? new java.sql.Date(date.getTime()) : null;
          }
          else if(XSchema.TIME.equals(type)) {
             SimpleDateFormat formatter =
-               new SimpleDateFormat("HH:mm:ss");
+               Tool.createGregorianDateFormat("HH:mm:ss");
             Date date = formatter.parse((String) value);
             value = date != null ? new java.sql.Time(date.getTime()) : null;
          }
          else if(XSchema.TIME_INSTANT.equals(type)) {
             String dateTime = (String) value;
             dateTime = dateTime.replace("T", " ");
-            SimpleDateFormat formatter = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+            SimpleDateFormat formatter = Tool.createGregorianDateFormat("yyyy-MM-dd HH:mm:ss");
             value = formatter.parse(dateTime);
          }
          else if(XSchema.DOUBLE.equals(type)) {
@@ -494,16 +494,16 @@ public class ScheduleConditionService {
                valuesArray[i] = Boolean.parseBoolean(initialArray[i]);
                break;
             case XSchema.DATE:
-               formatter = new SimpleDateFormat("yyyy-MM-dd");
+               formatter = Tool.createGregorianDateFormat("yyyy-MM-dd");
                valuesArray[i] = formatter.parse(initialArray[i]);
                break;
             case XSchema.TIME:
-               formatter = new SimpleDateFormat("HH:mm:ss");
+               formatter = Tool.createGregorianDateFormat("HH:mm:ss");
                valuesArray[i] = formatter.parse(initialArray[i]);
                break;
             case XSchema.TIME_INSTANT:
                String dateTime = initialArray[i].replace("T", " ");
-               formatter = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+               formatter = Tool.createGregorianDateFormat("yyyy-MM-dd HH:mm:ss");
                valuesArray[i] = formatter.parse(dateTime);
                break;
             default:

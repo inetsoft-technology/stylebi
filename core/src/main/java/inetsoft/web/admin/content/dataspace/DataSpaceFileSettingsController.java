@@ -70,7 +70,7 @@ public class DataSpaceFileSettingsController {
    {
       DataSpace space = this.dataSpace;
       Date time = new Date(space.getLastModified(null, path));
-      SimpleDateFormat sformat = new SimpleDateFormat(SreeEnv.getProperty("format.date.time"));
+      SimpleDateFormat sformat = Tool.createGregorianDateFormat(SreeEnv.getProperty("format.date.time"));
       sformat.setTimeZone(TimeZone.getTimeZone(timeZone));
       String lmt = sformat.format(time);
 

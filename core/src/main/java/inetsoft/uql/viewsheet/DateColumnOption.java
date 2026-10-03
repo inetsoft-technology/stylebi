@@ -159,5 +159,5 @@ public class DateColumnOption extends ColumnOption {
 
    private String maximum;
    private String minimum;
-   private static SimpleDateFormat dformat = new SimpleDateFormat("yyyy-MM-dd");
+   private static SimpleDateFormat dformat = Tool.createGregorianDateFormat("yyyy-MM-dd");
 }

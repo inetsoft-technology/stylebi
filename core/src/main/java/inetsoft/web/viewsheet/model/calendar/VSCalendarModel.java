@@ -24,6 +24,7 @@ import inetsoft.sree.SreeEnv;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.CalendarUtil;
 import inetsoft.uql.viewsheet.internal.CalendarVSAssemblyInfo;
+import inetsoft.util.Tool;
 import inetsoft.web.viewsheet.model.*;
 import org.springframework.stereotype.Component;
 
@@ -159,7 +160,7 @@ public class VSCalendarModel extends VSObjectModel<CalendarVSAssembly> {
 
          try {
             Date date = sdf.parse(str);
-            sdf = new SimpleDateFormat(fmt);
+            sdf = Tool.createGregorianDateFormat(fmt);
             weekNames[i] = sdf.format(date);
          }
          catch(Exception ignored) {
@@ -182,11 +183,11 @@ public class VSCalendarModel extends VSObjectModel<CalendarVSAssembly> {
 
       for(int i = 0; i < 12; i++) {
          String str = i + 1 + "";
-         SimpleDateFormat sdf = new SimpleDateFormat("M");
+         SimpleDateFormat sdf = Tool.createGregorianDateFormat("M");
 
          try {
             Date date = sdf.parse(str);
-            sdf = new SimpleDateFormat(pattern);
+            sdf = Tool.createGregorianDateFormat(pattern);
             monthNames[i] = sdf.format(date);
          }
          catch(Exception ignored) {
@@ -205,7 +206,7 @@ public class VSCalendarModel extends VSObjectModel<CalendarVSAssembly> {
       }
 
       pattern = CalendarUtil.getCalendarFormat(fmtExtent, CalendarUtil.DAY_FORMAT_INDEX);
-      SimpleDateFormat sdf = new SimpleDateFormat(pattern);
+      SimpleDateFormat sdf = Tool.createGregorianDateFormat(pattern);
 
       // since we only format the day part, no need to have different
       // formatted labels for different months

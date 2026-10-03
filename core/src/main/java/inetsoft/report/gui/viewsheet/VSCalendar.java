@@ -747,7 +747,7 @@ public class VSCalendar extends VSFloatable {
       {
          String pattern = CalendarUtil.getCalendarFormat(format.getFormatExtent(),
             CalendarUtil.DAY_FORMAT_INDEX);
-         sdf = new SimpleDateFormat(pattern);
+         sdf = Tool.createGregorianDateFormat(pattern);
       }
 
       // previous month days
@@ -902,7 +902,7 @@ public class VSCalendar extends VSFloatable {
 
          try {
             Date date = sdf.parse(str);
-            sdf = new SimpleDateFormat(fmt);
+            sdf = Tool.createGregorianDateFormat(fmt);
             weekNames[i] = sdf.format(date);
          }
          catch(Exception ignored) {
@@ -1011,8 +1011,8 @@ public class VSCalendar extends VSFloatable {
       }
 
       String pattern = CalendarUtil.getCalendarFormat(fmtExtent, CalendarUtil.MONTH_FORMAT_INDEX);
-      SimpleDateFormat dateFormat0 = new SimpleDateFormat("M");
-      SimpleDateFormat dateFormat1 = new SimpleDateFormat(pattern);
+      SimpleDateFormat dateFormat0 = Tool.createGregorianDateFormat("M");
+      SimpleDateFormat dateFormat1 = Tool.createGregorianDateFormat(pattern);
 
       for(int i = 1; i <= 12; i++) {
          try {

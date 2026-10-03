@@ -25,6 +25,7 @@ import inetsoft.uql.viewsheet.ComboBoxVSAssembly;
 import inetsoft.uql.viewsheet.VSCompositeFormat;
 import inetsoft.uql.viewsheet.internal.ComboBoxVSAssemblyInfo;
 import inetsoft.util.Catalog;
+import inetsoft.util.Tool;
 import org.springframework.stereotype.Component;
 
 import java.sql.Timestamp;
@@ -71,7 +72,7 @@ public class VSComboBoxModel extends ListInputModel<ComboBoxVSAssembly> {
          // offset (historical offsets that are not a whole number of minutes) and shift the
          // date by a day.
          if(XSchema.DATE.equals(dataType)) {
-            selectedObject = new SimpleDateFormat("yyyy-MM-dd").format(selectedObject);
+            selectedObject = Tool.createGregorianDateFormat("yyyy-MM-dd").format(selectedObject);
          }
          else {
             selectedObject = ((Date) selectedObject).getTime();
@@ -89,19 +90,19 @@ public class VSComboBoxModel extends ListInputModel<ComboBoxVSAssembly> {
             dateFormat = "";
          }
          else if("FULL".equals(extent)) {
-            SimpleDateFormat fullFormat = (SimpleDateFormat) DateFormat.getDateInstance(DateFormat.FULL, Locale.getDefault());
+            SimpleDateFormat fullFormat = Tool.createDateFormat("FULL", Locale.getDefault());
             dateFormat = fullFormat.toPattern();
          }
          else if("LONG".equals(extent)) {
-            SimpleDateFormat longFormat = (SimpleDateFormat) DateFormat.getDateInstance(DateFormat.LONG, Locale.getDefault());
+            SimpleDateFormat longFormat = Tool.createDateFormat("LONG", Locale.getDefault());
             dateFormat = longFormat.toPattern();
          }
          else if("MEDIUM".equals(extent)) {
-            SimpleDateFormat mediumFormat = (SimpleDateFormat) DateFormat.getDateInstance(DateFormat.MEDIUM, Locale.getDefault());
+            SimpleDateFormat mediumFormat = Tool.createDateFormat("MEDIUM", Locale.getDefault());
             dateFormat = mediumFormat.toPattern();
          }
          else if("SHORT".equals(extent)) {
-            SimpleDateFormat shortFormat = (SimpleDateFormat) DateFormat.getDateInstance(DateFormat.SHORT, Locale.getDefault());
+            SimpleDateFormat shortFormat = Tool.createDateFormat("SHORT", Locale.getDefault());
             dateFormat = shortFormat.toPattern();
          }
          else {

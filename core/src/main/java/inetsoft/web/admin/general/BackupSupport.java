@@ -17,13 +17,15 @@
  */
 package inetsoft.web.admin.general;
 
-import java.util.Calendar;
+import java.util.*;
 
 public abstract class BackupSupport {
    static String createBackupTimestamp() {
-      Calendar cal = Calendar.getInstance();
+      // Gregorian and ASCII digits whatever the default locale, e.g. not 2569... (Buddhist)
+      // for th_TH or 8... (Reiwa) for ja_JP_JP, which getTimestamp() could not order (#77605)
+      Calendar cal = new GregorianCalendar();
       return String.format(
-         "%d%02d%02d%02d%02d%02d", cal.get(Calendar.YEAR), cal.get(Calendar.MONTH) + 1,
+         Locale.ROOT, "%d%02d%02d%02d%02d%02d", cal.get(Calendar.YEAR), cal.get(Calendar.MONTH) + 1,
          cal.get(Calendar.DAY_OF_MONTH), cal.get(Calendar.HOUR_OF_DAY), cal.get(Calendar.MINUTE),
          cal.get(Calendar.SECOND));
    }

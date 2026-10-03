@@ -19,6 +19,7 @@ package inetsoft.web.json;
 
 import com.fasterxml.jackson.databind.module.SimpleModule;
 import com.fasterxml.jackson.databind.ser.std.DateSerializer;
+import inetsoft.util.Tool;
 
 import java.awt.*;
 import java.awt.geom.Point2D;
@@ -30,7 +31,6 @@ import java.sql.Timestamp;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.EnumSet;
-import java.util.GregorianCalendar;
 
 /**
  * Module that defines serializers and deserializers for classes in third-party libraries.
@@ -76,8 +76,6 @@ public class ThirdPartySupportModule extends SimpleModule {
     * value, it does not change any persisted/round-tripped format.
     */
    private static SimpleDateFormat gregorianDateFormat(String pattern) {
-      SimpleDateFormat format = new SimpleDateFormat(pattern);
-      format.setCalendar(new GregorianCalendar());
-      return format;
+      return Tool.createGregorianDateFormat(pattern);
    }
 }

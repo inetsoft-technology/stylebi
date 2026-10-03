@@ -22,6 +22,7 @@ import inetsoft.graph.AxisSpec;
 import inetsoft.graph.data.DataSet;
 import inetsoft.graph.internal.GDefaults;
 import inetsoft.graph.internal.GTool;
+import inetsoft.util.CoreTool;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -763,12 +764,12 @@ public class TimeScale extends Scale {
       return DATE_FORMAT;
    }
 
-   private static Format SECOND_FORMAT = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
-   private static Format MINUTE_FORMAT = new SimpleDateFormat("yyyy-MM-dd HH:mm");
-   private static Format HOUR_FORMAT = new SimpleDateFormat("yyyy-MM-dd HH");
-   private static Format DATE_FORMAT = new SimpleDateFormat("yyyy-MM-dd");
-   private static Format MONTH_FORMAT = new SimpleDateFormat("yyyy MMM");
-   private static Format YEAR_FORMAT = new SimpleDateFormat("yyyy");
+   private static Format SECOND_FORMAT = CoreTool.createGregorianDateFormat("yyyy-MM-dd HH:mm:ss");
+   private static Format MINUTE_FORMAT = CoreTool.createGregorianDateFormat("yyyy-MM-dd HH:mm");
+   private static Format HOUR_FORMAT = CoreTool.createGregorianDateFormat("yyyy-MM-dd HH");
+   private static Format DATE_FORMAT = CoreTool.createGregorianDateFormat("yyyy-MM-dd");
+   private static Format MONTH_FORMAT = CoreTool.createGregorianDateFormat("yyyy MMM");
+   private static Format YEAR_FORMAT = CoreTool.createGregorianDateFormat("yyyy");
 
    // increment durations
    private static long[] INC_LENGTH = {

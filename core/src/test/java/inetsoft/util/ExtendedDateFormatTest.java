@@ -778,7 +778,8 @@ public class ExtendedDateFormatTest {
    // format locale, so parse(String) accepted JVM-language text, used the JVM week rules and
    // ignored a non-Gregorian calendar. both String overloads must give what SimpleDateFormat
    // in the format locale gives, for the text of the format locale and for en_US text. the
-   // text is made by SimpleDateFormat so it does not depend on the locale data provider
+   // text is made by SimpleDateFormat so it does not depend on the locale data provider.
+   // dates are always Gregorian (Bug #77605), so SimpleDateFormat uses the Gregorian calendar
    @ParameterizedTest(name = "{0} {1}")
    @CsvSource(delimiter = '|', value = {
       "de | MMM d, yyyy",
@@ -800,12 +801,13 @@ public class ExtendedDateFormatTest {
       final Locale locale = Locale.forLanguageTag(tag);
       final Date date = Date.from(LocalDateTime.of(2011, 3, 10, 14, 0)
                                      .atZone(ZoneId.systemDefault()).toInstant());
-      final String localText = new SimpleDateFormat(pattern, locale).format(date);
+      final String localText = CoreTool.createGregorianDateFormat(pattern, locale).format(date);
       final String usText = new SimpleDateFormat(pattern, Locale.US).format(date);
 
       for(String text : new String[] { localText, usText }) {
          final ExtendedDateFormat format = new ExtendedDateFormat(pattern, locale);
-         final Object expected = parseOrError(() -> new SimpleDateFormat(pattern, locale).parse(text));
+         final Object expected = parseOrError(
+            () -> CoreTool.createGregorianDateFormat(pattern, locale).parse(text));
 
          assertEquals(expected, parseOrError(() -> format.parse(text)), text);
          assertEquals(expected, parseOrError(() -> (Date) format.parseObject(text)), text);
@@ -815,8 +817,9 @@ public class ExtendedDateFormatTest {
    }
 
    // Bug #77458: the java.time path ignored the buddhist and japanese imperial calendars of
-   // the locale, so a formatted date could parse back hundreds of years off. the date is in
-   // the current japanese era since yyyy has no era
+   // the locale, so a formatted date could parse back hundreds of years off. Bug #77605: the
+   // calendar is Gregorian for these locales too, so the year is the Gregorian year and
+   // java.time parses it
    @ParameterizedTest(name = "{0}")
    @CsvSource({ "th-TH", "ja-JP-u-ca-japanese-x-lvariant-JP" })
    public void nonGregorianLocaleRoundTrip(String tag) throws Exception {
@@ -826,9 +829,10 @@ public class ExtendedDateFormatTest {
                                      .atZone(ZoneId.systemDefault()).toInstant());
       final String text = format.format(date);
 
+      assertEquals("2025-03-03", text);
       assertEquals(date, format.parse(text));
       assertEquals(date, format.parseObject(text));
-      assertThrows(IllegalArgumentException.class, () -> format.parse(text, null));
+      assertEquals(date, format.parse(text, null));
    }
 
    // Bug #77458: the shared formatter was keyed by pattern and zone only, so the locale of

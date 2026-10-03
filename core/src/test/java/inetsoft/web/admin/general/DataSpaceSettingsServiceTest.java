@@ -270,6 +270,20 @@ class DataSpaceSettingsServiceTest {
       verify(externalStorageService, times(2)).delete(anyString());
    }
 
+   // a backup made on a th_TH server before #77605 has a Buddhist year, which is older than
+   // the Gregorian stamp of a new backup, so the new backup must not be deleted
+   @Test
+   void legacyBuddhistBackupsSortBeforeNewGregorianBackups() throws Exception {
+      stubBackupCount(2);
+      stubZips("data-25690101000000.zip", "data-20261002000000.zip", "data-25690102000000.zip");
+
+      service.deleteRedundantBackupFiles();
+
+      verify(externalStorageService, times(1)).delete("backup/data-25690101000000.zip");
+      verify(externalStorageService, never()).delete("backup/data-25690102000000.zip");
+      verify(externalStorageService, never()).delete("backup/data-20261002000000.zip");
+   }
+
    // the delete key of a backup, with either separator (#77159 changes it to "/")
    private static String backupKey(String name) {
       return argThat(key -> key != null && key.replace('\\', '/').equals("backup/" + name));
