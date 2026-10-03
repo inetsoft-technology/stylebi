@@ -89,7 +89,14 @@ public final class XIntFragment extends XSwappable {
 
       if(!valid) {
          DEBUG_LOG.debug("Validate swapped data: %s", this);
-         validate0(false);
+
+         getSwapper().waitForMemory();
+
+         synchronized(this) {
+            if(!valid) {
+               validate0(false);
+            }
+         }
       }
    }
 
