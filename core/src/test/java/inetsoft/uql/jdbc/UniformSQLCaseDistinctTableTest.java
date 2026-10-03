@@ -273,67 +273,73 @@ class UniformSQLCaseDistinctTableTest {
    @CsvSource(delimiter = '|', value = {
       // reported shape
       "from \"A\" left join \"a\" on \"A\".id = \"a\".id|" +
-         "from A LEFT OUTER JOIN a ON A.id = a.id|" +
-         "from A LEFT OUTER JOIN a ON A.id = a.id|" +
+         "from \"A\" LEFT OUTER JOIN \"a\" ON \"A\".id = \"a\".id|" +
+         "from \"A\" LEFT OUTER JOIN \"a\" ON \"A\".id = \"a\".id|" +
          "from \"A\" LEFT OUTER JOIN \"a\" ON \"A\".\"id\" = \"a\".\"id\"|" +
          "from \"A\" LEFT OUTER JOIN \"a\" ON \"A\".\"id\" = \"a\".\"id\"|" +
-         "from A, a where A.id = a.id(+)",
+         "from \"A\", \"a\" where \"A\".id = \"a\".id(+)",
       "from \"a\" left join \"A\" on \"a\".id = \"A\".id|" +
-         "from a LEFT OUTER JOIN A ON a.id = A.id|" +
-         "from a LEFT OUTER JOIN A ON a.id = A.id|" +
+         "from \"a\" LEFT OUTER JOIN \"A\" ON \"a\".id = \"A\".id|" +
+         "from \"a\" LEFT OUTER JOIN \"A\" ON \"a\".id = \"A\".id|" +
          "from \"a\" LEFT OUTER JOIN \"A\" ON \"a\".\"id\" = \"A\".\"id\"|" +
          "from \"a\" LEFT OUTER JOIN \"A\" ON \"a\".\"id\" = \"A\".\"id\"|" +
-         "from a, A where a.id = A.id(+)",
+         "from \"a\", \"A\" where \"a\".id = \"A\".id(+)",
       "from \"A\" right join \"a\" on \"A\".id = \"a\".id|" +
-         "from A RIGHT OUTER JOIN a ON A.id = a.id|" +
-         "from A RIGHT OUTER JOIN a ON A.id = a.id|" +
+         "from \"A\" RIGHT OUTER JOIN \"a\" ON \"A\".id = \"a\".id|" +
+         "from \"A\" RIGHT OUTER JOIN \"a\" ON \"A\".id = \"a\".id|" +
          "from \"A\" RIGHT OUTER JOIN \"a\" ON \"A\".\"id\" = \"a\".\"id\"|" +
          "from \"A\" RIGHT OUTER JOIN \"a\" ON \"A\".\"id\" = \"a\".\"id\"|" +
-         "from A, a where A.id (+)= a.id",
+         "from \"A\", \"a\" where \"A\".id (+)= \"a\".id",
       "from \"A\" full outer join \"a\" on \"A\".id = \"a\".id|" +
-         "from A FULL OUTER JOIN a ON A.id = a.id|" +
-         "from A FULL OUTER JOIN a ON A.id = a.id|" +
+         "from \"A\" FULL OUTER JOIN \"a\" ON \"A\".id = \"a\".id|" +
+         "from \"A\" FULL OUTER JOIN \"a\" ON \"A\".id = \"a\".id|" +
          "from \"A\" FULL OUTER JOIN \"a\" ON \"A\".\"id\" = \"a\".\"id\"|" +
          "from \"A\" FULL OUTER JOIN \"a\" ON \"A\".\"id\" = \"a\".\"id\"|" +
-         "from A FULL OUTER JOIN a ON A.id = a.id",
+         "from \"A\" FULL OUTER JOIN \"a\" ON \"A\".id = \"a\".id",
       // inner only: collapsed only with the ANSI join option
       "from \"A\" join \"a\" on \"A\".id = \"a\".id|" +
-         "from A, a where A.id = a.id|" +
-         "from A INNER JOIN a ON A.id = a.id|" +
+         "from \"A\", \"a\" where \"A\".id = \"a\".id|" +
+         "from \"A\" INNER JOIN \"a\" ON \"A\".id = \"a\".id|" +
          "from \"A\", \"a\" where \"A\".\"id\" = \"a\".\"id\"|" +
          "from \"A\" INNER JOIN \"a\" ON \"A\".\"id\" = \"a\".\"id\"|" +
-         "from A, a where A.id = a.id",
+         "from \"A\", \"a\" where \"A\".id = \"a\".id",
       "from \"A\", \"a\" where \"A\".id = \"a\".id|" +
-         "from A, a where A.id = a.id|" +
-         "from A INNER JOIN a ON A.id = a.id|" +
+         "from \"A\", \"a\" where \"A\".id = \"a\".id|" +
+         "from \"A\" INNER JOIN \"a\" ON \"A\".id = \"a\".id|" +
          "from \"A\", \"a\" where \"A\".\"id\" = \"a\".\"id\"|" +
          "from \"A\" INNER JOIN \"a\" ON \"A\".\"id\" = \"a\".\"id\"|" +
-         "from A, a where A.id = a.id",
+         "from \"A\", \"a\" where \"A\".id = \"a\".id",
       // inner and outer joins mixed
       "from \"A\" join \"a\" on \"A\".id = \"a\".id left join b on \"a\".id = b.id|" +
-         "from (A INNER JOIN a ON A.id = a.id ) LEFT OUTER JOIN b ON a.id = b.id|" +
-         "from (A INNER JOIN a ON A.id = a.id ) LEFT OUTER JOIN b ON a.id = b.id|" +
+         "from (\"A\" INNER JOIN \"a\" " +
+         "ON \"A\".id = \"a\".id ) LEFT OUTER JOIN b ON \"a\".id = b.id|" +
+         "from (\"A\" INNER JOIN \"a\" " +
+         "ON \"A\".id = \"a\".id ) LEFT OUTER JOIN b ON \"a\".id = b.id|" +
          "from (\"A\" INNER JOIN \"a\" ON \"A\".\"id\" = \"a\".\"id\" ) LEFT OUTER JOIN \"b\" " +
          "ON \"a\".\"id\" = \"b\".\"id\"|" +
          "from (\"A\" INNER JOIN \"a\" ON \"A\".\"id\" = \"a\".\"id\" ) LEFT OUTER JOIN \"b\" " +
          "ON \"a\".\"id\" = \"b\".\"id\"|" +
-         "from A, a, b where A.id = a.id and a.id = b.id(+)",
+         "from \"A\", \"a\", b where \"A\".id = \"a\".id and \"a\".id = b.id(+)",
       "from \"A\" left join \"a\" on \"A\".id = \"a\".id join b on \"a\".id = b.id|" +
-         "from (A LEFT OUTER JOIN a ON A.id = a.id ) INNER JOIN b ON a.id = b.id|" +
-         "from (A LEFT OUTER JOIN a ON A.id = a.id ) INNER JOIN b ON a.id = b.id|" +
+         "from (\"A\" LEFT OUTER JOIN \"a\" " +
+         "ON \"A\".id = \"a\".id ) INNER JOIN b ON \"a\".id = b.id|" +
+         "from (\"A\" LEFT OUTER JOIN \"a\" " +
+         "ON \"A\".id = \"a\".id ) INNER JOIN b ON \"a\".id = b.id|" +
          "from (\"A\" LEFT OUTER JOIN \"a\" ON \"A\".\"id\" = \"a\".\"id\" ) INNER JOIN \"b\" " +
          "ON \"a\".\"id\" = \"b\".\"id\"|" +
          "from (\"A\" LEFT OUTER JOIN \"a\" ON \"A\".\"id\" = \"a\".\"id\" ) INNER JOIN \"b\" " +
          "ON \"a\".\"id\" = \"b\".\"id\"|" +
-         "from A, a, b where A.id = a.id(+) and a.id = b.id",
+         "from \"A\", \"a\", b where \"A\".id = \"a\".id(+) and \"a\".id = b.id",
       "from b left join \"A\" on b.id = \"A\".id join \"a\" on \"A\".id = \"a\".id|" +
-         "from (b LEFT OUTER JOIN A ON b.id = A.id ) INNER JOIN a ON A.id = a.id|" +
-         "from (b LEFT OUTER JOIN A ON b.id = A.id ) INNER JOIN a ON A.id = a.id|" +
+         "from (b LEFT OUTER JOIN \"A\" " +
+         "ON b.id = \"A\".id ) INNER JOIN \"a\" ON \"A\".id = \"a\".id|" +
+         "from (b LEFT OUTER JOIN \"A\" " +
+         "ON b.id = \"A\".id ) INNER JOIN \"a\" ON \"A\".id = \"a\".id|" +
          "from (\"b\" LEFT OUTER JOIN \"A\" ON \"b\".\"id\" = \"A\".\"id\" ) INNER JOIN \"a\" " +
          "ON \"A\".\"id\" = \"a\".\"id\"|" +
          "from (\"b\" LEFT OUTER JOIN \"A\" ON \"b\".\"id\" = \"A\".\"id\" ) INNER JOIN \"a\" " +
          "ON \"A\".\"id\" = \"a\".\"id\"|" +
-         "from b, A, a where b.id = A.id(+) and A.id = a.id",
+         "from b, \"A\", \"a\" where b.id = \"A\".id(+) and \"A\".id = \"a\".id",
       // unquoted and backtick names (distinct tables on MySQL with case-sensitive names)
       "from A left join a on A.id = a.id|" +
          "from A LEFT OUTER JOIN a ON A.id = a.id|" +
@@ -342,18 +348,18 @@ class UniformSQLCaseDistinctTableTest {
          "from \"A\" LEFT OUTER JOIN \"a\" ON \"A\".\"id\" = \"a\".\"id\"|" +
          "from A, a where A.id = a.id(+)",
       "from `A` left join `a` on `A`.id = `a`.id|" +
-         "from A LEFT OUTER JOIN a ON A.id = a.id|" +
-         "from A LEFT OUTER JOIN a ON A.id = a.id|" +
+         "from \"A\" LEFT OUTER JOIN \"a\" ON \"A\".id = \"a\".id|" +
+         "from \"A\" LEFT OUTER JOIN \"a\" ON \"A\".id = \"a\".id|" +
          "from \"A\" LEFT OUTER JOIN \"a\" ON \"A\".\"id\" = \"a\".\"id\"|" +
          "from \"A\" LEFT OUTER JOIN \"a\" ON \"A\".\"id\" = \"a\".\"id\"|" +
-         "from A, a where A.id = a.id(+)",
+         "from \"A\", \"a\" where \"A\".id = \"a\".id(+)",
       // schema-qualified names
       "from s.\"A\" left join s.\"a\" on s.\"A\".id = s.\"a\".id|" +
-         "from s.A LEFT OUTER JOIN s.a ON s.A.id = s.a.id|" +
-         "from s.A LEFT OUTER JOIN s.a ON s.A.id = s.a.id|" +
+         "from s.\"A\" LEFT OUTER JOIN s.\"a\" ON s.\"A\".id = s.\"a\".id|" +
+         "from s.\"A\" LEFT OUTER JOIN s.\"a\" ON s.\"A\".id = s.\"a\".id|" +
          "from \"s\".\"A\" LEFT OUTER JOIN \"s\".\"a\" ON \"s\".\"A\".\"id\" = \"s\".\"a\".\"id\"|" +
          "from \"s\".\"A\" LEFT OUTER JOIN \"s\".\"a\" ON \"s\".\"A\".\"id\" = \"s\".\"a\".\"id\"|" +
-         "from s.A, s.a where s.A.id = s.a.id(+)",
+         "from s.\"A\", s.\"a\" where s.\"A\".id = s.\"a\".id(+)",
    })
    void caseDistinctTablesStayDistinct(String from, String plain, String ansi, String pg,
                                        String pgAnsi, String oracle) throws Exception
@@ -361,11 +367,11 @@ class UniformSQLCaseDistinctTableTest {
       String text = "select * " + from;
 
       for(String type : PLAIN) {
-         assertGenerated("select * " + plain, text, type);
+         assertGenerated(withQuote("select * " + plain, type), text, type);
       }
 
       for(String type : ANSI) {
-         assertGenerated("select * " + ansi, text, type);
+         assertGenerated(withQuote("select * " + ansi, type), text, type);
       }
 
       assertGenerated("select * " + pg, text, "postgresql");
@@ -412,19 +418,19 @@ class UniformSQLCaseDistinctTableTest {
    }
 
    // with the data source set before parsing (as the SQL query dialog does) the non-PostgreSQL
-   // helpers produce the same text. PostgreSQL is left out, since its parser then stores the
-   // names quoted and outer joins re-list every table (#77518).
+   // helpers produce the same text, apart from the MySQL quote. PostgreSQL is left out, since
+   // its parser then stores the names quoted and outer joins re-list every table (#77518).
    @Test
    void dataSourceBeforeParse() throws Exception {
       String text = "select * from \"A\" left join \"a\" on \"A\".id = \"a\".id join b on " +
          "\"a\".id = b.id";
-      String expected = "select * from (A LEFT OUTER JOIN a ON A.id = a.id ) INNER JOIN b ON " +
-         "a.id = b.id";
+      String expected = "select * from (\"A\" LEFT OUTER JOIN \"a\" ON \"A\".id = \"a\".id ) " +
+         "INNER JOIN b ON \"a\".id = b.id";
 
       for(String type : new String[] { "derby", "derby-ansi", "h2", "h2-ansi", "mysql",
                                        "oracle-ansi" })
       {
-         assertEquals(expected, generate(text, dataSource(type), true), type);
+         assertEquals(withQuote(expected, type), generate(text, dataSource(type), true), type);
       }
    }
 
@@ -450,6 +456,11 @@ class UniformSQLCaseDistinctTableTest {
       assertFalse(generated.contains("JOIN \"A\" ON \"A\"") ||
                      generated.contains("JOIN \"a\" ON \"a\""), generated);
       assertEquals(rows(text), rows(generated), generated);
+   }
+
+   // a quoted table name is generated with the quote of the helper (#77569)
+   private static String withQuote(String expected, String type) {
+      return type.startsWith("mysql") ? expected.replace('"', '`') : expected;
    }
 
    private static void assertGenerated(String expected, String text, String type)

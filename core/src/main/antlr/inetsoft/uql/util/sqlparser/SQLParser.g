@@ -1478,6 +1478,38 @@ private String lastSeg = null;
 // (sum(t."MixedCase")), the column segment as written
 private String funcText = null;
 private String funcQuotedColumn = null;
+// the indexes of the segments written quoted ("a", `a` or [a]) in the last qualified_name
+private int[] qnameQuoted = null;
+// the indexes of the segments written quoted in the qualifier of the last column_ref,
+// and the column_ref text and quoted segments of the last field parsed as a value
+private int[] colrefQuoted = null;
+private String fieldText = null;
+private int[] fieldQuoted = null;
+
+// check if the next token is a quoted identifier, and add the segment index if it is
+void addQuotedSegment(List<Integer> segs, int seg) throws TokenStreamException {
+   int type = LA(1);
+
+   if(type == SPIDENT || type == SPIDENT2 || type == SPIDENT_SQUARE) {
+      segs.add(seg);
+   }
+}
+
+int[] toQuotedSegments(List<Integer> segs) {
+   return segs.isEmpty() ? null : segs.stream().mapToInt(Integer::intValue).toArray();
+}
+
+boolean isQuotedSegment(int[] segs, int seg) {
+   if(segs != null) {
+      for(int i : segs) {
+         if(i == seg) {
+            return true;
+         }
+      }
+   }
+
+   return false;
+}
 
 // get the quoted column segment of an aggregate parsed as the whole expression
 String getFuncQuotedColumn(XExpression exp) {
@@ -2210,6 +2242,8 @@ value_exp_primary_body returns [XExpression exp = null]
            }
            else {
               exp.setValue(tmp, XExpression.FIELD);
+              fieldText = tmp;
+              fieldQuoted = colrefQuoted;
 
               // a qualified quoted column (t."MixedCase"), stored without its quotes
               if(colrefQuote != XExpression.QUOTE_NONE) {
@@ -2490,12 +2524,14 @@ column_ref returns [String colref = ""]
         {String tmp; colrefQuote = XExpression.QUOTE_NONE; colrefColumn = null;}
         :
         // "order" and "simple" might be used as a table name
-        a:ORDER DOT tmp = column_name {colref = a.getText() + "." + quoteColumn(tmp);}
+        a:ORDER DOT tmp = column_name {colref = a.getText() + "." + quoteColumn(tmp); colrefQuoted = null;}
         |
-        b:SIMPLE DOT tmp = column_name {colref = b.getText() + "." + quoteColumn(tmp);}
+        b:SIMPLE DOT tmp = column_name {colref = b.getText() + "." + quoteColumn(tmp); colrefQuoted = null;}
         |
         colref = table_name
         {
+           colrefQuoted = qnameQuoted;
+
            // the last segment of a qualified table_name is the column when no DOT follows
            if(LA(1) != DOT && lastSegQuote != XExpression.QUOTE_NONE && lastSegStart > 0 &&
               lastSeg.length() > 0 && lastSeg.indexOf('.') < 0)
@@ -3534,12 +3570,16 @@ table_name returns [String tname = ""]
         ;
 
 qualified_name returns [String qname = ""]
-        {String tmp = ""; }
+        {String tmp = ""; int seg = 0; List<Integer> qsegs = new ArrayList<>(); }
         :
-        ((catalog_name DOT)=> tmp = catalog_name DOT {qname += quoteDot(tmp) + ".";}
-        ( (~DOT)=> tmp = schema_name DOT {qname+=quoteDot(tmp)+".";}| DOT {qname+=".";})?
+        ((catalog_name DOT)=> {addQuotedSegment(qsegs, seg);}
+        tmp = catalog_name DOT {qname += quoteDot(tmp) + "."; seg++;}
+        ( (~DOT)=> {addQuotedSegment(qsegs, seg);}
+        tmp = schema_name DOT {qname+=quoteDot(tmp)+"."; seg++;}| DOT {qname+="."; seg++;})?
         )?
-        tmp = qualified_id {lastSegStart = qname.length(); lastSegQuote = identQuote; lastSeg = tmp; qname += quoteDot(tmp);}
+        {addQuotedSegment(qsegs, seg);}
+        tmp = qualified_id {lastSegStart = qname.length(); lastSegQuote = identQuote; lastSeg = tmp; qname += quoteDot(tmp);
+                            qnameQuoted = toQuotedSegments(qsegs);}
         ;
 
 catalog_name returns [String catname = ""]
@@ -3604,11 +3644,15 @@ derived_column [JDBCSelection selection, UniformSQL sql]
        {
               String[] parts = Tool.splitWithDelim(tmp, ".", '"');
               StringBuilder builder = new StringBuilder();
+              // the qualifier segments written quoted ("a".id) are stored without their quotes
+              int[] quotedSegs = tmp.equals(fieldText) ? fieldQuoted : null;
 
               for(int i = 0; i < parts.length; i++) {
                 String part = parts[i];
 
-                if(part.startsWith("\"") && part.endsWith("\"")) {
+                if(part.startsWith("\"") && part.endsWith("\"") ||
+                   isQuotedSegment(quotedSegs, i))
+                {
                   builder.append(part);
                 }
                 else {
@@ -3694,7 +3738,7 @@ ansi_joins [UniformSQL sql] returns [String str = ""]
 ;
 
 table_ref [UniformSQL sql] returns [String tbref = ""]
-        {Object name; String alias = "", tmp,as = ""; Token atok = null; XExpression exp; {checkStatus();}}
+        {Object name; String alias = "", tmp,as = ""; Token atok = null; XExpression exp; int[] quoted = null; {checkStatus();}}
         :
      (ansi_joins[null])=> tbref = ansi_joins[sql]
         | name = derived_table
@@ -3720,7 +3764,7 @@ table_ref [UniformSQL sql] returns [String tbref = ""]
         }
         }
         |
-        name = table_name
+        name = table_name {quoted = qnameQuoted;}
         (
          ( a:AS {as = a.getText();})?
          {atok = LT(1);} alias = correlation_name
@@ -3737,20 +3781,27 @@ table_ref [UniformSQL sql] returns [String tbref = ""]
          tbref = name + " " + as + " " + alias;
 
          if(sql != null) {
+                 SelectTable stable;
+
                  if(!alias.equals("")) {
-                        sql.addTable(alias, name);
+                        stable = sql.addTable(alias, name);
                  }
                  else {
-                        sql.addTable(name);
+                        stable = sql.addTable(name);
+                 }
+
+                 // the name segments written quoted, the name is stored without their quotes
+                 if(stable != null) {
+                        stable.setQuotedSegments(quoted);
                  }
          }
          }
         ;
 
 table_ref_nojoin [UniformSQL sql, String op] returns [String tbref = ""]
-        {Object name; String alias = "", tmp,as = ""; Token atok = null; {checkStatus();}}
+        {Object name; String alias = "", tmp,as = ""; Token atok = null; int[] quoted = null; SelectTable stable; {checkStatus();}}
         :
-        name = table_name
+        name = table_name {quoted = qnameQuoted;}
         (
          ( a:AS {as = a.getText();})?
          {atok = LT(1);} alias = correlation_name
@@ -3762,7 +3813,7 @@ table_ref_nojoin [UniformSQL sql, String op] returns [String tbref = ""]
 
          if(sql != null) {
                  if(!alias.equals("")) {
-                        sql.addTable(alias, name);
+                        stable = sql.addTable(alias, name);
 
                         if(op != null && op.trim().length() > 0) {
                            clearTableOps();
@@ -3771,12 +3822,17 @@ table_ref_nojoin [UniformSQL sql, String op] returns [String tbref = ""]
                         }
                  }
                  else {
-                        sql.addTable(name);
+                        stable = sql.addTable(name);
 
                         if(op != null && op.trim().length() > 0) {
                            clearTableOps();
                            setTableOp(sql, name, op.trim());
                         }
+                 }
+
+                 // the name segments written quoted, the name is stored without their quotes
+                 if(stable != null) {
+                        stable.setQuotedSegments(quoted);
                  }
          }
          }

@@ -108,16 +108,16 @@ class QueryGraphModelServiceTypedSqlTest {
    }
 
    // Bug #77544, removing one of two tables whose names differ only in case ("A" and "a")
-   // removes that table, not the first case-insensitive match
+   // removes that table, not the first case-insensitive match. The quotes are kept (#77569)
    @Test
    void removeCaseDistinctTable() throws Exception {
       typeSql("SELECT \"a\".id\n  FROM \"a\", \"A\"\n WHERE \"a\".id > 1");
       removeTable("A");
-      assertEquals("select a.id from a where a.id > 1", save());
+      assertEquals("select \"a\".id from \"a\" where \"a\".id > 1", save());
 
       typeSql("SELECT \"A\".id\n  FROM \"A\", \"a\"\n WHERE \"A\".id > 1");
       removeTable("a");
-      assertEquals("select A.id from A where A.id > 1", save());
+      assertEquals("select \"A\".id from \"A\" where \"A\".id > 1", save());
    }
 
    @Test

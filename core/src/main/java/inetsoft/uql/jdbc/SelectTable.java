@@ -22,6 +22,7 @@ import org.slf4j.LoggerFactory;
 
 import java.awt.*;
 import java.io.Serializable;
+import java.util.Objects;
 
 /**
  * SelectTable used to store table and alias.
@@ -109,7 +110,99 @@ public class SelectTable implements Serializable, Cloneable {
     * Set table name.
     */
    public void setName(Object name) {
+      // the quoted segments describe the old name
+      if(!Objects.equals(this.name, name)) {
+         quotedSegments = null;
+      }
+
       this.name = name;
+   }
+
+   /**
+    * Get the indexes of the name segments that were written as quoted identifiers ("a",
+    * `a` or [a]) in the parsed sql. The name is split at unquoted dots, and the segments
+    * are stored without their quotes unless the parser quoted them again.
+    * @return the 0-based segment indexes, or <tt>null</tt> if no segment is known to be
+    * quoted.
+    */
+   public int[] getQuotedSegments() {
+      return quotedSegments == null ? null : quotedSegments.clone();
+   }
+
+   /**
+    * Set the indexes of the name segments that were written as quoted identifiers.
+    * @param segments the 0-based segment indexes, or <tt>null</tt> if none.
+    */
+   public void setQuotedSegments(int[] segments) {
+      this.quotedSegments = segments == null || segments.length == 0 ? null : segments.clone();
+   }
+
+   /**
+    * Check if a name segment was written as a quoted identifier.
+    * @param index the 0-based segment index.
+    */
+   public boolean isQuotedSegment(int index) {
+      if(quotedSegments != null) {
+         for(int seg : quotedSegments) {
+            if(seg == index) {
+               return true;
+            }
+         }
+      }
+
+      return false;
+   }
+
+   /**
+    * Get the quoted segments as a comma separated list, e.g. "0,2", the form persisted in
+    * the quotedSegments attribute of the table name.
+    * @return the list, or <tt>null</tt> if no segment is quoted.
+    */
+   public String getQuotedSegmentsString() {
+      if(quotedSegments == null) {
+         return null;
+      }
+
+      StringBuilder sb = new StringBuilder();
+
+      for(int seg : quotedSegments) {
+         if(sb.length() > 0) {
+            sb.append(',');
+         }
+
+         sb.append(seg);
+      }
+
+      return sb.toString();
+   }
+
+   /**
+    * Set the quoted segments from a comma separated list, e.g. "0,2". A missing or
+    * malformed value clears them.
+    */
+   public void setQuotedSegmentsString(String segments) {
+      int[] result = null;
+
+      if(segments != null && !segments.trim().isEmpty()) {
+         String[] parts = segments.split(",");
+         result = new int[parts.length];
+
+         try {
+            for(int i = 0; i < parts.length; i++) {
+               result[i] = Integer.parseInt(parts[i].trim());
+
+               if(result[i] < 0) {
+                  result = null;
+                  break;
+               }
+            }
+         }
+         catch(NumberFormatException ex) {
+            result = null;
+         }
+      }
+
+      setQuotedSegments(result);
    }
 
    /**
@@ -187,6 +280,10 @@ public class SelectTable implements Serializable, Cloneable {
             obj.scrollLocation = (Point) this.scrollLocation.clone();
          }
 
+         if(quotedSegments != null) {
+            obj.quotedSegments = quotedSegments.clone();
+         }
+
          return obj;
       }
       catch(Exception ex) {
@@ -198,10 +295,13 @@ public class SelectTable implements Serializable, Cloneable {
 
    private Object name;
    private String alias;
+   private int[] quotedSegments; // indexes of the name segments written quoted
    private Point location;
    private Point scrollLocation;
    private String catalog;
    private String schema;
+   // the value computed before quotedSegments was added, so serialized tables still load
+   private static final long serialVersionUID = 4366616025453353367L;
    private static final Logger LOG =
       LoggerFactory.getLogger(SelectTable.class);
 }

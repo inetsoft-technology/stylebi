@@ -695,6 +695,11 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
             SelectTable stable = addTable(alias, name, loc, scrollLoc);
             stable.setCatalog(Tool.getValue(cnode));
             stable.setSchema(Tool.getValue(snode));
+
+            // the name segments written quoted in the parsed sql (#77569)
+            if(namenode != null && name instanceof String) {
+               stable.setQuotedSegmentsString(Tool.getAttribute(namenode, "quotedSegments"));
+            }
          }
       }
 
@@ -1066,7 +1071,10 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
             writer.println("</sqlName>");
          }
          else {
-            writer.println("<name><![CDATA[" + name + "]]></name>");
+            String quotedSegments = name instanceof String ? table.getQuotedSegmentsString() : null;
+            writer.println("<name" + (quotedSegments != null ?
+               " quotedSegments=\"" + quotedSegments + "\"" : "") +
+               "><![CDATA[" + name + "]]></name>");
          }
 
          writer.println("<issql><![CDATA[" + issql + "]]></issql>");
@@ -2680,21 +2688,46 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
 
       SelectTable[] tables = getSelectTable();
 
-      for(SelectTable selectTable : tables) {
-         String table_alias = selectTable.getAlias();
-         Object table_name = selectTable.getName();
+      // exact match first, so that tables whose names differ only in case (e.g. "A" and
+      // "a") resolve to the right table (#77569)
+      for(boolean ignoreCase : new boolean[] { false, true }) {
+         for(SelectTable selectTable : tables) {
+            String table_alias = selectTable.getAlias();
+            Object table_name = selectTable.getName();
 
-         if(table.equalsIgnoreCase(table_alias)) {
-            return table_alias;
-         }
+            if(ignoreCase ? table.equalsIgnoreCase(table_alias) : table.equals(table_alias)) {
+               return table_alias;
+            }
 
-         if(table.equalsIgnoreCase(table_name + "")) {
-            return table_alias != null && table_alias.length() > 0 ?
-               table_alias : (String) table_name;
+            if(ignoreCase ? table.equalsIgnoreCase(table_name + "") :
+               table.equals(table_name + ""))
+            {
+               return table_alias != null && table_alias.length() > 0 ?
+                  table_alias : (String) table_name;
+            }
          }
       }
 
-      return null;
+      // a qualifier written as the end of a table name with quoted segments, e.g. "a".id
+      // for "S"."a" (#77569)
+      String found = null;
+
+      for(SelectTable selectTable : tables) {
+         Object table_name = selectTable.getName();
+
+         if(selectTable.getQuotedSegments() != null && table_name instanceof String &&
+            table_name.equals(selectTable.getAlias()) &&
+            ((String) table_name).endsWith("." + table))
+         {
+            if(found != null) {
+               return null;
+            }
+
+            found = (String) table_name;
+         }
+      }
+
+      return found;
    }
 
    /**
@@ -2889,6 +2922,12 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
          SelectTable nstable = new SelectTable(alias, name);
          nstable.setCatalog(ostable.getCatalog());
          nstable.setSchema(ostable.getSchema());
+
+         // the quoted segments describe the name, keep them only for the same name
+         if(Tool.equals(ostable.getName(), name)) {
+            nstable.setQuotedSegments(ostable.getQuotedSegments());
+         }
+
          tables.set(index, nstable);
       }
       else {
@@ -2910,6 +2949,12 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
          SelectTable nstable = new SelectTable(alias, name, location, scroll);
          nstable.setCatalog(ostable.getCatalog());
          nstable.setSchema(ostable.getSchema());
+
+         // the quoted segments describe the name, keep them only for the same name
+         if(Tool.equals(ostable.getName(), name)) {
+            nstable.setQuotedSegments(ostable.getQuotedSegments());
+         }
+
          tables.set(index, nstable);
       }
       else {
@@ -3750,6 +3795,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
          Objects.equals(xselect, that.xselect) &&
          Objects.equals(xselect2, that.xselect2) &&
          Objects.equals(tables, that.tables) &&
+         equalsQuotedSegments(tables, that.tables) &&
          Objects.equals(fields, that.fields) &&
          Objects.equals(orderByList, that.orderByList) &&
          Arrays.equals(groups, that.groups) &&
@@ -3762,6 +3808,28 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
          Objects.equals(expressions, that.expressions) &&
          Objects.equals(orderDBFields, that.orderDBFields) &&
          Objects.equals(groupDBFields, that.groupDBFields);
+   }
+
+   /**
+    * Check if the tables at each index have the same quoted name segments.
+    */
+   private static boolean equalsQuotedSegments(Vector<SelectTable> tables1,
+                                               Vector<SelectTable> tables2)
+   {
+      // different tables are told apart by the table comparison
+      if(tables1 == null || tables2 == null || tables1.size() != tables2.size()) {
+         return true;
+      }
+
+      for(int i = 0; i < tables1.size(); i++) {
+         if(!Arrays.equals(tables1.get(i).getQuotedSegments(),
+                           tables2.get(i).getQuotedSegments()))
+         {
+            return false;
+         }
+      }
+
+      return true;
    }
 
    /**

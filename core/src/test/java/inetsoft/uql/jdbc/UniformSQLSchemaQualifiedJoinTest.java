@@ -170,9 +170,10 @@ class UniformSQLSchemaQualifiedJoinTest {
          // one side qualified as written in FROM
          Arguments.of("select * from s.a left join s.b on s.a.id = b.id",
                       "s.a *= s.b", "select * from s.a LEFT OUTER JOIN s.b ON s.a.id = b.id"),
-         // quoted names
+         // quoted names keep their quotes (#77569)
          Arguments.of("select * from \"s\".\"a\" left join \"s\".\"b\" on \"a\".id = \"b\".id",
-                      "s.a *= s.b", "select * from s.a LEFT OUTER JOIN s.b ON a.id = b.id"),
+                      "s.a *= s.b",
+                      "select * from \"s\".\"a\" LEFT OUTER JOIN \"s\".\"b\" ON \"a\".id = \"b\".id"),
          // catalog.schema.table qualified by the table or by schema.table
          Arguments.of("select * from c.s.a left join c.s.b on a.id = b.id",
                       "c.s.a *= c.s.b", "select * from c.s.a LEFT OUTER JOIN c.s.b ON a.id = b.id"),

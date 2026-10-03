@@ -111,8 +111,8 @@ class UniformSQLQualifiedQuotedColumnTest {
       // a backtick
       assertEquals("select t.\"MixedCase\" from t where t.\"MixedCase\" = 1",
                    regenerate("select t.`MixedCase` from t where t.`MixedCase` = 1"));
-      // the table quotes are still dropped on a case-folding database (#77569)
-      assertEquals("select T.\"MixedCase\" from T where T.\"MixedCase\" = 1",
+      // the table quotes are kept too (#77569)
+      assertEquals("select \"T\".\"MixedCase\" from \"T\" where \"T\".\"MixedCase\" = 1",
                    regenerate("select \"T\".\"MixedCase\" from \"T\" where \"T\".\"MixedCase\" = 1"));
       // a qualifier that doesn't resolve to a from table
       assertEquals("select \"Schema\".\"Table\".\"Col\" from \"Schema\".\"Table\" t",
@@ -747,13 +747,14 @@ class UniformSQLQualifiedQuotedColumnTest {
                    aggregate("h2", "select sum(\"q\".\"MixedCase\") from t \"q\"", TWIN_FIRST));
       assertEquals("select sum(Q.\"MixedCase\") from t Q",
                    aggregate("h2", "select sum(\"Q\".\"MixedCase\") from t \"Q\"", TWIN_FIRST));
-      assertEquals("select sum(T.\"MixedCase\") from T",
+      // a quoted table keeps its quotes (#77569)
+      assertEquals("select sum(\"T\".\"MixedCase\") from \"T\"",
                    aggregate("h2", "select sum(\"T\".\"MixedCase\") from \"T\"", TWIN_FIRST));
       assertEquals("select q.id, sum(q.\"MixedCase\") from T q group by q.id",
                    aggregate("oracle", "select q.id, sum(\"q\".\"MixedCase\") from t q group by q.id", TWIN_FIRST));
       assertEquals("select sum(t.\"MixedCase\") from T t",
                    aggregate("oracle", "select sum(\"t\".\"MixedCase\") from t", TWIN_FIRST));
-      assertEquals("select sum(T.\"MixedCase\") from T",
+      assertEquals("select sum(\"T\".\"MixedCase\") from \"T\"",
                    aggregate("oracle", "select sum(\"T\".\"MixedCase\") from \"T\"", TWIN_FIRST));
    }
 

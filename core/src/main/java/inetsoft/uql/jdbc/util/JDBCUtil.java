@@ -185,6 +185,12 @@ public class JDBCUtil {
                continue;
             }
 
+            // a name written with quoted segments keeps its case (#77569)
+            if(tables[i].getQuotedSegments() != null) {
+               sql.addTable(tables[i]);
+               continue;
+            }
+
             XNode tnode = SQLTypes.getSQLTypes(xds).getQualifiedTableNode(
                name.toString(),
                "true".equals(root.getAttribute("hasCatalog")),

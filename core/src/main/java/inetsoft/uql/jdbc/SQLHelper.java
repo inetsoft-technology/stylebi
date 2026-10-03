@@ -938,8 +938,14 @@ public class SQLHelper implements KeywordProvider {
          }
          else {
             String quote = getQuote();
+            String qname = quoteQuotedSegments(table, namestr);
 
-            fixTableName(namestr, sb, quote, true);
+            if(qname != null) {
+               sb.append(qname);
+            }
+            else {
+               fixTableName(namestr, sb, quote, true);
+            }
          }
       }
 
@@ -3151,7 +3157,9 @@ public class SQLHelper implements KeywordProvider {
       String tname = left ? join.getTable1(uniformSql) : join.getTable2(uniformSql);
       int index = uniformSql.getJoinTableIndex(tname);
       SelectTable stable = (index >= 0) ? uniformSql.getSelectTable(index) : null;
-      String table = stable != null ? generateTableClause(stable) : quoteTableName(tname);
+      String qname = stable != null ? null : quoteQuotedSegments(tname);
+      String table = stable != null ? generateTableClause(stable) :
+         qname != null ? qname : quoteTableName(tname);
 
       result[0] = table;
       result[1] = stable;
@@ -4313,6 +4321,11 @@ public class SQLHelper implements KeywordProvider {
     */
    protected String getQuotedTableName(String name, boolean selectClause) {
       String quote = getQuote();
+      String qname = quoteQuotedSegments(name);
+
+      if(qname != null) {
+         return qname;
+      }
 
       if(name.contains(quote)) {
          return name;
@@ -4443,6 +4456,196 @@ public class SQLHelper implements KeywordProvider {
       return sb.toString();
    }
 
+   /**
+    * Quote the segments of a table name that were written as quoted identifiers ("a", `a`
+    * or [a]) in the parsed sql. The parser stores them without their quotes, so a quoted
+    * lowercase name would otherwise be read as another table on a database that folds
+    * unquoted names to uppercase (#77569).
+    * @param name a table name, or the table name used as a qualifier.
+    * @return the name with its quoted segments quoted, or <tt>null</tt> if the name is not
+    * the name of exactly one table with quoted segments.
+    */
+   private String quoteQuotedSegments(String name) {
+      if(name == null || uniformSql == null) {
+         return null;
+      }
+
+      SelectTable found = null;
+      int count = 0;
+
+      for(int i = 0; i < uniformSql.getTableCount(); i++) {
+         SelectTable table = uniformSql.getSelectTable(i);
+
+         if(!name.equals(table.getName())) {
+            continue;
+         }
+
+         // a table without an alias is named by its name
+         if(name.equals(table.getAlias())) {
+            found = table;
+            count = 1;
+            break;
+         }
+
+         found = table;
+         count++;
+      }
+
+      return count == 1 ? quoteQuotedSegments(found, name) : null;
+   }
+
+   /**
+    * Quote the name of a table, keeping the quotes of the segments that were written as
+    * quoted identifiers ("a", `a` or [a]) in the parsed sql (#77569).
+    * @param table the table.
+    * @return the quoted name, or <tt>null</tt> if no segment of the name was written quoted,
+    * which leaves the name to the usual table name quoting.
+    */
+   public String quoteQuotedSegments(SelectTable table) {
+      return table != null && table.getName() instanceof String ?
+         quoteQuotedSegments(table, (String) table.getName()) : null;
+   }
+
+   /**
+    * Quote the segments of a table name that were written as quoted identifiers in the
+    * parsed sql. The other segments are quoted as by quoteName.
+    * @param table the table.
+    * @param name the table name.
+    * @return the name with its quoted segments quoted, or <tt>null</tt> if no segment
+    * needs quotes, which leaves the name to the usual table name quoting.
+    */
+   private String quoteQuotedSegments(SelectTable table, String name) {
+      String quote = getQuote();
+
+      if(table == null || table.getQuotedSegments() == null || quote == null ||
+         quote.isEmpty() || !name.equals(table.getName()))
+      {
+         return null;
+      }
+
+      List<String> segs = splitTableName(name);
+      StringBuilder sb = new StringBuilder();
+      boolean quoted = false;
+
+      for(int i = 0; i < segs.size(); i++) {
+         String seg = segs.get(i);
+
+         if(i > 0) {
+            sb.append('.');
+         }
+
+         // a segment the parser quoted again (e.g. "My A" or any name on a case-sensitive
+         // helper) is already stored quoted
+         if(seg.isEmpty() || isQuotedTableSegment(seg) || seg.contains(quote)) {
+            sb.append(seg);
+         }
+         else if(table.isQuotedSegment(i)) {
+            sb.append(quote).append(seg).append(quote);
+            quoted = true;
+         }
+         else if(XUtil.isSpecialName(seg, true, this)) {
+            sb.append(quote).append(seg).append(quote);
+         }
+         else {
+            sb.append(seg);
+         }
+      }
+
+      return quoted ? sb.toString() : null;
+   }
+
+   /**
+    * Quote a column qualified by the last segments of the name of a table with quoted
+    * segments, e.g. a.id for "S"."a" written as "a".id (#77569).
+    * @param tname the table of the column.
+    * @param path the column.
+    * @return the quoted column, or <tt>null</tt> if the qualifier is not the end of the table
+    * name, or none of its segments was written quoted.
+    */
+   private String quoteQualifierSuffix(String tname, String path) {
+      int index = uniformSql.getTableIndex(tname);
+      SelectTable table = index >= 0 ? uniformSql.getSelectTable(index) : null;
+
+      if(table == null || table.getQuotedSegments() == null || !tname.equals(table.getName()) ||
+         !tname.equals(table.getAlias()))
+      {
+         return null;
+      }
+
+      List<String> segs = splitTableName(tname);
+
+      for(int start = 1; start < segs.size(); start++) {
+         String qualifier = String.join(".", segs.subList(start, segs.size()));
+         String column = path.startsWith(qualifier + ".") ?
+            path.substring(qualifier.length() + 1) : null;
+
+         // the qualifier is not another table, and the rest is one column segment
+         if(column == null || column.isEmpty() || splitTableName(column).size() > 1 ||
+            uniformSql.getTableIndex(qualifier) >= 0)
+         {
+            continue;
+         }
+
+         String quote = getQuote();
+         StringBuilder sb = new StringBuilder();
+         boolean quoted = false;
+
+         for(int i = start; i < segs.size(); i++) {
+            String seg = segs.get(i);
+            boolean quoteSeg = table.isQuotedSegment(i) && !seg.isEmpty() &&
+               !isQuotedTableSegment(seg) && !seg.contains(quote);
+            sb.append(quoteSeg ? quote + seg + quote : seg).append('.');
+            quoted = quoted || quoteSeg;
+         }
+
+         return quoted ? sb + XUtil.quoteNameSegment(column, this) : null;
+      }
+
+      return null;
+   }
+
+   /**
+    * Split a table name at the dots that are not inside a quoted segment.
+    */
+   private static List<String> splitTableName(String name) {
+      List<String> segs = new ArrayList<>();
+      int start = 0;
+      char close = 0;
+
+      for(int i = 0; i < name.length(); i++) {
+         char c = name.charAt(i);
+
+         if(close != 0) {
+            if(c == close) {
+               close = 0;
+            }
+         }
+         else if(c == '"' || c == '`') {
+            close = c;
+         }
+         else if(c == '[') {
+            close = ']';
+         }
+         else if(c == '.') {
+            segs.add(name.substring(start, i));
+            start = i + 1;
+         }
+      }
+
+      segs.add(name.substring(start));
+      return segs;
+   }
+
+   /**
+    * Check if a table name segment is quoted.
+    */
+   private static boolean isQuotedTableSegment(String seg) {
+      int last = seg.length() - 1;
+      return last > 0 && (seg.charAt(0) == '"' && seg.charAt(last) == '"' ||
+         seg.charAt(0) == '`' && seg.charAt(last) == '`' ||
+         seg.charAt(0) == '[' && seg.charAt(last) == ']');
+   }
+
    protected void processCatalog(StringBuilder sb, String catalog,
                                  boolean selectClause) {
       sb.append(XUtil.quoteAlias(catalog, this));
@@ -4541,6 +4744,13 @@ public class SQLHelper implements KeywordProvider {
                cpart = path.substring(alias.length() + 1);
             }
             else {
+               // a qualifier written as the end of the table name, e.g. "a".id for "S"."a"
+               String qpath = quoteQualifierSuffix(tname, path);
+
+               if(qpath != null) {
+                  return qpath;
+               }
+
                tpart = null;
                cpart = path;
             }
@@ -4628,7 +4838,8 @@ public class SQLHelper implements KeywordProvider {
          Object tname = uniformSql.getTableName(table);
 
          if(table.equals(tname)) {
-            return quoteTableName(table, selectClause) + "." +
+            String qtable = quoteQuotedSegments(table);
+            return (qtable != null ? qtable : quoteTableName(table, selectClause)) + "." +
                XUtil.quoteAlias(col, this);
          }
          else if(uniformSql.getTableIndex(table) >= 0) {

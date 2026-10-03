@@ -769,6 +769,7 @@ public class JoinQuery extends AssetQuery {
          stable.setSchema(subTable.getSchema());
          stable.setCatalog(subTable.getCatalog());
          stable.setName(subTable.getName());
+         stable.setQuotedSegments(subTable.getQuotedSegments());
       }
 
       nquery.setVPMEnabled(box.isVPMEnabled());
