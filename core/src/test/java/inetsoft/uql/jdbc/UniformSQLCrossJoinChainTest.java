@@ -133,6 +133,11 @@ class UniformSQLCrossJoinChainTest {
       "on d.id = c.id join e on d.id = e.id and c.id > 1" + FALLBACK_GROUP;
    private static final String LEFT_FIRST_WHERE_JOIN = COLS6 + "from d left join c on d.id = c.id " +
       "cross join e" + FALLBACK_GROUP + " where e.id = c.id";
+   // the later join names the alias c, which is table d, the preserved side of the LEFT
+   // join, so it's accepted, written first when SQLHelper leaves the text order
+   private static final String LEFT_JOIN_SWAPPED_ALIAS = "select a.id, b.id, c.id, d.id, e.id, " +
+      "x.id from d c left join c d on c.id = d.id join e on e.id = c.id, ((a join b on " +
+      "a.id = b.id join x on b.id = a.id))";
    private static final String RIGHT_FIRST_IN_SUBQUERY = "select x.id from x cross join a " +
       "cross join b where exists (select 1 from c right join d on c.id = d.id where d.id = x.id)";
 
@@ -635,6 +640,13 @@ class UniformSQLCrossJoinChainTest {
             "e.id = c.id cross join p cross join q cross join r",
          "select x.id from x cross join p cross join q where exists (select 1 from d left join " +
             "c on d.id = c.id join e on e.id = c.id where d.id = x.id)",
+         // the right side named through an alias, a swapped alias or another case
+         "select e.id, p.id, q.id, r.id, t1.id, t2.id from d t1 left join c t2 on t1.id = t2.id " +
+            "join e on e.id = t2.id, ((p join q on p.id = q.id join r on p.k = q.k))",
+         "select c.id, d.id, e.id, p.id, q.id, r.id from d c left join c d on c.id = d.id join e " +
+            "on e.id = d.id, ((p join q on p.id = q.id join r on p.k = q.k))",
+         B7_COLS + "from d left join c on d.id = c.id join e on e.id = C.ID, ((p join q on " +
+            "p.id = q.id join r on p.k = q.k))",
          // accepted in review r4-r6, they keep the text order, but a later join names the
          // right side
          LEFT_FIRST_CHAIN_LEFT,
@@ -1066,6 +1078,7 @@ class UniformSQLCrossJoinChainTest {
          LEFT_FIRST_EXISTS,
          LEFT_FIRST_FALLBACK,
          LEFT_FIRST_NESTED_FALLBACK,
+         LEFT_JOIN_SWAPPED_ALIAS,
          LEFT_FIRST_LATER_INNER,
          LEFT_FIRST_LATER_LEFT,
          LEFT_FIRST_LATER_FILTER,
