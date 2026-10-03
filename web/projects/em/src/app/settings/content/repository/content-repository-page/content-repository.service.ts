@@ -788,6 +788,23 @@ export class ContentRepositoryService implements OnDestroy {
                warning = "_#(js:em.folder.exist)" + toFolder.path;
             }
          }
+         else if(!warning &&
+            ((curDataType & RepositoryEntryType.DATA_SOURCE) === RepositoryEntryType.DATA_SOURCE ||
+            (curDataType & RepositoryEntryType.DATA_SOURCE_FOLDER) === RepositoryEntryType.DATA_SOURCE_FOLDER))
+         {
+            const name = curPath.lastIndexOf("/") != -1 ?
+               curPath.substring(curPath.lastIndexOf("/") + 1) : curPath;
+            // the data source root folder path is "/"
+            const npath = toFolder.path === "/" ? name : toFolder.path + "/" + name;
+
+            // a drop on the node's own folder is a no-op, the node itself is not a duplicate
+            if(npath !== curPath && !(toFolder.children && toFolder.children.indexOf(fromNode) >= 0) &&
+               this.isDuplicatedName(curPath, npath, toFolder))
+            {
+               warning = Tool.formatCatalogString(
+                  "_#(js:common.datasource.moveTargetExists)", [npath]);
+            }
+         }
 
          if(warning) {
             this.showMessage(warning);

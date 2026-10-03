@@ -230,6 +230,12 @@ public class DatabaseDatasourcesService {
          }
 
          if(!Objects.requireNonNull(newPath).equals(path)) {
+            // renaming onto a path used by a data source or another folder would merge with it
+            if(dataSourceRegistry.isDataSourcePathInUse(newPath)) {
+               throw new MessageException(Catalog.getCatalog(principal).getString(
+                  "common.datasource.moveTargetExists", newPath));
+            }
+
             List<String> childrenSources = new ArrayList<>();
             DependencyTransformer.prepareChildrenSources(path, childrenSources, repository);
             RenameDependencyInfo dinfo = DependencyTransformer.createDependencyInfo(

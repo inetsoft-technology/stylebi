@@ -42,6 +42,7 @@ import {ExpandStringDirective} from "../../../widget/expand-string/expand-string
 import {AddFolderRequest} from "../commands/add-folder-request";
 import {CheckDuplicateRequest} from "../commands/check-duplicate-request";
 import {CheckDuplicateResponse} from "../commands/check-duplicate-response";
+import {CheckMoveDuplicateRequest} from "../commands/check-move-duplicate-request";
 import {SearchCommand} from "../commands/search-command";
 import {AddFolderConfig} from "../data-folder-browser/data-folder-browser.component";
 import {PortalDataType} from "../data-navigation-tree/portal-data-type";
@@ -900,13 +901,32 @@ export class DataDatasourceBrowserComponent extends CommandProcessor implements 
             !targetFolder.startsWith(item.path));
 
       if(datasources.length > 0) {
-         ComponentTool.showConfirmDialog(this.modalService, "_#(js:Confirm)",
-            "_#(js:em.reports.drag.confirm)").then((buttonClicked) =>
+         const checkMoveDuplicateRequest: CheckMoveDuplicateRequest = {
+            items: datasources
+         };
+
+         // the root folder is sent as no path
+         if(targetFolder && targetFolder !== "/") {
+            checkMoveDuplicateRequest.path = targetFolder;
+         }
+
+         this.httpClient.post<CheckDuplicateResponse>(DATASOURCE_MOVE_URI + "/checkDuplicate",
+            checkMoveDuplicateRequest).subscribe((res: CheckDuplicateResponse) =>
          {
-            if(buttonClicked === "ok") {
-               this.datasourceService.moveDataSourcesToFolder(datasources, targetFolder,
-                  () => this.refreshAllData(this.currentFolderPathString));
+            if(res.duplicate) {
+               ComponentTool.showMessageDialog(this.modalService, "_#(js:Error)",
+                  "_#(js:common.duplicateName)");
+               return;
             }
+
+            ComponentTool.showConfirmDialog(this.modalService, "_#(js:Confirm)",
+               "_#(js:em.reports.drag.confirm)").then((buttonClicked) =>
+            {
+               if(buttonClicked === "ok") {
+                  this.datasourceService.moveDataSourcesToFolder(datasources, targetFolder,
+                     () => this.refreshAllData(this.currentFolderPathString));
+               }
+            });
          });
       }
    }

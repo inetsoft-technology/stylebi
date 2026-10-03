@@ -886,6 +886,26 @@ public class DataSourceRegistry implements MessageListener {
    }
 
    /**
+    * Checks if a registry path is already used by a data source (including an additional
+    * connection) or by a data source folder in the current organization. A data source and a
+    * folder must never share a path: the data sources in the folder would become additional
+    * connections of the data source. The path is compared exactly (case-sensitive) and, unlike
+    * {@link #getDataSource(String)}, a globally shared data source of the host organization is
+    * not taken into account.
+    *
+    * @param path the registry path, e.g. "F/P".
+    *
+    * @return {@code true} if a data source or a data source folder exists at the path.
+    */
+   public boolean isDataSourcePathInUse(String path) {
+      return path != null &&
+         (containObject(new AssetEntry(
+            AssetRepository.QUERY_SCOPE, AssetEntry.Type.DATA_SOURCE, path, null)) ||
+          containObject(new AssetEntry(
+             AssetRepository.QUERY_SCOPE, AssetEntry.Type.DATA_SOURCE_FOLDER, path, null)));
+   }
+
+   /**
     * Gets the name of a JDBC additional connection from its path, or null if the path is not
     * that of a JDBC additional connection.
     */
