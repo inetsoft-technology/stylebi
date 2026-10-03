@@ -2091,9 +2091,10 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
     * Get the table column of a group by field that also names a select alias. A database
     * that folds unquoted names (postgresql, snowflake, exasol) resolves a group by name to a
     * table column before a select alias (Bug #77616). Other helpers keep the field as before.
+    * @param quoted <tt>true</tt> if the field was written as a quoted identifier.
     * @return the column path, or <tt>null</tt> if not a column or not an alias.
     */
-   private String getGroupByColumn(String field) {
+   private String getGroupByColumn(String field, boolean quoted) {
       String path = getUnquotedColumnPath(field);
 
       if(path != null) {
@@ -2101,7 +2102,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
       }
 
       // a quoted name, stored without its quotes, is the column of that exact name
-      if(!isQuotedField(field) || field.indexOf('.') >= 0 || dataSource == null ||
+      if(!quoted || field.indexOf('.') >= 0 || dataSource == null ||
          !getSQLHelper().isCaseSensitive() || getSelection().getAliasColumn(field) == null)
       {
          return null;
@@ -2236,6 +2237,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
       for(int i = 0; i < groupBy.length; i++) {
          quotes[i] = getGroupQuote(i);
       }
+
       Boolean wildcard = null;
       String alias;
       boolean changed = false;
@@ -2269,7 +2271,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
                getOrdinal(groupBy[i], false) <= getSelection().getColumnCount();
          }
          else if(groupBy[i] instanceof String &&
-            (alias = getGroupByColumn((String) groupBy[i])) != null)
+            (alias = getGroupByColumn((String) groupBy[i], quotes[i] != null)) != null)
          {
             // a group by name is a table column before it is a select alias
             groupBy[i] = alias;
