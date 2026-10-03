@@ -30,7 +30,8 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
-import java.security.Principal;
+import java.util.Arrays;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -153,10 +154,17 @@ class XBigObjectColumnSwapPriorityTest {
       throws Exception
    {
       Class<?> threadClass = Class.forName(XSwapper.class.getName() + "$XSwapperThread");
-      Constructor<?> constructor =
-         threadClass.getDeclaredConstructor(XSwapper.class, Principal.class);
+      // don't depend on the parameters after the outer instance, pass null for them
+      List<Constructor<?>> constructors = Arrays.stream(threadClass.getDeclaredConstructors())
+         .filter(c -> c.getParameterCount() > 0 && c.getParameterTypes()[0] == XSwapper.class)
+         .toList();
+      assertEquals(1, constructors.size(),
+                   "expected one XSwapperThread constructor taking the swapper, found " + constructors);
+      Constructor<?> constructor = constructors.get(0);
       constructor.setAccessible(true);
-      GroupedThread thread = (GroupedThread) constructor.newInstance(swapper, null);
+      Object[] args = new Object[constructor.getParameterCount()];
+      args[0] = swapper;
+      GroupedThread thread = (GroupedThread) constructor.newInstance(args);
       Method register = threadClass.getDeclaredMethod("register", XSwappable.class);
       register.setAccessible(true);
 
