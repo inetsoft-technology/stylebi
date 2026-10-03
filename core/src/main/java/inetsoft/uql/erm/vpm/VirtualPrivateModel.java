@@ -214,8 +214,14 @@ public class VirtualPrivateModel extends VpmObject {
          return 0;
       }
 
-      String[] segments1 = splitTableName(tbl1);
-      String[] segments2 = splitTableName(tbl2);
+      return getTableMatch(splitTableName(tbl1), splitTableName(tbl2));
+   }
+
+   /**
+    * Get how closely two tables, {@link #splitTableName(String) split} into segments, match.
+    * @see #getTableMatch(String, String)
+    */
+   static int getTableMatch(String[] segments1, String[] segments2) {
       int count = Math.min(segments1.length, segments2.length);
 
       for(int i = 1; i <= count; i++) {
