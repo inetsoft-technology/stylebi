@@ -49,7 +49,10 @@ import static org.mockito.Mockito.mock;
  * is optional. Every refusal of the joins inside still applies. A join with no join
  * condition followed by a RIGHT or FULL join (a join b right join c on ..) is read as
  * (a join b) right join c by MySQL and SQLite, but was recorded as a join (b right join c),
- * so it now fails the parse, including after a cross join chain.
+ * so it now fails the parse, including after a cross join chain. In a from clause with a
+ * cross join chain or a parenthesized join with no join after it, a RIGHT or FULL join in a
+ * group after another from item fails the parse too, since SQLite reads its regenerated sql
+ * differently.
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class, PluginsTestConfiguration.class,
@@ -166,7 +169,17 @@ class UniformSQLCrossJoinChainTest {
                          "ON t.id = c.id , a"),
          // an ON-less join followed by a LEFT join is unchanged
          Arguments.of(COLS3 + "from a join b left join c on b.id = c.id", "b.id *= c.id",
-                      COLS3 + "from b LEFT OUTER JOIN c ON b.id = c.id , a")
+                      COLS3 + "from b LEFT OUTER JOIN c ON b.id = c.id , a"),
+         // a RIGHT or FULL join at the start of the from clause, or nested in a join with a
+         // join condition, is written in place after a parenthesized join (review r2)
+         Arguments.of(COLS3 + "from ((a join b on a.id = b.id)) right join c on b.id = c.id",
+                      "a.id = b.id; b.id =* c.id",
+                      COLS3 + "from (a INNER JOIN b ON a.id = b.id ) RIGHT OUTER JOIN c ON b.id = c.id"),
+         Arguments.of(COLS4 + "from ((a join b on a.id = b.id)) inner join (c full join d " +
+                         "on c.id = d.id) on b.id = c.id",
+                      "a.id = b.id; c.id *=* d.id; b.id = c.id",
+                      COLS4 + "from (a INNER JOIN b ON a.id = b.id ) INNER JOIN (c FULL OUTER JOIN d " +
+                         "ON c.id = d.id ) ON b.id = c.id")
       );
    }
 
@@ -221,7 +234,8 @@ class UniformSQLCrossJoinChainTest {
       COLS4 + "from ((a join b on a.id = b.id)) left join ((c join d on c.id = d.id)) on b.id = c.id",
       COLS3 + "from a join (b right join c on b.id = c.id)",
       COLS3 + "from a join ((b right join c on b.id = c.id))",
-      "select a.id, c.id, t.id from a join ((select id from b) t right join c on t.id = c.id)");
+      "select a.id, c.id, t.id from a join ((select id from b) t right join c on t.id = c.id)",
+      COLS3 + "from ((a join b on a.id = b.id)) right join c on b.id = c.id");
 
    @Test
    void oracleWritesTheOuterJoinAfterACrossJoinInWhere() throws Exception {
@@ -259,6 +273,8 @@ class UniformSQLCrossJoinChainTest {
          "select * from a cross join b on a.id = b.id",
          "select * from a cross join (b join c on b.id = c.id)",
          "select * from (a join b on a.id = b.id) x",
+         // no join follows a parenthesized join operand
+         COLS5 + "from a join b on a.id = b.id join (c right join d on c.id = d.id) cross join e",
          // a doubly parenthesized derived table doesn't parse as a join operand
          "select a.id, c.id, t.id from a join ((select id from b)) t right join c on t.id = c.id"
       );
@@ -294,12 +310,62 @@ class UniformSQLCrossJoinChainTest {
             "right join d on t.id = d.id))",
          // refused though every reading is a x b x (c right join d): the R join recorded
          // inside the parenthesized operand of the second join is seen by the first
-         COLS4 + "from a join b join (c right join d on c.id = d.id)"
+         COLS4 + "from a join b join (c right join d on c.id = d.id)",
+         // an explicitly parenthesized operand of an earlier join doesn't make a later
+         // operand explicit (review r2 m5)
+         "select a.id, b.id, c.id, e.id, t.id from a join (b right join c on b.id = c.id) " +
+            "on a.id = b.id join (select id from d) t right join e on t.id = e.id",
+         "select a.id, b.id, c.id, e.id, t.id from a join ((b right join c on b.id = c.id)) " +
+            "on a.id = b.id join (select id from d) t right join e on t.id = e.id",
+         "select a.id, b.id, c.id, e.id from a join (b right join c on b.id = c.id) " +
+            "on a.id = b.id join d right join e on d.id = e.id"
+      );
+   }
+
+   /**
+    * A RIGHT or FULL join in a group of joined tables after another from item, a comma
+    * item or the parenthesized operand of a join with no join condition, in a from clause
+    * with a cross join chain or a parenthesized join with no join after it (review r2).
+    * SQLHelper writes the group as a comma item after another group, a INNER JOIN b ON ..
+    * , c RIGHT OUTER JOIN d ON .., or moves the tables before it after it, and SQLite
+    * joins a comma and a JOIN left to right, so the regenerated sql returns different
+    * rows there. These failed to parse before, and still do.
+    */
+   static Stream<String> rightJoinAfterFromItem() {
+      return Stream.of(
+         // the reviewer's shapes
+         COLS5 + "from a join b on a.id = b.id cross join e join (c right join d on c.id = d.id)",
+         COLS5 + "from a cross join e join b on a.id = b.id join (c right join d on c.id = d.id)",
+         COLS4 + "from ((a join b on a.id = b.id)) join (c right join d on c.id = d.id)",
+         COLS4 + "from a join b on a.id = b.id, (c right join d on c.id = d.id)",
+         COLS4 + "from (a join b on a.id = b.id), (c full join d on c.id = d.id)",
+         // the parenthesized join in another comma item
+         COLS5 + "from a join b on a.id = b.id join (c right join d on c.id = d.id), " +
+            "((e join x on e.id = x.id))",
+         // a comma item with a RIGHT or FULL join that is not parenthesized
+         COLS5 + "from a cross join e cross join x, c right join d on c.id = d.id",
+         COLS4 + "from ((a join b on a.id = b.id)), c right join d on c.id = d.id",
+         COLS5 + "from (a join b on a.id = b.id), (c join d on c.id = d.id) full join e " +
+            "on d.id = e.id",
+         // a group with an inner join before the RIGHT join, and two RIGHT join groups
+         COLS5 + "from (a join b on a.id = b.id), ((c join d on c.id = d.id) right join e " +
+            "on d.id = e.id)",
+         COLS4 + "from (a right join b on a.id = b.id), (c right join d on c.id = d.id)",
+         // refused though SQLHelper writes the group first: no join of an earlier from item
+         // has a join condition. These failed to parse before
+         COLS4 + "from a cross join b join (c right join d on c.id = d.id)",
+         COLS4 + "from x, ((c right join d on c.id = d.id))",
+         COLS4 + "from a cross join b, (c right join d on c.id = d.id)",
+         // in subqueries
+         "select x.id from x where exists (select 1 from ((a join b on a.id = b.id)), " +
+            "(c right join d on c.id = d.id))",
+         "select t.id from (select a.id from a join b on a.id = b.id cross join e " +
+            "join (c right join d on c.id = d.id)) t"
       );
    }
 
    @ParameterizedTest
-   @MethodSource({ "refused", "onlessJoinBeforeRightJoin" })
+   @MethodSource({ "refused", "onlessJoinBeforeRightJoin", "rightJoinAfterFromItem" })
    void refusedShapeFailsParse(String text) {
       for(String type : DATA_SOURCES) {
          assertRefused(text, dataSource(type), type);
@@ -316,6 +382,14 @@ class UniformSQLCrossJoinChainTest {
       Exception ex = assertThrows(Exception.class, () -> parse(text, dataSource("mysql")));
       assertTrue(ex.getMessage().contains(
          "Unsupported RIGHT or FULL join after a join without a join condition"), ex.getMessage());
+   }
+
+   @ParameterizedTest
+   @MethodSource("rightJoinAfterFromItem")
+   void rightJoinAfterFromItemIsRefused(String text) {
+      Exception ex = assertThrows(Exception.class, () -> parse(text, dataSource("mysql")));
+      assertTrue(ex.getMessage().contains(
+         "Unsupported RIGHT or FULL join after another from item"), ex.getMessage());
    }
 
    @ParameterizedTest
@@ -346,6 +420,8 @@ class UniformSQLCrossJoinChainTest {
       "select * from a CROSS JOIN b JOIN c RIGHT JOIN d ON c.id = d.id",
       "select * from a INNER JOIN b RIGHT JOIN c ON b.id = c.id",
       "select * from a inner join b right join c on b.id = c.id",
+      "select * from ((a join b on a.id = b.id)), (c rIGHT join d on c.id = d.id)",
+      "select * from ((a JOIN b ON a.id = b.id)), (c FULL JOIN d ON c.id = d.id)",
    })
    void refusedInTurkishLocale(String text) {
       Locale locale = Locale.getDefault();
@@ -370,6 +446,8 @@ class UniformSQLCrossJoinChainTest {
          "(select count(*) from a cross join b join c right join d on c.id = d.id)"));
       assertTrue(XUtil.isSQLExpressionValid(
          "(select count(*) from a join b right join c on b.id = c.id)"));
+      assertTrue(XUtil.isSQLExpressionValid(
+         "(select count(*) from a join b on a.id = b.id, (c right join d on c.id = d.id))"));
       assertFalse(XUtil.isSQLExpressionValid("(select count(*) from a cross join b on)"));
    }
 
@@ -457,6 +535,7 @@ class UniformSQLCrossJoinChainTest {
          COLS4 + "from ((a join b on a.id = b.id)) left join ((c join d on c.id = d.id)) on b.id = c.id",
          COLS3 + "from (a cross join b) cross join c",
          COLS3 + "from ((a cross join b)) left join c on b.id = c.id",
+         COLS3 + "from ((a join b on a.id = b.id)) right join c on b.id = c.id",
          "select a.id from a where exists (select 1 from b cross join c cross join d " +
             "where b.id = a.id)",
          "select a.id, b.id from a, b where a.id in (select c.id from ((c join d on c.id = d.id)) " +

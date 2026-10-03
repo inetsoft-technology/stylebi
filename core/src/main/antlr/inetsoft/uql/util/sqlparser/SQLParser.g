@@ -802,6 +802,9 @@ private LinkedList joinStarts = new LinkedList();
 // true if the last joined_table_2 matched its parenthesized join alternative,
 // ( joined_table_2 ), and not a join whose first table is a derived table
 private boolean parenJoinedTable = false;
+// the queries whose from clause has a cross join chain or a parenthesized join with
+// no join after it, which failed to parse before Bug #77495
+private Set newFromJoins = Collections.newSetFromMap(new IdentityHashMap());
 
 /**
  * Get the queries that mix a RIGHT or FULL join with an inner join, or that
@@ -885,7 +888,75 @@ private void startJoinEvent(UniformSQL sql, String op, int lstart, int rstart, i
    addConditions(sql.getWhere(), conds);
    events.add(new Object[] {kind, getJoinTables(sql, lstart, rstart),
                             getJoinTables(sql, rstart, rend),
-                            Collections.newSetFromMap(new IdentityHashMap()), conds});
+                            Collections.newSetFromMap(new IdentityHashMap()), conds,
+                            Integer.valueOf(lstart)});
+}
+
+/**
+ * Record that the from clause of a query has a join that failed to parse before
+ * Bug #77495, a cross join chain or a parenthesized join with no join after it.
+ */
+private void markNewFromJoin(UniformSQL sql) {
+   if(sql != null) {
+      newFromJoins.add(sql);
+   }
+}
+
+/**
+ * Check the RIGHT and FULL joins of a from clause with a cross join chain or a
+ * parenthesized join with no join after it. A RIGHT or FULL join whose left
+ * operand doesn't start at the first table of the from clause, and that is not
+ * inside the right operand of a join with a join condition, is in a group of
+ * joined tables after another from item: a comma item, or the parenthesized right
+ * operand of a join with no join condition. SQLHelper writes such a group as a
+ * comma item, which may follow another group of joined tables, e.g.
+ * a INNER JOIN b ON .. , c RIGHT OUTER JOIN d ON .., or moves the tables before it
+ * after it. SQLite joins a comma and a JOIN left to right, as (a join b, c) right
+ * join d, so the regenerated sql returns different rows there, and it reads the
+ * original x, c right join d on .. that way too. These queries failed to parse
+ * before, so they still do. A RIGHT or FULL join at the start of the from clause,
+ * or nested in a join with a join condition, is written the same.
+ */
+private void checkNewFromRightJoins(UniformSQL sql) throws SemanticException {
+   if(sql == null || !newFromJoins.remove(sql)) {
+      return;
+   }
+
+   List events = (List) joinEvents.get(sql);
+
+   for(int i = 0; events != null && i < events.size(); i++) {
+      Object[] event = (Object[]) events.get(i);
+
+      if(("R".equals(event[0]) || "F".equals(event[0])) &&
+         ((Integer) event[5]).intValue() > 0 && !isInJoinCondition(events, i))
+      {
+         Token tok = (Token) rightJoins.get(sql);
+         throw new SemanticException(
+            "Unsupported RIGHT or FULL join after another from item", getFilename(),
+            tok == null ? 0 : tok.getLine(), tok == null ? 0 : tok.getColumn());
+      }
+   }
+}
+
+/**
+ * Check if the tables of a join are in the right operand of a later join with a
+ * join condition, e.g. c right join d in a join (c right join d on ..) on a.id = c.id.
+ */
+private static boolean isInJoinCondition(List events, int index) {
+   Object[] event = (Object[]) events.get(index);
+
+   for(int i = index + 1; i < events.size(); i++) {
+      Object[] outer = (Object[]) events.get(i);
+      Set right = (Set) outer[2];
+
+      if(!((Set) outer[3]).isEmpty() && right.containsAll((Set) event[1]) &&
+         right.containsAll((Set) event[2]))
+      {
+         return true;
+      }
+   }
+
+   return false;
 }
 
 /**
@@ -3763,10 +3834,11 @@ from_clause [UniformSQL sql]
         {String tmp; {checkStatus();}}
         :
         FROM tmp = table_ref[sql] ( COMMA {clearUsingMerges(sql);} tmp = table_ref[sql] )*
+        {checkNewFromRightJoins(sql);}
         ;
 
 ansi_joins [UniformSQL sql] returns [String str = ""]
-     {String tmp, tmp2; XExpression exp; {checkStatus();}}
+     {String tmp, tmp2; XExpression exp; boolean join = false; {checkStatus();}}
      :
         // a cross join is a qualified join, so it can be followed by more joins and its
         // left operand starts at the first table of the join (Bug #77495)
@@ -3775,8 +3847,8 @@ ansi_joins [UniformSQL sql] returns [String str = ""]
      | {pushJoinStart(sql);} OPEN_PAREN tmp = ansi_joins[sql] CLOSE_PAREN { str = "(" + tmp + ")";}
         // redundant parentheses, ((a join b on ..)) or a parenthesized from clause, have no
         // join after the closing parenthesis
-        ((sub_qualified_join[null])=> tmp2 = sub_qualified_join[sql] { str += " " + tmp2;})?
-        {popJoinStart();}
+        ((sub_qualified_join[null])=> tmp2 = sub_qualified_join[sql] { str += " " + tmp2; join = true;})?
+        {if(!join) {markNewFromJoin(sql);} popJoinStart();}
 ;
 
 table_ref [UniformSQL sql] returns [String tbref = ""]
@@ -4132,8 +4204,15 @@ sub_qualified_join [UniformSQL sql] returns [String str = ""]
         {str = x.getText() + " " + y.getText() + " " + table;
          rend = sql == null ? 0 : sql.getTableCount();
          addJoinType(sql, "CROSS JOIN", y);
-         startJoinEvent(sql, "CROSS JOIN", rstart, rend);}
-        ((sub_qualified_join[sql])=> tmp = sub_qualified_join[sql] {str += " " + tmp;})?
+         startJoinEvent(sql, "CROSS JOIN", rstart, rend);
+         // a cross join of two tables, a cross join b, parsed before as cross_join
+         first = joinStarts.isEmpty() ? 0 : ((Integer) joinStarts.getFirst()).intValue();
+
+         if(rstart - first != 1) {
+            markNewFromJoin(sql);
+         }}
+        ((sub_qualified_join[sql])=> tmp = sub_qualified_join[sql]
+         {str += " " + tmp; markNewFromJoin(sql);})?
         |
         (
          (
