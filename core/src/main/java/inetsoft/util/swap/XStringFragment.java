@@ -315,6 +315,11 @@ public final class XStringFragment extends XSwappable {
 	    getSwapper().waitForMemory();
             byte[] buf = value.getBytes("UTF-8");
             len = buf.length;
+
+            if(testBeforeWrite != null) {
+               testBeforeWrite.run();
+            }
+
             fout.write(buf);
          }
 
@@ -385,6 +390,10 @@ public final class XStringFragment extends XSwappable {
    // true when the swap file on disk is a stub left by a failed write, not a durable copy
    // of value; forces the next swap0() to rewrite it even though it still exists
    private boolean rewriteRequired;
+   // test-only hook: when set, invoked immediately before the real durable write, so tests can
+   // force a write failure deterministically without relying on platform-specific file locking
+   // or permission semantics (which differ between Windows and Linux/CI). No-op in production.
+   transient Runnable testBeforeWrite;
    private List<DataSwapListener> listeners;
    private transient XSwappableMonitor monitor;
    private transient boolean isCountHM;

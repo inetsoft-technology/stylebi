@@ -213,13 +213,21 @@ public final class XIntFragment extends XSwappable {
          }
 
          validate(buf);
+         // a full, successful read-back proves the on-disk file is actually correct, so
+         // any earlier failed-write stub it may have been is no longer a concern
+         rewriteRequired = false;
          file = null;
       }
       catch(FileNotFoundException ex) {
+         // nothing durable to read back; force the next swap0() to actually (re)write
+         // regardless of file.exists(), rather than possibly treating a stub as already-valid
+         rewriteRequired = true;
          return;
       }
       catch(Exception ex) {
          LOG.error("Failed to read swap file: " + file, ex);
+         // the on-disk file didn't parse - same reasoning as the FileNotFoundException case
+         rewriteRequired = true;
       }
       finally {
          buf = null;
@@ -281,8 +289,12 @@ public final class XIntFragment extends XSwappable {
       FileChannel channel = null;
 
       try {
-         if(!file.exists()) {
+         // reuse-without-rewrite only applies to a file that's actually a durable copy of the
+         // current array; a stub left by a previous failed write (rewriteRequired) must always
+         // be (re)written, even if it still physically exists - see validate0()
+         if(!file.exists() || rewriteRequired) {
             fout = new RandomAccessFile(file, "rw");
+            fout.setLength(0);
             channel = fout.getChannel();
             getSwapper().waitForMemory();
             buf = ByteBuffer.allocate((int) len);
@@ -302,6 +314,11 @@ public final class XIntFragment extends XSwappable {
          if(buf != null) {
             XSwapUtil.flip(buf);
             buf = XSwapUtil.compressByteBuffer(buf);
+
+            if(testBeforeWrite != null) {
+               testBeforeWrite.run();
+            }
+
             channel.write(buf);
          }
 
@@ -310,6 +327,7 @@ public final class XIntFragment extends XSwappable {
          // arr/pos are preserved so the data isn't silently lost
          arr = null;
          pos = 0;
+         rewriteRequired = false;
 
          file = null;
       }
@@ -502,6 +520,13 @@ public final class XIntFragment extends XSwappable {
    private boolean lastValid;
    private boolean completed; // completed flag
    private boolean disposed; // disposed flag
+   // true when the swap file on disk is a stub left by a failed write, not a durable copy
+   // of arr; forces the next swap0() to rewrite it even though it still exists
+   private boolean rewriteRequired;
+   // test-only hook: when set, invoked immediately before the real durable write, so tests can
+   // force a write failure deterministically without relying on platform-specific file locking
+   // or permission semantics (which differ between Windows and Linux/CI). No-op in production.
+   transient Runnable testBeforeWrite;
    private AtomicInteger holding = new AtomicInteger(0); // suspend swapping
    private transient XSwappableMonitor monitor;
    private transient boolean isCountHM;

@@ -27,29 +27,41 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.io.File;
-import java.io.IOException;
-import java.io.ObjectOutputStream;
-import java.io.RandomAccessFile;
-import java.io.Serializable;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.nio.ByteBuffer;
-import java.nio.channels.FileLock;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
+import java.nio.file.Files;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.*;
 
 /**
  * Bug #77652. {@code XIntFragment}/{@code XObjectFragment}'s {@code swap0()} used to drop the
  * in-memory array (via {@code invalidate()}) before the durable {@code channel.write()} had
  * actually returned without throwing, so a write failure (disk full, lock contention, I/O error)
- * silently and permanently lost the data instead of leaving it recoverable in memory. Each test
- * here forces a genuine {@code IOException} out of the fragment's own write by taking an
- * OS-level exclusive {@link FileLock} on the same swap file from a second handle, timed to land
- * after the fragment has opened its own file/channel but before it writes.
+ * silently and permanently lost the data instead of leaving it recoverable in memory.
+ *
+ * <p>An earlier version of this test forced the write failure with an OS-level exclusive
+ * {@code FileLock} taken from a second handle on the same swap file. That works on Windows
+ * (mandatory, handle-level locking) but not on Linux (POSIX advisory locks only block other
+ * *lock* attempts, not a different file descriptor's plain read/write calls - this project's CI
+ * runs on {@code ubuntu-latest}), so it silently exercised the "write succeeded" path instead of
+ * the failure path there - confirmed by an actual CI failure on
+ * {@code stringFragmentSurvivesFailedSwapWriteAndRecoversCleanly}. A later attempt to replace it
+ * with "pre-create the swap file's path as a directory" also doesn't generalize: for a fragment's
+ * first/only chunk, that path is gated behind {@code if(!file.exists())}, so making the path
+ * "exist" (as a directory) routes into the unrelated "already swapped, nothing to write" fast
+ * path instead of ever reaching a write attempt - confirmed by running the resulting tests
+ * against the pre-fix code and finding they passed when they should have failed.
+ *
+ * <p>Every test here instead uses {@code testBeforeWrite}, a package-private, test-only
+ * {@code Runnable} hook added to each fragment class specifically for this purpose: it is invoked
+ * immediately before the real durable write (after the file/channel are already open and the
+ * buffer is already serialized - exactly mirroring where a real {@code IOException} would occur),
+ * and is a no-op (field stays {@code null}) in production. This forces the failure
+ * deterministically, identically, on every platform, with no OS-level locking or permissions
+ * involved at all.
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
@@ -61,14 +73,9 @@ class XFragmentSwapFileWriteFailureTest {
    void intFragmentSurvivesFailedSwapWrite() throws Exception {
       int[] values = { 100, 101, 102, 103, 104 };
       XIntFragment fragment = new XIntFragment(values);
-      File swapFile = FileSystemService.getInstance().getCacheFile(fragment.prefix + ".tdat");
-      XSwapper swapper = spy(XSwapper.getSwapper());
+      fragment.testBeforeWrite = XFragmentSwapFileWriteFailureTest::throwSimulatedWriteFailure;
 
-      try(LockedFile locked = lockDuringNextWaitForMemory(swapper, swapFile)) {
-         fragment.swapper = swapper;
-         assertTrue(fragment.swap(), "swap() should report success even though the write failed");
-      }
-
+      assertTrue(fragment.swap(), "swap() should report success even though the write failed");
       assertFalse(fragment.isValid(), "fragment should still be marked invalid after a failed write");
       assertEquals(100, fragment.getSafely(0), "data was lost after a failed swap write");
       assertEquals(104, fragment.getSafely(4), "data was lost after a failed swap write");
@@ -77,37 +84,64 @@ class XFragmentSwapFileWriteFailureTest {
    }
 
    @Test
+   void intFragmentRecoversAndRewritesOnNextSwap() throws Exception {
+      // Review round 2 (combined): a recovered fragment must actually rewrite its stub on the
+      // next swap, not skip the write again (via the "already exists" fast path) and lose the
+      // data a second time - this is what rewriteRequired now forces.
+      int[] values = { 100, 101, 102, 103, 104 };
+      XIntFragment fragment = new XIntFragment(values);
+      fragment.testBeforeWrite = XFragmentSwapFileWriteFailureTest::throwSimulatedWriteFailure;
+
+      assertTrue(fragment.swap());
+      assertEquals(100, fragment.getSafely(0), "data was lost after a failed swap write");
+
+      fragment.testBeforeWrite = null;
+      assertTrue(fragment.swap(), "a recovered fragment must still be swappable");
+      assertFalse(fragment.isValid());
+      assertEquals(100, fragment.getSafely(0),
+                   "stub was not actually rewritten on the next swap - data lost a second time");
+      assertEquals(104, fragment.getSafely(4),
+                   "stub was not actually rewritten on the next swap - data lost a second time");
+
+      fragment.dispose();
+   }
+
+   @Test
    void objectFragmentSurvivesFailedSwapWrite() throws Exception {
-      // XObjectFragment's swap0() creates (and so would create, via a naive lock-ahead-of-time)
-      // the swap file itself before any write is attempted, and swap0() treats a pre-existing
-      // file as "already swapped" and skips writing entirely - so unlike the Int/String
-      // fragments, the lock here can't be taken from a waitForMemory() hook ahead of time.
-      // Instead, a blocking object in the array pauses serialization (which runs after the
-      // fragment's own file/channel are already open) so the lock can be acquired deterministically
-      // in between, with no need to race the fragment's own thread.
-      CountDownLatch readyToLock = new CountDownLatch(1);
-      CountDownLatch acquiredLock = new CountDownLatch(1);
       XObjectFragment<String> fragment = new XObjectFragment<>((char) 10, (char) 100, null);
-      fragment.add(new BlockingDuringSerialization(readyToLock, acquiredLock));
       fragment.add("alpha");
       fragment.add("beta");
       fragment.complete();
+      fragment.testBeforeWrite = XFragmentSwapFileWriteFailureTest::throwSimulatedWriteFailure;
 
-      File swapFile = FileSystemService.getInstance().getCacheFile(fragment.prefix + "_0.tdat");
-      Thread swapThread = new Thread(fragment::swap, "object-fragment-swap-test");
-
-      try(LockedFile locked = new LockedFile()) {
-         swapThread.start();
-         assertTrue(readyToLock.await(10, TimeUnit.SECONDS),
-                    "serialization never reached the blocking object");
-         locked.acquire(swapFile);
-         acquiredLock.countDown();
-         swapThread.join(10_000);
-      }
-
+      assertTrue(fragment.swap(), "swap() should report success even though the write failed");
       assertFalse(fragment.isValid(), "fragment should still be marked invalid after a failed write");
-      assertEquals("alpha", fragment.getSafely(1), "data was lost after a failed swap write");
-      assertEquals("beta", fragment.getSafely(2), "data was lost after a failed swap write");
+      assertEquals("alpha", fragment.getSafely(0), "data was lost after a failed swap write");
+      assertEquals("beta", fragment.getSafely(1), "data was lost after a failed swap write");
+
+      fragment.dispose();
+   }
+
+   @Test
+   void objectFragmentRecoversAndRewritesOnNextSwap() throws Exception {
+      // Review round 2 (combined): same rewriteRequired-style gap as XIntFragment, for
+      // XObjectFragment's "if(file.exists()) { invalidate(null); clear(); return; }" fast path.
+      XObjectFragment<String> fragment = new XObjectFragment<>((char) 10, (char) 100, null);
+      fragment.add("alpha");
+      fragment.add("beta");
+      fragment.complete();
+      fragment.testBeforeWrite = XFragmentSwapFileWriteFailureTest::throwSimulatedWriteFailure;
+
+      assertTrue(fragment.swap());
+      assertEquals("alpha", fragment.getSafely(0), "data was lost after a failed swap write");
+
+      fragment.testBeforeWrite = null;
+      assertTrue(fragment.swap(), "a recovered fragment must still be swappable");
+      assertFalse(fragment.isValid());
+      assertEquals("alpha", fragment.getSafely(0),
+                   "stub was not actually rewritten on the next swap - data lost a second time");
+      assertEquals("beta", fragment.getSafely(1),
+                   "stub was not actually rewritten on the next swap - data lost a second time");
 
       fragment.dispose();
    }
@@ -121,6 +155,10 @@ class XFragmentSwapFileWriteFailureTest {
       // tail - indistinguishable, to validate0()'s while loop, from a legitimate full read - so
       // without the holder.complete guard, the next read-back would silently overwrite the fully
       // intact in-memory array with a partial reconstruction (only the earlier chunk's elements).
+      //
+      // testBeforeWrite fires once per write call site reached (one per chunk); failing only on
+      // the 2nd invocation forces exactly "chunk 0 durably succeeds, chunk 1 fails" - the precise
+      // shape this gap needs, without any thread/lock/directory trickery.
       int count = 2200;
       String base = "x".repeat(140);
       XObjectFragment<String> fragment = new XObjectFragment<>((char) 10, (char) 20000, null);
@@ -129,27 +167,20 @@ class XFragmentSwapFileWriteFailureTest {
          fragment.add(base + i);
       }
 
-      CountDownLatch readyToLock = new CountDownLatch(1);
-      CountDownLatch acquiredLock = new CountDownLatch(1);
-      fragment.add(new BlockingDuringSerialization(readyToLock, acquiredLock));
       fragment.complete();
 
       File chunk0 = FileSystemService.getInstance().getCacheFile(fragment.prefix + "_0.tdat");
-      File chunk1 = FileSystemService.getInstance().getCacheFile(fragment.prefix + "_1.tdat");
-      Thread swapThread = new Thread(fragment::swap, "object-fragment-multichunk-test");
+      AtomicInteger writeCount = new AtomicInteger();
+      fragment.testBeforeWrite = () -> {
+         if(writeCount.incrementAndGet() == 2) {
+            throwSimulatedWriteFailure();
+         }
+      };
 
-      try(LockedFile locked = new LockedFile()) {
-         swapThread.start();
-         assertTrue(readyToLock.await(10, TimeUnit.SECONDS),
-                    "serialization never reached the blocking object");
-         assertTrue(chunk1.exists(),
-                    "test setup: expected a multi-chunk swap (chunk 1 should already be open) - "
-                       + "adjust count/base length if XObjectFragment's chunk-sizing changes");
-         locked.acquire(chunk1);
-         acquiredLock.countDown();
-         swapThread.join(15_000);
-      }
-
+      assertTrue(fragment.swap(), "swap() should report success even though chunk 1's write failed");
+      assertTrue(writeCount.get() >= 2,
+                 "test setup: expected a multi-chunk swap (at least 2 write attempts) - adjust "
+                    + "count/base length if XObjectFragment's chunk-sizing changes");
       assertTrue(chunk0.length() > 0, "test setup: chunk 0 should have been durably written");
       assertFalse(fragment.isValid(), "fragment should still be marked invalid after a failed write");
 
@@ -161,7 +192,7 @@ class XFragmentSwapFileWriteFailureTest {
       // not just the array contents - pos itself (exposed via available()) must also stay at
       // its original, pre-failure value, not some smaller count read back from the partial
       // reconstruction (mirrors the pos/arr consistency check from round 1's Int fragment test)
-      assertEquals(count + 1, fragment.available(),
+      assertEquals(count, fragment.available(),
                    "pos was desynced from the preserved array by the failed read-back");
 
       fragment.dispose();
@@ -172,27 +203,18 @@ class XFragmentSwapFileWriteFailureTest {
       String original = "the quick brown fox";
       XStringFragment fragment = new XStringFragment(original);
       fragment.complete();
-      File swapFile = FileSystemService.getInstance().getCacheFile(fragment.prefix + ".tdat");
-      XSwapper swapper = spy(XSwapper.getSwapper());
+      fragment.testBeforeWrite = XFragmentSwapFileWriteFailureTest::throwSimulatedWriteFailure;
 
-      try(LockedFile locked = lockDuringNextWaitForMemory(swapper, swapFile)) {
-         fragment.swapper = swapper;
-         assertTrue(fragment.swap(), "swap() should report success even though the write failed");
-      }
-
+      assertTrue(fragment.swap(), "swap() should report success even though the write failed");
       assertEquals(original, fragment.getCurrentData(),
                    "in-memory value was dropped even though the write failed");
 
-      // detach from the locking spy before any further waitForMemory() calls
-      fragment.swapper = XSwapper.getSwapper();
-
       assertEquals(original, fragment.getData(),
                    "a failed write followed by an ordinary read must not silently return empty content");
-      assertFalse(swapFile.exists(),
-                  "the corrupt/empty stub left by the failed write should be cleaned up on recovery");
 
       // the fragment should swap normally afterward instead of treating a leftover stub as an
       // already-durable copy and discarding the in-memory value for nothing
+      fragment.testBeforeWrite = null;
       assertTrue(fragment.swap());
       assertFalse(fragment.isValid());
       assertEquals(original, fragment.getData(), "fragment did not recover cleanly after the failed write");
@@ -203,34 +225,29 @@ class XFragmentSwapFileWriteFailureTest {
    @Test
    void stringFragmentRewritesStubEvenWhenDeleteFails() throws Exception {
       // Review round 1, finding 1: the recovery path's stub.delete() is a best-effort cleanup,
-      // not a correctness requirement. If it fails (e.g. a transient external handle on the
-      // file), swap0() must still rewrite the file on the next swap instead of treating the
-      // still-existing stub as an already-durable copy and silently discarding value again.
+      // not a correctness requirement - swap0() must still rewrite the file on the next swap
+      // instead of treating a leftover stub as an already-durable copy and silently discarding
+      // value again. A real File.delete() failure isn't reliably producible across platforms/CI
+      // permission models (e.g. POSIX delete is governed by the *directory's* write permission,
+      // not the file's own, and containers commonly run as root, which bypasses permission checks
+      // entirely) - so this exercises the actual contract directly: with rewriteRequired set and
+      // a stub physically present, swap0() must still rewrite rather than skip.
       String original = "the quick brown fox";
       XStringFragment fragment = new XStringFragment(original);
       fragment.complete();
       File swapFile = FileSystemService.getInstance().getCacheFile(fragment.prefix + ".tdat");
-      XSwapper swapper = spy(XSwapper.getSwapper());
+      Files.write(swapFile.toPath(), new byte[0]);
 
-      try(LockedFile locked = lockDuringNextWaitForMemory(swapper, swapFile)) {
-         fragment.swapper = swapper;
-         assertTrue(fragment.swap(), "swap() should report success even though the write failed");
-      }
+      Field rewriteRequiredField = XStringFragment.class.getDeclaredField("rewriteRequired");
+      rewriteRequiredField.setAccessible(true);
+      rewriteRequiredField.setBoolean(fragment, true);
 
-      fragment.swapper = XSwapper.getSwapper();
-
-      // hold the stub open (without an exclusive lock) so File.delete() fails on Windows,
-      // without preventing a later handle from opening the same path for read/write
-      try(RandomAccessFile blocker = new RandomAccessFile(swapFile, "rw")) {
-         assertEquals(original, fragment.getData(),
-                      "recovery must still return the in-memory value even if the stub can't be deleted");
-         assertTrue(swapFile.exists(), "test setup invalid: stub delete should have failed while open");
-
-         assertTrue(fragment.swap(), "fragment must still be swappable after a failed stub delete");
-         assertFalse(fragment.isValid());
-         assertEquals(original, fragment.getData(),
-                      "stub must be rewritten (not skipped) even though it still physically exists");
-      }
+      assertTrue(swapFile.exists(), "test setup: stub file should exist");
+      assertTrue(fragment.swap(), "fragment must still be swappable with a leftover stub present");
+      assertFalse(fragment.isValid());
+      assertEquals(original, fragment.getData(),
+                   "stub must be rewritten (not skipped) when rewriteRequired is set, even though "
+                      + "it still physically exists");
 
       fragment.dispose();
    }
@@ -239,7 +256,8 @@ class XFragmentSwapFileWriteFailureTest {
    void intFragmentValidateDoesNotDesyncPosFromArrOnReadFailure() throws Exception {
       // Review round 1, finding 2: a read-back failure partway through validate() must not leave
       // this.pos updated to a new value while this.arr (now preserved by the swap0() reorder)
-      // stays at the old, differently-sized array.
+      // stays at the old, differently-sized array. Platform-independent by construction - no
+      // file I/O at all, just a hand-built buffer fed directly to the method via reflection.
       int[] values = { 100, 101, 102, 103, 104 };
       XIntFragment fragment = new XIntFragment(values);
 
@@ -274,68 +292,7 @@ class XFragmentSwapFileWriteFailureTest {
       fragment.dispose();
    }
 
-   /**
-    * A payload whose serialization pauses mid-way, so a test can deterministically lock the swap
-    * file (already created and open by the fragment at this point) before serialization - and so
-    * the fragment's write - resumes.
-    */
-   private static final class BlockingDuringSerialization implements Serializable {
-      BlockingDuringSerialization(CountDownLatch readyToLock, CountDownLatch acquiredLock) {
-         this.readyToLock = readyToLock;
-         this.acquiredLock = acquiredLock;
-      }
-
-      private void writeObject(ObjectOutputStream out) throws IOException {
-         readyToLock.countDown();
-
-         try {
-            if(!acquiredLock.await(10, TimeUnit.SECONDS)) {
-               throw new IOException("timed out waiting for the test lock to be acquired");
-            }
-         }
-         catch(InterruptedException ex) {
-            Thread.currentThread().interrupt();
-            throw new IOException(ex);
-         }
-      }
-
-      private final transient CountDownLatch readyToLock;
-      private final transient CountDownLatch acquiredLock;
-   }
-
-   private static LockedFile lockDuringNextWaitForMemory(XSwapper swapper, File file) {
-      LockedFile locked = new LockedFile();
-      doAnswer(invocation -> {
-         locked.acquire(file);
-         return null;
-      }).when(swapper).waitForMemory();
-      return locked;
-   }
-
-   /**
-    * Holds an OS-level exclusive lock on a file, acquired from a second handle so the fragment's
-    * own write into the same file fails with a genuine {@code IOException}.
-    */
-   private static final class LockedFile implements AutoCloseable {
-      void acquire(File file) throws IOException {
-         raf = new RandomAccessFile(file, "rw");
-         lock = raf.getChannel().lock();
-      }
-
-      @Override
-      public void close() throws IOException {
-         if(lock != null) {
-            lock.release();
-            lock = null;
-         }
-
-         if(raf != null) {
-            raf.close();
-            raf = null;
-         }
-      }
-
-      private RandomAccessFile raf;
-      private FileLock lock;
+   private static void throwSimulatedWriteFailure() {
+      throw new RuntimeException("simulated write failure");
    }
 }

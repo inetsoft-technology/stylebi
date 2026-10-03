@@ -221,9 +221,21 @@ public final class XObjectFragment<T> extends XSwappable {
          // in-memory array that's still intact; otherwise fall back to whatever was already
          // there (matching the no-better-alternative fallback below) rather than silently
          // replacing it with a partial reconstruction.
-         if(holder.complete || this.arr == null) {
+         if(holder.complete) {
             this.arr = holder.arr;
             this.pos = holder.pos;
+            // a full, successful read-back proves the on-disk file(s) are actually correct
+            rewriteRequired = false;
+         }
+         else {
+            // the on-disk file(s) didn't fully parse - force the next swap0() to actually
+            // (re)write regardless of file.exists(), rather than treating them as already-valid
+            rewriteRequired = true;
+
+            if(this.arr == null) {
+               this.arr = holder.arr;
+               this.pos = holder.pos;
+            }
          }
 
          return this.arr;
@@ -236,6 +248,8 @@ public final class XObjectFragment<T> extends XSwappable {
          // actually read anything, or only read a partial multi-chunk reconstruction (e.g. a
          // 0-byte/corrupt stub left by a write that failed before swap0() cleared arr/pos),
          // must not be allowed to clobber an in-memory array that's still intact
+         rewriteRequired = true;
+
          if(holder != null && holder.arr != null && this.arr == null) {
             arr = holder.arr;
             this.arr = holder.arr;
@@ -325,7 +339,10 @@ public final class XObjectFragment<T> extends XSwappable {
 
       File file = getFile(prefix + "_0.tdat");
 
-      if(file.exists()) {
+      // reuse-without-rewrite only applies to a file that's actually a durable copy of the
+      // current array; a stub left by a previous failed write (rewriteRequired) must always be
+      // (re)written, even if it still physically exists - see validate0()
+      if(file.exists() && !rewriteRequired) {
          if(disposed) {
             return;
          }
@@ -342,6 +359,7 @@ public final class XObjectFragment<T> extends XSwappable {
 
       try {
          fout = new RandomAccessFile(file, "rw");
+         fout.setLength(0);
          channel = fout.getChannel();
          buf = ByteBuffer.allocate((int) len);
          int spos = 0; // current save pos
@@ -358,6 +376,11 @@ public final class XObjectFragment<T> extends XSwappable {
 
             XSwapUtil.flip(buf);
             buf = XSwapUtil.compressByteBuffer(buf);
+
+            if(testBeforeWrite != null) {
+               testBeforeWrite.run();
+            }
+
             channel.write(buf);
             channel.close();
             channel = null;
@@ -377,6 +400,7 @@ public final class XObjectFragment<T> extends XSwappable {
 	    counter++;
             file = getFile(prefix + '_' + counter + ".tdat");
             fout = new RandomAccessFile(file, "rw");
+            fout.setLength(0);
             channel = fout.getChannel();
 
             buf = ByteBuffer.allocate((int) len);
@@ -386,6 +410,11 @@ public final class XObjectFragment<T> extends XSwappable {
 	 swapFileCount = counter + 1;
          XSwapUtil.flip(buf);
          buf = XSwapUtil.compressByteBuffer(buf);
+
+         if(testBeforeWrite != null) {
+            testBeforeWrite.run();
+         }
+
          channel.write(buf);
          channel.close();
          channel = null;
@@ -733,6 +762,7 @@ public final class XObjectFragment<T> extends XSwappable {
       pos = 0;
       spos = 0;
       arr = null;
+      rewriteRequired = false;
    }
 
    /**
@@ -803,6 +833,14 @@ public final class XObjectFragment<T> extends XSwappable {
    private boolean lastValid;
    private boolean completed; // completed flag
    private boolean disposed; // disposed flag
+   // true when the on-disk file(s) are a stub/incomplete reconstruction left by a failed write
+   // or read, not a durable copy of arr; forces the next swap0() to rewrite regardless of
+   // file.exists()
+   private boolean rewriteRequired;
+   // test-only hook: when set, invoked immediately before each real durable write, so tests can
+   // force a write failure deterministically without relying on platform-specific file locking
+   // or permission semantics (which differ between Windows and Linux/CI). No-op in production.
+   transient Runnable testBeforeWrite;
    private AtomicInteger holding = new AtomicInteger(0); // suspend swapping
    private char spos; // next serialization position
    private Class kryoClass;
