@@ -25,6 +25,7 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import java.io.File;
 import java.lang.reflect.Field;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -132,6 +133,104 @@ class XSwappableListTruncateTest {
       assertEquals("NEW", list.get(8200));
       assertEquals("NEW2", list.get(8201));
       assertEquals("v8202", list.get(8202));
+      list.dispose();
+   }
+
+   @Test
+   void intListCutAtFragmentBoundaryRemovesOldSwapFiles() throws Exception {
+      XSwappableIntList list = createIntList();
+      File[] files = new File[3];
+
+      for(int i = 0; i < 3; i++) {
+         XIntFragment fragment = fragment(list, i);
+         assertTrue(fragment.swap(), "fragment " + i + " was not swapped");
+         files[i] = fragment.getFile(fragment.prefix + ".tdat");
+         assertTrue(files[i].exists());
+      }
+
+      list.size(32768);
+
+      for(int i = 0; i < 3; i++) {
+         assertFalse(files[i].exists(), "swap file " + i + " was left behind");
+      }
+
+      list.add(-1);
+      list.complete();
+      assertTrue(fragment(list, 0).swap(), "first fragment was not swapped again");
+      assertTrue(fragment(list, 1).swap(), "new tail was not swapped");
+
+      assertEquals(32769, list.size());
+      assertEquals(32767, list.get(32767));
+      assertEquals(-1, list.get(32768));
+      list.dispose();
+   }
+
+   @Test
+   void intListCutInsideEarlierFragment() throws Exception {
+      XSwappableIntList list = createIntList();
+      assertTrue(fragment(list, 1).swap(), "fragment 1 was not swapped");
+      assertTrue(fragment(list, 2).swap(), "fragment 2 was not swapped");
+
+      list.size(32768 + 100);
+      list.add(777777);
+
+      // add past the next fragment boundary
+      for(int i = 32768 + 101; i < INT_COUNT; i++) {
+         list.add(i);
+      }
+
+      list.complete();
+      assertTrue(fragment(list, 1).swap(), "fragment 1 was not swapped again");
+      assertTrue(fragment(list, 2).swap(), "new tail was not swapped");
+
+      assertEquals(INT_COUNT, list.size());
+      assertEquals(32768 + 99, list.get(32768 + 99));
+      assertEquals(777777, list.get(32768 + 100));
+      assertEquals(32768 + 101, list.get(32768 + 101));
+      assertEquals(INT_COUNT - 1, list.get(INT_COUNT - 1));
+      list.dispose();
+   }
+
+   @Test
+   void intListCutToZero() throws Exception {
+      XSwappableIntList list = createIntList();
+      assertTrue(fragment(list, 2).swap(), "tail was not swapped");
+
+      list.size(0);
+      list.add(5);
+      list.add(6);
+      list.complete();
+      assertTrue(fragment(list, 0).swap(), "new fragment was not swapped");
+
+      assertEquals(2, list.size());
+      assertEquals(5, list.get(0));
+      assertEquals(6, list.get(1));
+      list.dispose();
+   }
+
+   @Test
+   void objectFragmentChangeWhileSwappedOutKeepsValues() throws Exception {
+      XSwappableObjectList<String> list = createObjectList();
+      XObjectFragment<?> fragment = fragment(list, 1);
+      assertTrue(fragment.swap(), "fragment was not swapped");
+      File file = fragment.getFile(fragment.prefix + "_0.tdat");
+      assertTrue(file.exists());
+
+      // change() reads the values back before it removes the swap files
+      fragment.change();
+      assertFalse(file.exists(), "stale swap file was left behind");
+
+      for(int i = 8192; i < 2 * 8192; i++) {
+         assertEquals("v" + i, list.get(i));
+      }
+
+      assertTrue(fragment.swap(), "fragment was not swapped again");
+      assertTrue(file.exists(), "values were not written on the next swap");
+
+      for(int i = 8192; i < 2 * 8192; i++) {
+         assertEquals("v" + i, list.get(i));
+      }
+
       list.dispose();
    }
 
