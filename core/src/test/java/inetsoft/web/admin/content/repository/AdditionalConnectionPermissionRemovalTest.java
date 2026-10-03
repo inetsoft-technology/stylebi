@@ -461,6 +461,178 @@ class AdditionalConnectionPermissionRemovalTest {
       assertNull(perm("tqQ::tqA"));
    }
 
+   // the symptom through the real permission check: the parent is restricted to bob, alice is
+   // granted READ on an additional connection only. After the additional connection is removed
+   // and created again with its name, alice must not read it and bob must, through the parent.
+   @Test
+   void recreatedAdditionalConnectionIsNotGrantedThroughTheRealCheck() throws Exception {
+      DefaultCheckPermissionStrategy strategy = new DefaultCheckPermissionStrategy(checkProvider());
+
+      // EM Delete
+      addParent("chEm", "chEmOld");
+      restrictToBob("chEm");
+      grant("chEm::chEmOld");
+      assertTrue(canRead(strategy, "alice", "chEm::chEmOld"), "the harness grants alice");
+      assertFalse(canRead(strategy, "alice", "chEm::chEmFresh"), "the parent denies alice");
+      emDelete("chEm/chEmOld");
+      addAdditional("chEm", "chEmOld");
+      assertRecreatedIsNotGranted(strategy, "chEm::chEmOld");
+
+      // JDBC editor drop
+      addParent("chJd", "chJdOld", "chJdKeep");
+      restrictToBob("chJd");
+      grant("chJd::chJdOld");
+      saveJdbc("chJd", "chJd", additional("chJd", "chJdKeep", "chJdKeep"));
+      addAdditional("chJd", "chJdOld");
+      assertRecreatedIsNotGranted(strategy, "chJd::chJdOld");
+      assertFalse(canRead(strategy, "alice", "chJd::chJdKeep"));
+      assertTrue(canRead(strategy, "bob", "chJd::chJdKeep"));
+
+      // tabular editor drop
+      addTabularParent("", "chTb", "chTbOld", "chTbKeep");
+      restrictToBob("chTb");
+      grant("chTb::chTbOld");
+      saveTabular("chTb", tabular("", null, "chTb"), "chTb", tabular("", null, "chTbKeep"));
+      addTabularAdditional("chTb", "chTbOld");
+      assertRecreatedIsNotGranted(strategy, "chTb::chTbOld");
+
+      // portal Delete of the parent (XEngine.removeDataSource), then the parent and the
+      // additional connection created again with their names
+      addParent("chPt", "chPtOld");
+      grant("chPt::chPtOld");
+      tabularService.deleteDataSource("chPt", "chPt", true);
+      addParent("chPt", "chPtOld");
+      restrictToBob("chPt");
+      assertRecreatedIsNotGranted(strategy, "chPt::chPtOld");
+
+      // EM Delete of a folder, then the parent and the additional connection created again
+      addFolder("chF");
+      addParent("chF/chFP", "chFOld");
+      grant("chF/chFP::chFOld");
+      assertNull(objectService.removeDataSourceFolder("chF", true, principal));
+      addFolder("chF");
+      addParent("chF/chFP", "chFOld");
+      restrictToBob("chF/chFP");
+      assertRecreatedIsNotGranted(strategy, "chF/chFP::chFOld");
+   }
+
+   // removing an additional connection or a parent doesn't remove the permissions of
+   // other data sources, including ones whose names share a prefix or that have the same
+   // additional connection name under another parent
+   @Test
+   void unrelatedPermissionsAreUntouched() throws Exception {
+      addParent("unP", "unA", "unAB");
+      addParent("unPX", "unA");
+      addFolder("unF");
+      addParent("unF/unP", "unA");
+      addParent("unOther");
+      Map<String, Permission> others = new HashMap<>();
+
+      for(String key : List.of("unPX", "unPX::unA", "unF/unP", "unF/unP::unA", "unOther",
+                               "unP::unAB", "unP:unA"))
+      {
+         others.put(key, grant(key));
+      }
+
+      grant("unP::unA");
+
+      // EM Delete of an additional connection
+      emDelete("unP/unA");
+      assertNull(perm("unP::unA"));
+      assertKept(others);
+
+      // portal Delete of the parent through XEngine
+      others.remove("unP::unAB");
+      tabularService.deleteDataSource("unP", "unP", true);
+      assertNull(perm("unP::unAB"));
+      assertKept(others);
+
+      // EM Delete of another parent
+      emDelete("unPX");
+      assertNull(perm("unPX::unA"));
+      others.remove("unPX::unA");
+      others.remove("unPX");
+      assertKept(others);
+   }
+
+   private void assertKept(Map<String, Permission> permissions) {
+      permissions.forEach((key, permission) ->
+         assertSame(permission, perm(key), () -> "the permission of " + key + " was changed"));
+   }
+
+   private void assertRecreatedIsNotGranted(DefaultCheckPermissionStrategy strategy,
+                                            String resource)
+   {
+      assertFalse(canRead(strategy, "alice", resource),
+                  "alice reads the recreated " + resource + " by the old grant");
+      assertTrue(canRead(strategy, "bob", resource),
+                 "bob doesn't read the recreated " + resource + " through its parent");
+   }
+
+   private static boolean canRead(DefaultCheckPermissionStrategy strategy, String user,
+                                  String resource)
+   {
+      String org = Organization.getDefaultOrganizationID();
+      // a principal without roles or groups has no identity in the check
+      SRPrincipal principal = new SRPrincipal(new IdentityID(user, org),
+                                              new IdentityID[] { new IdentityID("Everyone", org) },
+                                              new String[0], org,
+                                              Tool.getSecureRandom().nextLong());
+      return strategy.checkPermission(principal, ResourceType.DATA_SOURCE, resource,
+                                      ResourceAction.READ);
+   }
+
+   // grants READ on the data source to bob only, with "grant all" edited, so the check doesn't
+   // fall back above it
+   private void restrictToBob(String path) {
+      String org = Organization.getDefaultOrganizationID();
+      Permission permission = new Permission();
+      permission.setUserGrants(ResourceAction.READ,
+                               Set.of(new Permission.PermissionIdentity("bob", org)));
+      permission.updateGrantAllByOrg(org, true);
+      store.put(path, permission);
+   }
+
+   // a provider for the real DefaultCheckPermissionStrategy that reads the permissions of the map
+   private SecurityProvider checkProvider() {
+      String org = Organization.getDefaultOrganizationID();
+      SecurityProvider checkProvider = mock(SecurityProvider.class);
+      lenient().when(checkProvider.getUser(any())).thenReturn(null);
+      lenient().when(checkProvider.getGroup(any())).thenReturn(null);
+      lenient().when(checkProvider.getRole(any())).thenReturn(null);
+      lenient().when(checkProvider.getRoles(any())).thenReturn(new IdentityID[0]);
+      lenient().when(checkProvider.getUserGroups(any())).thenReturn(new String[0]);
+      lenient().when(checkProvider.getAllGroups(any(IdentityID[].class)))
+         .thenReturn(new IdentityID[0]);
+      lenient().when(checkProvider.isSystemAdministratorRole(any())).thenReturn(false);
+      lenient().when(checkProvider.isOrgAdministratorRole(any())).thenReturn(false);
+      lenient().when(checkProvider.getAllRoles(any(IdentityID[].class)))
+         .thenAnswer(inv -> inv.getArgument(0));
+      lenient().when(checkProvider.getOrgNameFromID(anyString())).thenReturn(org);
+      lenient().when(checkProvider.getPermission(any(ResourceType.class), anyString(), any()))
+         .thenAnswer(inv -> inv.getArgument(0) == ResourceType.DATA_SOURCE ?
+            store.get(inv.<String>getArgument(1)) : null);
+      lenient().when(checkProvider.getPermission(any(ResourceType.class), anyString()))
+         .thenAnswer(inv -> inv.getArgument(0) == ResourceType.DATA_SOURCE ?
+            store.get(inv.<String>getArgument(1)) : null);
+      lenient().when(checkProvider.getPermission(any(ResourceType.class), any(IdentityID.class)))
+         .thenReturn(null);
+      lenient().when(checkProvider.getAuthenticationProvider())
+         .thenReturn(mock(AuthenticationProvider.class));
+      Organization organization = mock(Organization.class);
+      lenient().when(organization.getOrganizationID()).thenReturn(org);
+      lenient().when(organization.getRoles()).thenReturn(new IdentityID[0]);
+      lenient().when(checkProvider.getOrganization(anyString())).thenReturn(organization);
+      return checkProvider;
+   }
+
+   private void addTabularAdditional(String parentPath, String name) {
+      TestTabularDataSource parent = (TestTabularDataSource) registry.getDataSource(parentPath);
+      TestTabularDataSource child = new TestTabularDataSource();
+      child.setName(name);
+      parent.addDatasource(child);
+   }
+
    private void emDelete(String path) throws Exception {
       Method method = RepositoryObjectService.class.getDeclaredMethod(
          "deleteDataSource", String.class, boolean.class, Principal.class);
