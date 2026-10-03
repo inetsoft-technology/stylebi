@@ -4484,7 +4484,7 @@ direct_select_stmt_n_rows [UniformSQL sql]
         ) (SEMI)?
         */
 
-        select_stmt_single_row (SEMI)?
+        select_stmt_single_row (SEMI)? EOF
         ;
 
 //The following rules is for partially parse
