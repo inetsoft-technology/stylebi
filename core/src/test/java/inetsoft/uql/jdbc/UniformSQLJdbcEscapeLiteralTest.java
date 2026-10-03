@@ -249,6 +249,9 @@ class UniformSQLJdbcEscapeLiteralTest {
       "select * from {oj t left outer join u on t.s = '}'}",
       "select t.id from {oj t left outer join u on t.id = u.id}",
       "select * from a, {oj t left outer join u on t.id = u.id}",
+      // a join operand, and a table of a subquery
+      "select * from a inner join {oj t left outer join u on t.id = u.id} on a.id = t.id",
+      "select id from a where id in (select id from {oj t left outer join u on t.id = u.id})",
    })
    void escapeAsTableFailsParse(String text) throws Exception {
       assertParseFails(text);
