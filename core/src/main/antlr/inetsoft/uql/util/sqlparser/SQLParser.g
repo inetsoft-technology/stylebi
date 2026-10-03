@@ -819,13 +819,15 @@ private Set priorJoinQueries = Collections.newSetFromMap(new IdentityHashMap());
  * - sub_qualified_join (Bug #77495): a join with no join condition whose right operand
  *   is an unparenthesized nested join with a RIGHT or FULL join (parenJoinedTable), in
  *   any statement, e.g. a join b right join c on .., a join (select ..) t right join c ..
- * - checkNewFromOuterJoins (Bug #77495): any LEFT, RIGHT or FULL join after another
- *   from item (lstart > 0), at any query level, in a statement that uses the syntax
- *   that failed to parse before (newFromSyntax). A LEFT join counts too, since
- *   SQLHelper writes t LEFT JOIN (nested join) as (nested join) RIGHT OUTER JOIN t.
- *   Statements without the new syntax are not checked, so it doesn't replace the
- *   other two, which also refuse statements that parsed before Bug #77495 but
- *   regenerated different joins.
+ * - checkNewFromOuterJoins (Bug #77495): in a statement that uses the syntax that
+ *   failed to parse before (newFromSyntax), at any query level, every RIGHT or FULL
+ *   join, wherever it is, and any LEFT join after another from item (lstart > 0). A
+ *   LEFT join counts too, since SQLHelper writes t LEFT JOIN (nested join) as (nested
+ *   join) RIGHT OUTER JOIN t. A RIGHT or FULL join at the start of its from clause
+ *   counts as well, since SQLHelper writes it after the other join groups when it
+ *   can't keep the text order (OuterJoinComparator). Statements without the new
+ *   syntax are not checked, so it doesn't replace the other two, which also refuse
+ *   statements that parsed before Bug #77495 but regenerated different joins.
  */
 
 /**
@@ -963,7 +965,8 @@ private void startStatement() {
 /**
  * Check the outer joins of every from clause of a statement that has a cross join
  * chain or a parenthesized join with no join after it, in any from clause at any
- * query level. An outer join whose left operand doesn't start at the first table of
+ * query level. Every RIGHT or FULL join is refused, and every LEFT join after another
+ * from item. An outer join whose left operand doesn't start at the first table of
  * its from clause is in a group of joined tables after another from item: a comma
  * item, or the right operand of another join. A LEFT join is checked too, since
  * SQLHelper writes t LEFT JOIN (nested join) as (nested join) RIGHT OUTER JOIN t, and
@@ -971,12 +974,19 @@ private void startStatement() {
  * such a group as a comma item after another group of joined tables, e.g.
  * a INNER JOIN b ON .. , c RIGHT OUTER JOIN d ON .., or move the tables before it
  * after it, e.g. when the join condition of the enclosing join doesn't join the
- * group to the tables before it. SQLite joins a comma and a JOIN left to right, as
+ * group to the tables before it. A RIGHT or FULL join at the start of its from
+ * clause is written first only while SQLHelper keeps the text order. When it can't
+ * (generateFromClauseText returns null, e.g. for a join condition that doesn't name
+ * the table it joins), it writes the outer joins last, so the RIGHT or FULL join
+ * group follows a comma too. SQLite joins a comma and a JOIN left to right, as
  * (a join b, c) right join d, so the regenerated sql returns different rows there,
  * and it reads the original x, c right join d on .. that way too. Before Bug #77495
  * the whole statement failed to parse, so the original sql ran, and it still does.
- * A statement without the new syntax is not checked, it parses as before. An outer
- * join at the start of its from clause is written the same.
+ * A statement without the new syntax is not checked, it parses as before. A LEFT
+ * join at the start of its from clause is accepted. Over one table, written after a
+ * comma it joins the same rows, since it adds rows only for its own tables. Over a
+ * nested join, its group starts with the inner join of the nested join, which stays
+ * first when SQLHelper leaves the text order.
  * <p>
  * Called at the end of each from clause, so it checks the joins of the from clauses
  * parsed so far once any of them has the new syntax, and every later from clause.
@@ -987,6 +997,8 @@ private void checkNewFromOuterJoins() throws SemanticException {
    }
 
    boolean left = false;
+   boolean right = false;
+   Token first = null;
 
    for(Iterator i = joinEvents.entrySet().iterator(); i.hasNext();) {
       Map.Entry entry = (Map.Entry) i.next();
@@ -1006,11 +1018,25 @@ private void checkNewFromOuterJoins() throws SemanticException {
                tok == null ? 0 : tok.getLine(), tok == null ? 0 : tok.getColumn());
          }
 
+         if(event.isRightOrFull() && !right) {
+            right = true;
+            first = (Token) rightJoins.get(entry.getKey());
+         }
+
          left = left || "L".equals(event.kind) && event.lstart > 0;
       }
    }
 
-   // reported after the scan, so a statement with a RIGHT or FULL join too reports it
+   // reported after the scan, so the message doesn't depend on the scan order: a RIGHT
+   // or FULL join after another from item first, then any other RIGHT or FULL join, then
+   // a LEFT join after another from item
+   if(right) {
+      throw new SemanticException(
+         "Unsupported RIGHT or FULL join in a statement with a cross join chain or a " +
+         "parenthesized join", getFilename(), first == null ? 0 : first.getLine(),
+         first == null ? 0 : first.getColumn());
+   }
+
    if(left) {
       throw new SemanticException("Unsupported LEFT join after another from item",
                                   getFilename(), 0, 0);
