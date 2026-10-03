@@ -253,6 +253,27 @@ class ScheduleTaskMultiCompletionTest {
       assertRunsStay(dep, 2);
    }
 
+   // the reported case: parents with their own daily time conditions, run manually one after
+   // the other like Scheduler.runTask does (runNow), on two days in a row
+   @Test
+   void dailyParentsRunNow_dependentRunsOnceEachRound() throws Exception {
+      ScheduleTask p1 = buildTask("p1-daily");
+      p1.addCondition(TimeCondition.at(1, 30, 0));
+      ScheduleTask p2 = buildTask("p2-daily");
+      p2.addCondition(TimeCondition.at(2, 0, 0));
+      register(p1);
+      register(p2);
+      ScheduleTask dep = register(buildTask("dep-daily", p1, p2));
+
+      for(int i = 1; i <= 2; i++) {
+         runNow(p1, i);
+         assertRunsStay(dep, i - 1);
+         runNow(p2, i);
+         waitForRuns(dep, i);
+         assertRunsStay(dep, i);
+      }
+   }
+
    @Test
    void disabledDependent_isNotTriggered() throws Exception {
       ScheduleTask p1 = register(buildTask("p1-disabled"));
@@ -291,6 +312,14 @@ class ScheduleTaskMultiCompletionTest {
    /** Triggers the task and waits until the listeners have handled its n-th run. */
    private void run(ScheduleTask task, int n) throws SchedulerException {
       harness.triggerNow(task.getTaskId());
+      waitForRuns(task, n);
+   }
+
+   /** Triggers the task with the job data Scheduler.runTask() uses for a manual run. */
+   private void runNow(ScheduleTask task, int n) throws SchedulerException {
+      JobDataMap data = new JobDataMap();
+      data.put("runNow", true);
+      harness.getQuartz().triggerJob(new JobKey(task.getTaskId(), Scheduler.GROUP_NAME), data);
       waitForRuns(task, n);
    }
 
