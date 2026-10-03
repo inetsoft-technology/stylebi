@@ -1472,6 +1472,10 @@ private int colrefQuote = XExpression.QUOTE_NONE;
 private String colrefColumn = null;
 // the last segment of the last qualified_name
 private int lastSegQuote = XExpression.QUOTE_NONE;
+// the quoting of the last group by field and of the fields of the last group by list, see
+// UniformSQL.setGroupBy(Object[], String[])
+private String lastGroupQuote = null;
+private Vector lastGroupQuotes = null;
 private int lastSegStart = 0;
 private String lastSeg = null;
 // the text of the last function and, if its only argument is a qualified quoted column
@@ -3610,7 +3614,7 @@ derived_column [JDBCSelection selection, UniformSQL sql]
 
            // a quoted identifier ("x y" or t."x y"), stored without its quotes
            if(exp.isQuotedField()) {
-              selection.setQuoted(tmp, exp.getQuotedColumn());
+              selection.setQuoted(selection.getColumnCount() - 1, exp.getQuotedColumn());
            }
 
            // an aggregate of a qualified quoted column (sum(t."MixedCase"))
@@ -3659,8 +3663,9 @@ derived_column [JDBCSelection selection, UniformSQL sql]
 
            selection.addColumn(tmp);
 
+           // by position, two columns may have the same text (Bug #77573)
            if(quotedField) {
-              selection.setQuoted(tmp, exp.getQuotedColumn());
+              selection.setQuoted(selection.getColumnCount() - 1, exp.getQuotedColumn());
            }
 
            // an aggregate of a qualified quoted column (sum(t."MixedCase")), the stored
@@ -3879,6 +3884,7 @@ derived_table returns [Object dt = ""]
 group_by_clause [UniformSQL sql]
         {
          Vector group = new Vector();
+         Vector gquotes = null;
          Vector tmp;
          Token gstart = null;
          sql.setGroupByAll(false);
@@ -3890,6 +3896,7 @@ group_by_clause [UniformSQL sql]
         (
         (grouping_column_ref_list[sql])=>
         group = grouping_column_ref_list[sql]
+        {gquotes = lastGroupQuotes;}
         |(OPEN_PAREN CLOSE_PAREN)=>
         OPEN_PAREN CLOSE_PAREN
         // grouping sets (ROLLUP, CUBE, GROUPING SETS, or a list of grouping sets)
@@ -3927,7 +3934,11 @@ group_by_clause [UniformSQL sql]
            }
         }
         )?
-        {sql.setGroupBy(group.toArray());}
+        {
+           // the quoting of each field, two fields may have the same text (Bug #77573)
+           sql.setGroupBy(group.toArray(), gquotes == null || gquotes.size() != group.size() ?
+              null : (String[]) gquotes.toArray(new String[0]));
+        }
         ;
 
 grouping_set_list
@@ -3950,10 +3961,11 @@ grouping_set
         ;
 
 grouping_column_ref_list [UniformSQL sql] returns [Vector glist = new Vector()]
-        {String tmp; {checkStatus();}}
+        {String tmp; Vector quotes = new Vector(); {checkStatus();}}
         :
-        tmp = grouping_column_ref[sql] {glist.add(tmp);}
-        (COMMA tmp = grouping_column_ref[sql] {glist.add(tmp);})*
+        tmp = grouping_column_ref[sql] {glist.add(tmp); quotes.add(lastGroupQuote);}
+        (COMMA tmp = grouping_column_ref[sql] {glist.add(tmp); quotes.add(lastGroupQuote);})*
+        {lastGroupQuotes = quotes;}
         ;
 
 grouping_column_ref [UniformSQL sql] returns [String gcol = ""]
@@ -3968,6 +3980,10 @@ grouping_column_ref [UniformSQL sql] returns [String gcol = ""]
            if(sql != null && exp.isQuotedField()) {
               sql.setQuotedField(gcol, exp.getQuotedColumn());
            }
+
+           // the quoting of this field, see UniformSQL.setGroupBy(Object[], String[])
+           lastGroupQuote = !exp.isQuotedField() ? null :
+              exp.getQuotedColumn() == null ? "" : exp.getQuotedColumn();
         }//( tmp = collate_clause {gcol += " " + tmp;})?
         //|a:UNSIGNED_NUM_LIT {gcol = a.getText();}
         ;
@@ -4335,24 +4351,35 @@ sort_spec [UniformSQL sql] returns [String ret = ""]
         //( tmp = collate_clause )?
         ( order = ordering_spec )?
         {
-         try {
-           field = Integer.valueOf(exp.toString());
+         // a quoted identifier ("1") is a column, not an ordinal
+         if(exp.isQuotedField()) {
+           field = exp.toString();
          }
-         catch(Exception e) {
-           field = new String(exp.toString());
-
-           // a quoted identifier ("x y" or t."x y"), stored without its quotes
-           if(sql != null && exp.isQuotedField()) {
-              sql.setQuotedField((String) field, exp.getQuotedColumn());
+         else {
+           try {
+             field = Integer.valueOf(exp.toString());
+           }
+           catch(Exception e) {
+             field = new String(exp.toString());
            }
          }
 
          if(sql != null)
          {
-          sql.setOrderBy(field, order);
+          // a quoted identifier ("x y" or t."x y"), stored without its quotes
+          if(exp.isQuotedField()) {
+             sql.setQuotedField((String) field, exp.getQuotedColumn());
+          }
 
-          // an aggregate of a qualified quoted column (sum(t."MixedCase")), see #77578
-          if(field instanceof String) {
+          // each item keeps its own quoting and direction. A later item of the same text and
+          // quoting sorts on the same key, so the first decides the direction, as in sql
+          // (Bug #77573)
+          boolean added = sql.addOrderBy(field, order, exp.isQuotedField(),
+                                         exp.getQuotedColumn());
+
+          // an aggregate of a qualified quoted column (sum(t."MixedCase")), see #77578. A
+          // dropped item doesn't change the record of the item kept
+          if(added && field instanceof String) {
              sql.setQuotedAggregate((String) field, getFuncQuotedColumn(exp));
           }
          }

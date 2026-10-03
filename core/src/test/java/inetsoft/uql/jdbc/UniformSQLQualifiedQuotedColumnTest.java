@@ -618,15 +618,13 @@ class UniformSQLQualifiedQuotedColumnTest {
    }
 
    /**
-    * Known risk, not fixed here: the quoted flag is keyed by the stored name (#77501), and
     * t."MixedCase" and t.MixedCase are both stored as t.MixedCase. When both spellings are in
-    * the same select or group list, both are generated quoted, so the unquoted one (column
-    * b, which is MIXEDCASE on a case-folding database) now takes the quoted column. Before
-    * this change both were generated unquoted. Fixing it needs flags keyed by position (#77573).
+    * the same select or group list, each keeps its own quoting, since the flag is kept by
+    * position (#77573). It used to be keyed by the stored name, and both were quoted.
     */
    @Test
-   void knownRiskBothSpellingsOfANameShareTheFlag() throws Exception {
-      assertEquals("select t.\"MixedCase\", t.\"MixedCase\" as b from t group by t.\"MixedCase\", t.\"MixedCase\"",
+   void bothSpellingsOfANameKeepTheirOwnFlag() throws Exception {
+      assertEquals("select t.\"MixedCase\", t.MixedCase as b from t group by t.\"MixedCase\", t.MixedCase",
                    regenerate("select t.\"MixedCase\", t.MixedCase as b from t " +
                               "group by t.\"MixedCase\", t.MixedCase"));
    }

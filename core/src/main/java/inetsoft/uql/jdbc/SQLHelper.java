@@ -1407,12 +1407,13 @@ public class SQLHelper implements KeywordProvider {
          String ocolumn = xselect.getOriginalColumn(xIdx);
 
          // a quoted identifier (e.g. "x y") parsed from the sql is stored without its
-         // quotes, restore them so the generated sql refers to the same column
+         // quotes, restore them so the generated sql refers to the same column. The flag
+         // is per column, two columns may have the same path (Bug #77573)
          if(!expr && table == null && subalias == null &&
-            ((JDBCSelection) xselect).isQuoted(xselect.getColumn(xIdx)))
+            ((JDBCSelection) xselect).isQuoted(xIdx))
          {
             String qname = xselect.getColumn(xIdx);
-            String qseg = ((JDBCSelection) xselect).getQuotedColumn(qname);
+            String qseg = ((JDBCSelection) xselect).getQuotedColumn(xIdx);
 
             // a qualified quoted column (t."MixedCase") quotes only its column segment
             column = qseg != null ? quoteIdentifier(qname, column, qseg) :
@@ -1453,10 +1454,10 @@ public class SQLHelper implements KeywordProvider {
          }
 
          if(!expr && table != null && subalias == null &&
-            ((JDBCSelection) xselect).isQuoted(xselect.getColumn(xIdx)))
+            ((JDBCSelection) xselect).isQuoted(xIdx))
          {
             column = quoteIdentifier(xselect.getColumn(xIdx), column,
-               ((JDBCSelection) xselect).getQuotedColumn(xselect.getColumn(xIdx)));
+               ((JDBCSelection) xselect).getQuotedColumn(xIdx));
          }
 
          // if table changed to a subquery, replace reference to table to alias
@@ -3274,20 +3275,23 @@ public class SQLHelper implements KeywordProvider {
    public String generateOrderByClause() {
       StringBuilder sort = new StringBuilder();
       JDBCSelection xselect = (JDBCSelection) uniformSql.getSelection();
-      Object[] orderField = uniformSql.getOrderByFields();
+      // each item with its own direction and quoting, two items may have the same text
+      // ("MixedCase" and MixedCase, Bug #77573)
+      OrderByItem[] orderItems = uniformSql.getOrderByItems();
       Object field;
       String order;
       Set<String> ordered = new HashSet<>();
       sort.append(ORDER_BY);
 
-      for(int i = 0; orderField != null && i < orderField.length; i++) {
-         field = orderField[i];
-         order = uniformSql.getOrderBy(field);
+      for(int i = 0; i < orderItems.length; i++) {
+         field = orderItems[i].getField();
+         order = orderItems[i].getOrder();
          String sfield;
 
          if(field instanceof String) {
             sfield = (String) field;
-            String qname = getQuotedName(sfield);
+            String qname = getQuotedName(sfield, uniformSql.isQuotedOrderBy(i));
+            String qseg = getQuotedSegment(sfield, qname, uniformSql.getQuotedOrderByColumn(i));
             // an order by aggregate of a qualified quoted column (sum(t."MixedCase"))
             String qagg = uniformSql.getQuotedAggregate(sfield);
             String ofield = sfield;
@@ -3378,7 +3382,7 @@ public class SQLHelper implements KeywordProvider {
             }
 
             if(qname != null) {
-               sfield = quoteIdentifier(qname, sfield, getQuotedSegment(qname));
+               sfield = quoteIdentifier(qname, sfield, qseg);
             }
 
             // table changed to a subquery, replace reference to table to alias
@@ -3393,6 +3397,7 @@ public class SQLHelper implements KeywordProvider {
             sfield = field.toString();
          }
 
+         // a key already generated is redundant, the first decides the direction as in sql
          if(ordered.contains(sfield)) {
             continue;
          }
@@ -3411,7 +3416,7 @@ public class SQLHelper implements KeywordProvider {
          ordered.add(sfield);
       }
 
-      if(orderField != null && orderField.length > 0) {
+      if(orderItems.length > 0) {
          return sort.toString();
       }
 
@@ -3451,7 +3456,10 @@ public class SQLHelper implements KeywordProvider {
          Object sfield = groupField[i];
 
          if(sfield instanceof String) {
-            String qname = getQuotedName((String) sfield);
+            // the quoting of this field, two fields may have the same text (Bug #77573)
+            String qname = getQuotedName((String) sfield, uniformSql.isQuotedGroupBy(i));
+            String qseg = getQuotedSegment((String) sfield, qname,
+               uniformSql.getQuotedGroupByColumn(i));
             String column = xselect.getAliasColumn((String) sfield);
             column = column == null ? (String) sfield : column;
             String table = uniformSql.getTable(column);
@@ -3526,7 +3534,7 @@ public class SQLHelper implements KeywordProvider {
             }
 
             if(qname != null) {
-               column = quoteIdentifier(qname, column, getQuotedSegment(qname));
+               column = quoteIdentifier(qname, column, qseg);
             }
 
             // if table changed to a subquery, replace table by alias
@@ -4989,29 +4997,60 @@ public class SQLHelper implements KeywordProvider {
    /**
     * Get the name to quote for a group by or order by field written as a quoted identifier
     * (e.g. "x y"), directly or through the alias of a quoted select column.
+    * @param quoted <tt>true</tt> if the group by or order by field itself was written as a
+    *               quoted identifier.
     * @return the unquoted name, or <tt>null</tt> if the field is not quoted.
     */
-   private String getQuotedName(String field) {
+   private String getQuotedName(String field, boolean quoted) {
       JDBCSelection xselect = (JDBCSelection) uniformSql.getSelection();
-      String column = xselect.getAliasColumn(field);
+      int idx = getAliasIndex(xselect, field);
 
-      // an alias is generated as its column, which decides the quoting
-      if(column != null && !column.equals(field)) {
-         return !xselect.isExpression(column) && xselect.isQuoted(column) ? column : null;
+      // an alias is generated as its column, which decides the quoting. By position, two
+      // columns may have the same path (Bug #77573)
+      if(idx >= 0) {
+         return !xselect.isExpression(idx) && xselect.isQuoted(idx) ?
+            xselect.getColumn(idx) : null;
       }
 
-      return uniformSql.isQuotedField(field) ? field : null;
+      return quoted ? field : null;
    }
 
    /**
-    * Get the column segment, as written, of a group by, order by or select name written as
-    * a qualified quoted identifier (t."MixedCase").
+    * Get the column segment, as written, of a group by or order by field written as a
+    * qualified quoted identifier (t."MixedCase").
+    * @param field the group by or order by field.
+    * @param qname the name to quote, from getQuotedName.
+    * @param segment the segment recorded for the field itself.
     * @return the segment, or <tt>null</tt> if the name is not a qualified quoted identifier.
     */
-   private String getQuotedSegment(String name) {
-      String seg = uniformSql.getQuotedFieldColumn(name);
-      return seg != null ? seg :
-         ((JDBCSelection) uniformSql.getSelection()).getQuotedColumn(name);
+   private String getQuotedSegment(String field, String qname, String segment) {
+      if(qname == null) {
+         return null;
+      }
+
+      JDBCSelection xselect = (JDBCSelection) uniformSql.getSelection();
+      int idx = getAliasIndex(xselect, field);
+
+      if(idx >= 0) {
+         return xselect.getQuotedColumn(idx);
+      }
+
+      return segment != null ? segment : xselect.getQuotedColumn(qname);
+   }
+
+   /**
+    * Get the index of the select column a group by or order by field references by its
+    * alias.
+    * @return the index, or -1 if the field is not an alias other than its column.
+    */
+   private static int getAliasIndex(XSelection xselect, String field) {
+      for(int i = 0; i < xselect.getColumnCount(); i++) {
+         if(field.equals(xselect.getAlias(i)) && !field.equals(xselect.getColumn(i))) {
+            return i;
+         }
+      }
+
+      return -1;
    }
 
    /**
