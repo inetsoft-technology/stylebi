@@ -243,7 +243,7 @@ class XUtilSentinelNotEqualTest {
          System.getProperty("sentinel.pg.url"), System.getProperty("sentinel.pg.user", "postgres"),
          System.getProperty("sentinel.pg.password")))
       {
-         createTables(conn);
+         createTables(conn, true);
          List<String> failures = new ArrayList<>();
 
          for(String[] shape : IS_SHAPES) {
@@ -326,23 +326,28 @@ class XUtilSentinelNotEqualTest {
 
    private static Connection connect() throws SQLException {
       Connection conn = DriverManager.getConnection("jdbc:derby:memory:bug77571;create=true");
-      createTables(conn);
+      createTables(conn, false);
       return conn;
    }
 
-   private static void createTables(Connection conn) throws SQLException {
+   // temp tables hide any real a and b, and are dropped with the connection
+   private static void createTables(Connection conn, boolean temp) throws SQLException {
+      String create = temp ? "create temp table " : "create table ";
+
       try(Statement stmt = conn.createStatement()) {
          for(String table : new String[] { "a", "b" }) {
             try {
-               stmt.executeUpdate("drop table " + table);
+               if(!temp) {
+                  stmt.executeUpdate("drop table " + table);
+               }
             }
             catch(SQLException ignore) {
                // first run
             }
          }
 
-         stmt.executeUpdate("create table a (id int, k int, name varchar(20))");
-         stmt.executeUpdate("create table b (id int, k int, x int)");
+         stmt.executeUpdate(create + "a (id int, k int, name varchar(20))");
+         stmt.executeUpdate(create + "b (id int, k int, x int)");
          stmt.executeUpdate("insert into a values (1, 1, 'n1'), (null, 1, ''), (3, 2, null), " +
                                "(null, 2, 'null'), (5, 1, 'NULL_VALUE'), (6, 1, null), " +
                                "(7, 3, null), (8, 3, null), (9, 2, '')");
