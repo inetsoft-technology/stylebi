@@ -864,6 +864,12 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
             Element sortNode = (Element) nlist.item(i);
             String field = Tool.getValue(sortNode);
             String order = Tool.getAttribute(sortNode, "order");
+
+            // a missing direction was written as "null" (Bug #77570)
+            if("null".equals(order) || "".equals(order)) {
+               order = null;
+            }
+
             orderByList.add(new OrderByItem(field, order));
 
             readQuotedField(sortNode, field);
@@ -1151,10 +1157,13 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
       writer.println("</where>");
 
       writer.print("<sortby>");
-      Object[] orderField = this.getOrderByFields();
+      OrderByItem[] orderItems = this.getOrderByItems();
+      Object[] orderField = Arrays.stream(orderItems).map(OrderByItem::getField).toArray();
 
-      for(int i = 0; orderField != null && i < orderField.length; i++) {
-         writer.print("<field order=\"" + this.getOrderBy(orderField[i]) + "\"" +
+      for(int i = 0; i < orderField.length; i++) {
+         // the direction of the item itself, none if not set (Bug #77570)
+         String order = orderItems[i].getOrder();
+         writer.print("<field" + (order != null ? " order=\"" + order + "\"" : "") +
                       quotedFieldAttribute(orderField[i]) +
                       quotedAggregateAttribute(orderField[i]) + "><![CDATA[");
          writer.print(orderField[i].toString());
@@ -1718,92 +1727,225 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
     */
    @SuppressWarnings("WeakerAccess")
    public synchronized void syncSorting() {
-      Object[] sortFields = getOrderByFields();
+      OrderByItem[] items = getOrderByItems();
 
-      if(sortFields == null) {
+      if(items.length == 0) {
          return;
       }
 
-      // remove order by columns that does not have table
-      List<String> vec = new ArrayList<>();
-
-      for(Object sortField : sortFields) {
-         String fname = sortField.toString();
-
-         if(getFieldByPath(fname) != null || getField(fname) != null ||
-            getSelection().getAliasColumn(fname) != null) {
-            vec.add(fname);
-         }
-      }
-
+      // each kept item with its own direction and quoted aggregate record, so an item is
+      // never looked up again by its text (Bug #77570)
+      List<OrderByItem> kept = new ArrayList<>();
+      List<String> records = new ArrayList<>();
+      Boolean wildcard = null;
       boolean changed = false;
 
-      // removed some fields
-      if(vec.size() != sortFields.length) {
-         sortFields = vec.toArray(new String[0]);
-         changed = true;
-      }
+      for(OrderByItem item : items) {
+         Object field = item.getField();
+         String record = getQuotedAggregate(field);
+         int ordinal = getOrdinal(field);
 
-      String[] orders = new String[sortFields.length];
-      // the quoted aggregate records, re-applied to the fields added again below
-      String[] records = new String[sortFields.length];
+         if(ordinal > 0) {
+            if(wildcard == null) {
+               wildcard = isSelectWildcard();
+            }
 
-      for(int i = 0; i < sortFields.length; i++) {
-         orders[i] = getOrderBy(sortFields[i]);
-         records[i] = getQuotedAggregate(sortFields[i]);
+            // the model's select list doesn't keep the positions of a select list with a
+            // wildcard, so an ordinal is kept as written
+            if(!wildcard) {
+               if(ordinal > getSelection().getColumnCount()) {
+                  changed = true;
+                  continue;
+               }
 
-         if(sortFields[i] instanceof Integer) {
-            int idx = (Integer) sortFields[i];
+               if(field instanceof Integer) {
+                  Object nfield = getOrdinalColumn(ordinal);
 
-            if(idx <= 0 || idx > getSelection().getColumnCount()) {
+                  if(nfield != null) {
+                     field = nfield;
+                     changed = true;
+                  }
+               }
+            }
+         }
+         else if(field instanceof String && !isSelectAlias((String) field)) {
+            // remove order by columns that does not have table
+            if(getFieldByPath((String) field) == null && getField((String) field) == null) {
+               changed = true;
                continue;
             }
 
-            String path = getSelection().getColumn(idx - 1);
+            String fp = JDBCUtil.getFullPathOf(this, (String) field, isQuotedField(field));
 
-            if(path != null) {
-               String alias = getSelection().getAlias(idx - 1);
-
-               if(getDataSource() == null ||
-                  getDataSource().getDatabaseType() == JDBCDataSource.JDBC_ODBC)
-               {
-                  sortFields[i] = path;
-               }
-               else {
-                  sortFields[i] = alias == null || alias.length() == 0 ?
-                     path : alias;
-               }
-
+            if(fp != null && !fp.equals(field)) {
+               copyQuotedField((String) field, fp);
+               field = fp;
                changed = true;
             }
          }
-         else if(sortFields[i] instanceof String &&
-            // @by larryl, if sort by defined on alias, keep as is otherwise
-            // the fullpath may be pointing to a wrong column
-            getSelection().getAliasColumn((String) sortFields[i]) == null)
-         {
-            String fp = JDBCUtil.getFullPathOf(this, (String) sortFields[i],
-               isQuotedField(sortFields[i]));
+         else if(!(field instanceof String)) {
+            String fname = field.toString();
 
-            if(fp != null && !fp.equals(sortFields[i])) {
-               copyQuotedField((String) sortFields[i], fp);
-               sortFields[i] = fp;
+            if(getFieldByPath(fname) == null && getField(fname) == null &&
+               getSelection().getAliasColumn(fname) == null)
+            {
                changed = true;
+               continue;
             }
          }
+
+         if(!addOrderByIfAbsent(kept, field, item.getOrder())) {
+            // the first item on a column decides its direction, as in sql
+            changed = true;
+            continue;
+         }
+
+         records.add(record);
       }
 
       if(changed) {
          removeAllOrderByFields();
 
-         for(int i = 0; i < sortFields.length; i++) {
-            setOrderBy(sortFields[i], orders[i]);
+         for(int i = 0; i < kept.size(); i++) {
+            OrderByItem item = kept.get(i);
+            orderByList.add(item);
 
-            if(records[i] != null && sortFields[i] instanceof String) {
-               setQuotedAggregate((String) sortFields[i], records[i]);
+            if(records.get(i) != null && item.getField() instanceof String) {
+               setQuotedAggregate((String) item.getField(), records.get(i));
             }
          }
       }
+   }
+
+   /**
+    * Add an order by item to the list unless an item already sorts on the same field.
+    * @return <tt>true</tt> if added.
+    */
+   private static boolean addOrderByIfAbsent(List<OrderByItem> items, Object field,
+                                             String order)
+   {
+      for(OrderByItem item : items) {
+         if(item.getField().equals(field)) {
+            return false;
+         }
+      }
+
+      items.add(new OrderByItem(field, order));
+      return true;
+   }
+
+   /**
+    * Get the select column an order by ordinal is converted to, carrying its quoting.
+    */
+   private Object getOrdinalColumn(int ordinal) {
+      String path = getSelection().getColumn(ordinal - 1);
+
+      if(path == null) {
+         return null;
+      }
+
+      String alias = getSelection().getAlias(ordinal - 1);
+
+      if(getDataSource() == null ||
+         getDataSource().getDatabaseType() == JDBCDataSource.JDBC_ODBC ||
+         alias == null || alias.length() == 0)
+      {
+         // the path is generated as an order by field, which has its own quoted flag
+         if(getSelection() instanceof JDBCSelection &&
+            ((JDBCSelection) getSelection()).isQuoted(path))
+         {
+            setQuotedField(path, ((JDBCSelection) getSelection()).getQuotedColumn(path));
+         }
+
+         return path;
+      }
+
+      return alias;
+   }
+
+   /**
+    * Get the position of the select column an order by or group by ordinal references.
+    * A parsed order by ordinal is an Integer. A parsed group by ordinal, and an order by
+    * ordinal loaded from xml, is a String of digits, unless it was written as a quoted
+    * identifier ("1"), which is a column.
+    * @return the 1-based position, or 0 if the field is not an ordinal.
+    */
+   private int getOrdinal(Object field) {
+      if(field instanceof Integer) {
+         return Math.max((Integer) field, 0);
+      }
+
+      if(!(field instanceof String) || isQuotedField(field)) {
+         return 0;
+      }
+
+      String str = (String) field;
+
+      if(str.isEmpty() || str.length() > 9) {
+         return 0;
+      }
+
+      for(int i = 0; i < str.length(); i++) {
+         if(str.charAt(i) < '0' || str.charAt(i) > '9') {
+            return 0;
+         }
+      }
+
+      return Integer.parseInt(str);
+   }
+
+   /**
+    * Check if a group by or order by field is a select alias. A case-sensitive helper
+    * (e.g. postgresql) stores an unquoted alias reference with quotes ("a") while the
+    * alias itself is stored without them (Bug #77616).
+    */
+   private boolean isSelectAlias(String field) {
+      if(getSelection().getAliasColumn(field) != null) {
+         return true;
+      }
+
+      String name = field.indexOf('"') >= 0 ? XUtil.removeQuote(field) : field;
+      return !name.equals(field) && getSelection().getAliasColumn(name) != null;
+   }
+
+   /**
+    * Check if the select list of the parsed sql has a wildcard (* or t.*). The wildcard is
+    * expanded in the select list of this object, which then doesn't keep the positions of
+    * the sql, so an ordinal can't be resolved against it.
+    */
+   private boolean isSelectWildcard() {
+      if(hasWildcard(getSelection())) {
+         return true;
+      }
+
+      if(sqlstring == null) {
+         return false;
+      }
+
+      try {
+         SQLLexer lexer = new SQLLexer(new StringReader(getQuotedSqlString(sqlstring)));
+         SQLParser parser = new SQLParser(lexer);
+         UniformSQL sql = new UniformSQL();
+         sql.setDataSource(getDataSource());
+         parser.only_select(sql);
+         return hasWildcard(sql.getSelection());
+      }
+      catch(Exception ex) {
+         // the positions of the sql are unknown
+         return true;
+      }
+   }
+
+   private static boolean hasWildcard(XSelection selection) {
+      for(int i = 0; selection != null && i < selection.getColumnCount(); i++) {
+         String path = selection.getColumn(i);
+
+         if(path != null && (path.equals("*") || path.endsWith(".*"))) {
+            return true;
+         }
+      }
+
+      return false;
    }
 
    /**
@@ -1816,6 +1958,10 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
       if(groupBy == null) {
          return;
       }
+
+      // the fields kept without checking the field list (Bug #77570, #77616)
+      boolean[] keep = new boolean[groupBy.length];
+      Boolean wildcard = null;
 
       for(int i = 0; i < groupBy.length; i++) {
          if(groupBy[i] instanceof Integer) {
@@ -1835,11 +1981,20 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
                }
             }
          }
-         else if(groupBy[i] instanceof String &&
+         else if(getOrdinal(groupBy[i]) > 0) {
+            if(wildcard == null) {
+               wildcard = isSelectWildcard();
+            }
+
+            // an ordinal is checked against the select list, not the field list
+            keep[i] = wildcard || getOrdinal(groupBy[i]) <= getSelection().getColumnCount();
+         }
+         else if(groupBy[i] instanceof String && isSelectAlias((String) groupBy[i])) {
             // @by larryl, if group by defined on alias, keep as is otherwise
             // the fullpath may be pointing to a wrong column
-            getSelection().getAliasColumn((String) groupBy[i]) == null)
-         {
+            keep[i] = true;
+         }
+         else if(groupBy[i] instanceof String) {
             String fp = JDBCUtil.getFullPathOf(this, (String) groupBy[i],
                isQuotedField(groupBy[i]));
 
@@ -1853,8 +2008,13 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
       // remove group by columns that does not have table
       List<Object> vec = new ArrayList<>();
 
-      for(Object obj : groupBy) {
-         if(obj instanceof String) {
+      for(int i = 0; i < groupBy.length; i++) {
+         Object obj = groupBy[i];
+
+         if(keep[i]) {
+            vec.add(obj);
+         }
+         else if(obj instanceof String && getOrdinal(obj) == 0) {
             String fname = obj.toString();
 
             if(getFieldByPath(fname) != null || getField(fname) != null ||
