@@ -146,6 +146,8 @@ class UniformSQLQuotedTableNameTest {
          stmt.executeUpdate("create table \"b\" (ID INT, W INT)");
          stmt.executeUpdate("create table \"c\" (ID INT)");
          stmt.executeUpdate("create table C (ID INT, V INT)");
+         stmt.executeUpdate("create table \"c2\" (ID INT)");
+         stmt.executeUpdate("create table C2 (ID INT)");
          stmt.executeUpdate("create schema \"S\"");
          stmt.executeUpdate("create table \"S\".\"a\" (ID INT, V INT)");
          stmt.executeUpdate("create table \"S\".\"A\" (ID INT, V INT)");
@@ -154,6 +156,8 @@ class UniformSQLQuotedTableNameTest {
          stmt.executeUpdate("insert into \"b\" values (1, 7), (3, 9)");
          stmt.executeUpdate("insert into \"c\" values (1), (3)");
          stmt.executeUpdate("insert into C values (1, 5), (2, 6)");
+         stmt.executeUpdate("insert into \"c2\" values (1), (3)");
+         stmt.executeUpdate("insert into C2 values (1), (2)");
          stmt.executeUpdate("insert into \"S\".\"a\" values (1, 42)");
          stmt.executeUpdate("insert into \"S\".\"A\" values (1, 43), (2, 44)");
       }
@@ -194,6 +198,10 @@ class UniformSQLQuotedTableNameTest {
          "select \"c\".ID from \"c\" where exists (select 1 from C where C.ID = \"c\".ID)",
          "select \"c\".ID from \"c\" where not exists (select 1 from C where C.ID = \"c\".ID)",
          "select \"c\".ID from \"c\" where \"c\".ID in (select C.ID from C where C.ID = \"c\".ID)",
+         // a correlated qualifier at the end of a quoted schema table, APP is the default schema
+         "select \"c2\".ID from \"APP\".\"c2\" where exists (select 1 from C2 where C2.ID = \"c2\".ID)",
+         "select \"c2\".ID from \"APP\".\"c2\" where not exists " +
+            "(select 1 from C2 where C2.ID = \"c2\".ID)",
          // a correlated scalar subquery in the select list, in an expression, in a case and
          // in having
          "select \"c\".ID, (select max(C.V) from C where C.ID = \"c\".ID) from \"c\"",
