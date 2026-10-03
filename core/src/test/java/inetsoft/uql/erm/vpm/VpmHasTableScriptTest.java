@@ -150,6 +150,49 @@ class VpmHasTableScriptTest {
       }
    }
 
+   // a query table stored without a schema matches the name in any schema
+   @Test
+   void unqualifiedQueryTableMatchesAnySchema() throws Exception {
+      Query bare = new Query(new String[] { "t" }, new String[] { "t" }, dataSource());
+
+      for(String scope : SCOPES) {
+         assertTrue(run(scope, bare, "hasTable('sa.t')"), scope);
+         assertTrue(run(scope, bare, "hasTable('sb.t')"), scope);
+         assertFalse(run(scope, bare, "hasTable('sa.t2')"), scope);
+      }
+   }
+
+   // the names are lower cased in the root locale, in Turkish ITEMS lower cases to ıtems
+   @Test
+   void caseIsIgnoredInTurkishLocale() throws Exception {
+      Locale locale = Locale.getDefault();
+      Locale.setDefault(Locale.forLanguageTag("tr-TR"));
+
+      try {
+         assertTrue(VirtualPrivateModel.isSameTable("\"items\"", "ITEMS"));
+         assertTrue(VirtualPrivateModel.isSameTable("\"sa\".\"items\"", "SA.ITEMS"));
+         Query items = new Query(new String[] { "\"items\"" }, new String[] { "i" },
+                                 dataSource());
+
+         for(String scope : SCOPES) {
+            assertTrue(run(scope, items, "hasTable('ITEMS')"), scope);
+         }
+
+         // the vpm condition on ITEMS is applied to the query table and qualified by its alias
+         VpmCondition cond = new VpmCondition("cond");
+         cond.setType(VpmCondition.TABLE);
+         cond.setTable("ITEMS");
+         cond.setScript("'ITEMS.STATE = 1'");
+         XPrincipal user = new XPrincipal(new IdentityID("viewer", null));
+         assertEquals("i.STATE = 1",
+                      cond.evaluate(null, items.tables, items.taliases, new String[0],
+                                    items.ds, new VariableTable(), user, false));
+      }
+      finally {
+         Locale.setDefault(locale);
+      }
+   }
+
    // control: the tables array still has the names as the query stores them, so an existing
    // script comparing them exactly behaves as before
    static Stream<Arguments> controlCases() {

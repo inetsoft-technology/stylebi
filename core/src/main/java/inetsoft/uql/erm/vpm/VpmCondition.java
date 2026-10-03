@@ -518,7 +518,7 @@ public class VpmCondition extends VpmObject {
             segment.append(condition, segmentStart, end);
          }
 
-         segments.add(segment.toString().toLowerCase());
+         segments.add(segment.toString().toLowerCase(Locale.ROOT));
          ends.add(end);
 
          // continue at a dot followed by another segment
@@ -785,7 +785,7 @@ public class VpmCondition extends VpmObject {
    private static boolean isTableField(String field, String table) {
       return table != null && field.length() > table.length() + 1 &&
          field.charAt(table.length()) == '.' &&
-         field.toLowerCase().startsWith(table.toLowerCase());
+         field.toLowerCase(Locale.ROOT).startsWith(table.toLowerCase(Locale.ROOT));
    }
 
    /**

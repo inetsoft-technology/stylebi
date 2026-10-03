@@ -55,6 +55,13 @@ public class VpmScope implements ScriptScope {
       senv.init();
       senv.put("vpm", new inetsoft.util.script.graal.ScopeProxy(scope));
 
+      // Bug #77615, a scope member is found before a global, so the built-in hasTable would
+      // hide a script library function of the same name and change what an existing script
+      // calling it does. The library function takes precedence.
+      if(senv.get(HAS_TABLE) != null) {
+         scope.removeMember(HAS_TABLE);
+      }
+
       // compile the script statement
       try {
          script = senv.compile(statement);
@@ -105,8 +112,8 @@ public class VpmScope implements ScriptScope {
       // ScriptFunction so it is callable from scripts under GraalJS.
       members.put("runQuery", new inetsoft.util.script.graal.ScriptFunction(
          this, getClass(), "runQuery", String.class, Object.class));
-      members.put("hasTable", new inetsoft.util.script.graal.ScriptFunction(
-         this, getClass(), "hasTable", String.class));
+      members.put(HAS_TABLE, new inetsoft.util.script.graal.ScriptFunction(
+         this, getClass(), HAS_TABLE, String.class));
    }
 
    /**
@@ -127,7 +134,7 @@ public class VpmScope implements ScriptScope {
     * @param tables the tables of the query.
     */
    public void setTables(String[] tables) {
-      this.tables = tables;
+      this.tables = tables == null ? null : tables.clone();
       members.put("tables", new StringArray("table", tables));
    }
 
@@ -138,12 +145,17 @@ public class VpmScope implements ScriptScope {
     * by {@link VirtualPrivateModel#isSameTable(String, String)}, so identifier quotes and
     * case are ignored, and a name with fewer segments matches the trailing segments of the
     * other one, e.g. <tt>hasTable('sa.t')</tt> and <tt>hasTable('t')</tt> are both true for
-    * <tt>"sa"."t"</tt>, but <tt>hasTable('sb.t')</tt> is not.
+    * <tt>"sa"."t"</tt>, but <tt>hasTable('sb.t')</tt> is not. So a query table stored without
+    * a schema matches the name in any schema: <tt>hasTable('sa.t')</tt> and
+    * <tt>hasTable('sb.t')</tt> are both true for <tt>t</tt>.
     * <p>
     * The tables are those {@link #setTables(String[]) set} on this scope: for the trigger and
     * hidden columns scripts the tables of the query and its sub queries, for a condition
     * script the tables of the query or sub query the condition is added to. Changing the
     * <code>tables</code> array in the script does not change the result.
+    * <p>
+    * A script library function named <tt>hasTable</tt> takes precedence, the built-in is not
+    * available to the script when the library defines one.
     * @param name the table name, quoted or not.
     * @return <tt>true</tt> if the query reads the table, <tt>false</tt> if not or if the
     * name is null or empty.
@@ -320,6 +332,7 @@ public class VpmScope implements ScriptScope {
    private final Map<String, Object> members = new LinkedHashMap<>();
 
    private static final String CONDITION = "condition";
+   private static final String HAS_TABLE = "hasTable";
 
    private static final Logger LOG =
       LoggerFactory.getLogger(VpmScope.class);
