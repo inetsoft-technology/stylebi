@@ -471,6 +471,7 @@ public class QueryManagerService {
          fieldModel.setDataType(selection.getType(name));
          fieldModel.setDrillInfo(getAutoDrillInfo(selection.getXMetaInfo(i)));
          fieldModel.setFormat(getFormatInfo(selection.getXMetaInfo(i)));
+         fieldModel.setQuotedName(getQuotedName(sql, selection, i));
          queryFields.add(fieldModel);
       }
 
@@ -1317,6 +1318,38 @@ public class QueryManagerService {
       return new String[] {alias, expression};
    }
 
+   /**
+    * Get a select column as written in the sql when it was a quoted identifier, which the
+    * expression editor starts from: t."MixedCase" or "My Col". The column name doesn't show
+    * the quotes, and an edit is generated as it is written (Bug #77573).
+    * @return the quoted spelling, or <tt>null</tt> if the column isn't a quoted identifier.
+    */
+   public static String getQuotedName(UniformSQL sql, JDBCSelection selection, int idx) {
+      if(!selection.isQuoted(idx) || selection.isExpression(idx)) {
+         return null;
+      }
+
+      String path = selection.getColumn(idx);
+      String segment = selection.getQuotedColumn(idx);
+      String table = selection.getTable(path);
+      String quote = sql.getSQLHelper().getQuote();
+      String prefix = "";
+      String column = path;
+
+      if(segment != null && path.endsWith("." + segment)) {
+         prefix = path.substring(0, path.length() - segment.length());
+         column = segment;
+      }
+      else if(segment == null && table != null && !table.isEmpty() &&
+         path.startsWith(table + "."))
+      {
+         prefix = table + ".";
+         column = path.substring(table.length() + 1);
+      }
+
+      return prefix + quote + column + quote;
+   }
+
    public String[] editExpression(UniformSQL sql, JDBCSelection selection, String expression,
                               String columnName, String columnAlias)
    {
@@ -1342,6 +1375,8 @@ public class QueryManagerService {
       }
 
       sql.setAlias(columnIndex, columnAlias);
+      // generated as it is written. The editor starts from the quoted spelling of a quoted
+      // column (getQuotedName), so it stays quoted when it isn't changed (Bug #77573)
       selection.setColumn(columnIndex, expression);
       selection.setType(expression, type);
       selection.setXMetaInfo(columnIndex, meta);

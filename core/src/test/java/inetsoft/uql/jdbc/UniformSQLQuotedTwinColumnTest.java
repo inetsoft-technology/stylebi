@@ -684,6 +684,86 @@ class UniformSQLQuotedTwinColumnTest {
       }
    }
 
+   /**
+    * #6204 verification: the expression editor starts from the column's quoted spelling
+    * (QueryFieldModel.quotedName), so pressing OK without a change keeps the quoted column,
+    * and an edit from it keeps the quotes as written. The unquoted name typed in its place is
+    * the unquoted column (editedColumnIsGeneratedAsWritten).
+    */
+   @Test
+   void unchangedEditKeepsTheQuotedColumn() throws Exception {
+      String[][] cases = {
+         // query, quoted spelling the editor starts from (h2/oracle after the metadata step)
+         { "select q.\"MixedCase\" as e, q.id from q", "q.\"MixedCase\"" },
+         { "select \"MixedCase\" as e, id from q", "q.\"MixedCase\"" },
+         { "select \"My Col\" as e, id from q", "q.\"My Col\"" },
+      };
+      QueryManagerService service = new QueryManagerService(
+         mock(RuntimeQueryService.class), mock(XRepository.class), mock(DataSourceService.class),
+         mock(SecurityEngine.class), mock(ColumnCache.class));
+
+      try(Connection conn = DriverManager.getConnection("jdbc:derby:memory:bug77573e;create=true");
+          Statement stmt = conn.createStatement())
+      {
+         stmt.execute("create table q (\"My Col\" int, \"MixedCase\" int, MIXEDCASE int, id int)");
+         stmt.execute("insert into q values (1, 2, 30, 10), (4, 5, 60, 20)");
+
+         for(String helper : new String[] { "h2", "oracle", "postgresql" }) {
+            for(String[] c : cases) {
+               List<String> expected = rows(stmt, c[0], false);
+
+               // OK without a change, from the quoted spelling
+               UniformSQL sql = parse(c[0], helpers().get(helper));
+               fixed(sql, COLUMNS);
+               JDBCSelection select = (JDBCSelection) sql.getSelection();
+               String quoted = QueryManagerService.getQuotedName(sql, select, 0);
+               assertNotNull(quoted, helper + " " + c[0]);
+
+               if(!"postgresql".equals(helper)) {
+                  assertEquals(c[1], quoted, helper + " " + c[0]);
+               }
+
+               service.editExpression(sql, select, quoted, select.getColumn(0), "e");
+               String generated = regenerate(sql);
+               assertTrue(generated.contains(quoted + " as "), helper + " " + c[0] + " -> " + generated);
+
+               if(!"postgresql".equals(helper)) {
+                  assertEquals(expected, rows(stmt, generated, false), helper + " " + generated);
+               }
+
+               // an edit from it keeps the quotes as written
+               sql = parse(c[0], helpers().get(helper));
+               fixed(sql, COLUMNS);
+               select = (JDBCSelection) sql.getSelection();
+               quoted = QueryManagerService.getQuotedName(sql, select, 0);
+               service.editExpression(sql, select, quoted + " * 2", select.getColumn(0), "e");
+               generated = regenerate(sql);
+               assertTrue(generated.contains(quoted + " * 2 as "), helper + " " + c[0] + " -> " + generated);
+
+               if(!"postgresql".equals(helper)) {
+                  assertEquals(rows(stmt, c[0].replace(c[0].substring(7, c[0].indexOf(" as e")),
+                                                       c[1] + " * 2"), false),
+                               rows(stmt, generated, false), helper + " " + generated);
+               }
+
+            }
+         }
+
+         // an unquoted column has no quoted spelling
+         UniformSQL sql = parse("select id as e from q", helpers().get("h2"));
+         fixed(sql, COLUMNS);
+         assertNull(QueryManagerService.getQuotedName(sql, (JDBCSelection) sql.getSelection(), 0));
+      }
+      finally {
+         try {
+            DriverManager.getConnection("jdbc:derby:memory:bug77573e;drop=true");
+         }
+         catch(SQLException ignore) {
+            // a successful drop is reported as an exception
+         }
+      }
+   }
+
    // the query through the metadata step, its first column edited into an expression
    private static UniformSQL edit(QueryManagerService service, String query, String expression,
                                   JDBCDataSource ds, String column) throws Exception
