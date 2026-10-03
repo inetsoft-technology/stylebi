@@ -3704,7 +3704,8 @@ as_clause returns [String as = ""]
         (AS)?
         (as = column_name
         | a:STRING_LITERAL {as = a.getText();
-          as = as.substring(1, as.length()-1); aliasQuoted = Boolean.TRUE;}
+          // un-double the '' escape, as 'it''s' is the alias it's (#77640)
+          as = as.substring(1, as.length()-1).replace("''", "'"); aliasQuoted = Boolean.TRUE;}
         | b:T_DATE { as = b.getText(); aliasQuoted = Boolean.FALSE;})
         ;
 
@@ -4674,16 +4675,18 @@ IDENT
 			:	('a'..'z'|'A'..'Z'|'\u0100'..'\uFFFE'|'@') ('a'..'z'|'A'..'Z'|'\u0100'..'\uFFFE'|'_'|'0'..'9')*
 			;
 
-SPIDENT			:	'"'(~('"'))*'"'
+// setCommitToPath(true) after an opening delimiter makes an unterminated delimited token a
+// lexer error, instead of filter mode silently dropping it and the rest of the text (#77640)
+SPIDENT			:	'"' {setCommitToPath(true);} (~('"'))*'"'
 			;
-SPIDENT2		:	'`' ('\u0001'..'\u005f' | '\u0061'..'\ufffe')* '`'
+SPIDENT2		:	'`' {setCommitToPath(true);} ('\u0001'..'\u005f' | '\u0061'..'\ufffe')* '`'
 			;
 
-SPIDENT_VAR             :    "$(" ('a'..'z'|'A'..'Z'|'_'|'0'..'9'|' '|
+SPIDENT_VAR             :    "$(" {setCommitToPath(true);} ('a'..'z'|'A'..'Z'|'_'|'0'..'9'|' '|
                                   '+' | '-' |'@'|'\u0100'..'\uFFFE')* ')' ;
 
 //have not include all chinese character
-SPIDENT_SQUARE		: 	'['
+SPIDENT_SQUARE		: 	'[' {setCommitToPath(true);}
 				(('\u0001'..'\u005a'|('\u005E'..'\u7fff')
 				|('\u8001'..'\u803f')|('\u8041'..'\u807f')
 				|('\u8081'..'\u80bf')|('\u80c1'..'\u80fd')
@@ -4691,7 +4694,7 @@ SPIDENT_SQUARE		: 	'['
 				']'
 			;
 
-SPIDENT_BRACKET		:	'{' ('\u0001'..'\u007a' | '\u007c' | '\u007e'..'\ufffe')* '}'
+SPIDENT_BRACKET		:	'{' {setCommitToPath(true);} ('\u0001'..'\u007a' | '\u007c' | '\u007e'..'\ufffe')* '}'
 			;
 
 WS			:	(' '
@@ -4762,7 +4765,8 @@ STRING_LITERAL
 	 TIME { _ttype = TIME; }
 	|(DATE)=>
 	 DATE { _ttype = DATE; }
-	| {isInterval() == false}? '\'' (~('\''|'"'))* '\''
+	// a literal may contain '"' and the '' escape (#77640)
+	| {isInterval() == false}? '\'' {setCommitToPath(true);} (~('\'') | '\'' '\'')* '\''
 	| '\'' { _ttype = SINGLE_QUOTE; }
 	;
 
