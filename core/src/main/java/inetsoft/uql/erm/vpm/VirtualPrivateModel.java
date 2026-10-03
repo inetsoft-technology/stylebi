@@ -455,9 +455,8 @@ public class VirtualPrivateModel extends VpmObject {
       scope.setVariableTable(vars);
       scope.setUser(user);
 
-      StringArray tarray = new StringArray("table", tables);
       StringArray carray = new StringArray("column", columns);
-      scope.putMember("tables", tarray);
+      scope.setTables(tables);
       scope.putMember("columns", carray);
 
       if(WSExecution.getAssetQuerySandbox() != null) {

@@ -374,10 +374,9 @@ public class VpmCondition extends VpmObject {
       scope.setVariableTable(vars);
       scope.setUser(user);
 
-      StringArray tarray = new StringArray("table", tables);
       StringArray tsarray = new StringArray("talias", taliases);
       StringArray carray = new StringArray("column", columns);
-      scope.putMember("tables", tarray);
+      scope.setTables(tables);
       scope.putMember("taliases", tsarray);
       scope.putMember("columns", carray);
       scope.putMember("condition", condition);
