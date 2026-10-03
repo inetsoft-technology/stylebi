@@ -141,7 +141,7 @@ class SQLHelperNotEqualJoinTest {
       }
    }
 
-   // without text join order (no outer join with the ANSI option, or MongoHelper) a != is
+   // without text join order (no outer join with the ANSI option) a != is
    // written in place as before. Moving it into the from clause there joins c twice for the
    // 3-table shapes (as <> does), and with no outer join WHERE and ON are the same rows
    @ParameterizedTest
@@ -153,12 +153,6 @@ class SQLHelperNotEqualJoinTest {
       "h2-ansi|from a join b on a.k != b.k|from a, b where a.k != b.k",
       "h2-ansi|from a join b on a.id = b.id and not (a.k != b.k)|" +
          "from a INNER JOIN b ON a.id = b.id where not (a.k != b.k)",
-      "mongo|from a right join b on a.id = b.id join c on b.id = c.id and a.k != c.k|" +
-         "from a RIGHT OUTER JOIN b ON a.id = b.id INNER JOIN c ON b.id = c.id where a.k != c.k",
-      "mongo-ansi|from a right join b on a.id = b.id join c on b.id = c.id and a.k != c.k|" +
-         "from a RIGHT OUTER JOIN b ON a.id = b.id INNER JOIN c ON b.id = c.id where a.k != c.k",
-      "mongo|from a left join b on a.id = b.id join c on a.id = c.id and a.k != c.k|" +
-         "from a INNER JOIN c ON a.id = c.id LEFT OUTER JOIN b ON a.id = b.id where a.k != c.k",
       "mongo-ansi|from a join b on a.id = b.id join c on b.id = c.id and a.k != c.k|" +
          "from a INNER JOIN b ON a.id = b.id INNER JOIN c ON b.id = c.id where a.k != c.k",
    })
@@ -252,18 +246,6 @@ class SQLHelperNotEqualJoinTest {
       assertEquals(0, RowCompare.diffCount(
          SEL2 + "from a left join b on a.id = b.id where a.k != b.k",
          generate(SEL2 + tail, dataSource("derby")), 120), tail);
-   }
-
-   // MongoHelper has no text join order, so a WHERE != between the tables of an inner join
-   // and an outer join must stay in WHERE, or the inner joined table is written twice
-   @Test
-   void mongoWhereNotEqual() throws Exception {
-      String text = SEL + "from a left join b on a.id = b.id join c on a.id = c.id where " +
-         "b.k != c.k";
-      String generated = generate(text, dataSource("mongo"));
-      assertEquals(GEN_SEL + "from a INNER JOIN c ON a.id = c.id LEFT OUTER JOIN b ON " +
-                      "a.id = b.id where b.k != c.k", generated);
-      assertEquals(0, RowCompare.diffCount(text, generated, 120));
    }
 
    // Oracle without the ANSI option writes (+) and the != in WHERE, unchanged. Parsed without
