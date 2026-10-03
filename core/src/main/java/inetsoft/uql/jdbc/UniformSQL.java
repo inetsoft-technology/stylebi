@@ -2239,8 +2239,8 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
    /**
     * Get the table column of an unquoted column reference that a case-sensitive helper
     * (e.g. postgresql) stores with quotes ("k"), which the field list doesn't find
-    * (Bug #77616). The database folds the unquoted name to one case, so it matches only the
-    * column spelled in that case, written in any case. A column in another case (e.g. "A" on
+    * (Bug #77616). A database that folds the unquoted name to one case matches only the
+    * column spelled in that case, written in any case (Finding Z). A column in another case (e.g. "A" on
     * postgresql) is only named by a quoted reference, which is stored without the quotes and
     * doesn't come here, it only matches the exact name.
     * @return the column path, or <tt>null</tt> if not found.
@@ -2253,16 +2253,38 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
       }
 
       String folded = foldName(name);
+      // a helper made case-sensitive by db.caseSensitive quotes every name but the database
+      // may not fold it, so the column is matched in any case, preferring the folded one
+      boolean folding = isFoldingHelper();
+      XField match = null;
 
       for(XField xfield : fields) {
          String fname = xfield.getName() == null ? "" : xfield.getName().toString();
 
-         if(xfield.getTable().length() > 0 && fname.equals(folded)) {
+         if(xfield.getTable().length() == 0) {
+            continue;
+         }
+
+         if(fname.equals(folded)) {
             return xfield.getTable() + "." + xfield.getName();
+         }
+
+         if(!folding && match == null && fname.equalsIgnoreCase(name)) {
+            match = xfield;
          }
       }
 
-      return null;
+      return match == null ? null : match.getTable() + "." + match.getName();
+   }
+
+   /**
+    * Check if the helper is of a database that folds an unquoted name to one case
+    * (postgresql to lower case, snowflake and exasol to upper case), see foldName.
+    */
+   private boolean isFoldingHelper() {
+      SQLHelper helper = getSQLHelper();
+      return helper instanceof PostgreSQLHelper || helper instanceof SnowflakeHelper ||
+         helper instanceof ExasolHelper;
    }
 
    /**

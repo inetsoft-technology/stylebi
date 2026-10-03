@@ -17,6 +17,7 @@
  */
 package inetsoft.uql.jdbc;
 
+import inetsoft.sree.SreeEnv;
 import inetsoft.sree.security.SecurityEngine;
 import inetsoft.test.*;
 import inetsoft.uql.XNode;
@@ -714,6 +715,45 @@ class UniformSQLQuotedTwinColumnTest {
       items[1].setField("x.Other");
       assertFalse(sql.isQuotedOrderBy(0));
       assertFalse(sql.isQuotedOrderBy(1));
+   }
+
+   /**
+    * Review m1: a helper made case-sensitive by db.caseSensitive quotes every name, but its
+    * database may not fold names. An unquoted reference to a column that isn't in upper case
+    * keeps matching it in any case there, as on #6190. Only postgresql, snowflake and exasol
+    * match through the folded spelling (Finding Z).
+    */
+   @Test
+   void dbCaseSensitiveHelpersMatchAColumnInAnyCase() throws Exception {
+      String old = SreeEnv.getProperty("db.caseSensitive");
+      SreeEnv.setProperty("db.caseSensitive", "true");
+
+      try {
+         Map<String, JDBCDataSource> sources = new LinkedHashMap<>();
+         sources.put("h2", dataSource("org.h2.Driver", "jdbc:h2:mem:x", "h2", false));
+         sources.put("sql server", dataSource("com.microsoft.sqlserver.jdbc.SQLServerDriver",
+                                              "jdbc:sqlserver://localhost;databaseName=x", "sql server",
+                                              false));
+
+         for(Map.Entry<String, JDBCDataSource> source : sources.entrySet()) {
+            String key = source.getKey();
+            String generated = fixed(parse("select id from t order by k desc", source.getValue()),
+                                     "id", "k");
+            assertTrue(generated.endsWith(" order by \"t\".k desc"), key + " " + generated);
+
+            generated = fixed(parse("select id, count(*) from t group by id, k", source.getValue()),
+                              "id", "k");
+            assertTrue(generated.endsWith(" group by \"id\", \"t\".k"), key + " " + generated);
+         }
+      }
+      finally {
+         if(old == null) {
+            SreeEnv.remove("db.caseSensitive");
+         }
+         else {
+            SreeEnv.setProperty("db.caseSensitive", old);
+         }
+      }
    }
 
    /**
