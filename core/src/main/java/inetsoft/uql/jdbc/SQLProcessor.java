@@ -167,7 +167,14 @@ class SQLProcessor {
          if(idx >= 0) {
             String npath = Tool.replaceAll(path, from, to);
             String alias = selection.getAlias(i);
-            selection.setColumn(i, npath);
+
+            // the table renamed in the path, a quoted column keeps its quoting
+            if(selection instanceof JDBCSelection) {
+               ((JDBCSelection) selection).renameColumn(i, npath);
+            }
+            else {
+               selection.setColumn(i, npath);
+            }
             selection.setAlias(idx, alias);
          }
       }

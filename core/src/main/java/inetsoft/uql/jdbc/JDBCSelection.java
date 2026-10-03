@@ -389,8 +389,9 @@ public class JDBCSelection extends XSelection {
     * The quotes are not part of the column path, so they are restored when the SQL is
     * generated. The flag is kept by position, two columns may have the same path
     * ("MixedCase" and MixedCase, Bug #77573). It only describes the name it was set for: a
-    * column replaced by another name or an expression (e.g. edited in the query editor) is
-    * not quoted, a column qualified or renamed with its table keeps it.
+    * column replaced by another text (e.g. edited in the query editor) is generated as that
+    * text is written. Code that qualifies a column or renames its table keeps the flag with
+    * renameColumn.
     * @param col the column index.
     * @return <tt>true</tt> if quoted, <tt>false</tt> otherwise.
     */
@@ -398,42 +399,38 @@ public class JDBCSelection extends XSelection {
       return getColumnQuote(col) != null;
    }
 
-   // the quoting of a column, if it still describes the column
+   // the quoting of a column, if it was set for the current name
    private ColumnQuote getColumnQuote(int col) {
       ColumnQuote quote = quoted.get(col);
-      return quote != null && isSameQuotedName(quote.column(), quote.segment(), getColumn(col)) ?
-         quote : null;
+      return quote != null && Objects.equals(quote.column(), getColumn(col)) ? quote : null;
    }
 
    /**
-    * Check if a name still names the column a quoted flag was set for: the same name, or the
-    * same column segment under another table or qualifier (t.MixedCase for MixedCase,
-    * x.MixedCase for t.MixedCase). A name replaced by another name or an expression doesn't.
-    * The case is ignored, the metadata step may change it.
-    * @param recorded the name the flag was set for.
-    * @param segment the column segment of a qualified quoted identifier, or empty for a bare
-    *                one.
-    * @param current the current name.
+    * Replace the name of a column with a name of the same column, qualified by its table or
+    * under a renamed table or qualifier (MixedCase to t.MixedCase, t.MixedCase to x.MixedCase),
+    * keeping its quoting. Any other change of the name (setColumn) drops it, the new name is
+    * generated as it is written.
+    * @param col the column index.
+    * @param path the new name.
     */
-   static boolean isSameQuotedName(Object recorded, String segment, Object current) {
-      if(current == null || current.equals(recorded)) {
-         return current != null;
+   public void renameColumn(int col, String path) {
+      ColumnQuote quote = getColumnQuote(col);
+      setColumn(col, path);
+
+      if(quote != null) {
+         quoted.put(col, new ColumnQuote(path, quote.segment()));
       }
+   }
 
-      if(!(current instanceof String) || !(recorded instanceof String)) {
-         return false;
-      }
-
-      String name = ((String) current).toLowerCase();
-
-      if(segment != null && !segment.isEmpty()) {
-         return name.endsWith("." + segment.toLowerCase());
-      }
-
-      // the name qualified, or its last segment under another qualifier
-      String part = ((String) recorded).toLowerCase();
-      int dot = part.lastIndexOf('.');
-      return name.endsWith("." + part) || dot >= 0 && name.endsWith(part.substring(dot));
+   /**
+    * Replace a column with another text (e.g. an expression edited in the query editor). Its
+    * quoted flag is dropped, also for the same text, the text is generated as it is written.
+    * @see #renameColumn(int, String)
+    */
+   @Override
+   public void setColumn(int idx, String col) {
+      super.setColumn(idx, col);
+      quoted.remove(idx);
    }
 
    /**

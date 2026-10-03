@@ -64,12 +64,27 @@ public class OrderByItem implements Serializable, Cloneable {
 
    /**
     * Check if the quoting of the field is recorded on this item. An item added without it
-    * (e.g. by UniformSQL.setOrderBy), or whose field was replaced by another name since, is
+    * (e.g. by UniformSQL.setOrderBy), or whose field was replaced by another text since, is
     * quoted if a group by or order by field of the same text was written as a quoted
     * identifier (UniformSQL.isQuotedField).
     */
    public boolean isQuoteSet() {
-      return quoteSet && JDBCSelection.isSameQuotedName(quotedFor, quotedColumn, field);
+      return quoteSet && Objects.equals(quotedFor, field);
+   }
+
+   /**
+    * Replace the field with a name of the same column, under a renamed table or qualifier,
+    * keeping its quoting. setField drops it.
+    */
+   public void renameField(Object field) {
+      boolean set = isQuoteSet();
+      boolean quoted = isQuoted();
+      String segment = getQuotedColumn();
+      setField(field);
+
+      if(set) {
+         setQuoted(quoted, segment);
+      }
    }
 
    /**

@@ -599,14 +599,16 @@ class UniformSQLQuotedTwinColumnTest {
    }
 
    /**
-    * Review B1: the query editor's "edit expression" replaces a select column in place
-    * (QueryManagerService.editExpression). The quoted flag of the column it replaced must
-    * not quote the expression. A column renamed with its table keeps it.
+    * Review B1 and #6204 verification: the query editor's "edit expression" replaces a select
+    * column in place (QueryManagerService.editExpression). The new text is generated as it
+    * is written, per segment: the quoted flag of the column it replaced doesn't apply to it,
+    * even when it names a column of the same spelling (q.k for "k", u.MixedCase for
+    * q."MixedCase"). A table renamed in the query keeps the quotes.
     */
    @Test
-   void editedColumnDoesNotKeepTheQuotesOfTheColumnItReplaced() throws Exception {
+   void editedColumnIsGeneratedAsWritten() throws Exception {
       String[][] cases = {
-         // query, column, alias, expression, expected select item on h2, on postgresql
+         // query, column, expression, expected select item on h2, on postgresql
          { "select \"My Col\" as e, id from t", "My Col", "id * 2", "id * 2 as e", "id * 2 as \"e\"" },
          { "select t.\"MixedCase\" as e, t.id from t", "MixedCase", "t.\"MixedCase\" * 2",
            "t.\"MixedCase\" * 2 as e", "t.\"MixedCase\" * 2 as \"e\"" },
@@ -614,6 +616,14 @@ class UniformSQLQuotedTwinColumnTest {
            "\"MixedCase\" + id as e", "\"MixedCase\" + id as \"e\"" },
          // an unquoted column edited into a quoted one keeps the quotes as written
          { "select id as e, k from t", "id", "\"MixedCase\"", "\"MixedCase\" as e", "\"MixedCase\" as \"e\"" },
+         // a quoted column edited into the unquoted name of the same spelling
+         { "select \"k\" as e, id from q", "k", "q.k", "q.k as e", "q.k as \"e\"" },
+         { "select \"K\" as e, id from q", "K", "q.K", "q.K as e", "q.K as \"e\"" },
+         { "select \"MixedCase\" as e, id from q", "MixedCase", "q.MixedCase", "q.MixedCase as e",
+           "q.MixedCase as \"e\"" },
+         // another table's column of the same name
+         { "select q.\"MixedCase\" as e, u.id from q, u", "MixedCase", "u.MixedCase",
+           "u.MixedCase as e", "u.MixedCase as \"e\"" },
       };
       QueryManagerService service = new QueryManagerService(
          mock(RuntimeQueryService.class), mock(XRepository.class), mock(DataSourceService.class),
@@ -621,16 +631,7 @@ class UniformSQLQuotedTwinColumnTest {
 
       for(String helper : new String[] { "h2", "postgresql" }) {
          for(String[] c : cases) {
-            UniformSQL sql = parse(c[0], helpers().get(helper));
-            fixed(sql, "My Col", "MixedCase", "id", "k");
-            JDBCSelection select = (JDBCSelection) sql.getSelection();
-            // every case edits the first column
-            int idx = 0;
-            // postgresql stores an unquoted name with in-band quotes
-            assertTrue(select.getColumn(idx).replace("\"", "").endsWith(c[1]),
-                       helper + " " + c[0] + " " + select);
-            assertNotNull(service.editExpression(sql, select, c[2], select.getColumn(idx), "e"),
-                          helper + " " + c[0]);
+            UniformSQL sql = edit(service, c[0], c[2], helpers().get(helper), c[1]);
             String generated = regenerate(sql);
             assertTrue(generated.contains(" " + ("h2".equals(helper) ? c[3] : c[4])),
                        helper + " " + c[0] + " -> " + generated);
@@ -638,18 +639,35 @@ class UniformSQLQuotedTwinColumnTest {
          }
       }
 
+      // a table renamed in the query keeps the quotes of its columns. postgresql stores the
+      // table alias with in-band quotes, which this rename doesn't handle
+      for(String helper : new String[] { "h2", "oracle" }) {
+         UniformSQL sql = parse("select q.\"MixedCase\" as e, q.\"k\" from q group by q.\"MixedCase\", q.\"k\" " +
+                                "order by q.\"MixedCase\" desc", helpers().get(helper));
+         fixed(sql, COLUMNS);
+         renameAlias(sql, "q", "x");
+         String generated = regenerate(sql);
+         String x = "x";
+         assertEquals(3, count(generated, x + ".\"MixedCase\""), helper + " " + generated);
+         assertEquals(2, count(generated, x + ".\"k\""), helper + " " + generated);
+      }
+
       // the rows of the edited query on Derby (h2 helper)
       try(Connection conn = DriverManager.getConnection("jdbc:derby:memory:bug77573d;create=true");
           Statement stmt = conn.createStatement())
       {
-         stmt.execute("create table t (\"My Col\" int, \"MixedCase\" int, MIXEDCASE int, id int, k int)");
-         stmt.execute("insert into t values (1, 2, 30, 10, 5), (4, 5, 60, 20, 6)");
+         // "k" and K, "MixedCase" and MIXEDCASE are different columns
+         for(String table : new String[] { "t", "q", "u" }) {
+            stmt.execute("create table " + table + " (\"My Col\" int, \"MixedCase\" int, MIXEDCASE int, " +
+                         "id int, \"k\" int, K int)");
+         }
+
+         stmt.execute("insert into t values (1, 2, 30, 10, 5, 50), (4, 5, 60, 20, 6, 70)");
+         stmt.execute("insert into q values (1, 2, 30, 10, 5, 50), (4, 5, 60, 20, 6, 70)");
+         stmt.execute("insert into u values (7, 8, 90, 10, 1, 2)");
 
          for(String[] c : cases) {
-            UniformSQL sql = parse(c[0], helpers().get("h2"));
-            fixed(sql, "My Col", "MixedCase", "id", "k");
-            JDBCSelection select = (JDBCSelection) sql.getSelection();
-            service.editExpression(sql, select, c[2], select.getColumn(0), "e");
+            UniformSQL sql = edit(service, c[0], c[2], helpers().get("h2"), c[1]);
             String edited = c[0].replace(c[0].substring(7, c[0].indexOf(',')), c[2] + " as e");
             assertTrue(edited.startsWith("select " + c[2] + " as e,"), edited);
             assertEquals(rows(stmt, edited, false), rows(stmt, regenerate(sql), false),
@@ -666,31 +684,52 @@ class UniformSQLQuotedTwinColumnTest {
       }
    }
 
+   // the query through the metadata step, its first column edited into an expression
+   private static UniformSQL edit(QueryManagerService service, String query, String expression,
+                                  JDBCDataSource ds, String column) throws Exception
+   {
+      UniformSQL sql = parse(query, ds);
+      fixed(sql, COLUMNS);
+      JDBCSelection select = (JDBCSelection) sql.getSelection();
+      // postgresql stores an unquoted name with in-band quotes
+      assertTrue(select.getColumn(0).replace("\"", "").endsWith(column), query + " " + select);
+      assertNotNull(service.editExpression(sql, select, expression, select.getColumn(0), "e"), query);
+      return sql;
+   }
+
+   private static final String[] COLUMNS = { "My Col", "MixedCase", "MIXEDCASE", "id", "k", "K" };
+
    /**
-    * The flags only describe the name they were set for, in every store: a select column,
-    * an alias, a group by field and an order by item replaced in place by another text lose
-    * it. Renamed with their table, or qualified by the metadata step, they keep it.
+    * The flags only describe the text they were set for, in every store. An element whose
+    * text is replaced in place is generated as the new text is written: a select column
+    * unquoted, an alias of unknown quoting, a group by field or order by item quoted by its
+    * text. Code that qualifies a name or renames its table keeps the flags explicitly.
     */
    @Test
    void replacedTextLosesItsQuotedFlag() throws Exception {
-      UniformSQL sql = parse("select \"MixedCase\" as a, t.\"My Col\" as b from t " +
-                             "group by \"MixedCase\", t.\"My Col\" order by \"MixedCase\" desc, t.\"My Col\"");
+      UniformSQL sql = parse("select t.\"MixedCase\" as a, t.\"My Col\" as b from t " +
+                             "group by t.\"MixedCase\", t.\"My Col\" order by t.\"MixedCase\" desc, t.\"My Col\"");
       JDBCSelection select = (JDBCSelection) sql.getSelection();
 
-      // qualified, renamed table, other case: kept
-      select.setColumn(0, "t.MixedCase");
-      select.setColumn(1, "x.My Col");
-      assertTrue(select.isQuoted(0));
+      // renamed with its table: kept in every store
+      renameAlias(sql, "t", "x");
+      assertEquals("x.MixedCase", select.getColumn(0));
+      assertEquals("MixedCase", select.getQuotedColumn(0));
       assertEquals("My Col", select.getQuotedColumn(1));
-      select.setColumn(0, "T.MIXEDCASE");
-      assertTrue(select.isQuoted(0));
+      assertEquals("x.MixedCase", sql.getGroupBy()[0]);
+      assertEquals("MixedCase", sql.getQuotedGroupByColumn(0));
+      assertEquals("x.MixedCase", sql.getOrderByItems()[0].getField());
+      assertEquals("MixedCase", sql.getQuotedOrderByColumn(0));
+      select.renameColumn(0, "y.MixedCase");
+      assertEquals("MixedCase", select.getQuotedColumn(0));
 
-      // another name or an expression: not quoted
-      select.setColumn(0, "id + 1");
+      // the same column of another table, another name or an expression: as written
+      select.setColumn(0, "u.MixedCase");
       select.setColumn(1, "x.Other");
       assertFalse(select.isQuoted(0));
       assertFalse(select.isQuoted(1));
-      assertNull(select.getQuotedColumn(1));
+      select.setColumn(1, "id + 1");
+      assertFalse(select.isQuoted(1));
 
       // the alias flag follows the alias text
       assertEquals(Boolean.FALSE, select.isAliasQuoted(0));
@@ -699,20 +738,16 @@ class UniformSQLQuotedTwinColumnTest {
       select.setAlias(0, "c");
       assertNull(select.isAliasQuoted(0));
 
-      // group by entries and order by items replaced in place fall back to their text
+      // group by entries and order by items written in place fall back to their text
       Object[] groups = sql.getGroupBy();
-      groups[0] = "t.MixedCase";
-      assertTrue(sql.isQuotedGroupBy(0));
-      groups[0] = "id + 1";
-      groups[1] = "x.My Col";
+      groups[0] = "u.MixedCase";
+      groups[1] = "id + 1";
       assertFalse(sql.isQuotedGroupBy(0));
-      assertEquals("My Col", sql.getQuotedGroupByColumn(1));
+      assertFalse(sql.isQuotedGroupBy(1));
 
       OrderByItem[] items = sql.getOrderByItems();
-      items[0].setField("t.MixedCase");
-      assertTrue(sql.isQuotedOrderBy(0));
-      items[0].setField("id + 1");
-      items[1].setField("x.Other");
+      items[0].setField("u.MixedCase");
+      items[1].setField("id + 1");
       assertFalse(sql.isQuotedOrderBy(0));
       assertFalse(sql.isQuotedOrderBy(1));
    }

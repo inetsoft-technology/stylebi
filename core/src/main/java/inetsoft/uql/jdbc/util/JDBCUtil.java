@@ -375,7 +375,8 @@ public class JDBCUtil {
          XField field = sql.getFieldByPath(path, quoted);
 
          if(field != null && field.getTable().length() > 0) {
-            xselect.setColumn(i, path);
+            // the same column qualified by its table, it keeps its quoting
+            xselect.renameColumn(i, path);
             xselect.setAlias(i, alias);
             xselect.setTable(path, field.getTable());
 

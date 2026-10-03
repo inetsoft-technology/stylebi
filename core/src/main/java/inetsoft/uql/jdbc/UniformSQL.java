@@ -1648,7 +1648,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
          String group = groupby[i].toString();
 
          if(!getSelection().isAlias(group)) {
-            groupby[i] = fixFieldName(group, rinfos);
+            renameGroupField(i, fixFieldName(group, rinfos));
          }
       }
    }
@@ -1663,7 +1663,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
          }
 
          String fieldName = fixFieldName((String) field, rinfos);
-         item.setField(fieldName);
+         item.renameField(fieldName);
          moveQuotedAggregate((String) field, fieldName);
       }
    }
@@ -1684,7 +1684,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
             if(Objects.equals(rinfo.getOldName(), tname) && !Objects.equals(tname, rinfo.getNewName())) {
                String nTableName = rinfo.getNewName();
                String ncolname = nTableName + "." + column.substring(tname.length() + 1);
-               selection.setColumn(i, ncolname);
+               selection.renameColumn(i, ncolname);
                String type = selection.getType(column);
                selection.setType(column, null);
                selection.setType(ncolname, type);
@@ -2538,7 +2538,14 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
                String type = xselect.getType(path);
                String newPath = newTableAlias + "." + col;
 
-               xselect.setColumn(i, newPath);
+               // the same column under the new table, it keeps its quoting
+               if(jselect != null) {
+                  jselect.renameColumn(i, newPath);
+               }
+               else {
+                  xselect.setColumn(i, newPath);
+               }
+
                xselect.setAlias(i, alias);
                xselect.setType(newPath, type);
                xselect.setDescription(newPath, xselect.getDescription(path));
@@ -2560,7 +2567,15 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
             String type = xselect.getType(path);
             String description = xselect.getDescription(path);
             String newPath = JDBCUtil.replaceTableInExpression(tables, path, aliasMap, dataSource);
-            xselect.setColumn(i, newPath);
+
+            // the table renamed in the name, a quoted name keeps its quoting
+            if(xselect instanceof JDBCSelection) {
+               ((JDBCSelection) xselect).renameColumn(i, newPath);
+            }
+            else {
+               xselect.setColumn(i, newPath);
+            }
+
             xselect.setAlias(i, alias);
             xselect.setType(newPath, type);
             xselect.setDescription(newPath, description);
@@ -2624,7 +2639,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
                String quote = getGroupQuote(i);
                String col = getColumnFromPath(field, oldTableAlias,
                                               getQuotedSegment(quote), quote != null);
-               groups[i] = newTableAlias + "." + col;
+               renameGroupField(i, newTableAlias + "." + col);
                copyQuotedField(field, (String) groups[i]);
             }
          }
@@ -3954,6 +3969,21 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
    }
 
    /**
+    * Replace a group by field with a name of the same column, under a renamed table or
+    * qualifier, keeping its quoting. Writing the group by array drops it.
+    */
+   private void renameGroupField(int idx, Object field) {
+      boolean recorded = groupQuotes != null && groupQuoteFields != null &&
+         groupQuotes.length == groups.length && groupQuoteFields.length == groups.length &&
+         Objects.equals(groupQuoteFields[idx], groups[idx]);
+      groups[idx] = field;
+
+      if(recorded) {
+         groupQuoteFields[idx] = field;
+      }
+   }
+
+   /**
     * Get the quoting of the group by field at a position, see getQuote(OrderByItem).
     */
    private String getGroupQuote(int idx) {
@@ -3964,7 +3994,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
       // the quoting recorded for the field, unless the field was replaced by another name
       if(groupQuotes != null && groupQuotes.length == groups.length &&
          groupQuoteFields != null && groupQuoteFields.length == groups.length &&
-         JDBCSelection.isSameQuotedName(groupQuoteFields[idx], groupQuotes[idx], groups[idx]))
+         Objects.equals(groupQuoteFields[idx], groups[idx]))
       {
          return groupQuotes[idx];
       }
