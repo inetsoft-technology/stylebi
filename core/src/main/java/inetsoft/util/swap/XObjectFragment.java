@@ -20,6 +20,7 @@ package inetsoft.util.swap;
 import com.esotericsoftware.kryo.kryo5.Kryo;
 import com.esotericsoftware.kryo.kryo5.io.Input;
 import com.esotericsoftware.kryo.kryo5.io.Output;
+import inetsoft.util.FileSystemService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -166,6 +167,21 @@ public final class XObjectFragment<T> extends XSwappable {
    private synchronized Object[] validate0(boolean reset) {
       File file = getFile(prefix + "_0.tdat");
 
+      if(disposed) {
+         valid = true;
+         return this.arr;
+      }
+
+      // the fragment was empty when swapped (no swap file was written), or swap0() failed
+      // before the data was dropped. the data in memory is the only good copy either way,
+      // so remove any partial swap file to have the data written again on the next swap
+      if(this.arr != null) {
+         deleteSwapFiles();
+         spos = 0;
+         valid = true;
+         return this.arr;
+      }
+
       RandomAccessFile fin = null;
       FileChannel channel = null;
       ByteBuffer buf = null;
@@ -186,6 +202,7 @@ public final class XObjectFragment<T> extends XSwappable {
          buf = XSwapUtil.uncompressByteBuffer(buf);
 
          if(disposed) {
+            valid = true;
             return this.arr;
          }
 
@@ -214,35 +231,23 @@ public final class XObjectFragment<T> extends XSwappable {
          file = null;
          this.arr = holder.arr;
          this.pos = holder.pos;
+         valid = true;
+
+         if(reset) {
+            swapFileCount = 0;
+         }
+
          return holder.arr;
       }
       catch(Exception ex) {
-         Object[] arr;
-
-         // since we ignore the exceptions, we should return whatever we managed to read
-         // up to the point until the exception was thrown
-         if(holder != null) {
-            arr = holder.arr;
-            this.arr = holder.arr;
-            this.pos = holder.pos;
-         }
-         else {
-            arr = this.arr;
-         }
-
-         if(ex instanceof FileNotFoundException) {
-            if(arr == null) {
-               LOG.debug("Null array. Failed to read swap file: " + file, ex);
-            }
-         }
-         else {
-            LOG.error("Failed to read swap file: " + file, ex);
-         }
-
-         return arr;
+         // the data is not in memory and a partial read would hand back null for the missing
+         // rows. keep the fragment invalid so a later access tries the files again and the
+         // swapper never swaps the fragment out in this state
+         spos = 0;
+         LOG.error("Failed to read swap file: " + file, ex);
+         throw new SwapFileReadException(file, ex);
       }
       finally {
-         valid = true;
          buf = null;
 
          try {
@@ -259,11 +264,26 @@ public final class XObjectFragment<T> extends XSwappable {
          catch(Exception ex) {
             // ignore it
          }
+      }
+   }
 
-         if(reset) {
-            swapFileCount = 0;
+   /**
+    * Delete the swap files of this fragment.
+    */
+   private void deleteSwapFiles() {
+      for(int i = 0; ; i++) {
+         File file = getFile(prefix + "_" + i + ".tdat");
+
+         if(!file.exists()) {
+            break;
+         }
+
+         if(!file.delete()) {
+            FileSystemService.getInstance().remove(file, 30000);
          }
       }
+
+      swapFileCount = 0;
    }
 
    /**
@@ -548,7 +568,7 @@ public final class XObjectFragment<T> extends XSwappable {
     * @param buf the specified byte buffer.
     * @return next position if any, <tt>-1</tt> otherwise.
     */
-   private int validate(ByteBuffer buf, ObjectArrayHolder holder) {
+   private int validate(ByteBuffer buf, ObjectArrayHolder holder) throws Exception {
       Kryo kryo = null;
 
       try {
@@ -592,14 +612,9 @@ public final class XObjectFragment<T> extends XSwappable {
             return spos;
          }
       }
-      catch(Exception ex) {
-         LOG.error("Failed to read swap buffer", ex);
-      }
       finally {
          XSwapUtil.releaseKryo(kryo);
       }
-
-      return -1;
    }
 
    /**
