@@ -444,6 +444,208 @@ class UniformSQLQuotedTwinColumnTest {
       }
    }
 
+   /**
+    * #77616: the parser records whether each select alias was written quoted (as "A") or
+    * not (as A). A variable or placeholder alias is not known.
+    */
+   @Test
+   void parserRecordsTheQuotingOfEachAlias() throws Exception {
+      JDBCSelection select = (JDBCSelection) parse(
+         "select id as A, id as \"B\", id as [C], id as 'D', id E, id as \"F G\", id from t").getSelection();
+      assertEquals(Boolean.FALSE, select.isAliasQuoted(0));
+      assertEquals(Boolean.TRUE, select.isAliasQuoted(1));
+      assertEquals(Boolean.TRUE, select.isAliasQuoted(2));
+      assertEquals(Boolean.TRUE, select.isAliasQuoted(3));
+      assertEquals(Boolean.FALSE, select.isAliasQuoted(4));
+      assertEquals(Boolean.TRUE, select.isAliasQuoted(5));
+      assertNull(select.isAliasQuoted(6));
+
+      // sybase select A = expression, the alias quoting is read before the expression
+      select = (JDBCSelection) parse("select A = t.\"x\", \"B\" = t.y from t").getSelection();
+      assertEquals(Boolean.FALSE, select.isAliasQuoted(0));
+      assertEquals(Boolean.TRUE, select.isAliasQuoted(1));
+
+      // the flag doesn't describe an alias changed after parsing
+      select.setAlias(0, "Z");
+      assertNull(select.isAliasQuoted(0));
+      select.removeColumn(0);
+      assertEquals(Boolean.TRUE, select.isAliasQuoted(0));
+      assertEquals(select, select.clone());
+   }
+
+   /**
+    * #77616 shapes on a database that folds unquoted names: an unquoted reference in another
+    * case matches an unquoted alias, and not a quoted one. A match on a table column alias
+    * references the column, since a reference to the alias could also name a selected
+    * column. The expected sql returns the rows of the original on PostgreSQL 16.
+    */
+   @Test
+   void aliasQuotingDecidesTheReferenceOnPostgresql() throws Exception {
+      // F2, order by "A" would be ambiguous with w."A"
+      assertEquals("select \"w\".\"A\", \"w\".\"id\" as \"A\" from \"w\" order by \"w\".\"id\" desc",
+                   fixed("postgresql", "select w.id as A, w.\"A\" from w order by a desc", "id", "A"));
+      assertEquals("select \"id\" as \"A\" from \"u\" order by \"id\" desc",
+                   fixed("postgresql", "select id as A from u order by a desc", "id"));
+      // a quoted alias is another name, a is the column
+      assertEquals("select \"k\" as \"A\" from \"t\" order by \"t\".a desc",
+                   fixed("postgresql", "select k as \"A\" from t order by a desc", "id", "k", "a"));
+      // group by resolves the column first, order by the alias
+      assertEquals("select \"k\" as \"ID\", count(*) from \"t\" group by \"t\".id, \"k\" " +
+                   "order by \"k\" asc, count(*) asc",
+                   fixed("postgresql", "select k as ID, count(*) from t group by id, k order by id, 2",
+                         "id", "k", "a"));
+      // A1: an unquoted A is a, not the quoted alias "A"
+      assertEquals("select \"id\" as \"A\" from \"t\" order by \"t\".a desc",
+                   fixed("postgresql", "select id as \"A\" from t order by A desc", "id", "k", "a"));
+      // a quoted "A" is the column "A", not the unquoted alias A (which is a)
+      assertEquals("select \"w\".\"A\", \"w\".\"id\" as \"A\" from \"w\" order by \"w\".\"A\" desc",
+                   fixed("postgresql", "select w.id as A, w.\"A\" from w order by \"A\" desc", "id", "A"));
+      // an alias in the folded case is the same name either way
+      assertEquals("select \"id\" as \"a\" from \"t\" order by \"a\" desc",
+                   fixed("postgresql", "select id as a from t order by a desc", "id", "k"));
+      assertEquals("select \"id\" as \"a\" from \"t\" order by \"id\" desc",
+                   fixed("postgresql", "select id as \"a\" from t order by A desc", "id", "k"));
+   }
+
+   /**
+    * Snowflake and exasol fold an unquoted name to upper case, and write a plain alias
+    * unquoted. An expression alias is referenced as the helper writes it (A2).
+    */
+   @Test
+   void aliasQuotingDecidesTheReferenceOnSnowflakeAndExasol() throws Exception {
+      for(String helper : new String[] { "snowflake", "exasol" }) {
+         assertEquals("order by \"A\" desc",
+                      orderBy(fixed(helper, "select id as a from u order by A desc", "id")), helper);
+         assertEquals("order by \"t\".A desc",
+                      orderBy(fixed(helper, "select k as \"a\" from t order by a desc", "id", "k", "A")), helper);
+         assertEquals("order by \"t\".A desc",
+                      orderBy(fixed(helper, "select id as \"a\" from t order by a desc", "id", "k", "A")), helper);
+         // an expression alias is written unquoted, so the database folds it
+         assertEquals("order by \"A\" desc",
+                      orderBy(fixed(helper, "select id + 1 as a from t order by a desc", "id")), helper);
+         assertEquals("order by \"A\" desc",
+                      orderBy(fixed(helper, "select id + 1 as A from t order by a desc", "id")), helper);
+      }
+
+      assertEquals("order by \"a\" desc",
+                   orderBy(fixed("postgresql", "select id + 1 as a from t order by a desc", "id")));
+      // postgresql writes the alias quoted as stored
+      assertEquals("order by \"A\" desc",
+                   orderBy(fixed("postgresql", "select id + 1 as A from t order by a desc", "id")));
+   }
+
+   /**
+    * The alias quoting is saved on the alias element. Without it (a query saved before it
+    * was recorded) an unquoted reference in another case isn't guessed, as before.
+    */
+   @Test
+   void aliasQuotingSurvivesXml() throws Exception {
+      JDBCDataSource pg = helpers().get("postgresql");
+      UniformSQL sql = parse("select id as A, id as \"B\", id from u", pg);
+      String xml = toXML(sql);
+      assertTrue(xml.contains("<alias quoted=\"false\"><![CDATA[A]]></alias>"), xml);
+      assertTrue(xml.contains("<alias quoted=\"true\"><![CDATA[B]]></alias>"), xml);
+      JDBCSelection loaded = (JDBCSelection) load(xml, pg).getSelection();
+      assertEquals(Boolean.FALSE, loaded.isAliasQuoted(0));
+      assertEquals(Boolean.TRUE, loaded.isAliasQuoted(1));
+      assertNull(loaded.isAliasQuoted(2));
+
+      String query = "select id as A from u order by a desc";
+      UniformSQL parsed = parse(query, pg);
+      String saved = toXML(parsed);
+      assertEquals("select \"id\" as \"A\" from \"u\" order by \"id\" desc", fixed(load(saved, pg), "id"));
+      // saved before the flag, not known
+      String old = saved.replace("<alias quoted=\"false\">", "<alias>");
+      assertEquals("select \"id\" as \"A\" from \"u\"", fixed(load(old, pg), "id"));
+   }
+
+   /**
+    * Helpers that don't quote every name ignore the alias quoting.
+    */
+   @Test
+   void aliasQuotingIsIgnoredByOtherHelpers() throws Exception {
+      for(String helper : new String[] { "h2", "oracle" }) {
+         for(String query : new String[] {
+            "select id as A from u order by a desc",
+            "select k as \"A\" from t order by a desc",
+            "select id as \"A\" from t order by A desc" })
+         {
+            String withFlag = fixed(helper, query, "id", "k", "a");
+            UniformSQL sql = parse(query, helpers().get(helper));
+            JDBCSelection select = (JDBCSelection) sql.getSelection();
+
+            for(int i = 0; i < select.getColumnCount(); i++) {
+               select.setAliasQuoted(i, null);
+            }
+
+            assertEquals(withFlag, fixed(sql, "id", "k", "a"), helper + ": " + query);
+         }
+      }
+   }
+
+   /**
+    * #77616 shapes, rows of the original and the regenerated sql on Derby (h2 helper, which
+    * ignores the alias quoting).
+    */
+   @Test
+   void aliasShapesRowsMatchOnDerby() throws Exception {
+      String[] queries = {
+         "select w.id as A, w.k from w order by a desc",
+         "select id as A from w order by a desc",
+         "select k as \"B\" from w order by b desc",
+         // derby rejects order by id there (an output and an input column)
+         "select k as KK, count(*) from w group by id, k order by kk, 2",
+         "select id as \"A\" from w order by A desc",
+      };
+
+      try(Connection conn = DriverManager.getConnection("jdbc:derby:memory:bug77573c;create=true");
+          Statement stmt = conn.createStatement())
+      {
+         stmt.execute("create table w (id int, k int)");
+         stmt.execute("insert into w values (2, 40), (3, 20), (1, 30)");
+
+         for(String query : queries) {
+            List<String> expected = rows(stmt, query, true);
+
+            for(String helper : new String[] { "default", "h2", "h2-ansi" }) {
+               for(Map.Entry<String, String> stage :
+                  stages(query, helpers().get(helper), "ID", "K").entrySet())
+               {
+                  // the metadata has the names of the derby columns
+                  assertEquals(expected, rows(stmt, stage.getValue(), true),
+                               helper + " " + stage.getKey() + ": " + query + " -> " + stage.getValue());
+               }
+            }
+         }
+      }
+      finally {
+         try {
+            DriverManager.getConnection("jdbc:derby:memory:bug77573c;drop=true");
+         }
+         catch(SQLException ignore) {
+            // a successful drop is reported as an exception
+         }
+      }
+   }
+
+   // the regenerated sql after the metadata step, with the columns of every table
+   private static String fixed(String helper, String query, String... columns) throws Exception {
+      return fixed(parse(query, helpers().get(helper)), columns);
+   }
+
+   private static String fixed(UniformSQL sql, String... columns) throws Exception {
+      // the table metadata is cached by data source, use another one
+      JDBCDataSource ds = (JDBCDataSource) sql.getDataSource().clone();
+      ds.setName(ds.getName() + "_" + (++sources));
+      sql.setDataSource(ds);
+      fix(sql, ds, columns);
+      return regenerate(sql);
+   }
+
+   private static String orderBy(String sql) {
+      return sql.substring(sql.indexOf("order by"));
+   }
+
    // the regenerated sql after each stage of the pipeline
    private static Map<String, String> stages(String query, JDBCDataSource ds) throws Exception {
       return stages(query, ds, TWIN_SECOND);
@@ -531,6 +733,9 @@ class UniformSQLQuotedTwinColumnTest {
                                        false));
       helpers.put("postgresql", dataSource("org.postgresql.Driver", "jdbc:postgresql://localhost/db", "postgresql",
                                            false));
+      helpers.put("snowflake", dataSource("net.snowflake.client.jdbc.SnowflakeDriver", "jdbc:snowflake://x",
+                                          "snowflake", true));
+      helpers.put("exasol", dataSource("com.exasol.jdbc.EXADriver", "jdbc:exa:x", "exasol", false));
       return helpers;
    }
 

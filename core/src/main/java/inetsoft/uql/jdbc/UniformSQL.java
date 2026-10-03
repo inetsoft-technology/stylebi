@@ -743,6 +743,14 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
          if(child != null) {
             selection.setAlias(selection.getColumnCount() - 1,
                (Tool.getValue(child) == null ? "" : Tool.getValue(child)));
+
+            // whether the alias was written quoted, absent if not known (#77616)
+            String aliasQuoted = Tool.getAttribute(child, "quoted");
+
+            if("true".equals(aliasQuoted) || "false".equals(aliasQuoted)) {
+               selection.setAliasQuoted(selection.getColumnCount() - 1,
+                                        Boolean.valueOf(aliasQuoted));
+            }
          }
 
          // set type
@@ -1147,8 +1155,10 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
          }
 
          writer.println("<![CDATA[" + column + "]]>");
-         writer.println("<alias><![CDATA[" + (alias == null ? "" : alias) +
-                        "]]></alias>");
+         // whether the alias was written quoted, if known. Older versions ignore it
+         Boolean aliasQuoted = selection.isAliasQuoted(i);
+         writer.println("<alias" + (aliasQuoted == null ? "" : " quoted=\"" + aliasQuoted + "\"") +
+                        "><![CDATA[" + (alias == null ? "" : alias) + "]]></alias>");
          writer.println("<type><![CDATA[" + (type == null ? "" : type) +
                         "]]></type>");
          writer.println("<table><![CDATA[" + (tname == null ? "" : tname) +
@@ -1781,7 +1791,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
 
       for(OrderByItem item : items) {
          if(item.getField() instanceof String &&
-            getSelectAliasField((String) item.getField()) == null &&
+            getSelectAliasField((String) item.getField(), getQuote(item) != null) == null &&
             isOtherCaseAlias((String) item.getField()))
          {
             undecided = true;
@@ -1795,7 +1805,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
          // the quoting of the item itself, two items may have the same text (Bug #77573)
          String quote = getQuote(item);
          int ordinal = getOrdinal(field, quote != null);
-         String alias;
+         AliasRef aliasRef;
 
          if(ordinal > 0) {
             if(wildcard == null) {
@@ -1819,11 +1829,15 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
             }
          }
          else if(field instanceof String &&
-            (alias = getSelectAliasField((String) field)) != null)
+            (aliasRef = getSelectAliasField((String) field, quote != null)) != null)
          {
-            if(!alias.equals(field)) {
-               field = alias;
+            if(!aliasRef.field().equals(field)) {
+               field = aliasRef.field();
                changed = true;
+            }
+
+            if(aliasRef.column()) {
+               quote = aliasRef.quote();
             }
          }
          else if(field instanceof String && isOtherCaseAlias((String) field)) {
@@ -2019,48 +2033,61 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
    }
 
    /**
+    * A group by or order by field that references a select alias.
+    * @param field the field to keep: the field itself, or the reference to generate.
+    * @param column <tt>true</tt> if the field is the select column of the alias, quoted as
+    *               <tt>quote</tt> (see getQuote(OrderByItem)), else the field keeps its own
+    *               quoting.
+    */
+   private record AliasRef(String field, boolean column, String quote) {
+   }
+
+   /**
     * Get the group by or order by field that references a select alias. A case-sensitive
     * helper (e.g. postgresql) stores an unquoted alias reference with quotes ("a") while the
-    * alias itself is stored without them (Bug #77616).
+    * alias itself is stored without them (Bug #77616). A database that folds unquoted names
+    * gives an alias written quoted (as "A") and unquoted (as A) other names, so the quoting
+    * of the alias recorded by the parser decides which references match it.
+    * @param quoted <tt>true</tt> if the field was written as a quoted identifier.
     * @return the field to keep, or <tt>null</tt> if the field is not a select alias.
     */
-   private String getSelectAliasField(String field) {
-      if(getSelection().getAliasColumn(field) != null) {
-         return field;
+   private AliasRef getSelectAliasField(String field, boolean quoted) {
+      XSelection select = getSelection();
+      String ref = getUnquotedReference(field);
+      // the name of the reference: an unquoted one folded by the database, else as written
+      String name = ref != null ? foldName(ref) :
+         field.indexOf('"') >= 0 ? XUtil.removeQuote(field) : field;
+
+      // a name without its quoting (e.g. set by the query editor), or a helper that doesn't
+      // quote every name, matches the alias as stored, as before
+      if(dataSource == null || !getSQLHelper().isCaseSensitive() ||
+         ref == null && !quoted && name.equals(field))
+      {
+         return select.getAliasColumn(field) != null ||
+            !name.equals(field) && select.getAliasColumn(name) != null ?
+            new AliasRef(field, false, null) : null;
       }
 
-      String name = field.indexOf('"') >= 0 ? XUtil.removeQuote(field) : field;
+      // the alias of the same name. An alias of unknown quoting matches a quoted reference of
+      // the same text, as before the quoting was recorded
+      for(int i = 0; i < select.getColumnCount(); i++) {
+         String calias = select.getAlias(i);
+         Boolean aliasQuoted = isAliasQuoted(i);
 
-      if(name.equals(field)) {
-         return null;
+         if(calias != null && !calias.isEmpty() &&
+            (aliasQuoted != null ? name.equals(aliasQuoted ? calias : foldName(calias)) :
+             ref == null && calias.equals(name)))
+         {
+            return getAliasReference(field, i, ref != null);
+         }
       }
 
-      if(getSelection().getAliasColumn(name) != null) {
-         String unquoted = getUnquotedReference(field);
-
-         // an unquoted reference is folded by the database, so it is the alias of the same
-         // spelling only if that spelling is the folded one, or if the alias wasn't quoted,
-         // which isn't recorded (see isOtherCaseAlias)
-         return unquoted == null || foldName(unquoted).equals(unquoted) ? field : null;
-      }
-
-      name = getUnquotedReference(field);
-
-      if(name == null) {
-         return null;
-      }
-
-      // the database folds an unquoted reference. An alias stored in the folded case is
-      // that name whether it was quoted or not, so the reference matches it. The quoting
-      // of an alias in another case isn't recorded, see isOtherCaseAlias.
-      String folded = foldName(name);
-
-      for(int i = 0; i < getSelection().getColumnCount(); i++) {
-         String calias = getSelection().getAlias(i);
-
-         if(folded.equals(calias)) {
-            // the alias is generated quoted, so reference it as it is stored
-            return "\"" + calias + "\"";
+      // an unquoted reference is folded by the database. An alias of unknown quoting stored in
+      // the folded case is that name whether it was quoted or not. Spelled in another case,
+      // also the spelling of the reference, it isn't guessed, see isOtherCaseAlias
+      for(int i = 0; ref != null && i < select.getColumnCount(); i++) {
+         if(name.equals(select.getAlias(i)) && isAliasQuoted(i) == null) {
+            return getAliasReference(field, i, true);
          }
       }
 
@@ -2068,10 +2095,60 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
    }
 
    /**
+    * Get the reference to generate for a group by or order by field that matches the alias
+    * of a select column.
+    * @param unquoted <tt>true</tt> if the field was written unquoted.
+    */
+   private AliasRef getAliasReference(String field, int idx, boolean unquoted) {
+      if(!unquoted) {
+         return new AliasRef(field, false, null);
+      }
+
+      XSelection select = getSelection();
+      String alias = getGeneratedAlias(select.getAlias(idx));
+
+      if(alias.equals(field)) {
+         return new AliasRef(field, false, null);
+      }
+
+      String column = select.getColumn(idx);
+
+      // a table column is referenced as itself. A reference to the alias as generated could
+      // also name a selected column (order by "A" with w."A" selected is ambiguous)
+      if(column != null && !select.isExpression(idx) && XUtil.isQualifiedName(column)) {
+         return new AliasRef(column, true, getSelectQuote(idx, column));
+      }
+
+      return new AliasRef(alias, false, null);
+   }
+
+   /**
+    * Get the name of a select alias as the helper generates it, quoted. Postgresql quotes
+    * the alias as stored, snowflake and exasol write a plain alias unquoted, so the database
+    * folds it.
+    */
+   private String getGeneratedAlias(String alias) {
+      String generated = getSQLHelper().quoteColumnAlias(alias);
+
+      return generated.startsWith("\"") && generated.endsWith("\"") && generated.length() > 1 ?
+         generated : "\"" + foldName(generated) + "\"";
+   }
+
+   /**
+    * Check if the alias of a select column was written quoted, see
+    * JDBCSelection.isAliasQuoted.
+    * @return the flag, or <tt>null</tt> if not known.
+    */
+   private Boolean isAliasQuoted(int idx) {
+      return getSelection() instanceof JDBCSelection ?
+         ((JDBCSelection) getSelection()).isAliasQuoted(idx) : null;
+   }
+
+   /**
     * Check if an unquoted reference that getSelectAliasField doesn't match has the spelling of
-    * a select alias in any case. The alias isn't stored in the case the database folds the
-    * reference to, so an unquoted alias would be the same name and a quoted one would not, and
-    * the parsed sql doesn't record which one it was.
+    * a select alias of unknown quoting, in any case. The alias isn't stored in the case the
+    * database folds the reference to, so an unquoted alias would be the same name and a
+    * quoted one would not, and the quoting wasn't recorded (e.g. a query saved before it was).
     */
    private boolean isOtherCaseAlias(String field) {
       String name = getUnquotedReference(field);
@@ -2079,7 +2156,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
       for(int i = 0; name != null && i < getSelection().getColumnCount(); i++) {
          String calias = getSelection().getAlias(i);
 
-         if(calias != null && calias.equalsIgnoreCase(name)) {
+         if(calias != null && calias.equalsIgnoreCase(name) && isAliasQuoted(i) == null) {
             return true;
          }
       }
@@ -2098,7 +2175,8 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
       String path = getUnquotedColumnPath(field);
 
       if(path != null) {
-         return isOtherCaseAlias(field) || getSelectAliasField(field) != null ? path : null;
+         return isOtherCaseAlias(field) || getSelectAliasField(field, quoted) != null ?
+            path : null;
       }
 
       // a quoted name, stored without its quotes, is the column of that exact name
@@ -2240,6 +2318,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
 
       Boolean wildcard = null;
       String alias;
+      AliasRef aliasRef;
       boolean changed = false;
 
       for(int i = 0; i < groupBy.length; i++) {
@@ -2278,13 +2357,17 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
             keep[i] = changed = true;
          }
          else if(groupBy[i] instanceof String &&
-            (alias = getSelectAliasField((String) groupBy[i])) != null)
+            (aliasRef = getSelectAliasField((String) groupBy[i], quotes[i] != null)) != null)
          {
             // @by larryl, if group by defined on alias, keep as is otherwise
             // the fullpath may be pointing to a wrong column
-            changed = changed || !alias.equals(groupBy[i]);
-            groupBy[i] = alias;
+            changed = changed || !aliasRef.field().equals(groupBy[i]);
+            groupBy[i] = aliasRef.field();
             keep[i] = true;
+
+            if(aliasRef.column()) {
+               quotes[i] = aliasRef.quote();
+            }
          }
          else if(groupBy[i] instanceof String && isOtherCaseAlias((String) groupBy[i])) {
             // the alias or a column, not known, see syncSorting

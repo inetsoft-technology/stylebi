@@ -133,6 +133,7 @@ public class JDBCSelection extends XSelection {
 
       quoted.clear();
       quotedAggregates.clear();
+      quotedAliases.clear();
    }
 
    /**
@@ -465,6 +466,46 @@ public class JDBCSelection extends XSelection {
       else {
          quoted.remove(col);
       }
+
+      // the quoting of the alias goes with the alias it was recorded for
+      AliasQuote aliasQuote = from.quotedAliases.get(fromCol);
+
+      if(aliasQuote != null && col >= 0) {
+         quotedAliases.put(col, aliasQuote);
+      }
+      else {
+         quotedAliases.remove(col);
+      }
+   }
+
+   /**
+    * Check if the alias of a column was written as a quoted identifier (as "A") or not
+    * (as A). A database that folds unquoted names (e.g. postgresql) gives the two other
+    * names, and the alias is stored without its quotes.
+    * @param col the column index.
+    * @return <tt>TRUE</tt> if quoted, <tt>FALSE</tt> if not, or <tt>null</tt> if not known:
+    *         not recorded (e.g. a query saved before it was), or the alias has changed since.
+    */
+   public Boolean isAliasQuoted(int col) {
+      AliasQuote aliasQuote = quotedAliases.get(col);
+
+      return aliasQuote == null || !Objects.equals(aliasQuote.alias(), getAlias(col)) ?
+         null : aliasQuote.quoted();
+   }
+
+   /**
+    * Record whether the current alias of a column was written as a quoted identifier.
+    * @param col the column index.
+    * @param quoted <tt>TRUE</tt> if quoted, <tt>FALSE</tt> if not, or <tt>null</tt> if not
+    *               known.
+    */
+   public void setAliasQuoted(int col, Boolean quoted) {
+      if(quoted == null) {
+         quotedAliases.remove(col);
+      }
+      else if(col >= 0) {
+         quotedAliases.put(col, new AliasQuote(getAlias(col), quoted));
+      }
    }
 
    /**
@@ -506,20 +547,21 @@ public class JDBCSelection extends XSelection {
       if(removed) {
          quotedAggregates = removeIndex(quotedAggregates, idx);
          quoted = removeIndex(quoted, idx);
+         quotedAliases = removeIndex(quotedAliases, idx);
       }
 
       return removed;
    }
 
    // remove the entry of a removed column, the entries after it move up
-   private static TreeMap<Integer, String> removeIndex(TreeMap<Integer, String> map, int idx) {
+   private static <V> TreeMap<Integer, V> removeIndex(TreeMap<Integer, V> map, int idx) {
       if(map.isEmpty() || map.lastKey() < idx) {
          return map;
       }
 
-      TreeMap<Integer, String> nmap = new TreeMap<>();
+      TreeMap<Integer, V> nmap = new TreeMap<>();
 
-      for(Map.Entry<Integer, String> entry : map.entrySet()) {
+      for(Map.Entry<Integer, V> entry : map.entrySet()) {
          int col = entry.getKey();
 
          if(col != idx) {
@@ -575,6 +617,7 @@ public class JDBCSelection extends XSelection {
       select.aggregates = (HashSet) aggregates.clone();
       select.quoted = new TreeMap<>(quoted);
       select.quotedAggregates = new TreeMap<>(quotedAggregates);
+      select.quotedAliases = new TreeMap<>(quotedAliases);
 
       return select;
    }
@@ -587,12 +630,14 @@ public class JDBCSelection extends XSelection {
       JDBCSelection that = (JDBCSelection) o;
       return Objects.equals(tablemap, that.tablemap) && Objects.equals(aggregates, that.aggregates) &&
          Objects.equals(quoted, that.quoted) &&
-         Objects.equals(quotedAggregates, that.quotedAggregates);
+         Objects.equals(quotedAggregates, that.quotedAggregates) &&
+         Objects.equals(quotedAliases, that.quotedAliases);
    }
 
    @Override
    public int hashCode() {
-      return Objects.hash(super.hashCode(), tablemap, aggregates, quoted, quotedAggregates);
+      return Objects.hash(super.hashCode(), tablemap, aggregates, quoted, quotedAggregates,
+                          quotedAliases);
    }
 
    private HashMap<String, String> tablemap = new HashMap(); // path -> table (String)
@@ -606,5 +651,10 @@ public class JDBCSelection extends XSelection {
    private TreeMap<Integer, String> quoted = new TreeMap<>();
    // column index of an aggregate of a qualified quoted column -> the column segment
    private TreeMap<Integer, String> quotedAggregates = new TreeMap<>();
+   // index of a column -> the quoting of its alias, kept with the alias it was recorded for
+   private TreeMap<Integer, AliasQuote> quotedAliases = new TreeMap<>();
    private boolean plan = false; // plan flag
+
+   private record AliasQuote(String alias, boolean quoted) implements java.io.Serializable {
+   }
 }
