@@ -687,8 +687,9 @@ class UniformSQLQuotedTwinColumnTest {
    /**
     * #6204 verification: the expression editor starts from the column's quoted spelling
     * (QueryFieldModel.quotedName), so pressing OK without a change keeps the quoted column,
-    * and an edit from it keeps the quotes as written. The unquoted name typed in its place is
-    * the unquoted column (editedColumnIsGeneratedAsWritten).
+    * and an edit from it keeps the quotes as written. Any other text, also the unquoted name
+    * typed in its place (q.k for "k", stored as q.k), is generated as written
+    * (editedColumnIsGeneratedAsWritten).
     */
    @Test
    void unchangedEditKeepsTheQuotedColumn() throws Exception {
@@ -697,6 +698,7 @@ class UniformSQLQuotedTwinColumnTest {
          { "select q.\"MixedCase\" as e, q.id from q", "q.\"MixedCase\"" },
          { "select \"MixedCase\" as e, id from q", "q.\"MixedCase\"" },
          { "select \"My Col\" as e, id from q", "q.\"My Col\"" },
+         { "select \"k\" as e, id from q", "q.\"k\"" },
       };
       QueryManagerService service = new QueryManagerService(
          mock(RuntimeQueryService.class), mock(XRepository.class), mock(DataSourceService.class),
@@ -705,8 +707,9 @@ class UniformSQLQuotedTwinColumnTest {
       try(Connection conn = DriverManager.getConnection("jdbc:derby:memory:bug77573e;create=true");
           Statement stmt = conn.createStatement())
       {
-         stmt.execute("create table q (\"My Col\" int, \"MixedCase\" int, MIXEDCASE int, id int)");
-         stmt.execute("insert into q values (1, 2, 30, 10), (4, 5, 60, 20)");
+         stmt.execute("create table q (\"My Col\" int, \"MixedCase\" int, MIXEDCASE int, id int, " +
+                      "\"k\" int, K int)");
+         stmt.execute("insert into q values (1, 2, 30, 10, 5, 50), (4, 5, 60, 20, 6, 70)");
 
          for(String helper : new String[] { "h2", "oracle", "postgresql" }) {
             for(String[] c : cases) {
@@ -724,6 +727,7 @@ class UniformSQLQuotedTwinColumnTest {
                }
 
                service.editExpression(sql, select, quoted, select.getColumn(0), "e");
+               assertTrue(select.isQuoted(0), helper + " " + c[0]);
                String generated = regenerate(sql);
                assertTrue(generated.contains(quoted + " as "), helper + " " + c[0] + " -> " + generated);
 

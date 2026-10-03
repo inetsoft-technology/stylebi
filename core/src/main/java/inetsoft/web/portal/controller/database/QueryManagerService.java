@@ -1359,6 +1359,13 @@ public class QueryManagerService {
          return null;
       }
 
+      // the quoted column the editor started from, unchanged (getQuotedName), stays the
+      // column with its quoting. Any other text is generated as it is written (Bug #77573)
+      if(expression.equals(getQuotedName(sql, selection, columnIndex))) {
+         sql.setAlias(columnIndex, columnAlias);
+         return new String[] {columnAlias, selection.getColumn(columnIndex)};
+      }
+
       String type = selection.getType(columnName);
       XMetaInfo meta = sql.getSelection().getXMetaInfo(columnIndex);
       XField xf = sql.getFieldByPath(columnName);
@@ -1375,8 +1382,6 @@ public class QueryManagerService {
       }
 
       sql.setAlias(columnIndex, columnAlias);
-      // generated as it is written. The editor starts from the quoted spelling of a quoted
-      // column (getQuotedName), so it stays quoted when it isn't changed (Bug #77573)
       selection.setColumn(columnIndex, expression);
       selection.setType(expression, type);
       selection.setXMetaInfo(columnIndex, meta);
