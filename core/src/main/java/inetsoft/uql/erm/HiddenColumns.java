@@ -183,10 +183,9 @@ public class HiddenColumns extends VpmObject {
       scope.setUser(user);
 
       // use string array to support query/modify/delete the array in script
-      StringArray tarray = new StringArray("table", tables);
       StringArray carray = new StringArray("column", columns);
       StringArray harray = new StringArray("hiddenColumn", arr);
-      scope.putMember("tables", tarray);
+      scope.setTables(tables);
       scope.putMember("columns", carray);
       scope.putMember("hiddenColumns", harray);
       scope.putMember("partition", partition);

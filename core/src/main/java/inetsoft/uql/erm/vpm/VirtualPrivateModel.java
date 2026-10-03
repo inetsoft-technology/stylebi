@@ -237,7 +237,9 @@ public class VirtualPrivateModel extends VpmObject {
     * Split a table name into its catalog, schema and table segments for comparing names. The
     * name is split at the dots outside identifier quotes, and each segment is unquoted
     * (<tt>"..."</tt>, <tt>`...`</tt> or <tt>[...]</tt>, where a doubled closing quote stands
-    * for one) and lower cased, e.g. <tt>SA."My.Table"</tt> gives <tt>[sa, my.table]</tt>.
+    * for one) and lower cased, e.g. <tt>SA."My.Table"</tt> gives <tt>[sa, my.table]</tt>. The
+    * root locale is used, since in the default locale a name may not lower case the same way
+    * (<tt>ITEMS</tt> gives <tt>&#305;tems</tt> in Turkish).
     * @param name the table name, as stored by the sql parser or in a vpm.
     * @return the segments, at least one, or an empty array if the name is null.
     * @hidden
@@ -258,7 +260,7 @@ public class VirtualPrivateModel extends VpmObject {
             i = readQuoted(name, i, close, segment) - 1;
          }
          else if(c == '.') {
-            segments.add(segment.toString().toLowerCase());
+            segments.add(segment.toString().toLowerCase(Locale.ROOT));
             segment.setLength(0);
          }
          else {
@@ -266,7 +268,7 @@ public class VirtualPrivateModel extends VpmObject {
          }
       }
 
-      segments.add(segment.toString().toLowerCase());
+      segments.add(segment.toString().toLowerCase(Locale.ROOT));
       return segments.toArray(new String[0]);
    }
 
@@ -455,9 +457,8 @@ public class VirtualPrivateModel extends VpmObject {
       scope.setVariableTable(vars);
       scope.setUser(user);
 
-      StringArray tarray = new StringArray("table", tables);
       StringArray carray = new StringArray("column", columns);
-      scope.putMember("tables", tarray);
+      scope.setTables(tables);
       scope.putMember("columns", carray);
 
       if(WSExecution.getAssetQuerySandbox() != null) {
