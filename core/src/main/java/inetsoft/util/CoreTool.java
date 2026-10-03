@@ -1237,6 +1237,18 @@ public class CoreTool {
    }
 
    /**
+    * Get a typed value from its string representation which come from persistence data.
+    * @param type String representation of the type.
+    * @param val String representation of the value.
+    * @param strictNull if true, null values were identified with FAKE_NULL so that
+    *                   they can be strictly distinguished, else not.
+    * @return typed value.
+    */
+   public static Object getPersistentData(String type, String val, boolean strictNull) {
+      return getData(type, val, strictNull, true);
+   }
+
+   /**
     * Get a typed value from its string representation. For example
     * getData("Integer", "15") returns an Integer object with value 15.
     * @param type String representation of the type.

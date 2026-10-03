@@ -675,7 +675,7 @@ public abstract class InputVSAssemblyInfo extends VSAssemblyInfo {
    }
 
    public Object getPersistentData(String type, String val) {
-      return strictNull ? Tool.getPersistentData(type, val) : Tool.getData(type, val);
+      return Tool.getPersistentData(type, val, strictNull);
    }
 
    /**

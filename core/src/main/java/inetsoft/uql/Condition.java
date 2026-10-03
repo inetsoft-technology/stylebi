@@ -1817,6 +1817,11 @@ public class Condition extends AbstractCondition {
 
          for(int k = 0; k < nlist2.getLength(); k++) {
             items[k] = Tool.getValue(nlist2.item(k), false, true, true);
+
+            // a date saved before #77605 may have a Buddhist or Japanese year
+            if(items[k] instanceof String && XSchema.isDateType(getType())) {
+               items[k] = Tool.toGregorianPersistentDate((String) items[k]);
+            }
          }
 
          return items;

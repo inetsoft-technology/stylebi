@@ -535,7 +535,9 @@ public class UserVariable extends XVariable {
          }
          else if(telem.getTagName().equals("valueString") && value == null) {
             String val = Tool.getValue(telem);
-            Object valueString = Tool.getData(getTypeNode().getType(), val);
+            // a date saved before #77605 may have a Buddhist or Japanese year
+            Object valueString =
+               Tool.getPersistentData(getTypeNode().getType(), val, false);
             value = XValueNode.createValueNode(valueString, "default");
          }
       }

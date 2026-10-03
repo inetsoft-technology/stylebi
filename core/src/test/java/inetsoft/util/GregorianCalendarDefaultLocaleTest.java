@@ -88,6 +88,9 @@ class GregorianCalendarDefaultLocaleTest {
       }
    }
 
+   // the static format caches were built when CoreTool was loaded (normally under en_US), so
+   // this covers their format() under a th/ja default and the thread local formats created
+   // under it. GregorianStartupLocaleTest builds the static formats under a th/ja startup locale
    @ParameterizedTest
    @ValueSource(strings = { "th-TH", "ja-JP-u-ca-japanese", "ja-JP-x-lvariant-JP" })
    void persistentRoundTripIsGregorianUnderDefaultLocale(String tag) throws Exception {
@@ -286,6 +289,39 @@ class GregorianCalendarDefaultLocaleTest {
                          .getDocumentElement());
 
       assertEquals(date(1996, 2, 29).getTime(), ((Date) legacy.getValue(0)).getTime());
+   }
+
+   @Test
+   void legacyBuddhistConditionArrayItemIsRead() throws Exception {
+      SreeEnv.setProperty(COMPAT_PROPERTY, "true");
+      Condition cond = new Condition(XSchema.DATE);
+      cond.addValue(new Object[] { new java.sql.Date(date(1996, 2, 29).getTime()) });
+      String xml = toXML(cond::writeXML);
+
+      assertTrue(xml.contains("{d '1996-02-29'}"), xml);
+      Condition legacy = new Condition();
+      legacy.parseXML(parse(xml.replace("1996-02-29", "2539-02-29")).getDocumentElement());
+
+      Object[] items = (Object[]) legacy.getValue(0);
+      assertEquals("{d '1996-02-29'}", items[0]);
+   }
+
+   @Test
+   void legacyBuddhistVariableValueStringIsRead() throws Exception {
+      SreeEnv.setProperty(COMPAT_PROPERTY, "true");
+      UserVariable var = new UserVariable("v");
+      var.setTypeNode(XSchema.createPrimitiveType(XSchema.DATE));
+      var.setValueNode(XValueNode.createValueNode(
+         new java.sql.Date(date(1996, 2, 29).getTime()), "v", XSchema.DATE));
+      String xml = toXML(var::writeXML);
+
+      // a file written without the value node, read through the valueString fallback
+      xml = xml.replaceAll("(?s)<valuenode.*?</valuenode>", "").replace("1996-02-29", "2539-02-29");
+      assertTrue(xml.contains("<valueString><![CDATA[2539-02-29]]>"), xml);
+      UserVariable legacy = new UserVariable();
+      legacy.parseXML(parse(xml).getDocumentElement());
+
+      assertEquals(date(1996, 2, 29).getTime(), ((Date) legacy.getValueNode().getValue()).getTime());
    }
 
    @Test

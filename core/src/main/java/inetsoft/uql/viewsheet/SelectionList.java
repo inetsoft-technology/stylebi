@@ -159,6 +159,17 @@ public class SelectionList extends XSwappable implements AssetObject, DataSerial
    }
 
    /**
+    * Correct the years of the values of a selection list read from a persisted asset (e.g. a
+    * viewsheet or bookmark selection state), which may have been written in the Buddhist or
+    * Japanese calendar before #77605. Call it only for a list of date values.
+    */
+   public synchronized void toGregorianPersistentDates() {
+      for(SelectionValue val : list) {
+         val.setValue(Tool.toGregorianPersistentDate(val.getValue()));
+      }
+   }
+
+   /**
     * Get the selection value count.
     * @return the selection value count.
     */
