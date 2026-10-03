@@ -367,6 +367,27 @@ class UniformSQLLiteralQuoteTest {
       }
    }
 
+   // a [ inside a bracket identifier ends it, so a nested subscript can't be read as one
+   // bracket name. The parse fails instead of turning part of the text into an alias.
+   @ParameterizedTest
+   @ValueSource(strings = { "select arr[idx[1]] from t", "select [a[b] from t" })
+   void bracketInBracketIdentifierFailsParse(String text) {
+      for(String type : TYPES) {
+         UniformSQL sql = new UniformSQL();
+         sql.setDataSource(dataSource(type));
+         new SQLProcessor(sql).parse(text);
+         String message = type + ": " + text;
+
+         if(sql.getParseResult() == UniformSQL.PARSE_SUCCESS) {
+            sql.clearSQLString();
+            message += " -> " + normalize(sql.getSQLString());
+         }
+
+         assertEquals(UniformSQL.PARSE_FAILED, sql.getParseResult(), message);
+         assertEquals(text, sql.getSQLString(), message);
+      }
+   }
+
    // an unbalanced nested JDBC escape and a variable name with a dot can't be lexed. Both
    // failed the parse before #77640 as well, and must keep failing it rather than drop part
    // of the text.
