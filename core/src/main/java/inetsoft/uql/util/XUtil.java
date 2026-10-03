@@ -2670,8 +2670,6 @@ public final class XUtil {
       }
 
       boolean changed = false;
-      // a condition was rewritten for a NULL_VALUE/EMPTY_STRING/NULL_STRING parameter
-      boolean specific = false;
       SelectTable[] tables = usql.getSelectTable();
 
       for(int i = 0; i < tables.length; i++) {
@@ -2687,7 +2685,6 @@ public final class XUtil {
 
       if(condition instanceof XBinaryCondition || condition instanceof XSet) {
          if(processSpecificCondition(usql, condition, params, false)) {
-            specific = true;
             // a bare condition root is replaced, continue with the live tree
             condition = usql.getWhere();
          }
@@ -2711,7 +2708,6 @@ public final class XUtil {
 
       if(condition instanceof XBinaryCondition || condition instanceof XSet) {
          if(processSpecificCondition(usql, condition, params, true)) {
-            specific = true;
             condition = usql.getHaving();
          }
       }
@@ -2729,11 +2725,10 @@ public final class XUtil {
          }
       }
 
-      // the sentinel rewrite is not reported as changed, isNullParam() treats a changed
-      // sub-query as one without a condition. Only drop the cached sql string.
-      if(changed || specific) {
-         usql.clearCachedString();
-      }
+      // always drop the cached sql string. A sentinel rewrite is not reported as changed
+      // (isNullParam() treats a changed sub-query as one without a condition), so a cached
+      // ancestor of a rewritten derived table would otherwise keep the old string.
+      usql.clearCachedString();
 
       return changed;
    }
