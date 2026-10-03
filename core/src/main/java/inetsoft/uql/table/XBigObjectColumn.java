@@ -184,29 +184,42 @@ public final class XBigObjectColumn extends XSwappable implements XTableColumn {
     * @return the object value in the specified row.
     */
    @Override
-   public synchronized Object getObject(int r) {
-      if(arr == null) {
-         return null;
+   public Object getObject(int r) {
+      Object[] objs = arr;
+      int swapCount = this.swapCount;
+
+      // wait outside of synchronized block. this column stays swappable after a swap, so
+      // the swapper would block on swap() if we waited while holding the lock. wait at most
+      // once between swaps, not once for each row read back.
+      if(objs != null && r < objs.length && objs[r] == Tool.NULL && waitedSwapCount != swapCount) {
+         getSwapper().waitForMemory();
+         waitedSwapCount = swapCount;
       }
 
-      mlist.removeElement(r);
+      synchronized(this) {
+         if(arr == null) {
+            return null;
+         }
 
-      if(mlist.size == mlist.arr.length) {
-         mlist.remove(0);
+         mlist.removeElement(r);
+
+         if(mlist.size == mlist.arr.length) {
+            mlist.remove(0);
+         }
+
+         mlist.add(r);
+
+         // XBigObject doesn't support serialization so the array is empty from vso.
+         if(r >= arr.length) {
+            return null;
+         }
+         else if(arr[r] == Tool.NULL) {
+            arr[r] = readObject(r);
+            scount--;
+         }
+
+         return arr[r];
       }
-
-      mlist.add(r);
-
-      // XBigObject doesn't support serialization so the array is empty from vso.
-      if(r >= arr.length) {
-         return null;
-      }
-      else if(arr[r] == Tool.NULL) {
-         arr[r] = readObject(r);
-         scount--;
-      }
-
-      return arr[r];
    }
 
    /**
@@ -359,6 +372,7 @@ public final class XBigObjectColumn extends XSwappable implements XTableColumn {
          return false;
       }
 
+      swapCount++;
       File file = getFile(prefix + ".tdat");
       FileOutputStream fout = null;
       com.esotericsoftware.kryo.kryo5.Kryo kryo = XSwapUtil.getKryo();
@@ -534,6 +548,8 @@ public final class XBigObjectColumn extends XSwappable implements XTableColumn {
    private int scount; // swapped row count
    private boolean completed; // completed flag
    private boolean disposed; // disposed flag
+   private volatile int swapCount; // number of swaps
+   private volatile int waitedSwapCount; // swap count when last waited for memory
 
    private static final Logger LOG =
       LoggerFactory.getLogger(XBigObjectColumn.class);

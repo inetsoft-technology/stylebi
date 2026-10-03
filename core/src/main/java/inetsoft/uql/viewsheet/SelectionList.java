@@ -70,7 +70,15 @@ public class SelectionList extends XSwappable implements AssetObject, DataSerial
     */
    public synchronized SelectionValue[] getAllSelectionValues() {
       ArrayList<SelectionValue> vals = new ArrayList<>();
-      getAllSelectionValues0(this, vals, new HashSet<>());
+      getList();
+      int[] nested = enterNested();
+
+      try {
+         getAllSelectionValues0(this, vals, new HashSet<>());
+      }
+      finally {
+         nested[0]--;
+      }
 
       return vals.toArray(new SelectionValue[0]);
    }
@@ -222,11 +230,17 @@ public class SelectionList extends XSwappable implements AssetObject, DataSerial
       Comparator<SelectionValue> comp = createComparator(sortType);
       List<SelectionValue> list = getList();
       list.sort(comp);
+      int[] nested = enterNested();
 
-      for(SelectionValue selectionValue : list) {
-         if(selectionValue instanceof CompositeSelectionValue) {
-            ((CompositeSelectionValue) selectionValue).getSelectionList().sort(sortType);
+      try {
+         for(SelectionValue selectionValue : list) {
+            if(selectionValue instanceof CompositeSelectionValue) {
+               ((CompositeSelectionValue) selectionValue).getSelectionList().sort(sortType);
+            }
          }
+      }
+      finally {
+         nested[0]--;
       }
    }
 
@@ -291,19 +305,27 @@ public class SelectionList extends XSwappable implements AssetObject, DataSerial
     * Merge the selection list into this list.
     */
    public synchronized void mergeSelectionList(SelectionList olist) {
-      for(int i = 0; i < olist.getSelectionValueCount(); i++) {
-         SelectionValue value = olist.getSelectionValue(i);
-         SelectionValue value0 = findValue(value.getValue());
+      getList();
+      int[] nested = enterNested();
 
-         if(value0 == null) {
-            addSelectionValue(value);
+      try {
+         for(int i = 0; i < olist.getSelectionValueCount(); i++) {
+            SelectionValue value = olist.getSelectionValue(i);
+            SelectionValue value0 = findValue(value.getValue());
+
+            if(value0 == null) {
+               addSelectionValue(value);
+            }
+            else if(value0 instanceof CompositeSelectionValue &&
+                    value instanceof CompositeSelectionValue)
+            {
+               ((CompositeSelectionValue) value0).mergeSelectionValue(
+                  (CompositeSelectionValue) value);
+            }
          }
-         else if(value0 instanceof CompositeSelectionValue &&
-                 value instanceof CompositeSelectionValue)
-         {
-            ((CompositeSelectionValue) value0).mergeSelectionValue(
-               (CompositeSelectionValue) value);
-         }
+      }
+      finally {
+         nested[0]--;
       }
    }
 
@@ -355,10 +377,16 @@ public class SelectionList extends XSwappable implements AssetObject, DataSerial
          SelectionList slist = (SelectionList) super.clone();
          slist.list = new ArrayList<>();
          slist.swapFile = null;
+         int[] nested = enterNested();
 
-         for(int i = 0; i < getSelectionValueCount(); i++) {
-            SelectionValue sv = (SelectionValue) getSelectionValue(i).clone();
-            slist.addSelectionValue(sv);
+         try {
+            for(int i = 0; i < getSelectionValueCount(); i++) {
+               SelectionValue sv = (SelectionValue) getSelectionValue(i).clone();
+               slist.addSelectionValue(sv);
+            }
+         }
+         finally {
+            nested[0]--;
          }
 
          slist.complete();
@@ -900,11 +928,29 @@ public class SelectionList extends XSwappable implements AssetObject, DataSerial
       return true;
    }
 
+   /**
+    * Mark that this thread is accessing the child lists while holding the lock of this list.
+    * The caller must decrement the returned counter when done.
+    */
+   private static int[] enterNested() {
+      int[] nested = NESTED.get();
+      nested[0]++;
+      return nested;
+   }
+
    private List<SelectionValue> getList() {
       ArrayList<SelectionValue> list = this.list;
       lastAccess = getSwapper().cur;
 
       if(!valid) {
+         // wait before reading the list back into memory. this list is not swappable while it
+         // is swapped out, so waiting with its own lock held doesn't block the swapper. don't
+         // wait when another list (e.g. the parent of this list) is locked by this thread,
+         // the swapper may need to swap that list while it is locked.
+         if(NESTED.get()[0] == 0) {
+            getSwapper().waitForMemory();
+         }
+
          synchronized(this) {
             if(!valid) {
                ArrayList<SelectionValue> list2 = new ArrayList<>();
@@ -965,24 +1011,31 @@ public class SelectionList extends XSwappable implements AssetObject, DataSerial
     */
    public synchronized SelectionList findAll(String str, boolean not) {
       SelectionList list = new SelectionList();
+      List<SelectionValue> values = getList();
+      int[] nested = enterNested();
 
-      for(SelectionValue value : getList()) {
-         boolean rc = value.match(str, true);
+      try {
+         for(SelectionValue value : values) {
+            boolean rc = value.match(str, true);
 
-         if(not) {
-            rc = !rc && value.isSelected();
-         }
-
-         if(rc) {
-            if(value instanceof CompositeSelectionValue &&
-               // if find the match in a node, show all children
-               !value.match(str, false))
-            {
-               value = ((CompositeSelectionValue) value).findAll(str, not);
+            if(not) {
+               rc = !rc && value.isSelected();
             }
 
-            list.addSelectionValue(value);
+            if(rc) {
+               if(value instanceof CompositeSelectionValue &&
+                  // if find the match in a node, show all children
+                  !value.match(str, false))
+               {
+                  value = ((CompositeSelectionValue) value).findAll(str, not);
+               }
+
+               list.addSelectionValue(value);
+            }
          }
+      }
+      finally {
+         nested[0]--;
       }
 
       return list;
@@ -1202,5 +1255,7 @@ public class SelectionList extends XSwappable implements AssetObject, DataSerial
    private List<VSCompositeFormat> fmtDict;
    private boolean writeAllValues = true;
 
+   // number of lists whose child lists this thread is accessing while holding their lock
+   private static final ThreadLocal<int[]> NESTED = ThreadLocal.withInitial(() -> new int[1]);
    private static final Logger LOG = LoggerFactory.getLogger(SelectionList.class);
 }

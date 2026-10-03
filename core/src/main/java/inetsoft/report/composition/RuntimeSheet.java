@@ -920,6 +920,10 @@ public abstract class RuntimeSheet {
          AbstractSheet sheet;
          XSwappableSheet swappable = values.get(index);
 
+         if(!disposed) {
+            swappable.waitForSwapIn();
+         }
+
          synchronized(swappable) {
             if(!disposed) {
                swappable.access();
@@ -1028,6 +1032,15 @@ public abstract class RuntimeSheet {
          if(!valid) {
             DEBUG_LOG.debug("Validate swapped data: {}", this);
             validate(false);
+         }
+      }
+
+      /**
+       * Wait for memory before the swapped sheet is read back, outside of the lock.
+       */
+      void waitForSwapIn() {
+         if(!valid) {
+            getSwapper().waitForMemory();
          }
       }
 
