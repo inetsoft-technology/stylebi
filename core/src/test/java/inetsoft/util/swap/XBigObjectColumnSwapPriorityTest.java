@@ -95,16 +95,8 @@ class XBigObjectColumnSwapPriorityTest {
       criticalNoSwap.set(0);
 
       // a sweep thread that only has the column registered
-      Class<?> threadClass = Class.forName(XSwapper.class.getName() + "$XSwapperThread");
-      Constructor<?> constructor =
-         threadClass.getDeclaredConstructor(XSwapper.class, Principal.class);
-      constructor.setAccessible(true);
-      GroupedThread thread = (GroupedThread) constructor.newInstance(swapper, null);
-      Method register = threadClass.getDeclaredMethod("register", XSwappable.class);
-      register.setAccessible(true);
-      register.invoke(thread, column);
+      GroupedThread thread = startSweepThread(swapper, column);
       Object swapLock = getField(swapper, "swapLock");
-      thread.start();
 
       try {
          long end = System.currentTimeMillis() + 5000;
@@ -125,6 +117,55 @@ class XBigObjectColumnSwapPriorityTest {
          criticalNoSwap.set(0);
          column.dispose();
       }
+   }
+
+   @Test
+   void waiterDoesNotWaitForFullySwappedColumns() throws Exception {
+      XBigObjectColumn[] columns = { createSwappedColumn(), createSwappedColumn() };
+      XSwapper swapper = spy(XSwapper.getSwapper());
+      doReturn(XSwapper.CRITICAL_MEM).when(swapper).getMemoryState();
+      doReturn(false).when(swapper).doGC(anyBoolean());
+      swapper.setMaxCriticalWait(10000L);
+      AtomicInteger criticalNoSwap = (AtomicInteger) getField(swapper, "criticalNoSwap");
+      criticalNoSwap.set(0);
+      GroupedThread thread = startSweepThread(swapper, columns);
+
+      try {
+         // nothing can be swapped, so the waiter should be let through by the criticalNoSwap
+         // escape instead of waiting until the max wait
+         long start = System.currentTimeMillis();
+         swapper.waitForMemory();
+         long elapsed = System.currentTimeMillis() - start;
+
+         assertTrue(elapsed < 5000, "waited " + elapsed + "ms for fully swapped columns");
+      }
+      finally {
+         thread.cancel();
+         criticalNoSwap.set(0);
+
+         for(XBigObjectColumn column : columns) {
+            column.dispose();
+         }
+      }
+   }
+
+   private static GroupedThread startSweepThread(XSwapper swapper, XSwappable... swappables)
+      throws Exception
+   {
+      Class<?> threadClass = Class.forName(XSwapper.class.getName() + "$XSwapperThread");
+      Constructor<?> constructor =
+         threadClass.getDeclaredConstructor(XSwapper.class, Principal.class);
+      constructor.setAccessible(true);
+      GroupedThread thread = (GroupedThread) constructor.newInstance(swapper, null);
+      Method register = threadClass.getDeclaredMethod("register", XSwappable.class);
+      register.setAccessible(true);
+
+      for(XSwappable swappable : swappables) {
+         register.invoke(thread, swappable);
+      }
+
+      thread.start();
+      return thread;
    }
 
    private static XBigObjectColumn createSwappedColumn() {
