@@ -390,6 +390,8 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
          }
 
          groupQuotes = uniformSql.groupQuotes == null ? null : uniformSql.groupQuotes.clone();
+         groupQuoteFields = uniformSql.groupQuoteFields == null ? null :
+            uniformSql.groupQuoteFields.clone();
 
          where = uniformSql.where == null ?
             null : (XFilterNode) uniformSql.where.clone();
@@ -550,6 +552,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
       quotedAggregates = new HashMap<>();
       groups = null;
       groupQuotes = null;
+      groupQuoteFields = null;
       where = null;
       having = null;
       distinctKey = false;
@@ -927,6 +930,8 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
                groupQuotes[i] = quotedFields.get(groups[i]);
             }
          }
+
+         groupQuoteFields = groups.clone();
       }
 
       nlist = Tool.getChildNodesByTagName(node, "orderdbfields");
@@ -1854,6 +1859,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
 
             if(aliasRef.column()) {
                quote = aliasRef.quote();
+               carryQuotedField(field, quote);
             }
          }
          else if(field instanceof String && isOtherCaseAlias((String) field)) {
@@ -1927,6 +1933,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
          if(!shared) {
             // the converted field takes the quoting of its select column (Bug #77573)
             String quote = getSelectQuote((Integer) field - 1, nfield);
+            carryQuotedField(nfield, quote);
             kept.get(i).setField(nfield);
             kept.get(i).setQuoted(quote != null, getQuotedSegment(quote));
             changed = true;
@@ -2012,8 +2019,17 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
       }
 
       String seg = jselect.getQuotedColumn(idx);
-      setQuotedField((String) field, seg);
       return seg == null ? "" : seg;
+   }
+
+   /**
+    * Add a field converted to a select column with its quoting to the text-keyed quoting,
+    * which an order by or group by field added later without its quoting falls back to.
+    */
+   private void carryQuotedField(Object field, String quote) {
+      if(quote != null && field instanceof String) {
+         setQuotedField((String) field, getQuotedSegment(quote));
+      }
    }
 
    /**
@@ -2349,6 +2365,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
                if(field != null && field.getTable().length() > 0) {
                   groupBy[i] = path;
                   quotes[i] = getSelectQuote(idx - 1, path);
+                  carryQuotedField(path, quotes[i]);
                }
             }
          }
@@ -2379,6 +2396,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
 
             if(aliasRef.column()) {
                quotes[i] = aliasRef.quote();
+               carryQuotedField(groupBy[i], quotes[i]);
             }
          }
          else if(groupBy[i] instanceof String && isOtherCaseAlias((String) groupBy[i])) {
@@ -2428,6 +2446,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
       }
       else {
          groupQuotes = quotes;
+         groupQuoteFields = groupBy.clone();
       }
    }
 
@@ -3783,6 +3802,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
       setGroupBy(groups);
       this.groupQuotes = groups != null && quotes != null && quotes.length == groups.length ?
          quotes.clone() : null;
+      this.groupQuoteFields = groupQuotes != null ? groups.clone() : null;
    }
 
    /**
@@ -3919,7 +3939,11 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
          return null;
       }
 
-      if(groupQuotes != null && groupQuotes.length == groups.length) {
+      // the quoting recorded for the field, unless the field was replaced by another name
+      if(groupQuotes != null && groupQuotes.length == groups.length &&
+         groupQuoteFields != null && groupQuoteFields.length == groups.length &&
+         JDBCSelection.isSameQuotedName(groupQuoteFields[idx], groupQuotes[idx], groups[idx]))
+      {
          return groupQuotes[idx];
       }
 
@@ -4028,7 +4052,9 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
     */
    private static boolean hasQuotedFieldAttribute(Element node) {
       String seg = Tool.getAttribute(node, "quotedColumn");
-      return Tool.getAttribute(node, "quoted") != null || seg != null && !seg.isEmpty();
+      String quoted = Tool.getAttribute(node, "quoted");
+      // a malformed value is read as absent
+      return "true".equals(quoted) || "false".equals(quoted) || seg != null && !seg.isEmpty();
    }
 
    /**
@@ -4644,6 +4670,10 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
             obj.groupQuotes = groupQuotes.clone();
          }
 
+         if(groupQuoteFields != null) {
+            obj.groupQuoteFields = groupQuoteFields.clone();
+         }
+
          obj.quotedFields = new HashMap<>(quotedFields);
          obj.quotedAggregates = new HashMap<>(quotedAggregates);
 
@@ -5165,6 +5195,8 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
    private Object[] groups; // group by list
    // the quoting of each group by field, see getGroupQuote, or null to use quotedFields
    private String[] groupQuotes;
+   // the group by fields the quoting was recorded for
+   private Object[] groupQuoteFields;
    // group by/order by fields written as quoted identifiers -> column segment ("" if bare)
    private HashMap<String, String> quotedFields = new HashMap<>();
    // order by aggregates of a qualified quoted column (sum(t."MixedCase")) -> column segment

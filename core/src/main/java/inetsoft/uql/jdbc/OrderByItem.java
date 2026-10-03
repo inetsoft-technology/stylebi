@@ -64,11 +64,12 @@ public class OrderByItem implements Serializable, Cloneable {
 
    /**
     * Check if the quoting of the field is recorded on this item. An item added without it
-    * (e.g. by UniformSQL.setOrderBy) is quoted if a group by or order by field of the same
-    * text was written as a quoted identifier (UniformSQL.isQuotedField).
+    * (e.g. by UniformSQL.setOrderBy), or whose field was replaced by another name since, is
+    * quoted if a group by or order by field of the same text was written as a quoted
+    * identifier (UniformSQL.isQuotedField).
     */
    public boolean isQuoteSet() {
-      return quoteSet;
+      return quoteSet && JDBCSelection.isSameQuotedName(quotedFor, quotedColumn, field);
    }
 
    /**
@@ -97,6 +98,7 @@ public class OrderByItem implements Serializable, Cloneable {
     */
    public void setQuoted(boolean quoted, String segment) {
       this.quoteSet = true;
+      this.quotedFor = field;
       this.quotedColumn = !quoted ? null : segment == null ? "" : segment;
    }
 
@@ -113,12 +115,13 @@ public class OrderByItem implements Serializable, Cloneable {
       if(o == null || getClass() != o.getClass()) return false;
       OrderByItem that = (OrderByItem) o;
       return Objects.equals(field, that.field) && Objects.equals(order, that.order) &&
-         quoteSet == that.quoteSet && Objects.equals(quotedColumn, that.quotedColumn);
+         quoteSet == that.quoteSet && Objects.equals(quotedColumn, that.quotedColumn) &&
+         Objects.equals(quotedFor, that.quotedFor);
    }
 
    @Override
    public int hashCode() {
-      return Objects.hash(field, order, quoteSet, quotedColumn);
+      return Objects.hash(field, order, quoteSet, quotedColumn, quotedFor);
    }
 
    @Override
@@ -136,6 +139,8 @@ public class OrderByItem implements Serializable, Cloneable {
    private Object field;
    private String order;
    private boolean quoteSet;
+   // the field the quoting was recorded for
+   private Object quotedFor;
    // the quoted column segment ("" if bare) if written as a quoted identifier, else null
    private String quotedColumn;
 }

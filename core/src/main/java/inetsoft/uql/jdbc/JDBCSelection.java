@@ -388,12 +388,52 @@ public class JDBCSelection extends XSelection {
     * Check if a column was written as a quoted identifier (e.g. "x y") in the parsed SQL.
     * The quotes are not part of the column path, so they are restored when the SQL is
     * generated. The flag is kept by position, two columns may have the same path
-    * ("MixedCase" and MixedCase, Bug #77573).
+    * ("MixedCase" and MixedCase, Bug #77573). It only describes the name it was set for: a
+    * column replaced by another name or an expression (e.g. edited in the query editor) is
+    * not quoted, a column qualified or renamed with its table keeps it.
     * @param col the column index.
     * @return <tt>true</tt> if quoted, <tt>false</tt> otherwise.
     */
    public boolean isQuoted(int col) {
-      return quoted.containsKey(col);
+      return getColumnQuote(col) != null;
+   }
+
+   // the quoting of a column, if it still describes the column
+   private ColumnQuote getColumnQuote(int col) {
+      ColumnQuote quote = quoted.get(col);
+      return quote != null && isSameQuotedName(quote.column(), quote.segment(), getColumn(col)) ?
+         quote : null;
+   }
+
+   /**
+    * Check if a name still names the column a quoted flag was set for: the same name, or the
+    * same column segment under another table or qualifier (t.MixedCase for MixedCase,
+    * x.MixedCase for t.MixedCase). A name replaced by another name or an expression doesn't.
+    * The case is ignored, the metadata step may change it.
+    * @param recorded the name the flag was set for.
+    * @param segment the column segment of a qualified quoted identifier, or empty for a bare
+    *                one.
+    * @param current the current name.
+    */
+   static boolean isSameQuotedName(Object recorded, String segment, Object current) {
+      if(current == null || current.equals(recorded)) {
+         return current != null;
+      }
+
+      if(!(current instanceof String) || !(recorded instanceof String)) {
+         return false;
+      }
+
+      String name = ((String) current).toLowerCase();
+
+      if(segment != null && !segment.isEmpty()) {
+         return name.endsWith("." + segment.toLowerCase());
+      }
+
+      // the name qualified, or its last segment under another qualifier
+      String part = ((String) recorded).toLowerCase();
+      int dot = part.lastIndexOf('.');
+      return name.endsWith("." + part) || dot >= 0 && name.endsWith(part.substring(dot));
    }
 
    /**
@@ -410,8 +450,8 @@ public class JDBCSelection extends XSelection {
     * @return the segment, or <tt>null</tt> for a bare quoted identifier or an unquoted column.
     */
    public String getQuotedColumn(int col) {
-      String seg = quoted.get(col);
-      return seg == null || seg.isEmpty() ? null : seg;
+      ColumnQuote quote = getColumnQuote(col);
+      return quote == null || quote.segment().isEmpty() ? null : quote.segment();
    }
 
    /**
@@ -435,7 +475,7 @@ public class JDBCSelection extends XSelection {
     */
    public void setQuoted(int col, String segment) {
       if(col >= 0) {
-         quoted.put(col, segment == null ? "" : segment);
+         quoted.put(col, new ColumnQuote(getColumn(col), segment == null ? "" : segment));
       }
    }
 
@@ -448,8 +488,8 @@ public class JDBCSelection extends XSelection {
       if(!quoted) {
          this.quoted.remove(col);
       }
-      else if(col >= 0) {
-         this.quoted.putIfAbsent(col, "");
+      else if(!isQuoted(col)) {
+         setQuoted(col, (String) null);
       }
    }
 
@@ -460,8 +500,10 @@ public class JDBCSelection extends XSelection {
     * @param fromCol the column index in the other selection.
     */
    public void copyQuoted(int col, JDBCSelection from, int fromCol) {
-      if(from.isQuoted(fromCol)) {
-         setQuoted(col, from.getQuotedColumn(fromCol));
+      ColumnQuote quote = from.getColumnQuote(fromCol);
+
+      if(quote != null && col >= 0) {
+         quoted.put(col, quote);
       }
       else {
          quoted.remove(col);
@@ -646,9 +688,9 @@ public class JDBCSelection extends XSelection {
    // alias -> valias, generated in this query or base/sub queries
    private Map<String, String> oldToNewAlias = new HashMap<>();
    private HashSet<String> aggregates = new HashSet<>(); // aggregates
-   // index of a column written as a quoted identifier -> the quoted column segment ("" if
-   // bare), by position as two columns may have the same path (Bug #77573)
-   private TreeMap<Integer, String> quoted = new TreeMap<>();
+   // index of a column written as a quoted identifier -> the name and quoted column segment,
+   // by position as two columns may have the same path (Bug #77573)
+   private TreeMap<Integer, ColumnQuote> quoted = new TreeMap<>();
    // column index of an aggregate of a qualified quoted column -> the column segment
    private TreeMap<Integer, String> quotedAggregates = new TreeMap<>();
    // index of a column -> the quoting of its alias, kept with the alias it was recorded for
@@ -656,5 +698,9 @@ public class JDBCSelection extends XSelection {
    private boolean plan = false; // plan flag
 
    private record AliasQuote(String alias, boolean quoted) implements java.io.Serializable {
+   }
+
+   // the name a column was written quoted as, and its column segment ("" if bare)
+   private record ColumnQuote(String column, String segment) implements java.io.Serializable {
    }
 }

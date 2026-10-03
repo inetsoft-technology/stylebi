@@ -499,16 +499,16 @@ class UniformSQLSyncOrdinalTest {
          String ref = lower ? "A" : "a";
 
          for(String as : new String[] { alias, "\"" + alias + "\"" }) {
-            // the alias, or its column "id" (#77573)
+            // the reference is spelled in another case than the alias is generated, so it is
+            // generated as the alias's column ("id"), which sorts and groups the same (#77573)
             String generated = regenerate(fixed("select id as " + as + " from t order by " +
                                                 ref + " desc", key, "id", "a"));
-            assertTrue(generated.endsWith("order by \"" + alias + "\" desc") ||
-                       generated.endsWith("order by \"id\" desc"), key + " " + generated);
+            assertTrue(generated.endsWith(" from \"t\" order by \"id\" desc"), key + " " + generated);
 
             generated = regenerate(fixed("select id as " + as + ", count(*) from t group by " +
                                          ref + " order by " + ref + " desc", key, "id"));
-            assertTrue(generated.matches(".*group by \"(" + alias + "|id)\" order by \"(" +
-                                         alias + "|id)\" desc"), key + " " + generated);
+            assertTrue(generated.endsWith(" from \"t\" group by \"id\" order by \"id\" desc"),
+                       key + " " + generated);
          }
       }
    }
