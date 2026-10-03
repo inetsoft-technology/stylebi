@@ -84,6 +84,14 @@ class UniformSQLLiteralQuoteTest {
          Arguments.of("select id from t where s = 'it''s'", "'it''s'"));
    }
 
+   // a literal that starts like a date or a time and goes on after a '' escape. It lexed as a
+   // DATE or TIME token followed by a string alias.
+   static Stream<Arguments> dateTimeWithEscape() {
+      return Stream.of(
+         Arguments.of("select '2020-01-01''s data' from t", "'2020-01-01''s data'"),
+         Arguments.of("select '12:00:00''x' from t", "'12:00:00''x'"));
+   }
+
    // the date format literals of the oracle and postgresql fullyear/fullday functions in
    // sqlhelper.xml, i.e. SQL that StyleBI writes itself
    static Stream<Arguments> styleBILiterals() {
@@ -143,8 +151,20 @@ class UniformSQLLiteralQuoteTest {
                    tokens("select id, 'it''s' as s from t"));
    }
 
+   // a date or time literal is still its own token, unless a '' escape goes on after it
+   @Test
+   void dateAndTimeLiteralTokens() {
+      assertEquals("select DATE as IDENT from IDENT EOF", tokens("select '2020-01-01' as d from t"));
+      assertEquals("select TIME as IDENT from IDENT EOF", tokens("select '12:00:00' as d from t"));
+      assertEquals("select IDENT from IDENT where IDENT EQ DATE EOF",
+                   tokens("select id from t where d = '2020-01-01'"));
+      assertEquals("select STRING_LITERAL from IDENT EOF",
+                   tokens("select '2020-01-01''s data' from t"));
+      assertEquals("select STRING_LITERAL from IDENT EOF", tokens("select '12:00:00''x' from t"));
+   }
+
    @ParameterizedTest
-   @MethodSource({ "truncatedBefore", "refusedBefore" })
+   @MethodSource({ "truncatedBefore", "refusedBefore", "dateTimeWithEscape" })
    void literalAndRestOfStatementAreKept(String text, String literal) throws Exception {
       for(String type : TYPES) {
          JDBCDataSource ds = dataSource(type);
@@ -200,11 +220,24 @@ class UniformSQLLiteralQuoteTest {
       }
    }
 
-   // an unterminated quoted token at the end of the input can't be represented, so the parse
-   // fails and the original SQL runs. The last two already failed.
+   // an unterminated quoted token or block comment at the end of the input can't be
+   // represented, so the parse fails and the original SQL runs. A backslash-escaped quote
+   // (MySQL, Hive, Spark, BigQuery, ClickHouse) leaves a backslash outside any token, or a
+   // literal that doesn't close: either way the parse must fail, whatever the number of
+   // escaped literals. The two after the brackets already failed, and so did the escaped
+   // literals before #77640 admitted the '' escape.
    @ParameterizedTest
    @ValueSource(strings = {
       "select id, 'a\\'b' as s from t order by id",
+      "select '\\'', s, '\\'' from t",
+      "select '\\'' as q, s from t where s = '\\''",
+      "select id, '\\'' from t where k = 1 order by '\\''",
+      "select s, '\\'' as a, k from t where k = '\\''",
+      "select 'a\\'' as x, k from t where s = 'b\\''",
+      "select 'O\\'Brien', s, 'O\\'Brien' from t",
+      "select 'a\\'', s, 'b\\'', k, 'c\\'' from t",
+      "select '\\'' as a, '\\'' as b, '\\'' as c, '\\'' as d from t",
+      "select id from t where k = 1 /* unterminated",
       "select id from t where k = 1 ` c = 2",
       "select id from t where k = 1 \"c = 2",
       "select id from t where k = 1 'c = 2",
@@ -298,7 +331,16 @@ class UniformSQLLiteralQuoteTest {
          Arguments.of("select id, 'a''' as x from t", "'a''' as x, id from t", true),
          // a nested JDBC escape is one token and is written back verbatim
          Arguments.of("select {fn concat({fn ucase(s)}, s)} from t",
-                      "select {fn concat({fn ucase(s)}, s)} from t", true));
+                      "select {fn concat({fn ucase(s)}, s)} from t", true),
+         // date and time literals, a hint (dropped as any comment is), and backslashes inside
+         // literals, where standard SQL keeps them as plain characters
+         Arguments.of("select '2020-01-01' as x from t", "select '2020-01-01' as x from t", true),
+         Arguments.of("select '12:00:00' as x from t", "select '12:00:00' as x from t", true),
+         Arguments.of("select id from t where d = '2020-01-01'", "'2020-01-01'", true),
+         Arguments.of("select /*+ index(t) */ id from t", "select id from t", true),
+         Arguments.of("select id from t where s like 'a\\_b' escape '\\'", "'\\'", false),
+         Arguments.of("select 'C:\\dir\\' as p, 'x' as q from t", "from t", true),
+         Arguments.of("select id from t where s = 'a\\\\b'", "'a\\\\b'", false));
    }
 
    // a bracket identifier holds any character but [ \ and ], including the CJK characters
