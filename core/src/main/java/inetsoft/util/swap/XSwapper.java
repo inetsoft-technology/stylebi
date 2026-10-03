@@ -465,9 +465,12 @@ public final class XSwapper {
 
                for(int i = 0; files != null && i < files.length; i++) {
                   // Bug #77600, this JVM may already have written live swap files
+                  // Bug #77627, another JVM's file may still be inside its own
+                  // registration window (see SWAP_FILE_GRACE_PERIOD)
                   if(!files[i].isDirectory() && files[i].getName().endsWith(".tdat") &&
                      !map.containsKey(files[i].getAbsolutePath()) &&
-                     !isOwnSwapFile(files[i].getName()))
+                     !isOwnSwapFile(files[i].getName()) &&
+                     System.currentTimeMillis() - files[i].lastModified() >= SWAP_FILE_GRACE_PERIOD)
                   {
                      files[i].delete();
                   }
@@ -1505,6 +1508,14 @@ public final class XSwapper {
 
    public static final String SWAP_FILE_MAP = "inetsoft.swap.file.map";
    public static final String SWAP_FILE_MAP_LOCK = "inetsoft.swap.file.map.lock";
+
+   // Bug #77627, swapRemaining() writes a whole batch of swap files to disk before
+   // registering any of them in SWAP_FILE_MAP (one lock acquisition for the batch). A file
+   // can therefore sit on disk, live, but not yet registered and not matching this JVM's own
+   // prefix, for as long as the rest of its batch takes to finish. Cache sweeps that have no
+   // age gate of their own must wait at least this long after a file's last modification
+   // before treating it as orphaned, so they don't land inside that window.
+   public static final long SWAP_FILE_GRACE_PERIOD = 60000L; // 1 min
 
    public static final class XSwappableReference extends Cleaner.Reference<XSwappable> {
       public XSwappableReference(XSwappable referent, File[] files) {

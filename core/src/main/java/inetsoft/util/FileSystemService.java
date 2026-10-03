@@ -597,12 +597,19 @@ public class FileSystemService {
                   for(int i = 0; files != null && i < files.length; i++) {
                      // Bug #77600, files of this JVM's swapper are live and not all of
                      // them are registered in the swap file map
+                     // Bug #77627, a swap file of another, still-running JVM may be on disk
+                     // but not yet registered in the swap file map (see
+                     // XSwapper.SWAP_FILE_GRACE_PERIOD); give it time before treating it as
+                     // orphaned
                      if(!files[i].isDirectory() &&
                         !files[i].getName().startsWith(Tool.PERSISTENT_PREFIX) &&
                         !files[i].getName().startsWith(DriverCache.DRIVER_CACHE_FILE_NAME) &&
                         !map.containsKey(files[i].getAbsolutePath()) &&
                         !snapshotMap.containsKey(files[i].getAbsolutePath()) &&
-                        !swapper.isOwnSwapFile(files[i].getName()))
+                        !swapper.isOwnSwapFile(files[i].getName()) &&
+                        (!files[i].getName().endsWith(".tdat") ||
+                         System.currentTimeMillis() - files[i].lastModified() >=
+                            XSwapper.SWAP_FILE_GRACE_PERIOD))
                      {
                         Path path = files[i].toPath();
 
