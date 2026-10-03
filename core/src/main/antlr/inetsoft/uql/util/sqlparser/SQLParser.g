@@ -4691,7 +4691,9 @@ SPIDENT_SQUARE		: 	'[' {setCommitToPath(true);}
 				']'
 			;
 
-SPIDENT_BRACKET		:	'{' {setCommitToPath(true);} ('\u0001'..'\u007a' | '\u007c' | '\u007e'..'\ufffe')* '}'
+// a nested JDBC escape, e.g. {fn concat({fn ucase(a)}, b)}, is part of one token (#77640)
+SPIDENT_BRACKET		:	'{' {setCommitToPath(true);}
+				(SPIDENT_BRACKET | '\u0001'..'\u007a' | '\u007c' | '\u007e'..'\ufffe')* '}'
 			;
 
 WS			:	(' '
