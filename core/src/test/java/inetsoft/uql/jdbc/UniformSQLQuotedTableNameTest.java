@@ -289,6 +289,8 @@ class UniformSQLQuotedTableNameTest {
          // a qualifier written as the end of a schema table name
          { "h2", "select \"a\".id from \"S\".\"a\" where \"a\".id = 1",
            "select \"a\".id from \"S\".\"a\" where \"a\".id = 1" },
+         { "h2", "select \"a\".\"MixedCase\" from \"S\".\"a\" where \"a\".\"MixedCase\" = 1",
+           "select \"a\".\"MixedCase\" from \"S\".\"a\" where \"a\".\"MixedCase\" = 1" },
          // case-sensitive helpers keep every name quoted, never twice
          { "postgresql", "select * from \"a\"", "select * from \"a\"" },
          { "postgresql", "select \"a\".id from \"S\".\"a\"", "select \"a\".\"id\" from \"S\".\"a\"" },
