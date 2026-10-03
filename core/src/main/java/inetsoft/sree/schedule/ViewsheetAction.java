@@ -969,9 +969,8 @@ public class ViewsheetAction extends AbstractAction implements ViewsheetSupport 
                exporter.setLogExport(true);
                exporter.setSandbox(box);
 
-               exportBookmarks(exporter, rvs, box.getVariableTable(), bookmarks, alertTriggeredBookmarks);
-
-               exporter.write();
+               exportBookmarksAndWrite(exporter, rvs, box.getVariableTable(), bookmarks,
+                                       alertTriggeredBookmarks);
                out.flush();
                out.close();
                password = PasswordEncryption.isFipsCompliant() ? null : password;
@@ -989,9 +988,8 @@ public class ViewsheetAction extends AbstractAction implements ViewsheetSupport 
                      ((CSVVSExporter) csv).setExcelFile(file);
                   }
 
-                  exportBookmarks(csv, rvs, box.getVariableTable(), bookmarks, alertTriggeredBookmarks);
-
-                  csv.write();
+                  exportBookmarksAndWrite(csv, rvs, box.getVariableTable(), bookmarks,
+                                          alertTriggeredBookmarks);
                   file = fileSystemService.getFile(Tool.convertUserFileName(zipFileName));
                }
                else if((isCompressFile() && type != FileFormatInfo.EXPORT_TYPE_CSV) &&
@@ -1214,9 +1212,8 @@ public class ViewsheetAction extends AbstractAction implements ViewsheetSupport 
                exporter.setLogExecution(true);
                exporter.setLogExport(true);
 
-               exportBookmarks(exporter, rvs, abox.getVariableTable(), bookmarks, alertTriggeredBookmarks);
-
-               exporter.write();
+               exportBookmarksAndWrite(exporter, rvs, abox.getVariableTable(), bookmarks,
+                                       alertTriggeredBookmarks);
                out.flush();
                out.close();
 
@@ -1236,9 +1233,8 @@ public class ViewsheetAction extends AbstractAction implements ViewsheetSupport 
                      ((CSVVSExporter) csv).setExcelFile(file);
                   }
 
-                  exportBookmarks(csv, rvs, box.getVariableTable(), bookmarks, alertTriggeredBookmarks);
-
-                  csv.write();
+                  exportBookmarksAndWrite(csv, rvs, box.getVariableTable(), bookmarks,
+                                          alertTriggeredBookmarks);
                   file = fileSystemService.getFile(Tool.convertUserFileName(zipFile.getName()));
                   zout.close();
                }
@@ -1337,9 +1333,39 @@ public class ViewsheetAction extends AbstractAction implements ViewsheetSupport 
       return id;
    }
 
+   /**
+    * Export the bookmarks and write the exporter, then dispose the bookmark sandboxes.
+    * Bug #77621: the sandboxes must stay alive until write() returns. A print-layout PDF paints
+    * its queued reports in write(), and their table highlights evaluate script condition values
+    * against these sandboxes.
+    */
+   private void exportBookmarksAndWrite(VSExporter exporter, RuntimeViewsheet rvs,
+                                        VariableTable variableTable, VSBookmarkInfo[] bookmarks,
+                                        List<String> alertTriggeredBookmarks)
+      throws Exception
+   {
+      List<ViewsheetSandbox> createdBoxes = new ArrayList<>();
+
+      try {
+         exportBookmarks(exporter, rvs, variableTable, bookmarks, alertTriggeredBookmarks,
+                         createdBoxes);
+         exporter.write();
+      }
+      finally {
+         for(ViewsheetSandbox box : createdBoxes) {
+            box.dispose();
+         }
+      }
+   }
+
+   /**
+    * Export the bookmarks. Every sandbox created is added to createdBoxes, and the caller must
+    * dispose them after exporter.write(), including when this method throws.
+    */
    private void exportBookmarks(VSExporter exporter, RuntimeViewsheet rvs,
                                 VariableTable variableTable, VSBookmarkInfo[] bookmarks,
-                                List<String> alertTriggeredBookmarks)
+                                List<String> alertTriggeredBookmarks,
+                                List<ViewsheetSandbox> createdBoxes)
       throws Exception
    {
       int vmode = Viewsheet.SHEET_RUNTIME_MODE;
@@ -1365,43 +1391,38 @@ public class ViewsheetAction extends AbstractAction implements ViewsheetSupport 
          Viewsheet bookmarkVs = rvs.getOriginalBookmark(bookmarkName, orgID);
          ViewsheetSandbox box = new ViewsheetSandbox(
             bookmarkVs, vmode, principal, false, rvs.getEntry());
+         createdBoxes.add(box);
+         AssetQuerySandbox assetQuerySandbox = box.getAssetQuerySandbox();
 
-         try {
-            AssetQuerySandbox assetQuerySandbox = box.getAssetQuerySandbox();
+         if(assetQuerySandbox != null) {
+            assetQuerySandbox.refreshVariableTable(variableTable);
+         }
 
-            if(assetQuerySandbox != null) {
-               assetQuerySandbox.refreshVariableTable(variableTable);
-            }
+         // Clear input assembly variables from the sandbox variable table before reset.
+         // resetAll() → applyParameterToInput() would otherwise overwrite bookmark-restored
+         // assembly selections with stale values from the original sandbox's variable table.
+         VariableTable sandboxVars = box.getVariableTable();
 
-            // Clear input assembly variables from the sandbox variable table before reset.
-            // resetAll() → applyParameterToInput() would otherwise overwrite bookmark-restored
-            // assembly selections with stale values from the original sandbox's variable table.
-            VariableTable sandboxVars = box.getVariableTable();
+         if(sandboxVars != null && bookmarkVs != null) {
+            for(Assembly assembly : bookmarkVs.getAssemblies()) {
+               if(assembly instanceof InputVSAssembly inputAssembly) {
+                  sandboxVars.remove(assembly.getName());
+                  String varKey = inputAssembly.getVariableTableKey();
 
-            if(sandboxVars != null && bookmarkVs != null) {
-               for(Assembly assembly : bookmarkVs.getAssemblies()) {
-                  if(assembly instanceof InputVSAssembly inputAssembly) {
-                     sandboxVars.remove(assembly.getName());
-                     String varKey = inputAssembly.getVariableTableKey();
-
-                     if(varKey != null) {
-                        sandboxVars.remove(varKey);
-                     }
+                  if(varKey != null) {
+                     sandboxVars.remove(varKey);
                   }
                }
             }
-
-            box.resetAll(new ChangedAssemblyList());
-
-            if(exporter instanceof AbstractVSExporter) {
-               ((AbstractVSExporter) exporter).setRuntimeViewsheet(rvs);
-            }
-
-            exporter.export(box, bookmarkName, new VSPortalHelper());
          }
-         finally {
-            box.dispose();
+
+         box.resetAll(new ChangedAssemblyList());
+
+         if(exporter instanceof AbstractVSExporter) {
+            ((AbstractVSExporter) exporter).setRuntimeViewsheet(rvs);
          }
+
+         exporter.export(box, bookmarkName, new VSPortalHelper());
 
          // Bug #61272
          if(exporter instanceof HTMLVSExporter) {

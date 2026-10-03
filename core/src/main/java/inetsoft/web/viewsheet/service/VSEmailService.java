@@ -518,21 +518,28 @@ public class VSEmailService {
       }
 
       int vmode = Viewsheet.SHEET_RUNTIME_MODE;
+      // Bug #77621: dispose the bookmark sandboxes only after write(). A print-layout PDF
+      // paints its queued reports in write(), and their table highlights evaluate script
+      // condition values against these sandboxes.
+      List<ViewsheetSandbox> createdBoxes = new ArrayList<>();
 
-      for(int i = 0; bookmarks != null && i < bookmarks.length; i++) {
-         ViewsheetSandbox sandbox = createSandbox(
-                 rvs.getOriginalBookmark(bookmarks[i]), vmode, principal,
-                 rvs.getEntry(), box.get().getVariableTable());
-
-         try {
+      try {
+         for(int i = 0; bookmarks != null && i < bookmarks.length; i++) {
+            ViewsheetSandbox sandbox = createSandbox(
+                    rvs.getOriginalBookmark(bookmarks[i]), vmode, principal,
+                    rvs.getEntry(), box.get().getVariableTable());
+            createdBoxes.add(sandbox);
             exporter.export(sandbox, bookmarks[i], (i + 1), helper); //!!! maybe the pictures aren't being written out become of overwriting?
          }
-         finally {
+
+         exporter.write();
+      }
+      finally {
+         for(ViewsheetSandbox sandbox : createdBoxes) {
             sandbox.dispose();
          }
       }
 
-      exporter.write();
       output.close();
    }
 
