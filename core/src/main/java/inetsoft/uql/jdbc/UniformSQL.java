@@ -2207,9 +2207,10 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
    /**
     * Get the table column of an unquoted column reference that a case-sensitive helper
     * (e.g. postgresql) stores with quotes ("k"), which the field list doesn't find
-    * (Bug #77616). The database folds the unquoted name to one case, so it matches the
-    * column in any case. A quoted reference is stored without the quotes and doesn't come
-    * here, it only matches the exact name.
+    * (Bug #77616). The database folds the unquoted name to one case, so it matches only the
+    * column spelled in that case, written in any case. A column in another case (e.g. "A" on
+    * postgresql) is only named by a quoted reference, which is stored without the quotes and
+    * doesn't come here, it only matches the exact name.
     * @return the column path, or <tt>null</tt> if not found.
     */
    private String getUnquotedColumnPath(String field) {
@@ -2220,21 +2221,16 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
       }
 
       String folded = foldName(name);
-      XField match = null;
 
       for(XField xfield : fields) {
          String fname = xfield.getName() == null ? "" : xfield.getName().toString();
 
-         if(xfield.getTable().length() == 0 || !fname.equalsIgnoreCase(name)) {
-            continue;
-         }
-
-         if(match == null || fname.equals(folded)) {
-            match = xfield;
+         if(xfield.getTable().length() > 0 && fname.equals(folded)) {
+            return xfield.getTable() + "." + xfield.getName();
          }
       }
 
-      return match == null ? null : match.getTable() + "." + match.getName();
+      return null;
    }
 
    /**

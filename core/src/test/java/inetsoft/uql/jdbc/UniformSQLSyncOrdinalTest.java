@@ -584,10 +584,12 @@ class UniformSQLSyncOrdinalTest {
    void sameSpellingAliasOutsideTheFoldedCaseIsNotGuessed() throws Exception {
       for(String key : new String[] { "postgresql", "snowflake", "exasol" }) {
          String alias = "postgresql".equals(key) ? "A" : "a";
+         // a column created unquoted is in the folded case
+         String a = "postgresql".equals(key) ? "a" : "A";
 
          for(String as : new String[] { alias, "\"" + alias + "\"" }) {
             // t has a column a, u doesn't
-            for(String[] meta : new String[][] { { "id", "k", "a" }, { "id", "k" } }) {
+            for(String[] meta : new String[][] { { "id", "k", a }, { "id", "k" } }) {
                UniformSQL usql = fixedWithoutAliasQuoting(
                   "select id as " + as + " from t order by " + alias + " desc", key, meta);
                assertEquals("[]", orderBy(usql), key + " " + as);
@@ -600,8 +602,8 @@ class UniformSQLSyncOrdinalTest {
 
             // the table column first
             String generated = regenerate(fixedWithoutAliasQuoting("select id as " + as + ", count(*) from t " +
-                                                "group by " + alias, key, "id", "k", "a"));
-            assertTrue(generated.endsWith("group by \"t\".a"), key + " " + generated);
+                                                "group by " + alias, key, "id", "k", a));
+            assertTrue(generated.endsWith("group by \"t\"." + a), key + " " + generated);
 
             generated = regenerate(fixedWithoutAliasQuoting("select id as " + as + ", count(*) from t " +
                                          "group by " + alias, key, "id", "k"));
@@ -617,22 +619,26 @@ class UniformSQLSyncOrdinalTest {
    @Test
    void groupByColumnBeforeAlias() throws Exception {
       for(String key : new String[] { "postgresql", "snowflake", "exasol" }) {
+         // the columns, created unquoted, are in the folded case
+         boolean pg = "postgresql".equals(key);
+         String id = pg ? "id" : "ID";
+         String k = pg ? "k" : "K";
          String generated = regenerate(fixed("select k as ID, count(*) from t group by id",
-                                             key, "id", "k"));
+                                             key, id, k));
          assertFalse(generated.contains("group by \"ID\""), key + " " + generated);
 
          generated = regenerate(fixed("select k / 100 as ID, count(*) from t " +
-                                      "group by ID, k / 100", key, "id", "k"));
-         assertTrue(generated.contains("group by \"t\".id, "), key + " " + generated);
+                                      "group by ID, k / 100", key, id, k));
+         assertTrue(generated.contains("group by \"t\"." + id + ", "), key + " " + generated);
 
          generated = regenerate(fixed("select k / 100 as id, count(*) from t " +
-                                      "group by id, k / 100", key, "id", "k"));
-         assertTrue(generated.contains("group by \"t\".id, "), key + " " + generated);
+                                      "group by id, k / 100", key, id, k));
+         assertTrue(generated.contains("group by \"t\"." + id + ", "), key + " " + generated);
 
          // no column of that name: the alias, if it is in the folded case
          String alias = "postgresql".equals(key) ? "id" : "ID";
          generated = regenerate(fixed("select k / 100 as " + alias + ", count(*) from t " +
-                                      "group by " + alias, key, "id2", "k"));
+                                      "group by " + alias, key, id + "2", k));
          assertTrue(generated.endsWith("group by \"" + alias + "\""), key + " " + generated);
       }
    }
@@ -657,16 +663,24 @@ class UniformSQLSyncOrdinalTest {
    @Test
    void unquotedColumnNotSelectedIsKept() throws Exception {
       for(String key : new String[] { "postgresql", "snowflake", "exasol" }) {
-         String generated = regenerate(fixed("select id from t order by k desc", key, "id", "k"));
-         assertTrue(generated.endsWith("order by \"t\".k desc"), key + " " + generated);
+         // the columns, created unquoted, are in the folded case
+         boolean pg = "postgresql".equals(key);
+         String id = pg ? "id" : "ID";
+         String k = pg ? "k" : "K";
+         String generated = regenerate(fixed("select id from t order by k desc", key, id, k));
+         assertTrue(generated.endsWith("order by \"t\"." + k + " desc"), key + " " + generated);
 
-         generated = regenerate(fixed("select id from t order by K desc", key, "id", "k"));
-         assertTrue(generated.endsWith("order by \"t\".k desc"), key + " " + generated);
+         generated = regenerate(fixed("select id from t order by K desc", key, id, k));
+         assertTrue(generated.endsWith("order by \"t\"." + k + " desc"), key + " " + generated);
 
          generated = regenerate(fixed("select id, count(*) from t group by id, k order by k",
-                                      key, "id", "k"));
-         assertTrue(generated.contains("group by \"id\", \"t\".k order by \"t\".k asc"),
+                                      key, id, k));
+         assertTrue(generated.contains(" \"t\"." + k + " order by \"t\"." + k + " asc"),
                     key + " " + generated);
+
+         // Finding Z: a column in another case (created quoted) isn't an unquoted reference
+         generated = regenerate(fixed("select id from t order by k desc", key, id, pg ? "K" : "k"));
+         assertFalse(generated.contains(" order by "), key + " " + generated);
       }
    }
 

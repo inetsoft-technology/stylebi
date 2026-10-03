@@ -521,6 +521,31 @@ class UniformSQLQuotedTwinColumnTest {
    }
 
    /**
+    * Finding Z (#77616 verification): an unquoted reference is folded by the database, so it
+    * names only a column spelled in the folded case. With only a quoted column "A" on
+    * postgresql, group by a is the alias. A quoted reference names the column of that exact
+    * spelling, not an unquoted alias A, which is a (rule 6.3.2). The expected sql returns the
+    * rows of the original on PostgreSQL 16.
+    */
+   @Test
+   void unquotedReferenceNamesOnlyAColumnInTheFoldedCase() throws Exception {
+      assertEquals("select \"k\" as \"a\", count(*) from \"z\" group by \"a\"",
+                   fixed("postgresql", "select k as a, count(*) from z group by a", "id", "k", "A"));
+      assertEquals("select \"k\" as \"a\", count(*) from \"z\" group by \"k\"",
+                   fixed("postgresql", "select k as a, count(*) from z group by A", "id", "k", "A"));
+      // no column a and no alias: the original fails, the item names nothing (as before)
+      assertEquals("select \"id\" from \"z\"",
+                   fixed("postgresql", "select id from z order by a desc", "id", "k", "A"));
+      assertEquals("select \"id\" from \"z\" order by \"z\".\"A\" desc",
+                   fixed("postgresql", "select id from z order by \"A\" desc", "id", "k", "A"));
+      // L01, L02: the column "A", not the alias A
+      assertEquals("select \"id\" as \"A\" from \"z\" order by \"z\".\"A\" asc",
+                   fixed("postgresql", "select id as A from z order by \"A\"", "id", "k", "A"));
+      assertEquals("select \"k\" as \"A\" from \"w\" order by \"w\".\"A\" asc",
+                   fixed("postgresql", "select k as A from w order by \"A\"", "id", "k", "A"));
+   }
+
+   /**
     * Snowflake and exasol fold an unquoted name to upper case, and write a plain alias
     * unquoted. An expression alias is referenced as the helper writes it (A2).
     */
