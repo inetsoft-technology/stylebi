@@ -113,6 +113,56 @@ class XFragmentSwapFileWriteFailureTest {
    }
 
    @Test
+   void objectFragmentSurvivesFailedWriteOnANonFirstChunk() throws Exception {
+      // Tester-found gap (post round-1): a fragment large enough to span multiple swap-file
+      // chunks ("_0.tdat", "_1.tdat", ...) can have an EARLIER chunk's write succeed, durably,
+      // while a LATER chunk's write fails. validate(ByteBuffer, ObjectArrayHolder)'s own internal
+      // catch swallows a read failure on that later, corrupt/0-byte chunk and returns -1 from its
+      // tail - indistinguishable, to validate0()'s while loop, from a legitimate full read - so
+      // without the holder.complete guard, the next read-back would silently overwrite the fully
+      // intact in-memory array with a partial reconstruction (only the earlier chunk's elements).
+      int count = 2200;
+      String base = "x".repeat(140);
+      XObjectFragment<String> fragment = new XObjectFragment<>((char) 10, (char) 20000, null);
+
+      for(int i = 0; i < count; i++) {
+         fragment.add(base + i);
+      }
+
+      CountDownLatch readyToLock = new CountDownLatch(1);
+      CountDownLatch acquiredLock = new CountDownLatch(1);
+      fragment.add(new BlockingDuringSerialization(readyToLock, acquiredLock));
+      fragment.complete();
+
+      File chunk0 = FileSystemService.getInstance().getCacheFile(fragment.prefix + "_0.tdat");
+      File chunk1 = FileSystemService.getInstance().getCacheFile(fragment.prefix + "_1.tdat");
+      Thread swapThread = new Thread(fragment::swap, "object-fragment-multichunk-test");
+
+      try(LockedFile locked = new LockedFile()) {
+         swapThread.start();
+         assertTrue(readyToLock.await(10, TimeUnit.SECONDS),
+                    "serialization never reached the blocking object");
+         assertTrue(chunk1.exists(),
+                    "test setup: expected a multi-chunk swap (chunk 1 should already be open) - "
+                       + "adjust count/base length if XObjectFragment's chunk-sizing changes");
+         locked.acquire(chunk1);
+         acquiredLock.countDown();
+         swapThread.join(15_000);
+      }
+
+      assertTrue(chunk0.length() > 0, "test setup: chunk 0 should have been durably written");
+      assertFalse(fragment.isValid(), "fragment should still be marked invalid after a failed write");
+
+      assertEquals(base + 0, fragment.getSafely(0),
+                   "an earlier, durably-written chunk's data was lost");
+      assertEquals(base + (count - 1), fragment.getSafely(count - 1),
+                   "data was lost - the intact in-memory array was clobbered by a partial "
+                      + "reconstruction from the chunk whose write failed");
+
+      fragment.dispose();
+   }
+
+   @Test
    void stringFragmentSurvivesFailedSwapWriteAndRecoversCleanly() throws Exception {
       String original = "the quick brown fox";
       XStringFragment fragment = new XStringFragment(original);

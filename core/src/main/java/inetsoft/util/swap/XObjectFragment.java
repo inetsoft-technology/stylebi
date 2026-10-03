@@ -212,19 +212,31 @@ public final class XObjectFragment<T> extends XSwappable {
          }
 
          file = null;
-         this.arr = holder.arr;
-         this.pos = holder.pos;
-         return holder.arr;
+
+         // validate(buf, holder)'s own internal catch can swallow a read failure on a later
+         // chunk (e.g. a 0-byte/corrupt stub left by a write that failed after an earlier
+         // chunk's write already succeeded) and still return -1 from its own tail, which looks
+         // identical to a legitimate, fully-complete read to this while loop. holder.complete
+         // distinguishes the two: only a genuinely complete multi-chunk read may overwrite an
+         // in-memory array that's still intact; otherwise fall back to whatever was already
+         // there (matching the no-better-alternative fallback below) rather than silently
+         // replacing it with a partial reconstruction.
+         if(holder.complete || this.arr == null) {
+            this.arr = holder.arr;
+            this.pos = holder.pos;
+         }
+
+         return this.arr;
       }
       catch(Exception ex) {
          Object[] arr;
 
          // since we ignore the exceptions, we should return whatever we managed to read
          // up to the point until the exception was thrown - but a holder that never
-         // actually read anything (e.g. a 0-byte/corrupt stub left by a write that failed
-         // before swap0() cleared arr/pos) must not be allowed to clobber an in-memory
-         // array that's still intact
-         if(holder != null && holder.arr != null) {
+         // actually read anything, or only read a partial multi-chunk reconstruction (e.g. a
+         // 0-byte/corrupt stub left by a write that failed before swap0() cleared arr/pos),
+         // must not be allowed to clobber an in-memory array that's still intact
+         if(holder != null && holder.arr != null && this.arr == null) {
             arr = holder.arr;
             this.arr = holder.arr;
             this.pos = holder.pos;
@@ -597,6 +609,10 @@ public final class XObjectFragment<T> extends XSwappable {
 
          if(spos == holder.pos) {
             spos = 0;
+            // the only point at which every object has genuinely been read back; distinct
+            // from the swallowed-exception path below, which also returns -1 but must not be
+            // mistaken by validate0() for a real, complete read
+            holder.complete = true;
             return -1;
          }
          else {
@@ -799,5 +815,8 @@ public final class XObjectFragment<T> extends XSwappable {
    private static class ObjectArrayHolder {
       private Object[] arr;
       private char pos;
+      // true only once every object across every chunk has actually been read back;
+      // distinguishes a genuine finish from validate()'s swallowed-exception return(-1)
+      private boolean complete;
    }
 }
