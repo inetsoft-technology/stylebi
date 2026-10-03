@@ -168,6 +168,43 @@ class UniformSQLLossySourceChangeTest {
    }
 
    /**
+    * #77577. An inner ON condition moved to WHERE is harmless when no later outer join makes
+    * its table optional. Such a saved query stays non-lossy and mergeable, and its regenerated
+    * sql returns the rows of the original on Derby. The shapes with a RIGHT join are refused by
+    * Oracle without ansi join, so they become lossy when the data source changes to it.
+    */
+   @Test
+   void savedHarmlessInnerOnConditionStaysMergeable() throws Exception {
+      String leftAfter = "select a.id, b.id, c.id from a join b on a.id = b.id and b.x = 2 " +
+         "left join c on b.id = c.id";
+      String innerAfterRight = "select a.id, b.id, c.id from a right join b on a.id = b.id " +
+         "join c on b.id = c.id and c.x = 2";
+      String twoTableBeforeRight = "select a.id, b.id, c.id from a join b on a.id = b.id " +
+         "and a.x < b.x right join c on b.id = c.id";
+
+      for(String text : new String[] { leftAfter, innerAfterRight, twoTableBeforeRight }) {
+         assertFalse(rows(text).isEmpty(), text);
+
+         String xml = toXML(parse(text, helpers().get("h2")));
+         UniformSQL sql = load(xml, helpers().get("h2"));
+         assertFalse(sql.isLossy(), text);
+         assertTrue(XUtil.isQueryMergeable(query(sql)), text);
+
+         JDBCQuery query = query(sql);
+         JDBCQueryCacheNormalizer normalizer = new JDBCQueryCacheNormalizer(query);
+         assertTrue(normalizer.isClearedSqlString(), text);
+         String regenerated = query.getSQLAsString();
+         assertNotEquals(text, regenerated);
+         assertEquals(rows(text), rows(regenerated), regenerated);
+
+         sql = load(xml, helpers().get("h2"));
+         assertFalse(sql.isLossy(), text);
+         sql.setDataSource(helpers().get("oracle"));
+         assertEquals(text != leftAfter, sql.isLossy(), "h2 -> oracle: " + text);
+      }
+   }
+
+   /**
     * Turning off ansi join on a data source makes a copy that isn't equal to the old one.
     */
    @Test
