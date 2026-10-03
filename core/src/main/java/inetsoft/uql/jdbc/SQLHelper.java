@@ -2628,13 +2628,18 @@ public class SQLHelper implements KeywordProvider {
             return false;
          }
 
+         Object[][] tables = joinTables.get(anchor);
+         // a parsed join is written with its tables in from order, e.g.
+         // a join b on b.id = a.id is a INNER JOIN b, not b INNER JOIN a
+         boolean traverse = (anchor.isOnClauseJoin() || anchor.isWhereClauseJoin()) &&
+            getSelectTableIndex(tables[0][1]) > getSelectTableIndex(tables[1][1]);
          group = new TextJoinGroup();
-         String op = getAnsiJoin(anchor.getOp(), false);
-         group.first = joinTables.get(anchor)[0][1];
-         group.firstName = (String) joinTables.get(anchor)[0][0];
+         String op = getAnsiJoin(anchor.getOp(), traverse);
+         group.first = tables[traverse ? 1 : 0][1];
+         group.firstName = (String) tables[traverse ? 1 : 0][0];
          group.leftDeep = isInnerOrLeftJoin(op);
          appendTextJoins(group, step, anchor, op, group.firstName,
-                         (String) joinTables.get(anchor)[1][0]);
+                         (String) tables[traverse ? 0 : 1][0]);
          groups.add(group);
       }
       else if(newTables.size() == 1 && joined.size() == 1) {
@@ -2745,6 +2750,19 @@ public class SQLHelper implements KeywordProvider {
       }
 
       return null;
+   }
+
+   /**
+    * Get the from clause index of a select table.
+    */
+   private int getSelectTableIndex(Object table) {
+      for(int i = 0; i < uniformSql.getTableCount(); i++) {
+         if(uniformSql.getSelectTable(i) == table) {
+            return i;
+         }
+      }
+
+      return -1;
    }
 
    /**

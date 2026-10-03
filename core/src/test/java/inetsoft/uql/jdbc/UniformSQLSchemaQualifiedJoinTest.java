@@ -377,7 +377,8 @@ class UniformSQLSchemaQualifiedJoinTest {
                          "\"b\".\"id\" ) RIGHT OUTER JOIN \"s\".\"a\" ON \"a\".\"id\" = \"x\".\"pid\""),
          Arguments.of(POSTGRESQL_ANSI,
                       "select * from s.a left join (s.b join s.a x on x.id = b.id) on a.id = x.pid",
-                      "select * from (\"s\".\"a\" x INNER JOIN \"s\".\"b\" ON \"x\".\"id\" = " +
+                      // Bug #77546, the nested join's tables are in from order
+                      "select * from (\"s\".\"b\" INNER JOIN \"s\".\"a\" x ON \"x\".\"id\" = " +
                          "\"b\".\"id\" ) RIGHT OUTER JOIN \"s\".\"a\" ON \"a\".\"id\" = \"x\".\"pid\"")
       );
    }
