@@ -158,30 +158,24 @@ class UniformSQLNegatedJoinTest {
       }
    }
 
-   // a legacy outer join under a NOT is still a join, so it isn't written as an invalid *=
-   // condition in WHERE (#6090 refuses it at parse time)
+   // Bug #77481, a legacy outer join under a NOT set with other conditions can't be generated:
+   // "ON a.id = b.k where not (a.k = 1)" isn't "not (a.id = b.k and a.k = 1)", so the parse
+   // fails and the original sql runs
    @ParameterizedTest
    @ValueSource(strings = {
       SEL + "from a, b where not (a.id *= b.k and a.k = 1)",
       SEL + "from a, b where not (a.id = b.k (+) and a.k = 1)",
    })
-   void outerJoinUnderNotIsStillAJoin(String text) throws Exception {
-      for(boolean saved : new boolean[] { false, true }) {
-         UniformSQL sql = parse(text, saved);
-         assertEquals("[a.id *= b.k]", Arrays.toString(sql.getJoins()), "saved=" + saved);
+   void outerJoinUnderNotIsRefused(String text) {
+      Exception ex = assertThrows(Exception.class, () ->
+         new UniformSQL().parse(text, UniformSQL.PARSE_ALL, UniformSQL.PARSE_PERIOD));
+      assertTrue(ex.getMessage().contains("Unsupported outer join condition"), ex.getMessage());
 
-         for(String type : HELPERS) {
-            JDBCDataSource ds = SQLHelperWhereOrOuterJoinTest.RowCompare.dataSource(type);
-            String msg = type + " saved=" + saved;
-            String expected = generate(parse(text, saved), ds);
-
-            assertFalse(expected.contains("*="), msg + ": " + expected);
-            assertTrue(expected.contains("LEFT OUTER JOIN b ON a.id = b.k"), msg + ": " + expected);
-            assertEquals(expected, generate(rejoin(parse(text, saved)), ds), msg + " rejoin");
-            assertEquals(expected, generate(conditionRoundTrip(parse(text, saved)), ds),
-                         msg + " condition");
-         }
-      }
+      UniformSQL sql = new UniformSQL();
+      new SQLProcessor(sql).parse(text);
+      assertEquals(UniformSQL.PARSE_FAILED, sql.getParseResult());
+      assertEquals(text, sql.getSQLString());
+      assertTrue(sql.isLossy());
    }
 
    // removeAllJoins hoists the only operand left in a set and must keep the set's NOT

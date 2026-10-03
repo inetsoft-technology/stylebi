@@ -2481,8 +2481,23 @@ public class SQLHelper implements KeywordProvider {
     * where clause joins as where conditions (comma separated tables) and can
     * join parenthesized groups of joined tables, e.g.
     * (a join b) left join (c join d) on b.id = c.id.
+    * A helper that returns false gets the outer-last join order for parsed
+    * joins too, which can put an inner join on the null-supplying side of an
+    * outer join and return wrong rows (#77581). A helper that can't write
+    * parentheses overrides appendJoinClause and isJoinParenthesesSupported
+    * instead, as MongoHelper does.
     */
    protected boolean isTextJoinOrderSupported() {
+      return true;
+   }
+
+   /**
+    * Check if the database supports parentheses around joined tables in the
+    * from clause. Without them (MongoHelper), a text order join between two
+    * groups of tables is written as one flat chain when that keeps its meaning,
+    * and otherwise only its right group is parenthesized.
+    */
+   protected boolean isJoinParenthesesSupported() {
       return true;
    }
 
@@ -2614,8 +2629,11 @@ public class SQLHelper implements KeywordProvider {
          }
 
          group = new TextJoinGroup();
-         appendTextJoins(group, step, anchor, getAnsiJoin(anchor.getOp(), false),
-                         (String) joinTables.get(anchor)[0][0],
+         String op = getAnsiJoin(anchor.getOp(), false);
+         group.first = joinTables.get(anchor)[0][1];
+         group.firstName = (String) joinTables.get(anchor)[0][0];
+         group.leftDeep = isInnerOrLeftJoin(op);
+         appendTextJoins(group, step, anchor, op, group.firstName,
                          (String) joinTables.get(anchor)[1][0]);
          groups.add(group);
       }
@@ -2631,8 +2649,9 @@ public class SQLHelper implements KeywordProvider {
          // the other side, e.g. a *= b adding a is b RIGHT OUTER JOIN a
          boolean traverse = table.equals(joinTables.get(anchor)[0][1]);
          group = joined.iterator().next();
-         appendTextJoins(group, step, anchor, getAnsiJoin(anchor.getOp(), traverse), null,
-                         names.get(table));
+         String op = getAnsiJoin(anchor.getOp(), traverse);
+         group.leftDeep = group.leftDeep && isInnerOrLeftJoin(op);
+         appendTextJoins(group, step, anchor, op, null, names.get(table));
       }
       else if(newTables.isEmpty() && joined.size() == 2) {
          XJoin anchor = null;
@@ -2653,11 +2672,40 @@ public class SQLHelper implements KeywordProvider {
          TextJoinGroup left = findTextJoinGroup(groups, joinTables.get(anchor)[0][1]);
          TextJoinGroup right = findTextJoinGroup(groups, joinTables.get(anchor)[1][1]);
 
+         boolean parens = isJoinParenthesesSupported();
+
+         // a helper that can't write parentheses (MongoHelper, 56305) writes an
+         // inner join of a group and a flat chain of inner and left joins as one
+         // chain when that keeps its meaning (#77581), e.g.
+         // a join b .. join (c left join d on c.id = d.id) on b.id = c.id is
+         // a join b .. join c on b.id = c.id left join d on c.id = d.id
+         if(!parens && !anchor.isOuterJoin()) {
+            group = appendFlatGroupJoins(groups, step, joinTables, names.keySet(), left, right);
+
+            if(group == null) {
+               group = appendFlatGroupJoins(groups, step, joinTables, names.keySet(), right,
+                                            left);
+            }
+
+            if(group != null) {
+               group.tables.addAll(names.keySet());
+               return true;
+            }
+         }
+
          // the parser only reads a joined table on the right of a join as one
          // flat chain, e.g. a left join (c join d on .. join e on ..) on ..
+         // Without parentheses support (MongoHelper), the left group is written
+         // without them, as joins are left associative, and the right group
+         // keeps them, since no flat chain keeps the meaning of
+         // a join b .. left join (c join d ..) on b.id = c.id: the unity driver
+         // may reject them (56305), where the outer-last order joins d to the
+         // null-extended rows of c and returns wrong rows (#77581)
          group = new TextJoinGroup();
+         group.leftDeep = false;
          appendTextJoins(group, step, anchor, getAnsiJoin(anchor.getOp(), false),
-                         "(" + left.text + ")", "(" + right.flat + ")");
+                         parens ? "(" + left.text + ")" : left.text.toString(),
+                         "(" + right.flat + ")");
          group.tables.addAll(left.tables);
          group.tables.addAll(right.tables);
          groups.remove(left);
@@ -2757,6 +2805,58 @@ public class SQLHelper implements KeywordProvider {
       // the same joins as one chain without the left-deep parentheses
       private final StringBuilder flat = new StringBuilder();
       private final Set<Object> tables = new HashSet<>();
+      // the first table of the chain and its name in the from clause
+      private Object first;
+      private String firstName;
+      // true if the chain has only inner and left joins and no nested group
+      private boolean leftDeep;
+   }
+
+   /**
+    * Write an inner join step between two text order groups as one flat chain:
+    * the joins of the right group follow the step, which joins its first table,
+    * e.g. a join b .. join (c left join d on c.id = d.id) on b.id = c.id is
+    * a join b .. join c on b.id = c.id left join d on c.id = d.id. It keeps the
+    * meaning when the step only references the left group and the first table
+    * of the right group, and the right group is a chain of inner and left joins
+    * (each joining a table to the tables before it).
+    * @return the left group with the right group appended, or <tt>null</tt> if
+    * the step can't be written this way.
+    */
+   private TextJoinGroup appendFlatGroupJoins(List<TextJoinGroup> groups, List<XJoin> step,
+                                              Map<XJoin, Object[][]> joinTables,
+                                              Set<Object> stepTables, TextJoinGroup left,
+                                              TextJoinGroup right)
+   {
+      if(!right.leftDeep || right.first == null) {
+         return null;
+      }
+
+      for(Object table : stepTables) {
+         if(!left.tables.contains(table) && !table.equals(right.first)) {
+            return null;
+         }
+      }
+
+      XJoin anchor = findAnchorJoin(step, joinTables, right.first, null);
+
+      if(anchor == null) {
+         return null;
+      }
+
+      appendTextJoins(left, step, anchor, getAnsiJoin(anchor.getOp(), false), null,
+                      right.firstName);
+      // the joins of the right group after its first table
+      String rest = right.flat.substring(right.firstName.length());
+      left.text.append(rest);
+      left.flat.append(rest);
+      left.tables.addAll(right.tables);
+      groups.remove(right);
+      return left;
+   }
+
+   private static boolean isInnerOrLeftJoin(String op) {
+      return " INNER JOIN ".equals(op) || " LEFT OUTER JOIN ".equals(op);
    }
 
    /**
@@ -3731,8 +3831,8 @@ public class SQLHelper implements KeywordProvider {
       // a != is written in place, as before != had an ANSI join, except for a != the parser
       // found in an inner join ON of a query in text join order, which stays in that ON so
       // it's kept on the null-supplying side of an outer join. A != in WHERE, from a query
-      // saved before the clause was recorded, or without text join order (no outer join, or
-      // MongoHelper) can't move a predicate out of an outer join, and moving it into the
+      // saved before the clause was recorded, or without text join order (e.g. no outer
+      // join) can't move a predicate out of an outer join, and moving it into the
       // from clause there can join a table twice
       if("!=".equals(join.getOp()) && !(join.isOnClauseJoin() && isTextJoinOrder())) {
          return false;
