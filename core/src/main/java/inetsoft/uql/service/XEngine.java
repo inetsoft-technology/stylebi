@@ -23,6 +23,8 @@ import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.cluster.*;
 import inetsoft.sree.security.*;
 import inetsoft.uql.*;
+import inetsoft.uql.asset.AssetEntry;
+import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.asset.SourceInfo;
 import inetsoft.uql.asset.sync.*;
 import inetsoft.uql.erm.*;
@@ -292,6 +294,13 @@ public class XEngine implements XRepository, XQueryRepository {
                                 Boolean actionRecord, String actionName, boolean checkDelete)
       throws Exception
    {
+      // Bug #77672, an additional connection that is saved by its bare name, e.g. by a connector
+      // after it refreshes an OAuth token, is stored under its parent, not at the top level
+      if(isAdditionalConnectionSave(dx, oname)) {
+         updateAdditionalConnection((AdditionalConnectionDataSource<?>) dx, false);
+         return;
+      }
+
       XDataSource odx = oname == null ? null : getDSRegistry().getDataSource(oname);
       boolean nameChanged = oname != null && !Tool.equals(oname, dx.getFullName());
       boolean changed = odx != null && (!Tool.equals(dx, odx) || dx.getLastModified() != odx.getLastModified());
@@ -361,7 +370,64 @@ public class XEngine implements XRepository, XQueryRepository {
 
    @Override
    public void updateDataSourceStatus(XDataSource dx) {
+      // Bug #77672, store the status of an additional connection under its parent
+      if(isAdditionalConnectionSave(dx, null)) {
+         updateAdditionalConnection((AdditionalConnectionDataSource<?>) dx, true);
+         return;
+      }
+
       getDSRegistry().setDataSource(dx, null, false, false, false, false);
+   }
+
+   /**
+    * Checks if a save of a data source is that of an additional connection keyed by its bare
+    * name. An additional connection's full name is only its own name, but it is stored at
+    * {@code <parent>/<name>}, so saving it at its full name would create or overwrite a top-level
+    * data source of that name. Renames and saves by path are left to the callers.
+    */
+   private static boolean isAdditionalConnectionSave(XDataSource dx, String oname) {
+      if(!(dx instanceof AdditionalConnectionDataSource<?> additional) ||
+         additional.getBaseDatasource() == null)
+      {
+         return false;
+      }
+
+      String name = dx.getFullName();
+      return name != null && name.indexOf('/') < 0 && (oname == null || oname.equals(name));
+   }
+
+   /**
+    * Saves an additional connection at its path under its parent. The base data source is used
+    * only for its name, the parent is read again so that a stale copy of it is never saved. The
+    * additional connection is not saved if it no longer exists under the parent.
+    *
+    * @param dx     the additional connection.
+    * @param status {@code true} if only the status is being saved, in which case it is always
+    *               written and no event is fired.
+    */
+   @SuppressWarnings({ "rawtypes", "unchecked" })
+   private void updateAdditionalConnection(AdditionalConnectionDataSource<?> dx, boolean status) {
+      String parentName = dx.getBaseDatasource().getFullName();
+      String name = dx.getFullName();
+      XDataSource parent = getDSRegistry().getDataSource(parentName);
+      XDataSource stored = parent instanceof AdditionalConnectionDataSource<?> ads ?
+         ads.getDataSource(name) : null;
+
+      if(stored == null) {
+         LOG.warn("Additional connection {} of data source {} was not found, it is not saved",
+                  name, parentName);
+         return;
+      }
+
+      if(!status && Tool.equals(dx, stored) && dx.getLastModified() == stored.getLastModified()) {
+         return;
+      }
+
+      dx.setLastModified(System.currentTimeMillis());
+      ((AdditionalConnectionDataSource) dx).setBaseDatasource((AdditionalConnectionDataSource) parent);
+      AssetEntry entry = new AssetEntry(AssetRepository.QUERY_SCOPE, AssetEntry.Type.DATA_SOURCE,
+                                        parentName + "/" + name, null);
+      getDSRegistry().setObject(entry, new XDataSourceWrapper(dx), !status);
    }
 
    /**
