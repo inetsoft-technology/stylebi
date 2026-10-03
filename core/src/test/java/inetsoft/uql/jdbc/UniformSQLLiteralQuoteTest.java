@@ -284,7 +284,59 @@ class UniformSQLLiteralQuoteTest {
          Arguments.of("select id from t where s = ''", "where s = ''", true),
          Arguments.of("select id as 'my alias' from t", "select id as \"my alias\" from t", false),
          Arguments.of("select id from t where d > current_date - interval '1' day",
-                      "interval '1' day", false));
+                      "interval '1' day", false),
+         // more JDBC escapes, delimiters inside literals, quotes inside comments, '' escapes
+         Arguments.of("select {ts '2020-01-01 00:00:00'} as x from t",
+                      "{ts '2020-01-01 00:00:00'} as x from t", false),
+         Arguments.of("select {fn timestampadd(SQL_TSI_DAY, 1, d)} as x from t",
+                      "{fn timestampadd(SQL_TSI_DAY, 1, d)} as x from t", false),
+         Arguments.of("select id from t where s like '[a-z]%'", "'[a-z]%'", false),
+         Arguments.of("select id, '[' as w, '{' as x, '`' as y, '$(' as z from t", "from t", true),
+         Arguments.of("select id from t where k = 1 -- it's \"x", "from t where k = 1", false),
+         Arguments.of("select id from t /* it's \"x */ where k = 1", "from t where k = 1", true),
+         Arguments.of("select id from t where s = ''''", "where s = ''''", false),
+         Arguments.of("select id, 'a''' as x from t", "'a''' as x, id from t", true));
+   }
+
+   // a bracket identifier holds any character but [ \ and ], including the CJK characters
+   // from U+80FE up, which ended the token before
+   @ParameterizedTest
+   @ValueSource(strings = { "销售", "一二" })
+   void cjkBracketIdentifierIsOneToken(String name) throws Exception {
+      String text = "select [" + name + "] from t where [" + name + "] = 1";
+      assertEquals("select SPIDENT_SQUARE from IDENT where SPIDENT_SQUARE EQ UNSIGNED_NUM_LIT EOF",
+                   tokens(text));
+
+      for(String type : TYPES) {
+         JDBCDataSource ds = dataSource(type);
+         UniformSQL sql = parse(text, ds);
+         String generated = regenerate(sql, text);
+         String message = type + ": " + text + " -> " + generated;
+
+         assertEquals(1, sql.getTableCount(), message);
+         assertEquals(name, sql.getSelection().getColumn(0).replace("\"", ""), message);
+         assertEquals(2, count(generated, name), message);
+         assertRoundTrip(generated, ds, message);
+      }
+   }
+
+   // a nested JDBC escape and a variable name with a dot can't be lexed. Both failed the parse
+   // before #77640 as well, and must keep failing it rather than drop part of the text.
+   @ParameterizedTest
+   @ValueSource(strings = {
+      "select {fn concat({fn ucase(s)}, s)} from t",
+      "select id from t where k = $(a.b)",
+      "select $(a.b) from t",
+   })
+   void malformedEscapeFailsParse(String text) {
+      for(String type : TYPES) {
+         UniformSQL sql = new UniformSQL();
+         sql.setDataSource(dataSource(type));
+         new SQLProcessor(sql).parse(text);
+
+         assertEquals(UniformSQL.PARSE_FAILED, sql.getParseResult(), type + ": " + text);
+         assertEquals(text, sql.getSQLString(), type);
+      }
    }
 
    /**
