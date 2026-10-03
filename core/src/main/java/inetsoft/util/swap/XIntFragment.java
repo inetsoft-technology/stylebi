@@ -131,26 +131,6 @@ public final class XIntFragment extends XSwappable {
    }
 
    /**
-    * set new size to this int fragment.
-    */
-   public synchronized void size(char size) {
-      if(size < 0 || size >= pos) {
-         return;
-      }
-
-      if(disposed) {
-         return;
-      }
-
-      if(!valid) {
-         validate0(true);
-      }
-
-      completed = false;
-      pos = size;
-   }
-
-   /**
     * Complete this int fragment.
     */
    @Override
@@ -403,7 +383,17 @@ public final class XIntFragment extends XSwappable {
     * @param val the specified int value.
     */
    public void add(int val) {
-      // disposed?
+      if(disposed) {
+         return;
+      }
+
+      // a completed fragment may have been swapped out (arr == null) or swapped and read
+      // back (the next swap reuses the old swap file), so a value added now would be lost
+      if(completed) {
+         throw new IllegalStateException(
+            "Cannot add a value to a completed swappable fragment: " + prefix);
+      }
+
       if(arr == null) {
          return;
       }
