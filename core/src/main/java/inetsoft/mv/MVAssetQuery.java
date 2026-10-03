@@ -1056,7 +1056,8 @@ public class MVAssetQuery extends AssetQuery {
 
             BiFunction<String, String, Boolean> hcolumns = VpmProcessor.getInstance()
                .getHiddenColumnsSelector(
-                  tableNames, new String[0], sourceInfo.getPrefix(), null, null, box.getUser());
+                  tableNames, new String[0], sourceInfo.getPrefix(), null, box.getVariableTable(),
+                  box.getUser());
 
             int ccnt = columnSelection.getAttributeCount();
 
@@ -1071,7 +1072,8 @@ public class MVAssetQuery extends AssetQuery {
             }
          }
          catch(Exception e) {
-            LOG.warn("Failed to get vpm hidden columns: ", e);
+            // fail closed, the MV may hold columns the vpm hides from this user
+            throw new RuntimeException("Failed to get vpm hidden columns: " + e.getMessage(), e);
          }
       }
 
