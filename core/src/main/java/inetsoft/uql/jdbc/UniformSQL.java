@@ -1739,6 +1739,19 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
       List<String> records = new ArrayList<>();
       Boolean wildcard = null;
       boolean changed = false;
+      // an item that may be an alias or a column is dropped below. The ordinals then stay
+      // ordinals, so the sql keeps running as written (Bug #77557) and not without it.
+      boolean undecided = false;
+
+      for(OrderByItem item : items) {
+         if(item.getField() instanceof String &&
+            getSelectAliasField((String) item.getField()) == null &&
+            isOtherCaseAlias((String) item.getField()))
+         {
+            undecided = true;
+            break;
+         }
+      }
 
       for(OrderByItem item : items) {
          Object field = item.getField();
@@ -1759,7 +1772,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
                   continue;
                }
 
-               if(field instanceof Integer) {
+               if(field instanceof Integer && !undecided) {
                   Object nfield = getOrdinalColumn(ordinal);
 
                   if(nfield != null) {

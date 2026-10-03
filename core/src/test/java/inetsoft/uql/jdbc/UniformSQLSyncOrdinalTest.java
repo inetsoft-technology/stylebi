@@ -504,6 +504,38 @@ class UniformSQLSyncOrdinalTest {
    }
 
    /**
+    * An item that isn't guessed is dropped. The ordinals next to it then stay ordinals, so
+    * the query keeps running as written (Bug #77557 gate) instead of regenerated without it.
+    */
+   @Test
+   void ordinalsNextToAnUndecidedItemStayOrdinals() throws Exception {
+      for(String key : new String[] { "postgresql", "snowflake", "exasol" }) {
+         boolean lower = "postgresql".equals(key);
+         String alias = lower ? "A" : "a";
+         String ref = lower ? "a" : "A";
+         String select = "select t.k as " + alias + ", t.id from t order by ";
+
+         UniformSQL usql = fixed(select + ref + ", 1 desc, 2 desc", key, "id", "k");
+         assertEquals("[1:desc, 2:desc]", orderBy(usql), key);
+         assertNull(JDBCQueryCacheNormalizer.generateSortedColumnMap(usql), key);
+
+         usql = fixed(select + ref + ", 2 desc", key, "id", "k");
+         assertEquals("[2:desc]", orderBy(usql), key);
+         assertNull(JDBCQueryCacheNormalizer.generateSortedColumnMap(usql), key);
+
+         usql = fixed(select + ref + " desc, 1", key, "id", "k");
+         assertEquals("[1:asc]", orderBy(usql), key);
+         assertNull(JDBCQueryCacheNormalizer.generateSortedColumnMap(usql), key);
+
+         // control: an alias in the folded case is decided, the ordinal is converted
+         usql = fixed("select t.k as " + ref + ", t.id from t order by " + alias + ", 2 desc",
+                      key, "id", "k");
+         assertEquals("[\"" + ref + "\":asc, \"t\".id:desc]",
+                      orderBy(usql), key);
+      }
+   }
+
+   /**
     * postgresql resolves a group by name to a table column before a select alias, also when
     * the alias has the same spelling.
     */
