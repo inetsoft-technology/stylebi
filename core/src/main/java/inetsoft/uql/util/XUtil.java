@@ -2819,6 +2819,7 @@ public final class XUtil {
 
       value = value.substring(2, value.lastIndexOf(')'));
       XBinaryCondition filterNode = null;
+      boolean opNot = false;
 
       try {
          Object val = params.get(value);
@@ -2826,6 +2827,11 @@ public final class XUtil {
          if(Tool.equals(val, (XConstants.CONDITION_NULL_VALUE))) {
             filterNode = new XBinaryCondition(bin.getExpression1(),
                new XExpression("IS NULL", XExpression.VALUE), "");
+            // <> and != carry their negation in the op, which is dropped here,
+            // e.g. "a.id <> $(p)" -> "not (a.id IS NULL)" and
+            // "not (a.id <> $(p))" -> "a.id IS NULL"
+            String trimmedOp = op == null ? "" : op.trim();
+            opNot = "<>".equals(trimmedOp) || "!=".equals(trimmedOp);
          }
          else if(Tool.equals(val, (XConstants.CONDITION_EMPTY_STRING))) {
             filterNode = new XBinaryCondition(bin.getExpression1(),
@@ -2841,7 +2847,7 @@ public final class XUtil {
 
       if(filterNode != null) {
          // keep the negation, e.g. "not (a.id = $(p))" -> "not (a.id IS NULL)"
-         filterNode.setIsNot(bin.isIsNot());
+         filterNode.setIsNot(bin.isIsNot() != opNot);
          filterNode.setName(bin.getName());
       }
 

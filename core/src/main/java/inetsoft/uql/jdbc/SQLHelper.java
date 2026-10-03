@@ -3771,7 +3771,10 @@ public class SQLHelper implements KeywordProvider {
             }
             else if(Tool.equals(str2, ("'" + XConstants.CONDITION_NULL_VALUE + "'"))) {
                buffer.append(str1);
-               buffer.append(" IS NULL");
+               // <> and != carry a negation, the not ( ) wrapper comes from isNot
+               String trimmedOp = op == null ? "" : op.trim();
+               buffer.append("<>".equals(trimmedOp) || "!=".equals(trimmedOp) ?
+                  " IS NOT NULL" : " IS NULL");
             }
             else if(Tool.equals(str2, ("'" + XConstants.CONDITION_EMPTY_STRING + "'"))) {
                buffer.append(str1);
