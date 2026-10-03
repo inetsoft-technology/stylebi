@@ -5709,16 +5709,19 @@ public class SQLHelper implements KeywordProvider {
     * subquery string in the map.
     */
    private String hideSubqueries(String expr, Map<String,String> subquerymap) {
-      String[] arr = pattern.split(expr);
+      Matcher matcher = pattern.matcher(expr);
+      boolean found = matcher.find();
 
-      if(arr != null) {
-         arr = Arrays.stream(arr)
-            .filter(str -> !Tool.isEmptyString(str))
-            .toArray(String[]::new);
+      // the expression itself is a subquery (a subquery operand), it's not hidden so the
+      // names of the outer query in it are still replaced, only the subqueries in it are
+      // hidden. The match position is used, not the length of a split piece, which is short
+      // by the leading match and hid a wrong region (77633)
+      if(found && expr.substring(0, matcher.start()).isBlank()) {
+         found = matcher.find();
       }
 
-      if(arr.length > 1) {
-         int s1 = arr[0].length(); // starting position of the subquery
+      if(found) {
+         int s1 = matcher.start(); // starting position of the subquery
          int s2 = findClosingParen(expr, s1);
          String key = "___SUBQUERY__" + subquerymap.size() + "_inetsoft_";
 
