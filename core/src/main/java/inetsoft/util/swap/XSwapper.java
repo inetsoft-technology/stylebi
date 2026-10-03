@@ -34,6 +34,9 @@ import java.io.File;
 import java.io.IOException;
 import java.lang.management.GarbageCollectorMXBean;
 import java.lang.management.ManagementFactory;
+import java.lang.management.MemoryPoolMXBean;
+import java.lang.management.MemoryType;
+import java.lang.management.MemoryUsage;
 import java.lang.management.PlatformManagedObject;
 import java.security.Principal;
 import java.util.*;
@@ -163,8 +166,13 @@ public final class XSwapper {
     * Get the memory state.
     */
    private int getMemoryState0() {
-      double ratio = getFreeRatio();
+      return getMemoryState(getFreeRatio());
+   }
 
+   /**
+    * Get the memory state of a free memory ratio.
+    */
+   static int getMemoryState(double ratio) {
       // > 40%
       if(ratio >= RATIOS[GOOD_MEM]) {
          return GOOD_MEM;
@@ -184,6 +192,187 @@ public final class XSwapper {
       // below 15%
       else {
          return CRITICAL_MEM;
+      }
+   }
+
+   /**
+    * Get the memory state without the G1 eden pool, for the cache swap memory scaling metric.
+    * Eden holds the objects allocated since the last young collection, mostly garbage, and G1
+    * lets it take most of the free heap, so with eden a node with a moderate live set reads as
+    * critical much of the time. Everything else, the swapping and the waits for memory
+    * included, uses {@link #getMemoryState()}: that reading's margin is what keeps a burst of
+    * allocations from running out of memory. Returns {@link #getMemoryState()} if the JVM
+    * doesn't use G1, the young generation size is set, eden can't be read, or
+    * <tt>swapper.scalingMetric.excludeEden</tt> is <tt>false</tt>.
+    */
+   public int getMemoryStateExcludingEden() {
+      final MemoryPoolMXBean eden;
+
+      try {
+         eden = isScalingMetricExcludeEden() ? G1Eden.POOL : null;
+      }
+      catch(Exception | LinkageError ex) {
+         return getMemoryState();
+      }
+
+      return getMemoryStateExcludingEden(
+         Runtime.getRuntime().maxMemory(), eden,
+         () -> ManagementFactory.getMemoryMXBean().getHeapMemoryUsage());
+   }
+
+   /**
+    * Get the memory state without the G1 eden pool at no more than a certain interval. It has
+    * its own cache, so it never changes the state that {@link #getMemoryState()} returns.
+    *
+    * @param max  the maximum heap size.
+    * @param eden the G1 eden pool, or <tt>null</tt> to return {@link #getMemoryState()}.
+    * @param heap supplies the heap memory usage.
+    */
+   int getMemoryStateExcludingEden(long max, MemoryPoolMXBean eden, Supplier<MemoryUsage> heap) {
+      if(eden == null) {
+         return getMemoryState();
+      }
+
+      long now = System.currentTimeMillis();
+
+      if(now - edenStateTS > 200) {
+         final long used = getUsedExcludingEden(eden, heap);
+
+         if(used < 0) {
+            return getMemoryState();
+         }
+
+         edenCachedState = getMemoryState(((double) (max - used)) / max);
+         edenStateTS = now;
+      }
+
+      return edenCachedState;
+   }
+
+   /**
+    * Get the heap used memory without the G1 eden pool.
+    *
+    * @param eden the G1 eden pool.
+    * @param heap supplies the heap memory usage.
+    *
+    * @return the used memory, or <tt>-1</tt> if it can't be read.
+    */
+   static long getUsedExcludingEden(MemoryPoolMXBean eden, Supplier<MemoryUsage> heap) {
+      try {
+         // read the heap before eden: a young collection between the two reads then makes
+         // the used memory too high, the other order could make it too low
+         final long heapUsed = heap.get().getUsed();
+         final MemoryUsage edenUsage = eden.getUsage();
+
+         if(edenUsage == null) {
+            return -1L;
+         }
+
+         return Math.max(heapUsed - edenUsage.getUsed(), 0L);
+      }
+      catch(Exception | LinkageError ex) {
+         return -1L;
+      }
+   }
+
+   /**
+    * Check if the cache swap memory scaling metric excludes the G1 eden pool, from
+    * <tt>swapper.scalingMetric.excludeEden</tt>. Only <tt>false</tt> turns it off.
+    */
+   static boolean isScalingMetricExcludeEden() {
+      // read every time so a property change takes effect without a restart. the setting is
+      // JVM-wide, so don't let the principal of the calling thread pick an organization's value
+      try {
+         final String value = SreeEnv.getProperty(SCALING_METRIC_EXCLUDE_EDEN, false, false);
+         return value == null || !"false".equalsIgnoreCase(value.trim());
+      }
+      catch(Exception ex) {
+         // property engine unavailable (e.g. during test teardown)
+         return true;
+      }
+   }
+
+   /**
+    * Resolves the G1 eden pool on first use. The heap pools don't change for the life of the
+    * JVM, and neither does the young generation sizing.
+    */
+   static final class G1Eden {
+      static final MemoryPoolMXBean POOL = resolve();
+
+      private static MemoryPoolMXBean resolve() {
+         // linking DiagnosticBean::get loads com.sun.management, which a runtime without the
+         // jdk.management module doesn't have. this initializer must never throw, or every
+         // later use of POOL would throw NoClassDefFoundError
+         try {
+            return find(ManagementFactory::getMemoryPoolMXBeans, DiagnosticBean::get);
+         }
+         catch(Exception | LinkageError ex) {
+            LOG.debug("Failed to find the G1 eden pool, the scaling metric includes eden", ex);
+            return null;
+         }
+      }
+
+      /**
+       * Find the G1 eden pool, or <tt>null</tt> if the scaling metric should use the memory
+       * state with eden.
+       *
+       * @param pools supplies the memory pools.
+       * @param bean  supplies the HotSpot diagnostic MXBean, typed as a PlatformManagedObject,
+       *              see {@link DiagnosticBean}.
+       */
+      static MemoryPoolMXBean find(Supplier<List<MemoryPoolMXBean>> pools,
+                                   Supplier<? extends PlatformManagedObject> bean)
+      {
+         try {
+            // the exact name limits this to G1. Parallel and Serial size the young generation
+            // as a fixed share of the heap, so near OOM their live objects stay in eden and a
+            // reading without eden would never get critical
+            final MemoryPoolMXBean eden = pools.get().stream()
+               .filter(pool -> pool.getType() == MemoryType.HEAP)
+               .filter(pool -> EDEN_POOL.equals(pool.getName()))
+               .findFirst()
+               .orElse(null);
+
+            if(eden == null) {
+               LOG.debug("No {} pool, the scaling metric includes eden", EDEN_POOL);
+               return null;
+            }
+
+            if(fixedYoungSize(bean)) {
+               LOG.info("The young generation size is set, or can't be checked, so the " +
+                           "cache swap memory scaling metric includes eden");
+               return null;
+            }
+
+            LOG.debug("The cache swap memory scaling metric excludes the {} pool", EDEN_POOL);
+            return eden;
+         }
+         catch(Exception | LinkageError ex) {
+            LOG.debug("Failed to find the G1 eden pool, the scaling metric includes eden", ex);
+            return null;
+         }
+      }
+
+      /**
+       * Check if the young generation may have a fixed minimum size (-Xmn or -XX:NewSize). G1
+       * then can't shrink eden as the old generation fills, so a reading without eden could
+       * never get critical. Returns <tt>true</tt> if it can't be checked.
+       */
+      static boolean fixedYoungSize(Supplier<? extends PlatformManagedObject> bean) {
+         try {
+            final HotSpotDiagnosticMXBean diagnostic = (HotSpotDiagnosticMXBean) bean.get();
+
+            if(diagnostic == null) {
+               return true;
+            }
+
+            final VMOption.Origin origin = diagnostic.getVMOption("NewSize").getOrigin();
+            return origin != VMOption.Origin.DEFAULT && origin != VMOption.Origin.ERGONOMIC;
+         }
+         catch(Exception | LinkageError ex) {
+            LOG.debug("Failed to check the NewSize option", ex);
+            return true;
+         }
       }
    }
 
@@ -1166,6 +1355,10 @@ public final class XSwapper {
    // lowest accepted swapper.idle.gc.interval other than 0; garbage mixed with live objects
    // takes about 9 periodic collections to reclaim, so shorter intervals only add cycles
    private static final long MIN_PERIODIC_GC_INTERVAL = 60000L;
+   // name of the G1 eden memory pool
+   private static final String EDEN_POOL = "G1 Eden Space";
+   // turns off the eden-excluded memory state of the cache swap memory scaling metric
+   private static final String SCALING_METRIC_EXCLUDE_EDEN = "swapper.scalingMetric.excludeEden";
    // set when the first swapper in this JVM has checked G1PeriodicGCInterval
    private static final AtomicBoolean periodicGCChecked = new AtomicBoolean(false);
    // swapping thresholds for [critical, bad, low, norm, good]
@@ -1218,6 +1411,9 @@ public final class XSwapper {
    private long scount = 0L;
    private volatile int cachedState = GOOD_MEM;
    private volatile long stateTS = 0;
+   // cache of getMemoryStateExcludingEden(), separate from the state everything else reads
+   private volatile int edenCachedState = GOOD_MEM;
+   private volatile long edenStateTS = 0;
 
    private boolean stopped = false;
    private XSwapperThread[] threads = null;
