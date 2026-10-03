@@ -1394,7 +1394,8 @@ public class SQLHelper implements KeywordProvider {
             column = updateExpressionWithSubAlias(column);
          }
          else {
-            column = getValidAggregate(column);
+            column = getValidAggregate(column,
+               ((JDBCSelection) xselect).getQuotedAggregate(xIdx));
          }
 
          String ocolumn = xselect.getOriginalColumn(xIdx);
@@ -1703,8 +1704,11 @@ public class SQLHelper implements KeywordProvider {
 
    /**
     * Get valid aggregate to replace very long column with alias.
+    * @param qcol the column segment, as written, of the qualified quoted column that is the
+    *             only argument of the aggregate (MixedCase for sum(t."MixedCase")), recorded
+    *             by the parser, or <tt>null</tt> if not recorded.
     */
-   private String getValidAggregate(String aggregate) {
+   private String getValidAggregate(String aggregate, String qcol) {
       XSelection selection = uniformSql.getSelection();
       String bcol = selection.getBaseColumn(aggregate);
 
@@ -1722,20 +1726,33 @@ public class SQLHelper implements KeywordProvider {
       String path = pair[1];
       String npath = XUtil.removeQuote(path);
       String table = uniformSql.getTable(npath, false);
-      String column = uniformSql.getColumnFromPath(npath);
+
+      // the column was written quoted (sum(t."MixedCase")), keep it as written on every
+      // helper. The stored text is the same as the unquoted one on a case-sensitive helper,
+      // and the column found ignoring case may be another column (MIXEDCASE), see #77578
+      if(qcol != null && (table == null || !npath.endsWith("." + qcol))) {
+         qcol = null;
+      }
+
+      String column = qcol != null ? qcol : uniformSql.getColumnFromPath(npath);
       String alias = getValidSubAlias(table, column);
 
       if(table == null || alias == null) {
+         if(qcol != null) {
+            return form + getQuotedTableName(table, true) + "." + getQuote() + qcol +
+               getQuote() + ')';
+         }
+
          if(table != null && column != null) {
             // keep a quoted column segment as written (sum(t."MixedCase")), the column found
             // ignoring case may be another column (MIXEDCASE). Only if the stored text can't have
             // come from a parser that quotes every segment (a case-sensitive helper, generating
             // here or where the sql was parsed): there an unquoted sum(t.MixedCase) is stored as
             // sum("t"."MixedCase") and must keep the metadata case repair. A quoted
-            // sum(t."MixedCase") gets the same repair there, see #77578
-            String qcol = isCaseSensitive() ? null : getQuotedSegment(path, column);
+            // sum(t."MixedCase") is told apart only by the parser's record above (#77578)
+            String qseg = isCaseSensitive() ? null : getQuotedSegment(path, column);
             return form + getQuotedTableName(table, true) + "." +
-               (qcol != null ? getQuote() + qcol + getQuote() : quoteColumnAlias(column)) + ')';
+               (qseg != null ? getQuote() + qseg + getQuote() : quoteColumnAlias(column)) + ')';
          }
 
          if(XUtil.isQualifiedName(npath)) {
@@ -3209,6 +3226,40 @@ public class SQLHelper implements KeywordProvider {
    }
 
    /**
+    * Two select aggregates may have the same text but different spellings (sum(t.MixedCase)
+    * and sum(t."MixedCase") on a case-sensitive helper). An order by aggregate replaced by the
+    * alias of a select column is sorted by the one of the same spelling, or by itself if none.
+    * An order by aggregate without a record (e.g. set in the sort pane, or saved before it was
+    * recorded) is not "unquoted": it is moved only to a select column without a record of the
+    * same text, and otherwise keeps the alias getOrderByColumn found, as before #77578.
+    * @param field the order by field.
+    * @param sfield the field returned by getOrderByColumn.
+    * @param qagg the quoted column recorded for the order by aggregate.
+    */
+   private String getOrderByAggregateAlias(JDBCSelection xselect, String field, String sfield,
+                                           String qagg)
+   {
+      int idx = xselect.indexOfColumn(field);
+
+      if(idx < 0 || sfield.equals(field) || !sfield.equals(xselect.getAlias(idx)) ||
+         Objects.equals(qagg, xselect.getQuotedAggregate(idx)))
+      {
+         return sfield;
+      }
+
+      for(int i = 0; i < xselect.getColumnCount(); i++) {
+         if(i != idx && field.equals(xselect.getColumn(i)) &&
+            Objects.equals(qagg, xselect.getQuotedAggregate(i)))
+         {
+            String alias = xselect.getAlias(i);
+            return alias != null && !alias.isEmpty() ? alias : field;
+         }
+      }
+
+      return qagg != null ? field : sfield;
+   }
+
+   /**
     * Generate order by clause of SQL condition.
     * @return order by clause.
     */
@@ -3229,7 +3280,11 @@ public class SQLHelper implements KeywordProvider {
          if(field instanceof String) {
             sfield = (String) field;
             String qname = getQuotedName(sfield);
+            // an order by aggregate of a qualified quoted column (sum(t."MixedCase"))
+            String qagg = uniformSql.getQuotedAggregate(sfield);
+            String ofield = sfield;
             sfield = getOrderByColumn(sfield);
+            sfield = getOrderByAggregateAlias(xselect, ofield, sfield, qagg);
 
             // some dbms (embedded derby) does not support sorting on field
             // in some cases. Here we try using its alias to work around
@@ -3273,6 +3328,8 @@ public class SQLHelper implements KeywordProvider {
 
                if(!supportsAliasSorting()) {
                   sfield = xselect.getAliasColumn(xselect.getOriginalAlias(alias));
+                  // the alias is sorted by its select column
+                  qagg = index >= 0 ? xselect.getQuotedAggregate(index) : null;
                }
             }
 
@@ -3283,7 +3340,7 @@ public class SQLHelper implements KeywordProvider {
             }
 
             if(!xselect.isAlias(sfield)) {
-               sfield = getValidAggregate(sfield);
+               sfield = getValidAggregate(sfield, qagg);
             }
 
             if(uniformSql.isTableColumn(sfield) || uniformSql.isOrderDBField(sfield)) {

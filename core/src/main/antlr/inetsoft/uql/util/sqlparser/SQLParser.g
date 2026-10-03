@@ -1474,6 +1474,16 @@ private String colrefColumn = null;
 private int lastSegQuote = XExpression.QUOTE_NONE;
 private int lastSegStart = 0;
 private String lastSeg = null;
+// the text of the last function and, if its only argument is a qualified quoted column
+// (sum(t."MixedCase")), the column segment as written
+private String funcText = null;
+private String funcQuotedColumn = null;
+
+// get the quoted column segment of an aggregate parsed as the whole expression
+String getFuncQuotedColumn(XExpression exp) {
+   return funcQuotedColumn != null && XExpression.EXPRESSION.equals(exp.getType()) &&
+      funcText != null && funcText.equals(exp.toString()) ? funcQuotedColumn : null;
+}
 
 // a quoted column segment without a dot is stored without its quotes and flagged
 String quoteColumn(String col) {
@@ -2532,13 +2542,18 @@ set_fct_type returns [String setfcttype = ""]
         ;
 */
 function returns [String func = ""]
-        {String tmp = ""; String distinct = ""; String str; XExpression exp; XFilterNode tnode; {checkStatus();}}
+        {String tmp = ""; String distinct = ""; String str; XExpression exp; XFilterNode tnode; String qcol = null; {checkStatus();}}
         :
         func = function_name OPEN_PAREN
         (
          (
          ((DISTINCT)? value_exp (COMMA|CLOSE_PAREN))=>
-         (DISTINCT {distinct = "distinct ";})? exp = value_exp {tmp = distinct + exp.getQuotedValue();}
+         (DISTINCT {distinct = "distinct ";})? exp = value_exp
+         {
+            tmp = distinct + exp.getQuotedValue();
+            // a qualified quoted column (t."MixedCase") as the only argument, see #77578
+            qcol = exp.isQuotedField() ? exp.getQuotedColumn() : null;
+         }
          |
          (boolean_term (COMMA|CLOSE_PAREN))=>
          tnode = boolean_term {tmp = tnode.toString();}
@@ -2548,10 +2563,10 @@ function returns [String func = ""]
          ( COMMA
           (
           (value_exp (COMMA|CLOSE_PAREN))=>
-          exp = value_exp {tmp += "," + exp.getQuotedValue();}
+          exp = value_exp {tmp += "," + exp.getQuotedValue(); qcol = null;}
           |
           (boolean_term (COMMA|CLOSE_PARENT))=>
-          tnode = boolean_term {tmp += "," + tnode.toString();}
+          tnode = boolean_term {tmp += "," + tnode.toString(); qcol = null;}
           )
          )*
         )? CLOSE_PAREN
@@ -2559,7 +2574,8 @@ function returns [String func = ""]
         (
         OVER
         OPEN_PAREN tmp = analytic_clause CLOSE_PAREN
-        {func += " over (" + tmp + ")";})?
+        {func += " over (" + tmp + ")"; qcol = null;})?
+        {funcText = func; funcQuotedColumn = qcol;}
         ;
 
 analytic_clause returns [String ret = ""]
@@ -3568,6 +3584,10 @@ derived_column [JDBCSelection selection, UniformSQL sql]
            if(exp.isQuotedField()) {
               selection.setQuoted(tmp, exp.getQuotedColumn());
            }
+
+           // an aggregate of a qualified quoted column (sum(t."MixedCase"))
+           selection.setQuotedAggregate(selection.getColumnCount() - 1,
+              getFuncQuotedColumn(exp));
         }
         |
         exp = value_exp
@@ -3608,6 +3628,11 @@ derived_column [JDBCSelection selection, UniformSQL sql]
            if(quotedField) {
               selection.setQuoted(tmp, exp.getQuotedColumn());
            }
+
+           // an aggregate of a qualified quoted column (sum(t."MixedCase")), the stored
+           // text can't show the quotes on a case-sensitive helper, see #77578
+           selection.setQuotedAggregate(selection.getColumnCount() - 1,
+              getFuncQuotedColumn(exp));
         }
 
         (//(as_clause)=>        //remove the prediction if don't use subquery_select_list
@@ -4279,6 +4304,11 @@ sort_spec [UniformSQL sql] returns [String ret = ""]
          if(sql != null)
          {
           sql.setOrderBy(field, order);
+
+          // an aggregate of a qualified quoted column (sum(t."MixedCase")), see #77578
+          if(field instanceof String) {
+             sql.setQuotedAggregate((String) field, getFuncQuotedColumn(exp));
+          }
          }
 
          // the text is used without the sql, e.g. in an over (order by ...) clause

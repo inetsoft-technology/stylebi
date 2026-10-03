@@ -188,6 +188,8 @@ public class QueryManagerService {
                newSelection.setAlias(newIndex, alias);
                newSelection.setTable(name, oldSelection.getTable(name));
                newSelection.copyQuoted(name, oldSelection, name);
+               newSelection.setQuotedAggregate(newIndex,
+                  oldSelection.getQuotedAggregate(columnIndex));
                newSelection.setType(name, oldSelection.getType(name));
                newSelection.setXMetaInfo(newIndex, oldSelection.getXMetaInfo(columnIndex));
                newSelection.setDescription(name, oldSelection.getDescription(name));
@@ -221,6 +223,18 @@ public class QueryManagerService {
          QuerySortPaneModel sortPaneModel = queryModel.getSortPaneModel();
          List<String> fields = sortPaneModel.getFields();
          List<String> orders = sortPaneModel.getOrders();
+         // the quoted aggregate records of the fields kept in the sort pane (#77578)
+         Map<String, String> records = new HashMap<>();
+         Object[] ofields = sql.getOrderByFields();
+
+         for(int i = 0; ofields != null && i < ofields.length; i++) {
+            String seg = sql.getQuotedAggregate(ofields[i]);
+
+            if(seg != null) {
+               records.put((String) ofields[i], seg);
+            }
+         }
+
          sql.removeAllOrderByFields();
          sql.clearOrderDBFields();
 
@@ -230,6 +244,7 @@ public class QueryManagerService {
             }
 
             sql.setOrderBy(fields.get(i), orders.get(i));
+            sql.setQuotedAggregate(fields.get(i), records.get(fields.get(i)));
          }
 
          sql.clearSQLString();
@@ -718,6 +733,7 @@ public class QueryManagerService {
             int index = newSelection.addColumn(selectionName);
             newSelection.setTable(selectionName, selection.getTable(selectionName));
             newSelection.copyQuoted(selectionName, selection, selectionName);
+            newSelection.setQuotedAggregate(index, selection.getQuotedAggregate(i));
             newSelection.setAlias(index, selectionAlias);
             newSelection.setType(selectionName, selection.getType(selectionName));
             newSelection.setXMetaInfo(index, selection.getXMetaInfo(i));

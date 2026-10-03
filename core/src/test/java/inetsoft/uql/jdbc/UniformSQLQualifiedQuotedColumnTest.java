@@ -198,20 +198,6 @@ class UniformSQLQualifiedQuotedColumnTest {
                   String label = helper.getKey() + " " + stage.getKey() + ": " + query + " -> " + stage.getValue();
                   String generated = stage.getValue();
 
-                  // known residual (#77578): on PostgreSQL, Snowflake and Exasol the alias-qualified
-                  // aggregate argument sum(x."MixedCase") is stored like the unquoted sum(x.MixedCase)
-                  // and gets its metadata case repair, as before this change
-                  if(names[i].startsWith("x.") && template.contains("sum(") &&
-                     Set.of("postgresql", "snowflake", "exasol").contains(helper.getKey()))
-                  {
-                     String col = "fixed-twin-first".equals(stage.getKey()) ? "MIXEDCASE" : "MixedCase";
-                     String agg = "sum(x." +
-                        ("postgresql".equals(helper.getKey()) ? "\"" + col + "\"" : col) + ")";
-                     // the select list and the order by, the having clause is kept as written
-                     assertEquals(2, generated.split(Pattern.quote(agg), -1).length - 1, label);
-                     generated = generated.replace(agg, "sum(x.\"MixedCase\")");
-                  }
-
                   assertFalse(generated.contains("\"\""), label);
                   assertFalse(whole.matcher(generated).find(), label);
                   assertFalse(unquoted.matcher(generated).find(), label);
@@ -700,22 +686,20 @@ class UniformSQLQualifiedQuotedColumnTest {
    }
 
    /**
-    * Known residual, not fixed here: on PostgreSQL, Snowflake and Exasol a quoted aggregate
-    * argument sum(q."MixedCase") is stored with the same text as the unquoted sum(q.MixedCase)
-    * (see above), so it gets the metadata case repair of an unquoted name, as before this
-    * change: the first column ignoring case, unquoted on Snowflake and Exasol. Keeping it needs
-    * the parser to record the quotes of an aggregate argument, which is left to #77578.
-    * These are the outputs before this change, change them when that is fixed.
+    * On PostgreSQL, Snowflake and Exasol a quoted aggregate argument sum(q."MixedCase") is
+    * stored with the same text as the unquoted sum(q.MixedCase) (see above). The parser records
+    * the quoted column of the aggregate (#77578), so it keeps the written case, quoted, instead
+    * of the metadata case repair of an unquoted name. See UniformSQLQuotedAggregateTest.
     */
    @Test
-   void knownResidualQuotedAggregatesOnCaseSensitiveDatabases() throws Exception {
-      assertEquals("select \"q\".\"id\", sum(q.\"MIXEDCASE\") from \"t\" q group by \"q\".\"id\"",
+   void quotedAggregatesOnCaseSensitiveDatabasesKeepTheWrittenCase() throws Exception {
+      assertEquals("select \"q\".\"id\", sum(q.\"MixedCase\") from \"t\" q group by \"q\".\"id\"",
                    aggregate("postgresql", "select q.id, sum(q.\"MixedCase\") from t q group by q.id",
                              "MIXEDCASE", "MixedCase", "id"));
-      assertEquals("select \"q\".\"id\", sum(q.MixedCase) from \"t\" q group by \"q\".\"id\"",
+      assertEquals("select \"q\".\"id\", sum(q.\"MixedCase\") from \"t\" q group by \"q\".\"id\"",
                    aggregate("snowflake", "select q.id, sum(q.\"MixedCase\") from t q group by q.id",
                              "MixedCase", "id"));
-      assertEquals("select \"q\".\"id\", sum(q.LOW) from \"t\" q group by \"q\".\"id\"",
+      assertEquals("select \"q\".\"id\", sum(q.\"low\") from \"t\" q group by \"q\".\"id\"",
                    aggregate("exasol", "select q.id, sum(q.\"low\") from t q group by q.id", "LOW", "low", "id"));
    }
 
@@ -774,28 +758,26 @@ class UniformSQLQualifiedQuotedColumnTest {
    }
 
    /**
-    * Known residual, not fixed here: on H2 and Oracle a special qualifier (a space or a keyword)
-    * stays quoted at parse, so sum("my q"."MixedCase") is stored with the same text that
-    * PostgreSQL, Snowflake and Exasol store for sum("my q".MixedCase). It gets the metadata case
-    * repair of an unquoted name, as before this change. Keeping it needs the parser to record the
-    * quotes of an aggregate argument (#77578). These are the outputs before this change, change
-    * them when that is fixed.
+    * On H2 and Oracle a special qualifier (a space or a keyword) stays quoted at parse, so
+    * sum("my q"."MixedCase") is stored with the same text that PostgreSQL, Snowflake and Exasol
+    * store for sum("my q".MixedCase). The parser records the quoted column of the aggregate
+    * (#77578), so it keeps the written case. See UniformSQLQuotedAggregateTest.
     */
    @Test
-   void knownResidualQuotedAggregatesWithASpecialQualifier() throws Exception {
-      assertEquals("select sum(\"my q\".MIXEDCASE) from t \"my q\"",
+   void quotedAggregatesWithASpecialQualifierKeepTheWrittenCase() throws Exception {
+      assertEquals("select sum(\"my q\".\"MixedCase\") from t \"my q\"",
                    aggregate("h2", "select sum(\"my q\".\"MixedCase\") from t \"my q\"", TWIN_FIRST));
-      assertEquals("select sum(\"my q\".MixedCase) from t \"my q\"",
+      assertEquals("select sum(\"my q\".\"MixedCase\") from t \"my q\"",
                    aggregate("h2", "select sum(\"my q\".\"MixedCase\") from t \"my q\"", TWIN_SECOND));
-      assertEquals("select sum(\"order\".MIXEDCASE) from t \"order\"",
+      assertEquals("select sum(\"order\".\"MixedCase\") from t \"order\"",
                    aggregate("h2", "select sum(\"order\".\"MixedCase\") from t \"order\"", TWIN_FIRST));
-      assertEquals("select sum(\"my q\".LOW) from t \"my q\"",
+      assertEquals("select sum(\"my q\".\"low\") from t \"my q\"",
                    aggregate("h2", "select sum(\"my q\".\"low\") from t \"my q\"", TWIN_FIRST));
-      assertEquals("select sum(\"my q\".\"MIXEDCASE\") from T \"my q\"",
+      assertEquals("select sum(\"my q\".\"MixedCase\") from T \"my q\"",
                    aggregate("oracle", "select sum(\"my q\".\"MixedCase\") from t \"my q\"", TWIN_FIRST));
-      assertEquals("select sum(\"order\".\"MIXEDCASE\") from T \"order\"",
+      assertEquals("select sum(\"order\".\"MixedCase\") from T \"order\"",
                    aggregate("oracle", "select sum(\"order\".\"MixedCase\") from t \"order\"", TWIN_FIRST));
-      assertEquals("select sum(\"my q\".\"LOW\") from T \"my q\"",
+      assertEquals("select sum(\"my q\".\"low\") from T \"my q\"",
                    aggregate("oracle", "select sum(\"my q\".\"low\") from t \"my q\"", TWIN_FIRST));
    }
 

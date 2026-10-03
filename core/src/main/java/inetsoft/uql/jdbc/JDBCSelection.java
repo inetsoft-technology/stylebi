@@ -66,6 +66,7 @@ public class JDBCSelection extends XSelection {
             setTable(path, ((JDBCSelection) select).getTable(path));
             setDescription(path, select.getDescription(path));
             copyQuoted(path, (JDBCSelection) select, path);
+            setQuotedAggregate(i, ((JDBCSelection) select).getQuotedAggregate(i));
          }
       }
    }
@@ -131,6 +132,7 @@ public class JDBCSelection extends XSelection {
       }
 
       quoted.clear();
+      quotedAggregates.clear();
    }
 
    /**
@@ -413,6 +415,59 @@ public class JDBCSelection extends XSelection {
    }
 
    /**
+    * Get the column segment, as written, of the qualified quoted column that is the only
+    * argument of the aggregate at a position (MixedCase for sum(t."MixedCase")). The stored
+    * text of the aggregate doesn't show the quotes on a case-sensitive helper, which quotes
+    * every segment, and two columns may have the same text (sum(t.MixedCase) and
+    * sum(t."MixedCase")), so it is kept by position.
+    * @param col the column index.
+    * @return the segment, or <tt>null</tt> if not recorded, which doesn't mean unquoted
+    *         (e.g. a query saved before it was recorded).
+    */
+   public String getQuotedAggregate(int col) {
+      return quotedAggregates.get(col);
+   }
+
+   /**
+    * Set the column segment, as written, of the qualified quoted column that is the only
+    * argument of the aggregate at a position.
+    * @param col the column index.
+    * @param segment the segment, or <tt>null</tt> to clear it.
+    */
+   public void setQuotedAggregate(int col, String segment) {
+      if(segment == null || segment.isEmpty()) {
+         quotedAggregates.remove(col);
+      }
+      else if(col >= 0) {
+         quotedAggregates.put(col, segment);
+      }
+   }
+
+   /**
+    * Remove a selected column, the quoted aggregates after it move up.
+    */
+   @Override
+   public boolean removeColumn(int idx) {
+      boolean removed = super.removeColumn(idx);
+
+      if(removed && !quotedAggregates.isEmpty()) {
+         TreeMap<Integer, String> naggs = new TreeMap<>();
+
+         for(Map.Entry<Integer, String> entry : quotedAggregates.entrySet()) {
+            int col = entry.getKey();
+
+            if(col != idx) {
+               naggs.put(col > idx ? col - 1 : col, entry.getValue());
+            }
+         }
+
+         quotedAggregates = naggs;
+      }
+
+      return removed;
+   }
+
+   /**
     * Set whether a column was written as a quoted identifier.
     * @param column the specified column.
     * @param quoted <tt>true</tt> if quoted, <tt>false</tt> otherwise.
@@ -456,6 +511,7 @@ public class JDBCSelection extends XSelection {
       select.oldToNewAlias = new HashMap<>(oldToNewAlias);
       select.aggregates = (HashSet) aggregates.clone();
       select.quoted = new HashMap<>(quoted);
+      select.quotedAggregates = new TreeMap<>(quotedAggregates);
 
       return select;
    }
@@ -467,12 +523,13 @@ public class JDBCSelection extends XSelection {
       if(!super.equals(o)) return false;
       JDBCSelection that = (JDBCSelection) o;
       return Objects.equals(tablemap, that.tablemap) && Objects.equals(aggregates, that.aggregates) &&
-         Objects.equals(quoted, that.quoted);
+         Objects.equals(quoted, that.quoted) &&
+         Objects.equals(quotedAggregates, that.quotedAggregates);
    }
 
    @Override
    public int hashCode() {
-      return Objects.hash(super.hashCode(), tablemap, aggregates, quoted);
+      return Objects.hash(super.hashCode(), tablemap, aggregates, quoted, quotedAggregates);
    }
 
    private HashMap<String, String> tablemap = new HashMap(); // path -> table (String)
@@ -483,5 +540,7 @@ public class JDBCSelection extends XSelection {
    private HashSet<String> aggregates = new HashSet<>(); // aggregates
    // columns written as quoted identifiers -> the quoted column segment ("" if bare)
    private HashMap<String, String> quoted = new HashMap<>();
+   // column index of an aggregate of a qualified quoted column -> the column segment
+   private TreeMap<Integer, String> quotedAggregates = new TreeMap<>();
    private boolean plan = false; // plan flag
 }
