@@ -158,6 +158,11 @@ class XFragmentSwapFileWriteFailureTest {
       assertEquals(base + (count - 1), fragment.getSafely(count - 1),
                    "data was lost - the intact in-memory array was clobbered by a partial "
                       + "reconstruction from the chunk whose write failed");
+      // not just the array contents - pos itself (exposed via available()) must also stay at
+      // its original, pre-failure value, not some smaller count read back from the partial
+      // reconstruction (mirrors the pos/arr consistency check from round 1's Int fragment test)
+      assertEquals(count + 1, fragment.available(),
+                   "pos was desynced from the preserved array by the failed read-back");
 
       fragment.dispose();
    }
