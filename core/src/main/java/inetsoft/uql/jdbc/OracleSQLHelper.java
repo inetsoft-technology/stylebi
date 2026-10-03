@@ -220,9 +220,11 @@ class OracleSQLHelper extends SQLHelper {
     */
    @Override
    protected String quoteAggregateColumn(String column) {
-      String quoted = XUtil.quoteAlias(column, this);
+      // check the lower case name, the keyword check lower cases it in the default locale,
+      // which misses SIZE in a turkish locale (sıze)
+      String lower = column.toLowerCase(Locale.ROOT);
 
-      if(quoted.equals(column)) {
+      if(XUtil.quoteAlias(lower, this).equals(lower)) {
          return column;
       }
 
