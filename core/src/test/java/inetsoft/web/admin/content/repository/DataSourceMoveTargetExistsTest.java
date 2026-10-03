@@ -610,6 +610,41 @@ class DataSourceMoveTargetExistsTest {
       assertNull(registry.getDataSourceFolder("fruDs2/fruB"));
    }
 
+   // moves into folders whose names only look like a data source path are not refused: a folder
+   // whose name starts with a data source's name, and a folder with a data source's name at
+   // another path; a data source with additional connections also moves into such a folder
+   @Test
+   void moveNextToADataSourceStillWorks() throws Exception {
+      addParent("nbP", "nbAdd");
+      folder("nbPx");
+      folder("nbF");
+      dataSource("nbF/nbX");
+      folder("nbF/nbG");
+      dataSource("nbF/nbG/nbKid");
+      folder("nbH");
+      folder("nbH/nbP");
+
+      assertNull(registry.getDataSourceAncestor("nbPx/nbX"));
+      assertNull(registry.getDataSourceAncestor("nbH/nbP/nbG"));
+
+      objectService.moveFiles(
+         request(dest("nbPx"), node("nbF/nbX", RepositoryEntry.DATA_SOURCE | RepositoryEntry.FOLDER),
+                 node("nbP", RepositoryEntry.DATA_SOURCE | RepositoryEntry.FOLDER)),
+         true, principal);
+      browserService.moveDataSource(
+         new MoveCommand[] { move("nbF/nbG", "nbH/nbP/nbG", PortalDataType.DATA_SOURCE_FOLDER) },
+         principal);
+
+      registry.clearCache();
+      assertNotNull(registry.getDataSource("nbPx/nbX"));
+      assertFalse(registry.isAdditionalConnectionPath("nbPx/nbX"));
+      assertNull(registry.getDataSource("nbP"));
+      assertChildren("nbPx/nbP", "nbAdd");
+      assertNotNull(registry.getDataSourceFolder("nbH/nbP/nbG"));
+      assertNotNull(registry.getDataSource("nbH/nbP/nbG/nbKid"));
+      assertNull(registry.getDataSourceFolder("nbF/nbG"));
+   }
+
    private void folder(String path) {
       registry.setDataSourceFolder(new DataSourceFolder(path, LocalDateTime.now(), null));
    }
