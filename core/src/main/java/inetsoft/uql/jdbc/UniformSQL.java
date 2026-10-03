@@ -1947,7 +1947,12 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
       }
 
       if(getSelection().getAliasColumn(name) != null) {
-         return field;
+         String unquoted = getUnquotedReference(field);
+
+         // an unquoted reference is folded by the database, so it is the alias of the same
+         // spelling only if that spelling is the folded one, or if the alias wasn't quoted,
+         // which isn't recorded (see isOtherCaseAlias)
+         return unquoted == null || foldName(unquoted).equals(unquoted) ? field : null;
       }
 
       name = getUnquotedReference(field);
@@ -1974,8 +1979,9 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
    }
 
    /**
-    * Check if an unquoted reference that matches no alias exactly matches a select alias in
-    * another case. An unquoted alias would be the same name and a quoted one would not, and
+    * Check if an unquoted reference that getSelectAliasField doesn't match has the spelling of
+    * a select alias in any case. The alias isn't stored in the case the database folds the
+    * reference to, so an unquoted alias would be the same name and a quoted one would not, and
     * the parsed sql doesn't record which one it was.
     */
    private boolean isOtherCaseAlias(String field) {
