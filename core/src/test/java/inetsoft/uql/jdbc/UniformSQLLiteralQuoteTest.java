@@ -295,7 +295,10 @@ class UniformSQLLiteralQuoteTest {
          Arguments.of("select id from t where k = 1 -- it's \"x", "from t where k = 1", false),
          Arguments.of("select id from t /* it's \"x */ where k = 1", "from t where k = 1", true),
          Arguments.of("select id from t where s = ''''", "where s = ''''", false),
-         Arguments.of("select id, 'a''' as x from t", "'a''' as x, id from t", true));
+         Arguments.of("select id, 'a''' as x from t", "'a''' as x, id from t", true),
+         // a nested JDBC escape is one token and is written back verbatim
+         Arguments.of("select {fn concat({fn ucase(s)}, s)} from t",
+                      "select {fn concat({fn ucase(s)}, s)} from t", true));
    }
 
    // a bracket identifier holds any character but [ \ and ], including the CJK characters
@@ -320,11 +323,12 @@ class UniformSQLLiteralQuoteTest {
       }
    }
 
-   // a nested JDBC escape and a variable name with a dot can't be lexed. Both failed the parse
-   // before #77640 as well, and must keep failing it rather than drop part of the text.
+   // an unbalanced nested JDBC escape and a variable name with a dot can't be lexed. Both
+   // failed the parse before #77640 as well, and must keep failing it rather than drop part
+   // of the text.
    @ParameterizedTest
    @ValueSource(strings = {
-      "select {fn concat({fn ucase(s)}, s)} from t",
+      "select {fn concat({fn ucase(s), s)} from t",
       "select id from t where k = $(a.b)",
       "select $(a.b) from t",
    })
@@ -337,6 +341,17 @@ class UniformSQLLiteralQuoteTest {
          assertEquals(UniformSQL.PARSE_FAILED, sql.getParseResult(), type + ": " + text);
          assertEquals(text, sql.getSQLString(), type);
       }
+   }
+
+   // the SQL expression checks (calc fields, the expression dialog, the logical model and the
+   // query manager) accept a nested JDBC escape as before, and reject one that isn't balanced.
+   // A variable name with a dot is rejected; before #77640 it passed as mangled tokens.
+   @Test
+   void expressionCheckOfJdbcEscapes() {
+      assertTrue(XUtil.isSQLExpressionValid("{fn concat({fn ucase(a)}, b)}"));
+      assertTrue(XUtil.isSQLExpressionValid("{fn ucase(a)}"));
+      assertFalse(XUtil.isSQLExpressionValid("{fn concat({fn ucase(a), b)}"));
+      assertFalse(XUtil.isSQLExpressionValid("$(a.b)"));
    }
 
    /**
