@@ -34,6 +34,7 @@ import inetsoft.uql.asset.*;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.VSUtil;
 import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -188,6 +189,74 @@ class ViewsheetActionBookmarkDisposeOrderTest {
 
          assertEquals(1, boxes.size());
          assertWrittenBeforeDisposed(html, boxes);
+      }
+   }
+
+   @ParameterizedTest
+   @ValueSource(booleans = { false, true })
+   void pdf_neverDisposesTheRuntimeSandbox(boolean save, @TempDir Path dir) throws Throwable {
+      VSExporter pdf = mock(VSExporter.class);
+      ViewsheetAction action = action(save, FileFormatInfo.EXPORT_TYPE_PDF, dir);
+      stubExporter(action, FileFormatInfo.EXPORT_TYPE_PDF, pdf);
+      ViewsheetSandbox liveBox =
+         action.getRuntimeViewsheet(null, null).getViewsheetSandbox().orElseThrow();
+
+      try(Harness harness = new Harness(false)) {
+         run(action);
+
+         assertEquals(2, harness.boxes.constructed().size());
+         verify(liveBox, never()).dispose();
+      }
+   }
+
+   @Test
+   void throwBeforeCsvPass_firstPassAlreadyDisposed(@TempDir Path dir) throws Throwable {
+      VSExporter excel = mock(VSExporter.class);
+      ViewsheetAction action = action(false, FileFormatInfo.EXPORT_TYPE_EXCEL, dir);
+      stubExporter(action, FileFormatInfo.EXPORT_TYPE_EXCEL, excel);
+      // the CSV pass fails to start, after the Excel pass has written
+      doThrow(new IllegalStateException("sentinel77621")).when(action)
+         .getVSExporter(eq(FileFormatInfo.EXPORT_TYPE_CSV), any(OutputStream.class), any());
+
+      try(Harness harness = new Harness(true)) {
+         try {
+            run(action);
+         }
+         catch(Throwable ex) {
+            assertEquals("sentinel77621", rootCause(ex).getMessage());
+         }
+
+         verify(action).getVSExporter(eq(FileFormatInfo.EXPORT_TYPE_CSV),
+                                      any(OutputStream.class), any());
+         List<ViewsheetSandbox> boxes = harness.boxes.constructed();
+
+         assertEquals(2, boxes.size());
+         assertWrittenBeforeDisposed(excel, boxes);
+      }
+   }
+
+   @Test
+   void alertFilteredBookmarks_createNoSandbox() throws Throwable {
+      VSExporter pdf = mock(VSExporter.class);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getOriginalBookmark(anyString(), any())).thenAnswer(inv -> mock(Viewsheet.class));
+      VSBookmarkInfo[] bookmarks = { bookmark("b1"), bookmark("b2"), bookmark("b3") };
+      Method method = ViewsheetAction.class.getDeclaredMethod(
+         "exportBookmarksAndWrite", VSExporter.class, RuntimeViewsheet.class,
+         VariableTable.class, VSBookmarkInfo[].class, List.class);
+      method.setAccessible(true);
+
+      try(MockedConstruction<ViewsheetSandbox> boxes = mockConstruction(ViewsheetSandbox.class)) {
+         // only b2 passed the alert condition
+         method.invoke(new ViewsheetAction(), pdf, rvs, new VariableTable(), bookmarks,
+                       List.of("b2"));
+
+         assertEquals(1, boxes.constructed().size());
+         verify(pdf, times(1)).export(any(ViewsheetSandbox.class), anyString(), any());
+         verify(rvs).getOriginalBookmark(startsWith("b2"), any());
+         verify(rvs, never()).getOriginalBookmark(startsWith("b1"), any());
+         verify(rvs, never()).getOriginalBookmark(startsWith("b3"), any());
+         assertWrittenBeforeDisposed(pdf, boxes.constructed());
       }
    }
 

@@ -104,6 +104,20 @@ class VSEmailServiceBookmarkDisposeOrderTest {
       }
    }
 
+   @Test
+   void includeCurrent_neverDisposesTheRuntimeSandbox(@TempDir Path dir) throws Exception {
+      VSExporter exporter = mock(VSExporter.class);
+      List<ViewsheetSandbox> boxes = new ArrayList<>();
+      ViewsheetSandbox liveBox = mock(ViewsheetSandbox.class);
+
+      assertEquals("stop77621", email(dir, exporter, boxes, liveBox, true).getMessage());
+
+      verify(exporter).export(same(liveBox), anyString(), any());
+      verify(liveBox, never()).dispose();
+      assertEquals(2, boxes.size());
+      assertWrittenBeforeDisposed(exporter, boxes);
+   }
+
    private static void assertWrittenBeforeDisposed(VSExporter exporter,
                                                    List<ViewsheetSandbox> boxes)
       throws Exception
@@ -118,6 +132,13 @@ class VSEmailServiceBookmarkDisposeOrderTest {
    }
 
    private static Exception email(Path dir, VSExporter exporter, List<ViewsheetSandbox> boxes)
+      throws Exception
+   {
+      return email(dir, exporter, boxes, mock(ViewsheetSandbox.class), false);
+   }
+
+   private static Exception email(Path dir, VSExporter exporter, List<ViewsheetSandbox> boxes,
+                                  ViewsheetSandbox liveBox, boolean includeCurrent)
       throws Exception
    {
       VSEmailService service = new VSEmailService(cacheIn(dir)) {
@@ -137,7 +158,6 @@ class VSEmailServiceBookmarkDisposeOrderTest {
          }
       };
 
-      ViewsheetSandbox liveBox = mock(ViewsheetSandbox.class);
       when(liveBox.getVariableTable()).thenReturn(new VariableTable());
       AssetEntry entry = new AssetEntry(
          AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.VIEWSHEET, "test/Bug77621", null);
@@ -161,7 +181,8 @@ class VSEmailServiceBookmarkDisposeOrderTest {
 
          return assertThrows(IllegalStateException.class, () ->
             service.emailViewsheet(rvs, FileFormatInfo.EXPORT_TYPE_PDF,
-                                   new String[] { "b1", "b2" }, false, false, false, "a@b.c",
+                                   new String[] { "b1", "b2" }, false, false, includeCurrent,
+                                   "a@b.c",
                                    null, null, "s", "b", false, null, null));
       }
    }
