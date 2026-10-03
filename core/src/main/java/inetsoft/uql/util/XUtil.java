@@ -690,12 +690,12 @@ public final class XUtil {
    public static final boolean isSpecial(String str, boolean quoteKeyword,
                                          KeywordProvider provider) {
       int length = str.length();
-      str = str.toLowerCase(Locale.ROOT);
       provider = provider == null ? new SQLHelper() : provider;
       String quote = provider.getQuote();
 
-      // check for sql keyword
-      if(quoteKeyword && provider.isKeyword(str)) {
+      // check for sql keyword. Only the lookup is folded, the checks below are case
+      // insensitive, and a fold can change the length (İ lower-cases to i and U+0307)
+      if(quoteKeyword && provider.isKeyword(str.toLowerCase(Locale.ROOT))) {
          return true;
       }
 

@@ -206,6 +206,11 @@ class UniformSQLDefaultLocaleFoldTest {
       assertEquals("\"DISTINCT\"", XUtil.quoteAlias("DISTINCT", h2));
       assertTrue(XUtil.isSpecial("LIMIT", oracle));
       assertTrue(XUtil.isSpecial("INDEX", oracle));
+
+      // İ lower-cases to two chars, the scan must still reach the last char
+      assertTrue(XUtil.isSpecial("MİKTAR$", h2));
+      assertEquals("\"MİKTAR$\"", XUtil.quoteAlias("MİKTAR$", h2));
+      assertTrue(XUtil.isSpecial("SİPARİŞ#", oracle));
    }
 
    // the grammar keyed USING columns with the locale, ID and id became different keys
