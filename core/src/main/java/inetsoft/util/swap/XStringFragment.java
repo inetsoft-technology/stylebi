@@ -223,7 +223,25 @@ public final class XStringFragment extends XSwappable {
     * Validate the int fragment internally.
     */
    private void access0() {
-      valid = true;
+      // access0() only ever runs when !valid, which is only ever set by
+      // swap() having just run swap0(). A non-null value here unambiguously
+      // means that swap0()'s write failed (swap0 nulls value only after its
+      // write succeeds), so the data already survived in memory - don't read
+      // back the (possibly missing/zero-byte) stub the failed write may have
+      // left behind and silently overwrite it with empty/garbled content.
+      if(value != null) {
+         valid = true;
+         File stub = getFile(prefix + ".tdat");
+
+         if(stub.exists()) {
+            if(!stub.delete()) {
+               FileSystemService.getInstance().remove(stub, 30000);
+            }
+         }
+
+         return;
+      }
+
       File file = getFile(prefix + ".tdat");
 
       RandomAccessFile fin = null;
@@ -239,6 +257,8 @@ public final class XStringFragment extends XSwappable {
          if(isCountRW) {
             monitor.countRead(buf.length, XSwappableMonitor.DATA);
          }
+
+         valid = true;
       }
       catch(FileNotFoundException ex) {
          return;

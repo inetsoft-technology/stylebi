@@ -292,7 +292,7 @@ public final class XIntFragment extends XSwappable {
             return;
          }
 
-         invalidate(buf);
+         serialize(buf);
 
          if(isCountRW && buf != null) {
             monitor.countWrite(buf.position(), XSwappableMonitor.DATA);
@@ -304,6 +304,12 @@ public final class XIntFragment extends XSwappable {
             buf = XSwapUtil.compressByteBuffer(buf);
             channel.write(buf);
          }
+
+         // only drop the in-memory array once the write above has actually
+         // succeeded; if channel.write() threw, control never reaches here and
+         // arr/pos are preserved so the data isn't silently lost
+         arr = null;
+         pos = 0;
 
          file = null;
       }
@@ -460,11 +466,13 @@ public final class XIntFragment extends XSwappable {
    }
 
    /**
-    * Invalidate this fragment to a byte buffer.
+    * Serialize this fragment into a byte buffer. Does not touch arr/pos; the
+    * caller is responsible for dropping them only after the buffer has been
+    * durably written.
     * @param buf the specified byte buffer.
     * @return next position if any, <tt>-1</tt> otherwise.
     */
-   private int invalidate(ByteBuffer buf) {
+   private int serialize(ByteBuffer buf) {
       if(buf != null) {
          XSwapUtil.writeChar(buf, pos);
 
@@ -473,8 +481,6 @@ public final class XIntFragment extends XSwappable {
          }
       }
 
-      arr = null;
-      pos = 0;
       return -1;
    }
 

@@ -220,8 +220,11 @@ public final class XObjectFragment<T> extends XSwappable {
          Object[] arr;
 
          // since we ignore the exceptions, we should return whatever we managed to read
-         // up to the point until the exception was thrown
-         if(holder != null) {
+         // up to the point until the exception was thrown - but a holder that never
+         // actually read anything (e.g. a 0-byte/corrupt stub left by a write that failed
+         // before swap0() cleared arr/pos) must not be allowed to clobber an in-memory
+         // array that's still intact
+         if(holder != null && holder.arr != null) {
             arr = holder.arr;
             this.arr = holder.arr;
             this.pos = holder.pos;
@@ -316,6 +319,7 @@ public final class XObjectFragment<T> extends XSwappable {
          }
 
          invalidate(null);
+         clear();
          return;
       }
 
@@ -380,6 +384,13 @@ public final class XObjectFragment<T> extends XSwappable {
          }
 
          fout = null;
+
+         // only drop the in-memory array once the final write above has
+         // actually succeeded; if channel.write() threw, control never
+         // reaches here and arr/pos/spos are preserved so the data isn't
+         // silently lost
+         clear();
+
          file = null;
       }
       catch(Exception ex) {
@@ -603,7 +614,9 @@ public final class XObjectFragment<T> extends XSwappable {
    }
 
    /**
-    * Invalidate this table column to a byte buffer.
+    * Serialize (a chunk of) this table column into a byte buffer. Does not
+    * touch pos/spos/arr; the caller is responsible for dropping them only
+    * once the resulting buffer(s) have been durably written.
     * @param buf the specified byte buffer.
     * @return next position if any, <tt>-1</tt> otherwise.
     */
@@ -692,10 +705,18 @@ public final class XObjectFragment<T> extends XSwappable {
          }
       }
 
+      return -1;
+   }
+
+   /**
+    * Drop the in-memory array once its serialized form has been durably
+    * written (or, for the already-swapped fast path, once there is nothing
+    * new to write).
+    */
+   private void clear() {
       pos = 0;
       spos = 0;
       arr = null;
-      return -1;
    }
 
    /**
