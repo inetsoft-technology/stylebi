@@ -20,6 +20,7 @@ package inetsoft.uql.service;
 import inetsoft.sree.security.*;
 import inetsoft.storage.KeyValueStorageManager;
 import inetsoft.test.*;
+import inetsoft.uql.DataSourceFolder;
 import inetsoft.uql.XDataSource;
 import inetsoft.uql.XRepository;
 import inetsoft.uql.asset.sync.DependencyStorageService;
@@ -39,6 +40,7 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.lang.reflect.Constructor;
 import java.security.Principal;
+import java.time.LocalDateTime;
 import java.util.Arrays;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -198,6 +200,84 @@ class XEngineAdditionalConnectionSaveTest {
 
       registry.clearCache();
       assertEquals("changed", ((JDBCDataSource) registry.getDataSource("tlDs")).getDefaultDatabase());
+   }
+
+   // the parent is in a data source folder: the save is stored at folder/parent/name, and no copy
+   // appears at the top level or in the folder
+   @Test
+   void saveOfAnAdditionalConnectionOfAParentInAFolderIsStoredUnderTheParent() throws Exception {
+      registry.setDataSourceFolder(new DataSourceFolder("fldF", LocalDateTime.now(), null));
+      addParent("fldF/fldP", "fldAdd");
+      JDBCDataSource additional = queryTimeCopy("fldF/fldP", "fldAdd");
+      assertEquals("fldAdd", additional.getFullName());
+
+      additional.setDefaultDatabase("refreshed");
+      repository.updateDataSource(additional, additional.getFullName());
+
+      registry.clearCache();
+      assertNull(registry.getDataSource("fldAdd"), "stray top-level copy");
+      assertNull(registry.getDataSource("fldF/fldAdd"), "stray copy in the folder");
+      assertEquals("refreshed",
+                   ((JDBCDataSource) registry.getDataSource("fldF/fldP/fldAdd")).getDefaultDatabase());
+      assertChildren("fldF/fldP", "fldAdd");
+   }
+
+   // a data source in a folder is still saved at its path
+   @Test
+   void dataSourceInAFolderIsSavedAsBefore() throws Exception {
+      registry.setDataSourceFolder(new DataSourceFolder("fsF", LocalDateTime.now(), null));
+      registry.setDataSource(source("fsF/fsDs"), false);
+      JDBCDataSource ds = (JDBCDataSource) registry.getDataSource("fsF/fsDs").clone();
+
+      ds.setDefaultDatabase("changed");
+      repository.updateDataSource(ds, ds.getFullName());
+
+      registry.clearCache();
+      assertEquals("changed",
+                   ((JDBCDataSource) registry.getDataSource("fsF/fsDs")).getDefaultDatabase());
+      assertNull(registry.getDataSource("fsDs"));
+   }
+
+   // a token refresh writes once; the following per-request saves of an authenticator, of the
+   // same instance or of a new copy read through the parent, compare equal to parent/name and
+   // do not write again
+   @Test
+   void identicalSaveAfterARefreshDoesNotWriteAgain() throws Exception {
+      addParent("idP", "idAdd");
+      long original = storedLastModified("idP/idAdd");
+      JDBCDataSource refreshed = queryTimeCopy("idP", "idAdd");
+      Thread.sleep(5);
+
+      refreshed.setDefaultDatabase("refreshed");
+      repository.updateDataSource(refreshed, refreshed.getFullName());
+      long written = storedLastModified("idP/idAdd");
+      assertNotEquals(original, written, "the refresh is written");
+
+      Thread.sleep(5);
+      repository.updateDataSource(refreshed, refreshed.getFullName());
+      assertEquals(written, storedLastModified("idP/idAdd"), "same instance saved again");
+
+      JDBCDataSource next = queryTimeCopy("idP", "idAdd");
+      assertEquals("refreshed", next.getDefaultDatabase());
+      repository.updateDataSource(next, next.getFullName());
+      assertEquals(written, storedLastModified("idP/idAdd"), "new copy saved unchanged");
+
+      registry.clearCache();
+      assertNull(registry.getDataSource("idAdd"), "stray top-level copy");
+   }
+
+   // a rename of a top-level data source is not affected
+   @Test
+   void renameOfTopLevelDataSourceIsUnchanged() throws Exception {
+      registry.setDataSource(source("rnOld"), false);
+      JDBCDataSource ds = (JDBCDataSource) registry.getDataSource("rnOld").clone();
+
+      ds.setName("rnNew");
+      repository.updateDataSource(ds, "rnOld");
+
+      registry.clearCache();
+      assertNull(registry.getDataSource("rnOld"));
+      assertNotNull(registry.getDataSource("rnNew"));
    }
 
    private JDBCDataSource queryTimeCopy(String parent, String name) {
