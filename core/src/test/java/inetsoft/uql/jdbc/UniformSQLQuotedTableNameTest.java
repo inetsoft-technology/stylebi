@@ -568,6 +568,25 @@ class UniformSQLQuotedTableNameTest {
       private final JDBCDataSource ds;
    }
 
+   // with input max rows each table is read by a subquery, referred to by its alias
+   @Test
+   void inputMaxRows() throws Exception {
+      JDBCDataSource derby = helpers().get("derby");
+      String[][] cases = {
+         { "select \"a\".V + 1 from \"a\"",
+           "select a.V+1 from ( select * from \"a\" fetch first 1 rows only) a" },
+         { "select x.V, y.V from \"a\" x, \"a\" y",
+           "select x.V, y.V from ( select * from \"a\" fetch first 1 rows only) x, " +
+              "( select * from \"a\" fetch first 1 rows only) y" },
+      };
+
+      for(String[] c : cases) {
+         UniformSQL sql = parse(c[0], derby);
+         sql.setHint(UniformSQL.HINT_INPUT_MAXROWS, "1");
+         assertEquals(c[1], regenerate(sql), c[0]);
+      }
+   }
+
    @Test
    void copiesAndRenames() throws Exception {
       UniformSQL sql = parse("select \"a\".id from \"a\"", null);
