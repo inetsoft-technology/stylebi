@@ -428,6 +428,29 @@ class UniformSQLSyncOrdinalTest {
       }
    }
 
+   /**
+    * #77616: an alias that shadows a column name is kept as the alias, so postgresql still
+    * sorts and groups by the select item, not by the column of the same name.
+    */
+   @Test
+   void aliasShadowingAColumnIsKept() throws Exception {
+      for(String key : new String[] { "postgresql", "snowflake", "exasol" }) {
+         String generated = regenerate(fixed("select k as id, id as k from t order by id desc",
+                                             key, "id", "k"));
+         assertTrue(generated.endsWith("order by \"id\" desc"), key + " " + generated);
+
+         generated = regenerate(fixed("select k as id, id as k from t order by k desc, id",
+                                      key, "id", "k"));
+         assertTrue(generated.endsWith("order by \"k\" desc, \"id\" asc"),
+                    key + " " + generated);
+
+         generated = regenerate(fixed("select id as a, count(*) as c from t group by a " +
+                                      "order by c desc, a", key, "id", "k"));
+         assertTrue(generated.endsWith("group by \"a\" order by \"c\" desc, \"a\" asc"),
+                    key + " " + generated);
+      }
+   }
+
    // #6151's quoted aggregate record of an order by item is kept when the order by is rebuilt
    @Test
    void quotedAggregateRecordIsKeptOnRebuild() throws Exception {
