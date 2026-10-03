@@ -3646,6 +3646,14 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
       if(!Tool.equals(this.dataSource, dataSource)) {
          clearCachedString();
          cachedSQLHelper = null;
+
+         // lossy was derived with the old data source's sql helper, e.g. a join order the new
+         // helper (Oracle without ansi join) regenerates differently. Re-derive it in isLossy()
+         // (Bug #77576), or the map key access check of a ClickHouse source that was skipped
+         // without one. A lossy kept while parsing is off can't be re-derived (Bug #77477)
+         if(parseIt && sqlstring != null) {
+            lossy = null;
+         }
       }
 
       this.dataSource = dataSource;

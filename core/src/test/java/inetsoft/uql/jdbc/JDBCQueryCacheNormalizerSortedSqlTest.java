@@ -567,6 +567,8 @@ class JDBCQueryCacheNormalizerSortedSqlTest {
 
    private static UniformSQL parsed(String sql) throws Exception {
       UniformSQL usql = new UniformSQL();
+      // the source is set first, a source set later re-derives a lossy set by a test
+      usql.setDataSource(dataSource());
       usql.parse(sql, UniformSQL.PARSE_ALL, UniformSQL.PARSE_PERIOD);
       usql.setSQLString(sql, false);
       assertEquals(UniformSQL.PARSE_SUCCESS, usql.getParseResult());
