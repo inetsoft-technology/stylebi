@@ -3704,7 +3704,8 @@ as_clause returns [String as = ""]
         (AS)?
         (as = column_name
         | a:STRING_LITERAL {as = a.getText();
-          as = as.substring(1, as.length()-1); aliasQuoted = Boolean.TRUE;}
+          // un-double the '' escape, as 'it''s' is the alias it's (#77640)
+          as = as.substring(1, as.length()-1).replace("''", "'"); aliasQuoted = Boolean.TRUE;}
         | b:T_DATE { as = b.getText(); aliasQuoted = Boolean.FALSE;})
         ;
 
@@ -4674,24 +4675,26 @@ IDENT
 			:	('a'..'z'|'A'..'Z'|'\u0100'..'\uFFFE'|'@') ('a'..'z'|'A'..'Z'|'\u0100'..'\uFFFE'|'_'|'0'..'9')*
 			;
 
-SPIDENT			:	'"'(~('"'))*'"'
+// setCommitToPath(true) after an opening delimiter makes an unterminated delimited token a
+// lexer error, instead of filter mode silently dropping it and the rest of the text (#77640)
+SPIDENT			:	'"' {setCommitToPath(true);} (~('"'))*'"'
 			;
-SPIDENT2		:	'`' ('\u0001'..'\u005f' | '\u0061'..'\ufffe')* '`'
+SPIDENT2		:	'`' {setCommitToPath(true);} ('\u0001'..'\u005f' | '\u0061'..'\ufffe')* '`'
 			;
 
-SPIDENT_VAR             :    "$(" ('a'..'z'|'A'..'Z'|'_'|'0'..'9'|' '|
+SPIDENT_VAR             :    "$(" {setCommitToPath(true);} ('a'..'z'|'A'..'Z'|'_'|'0'..'9'|' '|
                                   '+' | '-' |'@'|'\u0100'..'\uFFFE')* ')' ;
 
-//have not include all chinese character
-SPIDENT_SQUARE		: 	'['
-				(('\u0001'..'\u005a'|('\u005E'..'\u7fff')
-				|('\u8001'..'\u803f')|('\u8041'..'\u807f')
-				|('\u8081'..'\u80bf')|('\u80c1'..'\u80fd')
-				))*
+// every character but '[' and ']', e.g. '\' or the CJK characters from U+80FE up. A '['
+// ends it, so a nested subscript (arr[idx[1]]) can't become one name (#77640)
+SPIDENT_SQUARE		: 	'[' {setCommitToPath(true);}
+				('\u0001'..'\u005a' | '\\' | '\u005e'..'\ufffe')*
 				']'
 			;
 
-SPIDENT_BRACKET		:	'{' ('\u0001'..'\u007a' | '\u007c' | '\u007e'..'\ufffe')* '}'
+// a nested JDBC escape, e.g. {fn concat({fn ucase(a)}, b)}, is part of one token (#77640)
+SPIDENT_BRACKET		:	'{' {setCommitToPath(true);}
+				(SPIDENT_BRACKET | '\u0001'..'\u007a' | '\u007c' | '\u007e'..'\ufffe')* '}'
 			;
 
 WS			:	(' '
@@ -4736,6 +4739,8 @@ DATE
 	'-'
 	(('0'|'1'|'2')('0'..'9')|('3')('0'|'1'))
 	'\''
+	// not the start of a '' escape, e.g. '2020-01-01''s data' is a string literal (#77640)
+	{LA(1) != '\''}?
 	;
 
 //Time format should be 'hh:mm:ss[.[nnnnnn]][<time zone interval>]'
@@ -4751,6 +4756,8 @@ TIME
 	(('0'..'5')('0'..'9')|('6')('0'|'1'))	//ss
 	('.'(('0'..'9'))*)?
 	'\''
+	// not the start of a '' escape (#77640)
+	{LA(1) != '\''}?
 	);
 
 
@@ -4762,7 +4769,8 @@ STRING_LITERAL
 	 TIME { _ttype = TIME; }
 	|(DATE)=>
 	 DATE { _ttype = DATE; }
-	| {isInterval() == false}? '\'' (~('\''|'"'))* '\''
+	// a literal may contain '"' and the '' escape (#77640)
+	| {isInterval() == false}? '\'' {setCommitToPath(true);} (~('\'') | '\'' '\'')* '\''
 	| '\'' { _ttype = SINGLE_QUOTE; }
 	;
 
@@ -4864,7 +4872,7 @@ SL_COMMENT
 
 // multiple-line comments
 ML_COMMENT
-	:	"/*"
+	:	"/*" {setCommitToPath(true);}
 		(	/*	'\r' '\n' can be matched in one alternative or by matching
 				'\r' in one iteration and '\n' in another.  I am trying to
 				handle any flavor of newline that comes in, but the language
@@ -4900,3 +4908,7 @@ OJ	:	"(+)"	;	//oracle join
 COLON_EQU	:	":=";
 
 CONCATENATION_OP	:	"||" | "&";
+
+// a backslash outside a literal, a quoted name or a comment fails the parse instead of being
+// dropped by filter mode, e.g. the second escape of '\'', s, '\'' in MySQL (#77640)
+BACKSLASH	:	'\\' ;
