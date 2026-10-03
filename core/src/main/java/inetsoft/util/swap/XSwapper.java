@@ -275,8 +275,10 @@ public final class XSwapper {
                File[] files = file.listFiles();
 
                for(int i = 0; files != null && i < files.length; i++) {
+                  // Bug #77600, this JVM may already have written live swap files
                   if(!files[i].isDirectory() && files[i].getName().endsWith(".tdat") &&
-                     !map.containsKey(files[i].getAbsolutePath()))
+                     !map.containsKey(files[i].getAbsolutePath()) &&
+                     !isOwnSwapFile(files[i].getName()))
                   {
                      files[i].delete();
                   }
@@ -813,6 +815,17 @@ public final class XSwapper {
     */
    public String getPrefix() {
       return "s" + seed + "_" + counter.incrementAndGet();
+   }
+
+   /**
+    * Check if a file carries the prefix of this swapper. Such a file belongs to a
+    * swappable of this JVM, which deletes it itself, so cache clean-up must not
+    * remove it even if it is not registered in the swap file map.
+    * @param name the file name.
+    * @return <tt>true</tt> if the file was created by this swapper.
+    */
+   public boolean isOwnSwapFile(String name) {
+      return name != null && name.startsWith("s" + seed + "_");
    }
 
    /**
