@@ -2630,8 +2630,11 @@ public class SQLHelper implements KeywordProvider {
 
          Object[][] tables = joinTables.get(anchor);
          // a parsed join is written with its tables in from order, e.g.
-         // a join b on b.id = a.id is a INNER JOIN b, not b INNER JOIN a
-         boolean traverse = (anchor.isOnClauseJoin() || anchor.isWhereClauseJoin()) &&
+         // a join b on b.id = a.id is a INNER JOIN b, not b INNER JOIN a. Not on a
+         // helper without join parentheses (MongoHelper), whose flat group joins
+         // (appendFlatGroupJoins) depend on the group's first table being table1
+         boolean traverse = isJoinParenthesesSupported() &&
+            (anchor.isOnClauseJoin() || anchor.isWhereClauseJoin()) &&
             getSelectTableIndex(tables[0][1]) > getSelectTableIndex(tables[1][1]);
          group = new TextJoinGroup();
          String op = getAnsiJoin(anchor.getOp(), traverse);

@@ -234,6 +234,29 @@ class SQLHelperTextJoinSymmetricOrderTest {
       assertTrue(generated.contains("d INNER JOIN c ON d.id = c.id"), generated);
    }
 
+   /**
+    * MongoHelper can't write join parentheses (56305), and writes an inner join of a group and
+    * a chain that starts with the step's table as one flat chain (#77581). That needs the
+    * chain's first table to be its first join's table1, so it keeps the operand order.
+    */
+   @Test
+   void mongoKeepsTheOperandOrderForFlatGroups() throws Exception {
+      for(String type : new String[] { "mongo", "mongo ansi" }) {
+         String text = "select * from a left join b on a.id = b.id join (c join d on d.id = c.id) " +
+            "on b.id = d.id";
+         String generated = normalize(generate(parse(text, dataSource(type))));
+         assertEquals("select * from a LEFT OUTER JOIN b ON a.id = b.id INNER JOIN d ON b.id = d.id " +
+                         "INNER JOIN c ON d.id = c.id", generated, type);
+         assertSameRows(text, generated);
+
+         text = "select * from a join b on b.id = a.id left join c on c.id = a.id";
+         generated = normalize(generate(parse(text, dataSource(type))));
+         assertEquals("select * from b INNER JOIN a ON b.id = a.id LEFT OUTER JOIN c ON a.id = c.id",
+                      generated, type);
+         assertSameRows(text, generated);
+      }
+   }
+
    @BeforeAll
    static void createTables() throws SQLException {
       for(String url : new String[] { DERBY + ";create=true", HSQLDB, H2, SQLITE }) {
@@ -463,6 +486,7 @@ class SQLHelperTextJoinSymmetricOrderTest {
          case "sql server" -> new String[] { "com.microsoft.sqlserver.jdbc.SQLServerDriver",
                                              "jdbc:sqlserver://localhost;databaseName=db" };
          case "oracle" -> new String[] { "oracle.jdbc.OracleDriver", "jdbc:oracle:thin:@localhost:1521:db" };
+         case "mongo" -> new String[] { "mongodb.jdbc.MongoDriver", "jdbc:mongo://localhost:27017/test" };
          default -> throw new IllegalArgumentException(type);
       };
 
