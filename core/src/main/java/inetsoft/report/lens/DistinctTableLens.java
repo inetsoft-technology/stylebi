@@ -325,6 +325,7 @@ public class DistinctTableLens extends AbstractTableLens
     */
    private void hashDistinct(XSwappableIntList target) {
       LockStallException stall = null;
+      SwapFileReadException swapFailure = null;
 
       try {
          Set map = new ObjectOpenHashSet();
@@ -363,10 +364,17 @@ public class DistinctTableLens extends AbstractTableLens
       catch(RuntimeException ex) {
          // a stall may reach the worker wrapped by the base table (bug #76967)
          stall = LockStallException.find(ex);
+
+         if(stall == null) {
+            // a swap file read failure must not look like a complete (silently
+            // empty/partial) distinct table either (bug #77651)
+            swapFailure = SwapFileReadException.find(ex);
+         }
+
          throw ex;
       }
       finally {
-         complete(target, stall, null);
+         complete(target, stall, swapFailure);
       }
    }
 

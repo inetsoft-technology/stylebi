@@ -83,7 +83,25 @@ public class DistinctTableLensTest {
          SwapFileReadException.class, () -> lens.moreRows(XTable.EOT)));
    }
 
+   /**
+    * Sibling path: a single distinct column (or {@code stable=true}) dispatches to
+    * {@code hashDistinct} instead of {@code sortDistinct}. A swap file read failure of the
+    * base escapes there too, instead of silently leaving the distinct table looking complete
+    * with only the rows found before the failure (bug #77651).
+    */
+   @Test
+   public void baseSwapFileReadFailureEscapesHashDistinct() {
+      SwapFileReadException failure =
+         new SwapFileReadException(new File("does-not-exist.dat"), new IOException("gone"));
+      FailingBase base = new FailingBase(failure, 3);
+      DistinctTableLens lens = new DistinctTableLens(base, DISTINCT_COLS_SINGLE, false);
+
+      Assertions.assertSame(failure, Assertions.assertThrows(
+         SwapFileReadException.class, () -> lens.moreRows(XTable.EOT)));
+   }
+
    private static final int[] DISTINCT_COLS = { 0, 1 };
+   private static final int[] DISTINCT_COLS_SINGLE = { 0 };
 
    private static final Object[][] DATA = {
       { "key", "value" }, { "b", 1 }, { "a", 2 }, { "c", 3 }, { "a", 4 }, { "b", 5 }, { "d", 6 }
