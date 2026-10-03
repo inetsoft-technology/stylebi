@@ -205,7 +205,16 @@ public class DataSpaceSettingsService extends BackupSupport {
       String timestamp = pathParts[pathParts.length - 1];
 
       try {
-         return Long.parseLong(timestamp);
+         long value = Long.parseLong(timestamp);
+
+         // a backup made before #77605 on a th_TH server has a Buddhist year (Gregorian + 543).
+         // a Gregorian year is never 2400 or later, so it is converted for the ordering only,
+         // otherwise every new backup is older than them and is deleted right after the write
+         if(timestamp.length() == 14 && value / 10_000_000_000L >= 2400) {
+            value -= 543 * 10_000_000_000L;
+         }
+
+         return value;
       }
       catch(Exception ignore) {
       }

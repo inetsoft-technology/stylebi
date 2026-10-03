@@ -528,6 +528,11 @@ public class SelectionTreeVSAssemblyInfo extends SelectionBaseVSAssemblyInfo {
       if(snode != null) {
          value = new CompositeSelectionValue();
          value.parseXML(snode);
+
+         // a date saved before #77605 may have a Buddhist or Japanese year
+         if(getMode() != ID) {
+            value.toGregorianPersistentDates(refs);
+         }
       }
 
       Element node = Tool.getChildNodeByTagName(elem, "parentValue");

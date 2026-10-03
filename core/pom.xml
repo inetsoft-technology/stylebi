@@ -324,12 +324,6 @@
     </dependency>
 
     <dependency>
-      <groupId>org.pojava</groupId>
-      <artifactId>org.pojava.datetime</artifactId>
-      <scope>compile</scope>
-    </dependency>
-
-    <dependency>
       <groupId>net.jafama</groupId>
       <artifactId>jafama</artifactId>
       <scope>compile</scope>

@@ -531,9 +531,7 @@ public class DataSetService {
     * Gregorian here only fixes the displayed year.
     */
    private static SimpleDateFormat gregorianDateFormat() {
-      SimpleDateFormat format = new SimpleDateFormat(SreeEnv.getProperty("format.date.time"));
-      format.setCalendar(new GregorianCalendar());
-      return format;
+      return Tool.createGregorianDateFormat(SreeEnv.getProperty("format.date.time"));
    }
 
    /**

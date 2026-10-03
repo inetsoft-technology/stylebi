@@ -28,7 +28,7 @@ import inetsoft.uql.util.expr.ExprParser;
 import inetsoft.util.CoreTool;
 import inetsoft.util.Tool;
 import inetsoft.util.algo.BidiMap;
-import org.pojava.datetime.DateTime;
+import inetsoft.util.pojava.datetime.DateTime;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -925,7 +925,9 @@ public class XSelection implements java.io.Serializable, java.lang.Cloneable {
                   type.equals(XSchema.TIME))
                {
                   if(fmt == null) {
-                     fmts[i] = DateFormat.getDateTimeInstance();
+                     fmts[i] = Tool.setGregorianCalendar(DateFormat.getDateTimeInstance(
+                        DateFormat.DEFAULT, DateFormat.DEFAULT,
+                        Tool.getGregorianLocale(Locale.getDefault(Locale.Category.FORMAT))));
                   }
                   else {
                      fmts[i] = Tool.createDateFormat(fmt);

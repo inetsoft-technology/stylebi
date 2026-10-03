@@ -1352,8 +1352,7 @@ public class SUtil {
 
       String subject = catalog.getString("Test Mail Subject");
       String body = catalog.getString("Test Mail Body",
-         SimpleDateFormat.getDateInstance(
-         SimpleDateFormat.FULL).format(new Date()));
+         Tool.createDateFormat("FULL").format(new Date()));
       Mailer mailer = new Mailer();
       mailer.send(emails, null, subject, body, null);
 

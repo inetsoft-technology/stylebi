@@ -814,7 +814,7 @@ public class RepletRequest implements java.io.Serializable, Cloneable, HttpXMLSe
       }
       else if(ptype.equals(XSchema.DATE)) {
          try {
-            return dateFmt.parse(pvalue);
+            return dateFmt.parse(Tool.toGregorianPersistentDate(pvalue));
          }
          catch(Throwable e) {
             LOG.error("Failed to parse date: " + pvalue, e);
@@ -824,7 +824,8 @@ public class RepletRequest implements java.io.Serializable, Cloneable, HttpXMLSe
       }
       else if(ptype.equals(XSchema.TIME_INSTANT)) {
          try {
-            return new Timestamp(datetimeFmt.parse(pvalue).getTime());
+            return new Timestamp(
+               datetimeFmt.parse(Tool.toGregorianPersistentDate(pvalue)).getTime());
          }
          catch(Throwable e) {
             LOG.error("Failed to parse date/time:" + pvalue, e);
@@ -1127,7 +1128,9 @@ public class RepletRequest implements java.io.Serializable, Cloneable, HttpXMLSe
       }
       else if(ptype.equals("Date")) {
          try {
-            java.sql.Date val = new java.sql.Date(dateFmt.parse(pvalue).getTime());
+            // a date saved before #77605 may have a Buddhist or Japanese year
+            java.sql.Date val = new java.sql.Date(
+               dateFmt.parse(Tool.toGregorianPersistentDate(pvalue)).getTime());
 
             if(parameterValue != null) {
                parameterValue.setValue(val);
@@ -1145,7 +1148,8 @@ public class RepletRequest implements java.io.Serializable, Cloneable, HttpXMLSe
       }
       else if(ptype.equals("TimeInstant")) {
          try {
-            Timestamp val = new Timestamp(datetimeFmt.parse(pvalue).getTime());
+            Timestamp val = new Timestamp(
+               datetimeFmt.parse(Tool.toGregorianPersistentDate(pvalue)).getTime());
             dateTimeList.add(pname);
 
             if(parameterValue != null) {

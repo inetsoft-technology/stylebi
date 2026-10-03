@@ -1802,7 +1802,7 @@ public class ViewsheetAction extends AbstractAction implements ViewsheetSupport 
          }
 
          String valueStr = (value instanceof Date) ?
-            (new SimpleDateFormat("yyyy-MM-dd hh-mm-ss")).format(value) :
+            (Tool.createGregorianDateFormat("yyyy-MM-dd hh-mm-ss")).format(value) :
             value.toString();
 
          newPath.append(Tool.normalizeFileName(valueStr));

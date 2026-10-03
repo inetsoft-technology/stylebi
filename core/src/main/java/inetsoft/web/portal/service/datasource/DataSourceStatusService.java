@@ -162,7 +162,7 @@ public class DataSourceStatusService {
 
       Catalog catalog = Catalog.getCatalog(principal);
       String errorMessage = status.getErrorMessage();
-      SimpleDateFormat format = new SimpleDateFormat(SreeEnv.getProperty("format.date.time"));
+      SimpleDateFormat format = Tool.createGregorianDateFormat(SreeEnv.getProperty("format.date.time"));
       format.setTimeZone(TimeZone.getTimeZone(timeZone));
       String time = format.format(new Date(status.getLastUpdateTime()));
       String message;

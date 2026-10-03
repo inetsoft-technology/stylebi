@@ -7108,7 +7108,7 @@ public final class VSUtil {
    }
 
    private static String getLocalDate(Date date, String timeZoneId) {
-      SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd");
+      SimpleDateFormat sdf = Tool.createGregorianDateFormat("yyyy-MM-dd");
       TimeZone timeZone = TimeZone.getTimeZone(timeZoneId);
       sdf.setTimeZone(timeZone);
 

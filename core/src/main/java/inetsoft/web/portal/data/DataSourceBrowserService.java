@@ -340,7 +340,7 @@ public class DataSourceBrowserService {
 
       long cdate = dataSource.getCreated();
       String fmt = SreeEnv.getProperty("format.date.time");
-      String dateLabel = cdate == 0 ? "" : new SimpleDateFormat(fmt).format(cdate);
+      String dateLabel = cdate == 0 ? "" : Tool.createGregorianDateFormat(fmt).format(cdate);
 
       return DataSourceInfo.builder()
          .name(dataSource.getName())

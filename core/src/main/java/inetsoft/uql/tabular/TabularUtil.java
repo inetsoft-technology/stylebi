@@ -36,7 +36,6 @@ import java.lang.reflect.*;
 import java.security.Principal;
 import java.sql.Timestamp;
 import java.text.DateFormat;
-import java.text.SimpleDateFormat;
 import java.util.List;
 import java.util.*;
 import java.util.concurrent.CountDownLatch;
@@ -193,8 +192,7 @@ public class TabularUtil {
       // SimpleDateFormat would otherwise emit the wrong calendar system's year under a
       // non-Gregorian JVM default locale (e.g. Buddhist for th_TH, Japanese imperial for
       // ja_JP_JP).
-      DateFormat df = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'");
-      df.setCalendar(new GregorianCalendar());
+      DateFormat df = Tool.createGregorianDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'");
       df.setTimeZone(tz);
 
       try {

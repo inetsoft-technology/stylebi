@@ -2039,10 +2039,10 @@ public class ExcelChartHelper {
 
          if(label instanceof Date) {
             if(label instanceof java.sql.Time) {
-               fmtLabel = new SimpleDateFormat("HH:mm:ss").format(label);
+               fmtLabel = Tool.createGregorianDateFormat("HH:mm:ss").format(label);
             }
 
-            fmtLabel = new SimpleDateFormat("yyyy-MM-dd").format(label);
+            fmtLabel = Tool.createGregorianDateFormat("yyyy-MM-dd").format(label);
          }
 
          if(fmtLabel != null) {

@@ -120,26 +120,26 @@ public final class CalendarUtil {
             return dateString;
          }
 
-         SimpleDateFormat format = new SimpleDateFormat(opattern);
-         // the date string is a Gregorian selection value, parse it as one. nformat keeps the
-         // locale calendar so the date is displayed the way the user's locale shows dates
-         format.setCalendar(new GregorianCalendar());
+         // the date string is a Gregorian selection value, parse it as one. nformat is
+         // Gregorian too, dates are displayed in the Gregorian calendar with the month and day
+         // names of the locale (#77605, this replaces the locale calendar kept by #77527)
+         SimpleDateFormat format = Tool.createGregorianDateFormat(opattern);
          DateFormat nformat = null;
 
          if("FULL".equals(npattern)) {
-            nformat = DateFormat.getDateInstance(DateFormat.FULL);
+            nformat = Tool.createDateFormat("FULL");
          }
          else if("LONG".equals(npattern)) {
-            nformat = DateFormat.getDateInstance(DateFormat.LONG);
+            nformat = Tool.createDateFormat("LONG");
          }
          else if("MEDIUM".equals(npattern)) {
-            nformat = DateFormat.getDateInstance(DateFormat.MEDIUM);
+            nformat = Tool.createDateFormat("MEDIUM");
          }
          else if("SHORT".equals(npattern)) {
-            nformat = DateFormat.getDateInstance(DateFormat.SHORT);
+            nformat = Tool.createDateFormat("SHORT");
          }
          else {
-            nformat = new SimpleDateFormat(npattern);
+            nformat = Tool.createGregorianDateFormat(npattern);
          }
 
          Date date = format.parse(dateString);

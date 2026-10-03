@@ -211,7 +211,7 @@ public class ChartMetaTableGenerator {
             }
             else if(isDimensionDate) {
                Date date1 = new java.sql.Date(System.currentTimeMillis());
-               Calendar calendar = Calendar.getInstance();
+               Calendar calendar = new GregorianCalendar();
                calendar.setTime(date1);
 
                if(dlevel == DateRangeRef.YEAR_INTERVAL) {

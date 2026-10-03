@@ -26,7 +26,7 @@ import inetsoft.util.graphics.SVGSupport;
 import inetsoft.util.script.graal.ScriptHostAccess;
 import inetsoft.util.script.graal.ScriptScope;
 import inetsoft.web.viewsheet.command.MessageCommand;
-import org.pojava.datetime.DateTime;
+import inetsoft.util.pojava.datetime.DateTime;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -444,7 +444,7 @@ public class JavaScriptEngine {
       }
       else if(!parseTime) {
          try {
-            return DateFormat.getDateInstance().parse(str);
+            return CoreTool.createDateFormat("MEDIUM").parse(str);
          }
          catch(Exception ex) {
             // If can't get proper format, use default format.
@@ -459,18 +459,18 @@ public class JavaScriptEngine {
          }
       }
       else {
-         DateFormat df = DateFormat.getTimeInstance(DateFormat.LONG);
+         DateFormat df = CoreTool.setGregorianCalendar(DateFormat.getTimeInstance(DateFormat.LONG));
 
          try {
             return df.parse(str);
          }
          catch(Exception exl) {
-            df = DateFormat.getTimeInstance(DateFormat.MEDIUM);
+            df = CoreTool.setGregorianCalendar(DateFormat.getTimeInstance(DateFormat.MEDIUM));
             try {
                return df.parse(str);
             }
             catch(Exception exm) {
-               df = DateFormat.getTimeInstance(DateFormat.SHORT);
+               df = CoreTool.setGregorianCalendar(DateFormat.getTimeInstance(DateFormat.SHORT));
 
                try {
                   return df.parse(str);

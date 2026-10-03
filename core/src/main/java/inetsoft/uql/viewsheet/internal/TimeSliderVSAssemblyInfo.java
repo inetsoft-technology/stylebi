@@ -19,6 +19,7 @@ package inetsoft.uql.viewsheet.internal;
 
 import inetsoft.graph.GraphConstants;
 import inetsoft.uql.CompositeValue;
+import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.schema.XSchema;
@@ -598,6 +599,23 @@ public class TimeSliderVSAssemblyInfo extends MaxModeSelectionVSAssemblyInfo
    }
 
    /**
+    * Check if the selection values are dates written by the canonical value formats (e.g.
+    * {y '2026'}), which are corrected when read from a persisted asset (#77605). Composite
+    * and cube (member caption) values are not.
+    */
+   public boolean isPersistentDateValue() {
+      String table = getTableName();
+
+      if(!(tinfo instanceof SingleTimeInfo) || table != null && table.startsWith(Assembly.CUBE_VS)) {
+         return false;
+      }
+
+      int unit = ((SingleTimeInfo) tinfo).getRangeType();
+      return unit == TimeInfo.YEAR || unit == TimeInfo.MONTH || unit == TimeInfo.DAY ||
+         unit == TimeInfo.HOUR || unit == TimeInfo.MINUTE;
+   }
+
+   /**
     * Parse contents.
     * @param elem the specified xml element.
     * @param isSiteAdminImport flag to force into current organization if site admin.
@@ -624,6 +642,11 @@ public class TimeSliderVSAssemblyInfo extends MaxModeSelectionVSAssemblyInfo
       if(snode != null) {
          slist = new SelectionList();
          slist.parseXML(snode);
+
+         // a date saved before #77605 may have a Buddhist or Japanese year
+         if(isPersistentDateValue()) {
+            slist.toGregorianPersistentDates();
+         }
       }
 
       if(tslnode != null) {

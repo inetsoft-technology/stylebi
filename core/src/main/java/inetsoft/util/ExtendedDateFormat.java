@@ -46,6 +46,7 @@ public class ExtendedDateFormat extends SimpleDateFormat {
    public ExtendedDateFormat() {
       super();
       defaultLocale = Locale.getDefault(Locale.Category.FORMAT);
+      CoreTool.setGregorianCalendar(this);
    }
 
    /**
@@ -55,6 +56,7 @@ public class ExtendedDateFormat extends SimpleDateFormat {
    public ExtendedDateFormat(String pattern) {
       super(ExtendedDateFormat.createPattern(pattern));
       defaultLocale = Locale.getDefault(Locale.Category.FORMAT);
+      CoreTool.setGregorianCalendar(this);
    }
 
    /**
@@ -65,6 +67,8 @@ public class ExtendedDateFormat extends SimpleDateFormat {
       super(ExtendedDateFormat.createPattern(pattern), locale);
 
       this.locale = locale;
+      // dates are always Gregorian, the locale only gives the names (#77605)
+      CoreTool.setGregorianCalendar(this);
    }
 
    /**
@@ -350,9 +354,13 @@ public class ExtendedDateFormat extends SimpleDateFormat {
          }
       }
 
+      // FastDateFormat takes the calendar from the locale, so a th_TH or ja_JP_JP locale is
+      // changed to the Gregorian calendar. otherwise the user locale of the thread that
+      // formats first (this instance may be cached and shared) decides the year for every
+      // later caller, e.g. Buddhist years for all users after a th_TH user (#77605)
       if(fastFmt == null) {
          fastFmt = FastDateFormat.getInstance(toPattern(), getTimeZone(),
-            locale == null ? ThreadContext.getLocale() : locale);
+            CoreTool.getGregorianLocale(locale == null ? ThreadContext.getLocale() : locale));
       }
 
       String dateStr = fastFmt.format(date, toAppendTo, fieldPosition).toString();
@@ -488,6 +496,14 @@ public class ExtendedDateFormat extends SimpleDateFormat {
    public void setTimeZone(TimeZone zone) {
       fastFmt = null;
       super.setTimeZone(zone);
+   }
+
+   private void readObject(java.io.ObjectInputStream in)
+      throws java.io.IOException, ClassNotFoundException
+   {
+      in.defaultReadObject();
+      // a format serialized before #77605 may have a Buddhist or Japanese calendar
+      CoreTool.setGregorianCalendar(this);
    }
 
    @Override

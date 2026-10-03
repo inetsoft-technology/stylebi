@@ -17,6 +17,8 @@
  */
 package inetsoft.uql.viewsheet;
 
+import inetsoft.uql.erm.DataRef;
+import inetsoft.uql.schema.XSchema;
 import inetsoft.util.Tool;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -57,6 +59,32 @@ public class CompositeSelectionValue extends SelectionValue {
     */
    public SelectionList getSelectionList() {
       return list;
+   }
+
+   /**
+    * Correct the years of the date values in this tree read from a persisted asset, which may
+    * have been written in the Buddhist or Japanese calendar before #77605. The value of a node
+    * is changed only if the data ref of its level has a date type.
+    * @param refs the data refs of the tree levels.
+    */
+   public void toGregorianPersistentDates(DataRef[] refs) {
+      if(list == null || refs == null) {
+         return;
+      }
+
+      for(SelectionValue val : list.getSelectionValues()) {
+         int level = val.getLevel();
+
+         if(level >= 0 && level < refs.length && refs[level] != null &&
+            XSchema.isDateType(refs[level].getDataType()))
+         {
+            val.setValue(Tool.toGregorianPersistentDate(val.getValue()));
+         }
+
+         if(val instanceof CompositeSelectionValue) {
+            ((CompositeSelectionValue) val).toGregorianPersistentDates(refs);
+         }
+      }
    }
 
    /**

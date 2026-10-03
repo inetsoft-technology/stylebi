@@ -3455,16 +3455,16 @@ public abstract class ReportSheet extends StyleCore {
       Format fmt = null;
 
       if(format.equals("FULL")) {
-         fmt = DateFormat.getDateInstance(DateFormat.FULL, locale);
+         fmt = Tool.createDateFormat("FULL", locale);
       }
       else if(format.equals("LONG")) {
-         fmt = DateFormat.getDateInstance(DateFormat.LONG, locale);
+         fmt = Tool.createDateFormat("LONG", locale);
       }
       else if(format.equals("MEDIUM")) {
-         fmt = DateFormat.getDateInstance(DateFormat.MEDIUM, locale);
+         fmt = Tool.createDateFormat("MEDIUM", locale);
       }
       else if(format.equals("SHORT")) {
-         fmt = DateFormat.getDateInstance(DateFormat.SHORT, locale);
+         fmt = Tool.createDateFormat("SHORT", locale);
       }
       else { // Custom date format.
          fmt = Tool.createDateFormat(format, locale);
