@@ -45,7 +45,9 @@ import static org.junit.jupiter.api.Assertions.*;
  * expression, which they accepted before #77640 only because the lexer dropped the rest.
  *
  * An escape must keep a '..', "..", `..` or [..] unit whole, so a brace inside one is text.
- * An unterminated unit inside an escape must fail the parse so the original SQL runs.
+ * An unterminated unit inside an escape must fail the parse so the original SQL runs, and so
+ * must an escape used as a table, e.g. {oj ...} in FROM, which was written back as one quoted
+ * table name.
  *
  * A string alias holding a double quote, e.g. 'a"b', is written as ALIAS_n, but the column
  * keeps its name, so that part of the bug needs no change and is only pinned here.
@@ -78,7 +80,11 @@ class UniformSQLJdbcEscapeLiteralTest {
          // the second escape was split into two escapes with no lexer error
          Arguments.of("select {fn concat('{}', s)} as x, {fn concat('}{', s)} as y from t",
                       "{fn concat('}{', s)}", true),
-         Arguments.of("select {fn ucase(\"a}b\")} from t", "{fn ucase(\"a}b\")}", true));
+         Arguments.of("select {fn ucase(\"a}b\")} from t", "{fn ucase(\"a}b\")}", true),
+         Arguments.of("select {fn ucase(`a}b`)} from t", "{fn ucase(`a}b`)}", false),
+         Arguments.of("select {fn ucase([a}b])} from t", "{fn ucase([a}b])}", false),
+         // a doubled quote is read as two adjacent quoted units
+         Arguments.of("select {fn ucase(\"a\"\"}b\")} from t", "{fn ucase(\"a\"\"}b\")}", true));
    }
 
    // quoted units holding the other quote characters, which already parsed and must keep
@@ -107,12 +113,13 @@ class UniformSQLJdbcEscapeLiteralTest {
             }
 
             stmt.execute("create table t (id int, s varchar(20), k int, d date, " +
-                            "\"a}b\" varchar(10), \"it's\" varchar(10))");
+                            "\"a}b\" varchar(10), \"it's\" varchar(10), " +
+                            "\"a\"\"}b\" varchar(10))");
             stmt.execute("insert into t values " +
-               "(1, '}x', 1, cast('2020-01-01' as date), 'p}', 'q'), " +
-               "(2, '{', 2, null, null, 'it''s'), " +
-               "(3, 'a', null, cast('2021-06-30' as date), '{}', null), " +
-               "(4, null, 1, null, 'r', '}')");
+               "(1, '}x', 1, cast('2020-01-01' as date), 'p}', 'q', 'u'), " +
+               "(2, '{', 2, null, null, 'it''s', '}'), " +
+               "(3, 'a', null, cast('2021-06-30' as date), '{}', null, null), " +
+               "(4, null, 1, null, 'r', '}', 'v{')");
          }
       }
    }
@@ -194,6 +201,9 @@ class UniformSQLJdbcEscapeLiteralTest {
       "{fn concat('}', s)}",
       "{fn concat('{', s)}",
       "{fn ucase(\"a}b\")}",
+      "{fn ucase(`a}b`)}",
+      "{fn ucase([a}b])}",
+      "{fn ucase(\"a\"\"}b\")}",
       "{fn concat('}', s)} + 1",
    })
    void expressionWithQuotedBraceIsValid(String exp) {
@@ -228,6 +238,23 @@ class UniformSQLJdbcEscapeLiteralTest {
       "select {fn concat('a\\'b', s)} from t",
    })
    void unterminatedUnitInEscapeFailsParse(String text) throws Exception {
+      assertParseFails(text);
+   }
+
+   // a JDBC escape can't be a table: it was written back as one quoted table name, e.g.
+   // from "{oj t left outer join u on t.id = u.id}", so the parse must fail and the original
+   // SQL run. With a quoted brace it failed before, since the escape was cut short.
+   @ParameterizedTest
+   @ValueSource(strings = {
+      "select * from {oj t left outer join u on t.s = '}'}",
+      "select t.id from {oj t left outer join u on t.id = u.id}",
+      "select * from a, {oj t left outer join u on t.id = u.id}",
+   })
+   void escapeAsTableFailsParse(String text) throws Exception {
+      assertParseFails(text);
+   }
+
+   private static void assertParseFails(String text) throws Exception {
       for(String type : TYPES) {
          JDBCDataSource ds = dataSource(type);
          UniformSQL sql = new UniformSQL();
