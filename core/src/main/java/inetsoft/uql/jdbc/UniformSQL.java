@@ -891,9 +891,14 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
             }
 
             OrderByItem item = new OrderByItem(field, order);
-            // the quoting of this item, two items may have the same text (Bug #77573)
+            // the quoting of this item, two items may have the same text (Bug #77573). An
+            // element without it (saved before) is quoted by its text, as before
             String quote = readQuotedField(sortNode, field);
-            item.setQuoted(quote != null, getQuotedSegment(quote));
+
+            if(hasQuotedFieldAttribute(sortNode)) {
+               item.setQuoted(quote != null, getQuotedSegment(quote));
+            }
+
             orderByList.add(item);
             setQuotedAggregate(field, Tool.getAttribute(sortNode, "quotedAggregate"));
          }
@@ -905,6 +910,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
          nlist = ((Element) nlist.item(0)).getElementsByTagName("field");
          groups = new Object[nlist.getLength()];
          groupQuotes = new String[groups.length];
+         boolean[] known = new boolean[groups.length];
 
          for(int i = 0; i < nlist.getLength(); i++) {
             Element groupNode = (Element) nlist.item(i);
@@ -912,6 +918,14 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
             groups[i] = field;
 
             groupQuotes[i] = readQuotedField(groupNode, field);
+            known[i] = hasQuotedFieldAttribute(groupNode);
+         }
+
+         // an element without its quoting (saved before) is quoted by its text, as before
+         for(int i = 0; i < groups.length; i++) {
+            if(!known[i]) {
+               groupQuotes[i] = quotedFields.get(groups[i]);
+            }
          }
       }
 
@@ -1203,12 +1217,13 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
       writer.print("<sortby>");
       OrderByItem[] orderItems = this.getOrderByItems();
       Object[] orderField = Arrays.stream(orderItems).map(OrderByItem::getField).toArray();
+      Set<String> quotedTexts = getQuotedFieldTexts(orderItems);
 
       for(int i = 0; i < orderField.length; i++) {
          // the direction of the item itself, none if not set (Bug #77570)
          String order = orderItems[i].getOrder();
          writer.print("<field" + (order != null ? " order=\"" + order + "\"" : "") +
-                      quotedFieldAttribute(getQuote(orderItems[i])) +
+                      quotedFieldAttribute(getQuote(orderItems[i]), orderField[i], quotedTexts) +
                       quotedAggregateAttribute(orderField[i]) + "><![CDATA[");
          writer.print(orderField[i].toString());
          writer.print("]]></field>");
@@ -1224,7 +1239,8 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
       Object[] groupby = this.getGroupBy();
 
       for(int i = 0; groupby != null && i < groupby.length; i++) {
-         writer.print("<field" + quotedFieldAttribute(getGroupQuote(i)) + "><![CDATA[");
+         writer.print("<field" + quotedFieldAttribute(getGroupQuote(i), groupby[i], quotedTexts) +
+                      "><![CDATA[");
          writer.print(groupby[i].toString());
          writer.print("]]></field>");
       }
@@ -3972,13 +3988,47 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
     * quoted="true", which older versions read as quoting the whole name ("t.MixedCase").
     * They ignore quotedColumn and generate the name unquoted, as before.
     */
-   private static String quotedFieldAttribute(String quote) {
+   private static String quotedFieldAttribute(String quote, Object field, Set<String> quotedTexts) {
       if(quote == null) {
-         return "";
+         // an element without the attribute is quoted by its text when read (saved before
+         // the quoting was kept per element), so an unquoted field of a quoted text says so.
+         // Older versions only read "true"
+         return quotedTexts.contains(field) ? " quoted=\"false\"" : "";
       }
 
       return !quote.isEmpty() ? " quotedColumn=\"" + Tool.escape(quote) + "\"" :
          " quoted=\"true\"";
+   }
+
+   /**
+    * Get the text of the group by and order by fields that are written as quoted, or that
+    * read as quoted by their text.
+    */
+   private Set<String> getQuotedFieldTexts(OrderByItem[] orderItems) {
+      Set<String> texts = new HashSet<>(quotedFields.keySet());
+
+      for(OrderByItem item : orderItems) {
+         if(item.getField() instanceof String && getQuote(item) != null) {
+            texts.add((String) item.getField());
+         }
+      }
+
+      for(int i = 0; groups != null && i < groups.length; i++) {
+         if(groups[i] instanceof String && getGroupQuote(i) != null) {
+            texts.add((String) groups[i]);
+         }
+      }
+
+      return texts;
+   }
+
+   /**
+    * Check if a group by or order by element has its quoting, written since the quoting is
+    * kept per element (Bug #77573). Without it, the field is quoted by its text.
+    */
+   private static boolean hasQuotedFieldAttribute(Element node) {
+      String seg = Tool.getAttribute(node, "quotedColumn");
+      return Tool.getAttribute(node, "quoted") != null || seg != null && !seg.isEmpty();
    }
 
    /**

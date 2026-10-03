@@ -355,7 +355,10 @@ class UniformSQLQuotedTwinColumnTest {
       assertEquals("select \"MixedCase\", MixedCase as b from t group by \"MixedCase\", MixedCase " +
                    "order by MixedCase desc, \"MixedCase\" asc", regenerate(load(xml, null)));
 
-      String unquoted = xml.replace("<quoted><![CDATA[true]]></quoted>", "").replace(" quoted=\"true\"", "");
+      // the unquoted twin of a quoted text says so, it would read as quoted by its text
+      assertEquals(2, count(xml, " quoted=\"false\"><![CDATA[MixedCase]]></field>"), xml);
+      String unquoted = xml.replace("<quoted><![CDATA[true]]></quoted>", "").replace(" quoted=\"true\"", "")
+         .replace(" quoted=\"false\"", "");
       assertEquals("select MixedCase, MixedCase as b from t group by MixedCase, MixedCase " +
                    "order by MixedCase desc", regenerate(load(unquoted, null)));
 
@@ -368,6 +371,40 @@ class UniformSQLQuotedTwinColumnTest {
 
       String qualified = toXML(parse("select t.\"MixedCase\", t.MixedCase as b from t"));
       assertEquals(1, count(qualified, "<quotedColumn column=\"MixedCase\"/>"), qualified);
+   }
+
+   /**
+    * An order by or group by element saved before the quoting was kept per element has no
+    * attribute, and is quoted by its text as before. Bug #77573 verification: saved by a
+    * build with #6105, order by "1" was an ordinal there and only the group by "1" carried
+    * the flag, so it must reload as the column "1", not as ordinal 1.
+    */
+   @Test
+   void elementSavedWithoutItsQuotingIsQuotedByItsText() throws Exception {
+      String query = "select id, \"1\" from n group by \"1\", id order by \"1\"";
+      String xml = toXML(parse(query));
+      assertTrue(xml.contains("<field quoted=\"true\"><![CDATA[1]]></field>"), xml);
+
+      // as written by that build: no attribute on the order by element
+      String old = xml.replace("<field order=\"asc\" quoted=\"true\">", "<field order=\"asc\">");
+      assertNotEquals(xml, old);
+      assertEquals("select id, \"1\" from n group by \"1\", id order by \"1\" asc", regenerate(load(old, null)));
+
+      // none on the group by element, but the order by element of that text is quoted
+      String oldGroup = xml.replace("<field quoted=\"true\"><![CDATA[1]]></field>", "<field><![CDATA[1]]></field>");
+      assertNotEquals(xml, oldGroup);
+      assertEquals("select id, \"1\" from n group by \"1\", id order by \"1\" asc",
+                   regenerate(load(oldGroup, null)));
+
+      // round trip: the reloaded asset writes the attributes and reloads the same
+      UniformSQL reloaded = load(old, null);
+      assertEquals(regenerate(load(old, null)), regenerate(load(toXML(reloaded), null)));
+
+      // an unquoted twin written now says so, and doesn't read as quoted by its text
+      UniformSQL twins = parse("select \"MixedCase\", MixedCase as b from t order by MixedCase desc, \"MixedCase\"");
+      String twinsXml = toXML(twins);
+      assertTrue(twinsXml.contains("<field order=\"desc\" quoted=\"false\">"), twinsXml);
+      assertEquals(regenerate(twins), regenerate(load(twinsXml, null)));
    }
 
    /**
