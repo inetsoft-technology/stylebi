@@ -158,6 +158,12 @@ class UniformSQLCrossJoinChainTest {
          // a parenthesized join on the right of a join with no join condition is explicit
          Arguments.of(COLS3 + "from a join (b right join c on b.id = c.id)", "b.id =* c.id",
                       COLS3 + "from b RIGHT OUTER JOIN c ON b.id = c.id , a"),
+         Arguments.of(COLS3 + "from a join ((b right join c on b.id = c.id))", "b.id =* c.id",
+                      COLS3 + "from b RIGHT OUTER JOIN c ON b.id = c.id , a"),
+         Arguments.of("select a.id, c.id, t.id from a join ((select id from b) t right join c " +
+                         "on t.id = c.id)", "t.id =* c.id",
+                      "select a.id, c.id, t.id from ( select id from b) t RIGHT OUTER JOIN c " +
+                         "ON t.id = c.id , a"),
          // an ON-less join followed by a LEFT join is unchanged
          Arguments.of(COLS3 + "from a join b left join c on b.id = c.id", "b.id *= c.id",
                       COLS3 + "from b LEFT OUTER JOIN c ON b.id = c.id , a")
@@ -194,16 +200,28 @@ class UniformSQLCrossJoinChainTest {
             // Oracle without ansi join writes (+) joins, which can't keep a RIGHT join
             // mixed with an inner or cross join, or a nested join on the right of an outer
             // join. The join order check refuses these, as with one pair of parentheses
-            assertEquals("oracle", type, text + ": " + ex.getMessage());
+            assertTrue("oracle".equals(type) && ORACLE_REFUSED.contains(text),
+                       type + ": " + text + ": " + ex.getMessage());
             assertTrue(ex.getMessage().startsWith("Unsupported"), ex.getMessage());
             continue;
          }
+
+         assertFalse("oracle".equals(type) && ORACLE_REFUSED.contains(text),
+                     "oracle should refuse: " + text);
 
          assertEquals(UniformSQL.PARSE_SUCCESS, sql.getParseResult(), type + ": " + text);
          assertFalse(sql.isLossy(), type + ": " + text);
          assertRoundTrip(regenerate(sql), ds);
       }
    }
+
+   // the accepted shapes Oracle without ansi join refuses
+   private static final Set<String> ORACLE_REFUSED = Set.of(
+      COLS3 + "from a right join b on a.id = b.id cross join c",
+      COLS4 + "from ((a join b on a.id = b.id)) left join ((c join d on c.id = d.id)) on b.id = c.id",
+      COLS3 + "from a join (b right join c on b.id = c.id)",
+      COLS3 + "from a join ((b right join c on b.id = c.id))",
+      "select a.id, c.id, t.id from a join ((select id from b) t right join c on t.id = c.id)");
 
    @Test
    void oracleWritesTheOuterJoinAfterACrossJoinInWhere() throws Exception {
@@ -240,7 +258,9 @@ class UniformSQLCrossJoinChainTest {
          // a cross join takes no join condition or parenthesized operand
          "select * from a cross join b on a.id = b.id",
          "select * from a cross join (b join c on b.id = c.id)",
-         "select * from (a join b on a.id = b.id) x"
+         "select * from (a join b on a.id = b.id) x",
+         // a doubly parenthesized derived table doesn't parse as a join operand
+         "select a.id, c.id, t.id from a join ((select id from b)) t right join c on t.id = c.id"
       );
    }
 
@@ -255,7 +275,22 @@ class UniformSQLCrossJoinChainTest {
          COLS3 + "from a inner join b full outer join c on b.id = c.id",
          COLS4 + "from a join b left join c on b.id = c.id right join d on c.id = d.id",
          COLS4 + "from a join b join c on b.id = c.id right join d on c.id = d.id",
-         COLS3 + "from x where exists (select 1 from a join b right join c on b.id = c.id)"
+         COLS3 + "from x where exists (select 1 from a join b right join c on b.id = c.id)",
+         // the nested join starts with a derived table, not a parenthesized join, so its
+         // first token ( doesn't make it explicit (review r1)
+         "select a.id, b.id, d.id, t.id from a cross join b join (select id from c) t " +
+            "right join d on t.id = d.id",
+         "select a.id, b.id, d.id, t.id from a cross join b join (select id from c) t " +
+            "full join d on t.id = d.id",
+         "select a.id, b.id, d.id, e.id, t.id from a join b on a.id = b.id cross join e " +
+            "join (select id from c) t right join d on t.id = d.id",
+         "select a.id, c.id, t.id from a join (select id from b) t right join c on t.id = c.id",
+         "select a.id, c.id, t.id from a inner join (select id from b) t full join c on t.id = c.id",
+         "select a.id, c.id, d.id, t.id from a join (select id from b) as t left join c " +
+            "on t.id = c.id right join d on c.id = d.id",
+         // refused though every reading is a x b x (c right join d): the R join recorded
+         // inside the parenthesized operand of the second join is seen by the first
+         COLS4 + "from a join b join (c right join d on c.id = d.id)"
       );
    }
 
@@ -491,8 +526,11 @@ class UniformSQLCrossJoinChainTest {
       createTables(conn);
       List<String> generated = new ArrayList<>();
 
-      // MongoHelper writes the joins in text order, a different generation path
-      for(String type : new String[] { "default", "h2", "h2-ansi", "mongo", "mongo-ansi" }) {
+      // MongoHelper writes the joins in text order, a different generation path. MySQL is
+      // the database that reads an ON-less join before a RIGHT join left associative
+      for(String type : new String[] { "default", "h2", "h2-ansi", "mongo", "mongo-ansi", "mysql",
+                                       "mysql-ansi" })
+      {
          JDBCDataSource ds = "default".equals(type) ? GenericJDBCDataSource.create() : dataSource(type);
          UniformSQL sql = parse(text, ds);
          assertEquals(UniformSQL.PARSE_SUCCESS, sql.getParseResult(), type + ": " + text);

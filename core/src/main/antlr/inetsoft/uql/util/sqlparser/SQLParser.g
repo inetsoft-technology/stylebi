@@ -799,6 +799,9 @@ private List joinOrderChecks = new ArrayList();
 private Map joinEvents = new IdentityHashMap();
 // the from clause index of the first table of each enclosing join
 private LinkedList joinStarts = new LinkedList();
+// true if the last joined_table_2 matched its parenthesized join alternative,
+// ( joined_table_2 ), and not a join whose first table is a derived table
+private boolean parenJoinedTable = false;
 
 /**
  * Get the queries that mix a RIGHT or FULL join with an inner join, or that
@@ -4072,12 +4075,13 @@ joined_table_2 [UniformSQL sql] returns [XExpression exp = null]
         {XExpression tmp; {checkStatus();}}
         :
         (table_ref_nojoin[null, null] CROSS)=>
-        exp = cross_join[sql]
+        exp = cross_join[sql] {parenJoinedTable = false;}
         |
         (table_ref_nojoin[null, null])=>
-        exp = qualified_join[sql]
+        exp = qualified_join[sql] {parenJoinedTable = false;}
         | OPEN_PAREN tmp = joined_table_2[sql] CLOSE_PAREN
-        {exp = new XExpression(); exp.setValue("("+tmp.toString()+")",XExpression.EXPRESSION); }
+        {exp = new XExpression(); exp.setValue("("+tmp.toString()+")",XExpression.EXPRESSION);
+         parenJoinedTable = true;}
         ;
 
 joined_table returns [XExpression exp = null]
@@ -4119,7 +4123,7 @@ qualified_join [UniformSQL sql] returns [XExpression exp = null]
 sub_qualified_join [UniformSQL sql] returns [String str = ""]
         { int rstart = sql == null ? 0 : sql.getTableCount(); int rend = 0;
           String tbl2=""; String tmp; String op = ""; String table = ""; XExpression exp = null; int first = 0; boolean spec = false;
-          int events = 0; Token otok = null; {checkStatus();}}
+          int events = 0; Token otok = null; boolean paren = false; {checkStatus();}}
         :
         // a cross join has no join condition and is recorded with no XJoin. Its right
         // operand is one table, so it's never nested and the cross join is left
@@ -4152,7 +4156,8 @@ sub_qualified_join [UniformSQL sql] returns [String str = ""]
           ((joined_table)=>
             ({first = sql == null ? 0 : sql.getTableCount(); events = getJoinEventCount(sql);
               otok = LT(1);}
-             exp = joined_table_2[sql] {str += exp.toString(); setJoinedTableOps(sql, first, op);})
+             exp = joined_table_2[sql] {str += exp.toString(); setJoinedTableOps(sql, first, op);
+                                        paren = parenJoinedTable;})
             |(table = table_ref_nojoin[sql, op] {str += " " + table;
                                                  tbl2 = table;
                                                  tbl2 = tbl2.trim();})
@@ -4185,9 +4190,12 @@ sub_qualified_join [UniformSQL sql] returns [String str = ""]
             // nested join, e.g. a join b right join c on b.id = c.id. It's recorded as
             // a join (b right join c), which is how H2 reads it, but MySQL and SQLite read
             // it as (a join b) right join c, so the regenerated sql may return different
-            // rows. Only a RIGHT or FULL join in the nested join can change the rows
-            if(sql != null && exp != null && !spec && !isOuterJoinType(op) &&
-               otok.getType() != OPEN_PAREN && hasRightJoinEvent(sql, events))
+            // rows. Only a RIGHT or FULL join in the nested join can change the rows.
+            // The nested join is parenthesized only if joined_table_2 matched its
+            // ( joined_table_2 ) alternative. A nested join that starts with a derived
+            // table, a join (select ..) t right join c on .., also starts with (
+            if(sql != null && exp != null && !spec && !isOuterJoinType(op) && !paren &&
+               hasRightJoinEvent(sql, events))
             {
               throw new SemanticException(
                  "Unsupported RIGHT or FULL join after a join without a join condition",
