@@ -17,6 +17,8 @@
  */
 package inetsoft.util.swap;
 
+import com.sun.management.HotSpotDiagnosticMXBean;
+import com.sun.management.VMOption;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.util.*;
@@ -32,6 +34,7 @@ import java.io.File;
 import java.io.IOException;
 import java.lang.management.GarbageCollectorMXBean;
 import java.lang.management.ManagementFactory;
+import java.lang.management.PlatformManagedObject;
 import java.security.Principal;
 import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -42,7 +45,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.function.BooleanSupplier;
 import java.util.function.LongSupplier;
+import java.util.function.Supplier;
 
 /**
  * XSwapper swapps the swappables.
@@ -296,6 +301,20 @@ public final class XSwapper {
       for(int i = 0; i < threads.length; i++) {
          threads[i] = new XSwapperThread(principal);
          threads[i].start();
+      }
+
+      // the flag is JVM-wide, so check it once even if there are several swappers
+      if(periodicGCChecked.compareAndSet(false, true)) {
+         // linking DiagnosticBean::get loads com.sun.management, which a runtime without the
+         // jdk.management module doesn't have, so it must not escape the constructor either
+         try {
+            enablePeriodicGC(XSwapper::getPeriodicGCInterval,
+                             () -> isG1GC(ManagementFactory.getGarbageCollectorMXBeans()),
+                             DiagnosticBean::get);
+         }
+         catch(Exception | LinkageError ex) {
+            LOG.debug("Failed to set {}", PERIODIC_GC_OPTION, ex);
+         }
       }
    }
 
@@ -696,6 +715,88 @@ public final class XSwapper {
    }
 
    /**
+    * Turn on G1's periodic collection, which runs a concurrent cycle when no collection of
+    * any kind has run for the interval. The memory state counts garbage until a collection
+    * reclaims it, and a node that allocates little can go hours without one, so without
+    * this an idle node keeps reading a stale, low memory state. Under load collections run
+    * anyway and the periodic collection never fires. ZGC and Shenandoah already collect an
+    * idle heap by default. A value set on the command line or by other means is kept.
+    *
+    * @param interval supplies the interval in milliseconds, 0 to leave the option alone.
+    * @param g1       supplies <tt>true</tt> if the JVM uses the G1 collector.
+    * @param bean     supplies the HotSpot diagnostic MXBean. It's typed as a
+    *                 PlatformManagedObject so that this signature doesn't name
+    *                 com.sun.management, see {@link DiagnosticBean}.
+    *
+    * @return <tt>true</tt> if the option was set.
+    */
+   static boolean enablePeriodicGC(LongSupplier interval, BooleanSupplier g1,
+                                   Supplier<? extends PlatformManagedObject> bean)
+   {
+      // everything runs inside the try so that a failure can't stop the swapper from starting
+      try {
+         final long millis = interval.getAsLong();
+
+         if(millis <= 0 || !g1.getAsBoolean()) {
+            return false;
+         }
+
+         final HotSpotDiagnosticMXBean diagnostic = (HotSpotDiagnosticMXBean) bean.get();
+
+         if(diagnostic == null) {
+            return false;
+         }
+
+         final VMOption option = diagnostic.getVMOption(PERIODIC_GC_OPTION);
+
+         // MANAGEMENT is normally an earlier swapper in this JVM; any other origin was set
+         // by the user
+         if(option.getOrigin() != VMOption.Origin.DEFAULT || !option.isWriteable()) {
+            LOG.debug("Not changing {}, it is {} ({})", PERIODIC_GC_OPTION, option.getValue(),
+                      option.getOrigin());
+            return false;
+         }
+
+         diagnostic.setVMOption(PERIODIC_GC_OPTION, Long.toString(millis));
+         LOG.info("Enabled G1 periodic garbage collection after {}ms without a collection, " +
+                     "so that the memory of an idle server is reclaimed. To disable it, set " +
+                     "swapper.idle.gc.interval to 0 and restart; a change takes effect only " +
+                     "after a restart.", millis);
+         return true;
+      }
+      catch(Exception | LinkageError ex) {
+         LOG.debug("Failed to set {}", PERIODIC_GC_OPTION, ex);
+         return false;
+      }
+   }
+
+   /**
+    * Check if the JVM uses the G1 collector.
+    */
+   static boolean isG1GC(Collection<GarbageCollectorMXBean> beans) {
+      return beans.stream().anyMatch(bean -> bean.getName().startsWith("G1 "));
+   }
+
+   /**
+    * Get the G1 periodic collection interval, in milliseconds, from
+    * <tt>swapper.idle.gc.interval</tt>. 0 or less turns it off, and values below
+    * MIN_PERIODIC_GC_INTERVAL are raised to it.
+    */
+   static long getPeriodicGCInterval() {
+      try {
+         final long interval = Long.parseLong(
+            SreeEnv.getProperty("swapper.idle.gc.interval",
+                                Long.toString(DEFAULT_PERIODIC_GC_INTERVAL)).trim());
+         return interval <= 0 ? 0 : Math.max(interval, MIN_PERIODIC_GC_INTERVAL);
+      }
+      catch(NumberFormatException ex) {
+         LOG.warn("Invalid swapper.idle.gc.interval value, using {}ms",
+                  DEFAULT_PERIODIC_GC_INTERVAL, ex);
+         return DEFAULT_PERIODIC_GC_INTERVAL;
+      }
+   }
+
+   /**
     * Get the thread count.
     * @return the thread count.
     */
@@ -1058,6 +1159,15 @@ public final class XSwapper {
    private static final long MIN_GC_INTERVAL = 1000L;
    // minimum spacing between two garbage collections, as a multiple of the last pause
    private static final long GC_PAUSE_FACTOR = 20L;
+   // G1 option for a concurrent collection after an interval without any collection
+   private static final String PERIODIC_GC_OPTION = "G1PeriodicGCInterval";
+   // default G1 periodic collection interval
+   private static final long DEFAULT_PERIODIC_GC_INTERVAL = 300000L;
+   // lowest accepted swapper.idle.gc.interval other than 0; garbage mixed with live objects
+   // takes about 9 periodic collections to reclaim, so shorter intervals only add cycles
+   private static final long MIN_PERIODIC_GC_INTERVAL = 60000L;
+   // set when the first swapper in this JVM has checked G1PeriodicGCInterval
+   private static final AtomicBoolean periodicGCChecked = new AtomicBoolean(false);
    // swapping thresholds for [critical, bad, low, norm, good]
    private static final int[] PRIORITY = {1, 5, 20, 50, 200};
    // swapping percentage for [critical, bad, low, norm, good]
@@ -1139,6 +1249,18 @@ public final class XSwapper {
    private final ThreadLocal<Boolean> swapping = ThreadLocal.withInitial(() -> false);
 
    private static final Logger DEBUG_LOG = LoggerFactory.getLogger("inetsoft.swap_data");
+
+   /**
+    * Looks up the HotSpot diagnostic MXBean. This is a separate class, and not a lambda in
+    * XSwapper, so that no method declared by XSwapper has com.sun.management in its
+    * signature: Spring and Mockito reflect on XSwapper's declared methods, which fails if a
+    * signature names a class that the runtime doesn't have (no jdk.management module).
+    */
+   private static final class DiagnosticBean {
+      static HotSpotDiagnosticMXBean get() {
+         return ManagementFactory.getPlatformMXBean(HotSpotDiagnosticMXBean.class);
+      }
+   }
 
    private static final class MonitorMulticaster implements XSwappableMonitor {
       @Override
