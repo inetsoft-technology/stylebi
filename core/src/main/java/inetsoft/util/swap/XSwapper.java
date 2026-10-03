@@ -1464,8 +1464,8 @@ public final class XSwapper {
       @Override
       public void countMisses(int type, int misses) {
          monitors.stream()
-            .filter(m -> m.isLevelQualified(HITS))
-            .forEach(m -> m.countHits(type, misses));
+            .filter(m -> m.isLevelQualified(MISSES))
+            .forEach(m -> m.countMisses(type, misses));
       }
 
       @Override
@@ -1478,7 +1478,7 @@ public final class XSwapper {
       @Override
       public void countWrite(long num, int type) {
          monitors.stream()
-            .filter(m -> m.isLevelQualified(READ))
+            .filter(m -> m.isLevelQualified(WRITTEN))
             .forEach(m -> m.countWrite(num, type));
       }
 
