@@ -147,6 +147,120 @@ public class VpmCondition extends VpmObject {
                           Principal user, boolean checkVariable)
       throws Exception
    {
+      XPartition xpart = null;
+
+      if(partition != null) {
+         XDataModel model = source == null ? null :
+            XRepository.getRepository().getDataModel(source.getFullName());
+         xpart = model == null ? null : model.getPartition(partition, user);
+         xpart = xpart == null ? null : xpart.applyAutoAliases();
+      }
+
+      int[] targets = getTargetTables(tables, taliases, xpart);
+
+      if(targets.length == 0) {
+         return evaluate(partition, xpart, tables, taliases, columns, source, vars, user,
+                         checkVariable, -1);
+      }
+
+      // Bug #77612, a table read more than once (t a join t b) needs the condition on each
+      // occurrence, or the rows of the other occurrences are not filtered
+      Set<String> results = new LinkedHashSet<>();
+
+      for(int target : targets) {
+         String result = evaluate(partition, xpart, tables, taliases, columns, source, vars,
+                                  user, checkVariable, target);
+
+         if(result != null && !result.isEmpty()) {
+            results.add(result);
+         }
+      }
+
+      if(results.size() <= 1) {
+         return results.isEmpty() ? null : results.iterator().next();
+      }
+
+      StringBuilder buf = new StringBuilder();
+
+      for(String result : results) {
+         if(buf.length() > 0) {
+            buf.append(" and ");
+         }
+
+         buf.append('(').append(result).append(')');
+      }
+
+      return buf.toString();
+   }
+
+   /**
+    * Get the query tables the condition is evaluated for one at a time. They are the query
+    * tables that are the same as the condition table (or a table of the partition), when more
+    * than one query table is, at any depth (dbo.t and db1.dbo.t) or alias.
+    * @return the indexes of the tables, or an empty array if at most one table is the same.
+    */
+   private int[] getTargetTables(String[] tables, String[] taliases, XPartition xpart) {
+      if(tables == null || taliases == null || tables.length != taliases.length ||
+         tables.length < 2)
+      {
+         return new int[0];
+      }
+
+      Set<String> ctables = new LinkedHashSet<>();
+
+      if(type != PHYSICMODEL) {
+         if(table != null) {
+            ctables.add(table);
+         }
+      }
+      // the condition table is the partition name
+      else if(xpart != null) {
+         Enumeration<XPartition.PartitionTable> ptables = xpart.getTables();
+
+         while(ptables.hasMoreElements()) {
+            String palias = ptables.nextElement().getName();
+            Object pname = xpart.getRunTimeTable(palias, true);
+            ctables.add(palias);
+
+            if(pname instanceof String) {
+               ctables.add((String) pname);
+            }
+         }
+      }
+      else {
+         ctables.addAll(Arrays.asList(tables));
+      }
+
+      Set<Integer> targets = new TreeSet<>();
+
+      for(String ctable : ctables) {
+         List<Integer> matches = new ArrayList<>();
+
+         for(int i = 0; i < tables.length; i++) {
+            if(VirtualPrivateModel.getTableMatch(ctable, tables[i]) > 0) {
+               matches.add(i);
+            }
+         }
+
+         if(matches.size() > 1) {
+            targets.addAll(matches);
+         }
+      }
+
+      return targets.stream().mapToInt(Integer::intValue).toArray();
+   }
+
+   /**
+    * Evaluate the condition with the fields of the target table mapped to its alias.
+    * @param target the index of the query table the fields of its table are mapped to, or -1
+    *               to map a field to the closest table, the first one if more than one.
+    */
+   private String evaluate(String partition, XPartition xpart, String[] tables,
+                           String[] taliases, String[] columns, XDataSource source,
+                           VariableTable vars, Principal user, boolean checkVariable,
+                           int target)
+      throws Exception
+   {
       // create a uniform sql to maintain table information,
       // then sql helper will be able to quote fields properly
       UniformSQL sql = new UniformSQL();
@@ -162,15 +276,8 @@ public class VpmCondition extends VpmObject {
          }
       }
 
-      XPartition xpart = null;
-
       if(partition != null) {
-         XDataModel model = source == null ? null :
-            XRepository.getRepository().getDataModel(source.getFullName());
-         xpart = model == null ? null : model.getPartition(partition, user);
-
          if(xpart != null) {
-            xpart = xpart.applyAutoAliases();
             Enumeration ptables = xpart.getTables();
 
             // add partition tables to quote condition fields properly
@@ -201,7 +308,7 @@ public class VpmCondition extends VpmObject {
 
             if(cnode instanceof XUnaryCondition) {
                XExpression exp = ((XUnaryCondition) cnode).getExpression1();
-               normalizeExpression(exp, tables, taliases, sql, helper, vars, checkVariable);
+               normalizeExpression(exp, tables, taliases, target, sql, helper, vars, checkVariable);
             }
             else if(cnode instanceof XBinaryCondition) {
                XBinaryCondition bcond = (XBinaryCondition) cnode;
@@ -211,9 +318,9 @@ public class VpmCondition extends VpmObject {
                // condition, if we first process right expression, the new
                // added expression(s)' right expression will be ok
                XExpression exp = bcond.getExpression2();
-               normalizeExpression(exp, tables, taliases, sql, helper, vars, checkVariable);
+               normalizeExpression(exp, tables, taliases, target, sql, helper, vars, checkVariable);
                exp = bcond.getExpression1();
-               normalizeExpression(exp, tables, taliases, sql, helper, vars, checkVariable);
+               normalizeExpression(exp, tables, taliases, target, sql, helper, vars, checkVariable);
                Object value = exp.getValue();
 
                //fix bug#30563, for the original table, alias conditions should not be added
@@ -232,11 +339,11 @@ public class VpmCondition extends VpmObject {
             }
             else if(cnode instanceof XTrinaryCondition) {
                XExpression exp = cnode.getExpression1();
-               normalizeExpression(exp, tables, taliases, sql, helper, vars, checkVariable);
+               normalizeExpression(exp, tables, taliases, target, sql, helper, vars, checkVariable);
                exp = ((XTrinaryCondition) cnode).getExpression2();
-               normalizeExpression(exp, tables, taliases, sql, helper, vars, checkVariable);
+               normalizeExpression(exp, tables, taliases, target, sql, helper, vars, checkVariable);
                exp = ((XTrinaryCondition) cnode).getExpression3();
-               normalizeExpression(exp, tables, taliases, sql, helper, vars, checkVariable);
+               normalizeExpression(exp, tables, taliases, target, sql, helper, vars, checkVariable);
             }
          }
 
@@ -321,15 +428,19 @@ public class VpmCondition extends VpmObject {
             "The script result of vpm condition should be a string value!");
       }
 
-      return updateVPMTable((String) result, tables, taliases);
+      return updateVPMTable((String) result, tables, taliases, target);
    }
 
    /**
     * Replace the table qualifiers in a condition with the table aliases. A qualifier names a
     * query table when its segments, quoted or not, are the same as the table's. A name inside
     * another identifier, a string literal or a comment is not a qualifier.
+    * @param target the index of the table a qualifier naming that table at any depth is
+    *               replaced with, or -1 for none.
     */
-   private String updateVPMTable(String condition, String[] tables, String[] taliases) {
+   private String updateVPMTable(String condition, String[] tables, String[] taliases,
+                                 int target)
+   {
       // Bug #77580, the query tables are stored quoted by the sql helper ("sa"."t") while the
       // script may qualify the columns with the unquoted names (sa.t.STATE), and a plain text
       // replace of "t." also hit other identifiers (xt.STATE)
@@ -362,7 +473,7 @@ public class VpmCondition extends VpmObject {
          else if(Character.isLetter(c) || c == '_' ||
             VirtualPrivateModel.getCloseQuote(c) != 0)
          {
-            end = updateQualifier(condition, i, tsegments, tables, taliases, result);
+            end = updateQualifier(condition, i, tsegments, tables, taliases, target, result);
             i = end;
             continue;
          }
@@ -383,10 +494,12 @@ public class VpmCondition extends VpmObject {
    /**
     * Append the dotted name starting at start to the result, with the longest leading
     * segments that name a query table replaced by the table alias.
+    * @param target the index of the table to use if the leading segments name that table at
+    *               any depth, or -1 for none.
     * @return the index after the name.
     */
    private static int updateQualifier(String condition, int start, String[][] tsegments,
-                                      String[] tables, String[] taliases,
+                                      String[] tables, String[] taliases, int target,
                                       StringBuilder result)
    {
       List<String> segments = new ArrayList<>();
@@ -436,6 +549,22 @@ public class VpmCondition extends VpmObject {
          }
       }
 
+      int count = match < 0 ? 0 : tsegments[match].length;
+
+      // Bug #77612, a qualifier that is the same as the target table, at any depth, is the
+      // target, so each occurrence of a table read more than once is filtered
+      if(target >= 0) {
+         for(int i = segments.size() - 1; i > 0; i--) {
+            String[] qualifier = segments.subList(0, i).toArray(new String[0]);
+
+            if(VirtualPrivateModel.getTableMatch(qualifier, tsegments[target]) > 0) {
+               match = target;
+               count = i;
+               break;
+            }
+         }
+      }
+
       String alias = match < 0 ? null : taliases[match];
 
       // an unaliased table keeps its name
@@ -443,7 +572,7 @@ public class VpmCondition extends VpmObject {
          result.append(condition, start, end);
       }
       else {
-         result.append(alias).append(condition, ends.get(tsegments[match].length - 1), end);
+         result.append(alias).append(condition, ends.get(count - 1), end);
       }
 
       return end;
@@ -476,14 +605,14 @@ public class VpmCondition extends VpmObject {
     *                      exist in vars.
     */
    private void normalizeExpression(XExpression exp, String[] tables,
-                                    String[] taliases, UniformSQL sql,
+                                    String[] taliases, int target, UniformSQL sql,
                                     SQLHelper helper, VariableTable vars,
                                     boolean checkVariable)
    {
       Object value = exp.getValue();
 
       if(exp.getType().equals(XExpression.FIELD)) {
-         value = getColumn(value, tables, taliases, sql);
+         value = getColumn(value, tables, taliases, target, sql);
 
          if(value != null) {
             exp.setValue(value, exp.getType());
@@ -534,13 +663,13 @@ public class VpmCondition extends VpmObject {
          }
 
          value = replaceColumnTableName((String) value, fields, tables,
-                                        taliases, sql, helper);
+                                        taliases, target, sql, helper);
          exp.setValue(value, exp.getType());
       }
    }
 
    private String replaceColumnTableName(String exp, String[] columns,
-                                         String[] tables, String[] taliases,
+                                         String[] tables, String[] taliases, int target,
                                          UniformSQL sql, SQLHelper helper)
    {
       if(columns == null || columns.length <= 0) {
@@ -550,7 +679,7 @@ public class VpmCondition extends VpmObject {
       String[] ncolumns = new String[columns.length];
 
       for(int i = 0; i < columns.length; i++) {
-         ncolumns[i] = getColumn(columns[i], tables, taliases, sql);
+         ncolumns[i] = getColumn(columns[i], tables, taliases, target, sql);
       }
 
       for(int i = 0; i < columns.length; i++) {
@@ -570,7 +699,7 @@ public class VpmCondition extends VpmObject {
    }
 
    private String getColumn(Object value, String[] tables,
-                            String[] taliases, UniformSQL sql)
+                            String[] taliases, int target, UniformSQL sql)
    {
       // Object value = exp.getValue();
 
@@ -602,18 +731,30 @@ public class VpmCondition extends VpmObject {
          }
       }
 
+      // Bug #77612, the field's table at any depth is the target, so each occurrence of a
+      // table read more than once is filtered
+      if(find_step == 0 && target >= 0 &&
+         VirtualPrivateModel.getTableMatch(tpart, tables[target]) > 0)
+      {
+         alias = taliases[target];
+         alias = alias == null || alias.length() == 0 ? tpart : alias;
+      }
+
       if(find_step == -1) {
          for(int i = 0; i < tables.length; i++) {
-            // the field is the table name and a column, not the table name alone
-            if(tables[i] != null && field.length() > tables[i].length() + 1 &&
-               field.charAt(tables[i].length()) == '.' &&
-               field.toLowerCase().startsWith(tables[i].toLowerCase()))
-            {
+            if(isTableField(field, tables[i])) {
                tpart = tables[i];
                alias = taliases[i];
                alias = alias == null || alias.length() == 0 ? tpart : alias;
                find_step = 1;
             }
+         }
+
+         // Bug #77612, the same table read more than once
+         if(find_step == 1 && target >= 0 && isTableField(field, tables[target])) {
+            tpart = tables[target];
+            alias = taliases[target];
+            alias = alias == null || alias.length() == 0 ? tpart : alias;
          }
       }
 
@@ -637,6 +778,15 @@ public class VpmCondition extends VpmObject {
       }
 
       return nfield;
+   }
+
+   /**
+    * Check if the field is the table name and a column, not the table name alone.
+    */
+   private static boolean isTableField(String field, String table) {
+      return table != null && field.length() > table.length() + 1 &&
+         field.charAt(table.length()) == '.' &&
+         field.toLowerCase().startsWith(table.toLowerCase());
    }
 
    /**

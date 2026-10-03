@@ -169,31 +169,8 @@ class VpmQuotedTableMatchTest {
                       "y.STATE = 1"),
          Arguments.of(DEFAULT, "select x.id, y.id from sa.t x, sb.t y where x.id = y.id", "sb.t",
                       "y.STATE = 1"),
-         // an exact match wins over a table qualified to a different depth, in either order
-         Arguments.of(DEFAULT, "select x.id, y.id from dbo.t x, db1.dbo.t y where x.id = y.id",
-                      "db1.dbo.t", "y.STATE = 1"),
-         Arguments.of(DEFAULT, "select x.id, y.id from db1.dbo.t y, dbo.t x where x.id = y.id",
-                      "db1.dbo.t", "y.STATE = 1"),
-         Arguments.of(DEFAULT, "select x.id, y.id from db2.sa.t x, sa.t y where x.id = y.id",
-                      "sa.t", "y.STATE = 1"),
-         Arguments.of(DEFAULT, "select x.id, y.id from sa.t y, db2.sa.t x where x.id = y.id",
-                      "sa.t", "y.STATE = 1"),
-         Arguments.of(DEFAULT, "select x.id, y.id from t x, sa.t y where x.id = y.id", "sa.t",
-                      "y.STATE = 1"),
-         Arguments.of(DEFAULT, "select x.id, y.id from sa.t y, t x where x.id = y.id", "sa.t",
-                      "y.STATE = 1"),
-         Arguments.of(POSTGRESQL, "select x.id, y.id from sa.t x, db1.sa.t y where x.id = y.id",
-                      "db1.sa.t", "y.\"STATE\" = 1"),
-         Arguments.of(POSTGRESQL, "select x.id, y.id from db1.sa.t y, sa.t x where x.id = y.id",
-                      "db1.sa.t", "y.\"STATE\" = 1"),
-         Arguments.of(H2, "select x.id, y.id from dbo.t x, db1.dbo.t y where x.id = y.id",
-                      "db1.dbo.t", "y.STATE = 1"),
-         Arguments.of(H2, "select x.id, y.id from db1.dbo.t y, dbo.t x where x.id = y.id",
-                      "db1.dbo.t", "y.STATE = 1"),
-         Arguments.of(SQLSERVER, "select x.id, y.id from db2.dbo.t x, dbo.t y where x.id = y.id",
-                      "dbo.t", "y.\"STATE\" = 1"),
-         Arguments.of(SQLSERVER, "select x.id, y.id from dbo.t y, db2.dbo.t x where x.id = y.id",
-                      "dbo.t", "y.\"STATE\" = 1"),
+         // a table qualified to a different depth in the same query, see
+         // VpmConditionOccurrenceTest
          // control
          Arguments.of(DEFAULT, "select a.id from t a", "t", "a.STATE = 1"));
    }
@@ -236,8 +213,6 @@ class VpmQuotedTableMatchTest {
          Arguments.of(DEFAULT, "select a.id, b.id from t a, xt b where a.id = b.id", "t",
                       "t.STATE = 'NJ' and xt.K = 1 and t.N = 't.x'",
                       "a.STATE = 'NJ' and b.K = 1 and a.N = 't.x'"),
-         Arguments.of(DEFAULT, "select x.id, y.id from sa.t x, t y where x.id = y.id", "t",
-                      "sa.t.STATE = 1 and t.STATE = 2", "x.STATE = 1 and y.STATE = 2"),
          // an unaliased table keeps its name
          Arguments.of(POSTGRESQL, "select t.id from t", "t", "t.STATE = 'NJ'", "t.STATE = 'NJ'"));
    }
