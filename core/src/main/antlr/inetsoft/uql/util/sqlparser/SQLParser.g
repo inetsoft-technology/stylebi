@@ -805,23 +805,27 @@ private boolean parenJoinedTable = false;
 // or a parenthesized join with no join after it, which failed to parse before
 // Bug #77495. Reset at the start of each statement
 private boolean newFromSyntax = false;
-// the queries with joins recorded before the statement, which it doesn't check
+// the queries with joins recorded before the statement, which it doesn't check. Only
+// the _debug multi-statement rule parses more than one statement with a parser, every
+// other caller creates a parser per statement
 private Set priorJoinQueries = Collections.newSetFromMap(new IdentityHashMap());
 
 /*
- * The RIGHT and FULL joins that UniformSQL can't keep, and the check that refuses
- * each. All three read the JoinEvents of the from clauses.
+ * The outer joins that UniformSQL can't keep, and the check that refuses each. All
+ * three read the JoinEvents of the from clauses.
  * - checkRightJoins/checkJoinOrder (Bug #77434): a RIGHT or FULL join mixed with an
  *   inner or cross join, or a nested join on the right side of an outer join, whose
  *   regenerated joins differ. Checked after the parse, by UniformSQL.
  * - sub_qualified_join (Bug #77495): a join with no join condition whose right operand
  *   is an unparenthesized nested join with a RIGHT or FULL join (parenJoinedTable), in
  *   any statement, e.g. a join b right join c on .., a join (select ..) t right join c ..
- * - checkNewFromRightJoins (Bug #77495): any RIGHT or FULL join after another from
- *   item (lstart > 0), at any query level, in a statement that uses the syntax that
- *   failed to parse before (newFromSyntax). Statements without it are not checked,
- *   so it doesn't replace the other two, which also refuse statements that parsed
- *   before Bug #77495 but regenerated different joins.
+ * - checkNewFromOuterJoins (Bug #77495): any LEFT, RIGHT or FULL join after another
+ *   from item (lstart > 0), at any query level, in a statement that uses the syntax
+ *   that failed to parse before (newFromSyntax). A LEFT join counts too, since
+ *   SQLHelper writes t LEFT JOIN (nested join) as (nested join) RIGHT OUTER JOIN t.
+ *   Statements without the new syntax are not checked, so it doesn't replace the
+ *   other two, which also refuse statements that parsed before Bug #77495 but
+ *   regenerated different joins.
  */
 
 /**
@@ -949,7 +953,7 @@ private void markNewFromJoin(UniformSQL sql) {
 
 /**
  * Start a statement, the from clauses of a statement are checked together by
- * checkNewFromRightJoins.
+ * checkNewFromOuterJoins.
  */
 private void startStatement() {
    newFromSyntax = false;
@@ -957,11 +961,13 @@ private void startStatement() {
 }
 
 /**
- * Check the RIGHT and FULL joins of every from clause of a statement that has a
- * cross join chain or a parenthesized join with no join after it, in any from clause
- * at any query level. A RIGHT or FULL join whose left operand doesn't start at the
- * first table of its from clause is in a group of joined tables after another from
- * item: a comma item, or the right operand of another join. SQLHelper may write
+ * Check the outer joins of every from clause of a statement that has a cross join
+ * chain or a parenthesized join with no join after it, in any from clause at any
+ * query level. An outer join whose left operand doesn't start at the first table of
+ * its from clause is in a group of joined tables after another from item: a comma
+ * item, or the right operand of another join. A LEFT join is checked too, since
+ * SQLHelper writes t LEFT JOIN (nested join) as (nested join) RIGHT OUTER JOIN t, and
+ * a LEFT join group is refused whatever its right operand. SQLHelper may write
  * such a group as a comma item after another group of joined tables, e.g.
  * a INNER JOIN b ON .. , c RIGHT OUTER JOIN d ON .., or move the tables before it
  * after it, e.g. when the join condition of the enclosing join doesn't join the
@@ -969,16 +975,18 @@ private void startStatement() {
  * (a join b, c) right join d, so the regenerated sql returns different rows there,
  * and it reads the original x, c right join d on .. that way too. Before Bug #77495
  * the whole statement failed to parse, so the original sql ran, and it still does.
- * A statement without the new syntax is not checked, it parses as before. A RIGHT or
- * FULL join at the start of its from clause is written the same.
+ * A statement without the new syntax is not checked, it parses as before. An outer
+ * join at the start of its from clause is written the same.
  * <p>
  * Called at the end of each from clause, so it checks the joins of the from clauses
  * parsed so far once any of them has the new syntax, and every later from clause.
  */
-private void checkNewFromRightJoins() throws SemanticException {
+private void checkNewFromOuterJoins() throws SemanticException {
    if(!newFromSyntax) {
       return;
    }
+
+   boolean left = false;
 
    for(Iterator i = joinEvents.entrySet().iterator(); i.hasNext();) {
       Map.Entry entry = (Map.Entry) i.next();
@@ -997,7 +1005,15 @@ private void checkNewFromRightJoins() throws SemanticException {
                "Unsupported RIGHT or FULL join after another from item", getFilename(),
                tok == null ? 0 : tok.getLine(), tok == null ? 0 : tok.getColumn());
          }
+
+         left = left || "L".equals(event.kind) && event.lstart > 0;
       }
+   }
+
+   // reported after the scan, so a statement with a RIGHT or FULL join too reports it
+   if(left) {
+      throw new SemanticException("Unsupported LEFT join after another from item",
+                                  getFilename(), 0, 0);
    }
 }
 
@@ -3873,7 +3889,7 @@ from_clause [UniformSQL sql]
         {String tmp; {checkStatus();}}
         :
         FROM tmp = table_ref[sql] ( COMMA {clearUsingMerges(sql);} tmp = table_ref[sql] )*
-        {checkNewFromRightJoins();}
+        {checkNewFromOuterJoins();}
         ;
 
 ansi_joins [UniformSQL sql] returns [String str = ""]
