@@ -113,6 +113,72 @@ class SelectionListSwapInTest {
    }
 
    @Test
+   void swappedParentWaitsOnceForItselfButNotForChild() {
+      for(String op : new String[] { "getAll", "sort", "clone", "findAll", "merge" }) {
+         XSwapper swapper = spy(XSwapper.getSwapper());
+         doNothing().when(swapper).waitForMemory();
+         SelectionList parent = createList("v");
+         SelectionList child = createList("c");
+         CompositeSelectionValue value = new CompositeSelectionValue("p", "p");
+         value.setSelectionList(child);
+         parent.addSelectionValue(value);
+         parent.swapper = swapper;
+         child.swapper = swapper;
+         assertTrue(child.swap(), "child list was not swapped");
+         assertTrue(parent.swap(), "parent list was not swapped");
+
+         switch(op) {
+         case "getAll":
+            assertEquals(2 * VALUES + 1, parent.getAllSelectionValues().length);
+            break;
+         case "sort":
+            parent.sort(XConstants.SORT_DESC);
+            break;
+         case "clone":
+            assertNotNull(parent.clone());
+            break;
+         case "findAll":
+            parent.findAll("c1", false);
+            break;
+         default:
+            SelectionList other = new SelectionList();
+            other.addSelectionValue(new SelectionValue("x", "x"));
+            parent.mergeSelectionList(other);
+         }
+
+         verify(swapper, times(1).description(op)).waitForMemory();
+         assertTrue(parent.isValid(), op);
+         assertTrue(child.isValid(), op);
+         parent.dispose();
+         child.dispose();
+      }
+   }
+
+   @Test
+   void exceptionUnderParentLockDoesNotSuppressLaterWaits() {
+      XSwapper swapper = spy(XSwapper.getSwapper());
+      doNothing().when(swapper).waitForMemory();
+      SelectionList parent = new SelectionList();
+      parent.addSelectionValue(new SelectionValue("x", "x") {
+         @Override
+         public Object clone() {
+            throw new IllegalStateException("clone failed");
+         }
+      });
+      parent.complete();
+      parent.swapper = swapper;
+
+      // clone() logs the exception and returns null
+      assertNull(parent.clone());
+
+      SelectionList list = createSwappedList("v");
+      list.swapper = swapper;
+      assertEquals(VALUES, list.getSelectionValues().length);
+      verify(swapper, times(1)).waitForMemory();
+      list.dispose();
+   }
+
+   @Test
    void accessOfResidentListDoesNotWait() {
       SelectionList list = createList("v");
       XSwapper swapper = spy(XSwapper.getSwapper());
