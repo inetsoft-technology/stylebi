@@ -77,6 +77,10 @@ class XSwapperCacheSweepTest {
       File ownOther = createCacheFile(XSwapper.getSwapper().getPrefix() + "_slist.swap");
       File foreignData = createCacheFile("s1_1.tdat");
       File foreignOther = createCacheFile("s1_2_slist.swap");
+      // Bug #77627, outside the registration grace period so the sweep is not
+      // just waiting it out
+      assertTrue(foreignData.setLastModified(
+         System.currentTimeMillis() - XSwapper.SWAP_FILE_GRACE_PERIOD - 1000L));
 
       fileSystemService.clearCacheFiles(null);
 
@@ -98,6 +102,41 @@ class XSwapperCacheSweepTest {
 
       fragment.dispose();
       Files.deleteIfExists(ownOther.toPath());
+   }
+
+   @Test
+   void clearCacheFilesKeepsRecentForeignSwapFileWithinGracePeriod() throws Exception {
+      // Bug #77627, XSwapper.swapRemaining() writes a swap file to disk before it is
+      // registered in the swap file map, so a freshly-written foreign file must survive a
+      // sweep that runs inside that window, not just one that happens to match the map or
+      // the prefix check.
+      FileSystemService fileSystemService = FileSystemService.getInstance();
+      File recentForeign = createCacheFile("s4_1.tdat");
+      // aged past the grace period, unrelated to the file under test: its deletion is the
+      // signal that the background sweep actually ran, so a slow/loaded CI box can't make
+      // this test pass just because the sweep hadn't reached recentForeign yet
+      File agedForeign = createCacheFile("s5_1.tdat");
+      assertTrue(agedForeign.setLastModified(
+         System.currentTimeMillis() - XSwapper.SWAP_FILE_GRACE_PERIOD - 1000L));
+
+      fileSystemService.clearCacheFiles(null);
+
+      // the clean-up runs in a background thread
+      long end = System.currentTimeMillis() + 30000L;
+
+      while(agedForeign.exists() && System.currentTimeMillis() < end) {
+         Thread.sleep(50L);
+      }
+
+      try {
+         assertFalse(agedForeign.exists(), "aged foreign swap file was not cleaned");
+         assertTrue(recentForeign.exists(),
+            "recently-written foreign swap file was deleted within its registration grace period");
+      }
+      finally {
+         Files.deleteIfExists(recentForeign.toPath());
+         Files.deleteIfExists(agedForeign.toPath());
+      }
    }
 
    @Test

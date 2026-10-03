@@ -269,8 +269,9 @@ class XSwapperEdenStateTest {
             new SRPrincipal(new IdentityID("admin", ORG), new IdentityID[0], new String[0], ORG,
                             Tool.getSecureRandom().nextLong()));
 
-         // an organization-scoped read on this thread does see the organization's value
-         assertEquals("false", SreeEnv.getProperty(PROPERTY));
+         // Bug #77623: the swapper keys are JVM-wide, so even an organization-scoped read on
+         // this thread doesn't see the organization's value
+         assertNull(SreeEnv.getProperty(PROPERTY));
          assertTrue(XSwapper.isScalingMetricExcludeEden());
       }
       finally {

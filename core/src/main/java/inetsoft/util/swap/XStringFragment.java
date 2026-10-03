@@ -252,6 +252,17 @@ public final class XStringFragment extends XSwappable {
 
       File file = getFile(prefix + ".tdat");
 
+      if(disposed) {
+         valid = true;
+         return;
+      }
+
+      // an empty value may have no swap file, there is nothing to read back
+      if(len == 0 && !file.exists()) {
+         valid = true;
+         return;
+      }
+
       RandomAccessFile fin = null;
 
       try {
@@ -260,28 +271,22 @@ public final class XStringFragment extends XSwappable {
 
          fin.readFully(buf);
          value = new String(buf, "UTF-8");
-         fireEvent(false);
+         valid = true;
 
          if(isCountRW) {
             monitor.countRead(buf.length, XSwappableMonitor.DATA);
          }
       }
-      catch(FileNotFoundException ex) {
-         return;
-      }
       catch(Exception ex) {
+         // reaching here means value was already null (the value != null fast path above
+         // returns before this point), so there is no in-memory copy left to fall back on.
+         // keep the fragment invalid so a later access tries the file again (recovers from a
+         // transient failure, e.g. EACCES/EMFILE) and the swapper never writes an empty value
+         // back over the swap file; fail loudly instead of silently substituting empty content
          LOG.error("Failed to read swap file: " + file, ex);
+         throw new SwapFileReadException(file, ex);
       }
       finally {
-         // set unconditionally, on every exit path (including both catch branches above),
-         // not just a successful read: otherwise a swap file that's unreadable for reasons
-         // unrelated to the write-failure-recovery branch above (externally deleted, disk
-         // corruption, truncated) leaves this fragment permanently !valid, so every later
-         // access()/getData() call re-enters access0() and retries + re-logs the same failing
-         // read forever. Mirrors XIntFragment.validate0()/XObjectFragment.validate0(), which
-         // already set their valid flag in a finally block for the same reason.
-         valid = true;
-
          try {
             if(fin != null) {
                fin.close();
@@ -293,7 +298,7 @@ public final class XStringFragment extends XSwappable {
          }
       }
 
-      file = null;
+      fireEvent(false);
    }
 
    /**

@@ -29,6 +29,7 @@ import inetsoft.util.script.LendableReentrantLock;
 import inetsoft.util.stall.LockStallException;
 import inetsoft.util.stall.WaitRecord;
 import inetsoft.util.stall.WaitRegistry;
+import inetsoft.util.swap.SwapFileReadException;
 import inetsoft.util.swap.XSwappableIntList;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -193,6 +194,7 @@ public class SelfJoinTableLens extends AbstractTableLens implements TableFilter,
          rows = null;
          completed = false;
          stallFailure = null;
+         swapFailure = null;
          scannedRows = 0;
       }
 
@@ -259,6 +261,7 @@ public class SelfJoinTableLens extends AbstractTableLens implements TableFilter,
       SelfJoinOperator[] ops = new SelfJoinOperator[oplist.size()];
       oplist.toArray(ops);
       LockStallException stall = null;
+      SwapFileReadException swapFailure = null;
 
       try {
          OUTER:
@@ -298,7 +301,16 @@ public class SelfJoinTableLens extends AbstractTableLens implements TableFilter,
       catch(Exception ex) {
          // a stall may reach the worker wrapped by the base table (bug #76967)
          stall = LockStallException.find(ex);
-         LOG.error("Failed to validate table rows", ex);
+
+         if(stall == null) {
+            // a swap file read failure must not look like a complete (partial) join
+            // either; the fragment already logged the read failure (bug #77651)
+            swapFailure = SwapFileReadException.find(ex);
+         }
+
+         if(swapFailure == null) {
+            LOG.error("Failed to validate table rows", ex);
+         }
       }
 
       // complete (or fail) only this pass's own rows. a superseded pass must neither end
@@ -307,6 +319,10 @@ public class SelfJoinTableLens extends AbstractTableLens implements TableFilter,
          if(rows == rows2) {
             if(stall != null) {
                stallFailure = stall;
+            }
+
+            if(swapFailure != null) {
+               SelfJoinTableLens.this.swapFailure = swapFailure;
             }
 
             completed = true;
@@ -423,14 +439,21 @@ public class SelfJoinTableLens extends AbstractTableLens implements TableFilter,
    }
 
    /**
-    * Rethrow the stall the worker failed with, called when the table is complete. A stall
-    * must never look like the end of the table (bug #76967).
+    * Rethrow the stall or swap file read failure the worker failed with, called when the
+    * table is complete. A stall must never look like the end of the table (bug #76967), and
+    * neither must a swap file read failure (bug #77651).
     */
    private void throwStallFailure() {
       LockStallException failure = stallFailure;
 
       if(failure != null) {
          throw new LockStallException(failure);
+      }
+
+      SwapFileReadException swapFailure = this.swapFailure;
+
+      if(swapFailure != null) {
+         throw swapFailure;
       }
    }
 
@@ -980,6 +1003,8 @@ public class SelfJoinTableLens extends AbstractTableLens implements TableFilter,
    // the base row the worker has reached, and the stall it failed with (bug #76967)
    private transient volatile int scannedRows;
    private transient volatile LockStallException stallFailure;
+   // the swap file read failure the worker failed with, if any (bug #77651)
+   private transient volatile SwapFileReadException swapFailure;
 
    // retries of a read whose rows were replaced by a concurrent invalidate() (bug #77397)
    private static final int MAX_READ_RETRIES = 100;

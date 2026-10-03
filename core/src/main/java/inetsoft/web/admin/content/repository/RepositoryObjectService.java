@@ -906,6 +906,19 @@ public class RepositoryObjectService {
 
       checkPermission(pathFroms, typeFroms, pathTo, typeTo, move, principal);
 
+      // an additional connection belongs to its parent data source, moving it by its path would
+      // turn it into a standalone data source. Check all nodes before moving any of them.
+      for(int i = 0; i < pathFroms.length; i++) {
+         int typeFrom = Integer.parseInt(typeFroms[i]);
+
+         if((typeFrom & RepositoryEntry.DATA_SOURCE) == RepositoryEntry.DATA_SOURCE &&
+            dataSourceRegistry.isAdditionalConnectionPath(pathFroms[i]))
+         {
+            throw new MessageException(Catalog.getCatalog(principal).getString(
+               "common.datasource.additionalConnectionMove"));
+         }
+      }
+
       for(int i = 0; i < pathFroms.length; i++) {
          Map<String, List<String>> info = new HashMap<>();
          info.put("info", new ArrayList<>());

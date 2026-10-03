@@ -625,7 +625,11 @@ export class RepositoryTreeDataSource
          node.label === "_#(js:Data Model)" || node.path == "/" ||
          node.readOnly;
 
-      const moveDisabled = deleteDisabled ||
+      // just additional source type is RepositoryEntryType.DATA_SOURCE. see ContentRepositoryTreeService
+      const isAdditionalSource = type === RepositoryEntryType.DATA_SOURCE;
+
+      // an additional connection belongs to its parent data source and can't be moved out of it
+      const moveDisabled = deleteDisabled || isAdditionalSource ||
          (type & RepositoryEntryType.DASHBOARD) === RepositoryEntryType.DASHBOARD ||
          (type & RepositoryEntryType.BEAN) === RepositoryEntryType.BEAN ||
          (type & RepositoryEntryType.META_TEMPLATE) === RepositoryEntryType.META_TEMPLATE ||
@@ -639,9 +643,6 @@ export class RepositoryTreeDataSource
          (path && (path.indexOf(Tool.RECYCLE_BIN) == 0 || path.indexOf(Tool.MY_REPORTS_RECYCLE_BIN) == 0)) ||
          this.isExtendedModel(node) ||
          (path && path.indexOf(Tool.TRASHCAN_FOLDER) == 0 && type == RepositoryEntryType.TRASHCAN);
-
-      // just additional source type is RepositoryEntryType.DATA_SOURCE. see ContentRepositoryTreeService
-      let isAdditionalSource = type === RepositoryEntryType.DATA_SOURCE;
 
       const exportDisabled =
          (type & RepositoryEntryType.RECYCLEBIN_FOLDER) === RepositoryEntryType.RECYCLEBIN_FOLDER ||

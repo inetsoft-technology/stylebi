@@ -102,6 +102,7 @@ public class JDBCModelHandler extends XModelHandler {
     * @param vars variable values for the query.
     * @param user the user executing the query.
     * @return an SQL statement string.
+    * @throws RuntimeException if the VPM can't be applied to the query.
     */
    public XQuery prepareQuery(XDataSelection selection, XDataModel model,
                               VariableTable vars, Principal user) {
@@ -321,9 +322,12 @@ public class JDBCModelHandler extends XModelHandler {
          query = (JDBCQuery) VpmProcessor.getInstance().applyHiddenColumns(query, vars, user);
          query.setVPMEnabled(false);
       }
+      // fail closed, never return the query without the vpm
+      catch(RuntimeException ex) {
+         throw ex;
+      }
       catch(Exception ex) {
-         LOG.error("Failed to apply VPM to query " + query +
-            " for user " + user, ex);
+         throw new RuntimeException(ex.getMessage(), ex);
       }
 
       LOG.debug("Prepare to execute: " + sql);

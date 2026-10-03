@@ -187,6 +187,24 @@ public final class XIntFragment extends XSwappable {
    private synchronized void validate0(boolean reset) {
       File file = getFile(prefix + ".tdat");
 
+      if(disposed) {
+         valid = true;
+         return;
+      }
+
+      // swap0() failed before the data was dropped, so the data in memory is still the only
+      // good copy. remove the partial swap file to have the data written again on the next swap.
+      // rewriteRequired is the actual correctness guarantee here, independent of whether the
+      // delete below succeeds: deleteFile() can fall back to a delayed/queued delete that fires
+      // after a later swap recreates this same filename (the sub-problem 2/3 race), so swap0()
+      // must not depend on it succeeding.
+      if(arr != null) {
+         valid = true;
+         rewriteRequired = true;
+         deleteFile(file);
+         return;
+      }
+
       RandomAccessFile fin = null;
       FileChannel channel = null;
       ByteBuffer buf = null;
@@ -209,6 +227,7 @@ public final class XIntFragment extends XSwappable {
          //XSwapUtil.flip(buf)
 
          if(disposed) {
+            valid = true;
             return;
          }
 
@@ -216,22 +235,21 @@ public final class XIntFragment extends XSwappable {
          // a full, successful read-back proves the on-disk file is actually correct, so
          // any earlier failed-write stub it may have been is no longer a concern
          rewriteRequired = false;
-         file = null;
-      }
-      catch(FileNotFoundException ex) {
-         // nothing durable to read back; force the next swap0() to actually (re)write
-         // regardless of file.exists(), rather than possibly treating a stub as already-valid
-         rewriteRequired = true;
-         return;
+         valid = true;
       }
       catch(Exception ex) {
+         // reaching here means arr was already null (the arr != null fast path above returns
+         // before this point), so there is no in-memory copy left to fall back on: returning 0
+         // for every row would silently map the rows to the header row. keep the fragment
+         // invalid so a later access tries the file again (recovers from a transient failure,
+         // e.g. EACCES/EMFILE) and the swapper never writes the empty state back over the swap
+         // file; fail loudly instead of silently substituting wrong data
+         pos = 0;
          LOG.error("Failed to read swap file: " + file, ex);
-         // the on-disk file didn't parse - same reasoning as the FileNotFoundException case
-         rewriteRequired = true;
+         throw new SwapFileReadException(file, ex);
       }
       finally {
          buf = null;
-         valid = true;
 
          try {
             if(channel != null) {
@@ -250,7 +268,16 @@ public final class XIntFragment extends XSwappable {
       }
 
       if(reset) {
-         file.delete();
+         deleteFile(file);
+      }
+   }
+
+   /**
+    * Delete a swap file.
+    */
+   private static void deleteFile(File file) {
+      if(file.exists() && !file.delete()) {
+         FileSystemService.getInstance().remove(file, 30000);
       }
    }
 

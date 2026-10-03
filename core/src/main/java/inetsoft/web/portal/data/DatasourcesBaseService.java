@@ -572,6 +572,14 @@ public abstract class DatasourcesBaseService {
       String parentPath = "".equals(definition.getParentPath()) ? "" : definition.getParentPath() + "/";
       String oldName = parentPath + name;
       String nName = parentPath + definition.getName();
+
+      // an additional connection is saved through its parent data source, saving it by its path
+      // would turn it into a standalone data source
+      if(dataSourceRegistry.isAdditionalConnectionPath(oldName)) {
+         throw new MessageException(Catalog.getCatalog(principal).getString(
+            "common.datasource.additionalConnectionMove"));
+      }
+
       XDataSource oldSrc = repository.getDataSource(oldName);
       checkUpdateDatasourcePermission(nName, oldSrc, principal);
       AuthorizedDataSource authorized = createAuthorizedDataSource(

@@ -20,6 +20,7 @@ package inetsoft.util.swap;
 import com.esotericsoftware.kryo.kryo5.Kryo;
 import com.esotericsoftware.kryo.kryo5.io.Input;
 import com.esotericsoftware.kryo.kryo5.io.Output;
+import inetsoft.util.FileSystemService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -166,6 +167,26 @@ public final class XObjectFragment<T> extends XSwappable {
    private synchronized Object[] validate0(boolean reset) {
       File file = getFile(prefix + "_0.tdat");
 
+      if(disposed) {
+         valid = true;
+         return this.arr;
+      }
+
+      // the fragment was empty when swapped (no swap file was written), or swap0() failed
+      // before the data was dropped. the data in memory is the only good copy either way,
+      // so remove any partial swap file to have the data written again on the next swap.
+      // rewriteRequired is the actual correctness guarantee here, independent of whether the
+      // delete below succeeds: deleteSwapFiles() can fall back to a delayed/queued delete that
+      // fires after a later swap recreates one of these filenames (the sub-problem 2/3 race),
+      // so swap0() must not depend on it succeeding.
+      if(this.arr != null) {
+         rewriteRequired = true;
+         deleteSwapFiles();
+         spos = 0;
+         valid = true;
+         return this.arr;
+      }
+
       RandomAccessFile fin = null;
       FileChannel channel = null;
       ByteBuffer buf = null;
@@ -186,6 +207,7 @@ public final class XObjectFragment<T> extends XSwappable {
          buf = XSwapUtil.uncompressByteBuffer(buf);
 
          if(disposed) {
+            valid = true;
             return this.arr;
          }
 
@@ -213,14 +235,12 @@ public final class XObjectFragment<T> extends XSwappable {
 
          file = null;
 
-         // validate(buf, holder)'s own internal catch can swallow a read failure on a later
-         // chunk (e.g. a 0-byte/corrupt stub left by a write that failed after an earlier
-         // chunk's write already succeeded) and still return -1 from its own tail, which looks
-         // identical to a legitimate, fully-complete read to this while loop. holder.complete
-         // distinguishes the two: only a genuinely complete multi-chunk read may overwrite an
-         // in-memory array that's still intact; otherwise fall back to whatever was already
-         // there (matching the no-better-alternative fallback below) rather than silently
-         // replacing it with a partial reconstruction.
+         // validate(buf, holder) now either completes every chunk (setting holder.complete)
+         // or throws out to the catch below - it no longer swallows a partial read internally
+         // and returns -1 as if complete - so holder.complete is always true by the time the
+         // while loop above exits normally. Kept as defense-in-depth / parity with the
+         // write-side rewriteRequired bookkeeping rather than assuming that invariant holds
+         // forever; the else branch below is not expected to be reachable today.
          if(holder.complete) {
             this.arr = holder.arr;
             this.pos = holder.pos;
@@ -229,49 +249,32 @@ public final class XObjectFragment<T> extends XSwappable {
          }
          else {
             // the on-disk file(s) didn't fully parse - force the next swap0() to actually
-            // (re)write regardless of file.exists(), rather than treating them as already-valid
+            // (re)write regardless of file.exists(), rather than treating them as already-valid.
+            // this.arr is already null here (the arr != null fast path above returns before
+            // this point), so there is nothing to protect by holding onto a partial holder.arr
             rewriteRequired = true;
+         }
 
-            if(this.arr == null) {
-               this.arr = holder.arr;
-               this.pos = holder.pos;
-            }
+         valid = true;
+
+         if(reset) {
+            swapFileCount = 0;
          }
 
          return this.arr;
       }
       catch(Exception ex) {
-         Object[] arr;
-
-         // since we ignore the exceptions, we should return whatever we managed to read
-         // up to the point until the exception was thrown - but a holder that never
-         // actually read anything, or only read a partial multi-chunk reconstruction (e.g. a
-         // 0-byte/corrupt stub left by a write that failed before swap0() cleared arr/pos),
-         // must not be allowed to clobber an in-memory array that's still intact
-         rewriteRequired = true;
-
-         if(holder != null && holder.arr != null && this.arr == null) {
-            arr = holder.arr;
-            this.arr = holder.arr;
-            this.pos = holder.pos;
-         }
-         else {
-            arr = this.arr;
-         }
-
-         if(ex instanceof FileNotFoundException) {
-            if(arr == null) {
-               LOG.debug("Null array. Failed to read swap file: " + file, ex);
-            }
-         }
-         else {
-            LOG.error("Failed to read swap file: " + file, ex);
-         }
-
-         return arr;
+         // reaching here means this.arr was already null (the arr != null fast path above
+         // returns before this point), so there is no in-memory copy left, and a partial
+         // read would hand back wrong data for the missing rows. keep the fragment invalid
+         // so a later access tries the files again (recovers from a transient failure) and
+         // the swapper never swaps the fragment out in this state; fail loudly instead of
+         // silently substituting partial data
+         spos = 0;
+         LOG.error("Failed to read swap file: " + file, ex);
+         throw new SwapFileReadException(file, ex);
       }
       finally {
-         valid = true;
          buf = null;
 
          try {
@@ -288,11 +291,26 @@ public final class XObjectFragment<T> extends XSwappable {
          catch(Exception ex) {
             // ignore it
          }
+      }
+   }
 
-         if(reset) {
-            swapFileCount = 0;
+   /**
+    * Delete the swap files of this fragment.
+    */
+   private void deleteSwapFiles() {
+      for(int i = 0; ; i++) {
+         File file = getFile(prefix + "_" + i + ".tdat");
+
+         if(!file.exists()) {
+            break;
+         }
+
+         if(!file.delete()) {
+            FileSystemService.getInstance().remove(file, 30000);
          }
       }
+
+      swapFileCount = 0;
    }
 
    /**
@@ -584,14 +602,29 @@ public final class XObjectFragment<T> extends XSwappable {
          return;
       }
 
-      if(!valid) {
-         getSwapper().waitForMemory();
+      // bring the data back first, the swap files may hold the only copy
+      access();
 
-         synchronized(this) {
-            if(!valid) {
-               validate0(true);
+      synchronized(this) {
+         if(disposed || !valid || arr == null) {
+            return;
+         }
+
+         // swap0() skips writing when the first swap file exists, so remove the files
+         // to have the changed values written on the next swap
+         for(int i = 0; ; i++) {
+            File file = getFile(prefix + "_" + i + ".tdat");
+
+            if(!file.exists()) {
+               break;
+            }
+
+            if(!file.delete()) {
+               FileSystemService.getInstance().remove(file, 30000);
             }
          }
+
+         swapFileCount = 0;
       }
    }
 
@@ -600,7 +633,7 @@ public final class XObjectFragment<T> extends XSwappable {
     * @param buf the specified byte buffer.
     * @return next position if any, <tt>-1</tt> otherwise.
     */
-   private int validate(ByteBuffer buf, ObjectArrayHolder holder) {
+   private int validate(ByteBuffer buf, ObjectArrayHolder holder) throws Exception {
       Kryo kryo = null;
 
       try {
@@ -648,14 +681,9 @@ public final class XObjectFragment<T> extends XSwappable {
             return spos;
          }
       }
-      catch(Exception ex) {
-         LOG.error("Failed to read swap buffer", ex);
-      }
       finally {
          XSwapUtil.releaseKryo(kryo);
       }
-
-      return -1;
    }
 
    /**

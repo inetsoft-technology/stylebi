@@ -258,17 +258,26 @@ class XFragmentSwapFileWriteFailureTest {
 
    @Test
    void stringFragmentStaysValidAfterUnrelatedSwapFileDeletion() throws Exception {
-      // review-and-merge-prs finding (post-merge, independent review of this PR): before this
-      // PR's changes, access0() began with an unconditional "valid = true" before attempting
-      // anything, so even a swap file that became unreadable for a reason unrelated to a failed
-      // write (externally deleted, disk corruption, a sweep bug) still left the fragment
-      // settled (valid, data lost) after the first failed read. This PR's restructuring moved
-      // "valid = true" into only the value-!=null recovery branch and the successful-read
-      // branch, so a fragment whose swap file goes missing for any OTHER reason got stuck at
-      // isValid() == false forever: every later access()/getData() call would re-enter
-      // access0(), retry the same failing RandomAccessFile open, and fail the same way again,
-      // indefinitely. Fixed by moving "valid = true" into a finally block covering the whole
-      // read attempt, mirroring XIntFragment.validate0()/XObjectFragment.validate0().
+      // review-and-merge-prs finding (independent review of this PR, before community PR #6208
+      // merged into main): before this PR's changes, access0() began with an unconditional
+      // "valid = true" before attempting anything, so even a swap file that became unreadable for
+      // a reason unrelated to a failed write (externally deleted, disk corruption, a sweep bug)
+      // still left the fragment settled (valid, data lost) after the first failed read. This PR's
+      // restructuring moved "valid = true" into only the value-!=null recovery branch and the
+      // successful-read branch, so a fragment whose swap file goes missing for any OTHER reason
+      // got stuck at isValid() == false forever, silently re-logging the same failing read on
+      // every later access()/getData() call with no way for a caller to ever find out.
+      //
+      // Superseded by merging community PR #6208 ("fail loudly when a swapped fragment cannot be
+      // read back") into this branch: #6208 deliberately keeps the fragment invalid (not settled)
+      // after a read failure and throws SwapFileReadException on every access instead, so a
+      // transient failure (EACCES/EMFILE) can still recover on a later access - see
+      // XFragmentSwapFileReadTest's own "fails" tests, which assert isValid() stays false, and
+      // intFragmentIsReadOnceSwapFileIsReadableAgain, which asserts the retry actually succeeds
+      // once the underlying problem goes away. That design already solves the original "silent,
+      // invisible forever" problem this test was written for - a loud, repeated exception is not
+      // silent - so this test now asserts the superseding (throw, stay invalid, retry) behavior
+      // instead of the standalone (swallow, settle) behavior it originally guarded.
       String original = "the quick brown fox";
       XStringFragment fragment = new XStringFragment(original);
       preventBackgroundSwapping(fragment);
@@ -282,17 +291,18 @@ class XFragmentSwapFileWriteFailureTest {
       // simulate the swap file going missing for a reason unrelated to a failed write
       assertTrue(swapFile.delete(), "test setup: failed to delete swap file");
 
-      assertNull(fragment.getData(),
-                 "data cannot be recovered once the swap file is genuinely gone");
-      assertTrue(fragment.isValid(),
-                 "fragment must settle (valid) after a read failure unrelated to a write "
-                    + "failure, not retry the same failing read forever");
+      assertThrows(SwapFileReadException.class, fragment::getData,
+                   "a genuinely unrecoverable read failure must fail loudly, not silently "
+                      + "return stale/empty data");
+      assertFalse(fragment.isValid(),
+                  "the fragment must stay invalid so a later access retries the read instead of "
+                     + "silently treating the missing file as empty content");
 
-      // a second access() must not re-enter access0() at all now that the fragment is valid -
-      // if it did, isValid() would still read true here anyway, but the fragment would never
-      // actually stop retrying in real usage, which is exactly the bug this test guards against
-      assertNull(fragment.getData());
-      assertTrue(fragment.isValid());
+      // a second access() must re-enter access0() and fail loudly again - repeated, visible
+      // failures are the intended trade-off for also allowing a transient failure to self-heal
+      // on a later access, rather than silently settling once and losing the data forever
+      assertThrows(SwapFileReadException.class, fragment::getData);
+      assertFalse(fragment.isValid());
 
       fragment.dispose();
    }
