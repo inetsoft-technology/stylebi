@@ -1067,6 +1067,7 @@ public abstract class RuntimeSheet {
          File file = getFile(prefix + ".tdat");
 
          if(!file.exists()) {
+            LOG.warn("Swap file for sheet is missing, the sheet is no longer available: {}", file);
             return;
          }
 

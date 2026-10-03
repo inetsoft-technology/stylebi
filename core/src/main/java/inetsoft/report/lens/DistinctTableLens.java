@@ -30,6 +30,7 @@ import inetsoft.util.script.LendableReentrantLock;
 import inetsoft.util.stall.LockStallException;
 import inetsoft.util.stall.WaitRecord;
 import inetsoft.util.stall.WaitRegistry;
+import inetsoft.util.swap.SwapFileReadException;
 import inetsoft.util.swap.XSwappableIntList;
 import it.unimi.dsi.fastutil.objects.ObjectOpenHashSet;
 import org.slf4j.Logger;
@@ -241,6 +242,7 @@ public class DistinctTableLens extends AbstractTableLens
          completed = false;
          validated = false;
          stallFailure = null;
+         swapFailure = null;
          scannedRows = 0;
       }
 
@@ -364,7 +366,7 @@ public class DistinctTableLens extends AbstractTableLens
          throw ex;
       }
       finally {
-         complete(target, stall);
+         complete(target, stall, null);
       }
    }
 
@@ -374,7 +376,9 @@ public class DistinctTableLens extends AbstractTableLens
     * @param target the rows of the pass.
     * @param stall the stall the pass failed with, if any.
     */
-   private synchronized void complete(XSwappableIntList target, LockStallException stall) {
+   private synchronized void complete(XSwappableIntList target, LockStallException stall,
+                                       SwapFileReadException swapFailure)
+   {
       // a disposed table still ends the waits of its readers
       if(rows != target && rows != null) {
          return;
@@ -382,6 +386,10 @@ public class DistinctTableLens extends AbstractTableLens
 
       if(stall != null) {
          stallFailure = stall;
+      }
+
+      if(swapFailure != null) {
+         this.swapFailure = swapFailure;
       }
 
       completed = true;
@@ -418,6 +426,11 @@ public class DistinctTableLens extends AbstractTableLens
       catch(LockStallException ex) {
          // logged by the wait site, sortDistinct0() kept it for the readers (bug #76967)
       }
+      catch(SwapFileReadException ex) {
+         // the fragment already logged the read failure, sortDistinct0() kept it for the
+         // readers instead of letting the distinct table look silently complete and
+         // empty/partial (bug #77651)
+      }
       catch(Exception ex) {
          LOG.error("Failed to process sort distinct", ex);
       }
@@ -429,6 +442,7 @@ public class DistinctTableLens extends AbstractTableLens
     */
    private void sortDistinct0(XSwappableIntList target) {
       LockStallException stall = null;
+      SwapFileReadException swapFailure = null;
 
       try {
          TableFilter sorted = createSortedTable();
@@ -485,10 +499,17 @@ public class DistinctTableLens extends AbstractTableLens
       catch(RuntimeException ex) {
          // a stall may reach the worker wrapped by the base table (bug #76967)
          stall = LockStallException.find(ex);
+
+         if(stall == null) {
+            // a swap file read failure must not look like a complete (silently
+            // empty/partial) distinct table either (bug #77651)
+            swapFailure = SwapFileReadException.find(ex);
+         }
+
          throw ex;
       }
       finally {
-         complete(target, stall);
+         complete(target, stall, swapFailure);
       }
    }
 
@@ -656,6 +677,11 @@ public class DistinctTableLens extends AbstractTableLens
          // a stall fails the query, it is never the end of the table (bug #76967)
          throw ex;
       }
+      catch(SwapFileReadException ex) {
+         // thrown directly by throwStallFailure() above; it must not look like the end of
+         // the table either (bug #77651)
+         throw ex;
+      }
       catch(Exception ex) {
          // a stall may reach this thread wrapped, it is never the end of the table either
          // (bug #76967)
@@ -689,14 +715,21 @@ public class DistinctTableLens extends AbstractTableLens
    }
 
    /**
-    * Rethrow the stall the worker failed with, called when the table is complete. A stall
-    * must never look like the end of the table (bug #76967).
+    * Rethrow the stall or swap file read failure the worker failed with, called when the
+    * table is complete. A stall must never look like the end of the table (bug #76967), and
+    * neither must a swap file read failure (bug #77651).
     */
    private void throwStallFailure() {
       LockStallException failure = stallFailure;
 
       if(failure != null) {
          throw new LockStallException(failure);
+      }
+
+      SwapFileReadException swapFailure = this.swapFailure;
+
+      if(swapFailure != null) {
+         throw swapFailure;
       }
    }
 
@@ -732,6 +765,11 @@ public class DistinctTableLens extends AbstractTableLens
          return completed ? rows.size() : - rows.size() - 1;
       }
       catch(LockStallException ex) {
+         throw ex;
+      }
+      catch(SwapFileReadException ex) {
+         // thrown directly by throwStallFailure() above; it must not look like the end of
+         // the table either (bug #77651)
          throw ex;
       }
       catch(Exception ex) {
@@ -1304,6 +1342,8 @@ public class DistinctTableLens extends AbstractTableLens
    // the base row the worker has reached, and the stall it failed with (bug #76967)
    private transient volatile int scannedRows;
    private transient volatile LockStallException stallFailure;
+   // the swap file read failure the worker failed with, if any (bug #77651)
+   private transient volatile SwapFileReadException swapFailure;
 
    // the reads of a row that invalidate() keeps replacing the rows under, after which the
    // current rows are read as they are (bug #77333)
