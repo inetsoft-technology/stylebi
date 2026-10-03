@@ -18,6 +18,9 @@
 package inetsoft.util.swap;
 
 import java.io.File;
+import java.util.Collections;
+import java.util.IdentityHashMap;
+import java.util.Set;
 
 /**
  * Thrown when the data of a swapped fragment cannot be read back from its swap file and no
@@ -34,6 +37,25 @@ public class SwapFileReadException extends RuntimeException {
     */
    public File getFile() {
       return file;
+   }
+
+   /**
+    * Find the swap file read failure in the cause chain of {@code failure}, e.g. one a base
+    * table wrapped (bug #77651).
+    *
+    * @return the outermost swap file read failure of the chain, or {@code null} if there is
+    * none.
+    */
+   public static SwapFileReadException find(Throwable failure) {
+      Set<Throwable> seen = Collections.newSetFromMap(new IdentityHashMap<>());
+
+      for(Throwable t = failure; t != null && seen.add(t); t = t.getCause()) {
+         if(t instanceof SwapFileReadException) {
+            return (SwapFileReadException) t;
+         }
+      }
+
+      return null;
    }
 
    private final File file;
