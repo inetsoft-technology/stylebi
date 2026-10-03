@@ -288,6 +288,10 @@ class UniformSQLCrossJoinChainTest {
          "select a.id, c.id, t.id from a inner join (select id from b) t full join c on t.id = c.id",
          "select a.id, c.id, d.id, t.id from a join (select id from b) as t left join c " +
             "on t.id = c.id right join d on c.id = d.id",
+         // the same nested join inside an explicitly parenthesized operand, the parentheses
+         // around it don't exempt the join inside them
+         "select a.id, b.id, d.id, t.id from a join ((b join (select id from c) t " +
+            "right join d on t.id = d.id))",
          // refused though every reading is a x b x (c right join d): the R join recorded
          // inside the parenthesized operand of the second join is seen by the first
          COLS4 + "from a join b join (c right join d on c.id = d.id)"
