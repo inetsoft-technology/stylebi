@@ -18,6 +18,7 @@
 package inetsoft.web.admin.content.repository;
 
 import inetsoft.report.LibManagerProvider;
+import inetsoft.report.XSessionManager;
 import inetsoft.sree.RepletRegistry;
 import inetsoft.sree.RepletRegistryManager;
 import inetsoft.sree.RepositoryEntry;
@@ -58,6 +59,7 @@ import inetsoft.web.admin.security.ConnectionStatus;
 import inetsoft.web.portal.controller.database.DataSourceService;
 import inetsoft.web.portal.data.*;
 import inetsoft.web.portal.service.datasource.DataSourceStatusService;
+import inetsoft.web.portal.service.datasource.XmlaDatasourceService;
 import inetsoft.web.session.IgniteSessionRepository;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -126,6 +128,7 @@ class DataSourcePathClashTest {
    private DataSourceBrowserService browserService;
    private DatabaseDatasourcesService databaseService;
    private DatasourcesService datasourcesService;
+   private XmlaDatasourceService xmlaService;
    private Principal principal;
 
    @BeforeEach
@@ -156,6 +159,9 @@ class DataSourcePathClashTest {
          mock(IgniteSessionRepository.class), registry, mock(RenameTransformHandler.class));
       datasourcesService = new DatasourcesService(
          repository, security, mock(DataSourceStatusService.class), registry, Config.getConfig());
+      xmlaService = new XmlaDatasourceService(
+         repository, security, mock(DataSourceStatusService.class), registry, Config.getConfig(),
+         mock(DependencyHandler.class), mock(XSessionManager.class));
       principal = new SRPrincipal(new IdentityID("admin", Organization.getDefaultOrganizationID()),
                                   new IdentityID[0], new String[0],
                                   Organization.getDefaultOrganizationID(),
@@ -206,6 +212,60 @@ class DataSourcePathClashTest {
       // a free path is still created
       datasourcesService.createNewDataSource(definition("tcFree", ""), false, principal);
       assertNotNull(registry.getDataSource("tcFree"));
+   }
+
+   // the portal tabular create at the root, with the parent values the tree ("/") and the
+   // browser ("") send, next to a folder of the same name is refused, and the data sources of
+   // the folder (also in a subfolder) are kept
+   @Test
+   void tabularRootCreateKeepsTheDataSourcesOfTheFolder() throws Exception {
+      folder("rcF");
+      tab("rcF/rcKid");
+      folder("rcF/rcSub");
+      tab("rcF/rcSub/rcDeep");
+
+      for(String parent : new String[] { "/", "" }) {
+         assertThrows(MessageException.class, () -> datasourcesService.createNewDataSource(
+            definition("rcF", parent), false, principal), "parent " + parent);
+      }
+
+      registry.clearCache();
+      assertFalse(registry.containObject(dsEntry("rcF")));
+      assertNotNull(registry.getDataSourceFolder("rcF"));
+      assertNotNull(registry.getDataSource("rcF/rcKid"));
+      assertNotNull(registry.getDataSourceFolder("rcF/rcSub"));
+      assertNotNull(registry.getDataSource("rcF/rcSub/rcDeep"));
+      assertFalse(registry.getDataSourcePathClashes().contains("rcF"));
+   }
+
+   // the portal XMLA (cube) create refuses a path in use at the root ("/" and ""), in a folder
+   // and under a data source, and still creates a free path
+   @Test
+   void xmlaCreateRefusesAPathInUse() throws Exception {
+      folder("xmX");
+      folder("xmG");
+      folder("xmG/xmY");
+      folder("xmP");
+      jdbc("xmP");
+
+      for(String parent : new String[] { "/", "" }) {
+         assertThrows(MessageException.class, () -> xmlaService.createNewDataSource(
+            xmla("xmX", parent), true, principal), "parent " + parent);
+      }
+
+      assertThrows(MessageException.class, () -> xmlaService.createNewDataSource(
+         xmla("xmY", "xmG"), true, principal));
+      assertThrows(MessageException.class, () -> xmlaService.createNewDataSource(
+         xmla("xmNew", "xmP"), true, principal));
+
+      registry.clearCache();
+      assertFalse(registry.containObject(dsEntry("xmX")));
+      assertFalse(registry.containObject(dsEntry("xmG/xmY")));
+      assertFalse(registry.containObject(dsEntry("xmP/xmNew")));
+
+      xmlaService.createNewDataSource(xmla("xmFree", "/"), true, principal);
+      registry.clearCache();
+      assertTrue(registry.containObject(dsEntry("xmFree")));
    }
 
    // 2. the editor rename of a root data source onto the name of a root folder is refused, the
@@ -487,6 +547,14 @@ class DataSourcePathClashTest {
       definition.setName(name);
       definition.setParentPath(parentPath);
       definition.setTabularView(new TabularView());
+      return definition;
+   }
+
+   private static DataSourceXmlaDefinition xmla(String name, String parentPath) {
+      DataSourceXmlaDefinition definition = new DataSourceXmlaDefinition();
+      definition.setName(name);
+      definition.setParentPath(parentPath);
+      definition.setUrl("http://localhost/xmla");
       return definition;
    }
 
