@@ -167,6 +167,29 @@ class UniformSQLUnqualifiedSelectColumnTest {
       }
    }
 
+   // the reported sql on the default helper, and its shape run on Derby, where the ordinal
+   // has ties so the rows show whether the trailing name is kept (Derby returns the ties of
+   // the ordinal alone in reverse order)
+   @Test
+   void reportedShapeOnDefaultHelperAndDerby() throws Exception {
+      UniformSQL usql = fixed("select t.k, t.k, t.id from t order by 3 desc, k", "default");
+      assertEquals("default", SQLHelper.getSQLHelper(usql).getSQLHelperType());
+      String generated = norm(regenerate(usql)).replace("\"", "");
+
+      assertTrue(generated.endsWith("order by t.id desc, t.k asc"), generated);
+      assertRoundTrip(usql, "default");
+
+      for(String sql : new String[] {
+         "select G.ID, G.ID, G.K from G order by 3, ID",
+         "select G.ID, G.ID, G.K from G order by 3 desc, ID" })
+      {
+         usql = fixedWithoutMeta(sql);
+
+         assertEquals(2, usql.getOrderByItems().length, sql + " " + orderBy(usql));
+         assertSameRows(sql, usql, true);
+      }
+   }
+
    @Test
    void groupByNameIsKept() throws Exception {
       for(String key : HELPERS) {
@@ -440,6 +463,7 @@ class UniformSQLUnqualifiedSelectColumnTest {
          case "snowflake" -> new String[] { "net.snowflake.client.jdbc.SnowflakeDriver",
                                             "jdbc:snowflake://x" };
          case "exasol" -> new String[] { "com.exasol.jdbc.EXADriver", "jdbc:exa:x" };
+         case "default" -> new String[] { "com.example.jdbc.Driver", "jdbc:example:x" };
          default -> throw new IllegalArgumentException(key);
       };
 
@@ -447,7 +471,8 @@ class UniformSQLUnqualifiedSelectColumnTest {
       ds.setName("ds77639" + key + "_" + (++sources) + "_" + RUN);
       ds.setDriver(spec[0]);
       ds.setURL(spec[1]);
-      ds.setRuntimeProductName(key);
+      // no helper is registered for an unknown product, it gets the default helper
+      ds.setRuntimeProductName("default".equals(key) ? "unknown" : key);
       // otherwise the mysql and oracle helpers ask the repository for it
       ds.setProductVersion("10.0");
       ds.setAnsiJoin("snowflake".equals(key));
