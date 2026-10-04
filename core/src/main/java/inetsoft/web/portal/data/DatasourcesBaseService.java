@@ -712,13 +712,17 @@ public abstract class DatasourcesBaseService {
       Set<String> removed = new HashSet<>();
       // the new names of the renamed additional connections, by old name
       Map<String, String> renames = new LinkedHashMap<>();
+      // the additional connections under the old parent name that this save doesn't keep. A kept
+      // one is sent without its old name, a renamed one with it
+      Set<String> oldRemoved = getAdditionalConnectionNames(oldParent);
 
       if(definition.getAdditionalConnections() != null) {
          for(DataSourceDefinition additional : definition.getAdditionalConnections()) {
-            if(additional.getOldName() != null &&
-               !Tool.equals(additional.getOldName(), additional.getName()))
-            {
-               renames.put(additional.getOldName(), additional.getName());
+            String oldName = additional.getOldName();
+            oldRemoved.remove(oldName != null ? oldName : additional.getName());
+
+            if(oldName != null && !Tool.equals(oldName, additional.getName())) {
+               renames.put(oldName, additional.getName());
             }
          }
       }
@@ -741,8 +745,27 @@ public abstract class DatasourcesBaseService {
          }
       }
 
-      updateAdditionalPermissions(oldParent, parent.getFullName(), removed, renames,
+      updateAdditionalPermissions(oldParent, parent.getFullName(), oldRemoved, removed, renames,
                                   renamedPermissions);
+   }
+
+   /**
+    * Gets the names of the additional connections of a data source, read before they are saved.
+    */
+   private Set<String> getAdditionalConnectionNames(String path) {
+      Set<String> names = new HashSet<>();
+
+      if(path != null &&
+         dataSourceRegistry.getDataSource(path) instanceof AdditionalConnectionDataSource<?> ads)
+      {
+         String[] children = ads.getDataSourceNames();
+
+         if(children != null) {
+            names.addAll(Arrays.asList(children));
+         }
+      }
+
+      return names;
    }
 
    /**
@@ -767,26 +790,36 @@ public abstract class DatasourcesBaseService {
 
    /**
     * Updates the permissions of the additional connections of a data source after they are
-    * removed or renamed. The additional connections are saved before the parent is renamed, and
-    * the rename moves the permissions of the additional connections still under the old parent
-    * name. So the old names are removed from the old parent name, a renamed additional connection
-    * gets its permission under the new parent name, and a removed one, which is no longer under
-    * the old parent name, is removed from the new parent name.
+    * removed or renamed. The additional connections are saved under the new parent name before
+    * the parent is renamed, and the rename moves the permissions of the additional connections
+    * still under the old parent name. So the names that are removed or renamed are removed from
+    * the old parent name, the removed ones also from the new parent name, and a renamed additional
+    * connection gets its permission under the new parent name.
     *
     * @param oldParent   the full name of the parent before this save, or {@code null} if it is
     *                    created by this save.
     * @param newParent   the full name of the parent after this save.
-    * @param removed     the names of the removed additional connections.
+    * @param oldRemoved  the names of the additional connections under the old parent name that
+    *                    this save doesn't keep.
+    * @param removed     the names of the additional connections removed from the new parent name.
     * @param renames     the new names of the renamed additional connections, by old name.
     * @param permissions the permissions of the renamed additional connections, by old name, read
     *                    before any of them was removed.
     */
    private void updateAdditionalPermissions(String oldParent, String newParent,
-                                            Set<String> removed, Map<String, String> renames,
+                                            Set<String> oldRemoved, Set<String> removed,
+                                            Map<String, String> renames,
                                             Map<String, Permission> permissions)
    {
-      if(oldParent == null || removed.isEmpty() && renames.isEmpty() || !hasPermissionStore()) {
+      if(oldParent == null || oldRemoved.isEmpty() && removed.isEmpty() && renames.isEmpty() ||
+         !hasPermissionStore())
+      {
          return;
+      }
+
+      for(String name : oldRemoved) {
+         securityEngine.removePermission(ResourceType.DATA_SOURCE,
+            oldParent + XUtil.ADDITIONAL_DS_CONNECTOR + name);
       }
 
       for(String name : removed) {

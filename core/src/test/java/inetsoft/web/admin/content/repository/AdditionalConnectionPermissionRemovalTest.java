@@ -413,6 +413,23 @@ class AdditionalConnectionPermissionRemovalTest {
       assertNull(perm("/tbP::tbB"));
    }
 
+   // tabular editor: the parent renamed P -> Q and a child dropped in one save. The dropped
+   // child's permission is still under P, where the parent rename would carry it to Q.
+   @Test
+   void tabularEditorDropWithParentRename() throws Exception {
+      addTabularParent("", "tpP", "tpD", "tpK");
+      grant("tpP::tpD");
+      Permission k = grant("tpP::tpK");
+
+      saveTabular("tpP", tabular("", "tpP", "tpQ"), "tpQ", tabular("", null, "tpK"));
+
+      assertNull(registry.getDataSource("tpP"));
+      assertNull(perm("tpP::tpD"));
+      assertNull(perm("tpQ::tpD"));
+      assertSame(k, perm("tpQ::tpK"));
+      assertNoKeys("tpP::");
+   }
+
    // tabular editor: b deleted and a, which has no permission of its own, renamed to b in one
    // save. The renamed connection doesn't get the permission of the deleted one.
    @Test
