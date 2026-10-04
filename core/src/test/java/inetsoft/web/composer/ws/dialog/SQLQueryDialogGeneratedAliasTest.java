@@ -29,6 +29,8 @@ import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.SQLBoundTableAssemblyInfo;
 import inetsoft.uql.erm.AttributeRef;
+import inetsoft.uql.erm.DataRef;
+import inetsoft.uql.erm.ExpressionRef;
 import inetsoft.uql.jdbc.*;
 import inetsoft.uql.jdbc.util.JDBCUtil;
 import inetsoft.uql.schema.XSchema;
@@ -202,6 +204,70 @@ class SQLQueryDialogGeneratedAliasTest {
       assertRenamed();
    }
 
+   // a formula column over a renamed column, after each step of simple Apply, advanced
+   // Apply and OK
+   @Test
+   void formulaColumnFollowsTheRename() throws Exception {
+      openDialog();
+
+      for(SQLQueryDialogModel model : steps()) {
+         service.setModel(WS, model, principal, mock(CommandDispatcher.class));
+         DataRef formula = ((ColumnRef) table.getColumnSelection().getAttribute("F")).getDataRef();
+         assertEquals("field['" + LONG + "'] + 1", ((ExpressionRef) formula).getExpression());
+      }
+   }
+
+   // a date range and a numeric range column over renamed columns, after each step
+   @Test
+   void rangeColumnsFollowTheRename() throws Exception {
+      openDialog();
+
+      for(SQLQueryDialogModel model : steps()) {
+         service.setModel(WS, model, principal, mock(CommandDispatcher.class));
+         ColumnSelection columns = table.getColumnSelection();
+         DataRef date = ((ColumnRef) columns.getAttribute("D")).getDataRef();
+         assertEquals(LONG, ((DateRangeRef) date).getDataRef().getAttribute());
+         DataRef numeric = ((ColumnRef) columns.getAttribute("N")).getDataRef();
+         assertEquals(LONG2, ((NumericRangeRef) numeric).getDataRef().getAttribute());
+      }
+   }
+
+   // simple Apply, then advanced Apply, then OK; each model is made when its step runs
+   private Iterable<SQLQueryDialogModel> steps() {
+      return () -> new Iterator<>() {
+         private int step = 0;
+
+         @Override
+         public boolean hasNext() {
+            return step < 3;
+         }
+
+         @Override
+         public SQLQueryDialogModel next() {
+            try {
+               SQLQueryDialogModel model = simpleModel();
+
+               if(step == 1) {
+                  model = advancedModel(model);
+               }
+               // OK of the advanced mode, with what the dialog shows after the Apply
+               else if(step == 2) {
+                  model.setAdvancedEdit(true);
+                  model.setAdvancedModel(
+                     echo(qms.getAdvancedQueryModel(qms.getRuntimeQuery(RID), principal)));
+               }
+
+               model.setCloseDialog(step == 2);
+               step++;
+               return model;
+            }
+            catch(Exception ex) {
+               throw new IllegalStateException(ex);
+            }
+         }
+      };
+   }
+
    // the switch to advanced mode of the dialog, with the model the client sends back
    private SQLQueryDialogModel advancedModel(SQLQueryDialogModel model) throws Exception {
       AdvancedSQLQueryModel advanced = qms.convertToAdvancedQueryModel(rws, model, principal);
@@ -264,7 +330,9 @@ class SQLQueryDialogGeneratedAliasTest {
       List<String> names = new ArrayList<>();
 
       for(int i = 0; i < columns.getAttributeCount(); i++) {
-         names.add(columns.getAttribute(i).getAttribute());
+         if(((ColumnRef) columns.getAttribute(i)).getDataRef() instanceof AttributeRef) {
+            names.add(columns.getAttribute(i).getAttribute());
+         }
       }
 
       // the generated sql sorts its columns, the columns come in the order of the metadata
@@ -283,10 +351,33 @@ class SQLQueryDialogGeneratedAliasTest {
       assertEquals(1, info.getAggregates().length, info.toString());
       assertEquals(LONG2, info.getAggregates()[0].getDataRef().getAttribute());
 
+      // the formula and the range columns follow the columns they are built on
+      DataRef formula = ((ColumnRef) columns.getAttribute("F")).getDataRef();
+      assertEquals("field['" + LONG + "'] + 1", ((ExpressionRef) formula).getExpression());
+      DataRef date = ((ColumnRef) columns.getAttribute("D")).getDataRef();
+      assertEquals(LONG, ((DateRangeRef) date).getDataRef().getAttribute());
+      DataRef numeric = ((ColumnRef) columns.getAttribute("N")).getDataRef();
+      assertEquals(LONG2, ((NumericRangeRef) numeric).getDataRef().getAttribute());
+      assertEquals(1, count(columns, "F"));
+      assertEquals(1, count(columns, "D"));
+      assertEquals(1, count(columns, "N"));
+
       // the condition follows the column, it would be dropped on the old name
       ConditionList conds = (ConditionList) table.getPreConditionList();
       assertEquals(1, conds.getSize());
       assertEquals(LONG2, conds.getConditionItem(0).getAttribute().getAttribute());
+   }
+
+   private static int count(ColumnSelection columns, String name) {
+      int count = 0;
+
+      for(int i = 0; i < columns.getAttributeCount(); i++) {
+         if(name.equals(columns.getAttribute(i).getAttribute())) {
+            count++;
+         }
+      }
+
+      return count;
    }
 
    // what getSqlQueryDialogModel does for the table's runtime query
@@ -336,6 +427,16 @@ class SQLQueryDialogGeneratedAliasTest {
       ColumnRef c1 = new ColumnRef(new AttributeRef("ALIAS_1"));
       c1.setDescription("closing date");
       columns.addAttribute(c1);
+
+      // a formula column and range columns over the old names
+      ExpressionRef formula = new ExpressionRef(null, "F");
+      formula.setExpression("field['ALIAS_0'] + 1");
+      columns.addAttribute(new ColumnRef(formula));
+      columns.addAttribute(new ColumnRef(
+         new DateRangeRef("D", new AttributeRef("ALIAS_0"), DateRangeRef.YEAR_INTERVAL)));
+      NumericRangeRef range = new NumericRangeRef("N", new AttributeRef("ALIAS_1"));
+      range.setValueRangeInfo(new ValueRangeInfo());
+      columns.addAttribute(new ColumnRef(range));
 
       // as a worksheet that was opened
       for(int i = 0; i < columns.getAttributeCount(); i++) {
