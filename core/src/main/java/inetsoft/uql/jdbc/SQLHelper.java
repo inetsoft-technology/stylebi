@@ -4570,6 +4570,17 @@ public class SQLHelper implements KeywordProvider {
    }
 
    /**
+    * Check if the database either ignores the case of a name or folds an unquoted name to
+    * upper case (e.g. oracle, h2, derby, mysql, sql server). An unquoted order by name then
+    * resolves to a select alias written unquoted in any case, or written quoted in upper case
+    * (Bug #77644). A database with case-sensitive names (e.g. clickhouse, sybase ase) or one
+    * that folds to lower case doesn't.
+    */
+   public boolean isAliasCaseInsensitive() {
+      return !isCaseSensitive();
+   }
+
+   /**
     * The case a database folds an unquoted identifier to.
     */
    public enum IdentifierCase {

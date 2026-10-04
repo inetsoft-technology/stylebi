@@ -1978,7 +1978,8 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
             }
          }
          else if(field instanceof String &&
-            (aliasRef = getSelectAliasField((String) field, quote != null)) != null)
+            ((aliasRef = getSelectAliasField((String) field, quote != null)) != null ||
+             (aliasRef = getOtherCaseOrderByAlias((String) field, quote != null)) != null))
          {
             if(!aliasRef.field().equals(field)) {
                field = aliasRef.field();
@@ -2257,6 +2258,45 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
       for(int i = 0; ref != null && i < select.getColumnCount(); i++) {
          if(name.equals(select.getAlias(i)) && isAliasQuoted(i) == null) {
             return getAliasReference(field, i, true);
+         }
+      }
+
+      return null;
+   }
+
+   /**
+    * Get the select alias that an unquoted order by name in another case than the alias
+    * references, on a helper that doesn't quote every name (Bug #77644). getSelectAliasField
+    * matches the alias as stored, so the name was taken as the table column of that name in
+    * any case, while the database resolves an order by name to a select alias first. An
+    * unquoted alias is the name in any case, a quoted one if in upper case (see
+    * SQLHelper.isAliasCaseInsensitive). The name is then the alias as stored, as if written
+    * in its case. A quoted alias in another case is a table column on a database that folds
+    * the name, so it isn't matched. Group by isn't changed, a database resolves a group by
+    * name to a table column first.
+    * @param quoted <tt>true</tt> if the field was written as a quoted identifier.
+    * @return the alias, or <tt>null</tt> if the field is not a select alias in another case.
+    */
+   private AliasRef getOtherCaseOrderByAlias(String field, boolean quoted) {
+      String plain = "[A-Za-z_][A-Za-z0-9_]*";
+
+      if(quoted || dataSource == null || getSQLHelper().isCaseSensitive() ||
+         !getSQLHelper().isAliasCaseInsensitive() || !field.matches(plain))
+      {
+         return null;
+      }
+
+      XSelection select = getSelection();
+      String upper = field.toUpperCase(Locale.ROOT);
+
+      for(int i = 0; i < select.getColumnCount(); i++) {
+         String calias = select.getAlias(i);
+
+         if(calias != null && calias.matches(plain) &&
+            (upper.equals(calias) || Boolean.FALSE.equals(isAliasQuoted(i)) &&
+             upper.equals(calias.toUpperCase(Locale.ROOT))))
+         {
+            return new AliasRef(calias, false, null);
          }
       }
 
