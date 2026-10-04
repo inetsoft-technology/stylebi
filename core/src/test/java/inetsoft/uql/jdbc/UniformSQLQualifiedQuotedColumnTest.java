@@ -475,8 +475,9 @@ class UniformSQLQualifiedQuotedColumnTest {
    /**
     * The metadata step rewrites a name to the case of its column. A quoted name ("MixedCase"
     * or t."MixedCase") must resolve to the column of the same case, also when a column that
-    * differs only in case (MIXEDCASE) comes first. An unquoted name keeps the first match
-    * ignoring case, as before.
+    * differs only in case (MIXEDCASE) comes first. An unquoted name is the column in the case
+    * the database folds it to (snowflake MIXEDCASE), else the first match ignoring case, as
+    * before (Bug #77643).
     */
    @Test
    void quotedNamesResolveToTheColumnOfTheSameCase() throws Exception {
@@ -507,7 +508,7 @@ class UniformSQLQualifiedQuotedColumnTest {
                UniformSQL sql = parse(unquoted, ds);
                resolve(sql, columns);
                String generated = regenerate(sql);
-               String first = columns[0];
+               String first = key.equals("snowflake") ? "MIXEDCASE" : columns[0];
 
                assertTrue(generated.contains("where " + (ds == null || key.equals("h2") ? "t." : "\"t\".") +
                                              (key.equals("postgresql") || key.equals("snowflake") ?

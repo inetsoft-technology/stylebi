@@ -558,6 +558,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
       distinctKey = false;
       allKey = false;
       grpall = false;
+      parsedUnquotedSegments = new HashSet<>();
    }
 
    /**
@@ -2285,6 +2286,38 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
       SQLHelper helper = getSQLHelper();
       return helper instanceof PostgreSQLHelper || helper instanceof SnowflakeHelper ||
          helper instanceof ExasolHelper;
+   }
+
+   /**
+    * Record a column segment that the parser stored with quotes ("MixedCase") but that was
+    * written unquoted, see isParsedUnquotedSegment.
+    */
+   public synchronized void addParsedUnquotedSegment(String segment) {
+      if(parsedUnquotedSegments == null) {
+         parsedUnquotedSegments = new HashSet<>();
+      }
+
+      parsedUnquotedSegments.add(segment);
+   }
+
+   /**
+    * Check if a column segment stored with quotes was written unquoted in the sql parsed
+    * last. The database folds such a name, so the metadata step matches its folded case
+    * (Bug #77643). Only the metadata step that follows the parse asks for it, see
+    * clearParsedUnquotedSegments, since a name added later (e.g. by the query editor, with
+    * the quotes and case of the column) is the exact name.
+    */
+   public synchronized boolean isParsedUnquotedSegment(String segment) {
+      return parsedUnquotedSegments != null && parsedUnquotedSegments.contains(segment);
+   }
+
+   /**
+    * Clear the record of the column segments written unquoted, see isParsedUnquotedSegment.
+    */
+   public synchronized void clearParsedUnquotedSegments() {
+      if(parsedUnquotedSegments != null) {
+         parsedUnquotedSegments.clear();
+      }
    }
 
    /**
@@ -4728,6 +4761,9 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
 
          obj.quotedFields = new HashMap<>(quotedFields);
          obj.quotedAggregates = new HashMap<>(quotedAggregates);
+         // a copy, the metadata step of the clone empties its own record
+         obj.parsedUnquotedSegments = parsedUnquotedSegments == null ?
+            new HashSet<>() : new HashSet<>(parsedUnquotedSegments);
 
          if(where != null) {
             obj.where = (XFilterNode) where.clone();
@@ -5281,6 +5317,10 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
    private transient Principal vpmUser; // vpm user apply for studio worksheet.
    private transient volatile SQLHelper cachedSQLHelper;
    private Boolean lossy = null;
+   // the column segments stored with quotes that were written unquoted in the sql parsed last,
+   // see isParsedUnquotedSegment. Not saved; when it's lost (e.g. serialized before the
+   // metadata step) a segment is matched by its exact case first
+   private transient Set<String> parsedUnquotedSegments = new HashSet<>();
 
    private static final Logger LOG = LoggerFactory.getLogger(UniformSQL.class);
    private static final ThreadLocal<Integer> UNQUOTED = ThreadLocal.withInitial(() -> 0);

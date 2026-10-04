@@ -4370,6 +4370,37 @@ public class SQLHelper implements KeywordProvider {
    }
 
    /**
+    * Get the case the database folds an unquoted identifier to, if the helper is of a database
+    * that always folds to one case. The stored name of a column on such a database is its
+    * exact name, see JDBCUtil.getFullPathOf (Bug #77643).
+    */
+   public IdentifierCase getIdentifierCase() {
+      return IdentifierCase.UNKNOWN;
+   }
+
+   /**
+    * The case a database folds an unquoted identifier to.
+    */
+   public enum IdentifierCase {
+      UPPER, LOWER, UNKNOWN;
+
+      /**
+       * Fold an identifier written unquoted. Only a plain ascii name is folded, postgresql
+       * folds ascii letters only, any other name is kept as written.
+       */
+      public String fold(String name) {
+         if(this == UNKNOWN || name == null || !PLAIN_IDENTIFIER.matcher(name).matches()) {
+            return name;
+         }
+
+         return this == UPPER ? name.toUpperCase(Locale.ROOT) : name.toLowerCase(Locale.ROOT);
+      }
+   }
+
+   // a name the database folds when it's written unquoted
+   private static final Pattern PLAIN_IDENTIFIER = Pattern.compile("[A-Za-z_][A-Za-z0-9_]*");
+
+   /**
     * The alias has special character should be quoted as "alias".
     */
    protected String quoteColumnAlias(String alias) {
