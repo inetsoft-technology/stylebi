@@ -30,7 +30,9 @@ import static org.junit.jupiter.api.Assertions.*;
  * awareness, silently truncating a genuinely nested {@code /* ... *&#47;} comment (PostgreSQL,
  * Derby, SQL Server and DB2 all nest block comments). It now recursively consumes a fully
  * nested comment, so the outer comment only ends at the {@code "*&#47;"} that closes the
- * outermost level. Separately, {@code SL_COMMENT} treated {@code "//"} as a line-comment
+ * outermost level, with a {@code mlCommentDepth} field capping the recursion at {@code
+ * MAX_ML_COMMENT_DEPTH} (100) so pathological input fails the parse cleanly instead of
+ * overflowing the stack. Separately, {@code SL_COMMENT} treated {@code "//"} as a line-comment
  * opener alongside {@code "--"}; {@code "//"} is not standard SQL (and is integer division on
  * some dialects), so it silently swallowed real trailing SQL. Only {@code "--"} is recognized
  * now.
@@ -99,6 +101,42 @@ class UniformSQLNestedCommentTest {
    void divisionOperatorStillWorks() {
       String generated = regenerate("select id from t where k = 10 / 2", dataSource("h2"));
       assertTrue(generated.contains("10/2") || generated.contains("10 / 2"), generated);
+   }
+
+   // the recursive nesting fails cleanly (a parse failure) instead of overflowing the stack
+   // on pathological, deeply-nested input
+   @Test
+   void deeplyNestedCommentFailsCleanlyInsteadOfOverflowingStack() {
+      String text = nestedComment(5000);
+      UniformSQL sql = new UniformSQL();
+      sql.setDataSource(dataSource("h2"));
+
+      assertDoesNotThrow(() -> new SQLProcessor(sql).parse(text));
+      assertEquals(UniformSQL.PARSE_FAILED, sql.getParseResult());
+   }
+
+   // nesting right up to the depth cap must still parse and strip correctly
+   @Test
+   void nestingAtTheDepthCapStillWorks() {
+      String generated = regenerate(nestedComment(100), dataSource("h2"));
+      assertEquals("select id from t where k = 1", generated);
+   }
+
+   private static String nestedComment(int depth) {
+      StringBuilder sb = new StringBuilder("select id from t ");
+
+      for(int i = 0; i < depth; i++) {
+         sb.append("/* ");
+      }
+
+      sb.append("x");
+
+      for(int i = 0; i < depth; i++) {
+         sb.append(" */");
+      }
+
+      sb.append(" where k = 1");
+      return sb.toString();
    }
 
    private static String regenerate(String text, JDBCDataSource ds) {
