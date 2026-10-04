@@ -166,6 +166,12 @@ public class JDBCQueryCacheNormalizer {
          return null;
       }
 
+      // a wildcard left in the select list (not expanded from the metadata) is one item for
+      // many result columns, so the map of the items doesn't fit the result (Bug #77617)
+      if(UniformSQL.hasWildcard(usql.getSelection())) {
+         return null;
+      }
+
       boolean noSortDistinct = noneContainsSortByDistinctSql(usql);
 
       if(!Boolean.TRUE.equals(usql.getHint(UniformSQL.HINT_SORTED_SQL, !noSortDistinct)) &&
