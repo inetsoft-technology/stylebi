@@ -233,14 +233,31 @@ public class ZohoCRMDataSource extends EndpointJsonDataSource<ZohoCRMDataSource>
          return;
       }
 
-      updateTokens(
+      boolean success = updateTokens(
          new BasicNameValuePair("grant_type", "refresh_token"),
          new BasicNameValuePair("client_id", getClientId()),
          new BasicNameValuePair("client_secret", getClientSecret()),
          new BasicNameValuePair("refresh_token", getRefreshToken()));
 
+      if(!success || getFullName() == null) {
+         return;
+      }
+
+      // Bug #77692, save the refreshed tokens onto the stored definition, not this runtime
+      // instance whose variables may have been replaced with the values of the query
+      final String accessToken = getAccessToken();
+      final String refreshToken = getRefreshToken();
+      final long expiration = getTokenExpiration();
+      final String apiDomain = getURL();
+
       try {
-         XRepository.getRepository().updateDataSource(this, getFullName());
+         XRepository.getRepository().updateDataSourceTokens(this, stored -> {
+            ZohoCRMDataSource zoho = (ZohoCRMDataSource) stored;
+            zoho.setAccessToken(accessToken);
+            zoho.setRefreshToken(refreshToken);
+            zoho.setTokenExpiration(expiration);
+            zoho.setURL(apiDomain);
+         });
       }
       catch(Exception e) {
          LOG.warn("Failed to save data source with updated access tokens", e);

@@ -930,6 +930,8 @@ public abstract class AbstractRestDataSource<SELF extends AbstractRestDataSource
          return;
       }
 
+      Tokens tokens;
+
       try {
          String flags = getOauthFlags();
          Set<String> flagsSet = new HashSet<>();
@@ -938,9 +940,9 @@ public abstract class AbstractRestDataSource<SELF extends AbstractRestDataSource
             flagsSet.addAll(Arrays.asList(getOauthFlags().split(" ")));
          }
 
-         Tokens tokens = AuthorizationClient.refresh(getServiceName(),
-                                                     getRefreshToken(), getClientId(), getClientSecret(), getTokenUri(), flagsSet,
-                                                     useBasicAuth, null);
+         tokens = AuthorizationClient.refresh(getServiceName(),
+                                              getRefreshToken(), getClientId(), getClientSecret(), getTokenUri(), flagsSet,
+                                              useBasicAuth, null);
          updateTokens(tokens);
       }
       catch(Exception e) {
@@ -950,7 +952,9 @@ public abstract class AbstractRestDataSource<SELF extends AbstractRestDataSource
 
       if(this.getFullName() != null) {
          try {
-            XRepository.getRepository().updateDataSource(this, getFullName());
+            // Bug #77692, save the tokens onto the stored definition, not this runtime instance
+            // whose variables may have been replaced with the values of the query
+            XRepository.getRepository().updateDataSourceTokens(this, tokens);
          }
          catch(Exception e) {
             LOG.warn("Failed to save data source after refreshing token", e);
