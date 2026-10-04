@@ -465,6 +465,10 @@ public class XEngine implements XRepository, XQueryRepository {
 
       XDataSource copy = (XDataSource) stored.clone();
       apply.accept(copy);
+      // Bug #77699, always write the tokens. The data source's equals may not see them, e.g.
+      // when they are held in a cloud credential, which is compared by its id only, and the
+      // copy would then be taken as unchanged and not saved
+      copy.setLastModified(System.currentTimeMillis());
       // an additional connection copy keeps its base, so it is saved under its parent
       updateDataSource(copy, name);
    }
