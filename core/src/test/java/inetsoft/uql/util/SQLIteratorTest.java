@@ -391,6 +391,25 @@ public class SQLIteratorTest {
       assertEquals(List.of(), vpmTables);
    }
 
+   // Bug #77663, a quote in a sql server, sybase or access [name] doesn't open a literal or
+   // name that hides the later annotations and tags, and a ]] in it doesn't close it
+   @Test
+   void bracketNameDoesNotHideTags() {
+      for(String text : new String[] {
+         "select [a\"b] from SA.ORDERS where /*<where>*/1=1/*</where>*/ and c = \"y\"",
+         "select [a]]b'] from SA.ORDERS where /*<where>*/1=1/*</where>*/ and c = 'x'" })
+      {
+         setup();
+         iterate(text);
+         assertEquals("1=1", whereClause, text);
+      }
+
+      setup();
+      iterate("select [Customer's Name] as n\n-- vpm.tables: SA.ORDERS\n" +
+         "from SA.ORDERS where region = 'East'");
+      assertEquals(List.of("SA.ORDERS"), vpmTables);
+   }
+
    // Bug #77663, the text of a literal is still a text element, so a variable in it is found
    @Test
    void literalIsTextElement() {
