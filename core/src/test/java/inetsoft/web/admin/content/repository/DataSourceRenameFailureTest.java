@@ -27,6 +27,7 @@ import inetsoft.test.*;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.DependencyHandler;
+import inetsoft.uql.asset.internal.AssetFolder;
 import inetsoft.uql.asset.sync.*;
 import inetsoft.uql.erm.XDataModel;
 import inetsoft.uql.jdbc.JDBCDataSource;
@@ -115,6 +116,8 @@ class DataSourceRenameFailureTest {
    private boolean failPermissionThrows;
    // the connector of the tabular data sources isn't installed while an operation runs
    private boolean uninstalled;
+   // checks each index that is saved, while set
+   private java.util.function.Consumer<AssetFolder> indexCheck;
    private static int seq;
 
    @BeforeEach
@@ -176,6 +179,10 @@ class DataSourceRenameFailureTest {
             if(writes == failAt || persistent && writes > failAt) {
                throw new IOException("simulated storage write failure");
             }
+         }
+
+         if(indexCheck != null && inv.getArgument(1) instanceof AssetFolder root) {
+            indexCheck.accept(root);
          }
 
          storage.putXMLSerializable(inv.getArgument(0), inv.getArgument(1));
@@ -319,6 +326,123 @@ class DataSourceRenameFailureTest {
       assertSame(perm(ResourceType.DATA_SOURCE, p + "F/B#grant"),
                  perm(ResourceType.DATA_SOURCE, p + "F/B"));
       checkSource(p, "A", p + "F/A", nfolder + "/A", "uninstalled");
+   }
+
+   // Bug #77704: no index saved during a move, failed or not, lists a data source whose object
+   // isn't stored or lists it at both paths, and a failed move leaves no stored object that the
+   // index doesn't list
+   @Test
+   void emFolderMoveSavesNoIndexWithAMissingOrMovedTwiceDataSource() throws Exception {
+      String p0 = scenario();
+      assertNull(run(Integer.MAX_VALUE, false,
+                     () -> emMove(p0 + "F", RepositoryEntry.DATA_SOURCE_FOLDER, p0 + "Dest")));
+      int count = writes;
+
+      // the last one fails no write
+      for(int n = 1; n <= count + 1; n++) {
+         for(boolean always : new boolean[] { false, true }) {
+            String p = scenario();
+            String label = "write " + n + (always ? " and later" : "") + " of " + count;
+            String ofolder = p + "F/";
+            String nfolder = p + "Dest/" + p + "F/";
+            List<String> errors = new ArrayList<>();
+            // a failed assertion would be taken for a failed write, so it is collected
+            indexCheck = root -> {
+               Map<String, List<String>> paths = new HashMap<>();
+
+               for(AssetEntry entry : root.getEntries()) {
+                  String path = entry.getPath();
+                  String source = path.startsWith(ofolder) ?
+                     path.substring(ofolder.length()) : path.startsWith(nfolder) ?
+                     path.substring(nfolder.length()) : null;
+
+                  if(source == null || !entry.isDataSource()) {
+                     continue;
+                  }
+
+                  if(!storage.contains(entry.toIdentifier())) {
+                     errors.add(path + " is listed but not stored");
+                  }
+
+                  paths.computeIfAbsent(source, k -> new ArrayList<>()).add(path);
+               }
+
+               paths.values().stream().filter(list -> list.size() > 1)
+                  .forEach(list -> errors.add("listed at both paths: " + list));
+            };
+
+            try {
+               run(n, always,
+                   () -> emMove(p + "F", RepositoryEntry.DATA_SOURCE_FOLDER, p + "Dest"));
+            }
+            finally {
+               indexCheck = null;
+            }
+
+            assertEquals(List.of(), errors, label);
+            registry.clearCache();
+            Set<String> listed = new HashSet<>();
+
+            for(AssetEntry entry : registry.getEntries(p)) {
+               listed.add(entry.toIdentifier());
+            }
+
+            Set<String> unlisted = new TreeSet<>(storage.getKeys(key -> key.contains(p)));
+            unlisted.removeAll(listed);
+            assertEquals(Set.of(), unlisted, label + ": stored but not listed");
+         }
+      }
+   }
+
+   // Bug #77704: a folder move that failed can be completed. The same move again once the
+   // storage works, if it moved nothing and left no new folder, otherwise the data sources still
+   // at the old path, moved on their own.
+   @Test
+   void emFolderMoveCanBeCompletedAfterAFailure() throws Exception {
+      String p0 = scenario();
+      assertNull(run(Integer.MAX_VALUE, false,
+                     () -> emMove(p0 + "F", RepositoryEntry.DATA_SOURCE_FOLDER, p0 + "Dest")));
+      int count = writes;
+
+      for(int n = 1; n <= count; n++) {
+         for(boolean always : new boolean[] { false, true }) {
+            String p = scenario();
+            String label = "write " + n + (always ? " and later" : "") + " of " + count;
+            String nfolder = p + "Dest/" + p + "F";
+            DataSourceRenameException error = assertInstanceOf(
+               DataSourceRenameException.class, run(n, always, () -> emMove(
+                  p + "F", RepositoryEntry.DATA_SOURCE_FOLDER, p + "Dest")), label);
+
+            if(error.getMovedDataSources().isEmpty() &&
+               registry.getDataSourceFolder(nfolder) == null)
+            {
+               assertNull(run(Integer.MAX_VALUE, false, () -> emMove(
+                  p + "F", RepositoryEntry.DATA_SOURCE_FOLDER, p + "Dest")), label + ": again");
+               checkFolder(p, nfolder, null, false, label + ": again");
+               continue;
+            }
+
+            for(String source : List.of("A", "B", "D")) {
+               if(registry.getDataSource(p + "F/" + source) != null) {
+                  emMove(p + "F/" + source, RepositoryEntry.DATA_SOURCE, nfolder);
+               }
+            }
+
+            if(registry.getDataSource(p + "F/G/C") != null) {
+               if(registry.getDataSourceFolder(nfolder + "/G") != null) {
+                  emMove(p + "F/G/C", RepositoryEntry.DATA_SOURCE, nfolder + "/G");
+               }
+               else {
+                  emMove(p + "F/G", RepositoryEntry.DATA_SOURCE_FOLDER, nfolder);
+               }
+            }
+
+            for(String source : SOURCES) {
+               assertTrue(checkSource(p, source, p + "F/" + source, nfolder + "/" + source,
+                                      label + ": completed"), label + ": " + source);
+            }
+         }
+      }
    }
 
    // portal move of a folder into another one
