@@ -2955,8 +2955,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
                }
 
                String quote = getQuote(orders[i]);
-               String col = getColumnFromPath(field, oldTableAlias,
-                                              getQuotedSegment(quote), quote != null);
+               String col = getRenamedColumn(field, oldTableAlias, quote);
                replaceOrderBy(i, newTableAlias + "." + col, orders[i].getOrder());
                copyQuotedField(field, newTableAlias + "." + col);
             }
@@ -2982,8 +2981,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
                String field = (String) groups[i];
                // the quoting of this field, which keeps its position
                String quote = getGroupQuote(i);
-               String col = getColumnFromPath(field, oldTableAlias,
-                                              getQuotedSegment(quote), quote != null);
+               String col = getRenamedColumn(field, oldTableAlias, quote);
                renameGroupField(i, newTableAlias + "." + col);
                copyQuotedField(field, (String) groups[i]);
             }
@@ -2996,6 +2994,24 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
             setHaving((XFilterNode) getHaving().getChild(0));
          }
       }
+   }
+
+   /**
+    * Get the column of an order by or group by item whose table is renamed. An item of
+    * an unaliased table on postgresql, snowflake or exasol is stored with in-band quotes
+    * ("q"."k"), so its column keeps them ("k"). The column without them (k) doesn't match
+    * the select column x."k" when there is no table metadata, and the item would be
+    * dropped (Bug #77648).
+    * @param quote the quoting of the item, see getQuote(OrderByItem).
+    */
+   private String getRenamedColumn(String path, String table, String quote) {
+      if(quote == null && table != null && table.startsWith("\"") &&
+         path.startsWith(table + ".") && path.length() > table.length() + 1)
+      {
+         return path.substring(table.length() + 1);
+      }
+
+      return getColumnFromPath(path, table, getQuotedSegment(quote), quote != null);
    }
 
    /**
@@ -3126,7 +3142,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
          }
          else {
             String quoted = getInBandQuoted(table);
-            return aliasmap.contains(table) || quoted != null && aliasmap.contains(quoted);
+            return aliasmap.contains(table) || (quoted != null && aliasmap.contains(quoted));
          }
       }
 

@@ -225,6 +225,42 @@ class UniformSQLUnaliasedTableRenameTest {
    }
 
    /**
+    * Without table metadata the fields have no table, and the in-band quoted ORDER BY
+    * and GROUP BY items of the renamed table keep their column quoting, so they still
+    * match the select column x."k" and aren't dropped.
+    */
+   @Test
+   void renameWithoutMetadataKeepsGroupByAndOrderBy() throws Exception {
+      for(String helper : QUOTING) {
+         // an unqualified name, resolved to the select column
+         assertEquals("select x.\"k\" from \"q\" x order by x.\"k\" asc",
+                      rename(helper, "select q.k from q order by k", "q", "x", null), helper);
+         assertEquals("select x.\"k\" from \"q\" x group by x.\"k\" order by x.\"k\" asc",
+                      rename(helper, "select q.k from q group by k order by k", "q", "x", null), helper);
+         assertEquals("select x.\"k\" from \"q\" x order by x.\"k\" asc",
+                      rename(helper, "select q.k from q order by q.k", "q", "x", null), helper);
+         assertEquals("select x.\"k\" from \"q\" x group by x.\"k\" order by x.\"k\" desc",
+                      rename(helper, "select \"q\".k from \"q\" group by \"q\".k order by \"q\".k desc",
+                             "q", "x", null), helper);
+         assertEquals("select x.\"MixedCase\" from \"q\" x order by x.\"MixedCase\" asc",
+                      rename(helper, "select q.\"MixedCase\" from q order by \"MixedCase\"", "q", "x", null),
+                      helper);
+         assertEquals("select x.\"MixedCase\" from \"q\" x group by x.\"MixedCase\" " +
+                         "order by x.\"MixedCase\" asc",
+                      rename(helper, "select q.\"MixedCase\" from q group by q.\"MixedCase\" " +
+                                "order by q.\"MixedCase\"", "q", "x", null), helper);
+      }
+
+      assertEquals("select x.k from q x group by x.k order by x.k asc",
+                   rename("h2", "select q.k from q group by k order by k", "q", "x", null), "h2");
+      assertEquals("select x.k from q x order by x.k asc",
+                   rename("h2", "select q.k from q order by q.k", "q", "x", null), "h2");
+      assertEquals("select x.\"MixedCase\" from q x order by x.\"MixedCase\" asc",
+                   rename("h2", "select q.\"MixedCase\" from q order by q.\"MixedCase\"", "q", "x", null),
+                   "h2");
+   }
+
+   /**
     * Removing a table keeps the conditions of the other tables when there is no table
     * metadata, so the fields have no table.
     */
@@ -254,7 +290,14 @@ class UniformSQLUnaliasedTableRenameTest {
 
    // renames the table as the query graph does, after the graph has opened the query
    private static String rename(String helper, String query, String from, String to) throws Exception {
-      Fixture fixture = new Fixture(helper, query, COLUMNS);
+      return rename(helper, query, from, to, COLUMNS);
+   }
+
+   // renames the table with the metadata of the columns, or without table metadata
+   private static String rename(String helper, String query, String from, String to, String[] columns)
+      throws Exception
+   {
+      Fixture fixture = new Fixture(helper, query, columns);
       SelectTable table = fixture.table(from);
       QueryTableModel model = new QueryTableModel();
       model.setName(Tool.toString(table.getName()));
