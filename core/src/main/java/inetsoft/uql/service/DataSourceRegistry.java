@@ -1009,6 +1009,21 @@ public class DataSourceRegistry implements MessageListener {
    }
 
    /**
+    * Checks if a registry path is the same as another path or lies under it, e.g. "F", "F/G" or
+    * "F/G/H" for "F", but not "Fx". A data source folder must not be moved or renamed into itself
+    * or one of its subfolders: there would be no parent folder left for it.
+    *
+    * @param path    the registry path, e.g. "F".
+    * @param newPath the path to check, e.g. "F/G".
+    *
+    * @return {@code true} if the new path is the path or one of its descendants.
+    */
+   public static boolean isSameOrDescendantPath(String path, String newPath) {
+      return path != null && newPath != null &&
+         (newPath.equals(path) || newPath.startsWith(path + "/"));
+   }
+
+   /**
     * Gets the name of a JDBC additional connection from its path, or null if the path is not
     * that of a JDBC additional connection.
     */
@@ -1147,6 +1162,13 @@ public class DataSourceRegistry implements MessageListener {
    public void renameDataSourceFolder(String oname, String nname) {
       if(Tool.equals(oname, nname)) {
          return;
+      }
+
+      // a folder moved into one of its subfolders would be renamed again by renameObjects below
+      // and be left with no parent folder. Thrown before the try, which logs and goes on.
+      if(isSameOrDescendantPath(oname, nname)) {
+         throw new MessageException(Catalog.getCatalog().getString(
+            "common.datasource.moveIntoItself", oname));
       }
 
       DataSourceFolder folder = getDataSourceFolder(oname);

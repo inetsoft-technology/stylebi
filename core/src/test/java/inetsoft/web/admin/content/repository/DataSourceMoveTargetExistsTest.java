@@ -76,6 +76,10 @@ import static org.mockito.Mockito.*;
  * source with the same path. The move must be refused before anything is changed, while a move to
  * a free path and a move to the current location work as before. The registry and the repository
  * are the real ones.
+ * <p>
+ * Bug #77687: a data source folder must not be moved or renamed into itself or one of its
+ * subfolders, at any entry point, while a move into a sibling whose name starts with its own
+ * still works.
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class, IntegrationTestConfiguration.class,
@@ -645,6 +649,194 @@ class DataSourceMoveTargetExistsTest {
       assertNotNull(registry.getDataSourceFolder("nbH/nbP/nbG"));
       assertNotNull(registry.getDataSource("nbH/nbP/nbG/nbKid"));
       assertNull(registry.getDataSourceFolder("nbF/nbG"));
+   }
+
+   // Bug #77687: a tree F, F/X (data source), F/G (folder), F/G/Y (data source)
+   private void selfMoveTree(String f) throws Exception {
+      folder(f);
+      dataSource(f + "/X");
+      folder(f + "/G");
+      dataSource(f + "/G/Y");
+   }
+
+   // Bug #77687: the tree is where it was and nothing was nested under itself
+   private void assertSelfMoveTreeIntact(String f) {
+      registry.clearCache();
+      assertNotNull(registry.getDataSourceFolder(f), f);
+      assertNotNull(registry.getDataSourceFolder(f + "/G"), f + "/G");
+      assertNotNull(registry.getDataSource(f + "/X"), f + "/X");
+      assertNotNull(registry.getDataSource(f + "/G/Y"), f + "/G/Y");
+
+      for(String prefix : new String[] { f + "/G/" + f, f + "/" + f, f + "/Z" }) {
+         assertEquals(0, registry.getEntries(prefix, AssetEntry.Type.DATA_SOURCE).length, prefix);
+         assertEquals(0, registry.getEntries(prefix, AssetEntry.Type.DATA_SOURCE_FOLDER).length,
+                      prefix);
+      }
+   }
+
+   // Bug #77687: EM, a folder moved into its own subfolder or into itself is refused before
+   // anything is changed, a move to its own parent is a no-op
+   @Test
+   void emFolderIntoItselfIsRefused() throws Exception {
+      selfMoveTree("smF");
+
+      MessageException ex = assertThrows(MessageException.class, () -> objectService.moveFiles(
+         request(dest("smF/G"), node("smF", RepositoryEntry.DATA_SOURCE_FOLDER)), true, principal));
+      assertTrue(ex.getMessage().contains("smF"), ex.getMessage());
+      assertSelfMoveTreeIntact("smF");
+
+      assertThrows(MessageException.class, () -> objectService.moveFiles(
+         request(dest("smF"), node("smF", RepositoryEntry.DATA_SOURCE_FOLDER)), true, principal));
+      assertSelfMoveTreeIntact("smF");
+
+      // the folder's own parent: the target is its current path
+      objectService.moveFiles(
+         request(root(), node("smF", RepositoryEntry.DATA_SOURCE_FOLDER)), true, principal);
+      objectService.moveFiles(
+         request(dest("smF"), node("smF/G", RepositoryEntry.DATA_SOURCE_FOLDER)), true, principal);
+      assertSelfMoveTreeIntact("smF");
+   }
+
+   // Bug #77687: portal, a folder moved into its own subfolder or into itself is refused
+   @Test
+   void portalFolderIntoItselfIsRefused() throws Exception {
+      selfMoveTree("spF");
+
+      MessageException ex = assertThrows(MessageException.class, () -> browserService.moveDataSource(
+         new MoveCommand[] { move("spF", "spF/G/spF", PortalDataType.DATA_SOURCE_FOLDER) },
+         principal));
+      assertTrue(ex.getMessage().contains("spF"), ex.getMessage());
+      assertSelfMoveTreeIntact("spF");
+
+      assertThrows(MessageException.class, () -> browserService.moveDataSource(
+         new MoveCommand[] { move("spF", "spF/spF", PortalDataType.DATA_SOURCE_FOLDER) },
+         principal));
+      assertSelfMoveTreeIntact("spF");
+   }
+
+   // Bug #77687: a folder renamed with a slash into its own subfolder is refused by both renames
+   // before a dependency rewrite is queued
+   @Test
+   void folderRenameIntoItselfIsRefused() throws Exception {
+      selfMoveTree("srF");
+      folder("srP");
+      selfMoveTree("srP/srF");
+      RenameTransformHandler transforms = mock(RenameTransformHandler.class);
+      DataSourceBrowserService browser = new DataSourceBrowserService(
+         security, objectService, repository, mock(DataSourceService.class), registry,
+         mock(Config.class), transforms);
+      DatabaseDatasourcesService database = new DatabaseDatasourcesService(
+         new DatabaseTypeService(List.of(new CustomDatabaseType(), new AccessDatabaseType())),
+         security, mock(DatabaseSettingsService.class), repository,
+         mock(ResourcePermissionService.class), mock(DataSourceStatusService.class),
+         mock(IgniteSessionRepository.class), registry, transforms);
+
+      MessageException ex = assertThrows(MessageException.class,
+         () -> browser.renameFolder("srF", "srF/Z", null, null, principal));
+      assertTrue(ex.getMessage().contains("srF"), ex.getMessage());
+      assertThrows(MessageException.class,
+         () -> browser.renameFolder("srP/srF", "srF/Z", null, null, principal));
+      assertThrows(MessageException.class,
+         () -> database.setDataSourceFolder("srF", folderModel("srF/Z"), principal));
+      assertThrows(MessageException.class,
+         () -> database.setDataSourceFolder("srP/srF", folderModel("srF/Z"), principal));
+
+      verifyNoInteractions(transforms);
+      assertSelfMoveTreeIntact("srF");
+      assertSelfMoveTreeIntact("srP/srF");
+   }
+
+   // Bug #77687: the registry and the repository refuse a folder rename into itself on their
+   // own, before anything is changed
+   @Test
+   void renameIntoItselfIsRefusedByTheRegistryAndTheRepository() throws Exception {
+      selfMoveTree("sbF");
+
+      assertThrows(MessageException.class,
+                   () -> registry.renameDataSourceFolder("sbF", "sbF/G/sbF"));
+      assertThrows(MessageException.class, () -> registry.renameDataSourceFolder("sbF", "sbF/Z"));
+      assertSelfMoveTreeIntact("sbF");
+
+      assertThrows(MessageException.class, () -> repository.updateDataSourceFolder(
+         new DataSourceFolder("sbF/Z", LocalDateTime.now(), null), "sbF"));
+      assertThrows(MessageException.class, () -> repository.updateDataSourceFolder(
+         new DataSourceFolder("sbF/G/sbF", LocalDateTime.now(), null), "sbF"));
+      assertSelfMoveTreeIntact("sbF");
+
+      assertFalse(DataSourceRegistry.isSameOrDescendantPath("sbF", "sbFx"));
+      assertFalse(DataSourceRegistry.isSameOrDescendantPath("sbF/G", "sbF"));
+      assertTrue(DataSourceRegistry.isSameOrDescendantPath("sbF", "sbF"));
+      assertTrue(DataSourceRegistry.isSameOrDescendantPath("sbF", "sbF/G"));
+   }
+
+   // Bug #77687: a refused folder move queues no dependency rewrite, and a batch with a free move
+   // and a move into the folder's own subfolder moves nothing
+   @Test
+   void refusedMoveIntoItselfQueuesNoTransformTask() throws Exception {
+      selfMoveTree("stF");
+      folder("stFree");
+      folder("stDest");
+      RenameTransformHandler transforms = mock(RenameTransformHandler.class);
+      RepletRegistryManager repletRegistries = mock(RepletRegistryManager.class);
+      when(repletRegistries.getRegistry(nullable(IdentityID.class)))
+         .thenReturn(mock(RepletRegistry.class));
+      ResourcePermissionService permissions = mock(ResourcePermissionService.class);
+      when(permissions.getRepositoryResourceType(anyInt(), anyString())).thenAnswer(
+         inv -> new Resource(ResourceType.DATA_SOURCE, inv.<String>getArgument(1)));
+      RepositoryObjectService em = new RepositoryObjectService(
+         mock(RepletRegistryService.class), mock(ContentRepositoryTreeService.class),
+         mock(SecurityProvider.class), permissions, repository,
+         mock(RepositoryDashboardService.class), mock(DataModelFolderManagerService.class),
+         registry, mock(LibManagerProvider.class), mock(RecycleBin.class),
+         mock(DependencyHandler.class), transforms, repletRegistries,
+         mock(DashboardRegistryManager.class));
+      DataSourceBrowserService portal = new DataSourceBrowserService(
+         security, em, repository, mock(DataSourceService.class), registry,
+         mock(Config.class), transforms);
+
+      assertThrows(MessageException.class, () -> em.moveFiles(
+         request(dest("stF/G"), node("stFree", RepositoryEntry.DATA_SOURCE_FOLDER),
+                 node("stF", RepositoryEntry.DATA_SOURCE_FOLDER)), true, principal));
+      assertThrows(MessageException.class, () -> portal.moveDataSource(
+         new MoveCommand[] {
+            move("stFree", "stDest/stFree", PortalDataType.DATA_SOURCE_FOLDER),
+            move("stF", "stF/G/stF", PortalDataType.DATA_SOURCE_FOLDER) },
+         principal));
+
+      verifyNoInteractions(transforms);
+      assertSelfMoveTreeIntact("stF");
+      assertNotNull(registry.getDataSourceFolder("stFree"));
+      assertNull(registry.getDataSourceFolder("stF/G/stFree"));
+      assertNull(registry.getDataSourceFolder("stDest/stFree"));
+   }
+
+   // Bug #77687: a folder still moves and is renamed into a sibling whose name starts with its
+   // own, with its data sources and additional connections
+   @Test
+   void moveIntoASiblingWithTheSamePrefixStillWorks() throws Exception {
+      selfMoveTree("sgF");
+      addParent("sgF/sgP", "sgAdd");
+      folder("sgFx");
+      selfMoveTree("sgH");
+      folder("sgHx");
+      selfMoveTree("sgK");
+
+      objectService.moveFiles(
+         request(dest("sgFx"), node("sgF", RepositoryEntry.DATA_SOURCE_FOLDER)), true, principal);
+      browserService.moveDataSource(
+         new MoveCommand[] { move("sgH", "sgHx/sgH", PortalDataType.DATA_SOURCE_FOLDER) },
+         principal);
+      assertEquals("sgKx", browserService.renameFolder("sgK", "sgKx", null, null, principal));
+
+      registry.clearCache();
+      assertNull(registry.getDataSourceFolder("sgF"));
+      assertSelfMoveTreeIntact("sgFx/sgF");
+      assertChildren("sgFx/sgF/sgP", "sgAdd");
+      assertNull(registry.getDataSourceFolder("sgH"));
+      assertSelfMoveTreeIntact("sgHx/sgH");
+      assertNull(registry.getDataSourceFolder("sgK"));
+      assertNotNull(registry.getDataSource("sgKx/X"));
+      assertNotNull(registry.getDataSource("sgKx/G/Y"));
    }
 
    private void folder(String path) {
