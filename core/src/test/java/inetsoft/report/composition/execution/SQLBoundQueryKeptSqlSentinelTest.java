@@ -353,14 +353,10 @@ class SQLBoundQueryKeptSqlSentinelTest {
       Run run = run(ws, table, ES, null);
       assertTrue(run.keptString);
 
-      if(rewritable) {
-         assertTrue(norm(run.sql).contains("a.name = ''"), run.sql);
-         assertEquals(List.of("1", "2", "3"), rows(run.table));
-      }
-      else {
-         assertEquals(norm(sql.replace("$(p)", ES)), norm(run.sql));
-         assertEquals(List.of(), rows(run.table));
-      }
+      // #77709 rewrites a quoted '$(p)', so the gate must take the rewritten branch
+      assertTrue(rewritable);
+      assertTrue(norm(run.sql).contains("a.name = ''"), run.sql);
+      assertEquals(List.of("1", "2", "3"), rows(run.table));
    }
 
    // a failure inside the rewrite falls back to the kept sql string, as before
