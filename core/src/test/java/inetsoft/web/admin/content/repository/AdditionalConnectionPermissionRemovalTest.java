@@ -38,9 +38,12 @@ import inetsoft.uql.util.Config;
 import inetsoft.uql.util.Drivers;
 import inetsoft.util.Plugins;
 import inetsoft.util.Tool;
+import inetsoft.util.MessageException;
 import inetsoft.util.audit.ActionRecord;
 import inetsoft.util.credential.CredentialService;
 import inetsoft.util.credential.CredentialType;
+import inetsoft.util.dep.XAssetConfig;
+import inetsoft.util.dep.XDataSourceAsset;
 import inetsoft.web.RecycleBin;
 import inetsoft.web.admin.content.database.DatabaseDefinition;
 import inetsoft.web.admin.content.database.DatabaseTypeService;
@@ -60,9 +63,11 @@ import org.springframework.context.annotation.*;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import java.io.*;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
 import java.security.Principal;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.util.*;
 
@@ -76,6 +81,9 @@ import static org.mockito.Mockito.*;
  * connection is dropped or renamed in the editor of its parent, the old key must be removed, so
  * that an additional connection created later with that name doesn't get the old grants. The
  * registry and the repository are the real ones, the permissions are kept in a map.
+ * <p>
+ * Bug #77700: the permission of a removed data source itself, "folder/name", is removed by the
+ * registry, so that the data sources of subfolders, removed by the registry alone, don't keep it.
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class, IntegrationTestConfiguration.class,
@@ -570,6 +578,140 @@ class AdditionalConnectionPermissionRemovalTest {
       others.remove("unPX::unA");
       others.remove("unPX");
       assertKept(others);
+   }
+
+   // Bug #77700: EM or portal Delete of a folder removes the permissions of the data sources in
+   // its subfolders, which are removed by the registry alone, and data sources created again at
+   // their paths don't get them
+   @Test
+   void folderDeleteRemovesThePermissionsOfNestedDataSources() throws Exception {
+      addFolder("ndF");
+      addFolder("ndF/ndG");
+      addParent("ndF/ndP");
+      addParent("ndF/ndG/ndQ", "ndA");
+      grant("ndF/ndP");
+      grant("ndF/ndG/ndQ");
+      grant("ndF/ndG/ndQ::ndA");
+
+      assertNull(objectService.removeDataSourceFolder("ndF", true, principal));
+
+      assertNull(registry.getDataSource("ndF/ndG/ndQ"));
+      assertNull(perm("ndF/ndP"));
+      assertNull(perm("ndF/ndG/ndQ"));
+      assertNull(perm("ndF/ndG/ndQ::ndA"));
+
+      addFolder("ndF");
+      addFolder("ndF/ndG");
+      addParent("ndF/ndP");
+      addParent("ndF/ndG/ndQ", "ndA");
+      assertNull(perm("ndF/ndP"), "the recreated data source got the old grant");
+      assertNull(perm("ndF/ndG/ndQ"), "the recreated nested data source got the old grant");
+   }
+
+   // Bug #77700: a folder delete through XEngine.removeDataSourceFolder removes the permissions
+   // of its data sources
+   @Test
+   void repositoryFolderDeleteRemovesThePermissionsOfItsDataSources() throws Exception {
+      addFolder("nrF");
+      addFolder("nrF/nrG");
+      addParent("nrF/nrP");
+      addParent("nrF/nrG/nrQ");
+      grant("nrF/nrP");
+      grant("nrF/nrG/nrQ");
+
+      assertTrue(repository.removeDataSourceFolder("nrF"));
+
+      assertNull(registry.getDataSourceFolder("nrF"));
+      assertNull(perm("nrF/nrP"));
+      assertNull(perm("nrF/nrG/nrQ"));
+   }
+
+   // Bug #77700: a permission resource of an additional connection, as
+   // IdentityService.removeSelfResource passes it, has no data source at its path. Neither the
+   // permission of the additional connection nor that of its parent is removed.
+   @Test
+   void removeByAPermissionResourceKeepsTheParentPermission() throws Exception {
+      addParent("resOwn", "resOwnA");
+      Permission parent = grant("resOwn");
+      Permission child = grant("resOwn::resOwnA");
+
+      assertDoesNotThrow(() -> registry.removeDataSource("resOwn::resOwnA"));
+
+      assertChildren("resOwn", "resOwnA");
+      assertSame(parent, perm("resOwn"));
+      assertSame(child, perm("resOwn::resOwnA"));
+   }
+
+   // Bug #77700: an import that overwrites a data source with its own export, at the top level
+   // and in a folder, keeps the permissions of the data source and of its additional connections
+   @Test
+   void overwriteImportKeepsThePermissions() throws Exception {
+      addFolder("ovF");
+
+      for(String path : List.of("ovO", "ovF/ovO")) {
+         addParent(path, "ovA", "ovB");
+         Permission own = grant(path);
+         Permission a = grant(path + "::ovA");
+         Permission b = grant(path + "::ovB");
+         String exported = export(path);
+
+         importDataSource(path, exported, true);
+
+         assertChildren(path, "ovA", "ovB");
+         assertSame(own, perm(path), path);
+         assertSame(a, perm(path + "::ovA"), path);
+         assertSame(b, perm(path + "::ovB"), path);
+      }
+   }
+
+   // Bug #77700: an import of R/S where R is a data source. The import either replaces R with a
+   // folder, which must remove the permission of R, or is refused (Bug #77702), which must keep
+   // R and its permission.
+   @Test
+   void importUnderADataSourceKeepsNoPermissionWithoutTheDataSource() throws Exception {
+      addParent("imR", "imRA");
+      Permission own = grant("imR");
+      addParent("imSrc");
+      String exported = export("imSrc").replace("\"imSrc\"", "\"imR/imS\"");
+      registry.removeDataSource("imSrc");
+
+      try {
+         importDataSource("imR/imS", exported, false);
+      }
+      catch(MessageException ignore) {
+         // refused
+      }
+
+      registry.clearCache();
+
+      if(registry.getDataSource("imR") != null) {
+         assertSame(own, perm("imR"));
+      }
+      else {
+         assertNotNull(registry.getDataSourceFolder("imR"));
+         assertNull(perm("imR"), "the permission of the replaced data source was kept");
+         assertNull(perm("imR::imRA"));
+      }
+   }
+
+   // the export of a data source, as XDataSourceAsset writes it
+   private String export(String path) throws Exception {
+      Method method = XDataSourceAsset.class.getDeclaredMethod("writeXML", PrintWriter.class);
+      method.setAccessible(true);
+      StringWriter buffer = new StringWriter();
+      PrintWriter writer = new PrintWriter(buffer);
+      writer.println("<?xml version=\"1.0\" encoding=\"UTF-8\" ?>");
+      method.invoke(new XDataSourceAsset(path), writer);
+      writer.flush();
+      return buffer.toString();
+   }
+
+   private void importDataSource(String path, String xml, boolean overwrite) throws Exception {
+      XAssetConfig config = new XAssetConfig();
+      config.setOverwriting(overwrite);
+      new XDataSourceAsset(path).parseContent(
+         new ByteArrayInputStream(xml.getBytes(StandardCharsets.UTF_8)), config, true, true);
+      registry.clearCache();
    }
 
    private void assertKept(Map<String, Permission> permissions) {

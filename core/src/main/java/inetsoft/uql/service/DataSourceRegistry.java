@@ -695,14 +695,24 @@ public class DataSourceRegistry implements MessageListener {
          String additionalName = getJDBCAdditionalConnectionName(dxname);
          String[] additionalNames = additionalName != null ?
             new String[] { additionalName } : getAdditionalConnectionNames(dxname);
-         List<String> additionalResources = getAdditionalConnectionResources(dxname);
-         removeObject(new AssetEntry(AssetRepository.QUERY_SCOPE,
-                                     AssetEntry.Type.DATA_SOURCE, dxname, null));
+         List<String> resources = getAdditionalConnectionResources(dxname);
+         AssetEntry entry = new AssetEntry(AssetRepository.QUERY_SCOPE,
+                                           AssetEntry.Type.DATA_SOURCE, dxname, null);
+
+         // the permission of the data source itself, so that a data source created later at
+         // its path doesn't get it. Only when there is one at the path: the path may also be a
+         // permission resource that is not a registry path, e.g. "P::add", whose additional
+         // connection is not removed (Bug #77700)
+         if(containObject(entry)) {
+            resources.add(dxname);
+         }
+
+         removeObject(entry);
          removeObjects(getEntries(dxname + "/"));
          removeObject(new AssetEntry(AssetRepository.QUERY_SCOPE,
             AssetEntry.Type.DATA_MODEL, dxname, null));
          removeConnectionTestQueries(dxname, additionalNames);
-         removeAdditionalConnectionPermissions(additionalResources);
+         removeDataSourcePermissions(resources);
       }
       catch(Exception e) {
          LOG.error(
@@ -1130,10 +1140,10 @@ public class DataSourceRegistry implements MessageListener {
    }
 
    /**
-    * Removes the permissions of removed additional connections, so that an additional
-    * connection created later with the same name doesn't get them.
+    * Removes the permissions of removed data sources and additional connections, so that one
+    * created later with the same name doesn't get them.
     */
-   private void removeAdditionalConnectionPermissions(List<String> resources) {
+   private void removeDataSourcePermissions(List<String> resources) {
       if(resources.isEmpty()) {
          return;
       }
@@ -1150,7 +1160,7 @@ public class DataSourceRegistry implements MessageListener {
             engine.removePermission(ResourceType.DATA_SOURCE, resource);
          }
          catch(Exception e) {
-            LOG.warn("Failed to remove the permission of additional connection {}", resource, e);
+            LOG.warn("Failed to remove the permission of data source {}", resource, e);
          }
       }
    }
@@ -1775,7 +1785,7 @@ public class DataSourceRegistry implements MessageListener {
          AssetEntry entry = new AssetEntry(AssetRepository.QUERY_SCOPE,
                                            AssetEntry.Type.DATA_MODEL, datasource, null);
          removeObject(entry);
-         removeAdditionalConnectionPermissions(additionalResources);
+         removeDataSourcePermissions(additionalResources);
       }
       catch(Exception e) {
          LOG.error(
