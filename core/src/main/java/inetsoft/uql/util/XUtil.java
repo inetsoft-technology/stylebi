@@ -2735,6 +2735,23 @@ public final class XUtil {
       return false;
    }
 
+   /**
+    * Check if the sql has a comment the database runs or reads: an optimizer hint
+    * (<tt>/*+</tt>, <tt>--+</tt>) or a MySQL/MariaDB executable comment (<tt>/*!</tt>,
+    * <tt>/*M!</tt>). The sql generated from a parsed query drops comments, so sql with one of
+    * these must be sent as written.
+    */
+   public static boolean hasExecutableComment(String sql) {
+      return sql != null && (sql.contains("/*+") || sql.contains("--+") ||
+         sql.contains("/*!") || sql.contains("/*M!"));
+   }
+
+   // the sql with each run of white space as one space. A literal is generated as written, so
+   // two generations of the same literal are changed the same way.
+   private static String normalizeSpaces(String sql) {
+      return sql == null ? null : sql.replaceAll("\\s+", " ").trim();
+   }
+
    // a $(name) reference anywhere in sql text, quoted or not (not $(@name)), for
    // hasSentinelParameter. Kept apart from the operand patterns (SPECIFIC_VARIABLE etc.) so
    // that a change to them doesn't narrow the check.
@@ -2914,8 +2931,10 @@ public final class XUtil {
     * A subquery kept as a sql string (a VPM condition's subquery is saved unparsed) is parsed
     * into a copy, and replaced by the copy only if the rewrite changes its sql. The string is
     * kept as it is when it has no sentinel parameter, isn't parsed completely, embeds a
-    * parameter (<tt>$(@name)</tt>), or has an optimizer hint or a MySQL executable comment,
-    * which the generated sql would drop. Other comments are dropped from a rewritten subquery.
+    * parameter (<tt>$(@name)</tt>), has an optimizer hint or a MySQL/MariaDB executable
+    * comment, which the generated sql would drop ({@link #hasExecutableComment}), or when the
+    * generated sql doesn't parse back to itself. Other comments are dropped from a rewritten
+    * subquery.
     */
    private static void rewriteConditionSubqueries(XQuery query, XNode node,
                                                   VariableTable params, boolean include,
@@ -3025,16 +3044,31 @@ public final class XUtil {
       String sql = sub.getSQLString();
 
       if(sql.contains("$(@") || !hasSentinelParameter(sql, params) ||
-         sql.contains("/*+") || sql.contains("--+") || sql.contains("/*!"))
+         hasExecutableComment(sql))
       {
          return null;
       }
 
       try {
-         UniformSQL copy = UniformSQL.parseSubquery(
-            sql, sub.getDataSource() != null ? sub.getDataSource() : source);
+         JDBCDataSource ds = sub.getDataSource() != null ? sub.getDataSource() : source;
+         UniformSQL copy = UniformSQL.parseSubquery(sql, ds);
 
          if(copy == null || !rewriteSentinels(copy, params)) {
+            return null;
+         }
+
+         // the generated sql must mean what the structure does. A generated text that parses
+         // to another structure (e.g. a - -1 generated as a-- 1, which comments out the rest
+         // of the line) could drop a row-security predicate, keep the sql as written. The
+         // generator pads some operators, so the texts are compared without the extra spaces.
+         String generated = copy.getSQLString();
+         UniformSQL reparsed = UniformSQL.parseSubquery(generated, ds);
+
+         if(reparsed == null || !normalizeSpaces(generated).equals(
+            normalizeSpaces(reparsed.getSQLString())))
+         {
+            LOG.debug("The rewritten subquery doesn't parse to itself, the sql is sent as " +
+                      "written: {}", sql);
             return null;
          }
 

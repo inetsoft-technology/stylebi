@@ -261,11 +261,46 @@ class XUtilSentinelVpmSubqueryTest {
       for(String sub : new String[] {
          "select /*+ INDEX(b) */ b.id from b where b.k = $(p)",
          "select b.id from b where b.k = $(p) and b.owner <> $(@q)",
-         "select b.id from b where b.k = $(p) fetch first 1 rows only" })
+         "select b.id from b where b.k = $(p) fetch first 1 rows only",
+         // MariaDB runs the predicate in a /*M! comment, the generated sql would drop it
+         "select b.id from b where b.k = $(p) /*M! and b.owner = 'u1' */" })
       {
          vpm = in(new UniformSQL(sub, false));
          Run run = run(NV);
          assertTrue(run.condition.contains(sub.toLowerCase()), run.condition);
+      }
+   }
+
+   // the generated sql must parse back to itself: b.id - -1 is generated as b.id-- 1, which
+   // would comment out the owner predicate after it and return the rows of every owner. The
+   // subquery is sent as written instead (the sentinel binds its text, no row).
+   @Test
+   void generatedSqlThatDoesNotParseToItselfIsSentAsWritten() throws Exception {
+      String sub = "select b.id from b where b.k = $(p) and b.id = b.id - -1 and " +
+         "b.owner = $(_USER_)";
+
+      for(String p : new String[] { NV, ES, "n1", UNSET }) {
+         vpm = in(new UniformSQL(sub, false));
+         Run run = run(p);
+         assertEquals(List.of(), run.rows, "p=" + p + " " + run.condition);
+         assertTrue(run.condition.contains(sub.toLowerCase()), run.condition);
+      }
+   }
+
+   // a subquery as a BETWEEN bound (a trinary condition)
+   @Test
+   void betweenSubquery() throws Exception {
+      for(UniformSQL sub : new UniformSQL[] {
+         new UniformSQL("select min(b.id) from b where b.k = $(p)", false),
+         parsed("select min(b.id) from b where b.k = $(p)") })
+      {
+         vpm = cond(new XTrinaryCondition(
+            new XExpression("a.id", XExpression.FIELD),
+            new XExpression(sub, XExpression.SUBQUERY),
+            new XExpression("100", XExpression.VALUE), "BETWEEN"));
+         // min of b.k is null: 1, of b.k = '': 3 (the literal binding gave 5 both times)
+         assertEquals(List.of("1", "3", "5", "7", "9"), run(NV).rows);
+         assertEquals(List.of("3", "5", "7", "9"), run(ES).rows);
       }
    }
 

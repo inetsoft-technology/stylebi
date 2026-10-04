@@ -280,6 +280,9 @@ class SQLBoundQueryKeptSqlSentinelTest {
                   ES, null);
       assertExact("select a.k from a --+ hint\nwhere a.name = $(p) group by a.k order by 1",
                   ES, null);
+      // a MariaDB executable comment, which MariaDB runs
+      assertExact("select a.k from a where a.name = $(p) /*M! and a.k > 0 */ group by a.k " +
+                  "order by 1", ES, null);
       assertExact("select a.k from a where a.name = $(p) and a.k > $(@q) group by a.k " +
                   "order by 1", ES, null);
       assertExact("select a.k from a where a.name = $(p) group by a.k order by 1 " +

@@ -5346,6 +5346,11 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
    /**
     * Parse the sql of a subquery that is kept as a sql string, e.g. the subquery value of a
     * VPM condition, which is saved unparsed. The parse runs now, on a new query.
+    * <p>
+    * The sql generated from the result doesn't keep comments, including optimizer hints and
+    * executable comments (see XUtil.hasExecutableComment), and isn't checked to parse back to
+    * the same structure. A caller that sends the generated sql in place of <tt>sql</tt> must
+    * exclude those and check the generated sql itself.
     * @param sql the sql of the subquery.
     * @param source the data source the subquery runs on.
     * @return the parsed subquery without its sql string, so its structure is the whole

@@ -330,6 +330,14 @@ class XUtilSentinelConditionTest {
       generated = normalize(usql.getSQLString());
       assertFalse(generated.contains("$(p)"), generated);
       assertTrue(generated.contains("b.x IS NULL"), generated);
+
+      // and the subquery of a HAVING condition
+      usql = parse(SELECT + "group by a.id having count(*) > 0 and " +
+                   "a.id IN (select b.id from b where b.x = $(p))");
+      assertTrue(XUtil.rewriteSentinels(usql, vars));
+      generated = normalize(usql.getSQLString());
+      assertFalse(generated.contains("$(p)"), generated);
+      assertTrue(generated.contains("b.x IS NULL"), generated);
    }
 
    @AfterAll
