@@ -21,6 +21,7 @@ import inetsoft.sree.security.IdentityID;
 import inetsoft.test.*;
 import inetsoft.uql.*;
 import inetsoft.uql.jdbc.*;
+import inetsoft.uql.jdbc.util.VarSQL;
 import inetsoft.util.credential.CredentialService;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -33,6 +34,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import java.util.List;
 import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -109,17 +111,149 @@ class VpmConditionLiteralTest {
                    evaluate("T", "o", "concat($(a.b), \"T\".\"A(\", T.B)"));
    }
 
+   /**
+    * Bug #77697, the parser stopped without an error at a token it doesn't know, the column
+    * iterator didn't know the quoting and comment rules of the database, a variable was taken
+    * for a column, and a name starting with the column name was replaced.
+    */
+   static Stream<Arguments> dialectExpressions() {
+      return Stream.of(
+         // a ' in a bracket quoted name (item 1)
+         Arguments.of(MSSQL, "concat($(a.b), T.A, [it's], 'x', T.B)",
+                      "concat($(a.b), o.A, [it's], 'x', o.B)"),
+         Arguments.of(null, "concat($(a.b), T.A, [it's], 'x', T.B)",
+                      "concat($(a.b), o.A, [it's], 'x', o.B)"),
+         Arguments.of(MSSQL, "T.A ^ 1 + [it's] + 'x' + T.B", "o.A ^ 1 + [it's] + 'x' + o.B"),
+         Arguments.of(MSSQL, "T.A % 2 + [Customer's Name] + T.B",
+                      "o.A % 2 + [Customer's Name] + o.B"),
+         Arguments.of(MSSQL, "T.A + [it's] + T.B;", "o.A + [it's] + o.B;"),
+         Arguments.of(null, "T.A || [it's] || 'x' || T.B", "o.A || [it's] || 'x' || o.B"),
+         // a bracket quoted name is a column (item 1)
+         Arguments.of(MSSQL, "T.[Name] + T.B", "o.[Name] + o.B"),
+         Arguments.of(MSSQL, "[T].[Name] + T.B", "o.[Name] + o.B"),
+         Arguments.of(MSSQL, "T.[Customer's] + 'x' + T.B", "o.[Customer's] + 'x' + o.B"),
+         Arguments.of(MSSQL, "concat($(a.b), T.[Customer's], 'x', T.B)",
+                      "concat($(a.b), o.[Customer's], 'x', o.B)"),
+         // the name before a literal, and the columns after a token the parser stops at
+         // (item 2)
+         Arguments.of(null, "T.A^'x'", "o.A^'x'"),
+         Arguments.of(null, "T.A^'x' || T.B", "o.A^'x' || o.B"),
+         Arguments.of(MSSQL, "T.A^'x' + T.B", "o.A^'x' + o.B"),
+         Arguments.of(null, "concat($(p), T.A^'x')", "concat($(p), o.A^'x')"),
+         Arguments.of(null, "concat($(a.b), T.A^'x', T.B)", "concat($(a.b), o.A^'x', o.B)"),
+         Arguments.of(MYSQL, "T.A div 2 + T.B", "o.A div 2 + o.B"),
+         Arguments.of(POSTGRESQL, "T.A ->> 'k' || T.B", "o.\"A\" ->> 'k' || o.\"B\""),
+         Arguments.of(null, "T.A + T.B over (partition by T.C)",
+                      "o.A + o.B over (partition by o.C)"),
+         Arguments.of(null, "T.A in ('O''Brien', T.B)", "o.A in ('O''Brien', o.B)"),
+         // a variable is not a column (item 3)
+         Arguments.of(null, "concat(T.C, $(T.B))", "concat(o.C, $(T.B))"),
+         Arguments.of(null, "case when $(T.B) is null then 1 else T.C end",
+                      "case when $(T.B) is null then 1 else o.C end"),
+         // a name starting with the column name is not the column (item 4)
+         Arguments.of(null, "T.DATE + T.DATE_ID", "o.\"DATE\" + o.DATE_ID"),
+         Arguments.of(null, "T.DATE_ID + T.DATE", "o.DATE_ID + o.\"DATE\""),
+         Arguments.of(MSSQL, "T.DATE + T.DATE_ID", "o.\"DATE\" + o.DATE_ID"),
+         Arguments.of(MYSQL, "T.DATE + T.DATE_ID", "o.`DATE` + o.DATE_ID"),
+         Arguments.of(null, "concat($(a.b), T.DATE, T.DATE$X)",
+                      "concat($(a.b), o.\"DATE\", o.\"DATE$X\")"),
+         // a mysql # comment (item 5)
+         Arguments.of(MYSQL, "T.A # note\n + T.B", "o.A # note\n + o.B"),
+         Arguments.of(MYSQL, "T.A # it's\n + T.B", "o.A # it's\n + o.B"),
+         Arguments.of(MYSQL, "T.A # it's\n + T.B + 'x'", "o.A # it's\n + o.B + 'x'"),
+         Arguments.of(MYSQL, "concat(T.A, # it's T.B\n T.B, 'x')",
+                      "concat(o.A, # it's T.B\n o.B, 'x')"),
+         // a mysql backslash escape (item 6)
+         Arguments.of(MYSQL, "concat(T.A, \"it\\\"s T.B\")", "concat(o.A, \"it\\\"s T.B\")"),
+         Arguments.of(MYSQL, "concat(T.A, \"it\\\"s T.B\", T.B)",
+                      "concat(o.A, \"it\\\"s T.B\", o.B)"),
+         Arguments.of(MYSQL, "concat(T.A, 'it\\'s', T.B)", "concat(o.A, 'it\\'s', o.B)"),
+         Arguments.of(MYSQL, "concat(T.A, 'it\\'s T.B', T.B)",
+                      "concat(o.A, 'it\\'s T.B', o.B)"),
+         // the rules of the other databases are not applied
+         Arguments.of(null, "concat($(a.b), T.A, 'C:\\', T.B)",
+                      "concat($(a.b), o.A, 'C:\\', o.B)"),
+         Arguments.of(null, "concat($(a.b), m['a]b'], T.B)", "concat($(a.b), m['a]b'], o.B)"),
+         Arguments.of(POSTGRESQL, "concat($(a.b), T.A, '[x', T.B, 'y]')",
+                      "concat($(a.b), o.\"A\", '[x', o.\"B\", 'y]')"),
+         Arguments.of(MYSQL, "concat(T.A, '-- x', T.B) /* it's T.B */",
+                      "concat(o.A, '-- x', o.B) /* it's T.B */"),
+         // a double quoted name is still a column
+         Arguments.of(MYSQL, "upper(\"T\".\"A\")", "upper(o.A)"),
+         Arguments.of(MSSQL, "upper(\"T\".\"A\") + T.[B]", "upper(o.A) + o.[B]"));
+   }
+
+   @ParameterizedTest(name = "{0}: {1}")
+   @MethodSource("dialectExpressions")
+   void tableIsReplacedByDatabaseRules(String product, String exp, String expected)
+      throws Exception
+   {
+      assertEquals(expected + " = 1", evaluate("T", "o", exp, product));
+   }
+
+   // Bug #77697, a name starting with the column name is not the column, it is a column of
+   // another table (item 4)
+   @Test
+   void columnOfTableNamedAfterColumnIsNotReplaced() throws Exception {
+      VpmCondition cond = createCondition("T", "T.A + T.AB.C");
+      XPrincipal user = new XPrincipal(new IdentityID("viewer", null));
+
+      assertEquals("o.A + p.C = 1",
+                   cond.evaluate(null, new String[] { "T", "T.AB" }, new String[] { "o", "p" },
+                                 new String[0], null, new VariableTable(), user, false));
+   }
+
+   // Bug #77697, a variable with a dot was renamed by the table alias, so it was bound as
+   // null (item 3)
+   @Test
+   void variableIsNotRenamed() throws Exception {
+      VariableTable vars = new VariableTable();
+      vars.put("a.b", "v");
+      VpmCondition cond = createCondition("a", "case when $(a.b) is null then 1 else a.c end");
+      XPrincipal user = new XPrincipal(new IdentityID("viewer", null));
+      String result = cond.evaluate(null, new String[] { "a" }, new String[] { "o" },
+                                    new String[0], null, vars, user, false);
+
+      assertEquals("case when $(a.b) is null then 1 else o.c end = 1", result);
+
+      VarSQL varsql = new VarSQL();
+      varsql.replaceVariables("select * from a o where " + result, vars);
+      assertEquals(List.of("v"), varsql.getParameterValues());
+   }
+
    private static String evaluate(String table, String alias, String exp) throws Exception {
+      return evaluate(table, alias, exp, null);
+   }
+
+   private static String evaluate(String table, String alias, String exp, String product)
+      throws Exception
+   {
+      VpmCondition cond = createCondition(table, exp);
+      JDBCDataSource source = null;
+
+      if(product != null) {
+         source = new JDBCDataSource();
+         source.setName("ds");
+         source.setRuntimeProductName(product);
+      }
+
+      XPrincipal user = new XPrincipal(new IdentityID("viewer", null));
+      return cond.evaluate(null, new String[] { table }, new String[] { alias },
+                           new String[0], source, new VariableTable(), user, false);
+   }
+
+   private static VpmCondition createCondition(String table, String exp) {
       VpmCondition cond = new VpmCondition("cond");
       cond.setType(VpmCondition.TABLE);
       cond.setTable(table);
       cond.setCondition(new XBinaryCondition(new XExpression(exp, XExpression.EXPRESSION),
                                              new XExpression("1", XExpression.VALUE), "="));
-
-      XPrincipal user = new XPrincipal(new IdentityID("viewer", null));
-      return cond.evaluate(null, new String[] { table }, new String[] { alias },
-                           new String[0], null, new VariableTable(), user, false);
+      return cond;
    }
+
+   private static final String MSSQL = "sql server";
+   private static final String MYSQL = "mysql";
+   private static final String POSTGRESQL = "postgresql";
 
    @Configuration
    static class TestConfig {

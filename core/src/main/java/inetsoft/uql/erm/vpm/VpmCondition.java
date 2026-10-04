@@ -637,6 +637,7 @@ public class VpmCondition extends VpmObject {
 
          SQLParser parser = null;
          String[] fields = null;
+         String dbType = helper.getSQLHelperType();
 
          try {
             SQLLexer lexer = new SQLLexer(new java.io.StringReader(str));
@@ -644,12 +645,22 @@ public class VpmCondition extends VpmObject {
             parser.setPreferQuote(false);
             parser.setTime(5000);
             parser.value_exp();
-            fields = parser.getColumns();
+
+            // Bug #77697, the parser stops without an error at a token it doesn't know (div,
+            // ->>, over, a mysql # comment), and the columns after it were not found, so the
+            // expression is iterated as when the parser fails
+            if(parser.LA(1) == antlr.Token.EOF_TYPE) {
+               fields = parser.getColumns();
+            }
          }
          // a timeout, or a construct the parser refuses in a subquery
          catch(Exception ex) {
+            fields = null;
+         }
+
+         if(fields == null) {
             final ArrayList<String> columns = new ArrayList<>();
-            ColumnIterator iterator = new ColumnIterator((String) value);
+            ColumnIterator iterator = new ColumnIterator((String) value, dbType);
             ColumnIterator.ColumnListener listener = new
                ColumnIterator.ColumnListener()
             {
@@ -665,17 +676,32 @@ public class VpmCondition extends VpmObject {
          }
 
          value = replaceColumnTableName((String) value, fields, tables,
-                                        taliases, target, sql, helper);
+                                        taliases, target, sql, helper,
+                                        ColumnIterator.getRules(dbType));
          exp.setValue(value, exp.getType());
       }
    }
 
+   /**
+    * Replace the table of each column of an expression by the table alias.
+    * @param rules the quoting and comment rules of the database (ColumnIterator.getRules()).
+    */
    private String replaceColumnTableName(String exp, String[] columns,
                                          String[] tables, String[] taliases, int target,
-                                         UniformSQL sql, SQLHelper helper)
+                                         UniformSQL sql, SQLHelper helper, int rules)
    {
       if(columns == null || columns.length <= 0) {
          return exp;
+      }
+
+      boolean bracket = ColumnIterator.isBracketQuote(rules);
+      columns = columns.clone();
+
+      // Bug #77697, a bracket quoted name ([T].[A]) is the name, as the parser reports it
+      if(bracket) {
+         for(int i = 0; i < columns.length; i++) {
+            columns[i] = BRACKET_NAME.matcher(columns[i]).replaceAll("$1");
+         }
       }
 
       String[] ncolumns = new String[columns.length];
@@ -690,16 +716,22 @@ public class VpmCondition extends VpmObject {
          String ncolumn = ncolumns[i];
 
          if(ncolumn != null) {
+            // a bracket quoted column ([Customer's]) stays quoted, the helper may not quote it
+            String bcolumn = bracket && ncolumn.endsWith("." + column) ?
+               ncolumn.substring(0, ncolumn.length() - column.length()) + "[" + column + "]" :
+               null;
             ncolumn = helper.buildFieldExpression(ncolumn, false);
             // String creg = ".*['\"]?" + table + "['\"]?\\.['\"]?" + column + "(['\"]?)(\\W+.)*";
             // Bug #77663, a ' is not an identifier quote (the optional ' took the closing quote
             // of a literal), and a name ending with the table name (XT.A) is not the table
             // (a unicode name, e.g. a chinese table name, is a name too)
-            String rreg = "(?<![\\w$.])\"?" + Pattern.quote(String.valueOf(table)) +
-               "\"?\\.\"?" + Pattern.quote(String.valueOf(column)) + "\"?";
+            // Bug #77697, a name starting with the column name (T.AB, T.A$X, T.A.C) is not the
+            // column, and a name may be quoted in brackets
+            String rreg = "(?<![\\w$.])" + getNamePattern(table, bracket) + "\\." +
+               getNamePattern(column, bracket) + "(?![\\w$])(?!\\.)";
             exp = replaceOutsideLiterals(
-               exp, Pattern.compile(rreg, Pattern.UNICODE_CHARACTER_CLASS),
-               Matcher.quoteReplacement(ncolumn));
+               exp, Pattern.compile(rreg, Pattern.UNICODE_CHARACTER_CLASS), ncolumn, bcolumn,
+               rules);
          }
       }
 
@@ -707,35 +739,63 @@ public class VpmCondition extends VpmObject {
    }
 
    /**
-    * Replace the matches of a regular expression outside the string literals and comments of
-    * an expression. A double quoted or backquoted name ("T"."A") is not a literal, so it is
-    * replaced, but a ' inside it doesn't open a literal.
+    * Get the regular expression of a name that may be quoted.
+    */
+   private static String getNamePattern(String name, boolean bracket) {
+      String quoted = Pattern.quote(String.valueOf(name));
+      String pattern = "\"?" + quoted + "\"?";
+      return bracket ? "(?:\\[" + quoted + "\\]|" + pattern + ")" : pattern;
+   }
+
+   /**
+    * Replace the matches of a regular expression outside the string literals, comments and
+    * variables of an expression. A quoted name ("T"."A", [T].[A]) is not a literal, so a
+    * match of whole quoted names is replaced, but not a match inside quoted text, which is a
+    * string in some databases (a mysql "it\"s T.A").
+    * @param breplacement the replacement of a match ending with a bracket quoted name, or
+    *                     null to use the replacement.
+    * @param rules the quoting and comment rules of the database (ColumnIterator.getRules()).
     */
    private static String replaceOutsideLiterals(String exp, Pattern pattern,
-                                                String replacement)
+                                                String replacement, String breplacement,
+                                                int rules)
    {
-      StringBuilder result = new StringBuilder();
       int len = exp.length();
-      int start = 0;
-      int i = 0;
+      // the characters of the literals, comments and variables
+      boolean[] hidden = new boolean[len];
+      // the start of the quoted name containing each character, or -1
+      int[] owner = new int[len];
+      // the end of the quoted name starting at each index
+      int[] nameEnd = new int[len];
       // the quotes found not closed. A quote that isn't closed doesn't open a literal or
       // name, as before literals were skipped
       String unclosed = "";
+      int i = 0;
+
+      Arrays.fill(owner, -1);
 
       while(i < len) {
-         int end = SQLQuoteScanner.skipComment(exp, i);
-         char c = exp.charAt(i);
+         int end = ColumnIterator.skipComment(exp, i, rules);
+         boolean name = false;
 
-         if(end < 0 && (c == '\'' || c == '"' || c == '`') && unclosed.indexOf(c) < 0) {
-            end = SQLQuoteScanner.skipQuoted(exp, i, c, false);
+         if(end < 0) {
+            end = ColumnIterator.skipVariable(exp, i);
+         }
 
-            if(end < 0) {
-               unclosed += c;
-            }
-            // a quoted name is stepped over but stays in the text that is replaced
-            else if(c != '\'') {
-               i = end;
-               continue;
+         if(end < 0) {
+            char c = exp.charAt(i);
+            char close = ColumnIterator.getCloseQuote(exp, i, rules);
+
+            if(close != 0 && unclosed.indexOf(c) < 0) {
+               end = SQLQuoteScanner.skipQuoted(
+                  exp, i, close, ColumnIterator.isBackslashEscape(c, rules));
+
+               // a [ that is not closed ends at a line break or another [
+               if(end < 0 && c != '[') {
+                  unclosed += c;
+               }
+
+               name = c != '\'';
             }
          }
 
@@ -744,12 +804,49 @@ public class VpmCondition extends VpmObject {
             continue;
          }
 
-         result.append(pattern.matcher(exp.substring(start, i)).replaceAll(replacement));
-         result.append(exp, i, end);
-         start = i = end;
+         for(int j = i; j < end; j++) {
+            if(name) {
+               owner[j] = i;
+            }
+            else {
+               hidden[j] = true;
+            }
+         }
+
+         if(name) {
+            nameEnd[i] = end;
+         }
+
+         i = end;
       }
 
-      result.append(pattern.matcher(exp.substring(start)).replaceAll(replacement));
+      StringBuilder result = new StringBuilder();
+      Matcher matcher = pattern.matcher(exp);
+      int start = 0;
+      i = 0;
+
+      while(i <= len && matcher.find(i)) {
+         int mstart = matcher.start();
+         int mend = matcher.end();
+         boolean replace = mend > mstart &&
+            (owner[mstart] < 0 || owner[mstart] == mstart) &&
+            (owner[mend - 1] < 0 || nameEnd[owner[mend - 1]] == mend);
+
+         for(int j = mstart; replace && j < mend; j++) {
+            replace = !hidden[j];
+         }
+
+         if(replace) {
+            result.append(exp, start, mstart).append(
+               breplacement != null && exp.charAt(mend - 1) == ']' ? breplacement : replacement);
+            start = i = mend;
+         }
+         else {
+            i = mstart + 1;
+         }
+      }
+
+      result.append(exp, start, len);
       return result.toString();
    }
 
@@ -913,4 +1010,6 @@ public class VpmCondition extends VpmObject {
    private int type;
    private XFilterNode conds;
    private static final Logger LOG = LoggerFactory.getLogger(VpmCondition.class);
+   // a bracket quoted name in a column, [A] in T.[A]
+   private static final Pattern BRACKET_NAME = Pattern.compile("\\[([^\\[\\]]*)\\]");
 }
