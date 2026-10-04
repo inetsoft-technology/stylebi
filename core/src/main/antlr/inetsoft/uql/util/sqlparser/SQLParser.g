@@ -2919,7 +2919,9 @@ char_string_lit returns [String cslit = ""]
         (tmp = introducer tmp1 = char_set_spec )?
         a:STRING_LITERAL {
        cslit = tmp1 + a.getText();
-       if(tmp.length() > 0) { cslit = tmp + " " + cslit; }
+       // the introducer (e.g. "_utf8") must stay adjacent to the charset name with no space,
+       // or the regenerated SQL is rejected by MySQL
+       if(tmp.length() > 0) { cslit = tmp + cslit; }
     }
         ;
 
@@ -5198,6 +5200,12 @@ tokens {
 //private boolean intervalFlag = false;
 private boolean intervalEnd = true;
 
+// nesting depth of the comment currently being matched by ML_COMMENT, which recurses into
+// itself for a nested "/*"; caps pathological input (e.g. thousands of nested "/*") at a
+// clean parse failure instead of a StackOverflowError
+private int mlCommentDepth = 0;
+private static final int MAX_ML_COMMENT_DEPTH = 100;
+
 private boolean isInterval() {
 	int i = 0; String tmp = "";
 	try {
@@ -5419,22 +5427,29 @@ HEX_DIGIT
 	:	('0'..'9'|'A'..'F'|'a'..'f')
 	;
 
-// Single-line comments
+// Single-line comments. "//" is not standard SQL (and is integer division on some
+// dialects), so only "--" is recognized as a line-comment opener.
 SL_COMMENT
-	:	"//"
-		//(~('\n'|'\r'))* ('\n'|'\r'('\n')?)
-		('\u0000'..'\u0009'|'\u000B'|'\u000C'|'\u000E'..'\uFFFE')* ('\n'|'\r'('\n')?)
-		{$setType(Token.SKIP); newline();}
-		|
-		"--"
+	:	"--"
 		//(~('\n'|'\r'))* ('\n'|'\r'('\n')?)
 		('\u0000'..'\u0009'|'\u000B'|'\u000C'|'\u000E'..'\uFFFE')* ('\n'|'\r'('\n')?)
 		{$setType(Token.SKIP); newline();}
 	;
 
-// multiple-line comments
+// multiple-line comments. Nesting-aware: a "/*" inside the comment body
+// recursively invokes this same rule to consume a fully nested comment (open and close
+// delimiters included), so the outer comment only ends at the "*/" that closes the
+// outermost level, matching how PostgreSQL, Derby, SQL Server and DB2 all nest "/* */" comments.
+// mlCommentDepth caps the recursion so pathological input (thousands of nested "/*") fails
+// the parse cleanly instead of overflowing the stack.
 ML_COMMENT
-	:	"/*" {setCommitToPath(true);}
+	:	"/*" {setCommitToPath(true); mlCommentDepth++;}
+		{
+			if(mlCommentDepth > MAX_ML_COMMENT_DEPTH) {
+				mlCommentDepth = 0;
+				throw new antlr.RecognitionException("comment nested too deeply");
+			}
+		}
 		(	/*	'\r' '\n' can be matched in one alternative or by matching
 				'\r' in one iteration and '\n' in another.  I am trying to
 				handle any flavor of newline that comes in, but the language
@@ -5446,15 +5461,17 @@ ML_COMMENT
 				generateAmbigWarnings=false;
 			}
 		:
-			{ LA(2)!='/' }? '*'
+			("/*") => ML_COMMENT
+		|	{ LA(2)!='/' }? '*'
+		|	{ LA(2)!='*' }? '/'
 		|	'\r' '\n'		{newline();}
 		|	'\r'			{newline();}
 		|	'\n'			{newline();}
 		//|	~('*'|'\n'|'\r')
-		|	'\u0000'..'\u0009'|'\u000B'|'\u000C'|'\u000E'..'\u0029'|'\u002B'..'\uFFFE'
+		|	'\u0000'..'\u0009'|'\u000B'|'\u000C'|'\u000E'..'\u0029'|'\u002B'..'\u002E'|'\u0030'..'\uFFFE'
 		)*
 		"*/"
-		{$setType(Token.SKIP);}
+		{$setType(Token.SKIP); mlCommentDepth--;}
 	;
 
 EQ      :       "=" 	;
