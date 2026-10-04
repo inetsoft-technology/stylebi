@@ -118,9 +118,12 @@ public class SQLIterator {
       // Bug #77695, a tag inside a comment that every database reads as a comment (after a
       // mid-line --, or in a slash-star comment) is not sql, so it is not a tag. A tag opener
       // is not a comment itself, the text after it is sql
-      opener = findOpeners(sql);
-      lastCommentStart = new int[sql.length()];
-      commentStart = SQLQuoteScanner.findComments(sql, i -> opener[i] != 0, lastCommentStart);
+      // the masks are only read on a line with a tag opener or closer, skip them without one
+      boolean tagged = sql.indexOf(TAG1) >= 0;
+      opener = tagged ? findOpeners(sql) : new byte[0];
+      lastCommentStart = new int[tagged ? sql.length() : 0];
+      commentStart = tagged ?
+         SQLQuoteScanner.findComments(sql, i -> opener[i] != 0, lastCommentStart) : new int[0];
       lastCloser = null;
       int start = 0;
 
@@ -535,7 +538,8 @@ public class SQLIterator {
 
    /**
     * Read a valid tag name at the index: where, or a column number from 1 as Integer.parseInt
-    * reads it (a + sign and leading zeros, at most 9 digits from the first nonzero digit).
+    * reads it (a + sign, leading zeros and any unicode decimal digits, at most 9 digits from
+    * the first nonzero digit).
     * The characters are read in place up to the first one that can't be in the name.
     * @return the index after the name, or -1 if no valid name starts at the index.
     */
@@ -551,18 +555,19 @@ public class SQLIterator {
          i++;
       }
 
-      while(i < len && text.charAt(i) == '0') {
+      // any unicode decimal digit, e.g. a full-width digit typed with an IME, as parseInt
+      while(i < len && Character.digit(text.charAt(i), 10) == 0) {
          i++;
       }
 
-      if(i >= len || text.charAt(i) < '1' || text.charAt(i) > '9') {
+      if(i >= len || Character.digit(text.charAt(i), 10) < 1) {
          return -1;
       }
 
       int first = i;
       i++;
 
-      while(i < len && i - first < 9 && text.charAt(i) >= '0' && text.charAt(i) <= '9') {
+      while(i < len && i - first < 9 && Character.digit(text.charAt(i), 10) >= 0) {
          i++;
       }
 

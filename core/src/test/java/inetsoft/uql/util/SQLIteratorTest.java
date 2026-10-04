@@ -736,6 +736,9 @@ public class SQLIteratorTest {
          "select a /*<99999999999>*/x/*</99999999999>*/ from T",
          "select a /*</where>*/ from T",
          "select * from T where /*<WHERE>*/1=1/*</WHERE>*/",
+         // a full-width where is not where, as before (main took it as a number and threw)
+         "select * from T where /*<ｗｈｅｒｅ>*/1=1" +
+            "/*</ｗｈｅｒｅ>*/",
          "select /*< 1 >*/x/*</ 1 >*/ from T" })
       {
          setup();
@@ -751,6 +754,15 @@ public class SQLIteratorTest {
       setup();
       assertEquals("select x from T", iterate("select /*<+3>*/x/*</+3>*/ from T"));
       assertEquals("x", columns.get(3));
+
+      // any unicode decimal digit is read as Integer.parseInt reads it: a full-width digit
+      // typed with a CJK IME, an Arabic-Indic digit, and a full-width zero before it
+      for(String name : new String[] { "３", "٣", "０３", "+３" }) {
+         setup();
+         String sql = "select a, b, /*<" + name + ">*/t2.SSN/*</" + name + ">*/ from T";
+         assertEquals("select a, b, t2.SSN from T", iterate(sql), sql);
+         assertEquals(Map.of(3, "t2.SSN"), columns, sql);
+      }
 
       assertThrows(RuntimeException.class, () -> iterate("select a /*<1>*/ from T"));
       assertThrows(RuntimeException.class, () -> iterate("select a from t\nwhere /*<where>*/1=1"));
