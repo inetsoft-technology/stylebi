@@ -149,6 +149,37 @@ class UniformSQLIdentifierEscapeTest {
       assertRoundTripsToSameColumn(generated, ds, "postgresql");
    }
 
+   // Boundary case found in review: a bracket name whose literal content starts AND ends
+   // with the dialect's quote char (e.g. ["ab"], content "ab", not an escaped "" pair) must
+   // still be quoted and escaped on regeneration, not mistaken for an already-fully-wrapped
+   // string and passed through unwrapped/unescaped (#77661 review round 1)
+   @Test
+   void boundaryQuoteCharAtBothEndsIsEscaped() throws Exception {
+      String text = "select [\"ab\"] from t";
+      JDBCDataSource ds = dataSource("postgresql");
+      UniformSQL sql = parse(text, ds);
+
+      assertEquals("\"ab\"", unwrapColumn(sql.getSelection().getColumn(0)));
+
+      String generated = regenerate(sql, text);
+      assertTrue(generated.contains("\"\"\"ab\"\"\""), generated);
+      assertRoundTripsToSameColumn(generated, ds, "postgresql");
+
+      // re-parsed, the regenerated form is a bare double-quoted name (not bracket-sourced),
+      // which special_identifier stores raw rather than quoteDot-wrapped, so no unwrapColumn
+      UniformSQL again = parse(generated, ds);
+      assertEquals("\"ab\"", again.getSelection().getColumn(0), generated);
+   }
+
+   // XUtil.quoteName/quoteNameSegment/quoteAlias intentionally still pass a name that starts
+   // and ends with the quote char through unwrapped: that shape is also how a caller
+   // assembling a qualified name re-quotes an already-quoted segment (e.g. building
+   // "a"."id"), and that legitimate, far more common use depends on this exact shortcut (see
+   // isSpecialName()'s comment) - removing it regressed 32 existing tests. The one call site
+   // proven to always receive raw, never-pre-wrapped content for this shape (quoteDot, in
+   // SQLParser.g, reached from a bracket-sourced identifier) is fixed directly instead; see
+   // boundaryQuoteCharAtBothEndsIsEscaped above for its round-trip coverage.
+
    // the stored column path for a special/bracket-sourced name may already be wrapped in the
    // dialect's quote char with its '""' escape applied (quoteDot, at parse time); unwrap it to
    // compare the underlying name, same as the raw (unwrapped) form a plain SPIDENT stores

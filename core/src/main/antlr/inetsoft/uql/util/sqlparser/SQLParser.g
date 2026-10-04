@@ -1791,15 +1791,6 @@ public boolean changeType(String targetStr, int type) {
    return false;
 }
 
-// strip quote
-String strip(String str) {
-    int last = (str != null) ? str.length() - 1 : 0;
-    return (str != null && str.length() > 1 &&
-            (str.charAt(0)=='\'' && str.charAt(last)=='\'' ||
-             str.charAt(0)=='"' && str.charAt(last)=='"'))
-        ? str.substring(1, str.length()-1) : str;
-}
-
 // the quote of the last special_identifier token (XExpression.QUOTE_*)
 private int identQuote = XExpression.QUOTE_NONE;
 // the quote and the as-written segment of a quoted column in the last column_ref
@@ -1877,12 +1868,20 @@ String quoteDot(String str) {
    SQLHelper helper = SQLHelper.getSQLHelper(dx, (Principal) null);
    String quote = helper != null ? helper.getQuote() : "\"";
 
-   if(str.indexOf(".") > 0 || preferQuote && XUtil.isSpecialName(str, true, helper) &&
-      !XUtil.shouldNotQuote(str))
+   // str is always raw (delimiter-free) here, as returned by column_name (IDENT |
+   // special_identifier | T_TIME), never an already-wrapped string, so a quote char
+   // anywhere in it - including as its own first/last character, e.g. the bracket-sourced
+   // name "ab" from input ["ab"] - needs quoting. XUtil.isSpecialName() alone won't see
+   // that case: it treats a name starting and ending with the quote char as already
+   // wrapped and passes it through (a shortcut other callers with genuinely pre-wrapped
+   // segments rely on), so check for an embedded quote char directly here too (#77661)
+   if(str.indexOf(".") > 0 || preferQuote && !XUtil.shouldNotQuote(str) &&
+      (str.contains(quote) || XUtil.isSpecialName(str, true, helper)))
    {
-      // escape an embedded quote char by doubling it (#77661)
-      String stripped = strip(str);
-      return quote + stripped.replace(quote, quote + quote) + quote;
+      // escape an embedded quote char by doubling it, instead of stripping a would-be
+      // surrounding quote pair, which would silently drop the first/last character of a
+      // raw name that happens to be the quote char itself (#77661)
+      return quote + str.replace(quote, quote + quote) + quote;
    }
 
    return str;

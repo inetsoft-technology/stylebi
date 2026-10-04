@@ -665,6 +665,13 @@ public final class XUtil {
                                              KeywordProvider provider) {
       String quote = provider == null ? "\"" : provider.getQuote();
 
+      // a name that already looks fully wrapped (e.g. a qualified-name segment a caller
+      // re-quotes, like "id" built while assembling "a"."id") is passed through as-is. This
+      // is ambiguous with a raw name whose own first and last character both happen to be
+      // the quote char (#77661), but callers throughout this codebase rely on this shortcut
+      // for already-wrapped segments far more than the rare literal case needs it covered
+      // here; the one confirmed raw-content case (quoteDot, SQLParser.g) checks for an
+      // embedded quote itself before ever reaching this method.
       if(str.startsWith(quote) && str.endsWith(quote) && str.length() > 1) {
          return false;
       }
@@ -699,6 +706,7 @@ public final class XUtil {
          return true;
       }
 
+      // see isSpecialName()'s comment on this same shortcut
       if(str.startsWith(quote) && str.endsWith(quote) && length > 1) {
          return false;
       }
