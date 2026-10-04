@@ -299,7 +299,21 @@ public abstract class DependencyTransformer {
       String oldPath,
       String newPath)
    {
-      List<RenameDependencyInfo> infos = new ArrayList<>();
+      return new ArrayList<>(
+         createDatasourceFolderDependencyInfoMap(dataSourceRegistry, oldPath, newPath).values());
+   }
+
+   /**
+    * Creates the dependency infos of the data sources of a data source folder that is moved.
+    *
+    * @return the dependency infos by the old path of their data source.
+    */
+   public static Map<String, RenameDependencyInfo> createDatasourceFolderDependencyInfoMap(
+      DataSourceRegistry dataSourceRegistry,
+      String oldPath,
+      String newPath)
+   {
+      Map<String, RenameDependencyInfo> infos = new LinkedHashMap<>();
       List<String> children = dataSourceRegistry.getSubDataSourceNames(oldPath, true);
 
       for(String name : children) {
@@ -316,7 +330,7 @@ public abstract class DependencyTransformer {
                dataSourceRegistry, name, newName, true);
 
             if(dinfo != null) {
-               infos.add(dinfo);
+               infos.put(name, dinfo);
             }
 
             continue;
@@ -326,7 +340,7 @@ public abstract class DependencyTransformer {
          child.setName(newName);
          RenameDependencyInfo dinfo = DependencyTransformer.createDependencyInfo(
             child, name, child.getFullName(), true);
-         infos.add(dinfo);
+         infos.put(name, dinfo);
       }
 
       return infos;
