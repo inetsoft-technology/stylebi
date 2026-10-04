@@ -679,4 +679,19 @@ describe("DataFolderBrowserComponent – moveAssets0 sibling sharing a name pref
                                 makeFolder({ name: "Sales2", path: "Sales2", scope }));
       await waitFor(() => expect(confirmSpy).toHaveBeenCalledTimes(2));
    });
+
+   it("should move a nested folder onto a nested sibling sharing its name, not onto itself or a subfolder", async () => {
+      const confirmSpy = vi.spyOn(ComponentTool, "showConfirmDialog").mockResolvedValue("cancel");
+      const { comp } = await renderComponent();
+      const scope = AssetEntryHelper.GLOBAL_SCOPE;
+      const folder = makeFolder({ name: "F", path: "a/F", scope });
+
+      (comp as any).moveAssets0([folder], makeFolder({ name: "F", path: "a/F", scope }));
+      (comp as any).moveAssets0([folder], makeFolder({ name: "G", path: "a/F/G", scope }));
+
+      expect(confirmSpy).not.toHaveBeenCalled();
+
+      (comp as any).moveAssets0([folder], makeFolder({ name: "Fx", path: "a/Fx", scope }));
+      await waitFor(() => expect(confirmSpy).toHaveBeenCalledTimes(1));
+   });
 });

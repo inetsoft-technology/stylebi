@@ -201,6 +201,31 @@ describe("ScheduleFolderTreeComponent — isDescendant: startsWith false positiv
       expect(bodies[0].folders).toEqual(["F"]);
    });
 
+   // Bug #77705: the same for nested folders, a/F onto a/Fx is moved; onto a/F or a/F/G it is not
+   it("should move a nested folder onto a nested sibling sharing its prefix but not onto itself or a subfolder", async () => {
+      const bodies: any[] = [];
+      server.use(
+         http.post("*/api/em/schedule/check-folder", async ({ request }) => {
+            bodies.push(await request.json());
+            return MswHttpResponse.json(true);
+         })
+      );
+      const { comp } = await renderComponent();
+      const f = makeRepositoryFlatNode("a/F", "F", 2);
+      const drop = (target: RepositoryFlatNode) => {
+         comp.selectedNodes = [f];
+         comp.moveTaskFolder(target);
+      };
+
+      drop(makeRepositoryFlatNode("a/F", "F", 2));
+      drop(makeRepositoryFlatNode("a/F/G", "G", 3));
+      drop(makeRepositoryFlatNode("a/Fx", "Fx", 2));
+
+      await waitFor(() => expect(bodies.length).toBe(1));
+      expect(bodies[0].target.path).toBe("a/Fx");
+      expect(bodies[0].folders).toEqual(["a/F"]);
+   });
+
    // Bug #77705: a multi-select of F and its sibling Fx keeps both folders
    it("should keep a selected sibling sharing the prefix of another selected folder", async () => {
       const bodies: any[] = [];

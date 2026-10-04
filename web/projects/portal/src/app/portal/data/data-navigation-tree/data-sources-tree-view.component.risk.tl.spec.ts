@@ -587,4 +587,40 @@ describe("DataSourcesTreeViewComponent — sibling sharing a name prefix (Bug #7
       (comp as any).moveDataFolderItems(treeFolder("Sales2"), [sheet]);
       expect(confirmSpy).toHaveBeenCalledTimes(2);
    });
+
+   it("onNodeDrop should move a nested tree folder onto a nested sibling sharing its name, not onto itself or a subfolder", async () => {
+      const { comp } = await renderComponent();
+      const moveSpy = vi.spyOn(comp as any, "moveDataAssets").mockImplementation(() => {});
+      const f = treeFolder("a/F");
+
+      for(const blocked of ["a/F", "a/F/G"]) {
+         dragInTree([f]);
+         comp.onNodeDrop({ node: { data: treeFolder(blocked) } });
+      }
+
+      expect(moveSpy).not.toHaveBeenCalled();
+
+      for(const target of ["a/Fx", "b/a/F"]) {
+         dragInTree([f]);
+         comp.onNodeDrop({ node: { data: treeFolder(target) } });
+      }
+
+      expect(moveSpy.mock.calls.map(call => (call[0] as any).path)).toEqual(["a/Fx", "b/a/F"]);
+   });
+
+   it("moveDataFolderItems should move nested pane items onto a nested sibling sharing their name, not onto themselves or a subfolder", async () => {
+      const confirmSpy = vi.spyOn(ComponentTool, "showConfirmDialog").mockResolvedValue("cancel");
+      const { comp } = await renderComponent();
+      vi.spyOn(comp as any, "checkDataFoldersDuplicate").mockReturnValue(of(false));
+      const folder = { name: "F", path: "a/F", type: AssetType.FOLDER, scope: 1,
+         id: "1^1^admin^a/F", createdDate: 0, modifiedDate: 0 };
+
+      (comp as any).moveDataFolderItems(treeFolder("a/F"), [folder]);
+      (comp as any).moveDataFolderItems(treeFolder("a/F/G"), [folder]);
+
+      expect(confirmSpy).not.toHaveBeenCalled();
+
+      (comp as any).moveDataFolderItems(treeFolder("a/Fx"), [folder]);
+      expect(confirmSpy).toHaveBeenCalledTimes(1);
+   });
 });
