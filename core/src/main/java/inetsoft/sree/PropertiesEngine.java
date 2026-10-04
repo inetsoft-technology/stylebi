@@ -534,10 +534,10 @@ public class PropertiesEngine {
          return null;
       }
 
-      return propertyNameCaseCache.computeIfAbsent(name, this::computePropertyNameCase);
+      return propertyNameCaseCache.computeIfAbsent(name, PropertiesEngine::computePropertyNameCase);
    }
 
-   private String computePropertyNameCase(String name) {
+   private static String computePropertyNameCase(String name) {
       // organization-scoped property names carry the org ID as a case-insensitive segment;
       // strip and lowercase it, then apply the case rules below to the remaining property name
       // so it matches what useAvailableOrgProperty() looks up.
@@ -579,6 +579,46 @@ public class PropertiesEngine {
     */
    public static String getOrgPropertyPrefix(String orgID) {
       return ("inetsoft.org." + orgID + ".").toLowerCase();
+   }
+
+   /**
+    * Determines if a property name is an organization override,
+    * <code>inetsoft.org.&lt;org&gt;.&lt;name&gt;</code>, of a JVM-wide setting that is always read
+    * globally. Such an override is never consulted by a property read (see
+    * {@link #getPropertyOrgScope(String)}), so storing one has no effect. A global name, without
+    * the organization prefix, is not matched.
+    *
+    * @param name the property name, as it would be passed to {@link #setProperty(String, String)}.
+    *
+    * @return <code>true</code> if the name is an organization override of a global-only setting.
+    */
+   public static boolean isExcludedOrgProperty(String name) {
+      if(name == null) {
+         return false;
+      }
+
+      // normalize the name the same way it would be stored
+      String stored = computePropertyNameCase(name);
+      String prefix = "inetsoft.org.";
+
+      if(!stored.startsWith(prefix)) {
+         return false;
+      }
+
+      String rest = stored.substring(prefix.length());
+
+      // match the excluded name as a dot-bounded suffix with a non-empty org segment before it,
+      // rather than splitting at the first dot, so that an org ID that contains a dot (allowed
+      // for an org that predates the ID rules) is matched too
+      for(String excluded : EXCLUDED_ORG_PROPERTIES) {
+         String suffix = "." + excluded;
+
+         if(rest.length() > suffix.length() && rest.endsWith(suffix)) {
+            return true;
+         }
+      }
+
+      return false;
    }
 
    /**
