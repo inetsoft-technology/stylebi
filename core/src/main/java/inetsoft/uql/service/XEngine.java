@@ -798,7 +798,7 @@ public class XEngine implements XRepository, XQueryRepository {
                   "security.nopermission.write", oname));
             }
 
-            renameDataSourceFolder(folder, oname);
+            moveDataSourceFolder(folder, oname);
          }
          else {
             getDSRegistry().renameDataSourceFolder(oname, folder.getFullName());
@@ -815,7 +815,7 @@ public class XEngine implements XRepository, XQueryRepository {
     *
     * @throws DataSourceRenameException if a write failed, with the data sources moved before it.
     */
-   private void renameDataSourceFolder(DataSourceFolder folder, String oname) throws Exception {
+   private void moveDataSourceFolder(DataSourceFolder folder, String oname) throws Exception {
       DataSourceRegistry registry = getDSRegistry();
       String nname = folder.getFullName();
       Map<String, RenameDependencyInfo> unloadable = new LinkedHashMap<>();

@@ -85,6 +85,8 @@ class DataSourceRenameFailureTest {
    // the data sources of a scenario, by their path in the moved folder
    private static final List<String> SOURCES = List.of("A", "B", "G/C", "D");
    private static final Set<String> TABULAR = Set.of("A", "B", "G/C");
+   // the type of TestTabularDataSource
+   private static final String TABULAR_TYPE = "folderMoveTabular";
 
    @Autowired
    private DataSourceRegistry registry;
@@ -92,6 +94,8 @@ class DataSourceRenameFailureTest {
    private XRepository repository;
    @Autowired
    private RenameTransformHandler transformHandler;
+   @Autowired
+   private Config config;
    private final Map<String, Permission> store = new HashMap<>();
    private final List<String> audits = new ArrayList<>();
    private SecurityEngine security;
@@ -105,6 +109,10 @@ class DataSourceRenameFailureTest {
    private int failAt;
    private boolean persistent;
    private String failKey;
+   // the permission whose save fails
+   private String failPermission;
+   // the connector of the tabular data sources isn't installed while an operation runs
+   private boolean uninstalled;
    private static int seq;
 
    @BeforeEach
@@ -122,8 +130,15 @@ class DataSourceRenameFailureTest {
       when(security.isSecurityEnabled()).thenReturn(true);
       when(security.getPermission(any(ResourceType.class), anyString()))
          .thenAnswer(inv -> store.get(key(inv.getArgument(0), inv.getArgument(1))));
-      doAnswer(inv -> store.put(key(inv.getArgument(0), inv.getArgument(1)), inv.getArgument(2)))
-         .when(security).setPermission(any(ResourceType.class), anyString(), any());
+      doAnswer(inv -> {
+         String key = key(inv.getArgument(0), inv.getArgument(1));
+
+         if(key.equals(failPermission)) {
+            throw new IllegalStateException("simulated permission storage failure");
+         }
+
+         return store.put(key, inv.getArgument(2));
+      }).when(security).setPermission(any(ResourceType.class), anyString(), any());
       doAnswer(inv -> store.remove(key(inv.getArgument(0), inv.getArgument(1))))
          .when(security).removePermission(any(ResourceType.class), anyString());
       securityStatic = mockStatic(SecurityEngine.class, CALLS_REAL_METHODS);
@@ -165,6 +180,8 @@ class DataSourceRenameFailureTest {
    @AfterEach
    void tearDown() throws Exception {
       failKey = null;
+      failPermission = null;
+      uninstalled = false;
       storageField.set(registry, storage);
       auditStatic.close();
       securityStatic.close();
@@ -198,6 +215,70 @@ class DataSourceRenameFailureTest {
       assertNull(registry.getDataSource(nfolder + "/B"));
       assertNotNull(registry.getDataSource(nfolder + "/A"));
       assertTrue(audits.contains(ActionRecord.ACTION_STATUS_FAILURE));
+   }
+
+   // Bug #77704 r1: an EM Move of a folder whose tabular data sources can't be loaded, so they are
+   // moved with the rest after the loadable ones. A later failure must report them as moved.
+   @Test
+   void emFolderMoveUninstalled() throws Exception {
+      uninstalled = true;
+      forEveryWrite(p -> emMove(p + "F", RepositoryEntry.DATA_SOURCE_FOLDER, p + "Dest"),
+                    p -> p + "Dest/" + p + "F", true, true);
+   }
+
+   // Bug #77704 r1: the same through XEngine.updateDataSourceFolder
+   @Test
+   void folderRenameUninstalled() throws Exception {
+      uninstalled = true;
+      forEveryWrite(p -> repository.updateDataSourceFolder(
+         new DataSourceFolder(p + "R", LocalDateTime.now(), null), p + "F"), p -> p + "R",
+                    false, false);
+   }
+
+   // Bug #77704 r1: the permission of a data source can't be saved once the data source has been
+   // moved. It must be reported as moved, its dependencies renamed and its permission kept.
+   @Test
+   void emFolderMoveWithAFailedPermissionSave() throws Exception {
+      String p = scenario();
+      String nfolder = p + "Dest/" + p + "F";
+      failPermission = key(ResourceType.DATA_SOURCE, nfolder + "/B");
+      Throwable thrown =
+         run(0, false, () -> emMove(p + "F", RepositoryEntry.DATA_SOURCE_FOLDER, p + "Dest"));
+      failPermission = null;
+
+      DataSourceRenameException error = assertInstanceOf(DataSourceRenameException.class, thrown);
+      assertEquals(p + "F/B", error.getFailedPath());
+      registry.clearCache();
+      assertNull(registry.getDataSource(p + "F/B"));
+      assertNotNull(registry.getDataSource(nfolder + "/B"));
+      assertTrue(error.isMoved(p + "F/A"), error.getMessage());
+      assertTrue(error.isMoved(p + "F/B"), error.getMessage());
+      assertFalse(error.isMoved(p + "F/D"), error.getMessage());
+      // not lost, still under the old key
+      assertSame(perm(ResourceType.DATA_SOURCE, p + "F/B#grant"),
+                 perm(ResourceType.DATA_SOURCE, p + "F/B"));
+      checkTransforms(Map.of(p + "F/A", true, p + "F/B", true, p + "F/G/C", false),
+                      "B's permission fails");
+      assertTrue(audits.contains(ActionRecord.ACTION_STATUS_FAILURE));
+
+      for(String source : List.of("A", "D", "G/C")) {
+         checkSource(p, source, p + "F/" + source, nfolder + "/" + source, "B's permission fails");
+      }
+   }
+
+   // Bug #77704 r1: the permission of the new folder can't be saved, the new folder is removed
+   @Test
+   void emFolderMoveWithAFailedFolderPermissionCopy() throws Exception {
+      String p = scenario();
+      String nfolder = p + "Dest/" + p + "F";
+      failPermission = key(ResourceType.DATA_SOURCE_FOLDER, nfolder);
+      Throwable thrown =
+         run(0, false, () -> emMove(p + "F", RepositoryEntry.DATA_SOURCE_FOLDER, p + "Dest"));
+      failPermission = null;
+
+      assertInstanceOf(DataSourceRenameException.class, thrown);
+      checkFolder(p, nfolder, thrown, false, "the folder permission fails");
+      assertNull(registry.getDataSourceFolder(nfolder));
    }
 
    // portal move of a folder into another one
@@ -461,6 +542,11 @@ class DataSourceRenameFailureTest {
       failAt = n;
       persistent = always;
 
+      if(uninstalled) {
+         doReturn(null).when(config).getDataSourceClass(TABULAR_TYPE);
+         registry.clearCache();
+      }
+
       try {
          operation.run();
          return null;
@@ -470,6 +556,12 @@ class DataSourceRenameFailureTest {
       }
       finally {
          failAt = 0;
+
+         if(uninstalled) {
+            doReturn(TestTabularDataSource.class.getName()).when(config)
+               .getDataSourceClass(TABULAR_TYPE);
+            registry.clearCache();
+         }
       }
    }
 

@@ -929,6 +929,14 @@ public class DataSourceRegistry implements MessageListener {
          updateQueryFolders(ds, oname);
       }
       catch(Exception e) {
+         String failed = oname;
+
+         if(e instanceof MoveEntriesException moveException) {
+            // only a permission wasn't moved
+            moved = moveException.isCommitted();
+            failed = moveException.getPath() != null ? moveException.getPath() : oname;
+         }
+
          if(!moved) {
             // the cached instances were given the new name
             for(AssetEntry.Type type : new AssetEntry.Type[] {
@@ -941,7 +949,7 @@ public class DataSourceRegistry implements MessageListener {
          }
 
          throw new DataSourceRenameException(
-            oname, nname, oname, moved ? Map.of(oname, nname) : Map.of(), e);
+            oname, nname, failed, moved ? Map.of(oname, nname) : Map.of(), e);
       }
 
       if(ds instanceof JDBCDataSource) {
@@ -1306,24 +1314,38 @@ public class DataSourceRegistry implements MessageListener {
 
          // an additional connection still at its old path: its parent wasn't renamed, e.g. its
          // connector isn't installed or it can't be read. The move of the rest below moves the
-         // entry but not the "parent::name" permission.
-         for(AssetEntry entry : additionals) {
-            if(containObject(entry)) {
-               String opath = entry.getPath();
-               int index = opath.lastIndexOf('/');
-               String oparent = opath.substring(0, index);
-               String nparent = nname + oparent.substring(oname.length());
-               String name = opath.substring(index + 1);
-               current = opath;
-               updatePermission(ResourceType.DATA_SOURCE, oparent + "::" + name,
-                                nparent + "::" + name);
-            }
-         }
+         // entry but not the "parent::name" permission, which is moved once the entry is.
+         List<AssetEntry> leftAdditionals =
+            additionals.stream().filter(this::containObject).toList();
 
          // the rest, e.g. a data source that can't be loaded, before the old folders are gone
          current = oname;
-         moveEntries(createMoves(oname + "/", nname + "/", false, false,
-                                 Set.of(allFolderChildren)));
+         List<EntryMove> rest = createMoves(oname + "/", nname + "/", false, false,
+                                            Set.of(allFolderChildren));
+
+         try {
+            moveEntries(rest);
+         }
+         catch(MoveEntriesException e) {
+            if(e.isCommitted()) {
+               addMovedDataSources(rest, moved);
+            }
+
+            throw e;
+         }
+
+         addMovedDataSources(rest, moved);
+
+         for(AssetEntry entry : leftAdditionals) {
+            String opath = entry.getPath();
+            int index = opath.lastIndexOf('/');
+            String oparent = opath.substring(0, index);
+            String nparent = nname + oparent.substring(oname.length());
+            String name = opath.substring(index + 1);
+            current = opath;
+            updatePermission(ResourceType.DATA_SOURCE, oparent + "::" + name,
+                             nparent + "::" + name);
+         }
 
          for(DataSourceFolder dsfolder : subfolders) {
             String opath = dsfolder.getFullName();
@@ -1348,7 +1370,18 @@ public class DataSourceRegistry implements MessageListener {
       }
       catch(Exception e) {
          discardMoveTargetFolders(targets);
-         throw new DataSourceRenameException(oname, nname, current, moved, e);
+         String failed = e instanceof MoveEntriesException moveException &&
+            moveException.getPath() != null ? moveException.getPath() : current;
+         throw new DataSourceRenameException(oname, nname, failed, moved, e);
+      }
+   }
+
+   // the data sources, not additional connections, of a batch that was moved
+   private static void addMovedDataSources(List<EntryMove> moves, Map<String, String> moved) {
+      for(EntryMove move : moves) {
+         if(move.oentry().isDataSource() && move.name()) {
+            moved.put(move.oentry().getPath(), move.nentry().getPath());
+         }
       }
    }
 
@@ -1403,7 +1436,15 @@ public class DataSourceRegistry implements MessageListener {
          }
 
          clearCache2();
-         copyPermission(ResourceType.DATA_SOURCE_FOLDER, oname, nname);
+
+         try {
+            copyPermission(ResourceType.DATA_SOURCE_FOLDER, oname, nname);
+         }
+         catch(Exception e) {
+            discardMoveTargetFolder(oname, nname);
+            throw e;
+         }
+
          return true;
       }
       finally {
@@ -2079,11 +2120,13 @@ public class DataSourceRegistry implements MessageListener {
          List<AssetEntry> oentries = new ArrayList<>();
          List<AssetEntry> nentries = new ArrayList<>();
          List<WrittenEntry> written = new ArrayList<>();
+         String path = null;
 
          try {
             for(EntryMove move : moves) {
                AssetEntry oentry = move.oentry();
                AssetEntry nentry = move.nentry();
+               path = oentry.getPath();
                AssetUtil.updateMetaData(
                   nentry, ThreadContext.getContextPrincipal(), System.currentTimeMillis());
                oentries.add(oentry);
@@ -2108,6 +2151,8 @@ public class DataSourceRegistry implements MessageListener {
                }
             }
 
+            // the index, not a single object
+            path = null;
             updateRoot(oentries, nentries);
          }
          catch(Exception e) {
@@ -2116,7 +2161,7 @@ public class DataSourceRegistry implements MessageListener {
                undo(entry);
             }
 
-            throw e;
+            throw new MoveEntriesException(path, false, e);
          }
 
          for(WrittenEntry entry : written) {
@@ -2129,7 +2174,10 @@ public class DataSourceRegistry implements MessageListener {
          }
 
          clearCache2();
+         MoveEntriesException permissionFailure = null;
 
+         // the objects have moved, a permission that can't be moved is kept under its old key
+         // and reported, the others are still moved
          for(EntryMove move : moves) {
             AssetEntry oentry = move.oentry();
             AssetEntry nentry = move.nentry();
@@ -2143,12 +2191,53 @@ public class DataSourceRegistry implements MessageListener {
 
             Resource oresource = AssetUtil.getSecurityResource(oentry);
             Resource nresource = AssetUtil.getSecurityResource(nentry);
-            updatePermission(oresource.getType(), oresource.getPath(), nresource.getPath());
+
+            try {
+               updatePermission(oresource.getType(), oresource.getPath(), nresource.getPath());
+            }
+            catch(Exception e) {
+               LOG.error("Failed to move the permission of {} to {}", oentry.getPath(),
+                         nentry.getPath(), e);
+
+               if(permissionFailure == null) {
+                  permissionFailure = new MoveEntriesException(oentry.getPath(), true, e);
+               }
+            }
+         }
+
+         if(permissionFailure != null) {
+            throw permissionFailure;
          }
       }
       finally {
          indexedStorage.close();
       }
+   }
+
+   /**
+    * Thrown by {@link #moveEntries(List)}.
+    */
+   static class MoveEntriesException extends IOException {
+      /**
+       * @param path      the path of the object whose write failed, or null for the index.
+       * @param committed {@code true} if the objects were moved and only a permission wasn't.
+       */
+      MoveEntriesException(String path, boolean committed, Exception cause) {
+         super(cause.getMessage(), cause);
+         this.path = path;
+         this.committed = committed;
+      }
+
+      String getPath() {
+         return path;
+      }
+
+      boolean isCommitted() {
+         return committed;
+      }
+
+      private final String path;
+      private final boolean committed;
    }
 
    /**
@@ -2564,9 +2653,11 @@ public class DataSourceRegistry implements MessageListener {
 
       Permission permission = engine.getPermission(type, oldResource);
 
-      if(permission != null) {
-         engine.removePermission(type, oldResource);
+      // Bug #77704, saved under the new key before it is removed from the old one, so a failed
+      // save doesn't lose it
+      if(permission != null && !oldResource.equals(newResource)) {
          engine.setPermission(type, newResource, permission);
+         engine.removePermission(type, oldResource);
       }
    }
 
