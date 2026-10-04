@@ -1091,11 +1091,59 @@ public class DataSourceRegistry implements MessageListener {
             getEntries(oname + "/", AssetEntry.Type.DATA_SOURCE);
          AssetEntry[] allFolderChildren =
             getEntries(oname + "/", AssetEntry.Type.DATA_SOURCE_FOLDER);
+         // Decided before anything is renamed, from the entries only (no data source is loaded,
+         // so a parent whose connector isn't installed or that can't be read counts too): an
+         // additional connection is a data source entry whose parent path is a data source
+         // entry. This is the structural rule only. When a data source and a folder share a
+         // path, a data source of that folder is taken for an additional connection too.
+         Set<String> dsPaths = new HashSet<>();
 
          for(AssetEntry entry : allDSChildren) {
+            dsPaths.add(entry.getPath());
+         }
+
+         List<AssetEntry> additionals = new ArrayList<>();
+         Set<String> additionalPaths = new HashSet<>();
+
+         for(AssetEntry entry : allDSChildren) {
+            String path = entry.getPath();
+            int index = path.lastIndexOf('/');
+
+            if(index > 0 && dsPaths.contains(path.substring(0, index))) {
+               additionals.add(entry);
+               additionalPaths.add(path);
+            }
+         }
+
+         // a data source before its additional connections, as in removeDataSourceFolder
+         Arrays.sort(allDSChildren, Comparator.comparing(AssetEntry::getPath));
+
+         for(AssetEntry entry : allDSChildren) {
+            // an additional connection is moved by its parent's renameObjects, together with its
+            // "parent::name" permission. Renamed on its own, it would keep the permission under
+            // the old key and get the full path as its name.
+            if(additionalPaths.contains(entry.getPath())) {
+               continue;
+            }
+
             String opath = entry.getPath();
             String npath = nname + opath.substring(oname.length());
             renameDatasource(opath, npath);
+         }
+
+         // an additional connection still at its old path: its parent wasn't renamed, e.g. its
+         // connector isn't installed or it can't be read. The renameObjects below moves the
+         // entry but not the "parent::name" permission.
+         for(AssetEntry entry : additionals) {
+            if(containObject(entry)) {
+               String opath = entry.getPath();
+               int index = opath.lastIndexOf('/');
+               String oparent = opath.substring(0, index);
+               String nparent = nname + oparent.substring(oname.length());
+               String name = opath.substring(index + 1);
+               updatePermission(ResourceType.DATA_SOURCE, oparent + "::" + name,
+                                nparent + "::" + name);
+            }
          }
 
          for(AssetEntry entry : allFolderChildren) {
