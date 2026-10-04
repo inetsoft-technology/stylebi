@@ -1259,7 +1259,6 @@ public class JDBCUtil {
       String quote = XUtil.getQuote(dataSource);
       JDBCSelection selection = new JDBCSelection();
       Set<String> aliases = new HashSet<>();
-      SQLHelper sqlHelper = SQLHelper.getSQLHelper(sql);
 
       for(String path : columns) {
          String table = null;
@@ -1306,7 +1305,9 @@ public class JDBCUtil {
          aliases.add(alias);
          index = selection.addColumn(path);
          selection.setTable(path, table);
-         selection.setAlias(index, selection.getValidAlias(index, alias, sqlHelper));
+         // store the name itself, a name the database can't take is replaced by an ALIAS_n
+         // each time the sql is generated and mapped back in the result (Bug #77711)
+         selection.setAlias(index, alias);
          selection.setType(path, type);
       }
 

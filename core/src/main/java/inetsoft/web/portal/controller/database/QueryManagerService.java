@@ -652,7 +652,6 @@ public class QueryManagerService {
       }
 
       UniformSQL sql = (UniformSQL) query.getSQLDefinition();
-      SQLHelper sqlHelper = SQLHelper.getSQLHelper(sql);
       JDBCSelection selection = (JDBCSelection) sql.getSelection();
       Map<String, String> nameAliasMap = new LinkedHashMap<>();
       List<String> aliases = getColumnAliases(selection);
@@ -679,7 +678,9 @@ public class QueryManagerService {
          String path = getColumnPath(col);
          int index = selection.addColumn(path);
          selection.setTable(path, XUtil.getTablePart(path, sql));
-         selection.setAlias(index, selection.getValidAlias(index, alias, sqlHelper));
+         // store the name itself, a name the database can't take is replaced by an ALIAS_n
+         // each time the sql is generated and mapped back in the result (Bug #77711)
+         selection.setAlias(index, alias);
          selection.setType(path, getColumnDataType(col));
          nameAliasMap.put(alias, path);
       }
@@ -1275,7 +1276,6 @@ public class QueryManagerService {
       fixUniformSQLInfo(sql, dataSource, principal);
       selection = (JDBCSelection) sql.getSelection();
       List<String> columnAliases = getColumnAliases(selection);
-      SQLHelper sqlHelper = SQLHelper.getSQLHelper(sql);
       boolean tableColumn = sql.isTableColumn(expression);
       String alias = null;
 
@@ -1288,7 +1288,6 @@ public class QueryManagerService {
          }
 
          alias = alias + counter;
-         alias = selection.getValidAlias(index, alias, sqlHelper);
          selection.setAlias(index, alias);
          selection.setType(expression, XField.STRING_TYPE);
          selection.setExpression(index, true);
@@ -1308,7 +1307,7 @@ public class QueryManagerService {
          }
 
          alias = counter > 0 ? alias + "_" + counter : alias;
-         alias = selection.getValidAlias(index, alias, sqlHelper);
+         // store the name itself, as addColumns does (Bug #77711)
          String table = XUtil.getTablePart(expression, sql);
          selection.setAlias(index, alias);
          selection.setTable(expression, table);
