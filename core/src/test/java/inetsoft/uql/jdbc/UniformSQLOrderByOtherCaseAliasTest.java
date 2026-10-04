@@ -48,8 +48,8 @@ import static org.mockito.Mockito.when;
  * with the alias by its exact text, and then found as the table column of that name ignoring
  * case, so the metadata step rewrote it to the column (order by t.A). The database resolves
  * an order by name to the select alias first, so the regenerated sql sorted by another column,
- * or failed when the query groups by an expression. The name is now kept as written, which
- * the database resolves to the alias as in the sql.
+ * or failed when the query groups by an expression. The name is now the select alias as
+ * stored, as if written in its case.
  *
  * The rows of the original and the regenerated sql are compared on Derby and H2, which fold an
  * unquoted name to upper case and resolve an order by name to a select alias first. H2 isn't
