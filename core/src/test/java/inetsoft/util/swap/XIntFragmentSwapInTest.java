@@ -34,7 +34,7 @@ import static org.mockito.Mockito.*;
 
 /**
  * Bug #77622, XIntFragment.access() read a swapped fragment back into memory without
- * waitForMemory(), unlike XObjectFragment, XStringFragment and the X*Column classes. Several
+ * waitForMemory(), unlike XObjectFragment and the X*Column classes. Several
  * threads reading swapped XSwappableIntList data back at once could run the heap out of memory
  * before the swapper had a chance to make room.
  */

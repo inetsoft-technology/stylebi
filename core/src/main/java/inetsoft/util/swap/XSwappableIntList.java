@@ -223,8 +223,22 @@ public class XSwappableIntList implements Serializable {
    /**
     * Add a new object to the list.
     * @param val the specified int value.
+    * @return the index of the value, or -1 if the list is disposed (the value is ignored).
+    * @throws IllegalStateException if the list is completed.
     */
    public final int add(int val) {
+      // a disposed list ignores the add, it has no fragments to add to
+      if(disposed) {
+         return -1;
+      }
+
+      // check the list, not only the tail fragment. At a fragment boundary (and on an empty
+      // list) the add below would open a new tail fragment that is never completed
+      if(completed) {
+         throw new IllegalStateException(
+            "Cannot add a value to a completed swappable list: size=" + count);
+      }
+
       if((count & BLOCK_SIZE) == 0) {
          getSwapper().waitForMemory();
 
