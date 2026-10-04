@@ -2125,11 +2125,44 @@ public class DataSourceRegistry implements MessageListener {
          int index = opath.lastIndexOf('/');
          boolean additional = isAdditionalSource ||
             index > 0 && dsPaths.contains(opath.substring(0, index));
-         moves.add(new EntryMove(oentry, nentry, null, oentry.isDataSource() && !additional,
+         moves.add(new EntryMove(oentry, nentry, renameDomain(oentry, npath),
+                                 oentry.isDataSource() && !additional,
                                  isAdditionalSource && oentry.isDataSource()));
       }
 
       return moves;
+   }
+
+   /**
+    * Bug #77732, gets a copy of a moved data model or domain with its data source set to the new
+    * path. Its path is the path of its data source, and a data model lists its logical models,
+    * partitions and VPMs by its data source. The cached instance isn't changed, so a move that
+    * fails leaves it as it was.
+    *
+    * @return the copy, or null to move the stored object as it is.
+    */
+   private XMLSerializable renameDomain(AssetEntry oentry, String npath) {
+      if(oentry.getPath().equals(npath)) {
+         return null;
+      }
+
+      if(oentry.getType() == AssetEntry.Type.DATA_MODEL) {
+         if(getObject(oentry, true, false) instanceof XDataModel model) {
+            XDataModel copy = model.clone();
+            copy.setDataSource(npath);
+            return copy;
+         }
+      }
+      else if(oentry.getType() == AssetEntry.Type.DOMAIN) {
+         if(getObject(oentry, true, false) instanceof XDomainWrapper wrapper &&
+            wrapper.getDomain() != null && wrapper.getDomain().clone() instanceof XDomain copy)
+         {
+            copy.setDataSource(npath);
+            return new XDomainWrapper(copy);
+         }
+      }
+
+      return null;
    }
 
    /**
@@ -2163,7 +2196,8 @@ public class DataSourceRegistry implements MessageListener {
                // can't be loaded, e.g. a data source whose connector isn't installed or an
                // entry that is corrupt. Written again, it would be stored with no content.
                if(obj == null ||
-                  obj instanceof XDataSourceWrapper wrapper && wrapper.getSource() == null)
+                  obj instanceof XDataSourceWrapper wrapper && wrapper.getSource() == null ||
+                  obj instanceof XDomainWrapper domain && domain.getDomain() == null)
                {
                   boolean moved = renamed && copyStoredDocument(oentry, nentry, move.name());
                   written.add(new WrittenEntry(oentry, nentry, created, renamed && !moved,
