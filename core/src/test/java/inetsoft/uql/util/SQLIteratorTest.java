@@ -458,6 +458,37 @@ public class SQLIteratorTest {
       }
    }
 
+   // Bug #77695, #77696, many /*< that are not tags before the later >*/ of a where tag, and
+   // many column tags with different names in a comment, are read in linear time
+   @Test
+   void tagNamesAreReadInLinearTime() {
+      for(String part : new String[] {
+         "/*<1 ", "/*< ", "/*<x ", "/*<where ", "/*<1>", "/*<1>/ ", "/*</1 ", "/*<+00 " })
+      {
+         setup();
+         String sql = "select " + part.repeat(1_000_000 / part.length()) +
+            " from T where /*<where>*/a=1/*</where>*/";
+
+         // the /*< opens a comment that holds the where tag, so the sql is sent as it is
+         assertEquals(sql, assertTimeoutPreemptively(Duration.ofSeconds(10), () -> iterate(sql),
+                                                     part), part);
+         assertNull(whereClause, part);
+      }
+
+      setup();
+      StringBuilder sb = new StringBuilder("select a -- ");
+
+      for(int i = 1; i <= 50_000; i++) {
+         sb.append("/*<").append(i).append(">*/x/*</").append(i).append(">*/ ");
+      }
+
+      String sql = sb.append("\nfrom T where /*<where>*/a=1/*</where>*/").toString();
+
+      assertTimeoutPreemptively(Duration.ofSeconds(10), () -> iterate(sql));
+      assertEquals("x", columns.get(50_000));
+      assertEquals("a=1", whereClause);
+   }
+
    // Bug #77695, a tag after a -- in the middle of a line is in a comment, it is not a tag
    @Test
    void tagAfterMidLineCommentIsIgnored() {

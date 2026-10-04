@@ -20,7 +20,6 @@ package inetsoft.uql.util;
 import inetsoft.util.Tool;
 
 import java.util.*;
-import java.util.regex.Pattern;
 
 /**
  * SQL iterator iterates one sql string.
@@ -121,7 +120,7 @@ public class SQLIterator {
       // is not a comment itself, the text after it is sql
       opener = findOpeners(sql);
       commentStart = SQLQuoteScanner.findComments(sql, i -> opener[i] != 0);
-      lastCloser.clear();
+      lastCloser = null;
       int start = 0;
 
       for(int i = 0; i < sql.length(); i++) {
@@ -439,22 +438,15 @@ public class SQLIterator {
    private static byte[] findOpeners(String sql) {
       int len = sql.length();
       byte[] opener = new byte[len];
-      // the index of the first */ at or after i + 2, found right to left in linear time
-      int close = -1;
 
-      for(int i = len - 4; i >= 0; i--) {
-         if(sql.charAt(i + 2) == '*' && sql.charAt(i + 3) == '/') {
-            close = i + 2;
-         }
+      // the name is read in place up to the first character that can't be in a valid name,
+      // so each opener reads a few characters (a run of zeros is read by one opener only),
+      // and the sql is scanned in linear time
+      for(int i = sql.indexOf(TAG1); i >= 0; i = sql.indexOf(TAG1, i + 1)) {
+         int end = getTagNameEnd(sql, i + 3);
 
-         if(sql.charAt(i) == '/' && sql.charAt(i + 1) == '*' && sql.charAt(i + 2) == '<' &&
-            close > i + 4 && sql.charAt(close - 1) == '>')
-         {
-            String name = sql.substring(i + 3, close - 1);
-
-            if(isTagName(name)) {
-               opener[i] = name.equals("where") ? WHERE_OPENER : COLUMN_OPENER;
-            }
+         if(end > 0 && sql.startsWith(TAG2, end)) {
+            opener[i] = sql.charAt(i + 3) == 'w' ? WHERE_OPENER : COLUMN_OPENER;
          }
       }
 
@@ -472,25 +464,75 @@ public class SQLIterator {
 
       int end = sql.indexOf("*/", index + 2);
       String rpattern = "/*</" + sql.substring(index + 3, end - 1) + ">*/";
-      // the last closing tag of the name, cached so the sql is searched once per name
-      int last = lastCloser.computeIfAbsent(rpattern, k -> {
-         for(int x = sql.lastIndexOf(k); x >= 0; x = x == 0 ? -1 : sql.lastIndexOf(k, x - 1)) {
-            if(!quoted[x]) {
-               return x;
-            }
+
+      // the last closing tag of each name, found in one scan of the sql when first needed, so
+      // the sql is not searched again for each name
+      if(lastCloser == null) {
+         lastCloser = findLastClosers();
+      }
+
+      return lastCloser.getOrDefault(rpattern, -1) > end;
+   }
+
+   /**
+    * Find the last closing tag of each valid tag name that is not quoted.
+    * @return the index of the last closing tag by the closing tag.
+    */
+   private Map<String, Integer> findLastClosers() {
+      Map<String, Integer> closers = new HashMap<>();
+
+      for(int x = sql.indexOf(CLOSER); x >= 0; x = sql.indexOf(CLOSER, x + 1)) {
+         int end = getTagNameEnd(sql, x + 4);
+
+         if(end > 0 && sql.startsWith(TAG2, end) && !quoted[x]) {
+            closers.put(sql.substring(x, end + 3), x);
          }
+      }
 
-         return -1;
-      });
-
-      return last > end;
+      return closers;
    }
 
    /**
     * Check if a tag name is valid: where, or a column number from 1.
     */
    private static boolean isTagName(String name) {
-      return name.equals("where") || COLUMN_NAME.matcher(name).matches();
+      return getTagNameEnd(name, 0) == name.length();
+   }
+
+   /**
+    * Read a valid tag name at the index: where, or a column number from 1 as Integer.parseInt
+    * reads it (a + sign and leading zeros, at most 9 digits from the first nonzero digit).
+    * The characters are read in place up to the first one that can't be in the name.
+    * @return the index after the name, or -1 if no valid name starts at the index.
+    */
+   private static int getTagNameEnd(String text, int start) {
+      if(text.startsWith("where", start)) {
+         return start + 5;
+      }
+
+      int len = text.length();
+      int i = start;
+
+      if(i < len && text.charAt(i) == '+') {
+         i++;
+      }
+
+      while(i < len && text.charAt(i) == '0') {
+         i++;
+      }
+
+      if(i >= len || text.charAt(i) < '1' || text.charAt(i) > '9') {
+         return -1;
+      }
+
+      int first = i;
+      i++;
+
+      while(i < len && i - first < 9 && text.charAt(i) >= '0' && text.charAt(i) <= '9') {
+         i++;
+      }
+
+      return i;
    }
 
    /**
@@ -509,13 +551,12 @@ public class SQLIterator {
    private static final int COMMENT_STATE = 1;
    private static final byte WHERE_OPENER = 1;
    private static final byte COLUMN_OPENER = 2;
-   // a column number from 1, as Integer.parseInt reads it (a + sign and leading zeros)
-   private static final Pattern COLUMN_NAME = Pattern.compile("\\+?0*[1-9][0-9]{0,8}");
+   private static final String CLOSER = "/*</";
 
    private String sql; // sql string
    private boolean[] quoted; // the characters of the sql inside quoted text
    private byte[] opener; // the tag openers of the sql
    private int[] commentStart; // the start of the comment holding each character, or -1
-   private final Map<String, Integer> lastCloser = new HashMap<>(); // see isClosedColumnOpener
+   private Map<String, Integer> lastCloser; // see isClosedColumnOpener
    private List listeners; // sql listeners
 }
