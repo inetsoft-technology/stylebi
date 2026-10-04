@@ -35,6 +35,7 @@ import inetsoft.uql.tabular.oauth.Tokens;
 import inetsoft.uql.util.Config;
 import inetsoft.util.BlobIndexedStorage;
 import inetsoft.util.IndexedStorage;
+import inetsoft.util.credential.CloudClientCredentials;
 import inetsoft.util.credential.CredentialService;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -116,6 +117,37 @@ class OneDriveTokenSaveTest {
       assertEquals("secret", stored.getClientSecret());
    }
 
+   // OneDrive keeps its tokens in plain fields, not in its credential. With a cloud credential,
+   // whose values are not saved with the data source, the refreshed tokens are still saved
+   @Test
+   void tokensOutsideACloudCredentialAreSaved() throws Exception {
+      registry.setDataSource(source("odCloudDs"), false);
+      TestCloudCredential credential = new TestCloudCredential();
+      credential.setId("od-secret");
+      credential.setClientId("client");
+      credential.setClientSecret("secret");
+      // the cached instance as loaded with a cloud credential. The registry returns the
+      // instance it caches
+      OneDriveDataSource cached = (OneDriveDataSource) registry.getDataSource("odCloudDs");
+      cached.setCredential(credential);
+      OneDriveDataSource runtime = (OneDriveDataSource) cached.clone();
+
+      try(MockedStatic<AuthorizationClient> client = mockStatic(AuthorizationClient.class)) {
+         client.when(() -> AuthorizationClient.refresh(
+            any(), any(), any(), any(), any(), any(), anyBoolean(), any())).thenReturn(tokens());
+         runtime.refreshTokens();
+      }
+
+      cached = (OneDriveDataSource) registry.getDataSource("odCloudDs");
+      assertEquals("tok-B", cached.getAccessToken());
+      assertEquals("R2", cached.getRefreshToken());
+
+      registry.clearCache();
+      OneDriveDataSource stored = (OneDriveDataSource) registry.getDataSource("odCloudDs");
+      assertEquals("tok-B", stored.getAccessToken());
+      assertEquals("R2", stored.getRefreshToken());
+   }
+
    private static Tokens tokens() {
       return Tokens.builder().accessToken("tok-B").refreshToken("R2")
          .issued(System.currentTimeMillis())
@@ -131,6 +163,13 @@ class OneDriveTokenSaveTest {
       ds.setRefreshToken("R");
       ds.setTokenExpiration(System.currentTimeMillis() - 60_000L);
       return ds;
+   }
+
+   // a cloud credential whose values are set by the test instead of read from a secrets manager
+   static final class TestCloudCredential extends CloudClientCredentials {
+      @Override
+      public void fetchCredential() {
+      }
    }
 
    // the beans that a save through the real XEngine and DataSourceRegistry needs
