@@ -2870,7 +2870,9 @@ public final class XUtil {
    /**
     * Create the condition replacing a condition whose parameter has a special value.
     * The parameter may be the right operand (a.id = $(p)), the only item of an IN list
-    * (a.id IN ($(p))), the left operand of a comparison ($(p) = a.id) or a BETWEEN bound.
+    * (a.id IN ($(p))), the left operand of a comparison ($(p) = a.id), a BETWEEN bound or
+    * the subject of a BETWEEN. The operand must be exactly the parameter, $(p) or the
+    * string literal '$(p)'; an operand that only contains it, e.g. $(p) || 'x', is kept.
     * When both operands are parameters, the right one is checked first.
     * @return the new condition, or null if the condition doesn't use a special value.
     */
@@ -2898,9 +2900,12 @@ public final class XUtil {
       String value = bin.getExpression2().toString().trim();
       XBinaryCondition filterNode = null;
 
-      // the right operand, e.g. a.id = $(p)
-      if(value.startsWith("$(")) {
-         String sentinel = getSpecificValue(params, value.substring(2, value.lastIndexOf(')')));
+      Matcher matcher = SPECIFIC_RIGHT_OPERAND.matcher(value);
+
+      // the right operand, e.g. a.id = $(p), or a.name LIKE $(p) ESCAPE '!', whose escape
+      // character can't occur in '' or 'null'
+      if(matcher.matches()) {
+         String sentinel = getSpecificValue(params, getParameterName(matcher));
 
          if(XConstants.CONDITION_NULL_VALUE.equals(sentinel)) {
             filterNode = createIsNull(bin.getExpression1(), bin.isIsNot() != opNot);
@@ -2916,12 +2921,12 @@ public final class XUtil {
          return filterNode;
       }
 
-      Matcher matcher = SPECIFIC_IN_LIST.matcher(value);
+      matcher = SPECIFIC_IN_LIST.matcher(value);
 
       // the only item of an IN list, e.g. a.id IN ($(p)). IN (NULL) is never true, so
       // NULL_VALUE means IS NULL, as for the ONE_OF condition
       if(matcher.matches()) {
-         String sentinel = getSpecificValue(params, matcher.group(1));
+         String sentinel = getSpecificValue(params, getParameterName(matcher));
 
          if(XConstants.CONDITION_NULL_VALUE.equals(sentinel)) {
             return createIsNull(bin.getExpression1(), bin.isIsNot() != opNot);
@@ -2939,7 +2944,7 @@ public final class XUtil {
 
       // the left operand, e.g. $(p) = a.id
       if(matcher.matches()) {
-         String sentinel = getSpecificValue(params, matcher.group(1));
+         String sentinel = getSpecificValue(params, getParameterName(matcher));
 
          // IS NULL on the right operand only means the same for a plain comparison, not
          // for $(p) IN (...), $(p) = ANY (select ...) or $(p) LIKE a.col ESCAPE '!'
@@ -2965,14 +2970,22 @@ public final class XUtil {
     * Create the condition replacing a BETWEEN with a bound whose parameter has a special
     * value. A NULL_VALUE bound means IS NULL for the whole condition, as for the BETWEEN
     * condition, and the other bound is dropped with it. The other values replace the bound.
+    * An EMPTY_STRING or NULL_STRING subject, e.g. $(p) BETWEEN a.low AND a.high, is
+    * replaced too. A NULL_VALUE subject is kept, and so is the subject of the IS NULL a
+    * NULL_VALUE bound creates.
     */
    private static XFilterNode createSpecificCondition(XTrinaryCondition tri,
                                                       VariableTable params)
    {
       String low = getSpecificValue(params, tri.getExpression2());
       String high = getSpecificValue(params, tri.getExpression3());
+      String subject = getSpecificValue(params, tri.getExpression1());
 
-      if(low == null && high == null) {
+      if(XConstants.CONDITION_NULL_VALUE.equals(subject)) {
+         subject = null;
+      }
+
+      if(low == null && high == null && subject == null) {
          return null;
       }
 
@@ -2982,7 +2995,8 @@ public final class XUtil {
          return createIsNull(tri.getExpression1(), tri.isIsNot());
       }
 
-      XTrinaryCondition filterNode = new XTrinaryCondition(tri.getExpression1(),
+      XTrinaryCondition filterNode = new XTrinaryCondition(
+         subject == null ? tri.getExpression1() : getSpecificLiteral(subject),
          low == null ? tri.getExpression2() : getSpecificLiteral(low),
          high == null ? tri.getExpression3() : getSpecificLiteral(high), tri.getOp());
       filterNode.setIsNot(tri.isIsNot());
@@ -3008,7 +3022,15 @@ public final class XUtil {
       Matcher matcher = exp == null ? null :
          SPECIFIC_VARIABLE.matcher(exp.toString().trim());
       return matcher != null && matcher.matches() ?
-         getSpecificValue(params, matcher.group(1)) : null;
+         getSpecificValue(params, getParameterName(matcher)) : null;
+   }
+
+   /**
+    * Get the parameter name matched by one of the operand patterns, from $(name) or from
+    * the string literal '$(name)'.
+    */
+   private static String getParameterName(Matcher matcher) {
+      return matcher.group(1) != null ? matcher.group(1) : matcher.group(2);
    }
 
    /**
@@ -3037,10 +3059,18 @@ public final class XUtil {
       return null;
    }
 
+   // a parameter, $(name), or a string literal that is only a parameter, '$(name)' or
+   // '$(@name)', whose value VarSQL puts between the quotes. An embedded $(@name) outside
+   // quotes is sql text and is never matched.
+   private static final String SPECIFIC_PARAMETER =
+      "(?:\\$\\(([^()$@]+)\\)|'\\$\\(@?([^()$@']+)\\)')";
    // an operand that is exactly a parameter, and an IN list of only a parameter
-   private static final Pattern SPECIFIC_VARIABLE = Pattern.compile("\\$\\(([^()$@]+)\\)");
+   private static final Pattern SPECIFIC_VARIABLE = Pattern.compile(SPECIFIC_PARAMETER);
    private static final Pattern SPECIFIC_IN_LIST =
-      Pattern.compile("\\(\\s*\\$\\(([^()$@]+)\\)\\s*\\)");
+      Pattern.compile("\\(\\s*" + SPECIFIC_PARAMETER + "\\s*\\)");
+   // the right operand, which the parser also gives the ESCAPE clause of a LIKE
+   private static final Pattern SPECIFIC_RIGHT_OPERAND = Pattern.compile(
+      SPECIFIC_PARAMETER + "(?:\\s+escape\\s+'(?:[^']|'')*')?", Pattern.CASE_INSENSITIVE);
    // the right operand of a quantified comparison, e.g. $(p) = ANY (select ...)
    private static final Pattern QUANTIFIED_OPERAND =
       Pattern.compile("(any|some|all)\\b", Pattern.CASE_INSENSITIVE);
