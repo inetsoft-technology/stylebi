@@ -242,12 +242,16 @@ class XUtilSentinelSelectListTest {
             UniformSQL usql = parse(sql, type);
             List<String> columns = columns(usql);
             XUtil.validateConditions(null, usql, new VariableTable(), true, false);
+            // both select lists in the written order: sorted by the column text, the sql
+            // without the condition could put its columns in another order
+            usql.setHint(UniformSQL.HINT_WITHOUT_SORTED_SQL, true);
             String generated = generate(usql);
+            UniformSQL expectedSQL = parse(removed, type);
+            expectedSQL.setHint(UniformSQL.HINT_WITHOUT_SORTED_SQL, true);
 
             assertFalse(generated.contains("$(p)"), type + " not removed: " + generated);
-            // the select list of the sql without the condition may be sorted otherwise
-            assertEquals(cells(rows(conn, generate(parse(removed, type)))),
-                         cells(rows(conn, generated)), type + "\ngenerated: " + generated);
+            assertEquals(rows(conn, generate(expectedSQL)), rows(conn, generated),
+                         type + "\ngenerated: " + generated);
             // the column names, which name the result columns, are kept
             assertEquals(columns, columns(usql), type);
          }
@@ -269,6 +273,10 @@ class XUtilSentinelSelectListTest {
          // a window aggregate returns a row for each row
          Arguments.of("select a.id, (select max(b.id) over (partition by b.k) from b " +
                          "where b.k = $(p)) from a"),
+         Arguments.of("select a.id, (select count(*) over () from b where b.k = $(p)) from a"),
+         // two columns
+         Arguments.of("select a.id, (select max(b.id), min(b.id) from b where b.k = $(p)) " +
+                         "from a"),
          // an aggregate in an expression (one row, but not recognized: bound as null)
          Arguments.of("select a.id, (select count(*) + 1 from b where b.k = $(p)) from a"),
          Arguments.of("select a.id, (select coalesce(max(b.id), 0) from b " +
@@ -317,6 +325,17 @@ class XUtilSentinelSelectListTest {
                       List.of("1|34", "3|34", "5|34")),
          Arguments.of("select a.id, (select max(b.id) from b where b.k = $(p)) as m from a",
                       List.of("1|7", "3|7", "5|7")),
+         Arguments.of("select a.id, (select min(b.id) from b where b.k = $(p)) as m from a",
+                      List.of("1|1", "3|1", "5|1")),
+         // Derby's avg of an int column is an int: 34 / 10
+         Arguments.of("select a.id, (select avg(b.id) from b where b.k = $(p)) as m from a",
+                      List.of("1|3", "3|3", "5|3")),
+         // an aggregate over an expression
+         Arguments.of("select a.id, (select sum(b.id * 2) from b where b.k = $(p)) as s from a",
+                      List.of("1|68", "3|68", "5|68")),
+         // the distinct non-null values of k: '2', '3', '', 'null', 'NULL_VALUE'
+         Arguments.of("select a.id, (select count(distinct b.k) from b where b.k = $(p)) as c " +
+                         "from a", List.of("1|5", "3|5", "5|5")),
          // in a derived table
          Arguments.of("select d.id, d.cnt from (select a.id, " + COUNT +
                          "b.k = $(p)) as cnt from a) d", List.of("1|10", "3|10", "5|10")),
@@ -407,20 +426,6 @@ class XUtilSentinelSelectListTest {
 
       Collections.sort(rows);
       return rows;
-   }
-
-   // the values of each row in sorted order, whatever the order of the columns
-   private static List<String> cells(List<String> rows) {
-      List<String> cells = new ArrayList<>();
-
-      for(String row : rows) {
-         List<String> values = new ArrayList<>(Arrays.asList(row.split("\\|")));
-         Collections.sort(values);
-         cells.add(String.join("|", values));
-      }
-
-      Collections.sort(cells);
-      return cells;
    }
 
    // the sql without the condition of p, as the rowCases write it
