@@ -1575,6 +1575,14 @@ public class SQLHelper implements KeywordProvider {
       final XSelection xselect = uniformSql.getSelection();
 
       for(int i = 0; i < xselect.getColumnCount(); i++) {
+         String alias = xselect.getAlias(i);
+
+         // a column with a valid alias of its own is output by that alias, no generated
+         // name stands for it (Bug #77714)
+         if(alias != null && !alias.isEmpty() && isValidAlias(alias)) {
+            continue;
+         }
+
          String column = xselect.getColumn(i);
          String table = uniformSql.getTable(column);
          String subCol = uniformSql.getColumnFromPath(column);
