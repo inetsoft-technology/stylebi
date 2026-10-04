@@ -49,31 +49,30 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * Bug #77574. A NULL_VALUE/EMPTY_STRING parameter rewrite in the HAVING of a FROM derived
- * table is not reported by XUtil.validateConditions, so a cacheable derived table above it
- * (as JoinQuery/MirrorQuery merge in) kept its cached sql string with the parameter in it,
- * and {@link JDBCHandler#execute} bound the sentinel string to it.
+ * Bug #77606. {@link UniformSQL#clone()} shared the {@link UniformSQL} of a FROM derived
+ * table with the original, so the in-place rewrites {@link JDBCHandler#execute} makes on its
+ * private clone (sentinel conditions, conditions without a parameter value) changed the
+ * caller's query, and a later run with another value still ran the first rewrite.
  *
- * Runs on a reused query are covered by XUtilSentinelDerivedTableCloneTest (#77606).
+ * The outer sql string is cleared, as the worksheet merge does, because
+ * XUtil.validateConditions does not look into a query that still has its sql string.
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class,
-                                  XUtilSentinelCachedDerivedTableTest.JdbcConfig.class },
+                                  XUtilSentinelDerivedTableCloneTest.JdbcConfig.class },
                       initializers = ConfigurationContextInitializer.class)
 @SreeHome
 @Tag("core")
-class XUtilSentinelCachedDerivedTableTest {
-   private static final String DB = "memory:bug77574";
-   private static final String NULL_VALUE = XConstants.CONDITION_NULL_VALUE;
+class XUtilSentinelDerivedTableCloneTest {
+   private static final String DB = "memory:bug77606";
    private static final String EMPTY_STRING = XConstants.CONDITION_EMPTY_STRING;
-   // k = 3 is the only group whose max(a.id) is null, min(a.name) is '' in every group
-   private static final String NULL_VALUE_INNER =
-      "select a.k, max(a.id) m from a group by a.k having count(*) > 1 and max(a.id) = $(p)";
-   private static final String EMPTY_STRING_INNER =
+   // min(a.name) is '' in every group
+   private static final String HAVING_INNER =
       "select a.k, min(a.name) m from a group by a.k having count(*) > 1 and min(a.name) = $(p)";
    // a bare HAVING condition, not an AND
-   private static final String BARE_INNER =
-      "select a.k, max(a.id) m from a group by a.k having max(a.id) = $(p)";
+   private static final String BARE_HAVING_INNER =
+      "select a.k, min(a.name) m from a group by a.k having min(a.name) = $(p)";
+   private static final String WHERE_INNER = "select a.k from a where a.name = $(p)";
 
    @Configuration
    static class JdbcConfig {
@@ -138,100 +137,131 @@ class XUtilSentinelCachedDerivedTableTest {
       }
    }
 
-   // inner sql, parameter, depth of the rewritten derived table, expected k
+   // inner sql, depth of the derived table holding the parameter
    static Stream<Arguments> cases() {
       return Stream.of(
-         Arguments.of(NULL_VALUE_INNER, NULL_VALUE, 1, List.of(3)),
-         Arguments.of(NULL_VALUE_INNER, NULL_VALUE, 2, List.of(3)),
-         Arguments.of(NULL_VALUE_INNER, NULL_VALUE, 3, List.of(3)),
-         Arguments.of(EMPTY_STRING_INNER, EMPTY_STRING, 1, List.of(1, 2, 3)),
-         Arguments.of(EMPTY_STRING_INNER, EMPTY_STRING, 2, List.of(1, 2, 3)),
-         Arguments.of(EMPTY_STRING_INNER, EMPTY_STRING, 3, List.of(1, 2, 3)),
-         Arguments.of(BARE_INNER, NULL_VALUE, 2, List.of(3)));
+         Arguments.of(HAVING_INNER, 1), Arguments.of(HAVING_INNER, 2),
+         Arguments.of(BARE_HAVING_INNER, 1), Arguments.of(BARE_HAVING_INNER, 2),
+         Arguments.of(WHERE_INNER, 1), Arguments.of(WHERE_INNER, 2));
    }
 
-   // the sql string of the query was read before execution, which fills the cache of every
-   // cacheable derived table
+   @Test
+   void cloneOwnsItsDerivedTables() throws Exception {
+      JDBCQuery query = newQuery(HAVING_INNER, 2);
+      JDBCQuery clone = (JDBCQuery) query.clone();
+      UniformSQL derived = derived(query, 1);
+      UniformSQL derived2 = derived(query, 2);
+      String having = derived2.getHaving().toString();
+      assertTrue(having.contains("$(p)"), having);
+
+      assertNotSame(derived, derived(clone, 1));
+      assertNotSame(derived2, derived(clone, 2));
+
+      clone.validateConditions(vars(EMPTY_STRING));
+      assertEquals(having, derived2.getHaving().toString());
+      assertNotEquals(having, derived(clone, 2).getHaving().toString());
+   }
+
+   // the rows a fresh query returns, which the run sequences below are compared with
+   @Test
+   void freshQueryRows() throws Exception {
+      assertEquals(List.of(1, 2, 3), execute(newQuery(HAVING_INNER, 1), EMPTY_STRING).keys);
+      assertEquals(List.of(), execute(newQuery(HAVING_INNER, 1), "n1").keys);
+      assertEquals(List.of(1, 2, 3), execute(newQuery(HAVING_INNER, 1), null).keys);
+      assertEquals(List.of(1), execute(newQuery(WHERE_INNER, 1), "n1").keys);
+   }
+
+   // sentinel, plain value, sentinel on the same query
    @ParameterizedTest
    @MethodSource("cases")
-   void readBeforeExecution(String inner, String p, int depth, List<Integer> expected)
-      throws Exception
-   {
+   void sentinelThenValueSameQuery(String inner, int depth) throws Exception {
       JDBCQuery query = newQuery(inner, depth);
-      assertTrue(query.getSQLAsString().contains("$(p)"), query.getSQLAsString());
 
-      assertRun(execute(query, p), expected);
+      for(String p : new String[] { EMPTY_STRING, "n1", EMPTY_STRING }) {
+         assertRun(execute(query, p), p, execute(newQuery(inner, depth), p).keys);
+      }
+
+      String derived = derived(query, depth).toString();
+      assertTrue(derived.contains("$(p)"), derived);
    }
 
-   // an earlier execution of the same query with a plain value fills the cache of the
-   // derived tables
+   // every run works on its own clone of a common original, as a worksheet clone does
    @ParameterizedTest
    @MethodSource("cases")
-   void plainValueThenSentinel(String inner, String p, int depth, List<Integer> expected)
-      throws Exception
-   {
+   void sentinelThenValueOnClones(String inner, int depth) throws Exception {
       JDBCQuery query = newQuery(inner, depth);
-      Run first = execute(query, NULL_VALUE.equals(p) ? "6" : "n1");
-      assertEquals(NULL_VALUE.equals(p) ? List.of(1) : List.of(), first.keys,
-                   first.executedSql);
 
-      assertRun(execute(query, p), expected);
+      for(String p : new String[] { EMPTY_STRING, "n1", EMPTY_STRING }) {
+         assertRun(execute((JDBCQuery) query.clone(), p), p,
+                   execute(newQuery(inner, depth), p).keys);
+      }
    }
 
-   // no cached string, the rewrite was always correct
+   // an unset parameter removes the condition, which must not stay removed
    @ParameterizedTest
    @MethodSource("cases")
-   void notReadBeforeExecution(String inner, String p, int depth, List<Integer> expected)
-      throws Exception
-   {
-      assertRun(execute(newQuery(inner, depth), p), expected);
+   void unsetThenValue(String inner, int depth) throws Exception {
+      JDBCQuery query = newQuery(inner, depth);
+
+      for(String p : new String[] { null, "n1" }) {
+         assertRun(execute(query, p), p, execute(newQuery(inner, depth), p).keys);
+      }
    }
 
-   private static void assertRun(Run run, List<Integer> expected) {
-      // VarSQL replaces a $(p) left in the sql with a ? bound to the sentinel string. None
-      // of the expected sql has a ? of its own.
-      assertFalse(run.executedSql.contains("?"), "parameter left in " + run.executedSql);
+   private static void assertRun(Run run, String p, List<Integer> expected) {
+      // VarSQL replaces a $(p) left in the sql with a ? bound to the value, which is right
+      // for a plain value only
+      if(EMPTY_STRING.equals(p)) {
+         assertFalse(run.executedSql.contains("?"), "parameter left in " + run.executedSql);
+      }
+
       assertEquals(expected, run.keys, run.executedSql);
    }
 
-   /**
-    * Wrap the inner sql in depth - 1 more derived tables. Every derived table is cacheable,
-    * as JoinQuery.mergeFrom and MirrorQuery.mergeFrom mark the sub-query they add to FROM.
-    */
+   private static UniformSQL derived(JDBCQuery query, int depth) {
+      UniformSQL level = (UniformSQL) query.getSQLDefinition();
+
+      for(int i = 0; i < depth; i++) {
+         level = (UniformSQL) level.getSelectTable()[0].getName();
+      }
+
+      return level;
+   }
+
    private static JDBCQuery newQuery(String inner, int depth) throws Exception {
       String sql = inner;
-      String column = "k";
 
       for(int i = 0; i < depth; i++) {
          String alias = "t" + i;
-         sql = "select " + alias + "." + column + " from (" + sql + ") " + alias;
+         sql = "select " + alias + ".k from (" + sql + ") " + alias;
       }
 
       UniformSQL usql = new UniformSQL();
       usql.parse(sql, UniformSQL.PARSE_ALL, UniformSQL.PARSE_PERIOD);
       usql.setSQLString(sql, false);
       assertEquals(UniformSQL.PARSE_SUCCESS, usql.getParseResult(), sql);
+      // as the worksheet merge does, otherwise validation skips the query
       usql.clearSQLString();
 
-      UniformSQL level = usql;
-
-      for(int i = 0; i < depth; i++) {
-         level = (UniformSQL) level.getSelectTable()[0].getName();
-         level.setSubQuery(true);
-         level.setCacheable(true);
-      }
-
       JDBCQuery query = new JDBCQuery();
-      query.setName("bug77574");
+      query.setName("bug77606");
       query.setDataSource(dataSource());
       query.setSQLDefinition(usql);
       return query;
    }
 
-   private static Run execute(JDBCQuery query, String p) throws Exception {
+   private static VariableTable vars(String p) {
       VariableTable vars = new VariableTable();
-      vars.put("p", p);
 
+      if(p != null) {
+         vars.put("p", p);
+      }
+
+      return vars;
+   }
+
+   private static Run execute(JDBCQuery query, String p) throws Exception {
+      VariableTable vars = vars(p);
       JDBCHandler handler = new JDBCHandler();
       handler.connect(query.getDataSource(), vars);
       executed.set(null);
@@ -253,7 +283,7 @@ class XUtilSentinelCachedDerivedTableTest {
 
    private static JDBCDataSource dataSource() {
       JDBCDataSource ds = new JDBCDataSource();
-      ds.setName("bug77574");
+      ds.setName("bug77606");
       ds.setDriver("org.apache.derby.jdbc.EmbeddedDriver");
       ds.setURL("jdbc:derby:" + DB);
       ds.setRequireLogin(false);
@@ -278,7 +308,7 @@ class XUtilSentinelCachedDerivedTableTest {
    @SuppressWarnings("unchecked")
    private static <T> T proxy(Class<T> type, T target) {
       return (T) Proxy.newProxyInstance(
-         XUtilSentinelCachedDerivedTableTest.class.getClassLoader(), new Class<?>[] { type },
+         XUtilSentinelDerivedTableCloneTest.class.getClassLoader(), new Class<?>[] { type },
          (p, method, args) -> {
             String name = method.getName();
 

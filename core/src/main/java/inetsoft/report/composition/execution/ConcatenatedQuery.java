@@ -566,6 +566,14 @@ public class ConcatenatedQuery extends AssetQuery {
       for(int i = 0; i < queries.length; i++) {
          JDBCQuery query = queries[i].getQuery();
          UniformSQL sql = queries[i].getUniformSQL();
+
+         // validate a copy, the query of a sql bound table is the table's own query and the
+         // validation rewrites it in place (Bug #77606)
+         if(query.getSQLDefinition() == sql) {
+            query = query.clone();
+            sql = (UniformSQL) query.getSQLDefinition();
+         }
+
          sql.setHint(UniformSQL.HINT_WITHOUT_SORTED_SQL, true);
          sql.clearSQLString();
          query.validateConditions(vars);
