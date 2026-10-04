@@ -1209,6 +1209,11 @@ public class VGraphPair {
                CompositeTextFormat colFmt = axisDesc.getColumnLabelTextFormat(col);
 
                if(colFmt != null) {
+                  // reset to the axis default each pass, so a cleared object font/color
+                  // does not leave a stale default behind (Bug #77597)
+                  colFmt.getDefaultFormat().setFont(axisDesc.getAxisLabelTextFormat()
+                                                       .getDefaultFormat().getFont());
+                  initDefaultFormat(colFmt);
                   copyDefaultFormat(colFmt.getDefaultFormat(), objFmt);
                   colFmt.getCSSFormat().setParentCSSParams(parentParams);
                }
@@ -1237,11 +1242,10 @@ public class VGraphPair {
                      CompositeTextFormat colFmt = axisDesc.getColumnLabelTextFormat(col);
 
                      if(colFmt != null) {
-                        if(StyleFont.isDefaultFont(colFmt.getDefaultFormat().getFont())) {
-                           colFmt.getDefaultFormat().setFont(axisDesc.getAxisLabelTextFormat()
-                                                                .getDefaultFormat().getFont());
-                        }
-
+                        // reset to the axis default each pass, so a cleared object font/color
+                        // does not leave a stale default behind (Bug #77597)
+                        colFmt.getDefaultFormat().setFont(axisDesc.getAxisLabelTextFormat()
+                                                             .getDefaultFormat().getFont());
                         initDefaultFormat(colFmt);
                         copyDefaultFormat(colFmt.getDefaultFormat(), objFmt);
                         colFmt.getCSSFormat().setParentCSSParams(parentParams);
