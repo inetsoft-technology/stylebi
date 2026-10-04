@@ -378,6 +378,8 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
          orderDBFields = new Vector<>(uniformSql.orderDBFields);
          groupDBFields = new Vector<>(uniformSql.groupDBFields);
          orderByList = new Vector<>(uniformSql.orderByList);
+         orderBySql = uniformSql.orderBySql == null ?
+            new HashMap<>() : new HashMap<>(uniformSql.orderBySql);
          quotedFields = new HashMap<>(uniformSql.quotedFields);
          quotedAggregates = new HashMap<>(uniformSql.quotedAggregates);
 
@@ -679,6 +681,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
       tables = new Vector<>();
       fields = new Vector<>();
       orderByList = new Vector<>();
+      orderBySql = new HashMap<>();
       quotedFields = new HashMap<>();
       quotedAggregates = new HashMap<>();
       groups = null;
@@ -4304,10 +4307,44 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
    }
 
    /**
+    * Get the sql generated for an order by item in place of its text, for the parameter
+    * values of a run (e.g. a scalar subquery with a sentinel parameter rewritten, Bug #77706).
+    * The item keeps its text, which the select list and the sorted column map are matched by.
+    * @param idx the index in getOrderByItems().
+    * @return the sql, or <tt>null</tt> if not set for the current field of the item.
+    */
+   public synchronized String getOrderBySQL(int idx) {
+      OrderBySql sql = orderBySql == null ? null : orderBySql.get(idx);
+      return sql != null && idx < orderByList.size() &&
+         Objects.equals(sql.field(), orderByList.get(idx).getField()) ? sql.sql() : null;
+   }
+
+   /**
+    * Set the sql generated for an order by item in place of its text, for the parameter values
+    * of a run. It isn't saved.
+    * @param idx the index in getOrderByItems().
+    * @param sql the sql, or <tt>null</tt> to generate the text of the item.
+    */
+   public synchronized void setOrderBySQL(int idx, String sql) {
+      if(orderBySql == null) {
+         // not set by an instance created without its constructor (e.g. deserialized)
+         orderBySql = new HashMap<>();
+      }
+
+      if(sql == null || idx < 0 || idx >= orderByList.size()) {
+         orderBySql.remove(idx);
+      }
+      else {
+         orderBySql.put(idx, new OrderBySql(orderByList.get(idx).getField(), sql));
+      }
+   }
+
+   /**
     * Remove all elements of orderBy list.
     */
    public synchronized void removeAllOrderByFields() {
       orderByList.removeAllElements();
+      orderBySql = new HashMap<>();
       // a record left behind would apply again to the same text added later
       quotedAggregates.clear();
    }
@@ -5350,6 +5387,8 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
             }
          }
 
+         obj.orderBySql = orderBySql == null ? new HashMap<>() : new HashMap<>(orderBySql);
+
          if(groups != null) {
             obj.groups = groups.clone();
          }
@@ -5552,6 +5591,44 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
          return null;
       }
 
+      return sub;
+   }
+
+   /**
+    * Parse the sql of a subquery that is kept as a sql string, e.g. the subquery value of a
+    * VPM condition, which is saved unparsed. The parse runs now, on a new query.
+    * <p>
+    * The sql generated from the result doesn't keep comments, including optimizer hints and
+    * executable comments (see XUtil.hasExecutableComment), and isn't checked to parse back to
+    * the same structure. A caller that sends the generated sql in place of <tt>sql</tt> must
+    * exclude those and check the generated sql itself.
+    * @param sql the sql of the subquery.
+    * @param source the data source the subquery runs on.
+    * @return the parsed subquery without its sql string, so its structure is the whole
+    * subquery, or <tt>null</tt> if the sql isn't parsed completely (a failed or partial parse,
+    * or a lossy one).
+    */
+   public static UniformSQL parseSubquery(String sql, JDBCDataSource source) {
+      if(sql == null) {
+         return null;
+      }
+
+      UniformSQL sub = new UniformSQL();
+      sub.setDataSource(source);
+
+      try {
+         sub.parse(sql, PARSE_ALL, PARSE_PERIOD);
+      }
+      catch(Exception ex) {
+         LOG.debug("Failed to parse the subquery: {}", sql, ex);
+         return null;
+      }
+
+      if(sub.getParseResult() != PARSE_SUCCESS || sub.isLossy()) {
+         return null;
+      }
+
+      sub.clearSQLString();
       return sub;
    }
 
@@ -6008,6 +6085,9 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
    private Vector<String> expressions = new Vector<>(); //unparseable expressions
 
    private Vector<String> orderDBFields = new Vector<>(); //unparseable expressions
+   // the sql of an order by item for the parameter values of a run, by index, see
+   // getOrderBySQL. Not saved
+   private Map<Integer, OrderBySql> orderBySql = new HashMap<>();
 
    private Vector<String> groupDBFields = new Vector<>(); //unparseable expressions
    private Set<String> aliasflags = new HashSet<>();
@@ -6022,4 +6102,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
 
    private static final Logger LOG = LoggerFactory.getLogger(UniformSQL.class);
    private static final ThreadLocal<Integer> UNQUOTED = ThreadLocal.withInitial(() -> 0);
+
+   private record OrderBySql(Object field, String sql) implements java.io.Serializable {
+   }
 }

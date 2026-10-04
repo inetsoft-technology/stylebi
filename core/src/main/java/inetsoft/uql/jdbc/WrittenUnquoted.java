@@ -406,7 +406,8 @@ public final class WrittenUnquoted implements Serializable {
    }
 
    /**
-    * Find the quoted names of a sql text, string literals aside.
+    * Find the quoted names of a sql text, string literals aside. A doubled quote in a name is
+    * part of it.
     * @return the start and end of the content of each name, in order.
     */
    public static List<int[]> findNames(String sql, String quote) {
@@ -430,6 +431,11 @@ public final class WrittenUnquoted implements Serializable {
          else if(sql.startsWith(quote, i)) {
             int start = i + quote.length();
             int end = sql.indexOf(quote, start);
+
+            // a doubled quote is a quote in the name ("a""b"), not its end (#77661)
+            while(end >= 0 && sql.startsWith(quote, end + quote.length())) {
+               end = sql.indexOf(quote, end + 2 * quote.length());
+            }
 
             if(end < 0) {
                break;

@@ -350,7 +350,7 @@ public class DataSourceRegistry implements MessageListener {
       // which aren't presented as datasources on their own.
       String[] unfilteredNames = getFullNames(AssetEntry.Type.DATA_SOURCE).values().stream()
          .flatMap(List::stream).toArray(String[]::new);
-      return getDataSourceFullNames0(unfilteredNames);
+      return readableSources(getDataSourceFullNames0(unfilteredNames));
    }
 
    /**
@@ -362,7 +362,7 @@ public class DataSourceRegistry implements MessageListener {
       // which aren't presented as datasources on their own.
       String[] unfilteredNames = getFullNames(AssetEntry.Type.DATA_SOURCE, orgID.orgID).values().stream()
          .flatMap(List::stream).toArray(String[]::new);
-      return getDataSourceFullNames0(unfilteredNames);
+      return readableSources(getDataSourceFullNames0(unfilteredNames));
    }
 
    public String[] getDataSourceFullNames(String path) {
@@ -377,7 +377,7 @@ public class DataSourceRegistry implements MessageListener {
 
       if(names != null) {
          String[] unfilteredNames = names.toArray(new String[0]);
-         return getDataSourceFullNames0(unfilteredNames);
+         return readableSources(getDataSourceFullNames0(unfilteredNames));
       }
 
       return new String[0];
@@ -388,13 +388,13 @@ public class DataSourceRegistry implements MessageListener {
       List<String> names = getFullNames(AssetEntry.Type.DATA_SOURCE, orgID).get(key);
 
       if(key.isEmpty() || key.equals("/")) {
-         return getFullNames(AssetEntry.Type.DATA_SOURCE, orgID).values().stream()
-            .flatMap(List::stream).toArray(String[]::new);
+         return readableSources(getFullNames(AssetEntry.Type.DATA_SOURCE, orgID).values()
+            .stream().flatMap(List::stream).toArray(String[]::new));
       }
 
       if(names != null) {
          String[] unfilteredNames = names.toArray(new String[0]);
-         return getDataSourceFullNames0(unfilteredNames);
+         return readableSources(getDataSourceFullNames0(unfilteredNames));
       }
 
       return new String[0];
@@ -439,8 +439,8 @@ public class DataSourceRegistry implements MessageListener {
     * @return full names of all the data source folders.
     */
    public String[] getDataSourceFolderFullNames() {
-      return getFullNames(AssetEntry.Type.DATA_SOURCE_FOLDER).values().stream()
-         .flatMap(List::stream).toArray(String[]::new);
+      return readableFolders(getFullNames(AssetEntry.Type.DATA_SOURCE_FOLDER).values().stream()
+         .flatMap(List::stream).toArray(String[]::new));
    }
 
    public String[] getDataSourceFolderFullNames(String prefix) {
@@ -452,7 +452,7 @@ public class DataSourceRegistry implements MessageListener {
       }
 
       List<String> names = allFolders.get(key);
-      return names != null ? names.toArray(new String[0]) : new String[0];
+      return names != null ? readableFolders(names.toArray(new String[0])) : new String[0];
    }
 
    public String[] getDataSourceFolderFullNames(String prefix, String orgID) {
@@ -460,12 +460,21 @@ public class DataSourceRegistry implements MessageListener {
       Map<String, List<String>> allFolders = getFullNames(AssetEntry.Type.DATA_SOURCE_FOLDER, orgID);
 
       if(key.isEmpty() || key.equals("/")) {
-         return getFullNames(AssetEntry.Type.DATA_SOURCE_FOLDER, orgID).values().stream()
-            .flatMap(List::stream).toArray(String[]::new);
+         return readableFolders(getFullNames(AssetEntry.Type.DATA_SOURCE_FOLDER, orgID).values()
+            .stream().flatMap(List::stream).toArray(String[]::new));
       }
 
       List<String> names = allFolders.get(key);
-      return names != null ? names.toArray(new String[0]) : new String[0];
+      return names != null ? readableFolders(names.toArray(new String[0])) : new String[0];
+   }
+
+   // Bug #77539: the names of a listing a sheet script makes itself that its user may read
+   private static String[] readableSources(String[] names) {
+      return ScriptDataSourceAccess.readable(ResourceType.DATA_SOURCE, names);
+   }
+
+   private static String[] readableFolders(String[] names) {
+      return ScriptDataSourceAccess.readable(ResourceType.DATA_SOURCE_FOLDER, names);
    }
 
    private static String getFirstFolder(String prefix) {
@@ -2656,12 +2665,10 @@ public class DataSourceRegistry implements MessageListener {
       }
    }
 
-   public boolean checkPermission(@SuppressWarnings("unused") ResourceType type,
-                                  @SuppressWarnings("unused") String resource,
-                                  @SuppressWarnings("unused") ResourceAction action)
-   {
-      // Do nothing.
-      return true;
+   public boolean checkPermission(ResourceType type, String resource, ResourceAction action) {
+      // Bug #77539: an access a sheet script makes itself must be one its user may make;
+      // the data sources of a running asset are not checked here, as before
+      return ScriptDataSourceAccess.permits(type, resource, action);
    }
 
    protected void updatePermission(ResourceType type, String oldResource, String newResource) {
@@ -2901,15 +2908,12 @@ public class DataSourceRegistry implements MessageListener {
     * @param type the type of the entries to be returned - see AssetEntry
     */
    private Map<String, List<String>> getFullNames(AssetEntry.Type type, String orgID) {
-      ResourceType resourceType;
       Map<String, List<String>> cachedNames;
 
       if(type == AssetEntry.Type.DATA_SOURCE_FOLDER) {
-         resourceType = ResourceType.DATA_SOURCE_FOLDER;
          cachedNames = this.allFolders.computeIfAbsent(orgID, k -> new ConcurrentHashMap<>());
       }
       else {
-         resourceType = ResourceType.DATA_SOURCE;
          cachedNames = this.allDataSources.computeIfAbsent(orgID, k -> new ConcurrentHashMap<>());
       }
 
@@ -2923,14 +2927,13 @@ public class DataSourceRegistry implements MessageListener {
          try {
             List<AssetEntry> entries = root != null ? root.getEntries(type) : Collections.emptyList();
 
+            // Bug #77539: the cache is shared by every caller, so it holds every name;
+            // a listing a script makes itself is filtered per call (readable)
             for(AssetEntry entry : entries) {
                String name = entry.getPath();
-
-               if(checkPermission(resourceType, name, ResourceAction.READ)) {
-                  String key = getFirstFolder(name);
-                  List<String> list = cachedNames.computeIfAbsent(key, k -> new ArrayList<>());
-                  list.add(name);
-               }
+               String key = getFirstFolder(name);
+               List<String> list = cachedNames.computeIfAbsent(key, k -> new ArrayList<>());
+               list.add(name);
             }
          }
          catch(Exception e) {
