@@ -19,8 +19,8 @@ package inetsoft.uql.util;
 
 import inetsoft.util.Tool;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
+import java.util.regex.Pattern;
 
 /**
  * SQL iterator iterates one sql string.
@@ -116,6 +116,12 @@ public class SQLIterator {
       // Bug #77663, a line break, a comment or a tag inside a literal or quoted name is the
       // text of the literal, not sql
       quoted = SQLQuoteScanner.findQuoted(sql);
+      // Bug #77695, a tag inside a comment that every database reads as a comment (after a
+      // mid-line --, or in a slash-star comment) is not sql, so it is not a tag. A tag opener
+      // is not a comment itself, the text after it is sql
+      opener = findOpeners(sql);
+      commentStart = SQLQuoteScanner.findComments(sql, i -> opener[i] != 0);
+      lastCloser.clear();
       int start = 0;
 
       for(int i = 0; i < sql.length(); i++) {
@@ -282,7 +288,11 @@ public class SQLIterator {
          char lc = i > 0 ? line.charAt(i - 1) : '\uffff';
 
          if(state == TEXT_STATE) {
-            if(c != '*' || lc != '/' || quoted[offset + i - 1]) {
+            // Bug #77695, a column tag in a comment is still read if it is closed, as before,
+            // since its value is removed from the sql (the comment may end at the tag's */)
+            if(c != '*' || lc != '/' || quoted[offset + i - 1] ||
+               commentStart[offset + i - 1] >= 0 && !isClosedColumnOpener(offset + i - 1))
+            {
                i++;
                continue;
             }
@@ -299,7 +309,8 @@ public class SQLIterator {
             }
          }
          else if(state == COMMENT_STATE) {
-            if(c != '/' || lc != '*') {
+            // the * of the opening slash-star doesn't close the comment (/*/)
+            if(c != '/' || lc != '*' || i - 1 < sindex) {
                i++;
                continue;
             }
@@ -307,8 +318,10 @@ public class SQLIterator {
             eindex = i - 1;
             String cname = line.substring(sindex, eindex);
 
+            // Bug #77695, a name other than where or a column number is a regular comment
             if(cname.length() < 3 || cname.charAt(0) != '<' ||
-               cname.charAt(cname.length() - 1) != '>')
+               cname.charAt(cname.length() - 1) != '>' ||
+               !isTagName(cname.substring(1, cname.length() - 1)))
             {
                String text = line.substring(sindex - 2, i + 1);
 
@@ -317,8 +330,9 @@ public class SQLIterator {
                // sql since it could be a hint to db
                events.add(new SQLIteratorEvent(TEXT_ELEMENT, text, null));
                state = TEXT_STATE;
-               i++;
+               // the closing / is the last character used, the text after it is kept
                index = i;
+               i++;
                continue;
             }
 
@@ -334,7 +348,7 @@ public class SQLIterator {
             int type;
 
             if(!cname.equals("where")) {
-               comment = Integer.valueOf(Integer.parseInt(cname) - 1);
+               comment = Integer.valueOf(getColumnNumber(cname) - 1);
                type = COLUMN_ELEMENT;
             }
             else {
@@ -343,7 +357,17 @@ public class SQLIterator {
             }
 
             String val = line.substring(eindex + 2, index2);
-            events.add(new SQLIteratorEvent(type, val, comment));
+            int cstart = commentStart[offset + index2] - offset;
+
+            // Bug #77695, the closing tag is in a -- comment that starts in the value, so the
+            // value ends at the comment, which is passed on as text as the database reads it
+            if(cstart >= eindex + 2 && line.startsWith("--", cstart)) {
+               events.add(new SQLIteratorEvent(type, line.substring(eindex + 2, cstart), comment));
+               events.add(new SQLIteratorEvent(TEXT_ELEMENT, line.substring(cstart, index2), null));
+            }
+            else {
+               events.add(new SQLIteratorEvent(type, val, comment));
+            }
 
             index = index2 + rpattern.length() - 1;
             i = index + 1;
@@ -407,6 +431,75 @@ public class SQLIterator {
       Object comment;
    }
 
+   /**
+    * Find the tag openers of the sql, a slash-star tag <name> with a valid name, whether or not
+    * they are quoted or in a comment.
+    * @return WHERE_OPENER or COLUMN_OPENER at the index of each opener, 0 elsewhere.
+    */
+   private static byte[] findOpeners(String sql) {
+      int len = sql.length();
+      byte[] opener = new byte[len];
+      // the index of the first */ at or after i + 2, found right to left in linear time
+      int close = -1;
+
+      for(int i = len - 4; i >= 0; i--) {
+         if(sql.charAt(i + 2) == '*' && sql.charAt(i + 3) == '/') {
+            close = i + 2;
+         }
+
+         if(sql.charAt(i) == '/' && sql.charAt(i + 1) == '*' && sql.charAt(i + 2) == '<' &&
+            close > i + 4 && sql.charAt(close - 1) == '>')
+         {
+            String name = sql.substring(i + 3, close - 1);
+
+            if(isTagName(name)) {
+               opener[i] = name.equals("where") ? WHERE_OPENER : COLUMN_OPENER;
+            }
+         }
+      }
+
+      return opener;
+   }
+
+   /**
+    * Check if a column tag opens at the index and its closing tag is found after it, not
+    * quoted.
+    */
+   private boolean isClosedColumnOpener(int index) {
+      if(opener[index] != COLUMN_OPENER) {
+         return false;
+      }
+
+      int end = sql.indexOf("*/", index + 2);
+      String rpattern = "/*</" + sql.substring(index + 3, end - 1) + ">*/";
+      // the last closing tag of the name, cached so the sql is searched once per name
+      int last = lastCloser.computeIfAbsent(rpattern, k -> {
+         for(int x = sql.lastIndexOf(k); x >= 0; x = x == 0 ? -1 : sql.lastIndexOf(k, x - 1)) {
+            if(!quoted[x]) {
+               return x;
+            }
+         }
+
+         return -1;
+      });
+
+      return last > end;
+   }
+
+   /**
+    * Check if a tag name is valid: where, or a column number from 1.
+    */
+   private static boolean isTagName(String name) {
+      return name.equals("where") || COLUMN_NAME.matcher(name).matches();
+   }
+
+   /**
+    * Get the number of a column tag name, which may have a + sign and leading zeros.
+    */
+   private static int getColumnNumber(String name) {
+      return Integer.parseInt(name.startsWith("+") ? name.substring(1) : name);
+   }
+
    private static final String CT_PREFIX = "vpm.tables";
    private static final String CA_PREFIX = "vpm.aliases";
    private static final String CC_PREFIX = "vpm.columns";
@@ -414,8 +507,15 @@ public class SQLIterator {
    private static final String TAG2 = ">*/";
    private static final int TEXT_STATE = 0;
    private static final int COMMENT_STATE = 1;
+   private static final byte WHERE_OPENER = 1;
+   private static final byte COLUMN_OPENER = 2;
+   // a column number from 1, as Integer.parseInt reads it (a + sign and leading zeros)
+   private static final Pattern COLUMN_NAME = Pattern.compile("\\+?0*[1-9][0-9]{0,8}");
 
    private String sql; // sql string
    private boolean[] quoted; // the characters of the sql inside quoted text
+   private byte[] opener; // the tag openers of the sql
+   private int[] commentStart; // the start of the comment holding each character, or -1
+   private final Map<String, Integer> lastCloser = new HashMap<>(); // see isClosedColumnOpener
    private List listeners; // sql listeners
 }
