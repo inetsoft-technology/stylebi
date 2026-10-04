@@ -4849,6 +4849,78 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
    }
 
    /**
+    * Parse the text of a select list column that is a scalar subquery. The parser keeps such
+    * a subquery only as the text of its column, its sql generated while parsing in
+    * parentheses (Bug #77620).
+    * @param column the column text.
+    * @param source the data source of the parsed query, which the parser writes names for
+    * (e.g. quoted on postgresql), or <tt>null</tt> if not known.
+    * @return the subquery, without a sql string, or <tt>null</tt> if the text isn't one
+    * subquery that parses, isn't lossy and is generated to the same text again.
+    */
+   public static UniformSQL parseSelectListSubquery(String column, JDBCDataSource source) {
+      if(column == null || !column.startsWith("(") || !column.endsWith(")")) {
+         return null;
+      }
+
+      String text = column.substring(1, column.length() - 1);
+
+      if(!text.trim().regionMatches(true, 0, "select", 0, 6)) {
+         return null;
+      }
+
+      // the names in the text are written for the data source of the parsed query, the
+      // subquery itself has no data source when its text is generated. Without the source
+      // first, which parses the select list of the subquery as the parser did.
+      UniformSQL sub = parseSelectListSubquery(column, text, null);
+
+      if(sub == null && source != null) {
+         sub = parseSelectListSubquery(column, text, source);
+      }
+
+      return sub;
+   }
+
+   private static UniformSQL parseSelectListSubquery(String column, String text,
+                                                     JDBCDataSource source)
+   {
+      UniformSQL sub = new UniformSQL();
+      sub.setDataSource(source);
+
+      try {
+         sub.parse(text, PARSE_ALL, PARSE_PERIOD);
+      }
+      catch(Exception ex) {
+         LOG.debug("Failed to parse the select list subquery: {}", column, ex);
+         return null;
+      }
+
+      if(sub.getParseResult() != PARSE_SUCCESS || sub.isLossy()) {
+         return null;
+      }
+
+      sub.setDataSource(null);
+      sub.clearSQLString();
+
+      // the text was generated from the parsed subquery, a text that is generated
+      // differently can't be replaced by the generated text of the parsed subquery
+      if(!column.equals(getSelectListSubqueryText(sub))) {
+         LOG.debug("The select list subquery is generated differently: {}", column);
+         return null;
+      }
+
+      return sub;
+   }
+
+   /**
+    * Generate the text of a select list column that is a scalar subquery, as the parser
+    * generates it (see parseSelectListSubquery).
+    */
+   public static String getSelectListSubqueryText(UniformSQL sub) {
+      return "(" + toUnquotedString(sub) + ")";
+   }
+
+   /**
     * Get the query that this sql is a subquery of in a condition, set while the sql of that
     * query is generated, so a correlated column can be quoted as its table (#77569).
     */

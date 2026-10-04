@@ -134,6 +134,7 @@ public class JDBCSelection extends XSelection {
       quoted.clear();
       quotedAggregates.clear();
       quotedAliases.clear();
+      columnSql.clear();
    }
 
    /**
@@ -431,6 +432,34 @@ public class JDBCSelection extends XSelection {
    public void setColumn(int idx, String col) {
       super.setColumn(idx, col);
       quoted.remove(idx);
+      columnSql.remove(idx);
+   }
+
+   /**
+    * Get the sql generated for a column in place of its text, for the parameter values of a
+    * run (e.g. a scalar subquery of the select list with a sentinel parameter rewritten,
+    * Bug #77620). The column keeps its text, which names it.
+    * @param col the column index.
+    * @return the sql, or <tt>null</tt> if not set for the current text of the column.
+    */
+   public String getColumnSQL(int col) {
+      ColumnSql sql = columnSql.get(col);
+      return sql != null && Objects.equals(sql.column(), getColumn(col)) ? sql.sql() : null;
+   }
+
+   /**
+    * Set the sql generated for a column in place of its text, for the parameter values of a
+    * run. It isn't saved.
+    * @param col the column index.
+    * @param sql the sql, or <tt>null</tt> to generate the text of the column.
+    */
+   public void setColumnSQL(int col, String sql) {
+      if(sql == null) {
+         columnSql.remove(col);
+      }
+      else {
+         columnSql.put(col, new ColumnSql(getColumn(col), sql));
+      }
    }
 
    /**
@@ -587,6 +616,7 @@ public class JDBCSelection extends XSelection {
          quotedAggregates = removeIndex(quotedAggregates, idx);
          quoted = removeIndex(quoted, idx);
          quotedAliases = removeIndex(quotedAliases, idx);
+         columnSql = removeIndex(columnSql, idx);
       }
 
       return removed;
@@ -657,6 +687,7 @@ public class JDBCSelection extends XSelection {
       select.quoted = new TreeMap<>(quoted);
       select.quotedAggregates = new TreeMap<>(quotedAggregates);
       select.quotedAliases = new TreeMap<>(quotedAliases);
+      select.columnSql = new TreeMap<>(columnSql);
 
       return select;
    }
@@ -670,13 +701,14 @@ public class JDBCSelection extends XSelection {
       return Objects.equals(tablemap, that.tablemap) && Objects.equals(aggregates, that.aggregates) &&
          Objects.equals(quoted, that.quoted) &&
          Objects.equals(quotedAggregates, that.quotedAggregates) &&
-         Objects.equals(quotedAliases, that.quotedAliases);
+         Objects.equals(quotedAliases, that.quotedAliases) &&
+         Objects.equals(columnSql, that.columnSql);
    }
 
    @Override
    public int hashCode() {
       return Objects.hash(super.hashCode(), tablemap, aggregates, quoted, quotedAggregates,
-                          quotedAliases);
+                          quotedAliases, columnSql);
    }
 
    private HashMap<String, String> tablemap = new HashMap(); // path -> table (String)
@@ -692,6 +724,9 @@ public class JDBCSelection extends XSelection {
    private TreeMap<Integer, String> quotedAggregates = new TreeMap<>();
    // index of a column -> the quoting of its alias, kept with the alias it was recorded for
    private TreeMap<Integer, AliasQuote> quotedAliases = new TreeMap<>();
+   // index of a column -> the sql generated in place of its text for a run, kept with the text
+   // it was set for (Bug #77620)
+   private TreeMap<Integer, ColumnSql> columnSql = new TreeMap<>();
    private boolean plan = false; // plan flag
 
    private record AliasQuote(String alias, boolean quoted) implements java.io.Serializable {
@@ -699,5 +734,9 @@ public class JDBCSelection extends XSelection {
 
    // the name a column was written quoted as, and its column segment ("" if bare)
    private record ColumnQuote(String column, String segment) implements java.io.Serializable {
+   }
+
+   // the text of a column and the sql generated in its place
+   private record ColumnSql(String column, String sql) implements java.io.Serializable {
    }
 }
