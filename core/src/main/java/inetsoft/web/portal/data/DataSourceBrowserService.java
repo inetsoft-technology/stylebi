@@ -31,6 +31,7 @@ import inetsoft.uql.jdbc.JDBCDataSource;
 import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.tabular.TabularDataSource;
 import inetsoft.uql.util.Config;
+import inetsoft.uql.util.XUtil;
 import inetsoft.uql.xmla.XMLADataSource;
 import inetsoft.util.*;
 import inetsoft.util.audit.ActionRecord;
@@ -583,6 +584,26 @@ public class DataSourceBrowserService {
                                    Principal principal, boolean userScope)
       throws Exception
    {
+      // a folder must not share its path with a data source or another folder, or be created
+      // under a data source, its data sources would be taken for additional connections
+      String nameValid = XUtil.isNameValid(path.substring(path.lastIndexOf('/') + 1));
+
+      if(!"Valid".equals(nameValid)) {
+         throw new MessageException(nameValid);
+      }
+
+      if(dataSourceRegistry.isDataSourcePathInUse(path)) {
+         throw new MessageException(Catalog.getCatalog(principal).getString(
+            "common.datasource.moveTargetExists", path));
+      }
+
+      String ancestor = dataSourceRegistry.getDataSourceAncestor(path);
+
+      if(ancestor != null) {
+         throw new MessageException(Catalog.getCatalog(principal).getString(
+            "common.datasource.createUnderDataSource", path, ancestor));
+      }
+
       LocalDateTime time = LocalDateTime.now();
       IdentityID user = IdentityID.getIdentityIDFromKey(principal.getName());
       String userName = user != null ? user.getName() : null;
