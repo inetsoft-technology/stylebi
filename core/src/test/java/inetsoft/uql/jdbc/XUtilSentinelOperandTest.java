@@ -44,6 +44,10 @@ import static org.junit.jupiter.api.Assertions.*;
  * <p>
  * A parameter that isn't rewritten is bound here the way VarSQL binds it, as the text of its
  * value, so the rows show a missed rewrite. The table has a row holding the text NULL_VALUE.
+ * <p>
+ * Bug #77707, a right operand that only starts with a parameter, e.g. $(p) || 'x', was
+ * replaced as if it were the parameter. Bug #77709, a parameter in a string literal,
+ * '$(p)', was bound as the text of the sentinel, and so was the subject of a BETWEEN.
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class, PluginsTestConfiguration.class,
@@ -129,7 +133,72 @@ class XUtilSentinelOperandTest {
          Arguments.of(SELECT + "where a.name = $(p)", nullArray,
                       SELECT + "where a.name IS NULL"),
          Arguments.of(SELECT + "where a.name = $(p)", emptyArray,
-                      SELECT + "where a.name = ''"));
+                      SELECT + "where a.name = ''"),
+         // Bug #77707, the escape clause of a LIKE is part of the right operand
+         Arguments.of(SELECT + "where a.name like $(p) escape '!'", NULL_VALUE,
+                      SELECT + "where a.name IS NULL"),
+         Arguments.of(SELECT + "where a.name like $(p) escape '!'", EMPTY_STRING,
+                      SELECT + "where a.name like ''"),
+         Arguments.of(SELECT + "where a.name like $(p) escape '!'", NULL_STRING,
+                      SELECT + "where a.name like 'null'"),
+         Arguments.of(SELECT + "where a.k = 1 and a.name not like $(p) escape '!'", NULL_VALUE,
+                      SELECT + "where a.k = 1 and a.name IS NOT NULL"),
+         Arguments.of(SELECT + "where a.name like $(p) ESCAPE '\\'", EMPTY_STRING,
+                      SELECT + "where a.name like ''"),
+         // Bug #77709, a string literal that is only the parameter
+         Arguments.of(SELECT + "where a.name = '$(p)'", NULL_VALUE,
+                      SELECT + "where a.name IS NULL"),
+         Arguments.of(SELECT + "where a.name = '$(p)'", EMPTY_STRING,
+                      SELECT + "where a.name = ''"),
+         Arguments.of(SELECT + "where a.name = '$(p)'", NULL_STRING,
+                      SELECT + "where a.name = 'null'"),
+         Arguments.of(SELECT + "where a.name = '$(p)'", emptyArray,
+                      SELECT + "where a.name = ''"),
+         Arguments.of(SELECT + "where a.k = 1 and a.name <> '$(p)'", NULL_VALUE,
+                      SELECT + "where a.k = 1 and a.name IS NOT NULL"),
+         Arguments.of(SELECT + "where a.name <> '$(p)'", EMPTY_STRING,
+                      SELECT + "where a.name <> ''"),
+         Arguments.of(SELECT + "where a.name like '$(p)'", EMPTY_STRING,
+                      SELECT + "where a.name like ''"),
+         Arguments.of(SELECT + "where a.name like '$(p)' escape '!'", NULL_VALUE,
+                      SELECT + "where a.name IS NULL"),
+         Arguments.of(SELECT + "where '$(p)' = a.name", NULL_VALUE,
+                      SELECT + "where a.name IS NULL"),
+         Arguments.of(SELECT + "where '$(p)' = a.name", EMPTY_STRING,
+                      SELECT + "where '' = a.name"),
+         Arguments.of(SELECT + "where a.k = 1 and '$(p)' <> a.name", NULL_VALUE,
+                      SELECT + "where a.k = 1 and a.name IS NOT NULL"),
+         Arguments.of(SELECT + "where a.name in ('$(p)')", NULL_VALUE,
+                      SELECT + "where a.name IS NULL"),
+         Arguments.of(SELECT + "where a.name in ( '$(p)' )", EMPTY_STRING,
+                      SELECT + "where a.name in ('')"),
+         Arguments.of(SELECT + "where a.name not in ('$(p)')", NULL_STRING,
+                      SELECT + "where a.name not in ('null')"),
+         Arguments.of(SELECT + "where a.name = '$(@p)'", NULL_VALUE,
+                      SELECT + "where a.name IS NULL"),
+         Arguments.of(SELECT + "where a.name = '$(@p)'", EMPTY_STRING,
+                      SELECT + "where a.name = ''"),
+         Arguments.of(GROUP + "having count(*) > 1 and max(a.name) = '$(p)'", NULL_VALUE,
+                      GROUP + "having count(*) > 1 and max(a.name) IS NULL"),
+         // a string literal bound, the subject of a BETWEEN
+         Arguments.of(SELECT + "where a.name between '$(p)' and 'm'", NULL_VALUE,
+                      SELECT + "where a.name IS NULL"),
+         Arguments.of(SELECT + "where a.name between '$(p)' and 'm'", EMPTY_STRING,
+                      SELECT + "where a.name between '' and 'm'"),
+         Arguments.of(SELECT + "where a.name between 'a' and '$(p)'", NULL_STRING,
+                      SELECT + "where a.name between 'a' and 'null'"),
+         Arguments.of(SELECT + "where $(p) between a.name and 'zzz'", EMPTY_STRING,
+                      SELECT + "where '' between a.name and 'zzz'"),
+         Arguments.of(SELECT + "where $(p) between a.name and 'zzz'", NULL_STRING,
+                      SELECT + "where 'null' between a.name and 'zzz'"),
+         Arguments.of(SELECT + "where a.k = 1 and $(p) not between a.name and 'zzz'",
+                      EMPTY_STRING, SELECT + "where a.k = 1 and '' not between a.name and 'zzz'"),
+         Arguments.of(SELECT + "where '$(p)' between a.name and 'zzz'", EMPTY_STRING,
+                      SELECT + "where '' between a.name and 'zzz'"),
+         Arguments.of(SELECT + "where $(p) between a.name and $(p)", NULL_STRING,
+                      SELECT + "where 'null' between a.name and 'null'"),
+         Arguments.of(SELECT + "where $(p) between a.name and 'zzz'", emptyArray,
+                      SELECT + "where '' between a.name and 'zzz'"));
    }
 
    @ParameterizedTest
@@ -162,7 +231,18 @@ class XUtilSentinelOperandTest {
          Arguments.of(SELECT + "where a.name not between $(p) and 'z'", NULL_VALUE,
                       "where not (a.name IS NULL)"),
          Arguments.of(SELECT + "where a.name between $(p) and 'z'", EMPTY_STRING,
-                      "where a.name BETWEEN '' and 'z'"));
+                      "where a.name BETWEEN '' and 'z'"),
+         // Bug #77707, the escape clause goes with the parameter
+         Arguments.of(SELECT + "where a.name like $(p) escape '!'", EMPTY_STRING,
+                      "where a.name LIKE ''"),
+         Arguments.of(SELECT + "where a.name not like $(p) escape '!'", NULL_VALUE,
+                      "where not (a.name IS NULL)"),
+         // Bug #77709
+         Arguments.of(SELECT + "where a.name <> '$(p)'", NULL_VALUE,
+                      "where not (a.name IS NULL)"),
+         Arguments.of(SELECT + "where a.name = '$(p)'", EMPTY_STRING, "where a.name = ''"),
+         Arguments.of(SELECT + "where $(p) between a.name and 'z'", EMPTY_STRING,
+                      "where '' BETWEEN a.name and 'z'"));
    }
 
    @ParameterizedTest
@@ -191,8 +271,28 @@ class XUtilSentinelOperandTest {
          Arguments.of(SELECT + "where a.name in ($(p), 'x')", NULL_VALUE),
          Arguments.of(SELECT + "where a.name in ($(p), 'x')", EMPTY_STRING),
          Arguments.of(SELECT + "where a.name in ('x', $(p))", NULL_VALUE),
-         // the parameter as the subject of BETWEEN
+         // a NULL_VALUE subject of BETWEEN
          Arguments.of(SELECT + "where $(p) between a.name and 'z'", NULL_VALUE),
+         Arguments.of(SELECT + "where '$(p)' between a.name and 'z'", NULL_VALUE),
+         // Bug #77707, a right operand that only starts with the parameter
+         Arguments.of(SELECT + "where a.name = $(p) || 'x'", NULL_VALUE),
+         Arguments.of(SELECT + "where a.name = $(p) || 'x'", EMPTY_STRING),
+         Arguments.of(SELECT + "where a.name = $(p) || 'x'", NULL_STRING),
+         Arguments.of(SELECT + "where a.name = $(p)||'x'", EMPTY_STRING),
+         Arguments.of(SELECT + "where a.k = 1 and a.name <> $(p) || 'x'", NULL_VALUE),
+         Arguments.of(SELECT + "where a.name like $(p) || '%'", EMPTY_STRING),
+         Arguments.of(SELECT + "where a.name like $(p) || '%'", NULL_VALUE),
+         Arguments.of(SELECT + "where a.name like $(p) || '%' escape '!'", EMPTY_STRING),
+         Arguments.of(SELECT + "where a.name like $(p) || '%' escape '!'", NULL_VALUE),
+         Arguments.of(SELECT + "where a.id = $(p) + 1", NULL_VALUE),
+         // Bug #77709, a string literal that holds more than the parameter
+         Arguments.of(SELECT + "where a.name like '%$(p)%'", EMPTY_STRING),
+         Arguments.of(SELECT + "where a.name like '%$(p)%'", NULL_VALUE),
+         Arguments.of(SELECT + "where a.name = ' $(p)'", EMPTY_STRING),
+         Arguments.of(SELECT + "where '$(p)' || 'x' = a.name", EMPTY_STRING),
+         Arguments.of(SELECT + "where a.name in ('$(p)', 'x')", EMPTY_STRING),
+         Arguments.of(SELECT + "where a.name = '$(p)'", "n1"),
+         Arguments.of(SELECT + "where $(p) between a.name and 'z'", "n1"),
          // more than one value
          Arguments.of(SELECT + "where a.name in ($(p))", new Object[] { NULL_VALUE, "n1" }),
          Arguments.of(SELECT + "where a.name = $(p)", new Object[] { NULL_VALUE, "n1" }),
@@ -211,6 +311,69 @@ class XUtilSentinelOperandTest {
          String generated = validate(parse(sql, "default"), p, forVpm);
          assertEquals(generate(expected), generated, "forVpm=" + forVpm);
          assertTrue(generated.contains("$(p)"), generated);
+      }
+   }
+
+   // Bug #77707, an operand with a second parameter, which has a value
+   @Test
+   void secondParameterUnchanged() throws Exception {
+      String[] cases = {
+         SELECT + "where a.name = $(p) || $(q)",
+         SELECT + "where a.name like $(p) escape $(q)",
+      };
+
+      for(String sql : cases) {
+         for(String p : new String[] { NULL_VALUE, EMPTY_STRING, NULL_STRING }) {
+            for(boolean forVpm : new boolean[] { false, true }) {
+               VariableTable vars = new VariableTable();
+               vars.put("p", p);
+               vars.put("q", "!");
+               UniformSQL usql = parse(sql, "default");
+               XUtil.validateConditions(null, usql, vars, true, forVpm);
+               assertEquals(generate(parse(sql, "default")), generate(usql), sql + " " + p);
+            }
+         }
+      }
+   }
+
+   // Bug #77709, an embedded parameter outside quotes is sql text and is kept
+   @Test
+   void embeddedParameterUnchanged() throws Exception {
+      String[] cases = {
+         SELECT + "where a.name = $(@p)",
+         SELECT + "where $(@p) = a.name",
+         SELECT + "where a.name in ($(@p))",
+      };
+
+      for(String sql : cases) {
+         for(Object p : new Object[] { NULL_VALUE, EMPTY_STRING }) {
+            for(boolean forVpm : new boolean[] { false, true }) {
+               String generated = validate(parse(sql, "default"), p, forVpm);
+               assertEquals(generate(parse(sql, "default")), generated, sql + " " + p);
+               assertTrue(generated.contains("$(@p)"), generated);
+            }
+         }
+      }
+   }
+
+   // a NULL_VALUE bound turns the BETWEEN into IS NULL of the subject. An EMPTY_STRING
+   // subject is kept there, as before: '' IS NULL would be true on oracle only.
+   @Test
+   void nullBoundKeepsSubject() throws Exception {
+      String[][] cases = {
+         { SELECT + "where a.k = 1 and $(p) between a.name and $(q)", "$(p)" },
+         { SELECT + "where a.k = 1 and '$(p)' between $(q) and a.name", "'$(p)'" },
+      };
+
+      for(String[] c : cases) {
+         for(boolean forVpm : new boolean[] { false, true }) {
+            VariableTable vars = new VariableTable();
+            vars.put("p", EMPTY_STRING);
+            vars.put("q", NULL_VALUE);
+            UniformSQL usql = parse(c[0], "default");
+            XUtil.validateConditions(null, usql, vars, true, forVpm);
+            assertEndsWith("where a.k = 1 and " + c[1] + " IS NULL", generate(usql));
+         }
       }
    }
 

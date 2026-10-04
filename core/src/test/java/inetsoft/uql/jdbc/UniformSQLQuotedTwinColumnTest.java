@@ -643,12 +643,12 @@ class UniformSQLQuotedTwinColumnTest {
       }
 
       // a table renamed in the query keeps the quotes of its columns. postgresql stores the
-      // table alias with in-band quotes, which this rename doesn't handle
-      for(String helper : new String[] { "h2", "oracle" }) {
+      // table alias with in-band quotes (Bug #77648)
+      for(String helper : new String[] { "h2", "oracle", "postgresql" }) {
          UniformSQL sql = parse("select q.\"MixedCase\" as e, q.\"k\" from q group by q.\"MixedCase\", q.\"k\" " +
                                 "order by q.\"MixedCase\" desc", helpers().get(helper));
          fixed(sql, COLUMNS);
-         renameAlias(sql, "q", "x");
+         renameAlias(sql, "postgresql".equals(helper) ? "\"q\"" : "q", "x");
          String generated = regenerate(sql);
          String x = "x";
          assertEquals(3, count(generated, x + ".\"MixedCase\""), helper + " " + generated);

@@ -2033,7 +2033,8 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
             }
          }
          else if(field instanceof String &&
-            (aliasRef = getSelectAliasField((String) field, quote != null)) != null)
+            ((aliasRef = getSelectAliasField((String) field, quote != null)) != null ||
+             (aliasRef = getOtherCaseOrderByAlias((String) field, quote != null)) != null))
          {
             if(!aliasRef.field().equals(field)) {
                field = aliasRef.field();
@@ -2060,11 +2061,24 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
                changed = true;
 
                if(path == null) {
-                  continue;
+                  int idx = getUnqualifiedSelectColumn((String) field, quote);
+
+                  if(idx < 0) {
+                     continue;
+                  }
+
+                  // the select column, with its quoting (Bug #77639) and its names written
+                  // unquoted (Bug #77643)
+                  path = getSelection().getColumn(idx);
+                  quote = getSelectQuote(idx, path);
+                  carryQuotedField(path, quote);
+                  unquoted = getSelectUnquoted(idx);
+               }
+               else {
+                  unquoted = renameWrittenUnquoted(unquoted, path);
                }
 
                field = path;
-               unquoted = renameWrittenUnquoted(unquoted, path);
             }
             else {
                String fp = JDBCUtil.getFullPathOf(this, (String) field, quote != null, unquoted);
@@ -2342,6 +2356,45 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
    }
 
    /**
+    * Get the select alias that an unquoted order by name in another case than the alias
+    * references, on a helper that doesn't quote every name (Bug #77644). getSelectAliasField
+    * matches the alias as stored, so the name was taken as the table column of that name in
+    * any case, while the database resolves an order by name to a select alias first. An
+    * unquoted alias is the name in any case, a quoted one if in upper case (see
+    * SQLHelper.isAliasCaseInsensitive). The name is then the alias as stored, as if written
+    * in its case. A quoted alias in another case is a table column on a database that folds
+    * the name, so it isn't matched. Group by isn't changed, a database resolves a group by
+    * name to a table column first.
+    * @param quoted <tt>true</tt> if the field was written as a quoted identifier.
+    * @return the alias, or <tt>null</tt> if the field is not a select alias in another case.
+    */
+   private AliasRef getOtherCaseOrderByAlias(String field, boolean quoted) {
+      String plain = "[A-Za-z_][A-Za-z0-9_]*";
+
+      if(quoted || dataSource == null || getSQLHelper().isCaseSensitive() ||
+         !getSQLHelper().isAliasCaseInsensitive() || !field.matches(plain))
+      {
+         return null;
+      }
+
+      XSelection select = getSelection();
+      String upper = field.toUpperCase(Locale.ROOT);
+
+      for(int i = 0; i < select.getColumnCount(); i++) {
+         String calias = select.getAlias(i);
+
+         if(calias != null && calias.matches(plain) &&
+            (upper.equals(calias) || Boolean.FALSE.equals(isAliasQuoted(i)) &&
+             upper.equals(calias.toUpperCase(Locale.ROOT))))
+         {
+            return new AliasRef(calias, false, null);
+         }
+      }
+
+      return null;
+   }
+
+   /**
     * Get the reference to generate for a group by or order by field that matches the alias
     * of a select column.
     * @param unquoted <tt>true</tt> if the field was written unquoted.
@@ -2494,6 +2547,109 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
    }
 
    /**
+    * Get the select column that an unqualified group by or order by name references when
+    * the field list doesn't know the columns of the table (Bug #77639). Without the metadata,
+    * the field list has the select column (t.k) as an expression, which the name (k) doesn't
+    * find. The name is that column only if the from clause has one table (or derived table),
+    * of which no column is known, and one plain column of it with the name is selected,
+    * written with the same quoting: an unquoted name is folded by the database, a quoted one
+    * isn't, so they aren't compared. It is called after the alias checks; a name that is a
+    * select alias in any case isn't guessed.
+    * @param quote the quoting of the field, see getQuote(OrderByItem).
+    * @return the index of the select column, or -1 if not known.
+    */
+   private int getUnqualifiedSelectColumn(String field, String quote) {
+      boolean quoted = quote != null;
+      String ref = quoted ? null : getUnquotedReference(field);
+      String name = ref != null ? ref : field;
+
+      // a qualified quoted name (t."k") isn't unqualified. An unquoted name is an identifier
+      // as the sql lexer reads it (IDENT), e.g. a chinese name, apart from an @variable
+      if(getTableCount() != 1 || quoted && !quote.isEmpty() || name.isEmpty() ||
+         name.indexOf('"') >= 0 ||
+         !quoted && !name.matches("[A-Za-z_\\u0100-\\uFFFE][A-Za-z0-9_\\u0100-\\uFFFE]*"))
+      {
+         return -1;
+      }
+
+      String alias = getTableAlias(0);
+
+      // the columns of a table with metadata are in the field list. A column left out (e.g.
+      // hidden by vpm) isn't guessed. The columns of a derived table are those of its
+      // select list, named by the field list after the inner column (t.k), not the name
+      if(alias == null || !(getTableName(alias) instanceof UniformSQL) &&
+         fields.stream().anyMatch(xfield -> alias.equals(xfield.getTable())))
+      {
+         return -1;
+      }
+
+      XSelection select = getSelection();
+
+      for(int i = 0; i < select.getColumnCount(); i++) {
+         String calias = select.getAlias(i);
+
+         if(calias != null && XUtil.removeQuote(calias).equalsIgnoreCase(name)) {
+            return -1;
+         }
+      }
+
+      // the select list doesn't keep its columns with a wildcard
+      if(isSelectWildcard()) {
+         return -1;
+      }
+
+      String table = alias.replace("\"", "");
+      int found = -1;
+
+      for(int i = 0; i < select.getColumnCount(); i++) {
+         String column = select.getColumn(i);
+
+         if(column == null) {
+            continue;
+         }
+
+         boolean cquoted = select instanceof JDBCSelection &&
+            ((JDBCSelection) select).isQuoted(i);
+         String seg = cquoted ? ((JDBCSelection) select).getQuotedColumn(i) : null;
+         int dot = seg != null && column.endsWith("." + seg) ?
+            column.length() - seg.length() - 1 : cquoted ? -1 : column.lastIndexOf('.');
+
+         if(seg == null && dot >= 0) {
+            seg = column.substring(dot + 1).replace("\"", "");
+         }
+
+         // a column without the qualifier of the table, or an expression, named like the
+         // name may be what it references
+         if(dot <= 0 || select.isExpression(i) || !XUtil.isQualifiedName(column) ||
+            !table.equalsIgnoreCase(column.substring(0, dot).replace("\"", "")))
+         {
+            if(XUtil.removeQuote(column).equalsIgnoreCase(name) ||
+               seg != null && seg.equalsIgnoreCase(name))
+            {
+               return -1;
+            }
+
+            continue;
+         }
+
+         if(!seg.equalsIgnoreCase(name)) {
+            continue;
+         }
+
+         // the same quoting and name, and the same column as another match
+         if(quoted != cquoted || quoted && !seg.equals(name) ||
+            found >= 0 && !column.equals(select.getColumn(found)))
+         {
+            return -1;
+         }
+
+         found = i;
+      }
+
+      return found;
+   }
+
+   /**
     * Check if the helper is of a database that folds an unquoted name to one case
     * (postgresql to lower case, snowflake and exasol to upper case), see foldName.
     */
@@ -2602,7 +2758,10 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
       }
    }
 
-   private static boolean hasWildcard(XSelection selection) {
+   /**
+    * Check if a selection has a wildcard (* or t.*) column.
+    */
+   public static boolean hasWildcard(XSelection selection) {
       for(int i = 0; selection != null && i < selection.getColumnCount(); i++) {
          String path = selection.getColumn(i);
 
@@ -2719,6 +2878,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
       List<Object> vec = new ArrayList<>();
       List<String> qvec = new ArrayList<>();
       List<WrittenUnquoted> uvec = new ArrayList<>();
+      int idx;
 
       for(int i = 0; i < groupBy.length; i++) {
          Object obj = groupBy[i];
@@ -2741,6 +2901,17 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
                vec.add(fname);
                qvec.add(quotes[i]);
                uvec.add(renameWrittenUnquoted(unquoted[i], fname));
+               changed = true;
+            }
+            else if((idx = getUnqualifiedSelectColumn((String) obj, quotes[i])) >= 0) {
+               // the select column, with its quoting (Bug #77639)
+               String path = getSelection().getColumn(idx);
+               String quote = getSelectQuote(idx, path);
+               carryQuotedField(path, quote);
+               vec.add(path);
+               qvec.add(quote);
+               // and the names written unquoted of the select column (Bug #77643)
+               uvec.add(getSelectUnquoted(idx));
                changed = true;
             }
          }
@@ -2795,7 +2966,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
          String path = xselect.getColumn(i);
 
          if(isTableColumn(path)) {
-            String oldTableAlias = getTableFromPath(path);
+            String oldTableAlias = getAliasMapKey(getTableFromPath(path), aliasMap);
 
             if(aliasMap.containsKey(oldTableAlias)) {
                String newTableAlias = (String) aliasMap.get(oldTableAlias);
@@ -2824,9 +2995,12 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
                String type = xselect.getType(path);
                String newPath = newTableAlias + "." + col;
 
-               // the same column under the new table, it keeps its quoting
+               // the same column under the new table, it keeps its quoting, and the names
+               // written unquoted it keeps (Bug #77643)
                if(jselect != null) {
+                  WrittenUnquoted names = jselect.getWrittenUnquoted(i);
                   jselect.renameColumn(i, newPath);
+                  jselect.setWrittenUnquoted(i, renamedRecord(names, newPath));
                }
                else {
                   xselect.setColumn(i, newPath);
@@ -2854,9 +3028,12 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
             String description = xselect.getDescription(path);
             String newPath = JDBCUtil.replaceTableInExpression(tables, path, aliasMap, dataSource);
 
-            // the table renamed in the name, a quoted name keeps its quoting
+            // the table renamed in the name, a quoted name keeps its quoting, and the names
+            // written unquoted it keeps (Bug #77643)
             if(xselect instanceof JDBCSelection) {
+               WrittenUnquoted names = ((JDBCSelection) xselect).getWrittenUnquoted(i);
                ((JDBCSelection) xselect).renameColumn(i, newPath);
+               ((JDBCSelection) xselect).setWrittenUnquoted(i, renamedRecord(names, newPath));
             }
             else {
                xselect.setColumn(i, newPath);
@@ -2886,7 +3063,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
                continue;
             }
 
-            String oldTableAlias = getTableFromPath(field);
+            String oldTableAlias = getAliasMapKey(getTableFromPath(field), aliasMap);
 
             if(aliasMap.containsKey(oldTableAlias)) {
                String newTableAlias = (String) aliasMap.get(oldTableAlias);
@@ -2896,8 +3073,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
                }
 
                String quote = getQuote(orders[i]);
-               String col = getColumnFromPath(field, oldTableAlias,
-                                              getQuotedSegment(quote), quote != null);
+               String col = getRenamedColumn(field, oldTableAlias, quote);
                replaceOrderBy(i, newTableAlias + "." + col, orders[i].getOrder());
                copyQuotedField(field, newTableAlias + "." + col);
             }
@@ -2911,7 +3087,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
                continue;
             }
 
-            String oldTableAlias = getTableFromPath((String) groups[i]);
+            String oldTableAlias = getAliasMapKey(getTableFromPath((String) groups[i]), aliasMap);
 
             if(aliasMap.containsKey(oldTableAlias)) {
                String newTableAlias = (String) aliasMap.get(oldTableAlias);
@@ -2923,8 +3099,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
                String field = (String) groups[i];
                // the quoting of this field, which keeps its position
                String quote = getGroupQuote(i);
-               String col = getColumnFromPath(field, oldTableAlias,
-                                              getQuotedSegment(quote), quote != null);
+               String col = getRenamedColumn(field, oldTableAlias, quote);
                renameGroupField(i, newTableAlias + "." + col);
                copyQuotedField(field, (String) groups[i]);
             }
@@ -2937,6 +3112,24 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
             setHaving((XFilterNode) getHaving().getChild(0));
          }
       }
+   }
+
+   /**
+    * Get the column of an order by or group by item whose table is renamed. An item of
+    * an unaliased table on postgresql, snowflake or exasol is stored with in-band quotes
+    * ("q"."k"), so its column keeps them ("k"). The column without them (k) doesn't match
+    * the select column x."k" when there is no table metadata, and the item would be
+    * dropped (Bug #77648).
+    * @param quote the quoting of the item, see getQuote(OrderByItem).
+    */
+   private String getRenamedColumn(String path, String table, String quote) {
+      if(quote == null && table != null && table.startsWith("\"") &&
+         path.startsWith(table + ".") && path.length() > table.length() + 1)
+      {
+         return path.substring(table.length() + 1);
+      }
+
+      return getColumnFromPath(path, table, getQuotedSegment(quote), quote != null);
    }
 
    /**
@@ -3040,7 +3233,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
          }
 
          String path = (String) expr.getValue();
-         String table = getTableFromPath(path);
+         String table = getAliasMapKey(getTableFromPath(path), aliasmap);
          String quote = getSQLHelper().getQuote();
 
          if(aliasmap.containsKey(table)) {
@@ -3053,7 +3246,10 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
             String col = getColumnFromPath(path);
 
             if(!col.startsWith(newTable)) {
+               // the names written unquoted the field keeps (Bug #77643)
+               WrittenUnquoted names = expr.getWrittenUnquoted();
                expr.setValue(newTable + "." + col, XExpression.FIELD);
+               expr.setWrittenUnquoted(renamedRecord(names, expr.toString()));
             }
 
             return true;
@@ -3066,11 +3262,41 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
             }
          }
          else {
-            return aliasmap.contains(table);
+            String quoted = getInBandQuoted(table);
+            return aliasmap.contains(table) || (quoted != null && aliasmap.contains(quoted));
          }
       }
 
       return false;
+   }
+
+   /**
+    * Get the key of the alias map that a table qualifier names. A helper that keeps
+    * identifier case (postgresql, snowflake, exasol) stores the alias of an unaliased
+    * table with in-band quotes ("q"), while getTableFromPath may return the qualifier
+    * with the quotes stripped (q), so the in-band form is tried when there is no exact
+    * match (Bug #77648).
+    * @return the matching key, or the table itself if no key matches.
+    */
+   private String getAliasMapKey(String table, Map<?, ?> aliasmap) {
+      if(table == null || aliasmap.containsKey(table)) {
+         return table;
+      }
+
+      String quoted = getInBandQuoted(table);
+      return quoted != null && aliasmap.containsKey(quoted) ? quoted : table;
+   }
+
+   /**
+    * Get a table qualifier with the in-band quotes that XUtil.getTablePart strips,
+    * or null if it is empty or already quoted.
+    */
+   private static String getInBandQuoted(String table) {
+      if(table == null || table.isEmpty() || table.startsWith("\"")) {
+         return null;
+      }
+
+      return "\"" + table + "\"";
    }
 
    /**
@@ -4013,6 +4239,9 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
       String quote = getQuote(item);
       OrderByItem nitem = new OrderByItem(newfield, neworder);
       nitem.setQuoted(quote != null, getQuotedSegment(quote));
+      // the names written unquoted the field keeps (Bug #77643)
+      nitem.setWrittenUnquoted(newfield instanceof String ?
+         renamedRecord(item.getWrittenUnquoted(), (String) newfield) : null);
       orderByList.setElementAt(nitem, idx);
 
       // the record follows its order by item (e.g. a renamed table)
@@ -4363,11 +4592,25 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
       boolean recorded = groupQuotes != null && groupQuoteFields != null &&
          groupQuotes.length == groups.length && groupQuoteFields.length == groups.length &&
          Objects.equals(groupQuoteFields[idx], groups[idx]);
+      WrittenUnquoted names = getGroupByWrittenUnquoted(idx);
       groups[idx] = field;
 
       if(recorded) {
          groupQuoteFields[idx] = field;
       }
+
+      // the names written unquoted the field keeps (Bug #77643)
+      if(groupUnquoted != null && groupUnquoted.length == groups.length) {
+         groupUnquoted[idx] = field instanceof String ? renamedRecord(names, (String) field) : null;
+      }
+   }
+
+   /**
+    * Get the record of the names written unquoted of a text renamed in place (e.g. the
+    * qualifier of a renamed table): the names it keeps, see WrittenUnquoted.rename.
+    */
+   private WrittenUnquoted renamedRecord(WrittenUnquoted names, String text) {
+      return names == null ? null : names.rename(text, getSQLHelper().getQuote());
    }
 
    /**
@@ -4797,9 +5040,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
     * there, they can't be written as a condition.
     */
    private void getJoins(XFilterNode root, List<XJoin> joins, boolean negated) {
-      if((root instanceof XSet) &&
-         ((XSet) root).getRelation().equalsIgnoreCase(XSet.AND))
-      {
+      if(XFilterNode.isJoinJunction(root)) {
          negated = negated || root.isIsNot();
 
          for(int i = 0; i < root.getChildCount(); i++) {

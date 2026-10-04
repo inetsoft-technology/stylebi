@@ -28,13 +28,13 @@ import inetsoft.test.*;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.DependencyHandler;
-import inetsoft.uql.asset.sync.DependencyStorageService;
-import inetsoft.uql.asset.sync.RenameTransformHandler;
+import inetsoft.uql.asset.sync.*;
 import inetsoft.uql.jdbc.JDBCDataSource;
 import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.tabular.TabularDataSource;
 import inetsoft.uql.util.Config;
 import inetsoft.uql.util.Drivers;
+import inetsoft.util.IndexedStorage;
 import inetsoft.util.Plugins;
 import inetsoft.util.Tool;
 import inetsoft.util.credential.CredentialService;
@@ -46,11 +46,13 @@ import inetsoft.web.portal.controller.database.DataSourceService;
 import inetsoft.web.portal.data.*;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.MockedStatic;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.*;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
+import org.w3c.dom.*;
 
 import java.lang.reflect.Constructor;
 import java.security.Principal;
@@ -62,6 +64,10 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 /**
+ * Bug #77703: the move and the rename of a folder holding a data source that can't be loaded
+ * (its connector isn't installed or its entry is corrupt) must not fail, and must keep its
+ * definition and rename its dependents.
+ *
  * Bug #77689: a data source folder move must move the permission "parent::name" of an
  * additional connection and keep its bare name, whatever order the registry lists the entries
  * of the folder in. The registry and the repository are the real ones, the permissions are kept
@@ -83,6 +89,10 @@ class DataSourceFolderMoveAdditionalConnectionTest {
    private XRepository repository;
    @Autowired
    private Config config;
+   @Autowired
+   private IndexedStorage indexedStorage;
+   @Autowired
+   private RenameTransformHandler transformHandler;
    private final Map<String, Permission> store = new HashMap<>();
    private final List<String> order = new ArrayList<>();
    private SecurityEngine security;
@@ -95,6 +105,7 @@ class DataSourceFolderMoveAdditionalConnectionTest {
       registry.init();
       store.clear();
       order.clear();
+      clearInvocations(transformHandler);
       provider = mock(SecurityProvider.class);
       when(provider.isVirtual()).thenReturn(false);
       when(provider.checkPermission(any(), any(), anyString(), any())).thenReturn(true);
@@ -156,7 +167,7 @@ class DataSourceFolderMoveAdditionalConnectionTest {
       DataSourceRegistry spy = childFirst();
       DataSourceBrowserService service = new DataSourceBrowserService(
          security, objectService(spy), repository, mock(DataSourceService.class), spy,
-         mock(Config.class), mock(RenameTransformHandler.class));
+         mock(Config.class), transformHandler);
       MoveCommand move = new MoveCommand();
       move.setOldPath("ptF");
       move.setPath("ptDest/ptF");
@@ -234,9 +245,7 @@ class DataSourceFolderMoveAdditionalConnectionTest {
       assertEquals("rdA", registry.getDataSource("rdDest/rdF/rdP/rdA").getFullName());
    }
 
-   // the connector of the parent isn't installed. The EM and portal moves fail before the
-   // rename for such a folder (DependencyTransformer.createDatasourceFolderDependencyInfo), so
-   // the registry is called directly.
+   // the connector of the parent isn't installed, the registry is called directly
    @Test
    void folderMoveWithAParentOfAnUninstalledConnector() throws Exception {
       addFolder("unF");
@@ -261,6 +270,162 @@ class DataSourceFolderMoveAdditionalConnectionTest {
       assertNull(perm("unF/unP::unA"));
       assertTrue(containsDataSource("unDest/unF/unP/unA"));
       assertFalse(containsDataSource("unF/unP/unA"));
+      // Bug #77703: the definitions are kept, and load again once the connector is installed
+      assertTabular("unDest/unF/unP", "unDest/unF/unP");
+      assertTabular("unDest/unF/unP/unA", "unA");
+      assertChildren("unDest/unF/unP", "unA");
+   }
+
+   // Bug #77703: EM Move of a folder holding data sources whose connector isn't installed, a
+   // standalone one, a parent with an additional connection and one in a subfolder, next to a
+   // JDBC data source. The definitions must be moved as they are and the stored names set to the
+   // new paths, and the dependents of the data sources must be renamed.
+   @Test
+   void emFolderMoveWithUninstalledConnectors() throws Exception {
+      addFolder("ucF");
+      addFolder("ucF/ucS");
+      addFolder("ucDest");
+      addTabular("ucF/ucX");
+      addTabularParent("ucF/ucP", "ucA");
+      addTabular("ucF/ucS/ucY");
+      addParent("ucF/ucJ");
+      Permission a = grant("ucF/ucP::ucA");
+      AssetEntry dependent = addDependent("ucF/ucX");
+
+      uninstall(() -> emMove(childFirst(), "ucF", "ucDest"));
+
+      assertNull(registry.getDataSourceFolder("ucF"));
+      assertNotNull(registry.getDataSourceFolder("ucDest/ucF/ucS"));
+      assertTabular("ucDest/ucF/ucX", "ucDest/ucF/ucX");
+      assertTabular("ucDest/ucF/ucP", "ucDest/ucF/ucP");
+      assertTabular("ucDest/ucF/ucP/ucA", "ucA");
+      assertTabular("ucDest/ucF/ucS/ucY", "ucDest/ucF/ucS/ucY");
+      assertChildren("ucDest/ucF/ucP", "ucA");
+      assertSame(a, perm("ucDest/ucF/ucP::ucA"));
+      assertNotNull(registry.getDataSource("ucDest/ucF/ucJ"));
+
+      for(String path : new String[] { "ucF/ucX", "ucF/ucP", "ucF/ucP/ucA", "ucF/ucS/ucY",
+                                       "ucF/ucJ" })
+      {
+         assertFalse(containsDataSource(path), path);
+      }
+
+      assertOneAssetInstruction("ucDest/ucF/ucX");
+      assertTabularRename("ucF/ucX", "ucDest/ucF/ucX", dependent);
+      assertTabularRename("ucF/ucS/ucY", "ucDest/ucF/ucS/ucY", null);
+
+      // a later save of a moved data source round-trips
+      XDataSource moved = registry.getDataSource("ucDest/ucF/ucX");
+      repository.updateDataSource(moved, "ucDest/ucF/ucX");
+      assertTabular("ucDest/ucF/ucX", "ucDest/ucF/ucX");
+   }
+
+   // Bug #77703: portal move of a folder holding a data source whose connector isn't installed
+   @Test
+   void portalFolderMoveWithAnUninstalledConnector() throws Exception {
+      addFolder("upF");
+      addFolder("upDest");
+      addTabular("upF/upX");
+      AssetEntry dependent = addDependent("upF/upX");
+      DataSourceBrowserService service = new DataSourceBrowserService(
+         security, objectService(registry), repository, mock(DataSourceService.class), registry,
+         mock(Config.class), transformHandler);
+      MoveCommand move = new MoveCommand();
+      move.setOldPath("upF");
+      move.setPath("upDest/upF");
+      move.setName("upF");
+      move.setType(PortalDataType.DATA_SOURCE_FOLDER.name());
+
+      uninstall(() -> service.moveDataSource(new MoveCommand[] { move }, principal));
+
+      assertNull(registry.getDataSourceFolder("upF"));
+      assertFalse(containsDataSource("upF/upX"));
+      assertTabular("upDest/upF/upX", "upDest/upF/upX");
+      assertTabularRename("upF/upX", "upDest/upF/upX", dependent);
+   }
+
+   // Bug #77703: a folder rename (XEngine.updateDataSourceFolder, portal and EM rename) with a
+   // data source whose connector isn't installed, directly in the folder and in a subfolder. It
+   // used to fail after moving the JDBC data source, leaving the folder half renamed.
+   @Test
+   void folderRenameWithUninstalledConnectors() throws Exception {
+      addFolder("rnF");
+      addFolder("rnF/rnS");
+      addParent("rnF/rnJ");
+      addTabular("rnF/rnT");
+      addTabular("rnF/rnS/rnX");
+      AssetEntry dependent = addDependent("rnF/rnT");
+
+      uninstall(() -> repository.updateDataSourceFolder(
+         new DataSourceFolder("rnG", LocalDateTime.now(), null), "rnF"));
+
+      assertNull(registry.getDataSourceFolder("rnF"));
+      assertNotNull(registry.getDataSourceFolder("rnG"));
+      assertNotNull(registry.getDataSourceFolder("rnG/rnS"));
+      assertNotNull(registry.getDataSource("rnG/rnJ"));
+      assertTabular("rnG/rnT", "rnG/rnT");
+      assertTabular("rnG/rnS/rnX", "rnG/rnS/rnX");
+
+      for(String path : new String[] { "rnF/rnJ", "rnF/rnT", "rnF/rnS/rnX" }) {
+         assertFalse(containsDataSource(path), path);
+      }
+
+      assertTabularRename("rnF/rnT", "rnG/rnT", dependent);
+      assertTabularRename("rnF/rnS/rnX", "rnG/rnS/rnX", null);
+   }
+
+   // Bug #77703: a portal folder rename with a data source whose connector isn't installed. The
+   // dependency info the service submits before the rename must hold the tabular rename of it.
+   @Test
+   void portalFolderRenameWithAnUninstalledConnector() throws Exception {
+      addFolder("prF");
+      addTabular("prF/prT");
+      AssetEntry dependent = addDependent("prF/prT");
+      DataSourceBrowserService service = new DataSourceBrowserService(
+         security, objectService(registry), repository, mock(DataSourceService.class), registry,
+         mock(Config.class), transformHandler);
+
+      uninstall(() -> service.renameFolder("prF", "prG", "prF", "prG", principal));
+
+      assertNull(registry.getDataSourceFolder("prF"));
+      assertNotNull(registry.getDataSourceFolder("prG"));
+      assertFalse(containsDataSource("prF/prT"));
+      assertTabular("prG/prT", "prG/prT");
+
+      ArgumentCaptor<RenameDependencyInfo> captor =
+         ArgumentCaptor.forClass(RenameDependencyInfo.class);
+      verify(transformHandler, atLeastOnce()).addTransformTask(captor.capture());
+      // the first one is submitted by the service, the others by the repository
+      RenameDependencyInfo info = captor.getAllValues().get(0);
+      assertTrue(info.getRenameInfos().stream().anyMatch(i -> isRename(i, "prF/prT", "prG/prT")),
+                 "no tabular rename in the info of the service");
+      assertTrue(info.getDependencyMap().get(dependent).stream()
+                    .anyMatch(i -> isRename(i, "prF/prT", "prG/prT")),
+                 "the dependent isn't renamed in the info of the service");
+   }
+
+   // Bug #77703: an entry that is already corrupt (stored with no root element) can't be loaded
+   // with the connector installed. The move must go on and keep it under the new path.
+   @Test
+   void emFolderMoveWithACorruptEntry() throws Exception {
+      addFolder("coF");
+      addFolder("coDest");
+      addTabular("coF/coX");
+      addParent("coF/coJ");
+      String key = new AssetEntry(inetsoft.uql.asset.AssetRepository.QUERY_SCOPE,
+                                  AssetEntry.Type.DATA_SOURCE, "coF/coX", null).toIdentifier();
+      indexedStorage.putXMLSerializable(key, new XDataSourceWrapper());
+      registry.clearCache();
+      assertNull(registry.getDataSource("coF/coX"));
+
+      emMove(childFirst(), "coF", "coDest");
+
+      assertNull(registry.getDataSourceFolder("coF"));
+      assertFalse(containsDataSource("coF/coX"));
+      assertTrue(containsDataSource("coDest/coF/coX"));
+      assertTrue(registry.getSubDataSourceNames("coDest/coF").contains("coDest/coF/coX"));
+      assertNotNull(registry.getDataSource("coDest/coF/coJ"));
+      assertFalse(containsDataSource("coF/coJ"));
    }
 
    // regression: an additional connection listed after its parent
@@ -296,6 +461,82 @@ class DataSourceFolderMoveAdditionalConnectionTest {
       assertNull(registry.getDataSourceFolder("xrF"));
       assertNotNull(registry.getDataSourceFolder("xrG"));
       assertMoved("xrG/xrP", "xrF/xrP", parent, Map.of("xrA", a));
+   }
+
+   // runs an action with the connector of TABULAR uninstalled
+   private void uninstall(Action action) throws Exception {
+      doReturn(null).when(config).getDataSourceClass(TABULAR);
+
+      try {
+         registry.clearCache();
+         action.run();
+      }
+      finally {
+         doReturn(TestTabularDataSource.class.getName()).when(config).getDataSourceClass(TABULAR);
+         registry.clearCache();
+      }
+   }
+
+   // the data source is read from the storage with the connector installed
+   private void assertTabular(String path, String name) {
+      registry.clearCache();
+      XDataSource dataSource = registry.getDataSource(path);
+      assertInstanceOf(TestTabularDataSource.class, dataSource, path);
+      assertEquals(name, dataSource.getFullName(), "the stored name of " + path);
+   }
+
+   // the stored document has one inetsoft-asset instruction, with the new identifier
+   private void assertOneAssetInstruction(String path) {
+      String key = new AssetEntry(inetsoft.uql.asset.AssetRepository.QUERY_SCOPE,
+                                  AssetEntry.Type.DATA_SOURCE, path, null).toIdentifier();
+      Document doc = indexedStorage.getDocument(key);
+      List<String> instructions = new ArrayList<>();
+
+      for(Node node = doc.getFirstChild(); node != null; node = node.getNextSibling()) {
+         if(node instanceof ProcessingInstruction pi && "inetsoft-asset".equals(pi.getTarget())) {
+            instructions.add(pi.getData());
+         }
+      }
+
+      assertEquals(1, instructions.size(), "instructions of " + path + ": " + instructions);
+      assertTrue(instructions.get(0).contains(Tool.escape(key)), instructions.get(0));
+   }
+
+   // a worksheet that depends on a tabular data source
+   private AssetEntry addDependent(String path) throws Exception {
+      AssetEntry worksheet = new AssetEntry(inetsoft.uql.asset.AssetRepository.GLOBAL_SCOPE,
+                                            AssetEntry.Type.WORKSHEET, path.replace('/', '_'), null);
+      DependenciesInfo info = new DependenciesInfo();
+      info.setDependencies(new ArrayList<>(List.of(worksheet)));
+      DependencyStorageService.getInstance().put(
+         DependencyTransformer.getTabularAssetId(path), info);
+      return worksheet;
+   }
+
+   // a tabular rename of the data source was submitted, with the dependent if any
+   private void assertTabularRename(String oname, String nname, AssetEntry dependent) {
+      ArgumentCaptor<RenameDependencyInfo> captor =
+         ArgumentCaptor.forClass(RenameDependencyInfo.class);
+      verify(transformHandler, atLeastOnce()).addTransformTask(captor.capture());
+      List<RenameDependencyInfo> infos = captor.getAllValues();
+      assertTrue(infos.stream().filter(Objects::nonNull)
+                    .flatMap(info -> info.getRenameInfos().stream())
+                    .anyMatch(info -> isRename(info, oname, nname)),
+                 "no tabular rename of " + oname + " to " + nname);
+
+      if(dependent != null) {
+         assertTrue(infos.stream().filter(Objects::nonNull)
+                       .map(info -> info.getDependencyMap().get(dependent))
+                       .filter(Objects::nonNull)
+                       .flatMap(List::stream)
+                       .anyMatch(info -> isRename(info, oname, nname)),
+                    "the dependent of " + oname + " isn't renamed");
+      }
+   }
+
+   private static boolean isRename(RenameInfo info, String oname, String nname) {
+      return info.isTabularSource() && oname.equals(info.getOldName()) &&
+         nname.equals(info.getNewName());
    }
 
    private void assertChildFirst(String parent) {
@@ -380,7 +621,7 @@ class DataSourceFolderMoveAdditionalConnectionTest {
          mock(RepletRegistryService.class), mock(ContentRepositoryTreeService.class), provider,
          permissions, repository, mock(RepositoryDashboardService.class),
          mock(DataModelFolderManagerService.class), spy, mock(LibManagerProvider.class),
-         mock(RecycleBin.class), mock(DependencyHandler.class), mock(RenameTransformHandler.class),
+         mock(RecycleBin.class), mock(DependencyHandler.class), transformHandler,
          repletRegistries, mock(DashboardRegistryManager.class));
    }
 
@@ -417,6 +658,12 @@ class DataSourceFolderMoveAdditionalConnectionTest {
       }
    }
 
+   private void addTabular(String path) throws Exception {
+      TestTabularDataSource dataSource = new TestTabularDataSource();
+      dataSource.setName(path);
+      registry.setDataSource(dataSource, false);
+   }
+
    private void addFolder(String name) {
       registry.setDataSourceFolder(new DataSourceFolder(name, LocalDateTime.now(), null));
    }
@@ -442,6 +689,11 @@ class DataSourceFolderMoveAdditionalConnectionTest {
       dataSource.setURL(URL);
       dataSource.setCustomUrl(URL);
       return dataSource;
+   }
+
+   @FunctionalInterface
+   private interface Action {
+      void run() throws Exception;
    }
 
    public static class TestTabularDataSource extends TabularDataSource<TestTabularDataSource> {

@@ -261,6 +261,68 @@ public class JDBCHandler extends XHandler {
    }
 
    /**
+    * A parsed query that still holds its sql string (e.g. a sql-edited worksheet table that
+    * can't be merged) runs the string as written, XUtil.validateConditions returns early for
+    * it, so a sentinel parameter (NULL_VALUE, EMPTY_STRING, NULL_STRING) would be bound as its
+    * text. If a sentinel is bound, rewrite it on a copy without the sql string, and replace
+    * the query's definition with the copy only if that changes the generated sql. Every other
+    * run sends the user's exact sql. (Bug #77708)
+    * <p>
+    * The sql string is kept, as before, when it isn't parsed (parse off or not PARSE_SUCCESS)
+    * or is lossy, since the structure doesn't describe all of it, when it embeds a parameter
+    * (<tt>$(@name)</tt> anywhere in the string, which also excludes a quoted
+    * <tt>'$(@name)'</tt>), and when it has an optimizer hint or a MySQL executable comment,
+    * which the generated sql would drop. Other comments are dropped from the rewritten sql.
+    * @param xquery the private clone of the query being executed.
+    * @return <tt>true</tt> if the definition was replaced by the rewritten copy.
+    */
+   private static boolean rewriteKeptSqlSentinels(JDBCQuery xquery, VariableTable params) {
+      if(params == null || !(xquery.getSQLDefinition() instanceof UniformSQL)) {
+         return false;
+      }
+
+      UniformSQL usql = (UniformSQL) xquery.getSQLDefinition();
+
+      if(!usql.hasSQLString() || !usql.isParseSQL()) {
+         return false;
+      }
+
+      String sql = usql.getSQLString();
+
+      if(sql.contains("$(@") || !XUtil.hasSentinelParameter(sql, params)) {
+         return false;
+      }
+
+      if(sql.contains("/*+") || sql.contains("--+") || sql.contains("/*!")) {
+         LOG.debug("Sentinel parameters are bound as text in sql with an optimizer hint: {}",
+                   sql);
+         return false;
+      }
+
+      // isLossy() may parse, check it last
+      if(!XUtil.isParsedSQL(usql) || usql.isLossy()) {
+         return false;
+      }
+
+      try {
+         UniformSQL copy = (UniformSQL) usql.clone();
+         copy.clearSQLString();
+
+         if(!XUtil.rewriteSentinels(copy, params)) {
+            return false;
+         }
+
+         xquery.setSQLDefinition(copy);
+         return true;
+      }
+      catch(Exception ex) {
+         LOG.debug("Failed to rewrite the sentinel parameters, the sql is sent as written: {}",
+                   sql, ex);
+         return false;
+      }
+   }
+
+   /**
     * Execute the query.
     * @param params parameters for query.
     * @return the result as a hierarchical tree.
@@ -374,11 +436,23 @@ public class JDBCHandler extends XHandler {
       }
 
       xquery = (JDBCQuery) XUtil.clearComments(xquery);
-      // @by haiqiangy, set condition item to true condition if
-      // user does not input parameter
-      xquery.validateConditions(params);
+      // a parsed query that keeps its sql string isn't validated, rewrite its sentinel
+      // parameters on a copy generated from the structure (Bug #77708)
+      final boolean keptSqlRewritten = rewriteKeptSqlSentinels(xquery, params);
+
+      // the rewritten copy has been validated for sentinels only, the conditions with an unset
+      // parameter are kept as for the sql string. The tables of the user's sql are kept too.
+      if(!keptSqlRewritten) {
+         // @by haiqiangy, set condition item to true condition if
+         // user does not input parameter
+         xquery.validateConditions(params);
+      }
+
       xquery.applyVariableTable(params);
-      xquery.removeTable(params);
+
+      if(!keptSqlRewritten) {
+         xquery.removeTable(params);
+      }
 
       // set the query variables
       prepareVariableTable(query, params);

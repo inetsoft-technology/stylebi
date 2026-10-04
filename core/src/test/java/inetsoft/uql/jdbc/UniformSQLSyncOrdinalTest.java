@@ -240,10 +240,11 @@ class UniformSQLSyncOrdinalTest {
    }
 
    /**
-    * The ordinal 2 names w."a", which the item a also resolves to (h2 binds a to the column,
+    * The ordinal 2 names w."a", which the item a also resolved to (h2 bound a to the column,
     * the database to the alias A). Converted and merged, the item took the column's quotes
     * and the sql ran as order by w."a" desc, sorting by the column. The ordinal stays an
-    * ordinal, so the sql runs as written.
+    * ordinal, so the sql runs as written. The item a is now the alias A (Bug #77644), so
+    * the ordinal of the query is converted, and an item w."a" keeps it an ordinal.
     */
    @Test
    void ordinalNamingTheColumnOfAnotherItemStaysAnOrdinal() throws Exception {
@@ -251,6 +252,13 @@ class UniformSQLSyncOrdinalTest {
 
       for(String key : new String[] { "h2", "oracle" }) {
          UniformSQL usql = fixed(sql, key, "ID", "a");
+         // the item a is the alias A (Bug #77644), so the ordinal names another column
+         assertEquals("[A:desc, w.a:asc]", orderBy(usql), key);
+         assertTrue(norm(regenerate(usql)).endsWith("order by w.id desc, w.\"a\" asc"),
+                    key + " " + regenerate(usql));
+
+         // an item that is the column of the ordinal
+         usql = fixed("select w.id as A, w.\"a\" from w order by w.\"a\" desc, 2", key, "ID", "a");
          assertEquals("[w.a:desc, 2:asc]", orderBy(usql), key);
          assertNull(JDBCQueryCacheNormalizer.generateSortedColumnMap(usql), key);
       }
@@ -659,12 +667,13 @@ class UniformSQLSyncOrdinalTest {
       }
    }
 
-   // h2 and oracle don't quote an unquoted reference, they match the alias as before
+   // h2 and oracle don't quote an unquoted reference, they match the alias in any case
    @Test
    void aliasInAnotherCaseOnOtherHelpers() throws Exception {
       for(String key : new String[] { "h2", "oracle" }) {
+         // the alias as if written in its case, its column (Bug #77644)
          String generated = regenerate(fixed("select id as A from t order by a desc", key, "ID"));
-         assertTrue(norm(generated).endsWith("order by a desc"), key + " " + generated);
+         assertTrue(norm(generated).endsWith("order by t.id desc"), key + " " + generated);
 
          generated = regenerate(fixed("select id as A, count(*) from t group by a", key, "ID"));
          assertTrue(norm(generated).contains("group by "), key + " " + generated);

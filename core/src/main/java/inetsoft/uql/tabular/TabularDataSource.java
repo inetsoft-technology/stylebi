@@ -308,6 +308,22 @@ public abstract class TabularDataSource<SELF extends TabularDataSource<SELF>>
       return Objects.equals(getCredential(), ds.getCredential());
    }
 
+   /**
+    * Bug #77699, the copy gets its own credential. Otherwise replacing the variables of a copy,
+    * e.g. the one a query runs with, rewrites the credential of the data source it was copied
+    * from, which may be the instance cached by the registry.
+    */
+   @Override
+   public Object clone() {
+      TabularDataSource<?> ds = (TabularDataSource<?>) super.clone();
+
+      if(ds != null && credential != null) {
+         ds.credential = (Credential) Tool.clone(credential);
+      }
+
+      return ds;
+   }
+
    private Credential credential;
    private static final ThreadLocal<Predicate<String>> CREDENTIAL_FETCH_GATE = new ThreadLocal<>();
 }
