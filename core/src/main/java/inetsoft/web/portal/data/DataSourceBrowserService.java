@@ -418,6 +418,20 @@ public class DataSourceBrowserService {
       }
 
       if(!Objects.requireNonNull(newPath).equals(path)) {
+         // renaming onto a path used by a data source or another folder would merge with it
+         if(dataSourceRegistry.isDataSourcePathInUse(newPath)) {
+            throw new MessageException(Catalog.getCatalog(principal).getString(
+               "common.datasource.moveTargetExists", newPath));
+         }
+
+         // a name with a slash could put the folder under a data source
+         String dataSource = dataSourceRegistry.getDataSourceAncestor(newPath);
+
+         if(dataSource != null) {
+            throw new MessageException(Catalog.getCatalog(principal).getString(
+               "common.datasource.moveUnderDataSource", dataSource));
+         }
+
          List<String> childrenSources = new ArrayList<>();
          DependencyTransformer.prepareChildrenSources(path, childrenSources, repository);
          RenameDependencyInfo dinfo = DependencyTransformer.createDependencyInfo(
@@ -631,6 +645,8 @@ public class DataSourceBrowserService {
          null, actionTimestamp, ActionRecord.ACTION_STATUS_FAILURE,
          null);
 
+      checkMoveTargets(items, principal);
+
       for(MoveCommand item : items) {
          try {
             if(!securityEngine.checkPermission(principal, ResourceType.DATA_SOURCE_FOLDER,
@@ -752,6 +768,50 @@ public class DataSourceBrowserService {
             if(actionRecord != null) {
                Audit.getInstance().auditAction(actionRecord, principal);
             }
+         }
+      }
+   }
+
+   /**
+    * Checks the targets of a data source move before any item is moved. A data source or data
+    * source folder moved onto a path that is already used by a data source or a data source
+    * folder would overwrite or merge with it.
+    */
+   private void checkMoveTargets(MoveCommand[] items, Principal principal) {
+      final DataSourceRegistry registry = dataSourceRegistry;
+
+      // an additional connection belongs to its parent data source, moving it by its path would
+      // turn it into a standalone data source. Checked first so that this message is reported.
+      for(MoveCommand item : items) {
+         if(!PortalDataType.DATA_SOURCE_FOLDER.name().equals(item.getType()) &&
+            registry.isAdditionalConnectionPath(item.getOldPath()))
+         {
+            throw new MessageException(Catalog.getCatalog(principal).getString(
+               "common.datasource.additionalConnectionMove"));
+         }
+      }
+
+      Set<String> targets = new HashSet<>();
+
+      for(MoveCommand item : items) {
+         String oname = item.getOldPath();
+         String nname = item.getPath();
+
+         if(Objects.equals(nname, oname)) {
+            continue;
+         }
+
+         if(!targets.add(nname) || registry.isDataSourcePathInUse(nname)) {
+            throw new MessageException(Catalog.getCatalog(principal).getString(
+               "common.datasource.moveTargetExists", nname));
+         }
+
+         // moved under a data source, it would become an additional connection of it
+         String dataSource = registry.getDataSourceAncestor(nname);
+
+         if(dataSource != null) {
+            throw new MessageException(Catalog.getCatalog(principal).getString(
+               "common.datasource.moveUnderDataSource", dataSource));
          }
       }
    }
