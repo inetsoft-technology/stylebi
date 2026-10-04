@@ -68,11 +68,15 @@ class PropertiesEngineExcludedOrgPropertyTest {
       assertTrue(PropertiesEngine.isExcludedOrgProperty(name), name);
    }
 
-   // an org that predates the ID rules may keep an ID with a dot in it
+   // the org segment ends at the first dot after inetsoft.org., as computePropertyNameCase() and
+   // the read side resolve it. An org that predates the ID rules may keep an ID with a dot in it;
+   // its override of an excluded key is not matched and is stored as before, which is harmless
+   // (it is never read). Matching a suffix instead would refuse real per-org properties such as
+   // olap.security.enabled (see otherNamesAreNotMatched).
    @Test
-   void dottedOrgIdIsMatched() {
-      assertTrue(PropertiesEngine.isExcludedOrgProperty("inetsoft.org.a.b.sree.home"));
-      assertTrue(PropertiesEngine.isExcludedOrgProperty("inetsoft.org.Legacy.Org.swapper.count"));
+   void dottedOrgIdIsNotMatched() {
+      assertFalse(PropertiesEngine.isExcludedOrgProperty("inetsoft.org.a.b.sree.home"));
+      assertFalse(PropertiesEngine.isExcludedOrgProperty("inetsoft.org.Legacy.Org.swapper.count"));
    }
 
    // the global keys themselves stay writable
@@ -90,7 +94,11 @@ class PropertiesEngineExcludedOrgPropertyTest {
    @ValueSource(strings = {
       "inetsoft.org.orga.max.row.count",
       "inetsoft.org.orga.mail.smtp.host",
-      // a key that merely shares a tail with an excluded name must be dot bounded to match
+      // a real property that is read per organization and only ends with an excluded name
+      "inetsoft.org.orga.olap.security.enabled",
+      "inetsoft.org.host-org.olap.security.enabled",
+      "inetsoft.org.orga.log.level.inetsoft.sree.home",
+      // a key that merely shares a tail with an excluded name
       "inetsoft.org.orga.mysree.home",
       "inetsoft.org.orga.xserver.type",
       // no org segment before the excluded name

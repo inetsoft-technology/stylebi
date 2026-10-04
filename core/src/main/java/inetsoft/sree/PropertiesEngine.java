@@ -605,20 +605,18 @@ public class PropertiesEngine {
          return false;
       }
 
-      String rest = stored.substring(prefix.length());
+      // the org ID is the segment up to the first dot, as computePropertyNameCase() and the
+      // readers resolve it, and the rest must be an excluded name exactly. Matching a suffix
+      // instead would refuse real per-org properties that only end with an excluded name, such as
+      // olap.security.enabled. An org ID that contains a dot (allowed for an org that predates
+      // the ID rules) is not matched, so its override is stored as before, which is harmless.
+      int dot = stored.indexOf('.', prefix.length());
 
-      // match the excluded name as a dot-bounded suffix with a non-empty org segment before it,
-      // rather than splitting at the first dot, so that an org ID that contains a dot (allowed
-      // for an org that predates the ID rules) is matched too
-      for(String excluded : EXCLUDED_ORG_PROPERTIES) {
-         String suffix = "." + excluded;
-
-         if(rest.length() > suffix.length() && rest.endsWith(suffix)) {
-            return true;
-         }
+      if(dot <= prefix.length()) {
+         return false;
       }
 
-      return false;
+      return EXCLUDED_ORG_PROPERTIES.contains(stored.substring(dot + 1));
    }
 
    /**

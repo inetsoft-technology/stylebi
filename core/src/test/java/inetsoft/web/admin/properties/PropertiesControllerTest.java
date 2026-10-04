@@ -52,6 +52,8 @@ package inetsoft.web.admin.properties;
  *                      and nothing is stored, also for a blank value; such an override is never
  *                      read, so storing it silently had no effect (Redmine #77694).
  *     [global-only key itself]              the global name is stored as normal.
+ *     [org override of olap.security.enabled] a real per-org property whose name only ends with an
+ *                      excluded name is stored as normal.
  *     [delete of an org override]           still allowed, so an existing one can be cleaned up.
  */
 
@@ -479,6 +481,22 @@ class PropertiesControllerTest {
 
       sreeEnvStatic.verify(
          () -> SreeEnv.setProperty("inetsoft.org.orga.mail.smtp.host", "smtp.orga.example.com"));
+   }
+
+   // [org override of a real property that only ends with an excluded name] olap.security.enabled
+   // is read per organization, so its override takes effect and must still be stored
+   @Test
+   void editProperty_orgOverrideOfOlapSecurityEnabled_isStored() throws Exception {
+      PropertyModel property = PropertyModel.builder()
+         .name("inetsoft.org.orga.olap.security.enabled")
+         .value("true")
+         .build();
+
+      controller.editProperty(principal, property);
+
+      sreeEnvStatic.verify(
+         () -> SreeEnv.setProperty("inetsoft.org.orga.olap.security.enabled", "true"));
+      sreeEnvStatic.verify(SreeEnv::save);
    }
 
    // [delete of an org override] the only route in EM to clean up an existing dead override
