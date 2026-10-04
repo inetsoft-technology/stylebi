@@ -4016,8 +4016,16 @@ public class SQLHelper implements KeywordProvider {
          if(having && expression2.getValue() instanceof UniformSQL &&
             ((UniformSQL)expression2.getValue()).getSelection().getColumnCount() == 1)
          {
-            XSelection sec = ((UniformSQL)expression2.getValue()).getSelection();
+            UniformSQL subSql = (UniformSQL) expression2.getValue();
+            XSelection sec = subSql.getSelection();
             String alias = sec.getAlias(0);
+
+            // a generated subquery names its column by the alias generateSelectClause just
+            // emitted for it when str2 was built (an ALIAS_n for a name the database can't
+            // take), a kept sql text by the stored alias (Bug #77711)
+            if(alias != null && !subSql.hasSQLString() && sec instanceof JDBCSelection) {
+               alias = ((JDBCSelection) sec).getValidAlias(0, this);
+            }
 
             if(alias != null) {
                str2 = "(select " + XUtil.quoteAlias(alias, this) + " from" +

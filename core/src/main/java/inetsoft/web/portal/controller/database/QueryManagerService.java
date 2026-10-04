@@ -30,6 +30,7 @@ import inetsoft.uql.asset.internal.*;
 import inetsoft.uql.erm.*;
 import inetsoft.uql.jdbc.*;
 import inetsoft.uql.jdbc.util.*;
+import inetsoft.uql.path.XSelection;
 import inetsoft.uql.schema.*;
 import inetsoft.uql.util.*;
 import inetsoft.uql.util.sqlparser.SQLLexer;
@@ -652,7 +653,6 @@ public class QueryManagerService {
       }
 
       UniformSQL sql = (UniformSQL) query.getSQLDefinition();
-      SQLHelper sqlHelper = SQLHelper.getSQLHelper(sql);
       JDBCSelection selection = (JDBCSelection) sql.getSelection();
       Map<String, String> nameAliasMap = new LinkedHashMap<>();
       List<String> aliases = getColumnAliases(selection);
@@ -679,7 +679,9 @@ public class QueryManagerService {
          String path = getColumnPath(col);
          int index = selection.addColumn(path);
          selection.setTable(path, XUtil.getTablePart(path, sql));
-         selection.setAlias(index, selection.getValidAlias(index, alias, sqlHelper));
+         // store the name itself, a name the database can't take is replaced by an ALIAS_n
+         // each time the sql is generated and mapped back in the result (Bug #77711)
+         selection.setAlias(index, alias);
          selection.setType(path, getColumnDataType(col));
          nameAliasMap.put(alias, path);
       }
@@ -1144,9 +1146,13 @@ public class QueryManagerService {
             Catalog.getCatalog().getString("common.sqlquery.sessionExpired"));
       }
 
+      TableAssembly assembly = (TableAssembly) rws.getWorksheet().getAssembly(model.getName());
+      // the alias mapping is keyed by the table's names (Bug #77711), which are those of the
+      // runtime query until an Apply of the simple mode binds a rebuilt query to the table
+      JDBCQuery oldQuery = assembly instanceof SQLBoundTableAssembly ?
+         ((SQLBoundTableAssemblyInfo) assembly.getInfo()).getQuery() : runtimeQuery.getQuery();
       JDBCQuery query = createNewQuery(name, database);
       runtimeQuery.setQuery(query);
-      TableAssembly assembly = (TableAssembly) rws.getWorksheet().getAssembly(model.getName());
 
       if(assembly != null) {
          int queryPreviewMaxrow = Util.getQueryPreviewMaxrow();
@@ -1164,6 +1170,14 @@ public class QueryManagerService {
          JDBCUtil.fixTableLocation(sql);
          fixUniformSQLInfo(sql, dataSource, principal);
          query.setSQLDefinition(sql);
+
+         // the advanced OK maps the assembly's columns by the runtime query's mapping, a
+         // column of an old query stored with a generated alias is renamed (Bug #77711)
+         if(runtimeQuery.getAliasMapping() != null) {
+            Map<String, String> aliasMapping = new HashMap<>(runtimeQuery.getAliasMapping());
+            mapRebuiltColumnAliases(oldQuery, sql, aliasMapping);
+            aliasMapping.forEach(runtimeQuery::putAliasMapping);
+         }
 
          if(simpleModel.getTables() != null) {
             runtimeQuery.setSelectedTables(simpleModel.getTables());
@@ -1275,7 +1289,6 @@ public class QueryManagerService {
       fixUniformSQLInfo(sql, dataSource, principal);
       selection = (JDBCSelection) sql.getSelection();
       List<String> columnAliases = getColumnAliases(selection);
-      SQLHelper sqlHelper = SQLHelper.getSQLHelper(sql);
       boolean tableColumn = sql.isTableColumn(expression);
       String alias = null;
 
@@ -1288,7 +1301,6 @@ public class QueryManagerService {
          }
 
          alias = alias + counter;
-         alias = selection.getValidAlias(index, alias, sqlHelper);
          selection.setAlias(index, alias);
          selection.setType(expression, XField.STRING_TYPE);
          selection.setExpression(index, true);
@@ -1308,7 +1320,7 @@ public class QueryManagerService {
          }
 
          alias = counter > 0 ? alias + "_" + counter : alias;
-         alias = selection.getValidAlias(index, alias, sqlHelper);
+         // store the name itself, as addColumns does (Bug #77711)
          String table = XUtil.getTablePart(expression, sql);
          selection.setAlias(index, alias);
          selection.setTable(expression, table);
@@ -2567,7 +2579,10 @@ public class QueryManagerService {
                ColumnRef oldCol = (ColumnRef) oldRef;
                ref.setAlias(oldCol.getAlias());
                ref.setDescription(oldCol.getDescription());
-               ref.setOldName(oldCol.getDisplayName());
+               // the name the column had when the worksheet was opened or saved, so a rename
+               // of an earlier OK isn't lost by another OK before the save (Bug #77711)
+               ref.setOldName(oldCol.getOldName() != null ? oldCol.getOldName() :
+                                 oldCol.getDisplayName());
             }
 
             columns.addAttribute(ref);
@@ -2579,17 +2594,39 @@ public class QueryManagerService {
          cinfo.setMaxOccurs(XTypeNode.STAR);
          JDBCQuery clone = query.clone();
          cinfo = clone.getOutputTypeForNonParseableSQL(cinfo, vars, session);
+         // the sql of the metadata was generated from the structure (not a kept sql text)
+         JDBCSelection generated = clone.getSQLDefinition() instanceof UniformSQL &&
+            !((UniformSQL) clone.getSQLDefinition()).hasSQLString() &&
+            clone.getSelection() instanceof JDBCSelection ?
+            (JDBCSelection) clone.getSelection() : null;
 
          for(int i = 0; i < cinfo.getChildCount(); i++) {
             XTypeNode node = (XTypeNode) cinfo.getChild(i);
-            AttributeRef attributeRef = new AttributeRef(node.getName());
+            String name = node.getName();
+
+            // the database names a column by the ALIAS_n generated for a name it can't
+            // take, the column is named by the stored name as the result header is
+            // (Bug #77711)
+            if(generated != null && name != null) {
+               name = generated.getOriginalAlias(name);
+            }
+
+            AttributeRef attributeRef = new AttributeRef(name);
             ColumnRef ref = new ColumnRef(attributeRef);
             ref.setDataType(node.getType());
-            DataRef oldRef = oldColumns.findAttribute(ref);
+            String oldAlias = getOriginalAlias(aliasMapping, name);
+            boolean renamed = oldAlias != null && !oldAlias.equals(name);
+            DataRef oldRef = renamed ?
+               oldColumns.findAttribute(new ColumnRef(new AttributeRef(oldAlias))) :
+               oldColumns.findAttribute(ref);
 
             if(oldRef instanceof ColumnRef) {
-               ref.setAlias(((ColumnRef) oldRef).getAlias());
-               ref.setDescription(((ColumnRef) oldRef).getDescription());
+               ColumnRef oldCol = (ColumnRef) oldRef;
+               ref.setAlias(oldCol.getAlias());
+               ref.setDescription(oldCol.getDescription());
+               // as above, for the dependents of a column renamed from a generated alias
+               ref.setOldName(oldCol.getOldName() != null ? oldCol.getOldName() :
+                                 oldCol.getDisplayName());
             }
 
             columns.addAttribute(ref);
@@ -2820,6 +2857,96 @@ public class QueryManagerService {
       }
 
       return -1;
+   }
+
+   /**
+    * Records in an alias mapping how the columns of a query rebuilt by JDBCUtil.createSQL
+    * are named in the query it replaces. Before Bug #77711 the editor stored the ALIAS_n
+    * generated for a name the database can't take, so a column of an old query may be
+    * named ALIAS_n where the rebuilt one stores the name. That column is mapped from its
+    * old alias to the name, so its worksheet column, groups, aggregates and conditions
+    * follow the rename. A column the rebuilt query names as the old one did is mapped to
+    * itself when the mapping doesn't know its alias yet (e.g. a second OK of the dialog).
+    *
+    * @param oldQuery     the query that is replaced.
+    * @param sql          the rebuilt query.
+    * @param aliasMapping the mapping from the alias when the dialog was opened to the alias
+    *                     now, it is changed.
+    */
+   public void mapRebuiltColumnAliases(JDBCQuery oldQuery, UniformSQL sql,
+                                       Map<String, String> aliasMapping)
+   {
+      if(oldQuery == null || !(oldQuery.getSQLDefinition() instanceof UniformSQL) ||
+         sql == null || aliasMapping == null)
+      {
+         return;
+      }
+
+      XSelection oldSelection = ((UniformSQL) oldQuery.getSQLDefinition()).getSelection();
+      XSelection selection = sql.getSelection();
+      SQLHelper helper = SQLHelper.getSQLHelper(sql);
+      boolean[] matched = new boolean[oldSelection.getColumnCount()];
+
+      for(int i = 0; i < selection.getColumnCount(); i++) {
+         String path = selection.getColumn(i);
+         String alias = selection.getAlias(i);
+
+         if(Tool.isEmptyString(alias)) {
+            continue;
+         }
+
+         // the same column of the old query, the first not matched yet
+         for(int j = 0; j < matched.length; j++) {
+            if(matched[j] || !Tool.equals(path, oldSelection.getColumn(j))) {
+               continue;
+            }
+
+            matched[j] = true;
+            String oldAlias = oldSelection.getAlias(j);
+
+            if(Tool.equals(oldAlias, alias)) {
+               if(getOriginalAlias(aliasMapping, alias) == null &&
+                  !aliasMapping.containsKey(alias))
+               {
+                  aliasMapping.put(alias, alias);
+               }
+            }
+            // only a name the database can't take had an alias generated for it
+            else if(!Tool.isEmptyString(oldAlias) && !helper.isValidAlias(alias)) {
+               String originalAlias = getOriginalAlias(aliasMapping, oldAlias);
+               aliasMapping.put(originalAlias != null ? originalAlias : oldAlias, alias);
+            }
+
+            break;
+         }
+      }
+   }
+
+   /**
+    * Keys the alias mapping of a dialog's runtime query by the aliases of the query an Apply
+    * just bound to the table. The table now has those columns, so a later OK maps the
+    * table's columns from them (Bug #77711).
+    *
+    * @param runtimeId the id of the dialog's runtime query.
+    * @param query     the query of the table.
+    */
+   public void resetAliasMapping(String runtimeId, JDBCQuery query) {
+      RuntimeQueryService.RuntimeXQuery runtimeQuery = getRuntimeQuery(runtimeId);
+
+      if(runtimeQuery == null || runtimeQuery.getAliasMapping() == null || query == null) {
+         return;
+      }
+
+      Map<String, String> aliasMapping = runtimeQuery.getAliasMapping();
+      XSelection selection = query.getSelection();
+      aliasMapping.clear();
+
+      for(int i = 0; i < selection.getColumnCount(); i++) {
+         String alias = selection.getAlias(i);
+         aliasMapping.put(alias, alias);
+      }
+
+      saveRuntimeQuery(runtimeQuery);
    }
 
    private String getOriginalAlias(Map<String, String> aliasMapping, String lastAlias) {
