@@ -807,7 +807,7 @@ public class SQLHelper implements KeywordProvider {
          return "";
       }
 
-      String where = generateWhereClause();
+      String where = appendRownumLimit(generateWhereClause());
       String groupby = generateGroupByClause();
       String having = generateHavingClause();
       String orderby = generateOrderByClause();
@@ -847,7 +847,7 @@ public class SQLHelper implements KeywordProvider {
       String where = generateWhereClause();
       String from = generateFromClause();
       // join conditions the ANSI FROM clause couldn't write in an ON
-      where = appendAnsiWhereJoins(where);
+      where = appendRownumLimit(appendAnsiWhereJoins(where));
       String groupby = generateGroupByClause();
       String having = generateHavingClause();
       String orderby = generateOrderByClause();
@@ -876,34 +876,56 @@ public class SQLHelper implements KeywordProvider {
     */
    private String appendLimitClause(String sql) {
       if(uniformSql.hasVPMCondition() && inpmaxrows > 0) {
-         // Use subquery to check if we should limit the table
-         String subquery = getTableWithLimit(sql, inpmaxrows);
+         // The row limit syntax of the database, taken from the limited table query of a
+         // placeholder table, so the names and literals of the sql can't change it. (#77698)
+         String subquery = getTableWithLimit(LIMIT_PLACEHOLDER, inpmaxrows);
 
+         // The sql is not searched for an existing limit: names and literals contain the
+         // keywords (credit_limit, 'no limit'). The statement has no limit clause of its own
+         // here: generateMaxRowsClause() runs only if outmaxrows > 0, and the parser refuses
+         // limit and fetch first. A derived table's own limit doesn't limit this statement,
+         // and a second rownum condition is still valid sql. The one limit the statement can
+         // start with is a top select option (getSelectionOption()). (#77698)
          if(subquery != null) {
-            if(isKeyword("limit") && !sql.contains("limit") && subquery.contains("limit")) {
+            if(isKeyword("limit") && subquery.contains("limit")) {
                sql += " limit " + inpmaxrows;
             }
-            else if(isKeyword("top") && sql.startsWith("select") && !sql.contains("select top")) {
+            else if(isKeyword("top") && sql.startsWith("select") &&
+               !SELECT_TOP.matcher(sql).lookingAt())
+            {
                sql = sql.replaceFirst("select", "select top " + inpmaxrows);
             }
-            else if(subquery.contains("fetch first") && !sql.contains("fetch first")) {
+            else if(subquery.contains("fetch first")) {
                sql += " fetch first " + inpmaxrows + " rows only";
             }
-            else if(this instanceof OracleSQLHelper && subquery.contains(" where rownum <= ") &&
-               !sql.contains(" where rownum <= "))
-            {
-               String where = generateWhereClause();
-               String newWhere = where.replace(WHERE, WHERE + " (");
-               newWhere += ") AND rownum <= " + inpmaxrows;
-
-               if(sql.contains(where)) {
-                  sql = sql.replace(where, newWhere);
-               }
-            }
+            // rownum (oracle) is added to the where clause by appendRownumLimit()
          }
       }
 
       return sql;
+   }
+
+   /**
+    * Add the input row limit of the queries affected by vpm conditions to the where clause
+    * of this statement, if the database limits rows with rownum (oracle). The where clause
+    * is wrapped when it is generated, not searched for in the generated sql, so the where of
+    * a subquery or a derived table, and a literal containing where, are left alone. A
+    * statement without a where clause is not limited. (#77698)
+    */
+   private String appendRownumLimit(String where) {
+      if(outmaxrows > 0 || !uniformSql.hasVPMCondition() || inpmaxrows <= 0 ||
+         !(this instanceof OracleSQLHelper) || where == null || !where.startsWith(WHERE))
+      {
+         return where;
+      }
+
+      String subquery = getTableWithLimit(LIMIT_PLACEHOLDER, inpmaxrows);
+
+      if(subquery == null || !subquery.contains(" where rownum <= ")) {
+         return where;
+      }
+
+      return WHERE + " (" + where.substring(WHERE.length()) + ") AND rownum <= " + inpmaxrows;
    }
 
    /**
@@ -6524,6 +6546,12 @@ public class SQLHelper implements KeywordProvider {
    // Matches map key access expressions like m['key2'] (ClickHouse/Databricks)
    private static final Pattern MAP_KEY_ACCESS =
       Pattern.compile("([^\\s\\[\\]]+)\\[\\s*'([^\\s']+)'\\s*\\]");
+   // the table of the limited table query that gives the row limit syntax of the database
+   // (appendLimitClause()). Not a name a statement uses, and without a limit keyword.
+   private static final String LIMIT_PLACEHOLDER = "inetsoft_placeholder";
+   // a generated select clause with a top option (getSelectionOption())
+   private static final Pattern SELECT_TOP =
+      Pattern.compile("select(\\s+(distinct|all))?\\s+top\\s");
    // Maps "tableAlias.originalColExpr" -> safe alias used in the inner query
    private final Map<String, String> subQueryMapKeyAliases = new HashMap<>();
 

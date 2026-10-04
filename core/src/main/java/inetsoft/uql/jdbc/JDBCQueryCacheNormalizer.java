@@ -20,10 +20,13 @@ package inetsoft.uql.jdbc;
 import inetsoft.report.TableLens;
 import inetsoft.report.filter.ColumnMapFilter;
 import inetsoft.uql.path.XSelection;
+import inetsoft.uql.util.SQLQuoteScanner;
 import inetsoft.uql.util.XUtil;
 import org.apache.commons.lang3.StringUtils;
 
 import java.util.Arrays;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Transforms the jdbc sql query such that it hits the cache more often
@@ -70,15 +73,33 @@ public class JDBCQueryCacheNormalizer {
          return true;
       }
 
-      sqlString = sqlString.toLowerCase();
-      boolean hasMaxRow = sqlString.indexOf(" top ") != -1 || sqlString.indexOf(" limit ") != -1 ||
-         sqlString.indexOf(" fetch first ") != -1 || sqlString.indexOf(" rownum < ") != -1;
-
-      if(usql.isParseSQL() && hasMaxRow) {
+      if(usql.isParseSQL() && hasMaxRow(sqlString)) {
          return false;
       }
 
       return usql.getParseResult() != UniformSQL.PARSE_FAILED;
+   }
+
+   /**
+    * Check if the sql has a row limit keyword (top, limit, fetch first, rownum &lt;) as a
+    * whole word outside string literals and quoted names. A keyword in a literal or quoted
+    * name ('no limit set', "the top one") is not a row limit. (#77698)
+    */
+   static boolean hasMaxRow(String sql) {
+      Matcher matcher = MAX_ROW_KEYWORD.matcher(sql);
+      boolean[] quoted = null;
+
+      while(matcher.find()) {
+         if(quoted == null) {
+            quoted = SQLQuoteScanner.findQuoted(sql);
+         }
+
+         if(!quoted[matcher.start()] && !quoted[matcher.end() - 1]) {
+            return true;
+         }
+      }
+
+      return false;
    }
 
    public boolean isClearedSqlString() {
@@ -232,6 +253,13 @@ public class JDBCQueryCacheNormalizer {
 
       return map;
    }
+
+   // a row limit keyword as a whole word, in any case. A letter of any language, a digit,
+   // _, $ or # next to it makes it part of a name (credit_limit, a non-ascii name)
+   private static final Pattern MAX_ROW_KEYWORD = Pattern.compile(
+      "(?<![\\p{L}\\p{M}\\p{N}_$#])(top|limit|fetch\\s+first)(?![\\p{L}\\p{M}\\p{N}_$#])|" +
+      "(?<![\\p{L}\\p{M}\\p{N}_$#])rownum\\s*<",
+      Pattern.CASE_INSENSITIVE);
 
    private JDBCQuery query;
    private int[] sortedColumnMap;
