@@ -270,9 +270,14 @@ public class DataSourceRegistry implements MessageListener {
          List<String> clashes = getDataSourcePathClashes();
 
          if(!clashes.isEmpty()) {
+            // renaming or deleting either side moves or deletes the other's data sources, so no
+            // action is suggested until there is a repair (Bug #77691 follow-up)
             LOG.warn("A data source and a data source folder share these paths in organization " +
-                        "{}: {}. Saving the data source no longer changes the data sources in " +
-                        "the folder, but renaming or deleting it does. Rename the folder.",
+                        "{}: {}. Saving the data source keeps the data sources in the folder. " +
+                        "Renaming or deleting the data source or the folder can move or delete " +
+                        "the other's data sources and additional connections, so don't rename " +
+                        "or delete either of them until the paths are repaired (a repair is " +
+                        "planned as a follow-up of Bug #77691).",
                      orgID, clashes);
          }
       }

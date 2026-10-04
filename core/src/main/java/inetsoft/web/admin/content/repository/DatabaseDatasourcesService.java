@@ -415,8 +415,10 @@ public class DatabaseDatasourcesService {
 
          // a data source at the new path is reported as "Duplicate" above, so only check for a
          // folder, which isn't filtered by permission (Bug #77691). newPath is the path of the
-         // data source itself if it isn't renamed.
-         if(isDataSourceFolder(newPath)) {
+         // data source itself if it isn't renamed. A data source that shares its path with a
+         // folder (older data) isn't saved either: a create in that folder is resolved to the
+         // data source, and would rename it.
+         if(isDataSourceFolder(newPath) || isDataSourceFolder(fullName)) {
             return new ConnectionStatus("Duplicate Folder");
          }
 
@@ -437,6 +439,12 @@ public class DatabaseDatasourcesService {
          }
 
          fullName += !fullName.isEmpty() ? "/" + name : name;
+
+         // a data source can't be created under a data source, e.g. in a subfolder of a folder
+         // that is also a data source (Bug #77691)
+         if(registry.getDataSourceAncestor(fullName) != null) {
+            return new ConnectionStatus("Invalid Folder");
+         }
 
          // a data source or a folder at the path, not filtered by permission (Bug #77691)
          if(registry.isDataSourcePathInUse(fullName) ||

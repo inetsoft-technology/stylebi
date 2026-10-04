@@ -324,6 +324,10 @@ class DataSourcePathClashTest {
       // folders at the paths of additional connections, without a folder at the parent path
       folder("jaF/jaP/jaAdd");
       folder("jaF/jaNew/jaAdd2");
+      // a folder that is also a data source (older data)
+      folder("jcuP");
+      jdbc("jcuP");
+      folder("jcuP/jcuSub");
 
       assertNull(saveEdit("jpP", "jpP", "jpAdd"));
       assertNull(saveEdit("jpF/jpQ", "jpQ", "jpAdd2"));
@@ -334,6 +338,9 @@ class DataSourcePathClashTest {
       assertEquals("Duplicate Folder", saveCreate("", "jcX").getStatus());
       assertEquals("Duplicate Folder", saveEdit("jaF/jaP", "jaP", "jaAdd").getStatus());
       assertEquals("Duplicate Folder", saveCreate("jaF", "jaNew", "jaAdd2").getStatus());
+      // a create in the clashed folder resolves to the data source, which isn't renamed
+      assertEquals("Duplicate Folder", saveCreate("jcuP", "jcuNew").getStatus());
+      assertEquals("Invalid Folder", saveCreate("jcuP/jcuSub", "jcuNew2").getStatus());
 
       registry.clearCache();
       assertNotNull(registry.getDataSource("jrA"));
@@ -341,6 +348,10 @@ class DataSourcePathClashTest {
       assertNull(registry.getDataSource("jcX"));
       assertFalse(registry.containObject(dsEntry("jaF/jaP/jaAdd")));
       assertNull(registry.getDataSource("jaF/jaNew"));
+      assertNotNull(registry.getDataSource("jcuP"));
+      assertNull(registry.getDataSource("jcuNew"));
+      assertFalse(registry.containObject(dsEntry("jcuP/jcuNew")));
+      assertFalse(registry.containObject(dsEntry("jcuP/jcuSub/jcuNew2")));
    }
 
    // 5. the portal and EM "New Folder" refuse a data source path and a path under a data source.
