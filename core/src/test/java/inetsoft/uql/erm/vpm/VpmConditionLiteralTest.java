@@ -180,7 +180,31 @@ class VpmConditionLiteralTest {
                       "concat(o.A, '-- x', o.B) /* it's T.B */"),
          // a double quoted name is still a column
          Arguments.of(MYSQL, "upper(\"T\".\"A\")", "upper(o.A)"),
-         Arguments.of(MSSQL, "upper(\"T\".\"A\") + T.[B]", "upper(o.A) + o.[B]"));
+         Arguments.of(MSSQL, "upper(\"T\".\"A\") + T.[B]", "upper(o.A) + o.[B]"),
+         // realistic expressions the parser doesn't read to the end, so the column iterator
+         // finds their columns, keep every column replaced
+         Arguments.of(null, "T.A in (select X.B from X where X.C = T.D)",
+                      "o.A in (select X.B from X where X.C = o.D)"),
+         Arguments.of(null, "T.A between 1 and T.B", "o.A between 1 and o.B"),
+         Arguments.of(POSTGRESQL, "T.A[1] + T.B", "o.\"A\"[1] + o.\"B\""),
+         Arguments.of(POSTGRESQL, "(T.A)[1] || T.B", "(o.\"A\")[1] || o.\"B\""),
+         Arguments.of(POSTGRESQL, "T.A = ANY(ARRAY[T.B, T.C])",
+                      "o.\"A\" = ANY(ARRAY[o.\"B\", o.\"C\"])"),
+         Arguments.of(POSTGRESQL, "T.A->'k' || T.B", "o.\"A\"->'k' || o.\"B\""),
+         Arguments.of(POSTGRESQL, "T.A #> '{a,b}' || T.B", "o.\"A\" #> '{a,b}' || o.\"B\""),
+         Arguments.of(null, "T.A || N'it''s' || T.B", "o.A || N'it''s' || o.B"),
+         Arguments.of(null, "N'x' || T.A", "N'x' || o.A"),
+         Arguments.of(MYSQL, "concat($(p), _utf8'x', T.A, T.B)",
+                      "concat($(p), _utf8'x', o.A, o.B)"),
+         Arguments.of(MYSQL, "T.A->'$.k' || T.B", "o.A->'$.k' || o.B"),
+         Arguments.of(null, "T.A || 'x' || T.B\r\n + T.C", "o.A || 'x' || o.B\r\n + o.C"),
+         // expressions the parser reads to the end are not changed
+         Arguments.of(POSTGRESQL, "T.A::text || T.B", "o.\"A\"::text || o.\"B\""),
+         Arguments.of(POSTGRESQL, "T.A COLLATE \"C\" || T.B", "o.\"A\" COLLATE \"C\" || o.\"B\""),
+         Arguments.of(null, "substring(T.A from 2 for 3) || T.B",
+                      "substring(o.A from 2 for 3) || o.B"),
+         Arguments.of(ORACLE, "case T.A when 'it''s' then T.B else nvl(T.C, 0) end",
+                      "case o.A when 'it''s' then o.B else nvl(o.C, 0) end"));
    }
 
    @ParameterizedTest(name = "{0}: {1}")
@@ -254,6 +278,7 @@ class VpmConditionLiteralTest {
    private static final String MSSQL = "sql server";
    private static final String MYSQL = "mysql";
    private static final String POSTGRESQL = "postgresql";
+   private static final String ORACLE = "oracle";
 
    @Configuration
    static class TestConfig {
