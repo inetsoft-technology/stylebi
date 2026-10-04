@@ -246,13 +246,19 @@ public class SQLIteratorTest {
          "select * from t where s = '/*</where>*/'",
          "select * from t where s = '/*<p>*/' or s = '/*</p>*/'",
          "select * from t where s = '/*<x>*/y/*</x>*/'",
-         "select \"/*<where>*/x/*</where>*/\", `/*<1>*/`, [/*<2>*/] from t" })
+         "select \"/*<where>*/x/*</where>*/\", `/*<1>*/` from t" })
       {
          setup();
          assertEquals(text, iterate(text));
          assertNull(whereClause);
          assertTrue(columns.isEmpty());
       }
+
+      // a [ is not a quote in most databases (an array subscript), so a tag in [] is a tag,
+      // as before
+      setup();
+      assertEquals("select [x] from t", iterate("select [/*<2>*/x/*</2>*/] from t"));
+      assertEquals("x", columns.get(2));
    }
 
    // Bug #77663, a literal that looks like the start of a comment doesn't hide the tags
@@ -348,12 +354,35 @@ public class SQLIteratorTest {
          "select nq'{it's}' as a from SA.ORDERS\nwhere /*<where>*/1=1/*</where>*/ and b = 'x'",
          "select 5--1 as a, 'x\ny' as b from SA.ORDERS\n" +
             "where /*<where>*/1=1/*</where>*/ and c = 'z'",
-         "select a // don't\nfrom SA.ORDERS where /*<where>*/1=1/*</where>*/ and b = 'x'" })
+         "select a // don't\nfrom SA.ORDERS where /*<where>*/1=1/*</where>*/ and b = 'x'",
+         // postgresql: a backslash escapes in an E'' string only
+         "select E'O\\'Brien' as n, replace(path, '\\', '/') as p\nfrom docs where " +
+            "/*<where>*/1=1/*</where>*/ and kind = 'x'",
+         // spark: nested comments and backslash escapes
+         "/* report /* v2 */ don't edit */\nselect \"a\\\"b\" as v from SA.ORDERS where " +
+            "/*<where>*/1=1/*</where>*/ and c = \"w\" and d = 'z'",
+         // sql server: nested comments and [names]
+         "/* a /* b */ don't */\nselect [it's] from SA.ORDERS where " +
+            "/*<where>*/1=1/*</where>*/ and c = 'x'",
+         // a [ is an array subscript in most databases, a ] in its key doesn't close it
+         "select m['a]b'] from SA.ORDERS where /*<where>*/1=1/*</where>*/ and c = 'y'",
+         "select m[']'] from SA.ORDERS where /*<where>*/1=1/*</where>*/ and c = 'y'",
+         "select m[\"a]\"] from SA.ORDERS where /*<where>*/1=1/*</where>*/ and c = \"y\"" })
       {
          setup();
          iterate(text);
          assertEquals("1=1", whereClause, text);
       }
+
+      setup();
+      iterate("select E'O\\'Brien' as n, replace(path, '\\', '/') as p\n" +
+         "-- vpm.tables: SA.ORDERS\nfrom SA.ORDERS where /*<where>*/1=1/*</where>*/ and kind = 'x'");
+      assertEquals(List.of("SA.ORDERS"), vpmTables);
+      assertEquals("1=1", whereClause);
+
+      setup();
+      iterate("select v['a]'] k\n-- vpm.tables: SA.ORDERS\nfrom SA.ORDERS where c = 'x'");
+      assertEquals(List.of("SA.ORDERS"), vpmTables);
 
       // a literal is still found when the forms of other databases are in the sql
       setup();

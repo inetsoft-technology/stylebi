@@ -86,6 +86,8 @@ public class ColumnIterator {
       char[] sarr = sql.toCharArray();
       index = 0;
       state = NORMAL_STATE;
+      // the quotes found not closed, the later quotes of the kind are ordinary characters
+      String unclosed = "";
 
       // the end of the text ends the last name as a split char does
       for(int i = 0; i <= sarr.length; i++) {
@@ -104,16 +106,20 @@ public class ColumnIterator {
          }
 
          // a quoted name ("T"."A") is a part of the dotted name, including any split char in it
-         if(!last && state == NORMAL_STATE && ('\"' == c || '`' == c)) {
+         // a quote that is not closed is an ordinary character, as in the other scanners, so
+         // the later names are found (e.g. after a mysql "say \"hi")
+         if(!last && state == NORMAL_STATE && ('\"' == c || '`' == c) &&
+            unclosed.indexOf(c) < 0)
+         {
             int end = SQLQuoteScanner.skipQuoted(sql, i, c, false);
 
             if(end < 0) {
-               index = sarr.length;
-               break;
+               unclosed += c;
             }
-
-            i = end - 1;
-            continue;
+            else {
+               i = end - 1;
+               continue;
+            }
          }
 
          // c is in splits array.

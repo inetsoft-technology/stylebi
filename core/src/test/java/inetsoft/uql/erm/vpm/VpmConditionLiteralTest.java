@@ -78,7 +78,12 @@ class VpmConditionLiteralTest {
          // a ' in a double quoted or backquoted string or name doesn't open a literal
          Arguments.of("concat(\"x'y\", T.A, 'z')", "concat(\"x'y\", o.A, 'z')"),
          Arguments.of("concat($(a.b), \"x'y\", T.A, 'z')", "concat($(a.b), \"x'y\", o.A, 'z')"),
-         Arguments.of("concat(`x'y`, T.A, 'z')", "concat(`x'y`, o.A, 'z')"));
+         Arguments.of("concat(`x'y`, T.A, 'z')", "concat(`x'y`, o.A, 'z')"),
+         // a quote that is not closed after a mysql backslash escape is an ordinary character
+         Arguments.of("T.A || \"say \\\"hi\" || T.B || 'x'",
+                      "o.A || \"say \\\"hi\" || o.B || 'x'"),
+         Arguments.of("concat($(a.b), T.A, \"say \\\"hi\", T.B, 'x')",
+                      "concat($(a.b), o.A, \"say \\\"hi\", o.B, 'x')"));
    }
 
    @ParameterizedTest(name = "{0}")

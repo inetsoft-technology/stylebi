@@ -156,6 +156,7 @@ public final class SQLQuoteScanner {
     * the text is scanned by the rules of each database family, and a character is quoted
     * only if it is quoted by all of them. So no text that one of these databases reads as
     * sql is treated as quoted; such text is treated as sql, as before quoted text was found.
+    * This holds because each database has one family scan with all of its rules.
     * @return the quoted flag of each character.
     */
    public static boolean[] findQuoted(String text) {
@@ -176,7 +177,6 @@ public final class SQLQuoteScanner {
     * Find the quoted characters by the comment and quoting rules of a database family.
     */
    private static boolean[] findQuoted(String text, int rules) {
-      boolean backslash = (rules & BACKSLASH) != 0;
       int len = text.length();
       boolean[] quoted = new boolean[len];
       // the kinds of quote found not closed, the later quotes of the kind are ordinary
@@ -196,11 +196,16 @@ public final class SQLQuoteScanner {
          char close = getCloseQuote(c);
          char kind = 0;
 
+         // a [ is an array subscript, not a quoted name, in most databases
+         if(close == ']' && (rules & BRACKET) == 0) {
+            close = 0;
+         }
+
          if(close != 0) {
             kind = c;
 
             if(unclosed.indexOf(kind) < 0) {
-               end = skipQuoted(text, i, close, backslash && (c == '\'' || c == '"'));
+               end = skipQuoted(text, i, close, isBackslash(text, i, rules));
             }
          }
          else if(c == '$' && (rules & DOLLAR_QUOTE) != 0) {
@@ -242,6 +247,28 @@ public final class SQLQuoteScanner {
       }
 
       return quoted;
+   }
+
+   /**
+    * Check if a backslash escapes the next character in the quoted text opened at start.
+    */
+   private static boolean isBackslash(String text, int start, int rules) {
+      char c = text.charAt(start);
+
+      if(c == '"') {
+         return (rules & BACKSLASH_DQ) != 0;
+      }
+      else if(c != '\'') {
+         return false;
+      }
+      else if((rules & BACKSLASH) != 0) {
+         return true;
+      }
+
+      // a postgresql E'...' string, the E is not the end of a name
+      return (rules & E_STRING) != 0 && start > 0 &&
+         (text.charAt(start - 1) == 'E' || text.charAt(start - 1) == 'e') &&
+         (start == 1 || !isNameChar(text.charAt(start - 2)));
    }
 
    /**
@@ -306,21 +333,31 @@ public final class SQLQuoteScanner {
    }
 
    // the comment and quoting rules that differ between databases
-   private static final int BACKSLASH = 1; // a backslash escapes in '' and "" strings
+   private static final int BACKSLASH = 1; // a backslash escapes in '' strings
    private static final int HASH_COMMENT = 2; // # starts a comment to the end of the line
    private static final int DASH_SPACE = 4; // -- starts a comment only if a space follows
    private static final int SLASH_COMMENT = 8; // // starts a comment to the end of the line
    private static final int NESTED_COMMENT = 16; // slash-star comments nest
    private static final int DOLLAR_QUOTE = 32; // $$...$$ and $tag$...$tag$ strings
    private static final int Q_QUOTE = 64; // q'[...]' strings
+   private static final int BACKSLASH_DQ = 128; // a backslash escapes in "" strings and names
+   private static final int E_STRING = 256; // a backslash escapes in E'' strings only
+   private static final int BRACKET = 512; // [...] is a quoted name, not an array subscript
 
-   // the rules of the database families. Adding a family can only make less text quoted
+   // the rules of the database families. Each database has a family with all of its rules,
+   // so the text the database reads as sql is not quoted by that family's scan, and not by
+   // findQuoted. Adding a family can only make less text quoted
    private static final int[] DIALECTS = {
-      0, // ansi: sql server, db2, oracle without q quotes, ...
-      BACKSLASH, // spark, hive, clickhouse, postgresql E'' strings, ...
-      BACKSLASH | HASH_COMMENT | DASH_SPACE, // mysql, mariadb
+      0, // ansi: db2, derby, informix, exasol, vertica, oracle without q quotes, ...
+      BRACKET, // sybase, access
+      BRACKET | NESTED_COMMENT, // sql server
+      BACKSLASH | BACKSLASH_DQ, // hive, impala
+      BACKSLASH | BACKSLASH_DQ | NESTED_COMMENT, // spark, databricks
+      BACKSLASH | BACKSLASH_DQ | HASH_COMMENT | DASH_SPACE, // mysql, mariadb
       HASH_COMMENT | DASH_SPACE, // mysql with NO_BACKSLASH_ESCAPES
-      NESTED_COMMENT | DOLLAR_QUOTE, // postgresql
+      BACKSLASH | BACKSLASH_DQ | HASH_COMMENT, // bigquery
+      BACKSLASH | BACKSLASH_DQ | HASH_COMMENT | NESTED_COMMENT, // clickhouse
+      E_STRING | NESTED_COMMENT | DOLLAR_QUOTE, // postgresql
       Q_QUOTE, // oracle
       BACKSLASH | SLASH_COMMENT | DOLLAR_QUOTE, // snowflake
    };
