@@ -767,6 +767,47 @@ class DataSourceMoveTargetExistsTest {
       assertTrue(DataSourceRegistry.isSameOrDescendantPath("sbF", "sbF/G"));
    }
 
+   // Bug #77687: a refused folder move queues no dependency rewrite, and a batch with a free move
+   // and a move into the folder's own subfolder moves nothing
+   @Test
+   void refusedMoveIntoItselfQueuesNoTransformTask() throws Exception {
+      selfMoveTree("stF");
+      folder("stFree");
+      folder("stDest");
+      RenameTransformHandler transforms = mock(RenameTransformHandler.class);
+      RepletRegistryManager repletRegistries = mock(RepletRegistryManager.class);
+      when(repletRegistries.getRegistry(nullable(IdentityID.class)))
+         .thenReturn(mock(RepletRegistry.class));
+      ResourcePermissionService permissions = mock(ResourcePermissionService.class);
+      when(permissions.getRepositoryResourceType(anyInt(), anyString())).thenAnswer(
+         inv -> new Resource(ResourceType.DATA_SOURCE, inv.<String>getArgument(1)));
+      RepositoryObjectService em = new RepositoryObjectService(
+         mock(RepletRegistryService.class), mock(ContentRepositoryTreeService.class),
+         mock(SecurityProvider.class), permissions, repository,
+         mock(RepositoryDashboardService.class), mock(DataModelFolderManagerService.class),
+         registry, mock(LibManagerProvider.class), mock(RecycleBin.class),
+         mock(DependencyHandler.class), transforms, repletRegistries,
+         mock(DashboardRegistryManager.class));
+      DataSourceBrowserService portal = new DataSourceBrowserService(
+         security, em, repository, mock(DataSourceService.class), registry,
+         mock(Config.class), transforms);
+
+      assertThrows(MessageException.class, () -> em.moveFiles(
+         request(dest("stF/G"), node("stFree", RepositoryEntry.DATA_SOURCE_FOLDER),
+                 node("stF", RepositoryEntry.DATA_SOURCE_FOLDER)), true, principal));
+      assertThrows(MessageException.class, () -> portal.moveDataSource(
+         new MoveCommand[] {
+            move("stFree", "stDest/stFree", PortalDataType.DATA_SOURCE_FOLDER),
+            move("stF", "stF/G/stF", PortalDataType.DATA_SOURCE_FOLDER) },
+         principal));
+
+      verifyNoInteractions(transforms);
+      assertSelfMoveTreeIntact("stF");
+      assertNotNull(registry.getDataSourceFolder("stFree"));
+      assertNull(registry.getDataSourceFolder("stF/G/stFree"));
+      assertNull(registry.getDataSourceFolder("stDest/stFree"));
+   }
+
    // Bug #77687: a folder still moves and is renamed into a sibling whose name starts with its
    // own, with its data sources and additional connections
    @Test
