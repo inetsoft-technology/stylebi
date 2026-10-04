@@ -19,6 +19,7 @@ package inetsoft.web.admin.properties;
 
 import inetsoft.report.internal.license.LicenseManager;
 import inetsoft.report.internal.table.TableFormat;
+import inetsoft.sree.PropertiesEngine;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.security.*;
 import inetsoft.uql.asset.AssetRepository;
@@ -116,6 +117,16 @@ public class PropertiesController {
       {
          throw new MessageException(
             Catalog.getCatalog(user).getString("em.common.log.fluentd.enterpriseOnly"),
+            LogLevel.INFO, false);
+      }
+
+      // a JVM-wide setting is always read globally, so an organization override of it is never
+      // used. Refuse it rather than store a value that silently has no effect (Bug #77694).
+      // Checked before the blank-value branch below, which would otherwise store it too. Deleting
+      // such a property is still allowed, so that an existing one can be cleaned up.
+      if(PropertiesEngine.isExcludedOrgProperty(propertyName)) {
+         throw new MessageException(
+            Catalog.getCatalog(user).getString("em.properties.orgOverrideNotAllowed", propertyName),
             LogLevel.INFO, false);
       }
 
