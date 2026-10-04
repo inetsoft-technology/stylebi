@@ -29,11 +29,14 @@ import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.io.File;
+import java.io.IOException;
 import java.lang.reflect.Field;
 import java.util.Random;
+import java.util.UUID;
 import java.util.concurrent.atomic.*;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assumptions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
@@ -144,23 +147,28 @@ class XObjectFragmentChangeTest {
       // the delayed removal would delete whatever is at the path later, including a new file
       doNothing().when(fileSystemService).remove(any(File.class), anyInt());
       XSwappableObjectList<String> list = createObjectList();
-      XObjectFragment<?> fragment = fragment(list, 1);
-      File file = swapFile(fragment);
-      assertTrue(fragment.swap(), "fragment was not swapped");
-      assertEquals("v8200", list.get(8200));
 
-      withReadOnlyDirectory(file.getParentFile(), () -> list.set(8200, "NEW"));
-      assertTrue(file.exists(), "swap file was deleted from a read-only directory");
-      verify(fileSystemService).remove(eq(file), anyInt());
+      try {
+         XObjectFragment<?> fragment = fragment(list, 1);
+         File file = swapFile(fragment);
+         assertTrue(fragment.swap(), "fragment was not swapped");
+         assertEquals("v8200", list.get(8200));
 
-      // the file is still there, so this set() must delete it
-      list.set(8201, "NEW2");
-      assertFalse(file.exists(), "swap file was kept after set()");
+         withReadOnlyDirectory(file.getParentFile(), () -> list.set(8200, "NEW"));
+         assertTrue(file.exists(), "swap file was deleted from a read-only directory");
+         verify(fileSystemService).remove(eq(file), anyInt());
 
-      assertTrue(fragment.swap(), "fragment was not swapped again");
-      assertEquals("NEW", list.get(8200));
-      assertEquals("NEW2", list.get(8201));
-      list.dispose();
+         // the file is still there, so this set() must delete it
+         list.set(8201, "NEW2");
+         assertFalse(file.exists(), "swap file was kept after set()");
+
+         assertTrue(fragment.swap(), "fragment was not swapped again");
+         assertEquals("NEW", list.get(8200));
+         assertEquals("NEW2", list.get(8201));
+      }
+      finally {
+         list.dispose();
+      }
    }
 
    @Test
@@ -298,13 +306,29 @@ class XObjectFragmentChangeTest {
    }
 
    private static void withReadOnlyDirectory(File dir, Runnable action) {
-      assertTrue(dir.setWritable(false), "cache directory was not made read-only");
+      // windows does not change the permissions of a directory
+      assumeTrue(dir.setWritable(false), "directory write permission is not supported");
 
       try {
+         // root creates and deletes files in it anyway
+         assumeFalse(canCreate(new File(dir, "probe-" + UUID.randomUUID() + ".tmp")),
+                     "cache directory is still writable");
          action.run();
       }
       finally {
-         assertTrue(dir.setWritable(true));
+         // restore without an assert that could replace the test's own failure
+         dir.setWritable(true);
+      }
+   }
+
+   private static boolean canCreate(File file) {
+      try {
+         boolean created = file.createNewFile();
+         file.delete();
+         return created;
+      }
+      catch(IOException ex) {
+         return false;
       }
    }
 
