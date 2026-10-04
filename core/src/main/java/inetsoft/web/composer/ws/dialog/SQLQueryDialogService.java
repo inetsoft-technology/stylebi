@@ -175,7 +175,7 @@ public class SQLQueryDialogService {
                                        vars, commandDispatcher);
             }
             else {
-               setUpTable(assembly, model, model.getDataSource(), vars, principal);
+               setUpTable(ws, assembly, model, model.getDataSource(), vars, principal);
             }
          }
          else {
@@ -200,7 +200,7 @@ public class SQLQueryDialogService {
                                        vars, commandDispatcher);
             }
             else {
-               setUpTable(assembly, model, model.getDataSource(), vars, principal);
+               setUpTable(ws, assembly, model, model.getDataSource(), vars, principal);
             }
          }
          else {
@@ -240,7 +240,8 @@ public class SQLQueryDialogService {
       return null;
    }
 
-   private void setUpTable(SQLBoundTableAssembly assembly, SQLQueryDialogModel sqlQueryDialogModel,
+   private void setUpTable(Worksheet ws, SQLBoundTableAssembly assembly,
+                           SQLQueryDialogModel sqlQueryDialogModel,
                            String dataSource, VariableTable vars, Principal principal)
       throws Exception
    {
@@ -286,15 +287,17 @@ public class SQLQueryDialogService {
          });
       }
 
+      ColumnSelection oldColumns = (ColumnSelection) Tool.clone(assembly.getColumnSelection());
       ColumnSelection selection =
          queryManagerService.getColumnSelection(query, vars, assembly, getSession(), aliasMapping);
       assembly.setColumnSelection(selection);
       assembly.setSQLEdited(false);
 
-      // the conditions on a renamed column follow it, or they would be dropped as the
-      // conditions of a missing column
+      // the conditions on a renamed column, and the other assemblies of the worksheet that
+      // use it, follow it as on an OK of the advanced mode, or they would lose the column
       if(!renamed.isEmpty()) {
          updateSqlBoundAssemblyCondition(assembly, selection, renamed);
+         renameColumnRef(ws, oldColumns, assembly, renamed);
       }
    }
 
@@ -563,6 +566,12 @@ public class SQLQueryDialogService {
 
          ColumnRef originalRef = (ColumnRef) oldColumns.getAttribute(original);
          ColumnRef newRef = (ColumnRef) columnSelection.getAttribute(aliasMapping.get(original));
+
+         // a column the table doesn't have (any more) has nothing to rename
+         if(originalRef == null || newRef == null) {
+            continue;
+         }
+
          RenameColumnController.renameTableColumn(ws, assembly, originalRef, newRef);
       }
    }
