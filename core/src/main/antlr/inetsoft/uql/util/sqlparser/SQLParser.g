@@ -5075,9 +5075,25 @@ SPIDENT_SQUARE		: 	'[' {setCommitToPath(true);}
 				']'
 			;
 
-// a nested JDBC escape, e.g. {fn concat({fn ucase(a)}, b)}, is part of one token (#77640)
+// a nested JDBC escape, e.g. {fn concat({fn ucase(a)}, b)}, is part of one token (#77640). A
+// bracket-quoted segment ([..]), and a '--', '//' or '/*..*/' comment, inside the escape body
+// are each consumed as one unit, so a ']' in the segment or a '}' in the comment doesn't end
+// the escape before its real closing '}' (#77680)
 SPIDENT_BRACKET		:	'{' {setCommitToPath(true);}
-				(SPIDENT_BRACKET | '\u0001'..'\u007a' | '\u007c' | '\u007e'..'\ufffe')* '}'
+				(	options { generateAmbigWarnings=false; } :
+					SPIDENT_BRACKET
+				|	'[' (~']')* ']'
+				|	"--" (options { generateAmbigWarnings=false; } : '\u0000'..'\u0009'|'\u000B'|'\u000C'|'\u000E'..'\uFFFE')*
+				|	"//" (options { generateAmbigWarnings=false; } : '\u0000'..'\u0009'|'\u000B'|'\u000C'|'\u000E'..'\uFFFE')*
+				|	"/*" (	options { generateAmbigWarnings=false; } :
+						{LA(2)!='/'}? '*'
+					|	'\r' '\n'	{newline();}
+					|	'\r'		{newline();}
+					|	'\n'		{newline();}
+					|	'\u0000'..'\u0009'|'\u000B'|'\u000C'|'\u000E'..'\u0029'|'\u002B'..'\uFFFE'
+				)* "*/"
+				|	'\u0001'..'\u005a' | '\\' | ']' | '\u005e'..'\u007a' | '\u007c' | '\u007e'..'\ufffe'
+				)* '}'
 			;
 
 WS			:	(' '
@@ -5295,3 +5311,8 @@ CONCATENATION_OP	:	"||" | "&";
 // a backslash outside a literal, a quoted name or a comment fails the parse instead of being
 // dropped by filter mode, e.g. the second escape of '\'', s, '\'' in MySQL (#77640)
 BACKSLASH	:	'\\' ;
+
+// a stray '}' or ']' outside a JDBC escape or a bracket-quoted name fails the parse instead
+// of being dropped by filter mode, e.g. a stray '}' after a complete {fn ...} escape (#77680)
+RBRACE	:	'}' ;
+RBRACKET	:	']' ;
