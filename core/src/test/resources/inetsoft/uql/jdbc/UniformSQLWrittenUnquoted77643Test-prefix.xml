@@ -1,0 +1,449 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Bug #77643: UniformSQL.writeXML of each sql parsed with the postgresql helper by community
+     193d8453b (before the fix). -->
+<cases>
+<case id="S1">
+<uniform_sql parse="true">
+<table>
+<alias><![CDATA["t"]]></alias>
+<name><![CDATA["t"]]></name>
+<issql><![CDATA[false]]></issql>
+<xlocation><![CDATA[-1]]></xlocation>
+<ylocation><![CDATA[-1]]></ylocation>
+<xScroll><![CDATA[0]]></xScroll>
+<yScroll><![CDATA[0]]></yScroll>
+</table>
+<column>
+<![CDATA[MixedCase]]>
+<alias><![CDATA[]]></alias>
+<type><![CDATA[]]></type>
+<table><![CDATA[]]></table>
+<description><![CDATA[]]></description>
+<isExp><![CDATA[false]]></isExp>
+<quoted><![CDATA[true]]></quoted>
+</column>
+<column>
+<![CDATA["MixedCase"]]>
+<alias quoted="false"><![CDATA[b]]></alias>
+<type><![CDATA[]]></type>
+<table><![CDATA[]]></table>
+<description><![CDATA[]]></description>
+<isExp><![CDATA[false]]></isExp>
+</column>
+<where>
+</where>
+<sortby></sortby>
+<groupby></groupby>
+<having>
+</having>
+</uniform_sql>
+</case>
+<case id="S2">
+<uniform_sql parse="true">
+<table>
+<alias><![CDATA["u"]]></alias>
+<name><![CDATA["u"]]></name>
+<issql><![CDATA[false]]></issql>
+<xlocation><![CDATA[-1]]></xlocation>
+<ylocation><![CDATA[-1]]></ylocation>
+<xScroll><![CDATA[0]]></xScroll>
+<yScroll><![CDATA[0]]></yScroll>
+</table>
+<column>
+<![CDATA["MixedCase"]]>
+<alias><![CDATA[]]></alias>
+<type><![CDATA[]]></type>
+<table><![CDATA[]]></table>
+<description><![CDATA[]]></description>
+<isExp><![CDATA[false]]></isExp>
+</column>
+<where>
+</where>
+<sortby></sortby>
+<groupby></groupby>
+<having>
+</having>
+</uniform_sql>
+</case>
+<case id="S3">
+<uniform_sql parse="true">
+<table>
+<alias><![CDATA["t"]]></alias>
+<name><![CDATA["t"]]></name>
+<issql><![CDATA[false]]></issql>
+<xlocation><![CDATA[-1]]></xlocation>
+<ylocation><![CDATA[-1]]></ylocation>
+<xScroll><![CDATA[0]]></xScroll>
+<yScroll><![CDATA[0]]></yScroll>
+</table>
+<column>
+<![CDATA["MixedCase"]]>
+<alias><![CDATA[]]></alias>
+<type><![CDATA[]]></type>
+<table><![CDATA[]]></table>
+<description><![CDATA[]]></description>
+<isExp><![CDATA[false]]></isExp>
+</column>
+<column>
+<![CDATA[count(*)]]>
+<alias><![CDATA[]]></alias>
+<type><![CDATA[]]></type>
+<table><![CDATA[]]></table>
+<description><![CDATA[]]></description>
+<isExp><![CDATA[false]]></isExp>
+</column>
+<where>
+</where>
+<sortby></sortby>
+<groupby><field><![CDATA["MixedCase"]]></field></groupby>
+<having>
+</having>
+</uniform_sql>
+</case>
+<case id="S4">
+<uniform_sql parse="true">
+<table>
+<alias><![CDATA["t"]]></alias>
+<name><![CDATA["t"]]></name>
+<issql><![CDATA[false]]></issql>
+<xlocation><![CDATA[-1]]></xlocation>
+<ylocation><![CDATA[-1]]></ylocation>
+<xScroll><![CDATA[0]]></xScroll>
+<yScroll><![CDATA[0]]></yScroll>
+</table>
+<column>
+<![CDATA["id"]]>
+<alias><![CDATA[]]></alias>
+<type><![CDATA[]]></type>
+<table><![CDATA[]]></table>
+<description><![CDATA[]]></description>
+<isExp><![CDATA[false]]></isExp>
+</column>
+<where>
+</where>
+<sortby><field order="desc"><![CDATA["MixedCase"]]></field></sortby>
+<groupby></groupby>
+<having>
+</having>
+</uniform_sql>
+</case>
+<case id="S5">
+<uniform_sql parse="true">
+<table>
+<alias><![CDATA["t"]]></alias>
+<name><![CDATA["t"]]></name>
+<issql><![CDATA[false]]></issql>
+<xlocation><![CDATA[-1]]></xlocation>
+<ylocation><![CDATA[-1]]></ylocation>
+<xScroll><![CDATA[0]]></xScroll>
+<yScroll><![CDATA[0]]></yScroll>
+</table>
+<column>
+<![CDATA["id"]]>
+<alias><![CDATA[]]></alias>
+<type><![CDATA[]]></type>
+<table><![CDATA[]]></table>
+<description><![CDATA[]]></description>
+<isExp><![CDATA[false]]></isExp>
+</column>
+<where>
+<XSet relation="and" isnot="false" group="false" clause="where">
+<XSet relation="and" isnot="false" group="false" clause="">
+<XSet relation="and" isnot="false" group="false" clause="">
+<XBinaryCondition isnot="false" clause="where" containsNull="false">
+<expression1>
+<expression type="Field">
+<![CDATA["MixedCase"]]>
+</expression>
+</expression1>
+<expression2>
+<expression type="Value">
+<![CDATA[1]]>
+</expression>
+</expression2>
+<op><![CDATA[=]]></op>
+</XBinaryCondition>
+</XSet>
+<XSet relation="or" isnot="false" group="false" clause="">
+</XSet>
+</XSet>
+</XSet>
+</where>
+<sortby></sortby>
+<groupby></groupby>
+<having>
+</having>
+</uniform_sql>
+</case>
+<case id="S6">
+<uniform_sql parse="true">
+<table>
+<alias><![CDATA["t"]]></alias>
+<name><![CDATA["t"]]></name>
+<issql><![CDATA[false]]></issql>
+<xlocation><![CDATA[-1]]></xlocation>
+<ylocation><![CDATA[-1]]></ylocation>
+<xScroll><![CDATA[0]]></xScroll>
+<yScroll><![CDATA[0]]></yScroll>
+</table>
+<column>
+<![CDATA[abs("MixedCase")]]>
+<alias><![CDATA[]]></alias>
+<type><![CDATA[]]></type>
+<table><![CDATA[]]></table>
+<description><![CDATA[]]></description>
+<isExp><![CDATA[false]]></isExp>
+</column>
+<column>
+<![CDATA[abs("MixedCase")]]>
+<alias quoted="false"><![CDATA[b]]></alias>
+<type><![CDATA[]]></type>
+<table><![CDATA[]]></table>
+<description><![CDATA[]]></description>
+<isExp><![CDATA[false]]></isExp>
+</column>
+<where>
+</where>
+<sortby></sortby>
+<groupby></groupby>
+<having>
+</having>
+</uniform_sql>
+</case>
+<case id="S7a">
+<uniform_sql parse="true">
+<table>
+<alias><![CDATA["MyTab"]]></alias>
+<name><![CDATA["MyTab"]]></name>
+<issql><![CDATA[false]]></issql>
+<xlocation><![CDATA[-1]]></xlocation>
+<ylocation><![CDATA[-1]]></ylocation>
+<xScroll><![CDATA[0]]></xScroll>
+<yScroll><![CDATA[0]]></yScroll>
+</table>
+<column>
+<![CDATA["id"]]>
+<alias><![CDATA[]]></alias>
+<type><![CDATA[]]></type>
+<table><![CDATA[]]></table>
+<description><![CDATA[]]></description>
+<isExp><![CDATA[false]]></isExp>
+</column>
+<where>
+</where>
+<sortby></sortby>
+<groupby></groupby>
+<having>
+</having>
+</uniform_sql>
+</case>
+<case id="S7">
+<uniform_sql parse="true">
+<table>
+<alias><![CDATA[a]]></alias>
+<name><![CDATA["MyTab"]]></name>
+<issql><![CDATA[false]]></issql>
+<xlocation><![CDATA[-1]]></xlocation>
+<ylocation><![CDATA[-1]]></ylocation>
+<xScroll><![CDATA[0]]></xScroll>
+<yScroll><![CDATA[0]]></yScroll>
+</table>
+<table>
+<alias><![CDATA[b]]></alias>
+<name quotedSegments="0"><![CDATA["MyTab"]]></name>
+<issql><![CDATA[false]]></issql>
+<xlocation><![CDATA[-1]]></xlocation>
+<ylocation><![CDATA[-1]]></ylocation>
+<xScroll><![CDATA[0]]></xScroll>
+<yScroll><![CDATA[0]]></yScroll>
+</table>
+<column>
+<![CDATA["a"."id"]]>
+<alias><![CDATA[]]></alias>
+<type><![CDATA[]]></type>
+<table><![CDATA[]]></table>
+<description><![CDATA[]]></description>
+<isExp><![CDATA[false]]></isExp>
+</column>
+<column>
+<![CDATA["b"."id"]]>
+<alias quoted="false"><![CDATA[bid]]></alias>
+<type><![CDATA[]]></type>
+<table><![CDATA[]]></table>
+<description><![CDATA[]]></description>
+<isExp><![CDATA[false]]></isExp>
+</column>
+<where>
+</where>
+<sortby></sortby>
+<groupby></groupby>
+<having>
+</having>
+</uniform_sql>
+</case>
+<case id="S7c">
+<uniform_sql parse="true">
+<table>
+<alias><![CDATA["MyTab"]]></alias>
+<name><![CDATA["MyTab"]]></name>
+<issql><![CDATA[false]]></issql>
+<xlocation><![CDATA[-1]]></xlocation>
+<ylocation><![CDATA[-1]]></ylocation>
+<xScroll><![CDATA[0]]></xScroll>
+<yScroll><![CDATA[0]]></yScroll>
+</table>
+<column>
+<![CDATA["mytab"."id"]]>
+<alias><![CDATA[]]></alias>
+<type><![CDATA[]]></type>
+<table><![CDATA[]]></table>
+<description><![CDATA[]]></description>
+<isExp><![CDATA[false]]></isExp>
+</column>
+<where>
+</where>
+<sortby></sortby>
+<groupby></groupby>
+<having>
+</having>
+</uniform_sql>
+</case>
+<case id="S8">
+<uniform_sql parse="true">
+<table>
+<alias><![CDATA[MyT]]></alias>
+<name><![CDATA["t"]]></name>
+<issql><![CDATA[false]]></issql>
+<xlocation><![CDATA[-1]]></xlocation>
+<ylocation><![CDATA[-1]]></ylocation>
+<xScroll><![CDATA[0]]></xScroll>
+<yScroll><![CDATA[0]]></yScroll>
+</table>
+<column>
+<![CDATA["MyT"."id"]]>
+<alias><![CDATA[]]></alias>
+<type><![CDATA[]]></type>
+<table><![CDATA[]]></table>
+<description><![CDATA[]]></description>
+<isExp><![CDATA[false]]></isExp>
+</column>
+<where>
+<XSet relation="and" isnot="false" group="false" clause="where">
+<XSet relation="and" isnot="false" group="false" clause="">
+<XSet relation="and" isnot="false" group="false" clause="">
+<XBinaryCondition isnot="false" clause="where" containsNull="false">
+<expression1>
+<expression type="Field">
+<![CDATA["MyT"."MixedCase"]]>
+</expression>
+</expression1>
+<expression2>
+<expression type="Value">
+<![CDATA[1]]>
+</expression>
+</expression2>
+<op><![CDATA[>]]></op>
+</XBinaryCondition>
+</XSet>
+<XSet relation="or" isnot="false" group="false" clause="">
+</XSet>
+</XSet>
+</XSet>
+</where>
+<sortby></sortby>
+<groupby></groupby>
+<having>
+</having>
+</uniform_sql>
+</case>
+<case id="S9">
+<uniform_sql parse="true">
+<table>
+<alias><![CDATA["t"]]></alias>
+<name><![CDATA["t"]]></name>
+<issql><![CDATA[false]]></issql>
+<xlocation><![CDATA[-1]]></xlocation>
+<ylocation><![CDATA[-1]]></ylocation>
+<xScroll><![CDATA[0]]></xScroll>
+<yScroll><![CDATA[0]]></yScroll>
+</table>
+<column>
+<![CDATA["id"]]>
+<alias quoted="false"><![CDATA[MyAlias]]></alias>
+<type><![CDATA[]]></type>
+<table><![CDATA[]]></table>
+<description><![CDATA[]]></description>
+<isExp><![CDATA[false]]></isExp>
+</column>
+<where>
+</where>
+<sortby><field order="desc"><![CDATA["MyAlias"]]></field></sortby>
+<groupby></groupby>
+<having>
+</having>
+</uniform_sql>
+</case>
+<case id="S13">
+<uniform_sql parse="true">
+<table>
+<alias><![CDATA[s]]></alias>
+<name><![CDATA[select "t"."MixedCase" 
+from   "t"     ]]></name>
+<issql><![CDATA[true]]></issql>
+<xlocation><![CDATA[-1]]></xlocation>
+<ylocation><![CDATA[-1]]></ylocation>
+<xScroll><![CDATA[0]]></xScroll>
+<yScroll><![CDATA[0]]></yScroll>
+</table>
+<column>
+<![CDATA["s"."MixedCase"]]>
+<alias><![CDATA[]]></alias>
+<type><![CDATA[]]></type>
+<table><![CDATA[]]></table>
+<description><![CDATA[]]></description>
+<isExp><![CDATA[false]]></isExp>
+</column>
+<where>
+</where>
+<sortby></sortby>
+<groupby></groupby>
+<having>
+</having>
+</uniform_sql>
+</case>
+<case id="Q">
+<uniform_sql parse="true">
+<table>
+<alias><![CDATA["t"]]></alias>
+<name><![CDATA["t"]]></name>
+<issql><![CDATA[false]]></issql>
+<xlocation><![CDATA[-1]]></xlocation>
+<ylocation><![CDATA[-1]]></ylocation>
+<xScroll><![CDATA[0]]></xScroll>
+<yScroll><![CDATA[0]]></yScroll>
+</table>
+<column>
+<![CDATA["t"."id"]]>
+<alias><![CDATA[]]></alias>
+<type><![CDATA[]]></type>
+<table><![CDATA[]]></table>
+<description><![CDATA[]]></description>
+<isExp><![CDATA[false]]></isExp>
+</column>
+<column>
+<![CDATA["t"."MixedCase"]]>
+<alias><![CDATA[]]></alias>
+<type><![CDATA[]]></type>
+<table><![CDATA[]]></table>
+<description><![CDATA[]]></description>
+<isExp><![CDATA[false]]></isExp>
+</column>
+<where>
+</where>
+<sortby><field order="desc"><![CDATA["t"."MixedCase"]]></field></sortby>
+<groupby></groupby>
+<having>
+</having>
+</uniform_sql>
+</case>
+</cases>
