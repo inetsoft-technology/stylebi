@@ -328,6 +328,32 @@ class GeneratedAliasMirrorTest {
    }
 
    /**
+    * The same as above when the rename is in a later mirror, so every level above it has to
+    * refer to the column by the new name, and when only one of two ALIAS_N columns is renamed.
+    */
+   @Test
+   void laterMirrorOrOneColumnRenamesAGeneratedColumn() throws Exception {
+      Worksheet ws = new Worksheet();
+      SQLBoundTableAssembly t1 = sqlTable(ws, "T1", "select ka.k " + LONG + " from ka");
+      MirrorTableAssembly m2 = mirror(ws, "M2", mirror(ws, "M1", t1));
+      rename(m2, LONG, "c");
+      Result r4 = run(ws, mirror(ws, "M4", mirror(ws, "M3", m2)));
+      assertTrue(r4.sql.contains("M3.c") && r4.sql.contains("M2.c"), r4.toString());
+      assertEquals(List.of("c"), r4.header, r4.toString());
+      assertEquals(List.of(List.of(1), List.of(2), List.of(3)), r4.rows, r4.toString());
+
+      // a.x is 1, b.y is 2, and the renamed column keeps its value
+      SQLBoundTableAssembly t2 = sqlTable(ws, "T2", "select a.x " + LONG + ", b.y " + LONG2 +
+         " from a, b");
+      MirrorTableAssembly f1 = mirror(ws, "F1", t2);
+      rename(f1, LONG, "c");
+      Result f2 = run(ws, mirror(ws, "F2", f1));
+      assertEquals(List.of(List.of(1, 2)), f2.rows, f2.toString());
+      assertEquals("c", f2.header.get(0), f2.toString());
+      assertTrue(f2.header.get(1).endsWith(LONG2), f2.toString());
+   }
+
+   /**
     * Controls for 45140 and 45764, correct before and after. A mirror refers to the column by
     * the ALIAS_N its base outputs, and the header maps back to the original name through
     * every level.
