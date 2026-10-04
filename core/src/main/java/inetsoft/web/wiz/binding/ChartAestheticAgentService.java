@@ -17,11 +17,19 @@
  */
 package inetsoft.web.wiz.binding;
 
+import inetsoft.graph.aesthetic.LineFrame;
+import inetsoft.graph.aesthetic.TextureFrame;
+import inetsoft.graph.aesthetic.VisualFrame;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.viewsheet.ChartVSAssembly;
 import inetsoft.uql.viewsheet.VSAssembly;
+import inetsoft.uql.viewsheet.VSDataRef;
 import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.uql.viewsheet.graph.AestheticRef;
+import inetsoft.uql.viewsheet.graph.ChartAggregateRef;
+import inetsoft.uql.viewsheet.graph.ChartBindable;
 import inetsoft.uql.viewsheet.graph.GraphTypes;
+import inetsoft.uql.viewsheet.graph.RelationChartInfo;
 import inetsoft.uql.viewsheet.graph.VSChartInfo;
 import inetsoft.web.binding.controller.ChangeChartAestheticService;
 import inetsoft.web.binding.event.ChangeChartRefEvent;
@@ -34,6 +42,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.security.Principal;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -87,6 +96,7 @@ public class ChartAestheticAgentService {
       String name = AestheticChannels.requireFieldChannel(
          channel, relationChart, sizeSupported, colorShapeSupported);
       requireNotMultiAesthetic(sessionToken, user, assemblyName);
+      requireNotDateComparisonInjected(sessionToken, user, assemblyName, name);
 
       sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          ChartVSAssembly chart = requireChart(rvs, assemblyName);
@@ -113,6 +123,7 @@ public class ChartAestheticAgentService {
       String name = AestheticChannels.requireFieldChannel(
          channel, relationChart, sizeSupported, colorShapeSupported);
       requireNotMultiAesthetic(sessionToken, user, assemblyName);
+      requireNotDateComparisonInjected(sessionToken, user, assemblyName, name);
 
       apply(sessionToken, user, assemblyName, name, linkUri,
             (chart, model) -> ChartAestheticMutator.clearField(model, name, relationChart));
@@ -129,6 +140,7 @@ public class ChartAestheticAgentService {
    {
       boolean relationChart = isRelationChart(sessionToken, user, assemblyName);
       String name = AestheticChannels.requireFrameChannel(channel, relationChart);
+      requireNotDateComparisonInjected(sessionToken, user, assemblyName, name);
 
       apply(sessionToken, user, assemblyName, name, linkUri,
             (chart, model) -> ChartAestheticMutator.setFrame(
@@ -141,6 +153,7 @@ public class ChartAestheticAgentService {
    {
       boolean relationChart = isRelationChart(sessionToken, user, assemblyName);
       String name = AestheticChannels.requireFrameChannel(channel, relationChart);
+      requireNotDateComparisonInjected(sessionToken, user, assemblyName, name);
 
       apply(sessionToken, user, assemblyName, name, linkUri,
             (chart, model) -> ChartAestheticMutator.resetFrame(
@@ -370,6 +383,127 @@ public class ChartAestheticAgentService {
             "(set_chart_type with multi:false), bind the field, then turn multi-style back on " +
             "— that order redistributes the field into each measure correctly.");
       }
+   }
+
+   /**
+    * Refuses a write to a channel whose <em>current</em> field is itself date comparison's own
+    * runtime injection — narrower than {@link #requireNotMultiAesthetic}: a single-style date
+    * comparison ({@code value}/{@code change}/{@code percentChange}) never turns
+    * {@code isMultiAesthetic()} true, so that guard lets every write on such a chart through, yet
+    * its color channel can carry exactly this same kind of ref (the single-bindable branch of
+    * {@code ChartDcProcessor.updateAestheticField}). An ordinary explicit binding on such a
+    * chart's <em>other</em> channels, or on any channel of a chart with no active comparison at
+    * all, must keep working, so this checks the channel's own current ref rather than the
+    * chart as a whole.
+    *
+    * <p>Without this, {@code clear_aesthetic_field} and {@code set_visual_frame} both genuinely
+    * apply their write against the live model, and even {@code set_aesthetic_field} produces a
+    * ref that is {@code isRuntime()==true} the moment it is pasted over one that already was
+    * (cloning an {@code AestheticRef} carries the flag forward — {@code
+    * AbstractAestheticRef.clone()} never resets it). But the very refresh that same request
+    * triggers — {@code VSChartBindingFactory.updateAssembly()}'s {@code cinfo.clearRuntime()},
+    * which wipes <em>any</em> {@code isRuntime()==true} colorField/shapeField with no exception,
+    * followed by {@code VSChartInfo.update()} re-running {@code ChartDcProcessor.process()}
+    * because the comparison ({@code dcInfo}) is still configured — discards the edit and
+    * reinstalls date comparison's own default color-by-default injection in the same request.
+    * The response says the write succeeded; the very next read shows it never stuck (bug #77014
+    * VCA-004). Refusing here, before the mutation ever reaches {@code VSChartBindingFactory}/
+    * {@code VSChartInfo}, gives the caller a real error instead of a write that silently reverts
+    * itself, and it names the one remedy that actually changes what those methods read:
+    * {@code clear_date_comparison}, exactly as {@link #requireNotMultiAesthetic}'s own DCG-013
+    * branch already does for the multi-style case.
+    *
+    * <p>Checked against the chart-level ref <em>and</em> every aesthetic aggregate ref — a
+    * multi-style comparison ({@code changeAndValue}/{@code percentChangeAndValue}) injects onto
+    * the aggregates instead of {@code cinfo} (see {@code ChartAestheticMutator.frameField}'s own
+    * fallback, added for the same bug's VCA-003 finding, which is what lets
+    * {@code get_chart_aesthetics} surface such a field at all) — so a caller acting on that read
+    * deserves the identical refusal, not a write that reaches the aggregate's own field and
+    * reverts on the next refresh exactly the same way. The aggregates scanned are
+    * {@code getAestheticAggregateRefs(true)} — the exact list {@code ChartDcProcessor} injects
+    * into, which on a Gantt chart also includes its start/end/milestone refs — together with
+    * {@code getAggregateRefs()}.
+    *
+    * <p>Wired into every write that can reach such a ref: {@code set_aesthetic_field},
+    * {@code clear_aesthetic_field}, {@code set_visual_frame} and {@code reset_visual_frame} (the
+    * last writes {@code field.setFrame(...)} on the very same live ref).
+    */
+   private void requireNotDateComparisonInjected(String sessionToken, Principal user,
+                                                 String assemblyName, String channel)
+      throws Exception
+   {
+      RuntimeViewsheet rvs = sessions.resolve(sessionToken, user);
+      ChartVSAssembly chart = requireChart(rvs, assemblyName);
+      VSChartInfo info = chart.getVSChartInfo();
+
+      if(info == null || !info.isAppliedDateComparison()) {
+         return;
+      }
+
+      Set<ChartBindable> aggregates = new LinkedHashSet<>();
+      List<ChartAggregateRef> aestheticAggregates = info.getAestheticAggregateRefs(true);
+      VSDataRef[] aggregateRefs = info.getAggregateRefs();
+
+      if(aestheticAggregates != null) {
+         aggregates.addAll(aestheticAggregates);
+      }
+
+      if(aggregateRefs != null) {
+         Arrays.stream(aggregateRefs)
+            .filter(ChartBindable.class::isInstance)
+            .map(ChartBindable.class::cast)
+            .forEach(aggregates::add);
+      }
+
+      boolean injected = isRuntimeInjected(info, channel) ||
+         aggregates.stream().anyMatch(agg -> isRuntimeInjected(agg, channel));
+
+      if(injected) {
+         throw new IllegalArgumentException(
+            "The " + channel + " channel's current field was set by this chart's own active " +
+            "date comparison, not by an explicit binding — writing to it here would be undone " +
+            "the moment the chart next refreshes, since date comparison reinstalls its own " +
+            "default the instant the channel is unbound again. Call clear_date_comparison " +
+            "first, make this change, then reapply the comparison if it is still wanted.");
+      }
+   }
+
+   /**
+    * Whether {@code channel}'s current field on {@code bindable} is date comparison's own ref.
+    *
+    * <p>{@code line}/{@code texture} have no field of their own: their frame lives on the
+    * <b>shape</b> field whenever that field holds a {@code LineFrame}/{@code TextureFrame}
+    * ({@code ChartAestheticMutator.frameField} resolves them the same way). Date comparison can
+    * put its own runtime ref exactly there — {@code ChartDcProcessor.updateAestheticField} moves
+    * an explicitly bound color field onto a new runtime shape ref when shape is empty, and
+    * {@code GraphUtil.fixVisualFrame} then gives it a line frame on a line chart — so those two
+    * channels are checked against that shape ref. The node channels are checked on a relation
+    * chart for completeness; date comparison does not inject there today.
+    */
+   private static boolean isRuntimeInjected(ChartBindable bindable, String channel) {
+      AestheticRef ref = switch(channel) {
+         case "color" -> bindable.getColorField();
+         case "shape" -> bindable.getShapeField();
+         case "size" -> bindable.getSizeField();
+         case "text" -> bindable.getTextField();
+         case "line" -> shapeCarrying(bindable, LineFrame.class);
+         case "texture" -> shapeCarrying(bindable, TextureFrame.class);
+         case "node-color" ->
+            bindable instanceof RelationChartInfo relation ? relation.getNodeColorField() : null;
+         case "node-size" ->
+            bindable instanceof RelationChartInfo relation ? relation.getNodeSizeField() : null;
+         default -> null;
+      };
+
+      return ref != null && ref.isRuntime();
+   }
+
+   /** The shape field when its frame is of {@code family}, i.e. when it drives line/texture. */
+   private static AestheticRef shapeCarrying(ChartBindable bindable,
+                                             Class<? extends VisualFrame> family)
+   {
+      AestheticRef shape = bindable.getShapeField();
+      return shape != null && family.isInstance(shape.getVisualFrame()) ? shape : null;
    }
 
    private void apply(String sessionToken, Principal user, String assemblyName, String channel,
