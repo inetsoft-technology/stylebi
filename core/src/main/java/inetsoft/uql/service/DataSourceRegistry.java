@@ -156,20 +156,19 @@ public class DataSourceRegistry implements MessageListener {
 
          for(int j = 0; j < parents.length - 1; j++) {
             parent += parents[j]; //NOSONAR calling toString twice per loop is just as bad as concat
+
+            // the data source at a parent path isn't removed with its additional connections,
+            // and no folder is created beside it (Bug #77702)
+            if(containObject(new AssetEntry(
+               AssetRepository.QUERY_SCOPE, AssetEntry.Type.DATA_SOURCE, parent, null)))
+            {
+               throw new MessageException(Catalog.getCatalog().getString(
+                  "common.datasource.createUnderDataSource", source.getFullName(), parent));
+            }
+
             DataSourceFolder folder = getDataSourceFolder(parent);
 
             if(folder == null) {
-               XDataSource dataSource = getDataSource(parent);
-
-               // for importing, remove the data source when it`s name is same to importing data
-               // source folder.because the importing data source path will be same to exist
-               // source`s additional data source.
-               if(dataSource != null) {
-                  removeDataSource(parent);
-                  LOG.warn(Catalog.getCatalog().getString("Overwrite Existing Files") +
-                     parent);
-               }
-
                LocalDateTime created;
 
                if(source.getCreated() != 0) {
