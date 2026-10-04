@@ -32,6 +32,7 @@ import java.security.*;
 import java.security.spec.X509EncodedKeySpec;
 import java.util.Base64;
 import java.util.concurrent.Callable;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.Lock;
 import java.util.function.Function;
 
@@ -163,11 +164,30 @@ abstract class LocalPasswordEncryption extends AbstractPasswordEncryption {
             return decryptWithMaster(encrypted, getMasterKey());
          }
          catch(Exception e) {
-            if(LOG.isDebugEnabled()) {
-               LOG.warn("Failed to decrypt password, assuming that it was saved as clear text.", e);
+            String message;
+
+            if(input.startsWith(MASTER_PREFIX)) {
+               // Bug #77628, a master-encrypted value is never clear text. It most likely was
+               // encrypted with a different master password, e.g. it is in an export from another
+               // server. The value is still returned as is, so that callers checking for the
+               // prefix keep working, but an import counts it to tell the user.
+               message = "Failed to decrypt a master-encrypted password, it was most likely " +
+                  "encrypted with a different master password. The encrypted value is used as is.";
+               AtomicInteger failures = PasswordEncryption.getMasterDecryptFailures();
+
+               if(failures != null) {
+                  failures.incrementAndGet();
+               }
             }
             else {
-               LOG.warn("Failed to decrypt password, assuming that it was saved as clear text.");
+               message = "Failed to decrypt password, assuming that it was saved as clear text.";
+            }
+
+            if(LOG.isDebugEnabled()) {
+               LOG.warn(message, e);
+            }
+            else {
+               LOG.warn(message);
             }
 
             return input;

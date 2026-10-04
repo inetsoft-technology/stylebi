@@ -429,6 +429,16 @@ public class DeploymentInfo {
       return ignoredQueries;
    }
 
+   /**
+    * Gets the warnings of the import. A warning does not mean that an asset failed to import,
+    * e.g. the asset was imported but some of its secrets could not be decrypted.
+    *
+    * @return the warning messages.
+    */
+   public List<String> getImportWarnings() {
+      return importWarnings;
+   }
+
    private final File[] files;
    private final String filePath;
    private final List<SelectedAsset> selectedEntries;
@@ -439,6 +449,7 @@ public class DeploymentInfo {
    private final Map<String, File> queryFileMap = new HashMap<>(); // key -> query name, value -> file
    private final Map<String, String> convertedNameMap = new HashMap<>(); // key -> query name, value-> file name
    private final Set<String> ignoredQueries = new HashSet<>();
+   private final List<String> importWarnings = new ArrayList<>();
    private final PartialDeploymentJarInfo jarInfo;
    private ImportJarProperties properties;
 }
