@@ -2854,7 +2854,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
          String path = xselect.getColumn(i);
 
          if(isTableColumn(path)) {
-            String oldTableAlias = getTableFromPath(path);
+            String oldTableAlias = getAliasMapKey(getTableFromPath(path), aliasMap);
 
             if(aliasMap.containsKey(oldTableAlias)) {
                String newTableAlias = (String) aliasMap.get(oldTableAlias);
@@ -2945,7 +2945,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
                continue;
             }
 
-            String oldTableAlias = getTableFromPath(field);
+            String oldTableAlias = getAliasMapKey(getTableFromPath(field), aliasMap);
 
             if(aliasMap.containsKey(oldTableAlias)) {
                String newTableAlias = (String) aliasMap.get(oldTableAlias);
@@ -2970,7 +2970,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
                continue;
             }
 
-            String oldTableAlias = getTableFromPath((String) groups[i]);
+            String oldTableAlias = getAliasMapKey(getTableFromPath((String) groups[i]), aliasMap);
 
             if(aliasMap.containsKey(oldTableAlias)) {
                String newTableAlias = (String) aliasMap.get(oldTableAlias);
@@ -3099,7 +3099,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
          }
 
          String path = (String) expr.getValue();
-         String table = getTableFromPath(path);
+         String table = getAliasMapKey(getTableFromPath(path), aliasmap);
          String quote = getSQLHelper().getQuote();
 
          if(aliasmap.containsKey(table)) {
@@ -3125,11 +3125,41 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
             }
          }
          else {
-            return aliasmap.contains(table);
+            String quoted = getInBandQuoted(table);
+            return aliasmap.contains(table) || quoted != null && aliasmap.contains(quoted);
          }
       }
 
       return false;
+   }
+
+   /**
+    * Get the key of the alias map that a table qualifier names. A helper that keeps
+    * identifier case (postgresql, snowflake, exasol) stores the alias of an unaliased
+    * table with in-band quotes ("q"), while getTableFromPath may return the qualifier
+    * with the quotes stripped (q), so the in-band form is tried when there is no exact
+    * match (Bug #77648).
+    * @return the matching key, or the table itself if no key matches.
+    */
+   private String getAliasMapKey(String table, Map<?, ?> aliasmap) {
+      if(table == null || aliasmap.containsKey(table)) {
+         return table;
+      }
+
+      String quoted = getInBandQuoted(table);
+      return quoted != null && aliasmap.containsKey(quoted) ? quoted : table;
+   }
+
+   /**
+    * Get a table qualifier with the in-band quotes that XUtil.getTablePart strips,
+    * or null if it is empty or already quoted.
+    */
+   private static String getInBandQuoted(String table) {
+      if(table == null || table.isEmpty() || table.startsWith("\"")) {
+         return null;
+      }
+
+      return "\"" + table + "\"";
    }
 
    /**
