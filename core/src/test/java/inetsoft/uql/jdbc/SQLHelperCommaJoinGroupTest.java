@@ -97,6 +97,9 @@ class SQLHelperCommaJoinGroupTest {
       return Stream.of(
          // a * select list: the group would be put in parentheses (or its columns reordered)
          "select * from a join b on a.id = b.id join (c right join d on c.id = d.id)",
+         // a t.* column of either group, next to other columns
+         "select a.*, d.id from a join b on a.id = b.id join (c right join d on c.id = d.id)",
+         "select a.id, d.* from a join b on a.id = b.id join (c full join d on c.id = d.id)",
          // two RIGHT groups
          COLS4 + "from c right join d on c.id = d.id join (a right join b on a.id = b.id)",
          // two FULL groups, without a comma
@@ -268,6 +271,14 @@ class SQLHelperCommaJoinGroupTest {
             "on d.id = c.id",
          COLS5 + "from a join b on a.id = b.id join (d left join (c join e on c.id = e.id) " +
             "on d.id = c.id)",
+         // moving the group keeps the select list, so ordinals, aggregates and distinct
+         // still name the same columns
+         "select d.k, a.id, count(*), max(c.k) from a join b on a.id = b.id " +
+            "join (c right join d on c.id = d.id) group by d.k, a.id order by 3, 1, 2, 4",
+         "select distinct d.id, a.k from a join b on a.id = b.id " +
+            "join (c full join d on c.id = d.id) order by 2, 1",
+         "select count(*), count(c.id) from a join b on a.id = b.id " +
+            "join (c right join d on c.id = d.id)",
          // in a subquery and a derived table
          COLS4 + "from a join b on a.id = b.id join (c right join d on c.id = d.id) " +
             "where a.id = b.id",
