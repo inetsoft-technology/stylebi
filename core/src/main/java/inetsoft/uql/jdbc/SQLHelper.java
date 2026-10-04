@@ -1415,9 +1415,10 @@ public class SQLHelper implements KeywordProvider {
             String qname = xselect.getColumn(xIdx);
             String qseg = ((JDBCSelection) xselect).getQuotedColumn(xIdx);
 
-            // a qualified quoted column (t."MixedCase") quotes only its column segment
+            // a qualified quoted column (t."MixedCase") quotes only its column segment.
+            // escape an embedded quote char by doubling it (#77661)
             column = qseg != null ? quoteIdentifier(qname, column, qseg) :
-               getQuote() + column + getQuote();
+               getQuote() + column.replace(getQuote(), getQuote() + getQuote()) + getQuote();
          }
          else if(uniformSql.isTableColumn(column) && subalias == null && !expr) {
             // @by larryl, if this is a table column and the original column is
@@ -1761,7 +1762,9 @@ public class SQLHelper implements KeywordProvider {
             String qcolumn;
 
             if(qseg != null) {
-               qcolumn = getQuote() + qseg + getQuote();
+               // escape an embedded quote char by doubling it (#77661)
+               qcolumn = getQuote() + qseg.replace(getQuote(), getQuote() + getQuote()) +
+                  getQuote();
             }
             // a column of a physical table written unquoted. The alias rule (always quoted on
             // oracle) would name another column (max(a."v")), see #77646. A column of a derived
@@ -5104,7 +5107,9 @@ public class SQLHelper implements KeywordProvider {
          column = name.substring(dot + 1);
       }
 
-      String quoted = getQuote() + column + getQuote();
+      // escape an embedded quote char by doubling it (#77661)
+      String quoted = getQuote() + column.replace(getQuote(), getQuote() + getQuote()) +
+         getQuote();
 
       if(str.equals(column)) {
          return quoted;

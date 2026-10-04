@@ -1880,7 +1880,9 @@ String quoteDot(String str) {
    if(str.indexOf(".") > 0 || preferQuote && XUtil.isSpecialName(str, true, helper) &&
       !XUtil.shouldNotQuote(str))
    {
-      return quote + strip(str) + quote;
+      // escape an embedded quote char by doubling it (#77661)
+      String stripped = strip(str);
+      return quote + stripped.replace(quote, quote + quote) + quote;
    }
 
    return str;
@@ -1899,10 +1901,12 @@ schema_identifier returns [String schmid = ""]
 special_identifier returns [String specid = ""]
         {String tmp = ""; XExpression exp = null; identQuote = XExpression.QUOTE_NONE; {checkStatus();}}
         :
-        a:SPIDENT {tmp = a.getText();specid = tmp.substring(1, tmp.length() - 1);identQuote = XExpression.QUOTE_DOUBLE;}
+        // un-double the '""' and ']]' escapes, as "a""b" and [a]]b] are the identifiers
+        // a"b and a]b (#77661)
+        a:SPIDENT {tmp = a.getText();specid = tmp.substring(1, tmp.length() - 1).replace("\"\"", "\"");identQuote = XExpression.QUOTE_DOUBLE;}
         |c:SPIDENT2 {tmp = c.getText();specid = tmp.substring(1, tmp.length() - 1);identQuote = XExpression.QUOTE_SINGLE;}
         |d:SPIDENT_VAR {specid = d.getText();}
-        |b:SPIDENT_SQUARE {tmp = b.getText();specid = tmp.substring(1,tmp.length() - 1);}
+        |b:SPIDENT_SQUARE {tmp = b.getText();specid = tmp.substring(1,tmp.length() - 1).replace("]]", "]");}
     |h:SPIDENT_BRACKET {specid = h.getText();}
         |(DOLAR (f:IDENT|g:UNSIGNED_NUM_LIT)  {specid = "$" + ((f!=null)?f.getText():g.getText());})
         ;
@@ -2553,10 +2557,12 @@ value_exp_primary_body returns [XExpression exp = null]
         |
         // @by billh, memorize quotes in expression
         (SPIDENT)=> s:SPIDENT {
+           // un-double the '""' escape, as "a""b" is the field a"b (#77661)
            tmp = s.getText();
+           tmp = tmp.substring(1, tmp.length() - 1).replace("\"\"", "\"");
            exp.setQuote(XExpression.QUOTE_DOUBLE);
-           exp.setValue(tmp.substring(1, tmp.length() - 1), XExpression.FIELD);
-           columns.add(tmp.substring(1, tmp.length() - 1));
+           exp.setValue(tmp, XExpression.FIELD);
+           columns.add(tmp);
            hasField = true;
         }
         |
@@ -4034,10 +4040,15 @@ derived_column [JDBCSelection selection, UniformSQL sql]
         ;
 
 as_clause returns [String as = ""]
-        {checkStatus();}
+        {checkStatus(); boolean hasAs = false;}
         :
-        (AS)?
-        (as = column_name
+        (AS {hasAs = true;})?
+        // a bracket-quoted name ([b]) is only accepted as an alias when AS is explicit;
+        // without AS it is ambiguous with a subscript/map-key access on the preceding
+        // expression (a[1], m['key']), so require AS there instead of silently treating
+        // it as an implicit alias (#77661)
+        ({hasAs}? as = column_name
+        | {!hasAs}? as = column_name_no_subscript
         | a:STRING_LITERAL {as = a.getText();
           // un-double the '' escape, as 'it''s' is the alias it's (#77640)
           as = as.substring(1, as.length()-1).replace("''", "'"); aliasQuoted = Boolean.TRUE;}
@@ -4050,6 +4061,28 @@ column_name returns [String colname = ""]
         a:IDENT {colname = a.getText(); aliasQuoted = Boolean.FALSE;}
         | colname = special_identifier {aliasQuoted = isQuotedIdentifier(first);}
         | b:T_TIME {colname = b.getText(); aliasQuoted = Boolean.FALSE;}
+        ;
+
+// same as column_name, but without the SPIDENT_SQUARE ([b]) alternative - used for an
+// implicit (no AS) alias, where a bracket-quoted name would be ambiguous with a subscript
+// or map-key access on the preceding expression (#77661)
+column_name_no_subscript returns [String colname = ""]
+        {identQuote = XExpression.QUOTE_NONE; Token first = LT(1); checkStatus();}
+        :
+        a:IDENT {colname = a.getText(); aliasQuoted = Boolean.FALSE;}
+        | colname = special_identifier_no_subscript {aliasQuoted = isQuotedIdentifier(first);}
+        | b:T_TIME {colname = b.getText(); aliasQuoted = Boolean.FALSE;}
+        ;
+
+// same as special_identifier, but without the SPIDENT_SQUARE alternative (#77661)
+special_identifier_no_subscript returns [String specid = ""]
+        {String tmp = ""; identQuote = XExpression.QUOTE_NONE; {checkStatus();}}
+        :
+        a:SPIDENT {tmp = a.getText();specid = tmp.substring(1, tmp.length() - 1).replace("\"\"", "\"");identQuote = XExpression.QUOTE_DOUBLE;}
+        |c:SPIDENT2 {tmp = c.getText();specid = tmp.substring(1, tmp.length() - 1);identQuote = XExpression.QUOTE_SINGLE;}
+        |d:SPIDENT_VAR {specid = d.getText();}
+    |h:SPIDENT_BRACKET {specid = h.getText();}
+        |(DOLAR (f:IDENT|g:UNSIGNED_NUM_LIT)  {specid = "$" + ((f!=null)?f.getText():g.getText());})
         ;
 
 table_exp [UniformSQL sql]
@@ -5059,8 +5092,10 @@ IDENT
 			;
 
 // setCommitToPath(true) after an opening delimiter makes an unterminated delimited token a
-// lexer error, instead of filter mode silently dropping it and the rest of the text (#77640)
-SPIDENT			:	'"' {setCommitToPath(true);} (~('"'))*'"'
+// lexer error, instead of filter mode silently dropping it and the rest of the text (#77640).
+// A doubled '"' ("") inside the token is an escaped literal '"', not the closing delimiter,
+// mirroring the '''' escape in STRING_LITERAL (#77661)
+SPIDENT			:	'"' {setCommitToPath(true);} (~('"') | '"' '"')* '"'
 			;
 SPIDENT2		:	'`' {setCommitToPath(true);} ('\u0001'..'\u005f' | '\u0061'..'\ufffe')* '`'
 			;
@@ -5069,9 +5104,11 @@ SPIDENT_VAR             :    "$(" {setCommitToPath(true);} ('a'..'z'|'A'..'Z'|'_
                                   '+' | '-' |'@'|'\u0100'..'\uFFFE')* ')' ;
 
 // every character but '[' and ']', e.g. '\' or the CJK characters from U+80FE up. A '['
-// ends it, so a nested subscript (arr[idx[1]]) can't become one name (#77640)
+// ends it, so a nested subscript (arr[idx[1]]) can't become one name (#77640). A doubled
+// ']' (]]) inside the token is an escaped literal ']', not the closing delimiter,
+// mirroring the '""' escape in SPIDENT (#77661)
 SPIDENT_SQUARE		: 	'[' {setCommitToPath(true);}
-				('\u0001'..'\u005a' | '\\' | '\u005e'..'\ufffe')*
+				('\u0001'..'\u005a' | '\\' | '\u005e'..'\ufffe' | ']' ']')*
 				']'
 			;
 
