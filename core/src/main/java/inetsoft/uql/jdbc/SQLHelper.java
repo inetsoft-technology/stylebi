@@ -3408,6 +3408,16 @@ public class SQLHelper implements KeywordProvider {
                sfield = quoteIdentifier(qname, sfield, qseg);
             }
 
+            // the sql of the item for the parameter values of this run, e.g. a scalar
+            // subquery with a sentinel parameter rewritten (Bug #77706), in place of its text.
+            // The text was matched to the select list above. An item replaced by an alias or
+            // a select column has nothing to replace, that column has its own sql.
+            String runSql = uniformSql.getOrderBySQL(i);
+
+            if(runSql != null) {
+               sfield = sfield.replace(ofield, runSql);
+            }
+
             // table changed to a subquery, replace reference to table to alias
             if(isTableSubquery()) {
                sfield = replaceTableByAlias(true, sfield);
