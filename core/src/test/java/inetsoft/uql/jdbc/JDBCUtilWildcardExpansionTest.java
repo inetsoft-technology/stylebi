@@ -19,12 +19,15 @@ package inetsoft.uql.jdbc;
 
 import inetsoft.report.TableLens;
 import inetsoft.report.XSessionManager;
+import inetsoft.report.composition.execution.*;
+import inetsoft.report.lens.xnode.XNodeTableLens;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.security.SecurityEngine;
 import inetsoft.storage.BlobStorageManager;
 import inetsoft.test.*;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
+import inetsoft.uql.asset.internal.SQLBoundTableAssemblyInfo;
 import inetsoft.uql.erm.vpm.VpmProcessor;
 import inetsoft.uql.jdbc.util.JDBCUtil;
 import inetsoft.uql.schema.XSchema;
@@ -296,6 +299,120 @@ class JDBCUtilWildcardExpansionTest {
       });
    }
 
+   /**
+    * Review r1: a wildcard whose qualifier getTableIndex didn't find was left in the selection
+    * with the parse kept, and vpm, which can't remove a hidden column from a wildcard of a
+    * table, regenerated it. A quoted alias and the bare name of an unaliased schema-qualified
+    * table are now resolved to their table and expanded.
+    */
+   @Test
+   void qualifierOfSchemaTableIsExpanded() throws Exception {
+      Map<String, String[]> meta = Map.of("T4", T4);
+
+      for(String sql : new String[] {
+         "select T4.* from APP.T4",
+         "select T4.K, T4.* from APP.T4",
+         "select s.* from (select T4.* from APP.T4) s" })
+      {
+         UniformSQL usql = fixed(sql, "h2", meta);
+
+         assertEquals(UniformSQL.PARSE_SUCCESS, usql.getParseResult(), sql);
+         assertFalse(UniformSQL.hasWildcard(usql.getSelection()), sql + " " + columns(usql));
+         assertSameRows(sql, usql, true);
+      }
+
+      String sql = "select T4.*, T4.ID from APP.T4 order by 5 desc";
+      UniformSQL usql = fixed(sql, "h2", meta);
+      assertEquals(5, usql.getSelection().getColumnCount(), columns(usql));
+      String generated = regenerate(usql.clone());
+      assertEquals(direct(sql), direct(generated), generated);
+
+      // postgresql stores the qualifier quoted ("t", "x") and the table or alias unquoted
+      for(String[] spec : new String[][] {
+         { "postgresql", "select t.k, t.* from public.t" },
+         { "postgresql", "select x.k, x.* from public.t x" } })
+      {
+         usql = fixed(spec[1], spec[0], "id", "k");
+
+         assertEquals(UniformSQL.PARSE_SUCCESS, usql.getParseResult(), spec[0] + " " + spec[1]);
+         assertEquals(3, usql.getSelection().getColumnCount(), spec[0] + " " + columns(usql));
+         assertFalse(UniformSQL.hasWildcard(usql.getSelection()), spec[0] + " " + columns(usql));
+      }
+   }
+
+   /**
+    * A qualifier that names no table of the query to the lookups (more qualified than the
+    * table, or a name two tables have) is refused like a table without metadata, also with
+    * metadata, and no wildcard is kept in the selection.
+    */
+   @Test
+   void unresolvedQualifierIsRefused() throws Exception {
+      Map<String, String[]> meta = Map.of("T4", T4);
+
+      for(String sql : new String[] {
+         "select APP.T4.* from T4",
+         "select APP.T4.K, APP.T4.* from T4",
+         "select s.* from (select APP.T4.* from T4) s" })
+      {
+         UniformSQL usql = fixed(sql, "h2", meta);
+         assertRefused(sql, usql);
+         assertSameRows(sql, usql, false);
+      }
+
+      String sql = "select T4.* from APP.T4, S2.T4";
+      assertRefused(sql, fixed(sql, "h2", meta));
+
+      // the oracle helper upper cases an unaliased table name but not its alias (SCOTT.T as
+      // scott.t), so the bare name isn't resolved. Refused, it was a wildcard left in the
+      // selection with the parse kept before
+      sql = "select t.k, t.* from scott.t";
+      assertRefused(sql, fixed(sql, "oracle", "ID", "K"), "oracle");
+   }
+
+   // controls: qualifiers that resolve to a table with metadata are expanded, not refused
+   @Test
+   void resolvedQualifiersAreExpanded() throws Exception {
+      Map<String, String[]> meta = Map.of("T4", T4, "T5", new String[] { "X" });
+
+      for(String sql : new String[] {
+         "select x.* from T4 x",
+         "select x.K, x.* from APP.T4 x",
+         "select APP.T4.* from APP.T4",
+         "select * from T4, T5" })
+      {
+         UniformSQL usql = fixed(sql, "h2", meta);
+
+         assertEquals(UniformSQL.PARSE_SUCCESS, usql.getParseResult(), sql);
+         assertFalse(UniformSQL.hasWildcard(usql.getSelection()), sql + " " + columns(usql));
+         assertSameRows(sql, usql, true);
+      }
+
+      String[][] helpers = { { "postgresql", "select t.k, \"t\".* from \"t\"" },
+                             { "oracle", "select x.k, x.* from scott.t x" },
+                             { "oracle", "select t.k, t.* from t" } };
+
+      for(String[] spec : helpers) {
+         UniformSQL usql = fixed(spec[1], spec[0], "id", "k");
+
+         assertEquals(UniformSQL.PARSE_SUCCESS, usql.getParseResult(), spec[0] + " " + spec[1]);
+         assertEquals(3, usql.getSelection().getColumnCount(), spec[0] + " " + columns(usql));
+      }
+   }
+
+   // a partial parse whose wildcard is unexpandable is refused too, the worksheet would list
+   // its select list (review r1)
+   @Test
+   void partialParseWithUnexpandableWildcardIsRefused() throws Exception {
+      String sql = "select T.*, T.A from T";
+      JDBCDataSource ds = helper("h2");
+      UniformSQL usql = parsed(sql, ds);
+      usql.setParseResult(UniformSQL.PARSE_PARTIALLY);
+      JDBCUtil.fixUniformSQLInfo(usql, repository(table -> null), null, ds);
+
+      assertEquals(UniformSQL.PARSE_FAILED, usql.getParseResult());
+      assertEquals("[A, B]", worksheetColumns(usql));
+   }
+
    // ---- B: an explicit column also in the expansion ----
 
    @Test
@@ -376,6 +493,36 @@ class JDBCUtilWildcardExpansionTest {
          assertEquals(direct(sql), direct(generated), sql + " regenerated as " + generated);
          assertEquals(names(sql), names(generated), generated);
       }
+   }
+
+   /**
+    * Amendment 5, a merged worksheet SQL table: the merged query selects the worksheet columns,
+    * which drop a repeated name, so the overlap returns the columns of the explicit duplicate
+    * control. Before the fix t.*, t.id listed K, C1, C2, ID.
+    */
+   @Test
+   void mergedWorksheetTableRunsItsColumns() throws Exception {
+      Map<String, String[]> meta = Map.of("T4", T4);
+      String[][] cases = {
+         { "select T4.K, T4.* from T4", "select T4.K, T4.ID, T4.C1, T4.C2 from T4" },
+         { "select T4.*, T4.ID from T4", "select T4.ID, T4.K, T4.C1, T4.C2 from T4" },
+         { "select T4.K, T4.ID, T4.K, T4.C1, T4.C2 from T4",
+           "select T4.K, T4.ID, T4.C1, T4.C2 from T4" } };
+
+      for(String[] spec : cases) {
+         JDBCQuery merged = merge(fixed(spec[0], "h2", meta));
+
+         assertFalse(((UniformSQL) merged.getSQLDefinition()).hasSQLString(),
+                     spec[0] + " was not merged");
+         TableLens lens = execute(merged);
+         assertEquals(direct(spec[1]), rows(lens), spec[0]);
+         assertEquals(names(spec[1]), header(lens), spec[0]);
+      }
+
+      // refused: not merged, the sql runs as written
+      String sql = "select T.*, T.A from T";
+      JDBCQuery merged = merge(fixed(sql, "h2"));
+      assertEquals(sql, merged.getSQLDefinition().getSQLString());
    }
 
    // ---- persistence ----
@@ -514,15 +661,7 @@ class JDBCUtilWildcardExpansionTest {
    }
 
    private String worksheetColumns(UniformSQL usql) throws Exception {
-      usql.setDataSource(dataSource());
-      SQLBoundTableAssembly assembly = mock(SQLBoundTableAssembly.class);
-      when(assembly.getColumnSelection()).thenReturn(new ColumnSelection());
-      when(assembly.getAggregateInfo()).thenReturn(new AggregateInfo());
-      QueryManagerService qms = new QueryManagerService(
-         mock(RuntimeQueryService.class), repository, mock(DataSourceService.class),
-         mock(SecurityEngine.class), mock(ColumnCache.class));
-      ColumnSelection columns = qms.getColumnSelection(newQuery(usql), new VariableTable(),
-                                                       assembly, null, null);
+      ColumnSelection columns = worksheetColumnSelection(usql);
       List<String> names = new ArrayList<>();
 
       for(int i = 0; i < columns.getAttributeCount(); i++) {
@@ -530,6 +669,50 @@ class JDBCUtilWildcardExpansionTest {
       }
 
       return names.toString();
+   }
+
+   // the worksheet column list of the sql, as the SQL query dialog builds it
+   private ColumnSelection worksheetColumnSelection(UniformSQL usql) throws Exception {
+      usql.setDataSource(dataSource());
+      SQLBoundTableAssembly assembly = mock(SQLBoundTableAssembly.class);
+      when(assembly.getColumnSelection()).thenReturn(new ColumnSelection());
+      when(assembly.getAggregateInfo()).thenReturn(new AggregateInfo());
+      QueryManagerService qms = new QueryManagerService(
+         mock(RuntimeQueryService.class), repository, mock(DataSourceService.class),
+         mock(SecurityEngine.class), mock(ColumnCache.class));
+      return qms.getColumnSelection(newQuery(usql), new VariableTable(), assembly, null, null);
+   }
+
+   /**
+    * A worksheet SQL table of the sql with its worksheet columns, merged by the SQLBoundQuery
+    * the worksheet builds on it.
+    */
+   private JDBCQuery merge(UniformSQL usql) throws Exception {
+      ColumnSelection columns = worksheetColumnSelection(usql);
+      JDBCQuery query = newQuery(usql);
+      query.setUserQuery(true);
+      Worksheet ws = new Worksheet();
+      SQLBoundTableAssembly table = new SQLBoundTableAssembly(ws, "T1");
+      SQLBoundTableAssemblyInfo info = (SQLBoundTableAssemblyInfo) table.getTableInfo();
+      info.setQuery(query);
+      info.setSourceInfo(new SourceInfo(SourceInfo.DATASOURCE, "bug77617", "bug77617"));
+      table.setSQLEdited(true);
+      table.setColumnSelection(columns, false);
+      table.setColumnSelection(columns, true);
+      ws.addAssembly(table);
+
+      SQLBoundQuery bound = new SQLBoundQuery(
+         AssetQuerySandbox.RUNTIME_MODE, new AssetQuerySandbox(ws), table, false, false);
+      bound.merge(new VariableTable());
+      return bound.getQuery();
+   }
+
+   // what XSessionManager.getXNodeTableLens does with the merged query
+   private static TableLens execute(JDBCQuery query) throws Exception {
+      VariableTable vars = new VariableTable();
+      JDBCHandler handler = new JDBCHandler();
+      handler.connect(query.getDataSource(), vars);
+      return new XNodeTableLens(handler.execute(query, vars, null, null));
    }
 
    // the parsed sql, through the metadata step with no table columns

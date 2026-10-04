@@ -152,22 +152,54 @@ public class JDBCUtil {
                                         JDBCDataSource xds, Principal principal)
       throws Exception
    {
-      Boolean expanded = null;
+      // set to false as soon as a wildcard is found unexpandable, so a later step that throws
+      // doesn't lose it
+      boolean[] expanded = { true };
 
       try {
-         expanded = fixUniformSQLInfo0(sql, repository, session, xds, principal);
+         fixUniformSQLInfo0(sql, repository, session, xds, principal, expanded);
       }
       finally {
          // the record is only for the metadata step that follows the parse
          sql.clearParsedUnquotedSegments();
 
-         // Bug #77617, a wildcard whose table columns are unknown is not expanded, so the
-         // selection doesn't hold the columns of the sql. The sql runs as written and is never
-         // regenerated from the selection (merge, vpm and the cache normalizer check the parse).
-         if((expanded == null ? hasWildcard(sql) : !expanded) && sql.hasSQLString() &&
-            sql.getParseResult() == UniformSQL.PARSE_SUCCESS)
+         // Bug #77617, a wildcard whose table columns are unknown, or whose qualifier isn't a
+         // table of the query, is not expanded, so the selection doesn't hold the columns of the
+         // sql. The sql runs as written and is never regenerated from the selection (merge, vpm
+         // and the cache normalizer check the parse). Vpm can't narrow a wildcard of a table.
+         int result = sql.getParseResult();
+
+         if((!expanded[0] || hasWildcard(sql)) && sql.hasSQLString() &&
+            (result == UniformSQL.PARSE_SUCCESS || result == UniformSQL.PARSE_PARTIALLY))
          {
+            LOG.debug("The columns of a wildcard are unknown, the sql is not parsed: {}",
+                      sql.getSQLString());
             sql.setParseResult(UniformSQL.PARSE_FAILED);
+            // as an unexpandable wildcard, it isn't kept for a regeneration to write
+            removeWildcards(sql);
+         }
+      }
+   }
+
+   /**
+    * Remove the wildcards left in the selection of a sql and of its derived tables.
+    */
+   private static void removeWildcards(UniformSQL sql) {
+      XSelection selection = sql.getSelection();
+
+      for(int i = selection.getColumnCount() - 1; i >= 0; i--) {
+         String path = selection.getColumn(i);
+
+         if(path != null && (path.equals("*") || path.endsWith(".*"))) {
+            selection.removeColumn(i);
+         }
+      }
+
+      for(int i = 0; i < sql.getTableCount(); i++) {
+         Object name = sql.getSelectTable(i).getName();
+
+         if(name instanceof UniformSQL) {
+            removeWildcards((UniformSQL) name);
          }
       }
    }
@@ -192,19 +224,19 @@ public class JDBCUtil {
    }
 
    /**
-    * @return <tt>false</tt> if a wildcard of the selection, or of a derived table, could not
-    * be expanded because the columns of its table are unknown.
+    * @param expanded set to <tt>false</tt> if a wildcard of the selection, or of a derived
+    *                 table, could not be expanded because the columns of its table are unknown.
     */
-   private static boolean fixUniformSQLInfo0(UniformSQL sql, XRepository repository,
-                                             Object session, JDBCDataSource xds,
-                                             Principal principal)
+   private static void fixUniformSQLInfo0(UniformSQL sql, XRepository repository,
+                                          Object session, JDBCDataSource xds,
+                                          Principal principal, boolean[] expanded)
       throws Exception
    {
       synchronized(sql) {
          if(sql.getTableCount() <= 0 || sql.getFieldList().length > 0) {
             fixSelectionInfo(sql);
             sql.syncTable();
-            return true;
+            return;
          }
       }
 
@@ -261,7 +293,6 @@ public class JDBCUtil {
       // the aliases of the tables whose columns are known from the metadata, not from the
       // field list: a table whose columns are all vpm hidden has no fields but is known
       Set<String> known = new HashSet<>();
-      boolean expanded = true;
 
       // add XFields
       try {
@@ -273,17 +304,16 @@ public class JDBCUtil {
 
             if(name instanceof UniformSQL) {
                UniformSQL sql1 = (UniformSQL) name;
-               boolean expanded1 = false;
                // the parser records the names of a derived table in the outer query
                sql1.addParsedUnquotedSegments(sql.getParsedUnquotedSegments());
 
+               // an unexpanded wildcard of the derived table leaves its select list short, and
+               // so the fields of this query
                try {
-                  expanded1 = fixUniformSQLInfo0(sql1, repository, session, xds, null);
+                  fixUniformSQLInfo0(sql1, repository, session, xds, null, expanded);
                }
                finally {
                   sql1.clearParsedUnquotedSegments();
-                  // the select list of the derived table is short, and so are its fields
-                  expanded &= expanded1;
                }
 
                known.add(alias);
@@ -352,10 +382,12 @@ public class JDBCUtil {
       fixSelectionInfo(sql);
 
       // expand "*"
-      expanded &= expandAsterisk(sql, known);
+      if(!expandAsterisk(sql, known)) {
+         expanded[0] = false;
+      }
+
       fixWhereInfo(sql);
       sql.syncTable();
-      return expanded;
    }
 
    /**
@@ -603,6 +635,15 @@ public class JDBCUtil {
             String table = path.substring(0, path.length() - 2);
 
             int tidx = sql.getTableIndex(table);
+
+            // a quoted alias ("x" for x), or the bare name of the one unaliased
+            // schema-qualified table it names (t for public.t), is the table it refers to.
+            // A wildcard of a table left in the selection would be regenerated as is, and
+            // vpm can't remove a hidden column from it (Bug #77617)
+            if(tidx < 0) {
+               tidx = sql.getJoinTableIndex(table);
+               table = tidx >= 0 ? sql.getTableAlias(tidx) : table;
+            }
 
             if(tidx >= 0) {
                expanded &= known.contains(sql.getTableAlias(tidx));
