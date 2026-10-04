@@ -201,6 +201,23 @@ class JDBCSelectionGeneratedAliasTest {
    }
 
    /**
+    * ALIAS_0 is generated only inside the derived table s, so the outer labels don't collide.
+    * The outer selection inherited ALIAS_0 -> Foo anyway, and the real column t.ALIAS_0 was
+    * named Foo too. Unaliased, both columns were output as ALIAS_0.
+    */
+   @Test
+   void realColumnNextToAnInheritedName() throws Exception {
+      SreeEnv.setProperty("limit.alias.length", "true");
+      String s = "(select u.x " + LONG + " from u where u.x = 7) s";
+      assertEquals(List.of("Foo", "ALIAS_0"),
+                   headers("select t.ALIAS_0, s." + LONG + " Foo from t, " + s, -1, null,
+                           List.of(7, 100)));
+      assertEquals(List.of("s." + LONG, "ALIAS_0"),
+                   headers("select t.ALIAS_0, s." + LONG + " from t, " + s, -1, null,
+                           List.of(7, 100)));
+   }
+
+   /**
     * A valid alias over the generated ALIAS_0 of a derived table on Oracle, sorted by it. The
     * column has no inherited name now, and the order by refers to it by the derived table's
     * column, which runs and sorts.
