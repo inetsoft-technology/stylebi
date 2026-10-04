@@ -231,6 +231,25 @@ class UniformSQLWrittenUnquoted77643Test {
    }
 
    /**
+    * A query saved by v1.1.0 (no quoted flags, every name in quotes in its stored case) is
+    * generated as before. Green before the fix.
+    */
+   @Test
+   void querySavedByVersion110IsGeneratedAsBefore() throws Exception {
+      String xml = savedBeforeTheFix().get("V110");
+      assertNotNull(xml);
+      String before = "select \"m\".\"id\", \"t\".\"MixedCase\" as \"b\" " +
+         "from \"MyTab\" m, \"t\" where \"t\".\"MixedCase\" > 1 group by \"m\".\"id\", \"t\".\"MixedCase\" " +
+         "order by \"t\".\"MixedCase\" desc";
+      assertEquals(before, regenerate(load(xml, helpers("postgresql"))));
+      assertEquals(before, regenerate(load(toXML(load(xml, helpers("postgresql"))), helpers("postgresql"))));
+
+      for(boolean twinFirst : new boolean[] { true, false }) {
+         assertEquals(before, fixed(load(xml, helpers("postgresql")), twinFirst), "twin first " + twinFirst);
+      }
+   }
+
+   /**
     * db.foldUnquotedIdentifiers=false generates the sql as before the fix, also for a query
     * parsed and saved with the folding on. Green before the fix.
     */

@@ -446,4 +446,53 @@ from   "t"     ]]></name>
 </having>
 </uniform_sql>
 </case>
+<!-- As saved by v1.1.0 (before #77408): every name in quotes in its stored case, without the
+     quoted flags of later versions, e.g. for
+     select m.id, t."MixedCase" as b from "MyTab" m, t
+     where t."MixedCase" > 1 group by m.id, t."MixedCase" order by t."MixedCase" desc -->
+<case id="V110">
+<uniform_sql parse="true">
+<table>
+<alias><![CDATA[m]]></alias>
+<name><![CDATA["MyTab"]]></name>
+<issql><![CDATA[false]]></issql>
+</table>
+<table>
+<alias><![CDATA["t"]]></alias>
+<name><![CDATA["t"]]></name>
+<issql><![CDATA[false]]></issql>
+</table>
+<column>
+<![CDATA["m"."id"]]>
+<alias><![CDATA[]]></alias>
+<isExp><![CDATA[false]]></isExp>
+</column>
+<column>
+<![CDATA["t"."MixedCase"]]>
+<alias><![CDATA[b]]></alias>
+<isExp><![CDATA[false]]></isExp>
+</column>
+<where>
+<XSet relation="and" isnot="false" group="false" clause="where">
+<XBinaryCondition isnot="false" clause="where" containsNull="false">
+<expression1>
+<expression type="Field">
+<![CDATA["t"."MixedCase"]]>
+</expression>
+</expression1>
+<expression2>
+<expression type="Value">
+<![CDATA[1]]>
+</expression>
+</expression2>
+<op><![CDATA[>]]></op>
+</XBinaryCondition>
+</XSet>
+</where>
+<sortby><field order="desc"><![CDATA["t"."MixedCase"]]></field></sortby>
+<groupby><field><![CDATA["m"."id"]]></field><field><![CDATA["t"."MixedCase"]]></field></groupby>
+<having>
+</having>
+</uniform_sql>
+</case>
 </cases>
