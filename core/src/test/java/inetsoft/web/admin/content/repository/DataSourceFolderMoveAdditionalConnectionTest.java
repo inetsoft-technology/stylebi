@@ -169,6 +169,30 @@ class DataSourceFolderMoveAdditionalConnectionTest {
       assertMoved("ptDest/ptF/ptP", "ptF/ptP", parent, Map.of("ptA", a));
    }
 
+   // EM Move of a folder holding a tabular (connector) data source with additional connections,
+   // an additional connection listed before its parent
+   @Test
+   void emFolderMoveChildFirstTabular() throws Exception {
+      addFolder("tbF");
+      addFolder("tbDest");
+      addTabularParent("tbF/tbP", "tbA", "tbB");
+      Permission parent = grant("tbF/tbP");
+      Permission a = grant("tbF/tbP::tbA");
+      Permission b = grant("tbF/tbP::tbB");
+
+      emMove(childFirst(), "tbF", "tbDest");
+
+      assertChildFirst("tbF/tbP");
+      assertMoved("tbDest/tbF/tbP", "tbF/tbP", parent, Map.of("tbA", a, "tbB", b));
+
+      // a later save of the parent doesn't add the additional connections again under it
+      XDataSource moved = registry.getDataSource("tbDest/tbF/tbP");
+      repository.updateDataSource(moved, "tbDest/tbF/tbP");
+      assertChildren("tbDest/tbF/tbP", "tbA", "tbB");
+      registry.clearCache();
+      assertNull(registry.getDataSource("tbDest/tbF/tbP/tbDest/tbF/tbP/tbA"));
+   }
+
    // a data source in a subfolder of the moved folder
    @Test
    void nestedFolderMoveChildFirst() throws Exception {
