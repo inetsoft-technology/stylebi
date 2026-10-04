@@ -195,6 +195,9 @@ class XUtilSentinelExpressionSubqueryTest {
                       "[1]"),
          Arguments.of(H + "a.id = 0 + (select min(b.id) from b where b.id > 1 and " +
                          "b.k = $(p))", UNSET, "[3]"),
+         // a BETWEEN bound (a trinary condition): min(b.id) of b.id > 2 is 3
+         Arguments.of(A + "a.id between 0 + (select min(b.id) from b where b.id > 2 and " +
+                         "b.k = $(p)) and 5", UNSET, "[3, 5]"),
          // ANY as IN: the condition of the parameter is removed, and the whole condition when
          // the subquery has no other one
          Arguments.of(A + "a.id = ANY (select b.id from b where b.id > 1 and b.k = $(p))",
