@@ -250,6 +250,7 @@ public class SQLQueryDialogService {
       query.setSQLDefinition(sql);
       SQLBoundTableAssemblyInfo info = (SQLBoundTableAssemblyInfo) assembly
          .getInfo();
+      JDBCQuery oldQuery = info.getQuery();
       info.setQuery(query);
       SourceInfo sinfo = new SourceInfo(SourceInfo.DATASOURCE, dataSource,
                                         dataSource);
@@ -262,6 +263,15 @@ public class SQLQueryDialogService {
       RuntimeQueryService.RuntimeXQuery runtimeQuery =
          queryManagerService.getRuntimeQuery(sqlQueryDialogModel.getRuntimeId());
       Map<String, String> aliasMapping = runtimeQuery == null ? null : runtimeQuery.getAliasMapping();
+
+      // a column of the old query stored with a generated alias is renamed to its name
+      // (Bug #77711). The mapping is relative to the assembly's query, which this replaces,
+      // so it is not kept for another OK of the dialog
+      if(aliasMapping != null && oldQuery != null) {
+         aliasMapping = new HashMap<>(aliasMapping);
+         queryManagerService.mapRebuiltColumnAliases(oldQuery, sql, aliasMapping);
+      }
+
       ColumnSelection selection =
          queryManagerService.getColumnSelection(query, vars, assembly, getSession(), aliasMapping);
       assembly.setColumnSelection(selection);

@@ -3998,9 +3998,9 @@ public class SQLHelper implements KeywordProvider {
             XSelection sec = subSql.getSelection();
             String alias = sec.getAlias(0);
 
-            // a generated subquery names its column by the alias it generated (an ALIAS_n
-            // for a name the database can't take), a kept sql text by the stored alias
-            // (Bug #77711)
+            // a generated subquery names its column by the alias generateSelectClause just
+            // emitted for it when str2 was built (an ALIAS_n for a name the database can't
+            // take), a kept sql text by the stored alias (Bug #77711)
             if(alias != null && !subSql.hasSQLString() && sec instanceof JDBCSelection) {
                alias = ((JDBCSelection) sec).getValidAlias(0, this);
             }
