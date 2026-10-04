@@ -364,6 +364,33 @@ class XUtilSentinelSelectListTest {
       }
    }
 
+   // Bug #77706: the removed condition of a single row select list subquery is not reported as
+   // a changed query. An IN subquery with such a select list and no where clause keeps its
+   // predicate (reported as changed, the IN would be dropped as one without a condition), and
+   // an unset IN subquery inside a single row select list subquery is removed as in a where.
+   static Stream<Arguments> unsetEnclosingCases() {
+      return Stream.of(
+         // min(b.id) of all of b is 1 (null with the condition bound as null: no row)
+         Arguments.of("select a.id from a where a.id in " +
+                         "(select (select min(b.id) from b where b.k = $(p)) from C)",
+                      List.of("1")),
+         // all rows of b of the id (0 with the IN condition bound as null)
+         Arguments.of("select a.id, " + COUNT + "b.id = a.id and b.k in " +
+                         "(select C.K from C where C.K = $(p))) as cnt from a",
+                      List.of("1|3", "3|3", "5|3")));
+   }
+
+   @ParameterizedTest
+   @MethodSource("unsetEnclosingCases")
+   void unsetEnclosingSubqueryThroughJDBCHandler(String sql, List<String> expected)
+      throws Exception
+   {
+      UniformSQL usql = parsed(sql);
+      assertEquals(expected, rows(run(usql, new VariableTable())), sql);
+      // the saved query keeps the condition
+      assertTrue(usql.getSQLString().contains("$(p)"), usql.getSQLString());
+   }
+
    // the sorted rows of a table lens, the columns joined by |
    private static List<String> rows(TableLens table) {
       List<String> rows = new ArrayList<>();
