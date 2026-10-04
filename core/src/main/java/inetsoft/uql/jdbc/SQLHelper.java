@@ -874,27 +874,35 @@ public class SQLHelper implements KeywordProvider {
     */
    private String appendLimitClause(String sql) {
       if(uniformSql.hasVPMCondition() && inpmaxrows > 0) {
-         // Use subquery to check if we should limit the table
-         String subquery = getTableWithLimit(sql, inpmaxrows);
+         // The row limit syntax of the database, taken from the limited table query of a
+         // placeholder table, so the names and literals of the sql can't change it. (#77698)
+         String subquery = getTableWithLimit("t", inpmaxrows);
 
+         // The sql is not searched for an existing limit: names and literals contain the
+         // keywords (credit_limit, 'no limit'). The statement has no limit clause of its own
+         // here: generateMaxRowsClause() runs only if outmaxrows > 0, and the parser refuses
+         // limit and fetch first. A derived table's own limit doesn't limit this statement,
+         // and a second rownum condition is still valid sql. The one limit the statement can
+         // start with is a top select option (getSelectionOption()). (#77698)
          if(subquery != null) {
-            if(isKeyword("limit") && !sql.contains("limit") && subquery.contains("limit")) {
+            if(isKeyword("limit") && subquery.contains("limit")) {
                sql += " limit " + inpmaxrows;
             }
-            else if(isKeyword("top") && sql.startsWith("select") && !sql.contains("select top")) {
+            else if(isKeyword("top") && sql.startsWith("select") &&
+               !SELECT_TOP.matcher(sql).lookingAt())
+            {
                sql = sql.replaceFirst("select", "select top " + inpmaxrows);
             }
-            else if(subquery.contains("fetch first") && !sql.contains("fetch first")) {
+            else if(subquery.contains("fetch first")) {
                sql += " fetch first " + inpmaxrows + " rows only";
             }
-            else if(this instanceof OracleSQLHelper && subquery.contains(" where rownum <= ") &&
-               !sql.contains(" where rownum <= "))
-            {
+            else if(this instanceof OracleSQLHelper && subquery.contains(" where rownum <= ")) {
                String where = generateWhereClause();
                String newWhere = where.replace(WHERE, WHERE + " (");
                newWhere += ") AND rownum <= " + inpmaxrows;
 
-               if(sql.contains(where)) {
+               // an empty where is contained in any sql, and replacing it breaks the sql
+               if(!where.isEmpty() && sql.contains(where)) {
                   sql = sql.replace(where, newWhere);
                }
             }
@@ -6326,6 +6334,9 @@ public class SQLHelper implements KeywordProvider {
    // Matches map key access expressions like m['key2'] (ClickHouse/Databricks)
    private static final Pattern MAP_KEY_ACCESS =
       Pattern.compile("([^\\s\\[\\]]+)\\[\\s*'([^\\s']+)'\\s*\\]");
+   // a generated select clause with a top option (getSelectionOption())
+   private static final Pattern SELECT_TOP =
+      Pattern.compile("select(\\s+(distinct|all))?\\s+top\\s");
    // Maps "tableAlias.originalColExpr" -> safe alias used in the inner query
    private final Map<String, String> subQueryMapKeyAliases = new HashMap<>();
 
