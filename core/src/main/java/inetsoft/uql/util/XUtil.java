@@ -2683,7 +2683,9 @@ public final class XUtil {
 
       XFilterNode condition = usql.getWhere();
 
-      if(condition instanceof XBinaryCondition || condition instanceof XSet) {
+      if(condition instanceof XBinaryCondition || condition instanceof XTrinaryCondition ||
+         condition instanceof XSet)
+      {
          if(processSpecificCondition(usql, condition, params, false)) {
             // a bare condition root is replaced, continue with the live tree
             condition = usql.getWhere();
@@ -2706,7 +2708,9 @@ public final class XUtil {
 
       condition = usql.getHaving();
 
-      if(condition instanceof XBinaryCondition || condition instanceof XSet) {
+      if(condition instanceof XBinaryCondition || condition instanceof XTrinaryCondition ||
+         condition instanceof XSet)
+      {
          if(processSpecificCondition(usql, condition, params, true)) {
             condition = usql.getHaving();
          }
@@ -2746,9 +2750,8 @@ public final class XUtil {
    private static boolean processSpecificCondition(UniformSQL usql,
       XFilterNode condition, VariableTable params, boolean isHaving)
    {
-      if(condition instanceof XBinaryCondition) {
-         XBinaryCondition filterNode =
-            createSpecificCondition((XBinaryCondition) condition, params);
+      if(condition instanceof XBinaryCondition || condition instanceof XTrinaryCondition) {
+         XFilterNode filterNode = createSpecificCondition(condition, params);
 
          if(filterNode == null) {
             return false;
@@ -2781,9 +2784,8 @@ public final class XUtil {
       for(int i = 0; i < set.getChildCount(); i++) {
          XNode node = set.getChild(i);
 
-         if(node instanceof XBinaryCondition) {
-            XBinaryCondition filterNode =
-               createSpecificCondition((XBinaryCondition) node, params);
+         if(node instanceof XBinaryCondition || node instanceof XTrinaryCondition) {
+            XFilterNode filterNode = createSpecificCondition((XFilterNode) node, params);
 
             if(filterNode != null) {
                set.setChild(i, filterNode);
@@ -2800,54 +2802,183 @@ public final class XUtil {
 
    /**
     * Create the condition replacing a condition whose parameter has a special value.
+    * The parameter may be the right operand (a.id = $(p)), the only item of an IN list
+    * (a.id IN ($(p))), the left operand of a comparison ($(p) = a.id) or a BETWEEN bound.
+    * When both operands are parameters, the right one is checked first.
     * @return the new condition, or null if the condition doesn't use a special value.
     */
-   private static XBinaryCondition createSpecificCondition(XBinaryCondition bin,
-                                                           VariableTable params)
+   private static XFilterNode createSpecificCondition(XFilterNode node, VariableTable params) {
+      XFilterNode filterNode = node instanceof XTrinaryCondition ?
+         createSpecificCondition((XTrinaryCondition) node, params) :
+         createSpecificCondition((XBinaryCondition) node, params);
+
+      if(filterNode != null) {
+         filterNode.setName(node.getName());
+      }
+
+      return filterNode;
+   }
+
+   private static XFilterNode createSpecificCondition(XBinaryCondition bin,
+                                                      VariableTable params)
    {
       String op = bin.getOp();
+      String trimmedOp = op == null ? "" : op.trim();
+      // <> and != carry their negation in the op, which is dropped by IS NULL,
+      // e.g. "a.id <> $(p)" -> "not (a.id IS NULL)" and
+      // "not (a.id <> $(p))" -> "a.id IS NULL"
+      boolean opNot = "<>".equals(trimmedOp) || "!=".equals(trimmedOp);
       String value = bin.getExpression2().toString().trim();
+      XBinaryCondition filterNode = null;
 
-      if(!value.startsWith("$(")) {
+      // the right operand, e.g. a.id = $(p)
+      if(value.startsWith("$(")) {
+         String sentinel = getSpecificValue(params, value.substring(2, value.lastIndexOf(')')));
+
+         if(XConstants.CONDITION_NULL_VALUE.equals(sentinel)) {
+            filterNode = createIsNull(bin.getExpression1(), bin.isIsNot() != opNot);
+         }
+         else if(sentinel != null) {
+            filterNode = new XBinaryCondition(bin.getExpression1(),
+                                              getSpecificLiteral(sentinel), op);
+            filterNode.setIsNot(bin.isIsNot());
+         }
+      }
+
+      if(filterNode != null || bin instanceof XJoin) {
+         return filterNode;
+      }
+
+      Matcher matcher = SPECIFIC_IN_LIST.matcher(value);
+
+      // the only item of an IN list, e.g. a.id IN ($(p)). IN (NULL) is never true, so
+      // NULL_VALUE means IS NULL, as for the ONE_OF condition
+      if(matcher.matches()) {
+         String sentinel = getSpecificValue(params, matcher.group(1));
+
+         if(XConstants.CONDITION_NULL_VALUE.equals(sentinel)) {
+            return createIsNull(bin.getExpression1(), bin.isIsNot() != opNot);
+         }
+         else if(sentinel != null) {
+            XExpression list = new XExpression(
+               "(" + getSpecificLiteral(sentinel).getValue() + ")", XExpression.EXPRESSION);
+            filterNode = new XBinaryCondition(bin.getExpression1(), list, op);
+            filterNode.setIsNot(bin.isIsNot());
+            return filterNode;
+         }
+      }
+
+      matcher = SPECIFIC_VARIABLE.matcher(bin.getExpression1().toString().trim());
+
+      // the left operand, e.g. $(p) = a.id
+      if(matcher.matches()) {
+         String sentinel = getSpecificValue(params, matcher.group(1));
+
+         // IS NULL on the right operand only means the same for a plain comparison, not
+         // for $(p) IN (...), $(p) = ANY (select ...) or $(p) LIKE a.col ESCAPE '!'
+         if(XConstants.CONDITION_NULL_VALUE.equals(sentinel)) {
+            if(COMPARISON_OPS.contains(trimmedOp) &&
+               !QUANTIFIED_OPERAND.matcher(value).lookingAt())
+            {
+               filterNode = createIsNull(bin.getExpression2(), bin.isIsNot() != opNot);
+            }
+         }
+         // keep the operand order, < and > would have to be mirrored
+         else if(sentinel != null) {
+            filterNode = new XBinaryCondition(getSpecificLiteral(sentinel),
+                                              bin.getExpression2(), op);
+            filterNode.setIsNot(bin.isIsNot());
+         }
+      }
+
+      return filterNode;
+   }
+
+   /**
+    * Create the condition replacing a BETWEEN with a bound whose parameter has a special
+    * value. A NULL_VALUE bound means IS NULL for the whole condition, as for the BETWEEN
+    * condition, and the other bound is dropped with it. The other values replace the bound.
+    */
+   private static XFilterNode createSpecificCondition(XTrinaryCondition tri,
+                                                      VariableTable params)
+   {
+      String low = getSpecificValue(params, tri.getExpression2());
+      String high = getSpecificValue(params, tri.getExpression3());
+
+      if(low == null && high == null) {
          return null;
       }
 
-      value = value.substring(2, value.lastIndexOf(')'));
-      XBinaryCondition filterNode = null;
-      boolean opNot = false;
+      if(XConstants.CONDITION_NULL_VALUE.equals(low) ||
+         XConstants.CONDITION_NULL_VALUE.equals(high))
+      {
+         return createIsNull(tri.getExpression1(), tri.isIsNot());
+      }
 
+      XTrinaryCondition filterNode = new XTrinaryCondition(tri.getExpression1(),
+         low == null ? tri.getExpression2() : getSpecificLiteral(low),
+         high == null ? tri.getExpression3() : getSpecificLiteral(high), tri.getOp());
+      filterNode.setIsNot(tri.isIsNot());
+      return filterNode;
+   }
+
+   private static XBinaryCondition createIsNull(XExpression exp, boolean isNot) {
+      XBinaryCondition filterNode =
+         new XBinaryCondition(exp, new XExpression("IS NULL", XExpression.VALUE), "");
+      filterNode.setIsNot(isNot);
+      return filterNode;
+   }
+
+   private static XExpression getSpecificLiteral(String sentinel) {
+      return new XExpression(XConstants.CONDITION_EMPTY_STRING.equals(sentinel) ? "''" :
+                                "'null'", XExpression.VALUE);
+   }
+
+   /**
+    * Get the special value of the parameter if the expression is exactly the parameter.
+    */
+   private static String getSpecificValue(VariableTable params, XExpression exp) {
+      Matcher matcher = exp == null ? null :
+         SPECIFIC_VARIABLE.matcher(exp.toString().trim());
+      return matcher != null && matcher.matches() ?
+         getSpecificValue(params, matcher.group(1)) : null;
+   }
+
+   /**
+    * Get the special value of the parameter, NULL_VALUE, EMPTY_STRING or NULL_STRING.
+    * A parameter with one value is the same as the value, as in Condition.
+    * @return the special value, or null if the parameter doesn't have one.
+    */
+   private static String getSpecificValue(VariableTable params, String name) {
       try {
-         Object val = params.get(value);
+         Object val = params.get(name);
 
-         if(Tool.equals(val, (XConstants.CONDITION_NULL_VALUE))) {
-            filterNode = new XBinaryCondition(bin.getExpression1(),
-               new XExpression("IS NULL", XExpression.VALUE), "");
-            // <> and != carry their negation in the op, which is dropped here,
-            // e.g. "a.id <> $(p)" -> "not (a.id IS NULL)" and
-            // "not (a.id <> $(p))" -> "a.id IS NULL"
-            String trimmedOp = op == null ? "" : op.trim();
-            opNot = "<>".equals(trimmedOp) || "!=".equals(trimmedOp);
+         if(val instanceof Object[] && ((Object[]) val).length == 1) {
+            val = ((Object[]) val)[0];
          }
-         else if(Tool.equals(val, (XConstants.CONDITION_EMPTY_STRING))) {
-            filterNode = new XBinaryCondition(bin.getExpression1(),
-               new XExpression("''", XExpression.VALUE), op);
-         }
-         else if(Tool.equals(val, (XConstants.CONDITION_NULL_STRING))) {
-            filterNode = new XBinaryCondition(bin.getExpression1(),
-               new XExpression("'null'", XExpression.VALUE), op);
+
+         if(Tool.equals(val, XConstants.CONDITION_NULL_VALUE) ||
+            Tool.equals(val, XConstants.CONDITION_EMPTY_STRING) ||
+            Tool.equals(val, XConstants.CONDITION_NULL_STRING))
+         {
+            return (String) val;
          }
       }
       catch(Exception e) {
       }
 
-      if(filterNode != null) {
-         // keep the negation, e.g. "not (a.id = $(p))" -> "not (a.id IS NULL)"
-         filterNode.setIsNot(bin.isIsNot() != opNot);
-         filterNode.setName(bin.getName());
-      }
-
-      return filterNode;
+      return null;
    }
+
+   // an operand that is exactly a parameter, and an IN list of only a parameter
+   private static final Pattern SPECIFIC_VARIABLE = Pattern.compile("\\$\\(([^()$@]+)\\)");
+   private static final Pattern SPECIFIC_IN_LIST =
+      Pattern.compile("\\(\\s*\\$\\(([^()$@]+)\\)\\s*\\)");
+   // the right operand of a quantified comparison, e.g. $(p) = ANY (select ...)
+   private static final Pattern QUANTIFIED_OPERAND =
+      Pattern.compile("(any|some|all)\\b", Pattern.CASE_INSENSITIVE);
+   private static final Set<String> COMPARISON_OPS =
+      Set.of("=", "<>", "!=", "<", ">", "<=", ">=");
 
    /**
     * Check if condition has param without value;
