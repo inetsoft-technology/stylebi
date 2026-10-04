@@ -322,6 +322,56 @@ class XUtilSentinelSelectListTest {
       assertEquals(List.of("1|3|3", "3|3|3", "5|3|3"), rows);
    }
 
+   // the same saved query run through JDBCHandler with a sentinel, then a plain value, then the
+   // sentinel again: no run reuses the rewrite of another, and the saved query is unchanged
+   @Test
+   void runTwiceThroughJDBCHandler() throws Exception {
+      String[] sqls = {
+         "select a.id, " + COUNT + "b.k = $(p)) as cnt from a",
+         "select d.id, d.cnt from (select a.id, " + COUNT + "b.k = $(p)) as cnt from a) d"
+      };
+
+      for(String sql : sqls) {
+         UniformSQL usql = parsed(sql);
+         // b.k is null in 3 rows, '3' in 1 row
+         String[][] runs = { { NULL_VALUE, "3" }, { "3", "1" }, { NULL_VALUE, "3" } };
+
+         for(String[] run : runs) {
+            VariableTable vars = new VariableTable();
+            vars.put("p", run[0]);
+            TableLens table = run(usql, vars);
+            List<String> rows = new ArrayList<>();
+
+            for(int r = 1; table.moreRows(r); r++) {
+               rows.add(table.getObject(r, 0) + "|" + table.getObject(r, 1));
+            }
+
+            Collections.sort(rows);
+            assertEquals(List.of("1|" + run[1], "3|" + run[1], "5|" + run[1]), rows,
+                         sql + " p=" + run[0]);
+            // the saved query may get its sql string regenerated, never with the rewrite
+            String now = usql.getSQLString();
+            assertTrue(now.contains("$(p)"), now);
+            assertFalse(now.toUpperCase().contains("IS NULL"), now);
+            assertNoColumnSQL(usql);
+         }
+      }
+   }
+
+   private static void assertNoColumnSQL(UniformSQL usql) {
+      JDBCSelection selection = (JDBCSelection) usql.getSelection();
+
+      for(int i = 0; i < selection.getColumnCount(); i++) {
+         assertNull(selection.getColumnSQL(i), selection.getColumn(i));
+      }
+
+      for(SelectTable table : usql.getSelectTable()) {
+         if(table.getName() instanceof UniformSQL) {
+            assertNoColumnSQL((UniformSQL) table.getName());
+         }
+      }
+   }
+
    // a query that keeps its sql string isn't validated at all, as before
    @Test
    void keptSqlStringUnchanged() throws Exception {
