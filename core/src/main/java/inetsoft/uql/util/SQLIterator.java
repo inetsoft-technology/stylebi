@@ -113,13 +113,16 @@ public class SQLIterator {
     * Iterate the sql string.
     */
    public void iterate() {
+      // Bug #77663, a line break, a comment or a tag inside a literal or quoted name is the
+      // text of the literal, not sql
+      quoted = SQLQuoteScanner.findQuoted(sql);
       int start = 0;
 
       for(int i = 0; i < sql.length(); i++) {
          char c = sql.charAt(i);
 
          // break line found?
-         if(c == '\n') {
+         if(c == '\n' && !quoted[i]) {
             int end = i + 1;
             int pos = start;
 
@@ -139,15 +142,19 @@ public class SQLIterator {
                iterateCommentLine(line);
             }
             else {
-               String tag = iterateLine(line);
+               String tag = iterateLine(line, start);
 
                if(tag != null) {
-                  if(!sql.contains(tag)) {
+                  // the closing tag is after this line, searching from the start moved the
+                  // cursor back to an earlier closing tag and never ended
+                  int close = indexOfTag(sql, tag, i, 0);
+
+                  if(close < 0) {
                      throw new RuntimeException("Invalid line found: " + line);
                   }
 
                   // move the cursor to the closing tag
-                   i = sql.indexOf(tag) + tag.length() - 1;
+                  i = close + tag.length() - 1;
                   continue;
                }
             }
@@ -174,10 +181,29 @@ public class SQLIterator {
             line = sql.substring(pos + 2, end);
             iterateCommentLine(line);
          }
-         else {
-            iterateLine(line);
+         // the last line is not closed by a later line either, so it is invalid as any other
+         // line, instead of being dropped without its events
+         else if(iterateLine(line, start) != null) {
+            throw new RuntimeException("Invalid line found: " + line);
          }
       }
+   }
+
+   /**
+    * Find a tag that is not inside quoted text.
+    * @param text the text to search, the sql or a part of it.
+    * @param from the index in the text to start from.
+    * @param offset the index of the text in the sql.
+    * @return the index of the tag in the text, or -1 if not found.
+    */
+   private int indexOfTag(String text, String tag, int from, int offset) {
+      int index = text.indexOf(tag, from);
+
+      while(index >= 0 && quoted[offset + index]) {
+         index = text.indexOf(tag, index + 1);
+      }
+
+      return index;
    }
 
    /**
@@ -231,8 +257,10 @@ public class SQLIterator {
    /**
     * Iterate one line of the sql string.
     * @param line the specified line.
+    * @param offset the index of the line in the sql.
+    * @return the closing tag if a tag is not closed in the line, or null.
     */
-   private String iterateLine(String line) {
+   private String iterateLine(String line, int offset) {
       if(line.length() == 0) {
          return null;
       }
@@ -254,7 +282,7 @@ public class SQLIterator {
          char lc = i > 0 ? line.charAt(i - 1) : '\uffff';
 
          if(state == TEXT_STATE) {
-            if(c != '*' || lc != '/') {
+            if(c != '*' || lc != '/' || quoted[offset + i - 1]) {
                i++;
                continue;
             }
@@ -296,7 +324,7 @@ public class SQLIterator {
 
             cname = cname.substring(1, cname.length() - 1);
             String rpattern = "/*</" + cname + ">*/";
-            int index2 = line.indexOf(rpattern, i + 1);
+            int index2 = indexOfTag(line, rpattern, i + 1, offset);
 
             if(index2 == -1) {
                return rpattern;
@@ -388,5 +416,6 @@ public class SQLIterator {
    private static final int COMMENT_STATE = 1;
 
    private String sql; // sql string
+   private boolean[] quoted; // the characters of the sql inside quoted text
    private List listeners; // sql listeners
 }
