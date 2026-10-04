@@ -264,9 +264,8 @@ class SQLHelperUnresolvedInnerJoinAnsiTest {
          "a.aid = d.did",
       "select a.ax, d.did from a right join d on d.did = a.aid where ax = did|" +
          "select a.ax, d.did from a RIGHT OUTER JOIN d ON a.aid = d.did where ax = did",
-      // a RIGHT join doesn't reach an ON clause of an earlier comma item
-      "select a.ax, d.did from a join c on cid = aid, d right join b on b.bid = d.did|" +
-         "select a.ax, d.did from d RIGHT OUTER JOIN b ON d.did = b.bid , a, c where cid = aid",
+      // a RIGHT join after a comma item, d right join b in a join c on .., d right join b
+      // on .., is refused (#77675, SQLHelperCommaJoinGroupTest)
    })
    void notOptionalOrResolvedUnchanged(String text, String expected) throws Exception {
       String generated = generate(text, dataSource("derby-ansi"));

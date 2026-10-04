@@ -767,8 +767,11 @@ export class DataSourcesTreeViewComponent extends CommandProcessor implements On
                ComponentTool.showMessageDialog(this.modalService, "_#(js:Error)", message);
                return;
             }
+            // Bug #77705, not into itself or one of its subfolders, but a sibling whose name
+            // contains the same text, e.g. "Fx" or "aF" for "F", is a target
             else if(targetEntry.scope != dragEntry.scope ||
-               (targetEntry.path != parent && targetEntry.path.indexOf(dragEntry.path) == -1))
+               (targetEntry.path != parent && targetEntry.path !== dragEntry.path &&
+                  !targetEntry.path.startsWith(dragEntry.path + "/")))
             {
                moveEntries.push(dragEntry);
             }
@@ -831,15 +834,19 @@ export class DataSourcesTreeViewComponent extends CommandProcessor implements On
       if(targetEntry.type == AssetType.FOLDER) {
          this.checkDataFoldersDuplicate(dataFolders, targetEntry).subscribe(duplicate => {
             if(!duplicate) {
+               // Bug #77705, not into itself or one of its subfolders, but a sibling whose name
+               // starts with the same text, e.g. "Fx" for "F", is a target
+               const isSelfOrDescendant = (item: WorksheetBrowserInfo) =>
+                  targetEntry.path === item.path || targetEntry.path.startsWith(item.path + "/");
                const movedFolders = dataFolders.filter(item => item.type === AssetType.FOLDER &&
                   (item.scope != targetEntry.scope ||
                      targetEntry.path != this.getParentPath0(item.path) &&
-                     !targetEntry.path.startsWith(item.path)));
+                     !isSelfOrDescendant(item)));
                const movedAssets = dataFolders
                   .filter(item => item.type === AssetType.WORKSHEET &&
                      (item.scope != targetEntry.scope ||
                      targetEntry.path != this.getParentPath0(item.path) &&
-                     !targetEntry.path.startsWith(item.path)));
+                     !isSelfOrDescendant(item)));
 
                let promise: Promise<any> = Promise.resolve(null);
 

@@ -103,19 +103,21 @@ class XEngineDataSourceTokensSaveTest {
       assertArrayEquals(new String[] { "tkAdd", "tkKeep" }, children);
    }
 
-   // tokens equal to the stored ones are not written again
+   // Bug #77699, the tokens are written even when equals does not see them, e.g. tokens held in
+   // a cloud credential, which is compared by its id only
    @Test
-   void unchangedTokensAreNotWritten() throws Exception {
+   void tokensThatEqualsDoesNotSeeAreWritten() throws Exception {
       JDBCDataSource source = source("ucTkDs");
       source.setDefaultDatabase("tok-A");
       registry.setDataSource(source, false);
       long modified = storedLastModified("ucTkDs");
       JDBCDataSource runtime = substitute((JDBCDataSource) registry.getDataSource("ucTkDs").clone());
+      Thread.sleep(5L);
 
       repository.updateDataSourceTokens(
          runtime, ds -> ((JDBCDataSource) ds).setDefaultDatabase("tok-A"));
 
-      assertEquals(modified, storedLastModified("ucTkDs"));
+      assertTrue(storedLastModified("ucTkDs") > modified, "the tokens were not written");
       assertEquals(TEMPLATE, registry.getDataSource("ucTkDs") instanceof JDBCDataSource jdbc ?
          jdbc.getURL() : null);
    }

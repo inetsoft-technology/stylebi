@@ -25,6 +25,7 @@ import java.io.IOException;
 import java.security.KeyPair;
 import java.util.ServiceLoader;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 
 /**
@@ -307,6 +308,28 @@ public interface PasswordEncryption {
     */
    static void setEncryptForceLocal(boolean forceLocal) {
       setConfigContext("inetsoft.util.PasswordEncryption.forceLocal.encrypt", forceLocal);
+   }
+
+   /**
+    * Sets the counter of the {@link AbstractPasswordEncryption#MASTER_PREFIX master-encrypted}
+    * values that failed to decrypt on the current thread. The counter is only set while assets
+    * are imported, so that the import can tell the user that secrets in the export could not be
+    * decrypted.
+    *
+    * @param counter the counter, or {@code null} to stop counting.
+    */
+   static void setMasterDecryptFailures(AtomicInteger counter) {
+      setConfigContext("inetsoft.util.PasswordEncryption.masterDecryptFailures", counter);
+   }
+
+   /**
+    * Gets the counter of the master-encrypted values that failed to decrypt on the current
+    * thread.
+    *
+    * @return the counter, or {@code null} if the failures are not being counted.
+    */
+   static AtomicInteger getMasterDecryptFailures() {
+      return getConfigContext("inetsoft.util.PasswordEncryption.masterDecryptFailures");
    }
 
    private static <T> void setConfigContext(String name, T value) {

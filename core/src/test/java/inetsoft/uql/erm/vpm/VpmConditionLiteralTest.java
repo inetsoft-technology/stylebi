@@ -21,6 +21,7 @@ import inetsoft.sree.security.IdentityID;
 import inetsoft.test.*;
 import inetsoft.uql.*;
 import inetsoft.uql.jdbc.*;
+import inetsoft.uql.jdbc.util.VarSQL;
 import inetsoft.util.credential.CredentialService;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -33,6 +34,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import java.util.List;
 import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -109,17 +111,245 @@ class VpmConditionLiteralTest {
                    evaluate("T", "o", "concat($(a.b), \"T\".\"A(\", T.B)"));
    }
 
+   /**
+    * Bug #77697, the parser stopped without an error at a token it doesn't know, the column
+    * iterator didn't know the quoting and comment rules of the database, a variable was taken
+    * for a column, and a name starting with the column name was replaced.
+    */
+   static Stream<Arguments> dialectExpressions() {
+      return Stream.of(
+         // a ' in a bracket quoted name (item 1)
+         Arguments.of(MSSQL, "concat($(a.b), T.A, [it's], 'x', T.B)",
+                      "concat($(a.b), o.A, [it's], 'x', o.B)"),
+         Arguments.of(MSSQL, "T.A ^ 1 + [it's] + 'x' + T.B", "o.A ^ 1 + [it's] + 'x' + o.B"),
+         Arguments.of(MSSQL, "T.A % 2 + [Customer's Name] + T.B",
+                      "o.A % 2 + [Customer's Name] + o.B"),
+         Arguments.of(MSSQL, "T.A + [it's] + T.B;", "o.A + [it's] + o.B;"),
+         Arguments.of(MSSQL, "T.A || [it's] || 'x' || T.B", "o.A || [it's] || 'x' || o.B"),
+         // a [ is an array, not a quoted name, in a database without its own sql helper
+         // (review round 1)
+         Arguments.of(TRINO, "contains(ARRAY [T.B], T.A)", "contains(ARRAY [o.B], o.A)"),
+         Arguments.of(PRESTO, "cardinality(ARRAY [T.A, T.B]) > 0",
+                      "cardinality(ARRAY [o.A, o.B]) > 0"),
+         Arguments.of(TERADATA, "contains(ARRAY [T.B], T.A)", "contains(ARRAY [o.B], o.A)"),
+         Arguments.of(null, "contains(ARRAY [T.B], T.A)", "contains(ARRAY [o.B], o.A)"),
+         // a bracket quoted name is a column (item 1)
+         Arguments.of(MSSQL, "T.[Name] + T.B", "o.[Name] + o.B"),
+         Arguments.of(MSSQL, "[T].[Name] + T.B", "o.[Name] + o.B"),
+         Arguments.of(MSSQL, "T.[Customer's] + 'x' + T.B", "o.[Customer's] + 'x' + o.B"),
+         Arguments.of(MSSQL, "concat($(a.b), T.[Customer's], 'x', T.B)",
+                      "concat($(a.b), o.[Customer's], 'x', o.B)"),
+         // the name before a literal, and the columns after a token the parser stops at
+         // (item 2)
+         Arguments.of(null, "T.A^'x'", "o.A^'x'"),
+         Arguments.of(null, "T.A^'x' || T.B", "o.A^'x' || o.B"),
+         Arguments.of(MSSQL, "T.A^'x' + T.B", "o.A^'x' + o.B"),
+         Arguments.of(null, "concat($(p), T.A^'x')", "concat($(p), o.A^'x')"),
+         Arguments.of(null, "concat($(a.b), T.A^'x', T.B)", "concat($(a.b), o.A^'x', o.B)"),
+         Arguments.of(MYSQL, "T.A div 2 + T.B", "o.A div 2 + o.B"),
+         Arguments.of(POSTGRESQL, "T.A ->> 'k' || T.B", "o.\"A\" ->> 'k' || o.\"B\""),
+         Arguments.of(null, "T.A + T.B over (partition by T.C)",
+                      "o.A + o.B over (partition by o.C)"),
+         Arguments.of(null, "T.A in ('O''Brien', T.B)", "o.A in ('O''Brien', o.B)"),
+         // a variable is not a column (item 3)
+         Arguments.of(null, "concat(T.C, $(T.B))", "concat(o.C, $(T.B))"),
+         Arguments.of(null, "case when $(T.B) is null then 1 else T.C end",
+                      "case when $(T.B) is null then 1 else o.C end"),
+         // a name starting with the column name is not the column (item 4)
+         Arguments.of(null, "T.DATE + T.DATE_ID", "o.\"DATE\" + o.DATE_ID"),
+         Arguments.of(null, "T.DATE_ID + T.DATE", "o.DATE_ID + o.\"DATE\""),
+         Arguments.of(MSSQL, "T.DATE + T.DATE_ID", "o.\"DATE\" + o.DATE_ID"),
+         Arguments.of(MYSQL, "T.DATE + T.DATE_ID", "o.`DATE` + o.DATE_ID"),
+         Arguments.of(null, "concat($(a.b), T.DATE, T.DATE$X)",
+                      "concat($(a.b), o.\"DATE\", o.\"DATE$X\")"),
+         // a name with $ or # written without quotes is not quoted in a database where it is
+         // a valid name without quotes, a quoted name is case-sensitive in oracle (verify F1)
+         Arguments.of(ORACLE, "T.amount$ * 2", "o.amount$ * 2"),
+         Arguments.of(ORACLE, "T.emp#no + T.b", "o.emp#no + o.b"),
+         Arguments.of(ORACLE, "nvl(T.amount$, 0)", "nvl(o.amount$, 0)"),
+         Arguments.of(MSSQL, "T.emp#no + T.b", "o.emp#no + o.b"),
+         Arguments.of(SYBASE, "coalesce(T.emp#no, 0) + 1", "coalesce(o.emp#no, 0) + 1"),
+         Arguments.of(DB2, "coalesce(T.amount$, 0) + 1", "coalesce(o.amount$, 0) + 1"),
+         Arguments.of(MYSQL, "coalesce(T.amount$, 0) + 1", "coalesce(o.amount$, 0) + 1"),
+         Arguments.of(ORACLE, "nvl(T.\"amount$\", 0)", "nvl(o.\"amount$\", 0)"),
+         // h2 allows $ in a name without quotes and folds it to upper case, so a quoted lower
+         // or mixed case name is a different column, # is not allowed (verify round 3, H1)
+         Arguments.of(H2, "T.amount$ * 2", "o.amount$ * 2"),
+         Arguments.of(H2, "T.a$x + 1", "o.a$x + 1"),
+         Arguments.of(H2, "T.Amount$ + 1", "o.Amount$ + 1"),
+         Arguments.of(H2, "T.a$1 + 1", "o.a$1 + 1"),
+         Arguments.of(H2, "nvl(T.amount$, 0)", "nvl(o.amount$, 0)"),
+         Arguments.of(H2, "coalesce(T.Amount$, T.b) + 1", "coalesce(o.Amount$, o.b) + 1"),
+         Arguments.of(H2, "T.emp#no + 1", "o.\"emp#no\" + 1"),
+         // a $ name that becomes a keyword with _ in place of $ (review round 2, minor 2)
+         Arguments.of(ORACLE, "T.current$date + 1", "o.current$date + 1"),
+         // $ and # are not valid in a name without quotes in other databases, so the name is
+         // quoted as in a function call before (review round 2, finding 1, verify G1)
+         Arguments.of(null, "T.a$x + 1", "o.\"a$x\" + 1"),
+         Arguments.of(TRINO, "coalesce(T.a$x, 0) + 1", "coalesce(o.\"a$x\", 0) + 1"),
+         Arguments.of(TRINO, "T.a$x + 1", "o.\"a$x\" + 1"),
+         Arguments.of(PRESTO, "nvl(T.order#, 0)", "nvl(o.\"order#\", 0)"),
+         Arguments.of(HIVE, "nvl(T.amount$, 0)", "nvl(o.`amount$`, 0)"),
+         Arguments.of(DATABRICKS, "coalesce(T.a$x, 0) + 1", "coalesce(o.`a$x`, 0) + 1"),
+         Arguments.of(DATABRICKS, "nvl(T.order#, 0)", "nvl(o.`order#`, 0)"),
+         Arguments.of(CLICKHOUSE, "coalesce(T.a$x, 0) + 1", "coalesce(o.\"a$x\", 0) + 1"),
+         Arguments.of(DERBY, "coalesce(T.A$X, 0) + 1", "coalesce(o.\"A$X\", 0) + 1"),
+         Arguments.of(BIGQUERY, "coalesce(T.a$x, 0) + 1", "coalesce(o.`a$x`, 0) + 1"),
+         // a double quoted name with a [ is not a bracket quoted name (verify G2)
+         Arguments.of(MSSQL, "T.\"a[b]\" + T.c", "o.\"a[b]\" + o.c"),
+         Arguments.of(MSSQL, "upper(T.\"a[b]\")", "upper(o.\"a[b]\")"),
+         // a name the helper quotes for another reason is still quoted
+         Arguments.of(POSTGRESQL, "T.A$X + 1", "o.\"A$X\" + 1"),
+         // a doubled quote in a quoted name (verify F2)
+         Arguments.of(POSTGRESQL, "T.\"A\"\"B\"", "o.\"A\"\"B\""),
+         Arguments.of(POSTGRESQL, "T.\"A\"\"B\" || T.C", "o.\"A\"\"B\" || o.\"C\""),
+         // a mysql # comment (item 5)
+         Arguments.of(MYSQL, "T.A # note\n + T.B", "o.A # note\n + o.B"),
+         Arguments.of(MYSQL, "T.A # it's\n + T.B", "o.A # it's\n + o.B"),
+         Arguments.of(MYSQL, "T.A # it's\n + T.B + 'x'", "o.A # it's\n + o.B + 'x'"),
+         Arguments.of(MYSQL, "concat(T.A, # it's T.B\n T.B, 'x')",
+                      "concat(o.A, # it's T.B\n o.B, 'x')"),
+         // a mysql backslash escape (item 6)
+         Arguments.of(MYSQL, "concat(T.A, \"it\\\"s T.B\")", "concat(o.A, \"it\\\"s T.B\")"),
+         Arguments.of(MYSQL, "concat(T.A, \"it\\\"s T.B\", T.B)",
+                      "concat(o.A, \"it\\\"s T.B\", o.B)"),
+         Arguments.of(MYSQL, "concat(T.A, 'it\\'s', T.B)", "concat(o.A, 'it\\'s', o.B)"),
+         Arguments.of(MYSQL, "concat(T.A, 'it\\'s T.B', T.B)",
+                      "concat(o.A, 'it\\'s T.B', o.B)"),
+         // the rules of the other databases are not applied
+         Arguments.of(null, "concat($(a.b), T.A, 'C:\\', T.B)",
+                      "concat($(a.b), o.A, 'C:\\', o.B)"),
+         Arguments.of(null, "concat($(a.b), m['a]b'], T.B)", "concat($(a.b), m['a]b'], o.B)"),
+         Arguments.of(POSTGRESQL, "concat($(a.b), T.A, '[x', T.B, 'y]')",
+                      "concat($(a.b), o.\"A\", '[x', o.\"B\", 'y]')"),
+         Arguments.of(MYSQL, "concat(T.A, '-- x', T.B) /* it's T.B */",
+                      "concat(o.A, '-- x', o.B) /* it's T.B */"),
+         // a double quoted name is still a column
+         Arguments.of(MYSQL, "upper(\"T\".\"A\")", "upper(o.A)"),
+         Arguments.of(MSSQL, "upper(\"T\".\"A\") + T.[B]", "upper(o.A) + o.[B]"),
+         // realistic expressions the parser doesn't read to the end, so the column iterator
+         // finds their columns, keep every column replaced
+         Arguments.of(null, "T.A in (select X.B from X where X.C = T.D)",
+                      "o.A in (select X.B from X where X.C = o.D)"),
+         Arguments.of(null, "T.A between 1 and T.B", "o.A between 1 and o.B"),
+         Arguments.of(MYSQL, "T.A between 1 and T.B", "o.A between 1 and o.B"),
+         Arguments.of(null, "T.A is null or T.B > 0", "o.A is null or o.B > 0"),
+         Arguments.of(MSSQL, "T.A IS NOT NULL AND T.B <> 'it''s'",
+                      "o.A IS NOT NULL AND o.B <> 'it''s'"),
+         Arguments.of(null, "T.A in (1, 2) and T.B = 1", "o.A in (1, 2) and o.B = 1"),
+         Arguments.of(POSTGRESQL, "T.A[1] + T.B", "o.\"A\"[1] + o.\"B\""),
+         Arguments.of(POSTGRESQL, "(T.A)[1] || T.B", "(o.\"A\")[1] || o.\"B\""),
+         Arguments.of(POSTGRESQL, "T.A = ANY(ARRAY[T.B, T.C])",
+                      "o.\"A\" = ANY(ARRAY[o.\"B\", o.\"C\"])"),
+         Arguments.of(POSTGRESQL, "T.A->'k' || T.B", "o.\"A\"->'k' || o.\"B\""),
+         Arguments.of(POSTGRESQL, "T.A #> '{a,b}' || T.B", "o.\"A\" #> '{a,b}' || o.\"B\""),
+         Arguments.of(null, "T.A || N'it''s' || T.B", "o.A || N'it''s' || o.B"),
+         Arguments.of(null, "N'x' || T.A", "N'x' || o.A"),
+         Arguments.of(MYSQL, "concat($(p), _utf8'x', T.A, T.B)",
+                      "concat($(p), _utf8'x', o.A, o.B)"),
+         Arguments.of(MYSQL, "T.A->'$.k' || T.B", "o.A->'$.k' || o.B"),
+         Arguments.of(null, "T.A || 'x' || T.B\r\n + T.C", "o.A || 'x' || o.B\r\n + o.C"),
+         // expressions the parser reads to the end are not changed
+         Arguments.of(POSTGRESQL, "T.A::text || T.B", "o.\"A\"::text || o.\"B\""),
+         Arguments.of(POSTGRESQL, "T.A COLLATE \"C\" || T.B", "o.\"A\" COLLATE \"C\" || o.\"B\""),
+         Arguments.of(null, "substring(T.A from 2 for 3) || T.B",
+                      "substring(o.A from 2 for 3) || o.B"),
+         Arguments.of(ORACLE, "case T.A when 'it''s' then T.B else nvl(T.C, 0) end",
+                      "case o.A when 'it''s' then o.B else nvl(o.C, 0) end"));
+   }
+
+   @ParameterizedTest(name = "{0}: {1}")
+   @MethodSource("dialectExpressions")
+   void tableIsReplacedByDatabaseRules(String product, String exp, String expected)
+      throws Exception
+   {
+      assertEquals(expected + " = 1", evaluate("T", "o", exp, product));
+   }
+
+   // Bug #77697, a name starting with the column name is not the column, it is a column of
+   // another table (item 4)
+   @Test
+   void columnOfTableNamedAfterColumnIsNotReplaced() throws Exception {
+      VpmCondition cond = createCondition("T", "T.A + T.AB.C");
+      XPrincipal user = new XPrincipal(new IdentityID("viewer", null));
+
+      assertEquals("o.A + p.C = 1",
+                   cond.evaluate(null, new String[] { "T", "T.AB" }, new String[] { "o", "p" },
+                                 new String[0], null, new VariableTable(), user, false));
+   }
+
+   // Bug #77697, a variable with a dot was renamed by the table alias, so it was bound as
+   // null (item 3)
+   @Test
+   void variableIsNotRenamed() throws Exception {
+      VariableTable vars = new VariableTable();
+      vars.put("a.b", "v");
+      VpmCondition cond = createCondition("a", "case when $(a.b) is null then 1 else a.c end");
+      XPrincipal user = new XPrincipal(new IdentityID("viewer", null));
+      String result = cond.evaluate(null, new String[] { "a" }, new String[] { "o" },
+                                    new String[0], null, vars, user, false);
+
+      assertEquals("case when $(a.b) is null then 1 else o.c end = 1", result);
+
+      VarSQL varsql = new VarSQL();
+      varsql.replaceVariables("select * from a o where " + result, vars);
+      assertEquals(List.of("v"), varsql.getParameterValues());
+   }
+
+   // a bracket quoted column is replaced with the alias quoted as the other columns are
+   // (review round 1, minor 2)
+   @Test
+   void aliasOfBracketQuotedColumnIsQuoted() throws Exception {
+      assertEquals("\"Order Details\".[A] + \"Order Details\".B = 1",
+                   evaluate("T", "Order Details", "T.[A] + T.B", MSSQL));
+      assertEquals("\"select\".[A] > 0 = 1", evaluate("T", "select", "T.[A] > 0", MSSQL));
+   }
+
    private static String evaluate(String table, String alias, String exp) throws Exception {
+      return evaluate(table, alias, exp, null);
+   }
+
+   private static String evaluate(String table, String alias, String exp, String product)
+      throws Exception
+   {
+      VpmCondition cond = createCondition(table, exp);
+      JDBCDataSource source = null;
+
+      if(product != null) {
+         source = new JDBCDataSource();
+         source.setName("ds");
+         source.setRuntimeProductName(product);
+      }
+
+      XPrincipal user = new XPrincipal(new IdentityID("viewer", null));
+      return cond.evaluate(null, new String[] { table }, new String[] { alias },
+                           new String[0], source, new VariableTable(), user, false);
+   }
+
+   private static VpmCondition createCondition(String table, String exp) {
       VpmCondition cond = new VpmCondition("cond");
       cond.setType(VpmCondition.TABLE);
       cond.setTable(table);
       cond.setCondition(new XBinaryCondition(new XExpression(exp, XExpression.EXPRESSION),
                                              new XExpression("1", XExpression.VALUE), "="));
-
-      XPrincipal user = new XPrincipal(new IdentityID("viewer", null));
-      return cond.evaluate(null, new String[] { table }, new String[] { alias },
-                           new String[0], null, new VariableTable(), user, false);
+      return cond;
    }
+
+   private static final String MSSQL = "sql server";
+   private static final String MYSQL = "mysql";
+   private static final String POSTGRESQL = "postgresql";
+   private static final String ORACLE = "oracle";
+   private static final String TRINO = "trino";
+   private static final String PRESTO = "presto";
+   private static final String TERADATA = "teradata";
+   private static final String SYBASE = "sybase";
+   private static final String DB2 = "db2";
+   private static final String HIVE = "hive";
+   private static final String DATABRICKS = "databricks";
+   private static final String CLICKHOUSE = "clickhouse";
+   private static final String DERBY = "derby";
+   private static final String BIGQUERY = "google bigquery";
+   private static final String H2 = "h2";
 
    @Configuration
    static class TestConfig {

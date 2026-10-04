@@ -301,6 +301,9 @@ public class XDataSourceAsset extends AbstractXAsset implements FolderChangeable
       String ads = getAdditionalDatasource();
 
       if(ads == null) {
+         // refused before anything is removed, the data source at a parent path of the import
+         // and its additional connections are kept (Bug #77702)
+         checkNotUnderDataSource(ds);
          String datasource = getDataSourceName(ds);
 
          if(getRegistry().containDatasource(datasource)) {
@@ -331,10 +334,10 @@ public class XDataSourceAsset extends AbstractXAsset implements FolderChangeable
             // model and additional connections, the data sources in the folder would be taken
             // for additional connections of the data source (Bug #77691)
             if(getRegistry().containObject(new AssetEntry(
-               AssetRepository.QUERY_SCOPE, AssetEntry.Type.DATA_SOURCE_FOLDER, datasource, null)))
+               AssetRepository.QUERY_SCOPE, AssetEntry.Type.DATA_SOURCE_FOLDER, ds, null)))
             {
                throw new MessageException(Catalog.getCatalog().getString(
-                  "common.datasource.moveTargetExists", datasource));
+                  "common.datasource.moveTargetExists", ds));
             }
 
             getRegistry().setExistQueryFolders(new String[0]);
@@ -359,6 +362,27 @@ public class XDataSourceAsset extends AbstractXAsset implements FolderChangeable
 
                jdx.addDatasource((AdditionalConnectionDataSource<?>) dx1);
             }
+         }
+      }
+   }
+
+   /**
+    * Refuses to import a data source under a data source, at a nested path or at the path of an
+    * additional connection. The data source would be removed with all its additional connections,
+    * or a folder created beside it. A data source isn't filtered out here when its connector
+    * isn't installed or the user can't read it.
+    *
+    * @param path the full name of the imported data source.
+    */
+   private void checkNotUnderDataSource(String path) {
+      for(int index = path.indexOf('/'); index >= 0; index = path.indexOf('/', index + 1)) {
+         String parent = path.substring(0, index);
+
+         if(getRegistry().containObject(new AssetEntry(
+            AssetRepository.QUERY_SCOPE, AssetEntry.Type.DATA_SOURCE, parent, null)))
+         {
+            throw new MessageException(Catalog.getCatalog().getString(
+               "common.datasource.createUnderDataSource", path, parent));
          }
       }
    }
