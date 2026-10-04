@@ -314,10 +314,14 @@ public class VSExportService {
     * it is already in progress (Bug #77227). Shared with ExportControllerService so the
     * viewer and API export paths cannot overlap on one runtime viewsheet. On success the
     * caller must call {@link RuntimeViewsheet#endExport()} in a finally.
+    *
+    * @throws ExportInProgressException if another export of this runtime viewsheet holds the
+    *         claim. It is a {@code MessageException}, typed so a caller can report it as
+    *         retryable (Bug #77597).
     */
    public static void beginExport(RuntimeViewsheet rvs, Principal principal) {
       if(!rvs.beginExport()) {
-         throw new MessageException(Catalog.getCatalog(principal).getString(
+         throw new ExportInProgressException(Catalog.getCatalog(principal).getString(
             "viewer.viewsheet.exporting"), LogLevel.INFO, false);
       }
    }
