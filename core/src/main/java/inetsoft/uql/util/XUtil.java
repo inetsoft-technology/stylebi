@@ -4825,7 +4825,9 @@ public final class XUtil {
             }
          }
 
-         names = repository.getSubfolderNames(parent);
+         // the root folder is sent as "" or "/", but only null lists the root folders
+         names = repository.getSubfolderNames(
+            "".equals(parent) || "/".equals(parent) ? null : parent);
 
          for(String name : names) {
             name = DataSourceFolder.getDisplayName(name);

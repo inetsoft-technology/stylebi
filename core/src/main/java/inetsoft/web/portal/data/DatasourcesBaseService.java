@@ -791,6 +791,45 @@ public abstract class DatasourcesBaseService {
    }
 
    /**
+    * Checks the name of a data source that is created or renamed, and that its path is not used
+    * by another data source or a data source folder (Bug #77691). The data sources in a folder
+    * with the path of a data source would be taken for its additional connections.
+    *
+    * @param oldName    the name of the existing data source, or null if it is created.
+    * @param definition the definition of the data source or additional connection.
+    */
+   protected void checkDatasourceNameValid(String oldName, BaseDataSourceDefinition definition) {
+      String newName = definition.getName();
+      checkDatasourceNameValid(oldName, newName, definition.getParentPath());
+
+      if(oldName != null && oldName.equals(newName)) {
+         return;
+      }
+
+      // build the path as the data source is named, see DatasourcesService.createDataSource
+      String parentPath = definition.getParentPath();
+      String folder = parentPath == null || parentPath.isEmpty() || "/".equals(parentPath) ?
+         "" : parentPath + "/";
+      String parentDataSource = definition instanceof DataSourceDefinition ds ?
+         ds.getParentDataSource() : null;
+      boolean additional = parentDataSource != null && !parentDataSource.isEmpty();
+      String path = additional ?
+         folder + parentDataSource + "/" + newName : folder + newName;
+      Catalog catalog = Catalog.getCatalog();
+
+      if(dataSourceRegistry.isDataSourcePathInUse(path)) {
+         throw new MessageException(catalog.getString("common.datasource.moveTargetExists", path));
+      }
+
+      String ancestor = additional ? null : dataSourceRegistry.getDataSourceAncestor(path);
+
+      if(ancestor != null) {
+         throw new MessageException(
+            catalog.getString("common.datasource.createUnderDataSource", path, ancestor));
+      }
+   }
+
+   /**
     * Create a new data source connection.
     *
     * @param definition new data source definition.

@@ -413,7 +413,17 @@ public class DatabaseDatasourcesService {
          int index = fullName.lastIndexOf('/');
          String newPath = index == -1 ? name : fullName.substring(0, index) + "/" + name;
 
-         if(registry.getDataSourceFolder(newPath) != null) {
+         // a data source at the new path is reported as "Duplicate" above, so only check for a
+         // folder, which isn't filtered by permission (Bug #77691). newPath is the path of the
+         // data source itself if it isn't renamed.
+         if(isDataSourceFolder(newPath)) {
+            return new ConnectionStatus("Duplicate Folder");
+         }
+
+         // an additional connection is saved without additional connections of its own
+         if(dataSource instanceof JDBCDataSource jdbc && jdbc.getBaseDatasource() == null &&
+            isAdditionalConnectionPathFolder(newPath, getAdditionals.get()))
+         {
             return new ConnectionStatus("Duplicate Folder");
          }
       }
@@ -422,13 +432,16 @@ public class DatabaseDatasourcesService {
          // Create the dataSource - path is the parent folder's path
          fullName = fullName.startsWith("/") ? fullName.substring(1) : fullName;
 
-         if(!fullName.isEmpty() && registry.getDataSourceFolder(fullName) == null) {
+         if(!fullName.isEmpty() && !isDataSourceFolder(fullName)) {
             return new ConnectionStatus("Invalid Folder");
          }
 
          fullName += !fullName.isEmpty() ? "/" + name : name;
 
-         if(registry.getDataSourceFolder(fullName) != null) {
+         // a data source or a folder at the path, not filtered by permission (Bug #77691)
+         if(registry.isDataSourcePathInUse(fullName) ||
+            isAdditionalConnectionPathFolder(fullName, getAdditionals.get()))
+         {
             return new ConnectionStatus("Duplicate Folder");
          }
 
@@ -875,6 +888,40 @@ public class DatabaseDatasourcesService {
                      return true;
                   }
                }
+            }
+         }
+      }
+
+      return false;
+   }
+
+   /**
+    * Checks if a data source folder exists at a path. Unlike
+    * {@link DataSourceRegistry#getDataSourceFolder(String)}, the check isn't filtered by
+    * permission.
+    */
+   private boolean isDataSourceFolder(String path) {
+      return dataSourceRegistry.containObject(new AssetEntry(
+         AssetRepository.QUERY_SCOPE, AssetEntry.Type.DATA_SOURCE_FOLDER, path, null));
+   }
+
+   /**
+    * Checks if a data source folder exists at the path of one of the additional connections of a
+    * data source (Bug #77691). An additional connection is stored at the path of its data source
+    * followed by its name.
+    *
+    * @param parentPath  the path of the data source after it is saved.
+    * @param additionals the additional connections of the data source.
+    */
+   private boolean isAdditionalConnectionPathFolder(String parentPath,
+                                                    DatabaseDefinition[] additionals)
+   {
+      if(additionals != null) {
+         for(DatabaseDefinition additional : additionals) {
+            if(additional != null && additional.getName() != null &&
+               isDataSourceFolder(parentPath + "/" + additional.getName()))
+            {
+               return true;
             }
          }
       }

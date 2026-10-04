@@ -302,8 +302,7 @@ public class XmlaDatasourceService extends DatasourcesBaseService {
 
    @Override
    public XDataSource createDataSource(BaseDataSourceDefinition definition, XDataSource ds) {
-      checkDatasourceNameValid(ds == null ? null : ds.getName(), definition.getName(),
-         definition.getParentPath());
+      checkDatasourceNameValid(ds == null ? null : ds.getName(), definition);
 
       return createDataSource((DataSourceXmlaDefinition) definition, (XMLADataSource) ds);
    }

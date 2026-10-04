@@ -216,6 +216,72 @@ public class DataSourceRegistry implements MessageListener {
    }
 
    /**
+    * Gets the paths that are used by both a data source and a data source folder in the current
+    * organization. Such data can't be created any more (Bug #77691), but may exist. The data
+    * sources in such a folder are stored at the paths of additional connections of the data
+    * source, so renaming or deleting the data source also changes them.
+    *
+    * @return the paths, sorted.
+    */
+   public List<String> getDataSourcePathClashes() {
+      AssetFolder root = getRoot();
+
+      if(root == null) {
+         return Collections.emptyList();
+      }
+
+      Set<String> folders = new HashSet<>();
+
+      for(AssetEntry entry : root.getEntries(AssetEntry.Type.DATA_SOURCE_FOLDER)) {
+         folders.add(entry.getPath());
+      }
+
+      List<String> clashes = new ArrayList<>();
+
+      for(AssetEntry entry : root.getEntries(AssetEntry.Type.DATA_SOURCE)) {
+         String path = entry.getPath();
+
+         // the root folder may list a missing asset (bug #60767)
+         if(folders.contains(path) && containObject(entry) && containObject(new AssetEntry(
+            AssetRepository.QUERY_SCOPE, AssetEntry.Type.DATA_SOURCE_FOLDER, path, null)))
+         {
+            clashes.add(path);
+         }
+      }
+
+      Collections.sort(clashes);
+      return clashes;
+   }
+
+   /**
+    * Logs the paths used by both a data source and a data source folder, once for each
+    * organization. They are reported, not repaired.
+    */
+   private void reportDataSourcePathClashes() {
+      String orgID = null;
+
+      try {
+         orgID = OrganizationManager.getInstance().getCurrentOrgID();
+
+         if(orgID == null || !clashesReported.add(orgID)) {
+            return;
+         }
+
+         List<String> clashes = getDataSourcePathClashes();
+
+         if(!clashes.isEmpty()) {
+            LOG.warn("A data source and a data source folder share these paths in organization " +
+                        "{}: {}. Saving the data source no longer changes the data sources in " +
+                        "the folder, but renaming or deleting it does. Rename the folder.",
+                     orgID, clashes);
+         }
+      }
+      catch(Exception e) {
+         LOG.debug("Failed to check the data source paths of organization {}", orgID, e);
+      }
+   }
+
+   /**
     * Check if the specified data source exists in this repository.
     */
    public synchronized boolean containDatasource(String dsname) {
@@ -1968,6 +2034,8 @@ public class DataSourceRegistry implements MessageListener {
       finally {
          indexedStorage.close();
       }
+
+      reportDataSourcePathClashes();
    }
 
    /**
@@ -2167,6 +2235,8 @@ public class DataSourceRegistry implements MessageListener {
    private final Map<String, Map<String, List<String>>> allDataSources = new ConcurrentHashMap<>();
 
    private final Map<String, String> drillPathsFixed = new ConcurrentHashMap<>();
+   // the organizations whose data source path clashes are reported
+   private final Set<String> clashesReported = ConcurrentHashMap.newKeySet();
    private final Lock rootLock = new ReentrantLock();
 
    private static final Logger LOG = LoggerFactory.getLogger(DataSourceRegistry.class);

@@ -667,8 +667,20 @@ public class RepositoryObjectService {
                   "em.common.security.no.permission", dsParent));
             }
 
+            // a folder must not be created under a data source (Bug #77691). getDataSourceAncestor
+            // checks every segment of "parent/", including the parent itself
+            String dsAncestor = dataSourceRegistry.getDataSourceAncestor(folderName);
+
+            if(dsAncestor != null) {
+               throw new MessageException(Catalog.getCatalog().getString(
+                  "common.datasource.createUnderDataSource",
+                  folderName + (Tool.isEmptyString(newFolderName) ? "Folder1" : newFolderName),
+                  dsAncestor));
+            }
+
             if(!Tool.isEmptyString(newFolderName)) {
-               if(dataSourceRegistry.getDataSourceFolder(newFolderName) != null) {
+               // a data source or a folder at the path, not filtered by permission
+               if(dataSourceRegistry.isDataSourcePathInUse(folderName + newFolderName)) {
                   throw new RuntimeException("Folder already exists");
                }
 
@@ -682,7 +694,7 @@ public class RepositoryObjectService {
                for(int i = 1; i < Integer.MAX_VALUE; i++) {
                   String name = folderName + "Folder" + i;
 
-                  if(dataSourceRegistry.getDataSourceFolder(name) == null) {
+                  if(!dataSourceRegistry.isDataSourcePathInUse(name)) {
                      dataSourceRegistry.setDataSourceFolder(new DataSourceFolder(
                         name, LocalDateTime.now(), pId != null ? pId.getName() : null));
                      folderName = name;
