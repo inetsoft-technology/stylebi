@@ -714,10 +714,9 @@ class UniformSQLCrossJoinChainTest {
    }
 
    /**
-    * The from clauses of mainShapes that parsed before Bug #77675: a RIGHT join group after a
-    * comma, which SQLite reads with the precedence of a JOIN, or one that SQLHelper writes
-    * after another join group (a join (c right join d on ..), and the B5 and B6 shapes, the
-    * known gap of review r4/r5). They are refused (SQLHelperCommaJoinGroupTest).
+    * The from clauses of mainShapes that parsed before Bug #77675 with a RIGHT join group
+    * after a comma, which SQLite reads with the precedence of a JOIN. They are refused
+    * (SQLHelperCommaJoinGroupTest).
     */
    static Stream<String> commaRightJoinShapes() {
       return Stream.of(
@@ -725,18 +724,10 @@ class UniformSQLCrossJoinChainTest {
          X_RIGHT + "where exists (select 1 from (p join q on p.id = q.id) left join r " +
             "on q.id = r.id)",
          X_RIGHT + "where x.id in (select p.id from p, q, r)",
-         GROUP_RIGHT + "where exists (select 1 from p cross join q)",
-         COLS4 + "from a join b on a.id = b.id join ((c right join d on c.id = d.id))",
-         COLS4 + "from a left join b on a.id = b.id join (c right join d on c.id = d.id)",
-         "select x.id from x, p cross join q where exists (select 1 from a join b on a.id = b.id " +
-            "join (c right join d on c.id = d.id) where a.id = x.id)",
          "select a.id, b.id, t.id from (select d.id from x, c right join d on c.id = d.id) t, " +
             "a cross join b",
          COLS4 + "from a join b on a.id = b.id, c right join d on c.id = d.id",
-         COLS4 + "from a INNER JOIN b ON a.id = b.id , c RIGHT OUTER JOIN d ON c.id = d.id",
-         "select a.id, b.id, c.id, d.id, e.id from a join b on a.id = b.id, d left join (c join e " +
-            "on c.id = e.id) on d.id = c.id",
-         B6_RIGHT.trim()
+         COLS4 + "from a INNER JOIN b ON a.id = b.id , c RIGHT OUTER JOIN d ON c.id = d.id"
       );
    }
 
@@ -745,6 +736,37 @@ class UniformSQLCrossJoinChainTest {
    void commaRightJoinShapeIsRefused(String text) {
       for(String type : new String[] { "h2", "mysql-ansi", "postgresql", "mongo" }) {
          assertRefused(text, dataSource(type), type);
+      }
+   }
+
+   /**
+    * The from clauses of mainShapes whose only RIGHT join group SQLHelper wrote after another
+    * join group (a join (c right join d on ..), and the B5 and B6 shapes, the known gap of
+    * review r4/r5). They parse, and the group is written first (Bug #77675,
+    * SQLHelperCommaJoinGroupTest compares their rows).
+    */
+   static Stream<String> movedRightJoinGroupShapes() {
+      return Stream.of(
+         GROUP_RIGHT + "where exists (select 1 from p cross join q)",
+         COLS4 + "from a join b on a.id = b.id join ((c right join d on c.id = d.id))",
+         COLS4 + "from a left join b on a.id = b.id join (c right join d on c.id = d.id)",
+         "select x.id from x, p cross join q where exists (select 1 from a join b on a.id = b.id " +
+            "join (c right join d on c.id = d.id) where a.id = x.id)",
+         // the B5 shape, d left join (c join e ..) after a join group, is checked without the
+         // round trip in mainLeftJoinOverNestedJoinRegeneratesAsBefore
+         B6_RIGHT.trim()
+      );
+   }
+
+   @ParameterizedTest
+   @MethodSource("movedRightJoinGroupShapes")
+   void movedRightJoinGroupShapeParses(String text) throws Exception {
+      for(String type : new String[] { "h2", "mysql-ansi", "postgresql", "mongo" }) {
+         JDBCDataSource ds = dataSource(type);
+         UniformSQL sql = parse(text, ds);
+         assertEquals(UniformSQL.PARSE_SUCCESS, sql.getParseResult(), type + ": " + text);
+         assertFalse(sql.isLossy(), type + ": " + text);
+         assertRoundTrip(regenerate(sql), ds);
       }
    }
 
@@ -768,10 +790,13 @@ class UniformSQLCrossJoinChainTest {
     */
    @ParameterizedTest
    @CsvSource(delimiter = '|', value = {
-      // the one after a join group is refused (commaRightJoinShapes, Bug #77675)
       "select c.id, d.id, e.id, x.id from x, d left join (c join e on c.id = e.id) on d.id = c.id" +
          "|select c.id, d.id, e.id, x.id from (c INNER JOIN e ON c.id = e.id ) RIGHT OUTER JOIN " +
-         "d ON d.id = c.id , x"
+         "d ON d.id = c.id , x",
+      // the RIGHT join group is written before the other group (Bug #77675)
+      "select a.id, b.id, c.id, d.id, e.id from a join b on a.id = b.id, d left join (c join e " +
+         "on c.id = e.id) on d.id = c.id|select a.id, b.id, c.id, d.id, e.id from (c INNER JOIN " +
+         "e ON c.id = e.id ) RIGHT OUTER JOIN d ON d.id = c.id , a INNER JOIN b ON a.id = b.id"
    })
    void mainLeftJoinOverNestedJoinRegeneratesAsBefore(String text, String expected) throws Exception {
       UniformSQL sql = parse(text, dataSource("h2"));
@@ -915,13 +940,18 @@ class UniformSQLCrossJoinChainTest {
       "statement with a cross join chain or a parenthesized join";
 
    /**
-    * The from clause of the B6 shapes with no new syntax regenerated the RIGHT join group
-    * after the inner join group (the known gap on main, review r5), which SQLite reads with
-    * the precedence of a JOIN. It is refused (Bug #77675).
+    * The from clause of the B6 shapes with no new syntax parses. It regenerated the RIGHT join
+    * group after the inner join group (the known gap on main, review r5), which SQLite reads
+    * with the precedence of a JOIN, and now writes it first (Bug #77675).
     */
    @Test
-   void mainRightJoinFirstIsRefused() {
-      assertRefused(B6_RIGHT.trim(), dataSource("h2-ansi"), "h2-ansi");
+   void mainRightJoinFirstRegeneratesFirst() throws Exception {
+      String text = B6_RIGHT.trim();
+      UniformSQL sql = parse(text, dataSource("h2-ansi"));
+      assertEquals(UniformSQL.PARSE_SUCCESS, sql.getParseResult(), text);
+      assertFalse(sql.isLossy(), text);
+      assertEquals("select c.id, d.id, p.id, q.id, r.id from c RIGHT OUTER JOIN d ON c.id = d.id " +
+         ", p INNER JOIN q ON p.id = q.id AND p.k = q.k , r", regenerate(sql));
    }
 
    @ParameterizedTest

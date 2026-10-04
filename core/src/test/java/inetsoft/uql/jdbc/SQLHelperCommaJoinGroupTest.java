@@ -58,9 +58,11 @@ import static org.mockito.Mockito.when;
  * <ul>
  * <li>SQLHelper writes the first such group before the other groups and puts any other one,
  * or every one of a * select list, in parentheses.</li>
- * <li>A parsed query whose regenerated sql needs that is refused, so its sql runs as written,
- * and so is a from item after a comma with a RIGHT or FULL join outside of parentheses, which
- * the databases read differently.</li>
+ * <li>A from item after a comma with a RIGHT or FULL join outside of parentheses, which the
+ * databases read differently, is refused, so its sql runs as written.</li>
+ * <li>A parsed query whose only such group is moved first parses, and returns its rows on
+ * every database. One whose regenerated sql needs more (two or more such groups, or a *
+ * select list) is refused.</li>
  * </ul>
  */
 @ExtendWith(SpringExtension.class)
@@ -87,25 +89,16 @@ class SQLHelperCommaJoinGroupTest {
    private static final Map<String, Connection> connections = new LinkedHashMap<>();
 
    /**
-    * Queries whose regenerated sql moved or parenthesized a RIGHT or FULL join group, or whose
-    * from items after a comma have a RIGHT or FULL join, at any query level.
+    * Queries whose regenerated sql needs more than moving their only RIGHT or FULL join group
+    * to the front (two or more such groups, or a * select list), or whose from items after a
+    * comma have a RIGHT or FULL join, at any query level.
     */
    static Stream<String> refusedQueries() {
       return Stream.of(
-         // S01 family: a join group without a join condition is a comma separated group
-         COLS4 + "from a join b on a.id = b.id join (c right join d on c.id = d.id)",
+         // a * select list: the group would be put in parentheses (or its columns reordered)
          "select * from a join b on a.id = b.id join (c right join d on c.id = d.id)",
-         COLS4 + "from (a join b on a.id = b.id) join (c right join d on c.id = d.id)",
-         COLS4 + "from a left join b on a.id = b.id join (c right join d on c.id = d.id)",
-         COLS4 + "from a join b on a.id = b.id join (c full join d on c.id = d.id)",
-         COLS5 + "from a join b on a.id = b.id join (c join e on c.id = e.id right join d " +
-            "on c.id = d.id)",
+         // two RIGHT groups
          COLS4 + "from c right join d on c.id = d.id join (a right join b on a.id = b.id)",
-         // a LEFT join of a nested group is written as a RIGHT join
-         COLS5 + "from a join b on a.id = b.id, d left join (c join e on c.id = e.id) " +
-            "on d.id = c.id",
-         COLS5 + "from a join b on a.id = b.id join (d left join (c join e on c.id = e.id) " +
-            "on d.id = c.id)",
          // two FULL groups, without a comma
          COLS4 + "from a full join b on a.id = b.id join (c full join d on c.id = d.id)",
          COLS4 + "from a full join b on a.id = b.id join (c full join d on c.id = d.id) " +
@@ -126,14 +119,10 @@ class SQLHelperCommaJoinGroupTest {
          COLS5 + "from a join b on a.id = b.id, c join e on c.id = e.id right join d " +
             "on c.id = d.id",
          COLSX + "from x, (select c.id from c) c right join d on c.id = d.id",
-         // in a subquery and a derived table
-         COLS4 + "from a join b on a.id = b.id join (c right join d on c.id = d.id) " +
-            "where a.id = b.id",
-         "select x.id from x where exists (select 1 from a join b on a.id = b.id " +
-            "join (c right join d on c.id = d.id) where a.id = x.id)",
+         // in a subquery
          "select x.id from x where exists (select 1 from x, c right join d on c.id = d.id)",
-         "select t.aid from x, (select a.id aid from a join b on a.id = b.id " +
-            "join (c right join d on c.id = d.id)) t"
+         "select t.aid from x, (select a.id aid from a full join b on a.id = b.id " +
+            "join (c full join d on c.id = d.id)) t"
       );
    }
 
@@ -153,17 +142,70 @@ class SQLHelperCommaJoinGroupTest {
 
       // the comma group check uses the base helper without a data source
       sql = new UniformSQL();
-      new SQLProcessor(sql).parse(COLS4 + "from a, b, c, d where a.id = b.id and c.id =* d.id");
+      new SQLProcessor(sql).parse(COLS4 + "from a, b, c, d where a.id =* b.id and c.id =* d.id");
       assertEquals(UniformSQL.PARSE_FAILED, sql.getParseResult());
+
+      // a refusal by the base helper isn't cached by isLossy without a data source, the data
+      // source's helper may accept the query (Oracle without ansi join writes (+) joins)
+      String text = COLS4 + "from a, b, c, d where a.id(+) = b.id and c.id(+) = d.id";
+      sql = new UniformSQL();
+      sql.setSQLString(text, false);
+      assertTrue(sql.isLossy());
+      sql.setDataSource(dataSource("oracle"));
+      assertFalse(sql.isLossy());
+      sql = new UniformSQL();
+      sql.setSQLString(text, false);
+      assertTrue(sql.isLossy());
+      sql.setDataSource(dataSource("oracle-ansi"));
+      assertTrue(sql.isLossy());
+
+      // the refusal is reported at the first RIGHT or FULL join of the query
+      Exception ex = assertThrows(Exception.class, () -> parse("select * from a left join b " +
+         "on a.id = b.id, c, d where c.id =* d.id", dataSource("default")));
+      Throwable cause = ex;
+
+      while(cause != null && !(cause instanceof antlr.RecognitionException)) {
+         cause = cause.getCause();
+      }
+
+      assertNotNull(cause, ex.toString());
+      assertTrue(cause.getMessage().contains("Unsupported RIGHT or FULL join group"), ex.toString());
+      // the JOIN keyword of a left join
+      assertEquals(1, ((antlr.RecognitionException) cause).getLine());
+      assertEquals(22, ((antlr.RecognitionException) cause).getColumn());
    }
 
    /**
     * A where clause outer join is generated as an ANSI join, except by Oracle without ansi
-    * join, which writes (+).
+    * join, which writes (+). Its only RIGHT join group is written first, which returns the
+    * rows of the where clause joins on every database.
     */
    @Test
-   void whereClauseOuterJoinGroupAfterInnerGroupIsRefused() {
+   void whereClauseOuterJoinGroupAfterInnerGroupIsMovedFirst() throws Exception {
       String text = COLS4 + "from a, b, c, d where a.id = b.id and c.id =* d.id";
+      String expected = COLS4 + "from a join b on a.id = b.id join (c right join d on c.id = d.id)";
+
+      for(String helper : HELPERS) {
+         UniformSQL sql = parse(text, dataSource(helper));
+         assertEquals(UniformSQL.PARSE_SUCCESS, sql.getParseResult(), helper + ": " + text);
+         assertFalse(sql.isLossy(), helper + ": " + text);
+         String generated = regenerate(sql);
+
+         if(!"oracle".equals(helper)) {
+            assertTrue(unquote(generated).contains("from c RIGHT OUTER JOIN d"),
+                       helper + ": " + generated);
+         }
+
+         if("default".equals(helper) || "default-ansi".equals(helper) ||
+            "h2-ansi".equals(helper) || "mysql".equals(helper))
+         {
+            assertSameRows(expected, generated);
+            assertRoundTrip(generated, dataSource(helper), helper);
+         }
+      }
+
+      // two RIGHT join groups are refused, except by Oracle without ansi join
+      text = COLS4 + "from a, b, c, d where a.id =* b.id and c.id =* d.id";
 
       for(String helper : HELPERS) {
          if(!"oracle".equals(helper)) {
@@ -176,7 +218,9 @@ class SQLHelperCommaJoinGroupTest {
       sql.setDataSource(dataSource("oracle"));
       new SQLProcessor(sql).parse(text);
       assertEquals(UniformSQL.PARSE_SUCCESS, sql.getParseResult());
-      assertRefused(text, dataSource("oracle-ansi"), "oracle-ansi");
+      sql = parse(text, dataSource("oracle-ansi"));
+      assertEquals(UniformSQL.PARSE_SUCCESS, sql.getParseResult());
+      assertTrue(regenerate(sql).contains("from c RIGHT OUTER JOIN d"), regenerate(sql));
    }
 
    @Test
@@ -201,7 +245,7 @@ class SQLHelperCommaJoinGroupTest {
       assertTrue(XUtil.isSQLExpressionValid(
          "(select count(*) from x, c right join d on c.id = d.id)"));
       assertTrue(XUtil.isSQLExpressionValid(
-         "(select count(*) from a join b on a.id = b.id join (c right join d on c.id = d.id))"));
+         "(select count(*) from a full join b on a.id = b.id join (c full join d on c.id = d.id))"));
    }
 
    /**
@@ -210,6 +254,27 @@ class SQLHelperCommaJoinGroupTest {
     */
    static Stream<String> acceptedQueries() {
       return Stream.of(
+         // the only RIGHT or FULL group is written first: a join group without a join
+         // condition is a comma separated group
+         COLS4 + "from a join b on a.id = b.id join (c right join d on c.id = d.id)",
+         COLS4 + "from (a join b on a.id = b.id) join (c right join d on c.id = d.id)",
+         COLS4 + "from a left join b on a.id = b.id join (c right join d on c.id = d.id)",
+         COLS4 + "from a join b on a.id = b.id join (c full join d on c.id = d.id)",
+         COLS4 + "from a left join b on a.id = b.id join (c full join d on c.id = d.id)",
+         COLS5 + "from a join b on a.id = b.id join (c join e on c.id = e.id right join d " +
+            "on c.id = d.id)",
+         // a LEFT join of a nested group is written as a RIGHT join group
+         COLS5 + "from a join b on a.id = b.id, d left join (c join e on c.id = e.id) " +
+            "on d.id = c.id",
+         COLS5 + "from a join b on a.id = b.id join (d left join (c join e on c.id = e.id) " +
+            "on d.id = c.id)",
+         // in a subquery and a derived table
+         COLS4 + "from a join b on a.id = b.id join (c right join d on c.id = d.id) " +
+            "where a.id = b.id",
+         "select x.id from x where exists (select 1 from a join b on a.id = b.id " +
+            "join (c right join d on c.id = d.id) where a.id = x.id)",
+         "select t.aid, t.did, x.id from x, (select a.id aid, d.id did from a join b " +
+            "on a.id = b.id join (c right join d on c.id = d.id)) t",
          // the RIGHT or FULL group is the first from item
          COLS4 + "from c right join d on c.id = d.id, a join b on a.id = b.id",
          COLS4 + "from c full join d on c.id = d.id, a left join b on a.id = b.id",
@@ -518,7 +583,7 @@ class SQLHelperCommaJoinGroupTest {
          }
          catch(SQLException ex) {
             // the driver is not on the classpath
-            if(url == H2 || url == SQLITE) {
+            if(H2.equals(url) || SQLITE.equals(url)) {
                continue;
             }
 
@@ -575,8 +640,8 @@ class SQLHelperCommaJoinGroupTest {
       for(Map.Entry<String, Connection> entry : connections.entrySet()) {
          String url = entry.getKey();
 
-         if(full && (url == H2 || url.startsWith("jdbc:derby")) ||
-            standard && (url == HSQLDB || url == SQLITE))
+         if(full && (H2.equals(url) || url.startsWith("jdbc:derby")) ||
+            standard && (HSQLDB.equals(url) || SQLITE.equals(url)))
          {
             continue;
          }
@@ -596,11 +661,12 @@ class SQLHelperCommaJoinGroupTest {
    /**
     * The sql to run for the original sql on a database. Derby and HSQLDB reject a JOIN without
     * a join condition, which H2 and SQLite read as a cross join, so they run the same query
-    * with a CROSS JOIN. Each such join of the queries follows the ON of a join.
+    * with a CROSS JOIN. Each such join of the queries follows the ON of a join, or a
+    * parenthesized join.
     */
    private static String reference(String url, String sql) {
-      if(url == HSQLDB || url.startsWith("jdbc:derby")) {
-         return sql.replaceAll("(\\.id) join \\(", "$1 cross join (");
+      if(HSQLDB.equals(url) || url.startsWith("jdbc:derby")) {
+         return sql.replaceAll("(\\.id\\)?) join \\(", "$1 cross join (");
       }
 
       return sql;

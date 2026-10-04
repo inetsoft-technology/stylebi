@@ -770,10 +770,11 @@ private void checkRightJoins(UniformSQL sql) {
       joinOrderChecks.add(sql);
    }
    else {
-      rightJoins.remove(sql);
+      Object tok = rightJoins.remove(sql);
 
       if(hasOuterJoin(sql.getWhere())) {
          commaJoinGroupChecks.add(sql);
+         commaJoinGroupTokens.put(sql, tok != null ? tok : getFirstJoinToken(sql));
       }
    }
 }
@@ -817,6 +818,9 @@ private boolean hasInnerJoin(XFilterNode node) {
 private List joinOrderChecks = new ArrayList();
 // the other queries with an outer join, in parse order (Bug #77675)
 private List commaJoinGroupChecks = new ArrayList();
+// sql in commaJoinGroupChecks -> the token of its first RIGHT or FULL join, or of its first
+// join, to report a refusal at
+private Map commaJoinGroupTokens = new IdentityHashMap();
 // sql -> the JoinEvents of the from clause, in parse order
 private Map joinEvents = new IdentityHashMap();
 // the from clause index of the first table of each enclosing join
@@ -918,23 +922,48 @@ public List getCommaJoinGroupChecks() {
 }
 
 /**
- * Check that the regenerated sql of a query with an outer join keeps the comma separated
- * join groups of its from clause in place. SQLHelper moves a group with a RIGHT or FULL join
- * before the other groups, or puts it in parentheses, because SQLite and HSQLDB read
- * x, c RIGHT JOIN d ON .. as (x, c) RIGHT JOIN d ON .., and the other databases as
- * x, (c RIGHT JOIN d ON ..). The query can't tell which of them the sql meant: UniformSQL
- * keeps a join group of a JOIN without a join condition, a join (c right join d on ..), as a
- * comma separated group too. So such a query is refused and its sql runs as written. A query
- * with a * column would also return its columns in another order (Bug #77675).
- * @param changed true if the regenerated sql moved or parenthesized a join group.
+ * Check that the regenerated sql of a query with an outer join needs at most to move its only
+ * join group with a RIGHT or FULL join outside of parentheses before its other comma separated
+ * join groups. SQLite and HSQLDB read x, c RIGHT JOIN d ON .. as (x, c) RIGHT JOIN d ON ..,
+ * and the other databases as x, (c RIGHT JOIN d ON ..), so SQLHelper writes such a group
+ * first, which every database reads the same way and which returns the rows of the parsed
+ * sql: from_clause refuses the sql of a from item after a comma with such a join, which the
+ * databases read differently (checkCommaItemJoins). A query with two or more such groups
+ * leaves one of them after a comma (in parentheses, or without them on MongoHelper), and a
+ * query with a * column puts the group in parentheses or returns its columns in another
+ * order, so such a query is refused and its sql runs as written (Bug #77675).
+ * @param notMovable true if the regenerated sql did more than move the only such group
+ * (SQLHelper.isCommaGroupsNotMovable), or couldn't be generated.
  */
-public void checkCommaJoinGroups(UniformSQL sql, boolean changed) throws SemanticException {
-   if(changed) {
+public void checkCommaJoinGroups(UniformSQL sql, boolean notMovable) throws SemanticException {
+   if(notMovable) {
       Token tok = (Token) rightJoins.get(sql);
+
+      if(tok == null) {
+         tok = (Token) commaJoinGroupTokens.get(sql);
+      }
+
       throw new SemanticException(
          "Unsupported RIGHT or FULL join group that is not the first from item",
          getFilename(), tok == null ? 0 : tok.getLine(), tok == null ? 0 : tok.getColumn());
    }
+}
+
+/**
+ * Get the JOIN keyword of the first join recorded for a query, null if none.
+ */
+private Token getFirstJoinToken(UniformSQL sql) {
+   List events = (List) joinEvents.get(sql);
+
+   for(int i = 0; events != null && i < events.size(); i++) {
+      Token tok = ((JoinEvent) events.get(i)).tok;
+
+      if(tok != null) {
+         return tok;
+      }
+   }
+
+   return null;
 }
 
 /**

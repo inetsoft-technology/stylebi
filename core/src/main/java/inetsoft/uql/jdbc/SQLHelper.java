@@ -754,6 +754,7 @@ public class SQLHelper implements KeywordProvider {
       textJoinOrder = null;
       ansiWhereJoins = null;
       commaGroupsChanged = false;
+      commaGroupsNotMovable = false;
 
       // make sure the table aliases don't exceed database limit
       fixTableAliases();
@@ -2527,7 +2528,8 @@ public class SQLHelper implements KeywordProvider {
       }
 
       boolean parens = isJoinParenthesesSupported();
-      boolean move = !parens || !isStarSelected();
+      boolean star = isStarSelected();
+      boolean move = !parens || !star;
       List<String> ordered = new ArrayList<>();
 
       if(move) {
@@ -2544,6 +2546,11 @@ public class SQLHelper implements KeywordProvider {
       }
 
       commaGroupsChanged = true;
+      // moving the only such group returns the same rows and columns, anything else leaves a
+      // group after a comma (in parentheses, or not on MongoHelper) or changes the order of
+      // the * columns
+      commaGroupsNotMovable = star || rightOrFull.indexOf(Boolean.TRUE) !=
+         rightOrFull.lastIndexOf(Boolean.TRUE);
       return ordered;
    }
 
@@ -2577,6 +2584,17 @@ public class SQLHelper implements KeywordProvider {
     */
    public boolean isCommaGroupsChanged() {
       return commaGroupsChanged;
+   }
+
+   /**
+    * Check if the last generated sql changed the comma separated join groups of a from clause
+    * (isCommaGroupsChanged) other than by moving its only group with a RIGHT or FULL join
+    * outside of parentheses to the front: it has two or more such groups, so one of them is
+    * still after a comma (in parentheses, or without them on MongoHelper), or its select list
+    * has a * column, so the group is put in parentheses or its columns are reordered.
+    */
+   public boolean isCommaGroupsNotMovable() {
+      return commaGroupsNotMovable;
    }
 
    /**
@@ -6483,6 +6501,9 @@ public class SQLHelper implements KeywordProvider {
    // true if this generation moved or parenthesized a comma separated join group, see
    // orderCommaGroups (Bug #77675)
    private boolean commaGroupsChanged = false;
+   // true if commaGroupsChanged did more than move the only RIGHT or FULL join group to the
+   // front, see isCommaGroupsNotMovable (Bug #77675)
+   private boolean commaGroupsNotMovable = false;
    private Map<String, String> aliasmap = null; // old table alias -> new alias
    private String version = "";
    private boolean isFormatSQL; //for test auto case. Test will not format sql.
