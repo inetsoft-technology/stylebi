@@ -44,9 +44,11 @@ public class OAuthPasswordGrantClientFactory extends DefaultHttpClientFactory {
          if(tokens != null) {
             dataSource.updateTokens(tokens);
 
+            // Bug #77699, save onto the stored definition, not this runtime instance whose
+            // variables have been replaced with the values of the query
             if(saveTokens && dataSource.getFullName() != null) {
                try {
-                  XRepository.getRepository().updateDataSource(dataSource, dataSource.getFullName());
+                  XRepository.getRepository().updateDataSourceTokens(dataSource, tokens);
                }
                catch(Exception ex) {
                   LOG.warn("Failed to save data source after refreshing token", ex);
