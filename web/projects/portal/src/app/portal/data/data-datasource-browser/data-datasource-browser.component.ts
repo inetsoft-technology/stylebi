@@ -898,7 +898,7 @@ export class DataDatasourceBrowserComponent extends CommandProcessor implements 
       datasources = datasources
          .filter(item => (this.isDataSourceFolder(item) || this.isDataSource(item)) &&
             targetFolder != AssetUtil.getParentPath(item.path) &&
-            !targetFolder.startsWith(item.path));
+            targetFolder !== item.path && !targetFolder.startsWith(item.path + "/"));
 
       if(datasources.length > 0) {
          const checkMoveDuplicateRequest: CheckMoveDuplicateRequest = {

@@ -624,6 +624,13 @@ public class XEngine implements XRepository, XQueryRepository {
       boolean nameChanged =
          oname != null && !Tool.equals(oname, folder.getFullName());
 
+      // a folder moved into one of its subfolders would be left with no parent folder. Checked
+      // before cutDataSourceFolder, which moves the children first.
+      if(nameChanged && DataSourceRegistry.isSameOrDescendantPath(oname, folder.getFullName())) {
+         throw new MessageException(Catalog.getCatalog().getString(
+            "common.datasource.moveIntoItself", oname));
+      }
+
       if(forcerename) {
          copyDataSourceFolder(folder, oname);
       }

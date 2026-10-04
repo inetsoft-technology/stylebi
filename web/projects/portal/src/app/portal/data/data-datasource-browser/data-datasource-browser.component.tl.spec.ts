@@ -599,6 +599,41 @@ describe("DataDatasourceBrowserComponent - drag/drop [Group 5, Risk 3]", () => {
       expect(datasourceService.moveDataSourcesToFolder).not.toHaveBeenCalled();
    });
 
+   // Bug #77687: a folder is never moved into itself or one of its subfolders, but it is moved
+   // into a sibling whose name starts with its own.
+   it("should not move a folder into itself or one of its subfolders", async () => {
+      const folder = makeDataSource("F", "F", PortalDataType.DATA_SOURCE_FOLDER);
+      const confirmSpy = vi.spyOn(ComponentTool, "showConfirmDialog").mockResolvedValue("ok");
+      const { comp, dragService, datasourceService, moveCheckRequests } =
+         await renderComponent();
+      (dragService.getDragData as Mock).mockReturnValue({
+         dragDataSources: JSON.stringify([folder])
+      });
+
+      comp.dropAssets({ stopPropagation: vi.fn() } as any as DragEvent, folder);
+      comp.dropAssets({ stopPropagation: vi.fn() } as any as DragEvent,
+         makeDataSource("G", "F/G", PortalDataType.DATA_SOURCE_FOLDER));
+
+      expect(moveCheckRequests).toEqual([]);
+      expect(confirmSpy).not.toHaveBeenCalled();
+      expect(datasourceService.moveDataSourcesToFolder).not.toHaveBeenCalled();
+   });
+
+   it("should move a folder into a sibling whose name starts with its own", async () => {
+      const folder = makeDataSource("F", "F", PortalDataType.DATA_SOURCE_FOLDER);
+      vi.spyOn(ComponentTool, "showConfirmDialog").mockResolvedValue("ok");
+      const { comp, dragService, datasourceService } = await renderComponent();
+      (dragService.getDragData as Mock).mockReturnValue({
+         dragDataSources: JSON.stringify([folder])
+      });
+
+      comp.dropAssets({ stopPropagation: vi.fn() } as any as DragEvent,
+         makeDataSource("Fx", "Fx", PortalDataType.DATA_SOURCE_FOLDER));
+
+      await waitFor(() => expect(datasourceService.moveDataSourcesToFolder)
+         .toHaveBeenCalledWith([folder], "Fx", expect.any(Function)));
+   });
+
    it("should send no path in the duplicate check when dropped on the root folder", async () => {
       const source = makeDataSource("Source", "source/Source", PortalDataType.DATABASE);
       vi.spyOn(ComponentTool, "showConfirmDialog").mockResolvedValue("ok");

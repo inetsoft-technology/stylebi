@@ -278,6 +278,27 @@ describe("DataSourcesTreeViewComponent — moveDatasourceInfos / moveDatasourceA
       expect(confirmSpy).toHaveBeenCalled();
    });
 
+   // Bug #77687: a folder dropped on itself or one of its subfolders is filtered out before the
+   // confirm dialog, a sibling whose name starts with its own is still a target
+   it("moveDatasourceInfos should not move a folder into itself or one of its subfolders", async () => {
+      const confirmSpy = vi.spyOn(ComponentTool, "showConfirmDialog").mockResolvedValue("ok");
+      const { comp, datasourceService } = await renderComponent();
+      const folder = { name: "F", path: "F" };
+
+      (comp as any).moveDatasourceInfos(
+         { type: AssetType.DATA_SOURCE_FOLDER, path: "F", scope: 0, properties: {} }, [folder]);
+      (comp as any).moveDatasourceInfos(
+         { type: AssetType.DATA_SOURCE_FOLDER, path: "F/G", scope: 0, properties: {} }, [folder]);
+
+      expect(confirmSpy).not.toHaveBeenCalled();
+      expect(datasourceService.moveDataSourcesToFolder).not.toHaveBeenCalled();
+
+      (comp as any).moveDatasourceInfos(
+         { type: AssetType.DATA_SOURCE_FOLDER, path: "Fx", scope: 0, properties: {} }, [folder]);
+
+      expect(confirmSpy).toHaveBeenCalled();
+   });
+
    it("moveDatasourceAssets should return early when assets array is empty", async () => {
       const { comp, datasourceService } = await renderComponent();
       const targetEntry = { type: AssetType.DATA_SOURCE_FOLDER, path: "/", scope: 0, properties: {} };
