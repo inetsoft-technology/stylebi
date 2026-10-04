@@ -35,7 +35,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Bug #77600, the cache sweepers treated every file that is not in the swap file map as
- * orphaned, but most swappables (XIntFragment, XStringFragment, SelectionList, ...) never
+ * orphaned, but most swappables (XIntFragment, SelectionList, ...) never
  * register their files there. A cache clean-up during a running query deleted their live
  * swap files and the data silently read back as empty.
  */

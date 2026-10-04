@@ -126,6 +126,8 @@ interface RenderOptions {
    browserModel?: DataSourceBrowserModel;
    statusResponse?: DataSourceStatus[];
    composerOpen?: boolean;
+   moveDuplicate?: boolean;
+   moveCheckFails?: boolean;
 }
 
 function makeNotifications(): NotificationMock {
@@ -197,6 +199,7 @@ async function renderComponent(options: RenderOptions = {}) {
    const onCreateEvent = new Subject<any>();
    const browserRequests: URL[] = [];
    const statusRequests: any[] = [];
+   const moveCheckRequests: any[] = [];
 
    currentNotifications = makeNotifications();
 
@@ -240,6 +243,15 @@ async function renderComponent(options: RenderOptions = {}) {
       http.post("*/api/data/datasources/statuses", async ({ request }) => {
          statusRequests.push(await request.json());
          return HttpResponse.json(options.statusResponse ?? []);
+      }),
+      http.post("*/api/data/datasources/move/checkDuplicate", async ({ request }) => {
+         moveCheckRequests.push(await request.json());
+
+         if(options.moveCheckFails) {
+            return HttpResponse.json({ message: "failed" }, { status: 500 });
+         }
+
+         return HttpResponse.json({ duplicate: options.moveDuplicate ?? false });
       })
    );
 
@@ -295,6 +307,7 @@ async function renderComponent(options: RenderOptions = {}) {
       notifications: currentNotifications,
       browserRequests,
       statusRequests,
+      moveCheckRequests,
       onCreateEvent
    };
 }
@@ -561,6 +574,63 @@ describe("DataDatasourceBrowserComponent - drag/drop [Group 5, Risk 3]", () => {
          .toHaveBeenCalledWith([validAsset]));
       await waitFor(() => expect(datasourceService.moveDataSourcesToFolder)
          .toHaveBeenCalledWith([validInfo], "target/child", expect.any(Function)));
+   });
+
+   // Bug #77673: the drop must not move onto a name already used in the target folder.
+   it("should not move when the target folder already has an item with the same name", async () => {
+      const source = makeDataSource("Source", "source/Source", PortalDataType.DATABASE);
+      const confirmSpy = vi.spyOn(ComponentTool, "showConfirmDialog")
+         .mockResolvedValue("ok");
+      const messageSpy = vi.spyOn(ComponentTool, "showMessageDialog")
+         .mockResolvedValue("ok");
+      const { comp, dragService, datasourceService, moveCheckRequests } =
+         await renderComponent({ moveDuplicate: true });
+      comp.currentFolderPathString = "target";
+      (dragService.getDragData as Mock).mockReturnValue({
+         dragDataSources: JSON.stringify([source])
+      });
+
+      comp.dropAssets({ stopPropagation: vi.fn() } as any as DragEvent, null);
+
+      await waitFor(() => expect(messageSpy).toHaveBeenCalledWith(expect.anything(),
+         "_#(js:Error)", "_#(js:common.duplicateName)"));
+      expect(moveCheckRequests).toEqual([{ items: [source], path: "target" }]);
+      expect(confirmSpy).not.toHaveBeenCalled();
+      expect(datasourceService.moveDataSourcesToFolder).not.toHaveBeenCalled();
+   });
+
+   it("should send no path in the duplicate check when dropped on the root folder", async () => {
+      const source = makeDataSource("Source", "source/Source", PortalDataType.DATABASE);
+      vi.spyOn(ComponentTool, "showConfirmDialog").mockResolvedValue("ok");
+      const { comp, dragService, datasourceService, moveCheckRequests } =
+         await renderComponent();
+      comp.currentFolderPathString = "";
+      (dragService.getDragData as Mock).mockReturnValue({
+         dragDataSources: JSON.stringify([source])
+      });
+
+      comp.dropAssets({ stopPropagation: vi.fn() } as any as DragEvent, null);
+
+      await waitFor(() => expect(datasourceService.moveDataSourcesToFolder)
+         .toHaveBeenCalledWith([source], "", expect.any(Function)));
+      expect(moveCheckRequests).toEqual([{ items: [source] }]);
+   });
+
+   it("should still confirm and move when the duplicate check fails", async () => {
+      const source = makeDataSource("Source", "source/Source", PortalDataType.DATABASE);
+      const confirmSpy = vi.spyOn(ComponentTool, "showConfirmDialog").mockResolvedValue("ok");
+      const { comp, dragService, datasourceService } =
+         await renderComponent({ moveCheckFails: true });
+      comp.currentFolderPathString = "target";
+      (dragService.getDragData as Mock).mockReturnValue({
+         dragDataSources: JSON.stringify([source])
+      });
+
+      comp.dropAssets({ stopPropagation: vi.fn() } as any as DragEvent, null);
+
+      await waitFor(() => expect(confirmSpy).toHaveBeenCalled());
+      await waitFor(() => expect(datasourceService.moveDataSourcesToFolder)
+         .toHaveBeenCalledWith([source], "target", expect.any(Function)));
    });
 });
 

@@ -21,10 +21,13 @@ import inetsoft.test.*;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.lang.reflect.Field;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -32,6 +35,10 @@ import static org.junit.jupiter.api.Assertions.*;
  * Bug #77655, XIntFragment.add() and XObjectFragment.add() silently dropped a value added to a
  * completed tail fragment that was swapped out, while the list still counted it. A tail that was
  * swapped and read back lost the value on the next swap, which reused the old swap file.
+ *
+ * <p>Bug #77685, that guard is in the tail fragment, so an add to a completed list whose size is
+ * 0 or an exact multiple of the fragment size opened a new tail fragment and was accepted. The
+ * new tail was never completed (never swappable) and accepted the rest of its block too.
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
@@ -136,6 +143,86 @@ class XSwappableListAddAfterCompleteTest {
 
       assertDoesNotThrow(() -> ints.add(777777));
       assertDoesNotThrow(() -> objs.add("NEW"));
+   }
+
+   // the int list holds 32768 values per fragment: empty, mid-block and an exact boundary
+   @ParameterizedTest
+   @ValueSource(ints = { 0, 10, 2 * 32768 })
+   void intListAddAfterCompleteFails(int count) throws Exception {
+      XSwappableIntList list = new XSwappableIntList();
+
+      for(int i = 0; i < count; i++) {
+         list.add(i);
+      }
+
+      list.complete();
+
+      IllegalStateException ex =
+         assertThrows(IllegalStateException.class, () -> list.add(777777));
+      assertTrue(ex.getMessage().contains("completed swappable list"), ex.getMessage());
+      // a second add is refused as well, no open tail fragment was left behind
+      assertThrows(IllegalStateException.class, () -> list.add(777778));
+
+      assertEquals(count, list.size());
+      assertTrue(list.isCompleted());
+      assertNull(fragment(list, (count + 32767) / 32768), "a new tail fragment was opened");
+
+      if(count > 0) {
+         assertEquals(count - 1, list.get(count - 1));
+      }
+
+      list.dispose();
+   }
+
+   // the object list holds 8192 values per fragment: empty, mid-block and an exact boundary
+   @ParameterizedTest
+   @ValueSource(ints = { 0, 10, 2 * 8192 })
+   void objectListAddAfterCompleteFails(int count) throws Exception {
+      XSwappableObjectList<String> list = new XSwappableObjectList<>(null);
+
+      for(int i = 0; i < count; i++) {
+         list.add("v" + i);
+      }
+
+      list.complete();
+
+      IllegalStateException ex =
+         assertThrows(IllegalStateException.class, () -> list.add("NEW"));
+      assertTrue(ex.getMessage().contains("completed swappable list"), ex.getMessage());
+      assertThrows(IllegalStateException.class, () -> list.addAll(List.of("A", "B")));
+
+      assertEquals(count, list.size());
+      assertTrue(list.isCompleted());
+      assertNull(fragment(list, (count + 8191) / 8192), "a new tail fragment was opened");
+
+      if(count > 0) {
+         assertEquals("v" + (count - 1), list.get(count - 1));
+      }
+
+      list.dispose();
+   }
+
+   @Test
+   void addAfterDisposeOnBoundaryIsIgnored() {
+      XSwappableIntList ints = new XSwappableIntList();
+      XSwappableObjectList<String> objs = new XSwappableObjectList<>(null);
+
+      for(int i = 0; i < 2 * 32768; i++) {
+         ints.add(i);
+      }
+
+      for(int i = 0; i < 2 * 8192; i++) {
+         objs.add("v" + i);
+      }
+
+      ints.complete();
+      objs.complete();
+      ints.dispose();
+      objs.dispose();
+
+      // the add is ignored, it neither throws nor reports an index
+      assertEquals(-1, assertDoesNotThrow(() -> ints.add(777777)));
+      assertEquals(-1, assertDoesNotThrow(() -> objs.add("NEW")));
    }
 
    private static XSwappableIntList createIntList() {

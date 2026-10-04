@@ -35,14 +35,17 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 @Component
 public class CacheMeterService extends MonitorLevelService implements XSwappableMonitor, MeterBinder {
-   private Counter sheetHits;
-   private Counter sheetMisses;
-   private Counter sheetRead;
-   private Counter sheetWritten;
-   private Counter dataHits;
-   private Counter dataMisses;
-   private Counter dataRead;
-   private Counter dataWritten;
+   // Bug #77684, the counters are created by bindTo(), which runs after registerMonitor() has
+   // already exposed this monitor to the swapper's threads. A count that arrives before
+   // bindTo() is dropped.
+   private volatile Counter sheetHits;
+   private volatile Counter sheetMisses;
+   private volatile Counter sheetRead;
+   private volatile Counter sheetWritten;
+   private volatile Counter dataHits;
+   private volatile Counter dataMisses;
+   private volatile Counter dataRead;
+   private volatile Counter dataWritten;
 
    private final AtomicInteger sheetMemory = new AtomicInteger(0);
    private final AtomicInteger sheetDisk = new AtomicInteger(0);
@@ -210,41 +213,27 @@ public class CacheMeterService extends MonitorLevelService implements XSwappable
 
    @Override
    public void countHits(int type, int hits) {
-      if(type == XSwappableMonitor.SHEET) {
-         sheetHits.increment(hits);
-      }
-      else {
-         dataHits.increment(hits);
-      }
+      increment(type == XSwappableMonitor.SHEET ? sheetHits : dataHits, hits);
    }
 
    @Override
    public void countMisses(int type, int misses) {
-      if(type == XSwappableMonitor.SHEET) {
-         sheetMisses.increment(misses);
-      }
-      else {
-         dataMisses.increment(misses);
-      }
+      increment(type == XSwappableMonitor.SHEET ? sheetMisses : dataMisses, misses);
    }
 
    @Override
    public void countRead(long num, int type) {
-      if(type == XSwappableMonitor.SHEET) {
-         sheetRead.increment(num);
-      }
-      else {
-         dataRead.increment(num);
-      }
+      increment(type == XSwappableMonitor.SHEET ? sheetRead : dataRead, num);
    }
 
    @Override
    public void countWrite(long num, int type) {
-      if(type == XSwappableMonitor.SHEET) {
-         sheetWritten.increment(num);
-      }
-      else {
-         dataWritten.increment(num);
+      increment(type == XSwappableMonitor.SHEET ? sheetWritten : dataWritten, num);
+   }
+
+   private static void increment(Counter counter, double amount) {
+      if(counter != null) {
+         counter.increment(amount);
       }
    }
 

@@ -237,8 +237,22 @@ public final class XSwappableObjectList<T> implements Serializable {
 
    /**
     * Add a new object to the list.
+    * @return the index of the object, or -1 if the list is disposed (the object is ignored).
+    * @throws IllegalStateException if the list is completed.
     */
    public int add(Object obj) {
+      // a disposed list ignores the add, it has no fragments to add to
+      if(disposed) {
+         return -1;
+      }
+
+      // check the list, not only the tail fragment. At a fragment boundary (and on an empty
+      // list) the add below would open a new tail fragment that is never completed
+      if(completed) {
+         throw new IllegalStateException(
+            "Cannot add a value to a completed swappable list: size=" + count);
+      }
+
       if((count & BLOCK_SIZE) == 0) {
          getSwapper().waitForMemory();
 

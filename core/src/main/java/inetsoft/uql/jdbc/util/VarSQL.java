@@ -26,6 +26,7 @@ import org.slf4j.LoggerFactory;
 import java.lang.reflect.Array;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 /**
  * SQL variable processing.
@@ -201,7 +202,7 @@ public class VarSQL {
 
                         if(k >= 0 && fine) {
                            String temp = sql.substring(0, k + 1);
-                           temp = temp.toLowerCase();
+                           temp = temp.toLowerCase(Locale.ROOT);
 
                            if(temp.endsWith("in") && temp.length() > 3 &&
                               temp.charAt(temp.length() - 3) <= ' ')

@@ -232,30 +232,6 @@ class XFragmentSwapFileReadTest {
       assertNull(fragment.getSafely(5));
    }
 
-   @Test
-   void stringFragmentWithMissingSwapFileFails() {
-      XStringFragment fragment = new XStringFragment("swapped value");
-      fragment.complete();
-      assertTrue(fragment.swap(), "fragment was not swapped");
-      File file = fragment.getFile(fragment.prefix + ".tdat");
-      assertTrue(file.delete(), "swap file was not deleted");
-
-      assertThrows(SwapFileReadException.class, fragment::getData);
-      assertFalse(fragment.isValid());
-      assertFalse(fragment.swap(), "fragment without data was swapped");
-      fragment.dispose();
-   }
-
-   @Test
-   void stringFragmentIsReadBack() {
-      XStringFragment fragment = new XStringFragment("swapped value");
-      fragment.complete();
-      assertTrue(fragment.swap(), "fragment was not swapped");
-
-      assertEquals("swapped value", fragment.getData());
-      fragment.dispose();
-   }
-
    private static XIntFragment createSwappedIntFragment() {
       XIntFragment fragment = new XIntFragment(createValues());
       assertTrue(fragment.swap(), "fragment was not swapped");

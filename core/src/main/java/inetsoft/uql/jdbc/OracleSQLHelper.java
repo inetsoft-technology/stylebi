@@ -270,7 +270,7 @@ class OracleSQLHelper extends SQLHelper {
             JDBCSelection.isValidAlias(alias, this);
 
          if(upper) {
-            alias = alias.toUpperCase();
+            alias = alias.toUpperCase(Locale.ROOT);
          }
       }
 

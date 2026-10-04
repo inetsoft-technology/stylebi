@@ -919,6 +919,43 @@ public class RepositoryObjectService {
          }
       }
 
+      // a data source or data source folder moved onto a path that is already used by a data
+      // source or a data source folder would overwrite or merge with it. Check all nodes before
+      // moving any of them.
+      Set<String> dataSourceTargets = new HashSet<>();
+
+      for(int i = 0; i < pathFroms.length; i++) {
+         int typeFrom = Integer.parseInt(typeFroms[i]);
+
+         if((typeFrom & RepositoryEntry.DATA_SOURCE_FOLDER) != RepositoryEntry.DATA_SOURCE_FOLDER &&
+            (typeFrom & RepositoryEntry.DATA_SOURCE) != RepositoryEntry.DATA_SOURCE)
+         {
+            continue;
+         }
+
+         String pathFrom = pathFroms[i] == null ? "" : pathFroms[i];
+         int pindex = pathFrom.lastIndexOf("/");
+         String name = pindex < 0 ? pathFrom : pathFrom.substring(pindex + 1);
+         String newPath = "/".equals(pathTo) ? name : pathTo + "/" + name;
+
+         if(newPath.equals(pathFrom)) {
+            continue;
+         }
+
+         if(!dataSourceTargets.add(newPath) || dataSourceRegistry.isDataSourcePathInUse(newPath)) {
+            throw new MessageException(Catalog.getCatalog(principal).getString(
+               "common.datasource.moveTargetExists", newPath));
+         }
+
+         // moved under a data source, it would become an additional connection of it
+         String dataSource = dataSourceRegistry.getDataSourceAncestor(newPath);
+
+         if(dataSource != null) {
+            throw new MessageException(Catalog.getCatalog(principal).getString(
+               "common.datasource.moveUnderDataSource", dataSource));
+         }
+      }
+
       for(int i = 0; i < pathFroms.length; i++) {
          Map<String, List<String>> info = new HashMap<>();
          info.put("info", new ArrayList<>());
