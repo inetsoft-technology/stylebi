@@ -248,9 +248,11 @@ public class JDBCQueryCacheNormalizer {
       return map;
    }
 
-   // a row limit keyword as a whole word, in any case
+   // a row limit keyword as a whole word, in any case. A letter of any language, a digit,
+   // _, $ or # next to it makes it part of a name (credit_limit, a non-ascii name)
    private static final Pattern MAX_ROW_KEYWORD = Pattern.compile(
-      "(?<![\\w$#])(top|limit|fetch\\s+first)(?![\\w$#])|(?<![\\w$#])rownum\\s*<",
+      "(?<![\\p{L}\\p{M}\\p{N}_$#])(top|limit|fetch\\s+first)(?![\\p{L}\\p{M}\\p{N}_$#])|" +
+      "(?<![\\p{L}\\p{M}\\p{N}_$#])rownum\\s*<",
       Pattern.CASE_INSENSITIVE);
 
    private JDBCQuery query;

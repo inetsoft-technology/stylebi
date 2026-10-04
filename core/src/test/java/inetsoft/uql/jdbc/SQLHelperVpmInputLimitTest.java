@@ -40,6 +40,8 @@ import javax.sql.DataSource;
 import java.lang.reflect.Constructor;
 import java.sql.Connection;
 import java.sql.Statement;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -193,6 +195,32 @@ class SQLHelperVpmInputLimitTest {
       assertEquals(1, count(sql, "\\btop\\b"), sql);
    }
 
+   // oracle wraps only the where clause of the statement: a subquery's own where, a literal
+   // with where in it and a derived table's identical where are left alone (the where text
+   // was replaced everywhere, which unbalanced the parentheses or changed the literal)
+   @ParameterizedTest
+   @CsvSource(delimiter = '|', quoteCharacter = '~', value = {
+      "select customers.id from customers where customers.id in (select o.cid from orders o where o.amt > 5) and customers.id > 0",
+      "select customers.id from customers where exists (select o.cid from orders o where o.cid = customers.id)",
+      "select customers.id from customers where customers.note <> 'x where  y'",
+      "select customers.id from customers where customers.note <> 'x WHERE (y'",
+      "select customers.id from (select customers.id from customers where customers.id > 0) customers where customers.id > 0",
+   })
+   void oracleOnlyStatementWhereLimited(String text) throws Exception {
+      String sql = generate("oracle", text, true);
+      String plain = generate("oracle", text, false);
+      int where = statementWhere(sql);
+
+      assertEquals(0, parenDepth(sql), sql);
+      assertTrue(where > 0, sql);
+      assertTrue(sql.startsWith("where (", where), sql);
+      assertTrue(sql.endsWith(") AND rownum <= 2"), sql);
+      assertEquals(1, count(sql, "AND rownum <= 2"), sql);
+      // only the statement's where is wrapped, not a subquery's
+      assertEquals(1, count(sql, "where \\("), sql);
+      assertEquals(literals(plain), literals(sql), sql);
+   }
+
    // an oracle query without a where clause: the empty where was "replaced" in the whole
    // sql, which broke it
    @Test
@@ -255,6 +283,8 @@ class SQLHelperVpmInputLimitTest {
       // conservative: a [ is not a quote in every database, so [top] is not skipped
       "select a, [top] from t|true",
       "select credit_limit, top_n, rownum_x from t|false",
+      // a letter of any language joins the keyword into a name
+      "select \u9500\u552elimit, \u00f6top, \u00e9rownum < 3 from t|false",
       "select a from t where b <> 'x'|false",
       "select top 10 a from t|true",
       "SELECT TOP 10 a FROM t|true",
@@ -320,6 +350,65 @@ class SQLHelperVpmInputLimitTest {
       assertEquals(UniformSQL.PARSE_SUCCESS, usql.getParseResult(), text);
       usql.clearSQLString();
       return usql;
+   }
+
+   // the index of the where of the statement: outside literals and parentheses
+   private static int statementWhere(String sql) {
+      int depth = 0;
+      boolean quoted = false;
+
+      for(int i = 0; i < sql.length(); i++) {
+         char c = sql.charAt(i);
+
+         if(c == '\'') {
+            quoted = !quoted;
+         }
+         else if(!quoted && c == '(') {
+            depth++;
+         }
+         else if(!quoted && c == ')') {
+            depth--;
+         }
+         else if(!quoted && depth == 0 && sql.startsWith("where ", i) &&
+            sql.charAt(i - 1) == ' ')
+         {
+            return i;
+         }
+      }
+
+      return -1;
+   }
+
+   // the string literals of the sql
+   private static List<String> literals(String sql) {
+      List<String> list = new ArrayList<>();
+      Matcher matcher = Pattern.compile("'[^']*'").matcher(sql);
+
+      while(matcher.find()) {
+         list.add(matcher.group());
+      }
+
+      return list;
+   }
+
+   // the parentheses left open outside literals
+   private static int parenDepth(String sql) {
+      int depth = 0;
+      boolean quoted = false;
+
+      for(char c : sql.toCharArray()) {
+         if(c == '\'') {
+            quoted = !quoted;
+         }
+         else if(!quoted && c == '(') {
+            depth++;
+         }
+         else if(!quoted && c == ')') {
+            depth--;
+         }
+      }
+
+      return depth;
    }
 
    private static int count(String text, String regex) {
