@@ -53,6 +53,11 @@ import { AssetType } from "../../../../../../shared/data/asset-type";
 import { ComponentTool } from "../../../common/util/component-tool";
 import { AssetEntry } from "../../../../../../shared/data/asset-entry";
 import { of } from "rxjs";
+import { TestBed } from "@angular/core/testing";
+import { http, HttpResponse } from "msw";
+import { server } from "@test-mocks/server";
+import { type Mock } from "vitest";
+import { DragService } from "../../../widget/services/drag.service";
 import {
    buildRenderConfig,
    makeSubjects,
@@ -297,6 +302,40 @@ describe("DataSourcesTreeViewComponent — moveDatasourceInfos / moveDatasourceA
          { type: AssetType.DATA_SOURCE_FOLDER, path: "Fx", scope: 0, properties: {} }, [folder]);
 
       expect(confirmSpy).toHaveBeenCalled();
+   });
+
+   // Bug #77687: dropped from the pane on a tree folder, a selection with the target's own
+   // ancestor folder and another item moves the other item only
+   it("onNodeDrop should move the other items of a selection that contains the target's ancestor", async () => {
+      const checkRequests: any[] = [];
+      server.use(
+         http.post("*/api/data/datasources/move/checkDuplicate", async ({ request }) => {
+            checkRequests.push(await request.json());
+            return HttpResponse.json({ duplicate: false });
+         }),
+      );
+      const confirmSpy = vi.spyOn(ComponentTool, "showConfirmDialog").mockResolvedValue("ok");
+      const { comp, datasourceService } = await renderComponent();
+      const folder = { name: "F", path: "F", type: PortalDataType.DATA_SOURCE_FOLDER };
+      const other = { name: "S", path: "S", type: PortalDataType.DATABASE };
+      (TestBed.inject(DragService).getDragData as Mock).mockReturnValue({
+         dragDataSources: JSON.stringify([folder, other])
+      });
+
+      comp.onNodeDrop({ node: { data: {
+         type: AssetType.DATA_SOURCE_FOLDER, path: "F/G", scope: 0, properties: {} } } });
+
+      const move = datasourceService.moveDataSourcesToFolder as Mock;
+
+      for(let i = 0; i < 40 && move.mock.calls.length == 0; i++) {
+         await new Promise(resolve => setTimeout(resolve, 50));
+      }
+
+      expect(confirmSpy).toHaveBeenCalledTimes(1);
+      expect(checkRequests).toEqual([{ items: [other], path: "F/G" }]);
+      expect(move.mock.calls.length).toBe(1);
+      expect(move.mock.calls[0][0]).toEqual([other]);
+      expect(move.mock.calls[0][1]).toBe("F/G");
    });
 
    it("moveDatasourceAssets should return early when assets array is empty", async () => {
