@@ -115,9 +115,17 @@ class LocalPasswordEncryptionSecretKeyDecryptFailureTest {
    }
 
    @Test
-   void wellFormedAesValueIsNotEncryptedAgain() {
-      // returns before the secret key is read, so no context is needed
-      assertEquals(value, encryption.encryptPassword(value));
+   void wellFormedAesValueIsKeptWhenSecretKeyCannotBeRead() {
+      // the secret key cannot be read, so the value cannot be decrypted either: keep it as is
+      // (the master key fails before the secret key is read, so no context is needed)
+      JcePasswordEncryption noMasterKey = new JcePasswordEncryption() {
+         @Override
+         protected SecretKey getMasterKey() {
+            throw new IllegalStateException("no master key");
+         }
+      };
+
+      assertEquals(value, noMasterKey.encryptPassword(value));
    }
 
    private String encryptWith(SecretKey key, String password) throws Exception {

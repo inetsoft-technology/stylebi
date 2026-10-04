@@ -94,6 +94,45 @@ class LocalPasswordEncryptionSecretKeyResaveTest {
    }
 
    @Test
+   void decryptableAesValueIsEncryptedAsClearText() {
+      // a ciphertext of another secret supplied as a password must not stand in for that
+      // secret: it is encrypted like any clear text and comes back as the literal string
+      String ciphertext = Tool.encryptPassword(PASSWORD);
+      String encrypted = Tool.encryptPassword(ciphertext);
+      assertNotEquals(ciphertext, encrypted);
+      assertTrue(encrypted.startsWith(AbstractPasswordEncryption.NEW_PREFIX));
+      assertEquals(ciphertext, Tool.decryptPassword(encrypted));
+   }
+
+   @Test
+   void valueEncryptedWithForeignKeyIsPassedThrough() throws Exception {
+      JcePasswordEncryption encryption = new JcePasswordEncryption();
+      byte[][] result = encryption.encrypt(
+         PASSWORD.getBytes(StandardCharsets.UTF_16), encryption.createSecretKey());
+      String foreign = AbstractPasswordEncryption.NEW_PREFIX +
+         Base64.getEncoder().encodeToString(result[1]) + ":" +
+         Base64.getEncoder().encodeToString(result[0]);
+      assertEquals(foreign, Tool.encryptPassword(foreign));
+   }
+
+   @Test
+   void wellFormedAesValueIsPassedThroughWithoutSecretKey() throws Exception {
+      // JcePasswordEncryption.decryptSecretKey() returns null when the master password does
+      // not match: no value can be decrypted, so a well-formed one is kept as is
+      String value = Tool.encryptPassword(PASSWORD);
+      JcePasswordEncryption invalidMaster = new JcePasswordEncryption() {
+         @Override
+         protected javax.crypto.SecretKey decryptSecretKey(String encryptedKey,
+                                                           javax.crypto.SecretKey masterKey)
+         {
+            return null;
+         }
+      };
+
+      assertEquals(value, invalidMaster.encryptPassword(value));
+   }
+
+   @Test
    void clearTextResemblingAesValueIsEncrypted() {
       String iv = Base64.getEncoder().encodeToString(new byte[16]);
       String[] clearText = {

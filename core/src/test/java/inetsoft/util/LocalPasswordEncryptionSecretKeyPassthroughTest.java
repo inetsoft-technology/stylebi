@@ -33,8 +33,8 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Bug #77722: {@link LocalPasswordEncryption#encryptPassword(String)} passes a well-formed
- * {@code \aes} value through unchanged. This must not swallow clear-text passwords that merely
- * start with {@code \aes}, must not stop an export (force master) from converting a stored
+ * {@code \aes} value that the current key cannot decrypt through unchanged. This must not
+ * swallow clear-text passwords that merely start with {@code \aes}, must not stop an export (force master) from converting a stored
  * {@code \aes} secret to {@code \master}, and must not affect empty or non-ASCII passwords.
  */
 @ExtendWith(SpringExtension.class)

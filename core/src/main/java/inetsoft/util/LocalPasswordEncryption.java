@@ -52,11 +52,14 @@ abstract class LocalPasswordEncryption extends AbstractPasswordEncryption {
          return encryptMasterPassword(input);
       }
 
-      if(isEncryptedWithSecretKey(input)) {
-         // Bug #77722, a value that could not be decrypted (e.g. it was encrypted with another
-         // password.encryption.key) is kept as is by decryptPassword(). Keep it as is here
-         // too, so that saving its owner again does not bury the original ciphertext, and it
-         // can still be decrypted once the right key is back.
+      if(isEncryptedWithSecretKey(input) && !isDecryptableWithCurrentKey(input)) {
+         // Bug #77722, decryptPassword() returns a value that the current key cannot decrypt
+         // (e.g. it was encrypted with another password.encryption.key) as is. Keep it as is
+         // here too, so that saving its owner again does not bury the original ciphertext,
+         // and it can still be decrypted once the right key is back. A value that the current
+         // key can decrypt is never returned by decryptPassword(), so it is clear text that
+         // only looks encrypted and is encrypted like any other text below; passing it through
+         // would let a known ciphertext stand in for the secret it encrypts.
          return input;
       }
 
@@ -385,37 +388,16 @@ abstract class LocalPasswordEncryption extends AbstractPasswordEncryption {
     * @return the clear text password, or {@code input} as is if it cannot be decrypted.
     */
    private String decryptPassword(String input, SecretKey secretKey) {
-      String encryptedValue = input.substring(NEW_PREFIX.length());
-      int index = encryptedValue.indexOf(':', 4);
-
-      if(index < 0) {
-         return input;
-      }
-
       try {
-         Base64.Decoder decoder = Base64.getDecoder();
-         byte[] iv = decoder.decode(encryptedValue.substring(0, index));
-         byte[] encrypted = decoder.decode(encryptedValue.substring(index + 1));
-         byte[] decrypted = decrypt(encrypted, iv, secretKey);
-
-         // Bug #77722, AES/CBC/PKCS5Padding is not authenticated, so a wrong key decrypts
-         // without an error about once in 256 tries. Every value is encrypted from
-         // String.getBytes(UTF_16), which always starts with the big-endian byte order mark,
-         // so anything else was decrypted with the wrong key.
-         if(decrypted.length < 2 || decrypted.length % 2 != 0 ||
-            (decrypted[0] & 0xff) != 0xfe || (decrypted[1] & 0xff) != 0xff)
-         {
-            throw new GeneralSecurityException("The decrypted password is not UTF-16 text");
-         }
-
-         return new String(decrypted, StandardCharsets.UTF_16);
+         String decrypted = decryptWithSecretKey(input, secretKey);
+         return decrypted == null ? input : decrypted;
       }
       catch(Exception e) {
          // Bug #77722, the value is never clear text. Return it with its prefix, so that it is
          // not saved again as the clear text password (see encryptPassword()).
          String message = "Failed to decrypt a password, it was most likely encrypted with a " +
-            "different password.encryption.key, or the master password " +
-            "(INETSOFT_MASTER_PASSWORD) is wrong. The encrypted value is used as is.";
+            "different password.encryption.key (e.g. after a storage restore), or the master " +
+            "password (INETSOFT_MASTER_PASSWORD) is wrong. The encrypted value is used as is.";
 
          if(LOG.isDebugEnabled()) {
             LOG.warn(message, e);
@@ -426,6 +408,82 @@ abstract class LocalPasswordEncryption extends AbstractPasswordEncryption {
 
          return input;
       }
+   }
+
+   /**
+    * Decrypts a value encrypted with the secret key, without logging.
+    *
+    * @param input     the encrypted value, including the {@link #NEW_PREFIX} prefix.
+    * @param secretKey the secret key, may be {@code null}.
+    *
+    * @return the clear text password, or {@code null} if it cannot be decrypted with the key.
+    */
+   private String tryDecrypt(String input, SecretKey secretKey) {
+      try {
+         return decryptWithSecretKey(input, secretKey);
+      }
+      catch(Exception e) {
+         return null;
+      }
+   }
+
+   /**
+    * Decrypts a value encrypted with the secret key.
+    *
+    * @param input     the encrypted value, including the {@link #NEW_PREFIX} prefix.
+    * @param secretKey the secret key, may be {@code null}.
+    *
+    * @return the clear text password, or {@code null} if the value has no IV separator.
+    *
+    * @throws Exception if the value cannot be decrypted with the key.
+    */
+   private String decryptWithSecretKey(String input, SecretKey secretKey) throws Exception {
+      String encryptedValue = input.substring(NEW_PREFIX.length());
+      int index = encryptedValue.indexOf(':', 4);
+
+      if(index < 0) {
+         return null;
+      }
+
+      Base64.Decoder decoder = Base64.getDecoder();
+      byte[] iv = decoder.decode(encryptedValue.substring(0, index));
+      byte[] encrypted = decoder.decode(encryptedValue.substring(index + 1));
+      byte[] decrypted = decrypt(encrypted, iv, secretKey);
+
+      // Bug #77722, AES/CBC/PKCS5Padding is not authenticated, so a wrong key decrypts
+      // without an error about once in 256 tries. Every value is encrypted from
+      // String.getBytes(UTF_16), which always starts with the big-endian byte order mark,
+      // so anything else was decrypted with the wrong key.
+      if(decrypted.length < 2 || decrypted.length % 2 != 0 ||
+         (decrypted[0] & 0xff) != 0xfe || (decrypted[1] & 0xff) != 0xff)
+      {
+         throw new GeneralSecurityException("The decrypted password is not UTF-16 text");
+      }
+
+      return new String(decrypted, StandardCharsets.UTF_16);
+   }
+
+   /**
+    * Determines if a value can be decrypted with the current secret key. If the secret key
+    * cannot be read (e.g. the master password is wrong), the value cannot be decrypted, so
+    * this returns {@code false}.
+    */
+   private boolean isDecryptableWithCurrentKey(String input) {
+      SecretKey secretKey;
+
+      try {
+         secretKey = getSecretKey(getMasterKey());
+      }
+      catch(Exception e) {
+         LOG.debug("Failed to read the secret key", e);
+         return false;
+      }
+
+      if(secretKey == null) {
+         return false;
+      }
+
+      return tryDecrypt(input, secretKey) != null;
    }
 
    /**
