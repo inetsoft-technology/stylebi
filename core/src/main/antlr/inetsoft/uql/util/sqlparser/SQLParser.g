@@ -1802,6 +1802,9 @@ String strip(String str) {
 
 // the quote of the last special_identifier token (XExpression.QUOTE_*)
 private int identQuote = XExpression.QUOTE_NONE;
+// whether the last qualified_id or column_name was a plain identifier written unquoted (IDENT,
+// or the date/time keywords used as a name), see quoteSegment
+private boolean identPlain = false;
 // the quote and the as-written segment of a quoted column in the last column_ref
 private int colrefQuote = XExpression.QUOTE_NONE;
 private String colrefColumn = null;
@@ -1863,7 +1866,22 @@ String quoteColumn(String col) {
       return col;
    }
 
-   return quoteDot(col);
+   return quoteSegment(col);
+}
+
+// quote the last segment of a qualified_name or a column_ref, see quoteDot. A segment written
+// as a plain identifier and stored with quotes (by a case-sensitive helper) is recorded, see
+// UniformSQL.isParsedUnquotedSegment. The last segment of a qualified_name is also recorded
+// when it's a table, which a column lookup never asks for
+String quoteSegment(String str) {
+   boolean plain = identPlain;
+   String quoted = quoteDot(str);
+
+   if(plain && uniSql != null && !quoted.equals(str)) {
+      uniSql.addParsedUnquotedSegment(quoted);
+   }
+
+   return quoted;
 }
 
 // quote string if it contains dot
@@ -3121,12 +3139,12 @@ schema_name returns [String schemaname = ""]
         ;
 
 qualified_id returns [String qid = ""]
-        {identQuote = XExpression.QUOTE_NONE;}
+        {identQuote = XExpression.QUOTE_NONE; identPlain = false;}
         :
-        (a:IDENT {qid = a.getText();}
+        (a:IDENT {qid = a.getText(); identPlain = true;}
         | qid = special_identifier
-        | b:T_TIME {qid = b.getText();}
-        | c:T_DATE {qid = c.getText();})
+        | b:T_TIME {qid = b.getText(); identPlain = true;}
+        | c:T_DATE {qid = c.getText(); identPlain = true;})
         ;
 
 data_type returns [String datatype = ""]
@@ -3916,7 +3934,7 @@ qualified_name returns [String qname = ""]
         tmp = schema_name DOT {qname+=quoteDot(tmp)+"."; seg++;}| DOT {qname+="."; seg++;})?
         )?
         {addQuotedSegment(qsegs, seg);}
-        tmp = qualified_id {lastSegStart = qname.length(); lastSegQuote = identQuote; lastSeg = tmp; qname += quoteDot(tmp);
+        tmp = qualified_id {lastSegStart = qname.length(); lastSegQuote = identQuote; lastSeg = tmp; qname += quoteSegment(tmp);
                             qnameQuoted = toQuotedSegments(qsegs);}
         ;
 
@@ -4045,11 +4063,11 @@ as_clause returns [String as = ""]
         ;
 
 column_name returns [String colname = ""]
-        {identQuote = XExpression.QUOTE_NONE; Token first = LT(1); checkStatus();}
+        {identQuote = XExpression.QUOTE_NONE; identPlain = false; Token first = LT(1); checkStatus();}
         :
-        a:IDENT {colname = a.getText(); aliasQuoted = Boolean.FALSE;}
+        a:IDENT {colname = a.getText(); aliasQuoted = Boolean.FALSE; identPlain = true;}
         | colname = special_identifier {aliasQuoted = isQuotedIdentifier(first);}
-        | b:T_TIME {colname = b.getText(); aliasQuoted = Boolean.FALSE;}
+        | b:T_TIME {colname = b.getText(); aliasQuoted = Boolean.FALSE; identPlain = true;}
         ;
 
 table_exp [UniformSQL sql]

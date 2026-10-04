@@ -25,6 +25,14 @@ public class SnowflakeHelper extends SQLHelper {
       return true;
    }
 
+   /**
+    * Snowflake folds an unquoted identifier to upper case.
+    */
+   @Override
+   public IdentifierCase getIdentifierCase() {
+      return IdentifierCase.UPPER;
+   }
+
    @Override
    public String getSQLHelperType() {
       return "snowflake";
