@@ -883,7 +883,9 @@ public class DataSourceRegistry implements MessageListener {
    }
 
    /**
-    * Data source renamed, sync data model and domain.
+    * Data source renamed, sync data model and domain. A data source that can't be loaded is not
+    * moved here: {@link #renameDataSourceFolder(String, String)} relies on that and moves it with
+    * the rest of the folder, and a move of it on its own is refused by the callers (Bug #77727).
     *
     * @throws DataSourceRenameException if a write failed. The objects not yet moved are still at
     *                                   the old path.
