@@ -169,19 +169,24 @@ public class JDBCSelection extends XSelection {
          return existingAlias;
       }
 
-      return generateValidAlias(alias, col);
+      return generateValidAlias(alias, alias, col);
    }
 
    /**
     * Generates a new alias that is not already present in the selection and adds it to the
-    * selection.
+    * selection. The generation doesn't change the alias of the column, it only records the
+    * mapping (Bug #77712).
     *
+    * @param key  the name of the column at this level, which the mapping is found by
     * @param name the original name of the column
     * @param col  the index of the column
     *
     * @return the new alias.
     */
-   private String generateValidAlias(String name, int col) {
+   private String generateValidAlias(String key, String name, int col) {
+      // the new alias must not be the output name of another column. Database names are
+      // compared ignoring case, as an unquoted name is (Bug #77716)
+      Set<String> outputNames = getOutputNames(col);
       String prefix = "ALIAS_";
       int counter = 0;
       String valias;
@@ -189,19 +194,54 @@ public class JDBCSelection extends XSelection {
       do {
          valias = prefix + (counter++);
       }
-      while(aliasmap.contains(valias) || newToOldAlias.containsKey(valias));
+      while(outputNames.contains(valias));
 
       newToOldAlias.put(valias, name);
-      oldToNewAlias.put(name, valias);
-      String oalias = aliasmap.get(col);
 
-      // maintain alias
-      if(oalias == null || oalias.length() == 0) {
-         aliasmap.set(col, name);
-         pathAliases = null;
+      // two columns with the same name and no alias are told apart by their index
+      if(oldToNewAlias.containsKey(key)) {
+         colToNewAlias.put(col, valias);
+      }
+      else {
+         oldToNewAlias.put(key, valias);
       }
 
       return valias;
+   }
+
+   /**
+    * Get the names, in upper case, that the columns of this selection other than the
+    * specified column output: the generated and inherited aliases, the aliases, and the
+    * column names of the columns with no alias. An expression with no alias has no
+    * stable output name.
+    */
+   private Set<String> getOutputNames(int except) {
+      Set<String> names = new HashSet<>();
+
+      for(String valias : newToOldAlias.keySet()) {
+         names.add(valias.toUpperCase(Locale.ROOT));
+      }
+
+      for(int i = 0; i < getColumnCount(); i++) {
+         if(i == except) {
+            continue;
+         }
+
+         String alias = getAlias(i);
+
+         if(alias != null && !alias.isEmpty()) {
+            names.add(alias.toUpperCase(Locale.ROOT));
+         }
+         else if(!isExpression(i)) {
+            String path = getColumn(i);
+            // the column name, without the quotes of a quoted identifier
+            String column = path.substring(path.lastIndexOf('.') + 1)
+               .replaceAll("^[\"`\\[]|[\"`\\]]$", "");
+            names.add(column.toUpperCase(Locale.ROOT));
+         }
+      }
+
+      return names;
    }
 
    /**
@@ -226,7 +266,11 @@ public class JDBCSelection extends XSelection {
       String alias = getAlias(col);
 
       if(alias == null) {
-         final String newAlias = getNewAlias(getColumn(col));
+         String newAlias = colToNewAlias.get(col);
+
+         if(newAlias == null) {
+            newAlias = getNewAlias(getColumn(col));
+         }
 
          if(newAlias != null) {
             return newAlias;
@@ -250,17 +294,23 @@ public class JDBCSelection extends XSelection {
       }
 
       if(name != null) {
-         if(!newToOldAlias.containsKey(subalias)) {
+         // the column is output by the inherited name only if no other column outputs it
+         // (Bug #77717)
+         if(!getOutputNames(i).contains(subalias.toUpperCase(Locale.ROOT))) {
             newToOldAlias.put(subalias, name);
             oldToNewAlias.put(name, subalias);
          }
          else {
+            String oname = name;
+
             // if name is "<table>.<column>", then strip out the table part
-            if(name.contains(".")) {
-               name = name.substring(name.indexOf(".") + 1);
+            if(oname.contains(".")) {
+               oname = oname.substring(oname.indexOf(".") + 1);
             }
 
-            generateValidAlias(name, i);
+            // keyed by the name of this column, so another column with the same column name
+            // doesn't find it (Bug #77713)
+            generateValidAlias(name, oname, i);
          }
       }
    }
@@ -301,22 +351,9 @@ public class JDBCSelection extends XSelection {
     * @return the new alias if a new alias mapping exists, null otherwise.
     */
    public String getNewAlias(String col) {
-      if(oldToNewAlias.containsKey(col)) {
-         return oldToNewAlias.get(col);
-      }
-
-      // check if the column is mapped to an alias in sub-query (which would also be used
-      // in this query as the actual column name). (45764)
-      if(col.contains(".")) {
-         int dot = col.indexOf(".");
-         String rootCol = col.substring(dot + 1);
-
-         if(oldToNewAlias.containsKey(rootCol)) {
-            return oldToNewAlias.get(rootCol);
-         }
-      }
-
-      return null;
+      // the name is matched as is. A column of another table with the same column name is
+      // another column (Bug #77713)
+      return oldToNewAlias.get(col);
    }
 
    /**
@@ -325,6 +362,7 @@ public class JDBCSelection extends XSelection {
    public void clearOriginalAliases() {
       newToOldAlias.clear();
       oldToNewAlias.clear();
+      colToNewAlias.clear();
    }
 
    /**
@@ -683,6 +721,7 @@ public class JDBCSelection extends XSelection {
       select.tablemap = (HashMap<String, String>) tablemap.clone();
       select.newToOldAlias = new HashMap<>(newToOldAlias);
       select.oldToNewAlias = new HashMap<>(oldToNewAlias);
+      select.colToNewAlias = new HashMap<>(colToNewAlias);
       select.aggregates = (HashSet) aggregates.clone();
       select.quoted = new TreeMap<>(quoted);
       select.quotedAggregates = new TreeMap<>(quotedAggregates);
@@ -716,6 +755,8 @@ public class JDBCSelection extends XSelection {
    private Map<String, String> newToOldAlias = new HashMap<>();
    // alias -> valias, generated in this query or base/sub queries
    private Map<String, String> oldToNewAlias = new HashMap<>();
+   // column index -> valias, generated for a column whose name is mapped for another column
+   private Map<Integer, String> colToNewAlias = new HashMap<>();
    private HashSet<String> aggregates = new HashSet<>(); // aggregates
    // index of a column written as a quoted identifier -> the name and quoted column segment,
    // by position as two columns may have the same path (Bug #77573)
