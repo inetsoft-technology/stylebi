@@ -430,7 +430,11 @@ public abstract class OutputVSAssemblyInfo extends VSAssemblyInfo
    protected void writeAttributes(PrintWriter writer) {
       super.writeAttributes(writer);
       writer.print(" shadow=\"" + isShadow() + "\"");
-      writer.print(" shadowValue=\"" + getShadowValue() + "\"");
+      // persist the stored design value, not getShadowValue(), so a $(var),
+      // =expr or truthy literal such as "yes" is not rewritten to false
+      String shadowValue = shadow.getDValue();
+      writer.print(" shadowValue=\"" +
+         Tool.escape(shadowValue == null ? "false" : shadowValue) + "\"");
 
       if(highlightFg != null) {
          writer.print(" highlightFg=\"" + highlightFg.getRGB() + "\"");
