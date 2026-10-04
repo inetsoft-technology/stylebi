@@ -136,6 +136,34 @@ class DataSourceImportUnderDataSourceTest {
       assertKept("addOffF", "add");
    }
 
+   // the data source is in a folder, the segment below the first is a data source
+   @Test
+   void dataSourceUnderDataSourceInFolderIsRefused() throws Exception {
+      registry.setDataSourceFolder(new DataSourceFolder("deepG", LocalDateTime.now(), null));
+      create("deepG/deepF", "add");
+
+      assertThrows(MessageException.class, () -> importDataSource("deepG/deepF/deepX", false));
+
+      assertKept("deepG/deepF", "add");
+      assertTrue(containsFolder("deepG"));
+      assertFalse(containsDataSource("deepG/deepF/deepX"));
+   }
+
+   // the existing data source in a folder is still overwritten by an import of the same path
+   @Test
+   void existingDataSourceInFolderIsOverwritten() throws Exception {
+      registry.setDataSourceFolder(new DataSourceFolder("overG", LocalDateTime.now(), null));
+      create("overG/overY", "add");
+
+      importDataSource("overG/overY", true);
+
+      registry.clearCache();
+      assertNotNull(registry.getDataSource("overG/overY"));
+      assertNotNull(registry.getDataModel("overG/overY"));
+      assertTrue(containsFolder("overG"));
+      assertFalse(containsFolder("overG/overY"));
+   }
+
    // the connector of the data source isn't installed, getDataSource() returns null for it
    @Test
    void dataSourceUnderUnsupportedDataSourceIsRefused() throws Exception {
