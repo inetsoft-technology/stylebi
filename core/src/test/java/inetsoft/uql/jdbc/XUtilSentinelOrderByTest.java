@@ -175,6 +175,25 @@ class XUtilSentinelOrderByTest {
          Arguments.of("3", List.of("3", "1", "5")));
    }
 
+   // a positional order by keeps the parsed query's sql string past the cache normalizer,
+   // so the select-list subquery is rewritten by JDBCHandler's kept-string gate (#77708)
+   @ParameterizedTest
+   @MethodSource("positionalCases")
+   void positionalOrderByThroughJDBCHandler(String p, List<String> expected) throws Exception {
+      VariableTable vars = new VariableTable();
+      vars.put("p", p);
+      String sql = "select a.id, " + SUB + " from a order by 2 desc, 1";
+      assertEquals(expected, ordered(run(parsed(sql), vars), 1), "p=" + p);
+   }
+
+   static Stream<Arguments> positionalCases() {
+      return Stream.of(
+         Arguments.of(NULL_VALUE, List.of("1", "3", "5")),
+         Arguments.of(EMPTY_STRING, List.of("5", "1", "3")),
+         Arguments.of(NULL_STRING, List.of("5", "1", "3")),
+         Arguments.of("3", List.of("3", "1", "5")));
+   }
+
    // the same saved query run with a sentinel, a plain value, the sentinel again and another
    // sentinel: no run reuses the rewrite of another, and the saved query is unchanged
    @Test
