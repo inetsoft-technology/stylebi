@@ -2685,9 +2685,9 @@ public final class XUtil {
     * <li>Only the sentinel rewrite runs. A condition with a parameter that has no value is
     * kept, the parameter binds SQL NULL (the same as <tt>forVpm = true</tt>).</li>
     * <li>The positions rewritten are the ones {@link #validateConditions} rewrites when it
-    * keeps the unset conditions: the WHERE/HAVING comparison operands, FROM derived tables
-    * and select-list scalar subqueries. The subquery of a WHERE/HAVING condition (e.g.
-    * <tt>x in (select ...)</tt>) is not walked.</li>
+    * keeps the unset conditions: the WHERE/HAVING comparison operands, FROM derived tables,
+    * select-list scalar subqueries and the subqueries of WHERE/HAVING conditions (e.g.
+    * <tt>x in (select ...)</tt>).</li>
     * <li>Whether anything is rewritten is decided by comparing the sql generated before and
     * after the rewrite, so the result is <tt>true</tt> exactly when the sql sent to the
     * database changes, whatever position the rewrite reached.</li>
@@ -2733,6 +2733,23 @@ public final class XUtil {
       }
 
       return false;
+   }
+
+   /**
+    * Check if the sql has a comment the database runs or reads: an optimizer hint
+    * (<tt>/*+</tt>, <tt>--+</tt>) or a MySQL/MariaDB executable comment (<tt>/*!</tt>,
+    * <tt>/*M!</tt>). The sql generated from a parsed query drops comments, so sql with one of
+    * these must be sent as written.
+    */
+   public static boolean hasExecutableComment(String sql) {
+      return sql != null && (sql.contains("/*+") || sql.contains("--+") ||
+         sql.contains("/*!") || sql.contains("/*M!"));
+   }
+
+   // the sql with each run of white space as one space. A literal is generated as written, so
+   // two generations of the same literal are changed the same way.
+   private static String normalizeSpaces(String sql) {
+      return sql == null ? null : sql.replaceAll("\\s+", " ").trim();
    }
 
    // a $(name) reference anywhere in sql text, quoted or not (not $(@name)), for
@@ -2789,6 +2806,11 @@ public final class XUtil {
          }
       }
 
+      // the removing pass walks the condition subqueries in removeNoParamConditions
+      if(!removeUnset) {
+         rewriteConditionSubqueries(query, condition, params, include, source);
+      }
+
       // don't remove null paramter for vpm conditions, then variables in vpm condition
       // will not to be removed.
       if(removeUnset) {
@@ -2814,6 +2836,10 @@ public final class XUtil {
          {
             condition = usql.getHaving();
          }
+      }
+
+      if(!removeUnset) {
+         rewriteConditionSubqueries(query, condition, params, include, source);
       }
 
       if(removeUnset) {
@@ -2895,6 +2921,78 @@ public final class XUtil {
    }
 
    /**
+    * Rewrite the sentinel parameters in the subqueries of the conditions, e.g.
+    * <tt>x in (select ...)</tt>, <tt>exists (select ...)</tt> or <tt>x = (select ...)</tt>,
+    * for the pass that keeps the conditions with an unset parameter (a VPM condition, a
+    * select-list subquery, {@link #rewriteSentinels}). The pass that removes them reaches these
+    * subqueries in removeNoParamConditions. A condition is never removed here, in a VPM
+    * condition that would drop a row-security filter (Bug #77706).
+    * <p>
+    * A subquery kept as a sql string (a VPM condition's subquery is saved unparsed) is parsed
+    * into a copy, and replaced by the copy only if the rewrite changes its sql. The string is
+    * kept as it is when it has no sentinel parameter, isn't parsed completely, embeds a
+    * parameter (<tt>$(@name)</tt>), has an optimizer hint or a MySQL/MariaDB executable
+    * comment, which the generated sql would drop ({@link #hasExecutableComment}), or when the
+    * generated sql doesn't parse back to itself. Other comments are dropped from a rewritten
+    * subquery.
+    */
+   private static void rewriteConditionSubqueries(XQuery query, XNode node,
+                                                  VariableTable params, boolean include,
+                                                  JDBCDataSource source)
+   {
+      if(node instanceof XSet) {
+         for(int i = 0; i < node.getChildCount(); i++) {
+            rewriteConditionSubqueries(query, node.getChild(i), params, include, source);
+         }
+      }
+      else if(node instanceof XUnaryCondition) {
+         XUnaryCondition una = (XUnaryCondition) node;
+         XExpression exp = rewriteConditionSubquery(query, una.getExpression1(), params,
+                                                    include, source);
+
+         if(exp != null) {
+            una.setExpression1(exp);
+         }
+      }
+      else if(node instanceof XBinaryCondition) {
+         XBinaryCondition bin = (XBinaryCondition) node;
+         XExpression exp = rewriteConditionSubquery(query, bin.getExpression1(), params,
+                                                    include, source);
+
+         if(exp != null) {
+            bin.setExpression1(exp);
+         }
+
+         exp = rewriteConditionSubquery(query, bin.getExpression2(), params, include, source);
+
+         if(exp != null) {
+            bin.setExpression2(exp);
+         }
+      }
+      else if(node instanceof XTrinaryCondition) {
+         XTrinaryCondition tri = (XTrinaryCondition) node;
+         XExpression exp = rewriteConditionSubquery(query, tri.getExpression1(), params,
+                                                    include, source);
+
+         if(exp != null) {
+            tri.setExpression1(exp);
+         }
+
+         exp = rewriteConditionSubquery(query, tri.getExpression2(), params, include, source);
+
+         if(exp != null) {
+            tri.setExpression2(exp);
+         }
+
+         exp = rewriteConditionSubquery(query, tri.getExpression3(), params, include, source);
+
+         if(exp != null) {
+            tri.setExpression3(exp);
+         }
+      }
+   }
+
+   /**
     * Rewrite the parameters in the text of a scalar subquery that the parser keeps as text
     * (a select list column or an order by item). Every such text goes through here, so the
     * same subquery in the select list and the order by list gets the same sql.
@@ -2920,6 +3018,69 @@ public final class XUtil {
       validateConditions0(query, sub, params, include, false, source);
       String sql = UniformSQL.getSelectListSubqueryText(sub);
       return sql.equals(text) ? null : sql;
+   }
+
+   /**
+    * Rewrite the sentinel parameters of a condition operand that is a subquery, keeping the
+    * conditions with an unset parameter.
+    * @return a new operand holding the rewritten copy of a subquery kept as a sql string, or
+    * <tt>null</tt> if the operand is kept (a parsed subquery is rewritten in place).
+    */
+   private static XExpression rewriteConditionSubquery(XQuery query, XExpression exp,
+                                                       VariableTable params, boolean include,
+                                                       JDBCDataSource source)
+   {
+      if(exp == null || !(exp.getValue() instanceof UniformSQL)) {
+         return null;
+      }
+
+      UniformSQL sub = (UniformSQL) exp.getValue();
+
+      if(!sub.hasSQLString()) {
+         validateConditions0(query, sub, params, include, false, source);
+         return null;
+      }
+
+      String sql = sub.getSQLString();
+
+      if(sql.contains("$(@") || !hasSentinelParameter(sql, params) ||
+         hasExecutableComment(sql))
+      {
+         return null;
+      }
+
+      try {
+         JDBCDataSource ds = sub.getDataSource() != null ? sub.getDataSource() : source;
+         UniformSQL copy = UniformSQL.parseSubquery(sql, ds);
+
+         if(copy == null || !rewriteSentinels(copy, params)) {
+            return null;
+         }
+
+         // the generated sql must mean what the structure does. A generated text that parses
+         // to another structure (e.g. a - -1 generated as a-- 1, which comments out the rest
+         // of the line) could drop a row-security predicate, keep the sql as written. The
+         // generator pads some operators, so the texts are compared without the extra spaces.
+         String generated = copy.getSQLString();
+         UniformSQL reparsed = UniformSQL.parseSubquery(generated, ds);
+
+         if(reparsed == null || !normalizeSpaces(generated).equals(
+            normalizeSpaces(reparsed.getSQLString())))
+         {
+            LOG.debug("The rewritten subquery doesn't parse to itself, the sql is sent as " +
+                      "written: {}", sql);
+            return null;
+         }
+
+         XExpression nexp = (XExpression) exp.clone();
+         nexp.setValue(copy, exp.getType());
+         return nexp;
+      }
+      catch(Exception ex) {
+         LOG.debug("Failed to rewrite the sentinel parameters of a subquery, the sql is " +
+                   "sent as written: {}", sql, ex);
+         return null;
+      }
    }
 
    /**

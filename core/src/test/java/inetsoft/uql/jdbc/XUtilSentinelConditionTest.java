@@ -324,10 +324,20 @@ class XUtilSentinelConditionTest {
       assertFalse(XUtil.rewriteSentinels(usql, vars));
       assertEquals(sql, usql.getSQLString());
 
-      // the subquery of a WHERE condition isn't walked (Bug #77706)
+      // the subquery of a WHERE condition is walked (Bug #77706)
       usql = parse(SELECT + "where a.id IN (select b.id from b where b.x = $(p))");
-      assertFalse(XUtil.rewriteSentinels(usql, vars));
-      assertTrue(usql.getSQLString().contains("$(p)"));
+      assertTrue(XUtil.rewriteSentinels(usql, vars));
+      generated = normalize(usql.getSQLString());
+      assertFalse(generated.contains("$(p)"), generated);
+      assertTrue(generated.contains("b.x IS NULL"), generated);
+
+      // and the subquery of a HAVING condition
+      usql = parse(SELECT + "group by a.id having count(*) > 0 and " +
+                   "a.id IN (select b.id from b where b.x = $(p))");
+      assertTrue(XUtil.rewriteSentinels(usql, vars));
+      generated = normalize(usql.getSQLString());
+      assertFalse(generated.contains("$(p)"), generated);
+      assertTrue(generated.contains("b.x IS NULL"), generated);
    }
 
    @AfterAll
