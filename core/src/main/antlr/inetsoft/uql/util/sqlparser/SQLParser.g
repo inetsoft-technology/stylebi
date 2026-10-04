@@ -5076,13 +5076,17 @@ SPIDENT_SQUARE		: 	'[' {setCommitToPath(true);}
 			;
 
 // a nested JDBC escape, e.g. {fn concat({fn ucase(a)}, b)}, is part of one token (#77640). A
-// bracket-quoted segment ([..]), and a '--', '//' or '/*..*/' comment, inside the escape body
-// are each consumed as one unit, so a ']' in the segment or a '}' in the comment doesn't end
-// the escape before its real closing '}' (#77680)
+// bracket-quoted segment ([..]), a quoted segment ('..'/".."/`..`), and a '--', '//' or
+// '/*..*/' comment, inside the escape body are each consumed as one unit, so a ']' in the
+// bracket segment, or a comment-opener or '}' inside the quoted segment, doesn't end the
+// escape before its real closing '}' (#77680)
 SPIDENT_BRACKET		:	'{' {setCommitToPath(true);}
 				(	options { generateAmbigWarnings=false; } :
 					SPIDENT_BRACKET
 				|	'[' (~']')* ']'
+				|	'\'' (~'\'')* '\''
+				|	'"' (~'"')* '"'
+				|	'`' (~'`')* '`'
 				|	"--" (options { generateAmbigWarnings=false; } : '\u0000'..'\u0009'|'\u000B'|'\u000C'|'\u000E'..'\uFFFE')*
 				|	"//" (options { generateAmbigWarnings=false; } : '\u0000'..'\u0009'|'\u000B'|'\u000C'|'\u000E'..'\uFFFE')*
 				|	"/*" (	options { generateAmbigWarnings=false; } :
@@ -5092,7 +5096,7 @@ SPIDENT_BRACKET		:	'{' {setCommitToPath(true);}
 					|	'\n'		{newline();}
 					|	'\u0000'..'\u0009'|'\u000B'|'\u000C'|'\u000E'..'\u0029'|'\u002B'..'\uFFFE'
 				)* "*/"
-				|	'\u0001'..'\u005a' | '\\' | ']' | '\u005e'..'\u007a' | '\u007c' | '\u007e'..'\ufffe'
+				|	'\u0001'..'\u0021' | '\u0023'..'\u0026' | '\u0028'..'\u005a' | '\\' | ']' | '\u005e'..'\u005f' | '\u0061'..'\u007a' | '\u007c' | '\u007e'..'\ufffe'
 				)* '}'
 			;
 

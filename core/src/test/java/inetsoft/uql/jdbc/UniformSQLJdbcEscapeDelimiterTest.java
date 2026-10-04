@@ -157,6 +157,31 @@ class UniformSQLJdbcEscapeDelimiterTest {
       }
    }
 
+   // a comment-opener substring inside an actual quoted literal, inside the escape body, must
+   // not be treated as a comment: the quoted literal is one atomic unit, matched before any
+   // comment-opener check, so '--'/'//'/'/*' inside it doesn't swallow past the real closing '}'
+   @ParameterizedTest
+   @ValueSource(strings = {
+      "select {fn concat('a--b', s)} from t",
+      "select {fn concat('a//b', s)} from t",
+      "select {fn concat('a/*b', s)} from t",
+      "select {fn concat(\"a--b\", s)} from t",
+      "select {fn concat(`a--b`, s)} from t",
+   })
+   void commentOpenerInsideQuotedLiteralIsNotTreatedAsComment(String text) {
+      assertEquals("select SPIDENT_BRACKET from IDENT EOF", tokens(text));
+
+      for(String type : TYPES) {
+         JDBCDataSource ds = dataSource(type);
+         UniformSQL sql = parse(text, ds);
+         String generated = regenerate(sql, text);
+         String message = type + ": " + text + " -> " + generated;
+
+         assertEquals(1, sql.getTableCount(), message);
+         assertEquals(1, sql.getSelection().getColumnCount(), message);
+      }
+   }
+
    // pre-existing escape forms must still parse exactly as before: nested escapes, a bracket
    // identifier used as a plain column, and an escape with a bracket-quoted segment inside it
    @Test
