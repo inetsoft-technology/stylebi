@@ -38,10 +38,15 @@ import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.event.EventListener;
+import org.w3c.dom.Document;
 import org.w3c.dom.Element;
+import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
+import org.w3c.dom.ProcessingInstruction;
 
 import java.beans.PropertyChangeListener;
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.io.Serializable;
 import java.lang.SecurityException;
 import java.lang.reflect.Method;
@@ -51,6 +56,8 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Data source registry stores information on all data sources. The
@@ -156,20 +163,19 @@ public class DataSourceRegistry implements MessageListener {
 
          for(int j = 0; j < parents.length - 1; j++) {
             parent += parents[j]; //NOSONAR calling toString twice per loop is just as bad as concat
+
+            // the data source at a parent path isn't removed with its additional connections,
+            // and no folder is created beside it (Bug #77702)
+            if(containObject(new AssetEntry(
+               AssetRepository.QUERY_SCOPE, AssetEntry.Type.DATA_SOURCE, parent, null)))
+            {
+               throw new MessageException(Catalog.getCatalog().getString(
+                  "common.datasource.createUnderDataSource", source.getFullName(), parent));
+            }
+
             DataSourceFolder folder = getDataSourceFolder(parent);
 
             if(folder == null) {
-               XDataSource dataSource = getDataSource(parent);
-
-               // for importing, remove the data source when it`s name is same to importing data
-               // source folder.because the importing data source path will be same to exist
-               // source`s additional data source.
-               if(dataSource != null) {
-                  removeDataSource(parent);
-                  LOG.warn(Catalog.getCatalog().getString("Overwrite Existing Files") +
-                     parent);
-               }
-
                LocalDateTime created;
 
                if(source.getCreated() != 0) {
@@ -689,14 +695,24 @@ public class DataSourceRegistry implements MessageListener {
          String additionalName = getJDBCAdditionalConnectionName(dxname);
          String[] additionalNames = additionalName != null ?
             new String[] { additionalName } : getAdditionalConnectionNames(dxname);
-         List<String> additionalResources = getAdditionalConnectionResources(dxname);
-         removeObject(new AssetEntry(AssetRepository.QUERY_SCOPE,
-                                     AssetEntry.Type.DATA_SOURCE, dxname, null));
+         List<String> resources = getAdditionalConnectionResources(dxname);
+         AssetEntry entry = new AssetEntry(AssetRepository.QUERY_SCOPE,
+                                           AssetEntry.Type.DATA_SOURCE, dxname, null);
+
+         // the permission of the data source itself, so that a data source created later at
+         // its path doesn't get it. Only when there is one at the path: the path may also be a
+         // permission resource that is not a registry path, e.g. "P::add", whose additional
+         // connection is not removed (Bug #77700)
+         if(containObject(entry)) {
+            resources.add(dxname);
+         }
+
+         removeObject(entry);
          removeObjects(getEntries(dxname + "/"));
          removeObject(new AssetEntry(AssetRepository.QUERY_SCOPE,
             AssetEntry.Type.DATA_MODEL, dxname, null));
          removeConnectionTestQueries(dxname, additionalNames);
-         removeAdditionalConnectionPermissions(additionalResources);
+         removeDataSourcePermissions(resources);
       }
       catch(Exception e) {
          LOG.error(
@@ -868,6 +884,9 @@ public class DataSourceRegistry implements MessageListener {
 
    /**
     * Data source renamed, sync data model and domain.
+    *
+    * @throws DataSourceRenameException if a write failed. The objects not yet moved are still at
+    *                                   the old path.
     */
    public void renameDatasource(String oname, String nname) {
       if(Tool.equals(oname, nname)) {
@@ -893,23 +912,56 @@ public class DataSourceRegistry implements MessageListener {
       XDomain domain = getDomain(oname);
       XDataModel model = getDataModel(oname);
       ds.setName(nname);
+      boolean moved = false;
 
-      if(model != null) {
-         model.setDataSource(nname);
-         updateObject(oname, nname, AssetEntry.Type.DATA_MODEL, model);
+      // Bug #77704, the data source, its model, its domain and the objects under it are moved
+      // together: all are written before the index is saved and before the permission of the
+      // data source is moved. A failed write is thrown, with nothing moved.
+      try {
+         List<EntryMove> moves = new ArrayList<>();
+         moves.add(createMove(oname, nname, AssetEntry.Type.DATA_SOURCE,
+                              new XDataSourceWrapper(ds)));
+
+         if(model != null) {
+            model.setDataSource(nname);
+            moves.add(createMove(oname, nname, AssetEntry.Type.DATA_MODEL, model));
+         }
+
+         if(domain != null && !(domain instanceof XDataModel)) {
+            domain.setDataSource(nname);
+            moves.add(createMove(oname, nname, AssetEntry.Type.DOMAIN,
+                                 new XDomainWrapper(domain)));
+         }
+
+         moves.addAll(createMoves(oname + "/", nname + "/", false,
+                                  ds instanceof AdditionalConnectionDataSource, Set.of()));
+         moveEntries(moves);
+         moved = true;
+         updateQueryFolders(ds, oname);
       }
+      catch(Exception e) {
+         String failed = oname;
 
-      if(domain != null && !(domain instanceof XDataModel)) {
-         domain.setDataSource(nname);
-         updateObject(oname, nname, AssetEntry.Type.DOMAIN,
-                      new XDomainWrapper(domain));
+         if(e instanceof MoveEntriesException moveException) {
+            // only a permission wasn't moved
+            moved = moveException.isCommitted();
+            failed = moveException.getPath() != null ? moveException.getPath() : oname;
+         }
+
+         if(!moved) {
+            // the cached instances were given the new name
+            for(AssetEntry.Type type : new AssetEntry.Type[] {
+               AssetEntry.Type.DATA_SOURCE, AssetEntry.Type.DATA_MODEL, AssetEntry.Type.DOMAIN })
+            {
+               cachemap.remove(new AssetEntry(AssetRepository.QUERY_SCOPE, type, oname, null));
+            }
+
+            clearCache2();
+         }
+
+         throw new DataSourceRenameException(
+            oname, nname, failed, moved ? Map.of(oname, nname) : Map.of(), e);
       }
-
-      updateObject(oname, nname, AssetEntry.Type.DATA_SOURCE,
-                   new XDataSourceWrapper(ds));
-      renameObjects(oname + "/", nname + "/", false,
-         ds instanceof AdditionalConnectionDataSource);
-      updateQueryFolders(ds, oname);
 
       if(ds instanceof JDBCDataSource) {
          renameConnectionTestQuery(oname, nname);
@@ -1019,8 +1071,7 @@ public class DataSourceRegistry implements MessageListener {
     * @return {@code true} if the new path is the path or one of its descendants.
     */
    public static boolean isSameOrDescendantPath(String path, String newPath) {
-      return path != null && newPath != null &&
-         (newPath.equals(path) || newPath.startsWith(path + "/"));
+      return Tool.isSameOrDescendantPath(path, newPath);
    }
 
    /**
@@ -1089,10 +1140,10 @@ public class DataSourceRegistry implements MessageListener {
    }
 
    /**
-    * Removes the permissions of removed additional connections, so that an additional
-    * connection created later with the same name doesn't get them.
+    * Removes the permissions of removed data sources and additional connections, so that one
+    * created later with the same name doesn't get them.
     */
-   private void removeAdditionalConnectionPermissions(List<String> resources) {
+   private void removeDataSourcePermissions(List<String> resources) {
       if(resources.isEmpty()) {
          return;
       }
@@ -1109,7 +1160,7 @@ public class DataSourceRegistry implements MessageListener {
             engine.removePermission(ResourceType.DATA_SOURCE, resource);
          }
          catch(Exception e) {
-            LOG.warn("Failed to remove the permission of additional connection {}", resource, e);
+            LOG.warn("Failed to remove the permission of data source {}", resource, e);
          }
       }
    }
@@ -1164,8 +1215,8 @@ public class DataSourceRegistry implements MessageListener {
          return;
       }
 
-      // a folder moved into one of its subfolders would be renamed again by renameObjects below
-      // and be left with no parent folder. Thrown before the try, which logs and goes on.
+      // a folder moved into one of its subfolders would be renamed again by the move of the rest
+      // below and be left with no parent folder. Thrown before anything is written.
       if(isSameOrDescendantPath(oname, nname)) {
          throw new MessageException(Catalog.getCatalog().getString(
             "common.datasource.moveIntoItself", oname));
@@ -1178,6 +1229,11 @@ public class DataSourceRegistry implements MessageListener {
       }
 
       checkDSFolderRenamePermission(oname);
+      // Bug #77704, a failed write stops the rename and is thrown, with the data sources moved
+      // before it. The folders created for the move are removed again if nothing was moved in.
+      Map<String, String> moved = new LinkedHashMap<>();
+      Map<String, String> targets = new LinkedHashMap<>();
+      String current = oname;
 
       try {
          AssetEntry[] allDSChildren =
@@ -1208,6 +1264,41 @@ public class DataSourceRegistry implements MessageListener {
             }
          }
 
+         // a folder before its subfolders
+         Arrays.sort(allFolderChildren, Comparator.comparing(AssetEntry::getPath));
+         List<DataSourceFolder> subfolders = new ArrayList<>();
+
+         // checked and read before anything is written
+         for(AssetEntry entry : allFolderChildren) {
+            current = entry.getPath();
+            checkDSFolderRenamePermission(current);
+            DataSourceFolder dsfolder = getDataSourceFolder(current);
+
+            if(dsfolder == null) {
+               throw new IOException("Failed to read data source folder: " + current);
+            }
+
+            subfolders.add(dsfolder);
+         }
+
+         // the new folders are written first, with the permissions of the old ones, so a data
+         // source moved before a failed write is in a folder like its old one
+         current = oname;
+
+         if(createMoveTargetFolder(folder, nname)) {
+            targets.put(oname, nname);
+         }
+
+         for(DataSourceFolder dsfolder : subfolders) {
+            String opath = dsfolder.getFullName();
+            String npath = nname + opath.substring(oname.length());
+            current = opath;
+
+            if(createMoveTargetFolder(dsfolder, npath)) {
+               targets.put(opath, npath);
+            }
+         }
+
          // a data source before its additional connections, as in removeDataSourceFolder
          Arrays.sort(allDSChildren, Comparator.comparing(AssetEntry::getPath));
 
@@ -1221,43 +1312,217 @@ public class DataSourceRegistry implements MessageListener {
 
             String opath = entry.getPath();
             String npath = nname + opath.substring(oname.length());
+            current = opath;
             renameDatasource(opath, npath);
-         }
 
-         // an additional connection still at its old path: its parent wasn't renamed, e.g. its
-         // connector isn't installed or it can't be read. The renameObjects below moves the
-         // entry but not the "parent::name" permission.
-         for(AssetEntry entry : additionals) {
-            if(containObject(entry)) {
-               String opath = entry.getPath();
-               int index = opath.lastIndexOf('/');
-               String oparent = opath.substring(0, index);
-               String nparent = nname + oparent.substring(oname.length());
-               String name = opath.substring(index + 1);
-               updatePermission(ResourceType.DATA_SOURCE, oparent + "::" + name,
-                                nparent + "::" + name);
+            // not moved if it can't be loaded, it is moved with the rest below
+            if(containObject(new AssetEntry(AssetRepository.QUERY_SCOPE,
+                                            AssetEntry.Type.DATA_SOURCE, npath, null)))
+            {
+               moved.put(opath, npath);
             }
          }
 
-         for(AssetEntry entry : allFolderChildren) {
-            checkDSFolderRenamePermission(entry.getPath());
-            DataSourceFolder dsfolder = getDataSourceFolder(entry.getPath());
-            String opath = entry.getPath();
-            String npath = nname + opath.substring(oname.length());
-            dsfolder.setName(npath);
-            updateObject(opath, npath, AssetEntry.Type.DATA_SOURCE_FOLDER, dsfolder);
+         // an additional connection still at its old path: its parent wasn't renamed, e.g. its
+         // connector isn't installed or it can't be read. The move of the rest below moves the
+         // entry but not the "parent::name" permission, which is moved once the entry is.
+         List<AssetEntry> leftAdditionals =
+            additionals.stream().filter(this::containObject).toList();
+
+         // the rest, e.g. a data source that can't be loaded, before the old folders are gone
+         current = oname;
+         List<EntryMove> rest = createMoves(oname + "/", nname + "/", false, false,
+                                            Set.of(allFolderChildren));
+
+         try {
+            moveEntries(rest);
+         }
+         catch(MoveEntriesException e) {
+            // moved, only a permission wasn't
+            if(e.isCommitted()) {
+               addMovedDataSources(rest, moved);
+
+               try {
+                  moveAdditionalPermissions(leftAdditionals, oname, nname);
+               }
+               catch(Exception ex) {
+                  e.addSuppressed(ex);
+               }
+            }
+
+            throw e;
          }
 
+         addMovedDataSources(rest, moved);
+         moveAdditionalPermissions(leftAdditionals, oname, nname);
+
+         for(DataSourceFolder dsfolder : subfolders) {
+            String opath = dsfolder.getFullName();
+            String npath = nname + opath.substring(oname.length());
+            current = opath;
+            dsfolder.setName(npath);
+            moveObject(opath, npath, AssetEntry.Type.DATA_SOURCE_FOLDER, dsfolder);
+         }
+
+         current = oname;
          folder.setName(nname);
-         updateObject(oname, nname, AssetEntry.Type.DATA_SOURCE_FOLDER, folder);
-         renameObjects(oname + "/", nname + "/");
+         moveObject(oname, nname, AssetEntry.Type.DATA_SOURCE_FOLDER, folder);
       }
       catch(SecurityException se) {
+         discardMoveTargetFolders(targets);
          throw se;
       }
+      catch(DataSourceRenameException e) {
+         discardMoveTargetFolders(targets);
+         e.addMovedDataSources(oname, nname, moved);
+         throw e;
+      }
       catch(Exception e) {
-         LOG.error(
-            "Failed to rename datasource folder: " + oname, e);
+         discardMoveTargetFolders(targets);
+         String failed = e instanceof MoveEntriesException moveException &&
+            moveException.getPath() != null ? moveException.getPath() : current;
+         throw new DataSourceRenameException(oname, nname, failed, moved, e);
+      }
+   }
+
+   // moves the "parent::name" permissions of additional connections moved to a new folder
+   private void moveAdditionalPermissions(List<AssetEntry> additionals, String oname,
+                                          String nname)
+   {
+      for(AssetEntry entry : additionals) {
+         String opath = entry.getPath();
+         int index = opath.lastIndexOf('/');
+         String oparent = opath.substring(0, index);
+         String nparent = nname + oparent.substring(oname.length());
+         String name = opath.substring(index + 1);
+         updatePermission(ResourceType.DATA_SOURCE, oparent + "::" + name,
+                          nparent + "::" + name);
+      }
+   }
+
+   // the data sources, not additional connections, of a batch that was moved
+   private static void addMovedDataSources(List<EntryMove> moves, Map<String, String> moved) {
+      for(EntryMove move : moves) {
+         if(move.oentry().isDataSource() && move.name()) {
+            moved.put(move.oentry().getPath(), move.nentry().getPath());
+         }
+      }
+   }
+
+   /**
+    * Writes the folder that a data source folder is moved to, before anything is moved into it,
+    * with the permission of the old folder. The old folder is kept until the move is done.
+    *
+    * @param oname the old path of the folder.
+    * @param nname the new path of the folder.
+    *
+    * @return {@code true} if the folder was created, {@code false} if the old folder doesn't exist
+    * or the new one already does.
+    */
+   public boolean createMoveTargetFolder(String oname, String nname) throws Exception {
+      DataSourceFolder folder = getDataSourceFolder(oname);
+      return folder != null && createMoveTargetFolder(folder, nname);
+   }
+
+   boolean createMoveTargetFolder(DataSourceFolder folder, String nname)
+      throws Exception
+   {
+      String oname = folder.getFullName();
+      AssetEntry oentry = new AssetEntry(AssetRepository.QUERY_SCOPE,
+                                         AssetEntry.Type.DATA_SOURCE_FOLDER, oname, null);
+      AssetEntry nentry = new AssetEntry(AssetRepository.QUERY_SCOPE,
+                                         AssetEntry.Type.DATA_SOURCE_FOLDER, nname, null);
+
+      if(Tool.equals(oname, nname) || containObject(nentry)) {
+         return false;
+      }
+
+      AssetEntry stored = getRoot().getEntry(oentry);
+
+      if(stored != null) {
+         nentry.copyProperties(stored);
+      }
+
+      AssetUtil.updateMetaData(
+         nentry, ThreadContext.getContextPrincipal(), System.currentTimeMillis());
+      DataSourceFolder copy = (DataSourceFolder) folder.clone();
+      copy.setName(nname);
+
+      try {
+         indexedStorage.putXMLSerializable(nentry.toIdentifier(), copy);
+
+         try {
+            updateRoot(List.of(), List.of(nentry));
+         }
+         catch(Exception e) {
+            removeStoredObject(nentry);
+            throw e;
+         }
+
+         clearCache2();
+
+         try {
+            copyPermission(ResourceType.DATA_SOURCE_FOLDER, oname, nname);
+         }
+         catch(Exception e) {
+            discardMoveTargetFolder(oname, nname);
+            throw e;
+         }
+
+         return true;
+      }
+      finally {
+         indexedStorage.close();
+      }
+   }
+
+   /**
+    * Removes a folder that {@link #createMoveTargetFolder(String, String)} created, after the
+    * move failed, if nothing was moved into it and the old folder is still there.
+    *
+    * @param oname the old path of the folder.
+    * @param nname the new path of the folder.
+    */
+   public void discardMoveTargetFolder(String oname, String nname) {
+      AssetEntry oentry = new AssetEntry(AssetRepository.QUERY_SCOPE,
+                                         AssetEntry.Type.DATA_SOURCE_FOLDER, oname, null);
+      AssetEntry nentry = new AssetEntry(AssetRepository.QUERY_SCOPE,
+                                         AssetEntry.Type.DATA_SOURCE_FOLDER, nname, null);
+
+      if(Tool.equals(oname, nname) || !containObject(oentry) || !containObject(nentry) ||
+         getEntries(nname + "/").length > 0)
+      {
+         return;
+      }
+
+      try {
+         updateRoot(List.of(nentry), List.of());
+         removeStoredObject(nentry);
+         clearCache2();
+         SecurityEngine engine = SecurityEngine.getSecurity();
+
+         if(!engine.getSecurityProvider().isVirtual() &&
+            engine.getPermission(ResourceType.DATA_SOURCE_FOLDER, nname) != null)
+         {
+            engine.removePermission(ResourceType.DATA_SOURCE_FOLDER, nname);
+         }
+      }
+      catch(Exception e) {
+         LOG.warn("Failed to remove the data source folder {} created for a move that failed",
+                  nname, e);
+      }
+      finally {
+         indexedStorage.close();
+      }
+   }
+
+   // the folders created for a move, the subfolders first
+   private void discardMoveTargetFolders(Map<String, String> targets) {
+      List<Map.Entry<String, String>> list = new ArrayList<>(targets.entrySet());
+      Collections.reverse(list);
+
+      for(Map.Entry<String, String> target : list) {
+         discardMoveTargetFolder(target.getKey(), target.getValue());
       }
    }
 
@@ -1520,7 +1785,7 @@ public class DataSourceRegistry implements MessageListener {
          AssetEntry entry = new AssetEntry(AssetRepository.QUERY_SCOPE,
                                            AssetEntry.Type.DATA_MODEL, datasource, null);
          removeObject(entry);
-         removeAdditionalConnectionPermissions(additionalResources);
+         removeDataSourcePermissions(additionalResources);
       }
       catch(Exception e) {
          LOG.error(
@@ -1714,6 +1979,31 @@ public class DataSourceRegistry implements MessageListener {
     * @param obj   the object to store
     */
    public void updateObject(String oname, String nname, AssetEntry.Type type, XMLSerializable obj) {
+      try {
+         moveObject(oname, nname, type, obj);
+      }
+      catch(Exception e) {
+         LOG.error("Failed to update object: {}", oname, e);
+      }
+   }
+
+   /**
+    * Updates a stored object, like {@link #updateObject(String, String, AssetEntry.Type,
+    * XMLSerializable)}, and throws a failed write.
+    */
+   private void moveObject(String oname, String nname, AssetEntry.Type type,
+                           XMLSerializable obj) throws Exception
+   {
+      moveEntries(List.of(createMove(oname, nname, type, obj)));
+   }
+
+   /**
+    * Creates the move of a stored object, the new entry keeping the properties and the creation
+    * info of the old one.
+    */
+   private EntryMove createMove(String oname, String nname, AssetEntry.Type type,
+                                XMLSerializable obj)
+   {
       AssetEntry oentry = new AssetEntry(AssetRepository.QUERY_SCOPE, type, oname, null);
       AssetEntry nentry = new AssetEntry(AssetRepository.QUERY_SCOPE, type, nname, null);
 
@@ -1730,7 +2020,7 @@ public class DataSourceRegistry implements MessageListener {
       // change the last modified info, not who created it or when it was created
       nentry.setCreatedUsername(oentry.getCreatedUsername());
       nentry.setCreatedDate(oentry.getCreatedDate());
-      updateObject(oentry, nentry, obj);
+      return new EntryMove(oentry, nentry, obj, false, false);
    }
 
    /**
@@ -1742,30 +2032,10 @@ public class DataSourceRegistry implements MessageListener {
     */
    public void updateObject(AssetEntry oentry, AssetEntry nentry, XMLSerializable obj) {
       try {
-         AssetUtil.updateMetaData(
-            nentry, ThreadContext.getContextPrincipal(), System.currentTimeMillis());
-         AssetFolder root = getRoot();
-         root.removeEntry(oentry);
-         cachemap.remove(oentry);
-         clearCache2();
-         root.addEntry(nentry);
-         setRoot(root);
-
-         if(!oentry.toIdentifier().equals(nentry.toIdentifier())) {
-            indexedStorage.remove(oentry.toIdentifier(), true);
-            cachemap.remove(nentry);
-         }
-
-         indexedStorage.putXMLSerializable(nentry.toIdentifier(), obj);
-         Resource oresource = AssetUtil.getSecurityResource(oentry);
-         Resource nresource = AssetUtil.getSecurityResource(nentry);
-         updatePermission(oresource.getType(), oresource.getPath(), nresource.getPath());
+         moveEntries(List.of(new EntryMove(oentry, nentry, obj, false, false)));
       }
       catch(Exception e) {
          LOG.error("Failed to update object: {}", oentry.getPath(), e);
-      }
-      finally {
-         indexedStorage.close();
       }
    }
 
@@ -1805,50 +2075,403 @@ public class DataSourceRegistry implements MessageListener {
                              boolean isAdditionalSource)
    {
       try {
-         AssetEntry[] entries = getEntries(oldPrefix);
-         AssetFolder root = getRoot();
-
-         for(AssetEntry oentry : entries) {
-            String opath = oentry.getPath();
-
-            if(opath.startsWith(oldPrefix)) {
-               String npath = newPrefix + opath.substring(oldPrefix.length());
-               AssetEntry nentry = new AssetEntry(AssetRepository.QUERY_SCOPE,
-                                                  oentry.getType(), npath, null);
-               if(keepCreatedInfo) {
-                  nentry.setCreatedUsername(oentry.getCreatedUsername());
-                  nentry.setCreatedDate(oentry.getCreatedDate());
-               }
-
-               nentry.copyProperties(oentry);
-               AssetUtil.updateMetaData(
-                  nentry, ThreadContext.getContextPrincipal(),
-                  System.currentTimeMillis());
-               root.removeEntry(oentry);
-               root.addEntry(nentry);
-               XMLSerializable obj = getObject(oentry, false, false);
-               indexedStorage.remove(oentry.toIdentifier(), true);
-               indexedStorage.putXMLSerializable(nentry.toIdentifier(), obj);
-               clearCache2();
-
-               if(isAdditionalSource && oentry.isDataSource()) {
-                  oentry = (AssetEntry) oentry.clone();
-                  oentry.setProperty("source", oentry.getParentPath() + "::" + oentry.getName());
-                  nentry = (AssetEntry) nentry.clone();
-                  nentry.setProperty("source", nentry.getParentPath() + "::" + nentry.getName());
-               }
-
-               Resource oresource = AssetUtil.getSecurityResource(oentry);
-               Resource nresource = AssetUtil.getSecurityResource(nentry);
-               updatePermission(oresource.getType(), oresource.getPath(), nresource.getPath());
-            }
-         }
-
-         setRoot(root);
+         moveEntries(createMoves(oldPrefix, newPrefix, keepCreatedInfo, isAdditionalSource,
+                                 Set.of()));
       }
       catch(Exception e) {
          LOG.error(
             "Failed to rename objects: " + oldPrefix, e);
+      }
+   }
+
+   /**
+    * Creates the moves of the objects whose paths start with a prefix.
+    *
+    * @param skipped the entries to leave, which the caller moves itself.
+    */
+   private List<EntryMove> createMoves(String oldPrefix, String newPrefix,
+                                       boolean keepCreatedInfo, boolean isAdditionalSource,
+                                       Set<AssetEntry> skipped)
+   {
+      AssetEntry[] entries = getEntries(oldPrefix);
+      // an additional connection is a data source entry whose parent path is a data source
+      // entry, as in renameDataSourceFolder
+      Set<String> dsPaths = new HashSet<>();
+
+      for(AssetEntry entry : entries) {
+         if(entry.isDataSource()) {
+            dsPaths.add(entry.getPath());
+         }
+      }
+
+      List<EntryMove> moves = new ArrayList<>();
+
+      for(AssetEntry oentry : entries) {
+         String opath = oentry.getPath();
+
+         if(!opath.startsWith(oldPrefix) || skipped.contains(oentry)) {
+            continue;
+         }
+
+         String npath = newPrefix + opath.substring(oldPrefix.length());
+         AssetEntry nentry = new AssetEntry(AssetRepository.QUERY_SCOPE,
+                                            oentry.getType(), npath, null);
+         if(keepCreatedInfo) {
+            nentry.setCreatedUsername(oentry.getCreatedUsername());
+            nentry.setCreatedDate(oentry.getCreatedDate());
+         }
+
+         nentry.copyProperties(oentry);
+         int index = opath.lastIndexOf('/');
+         boolean additional = isAdditionalSource ||
+            index > 0 && dsPaths.contains(opath.substring(0, index));
+         moves.add(new EntryMove(oentry, nentry, null, oentry.isDataSource() && !additional,
+                                 isAdditionalSource && oentry.isDataSource()));
+      }
+
+      return moves;
+   }
+
+   /**
+    * Moves stored objects to their new entries. Bug #77704, the index is the commit point: every
+    * object is written under its new key first, then the index is saved once, and only then are
+    * the old keys removed and the permissions moved. If a write fails before the index is saved,
+    * what was written is removed again, the index is left as it was and the failure is thrown,
+    * so nothing has moved and nothing is lost.
+    */
+   void moveEntries(List<EntryMove> moves) throws Exception {
+      try {
+         List<AssetEntry> oentries = new ArrayList<>();
+         List<AssetEntry> nentries = new ArrayList<>();
+         List<WrittenEntry> written = new ArrayList<>();
+         String path = null;
+
+         try {
+            for(EntryMove move : moves) {
+               AssetEntry oentry = move.oentry();
+               AssetEntry nentry = move.nentry();
+               path = oentry.getPath();
+               AssetUtil.updateMetaData(
+                  nentry, ThreadContext.getContextPrincipal(), System.currentTimeMillis());
+               oentries.add(oentry);
+               nentries.add(nentry);
+               boolean renamed = !oentry.toIdentifier().equals(nentry.toIdentifier());
+               boolean created = renamed && !indexedStorage.contains(nentry.toIdentifier());
+               XMLSerializable obj = move.obj() != null ?
+                  move.obj() : getObject(oentry, false, false);
+
+               // can't be loaded, e.g. a data source whose connector isn't installed or an
+               // entry that is corrupt. Written again, it would be stored with no content.
+               if(obj == null ||
+                  obj instanceof XDataSourceWrapper wrapper && wrapper.getSource() == null)
+               {
+                  boolean moved = renamed && copyStoredDocument(oentry, nentry, move.name());
+                  written.add(new WrittenEntry(oentry, nentry, created, renamed && !moved,
+                                               moved));
+               }
+               else {
+                  indexedStorage.putXMLSerializable(nentry.toIdentifier(), obj);
+                  written.add(new WrittenEntry(oentry, nentry, created, renamed, false));
+               }
+            }
+
+            // the index, not a single object
+            path = null;
+            updateRoot(oentries, nentries);
+         }
+         catch(Exception e) {
+            // the index wasn't saved, take back what was written
+            for(WrittenEntry entry : written.reversed()) {
+               undo(entry);
+            }
+
+            throw new MoveEntriesException(path, false, e);
+         }
+
+         for(WrittenEntry entry : written) {
+            cachemap.remove(entry.oentry());
+            cachemap.remove(entry.nentry());
+
+            if(entry.removeOld()) {
+               removeStoredObject(entry.oentry());
+            }
+         }
+
+         clearCache2();
+         MoveEntriesException permissionFailure = null;
+
+         // the objects have moved, a permission that can't be moved is kept under its old key
+         // and reported, the others are still moved
+         for(EntryMove move : moves) {
+            AssetEntry oentry = move.oentry();
+            AssetEntry nentry = move.nentry();
+
+            if(move.sourcePermission()) {
+               oentry = (AssetEntry) oentry.clone();
+               oentry.setProperty("source", oentry.getParentPath() + "::" + oentry.getName());
+               nentry = (AssetEntry) nentry.clone();
+               nentry.setProperty("source", nentry.getParentPath() + "::" + nentry.getName());
+            }
+
+            Resource oresource = AssetUtil.getSecurityResource(oentry);
+            Resource nresource = AssetUtil.getSecurityResource(nentry);
+
+            try {
+               updatePermission(oresource.getType(), oresource.getPath(), nresource.getPath());
+            }
+            catch(Exception e) {
+               LOG.error("Failed to move the permission of {} to {}", oentry.getPath(),
+                         nentry.getPath(), e);
+
+               if(permissionFailure == null) {
+                  permissionFailure = new MoveEntriesException(oentry.getPath(), true, e);
+               }
+            }
+         }
+
+         if(permissionFailure != null) {
+            throw permissionFailure;
+         }
+      }
+      finally {
+         indexedStorage.close();
+      }
+   }
+
+   /**
+    * Thrown by {@link #moveEntries(List)}.
+    */
+   static class MoveEntriesException extends IOException {
+      /**
+       * @param path      the path of the object whose write failed, or null for the index.
+       * @param committed {@code true} if the objects were moved and only a permission wasn't.
+       */
+      MoveEntriesException(String path, boolean committed, Exception cause) {
+         super(cause.getMessage(), cause);
+         this.path = path;
+         this.committed = committed;
+      }
+
+      String getPath() {
+         return path;
+      }
+
+      boolean isCommitted() {
+         return committed;
+      }
+
+      private final String path;
+      private final boolean committed;
+   }
+
+   /**
+    * The move of a stored object.
+    *
+    * @param obj              the object to write, or null to write the stored one.
+    * @param name             {@code true} to set the stored name to the new path if the stored
+    *                         document is moved as it is, for a data source that isn't an
+    *                         additional connection.
+    * @param sourcePermission {@code true} if the permission is keyed by "parent::name", for an
+    *                         additional connection.
+    */
+   record EntryMove(AssetEntry oentry, AssetEntry nentry, XMLSerializable obj,
+                            boolean name, boolean sourcePermission)
+   {
+   }
+
+   /**
+    * An object written under its new key by {@link #moveEntries(List)}, before the index is
+    * saved.
+    *
+    * @param created   {@code true} if the new key didn't exist before.
+    * @param removeOld {@code true} if the old key is removed once the index is saved.
+    * @param renamed   {@code true} if the stored document was renamed to the new key as it is,
+    *                  so the old key no longer exists.
+    */
+   private record WrittenEntry(AssetEntry oentry, AssetEntry nentry, boolean created,
+                               boolean removeOld, boolean renamed)
+   {
+   }
+
+   // takes back what moveEntries wrote for an object, when the index can't be saved
+   private void undo(WrittenEntry entry) {
+      String okey = entry.oentry().toIdentifier();
+      String nkey = entry.nentry().toIdentifier();
+
+      try {
+         if(entry.renamed()) {
+            if(!indexedStorage.rename(nkey, okey, true)) {
+               LOG.error("Failed to move {} back to {}", entry.nentry().getPath(),
+                         entry.oentry().getPath());
+            }
+         }
+         else if(entry.created()) {
+            indexedStorage.remove(nkey, true);
+         }
+      }
+      catch(Exception e) {
+         LOG.error("Failed to move {} back to {}", entry.nentry().getPath(),
+                   entry.oentry().getPath(), e);
+      }
+   }
+
+   /**
+    * Removes and adds entries in the index and saves it. If it can't be saved, the cached index
+    * is restored too.
+    */
+   private void updateRoot(List<AssetEntry> removed, List<AssetEntry> added) throws Exception {
+      AssetFolder root = getRoot();
+      Map<AssetEntry, AssetEntry> previous = new HashMap<>();
+
+      for(AssetEntry entry : removed) {
+         previous.put(entry, root.getEntry(entry));
+      }
+
+      for(AssetEntry entry : added) {
+         previous.put(entry, root.getEntry(entry));
+      }
+
+      removed.forEach(root::removeEntry);
+      added.forEach(root::addEntry);
+
+      try {
+         setRoot(root);
+      }
+      catch(Exception e) {
+         previous.forEach((entry, stored) -> {
+            root.removeEntry(entry);
+
+            if(stored != null) {
+               root.addEntry(stored);
+            }
+         });
+
+         throw e;
+      }
+   }
+
+   // removes a stored object that the index no longer lists, a failure leaves it unused
+   private void removeStoredObject(AssetEntry entry) {
+      try {
+         indexedStorage.remove(entry.toIdentifier(), true);
+      }
+      catch(Exception e) {
+         LOG.warn("Failed to remove the stored object {}", entry.getPath(), e);
+      }
+   }
+
+   private void copyPermission(ResourceType type, String oldResource, String newResource) {
+      SecurityEngine engine = SecurityEngine.getSecurity();
+
+      if(engine.getSecurityProvider().isVirtual()) {
+         return;
+      }
+
+      Permission permission = engine.getPermission(type, oldResource);
+
+      if(permission != null) {
+         savePermission(engine, type, newResource, permission);
+      }
+   }
+
+   /**
+    * Writes the stored document of an object that can't be loaded under the key of its new
+    * entry as it is, so it can be loaded again once its connector is installed. The old key is
+    * kept, unless the document isn't well-formed, in which case it is renamed as it is.
+    *
+    * @param oentry         the old entry of the object.
+    * @param nentry         the new entry of the object.
+    * @param dataSourceName {@code true} to set the stored name to the new path, for a data source
+    *                       that isn't an additional connection.
+    *
+    * @return {@code true} if the stored document was renamed, so the old key no longer exists.
+    *
+    * @throws IOException if it can't be written.
+    */
+   private boolean copyStoredDocument(AssetEntry oentry, AssetEntry nentry,
+                                      boolean dataSourceName) throws IOException
+   {
+      String okey = oentry.toIdentifier();
+      String nkey = nentry.toIdentifier();
+      Document doc;
+
+      try {
+         doc = indexedStorage.getDocument(okey, oentry.getOrgID());
+      }
+      catch(Exception e) {
+         LOG.warn("Failed to read {}, moving it without changes", oentry.getPath(), e);
+         doc = null;
+      }
+
+      // not well-formed, keep its content as it is under the new key
+      if(doc == null || doc.getDocumentElement() == null) {
+         if(!indexedStorage.contains(okey, oentry.getOrgID())) {
+            LOG.warn("No stored document to move for {}", oentry.getPath());
+            return false;
+         }
+
+         if(!indexedStorage.rename(okey, nkey, true)) {
+            throw new IOException(
+               "Failed to move " + oentry.getPath() + " to " + nentry.getPath());
+         }
+
+         return true;
+      }
+
+      String className = oentry.isDataSource() ? XDataSourceWrapper.class.getName() : null;
+
+      // putDocument adds the processing instruction with the new identifier
+      for(Node node = doc.getFirstChild(); node != null; ) {
+         Node next = node.getNextSibling();
+
+         if(node instanceof ProcessingInstruction pi && "inetsoft-asset".equals(pi.getTarget())) {
+            Matcher matcher = CLASS_NAME_PATTERN.matcher(pi.getData());
+            className = matcher.find() ? matcher.group(1) : className;
+            doc.removeChild(pi);
+         }
+
+         node = next;
+      }
+
+      if(className == null) {
+         throw new IOException("Failed to move " + oentry.getPath() + " to " +
+                               nentry.getPath() + ", its class isn't known");
+      }
+
+      if(dataSourceName) {
+         doc.getDocumentElement().setAttribute("name", nentry.getPath());
+      }
+
+      indexedStorage.putDocument(nkey, doc, className, nentry.getOrgID());
+
+      // putDocument logs a failure instead of throwing it
+      if(!indexedStorage.contains(nkey, nentry.getOrgID())) {
+         throw new IOException("Failed to move " + oentry.getPath() + " to " + nentry.getPath());
+      }
+
+      return false;
+   }
+
+   /**
+    * Gets the type stored for a data source without loading it, e.g. for a data source whose
+    * connector isn't installed, which {@link #getDataSource(String)} returns null for.
+    *
+    * @param path the data source path.
+    *
+    * @return the type, or null if the data source has no stored document that can be read.
+    */
+   public String getStoredDataSourceType(String path) {
+      AssetEntry entry = new AssetEntry(AssetRepository.QUERY_SCOPE,
+                                        AssetEntry.Type.DATA_SOURCE, path, null);
+
+      try {
+         Document doc = indexedStorage.getDocument(entry.toIdentifier(), entry.getOrgID());
+         Element elem = doc == null ? null : doc.getDocumentElement();
+         return elem == null ? null : Tool.getAttribute(elem, "type");
+      }
+      catch(Exception e) {
+         LOG.warn("Failed to read the stored data source: {}", path, e);
+         return null;
       }
       finally {
          indexedStorage.close();
@@ -2054,9 +2677,34 @@ public class DataSourceRegistry implements MessageListener {
 
       Permission permission = engine.getPermission(type, oldResource);
 
-      if(permission != null) {
+      // Bug #77704, removed from the old key only once it can be read back under the new one.
+      // The authorization provider logs a failed save instead of throwing it.
+      if(permission != null && !oldResource.equals(newResource)) {
+         savePermission(engine, type, newResource, permission);
          engine.removePermission(type, oldResource);
-         engine.setPermission(type, newResource, permission);
+
+         if(engine.getPermission(type, oldResource) != null) {
+            LOG.warn("Failed to remove the permission of {} {} after it was moved to {}",
+                     type, oldResource, newResource);
+         }
+      }
+   }
+
+   /**
+    * Saves a permission and checks that it can be read back, since the authorization provider
+    * logs a failed save instead of throwing it.
+    *
+    * @throws UncheckedIOException if it isn't saved.
+    */
+   private static void savePermission(SecurityEngine engine, ResourceType type, String resource,
+                                      Permission permission)
+   {
+      engine.setPermission(type, resource, permission);
+
+      // a blank permission is removed instead
+      if(!permission.isBlank() && !permission.equals(engine.getPermission(type, resource))) {
+         throw new UncheckedIOException(new IOException(
+            "Failed to save the permission of " + type + " " + resource));
       }
    }
 
@@ -2375,6 +3023,7 @@ public class DataSourceRegistry implements MessageListener {
    private final Set<String> clashesReported = ConcurrentHashMap.newKeySet();
    private final Lock rootLock = new ReentrantLock();
 
+   private static final Pattern CLASS_NAME_PATTERN = Pattern.compile("classname=\"([^\"]*)\"");
    private static final Logger LOG = LoggerFactory.getLogger(DataSourceRegistry.class);
 
    private static final String FILTER_PREFIX = AssetRepository.QUERY_SCOPE + "^";

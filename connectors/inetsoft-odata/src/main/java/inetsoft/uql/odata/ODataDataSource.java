@@ -17,7 +17,6 @@
  */
 package inetsoft.uql.odata;
 
-import inetsoft.uql.XRepository;
 import inetsoft.uql.tabular.*;
 import inetsoft.uql.tabular.oauth.*;
 import inetsoft.util.Tool;
@@ -27,7 +26,6 @@ import org.slf4j.LoggerFactory;
 import org.w3c.dom.Element;
 
 import java.io.PrintWriter;
-import java.time.Instant;
 import java.util.*;
 
 @View(vertical=true, value={
@@ -337,47 +335,6 @@ public class ODataDataSource extends TabularDataSource<ODataDataSource> implemen
       if(credentialNode != null) {
          getCredential().parseXML(credentialNode);
       }
-   }
-
-   protected void refreshTokens() {
-      if(!isTokenExpired()) {
-         return;
-      }
-
-      try {
-         String flags = getOauthFlags();
-         Set<String> flagsSet = new HashSet<>();
-
-         if(flags != null && !flags.isEmpty()) {
-            flagsSet.addAll(Arrays.asList(getOauthFlags().split(" ")));
-         }
-
-         Tokens tokens = AuthorizationClient.refresh(
-            getServiceName(), getRefreshToken(), getClientId(), getClientSecret(), getTokenUri(),
-            flagsSet, false, null);
-         updateTokens(tokens);
-      }
-      catch(Exception e) {
-         LOG.error("Failed to refresh access token", e);
-         return;
-      }
-
-      if(this.getFullName() != null) {
-         try {
-            XRepository.getRepository().updateDataSource(this, getFullName());
-         }
-         catch(Exception e) {
-            LOG.warn("Failed to save data source after refreshing token", e);
-         }
-      }
-   }
-
-   /**
-    * @return true if the refresh token is valid and the token expiration is passed
-    */
-   protected boolean isTokenExpired() {
-      return tokenExpiration == 0L || getRefreshToken() == null || getRefreshToken().isEmpty() ||
-         Instant.now().isBefore(Instant.ofEpochMilli(tokenExpiration));
    }
 
    @Override

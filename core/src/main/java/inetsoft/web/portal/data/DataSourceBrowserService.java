@@ -29,6 +29,7 @@ import inetsoft.uql.asset.SourceInfo;
 import inetsoft.uql.asset.sync.*;
 import inetsoft.uql.jdbc.JDBCDataSource;
 import inetsoft.uql.service.DataSourceRegistry;
+import inetsoft.uql.service.DataSourceRenameException;
 import inetsoft.uql.tabular.TabularDataSource;
 import inetsoft.uql.util.Config;
 import inetsoft.uql.util.XUtil;
@@ -443,12 +444,14 @@ public class DataSourceBrowserService {
          DependencyTransformer.prepareChildrenSources(path, childrenSources, repository);
          RenameDependencyInfo dinfo = DependencyTransformer.createDependencyInfo(
             path, newPath, childrenSources);
-         renameTransformHandler.addTransformTask(dinfo);
 
          folder.setName(newPath);
          Permission permission =
                securityEngine.getPermission(ResourceType.DATA_SOURCE_FOLDER, path);
+         // Bug #77704, added once the folder is moved. A failed move renames the dependencies of
+         // each data source it moved, in updateDataSourceFolder.
          repository.updateDataSourceFolder(folder, path);
+         renameTransformHandler.addTransformTask(dinfo);
 
          if(permission != null) {
             securityEngine.setPermission(ResourceType.DATA_SOURCE_FOLDER, newPath, permission);
@@ -702,12 +705,25 @@ public class DataSourceBrowserService {
                      "common.deleteAuthority", oname));
                }
 
-               List<RenameDependencyInfo> renameDependencyInfos =
-                  DependencyTransformer.createDatasourceFolderDependencyInfo(getDSRegistry(),
+               Map<String, RenameDependencyInfo> renameDependencyInfos =
+                  DependencyTransformer.createDatasourceFolderDependencyInfoMap(getDSRegistry(),
                      oname, nname);
-               registry.renameDataSourceFolder(oname, nname);
 
-               for(RenameDependencyInfo renameDependencyInfo : renameDependencyInfos) {
+               // Bug #77704, a failed move renames the dependencies of the data sources it moved
+               try {
+                  registry.renameDataSourceFolder(oname, nname);
+               }
+               catch(DataSourceRenameException e) {
+                  renameDependencyInfos.forEach((source, renameDependencyInfo) -> {
+                     if(e.isMoved(source)) {
+                        this.renameTransformHandler.addTransformTask(renameDependencyInfo);
+                     }
+                  });
+
+                  throw e;
+               }
+
+               for(RenameDependencyInfo renameDependencyInfo : renameDependencyInfos.values()) {
                   this.renameTransformHandler.addTransformTask(renameDependencyInfo);
                }
 
@@ -743,23 +759,37 @@ public class DataSourceBrowserService {
                removeDefaultMetaDataProviderCache(ds);
                ds.setName(nname);
 
+               RenameDependencyInfo dinfo = null;
+
                // Bug #60289, rename transform task is submitted in updateDataSource() for REST
                if(!((ds instanceof ListedDataSource) || ds instanceof TabularDataSource ||
                   ds.getType().startsWith(SourceInfo.REST_PREFIX)))
                {
                   if(ds instanceof XMLADataSource) {
-                     RenameDependencyInfo dinfo = DependencyTransformer.createCubeDependencyInfo(
+                     dinfo = DependencyTransformer.createCubeDependencyInfo(
                         oname, ds.getFullName());
-                     renameTransformHandler.addTransformTask(dinfo);
                   }
                   else {
-                     RenameDependencyInfo dinfo = DependencyTransformer.createDependencyInfo(
+                     dinfo = DependencyTransformer.createDependencyInfo(
                         oname, ds.getFullName());
-                     renameTransformHandler.addTransformTask(dinfo);
                   }
                }
 
-               repository.updateDataSource(ds, oname, false);
+               // Bug #77704, the dependencies are renamed once the data source is moved
+               try {
+                  repository.updateDataSource(ds, oname, false);
+               }
+               catch(DataSourceRenameException e) {
+                  if(dinfo != null && e.isMoved(oname)) {
+                     renameTransformHandler.addTransformTask(dinfo);
+                  }
+
+                  throw e;
+               }
+
+               if(dinfo != null) {
+                  renameTransformHandler.addTransformTask(dinfo);
+               }
 
                objectName = Util.getObjectFullPath(RepositoryEntry.DATA_SOURCE,
                   item.getOldPath(), principal);

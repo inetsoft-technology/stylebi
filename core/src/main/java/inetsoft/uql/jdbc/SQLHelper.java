@@ -753,6 +753,8 @@ public class SQLHelper implements KeywordProvider {
       vJoin = null;
       textJoinOrder = null;
       ansiWhereJoins = null;
+      commaGroupsChanged = false;
+      commaGroupsNotMovable = false;
 
       // make sure the table aliases don't exceed database limit
       fixTableAliases();
@@ -805,7 +807,7 @@ public class SQLHelper implements KeywordProvider {
          return "";
       }
 
-      String where = generateWhereClause();
+      String where = appendRownumLimit(generateWhereClause());
       String groupby = generateGroupByClause();
       String having = generateHavingClause();
       String orderby = generateOrderByClause();
@@ -845,7 +847,7 @@ public class SQLHelper implements KeywordProvider {
       String where = generateWhereClause();
       String from = generateFromClause();
       // join conditions the ANSI FROM clause couldn't write in an ON
-      where = appendAnsiWhereJoins(where);
+      where = appendRownumLimit(appendAnsiWhereJoins(where));
       String groupby = generateGroupByClause();
       String having = generateHavingClause();
       String orderby = generateOrderByClause();
@@ -874,34 +876,56 @@ public class SQLHelper implements KeywordProvider {
     */
    private String appendLimitClause(String sql) {
       if(uniformSql.hasVPMCondition() && inpmaxrows > 0) {
-         // Use subquery to check if we should limit the table
-         String subquery = getTableWithLimit(sql, inpmaxrows);
+         // The row limit syntax of the database, taken from the limited table query of a
+         // placeholder table, so the names and literals of the sql can't change it. (#77698)
+         String subquery = getTableWithLimit(LIMIT_PLACEHOLDER, inpmaxrows);
 
+         // The sql is not searched for an existing limit: names and literals contain the
+         // keywords (credit_limit, 'no limit'). The statement has no limit clause of its own
+         // here: generateMaxRowsClause() runs only if outmaxrows > 0, and the parser refuses
+         // limit and fetch first. A derived table's own limit doesn't limit this statement,
+         // and a second rownum condition is still valid sql. The one limit the statement can
+         // start with is a top select option (getSelectionOption()). (#77698)
          if(subquery != null) {
-            if(isKeyword("limit") && !sql.contains("limit") && subquery.contains("limit")) {
+            if(isKeyword("limit") && subquery.contains("limit")) {
                sql += " limit " + inpmaxrows;
             }
-            else if(isKeyword("top") && sql.startsWith("select") && !sql.contains("select top")) {
+            else if(isKeyword("top") && sql.startsWith("select") &&
+               !SELECT_TOP.matcher(sql).lookingAt())
+            {
                sql = sql.replaceFirst("select", "select top " + inpmaxrows);
             }
-            else if(subquery.contains("fetch first") && !sql.contains("fetch first")) {
+            else if(subquery.contains("fetch first")) {
                sql += " fetch first " + inpmaxrows + " rows only";
             }
-            else if(this instanceof OracleSQLHelper && subquery.contains(" where rownum <= ") &&
-               !sql.contains(" where rownum <= "))
-            {
-               String where = generateWhereClause();
-               String newWhere = where.replace(WHERE, WHERE + " (");
-               newWhere += ") AND rownum <= " + inpmaxrows;
-
-               if(sql.contains(where)) {
-                  sql = sql.replace(where, newWhere);
-               }
-            }
+            // rownum (oracle) is added to the where clause by appendRownumLimit()
          }
       }
 
       return sql;
+   }
+
+   /**
+    * Add the input row limit of the queries affected by vpm conditions to the where clause
+    * of this statement, if the database limits rows with rownum (oracle). The where clause
+    * is wrapped when it is generated, not searched for in the generated sql, so the where of
+    * a subquery or a derived table, and a literal containing where, are left alone. A
+    * statement without a where clause is not limited. (#77698)
+    */
+   private String appendRownumLimit(String where) {
+      if(outmaxrows > 0 || !uniformSql.hasVPMCondition() || inpmaxrows <= 0 ||
+         !(this instanceof OracleSQLHelper) || where == null || !where.startsWith(WHERE))
+      {
+         return where;
+      }
+
+      String subquery = getTableWithLimit(LIMIT_PLACEHOLDER, inpmaxrows);
+
+      if(subquery == null || !subquery.contains(" where rownum <= ")) {
+         return where;
+      }
+
+      return WHERE + " (" + where.substring(WHERE.length()) + ") AND rownum <= " + inpmaxrows;
    }
 
    /**
@@ -1573,6 +1597,14 @@ public class SQLHelper implements KeywordProvider {
       final XSelection xselect = uniformSql.getSelection();
 
       for(int i = 0; i < xselect.getColumnCount(); i++) {
+         String alias = xselect.getAlias(i);
+
+         // a column with a valid alias of its own is output by that alias, no generated
+         // name stands for it (Bug #77714)
+         if(alias != null && !alias.isEmpty() && isValidAlias(alias)) {
+            continue;
+         }
+
          String column = xselect.getColumn(i);
          String table = uniformSql.getTable(column);
          String subCol = uniformSql.getColumnFromPath(column);
@@ -2275,6 +2307,11 @@ public class SQLHelper implements KeywordProvider {
       List<XJoin> pending = new ArrayList<>();
       // true if the last join step is a right join that the pending conditions go into
       boolean lastRight = false;
+      // the [start, end] of each comma separated group in from, and if it has a RIGHT or FULL
+      // join step outside of parentheses
+      List<int[]> groupRanges = new ArrayList<>();
+      List<Boolean> groupRightOrFull = new ArrayList<>();
+      boolean rightOrFull = false;
 
       for(int i = 0; i < count; i++) {
          if(joinCount >= jsize) {
@@ -2321,6 +2358,7 @@ public class SQLHelper implements KeywordProvider {
                   top = from.length();
                }
 
+               rightOrFull = false;
                boolean newTables = true;
                XJoin previousJoin = null;
 
@@ -2381,6 +2419,7 @@ public class SQLHelper implements KeywordProvider {
                      appendJoinClause(from, join, op, tableOne, tableTwo, top, previousJoin);
 
                      if(newTables) {
+                        rightOrFull = isTopRightOrFull(rightOrFull, op, tableOne == null);
                         lastJoin = join;
                         lastTable = (SelectTable) (traverse ? table1[1] : table2[1]);
                         lastTablePreserved = isPreservedTable(join, traverse);
@@ -2445,6 +2484,8 @@ public class SQLHelper implements KeywordProvider {
                   }
 
                   pending.clear();
+                  groupRanges.add(new int[] { top, from.length() });
+                  groupRightOrFull.add(rightOrFull);
 
                   // if we reach here that means no related joins found
                   // moved ahead to find other groups
@@ -2455,7 +2496,135 @@ public class SQLHelper implements KeywordProvider {
          }
       }
 
+      List<String> groups = new ArrayList<>();
+
+      for(int[] range : groupRanges) {
+         groups.add(from.substring(range[0], range[1]));
+      }
+
+      // the groups are separated by commas only, see generateFromClauseText
+      if(String.join(COMMA_GAP, groups).contentEquals(from)) {
+         from = new StringBuilder(String.join(COMMA_GAP, orderCommaGroups(groups, groupRightOrFull)));
+      }
+
       return finishFromClause(from, usedtables, count);
+   }
+
+   /**
+    * Check if a join group has a RIGHT or FULL join step outside of parentheses, after a
+    * step is added to it.
+    * @param rightOrFull if the group had one before the step.
+    * @param op the ANSI join of the step.
+    * @param joinsGroup true if the step joins a table to the group, false if it starts the
+    * group. appendJoinClause puts the group before such a step in parentheses, unless the
+    * database doesn't support them (MongoHelper).
+    */
+   private boolean isTopRightOrFull(boolean rightOrFull, String op, boolean joinsGroup) {
+      if(joinsGroup && isJoinParenthesesSupported()) {
+         rightOrFull = false;
+      }
+
+      return rightOrFull || isRightOrFullJoin(op);
+   }
+
+   private static boolean isRightOrFullJoin(String op) {
+      return " RIGHT OUTER JOIN ".equals(op) || " FULL OUTER JOIN ".equals(op);
+   }
+
+   /**
+    * Order the comma separated join groups of a from clause so no group after a comma has a
+    * RIGHT or FULL join outside of parentheses. SQLite and HSQLDB give a comma and a JOIN the
+    * same precedence and read x, c RIGHT OUTER JOIN d ON .. as (x, c) RIGHT OUTER JOIN d ON ..,
+    * which null-extends the rows of x once instead of joining every row of x, so it returns
+    * different rows than x, (c RIGHT OUTER JOIN d ON ..), the way the other databases read it.
+    * An INNER or LEFT join of a group after a comma returns the same rows either way, since
+    * its condition only names the tables of its group (Bug #77675).
+    * <p>
+    * The first such group is moved before the other groups, which returns the same rows,
+    * as the groups are independent. Any other such group is put in parentheses, e.g. a FULL
+    * join group after another FULL join group. When the select list has a * column, every
+    * such group after the first group is put in parentheses instead of moving one, which would
+    * change the order of its columns. A database without join parentheses (MongoHelper)
+    * gets only the move.
+    * @param groups the text of each group, in from order.
+    * @param rightOrFull for each group, if it has a RIGHT or FULL join outside of parentheses.
+    * @return the groups in their new order.
+    */
+   private List<String> orderCommaGroups(List<String> groups, List<Boolean> rightOrFull) {
+      int first = rightOrFull.indexOf(Boolean.TRUE);
+
+      if(first < 0 || first == 0 && rightOrFull.lastIndexOf(Boolean.TRUE) == 0) {
+         return groups;
+      }
+
+      boolean parens = isJoinParenthesesSupported();
+      boolean star = isStarSelected();
+      boolean move = !parens || !star;
+      List<String> ordered = new ArrayList<>();
+
+      if(move) {
+         ordered.add(groups.get(first));
+      }
+
+      for(int i = 0; i < groups.size(); i++) {
+         if(move && i == first) {
+            continue;
+         }
+
+         boolean nested = parens && rightOrFull.get(i) && !ordered.isEmpty();
+         ordered.add(nested ? "(" + groups.get(i) + ")" : groups.get(i));
+      }
+
+      commaGroupsChanged = true;
+      // moving the only such group returns the same rows and columns, anything else leaves a
+      // group after a comma (in parentheses, or not on MongoHelper) or changes the order of
+      // the * columns
+      commaGroupsNotMovable = star || rightOrFull.indexOf(Boolean.TRUE) !=
+         rightOrFull.lastIndexOf(Boolean.TRUE);
+      return ordered;
+   }
+
+   /**
+    * Check if the select list has a * column (* or t.*), whose columns are in from order.
+    */
+   private boolean isStarSelected() {
+      XSelection selection = uniformSql.getSelection();
+      int count = selection == null ? 0 : selection.getColumnCount();
+
+      if(count == 0) {
+         return true;
+      }
+
+      for(int i = 0; i < count; i++) {
+         String column = selection.getColumn(i);
+
+         if(column != null && (column.trim().equals("*") || column.trim().endsWith(".*"))) {
+            return true;
+         }
+      }
+
+      return false;
+   }
+
+   /**
+    * Check if the last generated sql moved or parenthesized a comma separated join group of a
+    * from clause (orderCommaGroups), which needs the joins of the query to be independent of
+    * the order of its from items. A parsed query isn't: SQLite reads the commas of the
+    * original sql with the precedence of a JOIN (Bug #77675).
+    */
+   public boolean isCommaGroupsChanged() {
+      return commaGroupsChanged;
+   }
+
+   /**
+    * Check if the last generated sql changed the comma separated join groups of a from clause
+    * (isCommaGroupsChanged) other than by moving its only group with a RIGHT or FULL join
+    * outside of parentheses to the front: it has two or more such groups, so one of them is
+    * still after a comma (in parentheses, or without them on MongoHelper), or its select list
+    * has a * column, so the group is put in parentheses or its columns are reordered.
+    */
+   public boolean isCommaGroupsNotMovable() {
+      return commaGroupsNotMovable;
    }
 
    /**
@@ -2605,18 +2774,18 @@ public class SQLHelper implements KeywordProvider {
          }
       }
 
-      StringBuilder from = new StringBuilder();
       Set<Object> usedtables = new HashSet<>();
+      List<String> texts = new ArrayList<>();
+      List<Boolean> rightOrFull = new ArrayList<>();
 
       for(TextJoinGroup group : groups) {
-         if(from.length() > 0) {
-            from.append(COMMA_GAP);
-         }
-
-         from.append(group.text);
+         texts.add(group.text.toString());
+         rightOrFull.add(group.rightOrFull);
          usedtables.addAll(group.tables);
       }
 
+      StringBuilder from =
+         new StringBuilder(String.join(COMMA_GAP, orderCommaGroups(texts, rightOrFull)));
       return finishFromClause(from, usedtables, count);
    }
 
@@ -2688,6 +2857,7 @@ public class SQLHelper implements KeywordProvider {
          group.first = tables[traverse ? 1 : 0][1];
          group.firstName = (String) tables[traverse ? 1 : 0][0];
          group.leftDeep = isInnerOrLeftJoin(op);
+         group.rightOrFull = isRightOrFullJoin(op);
          appendTextJoins(group, step, anchor, op, group.firstName,
                          (String) tables[traverse ? 0 : 1][0]);
          groups.add(group);
@@ -2706,6 +2876,7 @@ public class SQLHelper implements KeywordProvider {
          group = joined.iterator().next();
          String op = getAnsiJoin(anchor.getOp(), traverse);
          group.leftDeep = group.leftDeep && isInnerOrLeftJoin(op);
+         group.rightOrFull = isTopRightOrFull(group.rightOrFull, op, true);
          appendTextJoins(group, step, anchor, op, null, names.get(table));
       }
       else if(newTables.isEmpty() && joined.size() == 2) {
@@ -2743,6 +2914,8 @@ public class SQLHelper implements KeywordProvider {
             }
 
             if(group != null) {
+               // the joins of the right group follow the inner join step without parentheses
+               group.rightOrFull = left.rightOrFull || right.rightOrFull;
                group.tables.addAll(names.keySet());
                return true;
             }
@@ -2758,7 +2931,11 @@ public class SQLHelper implements KeywordProvider {
          // null-extended rows of c and returns wrong rows (#77581)
          group = new TextJoinGroup();
          group.leftDeep = false;
-         appendTextJoins(group, step, anchor, getAnsiJoin(anchor.getOp(), false),
+         String op = getAnsiJoin(anchor.getOp(), false);
+         // the left group is in parentheses, or written without them (MongoHelper), the
+         // right group always is
+         group.rightOrFull = isRightOrFullJoin(op) || !parens && left.rightOrFull;
+         appendTextJoins(group, step, anchor, op,
                          parens ? "(" + left.text + ")" : left.text.toString(),
                          "(" + right.flat + ")");
          group.tables.addAll(left.tables);
@@ -2878,6 +3055,8 @@ public class SQLHelper implements KeywordProvider {
       private String firstName;
       // true if the chain has only inner and left joins and no nested group
       private boolean leftDeep;
+      // true if the group has a RIGHT or FULL join step outside of parentheses
+      private boolean rightOrFull;
    }
 
    /**
@@ -3381,8 +3560,9 @@ public class SQLHelper implements KeywordProvider {
             if(uniformSql.isTableColumn(sfield) || uniformSql.isOrderDBField(sfield)) {
                sfield = quotePath(sfield, false, false, true);
             }
-            // orderby column might be an alias
-            else if(xselect.isAlias(sfield) || sfield.startsWith("ALIAS_")) {
+            // orderby column might be an alias, or an alias generated by JDBCSelection, not
+            // a column or an expression that just starts with ALIAS_
+            else if(xselect.isAlias(sfield) || GENERATED_ALIAS.matcher(sfield).matches()) {
                boolean same = false;
                boolean part = false;
                String oalias = xselect.getOriginalAlias(sfield);
@@ -3445,6 +3625,9 @@ public class SQLHelper implements KeywordProvider {
 
       return "";
    }
+
+   // the alias JDBCSelection generates for a column whose alias isn't valid
+   private static final Pattern GENERATED_ALIAS = Pattern.compile("ALIAS_\\d+");
 
    /**
     * Get the column name for a column alias.
@@ -3833,8 +4016,16 @@ public class SQLHelper implements KeywordProvider {
          if(having && expression2.getValue() instanceof UniformSQL &&
             ((UniformSQL)expression2.getValue()).getSelection().getColumnCount() == 1)
          {
-            XSelection sec = ((UniformSQL)expression2.getValue()).getSelection();
+            UniformSQL subSql = (UniformSQL) expression2.getValue();
+            XSelection sec = subSql.getSelection();
             String alias = sec.getAlias(0);
+
+            // a generated subquery names its column by the alias generateSelectClause just
+            // emitted for it when str2 was built (an ALIAS_n for a name the database can't
+            // take), a kept sql text by the stored alias (Bug #77711)
+            if(alias != null && !subSql.hasSQLString() && sec instanceof JDBCSelection) {
+               alias = ((JDBCSelection) sec).getValidAlias(0, this);
+            }
 
             if(alias != null) {
                str2 = "(select " + XUtil.quoteAlias(alias, this) + " from" +
@@ -4384,6 +4575,17 @@ public class SQLHelper implements KeywordProvider {
     */
    public IdentifierCase getIdentifierCase() {
       return IdentifierCase.UNKNOWN;
+   }
+
+   /**
+    * Check if the database either ignores the case of a name or folds an unquoted name to
+    * upper case (e.g. oracle, h2, derby, mysql, sql server). An unquoted order by name then
+    * resolves to a select alias written unquoted in any case, or written quoted in upper case
+    * (Bug #77644). A database with case-sensitive names (e.g. clickhouse, sybase ase) or one
+    * that folds to lower case doesn't.
+    */
+   public boolean isAliasCaseInsensitive() {
+      return !isCaseSensitive();
    }
 
    /**
@@ -6349,6 +6551,12 @@ public class SQLHelper implements KeywordProvider {
    private List<String> ansiWhereJoins = null;
    // true to generate the ANSI FROM clause without writing joins as cycle conditions
    private boolean noCycleConditions = false;
+   // true if this generation moved or parenthesized a comma separated join group, see
+   // orderCommaGroups (Bug #77675)
+   private boolean commaGroupsChanged = false;
+   // true if commaGroupsChanged did more than move the only RIGHT or FULL join group to the
+   // front, see isCommaGroupsNotMovable (Bug #77675)
+   private boolean commaGroupsNotMovable = false;
    private Map<String, String> aliasmap = null; // old table alias -> new alias
    private String version = "";
    private boolean isFormatSQL; //for test auto case. Test will not format sql.
@@ -6357,6 +6565,12 @@ public class SQLHelper implements KeywordProvider {
    // Matches map key access expressions like m['key2'] (ClickHouse/Databricks)
    private static final Pattern MAP_KEY_ACCESS =
       Pattern.compile("([^\\s\\[\\]]+)\\[\\s*'([^\\s']+)'\\s*\\]");
+   // the table of the limited table query that gives the row limit syntax of the database
+   // (appendLimitClause()). Not a name a statement uses, and without a limit keyword.
+   private static final String LIMIT_PLACEHOLDER = "inetsoft_placeholder";
+   // a generated select clause with a top option (getSelectionOption())
+   private static final Pattern SELECT_TOP =
+      Pattern.compile("select(\\s+(distinct|all))?\\s+top\\s");
    // Maps "tableAlias.originalColExpr" -> safe alias used in the inner query
    private final Map<String, String> subQueryMapKeyAliases = new HashMap<>();
 

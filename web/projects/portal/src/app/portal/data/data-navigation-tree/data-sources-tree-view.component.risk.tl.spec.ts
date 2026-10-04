@@ -513,3 +513,114 @@ describe("DataSourcesTreeViewComponent — deleteVisible [Group 8, Risk 1]", () 
       expect(comp.deleteVisible(node)).toBe(false);
    });
 });
+
+// ===========================================================================
+// Bug #77705 — a sibling whose name shares text with the moved item is a target
+// ===========================================================================
+
+describe("DataSourcesTreeViewComponent — sibling sharing a name prefix (Bug #77705)", () => {
+   function treeFolder(path: string, type = AssetType.FOLDER, scope = 1) {
+      return { type, path, scope, properties: {} };
+   }
+
+   function dragInTree(entries: any[]) {
+      (TestBed.inject(DragService).getDragData as Mock).mockReturnValue({
+         AssetEntry: JSON.stringify(entries)
+      });
+   }
+
+   it("onNodeDrop should move a tree folder onto a sibling sharing its name, not onto itself or a subfolder", async () => {
+      const { comp } = await renderComponent();
+      const moveSpy = vi.spyOn(comp as any, "moveDataAssets").mockImplementation(() => {});
+      const f = treeFolder("F");
+
+      for(const blocked of ["F", "F/G"]) {
+         dragInTree([f]);
+         comp.onNodeDrop({ node: { data: treeFolder(blocked) } });
+      }
+
+      expect(moveSpy).not.toHaveBeenCalled();
+
+      for(const target of ["Fx", "aF"]) {
+         dragInTree([f]);
+         comp.onNodeDrop({ node: { data: treeFolder(target) } });
+      }
+
+      expect(moveSpy).toHaveBeenCalledTimes(2);
+      expect(moveSpy.mock.calls.map(call => (call[0] as any).path)).toEqual(["Fx", "aF"]);
+      expect(moveSpy.mock.calls[0][1]).toEqual([f]);
+   });
+
+   it("onNodeDrop should move a data source onto a data source folder containing its name", async () => {
+      const { comp } = await renderComponent();
+      const moveSpy = vi.spyOn(comp as any, "moveDatasourceAssets").mockImplementation(() => {});
+      const ds = treeFolder("DS", AssetType.DATA_SOURCE, 0);
+      const dsFolder = treeFolder("D", AssetType.DATA_SOURCE_FOLDER, 0);
+
+      dragInTree([ds]);
+      comp.onNodeDrop({ node: { data: treeFolder("xDS", AssetType.DATA_SOURCE_FOLDER, 0) } });
+      dragInTree([dsFolder]);
+      comp.onNodeDrop({ node: { data: treeFolder("D/E", AssetType.DATA_SOURCE_FOLDER, 0) } });
+
+      expect(moveSpy).toHaveBeenCalledTimes(1);
+      expect((moveSpy.mock.calls[0][0] as any).path).toBe("xDS");
+      expect(moveSpy.mock.calls[0][1]).toEqual([ds]);
+   });
+
+   it("moveDataFolderItems should move pane items onto a sibling sharing their name, not onto themselves or a subfolder", async () => {
+      const confirmSpy = vi.spyOn(ComponentTool, "showConfirmDialog").mockResolvedValue("cancel");
+      const { comp } = await renderComponent();
+      vi.spyOn(comp as any, "checkDataFoldersDuplicate").mockReturnValue(of(false));
+      const folder = { name: "F", path: "F", type: AssetType.FOLDER, scope: 1,
+         id: "1^1^admin^F", createdDate: 0, modifiedDate: 0 };
+      const sheet = { name: "Sales", path: "Sales", type: AssetType.WORKSHEET, scope: 1,
+         id: "1^2^admin^Sales", createdDate: 0, modifiedDate: 0 };
+
+      (comp as any).moveDataFolderItems(treeFolder("F"), [folder]);
+      (comp as any).moveDataFolderItems(treeFolder("F/G"), [folder]);
+
+      expect(confirmSpy).not.toHaveBeenCalled();
+
+      (comp as any).moveDataFolderItems(treeFolder("Fx"), [folder]);
+      expect(confirmSpy).toHaveBeenCalledTimes(1);
+
+      (comp as any).moveDataFolderItems(treeFolder("Sales2"), [sheet]);
+      expect(confirmSpy).toHaveBeenCalledTimes(2);
+   });
+
+   it("onNodeDrop should move a nested tree folder onto a nested sibling sharing its name, not onto itself or a subfolder", async () => {
+      const { comp } = await renderComponent();
+      const moveSpy = vi.spyOn(comp as any, "moveDataAssets").mockImplementation(() => {});
+      const f = treeFolder("a/F");
+
+      for(const blocked of ["a/F", "a/F/G"]) {
+         dragInTree([f]);
+         comp.onNodeDrop({ node: { data: treeFolder(blocked) } });
+      }
+
+      expect(moveSpy).not.toHaveBeenCalled();
+
+      for(const target of ["a/Fx", "b/a/F"]) {
+         dragInTree([f]);
+         comp.onNodeDrop({ node: { data: treeFolder(target) } });
+      }
+
+      expect(moveSpy.mock.calls.map(call => (call[0] as any).path)).toEqual(["a/Fx", "b/a/F"]);
+   });
+
+   it("moveDataFolderItems should move nested pane items onto a nested sibling sharing their name, not onto themselves or a subfolder", async () => {
+      const confirmSpy = vi.spyOn(ComponentTool, "showConfirmDialog").mockResolvedValue("cancel");
+      const { comp } = await renderComponent();
+      vi.spyOn(comp as any, "checkDataFoldersDuplicate").mockReturnValue(of(false));
+      const folder = { name: "F", path: "a/F", type: AssetType.FOLDER, scope: 1,
+         id: "1^1^admin^a/F", createdDate: 0, modifiedDate: 0 };
+
+      (comp as any).moveDataFolderItems(treeFolder("a/F"), [folder]);
+      (comp as any).moveDataFolderItems(treeFolder("a/F/G"), [folder]);
+
+      expect(confirmSpy).not.toHaveBeenCalled();
+
+      (comp as any).moveDataFolderItems(treeFolder("a/Fx"), [folder]);
+      expect(confirmSpy).toHaveBeenCalledTimes(1);
+   });
+});

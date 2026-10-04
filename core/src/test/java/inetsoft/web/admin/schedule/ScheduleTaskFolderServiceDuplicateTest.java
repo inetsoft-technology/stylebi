@@ -402,6 +402,65 @@ class ScheduleTaskFolderServiceDuplicateTest {
       assertSame(otherN, store.get(otherNId));
    }
 
+   // Bug #77705, a sibling whose name starts with the same text isn't a subfolder: the move of F
+   // into Fx was skipped, the request succeeded and nothing was moved
+   @Test
+   void moveIntoSiblingWithSamePrefix_isMoved() throws Exception {
+      addFolder("A/F");
+      addFolder("A/F/G");
+      addTask("A/F", "taskF");
+      addFolder("A/Fx");
+
+      service.moveScheduleItems(null, new String[] { "A/F" }, folder("A/Fx"), principal);
+
+      assertTrue(store.containsKey(folder("A/Fx/F").toIdentifier()), "A/F was not moved");
+      assertTrue(store.containsKey(folder("A/Fx/F/G").toIdentifier()), "A/F/G was not moved");
+      assertFalse(store.containsKey(folder("A/F").toIdentifier()));
+      assertFalse(store.containsKey(folder("A/F/G").toIdentifier()));
+      assertTrue(((AssetFolder) store.get(folder("A/Fx").toIdentifier()))
+                    .containsEntry(folder("A/Fx/F")));
+      assertFalse(((AssetFolder) store.get(folder("A").toIdentifier()))
+                     .containsEntry(folder("A/F")));
+   }
+
+   // Bug #77705, the move hints count the sibling move too, so a stored Fx/F is a duplicate
+   @Test
+   void moveIntoSiblingWithSamePrefix_hintsReportDuplicate() throws Exception {
+      addFolder("A/F");
+      addFolder("A/Fx");
+      addFolder("A/Fx/F");
+      String[] moved = { "A/F" };
+
+      assertTrue(service.checkDuplicateFolderPath(moved, folder("A/Fx")));
+      assertTrue(service.checkItemsDuplicate(moved, folder("A/Fx")).isDuplicate());
+      assertThrows(MessageException.class,
+                   () -> service.moveScheduleItems(null, moved, folder("A/Fx"), principal));
+      assertTrue(store.containsKey(folder("A/F").toIdentifier()));
+   }
+
+   // Bug #77705, a move into the folder itself or one of its subfolders is still skipped
+   @Test
+   void moveIntoItselfOrSubfolder_isStillSkipped() throws Exception {
+      addFolder("A/F");
+      addFolder("A/F/G");
+      AssetFolder f = (AssetFolder) store.get(folder("A/F").toIdentifier());
+      AssetFolder g = (AssetFolder) store.get(folder("A/F/G").toIdentifier());
+      Set<String> keys = new HashSet<>(store.keySet());
+      clearInvocations(indexedStorage);
+
+      String[] moved = { "A/F" };
+      assertFalse(service.checkDuplicateFolderPath(moved, folder("A/F/G")));
+      assertFalse(service.checkDuplicateFolderPath(moved, folder("A/F")));
+      service.moveScheduleItems(null, moved, folder("A/F/G"), principal);
+      service.moveScheduleItems(null, moved, folder("A/F"), principal);
+
+      assertEquals(keys, store.keySet());
+      assertSame(f, store.get(folder("A/F").toIdentifier()));
+      assertSame(g, store.get(folder("A/F/G").toIdentifier()));
+      assertTrue(f.containsEntry(folder("A/F/G")));
+      verify(indexedStorage, never()).putXMLSerializable(anyString(), any());
+   }
+
    private static AssetEntry otherOrgFolder(String path) {
       return new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.SCHEDULE_TASK_FOLDER,
                             path, null, "otherorg");
