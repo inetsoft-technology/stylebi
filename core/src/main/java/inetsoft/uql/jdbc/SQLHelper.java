@@ -324,7 +324,7 @@ public class SQLHelper implements KeywordProvider {
          }
 
          if(product != null) {
-            String name = product.toLowerCase();
+            String name = product.toLowerCase(Locale.ROOT);
 
             if(name.contains("access")) {
                type = "access";
@@ -371,10 +371,10 @@ public class SQLHelper implements KeywordProvider {
          type = "access";
       }
       else if(StringUtils.isEmpty(type)){
-         type = dx.getDatabaseTypeString().toLowerCase();
+         type = dx.getDatabaseTypeString().toLowerCase(Locale.ROOT);
       }
 
-      dx.setRuntimeProductName(type == null ? null : type.toLowerCase());
+      dx.setRuntimeProductName(type == null ? null : type.toLowerCase(Locale.ROOT));
       return dx.getRuntimeProductName();
    }
 
@@ -1479,8 +1479,8 @@ public class SQLHelper implements KeywordProvider {
 
             // duplicate is true if the alias has the same name as column
             if(ocolumn != null) {
-               String cstr = ocolumn.toLowerCase();
-               String astr = alias.toLowerCase();
+               String cstr = ocolumn.toLowerCase(Locale.ROOT);
+               String astr = alias.toLowerCase(Locale.ROOT);
 
                same = cstr.equals(astr);
                part = cstr.endsWith("." + astr);
@@ -3381,8 +3381,8 @@ public class SQLHelper implements KeywordProvider {
                String ocolumn = xselect.getAliasColumn(oalias);
 
                if(ocolumn != null) {
-                  String cstr = ocolumn.toLowerCase();
-                  String astr = sfield.toLowerCase();
+                  String cstr = ocolumn.toLowerCase(Locale.ROOT);
+                  String astr = sfield.toLowerCase(Locale.ROOT);
                   same = cstr.equals(astr);
                   part = cstr.endsWith("." + astr);
                }

@@ -2233,7 +2233,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
    // upper case
    private String foldName(String name) {
       return "postgresql".equals(SQLHelper.getProductName(getDataSource(), true)) ?
-         name.toLowerCase() : name.toUpperCase();
+         name.toLowerCase(Locale.ROOT) : name.toUpperCase(Locale.ROOT);
    }
 
    /**

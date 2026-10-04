@@ -557,7 +557,7 @@ private String getUsingJoinOp(String op) {
  * Get the name of a USING column for comparing it with other USING columns.
  */
 private String getUsingColumnKey(String column) {
-   return column.replaceAll("[\\\"`\\[\\]]", "").toLowerCase();
+   return column.replaceAll("[\\\"`\\[\\]]", "").toLowerCase(Locale.ROOT);
 }
 
 /**
@@ -923,7 +923,8 @@ private Set getJoinTables(UniformSQL sql, int start, int end) {
 }
 
 private static String getJoinName(Object name) {
-   return name == null ? "" : name.toString().replaceAll("[\\\"`\\[\\]\\s]", "").toLowerCase();
+   return name == null ? "" :
+      name.toString().replaceAll("[\\\"`\\[\\]\\s]", "").toLowerCase(Locale.ROOT);
 }
 
 /**
@@ -3664,7 +3665,7 @@ derived_column [JDBCSelection selection, UniformSQL sql]
                   builder.append(part);
                 }
                 else {
-                  builder.append(part.toUpperCase());
+                  builder.append(part.toUpperCase(Locale.ROOT));
                 }
 
                 if(i < parts.length - 1) {
