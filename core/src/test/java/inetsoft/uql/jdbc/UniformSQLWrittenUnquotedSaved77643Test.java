@@ -124,4 +124,135 @@ class UniformSQLWrittenUnquotedSaved77643Test {
 
       assertAll(checks);
    }
+   /**
+    * I1: with db.foldUnquotedIdentifiers=false, the twins MyTab and "MyTab" without aliases
+    * are one table, as before the fix, also on the ansi from path and in the metadata step.
+    */
+   @Test
+   void optOutTwinsAreOneTable() throws Exception {
+      String[] queries = {
+         "select mytab.id from MyTab, \"MyTab\"",
+         "select \"MyTab\".id, mytab.id as b from MyTab, \"MyTab\"",
+      };
+      // generated before the fix, without and with the metadata step
+      String[][] expected = {
+         { "select \"mytab\".\"id\" from \"MyTab\"", "select \"MyTab\".\"id\" from \"MyTab\"" },
+         { "select \"MyTab\".\"id\", \"mytab\".\"id\" as \"b\" from \"MyTab\"",
+           "select \"MyTab\".\"id\", \"MyTab\".\"id\" as \"b\" from \"MyTab\"" },
+      };
+      List<Executable> checks = new ArrayList<>();
+
+      for(boolean ansi : new boolean[] { false, true }) {
+         for(int i = 0; i < queries.length; i++) {
+            String query = queries[i];
+            String[] texts = expected[i];
+            String xml = toXML(parse(query, source(ansi)));
+            List<String> off = withProperty("db.foldUnquotedIdentifiers", "false", () -> List.of(
+               regenerate(parse(query, source(ansi))), regenerate(load(xml, source(ansi))),
+               fixed(parse(query, source(ansi)), "id"), fixed(load(xml, source(ansi)), "id")));
+            String label = "ansi " + ansi + ": " + query;
+
+            checks.add(() -> assertEquals(texts[0], off.get(0), label));
+            checks.add(() -> assertEquals(texts[0], off.get(1), label + " xml"));
+            checks.add(() -> assertEquals(texts[1], off.get(2), label + " metadata"));
+            checks.add(() -> assertEquals(texts[1], off.get(3), label + " xml metadata"));
+         }
+
+         // folded, two tables
+         String folded = regenerate(parse(queries[0], source(ansi)));
+         checks.add(() -> assertEquals("select \"mytab\".\"id\" from \"mytab\", \"MyTab\"", folded,
+                                       "ansi " + ansi));
+      }
+
+      assertAll(checks);
+   }
+
+   /**
+    * I2: a qualifier written quoted in a nested query names the table of that query, it isn't
+    * generated as the table written unquoted of the outer query.
+    */
+   @Test
+   void quotedQualifierInANestedQueryIsKept() throws Exception {
+      for(boolean ansi : new boolean[] { false, true }) {
+         String generated = regenerate(parse(
+            "select (select max(\"MyTab\".id) from \"MyTab\") as x, id from MyTab", source(ansi)));
+         assertTrue(generated.contains("max(\"MyTab\".\"id\") from \"MyTab\""), generated);
+         assertTrue(generated.endsWith(" from \"mytab\""), generated);
+      }
+   }
+
+   /**
+    * I3: an order by name written unquoted is the alias only if the alias was written unquoted
+    * too. Against a quoted alias it's folded as any name: t.myalias for "MyAlias", the alias
+    * for "myalias".
+    */
+   @Test
+   void referenceToAQuotedAliasIsFolded() throws Exception {
+      List<Executable> checks = new ArrayList<>();
+      String[][] cases = {
+         { "select id as \"MyAlias\" from t order by MyAlias desc",
+           "select \"id\" as \"MyAlias\" from \"t\" order by \"myalias\" desc" },
+         { "select id as \"myalias\" from t order by MyAlias desc",
+           "select \"id\" as \"myalias\" from \"t\" order by \"myalias\" desc" },
+         { "select s.MyAlias from (select id as \"MyAlias\" from t) s",
+           "select \"s\".\"myalias\" from ( select \"id\" as \"MyAlias\" from \"t\") s" },
+      };
+
+      for(String[] c : cases) {
+         checks.add(() -> assertEquals(c[1], regenerate(parse(c[0], helpers("postgresql"))), c[0]));
+         checks.add(() -> assertEquals(c[1], regenerate(load(toXML(parse(c[0], helpers("postgresql"))),
+                                                             helpers("postgresql"))), c[0] + " xml"));
+      }
+
+      // the metadata step: the column myalias of t, and the alias
+      checks.add(() -> {
+         String generated = fixed(parse(cases[0][0], helpers("postgresql")), "id", "myalias");
+         assertTrue(generated.endsWith("order by \"t\".myalias desc") ||
+                    generated.endsWith("order by \"t\".\"myalias\" desc"), generated);
+      });
+      checks.add(() -> {
+         // the alias, or its column, which sorts the same (#6190)
+         String generated = fixed(parse(cases[1][0], helpers("postgresql")), "id");
+         assertTrue(generated.endsWith("order by \"myalias\" desc") ||
+                    generated.endsWith("order by \"id\" desc"), generated);
+      });
+
+      assertAll(checks);
+   }
+
+   /**
+    * I4: the names of a long text are matched without a quadratic cost: the common start and
+    * end first, and greedily over a bound.
+    */
+   @Test
+   void longTextsAreMatchedQuickly() {
+      StringBuilder stored = new StringBuilder("case");
+      StringBuilder generated = new StringBuilder("case");
+      int[] names = new int[3000];
+
+      for(int i = 0; i < 3000; i++) {
+         stored.append(" when \"MixedCase\" = ").append(i).append(" then ").append(i);
+         generated.append(" when \"MixedCase\" = ").append(i).append(" then ").append(i);
+         names[i] = i;
+      }
+
+      WrittenUnquoted record = new WrittenUnquoted(stored.toString(), names, null);
+      String quote = "\"";
+      // names folded, and every name of a text generated in another order
+      String folded = assertTimeoutPreemptively(java.time.Duration.ofSeconds(30), () ->
+         record.apply(generated + " end", quote, n -> n.toLowerCase(), n -> null));
+      assertEquals(3000, folded.split("\"mixedcase\"", -1).length - 1);
+
+      String reversed = "\"x\", " + String.join(", ", java.util.Collections.nCopies(3000, "\"MixedCase\""));
+      String result = assertTimeoutPreemptively(java.time.Duration.ofSeconds(30), () ->
+         record.apply(reversed, quote, n -> n.toLowerCase(), n -> null));
+      assertEquals(3000, result.split("\"mixedcase\"", -1).length - 1);
+   }
+
+   // a postgresql data source, with ansi joins or not
+   private static JDBCDataSource source(boolean ansi) {
+      JDBCDataSource ds = helpers("postgresql");
+      ds.setAnsiJoin(ansi);
+      return ds;
+   }
 }

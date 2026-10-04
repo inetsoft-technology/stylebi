@@ -232,6 +232,11 @@ public class JDBCUtil {
             SelectTable stable = sql.getSelectTable(i);
             XNode table;
 
+            // one table with its twin, it has no columns of its own (Bug #77643)
+            if(sql.isHiddenTwin(stable)) {
+               continue;
+            }
+
             if(name instanceof UniformSQL) {
                UniformSQL sql1 = (UniformSQL) name;
                // the parser records the names of a derived table in the outer query

@@ -1907,24 +1907,22 @@ public class SQLHelper implements KeywordProvider {
       }
 
       StringBuilder from = new StringBuilder();
-      Set<String> unaliased = new HashSet<>();
       from.append(FROM);
 
       for(int i = 0; i < count; i++) {
          SelectTable table = uniformSql.getSelectTable(i);
-         String clause = generateTableClause(table);
 
          // tables without an alias written in two quotings (MyTab and "MyTab") are two
-         // tables, generated as one table, as before, when the name isn't folded (Bug #77643)
-         if(isUnaliased(table) && !unaliased.add(clause)) {
+         // tables, one table, as before, when the name isn't folded (Bug #77643)
+         if(uniformSql.isHiddenTwin(table)) {
             continue;
          }
 
-         if(i > 0) {
+         if(from.length() > FROM.length()) {
             from.append(COMMA_GAP);
          }
 
-         from.append(clause);
+         from.append(generateTableClause(table));
       }
 
       return from.toString();
@@ -2655,7 +2653,8 @@ public class SQLHelper implements KeywordProvider {
       for(int i = 0; i < count; i++) {
          SelectTable stable = uniformSql.getSelectTable(i);
 
-         if(usedtables.contains(stable)) {
+         // a twin that is one table with its twin written quoted, see generateFromClause0
+         if(usedtables.contains(stable) || uniformSql.isHiddenTwin(stable)) {
             continue;
          }
          else {
@@ -4665,15 +4664,19 @@ public class SQLHelper implements KeywordProvider {
     * may have been added to the text after the parse, e.g. by the metadata step.
     */
    private String foldNames(String generated, WrittenUnquoted names) {
-      return foldTableQualifiers(foldWrittenUnquoted(generated, names));
+      return foldTableQualifiers(foldWrittenUnquoted(generated, names), names);
    }
 
    /**
     * Generate the qualifiers that name a table without an alias whose name was written
     * unquoted (e.g. "t".id for t written unquoted) as the name of the table is generated in
-    * the from clause (Bug #77643).
+    * the from clause (Bug #77643). Only a qualifier the text has no record of is generated so,
+    * one added after the parse (e.g. by the metadata step): a name of the text is generated
+    * as its record says, it may be written quoted. A qualifier in a nested query is of that
+    * query.
+    * @param names the names written unquoted of the text, or <tt>null</tt>.
     */
-   private String foldTableQualifiers(String generated) {
+   private String foldTableQualifiers(String generated, WrittenUnquoted names) {
       Map<String, String> qualifiers = getTableQualifiers();
       String quote = getQuote();
 
@@ -4681,13 +4684,16 @@ public class SQLHelper implements KeywordProvider {
          return generated;
       }
 
+      List<int[]> found = WrittenUnquoted.findNames(generated, quote);
+      boolean[] own = names != null ? names.getOwnNames(generated, quote) : new boolean[found.size()];
+      boolean[] nested = WrittenUnquoted.getNestedNames(generated, quote);
       StringBuilder sb = new StringBuilder();
       int last = 0;
 
-      for(int[] range : WrittenUnquoted.findNames(generated, quote)) {
-         int start = range[0] - quote.length();
+      for(int n = 0; n < found.size(); n++) {
+         int start = found.get(n)[0] - quote.length();
 
-         if(start < last || start > 0 && generated.charAt(start - 1) == '.') {
+         if(own[n] || nested[n] || start < last || start > 0 && generated.charAt(start - 1) == '.') {
             continue;
          }
 

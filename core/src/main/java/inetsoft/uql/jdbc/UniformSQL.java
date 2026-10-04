@@ -1291,10 +1291,10 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
             String quote = sub.getSQLHelper().getQuote();
             // the names of the text that is loaded
             WrittenUnquoted names = WrittenUnquoted.ofMarked(
-               WrittenUnquoted.unmark(quoted).equals(WrittenUnquoted.unmark(text)) ? text : quoted,
-               quote);
-            text = WrittenUnquoted.unmark(text);
-            quoted = WrittenUnquoted.unmark(quoted);
+               WrittenUnquoted.unmark(quoted, quote).equals(WrittenUnquoted.unmark(text, quote)) ?
+                  text : quoted, quote);
+            text = WrittenUnquoted.unmark(text, quote);
+            quoted = WrittenUnquoted.unmark(quoted, quote);
             writer.println("<name" + (!quoted.equals(text) ?
                " quotedSql=\"" + Tool.escape(quoted) + "\"" : "") +
                (names != null ? " unquoted=\"" + names.toAttribute() + "\"" : "") +
@@ -3641,6 +3641,11 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
             String salias = stable.getAlias();
             Object sname = stable.getName();
 
+            // one table with its twin, see isHiddenTwin
+            if(isHiddenTwin(stable)) {
+               continue;
+            }
+
             if(salias == null && (sname instanceof String)) {
                salias = (String) sname;
             }
@@ -3656,6 +3661,44 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
       }
 
       return -1;
+   }
+
+   /**
+    * Check if a table is the twin written unquoted of a table without an alias of the same
+    * stored name written quoted (MyTab and "MyTab", see SQLParser addTable), and the names
+    * written unquoted aren't folded (db.foldUnquotedIdentifiers is false or the helper's case
+    * isn't known). It's then one table with its twin, as before Bug #77643: it isn't
+    * generated and doesn't name a table.
+    */
+   public synchronized boolean isHiddenTwin(SelectTable table) {
+      Object name = table.getName();
+      String alias = table.getAlias();
+
+      if(!(name instanceof String) || alias == null || alias.equals(name) ||
+         table.getWrittenUnquoted() == null)
+      {
+         return false;
+      }
+
+      boolean twin = false;
+
+      for(SelectTable other : tables) {
+         twin = twin || other != table && name.equals(other.getName()) && name.equals(other.getAlias());
+      }
+
+      if(!twin) {
+         return false;
+      }
+
+      // not the cached helper of this query: this is called while the query is parsed, and
+      // the cached helper would keep the joins parsed so far
+      SQLHelper helper = SQLHelper.getSQLHelper(getDataSource());
+      String quote = helper.getQuote();
+      boolean twinAlias = alias.equals(((String) name).replace(quote, "")) ||
+         !quote.isEmpty() && alias.startsWith(quote) && alias.equalsIgnoreCase((String) name);
+
+      return twinAlias && (!SQLHelper.isFoldUnquotedIdentifiers() ||
+         helper.getIdentifierCase() == SQLHelper.IdentifierCase.UNKNOWN);
    }
 
    /**

@@ -474,6 +474,10 @@ class UniformSQLQuotedAggregateTest {
             assertEquals(sortedSelect(generated), sortedSelect(regenerate(parse(generated, source(key)))),
                          key + ": " + query);
          }
+
+         // a select list whose order can't change is generated exactly again
+         String generated = regenerate(parse(queries[0], source(key)));
+         assertEquals(generated, regenerate(parse(generated, source(key))), key + ": " + queries[0]);
       }
    }
 

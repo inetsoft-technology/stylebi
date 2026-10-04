@@ -2242,12 +2242,16 @@ private boolean isAliasReference(Token token, boolean field) {
    return false;
 }
 
-// check if a select list has an alias of a name, in any case
+// check if a select list has an alias written unquoted of a name written unquoted, in any
+// case. An alias written quoted is its own case, a name written unquoted that is folded to
+// it is generated folded, as any other name (Bug #77643)
 private static boolean hasAlias(inetsoft.uql.path.XSelection selection, String name) {
    for(int i = 0; selection != null && i < selection.getColumnCount(); i++) {
       String alias = selection.getAlias(i);
 
-      if(alias != null && alias.equalsIgnoreCase(name)) {
+      if(alias != null && alias.equalsIgnoreCase(name) && selection instanceof JDBCSelection &&
+         Boolean.FALSE.equals(((JDBCSelection) selection).isAliasQuoted(i)))
+      {
          return true;
       }
    }

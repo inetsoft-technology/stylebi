@@ -224,27 +224,65 @@ public final class WrittenUnquoted implements Serializable {
 
    /**
     * Match the quoted names of two texts by their content, keeping their order, so that the
-    * most names match (a longest common subsequence).
+    * most names match (a longest common subsequence). The names the two texts start and end
+    * with in common are matched first, usually all of them. Above MAX_MATCH cells the rest is
+    * matched greedily, in order.
     * @return the index in the names of the second text of each name of the first text, or -1.
     */
    private static int[] match(String text1, List<int[]> names1, String text2, List<int[]> names2) {
       int n = names1.size();
       int m = names2.size();
-      int[][] lcs = new int[n + 1][m + 1];
+      int[] result = new int[n];
+      Arrays.fill(result, -1);
+      int start = 0;
 
-      for(int i = n - 1; i >= 0; i--) {
-         for(int j = m - 1; j >= 0; j--) {
-            lcs[i][j] = getName(text1, names1.get(i)).equals(getName(text2, names2.get(j))) ?
+      while(start < n && start < m && sameName(text1, names1.get(start), text2, names2.get(start))) {
+         result[start] = start;
+         start++;
+      }
+
+      int end1 = n;
+      int end2 = m;
+
+      while(end1 > start && end2 > start &&
+         sameName(text1, names1.get(end1 - 1), text2, names2.get(end2 - 1)))
+      {
+         result[--end1] = --end2;
+      }
+
+      int rows = end1 - start;
+      int cols = end2 - start;
+
+      if(rows == 0 || cols == 0) {
+         return result;
+      }
+
+      if((long) rows * cols > MAX_MATCH) {
+         for(int i = start, next = start; i < end1; i++) {
+            for(int j = next; j < end2; j++) {
+               if(sameName(text1, names1.get(i), text2, names2.get(j))) {
+                  result[i] = j;
+                  next = j + 1;
+                  break;
+               }
+            }
+         }
+
+         return result;
+      }
+
+      int[][] lcs = new int[rows + 1][cols + 1];
+
+      for(int i = rows - 1; i >= 0; i--) {
+         for(int j = cols - 1; j >= 0; j--) {
+            lcs[i][j] = sameName(text1, names1.get(start + i), text2, names2.get(start + j)) ?
                lcs[i + 1][j + 1] + 1 : Math.max(lcs[i + 1][j], lcs[i][j + 1]);
          }
       }
 
-      int[] result = new int[n];
-      Arrays.fill(result, -1);
-
-      for(int i = 0, j = 0; i < n && j < m;) {
-         if(getName(text1, names1.get(i)).equals(getName(text2, names2.get(j)))) {
-            result[i++] = j++;
+      for(int i = 0, j = 0; i < rows && j < cols;) {
+         if(sameName(text1, names1.get(start + i), text2, names2.get(start + j))) {
+            result[start + i++] = start + j++;
          }
          else if(lcs[i + 1][j] >= lcs[i][j + 1]) {
             i++;
@@ -255,6 +293,78 @@ public final class WrittenUnquoted implements Serializable {
       }
 
       return result;
+   }
+
+   // check if two quoted names have the same content, without copying them
+   private static boolean sameName(String text1, int[] name1, String text2, int[] name2) {
+      int len = name1[1] - name1[0];
+      return len == name2[1] - name2[0] && text1.regionMatches(name1[0], text2, name2[0], len);
+   }
+
+   /**
+    * Find the quoted names of the sql generated for this text that are its own names, matched
+    * in order by their content (a name written quoted is one of them).
+    * @return for each quoted name of the generated sql, whether it's one of this text's names.
+    */
+   public boolean[] getOwnNames(String generated, String quote) {
+      List<int[]> found = findNames(generated, quote);
+      boolean[] own = new boolean[found.size()];
+
+      for(int match : match(text, findNames(text, quote), generated, found)) {
+         if(match >= 0) {
+            own[match] = true;
+         }
+      }
+
+      return own;
+   }
+
+   /**
+    * Find the quoted names of a sql text that are in a nested query, (select ...).
+    * @return for each quoted name, whether it's in a nested query.
+    */
+   public static boolean[] getNestedNames(String sql, String quote) {
+      List<int[]> found = findNames(sql, quote);
+      boolean[] nested = new boolean[found.size()];
+      Deque<Boolean> parens = new ArrayDeque<>();
+      int depth = 0;
+      int name = 0;
+      int len = sql == null ? 0 : sql.length();
+
+      for(int i = 0; i < len; i++) {
+         char c = sql.charAt(i);
+
+         if(name < found.size() && i == found.get(name)[0] - quote.length()) {
+            nested[name] = depth > 0;
+            i = found.get(name)[1] + quote.length() - 1;
+            name++;
+         }
+         else if(c == '\'') {
+            // a string literal, '' is a quote in it
+            i++;
+
+            while(i < len && !(sql.charAt(i) == '\'' && (i + 1 >= len || sql.charAt(i + 1) != '\''))) {
+               i += sql.charAt(i) == '\'' ? 2 : 1;
+            }
+         }
+         else if(c == '(') {
+            int next = i + 1;
+
+            while(next < len && Character.isWhitespace(sql.charAt(next))) {
+               next++;
+            }
+
+            boolean query = sql.regionMatches(true, next, "select", 0, 6) &&
+               (next + 6 >= len || !Character.isLetterOrDigit(sql.charAt(next + 6)));
+            parens.push(query);
+            depth += query ? 1 : 0;
+         }
+         else if(c == ')' && !parens.isEmpty()) {
+            depth -= parens.pop() ? 1 : 0;
+         }
+      }
+
+      return nested;
    }
 
    /**
@@ -386,9 +496,27 @@ public final class WrittenUnquoted implements Serializable {
    /**
     * Remove the marks from sql generated to be saved.
     */
-   public static String unmark(String sql) {
-      return sql == null ? null :
-         sql.replace(String.valueOf(NAME_MARK), "").replace(String.valueOf(ALIAS_MARK), "");
+   public static String unmark(String sql, String quote) {
+      if(sql == null || quote == null || quote.isEmpty()) {
+         return sql;
+      }
+
+      StringBuilder sb = new StringBuilder();
+      int last = 0;
+
+      // the marks are the first character of a quoted name, see mark
+      for(int[] range : findNames(sql, quote)) {
+         if(range[1] > range[0] && isMark(sql.charAt(range[0]))) {
+            sb.append(sql, last, range[0]);
+            last = range[0] + 1;
+         }
+      }
+
+      return sb.append(sql.substring(last)).toString();
+   }
+
+   private static boolean isMark(char c) {
+      return c == NAME_MARK || c == ALIAS_MARK;
    }
 
    /**
@@ -415,7 +543,7 @@ public final class WrittenUnquoted implements Serializable {
          }
       }
 
-      return of(unmark(sql), names, aliases);
+      return of(unmark(sql, quote), names, aliases);
    }
 
    @Override
@@ -446,6 +574,8 @@ public final class WrittenUnquoted implements Serializable {
    // private use characters marking the names in sql generated to be saved
    private static final char NAME_MARK = '';
    private static final char ALIAS_MARK = '';
+   // the most cells of the longest common subsequence of the names, see match
+   private static final long MAX_MATCH = 250_000;
    private static final ThreadLocal<Integer> MARKING = ThreadLocal.withInitial(() -> 0);
    private static final ThreadLocal<Integer> UNFOLDED = ThreadLocal.withInitial(() -> 0);
 }
