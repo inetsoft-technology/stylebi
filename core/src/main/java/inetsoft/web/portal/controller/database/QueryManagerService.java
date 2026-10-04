@@ -1146,10 +1146,13 @@ public class QueryManagerService {
             Catalog.getCatalog().getString("common.sqlquery.sessionExpired"));
       }
 
-      JDBCQuery oldQuery = runtimeQuery.getQuery();
+      TableAssembly assembly = (TableAssembly) rws.getWorksheet().getAssembly(model.getName());
+      // the alias mapping is keyed by the table's names (Bug #77711), which are those of the
+      // runtime query until an Apply of the simple mode binds a rebuilt query to the table
+      JDBCQuery oldQuery = assembly instanceof SQLBoundTableAssembly ?
+         ((SQLBoundTableAssemblyInfo) assembly.getInfo()).getQuery() : runtimeQuery.getQuery();
       JDBCQuery query = createNewQuery(name, database);
       runtimeQuery.setQuery(query);
-      TableAssembly assembly = (TableAssembly) rws.getWorksheet().getAssembly(model.getName());
 
       if(assembly != null) {
          int queryPreviewMaxrow = Util.getQueryPreviewMaxrow();
@@ -2917,6 +2920,33 @@ public class QueryManagerService {
             break;
          }
       }
+   }
+
+   /**
+    * Keys the alias mapping of a dialog's runtime query by the aliases of the query an Apply
+    * just bound to the table. The table now has those columns, so a later OK maps the
+    * table's columns from them (Bug #77711).
+    *
+    * @param runtimeId the id of the dialog's runtime query.
+    * @param query     the query of the table.
+    */
+   public void resetAliasMapping(String runtimeId, JDBCQuery query) {
+      RuntimeQueryService.RuntimeXQuery runtimeQuery = getRuntimeQuery(runtimeId);
+
+      if(runtimeQuery == null || runtimeQuery.getAliasMapping() == null || query == null) {
+         return;
+      }
+
+      Map<String, String> aliasMapping = runtimeQuery.getAliasMapping();
+      XSelection selection = query.getSelection();
+      aliasMapping.clear();
+
+      for(int i = 0; i < selection.getColumnCount(); i++) {
+         String alias = selection.getAlias(i);
+         aliasMapping.put(alias, alias);
+      }
+
+      saveRuntimeQuery(runtimeQuery);
    }
 
    private String getOriginalAlias(Map<String, String> aliasMapping, String lastAlias) {

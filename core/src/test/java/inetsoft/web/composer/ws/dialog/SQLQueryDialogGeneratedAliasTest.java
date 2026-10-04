@@ -171,9 +171,47 @@ class SQLQueryDialogGeneratedAliasTest {
       service.setModel(WS, model, principal, mock(CommandDispatcher.class));
 
       assertRenamed();
-      ConditionList conds = (ConditionList) table.getPreConditionList();
-      assertEquals(1, conds.getSize());
-      assertEquals(LONG2, conds.getConditionItem(0).getAttribute().getAttribute());
+   }
+
+   // Apply in advanced mode, then OK: the second edit maps the columns the first one made
+   @Test
+   void advancedApplyThenOk() throws Exception {
+      openDialog();
+      SQLQueryDialogModel model = advancedModel(simpleModel());
+
+      service.setModel(WS, model, principal, mock(CommandDispatcher.class));
+      assertRenamed();
+      model.setAdvancedModel(echo(qms.getAdvancedQueryModel(qms.getRuntimeQuery(RID), principal)));
+      model.setCloseDialog(true);
+      service.setModel(WS, model, principal, mock(CommandDispatcher.class));
+
+      assertRenamed();
+   }
+
+   // Apply in simple mode, then switch to advanced mode and OK
+   @Test
+   void simpleApplyThenAdvancedOk() throws Exception {
+      openDialog();
+
+      service.setModel(WS, simpleModel(), principal, mock(CommandDispatcher.class));
+      assertRenamed();
+      SQLQueryDialogModel model = advancedModel(simpleModel());
+      model.setCloseDialog(true);
+      service.setModel(WS, model, principal, mock(CommandDispatcher.class));
+
+      assertRenamed();
+   }
+
+   // the switch to advanced mode of the dialog, with the model the client sends back
+   private SQLQueryDialogModel advancedModel(SQLQueryDialogModel model) throws Exception {
+      AdvancedSQLQueryModel advanced = qms.convertToAdvancedQueryModel(rws, model, principal);
+      model.setAdvancedEdit(true);
+      model.setAdvancedModel(echo(advanced));
+      return model;
+   }
+
+   private static AdvancedSQLQueryModel echo(AdvancedSQLQueryModel model) throws Exception {
+      return MAPPER.readValue(MAPPER.writeValueAsString(model), AdvancedSQLQueryModel.class);
    }
 
    /**
@@ -244,6 +282,11 @@ class SQLQueryDialogGeneratedAliasTest {
       assertEquals(LONG, info.getGroups()[0].getDataRef().getAttribute());
       assertEquals(1, info.getAggregates().length, info.toString());
       assertEquals(LONG2, info.getAggregates()[0].getDataRef().getAttribute());
+
+      // the condition follows the column, it would be dropped on the old name
+      ConditionList conds = (ConditionList) table.getPreConditionList();
+      assertEquals(1, conds.getSize());
+      assertEquals(LONG2, conds.getConditionItem(0).getAttribute().getAttribute());
    }
 
    // what getSqlQueryDialogModel does for the table's runtime query

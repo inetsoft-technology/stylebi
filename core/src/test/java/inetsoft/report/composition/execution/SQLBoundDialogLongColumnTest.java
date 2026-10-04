@@ -17,6 +17,9 @@
  */
 package inetsoft.report.composition.execution;
 
+import inetsoft.analytic.composition.ViewsheetService;
+import inetsoft.report.composition.RuntimeWorksheet;
+import inetsoft.report.composition.event.AssetEventUtil;
 import inetsoft.report.lens.xnode.XNodeTableLens;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.cluster.Cluster;
@@ -26,6 +29,7 @@ import inetsoft.test.*;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.SQLBoundTableAssemblyInfo;
+import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.jdbc.*;
 import inetsoft.uql.jdbc.util.JDBCUtil;
 import inetsoft.uql.schema.XSchema;
@@ -33,10 +37,15 @@ import inetsoft.uql.schema.XTypeNode;
 import inetsoft.uql.util.*;
 import inetsoft.util.Plugins;
 import inetsoft.util.credential.CredentialService;
+import inetsoft.web.composer.model.ws.*;
+import inetsoft.web.composer.ws.assembly.WorksheetEventUtil;
+import inetsoft.web.composer.ws.dialog.SQLQueryDialogService;
 import inetsoft.web.portal.controller.database.*;
+import inetsoft.web.viewsheet.service.CommandDispatcher;
 import org.apache.derby.jdbc.EmbeddedDataSource;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.MockedStatic;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -51,8 +60,8 @@ import java.util.*;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.*;
 
 /**
  * Bug #77711. A SQL-bound table made in the SQL query dialog's simple mode is built from a
@@ -73,6 +82,9 @@ class SQLBoundDialogLongColumnTest {
    private static final String DB = "memory:bug77711sqlbound";
    // over the 28 bytes of isValidAlias
    private static final String LONG = "CUSTOMER_ACCOUNT_OPENING_DATE_LOCAL";
+   private static final String RID = "rq-77711-bound";
+   private static final String WS = "ws-77711-bound";
+   private static final XRepository REPOSITORY = newRepository();
 
    @Configuration
    static class JdbcConfig {
@@ -111,7 +123,7 @@ class SQLBoundDialogLongColumnTest {
 
       @Bean
       public XRepository xRepository() throws Exception {
-         return repository();
+         return REPOSITORY;
       }
    }
 
@@ -158,7 +170,7 @@ class SQLBoundDialogLongColumnTest {
 
       // what SQLQueryDialogService.setUpTable does
       QueryManagerService service = new QueryManagerService(
-         mock(RuntimeQueryService.class), repository(), mock(DataSourceService.class),
+         mock(RuntimeQueryService.class), REPOSITORY, mock(DataSourceService.class),
          mock(SecurityEngine.class), mock(ColumnCache.class));
       ColumnSelection columns =
          service.getColumnSelection(query, new VariableTable(), table, null, new HashMap<>());
@@ -182,11 +194,120 @@ class SQLBoundDialogLongColumnTest {
       assertEquals(List.of("[10, 1]", "[20, 2]"), rows(bound.getQuery()));
    }
 
+   /**
+    * A table saved before the fix stores ALIAS_0 for the long name and has a worksheet
+    * condition on the ALIAS_0 column. An OK in the simple mode of the dialog renames the
+    * column to the name, and the condition follows it, so the table is still filtered.
+    */
+   @Test
+   void simpleOkKeepsTheConditionOfARenamedColumn() throws Exception {
+      SreeEnv.setProperty("limit.alias.length", "true");
+      JDBCDataSource ds = dataSource();
+      UniformSQL sql = JDBCUtil.createSQL(ds, tables(), new String[] { "EMP.ID", "EMP." + LONG },
+                                          new XJoin[0], new ArrayList<>(), null);
+      sql.getSelection().setAlias(1, "ALIAS_0");
+      JDBCQuery query = new JDBCQuery();
+      query.setName("bug77711");
+      query.setUserQuery(true);
+      query.setDataSource(ds);
+      query.setSQLDefinition(sql);
+
+      Worksheet ws = new Worksheet();
+      SQLBoundTableAssembly table = new SQLBoundTableAssembly(ws, "T1");
+      SQLBoundTableAssemblyInfo info = (SQLBoundTableAssemblyInfo) table.getTableInfo();
+      info.setQuery(query);
+      info.setSourceInfo(new SourceInfo(SourceInfo.DATASOURCE, ds.getFullName(), ds.getFullName()));
+      ColumnSelection columns = new ColumnSelection();
+
+      for(String name : new String[] { "ALIAS_0", "ID" }) {
+         ColumnRef column = new ColumnRef(new AttributeRef(null, name));
+         column.setDataType(XSchema.INTEGER);
+         // as on a worksheet that was opened
+         column.setOldName(name);
+         columns.addAttribute(column);
+      }
+
+      table.setColumnSelection(columns);
+      AssetCondition condition = new AssetCondition(XSchema.INTEGER);
+      condition.setOperation(XCondition.EQUAL_TO);
+      condition.addValue(10);
+      ConditionList conds = new ConditionList();
+      conds.append(new ConditionItem(new ColumnRef(new AttributeRef(null, "ALIAS_0")), condition, 0));
+      table.setPreConditionList(conds);
+      ws.addAssembly(table);
+
+      // the table as it was saved
+      assertEquals(List.of("[10, 1]"), run(ws, table));
+
+      // open the dialog and press OK in simple mode, without a change
+      RuntimeQueryService rqs = mock(RuntimeQueryService.class);
+      RuntimeQueryService.RuntimeXQuery runtimeQuery =
+         new RuntimeQueryService.RuntimeXQuery(query.clone(), RID, ds.getFullName());
+      runtimeQuery.setVariables(new VariableTable());
+      runtimeQuery.initQueryAliasMapping();
+      when(rqs.getRuntimeQuery(RID)).thenReturn(runtimeQuery);
+      when(REPOSITORY.getDataSource(ds.getFullName())).thenReturn(ds);
+      SecurityEngine security = mock(SecurityEngine.class);
+      when(security.checkPermission(any(), any(), any(String.class), any())).thenReturn(true);
+      QueryManagerService service = new QueryManagerService(
+         rqs, REPOSITORY, mock(DataSourceService.class), security, mock(ColumnCache.class));
+      ViewsheetService wsEngine = mock(ViewsheetService.class);
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      when(box.getVariableTable()).thenReturn(new VariableTable());
+      when(rws.getAssetQuerySandbox()).thenReturn(box);
+      when(wsEngine.getWorksheet(eq(WS), any())).thenReturn(rws);
+      when(wsEngine.getAssetRepository()).thenReturn(mock(AssetRepository.class));
+      SQLQueryDialogService dialog = new SQLQueryDialogService(
+         wsEngine, service, mock(QueryGraphModelService.class), REPOSITORY, security);
+
+      BasicSQLQueryModel simple = new BasicSQLQueryModel();
+      simple.setTables(tables());
+      simple.setColumns(new SQLQueryDialogColumnModel[] {
+         SQLQueryDialogColumnModel.builder().name("EMP.ID").build(),
+         SQLQueryDialogColumnModel.builder().name("EMP." + LONG).build() });
+      simple.setJoins(new JoinItemModel[0]);
+      simple.setConditionList(new ArrayList<>());
+      SQLQueryDialogModel model = new SQLQueryDialogModel();
+      model.setName("T1");
+      model.setDataSource(ds.getFullName());
+      model.setRuntimeId(RID);
+      model.setSimpleModel(simple);
+      model.setCloseDialog(true);
+
+      // the refreshes after the edit need a running worksheet
+      try(MockedStatic<WorksheetEventUtil> ignored = mockStatic(WorksheetEventUtil.class);
+          MockedStatic<AssetEventUtil> ignored2 = mockStatic(AssetEventUtil.class))
+      {
+         dialog.setModel(WS, model, () -> "admin", mock(CommandDispatcher.class));
+      }
+
+      assertNotNull(table.getColumnSelection().getAttribute(LONG));
+      ConditionList renamed = (ConditionList) table.getPreConditionList();
+      assertEquals(LONG, renamed.getConditionItem(0).getAttribute().getAttribute());
+      assertEquals(List.of("[10, 1]"), run(ws, table));
+   }
+
+   // the rows of the merged query of the table
+   private static List<String> run(Worksheet ws, SQLBoundTableAssembly table) throws Exception {
+      SQLBoundQuery bound = new SQLBoundQuery(
+         AssetQuerySandbox.RUNTIME_MODE, new AssetQuerySandbox(ws), table, false, false);
+      // the merged condition values are variables of the merge
+      VariableTable vars = new VariableTable();
+      bound.merge(vars);
+      return rows(bound.getQuery(), vars);
+   }
+
    // the values of each row, largest first, since the generated sql sorts its columns
    private static List<String> rows(JDBCQuery query) throws Exception {
+      return rows(query, new VariableTable());
+   }
+
+   private static List<String> rows(JDBCQuery query, VariableTable vars) throws Exception {
       JDBCHandler handler = new JDBCHandler();
-      handler.connect(query.getDataSource(), new VariableTable());
-      XNode node = handler.execute(query, new VariableTable(), null, null);
+      handler.connect(query.getDataSource(), vars);
+      XNode node = handler.execute(query, vars, null, null);
       XNodeTableLens lens = new XNodeTableLens(node);
       lens.moreRows(Integer.MAX_VALUE);
       List<String> rows = new ArrayList<>();
@@ -214,6 +335,15 @@ class SQLBoundDialogLongColumnTest {
       // not keyed by the table name, so the columns' types are not looked up
       tables.put("not-a-table", table);
       return tables;
+   }
+
+   private static XRepository newRepository() {
+      try {
+         return repository();
+      }
+      catch(Exception ex) {
+         throw new IllegalStateException(ex);
+      }
    }
 
    // the columns of a generated sql, read from a prepared statement as JDBCHandler does

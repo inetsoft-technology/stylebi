@@ -212,6 +212,13 @@ public class SQLQueryDialogService {
          WorksheetEventUtil.refreshAssembly(rws, name, true, commandDispatcher, principal);
       }
 
+      // after an Apply the table has the columns of this edit, so another OK maps the
+      // columns from these names, not from the names when the dialog was opened (Bug #77711)
+      if(!model.isCloseDialog()) {
+         queryManagerService.resetAliasMapping(
+            model.getRuntimeId(), ((SQLBoundTableAssemblyInfo) assembly.getInfo()).getQuery());
+      }
+
       if(model.isMashUpData()) {
          ws.getWorksheetInfo().setMashupMode();
       }
@@ -264,18 +271,31 @@ public class SQLQueryDialogService {
          queryManagerService.getRuntimeQuery(sqlQueryDialogModel.getRuntimeId());
       Map<String, String> aliasMapping = runtimeQuery == null ? null : runtimeQuery.getAliasMapping();
 
+      Map<String, String> renamed = new HashMap<>();
+
       // a column of the old query stored with a generated alias is renamed to its name
       // (Bug #77711). The mapping is relative to the assembly's query, which this replaces,
       // so it is not kept for another OK of the dialog
       if(aliasMapping != null && oldQuery != null) {
          aliasMapping = new HashMap<>(aliasMapping);
          queryManagerService.mapRebuiltColumnAliases(oldQuery, sql, aliasMapping);
+         aliasMapping.forEach((oldAlias, alias) -> {
+            if(!Tool.equals(oldAlias, alias)) {
+               renamed.put(oldAlias, alias);
+            }
+         });
       }
 
       ColumnSelection selection =
          queryManagerService.getColumnSelection(query, vars, assembly, getSession(), aliasMapping);
       assembly.setColumnSelection(selection);
       assembly.setSQLEdited(false);
+
+      // the conditions on a renamed column follow it, or they would be dropped as the
+      // conditions of a missing column
+      if(!renamed.isEmpty()) {
+         updateSqlBoundAssemblyCondition(assembly, selection, renamed);
+      }
    }
 
    private void setUpTableWithSQLString(SQLBoundTableAssembly assembly, SQLQueryDialogModel model,
@@ -471,6 +491,11 @@ public class SQLQueryDialogService {
                String attr = attRef.getAttribute();
                String newAlias = aliasMapping.get(attr);
                DataRef newCol = selection.getAttribute(newAlias);
+
+               // not a column the mapping knows, it is validated as it is
+               if(newCol == null) {
+                  continue;
+               }
 
                if(ref instanceof ColumnRef) {
                   conditionItem.setAttribute(newCol);
