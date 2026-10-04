@@ -27,6 +27,7 @@ import inetsoft.uql.asset.*;
 import inetsoft.uql.erm.*;
 import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.tabular.TabularDataSource;
+import inetsoft.uql.util.Config;
 import inetsoft.uql.util.XUtil;
 import inetsoft.uql.xmla.XMLADataSource;
 import inetsoft.util.*;
@@ -302,7 +303,7 @@ public abstract class DependencyTransformer {
       List<String> children = dataSourceRegistry.getSubDataSourceNames(oldPath, true);
 
       for(String name : children) {
-         XDataSource child = (XDataSource) dataSourceRegistry.getDataSource(name).clone();
+         XDataSource dataSource = dataSourceRegistry.getDataSource(name);
          int onameIdx = name.indexOf(oldPath);
          String newName = name;
 
@@ -310,6 +311,18 @@ public abstract class DependencyTransformer {
             newName = name.replaceFirst(oldPath, newPath);
          }
 
+         if(dataSource == null) {
+            RenameDependencyInfo dinfo = createUnloadableDependencyInfo(
+               dataSourceRegistry, name, newName, true);
+
+            if(dinfo != null) {
+               infos.add(dinfo);
+            }
+
+            continue;
+         }
+
+         XDataSource child = (XDataSource) dataSource.clone();
          child.setName(newName);
          RenameDependencyInfo dinfo = DependencyTransformer.createDependencyInfo(
             child, name, child.getFullName(), true);
@@ -317,6 +330,46 @@ public abstract class DependencyTransformer {
       }
 
       return infos;
+   }
+
+   /**
+    * Creates the dependency info of a data source that can't be loaded, e.g. one whose connector
+    * isn't installed or that fails to parse, from the type of its stored document.
+    *
+    * @return the dependency info, or null if the stored type can't be read, e.g. the stored
+    * document is corrupt.
+    */
+   public static RenameDependencyInfo createUnloadableDependencyInfo(DataSourceRegistry registry,
+                                                                     String oldSourceName,
+                                                                     String newSourceName,
+                                                                     boolean dsFolder)
+   {
+      String type = registry.getStoredDataSourceType(oldSourceName);
+
+      if(type == null) {
+         LOG.warn("The dependencies of data source {} are not renamed, its type can't be read",
+                  oldSourceName);
+         return null;
+      }
+
+      Config config = Config.getConfig();
+      String cls = config.getDataSourceClass(type);
+
+      // the connectors that can be uninstalled are all tabular
+      if(cls == null) {
+         return createTabularDependencyInfo(oldSourceName, newSourceName, dsFolder);
+      }
+
+      try {
+         XDataSource dataSource =
+            (XDataSource) config.getClass(type, cls).getConstructor().newInstance();
+         return createDependencyInfo(dataSource, oldSourceName, newSourceName, dsFolder);
+      }
+      catch(Exception e) {
+         LOG.warn("The dependencies of data source {} are not renamed, its type {} can't be " +
+                  "created", oldSourceName, type, e);
+         return null;
+      }
    }
 
    private static RenameDependencyInfo createTabularDependencyInfo(String oldSourceName,
@@ -396,6 +449,23 @@ public abstract class DependencyTransformer {
          }
          catch(RemoteException e) {
             // do nothing
+         }
+
+         if(ds == null) {
+            RenameDependencyInfo rdinfo = createUnloadableDependencyInfo(
+               DataSourceRegistry.getRegistry(), source, nsource, true);
+
+            // otherwise renamed as a JDBC data source below, as before
+            if(rdinfo != null) {
+               rinfos.addAll(rdinfo.getRenameInfos());
+               Map<AssetObject, List<RenameInfo>> map = rdinfo.getDependencyMap();
+
+               for(AssetObject entry : map.keySet()) {
+                  dinfo.addRenameInfos(entry, map.get(entry));
+               }
+
+               continue;
+            }
          }
 
          if(ds instanceof XMLADataSource) {

@@ -654,6 +654,19 @@ public class XEngine implements XRepository, XQueryRepository {
                     name.substring(onameIdx + oname.length());
          }
 
+         // can't be loaded, e.g. its connector isn't installed. Left for renameDataSourceFolder,
+         // which moves its stored document as it is.
+         if(child == null) {
+            RenameDependencyInfo dinfo = DependencyTransformer.createUnloadableDependencyInfo(
+               getDSRegistry(), name, newName, true);
+
+            if(dinfo != null) {
+               RenameTransformHandler.getTransformHandler().addTransformTask(dinfo);
+            }
+
+            continue;
+         }
+
          child.setName(newName);
          RenameDependencyInfo dinfo =
             DependencyTransformer.createDependencyInfo(child, name, newName, true);
