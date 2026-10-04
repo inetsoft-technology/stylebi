@@ -2772,6 +2772,7 @@ public final class XUtil {
       }
 
       validateSelectList(query, usql, params, include, source);
+      validateOrderBy(query, usql, params, include, source);
 
       // the operands with subqueries rewritten by processSpecificCondition
       Map<XExpression, OperandInfo> operands = new IdentityHashMap<>();
@@ -2856,26 +2857,69 @@ public final class XUtil {
       for(int i = 0; i < selection.getColumnCount(); i++) {
          // the sql of an earlier run is for other parameter values
          selection.setColumnSQL(i, null);
-         String column = selection.getColumn(i);
+         String sql = rewriteSubqueryText(query, selection.getColumn(i), params, include,
+                                          source);
 
-         if(column == null || !column.contains("$(")) {
-            continue;
-         }
-
-         UniformSQL sub = UniformSQL.parseSelectListSubquery(column, source);
-
-         if(sub == null) {
-            continue;
-         }
-
-         // not reported as changed, a select list doesn't lose a condition
-         validateConditions0(query, sub, params, include, false, source);
-         String sql = UniformSQL.getSelectListSubqueryText(sub);
-
-         if(!sql.equals(column)) {
+         if(sql != null) {
             selection.setColumnSQL(i, sql);
          }
       }
+   }
+
+   /**
+    * Rewrite the sentinel parameters in the scalar subqueries of the order by list. The parser
+    * keeps such a subquery as the text of its item, which is matched to the select list and
+    * orders the columns of the sorted sql, so the text is kept and the rewritten subquery is
+    * generated in its place (Bug #77706). It is rewritten as the same subquery in the select
+    * list is, an unset parameter is left as it is.
+    */
+   private static void validateOrderBy(XQuery query, UniformSQL usql, VariableTable params,
+                                       boolean include, JDBCDataSource source)
+   {
+      Object[] fields = usql.getOrderByFields();
+
+      for(int i = 0; fields != null && i < fields.length; i++) {
+         // the sql of an earlier run is for other parameter values
+         usql.setOrderBySQL(i, null);
+
+         if(!(fields[i] instanceof String)) {
+            continue;
+         }
+
+         String sql = rewriteSubqueryText(query, (String) fields[i], params, include, source);
+
+         if(sql != null) {
+            usql.setOrderBySQL(i, sql);
+         }
+      }
+   }
+
+   /**
+    * Rewrite the parameters in the text of a scalar subquery that the parser keeps as text
+    * (a select list column or an order by item). Every such text goes through here, so the
+    * same subquery in the select list and the order by list gets the same sql.
+    * @param text the text, as the parser generates it.
+    * @return the rewritten sql of the subquery, or <tt>null</tt> if the text isn't such a
+    * subquery or is not changed.
+    */
+   private static String rewriteSubqueryText(XQuery query, String text, VariableTable params,
+                                             boolean include, JDBCDataSource source)
+   {
+      if(text == null || !text.contains("$(")) {
+         return null;
+      }
+
+      UniformSQL sub = UniformSQL.parseSelectListSubquery(text, source);
+
+      if(sub == null) {
+         return null;
+      }
+
+      // not reported as changed, the subquery doesn't lose a condition. An unset parameter
+      // is left as it is, removing its condition could make it return more than one row
+      validateConditions0(query, sub, params, include, false, source);
+      String sql = UniformSQL.getSelectListSubqueryText(sub);
+      return sql.equals(text) ? null : sql;
    }
 
    /**
